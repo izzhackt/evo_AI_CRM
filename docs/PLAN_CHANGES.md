@@ -21921,3 +21921,34 @@ technical CI fixtures under the current real-only instruction. Do not trigger PR
 automation that would silently run those fixtures, disable required checks, or
 call local source/catalog/build evidence production acceptance. Publishing the
 reviewed branch is not merge, schema apply, deployment or completed source import.
+
+### 2026-09-08 — owner approves proposed release path and localhost tunnel
+
+Before coding the final compatibility guard, record the owner's reply, "крче
+выложи / и хочу увидеть его локально который как последний делали как туннель",
+to the preceding explicit three-part release proposal. This authorizes the
+existing isolated CI fixtures for technical gates only, the minimal temporary
+Admin omitted-reason exception, and a password-only reset of the existing demo
+Admin conditional on read-only proof of its current active Admin authority.
+No new user, role grant, Auth bypass, synthetic production case or provider action
+is authorized. Real business acceptance remains deferred to the owner.
+
+Exact exception: change only migration129's canonical task-body null-reason guard
+to apply to non-Admin actors. Migration133 moves/reuses this body; do not restore
+migration110, add an overload, weaken locks, or alter ownership checks. Explicit
+blank/overlong reasons remain invalid, Curator deadline/priority edits still
+require a reason, and the new UI always supplies it. Owner acceptance is the
+expiry; a tracked reviewed forward migration removes this guard and the already
+approved portal v1 rollback window after that acceptance.
+Removal is tracked in https://github.com/izzhackt/evo_AI_CRM/issues/687.
+
+Read-only canonical SQL has now confirmed the exact demo account is the existing
+active Admin. Its fresh normal sign-in returned invalid_credentials, so the
+conditional password-only recovery is proceeding with age-encrypted storage and
+ordinary JWT proof. No credential value enters Git, logs or this ledger.
+
+Release order remains reviewed PR/merge and exact current-main freeze, fresh
+recoverable DB/Auth backup and Storage inventory with arm=false, manual schema
+apply plus ledger/cache readback, then arm and exact-main full CI/downstream
+release, terminal disarm. The localhost URL is an SSH tunnel to the production
+container, not a local app copy; resolve its target again after app recreation.

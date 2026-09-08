@@ -40,11 +40,14 @@ synthetic users/cases/data нельзя.
 временное rollback-окно до проверки владельцем; новый UI вызывает строго v2 и
 не делает fallback на v1. После принятия портала v1 удаляется отдельной reviewed
 forward migration. Provider calls в эту авторизацию не входят и не разрешены.
-Это решает совместимость portal, но не всей последовательности 129–133:
-прежнее приложение не передаёт новый `p_reason`, поэтому после migration 129 его
-изменение срока/приоритета задачи получит `22023`. До production apply нужен
-reviewed guard этого короткого old-app write window; overload или обход без
-отдельной авторизации не добавлять.
+8 сентября владелец подтвердил предложенный путь выкладки: временно разрешить
+отсутствующий `p_reason` только прежнему Admin-вызову канонического body migration
+129, которое переиспользует 133. Переданная пустая причина остаётся ошибкой,
+Curator reason-required и все ownership/coverage guards сохраняются. Новый UI
+всегда передаёт причину; overload не добавлять. После owner acceptance удалить
+исключение отдельной forward migration вместе с временным portal rollback окном.
+Существующие изолированные CI fixtures разрешены только для технических gates,
+а не как реальная business/provider acceptance.
 
 ### Новый блок: Sales-отчёт вместо Google Sheet — отдельный контракт
 
@@ -302,8 +305,8 @@ UX-8 exit inventory для review и release:
    точный current-main release SHA; старый `c35f8c1a` — только code checkpoint.
 4. До любых production writes прочитать фактическую migration history и
    подтвердить backup/rollback. Поскольку ledger применяет 129 раньше 131,
-   сначала утвердить точный guard для окна, когда старое приложение уже не сможет
-   менять срок/приоритет без `p_reason`; portal bridge этот риск не закрывает.
+   проверить одобренный Admin-only null-reason guard в canonical body 129/133;
+   portal bridge сам по себе этот риск не закрывает.
    После применения reviewed schema проверить обе точные overview формы/grants и
    обновлённый PostgREST schema cache. Старое приложение остаётся на v1, затем
    выкладывается exact-image нового приложения, которое вызывает лишь v2. При
@@ -312,7 +315,8 @@ UX-8 exit inventory для review и release:
 5. Для замороженного exact SHA выполнить обязательный технический release path:
    требуемый full CI, schema/app cutover по утверждённой процедуре, downstream
    deploy, exact-image и health/readback, а также доказательства rollback.
-   Provider calls и synthetic данные не использовать.
+   Реальные provider calls и synthetic production данные не использовать;
+   изолированные технические CI fixtures разрешены отдельно.
 6. После deployment владелец проверяет интерфейс. Когда появятся согласованные
    реальные дела и роли, отдельно выполнить отложенные Curator/Sales/Student
    happy paths и существенные отказы, durable readback/audit и один browser-проход

@@ -84,9 +84,17 @@ new application calls only v2, with no fallback; a rollback to the accepted imag
 continues to use v1. After the owner accepts the deployed portal, a separately
 reviewed forward migration must delete v1. The overall 129–133 schema release still
 requires migration-history readback and a reviewed database recovery path. It also
-needs an explicit cutover guard for migration 129: the accepted application omits
-its new reason and therefore cannot change task deadline/priority while that schema
-is live. The portal bridge does not waive that separate short write-window blocker.
+uses the owner's September 8 approved minimal cutover guard: migration 129's
+canonical task handler permits only a server-resolved Admin to omit `p_reason`,
+as the accepted old application does. Explicit blank reasons still fail; Curator
+reason enforcement and all ownership/coverage locks remain unchanged. Migration
+133 reuses that body; no overload or second runtime is added. After owner
+acceptance a reviewed forward migration removes this temporary exception together
+with the portal rollback window. Existing isolated CI fixtures are authorized only
+for technical checks, never as real business/provider acceptance. The owner also
+authorizes a password-only reset of the existing `demo@evoadmissions.com` account
+conditional on read-only proof that it is already an active Admin, and a localhost
+SSH tunnel to the deployed app. This does not authorize new users or role changes.
 See the run plan for the exact order, file inventory and proof still required.
 Only a small usability polish of existing V3 surfaces/shared controls is in scope;
 no platform rebuild, new design system, dense all-in-one screen, extra staff role,

@@ -122,7 +122,8 @@ BEGIN
     RAISE EXCEPTION 'Operational task edits require an active student case'
       USING ERRCODE = '42501';
   END IF;
-  IF p_reason IS NULL AND (
+  -- Temporary old-Admin rollback window; remove after owner acceptance (#687).
+  IF p_reason IS NULL AND actor.actor_role <> 'admin' AND (
     task_row.priority IS DISTINCT FROM p_priority
     OR task_row.due_at IS DISTINCT FROM p_due_at
     OR task_row.due_on IS DISTINCT FROM p_due_on

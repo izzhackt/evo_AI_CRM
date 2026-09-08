@@ -36,7 +36,7 @@ test("own-task operational edits retain case authority, protected fields, replay
   assert.match(curatorTaskMigration, /task_row\.version <> p_expected_version/);
   assert.match(curatorTaskMigration, /student_case\.state = 'active'/);
   assert.match(curatorTaskMigration, /p_due_at IS NOT NULL AND p_due_on IS NOT NULL/);
-  assert.match(curatorTaskMigration, /p_reason IS NULL AND \([\s\S]*?task_row\.priority IS DISTINCT FROM p_priority[\s\S]*?task_row\.due_on IS DISTINCT FROM p_due_on/);
+  assert.match(curatorTaskMigration, /p_reason IS NULL AND actor\.actor_role <> 'admin' AND \([\s\S]*?task_row\.priority IS DISTINCT FROM p_priority[\s\S]*?task_row\.due_on IS DISTINCT FROM p_due_on/);
   assert.match(curatorTaskMigration, /result, change_reason, p_request_id/);
   assert.match(curatorTaskMigration, /IF task_row\.status IS DISTINCT FROM p_new_status[\s\S]*?INSERT INTO platform\.case_task_events/);
   assert.equal([...curatorTaskMigration.matchAll(/INSERT INTO platform\.audit_events/g)].length, 1);
@@ -51,6 +51,18 @@ test("task edit controls keep retry inputs and do not claim an ambiguous write f
   assert.match(controlsSource, /<fieldset disabled=\{locked\} className="contents">/);
   assert.match(controlsSource, /aria-busy=\{pending\}/);
   assert.doesNotMatch(controlsSource, /Задача не изменена/);
+});
+
+test("temporary old-Admin rollback exception preserves explicit reason validation and the single coverage body", () => {
+  assert.match(curatorTaskMigration, /p_reason TEXT DEFAULT NULL/);
+  assert.match(curatorTaskMigration, /p_reason IS NOT NULL AND char_length\(btrim\(p_reason\)\) NOT BETWEEN 1 AND 1000/);
+  assert.match(curatorTaskMigration, /change_reason := COALESCE\(btrim\(p_reason\), 'Student case task changed'\)/);
+  assert.equal([...curatorTaskMigration.matchAll(/p_reason IS NULL AND actor\.actor_role <> 'admin'/g)].length, 1);
+  assert.match(curatorTaskMigration, /remove after owner acceptance \(#687\)/);
+  const coverage = read("supabase/migrations/133_platform_curator_workload_coverage.sql");
+  assert.match(coverage, /RENAME TO coverage_change_task_body/);
+  assert.match(coverage, /coverage_change_task_body\([\s\S]*?p_reason/);
+  assert.doesNotMatch(coverage, /CREATE OR REPLACE FUNCTION platform_private\.coverage_change_task_body/);
 });
 
 test("Admissions task commands are exact, versioned Supabase actions", () => {

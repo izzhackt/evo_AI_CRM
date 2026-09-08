@@ -21817,3 +21817,20 @@ Missing signing date, total service price and cumulative paid amount remain
 unknown; contract confirmation time and first payment are not substitutes.
 Historical import records remain distinct source rows until explicitly linked,
 without fuzzy customer merging. User delegated this minimal implementation.
+
+### 2026-09-08 — sales review clarifies private reasons and total handoff projection
+
+Independent review found that mandatory free-text edit reasons were fingerprinted
+but discarded, and canonical client/profile text may exceed reporting limits.
+Before correction, clarify the existing scope: preserve bounded human reasons in
+the private request history, linked from the constant operation/version audit;
+do not emit arbitrary potential PII into shared audit. No new audit UI or grants.
+
+The reporting trigger must accept every otherwise valid canonical handoff without
+inventing facts. Store a bounded honest display fragment and explicit review/provenance
+when a name/manager label needs limiting; leave an unsuitable phone unknown rather
+than manufacturing a truncated phone number. If canonical text has no usable name,
+pipeline records may keep it unknown and link to the original canonical profile;
+manual/import commands still require an actual name. No placeholder identity is
+persisted. Source IDs and normalization metadata remain private. This corrects the
+one-transaction integration, not a fallback runtime or a second CRM.

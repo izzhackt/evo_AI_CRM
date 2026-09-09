@@ -14,8 +14,9 @@ version `r29.1-76c62b90`, after full CI `34391182045` passed all five jobs and
 release `34391907814` succeeded, including `Accept exact V3 candidate`.
 Production ledger001–138 is exact after manual apply `34389465309` and readback.
 Accepted pointer: `v3-r34391907814-a1-76c62b90`; app/ClamAV are healthy with zero
-restarts, public HTTPS health200, `pending-current.json` absent, and release arm=false was read back at
-19:00:06 UTC. See the [production evidence](design/v3/references/2026-09-09-student-admissions-production.md)
+restarts, public HTTPS health200 and `pending-current.json` absent. A fresh API
+readback confirms release arm=false, `updated_at=2026-09-09T19:00:06Z`.
+See the [production evidence](design/v3/references/2026-09-09-student-admissions-production.md)
 for immutable image/acceptance hashes and bounded live Admin/tunnel proof.
 The one-time import of 209 sales/4 targets remains reconciled. Owner business
 acceptance and live Student proof remain separate. No new backup/rehearsal was

@@ -22530,7 +22530,8 @@ expectation repair #705 was independently reviewed at f48927b2 and merged as
 76c62b902d9a2e094be8fcd65259a4962ad597b1. Full CI34391182045 passed all five jobs;
 automatic release34391907814 accepted that exact revision as r29.1-76c62b90.
 Fresh accepted-pointer/image/receipt/health readback matched; pending-current was
-absent. The release arm was reset to false and freshly verified19:00:06UTC.
+absent. Fresh API readback confirmed the release arm reset to false, with
+updated_at=2026-09-09T19:00:06Z.
 
 The same existing production database/Auth/Storage remains permanent. Aggregate
 readback19:03:01UTC confirmed exact ledger001–138,209sales/4targets,Auth2 with one

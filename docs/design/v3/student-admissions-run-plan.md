@@ -60,8 +60,8 @@
   в том же Supabase `iosckaqtovbbnssqcpde`.
 - Host readback подтвердил новый app/image, healthy app и ClamAV без рестартов,
   публичный HTTPS health200 и отсутствие `pending-current.json`. Acceptance
-  record совпадает с accepted pointer; release arm=false подтверждён API
-  в 19:00:06 UTC.
+  record совпадает с accepted pointer; release arm=false подтверждён свежим API
+  readback, `updated_at=2026-09-09T19:00:06Z`.
   Точные image/acceptance hashes и readback — в
   [production evidence](references/2026-09-09-student-admissions-production.md).
 - Существующий туннель `127.0.0.1:3000` направлен на текущий app
@@ -751,7 +751,7 @@ Europe/UAE/Turkey пока имеют направления и существу
 | 2026-09-09 | main `c95a892c` / #697 | Reviewed `806c0b40`, CI34371092144 все6 PASS; exact-head squash merge в 15:40 UTC. P1–P8/M1 — локально VERIFIED и код в main | Production всё ещё `0cbb2d42`/134; arm=false; #693/P9 не закрыты |
 | 2026-09-09 | P9 source inventory | Auth2: оба legacy account owner; один active Platform Admin, Student-связей0. Чужая expired CLI role без активных сессий не тронута. #703 наследует current main | Явное разрешение на точный CLI cleanup; отдельный restore contract, fresh export/rehearsal, затем managed release |
 | 2026-09-09 | P9 owner direction / main `11cfbd30` | Владелец отложил новый backup/rehearsal для текущего Student/Admissions release; один существующий Supabase и localhost tunnel к той же production; старые recovery blockers сохранены как история, не PASS | Docs review/merge → frozen main → missing schema → full CI/release/acceptance → disarm/tunnel. Account target уточняется отдельно; новые synthetic production users/cases не разрешены |
-| 2026-09-09 | P9 / `76c62b902d9a2e094be8fcd65259a4962ad597b1` | `r29.1-76c62b90`; CI34391182045 все5 PASS; release34391907814/Accept exact V3 candidate SUCCESS; accepted `v3-r34391907814-a1-76c62b90`, pending отсутствует; ledger001–138, healthy app/ClamAV, HTTPS200; arm=false в 19:00:06 UTC. Тот же Hermes app через localhost3000: обычный Admin, CN/MY/overdue/reset, короткий отчёт/период и Sales read-only PASS | Технически DEPLOYED; owner UX/business acceptance отдельно. Live Student/managed invite не доказаны; account target не уточнён; backup/rehearsal отложен, данные/Auth сохранены |
+| 2026-09-09 | P9 / `76c62b902d9a2e094be8fcd65259a4962ad597b1` | `r29.1-76c62b90`; CI34391182045 все5 PASS; release34391907814/Accept exact V3 candidate SUCCESS; accepted `v3-r34391907814-a1-76c62b90`, pending отсутствует; ledger001–138, healthy app/ClamAV, HTTPS200; arm=false (API updated_at 19:00:06 UTC). Тот же Hermes app через localhost3000: обычный Admin, CN/MY/overdue/reset, короткий отчёт/период и Sales read-only PASS | Технически DEPLOYED; owner UX/business acceptance отдельно. Live Student/managed invite не доказаны; account target не уточнён; backup/rehearsal отложен, данные/Auth сохранены |
 
 Сейчас новых продуктовых вопросов нет. Потенциальные внешние зависимости:
 разрешённый QA mailbox для managed invite (сначала использовать безопасный реальный

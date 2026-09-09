@@ -981,6 +981,31 @@ function validatedReceipt() {
   });
 }
 
+test("recovery retains strict v1 compatibility and requires verified lifecycle evidence for v2", () => {
+  const expected = { sourceRepositoryCommit: sourceCommit, sourceMigrationTree, trustedFingerprint: fingerprint,
+    now: new Date("2026-09-05T01:00:00.000Z"), maxAgeHours: 72 };
+  const access = { mode: "temporary-cli-readonly", requested_read_only: true, effective_role: "supabase_read_only_user",
+    role_sha256: "d".repeat(64), lease_ttl_seconds: 3600, issued_at: "2026-09-05T00:00:00.000Z",
+    cleanup_completed_at: "2026-09-05T00:05:00.000Z", cleanup: "verified", cleanup_action: "deleted" };
+  assert.equal(validateSignedReceipt(receipt(), expected).sourceAccess, undefined);
+  const v2 = receipt({ schema: "evo-v3-managed-supabase-export-receipt/v2", source_access: access });
+  const result = validateSignedReceipt(v2, expected);
+  assert.deepEqual(result.sourceAccess, access);
+  assert.equal(result.encryptedArtifacts["history-data.sql.age"].bytes, 204);
+  assert.equal(result.database.auth_user_count, 3);
+  assert.throws(() => validateSignedReceipt(receipt({ source_access: access }), expected));
+  assert.throws(() => validateSignedReceipt(receipt({ schema: "evo-v3-managed-supabase-export-receipt/v2" }), expected));
+  // The credential key itself is forbidden, independent of its fixture value.
+  for (const delta of [{ password: true }, { requested_read_only: false }, { effective_role: "postgres" },
+    { cleanup: "pending" }, { cleanup_action: "assumed_expired" }, { role_sha256: "bad" }]) {
+    assert.throws(() => validateSignedReceipt({ ...v2, source_access: { ...access, ...delta } }, expected));
+  }
+  const incomplete = { ...v2.encrypted_artifacts };
+  delete incomplete["roles.sql.age"];
+  assert.throws(() => validateSignedReceipt({ ...v2, encrypted_artifacts: incomplete }, expected));
+  assert.throws(() => validateSignedReceipt({ ...v2, database: { ...v2.database, snapshot_mode: "independent-dumps" } }, expected));
+});
+
 function databaseManifest(overrides = {}) {
   return {
     schema: "evo-v3-managed-supabase-logical-backup/v1",

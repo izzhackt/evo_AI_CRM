@@ -1,12 +1,16 @@
 #!/bin/bash
 set -euo pipefail
+case "${EVO_DUMP_EFFECTIVE_ROLE:-postgres}" in
+  postgres|supabase_read_only_user) ;;
+  *) exit 64 ;;
+esac
 
 # Uses Supabase CLI v2.116.0's schema filter pipeline while the caller supplies
 # a security-patched PostgreSQL client.
 "$PG_DUMP_BIN" \
     --schema-only \
     --quote-all-identifier \
-    --role "postgres" \
+    --role "${EVO_DUMP_EFFECTIVE_ROLE:-postgres}" \
     --exclude-schema "${EXCLUDED_SCHEMAS:-}" \
     ${EXTRA_FLAGS:-} \
 | sed -E 's/^CREATE SCHEMA "/CREATE SCHEMA IF NOT EXISTS "/' \

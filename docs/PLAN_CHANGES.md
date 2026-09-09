@@ -22352,6 +22352,50 @@ This is a narrow testability correction under the already authorized acceptance
 scope, not a replacement authentication flow. Contract and negative-origin tests,
 real local browser proof, independent exact-head review and CI precede merge.
 
+### 2026-09-09 — bounded read-only backup access for the Student/Admissions release
+
+The authorized release requires a fresh backup of current production data. The
+retained Sep8 export predates the Sales import. The existing Supabase CLI Keychain
+PAT passes an exact-project GET; current SSL enforcement and token-based JIT are
+disabled. Do not enable either, reboot the database, retry the historically
+rejected database password, or reset credentials to make the export work.
+
+Add an explicit temporary-cli-readonly transport to the reviewed exporter while
+preserving the existing password mode and side-effect-free preflight. A run may
+create one provider-issued read_only:true login lease only after exact project,
+ledger, endpoint, tools, protected output and API-key checks. Require an exclusive
+operator window, no pre-existing CLI login roles, and fail closed on unexpected
+concurrent roles. Never delete a foreign role or fall back to a privileged login.
+Use the returned role/password only in child-process memory/environment, the
+existing session pooler with pinned CA/verify-full, and fixed effective role
+supabase_read_only_user. Verify read-only mode, BYPASSRLS, exact identity and full
+required-schema/table access before dumping. Keep all five SQL artifacts, both
+consistent-snapshot rounds, separate private Storage bytes, encryption, signing
+and completeness checks; a missing Auth/data relation is not an empty source.
+
+Await process/snapshot drain and provider-role cleanup before signing/publishing;
+abort, ambiguous POST, expiry or failed cleanup must never publish a successful
+backup. The cleanup endpoint removes project CLI roles, so call it only when
+fresh inventory is exactly the verified run-owned lease, never for an unknown
+or additional role. Use the provider TTL with a safety margin and bounded local
+deadline; no refresh/reissue or rejected-credential retries. Keep old signed v1
+backup/recovery compatibility, and add strict versioned access-lifecycle evidence
+without secrets. Read-only GET probes are already complete; no lease, schema or
+runtime mutation has been made by this change record.
+
+Require local role/RLS/Auth/history/custom-role completeness tests, malformed
+response/identity/TTL/concurrency/cleanup/abort/redaction negatives, independent
+review and exact-head CI before one controlled managed export. The resulting
+fresh bundle must then pass isolated restore/migration rehearsal before schema
+apply and application deployment. This is release tooling, not product scope.
+
+Official sources checked before implementation:
+https://supabase.com/docs/reference/api/v1-create-login-role,
+https://supabase.com/docs/reference/api/v1-delete-login-roles,
+https://supabase.com/docs/reference/api/v1-get-pooler-config,
+https://supabase.com/docs/guides/platform/temporary-access,
+https://www.postgresql.org/docs/17/app-pg-dumpall.html .
+
 ### 2026-09-09 — Malaysia pre-arrival clearance is not Student Pass endorsement
 
 The final domain review identified a misleading shared visa field group. For MY,

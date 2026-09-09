@@ -120,9 +120,14 @@ BEGIN
   r:=platform.create_visa_case(pg_temp.a137_id(1),cid,'not_started',NULL,NULL,0,gen_random_uuid()); visa:=(r->>'visa_case_id')::UUID;
   PERFORM pg_temp.a137_assert(visa IS NOT NULL,'existing visa create ID');
   PERFORM pg_temp.a137_assert(pg_temp.a137_error(format('SELECT platform.change_visa_case(%L,%L,%L,%L,NULL,1,%L)',pg_temp.a137_id(1),visa,'approved','A document',gen_random_uuid()))='22023','old visa command needs actual country facts');
-  v:=jsonb_build_object('applicability','required','applicabilityReason','Synthetic visa requirement','applicabilitySource','https://example.invalid/official-test-source','applicabilityCheckedOn',CURRENT_DATE,'passportExpiresOn',CURRENT_DATE+1000,'visaIssuedOn',CURRENT_DATE,'visaExpiresOn',CURRENT_DATE+100);
-  PERFORM platform.update_visa_admissions_details_v1(cid,visa,1,v,gen_random_uuid());
-  PERFORM platform.change_visa_case(pg_temp.a137_id(1),visa,'approved','Fictional visa evidence',NULL,2,gen_random_uuid()); vv:=3;
+  v:=jsonb_build_object('applicability','required','applicabilityReason','Synthetic pre-arrival requirement','applicabilitySource','https://example.invalid/official-test-source','applicabilityCheckedOn',CURRENT_DATE,'passportExpiresOn',CURRENT_DATE+1000);
+  IF n=1 THEN
+   PERFORM platform.update_visa_admissions_details_v1(cid,visa,1,v,gen_random_uuid());
+   PERFORM pg_temp.a137_assert(pg_temp.a137_error(format('SELECT platform.change_visa_case(%L,%L,%L,%L,NULL,2,%L)',pg_temp.a137_id(1),visa,'approved','Missing Chinese visa dates',gen_random_uuid()))='22023','CN still needs actual visa issuance and validity');
+   v:=v||jsonb_build_object('visaIssuedOn',CURRENT_DATE,'visaExpiresOn',CURRENT_DATE+100);
+  END IF;
+  PERFORM platform.update_visa_admissions_details_v1(cid,visa,CASE WHEN n=1 THEN 2 ELSE 1 END,v,gen_random_uuid());
+  PERFORM platform.change_visa_case(pg_temp.a137_id(1),visa,'approved','Fictional pre-arrival evidence',NULL,CASE WHEN n=1 THEN 3 ELSE 2 END,gen_random_uuid()); vv:=CASE WHEN n=1 THEN 4 ELSE 3 END;
   IF n=2 THEN
    PERFORM pg_temp.a137_assert(pg_temp.a137_error(format('SELECT platform.transition_case_admissions_v1(%L,%s,%L,%L,%L,%L)',cid,revision,'arrival_and_adaptation','active','MY unknown',gen_random_uuid()))='22023','MY eVAL and entry/MDAC unknown cannot silently pass');
    v:=v||jsonb_build_object('emgsReference','SYN-EMGS','eValStatus','approved','eValReference','SYN-EVAL','eValIssuedOn',CURRENT_DATE,'eValExpiresOn',CURRENT_DATE+90,'eValEvidence','Fictional eVAL','entryVisaApplicability','not_required','entryVisaReason','Explicit synthetic nationality exception','entryVisaSource','https://example.invalid/entry','entryVisaCheckedOn',CURRENT_DATE,'mdacApplicability','required','mdacReason','Synthetic first arrival','mdacSource','https://example.invalid/mdac','mdacCheckedOn',CURRENT_DATE,'mdacSubmittedOn',CURRENT_DATE,'mdacEvidence','Fictional MDAC receipt');
@@ -135,6 +140,7 @@ BEGIN
   PERFORM platform.transition_case_admissions_v1(cid,revision,'arrival_and_adaptation','arrived','Фактическое прибытие подтверждено',gen_random_uuid());
   r:=platform.staff_case_admissions_workspace_v1(cid);
   PERFORM pg_temp.a137_assert(r#>>'{case,outcome}'='arrived' AND r#>>'{case,state}'='closed','confirmed arrival closes case truthfully');
+  IF n=2 THEN PERFORM pg_temp.a137_assert(NOT(r#>'{visa,details}' ?| ARRAY['visaIssuedOn','visaExpiresOn']),'MY journey needs no invented pre-arrival Student Pass or generic visa dates'); END IF;
   PERFORM pg_temp.a137_assert(r#>>'{case,facts,studentPassStatus}'='pending','arrival does not auto-complete Student Pass');
   PERFORM pg_temp.a137_assert((SELECT x->>'status'='preparation' FROM jsonb_array_elements(r->'applications') x WHERE x->>'id'=alternate::TEXT),'alternative remains independent');
   PERFORM pg_temp.a137_assert(pg_temp.a137_error(format('SELECT platform.update_application_admissions_details_v1(%L,%L,%s,%L,%L)',cid,alternate,1,'{}',gen_random_uuid()))='22023','closed case application facts require reopening');

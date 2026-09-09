@@ -182,7 +182,12 @@ BEGIN
  ELSIF p_stage='visa_and_predeparture' THEN
    planned:=COALESCE((f->>'plannedArrivalOn')::DATE,(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Bishkek')::DATE);
    IF visa.id IS NULL OR COALESCE(v->>'applicability','needs_confirmation')='needs_confirmation' OR NOT(v ?& ARRAY['applicabilityReason','applicabilitySource','applicabilityCheckedOn']) THEN blocked:=array_append(blocked,'Требования к визе требуют подтверждения по официальному источнику');
-   ELSIF v->>'applicability'='required' AND (visa.status<>'approved' OR visa.latest_evidence_reference IS NULL OR NOT(v ?& ARRAY['visaIssuedOn','visaExpiresOn']) OR (v->>'visaExpiresOn')::DATE<planned) THEN blocked:=array_append(blocked,'Нет подтверждённой действующей визы для планового въезда');
+   -- MY's existing visa-case approval records pre-arrival clearance. Its eVAL
+   -- and applicable entry visa have separate dates below; Student Pass
+   -- endorsement is a post-arrival fact, never a fabricated generic visa date.
+   ELSIF v->>'applicability'='required' AND (visa.status<>'approved' OR visa.latest_evidence_reference IS NULL OR
+     (c.admissions_direction='CN' AND (NOT(v ?& ARRAY['visaIssuedOn','visaExpiresOn']) OR (v->>'visaExpiresOn')::DATE<planned))) THEN
+     blocked:=array_append(blocked,CASE WHEN c.admissions_direction='MY' THEN 'Нет подтверждённой готовности к въезду; Student Pass оформляется отдельно после прибытия' ELSE 'Нет подтверждённой действующей визы для планового въезда' END);
    ELSIF v->>'applicability'='not_required' AND visa.status<>'not_required' THEN blocked:=array_append(blocked,'Статус визы не соответствует подтверждённому исключению'); END IF;
    IF NOT v ? 'passportExpiresOn' OR (v->>'passportExpiresOn')::DATE<=planned THEN blocked:=array_append(blocked,'Проверьте действительность паспорта на плановый въезд'); END IF;
    IF c.admissions_direction='MY' THEN
@@ -239,7 +244,8 @@ BEGIN
    IF NEW.status='enrolled' AND (status_changed OR old_details ?& ARRAY['conditionsFulfilledOn','conditionsEvidence']) AND (d->>'decisionType'='conditional' AND NOT(d ?& ARRAY['conditionsFulfilledOn','conditionsEvidence'])) THEN RAISE EXCEPTION 'Offer conditions are unresolved' USING ERRCODE='22023'; END IF;
  ELSE
    PERFORM platform_private.admissions_validate_fields('visa',d);
-   keys:=ARRAY['applicability','applicabilityReason','applicabilitySource','applicabilityCheckedOn','visaIssuedOn','visaExpiresOn'];
+   keys:=ARRAY['applicability','applicabilityReason','applicabilitySource','applicabilityCheckedOn'];
+   IF c.admissions_direction='CN' THEN keys:=keys||ARRAY['visaIssuedOn','visaExpiresOn']; END IF;
    IF NEW.status='approved' AND (status_changed OR old_details ?& keys) AND (d->>'applicability' IS DISTINCT FROM 'required' OR NOT(d ?& keys)) THEN RAISE EXCEPTION 'Visa approval requires country details and applicability evidence' USING ERRCODE='22023'; END IF;
    keys:=ARRAY['applicability','applicabilityReason','applicabilitySource','applicabilityCheckedOn'];
    IF NEW.status='not_required' AND (status_changed OR old_details ?& keys) AND (d->>'applicability' IS DISTINCT FROM 'not_required' OR NOT(d ?& keys)) THEN RAISE EXCEPTION 'Visa exception needs a dated official basis' USING ERRCODE='22023'; END IF;

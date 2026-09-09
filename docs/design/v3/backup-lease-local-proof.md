@@ -86,6 +86,9 @@ Separate read-only Management API inventories established two release blockers:
    lease created. Reconcile ownership and obtain explicit authorization before
    cleanup; re-inventory immediately and stop if the exact target changes.
    Retain the exporter's zero-baseline/owned-singleton checks.
+   Observed role-name SHA-256:
+   `3f7ee34d5c3ab420299d2840ee3a2677570d0388f3f878fbccc7b17628b2c0f6`;
+   inventory proof: `cfw://span/01a086c1b2bb7331893f51362e68bf9a`.
 2. Source contains two ordinary authenticated Auth identities, both with legacy
    `public.profiles.account_role=owner` links to two distinct `public.accounts`.
    Exactly one has an active Platform profile/Admin membership in the one active

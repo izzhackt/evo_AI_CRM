@@ -872,7 +872,7 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
+      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
     ),
   ).toBeVisible();
 });
@@ -1348,7 +1348,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   );
   await expect(exactCaseRow).toBeVisible();
   await expect(exactCaseRow).toHaveAttribute("data-access", "full");
-  const exactCaseLink = exactCaseRow.locator(`a[href="${caseHref}"]`);
+  const directoryCaseHref = `/v3/profile?case=${studentCaseId}&tab=route`;
+  const exactCaseLink = exactCaseRow.locator(`a[href="${directoryCaseHref}"]`);
   await expect(exactCaseLink).toHaveCount(1);
 
   await page.locator('[data-testid="staff-role-preview"] summary').click();
@@ -1362,7 +1363,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     "data-access",
     "sales_summary",
   );
-  await expect(salesPreviewCaseRow.locator(`a[href="${caseHref}"]`)).toHaveCount(0);
+  await expect(salesPreviewCaseRow.locator('a[href*="case="]')).toHaveCount(0);
   await expect(
     salesPreviewCaseRow.locator(`a[href="/v3/profile?id=${leadId}"]`),
   ).toHaveCount(1);
@@ -1376,11 +1377,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     `[data-testid="v3-student-case-row"][data-student-case-id="${studentCaseId}"]`,
   );
   await expect(restoredCaseRow).toHaveAttribute("data-access", "full");
-  await restoredCaseRow.locator(`a[href="${caseHref}"]`).click();
+  await restoredCaseRow.locator(`a[href="${directoryCaseHref}"]`).click();
   await expect(page).toHaveURL(new RegExp(
-    `/v3/profile\\?case=${studentCaseId}&tab=overview$`,
+    `/v3/profile\\?case=${studentCaseId}&tab=route$`,
   ));
   await expect(page.getByTestId("v3-profile")).toBeVisible();
+  await page.locator("summary").filter({
+    hasText: "Заявки, статусы и визовое дело",
+  }).click();
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
   const contractHref = `/v3/profile?case=${studentCaseId}&tab=contract`;
@@ -2270,8 +2274,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
-      { exact: true },
+      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
     ),
   ).toBeVisible();
   await expect(page.getByTestId("v3-document-upload-form")).toHaveCount(0);
@@ -2681,7 +2684,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Такого человека в базе нет. Показывать вместо него другого мы не будем.",
+      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
     ),
   ).toBeVisible();
   await page.getByTestId("preview-role-admin").click();

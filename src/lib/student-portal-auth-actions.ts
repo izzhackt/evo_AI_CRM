@@ -67,6 +67,7 @@ export async function verifyStudentInviteAction(
   const cookieStore = await cookies();
   const input = validateStudentInviteCallbackPost({
     nodeEnv: process.env.NODE_ENV,
+    localCallbackOrigin: process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN,
     origin: requestHeaders.get("origin"),
     host: requestHeaders.get("host"),
     forwardedHost: requestHeaders.get("x-forwarded-host"),

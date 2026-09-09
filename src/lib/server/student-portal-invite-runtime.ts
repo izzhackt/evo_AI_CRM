@@ -1,5 +1,7 @@
 import "server-only";
 
+import { studentInviteCallbackUrl } from "../student-invite-callback-contract.ts";
+
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import { createStudentPortalInviteAuthProvider } from "./student-portal-invite-auth-provider.ts";
@@ -29,6 +31,9 @@ export function readStudentInviteOtpExpirySeconds(
 }
 
 export function createStudentPortalInviteCoordinatorDependencies(): StudentPortalInviteCoordinatorDependencies {
+  // Validate before a receipt is claimed, so configuration errors cannot be
+  // recorded as an uncertain provider dispatch.
+  studentInviteCallbackUrl(process.env.NODE_ENV, process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN);
   const serviceClient = createPlatformSupabaseServiceClient(
     getPlatformSupabaseBackendConfig(),
   );
@@ -37,6 +42,7 @@ export function createStudentPortalInviteCoordinatorDependencies(): StudentPorta
     auth: createStudentPortalInviteAuthProvider(serviceClient),
     otpExpirySeconds: readStudentInviteOtpExpirySeconds(),
     nodeEnv: process.env.NODE_ENV,
+    localCallbackOrigin: process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN,
   });
 }
 

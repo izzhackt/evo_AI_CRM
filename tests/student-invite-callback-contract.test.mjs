@@ -62,6 +62,34 @@ test("callback query accepts exactly one SHA-224 token hash and type=invite", ()
   }
 });
 
+test("explicit local origin is literal loopback only; production ignores it", () => {
+  for (const port of [1024, 31457, 65535]) {
+    const origin = `http://127.0.0.1:${port}`;
+    assert.equal(studentInviteCallbackUrl("development", origin), `${origin}/auth/callback`);
+    const input = {
+      nodeEnv: "development", localCallbackOrigin: origin,
+      origin, host: `127.0.0.1:${port}`, forwardedHost: null, forwardedProto: null,
+      csrfCookie: CSRF_TOKEN,
+      form: new Map([["csrf_token", CSRF_TOKEN], ["token_hash", TOKEN_HASH], ["type", "invite"]]),
+    };
+    assert.ok(validateStudentInviteCallbackPost(input));
+    assert.equal(validateStudentInviteCallbackPost({ ...input, origin: "http://127.0.0.1:3000" }), null);
+    assert.equal(validateStudentInviteCallbackPost({ ...input, host: "127.0.0.1:3000" }), null);
+    assert.equal(validateStudentInviteCallbackPost({ ...input, csrfCookie: null }), null);
+    assert.equal(validateStudentInviteCallbackPost({ ...input, forwardedHost: "evil.example", forwardedProto: "https" }), null);
+    assert.equal(studentInviteCallbackUrl("production", origin), PRODUCTION_STUDENT_INVITE_CALLBACK_URL);
+  }
+  for (const origin of ["", "http://127.0.0.1:1023", "http://127.0.0.1:65536",
+    "http://127.0.0.1:03000", "http://localhost:3000", "http://[::1]:3000",
+    "https://127.0.0.1:3000", "http://127.0.0.1:3000/", "http://127.0.0.1:3000/auth/callback",
+    "http://127.0.0.1:3000?next=evil", "http://127.0.0.1:3000#x",
+    "http://a@127.0.0.1:3000", "http://127.1:3000", "http://2130706433:3000",
+    " http://127.0.0.1:3000", "http://127.0.0.1:3000\n", "https://evil.example"]) {
+    assert.throws(() => studentInviteCallbackUrl("test", origin), /Invalid local/);
+    assert.equal(studentInviteCallbackUrl("production", origin), PRODUCTION_STUDENT_INVITE_CALLBACK_URL);
+  }
+});
+
 test("callback POST requires exact origin, effective host, CSRF and form", () => {
   assert.equal(STUDENT_INVITE_CSRF_COOKIE, "evo_student_invite_csrf");
 

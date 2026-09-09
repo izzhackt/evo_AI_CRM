@@ -42,12 +42,12 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   const reportMonth = `${year}-${String(month ?? Number(now.find(p => p.type === "month")!.value)).padStart(2, "0")}-01`;
   const target = workspace?.targets.find(t => t.reportMonth === reportMonth && t.managerLabel === null) ?? null;
 
-  return <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
+  return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
     <SalesReportNavigation sales />
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Отчёт продаж</h1>
-        <p className="mt-2 max-w-2xl text-sm text-fg-3">Продажи из воронки и записи отдела. Данные ведутся здесь, без синхронизации с Google.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-2">Продажи за выбранный период. Откройте запись, чтобы посмотреть детали или внести изменения.</p>
       </div>
       {!editing && workspace ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </header>
@@ -58,45 +58,62 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         isAdmin={isAdmin} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={href()} readUnavailable={!workspace}
         ownMembershipId={actor.membershipId} ownLabel={actor.displayName} />
     </div> : <>
-      <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
+      <form method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-end gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
         <input type="hidden" name="view" value="sales" />
-        <label><span className={labelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11 w-28`} /></label>
-        <label><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
+        <label className="min-w-0 @2xl:w-28"><span className={labelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11`} /></label>
+        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
           <option value="all">Весь год</option>{MONTHS.map((title, i) => <option key={title} value={i + 1}>{title}</option>)}
         </select></label>
-        <label><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
+        <label className="min-w-0 @2xl:w-40"><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
-        <button className={`${btnGhostCls} min-h-11`} type="submit">Показать</button>
+        <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`} type="submit">Показать</button>
       </form>
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
         <p>{valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
         <Link href="/v3/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
       </div> : <>
-        <section aria-label="Итоги периода" className="mt-8 border-y border-border py-5">
-          <div className="flex flex-wrap gap-x-10 gap-y-4">
-            <div><p className="text-sm text-fg-3">{query.archived === "true" ? "Записей в архиве" : "Записей продаж"}</p><p className="mt-1 font-mono text-2xl tabular-nums text-fg">{workspace.totalCount}</p></div>
-            {isAdmin && month && query.archived !== "true" ? <div><p className="text-sm text-fg-3">План месяца</p><p className="mt-1 font-mono text-2xl tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</p></div> : null}
+        <section aria-labelledby="sales-period-totals" className="mt-8 border-b border-border pb-6">
+          <h2 id="sales-period-totals" className="text-base font-semibold text-fg">Итоги периода</h2>
+          <div className="mt-4 grid min-w-0 gap-6 @3xl:grid-cols-[minmax(180px,0.7fr)_minmax(0,1.3fr)]">
+            <dl className="flex flex-wrap content-start gap-x-10 gap-y-4">
+              <div><dt className="text-sm text-fg-2">{query.archived === "true" ? "Записей в архиве" : "Записей продаж"}</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{workspace.totalCount}</dd></div>
+              {isAdmin && month && query.archived !== "true" ? <div><dt className="text-sm text-fg-2">План месяца</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</dd></div> : null}
+            </dl>
+            {workspace.totals.length > 0 ? <div className="min-w-0">
+              <div role="region" aria-label="Денежные итоги по валютам" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                <table className="w-full min-w-[400px] text-sm tabular-nums">
+                  <caption className="sr-only">Стоимость и накопленная оплата за выбранный период, отдельно по валютам</caption>
+                  <thead className="border-b border-border text-xs text-fg-2"><tr><th scope="col" className="pb-3 pe-4 text-left font-medium">Валюта</th><th scope="col" className="pb-3 px-3 text-right font-medium">Стоимость</th><th scope="col" className="pb-3 ps-3 text-right font-medium">Оплачено по записям</th></tr></thead>
+                  <tbody className="divide-y divide-border">{workspace.totals.map(t => <tr key={t.currency}><th scope="row" className="py-3 pe-4 text-left font-medium">{t.currency}</th><td className="py-3 px-3 text-right font-mono">{number.format(t.costMinor / 100)}</td><td className="py-3 ps-3 text-right font-mono">{number.format(t.paidMinor / 100)}</td></tr>)}</tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-fg-2">Накопленные суммы по записям, не поступления за месяц. Валюты не пересчитываются.</p>
+            </div> : null}
           </div>
-          {workspace.totals.length > 0 ? <div className="mt-5 max-w-xl">
-            <div className="grid grid-cols-[3rem_1fr_1fr] gap-3 text-xs text-fg-3"><span>Валюта</span><span className="text-right">Стоимость</span><span className="text-right">Оплачено по записям</span></div>
-            {workspace.totals.map(t => <div key={t.currency} className="mt-3 grid grid-cols-[3rem_1fr_1fr] gap-3 text-sm tabular-nums"><span>{t.currency}</span><span className="text-right">{number.format(t.costMinor / 100)}</span><span className="text-right">{number.format(t.paidMinor / 100)}</span></div>)}
-            <p className="mt-3 text-xs text-fg-3">Накопленные суммы по записям, не поступления за месяц. Валюты не пересчитываются.</p>
-          </div> : null}
-          {workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0 ? <p className="mt-4 text-sm text-fg-2">В денежные итоги не включены неуточнённые значения: стоимость — {workspace.unresolvedCostCount}, оплата — {workspace.unresolvedPaidCount}.</p> : null}
+          {workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0 ? <p className="mt-5 border-s-2 border-border ps-3 text-sm leading-relaxed text-fg-2">В денежные итоги не включены неуточнённые значения: стоимость — {workspace.unresolvedCostCount}, оплата — {workspace.unresolvedPaidCount}.</p> : null}
         </section>
 
-        {workspace.rows.length === 0 ? <p className="py-12 text-sm text-fg-3">{offset > 0 ? "На этой странице записей нет. Вернитесь к началу списка." : "В выбранном периоде записей нет."}</p> : <ul className="mt-3 divide-y divide-border">
-          {workspace.rows.map(row => <li key={row.id} className="grid gap-3 py-5 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
-            <div className="min-w-0"><Link href={href({ record: row.id })} className="inline-flex min-h-11 items-center break-words font-medium text-fg underline-offset-4 hover:underline">{row.applicantName || "Имя не указано"}</Link>
-              <p className="break-words text-sm text-fg-3">{[row.country, row.program].filter(Boolean).join(" · ") || "Программа не указана"}</p>
-              <p className="mt-1 text-xs text-fg-3">{row.managerLabel || "Менеджер не указан"} · {dateLabel(row.signingDate)}</p>
-            </div>
-            <div className="text-sm"><span className="block text-xs text-fg-3">Стоимость</span><span className="mt-1 block tabular-nums">{money(row.serviceCostMinor, row.serviceCostCurrency)}</span></div>
-            <div className="text-sm"><span className="block text-xs text-fg-3">Оплачено по записи</span><span className="mt-1 block tabular-nums">{money(row.paidMinor, row.paidCurrency)}</span></div>
-            <div className="text-xs text-fg-3">{row.needsReview ? "Нужно уточнить" : row.archived ? "В архиве" : ""}</div>
-          </li>)}
-        </ul>}
+        {workspace.rows.length === 0 ? <div className="space-y-2 py-12 text-center">
+          <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : "В выбранном периоде записей нет."}</p>
+          <p className="text-sm text-fg-2">{offset > 0 ? "Вернитесь к началу списка." : "Выберите другой месяц или весь год в фильтрах выше."}</p>
+        </div> : <div className="mt-6">
+          <p id="sales-table-help" className="mb-3 text-xs text-fg-2">Откройте продажу для просмотра деталей. Таблицу можно прокручивать по горизонтали.</p>
+          <div role="region" aria-label="Записи продаж" aria-describedby="sales-table-help" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <table className="w-full min-w-[960px] text-left text-sm">
+              <caption className="sr-only">Продажи выбранного периода</caption>
+              <thead className="border-b border-border bg-surface-2 text-xs text-fg-2"><tr><th scope="col" className="px-4 py-3 font-medium">Студент и программа</th><th scope="col" className="px-4 py-3 font-medium">Менеджер и дата</th><th scope="col" className="px-4 py-3 text-right font-medium">Стоимость</th><th scope="col" className="px-4 py-3 text-right font-medium">Оплачено по записи</th><th scope="col" className="px-4 py-3 font-medium">Уточнения</th><th scope="col" className="px-4 py-3"><span className="sr-only">Действие</span></th></tr></thead>
+              <tbody className="divide-y divide-border">{workspace.rows.map(row => <tr key={row.id} className="align-top bg-surface hover:bg-surface-2">
+                <th scope="row" className="min-w-[240px] max-w-[360px] px-4 py-3 font-normal"><Link href={href({ record: row.id })} className="inline-flex min-h-11 items-center break-words font-semibold text-fg underline-offset-4 hover:underline">{row.applicantName || "Имя не указано"}</Link><p className="break-words text-sm text-fg-2">{[row.country, row.program].filter(Boolean).join(" · ") || "Программа не указана"}</p></th>
+                <td className="min-w-[180px] max-w-[260px] px-4 py-5"><p className="break-words text-fg">{row.managerLabel || "Менеджер не указан"}</p><p className="mt-1 text-xs text-fg-2">{dateLabel(row.signingDate)}</p></td>
+                <td className="whitespace-nowrap px-4 py-5 text-right font-mono tabular-nums">{money(row.serviceCostMinor, row.serviceCostCurrency)}</td>
+                <td className="whitespace-nowrap px-4 py-5 text-right font-mono tabular-nums">{money(row.paidMinor, row.paidCurrency)}</td>
+                <td className="min-w-[140px] px-4 py-5 text-xs text-fg-2">{row.needsReview ? "Нужно уточнить" : row.archived ? "В архиве" : ""}</td>
+                <td className="px-4 py-3"><Link href={href({ record: row.id })} className={`${btnGhostCls} min-h-11 whitespace-nowrap`}>Открыть<span className="sr-only">: {row.applicantName || "Имя не указано"}</span></Link></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </div>}
         <nav aria-label="Страницы отчёта" className="mt-5 flex flex-wrap items-center justify-between gap-3">
           {offset > 0 ? <Link href={href({ offset: String(Math.max(0, offset - 50)) })} className={`${btnGhostCls} min-h-11`}>Назад</Link> : <span />}
           <span className="text-xs text-fg-3">{workspace.rows.length ? `${offset + 1}–${offset + workspace.rows.length} из ${workspace.totalCount}` : ""}</span>

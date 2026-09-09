@@ -206,7 +206,7 @@ export default async function ProfilePart({
   }
 
   return (
-    <PartShell title="Профиль">
+    <PartShell title={view ? "Профиль" : "Студенты"}>
       <div className="space-y-6">
         {directory ? (
           <ProfileCaseDirectory
@@ -223,7 +223,7 @@ export default async function ProfilePart({
         {view ? (
           <>
             <Link
-              className="inline-flex text-sm font-semibold text-accent hover:underline"
+              className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
               href="/v3/profile"
             >
               К каталогу студентов
@@ -249,14 +249,19 @@ export default async function ProfilePart({
             />
           </>
         ) : (
-          <p className="rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
+          <p className="border-t border-border px-4 py-5 text-sm leading-relaxed text-fg-2">
             {invalidIdentityShape
-              ? "Профиль не открыт: адрес должен содержать только один точный идентификатор без параметров каталога."
+              ? "Ссылка на профиль некорректна. Найдите студента через поиск."
               : missing
-                ? "Такого человека в базе нет. Показывать вместо него другого мы не будем."
+                ? "Профиль не найден или недоступен вам. Найдите студента через поиск."
                 : directory && (directory.rows.length > 0 || directoryParams.active)
-                  ? "Выберите точное дело студента из результатов поиска."
-                  : "В базе нет ни одного человека."}
+                  ? "Выберите студента в результатах поиска, чтобы открыть его профиль."
+                  : "Здесь вы сможете открыть профиль студента: документы, заявки и задачи по поступлению."}
+            {invalidIdentityShape || missing ? (
+              <Link href="/v3/profile" className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
+                Найти студента
+              </Link>
+            ) : null}
           </p>
         )}
       </div>

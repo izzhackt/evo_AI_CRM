@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import {
   fixedRoleCanAccessRoute,
+  fixedRoleHomeRoute,
   type FixedRole,
   type FixedRoleRoute,
 } from "@/lib/fixed-role-policy";
@@ -12,7 +13,7 @@ import {
   logoutStaffAction,
   selectStaffRolePreviewAction,
 } from "@/lib/staff-auth-actions";
-import { EvoMark } from "@/components/platform/brand/EvoMark";
+import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { roleTitle } from "@/lib/v3/wording";
 
 /**
@@ -65,26 +66,41 @@ export function AppShell({
     >
       <nav
         aria-label="Разделы"
-        className="border-b border-border bg-surface md:sticky md:top-0 md:h-dvh md:w-[224px] md:shrink-0 md:border-b-0 md:border-e"
+        tabIndex={0}
+        className="flex flex-col border-b border-border bg-surface md:sticky md:top-0 md:h-dvh md:w-[224px] md:shrink-0 md:overflow-y-auto md:border-b-0 md:border-e"
       >
-        {/* Слово «EVO Admissions» несёт шапка главной; рельсу достаточно знака. */}
-        <p className="hidden px-4 pb-3 pt-5 text-fg-2 md:block">
-          <EvoMark size={20} tone="mono" />
-          <span className="sr-only">EVO Admissions</span>
-        </p>
+        <div className="px-5 py-3 md:px-6 md:py-5">
+          <Link
+            href={fixedRoleHomeRoute(presentationRole)}
+            aria-label="EVO Admissions — начало работы"
+            className="inline-flex rounded-nav focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
+          >
+            <EvoLogo width={132} />
+          </Link>
+        </div>
 
-        <ul className="grid grid-cols-3 gap-1 p-2 md:flex md:flex-col md:gap-0.5 md:px-3 md:pb-3 md:pt-0">
+        <ul
+          aria-label="Навигация по разделам"
+          tabIndex={0}
+          className="flex min-w-0 gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:overflow-x-visible"
+        >
           {sections.map((section) => {
             const active = pathname === section.href;
             return (
-              <li key={section.href}>
+              <li key={section.href} className="shrink-0">
                 <Link
                   href={section.href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex min-h-11 items-center justify-center rounded-nav px-3 text-center text-sm md:justify-start md:text-start ${
+                  onFocus={(event) =>
+                    event.currentTarget.scrollIntoView({
+                      block: "nearest",
+                      inline: "nearest",
+                    })
+                  }
+                  className={`flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
                     active
-                      ? "bg-accent font-medium text-on-accent"
-                      : "text-fg-2 hover:bg-surface-2"
+                      ? "bg-accent-weak font-semibold text-accent"
+                      : "text-fg-2 hover:bg-surface-2 hover:text-fg"
                   }`}
                 >
                   {section.label}
@@ -94,65 +110,70 @@ export function AppShell({
           })}
         </ul>
 
-        <p className="border-t border-border px-4 py-3 text-xs text-fg-3 md:py-4">
-          <span className="block truncate text-fg-2">{displayName}</span>
-          <span
-            className="font-mono uppercase"
-            data-testid="active-role"
-            data-role={presentationRole}
-            data-authority-role={authorityRole}
-          >
-            {roleTitle(presentationRole)}
-          </span>
-        </p>
-
-        {authorityRole === "admin" ? (
-          <section
-            className="border-t border-border px-3 py-3"
-            data-testid="staff-role-preview"
-          >
-            <p className="px-1 text-2xs font-medium uppercase tracking-wide text-fg-3">
-              Предпросмотр роли
-            </p>
-            <form
-              action={selectStaffRolePreviewAction}
-              className="mt-2 grid grid-cols-3 gap-1 md:grid-cols-1"
-              data-testid="admin-role-preview"
+        <div className="md:mt-auto">
+          {authorityRole === "admin" ? (
+            <section
+              className="border-t border-border px-3 py-2"
+              data-testid="staff-role-preview"
             >
-              {FIXED_ROLES.map((role) => (
-                <button
-                  key={role}
-                  type="submit"
-                  name="role"
-                  value={role}
-                  data-testid={`preview-role-${role}`}
-                  aria-pressed={presentationRole === role}
-                  className="min-h-10 rounded-nav border border-control-edge px-2 text-xs text-fg-2 transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-on-accent"
+              <details open={previewing}>
+                <summary className="min-h-11 cursor-pointer content-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                  Предпросмотр роли
+                </summary>
+                <form
+                  action={selectStaffRolePreviewAction}
+                  className="mt-2 grid grid-cols-1 gap-2 pb-2 sm:grid-cols-3 md:grid-cols-1"
+                  data-testid="admin-role-preview"
                 >
-                  {roleTitle(role)}
-                </button>
-              ))}
-            </form>
-            {previewing ? (
-              <p
-                className="mt-2 px-1 text-xs leading-5 text-accent"
-                data-testid="preview-active"
-              >
-                Администратор видит интерфейс роли «{roleTitle(presentationRole)}».
-              </p>
-            ) : null}
-          </section>
-        ) : null}
+                  {FIXED_ROLES.map((role) => (
+                    <button
+                      key={role}
+                      type="submit"
+                      name="role"
+                      value={role}
+                      data-testid={`preview-role-${role}`}
+                      aria-pressed={presentationRole === role}
+                      className="min-h-11 rounded-nav border border-control-edge px-3 text-sm text-fg-2 transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent-weak aria-pressed:font-medium aria-pressed:text-accent-text"
+                    >
+                      {roleTitle(role)}
+                    </button>
+                  ))}
+                </form>
+              </details>
+              {previewing ? (
+                <p
+                  className="mt-2 px-2 pb-2 text-sm leading-5 text-accent"
+                  data-testid="preview-active"
+                >
+                  Администратор видит интерфейс роли «{roleTitle(presentationRole)}».
+                </p>
+              ) : null}
+            </section>
+          ) : null}
 
-        <form action={logoutStaffAction} className="border-t border-border p-3">
-          <button
-            type="submit"
-            data-testid="staff-logout"
-            className="min-h-11 w-full rounded-nav border border-control-edge px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2"
-          >
-            Выйти
-          </button>
-        </form>
+          <div className="flex items-center gap-3 border-t border-border p-3 md:flex-col md:items-stretch md:gap-3 md:p-4">
+            <p className="min-w-0 flex-1 text-sm text-fg-3">
+              <span className="block truncate font-medium text-fg">{displayName}</span>
+              <span
+                className="mt-0.5 block text-xs"
+                data-testid="active-role"
+                data-role={presentationRole}
+                data-authority-role={authorityRole}
+              >
+                {roleTitle(presentationRole)}
+              </span>
+            </p>
+            <form action={logoutStaffAction} className="shrink-0">
+              <button
+                type="submit"
+                data-testid="staff-logout"
+                className="min-h-11 w-full rounded-nav border border-control-edge px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                Выйти
+              </button>
+            </form>
+          </div>
+        </div>
       </nav>
 
       {/* Контейнер, а не окно: рельс забирает 224px, и раскладки внутри должны

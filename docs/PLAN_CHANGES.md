@@ -22087,6 +22087,78 @@ forward removal of portal v1 and the Admin-only omitted-reason exception.
 The requested localhost view is a loopback SSH tunnel to production, never a
 local-development copy; refresh its private target after container replacement.
 
+## 2026-09-09 — owner-requested EVO brand and UX refresh
+
+Before coding: the owner explicitly requests applying
+https://britishdesign.ru/about/blog/386562/ and EVO logobook colours/logos to the
+existing platform. The monochrome-only experiment is no longer a binding colour
+restriction. Preserve its quiet light surfaces and all functional/permission
+boundaries; introduce authentic red branding and meaningful action emphasis.
+
+Plan block: `docs/EVO_LAUNCH_PLAN.md`, Current UI block 2026-09-09. Scope is shared
+visual tokens, real logo assets, navigation/account density, main/report/directory
+hierarchy, login and portal branding. No new admissions workflows from the earlier
+unanswered product discussion, no data model/role/Auth/provider changes and no
+production deployment. Use current real data for browser checks; never manufacture
+cases for a prettier screen. Preserve #687's owner-approved temporary contracts.
+
+Source PDF palette page 20 has mislabelled secondary swatches. The archived
+contractor copy gives burgundy #970026; both agree on primary #d70217. Use the
+unambiguous common primary red; do not infer arbitrary logo colours. Original PNG
+wordmark avoids substituting a font in the logo. Existing licensed UI fonts stay;
+the supplied trial/commercial font files have no verified web-embedding licence.
+
+Read-only baseline captured in the existing Chrome EVO session. Implementation
+and actual-path proof will be recorded below; this entry is not completion proof.
+
+Implementation checkpoint: actual Node22 production build/TypeScript PASS;
+27 scoped source/token checks PASS; scoped ESLint and whitespace checks PASS.
+Original PNG provenance and real Chrome login proof (desktop + measured 393px
+CSS viewport) recorded in the reference note. Browser caught the initial static
+asset redirect; static image import fixes it without touching authentication.
+Independent review's stale profile-error expectation and the changed 44px portal
+target expectation were corrected; all existing assertions retained.
+
+Fresh navigation invalidated the cached Admin session, so internal staff/Student
+visual proof is not complete. No password reset, business-data write, or production
+deploy performed. Preserve this as a draft PR with explicit login/acceptance gap;
+do not represent local build success as whole-platform/browser acceptance.
+
+## 2026-09-09 — explicitly approved smoke Admin credential rotation
+
+After the owner approved the exact account password reset and associated smoke
+secret update, verified the existing confirmed Auth identity and changed only its
+password using the server-side Auth Admin endpoint. User/email/metadata unchanged;
+no role grant, new account, Auth bypass, schema or business-data mutation.
+
+Real password sign-in, verified Auth user and canonical active Admin RPC passed
+at 11:12:57 UTC. GitHub smoke email/password secrets updated through stdin at
+11:12:58–59 UTC and update timestamps independently read back. The one generated
+owner credential handoff is local ignored `.env.evo-smoke`, mode 0600; no values in
+Git, chat or logs. Do not repeat the reset on resume. Browser entry and read-only
+staff/Student visual checks remain pending; no merge or application deployment.
+
+## 2026-09-09 — authenticated staff UX verification and narrow corrections
+
+Owner confirmed ordinary browser login. On the actual local production build,
+checked all seven staff routes at desktop/393px, real report year/month/archive
+filters and record details, directory search/reset/empty states, keyboard table
+scrolling and role-preview disclosure. No business record was created or changed;
+Admin preview was restored and no production deployment occurred.
+
+Three observed UI corrections stay within the approved usability scope: mobile
+report filters now use two readable columns; positioned scroll containers prevent
+absolute screen-reader labels from widening the entire page; keyed native search
+fields and document-navigation Reset clear both applied and unapplied filters.
+Official React select/reset behavior was verified and linked in the reference note.
+Real retakes passed: report document width 384px at CSS viewport 393px, selectors
+153×44px, and both search-reset cases clear the visible values and URL together.
+Final build, scoped ESLint, whitespace and 29 source/token checks pass.
+
+Staff acceptance replaces the earlier pending-login status, not Student acceptance.
+No real Student session is available; PR #692 remains draft until that visual
+check or explicit owner deferral. Preserve #687 and the no-production-deploy scope.
+
 ## 2026-09-09 — Student Portal, native assessments and China/Malaysia Admissions
 
 Owner authority: improve/deploy the current EVO design; add personal English and
@@ -22133,3 +22205,16 @@ govern fees/visa details; uncertain source percentages/timings are not hardcoded
 No new app, migrations, Auth users, provider messages or production deployment
 were performed by this plan amendment. Runtime and release proof will be recorded
 per block, bound to exact SHA, independently reviewed and pushed to GitHub.
+
+### 2026-09-09 — brand Student visual gate and current-run reconciliation
+
+The earlier pending-Student status above is superseded by the isolated E4
+browser run: 6 passed, 6 intentional viewport skips, all five routes at desktop,
+393px and forced-dark, 15 inspected private screenshots. The actual definition
+list nesting defect was corrected; old text/CSS-volume test oracles were replaced
+with current exact copy and real branding/asset checks. Actual Auth/Postgres,
+role guards and notification persistence/replay passed. The synthetic preactivated
+fixture does not prove normal invitation/provisioning or production deployment.
+The old preview and production tunnel were not altered. PR #692 incorporates
+current main's separate Student/Admissions run contract without dropping either
+decision history; its source delta still requires exact-head review and CI.

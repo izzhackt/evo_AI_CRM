@@ -1,5 +1,11 @@
 # Условия заказчика по V3
 
+## Обновление бренда и UX — 09.09.2026
+
+> «https://britishdesign.ru/about/blog/386562/ прочитай и по нему re-do the
+> design/ux-ui of this EVO platform, and add some coloring/logos stuff from
+> the logobook of EVO»
+
 **Здесь лежат только слова заказчика.** Не мои выводы, не находки разбора, не
 предложения. Если он что-то сказал — оно записано сюда, и повторять не нужно.
 

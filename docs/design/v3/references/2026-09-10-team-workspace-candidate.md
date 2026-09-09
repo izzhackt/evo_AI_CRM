@@ -36,6 +36,12 @@ The canonical settings section is `staff`.
   rejection checks: 32/32. Brand/settings/profile checks: 14/14. These batches
   overlap route coverage; do not sum them into a unique test-count claim.
 - Worker task field checks: 3/3. Scoped ESLint and `git diff --check` passed.
+- Suite-manifest check: 6/6 after refreshing stale exact-count assertions. The
+  current-main package already listed three more files than that older assertion;
+  this branch adds one Auth-rejection test. CI now resolves132 unique files from
+  271 occurrences (139 duplicates eliminated); local unit resolves127/169/42.
+  No test or serial-provider classification was removed; this does not claim
+  that the full132-file suite was executed during this bounded candidate check.
 - Real local database **schema only** was read from
   `supabase_db_evo-platform-local` (ledger through125), with no user/customer rows.
   In one disposable, network-isolated PostgreSQL17.6.1.165 container, a clean

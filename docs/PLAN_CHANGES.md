@@ -22242,6 +22242,94 @@ The old preview and production tunnel were not altered. PR #692 incorporates
 current main's separate Student/Admissions run contract without dropping either
 decision history; its source delta still requires exact-head review and CI.
 
+### 2026-09-09 — P2/P3/M1 implementation contract before coding
+
+PR #692 is now merged at `198f5551`, after independent exact-head approval and
+CI 34358523190. Continue native assessments in their owned worktree; implement
+Admissions in a separate branch. Schema allocation after checking main: 135/136
+belong to assessments, 137 Admissions commands/boundaries, 138 reviewed CN/MY
+playbook content. These candidates are unapplied; never edit deployed 001–134.
+
+Use existing cases, tasks, applications, visas, documents, payments and Sales
+handoffs. Add a nullable typed direction, immutable editorial playbook binding,
+separate optimistic admissions revision, dated next action and validated facts.
+Do not misuse access-scope versions, replace applied OZO/requirements contracts,
+auto-classify historical cases, or create another workflow engine. Existing
+`operational_stage` remains the state. Primary application governs case progression;
+alternatives remain independent and visible. Cancellation is not successful arrival.
+
+Add scoped partner/decision details to existing versioned applications and CN/MY
+country details to visas. A partner receipt is not proof of university submission.
+Malaysia separates referral, university and submission partner, offer conditions,
+invoice/payment references, EMGS, eVAL, entry visa applicability, MDAC, housing,
+departure and confirmed arrival. Unknown applicability stays unresolved. Published
+playbooks are editorial working instructions, not universal legal requirements.
+Current official requirements and real invoices govern. Post-arrival medical,
+registration and Student Pass endorsement stay pending until evidenced, including
+after the recommended confirmed-arrival completion endpoint.
+
+Seven canonical stage keys remain `intake`, `profile_and_route`, `documents`,
+`applications`, `decisions`, `visa_and_predeparture`, `arrival_and_adaptation`.
+Transitions check real evidence and finance blockers, with explicit reason for
+back-steps and no erasure of facts. Existing route/lifecycle/application/visa
+commands must not bypass new gates on configured cases. Arrival success requires
+date, confirming person and evidence; tickets alone never complete a case.
+Handoff acknowledgement remains operational evidence, not a new access gate.
+
+New RPCs use live actor/scope checks, expected revision and exact replay receipts.
+Read views preserve staff projection boundaries and never include personal tests.
+Direction/curator/attention filters run before server pagination. The summary
+counts the full visible case set and distinguishes current stock from period
+arrival events. Tasks reuse existing idempotent source keys and manual curator
+assignment. Templates are editable/copyable only, with no provider sends.
+
+The implementation contract is detailed in
+`docs/design/v3/admissions-playbook-implementation.md`. Official foundations:
+https://supabase.com/docs/guides/database/functions and
+https://www.postgresql.org/docs/current/explicit-locking.html; current Malaysia
+entry sources remain in the run plan. Recommendations here are logged for owner
+post-edit rather than interrupting the authorized run with product questions.
+
+Source terminology clarification before content implementation: the Malaysia
+working DOCX uses LOE ambiguously. EMGS distinguishes the university Letter of
+Offer from a nationality-specific Letter of Eligibility (LOE). The product uses
+«Letter of Offer» for the university offer and does not invent a universal LOE
+requirement. Verified against https://visa.educationmalaysia.gov.my/guidelines/required-documents .
+
+## 2026-09-09 — Student/Admissions release dependency prerequisite
+
+Before the authorized production release, replace the vulnerable root app pins
+Next.js / eslint-config-next 16.2.11 with 16.3.4 and Sharp 0.35.0 (including its
+override) with 0.35.4; regenerate the npm lockfile, without a blanket audit fix or
+changes to the separate Inbox project. The production dependency audit currently
+reports Next critical / Sharp high. The Windows-only advisory is not evidence of
+exploitation on Linux; the separate AVIF image-optimizer advisory is relevant to
+the framework release and must not be hidden by an allowlist. No exploit or live
+customer image is needed to validate this patch.
+
+Official maintainer evidence checked before editing:
+- https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36
+- https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4
+- https://github.com/lovell/sharp/security/advisories/GHSA-rgj7-g3m4-5g8c
+- https://github.com/vercel/next.js/releases/tag/v16.3.4
+
+Require a fresh clean dependency audit, build, focused Auth/assessment/Admissions
+regressions and the final isolated runtime/browser proof on the repaired pins.
+This is a release prerequisite, not a new feature, and does not claim production
+has been patched before the exact-main deployment and readback succeed.
+
+The remaining development-only finding is ESLint's transitive js-yaml 4.3.1.
+Refresh only that compatible v4 lock entry to patched 4.3.2 (no v5 upgrade), per
+https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh .
+
+Admissions report clarification before the final SQL summary adjustment: the
+monthly arrival KPI counts only currently confirmed arrived cases using their
+current actual arrival date, supported by the latest confirmation event.
+Reopened/cancelled cases are excluded; a corrected arrival date moves the case
+between months instead of preserving two successes. Immutable event history is
+retained for audit but is not the business KPI. "Overdue" includes pending task,
+partner-response and correction deadlines, not just the next-action date.
+
 ### 2026-09-09 — isolated normal Student invitation proof
 
 P1/P8 require an actual invite → callback → password setup → Student session,
@@ -22307,3 +22395,59 @@ https://supabase.com/docs/reference/api/v1-delete-login-roles,
 https://supabase.com/docs/reference/api/v1-get-pooler-config,
 https://supabase.com/docs/guides/platform/temporary-access,
 https://www.postgresql.org/docs/17/app-pg-dumpall.html .
+
+### 2026-09-09 — Malaysia pre-arrival clearance is not Student Pass endorsement
+
+The final domain review identified a misleading shared visa field group. For MY,
+the approved visa-case status records pre-arrival clearance; it must not require
+generic visa issue/expiry dates that could be mistaken for Student Pass issuance.
+Keep dated applicability evidence, actual eVAL validity, applicable SEV/eVISA
+validity and MDAC as separate gates. China keeps its existing visa-date checks.
+Use the same country-aware field selection in the read view and editor: MY hides
+JW and generic issue/expiry fields, while CN hides Malaysia-only groups. Preserve
+existing stored values when editing another section; this is not data cleanup.
+
+Student Pass endorsement remains an independently confirmed post-arrival action,
+not an automatic consequence of arrival or a requirement before departure.
+Official sources checked during review:
+https://educationmalaysia.gov.my/get-in-touch/faq and
+https://www.imi.gov.my/index.php/en/main-services/pass/student-pass/ .
+Verify MY through arrival without invented generic visa dates and with Student
+Pass still pending, plus a negative CN missing-date regression. Also align the
+direction summary's overdue label with its task/partner/correction scope.
+
+### 2026-09-09 — preserve the existing case snapshot projection
+
+Real E5 Curator navigation exposed a lazy SQL validation failure: migration137
+adds directory columns, while the existing 078 staff_student_case_read_snapshot
+uses page.* inside its fixed 33-column return contract. Preserve that snapshot
+API and its access boundaries by selecting its original 24 page columns by name,
+followed by the unchanged nine conditional handoff fields. Do not expand the old
+snapshot or remove authority checks. Add an actual authenticated snapshot RPC
+regression after migrations137/138, including its exact legacy projection, and
+repeat the real browser navigation. Source-only tests did not catch this failure.
+
+### 2026-09-09 — coordinate route save with canonical form refresh
+
+E5 real CN/MY journeys exposed a sibling-form race: the route editor closed before
+its RSC refresh completed, allowing entry into a canonical application form that
+the incoming application revision then remounted. Keep that editor visible and
+confirmed/locked during the refresh transition; disable canonical sibling inputs
+while the route editor or its refresh is active. Render the existing canonical
+workspace as a server-composed child of this coordination boundary, without new
+RPCs or authority changes. Only unlock after the refreshed UI commits. Prove this
+with a held-and-released real RSC network request, then persist the next canonical
+status/evidence; no sleeps, fake responses, or forced status changes for acceptance.
+After an explicitly confirmed stage transition, show the new current-stage
+checklist. Merely browsing another stage still does not change the actual route.
+
+### 2026-09-09 — rebind canonical visa controls to the refreshed revision
+
+The complete MY browser journey reached all eVAL/SEV/MDAC evidence, then found
+that the existing VisaForm retained its first useActionState revision after
+route edits advanced the same visa record. Match the existing application form
+pattern: key the visa editor by case, visa identity and canonical revision, so a
+confirmed refresh resets stale action state. The route coordination boundary
+keeps sibling inputs disabled while those updates commit. Keep actual expected-
+revision validation; prove docs-to-approved after route facts without a reload
+workaround or forced database status.

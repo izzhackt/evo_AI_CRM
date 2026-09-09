@@ -1,4 +1,5 @@
 import type { PlatformActor } from "./platform-auth";
+import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "./platform-admissions-playbook-contract.ts";
 import {
   isPlatformApplicationCalendarDate,
   isPlatformApplicationCountryCode,
@@ -84,6 +85,8 @@ export type PlatformStudentCaseQueueRow = Readonly<{
   updatedAt: string;
   handoffAt: string | null;
   nextAction: string | null;
+  admissionsDirection?: AdmissionsDirection | null;
+  nextActionDueOn?: string | null;
   responsibleSalesDisplayName: string;
   currentCuratorDisplayName: string | null;
   appliedOzoWorkflowContractVersionId: string | null;
@@ -158,6 +161,9 @@ export type PlatformStudentCasePageOptions = Readonly<{
   query?: string;
   state?: PlatformStudentCaseState;
   studentCaseId?: string;
+  direction?: AdmissionsDirection | "unknown";
+  curatorMembershipId?: string;
+  attention?: AdmissionsAttention;
 }>;
 
 export type PlatformApplicationPageOptions = Readonly<{
@@ -237,6 +243,9 @@ export function buildPlatformStudentCasePageRpcArguments(
     p_state: options?.state ?? null,
     p_query: query,
     p_student_case_id: studentCaseId,
+    p_direction: options?.direction === undefined ? null : oneOf(options.direction, [...ADMISSIONS_DIRECTIONS, "unknown"] as const),
+    p_curator_membership_id: options?.curatorMembershipId === undefined ? null : requiredUuid(options.curatorMembershipId),
+    p_attention: options?.attention === undefined ? null : oneOf(options.attention, ADMISSIONS_ATTENTION),
   });
 }
 
@@ -496,6 +505,8 @@ export function normalizePlatformStudentCaseQueueRow(
     updatedAt: requiredTimestamp(value.updated_at),
     handoffAt: optionalTimestamp(value.handoff_at),
     nextAction: optionalText(value.next_action, 1000),
+    admissionsDirection: value.admissions_direction == null ? null : oneOf(value.admissions_direction, ADMISSIONS_DIRECTIONS),
+    nextActionDueOn: value.next_action_due_on == null ? null : optionalDate(value.next_action_due_on),
     responsibleSalesDisplayName: requiredText(
       value.responsible_sales_display_name,
       200,

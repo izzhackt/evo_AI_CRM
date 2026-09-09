@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
@@ -97,6 +98,9 @@ export type V3ProfileCaseDirectoryParams = Readonly<{
   invalid: boolean;
   query?: string;
   state?: PlatformStudentCaseState;
+  direction?: AdmissionsDirection | "unknown";
+  curatorMembershipId?: string;
+  attention?: AdmissionsAttention;
 }>;
 
 export type V3ProfileCaseDirectoryRow = Readonly<{
@@ -114,6 +118,9 @@ export type V3ProfileCaseDirectoryRow = Readonly<{
   targetCountry: string | null;
   targetDegree: string | null;
   updatedAt: string | null;
+  admissionsDirection?: AdmissionsDirection | null;
+  nextAction?: string | null;
+  nextActionDueOn?: string | null;
 }>;
 
 export type V3ProfileCaseDirectory = Readonly<{
@@ -740,6 +747,9 @@ const PROFILE_CASE_DIRECTORY_KEYS = [
   "case_before_id",
   "case_q",
   "case_status",
+  "direction",
+  "curator",
+  "attention",
 ] as const;
 
 function singleDirectoryValue(
@@ -771,6 +781,18 @@ export function parseV3ProfileCaseDirectoryParams(
     const stateCandidate = trimmedDirectoryValue(
       singleDirectoryValue(searchParams.case_status),
     );
+    const direction = trimmedDirectoryValue(singleDirectoryValue(searchParams.direction));
+    const curatorMembershipId = trimmedDirectoryValue(singleDirectoryValue(searchParams.curator));
+    const attention = trimmedDirectoryValue(singleDirectoryValue(searchParams.attention));
+    if (direction && direction !== "unknown" && !(ADMISSIONS_DIRECTIONS as readonly string[]).includes(direction)) {
+      throw new Error("invalid_profile_case_directory_query");
+    }
+    if (curatorMembershipId && !parsePlatformAdmissionsUuid(curatorMembershipId)) {
+      throw new Error("invalid_profile_case_directory_query");
+    }
+    if (attention && !(ADMISSIONS_ATTENTION as readonly string[]).includes(attention)) {
+      throw new Error("invalid_profile_case_directory_query");
+    }
     if (
       stateCandidate &&
       !["pending", "active", "closed"].includes(stateCandidate)
@@ -795,6 +817,9 @@ export function parseV3ProfileCaseDirectoryParams(
       invalid: false,
       query,
       state: stateCandidate as PlatformStudentCaseState | undefined,
+      direction: direction as AdmissionsDirection | "unknown" | undefined,
+      curatorMembershipId,
+      attention: attention as AdmissionsAttention | undefined,
     });
   } catch {
     return Object.freeze({ active, cursor: null, invalid: true });
@@ -850,6 +875,9 @@ function directoryRow(
     admissionsDisplayName: studentCase.currentCuratorDisplayName,
     leadId: leadIds.get(studentCase.studentCaseId) ?? null,
     operationalStage: studentCase.operationalStage,
+    admissionsDirection: studentCase.admissionsDirection ?? null,
+    nextAction: studentCase.nextAction,
+    nextActionDueOn: studentCase.nextActionDueOn ?? null,
     overdueObligationCount: studentCase.overdueObligationCount,
     overdueTaskCount: studentCase.overdueTaskCount,
     rejectedDocumentCount: studentCase.rejectedDocumentCount,
@@ -879,6 +907,9 @@ export async function readV3ProfileCaseDirectory(
     query: exactStudentCaseId ? undefined : params.query,
     state: params.state,
     studentCaseId: exactStudentCaseId ?? undefined,
+    direction: params.direction,
+    curatorMembershipId: params.curatorMembershipId,
+    attention: params.attention,
   });
   const canReadSales = fixedRoleCan(actor.presentationRole, "sales.read");
   const links = canReadSales && page.rows.length > 0

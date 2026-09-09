@@ -46,8 +46,13 @@ e5c_concurrency_worker_b_log="$(mktemp -t evo-e5c-concurrency-b.XXXXXX)"
 e5c_concurrency_assert_log="$(mktemp -t evo-e5c-concurrency-assert.XXXXXX)"
 e5c_concurrency_worker_a_pid=""
 p135_worker_pid=""
+a137_worker_pid=""
 
 cleanup() {
+  if [[ -n "$a137_worker_pid" ]]; then
+    kill "$a137_worker_pid" >/dev/null 2>&1 || true
+    wait "$a137_worker_pid" >/dev/null 2>&1 || true
+  fi
   if [[ -n "$p135_worker_pid" ]]; then
     kill "$p135_worker_pid" >/dev/null 2>&1 || true
     wait "$p135_worker_pid" >/dev/null 2>&1 || true
@@ -2388,6 +2393,26 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -v p135_mode=assert_complete -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_student_assessments_boundary.sql
+  fi
+  if [[ "$(basename "$migration")" == 138_* ]]; then
+    # Both published country playbooks must be present for this real boundary.
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v a137_mode=setup -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_playbook_boundary.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v a137_mode=worker -v a137_value='First writer' -v a137_request=9801 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_playbook_boundary.sql &
+    a137_worker_pid=$!
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v a137_mode=worker -v a137_value='Second writer' -v a137_request=9802 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_playbook_boundary.sql
+    wait "$a137_worker_pid"
+    a137_worker_pid=""
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v a137_mode=assert -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_playbook_boundary.sql
   fi
 done < <(
   cd "$repo_root"

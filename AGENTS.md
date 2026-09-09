@@ -29,6 +29,15 @@
 
 ## Current Product Authority
 
+- Latest September10 continuation approves the audited business gaps and adds
+  universities with real pictures/details/deadlines, production update and
+  same-server localhost tunnel. Read
+  `docs/design/v3/business-operations-universities-run-plan.md` first. It extends
+  the team candidate, canonical Sales/Finance/Admissions and existing reviewed
+  university catalog boundary056. Keep staff-only records out of Student DTOs.
+  The catalogue is now approved; offer comparison and staff access to private
+  assessments are still deferred. Follow the plan's explicit recovery record
+  without repeating the owner's no-new-backup question or bypassing release gates.
 - Latest September10 request approves implementation of the optimized plan for
   employee chat and task creation: `docs/design/v3/team-workspace-run-plan.md`,
   linked from `docs/EVO_LAUNCH_PLAN.md` and tracked in #708. Implementation is

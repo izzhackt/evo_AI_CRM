@@ -4,7 +4,7 @@
 | --- | --- |
 | Owner | EVO operations; named owner required |
 | Status | Draft aligned with the implemented CRM model |
-| Last verified | 2026-07-12 |
+| Last verified | 2026-09-10 (canonical authority; later operational additions tracked in run plan) |
 | Sources | CRM stages and contracts, company charter, EVO brand research |
 
 This process separates a sales inquiry from the longer student-admissions file.
@@ -13,14 +13,17 @@ They are related, but they are not the same record.
 ## 1. Inquiry And Qualification
 
 1. Capture the inquiry and communication consent.
-2. Resolve or create the contact and lead in amoCRM.
+2. Resolve or create the canonical client and lead in EVO/Supabase through an
+   authorized application command.
 3. Record target country, study level, intended intake, language level, budget,
    available documents, and the decision-making participants.
 4. Schedule and complete a consultation.
 5. Record the next action, owner, and deadline.
 
-amoCRM owns canonical contact/lead identity and sales stage. EVO CRM and EVO
-Inbox keep linked shadow identifiers for operator speed.
+EVO/Supabase owns canonical client/lead identity and sales stage in the current
+production-successor product (ADRs 0024/0027). amoCRM is an external integration;
+its linked identifiers do not replace the EVO record. Earlier V1 material that
+made amoCRM authoritative is historical, not an instruction for current staff.
 
 ## 2. Contract And Student File
 

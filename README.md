@@ -33,7 +33,13 @@ GitHub `main` is the shared source of truth. Work through a GitHub Issue and a
 reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
-Resume the current September 9 run from
+Resume the current September10 continuation from
+[`business-operations-universities-run-plan.md`](docs/design/v3/business-operations-universities-run-plan.md):
+daily Sales/Finance/Admissions gaps, native team-workspace integration and a
+source-backed university catalogue for staff and Student. Status and release
+evidence live in that plan; planned features are not yet deployment evidence.
+
+The September 9 implementation baseline is recorded in
 [`student-admissions-run-plan.md`](docs/design/v3/student-admissions-run-plan.md):
 Student Portal, native English/career-interest tests, China/Malaysia Admissions,
 and the shared [`DESIGN.md`](DESIGN.md) contract. This is authorized implementation

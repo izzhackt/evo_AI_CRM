@@ -22706,3 +22706,45 @@ they do not replace real invitation/multi-user/browser acceptance. No new staff,
 provider operation, backup or production migration was performed. R5 remains
 held for its real gates; the activation runbook names future WAHA work without
 claiming an implemented WhatsApp mirroring bridge.
+
+### 2026-09-10 — approved operational gaps, universities and production continuation
+
+Owner approves the preceding business-gap recommendations, adds a university
+page with deadlines/details/pictures, and explicitly requests production update
+and local view. The current bounded contract is
+`docs/design/v3/business-operations-universities-run-plan.md` (O0–O6), continuing
+PR #710, not rebuilding its R1–R4. Catalogue deferral is superseded; offer
+comparison, private-assessment staff access, parent portal and live WAHA remain
+outside scope. Fix current business guidance to EVO/Supabase canonical authority.
+
+Parallel ownership: Sales/Finance O1/O2 reserves143/144; Admissions O3 reserves
+145/146; coordinator task links/result O4 reserves147 and shared contracts;
+catalogue O5 reserves148 after official-source research. Recheck main before
+integration. Existing canonical lead helpers084, finance043, attention137,
+documents, staff tasks140 and reviewed catalogue056 are extended, not replaced.
+Each module authenticates commands and source links separately; task/chat linkage
+must not expand lead/case access. Packet creation freezes selected approved
+versions, but does not send to a partner. Student help is a case-bound request,
+not new general messaging. Real payment events stay distinct from report totals.
+
+Catalogue initial content uses reviewed public sources with real image rights,
+source dates and explicit unknown fields. APU is present in the reviewed EVO
+client knowledge; other publicly researched universities are not labelled EVO
+partners without evidence. Intake dates and application deadlines stay distinct.
+An Admin-approved record in the existing catalogue boundary remains canonical.
+
+The owner's standing instruction is no new backup for now until they say otherwise,
+and they now explicitly request this production continuation. Record that scope
+here instead of asking the same recovery question again. Do not start a new backup,
+delete retained recovery artifacts, fabricate fresh restore evidence or bypass a
+technical gate. Run the ordinary exact-head review/CI/schema/release checks; if a
+gate requires authority not covered here, report its exact blocker before acting.
+Actual multi-employee/Student acceptance remains evidence-specific, never supplied
+by synthetic data or a green build. Local preview uses the same server/container
+and one persistent Supabase source; Auth remains enabled. WAHA activation still waits
+for real numbers and a separate operator check, with no pairing/messages now.
+
+Official Supabase database functions/Storage access-control and Next.js data-security
+docs were refreshed directly; Context7 reports exhausted monthly quota. Use narrow
+grants, empty search_path on privileged RPCs and live command/Storage authorization.
+No new compatibility lane, mock backend or second product database is introduced.

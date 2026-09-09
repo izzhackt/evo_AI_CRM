@@ -22133,3 +22133,26 @@ govern fees/visa details; uncertain source percentages/timings are not hardcoded
 No new app, migrations, Auth users, provider messages or production deployment
 were performed by this plan amendment. Runtime and release proof will be recorded
 per block, bound to exact SHA, independently reviewed and pushed to GitHub.
+
+### 2026-09-09 — P4–P6 private assessment implementation contract
+
+P0 is merged as #694 (`5981363a`); its exact-head review and 132 source-contract
+checks passed. Execute the planned parallel assessment slice while P1 checks the
+existing branded portal in its separate E4 runtime. This does not claim normal
+invite provisioning from the old preactivated synthetic E4 fixture.
+
+Use three RPC-only tables for immutable published instruments, personal attempts
+and request receipts. The runtime question/key authority is the version seeded in
+Postgres (135 schema, 136 content), not a second browser scoring implementation.
+Five Student-only RPCs resolve identity from live Auth/membership/portal scope;
+ordinary Admin/Curator, other Students and direct table/key reads remain denied.
+Full answer snapshots are small (at most 92), revision-checked and idempotent;
+completion stores its immutable result. Answers and scores never enter staff
+case events or analytics. New Tests pages use authenticated Server Actions and
+show explicit save/conflict/retry feedback without replacing the existing portal.
+
+Technical basis: Supabase database functions/RLS guidance and Next.js authenticated
+Server Actions, checked in official docs on 2026-09-09:
+https://supabase.com/docs/guides/database/functions ;
+https://supabase.com/docs/guides/database/postgres/row-level-security ;
+https://nextjs.org/docs/app/guides/authentication .

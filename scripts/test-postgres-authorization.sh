@@ -45,8 +45,13 @@ e5c_concurrency_worker_a_log="$(mktemp -t evo-e5c-concurrency-a.XXXXXX)"
 e5c_concurrency_worker_b_log="$(mktemp -t evo-e5c-concurrency-b.XXXXXX)"
 e5c_concurrency_assert_log="$(mktemp -t evo-e5c-concurrency-assert.XXXXXX)"
 e5c_concurrency_worker_a_pid=""
+p135_worker_pid=""
 
 cleanup() {
+  if [[ -n "$p135_worker_pid" ]]; then
+    kill "$p135_worker_pid" >/dev/null 2>&1 || true
+    wait "$p135_worker_pid" >/dev/null 2>&1 || true
+  fi
   if [[ -n "$p6c_concurrency_worker_a_pid" ]]; then
     kill "$p6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
     wait "$p6c_concurrency_worker_a_pid" >/dev/null 2>&1 || true
@@ -2344,6 +2349,45 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_sales_register_boundary.sql
+  fi
+  if [[ "$(basename "$migration")" == 135_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v p135_mode=setup -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql
+    # Competing real PostgreSQL sessions, same expected revision: one winner.
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v p135_mode=worker -v p135_answer=a -v p135_request=991 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql &
+    p135_worker_pid=$!
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v p135_mode=worker -v p135_answer=b -v p135_request=992 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql
+    wait "$p135_worker_pid"
+    p135_worker_pid=""
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v p135_mode=assert -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v p135_mode=worker -v p135_operation=complete \
+      -v p135_expected_revision=2 -v p135_answer=a -v p135_request=993 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql &
+    p135_worker_pid=$!
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v p135_mode=worker -v p135_operation=save \
+      -v p135_expected_revision=2 -v p135_answer=b -v p135_request=994 \
+      -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql
+    wait "$p135_worker_pid"
+    p135_worker_pid=""
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -v p135_mode=assert_complete -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_assessments_boundary.sql
   fi
 done < <(
   cd "$repo_root"

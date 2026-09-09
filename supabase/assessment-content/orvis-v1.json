@@ -1,0 +1,3493 @@
+{
+  "instrumentKey": "orvis92",
+  "version": "1.0.0",
+  "locale": "ru",
+  "metadata": {
+    "title": "Профориентация",
+    "subtitle": "Карта интересов",
+    "description": "92 коротких вопроса о занятиях, которые вам нравятся. Исследуйте восемь областей интересов и возможные профессии.",
+    "instructions": [
+      "Представьте, что вы могли бы заниматься описанной деятельностью. Насколько вам это нравится?",
+      "Оценивайте интерес, а не свои нынешние умения, оценки, зарплату или ожидания близких.",
+      "Правильных и неправильных ответов нет. Выберите один вариант от «Совсем не нравится» до «Очень нравится».",
+      "Некоторые профессии отражают американский контекст оригинала. Представляйте саму деятельность; это не рекомендация работать именно в этой стране или должности.",
+      "Можно сделать паузу и продолжить позже. Итог появится после ответа на все 92 вопроса."
+    ],
+    "limitations": [
+      "Русская адаптация EVO не валидирована и ещё не проходила пилот понимания с русскоязычными клиентами.",
+      "Анкета отражает текущие интересы, а не способности, интеллект, диагноз или гарантированный профессиональный успех.",
+      "Результат — повод исследовать варианты, а не выбрать единственную «правильную» профессию.",
+      "Выбор профессии зависит также от опыта, ценностей, условий обучения и требований конкретной страны.",
+      "Исходные исследования ORVIS не доказывают точность перевода EVO или применимость к любому возрасту.",
+      "Ответы и результаты личные: они не передаются кураторам и не определяют решение о поступлении."
+    ],
+    "estimatedMinutes": 20,
+    "estimatedDurationNote": "Редакционная оценка; длительность на клиентах EVO ещё не измерена.",
+    "privacy": "Результаты доступны только вам в вашем кабинете.",
+    "translationVersion": "evo-orvis-ru-1.0.0",
+    "interpretationVersion": "orvis-descriptive-means-1.0.0",
+    "contentAuthor": "EVO Russian editorial adaptation, 2026-09-09",
+    "scales": [
+      {
+        "id": "leadership",
+        "label": "Лидерство и влияние",
+        "description": "Интерес к руководству, убеждению и организации общих действий."
+      },
+      {
+        "id": "organization",
+        "label": "Организация и порядок",
+        "description": "Интерес к учёту, планированию, системам и внимательной работе с деталями."
+      },
+      {
+        "id": "altruism",
+        "label": "Помощь людям",
+        "description": "Интерес к обучению, поддержке и заботе о других."
+      },
+      {
+        "id": "creativity",
+        "label": "Творчество",
+        "description": "Интерес к художественному выражению и созданию новых образов."
+      },
+      {
+        "id": "analysis",
+        "label": "Анализ и исследование",
+        "description": "Интерес к объяснению, исследованию и решению сложных задач."
+      },
+      {
+        "id": "production",
+        "label": "Практическая работа и создание",
+        "description": "Интерес к работе с материалами, механизмами, растениями и природной средой."
+      },
+      {
+        "id": "adventure",
+        "label": "Активность и приключения",
+        "description": "Интерес к физической активности, соревнованию и необычным условиям."
+      },
+      {
+        "id": "erudition",
+        "label": "Языки и гуманитарные интересы",
+        "description": "Интерес к языкам, чтению, слову и гуманитарным знаниям."
+      }
+    ],
+    "scoringNote": "Показано среднее ваших ответов от 1 до 5 по каждой шкале. Размеры шкал различаются. Это не процентиль, не норма и не процент соответствия профессии.",
+    "sourceItems": {
+      "1": "Make important things happen",
+      "2": "Be the financial officer for a company",
+      "3": "Help others learn new ideas",
+      "4": "Create works of art",
+      "5": "Be a chemist",
+      "6": "Care for cattle or horses",
+      "7": "Be a professional athlete",
+      "8": "Be a translator or interpreter",
+      "9": "Lead other people",
+      "10": "Be an office manager",
+      "11": "Care for sick people",
+      "12": "Create new fashion designs",
+      "13": "Design a laboratory experiment",
+      "14": "Be a farmer",
+      "15": "Engage in exciting adventures",
+      "16": "Be a librarian",
+      "17": "Be a sales or marketing director",
+      "18": "Plan budgets",
+      "19": "Be an elementary-school teacher",
+      "20": "Be a professional dancer",
+      "21": "Be a mathematician",
+      "22": "Construct new buildings",
+      "23": "Survive in the wilderness",
+      "24": "Be a professor of English",
+      "25": "Be the chief executive of a large company",
+      "26": "Prepare financial contracts",
+      "27": "Be a social worker",
+      "28": "Write short stories or novels",
+      "29": "Explain scientific concepts to others",
+      "30": "Be a forest ranger",
+      "31": "Be a racing car driver",
+      "32": "Make up word puzzles",
+      "33": "Organize a political campaign",
+      "34": "Develop an office filing system",
+      "35": "Be a minister, priest, rabbi or other religious teacher",
+      "36": "Play an instrument in a symphony",
+      "37": "Be a physicist",
+      "38": "Cultivate plants",
+      "39": "Face physical danger",
+      "40": "Edit a newspaper",
+      "41": "Be the master of ceremonies at a meeting",
+      "42": "Supervise the work of others",
+      "43": "Counsel persons who need help",
+      "44": "Redecorate one’s house",
+      "45": "Carry out medical research",
+      "46": "Go on nature walks",
+      "47": "Be a military officer",
+      "48": "Know many languages",
+      "49": "Plan an advertising campaign",
+      "50": "Plan investment strategies",
+      "51": "Instruct parents on child care",
+      "52": "Select art works for a museum",
+      "53": "Be a scientific reporter",
+      "54": "Do woodworking",
+      "55": "Compete in athletic events",
+      "56": "Be a foreign correspondent",
+      "57": "Debate topics in a public meeting",
+      "58": "Establish time schedules",
+      "59": "Be a doctor or nurse",
+      "60": "Sing professionally",
+      "61": "Solve complex puzzles",
+      "62": "Raise flowers",
+      "63": "Be a bounty hunter",
+      "64": "Speak fluently on any subject",
+      "65": "Persuade others to change their views",
+      "66": "Monitor business expenses",
+      "67": "Be a physical therapist",
+      "68": "Be an actor or actress",
+      "69": "Develop a computer program",
+      "70": "Repair cars or trucks",
+      "71": "Be a long-distance bicycle rider",
+      "72": "Read many books",
+      "73": "Be a state governor or senator",
+      "74": "Be a purchasing agent",
+      "75": "Provide comfort and support to others",
+      "76": "Be an artist or architect",
+      "77": "Be a statistician",
+      "78": "Work with tools and machinery",
+      "79": "Be a police officer",
+      "80": "Keep a diary or journal",
+      "81": "Run for political office",
+      "82": "Keep track of a company’s inventory",
+      "83": "Participate in charity events",
+      "84": "Act in a play",
+      "85": "Design Internet web pages",
+      "86": "Make decisions that affect a lot of people",
+      "87": "Manage a computer data base",
+      "88": "Help people make career decisions",
+      "89": "Write songs",
+      "90": "Keep detailed records",
+      "91": "Be a counselor or therapist",
+      "92": "Paint or draw"
+    },
+    "sources": [
+      {
+        "title": "ORVIS official scoring key: original item IDs and scales",
+        "url": "https://ipip.ori.org/newORVISKey.htm",
+        "retrievedOn": "2026-09-09"
+      },
+      {
+        "title": "IPIP permission: public-domain items, scales and inventories",
+        "url": "https://ipip.ori.org/newPermission.htm",
+        "retrievedOn": "2026-09-09"
+      },
+      {
+        "title": "Pozzebon et al. (2010): original English ORVIS study, not validation of EVO Russian translation",
+        "url": "https://projects.ori.org/lrg/PDFs_papers/Pozzebon_etal_2009_ORVIS_JPA.pdf",
+        "retrievedOn": "2026-09-09"
+      }
+    ],
+    "license": {
+      "name": "Public domain — IPIP/ORVIS items and key",
+      "url": "https://ipip.ori.org/newPermission.htm",
+      "notice": "Исходные пункты ORVIS находятся в общественном достоянии. Перевод, русские названия и редакционные связи с профессиями подготовлены EVO; исходные авторы не проверяли эту адаптацию."
+    },
+    "translationNotes": [
+      {
+        "questionId": "24",
+        "note": "Professor of English передан как университетское преподавание английского языка и литературы, без замены предмета на русский."
+      },
+      {
+        "questionId": "30",
+        "note": "Forest ranger: сохранён смысл охраны леса, а не охоты или военной службы."
+      },
+      {
+        "questionId": "35",
+        "note": "Minister означает религиозного служителя, а не государственного министра; религиозные примеры оригинала сохранены."
+      },
+      {
+        "questionId": "59",
+        "note": "Nurse передано нейтральным «работать в сестринском деле», без ограничения профессии полом."
+      },
+      {
+        "questionId": "63",
+        "note": "Bounty hunter означает поиск скрывающихся от правосудия за вознаграждение, а не рекрутера; сохранён иностранный контекст без рекомендации такой работы."
+      },
+      {
+        "questionId": "67",
+        "note": "Physical therapist пояснён через восстановление движений, чтобы не свести профессию к аппаратной физиотерапии."
+      },
+      {
+        "questionId": "73",
+        "note": "Сохранены американские должности governor/senator; их не заменяли местными ролями."
+      },
+      {
+        "questionId": "91",
+        "note": "Counselor or therapist передан в контексте психологического консультирования, не врача-терапевта."
+      }
+    ],
+    "professionGuidance": "Карточки — редакционные варианты для исследования по интересам, а не валидированный подбор. Учебные направления и пробные задания предложены EVO. Требования к лицензиям и образованию нужно проверять для конкретной страны.",
+    "professionAttribution": "Использованы сведения O*NET® 31.0 Database, U.S. Department of Labor, Employment and Training Administration (USDOL/ETA), по лицензии CC BY 4.0. EVO перевела и сократила описания, добавила учебные направления, пробные задания и связи со шкалами. USDOL/ETA не одобряло и не проверяло эти изменения. O*NET® — товарный знак USDOL/ETA.",
+    "professionLicenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "professions": [
+      {
+        "id": "project-management",
+        "title": "Менеджер проектов",
+        "scaleIds": [
+          "leadership"
+        ],
+        "summary": "Помогает команде довести проект до результата, согласуя задачи, сроки, ресурсы и ожидания участников.",
+        "tasks": [
+          "Согласовывать план и распределение задач.",
+          "Проводить рабочие встречи и отслеживать сроки и бюджет."
+        ],
+        "skills": [
+          "Планирование",
+          "Коммуникация",
+          "Работа с рисками"
+        ],
+        "studyDirections": [
+          "Менеджмент",
+          "Управление проектами"
+        ],
+        "tryActivity": "Спланируйте небольшое учебное мероприятие: цель, задачи, ответственные и возможные задержки.",
+        "careerPath": [
+          "Учебные проекты",
+          "Координатор проекта",
+          "Ведение более сложных проектов"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/13-1082.00",
+          "occupationId": "13-1082.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с лидерством: координация людей и согласование решений. Это редакционная связь EVO."
+      },
+      {
+        "id": "training-management",
+        "title": "Руководитель обучения сотрудников",
+        "scaleIds": [
+          "leadership"
+        ],
+        "summary": "Организует обучение в компании: выясняет, чему нужно научиться, выбирает формат и оценивает его пользу.",
+        "tasks": [
+          "Собирать потребности в обучении.",
+          "Планировать программы и оценивать работу преподавателей и результаты обучения."
+        ],
+        "skills": [
+          "Организация",
+          "Объяснение",
+          "Оценка результатов"
+        ],
+        "studyDirections": [
+          "Управление персоналом",
+          "Педагогика"
+        ],
+        "tryActivity": "Составьте план короткого обучения знакомой вам теме и продумайте, как проверить понимание.",
+        "careerPath": [
+          "Разработка учебных материалов",
+          "Координация обучения",
+          "Руководство программами обучения"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/11-3131.00",
+          "occupationId": "11-3131.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Лидерство проявляется в организации совместного развития, а не только в должностной власти."
+      },
+      {
+        "id": "accounting",
+        "title": "Бухгалтер и аудитор",
+        "scaleIds": [
+          "organization"
+        ],
+        "summary": "Работает с финансовыми записями: проверяет точность данных, готовит отчёты и ищет несоответствия.",
+        "tasks": [
+          "Сверять операции и подтверждающие документы.",
+          "Готовить финансовую отчётность и объяснять обнаруженные расхождения."
+        ],
+        "skills": [
+          "Внимание к деталям",
+          "Числовая грамотность",
+          "Проверка документов"
+        ],
+        "studyDirections": [
+          "Бухгалтерский учёт",
+          "Финансы"
+        ],
+        "tryActivity": "На вымышленном личном бюджете сопоставьте доходы, расходы и остаток; объясните каждое расхождение.",
+        "careerPath": [
+          "Обучение учёту",
+          "Работа под руководством специалиста",
+          "Специализация в отчётности или аудите"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/13-2011.00",
+          "occupationId": "13-2011.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с организацией: последовательный учёт и проверка. Для некоторых функций нужна местная квалификация."
+      },
+      {
+        "id": "logistics",
+        "title": "Специалист по логистике",
+        "scaleIds": [
+          "organization"
+        ],
+        "summary": "Планирует движение товаров и ресурсов, координирует участников поставки и разбирается с отклонениями.",
+        "tasks": [
+          "Согласовывать потребности и планы поставок.",
+          "Сравнивать варианты логистики и контролировать работу подрядчиков."
+        ],
+        "skills": [
+          "Планирование",
+          "Анализ данных",
+          "Переговоры"
+        ],
+        "studyDirections": [
+          "Логистика",
+          "Управление цепями поставок"
+        ],
+        "tryActivity": "Сравните два способа доставки учебных материалов: время, стоимость, ограничения и риск задержки.",
+        "careerPath": [
+          "Изучение цепей поставок",
+          "Координация отдельных поставок",
+          "Управление более сложной цепью"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/13-1081.00",
+          "occupationId": "13-1081.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с организацией: системность, сроки и ресурсы; профессия также требует общения."
+      },
+      {
+        "id": "education-advising",
+        "title": "Консультант по образованию и карьере",
+        "scaleIds": [
+          "altruism"
+        ],
+        "summary": "Помогает людям разобраться в образовательных вариантах, трудностях и следующих шагах, сохраняя границы компетенции.",
+        "tasks": [
+          "Обсуждать цели и образовательные возможности.",
+          "Помогать составлять учебные планы и находить подходящие источники поддержки."
+        ],
+        "skills": [
+          "Активное слушание",
+          "Работа с информацией",
+          "Этичная коммуникация"
+        ],
+        "studyDirections": [
+          "Педагогика",
+          "Психология"
+        ],
+        "tryActivity": "Проведите с другом беседу о его учебных интересах и запишите несколько вариантов, не решая за него.",
+        "careerPath": [
+          "Изучение консультирования",
+          "Практика с супервизией",
+          "Специализация в образовательной поддержке"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/21-1012.00",
+          "occupationId": "21-1012.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с помощью людям: внимание к чужим целям. Карточка не даёт права оказывать психологическую или медицинскую помощь."
+      },
+      {
+        "id": "primary-teaching",
+        "title": "Учитель начальных классов",
+        "scaleIds": [
+          "altruism"
+        ],
+        "summary": "Объясняет учебный материал, организует занятия и помогает детям развивать знания и навыки.",
+        "tasks": [
+          "Готовить занятия и адаптировать объяснения.",
+          "Наблюдать прогресс и давать понятную обратную связь."
+        ],
+        "skills": [
+          "Объяснение",
+          "Терпение",
+          "Планирование занятий"
+        ],
+        "studyDirections": [
+          "Начальное образование",
+          "Педагогика"
+        ],
+        "tryActivity": "Объясните знакомому простую тему двумя разными способами и спросите, что стало понятнее.",
+        "careerPath": [
+          "Педагогическое обучение",
+          "Практика под руководством учителя",
+          "Самостоятельное преподавание после нужной квалификации"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/25-2021.00",
+          "occupationId": "25-2021.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с помощью людям: поддержка обучения. Допуск к работе с детьми определяется местными требованиями."
+      },
+      {
+        "id": "graphic-design",
+        "title": "Графический дизайнер",
+        "scaleIds": [
+          "creativity"
+        ],
+        "summary": "Передаёт идеи с помощью текста, изображения, цвета и композиции в печатных и цифровых материалах.",
+        "tasks": [
+          "Уточнять задачу и аудиторию материала.",
+          "Создавать макеты и дорабатывать их по обратной связи."
+        ],
+        "skills": [
+          "Композиция",
+          "Визуальная коммуникация",
+          "Работа с обратной связью"
+        ],
+        "studyDirections": [
+          "Графический дизайн",
+          "Визуальные коммуникации"
+        ],
+        "tryActivity": "Создайте два варианта афиши одного события и объясните, как каждый помогает понять главное.",
+        "careerPath": [
+          "Учебные макеты и портфолио",
+          "Проекты с обратной связью",
+          "Специализация или арт-дирекшн"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/27-1024.00",
+          "occupationId": "27-1024.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с творчеством: создание визуальных решений; полезно исследовать и ограничения реальной задачи."
+      },
+      {
+        "id": "interface-design",
+        "title": "Дизайнер цифровых интерфейсов",
+        "scaleIds": [
+          "creativity"
+        ],
+        "summary": "Проектирует понятные экраны и пользовательские действия, соединяя визуальную форму с задачами людей.",
+        "tasks": [
+          "Изучать потребности пользователей и структуру экранов.",
+          "Создавать прототипы и проверять удобство взаимодействия."
+        ],
+        "skills": [
+          "Прототипирование",
+          "Визуальная иерархия",
+          "Наблюдение за пользователями"
+        ],
+        "studyDirections": [
+          "Дизайн интерфейсов",
+          "Взаимодействие человека и компьютера"
+        ],
+        "tryActivity": "Нарисуйте на бумаге три экрана записи на консультацию и попросите знакомого пройти путь без подсказок.",
+        "careerPath": [
+          "Учебные прототипы",
+          "Командные продуктовые проекты",
+          "Специализация в интерфейсах или исследовании"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/15-1255.00",
+          "occupationId": "15-1255.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с творчеством: создание понятной формы; здесь важны также анализ и проверка, не только эстетика."
+      },
+      {
+        "id": "data-science",
+        "title": "Специалист по данным",
+        "scaleIds": [
+          "analysis"
+        ],
+        "summary": "Превращает данные в проверяемые выводы, используя статистику, программирование и визуализацию.",
+        "tasks": [
+          "Очищать данные и проверять предположения.",
+          "Сравнивать модели и объяснять результаты другим людям."
+        ],
+        "skills": [
+          "Статистика",
+          "Программирование",
+          "Критическое мышление"
+        ],
+        "studyDirections": [
+          "Наука о данных",
+          "Прикладная математика"
+        ],
+        "tryActivity": "Исследуйте открытый небольшой набор данных: сформулируйте вопрос, постройте график и перечислите ограничения вывода.",
+        "careerPath": [
+          "Основы математики и кода",
+          "Проекты с реальными данными",
+          "Специализация в моделировании или аналитике"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/15-2051.00",
+          "occupationId": "15-2051.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с анализом: поиск объяснений и проверка гипотез. Интерес не заменяет освоения математики."
+      },
+      {
+        "id": "software-development",
+        "title": "Разработчик программного обеспечения",
+        "scaleIds": [
+          "analysis"
+        ],
+        "summary": "Создаёт программы под задачи пользователей, проверяет их поведение и устраняет ошибки.",
+        "tasks": [
+          "Уточнять требования и проектировать решение.",
+          "Писать, проверять и улучшать программный код."
+        ],
+        "skills": [
+          "Логика",
+          "Программирование",
+          "Командная работа"
+        ],
+        "studyDirections": [
+          "Программная инженерия",
+          "Компьютерные науки"
+        ],
+        "tryActivity": "Создайте небольшую программу для личной задачи и проверьте её на обычном и ошибочном вводе.",
+        "careerPath": [
+          "Основы программирования",
+          "Небольшие проекты и стажировка",
+          "Специализация или руководство разработкой"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/15-1252.00",
+          "occupationId": "15-1252.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с анализом: разложение задачи и поиск причин ошибок; создание продукта включает и творческую работу."
+      },
+      {
+        "id": "civil-engineering",
+        "title": "Инженер-строитель",
+        "scaleIds": [
+          "production"
+        ],
+        "summary": "Проектирует и сопровождает объекты инфраструктуры, учитывая расчёты, материалы и требования безопасности.",
+        "tasks": [
+          "Выполнять инженерные расчёты и готовить проектные решения.",
+          "Проверять соответствие работ проекту и нормативным требованиям."
+        ],
+        "skills": [
+          "Математика",
+          "Пространственное мышление",
+          "Внимание к безопасности"
+        ],
+        "studyDirections": [
+          "Строительство",
+          "Гражданская инженерия"
+        ],
+        "tryActivity": "Сравните по открытым учебным материалам два типа мостов и составьте список вопросов к инженеру; не применяйте это как реальный строительный расчёт.",
+        "careerPath": [
+          "Инженерное образование",
+          "Практика под руководством инженера",
+          "Профессиональная специализация и необходимый допуск"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/17-2051.00",
+          "occupationId": "17-2051.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с практической работой: реальные материалы и сооружения. Это также расчётная профессия; местное право определяет допуск."
+      },
+      {
+        "id": "industrial-design",
+        "title": "Промышленный дизайнер",
+        "scaleIds": [
+          "production"
+        ],
+        "summary": "Разрабатывает форму и удобство физических изделий с учётом использования, материалов и производства.",
+        "tasks": [
+          "Изучать, как люди используют изделие.",
+          "Создавать эскизы и макеты, обсуждать ограничения с инженерами."
+        ],
+        "skills": [
+          "Эскизирование",
+          "Работа с материалами",
+          "Понимание пользователя"
+        ],
+        "studyDirections": [
+          "Промышленный дизайн",
+          "Дизайн продукта"
+        ],
+        "tryActivity": "Сделайте безопасный бумажный макет настольного органайзера и проверьте, удобно ли им пользоваться.",
+        "careerPath": [
+          "Учебные макеты",
+          "Портфолио и работа с командой",
+          "Специализация по типам изделий"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/27-1021.00",
+          "occupationId": "27-1021.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с практической работой: предметы, материалы и изготовление; творческие интересы тоже важны."
+      },
+      {
+        "id": "fire-rescue",
+        "title": "Пожарный-спасатель",
+        "scaleIds": [
+          "adventure"
+        ],
+        "summary": "Работает в команде при пожарах и авариях, участвует в спасении и регулярно тренируется.",
+        "tasks": [
+          "Готовить и проверять защитное оборудование.",
+          "Участвовать в спасательных действиях по установленным процедурам."
+        ],
+        "skills": [
+          "Командная работа",
+          "Самоконтроль",
+          "Физическая подготовка"
+        ],
+        "studyDirections": [
+          "Пожарная безопасность",
+          "Защита в чрезвычайных ситуациях"
+        ],
+        "tryActivity": "Посетите официальную профориентационную встречу службы спасения или сертифицированный вводный курс первой помощи; не имитируйте опасные действия самостоятельно.",
+        "careerPath": [
+          "Проверка требований местной службы",
+          "Специализированная подготовка",
+          "Служба и дальнейшая специализация"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/33-2011.00",
+          "occupationId": "33-2011.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с активностью: работа в необычных условиях. Интерес к риску не доказывает готовность к опасной работе; действуют строгие местные требования."
+      },
+      {
+        "id": "recreation",
+        "title": "Организатор активного досуга",
+        "scaleIds": [
+          "adventure"
+        ],
+        "summary": "Готовит групповые занятия и мероприятия, помогает участникам включиться и следит за организацией программы.",
+        "tasks": [
+          "Планировать игры и досуговые занятия.",
+          "Объяснять правила и адаптировать программу к участникам."
+        ],
+        "skills": [
+          "Организация",
+          "Коммуникация",
+          "Внимание к безопасности"
+        ],
+        "studyDirections": [
+          "Рекреация и досуг",
+          "Спортивный менеджмент"
+        ],
+        "tryActivity": "Придумайте безопасную короткую командную игру для знакомых: правила, доступность и порядок проведения.",
+        "careerPath": [
+          "Помощь в проведении мероприятий",
+          "Самостоятельные программы",
+          "Координация досуговых проектов"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/39-9032.00",
+          "occupationId": "39-9032.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с активностью: подвижные занятия и взаимодействие с группой; конкретная работа не обязательно экстремальная."
+      },
+      {
+        "id": "translation",
+        "title": "Письменный и устный переводчик",
+        "scaleIds": [
+          "erudition"
+        ],
+        "summary": "Передаёт смысл между языками, учитывая контекст, стиль, терминологию и конфиденциальность.",
+        "tasks": [
+          "Изучать тему и подбирать точные термины.",
+          "Переводить и проверять сохранение смысла исходного сообщения."
+        ],
+        "skills": [
+          "Владение языками",
+          "Внимание к контексту",
+          "Редактирование"
+        ],
+        "studyDirections": [
+          "Перевод и переводоведение",
+          "Лингвистика"
+        ],
+        "tryActivity": "Переведите короткий открытый информационный текст и объясните три места, где буквальный перевод не передаёт смысл.",
+        "careerPath": [
+          "Углублённое изучение языков",
+          "Практика и обратная связь",
+          "Предметная специализация"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/27-3091.00",
+          "occupationId": "27-3091.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с языковыми интересами: работа со смыслом и формулировками. Юридический и медицинский перевод требуют отдельной подготовки."
+      },
+      {
+        "id": "writing",
+        "title": "Писатель и автор текстов",
+        "scaleIds": [
+          "erudition"
+        ],
+        "summary": "Создаёт тексты для выбранной аудитории: собирает материал, выстраивает повествование и редактирует написанное.",
+        "tasks": [
+          "Исследовать тему и проверять факты.",
+          "Писать и перерабатывать текст с учётом задачи и редакторской обратной связи."
+        ],
+        "skills": [
+          "Письменная речь",
+          "Исследование",
+          "Редактирование"
+        ],
+        "studyDirections": [
+          "Литературное творчество",
+          "Журналистика и коммуникации"
+        ],
+        "tryActivity": "Напишите короткую историю или объясняющий текст для конкретного читателя; затем сократите его без потери смысла.",
+        "careerPath": [
+          "Практика письма",
+          "Портфолио и редакторская обратная связь",
+          "Выбор жанра и профессиональных проектов"
+        ],
+        "source": {
+          "url": "https://www.onetonline.org/link/summary/27-3043.00",
+          "occupationId": "27-3043.00",
+          "version": "O*NET 31.0",
+          "retrievedOn": "2026-09-09",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "publisher": "U.S. Department of Labor, Employment and Training Administration (USDOL/ETA)"
+        },
+        "editorialNote": "Связь с гуманитарными интересами: чтение, язык и работа со словом. Творческая шкала также может быть близка."
+      }
+    ]
+  },
+  "questions": [
+    {
+      "id": "1",
+      "prompt": "Добиваться осуществления важных дел.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "prompt": "Быть финансовым руководителем компании.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "prompt": "Помогать другим разбираться в новых идеях.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "prompt": "Создавать произведения искусства.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "prompt": "Быть химиком.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "prompt": "Ухаживать за крупным рогатым скотом или лошадьми.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "prompt": "Быть профессиональным спортсменом.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "prompt": "Быть письменным или устным переводчиком.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "prompt": "Руководить другими людьми.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "prompt": "Быть офис-менеджером.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "prompt": "Ухаживать за больными людьми.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "prompt": "Создавать новые модели модной одежды.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "prompt": "Планировать лабораторный эксперимент.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "prompt": "Быть фермером.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "prompt": "Участвовать в захватывающих приключениях.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "prompt": "Быть библиотекарем.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "17",
+      "prompt": "Быть директором по продажам или маркетингу.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "18",
+      "prompt": "Планировать бюджеты.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "19",
+      "prompt": "Быть учителем начальных классов.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "20",
+      "prompt": "Быть профессиональным танцором.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "21",
+      "prompt": "Быть математиком.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "22",
+      "prompt": "Строить новые здания.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "23",
+      "prompt": "Выживать в дикой природе.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "24",
+      "prompt": "Быть преподавателем английского языка и литературы в университете.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "25",
+      "prompt": "Быть генеральным директором крупной компании.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "26",
+      "prompt": "Готовить финансовые договоры.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "27",
+      "prompt": "Быть социальным работником.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "28",
+      "prompt": "Писать рассказы или романы.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "29",
+      "prompt": "Объяснять другим научные понятия.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "30",
+      "prompt": "Работать лесным инспектором, охранять лес.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "31",
+      "prompt": "Быть автогонщиком.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "32",
+      "prompt": "Придумывать словесные головоломки.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "33",
+      "prompt": "Организовывать политическую кампанию.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "34",
+      "prompt": "Создавать систему хранения офисных документов.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "35",
+      "prompt": "Быть пастором, священником, раввином или другим религиозным наставником.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "36",
+      "prompt": "Играть на музыкальном инструменте в симфоническом оркестре.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "37",
+      "prompt": "Быть физиком.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "38",
+      "prompt": "Выращивать растения.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "39",
+      "prompt": "Оказываться перед физической опасностью.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "40",
+      "prompt": "Редактировать газету.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "41",
+      "prompt": "Быть ведущим на собрании или мероприятии.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "42",
+      "prompt": "Контролировать работу других людей.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "43",
+      "prompt": "Консультировать людей, которым нужна помощь.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "44",
+      "prompt": "Обновлять оформление своего дома.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "45",
+      "prompt": "Проводить медицинские исследования.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "46",
+      "prompt": "Ходить на прогулки по природным местам.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "47",
+      "prompt": "Быть офицером вооружённых сил.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "48",
+      "prompt": "Знать много языков.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "49",
+      "prompt": "Планировать рекламную кампанию.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "50",
+      "prompt": "Планировать инвестиционные стратегии.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "51",
+      "prompt": "Обучать родителей уходу за детьми.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "52",
+      "prompt": "Отбирать произведения искусства для музея.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "53",
+      "prompt": "Быть журналистом, освещающим научные темы.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "54",
+      "prompt": "Заниматься обработкой дерева.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "55",
+      "prompt": "Участвовать в спортивных соревнованиях.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "56",
+      "prompt": "Быть зарубежным корреспондентом.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "57",
+      "prompt": "Обсуждать спорные вопросы на публичном собрании.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "58",
+      "prompt": "Составлять расписания.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "59",
+      "prompt": "Быть врачом или работать в сестринском деле.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "60",
+      "prompt": "Профессионально заниматься пением.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "61",
+      "prompt": "Решать сложные головоломки.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "62",
+      "prompt": "Выращивать цветы.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "63",
+      "prompt": "Разыскивать за вознаграждение людей, скрывающихся от правосудия.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "64",
+      "prompt": "Свободно высказываться на любую тему.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "65",
+      "prompt": "Убеждать других изменить свои взгляды.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "66",
+      "prompt": "Контролировать расходы компании.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "67",
+      "prompt": "Быть специалистом по физической терапии и восстановлению движений.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "68",
+      "prompt": "Быть актёром или актрисой.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "69",
+      "prompt": "Разрабатывать компьютерную программу.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "70",
+      "prompt": "Ремонтировать легковые или грузовые автомобили.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "71",
+      "prompt": "Ездить на велосипеде на длинные дистанции.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "72",
+      "prompt": "Читать много книг.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "73",
+      "prompt": "Быть губернатором штата или сенатором.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "74",
+      "prompt": "Работать специалистом по закупкам.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "75",
+      "prompt": "Утешать и поддерживать других людей.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "76",
+      "prompt": "Быть художником или архитектором.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "77",
+      "prompt": "Быть статистиком.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "78",
+      "prompt": "Работать с инструментами и механизмами.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "79",
+      "prompt": "Быть сотрудником полиции.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "80",
+      "prompt": "Вести личный дневник.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "81",
+      "prompt": "Выдвигать свою кандидатуру на политическую должность.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "82",
+      "prompt": "Вести учёт запасов компании.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "83",
+      "prompt": "Участвовать в благотворительных мероприятиях.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "84",
+      "prompt": "Играть в театральной постановке.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "85",
+      "prompt": "Проектировать веб-страницы.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "86",
+      "prompt": "Принимать решения, которые влияют на многих людей.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "87",
+      "prompt": "Управлять компьютерной базой данных.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "88",
+      "prompt": "Помогать людям принимать решения о выборе профессии и карьере.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "89",
+      "prompt": "Писать песни.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "90",
+      "prompt": "Вести подробные записи и учёт.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "91",
+      "prompt": "Быть психологом-консультантом или психотерапевтом.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    },
+    {
+      "id": "92",
+      "prompt": "Заниматься живописью или рисованием.",
+      "options": [
+        {
+          "id": "1",
+          "label": "Совсем не нравится"
+        },
+        {
+          "id": "2",
+          "label": "Скорее не нравится"
+        },
+        {
+          "id": "3",
+          "label": "Ни нравится, ни не нравится"
+        },
+        {
+          "id": "4",
+          "label": "Скорее нравится"
+        },
+        {
+          "id": "5",
+          "label": "Очень нравится"
+        }
+      ]
+    }
+  ],
+  "gradingRules": {
+    "1": {
+      "scale": "leadership"
+    },
+    "2": {
+      "scale": "organization"
+    },
+    "3": {
+      "scale": "altruism"
+    },
+    "4": {
+      "scale": "creativity"
+    },
+    "5": {
+      "scale": "analysis"
+    },
+    "6": {
+      "scale": "production"
+    },
+    "7": {
+      "scale": "adventure"
+    },
+    "8": {
+      "scale": "erudition"
+    },
+    "9": {
+      "scale": "leadership"
+    },
+    "10": {
+      "scale": "organization"
+    },
+    "11": {
+      "scale": "altruism"
+    },
+    "12": {
+      "scale": "creativity"
+    },
+    "13": {
+      "scale": "analysis"
+    },
+    "14": {
+      "scale": "production"
+    },
+    "15": {
+      "scale": "adventure"
+    },
+    "16": {
+      "scale": "erudition"
+    },
+    "17": {
+      "scale": "leadership"
+    },
+    "18": {
+      "scale": "organization"
+    },
+    "19": {
+      "scale": "altruism"
+    },
+    "20": {
+      "scale": "creativity"
+    },
+    "21": {
+      "scale": "analysis"
+    },
+    "22": {
+      "scale": "production"
+    },
+    "23": {
+      "scale": "adventure"
+    },
+    "24": {
+      "scale": "erudition"
+    },
+    "25": {
+      "scale": "leadership"
+    },
+    "26": {
+      "scale": "organization"
+    },
+    "27": {
+      "scale": "altruism"
+    },
+    "28": {
+      "scale": "creativity"
+    },
+    "29": {
+      "scale": "analysis"
+    },
+    "30": {
+      "scale": "production"
+    },
+    "31": {
+      "scale": "adventure"
+    },
+    "32": {
+      "scale": "erudition"
+    },
+    "33": {
+      "scale": "leadership"
+    },
+    "34": {
+      "scale": "organization"
+    },
+    "35": {
+      "scale": "altruism"
+    },
+    "36": {
+      "scale": "creativity"
+    },
+    "37": {
+      "scale": "analysis"
+    },
+    "38": {
+      "scale": "production"
+    },
+    "39": {
+      "scale": "adventure"
+    },
+    "40": {
+      "scale": "erudition"
+    },
+    "41": {
+      "scale": "leadership"
+    },
+    "42": {
+      "scale": "organization"
+    },
+    "43": {
+      "scale": "altruism"
+    },
+    "44": {
+      "scale": "creativity"
+    },
+    "45": {
+      "scale": "analysis"
+    },
+    "46": {
+      "scale": "production"
+    },
+    "47": {
+      "scale": "adventure"
+    },
+    "48": {
+      "scale": "erudition"
+    },
+    "49": {
+      "scale": "leadership"
+    },
+    "50": {
+      "scale": "organization"
+    },
+    "51": {
+      "scale": "altruism"
+    },
+    "52": {
+      "scale": "creativity"
+    },
+    "53": {
+      "scale": "analysis"
+    },
+    "54": {
+      "scale": "production"
+    },
+    "55": {
+      "scale": "adventure"
+    },
+    "56": {
+      "scale": "erudition"
+    },
+    "57": {
+      "scale": "leadership"
+    },
+    "58": {
+      "scale": "organization"
+    },
+    "59": {
+      "scale": "altruism"
+    },
+    "60": {
+      "scale": "creativity"
+    },
+    "61": {
+      "scale": "analysis"
+    },
+    "62": {
+      "scale": "production"
+    },
+    "63": {
+      "scale": "adventure"
+    },
+    "64": {
+      "scale": "erudition"
+    },
+    "65": {
+      "scale": "leadership"
+    },
+    "66": {
+      "scale": "organization"
+    },
+    "67": {
+      "scale": "altruism"
+    },
+    "68": {
+      "scale": "creativity"
+    },
+    "69": {
+      "scale": "analysis"
+    },
+    "70": {
+      "scale": "production"
+    },
+    "71": {
+      "scale": "adventure"
+    },
+    "72": {
+      "scale": "erudition"
+    },
+    "73": {
+      "scale": "leadership"
+    },
+    "74": {
+      "scale": "organization"
+    },
+    "75": {
+      "scale": "altruism"
+    },
+    "76": {
+      "scale": "creativity"
+    },
+    "77": {
+      "scale": "analysis"
+    },
+    "78": {
+      "scale": "production"
+    },
+    "79": {
+      "scale": "adventure"
+    },
+    "80": {
+      "scale": "erudition"
+    },
+    "81": {
+      "scale": "leadership"
+    },
+    "82": {
+      "scale": "organization"
+    },
+    "83": {
+      "scale": "altruism"
+    },
+    "84": {
+      "scale": "creativity"
+    },
+    "85": {
+      "scale": "creativity"
+    },
+    "86": {
+      "scale": "leadership"
+    },
+    "87": {
+      "scale": "organization"
+    },
+    "88": {
+      "scale": "altruism"
+    },
+    "89": {
+      "scale": "creativity"
+    },
+    "90": {
+      "scale": "organization"
+    },
+    "91": {
+      "scale": "altruism"
+    },
+    "92": {
+      "scale": "creativity"
+    }
+  }
+}

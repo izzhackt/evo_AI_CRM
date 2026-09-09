@@ -12,6 +12,7 @@ const SECTIONS = [
   { href: "/portal/applications", label: "Заявки" },
   { href: "/portal/payments", label: "Оплата" },
   { href: "/portal/notifications", label: "Уведомления" },
+  { href: "/portal/tests", label: "Тесты" },
 ] as const;
 
 export function PortalShell({
@@ -63,7 +64,7 @@ export function PortalShell({
           className="mx-auto flex w-full max-w-[1180px] gap-1 overflow-x-auto px-3 py-2 sm:px-5"
         >
           {SECTIONS.map((section) => {
-            const active = pathname === section.href;
+            const active = pathname === section.href || (section.href === "/portal/tests" && pathname.startsWith("/portal/tests/"));
             return (
               <li key={section.href} className="shrink-0">
                 <Link

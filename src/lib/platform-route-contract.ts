@@ -21,6 +21,9 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal/applications",
   "/portal/payments",
   "/portal/notifications",
+  "/portal/tests",
+  "/portal/tests/english",
+  "/portal/tests/career",
 ]);
 
 const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([

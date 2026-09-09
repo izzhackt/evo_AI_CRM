@@ -75,6 +75,9 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/portal/applications",
     "/portal/payments",
     "/portal/notifications",
+    "/portal/tests",
+    "/portal/tests/english",
+    "/portal/tests/career",
   ];
   const authRoutes = [
     "/auth/callback",
@@ -98,6 +101,8 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/portal/",
     "/portal/profile",
     "/portal/documents/child",
+    "/portal/tests/unknown",
+    "/portal/tests/english/child",
     "/auth/callback/",
     "/auth/set-password/child",
     "/auth/unknown",

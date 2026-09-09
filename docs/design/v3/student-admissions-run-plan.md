@@ -1,6 +1,6 @@
 # Student Portal и поступление: план нового запуска
 
-Дата: 2026-09-09 (Asia/Dubai). Статус: **P0 — публикация плана; реализация полного запуска разрешена**.
+Дата: 2026-09-09 (Asia/Dubai). Статус: **P0 слит; P1 и P4–P6 в работе; полный запуск ещё не завершён**.
 Для владельца продукта и любого следующего исполнителя: Codex, Sol, Astra или другого агента.
 Главный контракт — [EVO Launch Plan](../../EVO_LAUNCH_PLAN.md); этот документ раскрывает новый объём.
 Рабочая задача: [#693](https://github.com/izzhackt/evo_AI_CRM/issues/693).
@@ -344,13 +344,13 @@ DEPLOYED — отдельно подтверждён live SHA. Ниже стат
 
 | Волна | Статус | Результат и критерий выхода | Зависимости |
 | --- | --- | --- | --- |
-| P0. Контракт | IN FLIGHT | Этот план, DESIGN, source research, owner ledger, независимый docs review и shared GitHub PR | Нет |
-| P1. Fixture и brand | TODO | Настоящий тестовый Student, реальный проход текущего portal; закрыть остаток #692 без загрязнения продаж | QA preflight из §9 |
+| P0. Контракт | VERIFIED | PR #694 слит в main `5981363a`; независимый exact-head review approved; CI 34355891107, 132/132 source contracts PASS | Нет |
+| P1. Fixture и brand | IN FLIGHT | Отдельный E4 runtime для реального portal UI; preactivated synthetic fixture не доказывает штатное приглашение. Закрыть остаток #692 без загрязнения продаж | QA preflight из §9 |
 | P2. Admissions foundation | READY для реализации | Direction filter на сервере, stage command, versioned template, существующий handoff не дублируется | Контракт P0; schema-owner |
 | P3. Китай | READY для реализации | Семь этапов, partner facts, conditional docs/tasks, ручные сообщения, confirmed-arrival close | P2; официальная сверка динамических требований |
-| P4. Private assessments | READY для реализации | Owner-only persistence/RLS, draft/resume/idempotent completion/versioned snapshots | P0; согласованный контракт контента |
-| P5. Английский | READY для авторского контента | 36 заданий, проверенные ответы/темы, реальный quiz, тематический результат; CEFR gate отдельно | P4; независимая проверка банка |
-| P6. Профориентация | READY для адаптации | ORVIS RU + ключ + карточки профессий; независимый language review, ограничения видимы | P4; контентный review; аудитория-пилот отражён отдельно |
+| P4. Private assessments | IN FLIGHT | Ветка `izzhackt/student-assessments-foundation`: migration 135, Student-only RPC, draft/resume/idempotent completion/versioned snapshots | P0; согласованный контракт контента |
+| P5. Английский | IN FLIGHT | Оригинальный банк 36 заданий; seed 136; реальный quiz и тематический результат; CEFR gate отдельно | P4; независимая проверка банка |
+| P6. Профориентация | IN FLIGHT | ORVIS RU + ключ + карточки профессий; seed 136; независимый language review, ограничения видимы | P4; контентный review; аудитория-пилот отражён отдельно |
 | P7. Portal + staff UX | TODO | Новый Tests раздел и лёгкий portal redesign; admissions worklist и manager summary | P1/P3/M1/P5/P6 |
 | P8. E2E/acceptance | TODO | Реальный Student и staff, isolation, сохранение, transitions, responsive UX; fixes reviewed | Проверяется по мере готовности P2–P7 |
 | P9. Production | TODO | Frozen reviewed main → CI/schema/backup → release → readback → owner inspection | P8 и release gates; отдельная запись от implementation |

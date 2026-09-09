@@ -243,6 +243,9 @@ source requires fresh role/data evidence and its own documented limits.
 
 ### Explicit short-lived read-only transport
 
+The [local transport proof](design/v3/backup-lease-local-proof.md) records its
+tested candidate, replay commands and limits; it is not a managed export receipt.
+
 Use this mode only during an approved exclusive operator window for the EVO
 project `iosckaqtovbbnssqcpde`, when no other operator or automation will run
 Supabase CLI login/link/database commands. The flag is an explicit operator

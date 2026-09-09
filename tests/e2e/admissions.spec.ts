@@ -187,7 +187,10 @@ async function nextStage(page: Page, expectedStage: string) {
   await editor.getByLabel("Основание действия").fill("E5 проверены реальные записи фиктивного дела");
   await save(editor);
   await expect(page.getByTestId("admissions-route").locator("section").first().getByRole("heading", { level: 3 })).toHaveText(expectedStage);
-  await expect(page.getByTestId("admissions-route").getByRole("button", { name: new RegExp(`^\\d+\\. ${expectedStage} — текущий этап дела$`) })).toHaveAttribute("aria-pressed", "true");
+  // Country playbooks may use a more specific title than the canonical stage.
+  const current = page.getByTestId("admissions-route").getByRole("button", { name: / — текущий этап дела$/ });
+  await expect(current).toHaveCount(1);
+  await expect(current).toHaveAttribute("aria-pressed", "true");
 }
 async function capture(page: Page, name: string) {
   await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
@@ -383,6 +386,7 @@ for (const direction of ["CN", "MY"] as const) {
     await visualChecks(page); expect(errors).toEqual([]);
     await page.reload(); expect((await workspace(scenario)).case.stage).toBe("decisions");
     if (direction === "MY") await completeMalaysia(page, scenario, institution);
+    expect(errors).toEqual([]);
     const proof = await dbRead(async (sql) => sql`SELECT count(*)::int AS count FROM platform.sales_admissions_handoffs WHERE student_case_id=${caseId(scenario)}`);
     expect(proof[0].count).toBe(1);
   });

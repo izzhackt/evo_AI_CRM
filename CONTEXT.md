@@ -48,6 +48,11 @@ or a second source of truth.
 
 ## Language
 
+Current follow-up (2026-09-09):
+[`Student Portal and China/Malaysia Admissions`](docs/design/v3/student-admissions-run-plan.md)
+extends these existing authorities. Personal assessment results are not part of
+the staff case record. [`DESIGN.md`](DESIGN.md) governs the shared light EVO UI.
+
 **Production EVO Successor**:
 The single EVO Admissions CRM that carries the V3 staff experience and proved
 business workflows onto the managed Supabase foundation retained from V1.

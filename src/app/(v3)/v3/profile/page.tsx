@@ -211,7 +211,7 @@ export default async function ProfilePart({
     <PartShell title={view ? "Профиль" : "Поступление"}>
       <div className="space-y-6">
         {directory && actor.presentationRole !== "sales" ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
-          <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} />
+          <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} expanded={singleSearchParam(params.section) === "summary"} />
         </Suspense> : null}
         {directory ? (
           <ProfileCaseDirectory

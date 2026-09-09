@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -107,6 +108,13 @@ test("the student directory stays discoverable from navigation and both inbox qu
   const shell = source("src/components/v3/AppShell.tsx");
   const inbox = source("src/app/(v3)/v3/inbox/page.tsx");
 
-  assert.match(shell, /\{ href: "\/v3\/profile", label: "Поступление" \}/u);
+  assert.match(shell, /buildV3Navigation\(presentationRole,/u);
+  for (const role of ["admin", "sales", "admissions"]) {
+    const navigation = buildV3Navigation(role, "/v3/profile", new URLSearchParams());
+    const group = navigation.groups.find((item) => item.id === "admissions");
+    assert.equal(group?.label, "Поступление");
+    assert.equal(group?.active, true);
+    assert.ok(group.links.some((link) => link.href === "/v3/profile" && link.label === "Рабочий список"));
+  }
   assert.match(inbox, /v3InboxProfileHref\(/u);
 });

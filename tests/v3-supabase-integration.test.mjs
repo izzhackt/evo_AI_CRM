@@ -22,6 +22,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "inbox-source.ts",
     "knowledge-source.ts",
     "knowledge-surface.ts",
+    "navigation.ts",
     "operations-source.ts",
     "period.ts",
     "pipeline-source.ts",

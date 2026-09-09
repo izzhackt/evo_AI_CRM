@@ -22546,3 +22546,37 @@ P9 is technically deployed, but owner UX/business acceptance and actual Student
 production invitation/private-test coverage remain distinct. Account target is
 still awaiting clarification; do not infer deletion or relax Student privacy.
 Do not repeat migrations/import/deployment for this docs-only checkpoint.
+
+### 2026-09-10 — approved sidebar Option 2 and Admissions discoverability
+
+Owner selected collapsible Sales/Admissions groups and asked where China/Malaysia
+routes are. Reuse existing pages, role policy, EVO logo/icons and design tokens;
+do not scaffold a replacement or change page metrics. Main and Sales report share
+`/v3/main` with `view=sales`; Worklist and Direction summary share `/v3/profile`
+with `section=summary` for a real report-reveal shortcut. Navigation must read
+query state, hide unauthorized links/empty groups, and reopen the selected group
+when the destination changes. Settings remains a direct bottom link.
+
+Add a bounded empty-list explanation, not synthetic production data. Existing
+case links open `tab=route`; the visible tab is «Маршрут». China/Malaysia playbooks
+are manually bound there; country chips only filter the directory. Preserve
+real authorization and separate Student privacy. No schema/provider/account or
+business-data mutations are part of this follow-up.
+
+Official behavior checked against installed Next16.3.4 documentation and
+[Next useSearchParams](https://nextjs.org/docs/app/api-reference/functions/use-search-params):
+pathname alone excludes query parameters, while the client hook updates after
+navigation. Use ordinary links with disclosure buttons (`aria-expanded`,
+`aria-controls`), not ARIA menu roles, following the
+[W3C disclosure navigation pattern](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-navigation/).
+Validate real keyboard/browser behavior rather than claiming blanket WCAG
+conformance. Scope/release gates are recorded in EVO_LAUNCH_PLAN before coding.
+
+Validation follow-up: register the new pure navigation module in the existing
+exact V3 module inventory. An additional brand test still expects the pre-#697
+directory form key; current main already keys all directory filters. Align that
+exact wiring expectation without
+removing filter-reset assertions. The initial full frontend run also collided
+with this worktree's running Next dev server; stop only our 3101 preview before
+rerunning its real HTTP-route test, then restart the local preview. This is not
+an application failure or permission to stop the unrelated 3100/tunnel3000.

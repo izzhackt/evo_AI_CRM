@@ -62,7 +62,7 @@ test("brand shell retains native disclosure, visible preview status and reduced 
 
 test("directory filters reset native form state when applied URL filters change", () => {
   const directory = read("src/components/v3/profile/ProfileCaseDirectory.tsx");
-  assert.match(directory, /<form\s+key=\{JSON\.stringify\(\[params\.query, params\.state\]\)\}/u);
+  assert.match(directory, /<form\s+key=\{JSON\.stringify\(params\)\}/u);
   assert.match(directory, /defaultValue=\{params\.query\}/u);
   assert.match(directory, /defaultValue=\{params\.state \?\? ""\}/u);
   assert.match(directory, /<a\s[^>]*href="\/v3\/profile"\s*>\s*Сбросить\s*<\/a>/u);

@@ -84,7 +84,26 @@ not mock records or an Auth bypass. Production was not deployed.
 **Still required before completion/merge:** ordinary active Admin login, then
 read-only desktop/mobile checks of staff navigation, report year/month filters,
 real report rows, directory/empty states and role-preview disclosure. A real
-Student session is needed to verify portal routes. Do not reset passwords, seed
-business records or mutate production just to unblock visual proof. Current
-credentials are unavailable locally; GitHub secret presence is not recoverable
-plaintext and not login proof. Keep the PR draft until this gap is resolved.
+Student session is needed to verify portal routes. Do not seed business records,
+bypass Auth or mutate business data to manufacture visual proof.
+
+### Owner-approved access restoration — 09.09, 11:12 UTC
+
+The owner explicitly approved resetting the existing smoke Admin password and
+updating its associated GitHub secret. The exact existing confirmed Auth user was
+resolved before mutation; only `password` was sent to the server-side Auth Admin
+update endpoint. Auth user ID, email and metadata were checked unchanged.
+This follows the [official server-side password update contract](https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid).
+
+Real password sign-in, Auth `getUser` identity and `platform.current_actor_authority`
+returned the intended active Admin in the canonical organization at 11:12:57 UTC.
+The verification session was signed out locally, not globally. No role creation,
+promotion, new user, session bypass or business mutation occurred.
+`EVO_PRODUCTION_SMOKE_ADMIN_EMAIL` and `EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD` were
+updated through stdin at 11:12:58 and 11:12:59 UTC; GitHub timestamps rechecked.
+Secret values stayed out of scripts, command arguments, logs, chat and Git.
+
+The owner handoff is ignored local `.env.evo-smoke`, mode 0600; do not commit it.
+Do not rotate again on resume. Ordinary browser entry and the real internal UI
+checks remain pending; this API proof does not validate those pages or a complete
+production browser smoke. Keep the PR draft until the visual gap is resolved.

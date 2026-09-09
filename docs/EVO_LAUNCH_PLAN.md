@@ -48,10 +48,14 @@ changes. Keep owner-deferred #687 intact.
 
 Status: implementation and build complete; scoped source/token checks pass.
 Real Chrome login branding/layout checked at desktop and 393px CSS width.
-Authenticated staff/portal visual acceptance is BLOCKED by unavailable current
-credentials (the prior browser session expired). Keep this slice in draft PR;
-do not merge/deploy or reset passwords to hide the missing proof. Resume ordinary
-login and the read-only checks listed in the reference note. The September 8
+The owner separately approved rotating the existing smoke Admin password and
+updating the associated GitHub secrets on September 9. Real password sign-in,
+verified Auth identity and canonical active Admin authority passed at 11:12:57 UTC;
+both GitHub smoke secrets were updated at 11:12:58–59 UTC. No role or metadata change.
+The local private ignored `.env.evo-smoke` (0600) is the owner handoff, not repo data.
+Authenticated staff/portal visual acceptance still requires browser sign-in and
+read-only route checks; API Auth proof does not replace these. Keep this slice in
+draft PR, do not merge/deploy, and do not reset the password again. The September 8
 deployment above remains the last recorded production checkpoint.
 
 ## Historical integration and release-preparation checkpoints

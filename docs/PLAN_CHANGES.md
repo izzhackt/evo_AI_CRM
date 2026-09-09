@@ -22123,3 +22123,17 @@ Fresh navigation invalidated the cached Admin session, so internal staff/Student
 visual proof is not complete. No password reset, business-data write, or production
 deploy performed. Preserve this as a draft PR with explicit login/acceptance gap;
 do not represent local build success as whole-platform/browser acceptance.
+
+## 2026-09-09 — explicitly approved smoke Admin credential rotation
+
+After the owner approved the exact account password reset and associated smoke
+secret update, verified the existing confirmed Auth identity and changed only its
+password using the server-side Auth Admin endpoint. User/email/metadata unchanged;
+no role grant, new account, Auth bypass, schema or business-data mutation.
+
+Real password sign-in, verified Auth user and canonical active Admin RPC passed
+at 11:12:57 UTC. GitHub smoke email/password secrets updated through stdin at
+11:12:58–59 UTC and update timestamps independently read back. The one generated
+owner credential handoff is local ignored `.env.evo-smoke`, mode 0600; no values in
+Git, chat or logs. Do not repeat the reset on resume. Browser entry and read-only
+staff/Student visual checks remain pending; no merge or application deployment.

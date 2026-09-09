@@ -2,6 +2,8 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import postgres from "postgres";
+import { chmod } from "node:fs/promises";
+import { join } from "node:path";
 
 const WCAG_TAGS = [
   "wcag2a",
@@ -12,7 +14,7 @@ const WCAG_TAGS = [
 ] as const;
 
 const PORTAL_ROUTES = [
-  { path: "/portal", expectedText: "Загрузить обновлённый паспорт" },
+  { path: "/portal", expectedText: "Замените документ: Паспорт" },
   { path: "/portal/documents", expectedText: "Паспорт" },
   {
     path: "/portal/applications",
@@ -159,6 +161,7 @@ async function submitLogin(page: Page, kind: "admin" | "student") {
 
 async function expectStylesLoaded(page: Page, context: string) {
   const proof = await page.evaluate(async () => {
+    await document.fonts.ready;
     const hrefs = Array.from(
       document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][href]'),
       (link) => link.href,
@@ -172,20 +175,37 @@ async function expectStylesLoaded(page: Page, context: string) {
       bytes += (await response.text()).length;
     }
     const world = document.querySelector<HTMLElement>(".v3-world");
+    const style = world ? getComputedStyle(world) : null;
     return {
       bytes,
       hrefs: hrefs.length,
       failedHref: null,
-      world: world ? getComputedStyle(world).backgroundColor : null,
+      world: style
+        ? {
+            background: style.backgroundColor,
+            colorScheme: style.colorScheme,
+            accent: style.getPropertyValue("--accent").trim(),
+            fontFamily: style.fontFamily,
+          }
+        : null,
     };
   });
 
   expect(proof.failedHref, `${context}: a stylesheet failed to load`).toBeNull();
   expect(proof.hrefs, `${context}: no stylesheet was linked`).toBeGreaterThan(0);
-  expect(proof.bytes, `${context}: the served stylesheet bundle is too small`).toBeGreaterThan(
-    100_000,
-  );
-  expect(proof.world, `${context}: the V3 theme did not apply`).not.toBeNull();
+  // CSS volume depends on Tailwind's source inventory; assert rendered branding.
+  expect(proof.bytes, `${context}: the served stylesheet bundle is empty`).toBeGreaterThan(0);
+  expect(proof.world, `${context}: the V3 theme did not apply`).toMatchObject({
+    background: "rgb(243, 243, 243)",
+    colorScheme: "light",
+    accent: "#d70217",
+  });
+  expect(proof.world?.fontFamily, `${context}: the EVO font did not apply`).toContain("Golos Text Variable");
+  const logo = page.getByRole("img", { name: "EVO Admissions", exact: true });
+  await expect(logo).toBeVisible();
+  await expect.poll(() => logo.evaluate((image: HTMLImageElement) =>
+    image.complete && image.naturalWidth > 0,
+  ), { message: `${context}: the original EVO logo did not load` }).toBe(true);
 }
 
 async function expectNoAutomatedWcagViolations(page: Page, context: string) {
@@ -299,6 +319,13 @@ test("all five Student Portal routes pass the real authenticated quality gate", 
       browserErrors.slice(errorCountBeforeNavigation),
       `${context}: browser or React/Next errors were emitted`,
     ).toEqual([]);
+    const screenshotDirectory = process.env.EVO_STUDENT_PORTAL_SCREENSHOT_DIR;
+    if (screenshotDirectory) {
+      const routeName = route.path.replaceAll("/", "-").replace(/^-/, "");
+      const screenshotPath = join(screenshotDirectory, `${testInfo.project.name}-${routeName}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+      await chmod(screenshotPath, 0o600);
+    }
   }
 });
 

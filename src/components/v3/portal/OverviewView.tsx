@@ -41,12 +41,14 @@ export function OverviewView({
         title="Что сейчас"
         description="Актуальный этап и ближайшие действия по вашему поступлению."
       >
-        <dl className="grid gap-5 px-4 py-5 sm:px-5">
-          <PortalDefinition term="Текущий этап">
-            <PortalStatus label={stage.label} tone={stage.tone} />
-          </PortalDefinition>
+        <div className="grid gap-5 px-4 py-5 sm:px-5">
+          <dl>
+            <PortalDefinition term="Текущий этап">
+              <PortalStatus label={stage.label} tone={stage.tone} />
+            </PortalDefinition>
+          </dl>
 
-          <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+          <dl className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
             <PortalDefinition term="Что требуется от вас">
               {overview.studentAction ? (
                 <span className="block">
@@ -108,8 +110,8 @@ export function OverviewView({
                 </span>
               )}
             </PortalDefinition>
-          </div>
-        </dl>
+          </dl>
+        </div>
       </PortalSection>
 
       <PortalSection title="Ваш куратор">

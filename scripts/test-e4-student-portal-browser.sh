@@ -14,6 +14,8 @@ tmp_dir=""
 project_root=""
 project_id=""
 app_pid=""
+app_root=""
+evidence_root=""
 stack_owned=0
 
 cleanup() {
@@ -80,17 +82,33 @@ fi
 
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/evo-e4-student-portal.XXXXXX")"
 project_root="$tmp_dir/project"
+app_root="$tmp_dir/app"
+evidence_root="$(mktemp -d "${TMPDIR:-/tmp}/evo-e4-student-portal-evidence.XXXXXX")"
 supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
 provision_log="$tmp_dir/provision.log"
 provision_result="$tmp_dir/provision-result.json"
 app_log="$tmp_dir/app.log"
-mkdir -p "$project_root/supabase"
-chmod 700 "$tmp_dir" "$project_root" "$project_root/supabase"
+mkdir -p "$project_root/supabase" "$app_root/tests/e2e" "$evidence_root/screenshots"
+chmod 700 "$tmp_dir" "$project_root" "$project_root/supabase" "$app_root" "$evidence_root" "$evidence_root/screenshots"
 : >"$supabase_log"
 : >"$provision_log"
 : >"$app_log"
 chmod 600 "$supabase_log" "$provision_log" "$app_log"
+
+# Never share .next or load a checkout's .env files while another preview runs.
+cp -R "$repo_root/src" "$repo_root/public" "$app_root/"
+for config_file in package.json package-lock.json tsconfig.json next.config.ts postcss.config.mjs; do
+  cp "$repo_root/$config_file" "$app_root/$config_file"
+done
+cp "$repo_root/tests/e2e/student-portal.spec.ts" \
+  "$repo_root/tests/e2e/playwright.student-portal.config.ts" "$app_root/tests/e2e/"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  cp -cR "$repo_root/node_modules" "$app_root/node_modules"
+else
+  cp -R "$repo_root/node_modules" "$app_root/node_modules"
+fi
+echo "E4_STUDENT_PORTAL_PRIVATE_EVIDENCE $evidence_root"
 
 project_id="evo-e4-$RANDOM-$$-$(openssl rand -hex 4)"
 [[ "$project_id" =~ ^evo-e4-[0-9]+-[0-9]+-[0-9a-f]{8}$ ]] \
@@ -300,14 +318,17 @@ for sensitive_value in "$supabase_service_role_key" "$supabase_database_url" \
   fi
 done
 
-env -u EVO_PLATFORM_GEMINI_API_KEY \
+(
+cd "$app_root"
+exec env -u EVO_PLATFORM_GEMINI_API_KEY \
   NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
   SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
   EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS=3600 \
   "$node_bin" node_modules/next/dist/bin/next dev \
-    --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
+    --hostname 127.0.0.1 --port "$app_port"
+) >"$app_log" 2>&1 &
 app_pid=$!
 
 app_deadline=$((SECONDS + 180))
@@ -326,7 +347,11 @@ done
   fail "The E4 application did not become reachable"
 }
 
+echo "E4_STUDENT_PORTAL_LOCAL_ORIGIN http://127.0.0.1:${app_port}"
+(
+cd "$app_root"
 PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
+EVO_STUDENT_PORTAL_SCREENSHOT_DIR="$evidence_root/screenshots" \
 EVO_STUDENT_PORTAL_ADMIN_EMAIL="$admin_email" \
 EVO_STUDENT_PORTAL_ADMIN_PASSWORD="$admin_password" \
 EVO_STUDENT_PORTAL_STUDENT_EMAIL="$student_email" \
@@ -336,7 +361,8 @@ EVO_STUDENT_PORTAL_DB_URL="$supabase_database_url" \
 EVO_STUDENT_PORTAL_SUPABASE_URL="$supabase_api_url" \
 EVO_STUDENT_PORTAL_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
-    --config=tests/e2e/playwright.student-portal.config.ts
+    --config=tests/e2e/playwright.student-portal.config.ts --reporter=list
+)
 
 for sensitive_value in "$supabase_service_role_key" "$supabase_database_url" \
   "$admin_password" "$student_password"; do

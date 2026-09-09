@@ -81,10 +81,11 @@ Local preview: `http://localhost:3100/login`, separate from the unchanged port30
 production tunnel. It uses normal authentication against the canonical backend,
 not mock records or an Auth bypass. Production was not deployed.
 
-**Remaining before completion/merge:** real Student visual acceptance, or an
-explicit owner deferral of that acceptance. Staff checks below are complete;
-they are not Student proof. Do not seed business records, bypass Auth or mutate
-business data to manufacture visual proof. PR #692 stays draft with this gap.
+**Acceptance status:** staff checks below are complete and are not Student proof.
+The original Student visual gap is closed by the separately owner-approved,
+isolated E4 acceptance recorded below. No canonical business records were seeded
+or changed. Exact-head CI/review remains a separate merge gate; this note does
+not claim a merge, deployment, or normal Student invitation proof.
 
 ### Owner-approved access restoration — 09.09, 11:12 UTC
 
@@ -145,6 +146,54 @@ No mocks, seeded records, record submissions, provider messages or production de
   29 source/token checks pass. These source checks do not pretend to be live DB
   or Student-session tests. Independent final-head review is recorded in PR #692.
 
-Remaining limitation: no real Student session/assigned case is available for the
-portal. Staff role preview is not a Student login. Keep the portal visual gate
-explicit; do not reopen SMTP, user creation, or deferred #687 as part of this UI run.
+At the staff-acceptance checkpoint, no real Student session/assigned case was
+available. Staff role preview was not counted as a Student login. The later
+explicitly approved isolated synthetic-fixture run below closes only the visual
+gap; it does not reopen managed SMTP or deferred #687.
+
+### Owner-approved isolated Student visual acceptance — 09.09
+
+Source baseline: `df914fc7d1dae33600d0b2802b6787f45233a942` plus the exact
+three-file delta committed with this note: `scripts/test-e4-student-portal-browser.sh`,
+`tests/e2e/student-portal.spec.ts`, and `src/components/v3/portal/OverviewView.tsx`.
+This is not a claim that the unmodified baseline passed. The browser spec is the
+actual E4 entry point; there is no `scripts/check-e4-student-portal-browser.mjs`.
+
+Real isolated Supabase Auth/Postgres/Storage with migrations 001–134 and the real
+Next application, using an owner-approved fictional Student. The fixture was
+preactivated: Auth Admin user creation with `email_confirm: true` and the existing
+fixture seeder's replica-mode setup are not the normal invitation/authority path.
+Browser sign-in and subsequent reads/mutation used real Auth, app routes and DB;
+no mock backend, managed-production writes, invitations or provider messages.
+
+- E4 result: **6 passed, 6 intentional viewport skips**, exit 0, marker
+  `E4_STUDENT_PORTAL_BROWSER_VERIFIED`. All five routes (`/portal`, documents,
+  applications, payments, notifications) passed at 1360×1000 desktop, 393×852
+  mobile, and forced-dark desktop. Skips avoid repeating viewport-specific tests;
+  none of the five-route quality checks was skipped.
+- Each route passed real response/navigation, loaded CSS/font/original logo,
+  forced-light token, geometry, automated axe and browser-error checks. Separate
+  checks passed anonymous/Student/Admin routing, keyboard access to the offscreen
+  mobile notification tab, and notification UI → persisted DB/audit → idempotent
+  replay → reload. This run does not prove document upload/download bytes.
+- Real axe failures exposed invalid nested definition-list groups in the overview.
+  The minimal `dl` grouping fix preserves the layout and content. Two stale test
+  oracles were corrected: exact passport action copy and a CSS byte-size threshold
+  replaced by assertions of actually rendered brand tokens, font and loaded logo.
+- **15 successful full-page screenshots captured and visually inspected**: five
+  routes × `desktop-chromium`, `mobile-393-chromium`, `forced-dark-chromium`.
+  Private OS-temp evidence directory:
+  `evo-e4-student-portal-evidence.vK64Hz/screenshots` (directories 0700, PNGs 0600).
+  Files are named `<project>-portal[{-documents,-applications,-payments,-notifications}].png`.
+  No clipping, page-wide overflow, missing brand assets or framework error overlay
+  was found. The Next dev indicator is development-only, not production UI proof.
+- Supporting checks: 15/15 portal UI unit tests, scoped ESLint, shell syntax and
+  `git diff --check` passed. Harness runs an owned app copy without checkout
+  `.env`/`.next`; the live 3100 preview and 3000 SSH tunnel remain untouched.
+  Owned E4 containers/volumes were cleaned up; the old local stack remains at 125.
+
+Reproduce with Node 22.23.1: `EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node bash scripts/test-e4-student-portal-browser.sh`
+(put that Node directory first in `PATH`). The final run used only loopback
+`http://127.0.0.1:60229`, project `evo-e4-29300-33869-e511617a`, now removed.
+Normal invite → callback/password → authority provisioning remains separately
+unproven. This local visual/persistence evidence is not managed-production proof.

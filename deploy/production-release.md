@@ -1,11 +1,28 @@
 # EVO production-successor exact-SHA release runbook
 
-Status: #551 target V3 release contract. The checked-in automation remains
-unarmed while #551 implements and proves this contract; #552 owns production
-configuration and activation. This runbook replaces the
+Status: active V3 release contract established by completed #551/#552. Recheck
+the current arm, accepted image and live state before each subsequent release;
+the first-cutover preparation below remains historical context. This runbook replaces the
 former five-container V1 runbook, retained only at
 [`docs/archive/v1/production-release.md`](../docs/archive/v1/production-release.md).
 Nothing here authorizes a VPS or provider mutation by itself.
+
+### September 9 Student/Admissions owner exception
+
+For this one authorized Student/Admissions release, the owner defers a new
+database/Storage export and its isolated restore/migration rehearsal; do not run
+them until separately requested. Record the exception instead of a passing
+recovery receipt. The [current plan](../docs/design/v3/student-admissions-run-plan.md#owner-release-exception-2026-09-09)
+and [decision log](../docs/PLAN_CHANGES.md#2026-09-09--owner-directed-release-without-a-new-backup-one-persistent-source)
+supersede only that prerequisite for this release. Retain existing backups,
+data and accepted-image rollback evidence; app rollback does not reverse schema
+or data changes. The sole permanent database/Auth/Storage source remains
+`iosckaqtovbbnssqcpde`: no clone, reset, replacement or deletion. Localhost is an
+SSH tunnel to the same deployed app. Account consolidation is separate and
+does not gate deployment. No new synthetic production users/cases or Admin
+access to private Student assessments is authorized. Exact-head review, schema,
+CI, scanner, normal Auth, immutable release, acceptance and disarm remain
+required; this exception changes no workflow/controller behavior.
 
 ## 1. Release invariant
 
@@ -113,7 +130,7 @@ main, or any other guard failure cannot continue.
 
 Stop before any production command unless all of these are true:
 
-1. the owner-authorized #552 activation is in force and
+1. the owner-authorized #552 activation or subsequent scoped release authority is in force and
    `EVO_PRODUCTION_RELEASE_ARMED` is exactly `true`, and the original
    `github.actor_id` exactly matches the configured canonical
    `EVO_PRODUCTION_RELEASE_ACTOR_ID`;
@@ -129,7 +146,9 @@ Stop before any production command unless all of these are true:
    verified read-only, and any required migration has its own approved gate;
 6. the existing `crm_primary` WAHA session and volume ownership are understood;
 7. separate recoverable pre-change database and private-Storage-byte artifacts
-   are identified and their isolated restore/migration rehearsal has passed;
+   are identified and their isolated restore/migration rehearsal has passed,
+   except for the explicitly recorded September 9 Student/Admissions owner
+   exception above; for that release record the deferred new proof, not PASS;
 8. the real document scanner's clean/detected/unavailable/timeout/recovery gate
    has passed; and
 9. the exact absent, approved-frozen-V1 or accepted-V3 pre-change app state and
@@ -451,7 +470,9 @@ Release evidence must bind to the exact commit and contain:
   hashes, including the named acceptance step and verified original actor ID;
 - Supabase project identity/migration-ledger result without keys or row data;
 - separate database-backup and Storage-byte-export identities plus isolated
-  restore/migration/scanner outcomes without customer or object content;
+  restore/migration/scanner outcomes without customer or object content; for
+  the current owner exception, record the deferred new export/rehearsal and
+  retained historical backup identities separately; scanner proof still applies;
 - browser-smoke result without customer content; and
 - explicit result code, operator, timestamps, sanitized literal rollback
   command, and rollback outcome if used.

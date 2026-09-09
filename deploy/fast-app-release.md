@@ -1,10 +1,26 @@
 # Automatic exact-main CRM app release
 
-Status: #551 target contract. The lane remains disabled until its implementation
-is independently reviewed, exact-head CI passes, the recovery and scanner gates
-pass, and #552 configures the production boundary and explicitly arms it. This
-document does not configure a secret, arm a release, deploy, apply schema, or
-change provider, webhook, customer or production state.
+Status: active V3 lane established by completed #551/#552. For each subsequent
+release, recheck the configured production boundary and keep the arm disabled
+until its applicable release gates pass. This document does not configure a
+secret, arm a release, deploy, apply schema, or change provider, webhook,
+customer or production state.
+
+### September 9 Student/Admissions owner exception
+
+The owner authorizes this release without a new database/Storage export or its
+isolated restore/migration rehearsal; defer those operations until separately
+requested and report the missing fresh recovery proof honestly. See the
+[current plan](../docs/design/v3/student-admissions-run-plan.md#owner-release-exception-2026-09-09)
+and [decision log](../docs/PLAN_CHANGES.md#2026-09-09--owner-directed-release-without-a-new-backup-one-persistent-source).
+This exception applies only to the current release prerequisite, preserves
+existing backups/data and accepted-image rollback, and changes no workflow or
+controller check. Keep `iosckaqtovbbnssqcpde` as the sole permanent
+database/Auth/Storage source; no clone/reset/replacement/deletion or separate
+preview database. Show the same production through an SSH localhost tunnel.
+Account consolidation remains separate; no new synthetic production users/cases
+or Admin access to Student-private assessments is authorized. Every exact-head
+review, schema, CI, scanner, normal Auth, acceptance and disarm gate remains.
 
 The lane releases only the single V3 Next.js application. It never imports
 knowledge, applies or rolls back a migration, changes provider settings,
@@ -166,10 +182,11 @@ Environment, file or fallback value. Missing, empty, malformed or unequal
 values fail before secrets/checkout and again before SSH or production
 mutation.
 
-#552, after schema, exact remote-staging retirement/re-inventory and every named
-pre-cutover gate pass, configures the production secrets/variables, records the
-intended actor ID without exposing secrets, and changes the arm to the exact
-value `true`. Disarming the lane and removing or changing the actor-ID variable
+#552 established the production secrets/variables and recorded the intended
+actor ID after its schema, staging-retirement and pre-cutover gates passed.
+For subsequent authorized releases, recheck current configuration and applicable
+gates, including any explicitly scoped owner exception above, before changing
+the arm to exact `true`. Disarming the lane and removing or changing the actor-ID variable
 are the first responses to an unsafe, ambiguous or revoked release contour.
 
 There is no `production` Environment reviewer pause and no staging Environment,

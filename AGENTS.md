@@ -29,6 +29,16 @@
 
 ## Current Product Authority
 
+- Latest September 9 owner direction: release the implemented Student/Admissions
+  work without a new backup for now and expose the same server through a local
+  SSH tunnel. See the narrow owner waiver in `docs/EVO_LAUNCH_PLAN.md` and the
+  latest `docs/PLAN_CHANGES.md`; no backup/restore success may be fabricated, and
+  all other release controls remain. Keep the existing Supabase project
+  `iosckaqtovbbnssqcpde` as the single persistent product source; never reset,
+  replace or delete it without a new explicit owner instruction. No disposable
+  local preview database is requested. Resolve the exact single-account target
+  and dependencies before consolidation; no permanent one-user product limit,
+  Auth bypass or removal of Student-private authority is authorized.
 - The current September 9 owner-authorized run is
   `docs/design/v3/student-admissions-run-plan.md`: extend the existing Student
   Portal with native English/career-interest tests and implement China/Malaysia

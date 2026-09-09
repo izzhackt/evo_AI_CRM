@@ -1,6 +1,6 @@
 # Student Portal и поступление: план нового запуска
 
-Дата: 2026-09-09 (Asia/Dubai). Статус: **Student Portal, тесты и China/Malaysia реализованы, локально проверены и слиты в main; production заблокирован prerequisites резервного копирования/восстановления**.
+Дата: 2026-09-09 (Asia/Dubai). Статус: **Student Portal, тесты и China/Malaysia реализованы, локально проверены и слиты в main; P9 IN FLIGHT — владелец разрешил выпуск без нового backup/recovery rehearsal, остальные release gates ещё нужно выполнить**.
 Для владельца продукта и любого следующего исполнителя: Codex, Sol, Astra или другого агента.
 Главный контракт — [EVO Launch Plan](../../EVO_LAUNCH_PLAN.md); этот документ раскрывает новый объём.
 Рабочая задача: [#693](https://github.com/izzhackt/evo_AI_CRM/issues/693).
@@ -52,8 +52,8 @@
 
 ### Контрольная точка реализации — 9 сентября
 
-Стартовая таблица выше сохранена как история, не текущий статус. Последняя
-проверенная общая база — main `c95a892c` после #697; #692/#695/#696 слиты ранее.
+Стартовая таблица и контрольная точка ниже сохранены как история. Проверенная
+общая база на этой точке — main `c95a892c` после #697; #692/#695/#696 слиты ранее.
 У brand PR #692 reviewed head
 `3cca6852`, CI `34358523190`, реальные desktop/mobile/forced-dark Student экраны
 проверены. Личный рабочий preview 3100 и существующий туннель 3000 сохранены.
@@ -91,10 +91,12 @@
   остаются pending, пока куратор не внесёт реальные подтверждения.
 - Production P9: read-only preflight 9 сентября подтвердил app `0cbb2d42`,
   schema134/134, health200, arm=false; ledger workflow `34364216887` PASS.
-  Нового выпуска пока нет. Нужны свежий backup нынешних данных и restore/migration
-  rehearsal: найденный export 8 сентября сделан до импорта 209 продаж и не
-  заменяет актуальную резервную копию. Затем reviewed exact-main CI и release.
-- Backup prerequisite [#703](https://github.com/izzhackt/evo_AI_CRM/pull/703),
+  Нового выпуска на этой точке не было. Тогда требовались свежий backup нынешних
+  данных и restore/migration rehearsal: найденный export 8 сентября сделан до
+  импорта 209 продаж и не заменяет актуальную резервную копию. Для текущего
+  выпуска это требование отложено [последним решением владельца](#owner-release-exception-2026-09-09),
+  а не отмечено выполненным. Reviewed exact-main CI и release остаются обязательными.
+- Исторический backup prerequisite [#703](https://github.com/izzhackt/evo_AI_CRM/pull/703),
   `279787cd`: scoped read-only transport независимо проверен; 138 focused tests,
   настоящий изолированный PostgreSQL18.6 dump parity/privilege-denial test и
   148 release contracts PASS. Read-only exporter preflight этого SHA проверил
@@ -104,7 +106,7 @@
   (expiry 8 сентября 12:01:57 UTC, активных сессий нет). Её не создавал этот запуск;
   provider DELETE коллективный. Не удалять её и не ослаблять zero-baseline guard
   без выяснения владельца и явного разрешения на точный cleanup.
-- Второй P9 gate: в source две Auth identity, одна active Admin membership,
+- Исторический второй recovery gate P9: в source две Auth identity, одна active Admin membership,
   209 продаж и ноль клиентов. Старое исключение restore consumer для пустого
   Storage допускает ровно одну Auth identity/одного Admin. Второй пользователь
   не имеет нового Platform profile/membership, но **оба Auth владеют отдельными
@@ -115,6 +117,10 @@
   Нельзя удалить эту учётную запись, просто заменить `=== 1` на `>= 1` или назвать
   source пустой базой. Полный aggregate checkpoint и границы — в
   [backup proof](backup-lease-local-proof.md#managed-read-only-checkpoint--september-9-1534-utc).
+  Эти ограничения остаются значимыми для будущего recovery, но не блокируют
+  текущий выпуск с явно отложенным новым backup/rehearsal. Сверить actual main:
+  #703 уже слит как `11cfbd306f6c3bceeac1efd4fe8f4005c0badc04`; новый release SHA
+  фиксируется после review/merge текущего документального исключения.
 
 Рабочий preview PR #692 находится в отдельном worktree
 `evo_AI_CRM-adapter-inventory`, ветка `izzhackt/evo-brand-ux-refresh`.
@@ -177,6 +183,42 @@ gh pr view 692 --repo izzhackt/evo_AI_CRM --json state,isDraft,headRefOid,url
   исполнитель выбирает обоснованное решение, записывает его и после реализации
   передаёт список для post-edit. Это не разрешение выдумывать подтверждения или
   молча запускать платные услуги/внешние сообщения.
+
+<a id="owner-release-exception-2026-09-09"></a>
+
+### Последнее решение: текущий выпуск без нового backup
+
+Владелец просит обновить и выложить Student/Admissions, затем показать ту же
+production-систему через localhost SSH tunnel. Для этого выпуска он явно
+отложил **новый backup и его isolated restore/migration rehearsal**; новый
+экспорт не запускать до отдельного запроса. Это узкое исключение записано в
+[EVO Launch Plan](../../EVO_LAUNCH_PLAN.md) и
+[журнале изменений](../../PLAN_CHANGES.md#2026-09-09--owner-directed-release-without-a-new-backup-one-persistent-source).
+Оно заменяет прежние backup prerequisites текущего P9, но не создаёт PASS или
+новую подтверждённую точку восстановления. Существующие backups, данные и
+accepted image/rollback evidence сохраняются; откат образа не откатывает БД.
+
+Единственный постоянный источник БД/Auth/Storage — существующий EVO Supabase
+`iosckaqtovbbnssqcpde`. Не создавать замену, клон или отдельную preview-БД,
+не сбрасывать и не удалять существующую базу. Localhost открывает ту же
+production app и те же данные через туннель, без второго Next.js runtime.
+
+Все остальные gates сохранены: independent exact-head review, только reviewed
+missing forward migrations и точный ledger, один manual full CI на frozen
+current main, scanner/resource/environment checks, immutable image, обычный
+Auth, acceptance и terminal disarm. Workflow/controller не изменяются.
+Чужая expired CLI role и старый Auth2 restore-exception mismatch относятся к
+отложенному recovery; не запускать export lease и не удалять чужой CLI-доступ
+ради его разблокировки. Реальная ошибка оставшегося schema/release gate всё
+равно останавливает соответствующее действие.
+
+Объединение учётных записей — отдельная операция: точная сохраняемая identity
+ещё требует уточнения, её ownership/dependencies нужно проверить до удаления.
+Это не блокирует выкладку. Не менять пароли, не расширять роли и не удалять
+связанные данные по предположению. Для текущей production-проверки не создавать
+новых фиктивных пользователей или дел. Admin не получает доступ к личным
+Student-тестам; отсутствие подходящей существующей Student identity следует
+отразить как ограничение live-проверки, не обходить Auth и не объявлять её PASS.
 
 ### Что не входит
 
@@ -423,7 +465,7 @@ VERIFIED означает изолированную проверку, а не p
 | P6. Профориентация | VERIFIED | ORVIS92 RU, карточки профессий, источник и ограничения; независимый review/E4 PASS | P9; клиентский пилот не подменён QA |
 | P7. Portal + staff UX | VERIFIED | #692/#695/#697 слиты; E4/E5 desktop/393px, клавиатура, состояния и ручное копирование PASS | P9 |
 | P8. E2E/acceptance | VERIFIED (local) | E4, normal invite, SQL001–138 и E5 PASS; отдельные границы доказательств в §2/§9 | Это не owner acceptance/production smoke |
-| P9. Production | BLOCKED | Fresh backup + полный restore состава source → schema/main CI → release/readback | Чужая expired CLI role; Auth2 не покрывается прежним restore exception; #703 |
+| P9. Production | IN FLIGHT | Owner waiver нового backup/rehearsal записан; далее exact-main review → missing schema → full CI → guarded release/acceptance → disarm и production tunnel | Свежий live inventory и оставшиеся технические gates; account consolidation отдельно; production PASS ещё нет |
 | M1. Malaysia | VERIFIED | #697 слит; семь этапов из §11 до confirmed arrival/reopen в реальном browser; post-arrival formalities не отмечаются автоматически | P9 |
 | L1. Валидированный CEFR | FUTURE, не v1 | Проверены level rubric/пороги на целевой аудитории с методическим обоснованием | Компетентная методическая проверка; v1 не заявляет CEFR |
 
@@ -451,6 +493,12 @@ VERIFIED означает изолированную проверку, а не p
 не выпускать как действующий тест; не подменять его внешней ссылкой.
 
 ## 9. Проверка через настоящий продукт
+
+Текущий production scope задаёт [последнее решение владельца](#owner-release-exception-2026-09-09):
+новые фиктивные пользователи и дела не создаются. Описанный ниже QA-контур
+сохраняет методику и evidence уже выполненных изолированных E4/E5/invite checks,
+но не разрешает managed provisioning для текущего выпуска. Использовать обычный
+вход существующих разрешённых identities; непроверенные live-пути указать явно.
 
 ### Тестовый Student: отдельный preflight
 
@@ -520,25 +568,37 @@ QA cleanup — по точному заранее записанному invento
 ## 10. Выкладка и откат
 
 Исполнитель использует [актуальный production runbook](../../../deploy/production-release.md),
-не старую инструкцию из памяти. Разрешение на prod уже дано, но gates не отменены.
+с [узким owner exception](#owner-release-exception-2026-09-09) для нового
+backup/rehearsal этого выпуска. Остальные gates не отменены.
 
 1. Сверить VPS `/opt/evo-crm`, live app/image/schema, актуальный публичный URL,
    состояние release arm и расхождения с GitHub. Не трогать соседний Acadis/companion.
-2. Сверить уже merged PR #692/#695/#696 и завершить оставшиеся feature PRs,
-   обязательные точные head checks; merge в main.
-   Записать migration inventory и rollback compatibility, не только UI-скриншот.
-3. Заморозить один candidate SHA; сначала получить fresh backup/recovery
-   доказательство по текущим данным и затронутой схеме. До этого arm=false.
-4. Forward migrations через
-   канонический schema path. Проверить ledger и отсутствие missing/extra migrations.
-   Выполнить manual `EVO platform CI` строго на reviewed current main по runbook.
-5. Armed release только для этого SHA/образа по runbook; readback готовности,
-   реальный login/роль/portal, новый маршрут, private files и staff smoke.
-6. Disarm; записать deployed SHA, image, schema, ссылки на CI/release и результат.
+2. Сверить merged #692/#695/#696/#697/#703; завершить independent review и
+   обязательные exact-head checks текущего diff, merge в main. Записать inventory
+   migrations 135–138 и совместимость с предыдущим accepted image для rollback.
+3. Заморозить один exact-current-main candidate SHA. Новый backup/rehearsal не
+   запускать; записать waiver и предел доказательств, сохранить существующие
+   backups и image rollback. До готовности schema/host gates arm=false.
+4. Проверить ledger через manual `EVO schema ledger` с `mode=check`; сверить
+   `headSha` запуска и missing/extra вручную: check лишь печатает расхождения.
+   Только при ожидаемом недостающем хвосте применить `mode=apply` к тому же main
+   и существующему project ref; повторно проверить точное совпадение 001–138.
+   Не повторять уже применённую миграцию и не создавать новую БД.
+5. После остальных gates проверить canonical actor ID, включить arm и один раз
+   запустить manual `EVO platform CI` на `main` с `proof_revision` равным frozen
+   SHA. Успешный CI запускает guarded release; main не менять до acceptance.
+   Дождаться `Accept exact V3 candidate`, проверить image/version/health и
+   accepted/pending state. Обычный release smoke Admin не доказывает Student
+   acceptance: проверить доступные разрешённые login/роль/portal/private files
+   и staff paths; недоступные live-пути записать без новых synthetic records.
+6. После terminal результата disarm; записать deployed SHA, image, schema,
+   ссылки на CI/release, acceptance и ограничения live-проверки.
    Если app rollback нужен, сначала проверить совместимость новой schema с предыдущим image.
    Откат образа не откатывает данные БД; destructive down migration не импровизировать.
-7. Показать владельцу production и localhost tunnel к нему, если это нужный preview.
-   Не выдавать локальную сборку за deployed app. Не сбрасывать пароль повторно без необходимости/разрешения.
+7. Показать владельцу ту же production через localhost SSH tunnel. После
+   пересоздания app проверить актуальную цель туннеля и совпадение `/api/version`
+   с production; сохранить чужие локальные процессы. Не выдавать локальную
+   сборку за deployed app и не сбрасывать пароль ради просмотра.
 
 Технический успех, пользовательская приёмка и методическая валидность — три
 разных статуса. Пустой production не даёт права объявить бизнес-приёмку PASS.
@@ -622,21 +682,21 @@ Europe/UAE/Turkey пока имеют направления и существу
 2. E5 завершён на `452e3e05`; финальный #697 head `806c0b40` прошёл review/CI
    и слит как `c95a892c`. Не повторять browser из-за docs-only изменений. При
    новых product changes повторять затронутые gates, не переносить PASS вслепую.
-3. В #703 уже унаследован merged #697/main и reviewed dependency pins. Сверить
-   текущий статус PR/точный head, review/CI/merge прежде чем использовать exporter
-   на current main. Сам merge инструмента не разрешает чужой CLI-role cleanup.
-4. До live export заново проверить CLI role inventory. Имеющийся чужой expired
-   доступ не удалять без owner reconciliation/явного разрешения; preflight PASS
-   не отменяет этот gate. Не сбрасывать DB password, не включать JIT/SSL.
-5. Source Auth классифицированы read-only 9 сентября 15:34 UTC: два legacy owner,
-   один из них новый Platform Admin, Student-связей нет. Перед новым запуском
-   сверить inventory; подготовить точный restore-proof contract для обеих
-   идентичностей/ownership и изоляции, без добавления полномочий. Ни single-Admin,
-   ни fully-unassigned-second-user exception не подходят.
-6. После разрешения blockers: fresh signed export текущих 209 продаж/всего source,
-   isolated restore/migration rehearsal и только затем P9 по runbook. Не повторять
-   Sales import, не активировать внешние провайдеры, не выполнять cleanup #687.
-7. Внести реальные merged SHA, schema, release run и live readback в журнал;
+3. #703 слит как `11cfbd30`; exporter сейчас не запускать. Завершить review/checks
+   документации owner waiver, merge и зафиксировать новый exact-current-main SHA.
+   Сверить production app/image, project ref, ledger, accepted/pending state и arm.
+4. При arm=false выполнить schema check; если production остаётся на 134 и
+   отсутствуют только 135–138, применить этот reviewed хвост штатным workflow.
+   Добиться точного ledger001–138 в существующем `iosckaqtovbbnssqcpde`.
+   Новый backup/rehearsal, clone/reset и foreign CLI-role cleanup не выполнять.
+5. Отдельно уточнить сохраняемую учётную запись и read-only ownership/dependencies
+   перед любым account cleanup. Не задерживать из-за этого deployment, не менять
+   пароли или роли и не создавать synthetic production users/cases для smoke.
+6. После schema/host gates включить arm, выполнить один manual full CI на frozen
+   current main, дождаться guarded release и реального acceptance/readback,
+   затем disarm. Показать ту же production через проверенный localhost tunnel.
+   Не повторять Sales import, не активировать провайдеры, не выполнять cleanup #687.
+7. Внести реальные merged SHA, schema, release run, waiver и live readback в журнал;
    до этого не закрывать #693/P9 и не называть локальный runtime production.
 8. В финальном отчёте отделить работоспособный native screening v1 от будущего
    L1/клиентского пилота; не называть первые результаты валидированным CEFR.
@@ -657,6 +717,7 @@ Europe/UAE/Turkey пока имеют направления и существу
 | 2026-09-09 | Backup #703 / `279787cd` | Локальные transport/restore-parser gates PASS; actual read-only exporter preflight PASS. Ни lease, ни dump, ни restore/release не запускались | Чужая expired CLI role требует owner reconciliation; source Auth2 требует полного authority/restore proof вместо single-Admin exception |
 | 2026-09-09 | main `c95a892c` / #697 | Reviewed `806c0b40`, CI34371092144 все6 PASS; exact-head squash merge в 15:40 UTC. P1–P8/M1 — локально VERIFIED и код в main | Production всё ещё `0cbb2d42`/134; arm=false; #693/P9 не закрыты |
 | 2026-09-09 | P9 source inventory | Auth2: оба legacy account owner; один active Platform Admin, Student-связей0. Чужая expired CLI role без активных сессий не тронута. #703 наследует current main | Явное разрешение на точный CLI cleanup; отдельный restore contract, fresh export/rehearsal, затем managed release |
+| 2026-09-09 | P9 owner direction / main `11cfbd30` | Владелец отложил новый backup/rehearsal для текущего Student/Admissions release; один существующий Supabase и localhost tunnel к той же production; старые recovery blockers сохранены как история, не PASS | Docs review/merge → frozen main → missing schema → full CI/release/acceptance → disarm/tunnel. Account target уточняется отдельно; новые synthetic production users/cases не разрешены |
 
 Сейчас новых продуктовых вопросов нет. Потенциальные внешние зависимости:
 разрешённый QA mailbox для managed invite (сначала использовать безопасный реальный

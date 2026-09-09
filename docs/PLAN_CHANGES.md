@@ -22086,3 +22086,40 @@ DEFERRED; #687 stays OPEN until owner acceptance permits a separately reviewed
 forward removal of portal v1 and the Admin-only omitted-reason exception.
 The requested localhost view is a loopback SSH tunnel to production, never a
 local-development copy; refresh its private target after container replacement.
+
+## 2026-09-09 — owner-requested EVO brand and UX refresh
+
+Before coding: the owner explicitly requests applying
+https://britishdesign.ru/about/blog/386562/ and EVO logobook colours/logos to the
+existing platform. The monochrome-only experiment is no longer a binding colour
+restriction. Preserve its quiet light surfaces and all functional/permission
+boundaries; introduce authentic red branding and meaningful action emphasis.
+
+Plan block: `docs/EVO_LAUNCH_PLAN.md`, Current UI block 2026-09-09. Scope is shared
+visual tokens, real logo assets, navigation/account density, main/report/directory
+hierarchy, login and portal branding. No new admissions workflows from the earlier
+unanswered product discussion, no data model/role/Auth/provider changes and no
+production deployment. Use current real data for browser checks; never manufacture
+cases for a prettier screen. Preserve #687's owner-approved temporary contracts.
+
+Source PDF palette page 20 has mislabelled secondary swatches. The archived
+contractor copy gives burgundy #970026; both agree on primary #d70217. Use the
+unambiguous common primary red; do not infer arbitrary logo colours. Original PNG
+wordmark avoids substituting a font in the logo. Existing licensed UI fonts stay;
+the supplied trial/commercial font files have no verified web-embedding licence.
+
+Read-only baseline captured in the existing Chrome EVO session. Implementation
+and actual-path proof will be recorded below; this entry is not completion proof.
+
+Implementation checkpoint: actual Node22 production build/TypeScript PASS;
+27 scoped source/token checks PASS; scoped ESLint and whitespace checks PASS.
+Original PNG provenance and real Chrome login proof (desktop + measured 393px
+CSS viewport) recorded in the reference note. Browser caught the initial static
+asset redirect; static image import fixes it without touching authentication.
+Independent review's stale profile-error expectation and the changed 44px portal
+target expectation were corrected; all existing assertions retained.
+
+Fresh navigation invalidated the cached Admin session, so internal staff/Student
+visual proof is not complete. No password reset, business-data write, or production
+deploy performed. Preserve this as a draft PR with explicit login/acceptance gap;
+do not represent local build success as whole-platform/browser acceptance.

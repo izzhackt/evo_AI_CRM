@@ -17,6 +17,43 @@ The earlier accepted
 `4e6057f0` evidence in closed #552/#553 remains first-release history, not the
 current app revision. A documentation change does not by itself deploy the app.
 
+## Current UI block: EVO brand and usability refresh (2026-09-09)
+
+Owner request: apply the British Higher School of Art and Design article and
+bring EVO logobook colours/logos into the existing platform. This supersedes the
+earlier monochrome-only visual experiment, not its business contracts. Baseline:
+`bd4af5cb31f9b17d9c0ec09d4cd7c5f4bbbb2294`.
+
+One cohesive frontend slice, with parallel ownership inside the slice:
+
+1. Ground the visual contract in the article, logobook and current screens;
+   record decisions in `design/v3/references/2026-09-09-evo-brand-ux.md`.
+2. Refresh shared V3 colour/type/spacing/control tokens. Use original EVO artwork,
+   red primary actions, restrained active navigation and neutral work surfaces.
+3. Simplify staff navigation/account controls, page hierarchy, student-directory
+   search and Sales report. Carry shared branding into login and student portal.
+   Preserve existing routes, permissions, data, forms and server actions.
+4. Validate the actual build, scoped checks and real authenticated navigation at
+   desktop/mobile sizes. No seeded users/cases, mock responses, Auth bypass,
+   provider calls or business writes. Empty surfaces stay honestly empty; record
+   unavailable real-case coverage separately from successful checks.
+5. Independent exact-head review, scoped PR checks, push and PR. Merge only after
+   approval. Production deployment is not part of this new visual request.
+
+Acceptance: original logo proportions/clear space, coherent action colours,
+readable controls/content, keyboard focus and reduced-motion support, no page
+overflow at 393px, no lost actions or changed authorization. No country workflows,
+catalogue, parent roles, post-arrival module, schema, authentication or integration
+changes. Keep owner-deferred #687 intact.
+
+Status: implementation and build complete; scoped source/token checks pass.
+Real Chrome login branding/layout checked at desktop and 393px CSS width.
+Authenticated staff/portal visual acceptance is BLOCKED by unavailable current
+credentials (the prior browser session expired). Keep this slice in draft PR;
+do not merge/deploy or reset passwords to hide the missing proof. Resume ordinary
+login and the read-only checks listed in the reference note. The September 8
+deployment above remains the last recorded production checkpoint.
+
 ## Historical integration and release-preparation checkpoints
 
 The following checkpoints describe earlier revisions, not current blockers or

@@ -70,34 +70,34 @@ export function ProfileCaseDirectory({
 }>) {
   return (
     <details
-      className="rounded-card border border-border bg-surface"
+      className="min-w-0 rounded-card border border-border bg-surface"
       data-testid="v3-student-case-directory"
       open={initiallyOpen}
     >
-      <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-fg marker:text-fg-3">
+      <summary className="min-h-11 cursor-pointer px-4 py-4 text-base font-semibold text-fg marker:text-fg-3 sm:px-5">
         Найти студента
-        <span className="ml-2 font-mono font-normal text-fg-3">
-          {params.invalid ? "—" : directory.rows.length}
+        <span className="ml-2 text-sm font-normal text-fg-2">
+          {params.invalid ? "—" : `${directory.rows.length} в списке`}
         </span>
       </summary>
 
-      <div className="space-y-4 border-t border-border px-5 py-5">
+      <div className="min-w-0 space-y-4 border-t border-border px-4 py-5 sm:px-5">
         <form
           action="/v3/profile"
           method="get"
           className="grid gap-3 @3xl:grid-cols-[minmax(260px,1fr)_minmax(180px,0.35fr)_auto]"
           aria-label="Найти студента"
         >
-          <label className="grid gap-1.5 text-xs font-medium text-fg-2">
+          <label className="grid min-w-0 gap-1.5 text-sm font-medium text-fg-2">
             Имя, маршрут или страна
             <input
-              className="min-h-11 rounded-nav border border-control-edge bg-surface px-3 text-sm text-fg outline-none focus:border-accent"
+              className="min-h-11 min-w-0 w-full rounded-nav border border-control-edge bg-surface px-3 text-sm text-fg outline-none focus:border-accent"
               defaultValue={params.query}
               name="case_q"
-              placeholder="Например: Германия"
+              placeholder="Имя студента или страна"
             />
           </label>
-          <label className="grid gap-1.5 text-xs font-medium text-fg-2">
+          <label className="grid min-w-0 gap-1.5 text-sm font-medium text-fg-2">
             Статус дела
             <select
               className="min-h-11 rounded-nav border border-control-edge bg-surface px-3 text-sm text-fg outline-none focus:border-accent"
@@ -131,23 +131,33 @@ export function ProfileCaseDirectory({
             className="v3-edge-danger rounded-nav border border-border border-s-2 bg-surface px-4 py-3 text-sm text-danger"
             data-testid="v3-student-case-filter-rejected"
           >
-            Параметры поиска не приняты.
+            Не удалось применить фильтры. Проверьте запрос или сбросьте поиск.
           </p>
         ) : directory.rows.length === 0 ? (
-          <p className="py-8 text-center text-sm text-fg-3">
-            Среди доступных дел ничего не найдено.
-          </p>
+          <div className="space-y-2 py-8 text-center">
+            <p className="text-base font-medium text-fg">
+              {params.query || params.state || params.cursor
+                ? "По вашему запросу ничего не найдено."
+                : "Пока нет доступных дел студентов."}
+            </p>
+            <p className="text-sm text-fg-2">
+              {params.query || params.state || params.cursor
+                ? "Измените запрос или сбросьте фильтры."
+                : "Здесь появятся дела, к которым у вас есть доступ."}
+            </p>
+          </div>
         ) : (
-          <div className="max-w-full overflow-x-auto border-y border-border">
+          <div role="region" aria-label="Результаты поиска студентов" tabIndex={0} className="max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <table className="w-full min-w-[920px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-2 text-xs text-fg-3">
+              <caption className="sr-only">Доступные дела студентов</caption>
+              <thead className="border-b border-border bg-surface-2 text-xs text-fg-2">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Студент</th>
-                  <th className="px-3 py-3 font-medium">Маршрут</th>
-                  <th className="px-3 py-3 font-medium">Статус</th>
-                  <th className="px-3 py-3 font-medium">Команда</th>
-                  <th className="px-3 py-3 font-medium">Внимание</th>
-                  <th className="px-4 py-3 font-medium">Обновлено</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Студент</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Маршрут</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Статус</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Ответственные</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Внимание</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Обновлено</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -161,10 +171,10 @@ export function ProfileCaseDirectory({
                     data-testid="v3-student-case-row"
                     key={row.studentCaseId}
                   >
-                    <td className="px-4 py-3">
+                    <td className="min-w-[180px] max-w-[280px] break-words px-4 py-3">
                       {href ? (
                         <Link
-                          className="font-semibold text-fg hover:text-accent hover:underline"
+                          className="inline-flex min-h-11 items-center font-semibold text-fg hover:text-accent hover:underline"
                           href={href}
                         >
                           {row.studentDisplayName}
@@ -177,7 +187,7 @@ export function ProfileCaseDirectory({
                     </td>
                     <td className="px-3 py-3">
                       <span className="block text-fg">
-                        {row.operationalStage ?? "Передано в Admissions"}
+                        {row.operationalStage ?? "Передано куратору"}
                       </span>
                       <span className="mt-1 block text-xs text-fg-3">
                         {[row.targetCountry, row.targetDegree]
@@ -190,16 +200,16 @@ export function ProfileCaseDirectory({
                         {STATE_COPY[row.state]}
                       </Pill>
                     </td>
-                    <td className="px-3 py-3 text-xs leading-5 text-fg-2">
+                    <td className="min-w-[180px] max-w-[280px] break-words px-3 py-3 text-xs leading-5 text-fg-2">
                       <span className="block">
-                        Sales: {row.responsibleSalesDisplayName ?? "—"}
+                        Продажи: {row.responsibleSalesDisplayName ?? "—"}
                       </span>
                       <span className="block">
-                        Admissions: {row.admissionsDisplayName ?? "—"}
+                        Куратор: {row.admissionsDisplayName ?? "—"}
                       </span>
                       {row.leadId && row.access === "full" ? (
                         <Link
-                          className="inline-flex min-h-11 items-center font-mono text-accent hover:underline"
+                          className="inline-flex min-h-11 items-center font-medium text-accent hover:underline"
                           href={`/v3/profile?id=${row.leadId}`}
                         >
                           Открыть связанный лид
@@ -224,11 +234,11 @@ export function ProfileCaseDirectory({
 
         <nav
           aria-label="Страницы каталога студентов"
-          className="flex items-center justify-between gap-3"
+          className="flex flex-wrap items-center justify-between gap-3"
         >
           {params.cursor ? (
             <Link
-              className="text-sm font-medium text-fg-2 hover:text-fg"
+              className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 hover:text-fg"
               href={directoryHref(params)}
             >
               ← К началу
@@ -238,7 +248,7 @@ export function ProfileCaseDirectory({
           )}
           {directory.hasNext && directory.nextCursor ? (
             <Link
-              className="text-sm font-medium text-fg-2 hover:text-fg"
+              className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 hover:text-fg"
               href={directoryHref(params, directory.nextCursor)}
               rel="next"
             >

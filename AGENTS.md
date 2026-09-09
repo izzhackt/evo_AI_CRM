@@ -29,6 +29,23 @@
 
 ## Current Product Authority
 
+- The current September 9 owner-authorized run is
+  `docs/design/v3/student-admissions-run-plan.md`: extend the existing Student
+  Portal with native English/career-interest tests and implement China/Malaysia
+  Admissions in EVO. Read root `DESIGN.md` before UI changes. Its original EVO
+  brand accent supersedes historical monochrome-only design instructions.
+- Assessment answers/results are Student-owner private in this run, including
+  denial on ordinary Admin/Curator product paths. Do not add staff tracking,
+  test assignments or case-timeline projections. No invented CEFR certification.
+- The owner explicitly permits bounded fictional Student QA identities/data for
+  this run, with real Auth/backend/browser execution and isolation from working
+  sales reports. This is not an Auth bypass, fake provider acceptance or blanket
+  production seeding permission. Follow the plan's provisioning/cleanup gates.
+- The owner requests sustained execution without further product questions;
+  choose documented recommendations for uncertainties and report them for
+  post-edit. Preserve authority for external messages, credentials and release
+  gates. Completed earlier sequences and #687's separate owner-acceptance cleanup
+  do not replace the current run or authorize unrelated migrations.
 - For active production-successor work, the owner's 2026-09-04 direction,
   parent issue #543, ADRs 0024, 0026 and 0027, `docs/EVO_LAUNCH_PLAN.md`, and
   the latest merged `docs/PLAN_CHANGES.md` entry define the target. Integration

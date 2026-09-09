@@ -33,7 +33,12 @@ GitHub `main` is the shared source of truth. Work through a GitHub Issue and a
 reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
-Resume the current work from the approved follow-up scope and acceptance list in
+Resume the current September 9 run from
+[`student-admissions-run-plan.md`](docs/design/v3/student-admissions-run-plan.md):
+Student Portal, native English/career-interest tests, China/Malaysia Admissions,
+and the shared [`DESIGN.md`](DESIGN.md) contract. This is authorized implementation
+scope, not a claim that these additions are already deployed.
+The preceding follow-up scope and acceptance history remain in
 [`docs/design/v3/curator-ux-run-plan.md`](docs/design/v3/curator-ux-run-plan.md).
 The earlier `run-plan.md` first-launch checklist is retained as history; do not
 repeat a completed release when starting the September 8 curator/UX improvements.

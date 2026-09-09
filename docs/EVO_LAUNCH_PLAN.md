@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-08 (Asia/Dubai)
+Date: 2026-09-09 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Current deployed application: `0cbb2d42d9691fac392864fea72a3f0894826773`, version
+Last recorded deployed application: `0cbb2d42d9691fac392864fea72a3f0894826773`, version
 `r27.1-0cbb2d42`, after full CI `34223961358` and release `34224668896` passed.
 Production schema is at 134; the release arm is false. The one-time import of
 209 sales/4 targets is reconciled; owner business acceptance remains deferred.
@@ -17,7 +17,10 @@ The earlier accepted
 `4e6057f0` evidence in closed #552/#553 remains first-release history, not the
 current app revision. A documentation change does not by itself deploy the app.
 
-## Current UI block: EVO brand and usability refresh (2026-09-09)
+## Predecessor UI block: EVO brand and usability refresh (2026-09-09)
+
+This is the bounded PR #692 scope. The current run below supersedes its earlier
+no-synthetic-Student restriction and separately authorizes reviewed deployment.
 
 Owner request: apply the British Higher School of Art and Design article and
 bring EVO logobook colours/logos into the existing platform. This supersedes the
@@ -59,10 +62,36 @@ verified Auth identity and canonical active Admin authority passed at 11:12:57 U
 both GitHub smoke secrets were updated at 11:12:58–59 UTC. No role or metadata change.
 The local private ignored `.env.evo-smoke` (0600) is the owner handoff, not repo data.
 Staff visual acceptance is now exercised in a real browser, not inferred from
-API Auth proof. A real Student session remains unavailable, so portal visual
-acceptance is still unverified. Keep PR #692 draft until that check or an explicit
-owner acceptance deferral; do not merge/deploy or reset the password again.
+API Auth proof. Student visual acceptance subsequently passed in an isolated E4
+runtime: all five pages at desktop, 393px and forced-dark; 6 passed/6 intentional
+viewport skips, 15 inspected screenshots. The fixture uses real Auth/Postgres with
+a preactivated synthetic case, not proof of the normal invitation flow. See the
+reference note. Exact-head review and CI remain required before merging #692;
+do not reset the password again.
 The September 8 deployment above remains the last recorded production checkpoint.
+
+## Current run: Student Portal and China/Malaysia Admissions (2026-09-09)
+
+The owner authorizes the separate [Student/Admissions run plan](design/v3/student-admissions-run-plan.md)
+and sustained implementation through reviewed production release. Scope: improve
+the existing Student Portal; native English screening and Russian career-interest
+assessment with saved private results/profession guidance; full China and Malaysia
+Admissions using existing cases/tasks/applications/Finance; direction worklists,
+manual partner-message templates and a short manager report. Read [DESIGN.md](../DESIGN.md).
+
+All English questions remain inside EVO. Assessment results are Student-private,
+not staff projections or curator assignments. Initial screening reports factual
+quiz performance and topic strengths/weaknesses, not a validated CEFR certificate.
+The owner supplied both country DOCX sources and delegates uncertain product
+choices for documented post-edit; Malaysia is not awaiting a source document.
+
+The owner now explicitly permits bounded fictional Student QA data for this run,
+with real Auth/backend/browser and report isolation. This narrowly supersedes the
+prior run's no-synthetic-case acceptance restriction, not real-service or release
+gates. Production authorization does not imply migrations/features are already
+deployed. PR #692's Student visual check is locally verified as described above;
+normal invitation/provisioning acceptance remains distinct and unproven.
+Existing #687 rollback exceptions remain under their separate owner-acceptance gate.
 
 ## Historical integration and release-preparation checkpoints
 

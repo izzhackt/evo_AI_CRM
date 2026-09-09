@@ -346,6 +346,37 @@ protected short checks.
 
 ---
 
+<a id="owner-student-admissions-20260909"></a>
+
+## Новый запуск: Student Portal, тесты, Китай и Малайзия — 09.09
+
+> «1. student portal»
+> «2. english test + проф ориентация тест и как мы обсудили»
+> «3. china/malaysia whole admissions в evo platform, тоже как мы обсудили»
+
+> «Все вопросы только внутри EVO»
+> «для наших клиентов ... инструкции должны быть на русском по проф-ориентацию»
+> «пока это с куратором не связано ... чтобы у каждого были эти тесты»
+> «потом в evo platform тоже добавим ... чтобы кураторы могли следить и поставить задачи»
+
+> «После подтверждённого прибытия» — завершение работы по Китаю.
+> «можешь придумать просто фейк студент и проверь все внутри»
+> «okay, do it, prod поменяй»
+> «further on, we gonna work with this design, also u can create design.md»
+> «the ux-ui part - follow the instructions in this repo + here»
+
+Источники владельца: [восемь правил](https://habr.com/ru/articles/449994/),
+[UX checklist](https://convertmonster.ru/blog/uzabiliti-blog/chek-list-pravil-ux-dizajna-dlya-sajtov-i-lendingov/),
+ранее присланный logobook EVO и оба регламента кураторов.
+
+> «do the plan, and go for a long run»
+> «for now, dont ask questions ... about the uncertain parts, u can go with your recommendations»
+> «after completing all of it, u gonna tell me these parts, and we will post-edit them»
+
+План исполнения и отдельно отмеченные решения исполнителя:
+[student-admissions-run-plan.md](student-admissions-run-plan.md).
+Визуальный контракт: [DESIGN.md](../../../DESIGN.md).
+
 ## Мелочи, названные заказчиком
 
 **Часовой пояс организации — Бишкек.** Границы суток и «сегодня» считаются в

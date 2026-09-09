@@ -148,6 +148,7 @@ export type StudentPortalInviteCoordinatorDependencies = Readonly<{
   auth: StudentPortalInviteAuthProvider;
   otpExpirySeconds: number;
   nodeEnv: string | undefined;
+  localCallbackOrigin?: string;
 }>;
 
 function isUuid(value: unknown): value is string {
@@ -458,7 +459,7 @@ export async function coordinateStudentPortalInvite(
   try {
     providerResult = await dependencies.auth.inviteUserByEmail({
       email: claim.normalizedEmail,
-      redirectTo: studentInviteCallbackUrl(dependencies.nodeEnv),
+      redirectTo: studentInviteCallbackUrl(dependencies.nodeEnv, dependencies.localCallbackOrigin),
     });
   } catch {
     return recordUnknown(

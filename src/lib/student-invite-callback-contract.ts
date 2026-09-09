@@ -21,6 +21,7 @@ export type StudentInviteCallbackInput = Readonly<{
 
 export type StudentInviteCallbackPost = Readonly<{
   nodeEnv: string | undefined;
+  localCallbackOrigin?: string;
   origin: string | null;
   host: string | null;
   forwardedHost: string | null;
@@ -46,12 +47,19 @@ export function isStudentInviteCsrfToken(value: unknown): value is string {
 
 export function studentInviteCallbackUrl(
   nodeEnv: string | undefined = process.env.NODE_ENV,
-):
-  | typeof LOCAL_STUDENT_INVITE_CALLBACK_URL
-  | typeof PRODUCTION_STUDENT_INVITE_CALLBACK_URL {
-  return nodeEnv === "production"
-    ? PRODUCTION_STUDENT_INVITE_CALLBACK_URL
-    : LOCAL_STUDENT_INVITE_CALLBACK_URL;
+  localCallbackOrigin?: string,
+): string {
+  // Production cannot be redirected by a local proof/development setting.
+  if (nodeEnv === "production") return PRODUCTION_STUDENT_INVITE_CALLBACK_URL;
+  if (localCallbackOrigin === undefined) return LOCAL_STUDENT_INVITE_CALLBACK_URL;
+  // Deliberately do not normalize URLs: reject host aliases, paths, credentials,
+  // query/fragment material and privileged ports instead of widening authority.
+  const match = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{3,4})$/.exec(localCallbackOrigin);
+  const port = match ? Number(match[1]) : 0;
+  if (match?.[0] !== localCallbackOrigin || port < 1024 || port > 65535) {
+    throw new Error("Invalid local Student invite callback origin.");
+  }
+  return `${localCallbackOrigin}/auth/callback`;
 }
 
 export function decodeStudentInviteCallbackQuery(
@@ -100,7 +108,12 @@ function sameCsrfToken(cookieValue: string | null, formValue: string | undefined
 export function validateStudentInviteCallbackPost(
   input: StudentInviteCallbackPost,
 ): StudentInviteCallbackInput | null {
-  const expected = new URL(studentInviteCallbackUrl(input.nodeEnv));
+  let expected: URL;
+  try {
+    expected = new URL(studentInviteCallbackUrl(input.nodeEnv, input.localCallbackOrigin));
+  } catch {
+    return null;
+  }
   const origin = exactHeader(input.origin);
   const host = exactHeader(input.host);
   const forwardedHost = exactHeader(input.forwardedHost);

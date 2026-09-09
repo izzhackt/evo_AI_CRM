@@ -22241,3 +22241,25 @@ fixture does not prove normal invitation/provisioning or production deployment.
 The old preview and production tunnel were not altered. PR #692 incorporates
 current main's separate Student/Admissions run contract without dropping either
 decision history; its source delta still requires exact-head review and CI.
+
+### 2026-09-09 — isolated normal Student invitation proof
+
+P1/P8 require an actual invite → callback → password setup → Student session,
+not only the preactivated E4 fixture. The current development callback is frozen
+to loopback port3000, occupied by an existing owner production tunnel that must
+remain untouched. Permit an explicitly configured development-only callback
+origin on literal `http://127.0.0.1:<port>` (bounded nonprivileged port), with the
+same exact Origin/Host/forwarded-header and CSRF validation. Production must
+ignore/reject the local override and keep its frozen production origin. No
+wildcards, arbitrary host/protocol/path, inferred request host, Auth bypass,
+forced confirmation or accepted forged invite are allowed.
+
+Use a separate disposable local Supabase stack, its SMTP catcher and existing
+Admin provisioning action; fictional identities stay inside this isolated
+environment. Never send an external invitation or follow an invite into the
+owner's port3000 production tunnel. Record provider invitation metadata, actual
+callback confirmation, password setup, live Student authority and personal
+portal readback. Existing preview3100 and older Supabase stack remain untouched.
+This is a narrow testability correction under the already authorized acceptance
+scope, not a replacement authentication flow. Contract and negative-origin tests,
+real local browser proof, independent exact-head review and CI precede merge.

@@ -38,7 +38,14 @@ export function TaskCasePicker({ initialCases, initialHasMore, selectedCase }: R
   return <div className="space-y-2 md:col-span-2 xl:col-span-3">
     <label htmlFor={`${id}-search`} className="text-sm font-medium text-fg-2">Найти активное дело студента</label>
     <div className="flex flex-wrap gap-2">
-      <input id={`${id}-search`} value={query} maxLength={200} onChange={(event) => { setQuery(event.target.value); setCursor(null); }}
+      <input id={`${id}-search`} value={query} maxLength={200} onChange={(event) => {
+        // A response belongs to the exact query that started it, including its cursor.
+        sequence.current += 1;
+        setQuery(event.target.value);
+        setCursor(null);
+        setHasMore(false);
+        setStatus("idle");
+      }}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); search(); } }}
         className={`${CONTROL} min-w-0 flex-1`} placeholder="Имя студента" />
       <button type="button" disabled={pending} onClick={() => search()} className="min-h-11 rounded-ctl border border-control-edge px-3 text-sm">{pending ? "Ищем…" : "Найти"}</button>

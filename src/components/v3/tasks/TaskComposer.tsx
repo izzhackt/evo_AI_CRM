@@ -31,7 +31,7 @@ export function TaskComposer({ participants, actorMembershipId, presentationRole
       </fieldset> : null}
       <div hidden={kind !== "staff"}><StaffTaskForm participants={participants} actorMembershipId={actorMembershipId} day={day} requestId={requestId}
         initialTitle={initialTitle} sourceMessageId={sourceMessageId} sourceMessageVersion={sourceMessageVersion} /></div>
-      {caseAllowed ? <div hidden={kind !== "case"}><CalendarCreateTaskForm cases={selectedCase ? [selectedCase] : []} casesHaveMore={false}
+      {caseAllowed ? <div hidden={kind !== "case"}><CalendarCreateTaskForm key={caseRequestId} cases={selectedCase ? [selectedCase] : []} casesHaveMore={false}
         assignees={caseAssignees} actorMembershipId={actorMembershipId} presentationRole={presentationRole} day={day} requestId={caseRequestId}
         selectedCase={selectedCase ?? undefined} expanded /></div> : null}
     </div>

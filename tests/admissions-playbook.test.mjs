@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { ADMISSIONS_APPLICATION_FIELDS, ADMISSIONS_CASE_FIELDS, ADMISSIONS_DIRECTIONS, ADMISSIONS_STAGES, ADMISSIONS_VISA_FIELDS, validateAdmissionsFields } from "../src/lib/platform-admissions-playbook-contract.ts";
+import { ADMISSIONS_APPLICATION_FIELDS, ADMISSIONS_CASE_FIELDS, ADMISSIONS_DIRECTIONS, ADMISSIONS_STAGES, ADMISSIONS_VISA_FIELDS, admissionsVisaFields, validateAdmissionsFields } from "../src/lib/platform-admissions-playbook-contract.ts";
 import { admissionsCommandRpc, parseAdmissionsCommand } from "../src/lib/platform-admissions-playbook-command.ts";
 import { admissionsReportPeriod } from "../src/lib/admissions-report-period.ts";
 import { normalizeAdmissionsPlaybook, normalizeAdmissionsReceipt, normalizeAdmissionsSummary, normalizeAdmissionsWorkspace } from "../src/lib/v3/admissions-source.ts";
@@ -89,7 +89,19 @@ test("directory passes typed filters to server before paging, not browser post-f
   assert.equal(typeof normalizePlatformStudentCaseQueueRow, "function");
 });
 
-test("manager summary keeps stock distinct from period events and rejects invalid counts", () => {
+test("visa read and edit fields distinguish Malaysia entry clearance from Student Pass", () => {
+  const my = admissionsVisaFields("MY").map((field) => field.key);
+  const cn = admissionsVisaFields("CN").map((field) => field.key);
+  for (const key of ["jwReference", "visaIssuedOn", "visaExpiresOn"]) { assert.equal(my.includes(key), false); assert.equal(cn.includes(key), true); }
+  for (const key of ["eValExpiresOn", "entryVisaExpiresOn", "mdacEvidence"]) { assert.equal(my.includes(key), true); assert.equal(cn.includes(key), false); }
+  const panel = readFileSync(new URL("../src/components/v3/profile/AdmissionsRoutePanel.tsx", import.meta.url), "utf8");
+  assert.match(panel, /const visaFields = admissionsVisaFields\(current.direction\)/);
+  assert.equal((panel.match(/fields=\{visaFields.filter/g) ?? []).length, 2);
+  assert.match(panel, /details: fieldValues\(values, ADMISSIONS_VISA_FIELDS\)/, "preserve hidden legacy facts in full snapshots");
+  assert.match(panel, /не означает, что Student Pass уже оформлен/);
+});
+
+test("manager summary keeps stock distinct from current confirmed arrivals and rejects invalid counts", () => {
   const stock = ADMISSIONS_DIRECTIONS.map((direction) => ({ direction, active: 0, overdue: 0, awaiting_ack: 0, awaiting_partner: 0, submitted: 0, decisions: 0, visas: 0, arrivals: 0, arrived: 0, cancelled: 0 }));
   const row = { periodFrom: "2026-09-01", periodTo: "2026-09-30", stock, periodArrivals: [{ direction: "CN", count: 3 }] };
   assert.equal(normalizeAdmissionsSummary(row).periodArrivals[0].count, 3);

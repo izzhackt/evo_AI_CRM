@@ -22351,3 +22351,23 @@ portal readback. Existing preview3100 and older Supabase stack remain untouched.
 This is a narrow testability correction under the already authorized acceptance
 scope, not a replacement authentication flow. Contract and negative-origin tests,
 real local browser proof, independent exact-head review and CI precede merge.
+
+### 2026-09-09 — Malaysia pre-arrival clearance is not Student Pass endorsement
+
+The final domain review identified a misleading shared visa field group. For MY,
+the approved visa-case status records pre-arrival clearance; it must not require
+generic visa issue/expiry dates that could be mistaken for Student Pass issuance.
+Keep dated applicability evidence, actual eVAL validity, applicable SEV/eVISA
+validity and MDAC as separate gates. China keeps its existing visa-date checks.
+Use the same country-aware field selection in the read view and editor: MY hides
+JW and generic issue/expiry fields, while CN hides Malaysia-only groups. Preserve
+existing stored values when editing another section; this is not data cleanup.
+
+Student Pass endorsement remains an independently confirmed post-arrival action,
+not an automatic consequence of arrival or a requirement before departure.
+Official sources checked during review:
+https://educationmalaysia.gov.my/get-in-touch/faq and
+https://www.imi.gov.my/index.php/en/main-services/pass/student-pass/ .
+Verify MY through arrival without invented generic visa dates and with Student
+Pass still pending, plus a negative CN missing-date regression. Also align the
+direction summary's overdue label with its task/partner/correction scope.

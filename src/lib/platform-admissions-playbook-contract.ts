@@ -127,6 +127,12 @@ export const ADMISSIONS_VISA_FIELDS: readonly AdmissionsField[] = [
   { key: 'mdacSubmittedOn', label: 'MDAC подана', section: 'Въезд и MDAC', kind: 'date' },
   { key: 'mdacEvidence', label: 'Подтверждение MDAC', section: 'Въезд и MDAC', kind: 'text' },
 ];
+/** Shared by read and edit views; hidden legacy facts remain in command snapshots. */
+export function admissionsVisaFields(direction: AdmissionsDirection | null): readonly AdmissionsField[] {
+  return ADMISSIONS_VISA_FIELDS.filter((field) => direction === 'MY'
+    ? !['jwReference', 'visaIssuedOn', 'visaExpiresOn'].includes(field.key)
+    : !['EMGS / eVAL', 'Въезд и MDAC'].includes(field.section));
+}
 export type AdmissionsFacts = Partial<Record<typeof ADMISSIONS_CASE_FIELDS[number]['key'], string>>;
 export type AdmissionsApplicationDetails = Partial<Record<typeof ADMISSIONS_APPLICATION_FIELDS[number]['key'], string>>;
 export type AdmissionsVisaDetails = Partial<Record<typeof ADMISSIONS_VISA_FIELDS[number]['key'], string>>;

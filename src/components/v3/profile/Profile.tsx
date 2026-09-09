@@ -120,6 +120,14 @@ export function Profile({
         {profile.financeStop ? (
           <Pill tone="danger">финансовый стоп</Pill>
         ) : null}
+        {uploadAccess === "allowed" && draft.admissions ? (
+          <Link
+            href={`/v3/tasks?create=case&case=${encodeURIComponent(draft.admissions.studentCaseId)}`}
+            className="ms-auto inline-flex min-h-11 items-center rounded-control border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            Создать задачу по студенту
+          </Link>
+        ) : null}
       </header>
 
       {/* Полоса вкладок прокручивается на узком экране: названия разделов не

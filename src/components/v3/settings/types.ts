@@ -14,6 +14,7 @@ export type {
  * ещё и показывает чужие действия.
  */
 export const SECTIONS = [
+  { key: "staff", title: "Сотрудники", admin: true },
   { key: "state", title: "Состояние", admin: false },
   { key: "integrations", title: "Интеграции", admin: false },
   { key: "journal", title: "Журнал действий", admin: true },

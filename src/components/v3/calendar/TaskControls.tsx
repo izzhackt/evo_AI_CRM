@@ -16,6 +16,7 @@ import {
   type PlatformCaseTaskStatus,
 } from "@/lib/platform-admissions-task-contract";
 import { taskStatus } from "@/lib/v3/wording";
+import { TaskCasePicker } from "../tasks/TaskCasePicker";
 
 import type {
   CalendarAssigneeOption,
@@ -83,21 +84,23 @@ function Feedback({ state }: Readonly<{ state: PlatformAdmissionsTaskActionState
   );
 }
 
-function taskDeadlineKind(task: CalendarTask): PlatformCaseTaskDeadlineKind {
+function taskDeadlineKind(task: Pick<CalendarTask, "dueOn" | "dueAt">): PlatformCaseTaskDeadlineKind {
   if (task.dueOn !== null) return "all_day";
   if (task.dueAt !== null) return "timed";
   return "none";
 }
 
-function DeadlineFields({
+export function DeadlineFields({
   day,
   task,
+  defaultKind = "all_day",
 }: Readonly<{
   day: Day;
-  task?: CalendarTask;
+  task?: Pick<CalendarTask, "dueOn" | "dueAt" | "day" | "minutes">;
+  defaultKind?: PlatformCaseTaskDeadlineKind;
 }>) {
   const [kind, setKind] = useState<PlatformCaseTaskDeadlineKind>(
-    task ? taskDeadlineKind(task) : "all_day",
+    task ? taskDeadlineKind(task) : defaultKind,
   );
   const defaults = taskDeadlineInputDefaults(task, day);
   const [dueOn, setDueOn] = useState(defaults.dueOn);
@@ -189,6 +192,8 @@ export function CalendarCreateTaskForm({
   presentationRole,
   day,
   requestId,
+  selectedCase,
+  expanded = false,
 }: Readonly<{
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
@@ -197,12 +202,18 @@ export function CalendarCreateTaskForm({
   presentationRole: FixedRole;
   day: Day;
   requestId: string;
+  selectedCase?: CalendarCaseOption;
+  expanded?: boolean;
 }>) {
   const router = useRouter();
   const [state, action, pending] = useActionState(
     createPlatformAdmissionsTaskAction,
     initialState(requestId),
   );
+  const [title, setTitle] = useState("");
+  const [selectedAssignee, setSelectedAssignee] = useState(actorMembershipId);
+  const [priority, setPriority] = useState("normal");
+  const [visible, setVisible] = useState("false");
 
   useEffect(() => {
     if (state.status === "saved" || state.status === "stale") router.refresh();
@@ -217,13 +228,6 @@ export function CalendarCreateTaskForm({
     : assignees.filter((assignee) => assignee.membershipId === actorMembershipId);
   const locked = pending || state.status === "saved" || state.status === "stale";
 
-  if (cases.length === 0) {
-    return (
-      <p className="text-sm text-fg-2" role="status">
-        Нет активного дела — задачу не к чему привязать.
-      </p>
-    );
-  }
   if (availableAssignees.length === 0) {
     return (
       <p className="text-sm text-danger" role="alert">
@@ -233,7 +237,7 @@ export function CalendarCreateTaskForm({
   }
 
   return (
-    <details className="rounded-card border border-border bg-surface px-4 py-2">
+    <details open={expanded || undefined} className="rounded-card border border-border bg-surface px-4 py-2">
       <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-fg">
         Создать задачу
       </summary>
@@ -249,20 +253,16 @@ export function CalendarCreateTaskForm({
 
         <fieldset disabled={locked} className="contents">
           <legend className="sr-only">Новая задача Admissions</legend>
-          <label className="text-xs font-medium text-fg-2">
-            Студент
-            <select name="student_case_id" required className={CONTROL}>
-              {cases.map((studentCase) => (
-                <option key={studentCase.id} value={studentCase.id}>
-                  {studentCase.name}
-                </option>
-              ))}
-            </select>
+          <label className="text-sm font-medium text-fg-2 md:col-span-2 xl:col-span-3">
+            Название задачи
+            <input name="title" value={title} onChange={(event) => setTitle(event.target.value)} required
+              minLength={1} maxLength={1_000} autoComplete="off" className={CONTROL} />
           </label>
+          <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} />
 
           <label className="text-xs font-medium text-fg-2">
             Ответственный
-            <select name="assignee_membership_id" required className={CONTROL}>
+            <select name="assignee_membership_id" required value={selectedAssignee} onChange={(event) => setSelectedAssignee(event.target.value)} className={CONTROL}>
               {availableAssignees.map((assignee) => (
                 <option key={assignee.membershipId} value={assignee.membershipId}>
                   {assignee.displayName}
@@ -273,9 +273,12 @@ export function CalendarCreateTaskForm({
 
           <DeadlineFields day={day} />
 
-          <label className="text-xs font-medium text-fg-2">
+          <details className="md:col-span-2 xl:col-span-3">
+            <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2">Дополнительные настройки</summary>
+            <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-sm font-medium text-fg-2">
             Приоритет
-            <select name="priority" defaultValue="normal" className={CONTROL}>
+            <select name="priority" value={priority} onChange={(event) => setPriority(event.target.value)} className={CONTROL}>
               {PLATFORM_CASE_TASK_PRIORITIES.map((priority) => {
                 const option = PRIORITY_OPTIONS.find((item) => item.value === priority);
                 if (!option) throw new Error("V3 task priority wording is unavailable.");
@@ -288,26 +291,15 @@ export function CalendarCreateTaskForm({
             </select>
           </label>
 
-          <label className="text-xs font-medium text-fg-2">
+          <label className="text-sm font-medium text-fg-2">
             Видимость студенту
-            <select name="student_visible" defaultValue="false" className={CONTROL}>
+            <select name="student_visible" value={visible} onChange={(event) => setVisible(event.target.value)} className={CONTROL}>
               <option value="false">Скрыта</option>
               <option value="true">Видна</option>
             </select>
           </label>
-
-          <label className="text-xs font-medium text-fg-2 md:col-span-2 xl:col-span-2">
-            Задача
-            <input
-              name="title"
-              required
-              minLength={1}
-              maxLength={1_000}
-              autoComplete="off"
-              className={CONTROL}
-              placeholder="Например, проверить перевод аттестата"
-            />
-          </label>
+            </div>
+          </details>
 
           <div className="flex items-end">
             <button type="submit" disabled={locked} className={`${PRIMARY} w-full`}>
@@ -317,12 +309,6 @@ export function CalendarCreateTaskForm({
         </fieldset>
 
         <div className="space-y-1 md:col-span-2 xl:col-span-3">
-          {casesHaveMore ? (
-            <p className="text-xs text-fg-3" role="status">
-              Показаны первые 100 активных дел. Остальные ищутся в разделе
-              «Студенты».
-            </p>
-          ) : null}
           <Feedback state={state} />
         </div>
       </form>

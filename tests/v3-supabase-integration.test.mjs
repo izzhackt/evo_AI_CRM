@@ -34,7 +34,14 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "sales-register-source.ts",
     "settings-journal-contract.ts",
     "settings-source.ts",
+    "staff-notification-actions.ts",
+    "staff-notification-source.ts",
+    "staff-task-source.ts",
+    "staff-workspace-contract.ts",
+    "staff-workspace-source.ts",
     "student-assessment-source.ts",
+    "task-case-actions.ts",
+    "team-chat-source.ts",
     "wording.ts",
   ]);
 
@@ -55,7 +62,11 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "reply-snippets-source.ts",
     "sales-register-source.ts",
     "settings-source.ts",
+    "staff-notification-source.ts",
+    "staff-task-source.ts",
+    "staff-workspace-source.ts",
     "student-assessment-source.ts",
+    "team-chat-source.ts",
   ]);
 
   const adapterSources = adapterFiles

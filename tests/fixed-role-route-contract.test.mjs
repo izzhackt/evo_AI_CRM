@@ -25,6 +25,7 @@ test("only the exact V3 pages enter the active staff page contract", () => {
   for (const path of [
     "/",
     "/login",
+    "/auth/staff",
     "/access-denied",
     "/platform-pending",
     "/v3",
@@ -69,6 +70,9 @@ test("the active V3 route policy exposes each exact presentation interface", () 
 });
 
 test("Student Portal and auth-only routes are exact and disjoint from tombstones", () => {
+  assert.equal(isConnectedStudentAuthPage("/auth/staff"), false);
+  assert.equal(isConnectedStudentPortalPage("/auth/staff"), false);
+  assert.equal(isConnectedPlatformPage("/auth/staff/extra"), false);
   const portalRoutes = [
     "/portal",
     "/portal/documents",

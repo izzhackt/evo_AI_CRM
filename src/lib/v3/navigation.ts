@@ -14,6 +14,8 @@ export type V3NavigationLinkId =
   | "admissions-summary"
   | "inbox"
   | "calendar"
+  | "tasks"
+  | "team-chat"
   | "knowledge"
   | "settings";
 
@@ -47,6 +49,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     links: [
       { id: "pipeline", href: "/v3/pipeline", route: "/v3/pipeline", label: "Воронка" },
       { id: "sales-report", href: "/v3/main?view=sales", route: "/v3/main", label: "Отчёт продаж" },
+      { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Клиентские сообщения", capability: "sales.read" },
     ],
   },
   {
@@ -65,7 +68,9 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
   },
 ];
 const COMMON: readonly V3NavigationLink[] = [
-  { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Входящие" },
+  { id: "tasks", href: "/v3/tasks", route: "/v3/tasks", label: "Задачи" },
+  { id: "team-chat", href: "/v3/team-chat", route: "/v3/team-chat", label: "Командный чат" },
+  { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Клиентские сообщения" },
   { id: "calendar", href: "/v3/calendar", route: "/v3/calendar", label: "Календарь" },
   { id: "knowledge", href: "/v3/knowledge", route: "/v3/knowledge", label: "База знаний" },
 ];
@@ -86,7 +91,8 @@ export function buildV3Navigation(
     && (!link.capability || fixedRoleCan(presentationRole, link.capability));
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
-  const common = COMMON.filter(allowed);
+  const common = COMMON.filter((link) => allowed(link)
+    && (link.id !== "inbox" || !fixedRoleCan(presentationRole, "sales.read")));
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
     links: group.links.filter(allowed),

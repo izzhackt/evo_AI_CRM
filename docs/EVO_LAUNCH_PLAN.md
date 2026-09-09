@@ -25,13 +25,30 @@ image remain rollback evidence, not a new recovery point. Earlier `4e6057f0`
 evidence in closed #552/#553 is first-release history. A documentation change
 does not deploy a new app revision or require repeating this accepted release.
 
-## Next-run planning contract: team workspace (2026-09-10)
+## Active implementation: team workspace (2026-09-10)
+
+After planning PR #709, the owner approved implementation of issue #708 and
+explicitly deferred WAHA confirmation because employee WhatsApp numbers are
+not available. Implement R1–R4 and prepare R5 through its real release gates;
+prepare the future provider activation checklist, but do not pair, send,
+activate or claim live WAHA success now. Existing real employee inputs are
+needed for multi-user acceptance; no new synthetic staff authority is granted.
+The planning-only wording below records R0 history, not the current stop point.
+
+Implementation checkpoint: R1–R4 code is integrated on
+`izzhackt/team-workspace-implementation` (issue #708). Migrations139–142 add
+staff invitation recovery, standalone tasks, native chat and staff workflow
+notifications; the Option2 shell exposes the new routes. Scoped checks and a
+schema-only migration rehearsal passed; this is not live acceptance or a release.
+See the [candidate evidence](design/v3/references/2026-09-10-team-workspace-candidate.md)
+and [activation runbook](runbooks/team-workspace-activation.md). R5 remains held
+for real staff acceptance, exact-head checks/review and current recovery authority.
 
 The owner requests a current gap inventory and an optimized long-run plan for
 employee-only corporate chat and useful task creation, preserving the EVO UX.
 The bounded [team workspace plan](design/v3/team-workspace-run-plan.md) is the
-next-run contract. This checkpoint is planning only: R1–R5 are not implemented,
-and it does not activate providers, create accounts or deploy the application.
+next-run contract. Its original R0 checkpoint was planning only; the implementation
+checkpoint above supersedes that status without claiming provider or production activation.
 
 Recommended sequence: existing staff Auth/membership administration → parallel
 canonical staff-task and native team-chat modules → shared notifications and

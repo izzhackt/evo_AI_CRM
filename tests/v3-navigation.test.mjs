@@ -22,9 +22,9 @@ function links(model) {
 }
 
 const expectedRoleLinks = {
-  admin: ["home", "pipeline", "sales-report", "admissions-worklist", "admissions-summary", "inbox", "calendar", "knowledge", "settings"],
-  sales: ["home", "pipeline", "sales-report", "admissions-worklist", "inbox", "knowledge"],
-  admissions: ["admissions-worklist", "admissions-summary", "inbox", "calendar", "knowledge"],
+  admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  sales: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "tasks", "team-chat", "knowledge"],
+  admissions: ["admissions-worklist", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -34,8 +34,9 @@ for (const role of ["admin", "sales", "admissions"]) {
     assert.ok(links(model).every((link) => fixedRoleCanAccessRoute(role, link.route)));
     assert.ok(model.groups.every((group) => group.links.length > 0));
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
-      ? ["Входящие", "База знаний"]
-      : ["Входящие", "Календарь", "База знаний"]);
+      ? ["Задачи", "Командный чат", "База знаний"]
+      : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний"]
+      : ["Задачи", "Командный чат", "Клиентские сообщения", "Календарь", "База знаний"]);
   });
 
   test(`Admin presentation preview of ${role} follows that role, not Admin authority`, () => {
@@ -51,7 +52,7 @@ test("the two disclosure groups use the approved destinations and worklist remai
   const model = navigation("admin");
   assert.equal(model.home?.label, "Главная");
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
+    ["Продажи", [["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"], ["Клиентские сообщения", "/v3/inbox"]]],
     ["Поступление", [["Рабочий список", "/v3/profile"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist"]);

@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
+import { StaffSection } from "./StaffSection";
+import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
 
 import {
   AccessSection,
@@ -23,7 +25,7 @@ import { SECTIONS, type GateFacts, type Health, type Integration, type JournalEn
  * переслать, вернуться назад кнопкой браузера и открыть без JavaScript. То же
  * решение, что во вкладках профиля.
  *
- * ВЕСЬ ЭКРАН ТОЛЬКО ДЛЯ ЧТЕНИЯ, и это не недоделка. Все флаги живут в файлах
+ * Состояние и настройки окружения доступны только для чтения. Все флаги живут в файлах
  * окружения на сервере с правами 0600; документация прямо запрещает менять их
  * из браузера. Поэтому рядом с каждым выключенным компонентом стоит не
  * тумблер, а адрес: где именно это лежит.
@@ -44,6 +46,7 @@ export function Settings({
   routeNames,
   gates,
   platform,
+  staff,
 }: {
   section: SectionKey;
   isAdmin: boolean;
@@ -62,6 +65,7 @@ export function Settings({
   routeNames: readonly string[];
   gates: GateFacts;
   platform: string;
+  staff?: StaffWorkspaceData;
 }) {
   const visible = SECTIONS.filter((s) => isAdmin || !s.admin);
   const current = visible.find((s) => s.key === section) ?? visible[0];
@@ -112,6 +116,7 @@ export function Settings({
           {current?.admin ? <Pill>виден только администратору</Pill> : null}
         </h2>
 
+        {current?.key === "staff" && staff ? <StaffSection data={staff} /> : null}
         {current?.key === "state" ? <StateSection health={health} /> : null}
         {current?.key === "integrations" ? (
           <IntegrationsSection health={health} integrations={integrations} />

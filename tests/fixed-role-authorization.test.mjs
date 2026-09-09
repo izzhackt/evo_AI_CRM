@@ -47,6 +47,10 @@ test("fixed roles enforce the Sales, Admissions and Admin union", () => {
 });
 
 test("the same policy resolves home routes and direct page access", () => {
+  for (const role of ["admin", "sales", "admissions"]) {
+    assert.equal(fixedRoleCanAccessRoute(role, "/v3/tasks"), true);
+    assert.equal(fixedRoleCanAccessRoute(role, "/v3/team-chat"), true);
+  }
   assert.equal(fixedRoleHomeRoute("admin"), "/v3/main");
   assert.equal(fixedRoleHomeRoute("sales"), "/v3/main");
   assert.equal(fixedRoleHomeRoute("admissions"), "/v3/calendar");

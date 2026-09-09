@@ -261,6 +261,20 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
+  // The exact staff acceptance page owns provider-token verification and
+  // password updates. It must also open before the first staff session exists.
+  if (path === "/auth/staff") {
+    if (["GET", "HEAD", "POST"].includes(request.method)) {
+      const response = setResponseHeaders(nextResponse(requestHeaders), id);
+      response.headers.set("Referrer-Policy", "no-referrer");
+      return response;
+    }
+    return setResponseHeaders(NextResponse.json(
+      { error: "method_not_allowed", request_id: id },
+      { status: 405, headers: { Allow: "GET, HEAD, POST" } },
+    ), id);
+  }
+
   if (path === "/auth/callback") {
     if (request.method === "GET") {
       return callbackInterstitialResponse(request, requestHeaders, id);

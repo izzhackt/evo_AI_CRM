@@ -3,6 +3,7 @@ import { fixedRoleHomeRoute, type FixedRole } from "./fixed-role-policy.ts";
 const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/",
   "/login",
+  "/auth/staff",
   "/access-denied",
   "/platform-pending",
   "/v3",
@@ -13,6 +14,8 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/settings",
   "/v3/knowledge",
   "/v3/calendar",
+  "/v3/tasks",
+  "/v3/team-chat",
 ]);
 
 const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([

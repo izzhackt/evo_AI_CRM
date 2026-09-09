@@ -1,11 +1,27 @@
 import "server-only";
 
-import type { PlatformActor } from "../platform-auth";
+import type { ActivePlatformActor, PlatformActor } from "../platform-auth";
 import { parseStaffParticipant, parseStaffTask, type StaffTaskCursor, type StaffTaskFilter, type StaffTaskView } from "../platform-staff-task-contract";
 import { createSupabaseServerClient } from "../supabase/server";
+import { isTeamChatChannel, teamChatRoleCanAccess } from "../platform-team-chat";
+import { staffTaskUuid } from "../platform-staff-task-contract";
 
 function assertStaff(actor: PlatformActor) {
   if (!["admin", "sales", "admissions"].includes(actor.authorityRole)) throw new Error("Staff workspace is unavailable.");
+}
+export async function readStaffTaskChatSource(actor: ActivePlatformActor, taskId: string) {
+  assertStaff(actor);
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_task_chat_source", {
+    p_organization_id: actor.organizationId, p_task_id: taskId,
+  });
+  if (error) throw new Error("Task source is unavailable.");
+  if (data === null) return null;
+  if (!data || typeof data !== "object" || !staffTaskUuid(data.message_id) || !isTeamChatChannel(data.channel_key)) {
+    throw new Error("Task source is unavailable.");
+  }
+  if (!teamChatRoleCanAccess(actor.presentationRole, data.channel_key)) return null;
+  return `/v3/team-chat?${new URLSearchParams({ channel: data.channel_key, message: data.message_id })}`;
 }
 export async function listStaffParticipants(actor: PlatformActor) {
   assertStaff(actor);

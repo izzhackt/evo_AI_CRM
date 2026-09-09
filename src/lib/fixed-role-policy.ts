@@ -12,6 +12,7 @@ export const FIXED_ROLE_CAPABILITIES = [
   "documents.write",
   "messaging.read",
   "messaging.send",
+  "team.read",
   "admin.preview",
 ] as const;
 
@@ -24,6 +25,8 @@ export const FIXED_ROLE_ROUTES = [
   "/v3/inbox",
   "/v3/profile",
   "/v3/calendar",
+  "/v3/tasks",
+  "/v3/team-chat",
   "/v3/knowledge",
   "/v3/settings",
 ] as const;
@@ -38,6 +41,7 @@ const ROLE_CAPABILITIES = {
     "sales.write",
     "messaging.read",
     "messaging.send",
+    "team.read",
   ]),
   admissions: new Set<FixedRoleCapability>([
     "dashboard.read",
@@ -47,6 +51,7 @@ const ROLE_CAPABILITIES = {
     "documents.write",
     "messaging.read",
     "messaging.send",
+    "team.read",
   ]),
 } as const satisfies Record<FixedRole, ReadonlySet<FixedRoleCapability>>;
 
@@ -61,6 +66,8 @@ const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/inbox": ["messaging.read"],
   "/v3/profile": ["dashboard.read"],
   "/v3/calendar": ["admissions.read"],
+  "/v3/tasks": ["team.read"],
+  "/v3/team-chat": ["team.read"],
   "/v3/knowledge": ["documents.read", "messaging.read"],
   "/v3/settings": ["admin.preview"],
 } as const satisfies Record<FixedRoleRoute, RouteCapabilityRequirement>;

@@ -7,15 +7,26 @@ import { CalendarCreateTaskForm } from "../calendar/TaskControls";
 import type { CalendarCaseOption } from "../calendar/types";
 import { StaffTaskForm } from "./StaffTaskForm";
 
-export function TaskComposer({ participants, actorMembershipId, presentationRole, canCreateCase, selectedCase, day, requestId, caseRequestId, initiallyOpen = false, initialKind = "staff", initialTitle, sourceMessageId, sourceMessageVersion }: Readonly<{
+export function TaskComposer({ participants, actorMembershipId, presentationRole, canCreateCase, selectedCase, day, requestId, caseRequestId, initiallyOpen = false, initialKind = "staff", initialTitle, sourceMessageId, sourceMessageVersion, openIntent = null }: Readonly<{
   participants: readonly StaffParticipant[]; actorMembershipId: string; presentationRole: FixedRole;
   canCreateCase: boolean; selectedCase: CalendarCaseOption | null; day: string; requestId: string; caseRequestId: string;
   initiallyOpen?: boolean; initialKind?: "staff" | "case";
   initialTitle?: string; sourceMessageId?: string; sourceMessageVersion?: string;
+  openIntent?: string | null;
 }>) {
   const caseAllowed = canCreateCase && !sourceMessageId;
   const [open, setOpen] = useState(initiallyOpen);
   const [kind, setKind] = useState<"staff" | "case">(caseAllowed ? initialKind : "staff");
+  const [seenIntent, setSeenIntent] = useState(openIntent);
+  // An explicit navigation can reopen the mounted composer without replacing
+  // its form, draft or uncertain-write snapshot. Ordinary refresh is not intent.
+  if (seenIntent !== openIntent) {
+    setSeenIntent(openIntent);
+    if (openIntent !== null) {
+      setOpen(true);
+      setKind(caseAllowed ? initialKind : "staff");
+    }
+  }
   const trigger = useRef<HTMLButtonElement>(null);
   const caseAssignees = participants.filter((person) => person.role !== "sales");
   return <section className="mb-6" aria-label="Создание задачи" onKeyDown={(event) => {

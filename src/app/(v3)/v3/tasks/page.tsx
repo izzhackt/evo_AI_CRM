@@ -1,16 +1,19 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { PartShell } from "@/components/v3/PartShell";
 import { StaffTaskForm, StaffTaskStatusForm } from "@/components/v3/tasks/StaffTaskForm";
 import { TaskComposer } from "@/components/v3/tasks/TaskComposer";
 import { dayFullLabel, timeLabel } from "@/components/v3/calendar/types";
-import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import { parsePlatformAdmissionsTaskQueueCursor } from "@/lib/platform-admissions-workspace";
 import { STAFF_TASK_FILTERS, STAFF_TASK_VIEWS, staffTaskTimestamp, staffTaskUuid } from "@/lib/platform-staff-task-contract";
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import { readStaffTaskWorkspace, type WorkspaceTask } from "@/lib/v3/staff-task-source";
 import { taskStatus } from "@/lib/v3/wording";
+import { isTeamChatChannel, teamChatRoleCanAccess, type TeamChatMessage } from "@/lib/platform-team-chat";
+import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
+import { readStaffTaskChatSource } from "@/lib/server/platform-staff-task-repository";
 
 export const dynamic = "force-dynamic";
 type Params = Record<string, string | string[] | undefined>;
@@ -26,13 +29,29 @@ function Deadline({ dueOn, dueAt, status, now }: { dueOn: string | null; dueAt: 
 }
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const [params, actor] = await Promise.all([searchParams, requirePlatformStaffActor()]);
-  if (!["admin", "sales", "admissions"].includes(actor.authorityRole) || !["admin", "sales", "admissions"].includes(actor.presentationRole)) redirect("/access-denied?from=%2Fv3%2Ftasks");
+  const [params, actor] = await Promise.all([searchParams, requireV3PageActor("/v3/tasks")]);
   const domain = single(params, "type") === "case" ? "case" : "staff";
   const view = STAFF_TASK_VIEWS.find((value) => value === single(params, "view")) ?? "mine";
   const status = STAFF_TASK_FILTERS.find((value) => value === single(params, "status")) ?? "active";
   const taskId = optionalUuid(params, "task");
   const selectedCaseId = optionalUuid(params, "case");
+  const sourceMessageId = optionalUuid(params, "message");
+  const sourceChannel = single(params, "channel");
+  const openIntent = optionalUuid(params, "open");
+  if (sourceMessageId && (!isTeamChatChannel(sourceChannel) || taskId || selectedCaseId
+    || domain !== "staff" || single(params, "create") !== "staff")) notFound();
+  let sourceMessage: TeamChatMessage | undefined;
+  if (sourceMessageId && isTeamChatChannel(sourceChannel)) {
+    if (!teamChatRoleCanAccess(actor.presentationRole, sourceChannel)) notFound();
+    try {
+      const page = await readTeamChatPage(actor, { channel: sourceChannel, mode: "message", messageId: sourceMessageId });
+      sourceMessage = page.messages.find((message) => message.id === sourceMessageId && !message.deletedAt);
+    } catch (error) {
+      if (error instanceof TeamChatReadError && ["forbidden", "not_found"].includes(error.status)) notFound();
+      return <PartShell title="Задачи"><p role="alert" className="text-sm text-danger">Не удалось проверить исходное сообщение. Обновите страницу; задача не создана.</p></PartShell>;
+    }
+    if (!sourceMessage) notFound();
+  }
   const beforeAt = single(params, "before_at");
   const beforeId = single(params, "before_id");
   const cursor = beforeAt === undefined && beforeId === undefined ? null : {
@@ -49,29 +68,45 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   if (taskId && !workspace.selectedTask) notFound();
   if (selectedCaseId && !workspace.selectedCase) notFound();
   const selected = workspace.selectedTask;
+  let selectedSourceHref: string | null = null;
+  let sourceUnavailable = false;
+  if (selected?.sourceMessageId) {
+    try { selectedSourceHref = await readStaffTaskChatSource(actor, selected.id); }
+    catch { sourceUnavailable = true; }
+  }
   const href = (overrides: Record<string, string>) => `/v3/tasks?${new URLSearchParams({ type: domain, view, status, ...overrides })}`;
   if (selected) return <PartShell title="Рабочая задача" width="narrow">
     <Link href="/v3/tasks" className="inline-flex min-h-11 items-center text-sm text-fg-2 underline">← К задачам</Link>
     <section className="space-y-5 border-t border-border py-5">
       <h2 className="break-words text-xl font-semibold">{selected.title}</h2>
+      {selectedSourceHref ? <Link href={selectedSourceHref} className="inline-flex min-h-11 items-center text-sm underline">Открыть исходное обсуждение</Link> : null}
+      {selected.sourceMessageId && !selectedSourceHref ? <p className="text-sm text-fg-3">{sourceUnavailable ? "Не удалось проверить исходное обсуждение. Обновите страницу." : "Исходное обсуждение недоступно для вашей роли."}</p> : null}
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div><dt className="text-fg-2">Исполнитель</dt><dd>{selected.assigneeDisplayName}</dd></div>
         <div><dt className="text-fg-2">Создатель</dt><dd>{selected.creatorDisplayName}</dd></div>
         <div><dt className="text-fg-2">Срок · Бишкек</dt><dd><Deadline dueOn={selected.dueOn} dueAt={selected.dueAt} status={selected.status} now={now} /></dd></div>
       </dl>
       {selected.description ? <p className="whitespace-pre-wrap break-words text-sm leading-6">{selected.description}</p> : null}
-      <StaffTaskStatusForm key={`status:${selected.id}:${selected.version}`} task={selected} requestId={randomUUID()} />
+      <StaffTaskStatusForm key={`status:${selected.id}`} task={selected} requestId={randomUUID()} />
     </section>
     {actor.authorityRole === "admin" || selected.creatorMembershipId === actor.membershipId ? <details className="border-t border-border py-3">
       <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Изменить содержание и назначение</summary>
-      <StaffTaskForm key={`edit:${selected.id}:${selected.version}`} task={selected} participants={workspace.assignees} actorMembershipId={actor.membershipId} day={day} requestId={randomUUID()} />
+      <StaffTaskForm key={`edit:${selected.id}`} task={selected} participants={workspace.assignees} actorMembershipId={actor.membershipId} day={day} requestId={randomUUID()} />
     </details> : null}
   </PartShell>;
   const nextHref = domain === "staff" && workspace.nextCursor ? href({ before_at: workspace.nextCursor.updatedAt, before_id: workspace.nextCursor.id })
     : domain === "case" && workspace.caseNextCursor ? href({ case_after_at: workspace.caseNextCursor.sortAt, case_after_id: workspace.caseNextCursor.caseTaskId }) : null;
   return <PartShell title="Задачи">
-    <TaskComposer participants={workspace.assignees} actorMembershipId={actor.membershipId} presentationRole={actor.presentationRole}
+    {sourceMessage ? <section className="mb-4 rounded-card border border-border bg-surface p-4" aria-label="Исходное сообщение">
+      <p className="text-sm font-semibold">Задача из сообщения · {sourceMessage.authorName}</p>
+      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{sourceMessage.body}</p>
+      <p className="mt-2 text-sm text-fg-3">Проверьте название и исполнителя перед сохранением. Доступ к закрытому каналу не расширяется.</p>
+      <Link href={`/v3/team-chat?channel=${sourceMessage.channelKey}&message=${sourceMessage.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm underline">Вернуться к сообщению</Link>
+    </section> : null}
+    <TaskComposer key={sourceMessage?.id ?? "standalone"} participants={sourceMessage ? workspace.assignees.filter((person) => teamChatRoleCanAccess(person.role, sourceMessage.channelKey)) : workspace.assignees} actorMembershipId={actor.membershipId} presentationRole={actor.presentationRole}
       canCreateCase={workspace.canReadCases} selectedCase={workspace.selectedCase} day={day} requestId={randomUUID()} caseRequestId={randomUUID()}
+      initialTitle={sourceMessage?.body.slice(0, 180)} sourceMessageId={sourceMessage?.id} sourceMessageVersion={sourceMessage?.version}
+      openIntent={openIntent ?? single(params, "create") ?? null}
       initiallyOpen={single(params, "create") !== undefined} initialKind={single(params, "create") === "case" ? "case" : "staff"} />
     <nav aria-label="Тип задач" className="mb-4 flex flex-wrap gap-2 border-b border-border">
       <Link href={href({ type: "staff" })} aria-current={domain === "staff" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "staff" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>Рабочие</Link>

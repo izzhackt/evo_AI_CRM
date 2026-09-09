@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useRef, useState } from "react";
 
 import {
@@ -22,6 +22,8 @@ import {
   type V3NavigationLinkId,
 } from "@/lib/v3/navigation";
 import { roleTitle } from "@/lib/v3/wording";
+import { StaffNotifications } from "@/components/v3/StaffNotifications";
+import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 
 const FIXED_ROLES = ["admin", "sales", "admissions"] as const satisfies readonly FixedRole[];
 const LINK_ICONS = {
@@ -32,6 +34,8 @@ const LINK_ICONS = {
   "admissions-summary": "plane",
   inbox: "message-square",
   calendar: "calendar",
+  tasks: "check-square",
+  "team-chat": "message-circle",
   knowledge: "folder",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
@@ -263,13 +267,16 @@ export function AppShell({
   displayName,
   authorityRole,
   presentationRole,
+  initialNotifications,
 }: {
   children: React.ReactNode;
   displayName: string;
   authorityRole: FixedRole;
   presentationRole: FixedRole;
+  initialNotifications: StaffNotificationPage | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const query = useSearchParams();
   const navigation = buildV3Navigation(presentationRole, pathname, query);
 
@@ -288,7 +295,19 @@ export function AppShell({
         navigation={navigation}
       />
       {/* Container queries use the width remaining after the 260px sidebar. */}
-      <div className="@container min-w-0 flex-1">{children}</div>
+      <div className="@container min-w-0 flex-1">
+        <div className="flex min-h-16 flex-wrap items-center justify-end gap-3 border-b border-border bg-surface px-4 py-2 md:px-6">
+          <Link href="/v3/tasks?create=staff" onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            router.push(`/v3/tasks?create=staff&open=${crypto.randomUUID()}`);
+          }} className="inline-flex min-h-11 items-center gap-2 rounded-ctl bg-accent px-3 text-sm font-medium text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+            <Icon name="plus" size={18} />Создать задачу
+          </Link>
+          {authorityRole === presentationRole ? <StaffNotifications key={presentationRole} initialPage={initialNotifications} /> : <span className="text-sm text-fg-3">Уведомления скрыты в предпросмотре роли</span>}
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

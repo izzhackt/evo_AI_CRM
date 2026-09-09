@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { PartShell } from "@/components/v3/PartShell";
 import { TeamChat } from "@/components/v3/team-chat/TeamChat";
-import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { requireV3PageActor } from "@/lib/platform-guards";
 import { TEAM_CHAT_FAILURE_COPY, isTeamChatChannel, teamChatUuid } from "@/lib/platform-team-chat";
 import { TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readV3TeamChat } from "@/lib/v3/team-chat-source";
@@ -12,7 +12,7 @@ export const metadata = { title: "EVO · Командный чат" };
 export default async function TeamChatPage({ searchParams }: {
   searchParams: Promise<{ channel?: string | string[]; message?: string | string[] }>;
 }) {
-  const actor = await requirePlatformStaffActor();
+  const actor = await requireV3PageActor("/v3/team-chat");
   const params = await searchParams;
   const channel = params.channel ?? "general";
   const messageId = params.message ?? null;

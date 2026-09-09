@@ -22676,3 +22676,33 @@ by stable request and verified Auth identity, and never blindly resend on timeou
 Auth creation alone grants no business role. Completion uses the existing
 authenticated Admin RPC; the service client is limited to Auth administration.
 Confirmed recipients remain mandatory before actual delivery.
+
+Independent R1 review found that treating every Auth rejection as unknown would
+permanently lock the recipient. Record an allowlisted definitive Auth 4xx rejection
+through a narrow service-role receipt RPC after checking for contradictory Auth
+side-effect evidence. That RPC can only record dispatch failure, never provision
+or change business membership. A confirmed rejection allows an explicit new
+request with recipient confirmation and cooldown; the old request never resends.
+Timeouts, 5xx and unclassified outcomes remain reconciliation-required. This is
+failure recovery within the approved ledger, not an expansion of Admin bypass.
+
+### 2026-09-10 — integrated native workspace candidate, not live acceptance
+
+139–142 now implement the approved staff/task/chat/workflow split. R4 stores
+generic staff-only notification metadata, not chat excerpts, and records source
+binding with the canonical task receipt in one transaction. Task→message and
+message→task reads each recheck their own live authority; neither grants access
+to the other domain. Existing Student notification policies are unchanged.
+Private Realtime remains invalidation-only, with canonical readback for content.
+Option2 shell adds Tasks/Team chat and keeps client messages separately named.
+
+Independent review corrections preserve unknown write snapshots and make recovery
+explicit; reopening UI does not silently create a new request. A navigation-only
+open intent fixes the global create button without remounting an uncertain task.
+The Auth definitive-rejection correction above was independently re-reviewed.
+
+Scoped checks/build and actual-schema-only rehearsal are candidate evidence;
+they do not replace real invitation/multi-user/browser acceptance. No new staff,
+provider operation, backup or production migration was performed. R5 remains
+held for its real gates; the activation runbook names future WAHA work without
+claiming an implemented WhatsApp mirroring bridge.

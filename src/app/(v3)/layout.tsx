@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/v3/AppShell";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
 
 import "./v3.css";
 
@@ -18,6 +19,9 @@ import "./v3.css";
  */
 export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
+  const notifications = actor.authorityRole === actor.presentationRole
+    ? await readStaffNotificationsForActor(actor).catch(() => null)
+    : null;
 
   return (
     <div className="v3-world">
@@ -25,6 +29,7 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
         displayName={actor.displayName}
         authorityRole={actor.authorityRole}
         presentationRole={actor.presentationRole}
+        initialNotifications={notifications}
       >
         {children}
       </AppShell>

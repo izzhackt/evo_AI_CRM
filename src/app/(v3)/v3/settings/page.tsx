@@ -5,6 +5,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { redirect } from "next/navigation";
 
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
+import { readStaffWorkspace } from "@/lib/v3/staff-workspace-source";
 import {
   readAuditExportEnabled,
   readCapabilityNames,
@@ -41,7 +42,7 @@ export default async function SettingsPart({
   const actor = await requireV3PageActor("/v3/settings");
   const isAdmin = actor.presentationRole === "admin";
 
-  const [health, integrations, journalRead, journalFacets, gates, platform] = await Promise.all([
+  const [health, integrations, journalRead, journalFacets, gates, platform, staff] = await Promise.all([
     readHealth(actor),
     readIntegrations(actor),
     isAdmin
@@ -57,6 +58,7 @@ export default async function SettingsPart({
       : Promise.resolve({ objectTypes: [] }),
     readGateFacts(actor),
     readPlatformFact(),
+    isAdmin && section === "staff" ? readStaffWorkspace(actor) : Promise.resolve(undefined),
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -116,6 +118,7 @@ export default async function SettingsPart({
         routeNames={readRouteNames()}
         gates={gates}
         platform={platform}
+        staff={staff}
       />
     </PartShell>
   );

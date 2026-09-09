@@ -64,8 +64,10 @@ export function Profile({
   contractRetry,
   tab,
   hrefFor,
+  admissionsRoute,
 }: {
   profile: PersonProfile;
+  admissionsRoute?: React.ReactNode;
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
@@ -149,6 +151,7 @@ export function Profile({
         </ul>
       </nav>
 
+      {current === "route" ? admissionsRoute : null}
       {current === "overview" ? (
         <div className="space-y-4">
           <Overview

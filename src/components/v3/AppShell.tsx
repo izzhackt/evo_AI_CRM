@@ -30,7 +30,7 @@ const SECTIONS = [
   { href: "/v3/main", label: "Главная" },
   { href: "/v3/pipeline", label: "Воронка" },
   { href: "/v3/inbox", label: "Входящие" },
-  { href: "/v3/profile", label: "Студенты" },
+  { href: "/v3/profile", label: "Поступление" },
   { href: "/v3/calendar", label: "Календарь" },
   { href: "/v3/knowledge", label: "База знаний" },
   { href: "/v3/settings", label: "Настройки" },

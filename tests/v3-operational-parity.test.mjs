@@ -47,7 +47,7 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(page, /loadV3ProfileRoute\(routeMode/u);
   assert.match(page, /kind: "target", target: explicitTarget/u);
   assert.match(page, /kind: "directory", params: directoryParams/u);
-  assert.match(page, /К каталогу студентов/u);
+  assert.match(page, /К списку поступления/u);
   assert.doesNotMatch(page, /readProfilePicks/u);
   assert.match(page, /invalidIdentityShape/u);
   assert.match(page, /\(hasLeadParam \|\| hasCaseParam\) && directoryParams\.active/u);
@@ -87,19 +87,18 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(directory, /name="case_q"/u);
   assert.match(directory, /name="case_status"/u);
   assert.match(directory, /value="closed"/u);
-  assert.match(directory, /case_before_at/u);
-  assert.match(directory, /case_before_id/u);
+  const directoryLinks = source("src/components/v3/profile/admissions-view.ts");
+  assert.match(directoryLinks, /case_before_at/u);
+  assert.match(directoryLinks, /case_before_id/u);
+  assert.match(directory, /admissionsDirectoryHref\(params, directory\.nextCursor\)/u);
   assert.match(
     directory,
-    /return `\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=overview`/u,
+    /row\.access === "full" \? `\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=route`/u,
   );
-  assert.match(directory, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null/u);
+  assert.match(directory, /row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null/u);
   assert.match(directory, /data-access=\{row\.access\}/u);
-  assert.match(directory, /row\.leadId && row\.access === "full"/u);
-  assert.match(
-    directory,
-    /inline-flex min-h-11 items-center[\s\S]*Открыть связанный лид/u,
-  );
+  assert.match(directory, /href=\{href\}[\s\S]*\{row\.studentDisplayName\}/u);
+  assert.match(directory, /aria-label="Доступные дела студентов"/u);
   assert.doesNotMatch(directory, />\s*\{row\.studentCaseId\}\s*</u);
   assert.doesNotMatch(directory, /href=["']\/clients/u);
 });
@@ -108,6 +107,6 @@ test("the student directory stays discoverable from navigation and both inbox qu
   const shell = source("src/components/v3/AppShell.tsx");
   const inbox = source("src/app/(v3)/v3/inbox/page.tsx");
 
-  assert.match(shell, /\{ href: "\/v3\/profile", label: "Студенты" \}/u);
+  assert.match(shell, /\{ href: "\/v3\/profile", label: "Поступление" \}/u);
   assert.match(inbox, /v3InboxProfileHref\(/u);
 });

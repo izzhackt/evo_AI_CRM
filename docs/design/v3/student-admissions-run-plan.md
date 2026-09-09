@@ -1,6 +1,6 @@
 # Student Portal и поступление: план нового запуска
 
-Дата: 2026-09-09 (Asia/Dubai). Статус: **P0 слит; P1 и P4–P6 в работе; полный запуск ещё не завершён**.
+Дата: 2026-09-09 (Asia/Dubai). Статус: **P0 и brand #692 слиты; тесты и обычное приглашение проверены локально; China/Malaysia в реализации; production этого запуска ещё не обновлён**.
 Для владельца продукта и любого следующего исполнителя: Codex, Sol, Astra или другого агента.
 Главный контракт — [EVO Launch Plan](../../EVO_LAUNCH_PLAN.md); этот документ раскрывает новый объём.
 Рабочая задача: [#693](https://github.com/izzhackt/evo_AI_CRM/issues/693).
@@ -49,6 +49,35 @@
 | Production | Последняя запись: app `0cbb2d42d9691fac392864fea72a3f0894826773`, `r27.1`, schema 134 | В этом планировании VPS не проверялся; прочитать live revision/schema/arm перед выпуском |
 | Новый Student/Admissions запуск | Только документы и исследование | Не отмечать функции implemented/deployed по факту создания плана |
 | Rollback cleanup | Issue [#687](https://github.com/izzhackt/evo_AI_CRM/issues/687) открыт до приёмки владельца | Не удалять portal v1 и временное Admin reason-исключение в этой волне |
+
+### Контрольная точка реализации — 9 сентября
+
+Стартовая таблица выше сохранена как история, не текущий статус. Последняя
+проверенная общая база — main `198f5551` после brand PR #692. Его reviewed head
+`3cca6852`, CI `34358523190`, реальные desktop/mobile/forced-dark Student экраны
+проверены. Личный рабочий preview 3100 и существующий туннель 3000 сохранены.
+
+- [#695](https://github.com/izzhackt/evo_AI_CRM/pull/695),
+  `izzhackt/student-assessments-foundation`, head `a0a0694e`: private assessments,
+  migrations 135–136, English36 и ORVIS92. Реальный E4: 12 PASS, 18 намеренных
+  viewport skips, 27 просмотренных снимков; 128 frontend checks, lint/typecheck
+  PASS. Два изолированных Student, сохранение/возврат, offline/retry, stale tabs,
+  завершённые неизменяемые результаты и запрет доступа staff/другого Student.
+  Это не production и не доказательство обычного приглашения: E4 использует
+  предварительно активированные вымышленные учётные записи.
+- Обычное приглашение проверено **отдельным настоящим путём**: Admin → штатный
+  Sales handoff → отправка приглашения → локальный почтовый приёмник → callback
+  и проверка CSRF → пароль → новый Student login. Ветка
+  `izzhackt/student-invite-local-proof`; проверка PASS, публикация/review ещё в работе.
+  Production callback не меняется; отдельный dev-only loopback origin нужен
+  только для динамического порта изолированной проверки.
+- `izzhackt/china-malaysia-admissions`: контракт `47a66f0b`, контент `cc7db453`,
+  migrations 137–138, формы/рабочий список/сводка реализуются совместно.
+  Текущие локальные 138 frontend checks, lint/typecheck PASS не заменяют полный
+  SQL boundary и браузерную приёмку. SQL137 и E5 browser ещё в работе.
+- Production остаётся отдельным P9: до нового выпуска проверить live app/schema,
+  резервные копии, reviewed exact-main CI и release arm. Старую запись r27.1
+  нельзя выдавать за свежую проверку сервера.
 
 Рабочий preview PR #692 находится в отдельном worktree
 `evo_AI_CRM-adapter-inventory`, ветка `izzhackt/evo-brand-ux-refresh`.
@@ -124,7 +153,7 @@ gh pr view 692 --repo izzhackt/evo_AI_CRM --json state,isDraft,headRefOid,url
 
 | Потребность | Переиспользовать | Нужное дополнение, ещё не реализованное |
 | --- | --- | --- |
-| Sales → дело | `src/lib/server/platform-student-handoff-actions.ts`, migration 088 | Идемпотентно применить China tasks после успешного handoff, не повторять U5/создание case |
+| Sales → дело | `src/lib/platform-student-handoff-actions.ts`, migration 088 | Идемпотентно применить China tasks после успешного handoff, не повторять U5/создание case |
 | Этапы/следующий шаг | `student_cases.operational_stage/state/next_action`, migration 042 | V3 command/form для перехода этапа: проверка роли, evidence, `expected_version`, audit |
 | Регламент | migrations 051–053: workflow/version, country requirements, document slots | Общий OZO lifecycle + версионированное содержимое страны; не пять workflow kind=ozo на org |
 | Задачи/заявки/виза | `case_tasks`, `university_applications`, `visa_cases`; migrations 107/110 | Узкие команды и projections; существующий `source_key` для отсутствия дублей |
@@ -345,16 +374,16 @@ DEPLOYED — отдельно подтверждён live SHA. Ниже стат
 | Волна | Статус | Результат и критерий выхода | Зависимости |
 | --- | --- | --- | --- |
 | P0. Контракт | VERIFIED | PR #694 слит в main `5981363a`; независимый exact-head review approved; CI 34355891107, 132/132 source contracts PASS | Нет |
-| P1. Fixture и brand | IN FLIGHT | Отдельный E4 runtime для реального portal UI; preactivated synthetic fixture не доказывает штатное приглашение. Закрыть остаток #692 без загрязнения продаж | QA preflight из §9 |
-| P2. Admissions foundation | READY для реализации | Direction filter на сервере, stage command, versioned template, существующий handoff не дублируется | Контракт P0; schema-owner |
-| P3. Китай | READY для реализации | Семь этапов, partner facts, conditional docs/tasks, ручные сообщения, confirmed-arrival close | P2; официальная сверка динамических требований |
+| P1. Fixture и brand | IN FLIGHT | #692 слит; E4 PASS; отдельный штатный invite путь PASS, узкий dev callback delta ждёт review/merge | Final invite PR head/CI |
+| P2. Admissions foundation | IN FLIGHT | Direction filter на сервере, stage command, versioned template, существующий handoff не дублируется | SQL boundary + независимый review |
+| P3. Китай | IN FLIGHT | Семь этапов, partner facts, conditional docs/tasks, ручные сообщения, confirmed-arrival close; контент `cc7db453` | P2; E5 browser |
 | P4. Private assessments | IN FLIGHT | Ветка `izzhackt/student-assessments-foundation`: migration 135, Student-only RPC, draft/resume/idempotent completion/versioned snapshots | P0; согласованный контракт контента |
 | P5. Английский | IN FLIGHT | Оригинальный банк 36 заданий; seed 136; реальный quiz и тематический результат; CEFR gate отдельно | P4; независимая проверка банка |
 | P6. Профориентация | IN FLIGHT | ORVIS RU + ключ + карточки профессий; seed 136; независимый language review, ограничения видимы | P4; контентный review; аудитория-пилот отражён отдельно |
-| P7. Portal + staff UX | TODO | Новый Tests раздел и лёгкий portal redesign; admissions worklist и manager summary | P1/P3/M1/P5/P6 |
-| P8. E2E/acceptance | TODO | Реальный Student и staff, isolation, сохранение, transitions, responsive UX; fixes reviewed | Проверяется по мере готовности P2–P7 |
+| P7. Portal + staff UX | IN FLIGHT | Tests/brand проверены E4; admissions worklist и manager summary ждут E5 | P1/P3/M1/P5/P6 |
+| P8. E2E/acceptance | IN FLIGHT | Assessment E4 и штатный invite PASS; Admissions SQL/full browser в работе | Проверяется по мере готовности P2–P7 |
 | P9. Production | TODO | Frozen reviewed main → CI/schema/backup → release → readback → owner inspection | P8 и release gates; отдельная запись от implementation |
-| M1. Malaysia | READY для реализации | Полный маршрут из §11, offer/fees/visa/жильё/прибытие, собственные templates и partner semantics | P2; DOCX получен и прочитан |
+| M1. Malaysia | IN FLIGHT | Полный маршрут из §11, offer/fees/visa/жильё/прибытие, собственные templates и partner semantics; контент `cc7db453` | P2; E5 browser |
 | L1. Валидированный CEFR | FUTURE, не v1 | Проверены level rubric/пороги на целевой аудитории с методическим обоснованием | Компетентная методическая проверка; v1 не заявляет CEFR |
 
 ### Быстрый путь и границы владельцев
@@ -544,17 +573,20 @@ Europe/UAE/Turkey пока имеют направления и существу
 
 ## 12. Точные следующие действия
 
-1. Завершить P0: независимый review документов, links/classifier/release-contract
-   checks, commit/push и GitHub docs PR. Затем продолжить long run P1–P9/M1;
-   владелец уже просит реализацию, повторного approval плана не ждать.
-2. P1: проверить штатный изолированный Student provisioning; получить нужный
-   managed QA mailbox только если требуется реальное письмо. Закрыть фактический
-   Student UX остаток #692, обновить review/CI при изменении head.
-3. Параллельно начать P2 и авторский контент P5/P6; общие schema/RLS contracts
-   согласовать до экранов. P4 не ждёт финальных текстов, если versioned contract утверждён.
-4. Реализовать P3/M1 и private tests, затем P7; фиксировать proof каждой вертикальной части.
-5. Пройти P8/P9 без повторного Sales import и без активации новых внешних провайдеров.
-6. Malaysia DOCX уже получен: выполнить M1 вместе с Китаем, не ждать повторной отправки.
+1. Не повторять P0/#692. Сверить head/CI #695; завершить независимый review
+   assessment UI/actions и merge. Сохранить доказательства E4, не пересоздавать
+   фиктивный Student в production.
+2. Проверить и слить отдельный узкий PR штатного invite proof после exact-head CI.
+   Не менять production callback ради локального теста.
+3. Довести SQL137: старые статусы без выдуманных подтверждений, только активные
+   документы именно данной заявки, конфликты версий и повтор запросов,
+   возобновление закрытого дела; связанные поля после прибытия отдельно.
+4. Независимо проверить CN/MY content 138 и Admissions UI; завершить E5 с реальными
+   Auth/Postgres, интерфейсом куратора, фильтрами/отчётом и mobile layout.
+5. Push/review/CI Admissions PR; затем P9 по актуальному release runbook, backup/
+   migration rehearsal и exact-main. Не повторять Sales import, не активировать
+   новые внешние провайдеры, не выполнять отложенную cleanup #687.
+6. Внести точные merged SHA, schema, release run и live readback в этот журнал.
 7. В финальном отчёте отделить работоспособный native screening v1 от будущего
    L1/клиентского пилота; не называть первые результаты валидированным CEFR.
 
@@ -566,6 +598,8 @@ Europe/UAE/Turkey пока имеют направления и существу
 | --- | --- | --- | --- |
 | 2026-09-09 | P0 / main `bd4af5cb` | Репозиторий и #692 сверены, исходный China DOCX прочитан/отрендерен, первичные источники тестов исследованы, owner native-only/confirmed-arrival уточнения получены | Docs review/push; реализация не начата |
 | 2026-09-09 | P0 / расширение | Malaysia DOCX прочитан/отрендерен; добавлены два UX-источника. Владелец требует план + long run без дополнительных вопросов, с post-edit допущений | M1 включён в обязательный scope, CEFR certification отделён от native screening v1 |
+| 2026-09-09 | P1 / `198f5551`; P4–6 / `a0a0694e` | #692 слит; реальный E4 12 PASS; обычное приглашение отдельно PASS; migrations 135–136 и редакционный контент готовы к final review | #695 CI/review/merge; отдельный invite PR |
+| 2026-09-09 | P2/P3/M1 / `cc7db453` + рабочая реализация | CN/MY контент 138 опубликован локальным commit; forms/list/summary и SQL137 в работе; 138 frontend checks PASS | Довести SQL guards/races, независимый review и E5; production ещё не тронут |
 
 Сейчас новых продуктовых вопросов нет. Потенциальные внешние зависимости:
 разрешённый QA mailbox для managed invite (сначала использовать безопасный реальный

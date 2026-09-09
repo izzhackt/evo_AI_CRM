@@ -190,13 +190,13 @@ test("the single wording module maps every Student status exposed by E2", () => 
   const operationalStages = new Map([
     ["contract_confirmed", "договор подтверждён"],
     ["admissions_handoff", "передано в приёмную"],
-    ["intake", "начало работы"],
-    ["profile_and_route", "профиль и маршрут"],
+    ["intake", "приём дела"],
+    ["profile_and_route", "выбор программы"],
     ["documents", "сбор документов"],
-    ["applications", "заявки в университеты"],
+    ["applications", "подача через партнёра"],
     ["decisions", "решения университетов"],
     ["visa_and_predeparture", "виза и подготовка к отъезду"],
-    ["arrival_and_adaptation", "прибытие и адаптация"],
+    ["arrival_and_adaptation", "поездка и прибытие"],
     ["completed", "поступление завершено"],
     ["closed", "дело закрыто"],
   ]);

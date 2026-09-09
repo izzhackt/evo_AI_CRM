@@ -22289,3 +22289,9 @@ https://supabase.com/docs/guides/database/functions and
 https://www.postgresql.org/docs/current/explicit-locking.html; current Malaysia
 entry sources remain in the run plan. Recommendations here are logged for owner
 post-edit rather than interrupting the authorized run with product questions.
+
+Source terminology clarification before content implementation: the Malaysia
+working DOCX uses LOE ambiguously. EMGS distinguishes the university Letter of
+Offer from a nationality-specific Letter of Eligibility (LOE). The product uses
+«Letter of Offer» for the university offer and does not invent a universal LOE
+requirement. Verified against https://visa.educationmalaysia.gov.my/guidelines/required-documents .

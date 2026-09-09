@@ -25,7 +25,38 @@ image remain rollback evidence, not a new recovery point. Earlier `4e6057f0`
 evidence in closed #552/#553 is first-release history. A documentation change
 does not deploy a new app revision or require repeating this accepted release.
 
-## Current bounded follow-up: sidebar Option 2 (2026-09-10)
+## Next-run planning contract: team workspace (2026-09-10)
+
+The owner requests a current gap inventory and an optimized long-run plan for
+employee-only corporate chat and useful task creation, preserving the EVO UX.
+The bounded [team workspace plan](design/v3/team-workspace-run-plan.md) is the
+next-run contract. This checkpoint is planning only: R1–R5 are not implemented,
+and it does not activate providers, create accounts or deploy the application.
+
+Recommended sequence: existing staff Auth/membership administration → parallel
+canonical staff-task and native team-chat modules → shared notifications and
+message-to-task integration → one reviewed release. Three channels are General,
+Sales and Admissions; Student is excluded. Existing Admissions case tasks stay
+canonical and gain discoverable entry points; new staff tasks are staff-only,
+not nullable-case hacks or a copied Admissions engine. Private Student tests
+remain private. Keep one Supabase project and the selected Option 2 shell.
+
+Corporate WhatsApp mirroring is an explicit optional W2 lane; Sales Inbox live
+provider acceptance is separate W1. Neither may silently block native chat or
+be claimed as working without actual provider evidence. Do not reopen completed
+Portal/CN/MY/report implementation, repeat the sales import, revive retired
+routes, or apply #687 before owner acceptance. Preserve the September9 backup
+waiver for its original release; determine recovery authority for a later
+schema-changing release rather than treating that waiver as perpetual.
+
+Read-only server recheck during this planning turn confirmed the accepted
+revision/image recorded above, healthy app/WAHA containers and HTTPS health200.
+No WAHA session or message delivery was checked. #707 is merged as `b53265a1`,
+but its menu remains local/main-only, not part of the accepted production image.
+R0 uses docs/contract checks and independent review, not a product build or
+full database/browser replay. See the new plan for exact acceptance and inputs.
+
+## Completed local follow-up: sidebar Option 2 (2026-09-10)
 
 Owner selected collapsible department groups from the three visual options.
 Implement inside the existing app: Sales → Pipeline / Sales report; Admissions

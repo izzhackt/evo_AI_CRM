@@ -22580,3 +22580,59 @@ removing filter-reset assertions. The initial full frontend run also collided
 with this worktree's running Next dev server; stop only our 3101 preview before
 rerunning its real HTTP-route test, then restart the local preview. This is not
 an application failure or permission to stop the unrelated 3100/tunnel3000.
+
+### 2026-09-10 — plan employee chat, task creation and the lean next run
+
+Owner asks what remains, requests a Slack-inspired employee-only corporate chat
+with General/Sales/Admissions groups, suggests work-number WAHA sessions, and
+asks for an optimized long-run plan without redundant testing. This amendment
+records planning, not product implementation, production release, new employee
+invitations, external sends or phone pairing. Contract:
+`docs/design/v3/team-workspace-run-plan.md`, linked from EVO_LAUNCH_PLAN/AGENTS.
+
+Fresh main is `b53265a10bf8f92c72f9cb1afc110300a051efbd` (#707). Read-only VPS
+accepted-pointer/image/health still matches `76c62b90`; the new sidebar is not
+deployed. Source audit confirms existing Portal/assessments/CN/MY/sales-report
+implementation, case-task creation only in Calendar, case-bound task/event/
+notification schema, fixed-role staff foundation but missing invitations UI,
+and no current V3 employee chat. Historical `/chat` and old unchecked plans do
+not prove a current feature or a current gap. Existing provider delivery and
+real business/Student acceptance stay separately unproved.
+
+Recommended architecture: native staff chat in the same Auth/Postgres/Realtime
+foundation; three role-scoped channels, no Student or lead-agent access. WAHA is
+an optional separately authorized mirroring lane, not a chat login or per-user
+identity substitute. Preserve the Sales `crm_primary` boundary, one inbound
+owner, no new automatic replies, no companion revival and no provider mutation.
+Official session/group docs distinguish phone-account transport from staff
+identity. Realtime uses private authorization but does not store application
+history; persist messages in platform and do not stream message contents on
+stale authorizations. Verify revocation with an already-connected client.
+
+Tasks decision after source audit: preserve canonical Admissions `case_tasks`
+and command wrappers. Add discoverable reusable case-form entry points and
+paginated case selection. Standalone employee tasks belong in `platform.staff_tasks`
+with shared utilities/UI and a discriminated unified read model, not a second
+case-task engine. Making case_id nullable also changes composite task-event FKs,
+case-based RLS, Calendar INNER JOINs and coverage locks; it is not a small safe
+shortcut. New staff notifications remain separate from Student case-bound
+notification delivery. Source-message linkage never grants source/task access.
+
+Execution recommendation: staff authority first, then task/chat owners in
+parallel; coordinator owns shared schema numbering/route/nav/notification
+contracts. Integrate once, review each coherent slice, risk-matched real checks,
+one full exact-main release proof. No fake/demo substitute, CI bypass or blanket
+test deletion. Real multi-user acceptance needs actual authorized employees;
+missing provider inputs block only provider work. Current September9 recovery
+waiver is not silently extended to future schema-changing releases. No backup,
+account consolidation, repeated import or #687 cleanup is performed by this plan.
+
+`DESIGN.md` now records this planned workspace and corrects historical #692
+draft/asset-unavailable wording; it does not claim the new chat is implemented.
+Official sources checked: https://supabase.com/docs/guides/realtime/authorization,
+https://supabase.com/docs/guides/realtime/subscribing-to-database-changes,
+https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail,
+https://waha.devlike.pro/docs/how-to/sessions/,
+https://waha.devlike.pro/docs/how-to/groups/ and
+https://slack.com/help/articles/360017938993-What-is-a-channel.
+Context7 quota was exhausted; direct official documentation was used instead.

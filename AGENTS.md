@@ -29,6 +29,14 @@
 
 ## Current Product Authority
 
+- Latest September10 request is a gap audit and optimized next-run plan for
+  employee chat and task creation: `docs/design/v3/team-workspace-run-plan.md`,
+  linked from `docs/EVO_LAUNCH_PLAN.md`. It is planning, not evidence of new
+  implementation/deployment. Recommend native staff-only channels using existing
+  Auth, discoverable case-task creation and separate canonical staff tasks;
+  WhatsApp mirroring/provider activation remain explicit separate lanes.
+  Preserve private Student results, current provider authority and the single
+  persistent source. Read the new plan before resuming older unchecked lists.
 - Latest September 9 owner direction: release the implemented Student/Admissions
   work without a new backup for now and expose the same server through a local
   SSH tunnel. See the narrow owner waiver in `docs/EVO_LAUNCH_PLAN.md` and the

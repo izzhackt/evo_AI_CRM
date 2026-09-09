@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { assessmentAnswersFingerprint, assessmentPath, parseAssessmentWriteInput } from "../src/lib/student-assessment-contract.ts";
+import { installAssessmentExitGuard } from "../src/lib/student-assessment-exit-guard.ts";
 import { normalizeAssessmentAttempt, normalizeAssessmentCatalog, readStudentAssessments, readStudentAssessmentAttempt, startStudentAssessment, writeStudentAssessment, StudentAssessmentSourceError } from "../src/lib/v3/student-assessment-source.ts";
 
 const ID = "11111111-1111-4111-8111-111111111111";
@@ -27,6 +28,52 @@ test("write input rejects injected identity/score, unknown fields and unbounded 
 test("answer equality is independent of Postgres jsonb key order", () => {
   assert.equal(assessmentAnswersFingerprint({ b: "1", a: "2" }), assessmentAnswersFingerprint({ a: "2", b: "1" }));
   assert.notEqual(assessmentAnswersFingerprint({ a: "1" }), assessmentAnswersFingerprint({ a: "2" }));
+});
+
+test("exit guard reads live state, cancels unsafe exits and removes every listener", () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const navigation = new EventTarget();
+  const document = new EventTarget();
+  const restored = [];
+  const routerState = { assessmentRoute: true };
+  const url = "http://127.0.0.1/portal/tests/english?attempt=example";
+  const window = Object.assign(new EventTarget(), {
+    navigation, location: { href: url },
+    history: { state: routerState, pushState: (...args) => restored.push(args) },
+  });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: window });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: document });
+  let blocked = true;
+  let notices = 0;
+  let cleanup;
+  try {
+    cleanup = installAssessmentExitGuard({ blocked: () => blocked, notify: () => notices++ });
+    assert.equal(document.dispatchEvent(new Event("submit", { cancelable: true })), false);
+    const traverse = Object.assign(new Event("navigate", { cancelable: true }), { navigationType: "traverse" });
+    assert.equal(navigation.dispatchEvent(traverse), false);
+    const unload = new Event("beforeunload", { cancelable: true });
+    assert.equal(window.dispatchEvent(unload), false);
+    window.dispatchEvent(new Event("popstate"));
+    assert.deepEqual(restored, [[routerState, "", url]]);
+    assert.equal(notices, 3);
+    blocked = false;
+    assert.equal(document.dispatchEvent(new Event("submit", { cancelable: true })), true);
+    assert.equal(navigation.dispatchEvent(Object.assign(new Event("navigate", { cancelable: true }), { navigationType: "traverse" })), true);
+    assert.equal(window.dispatchEvent(new Event("beforeunload", { cancelable: true })), true);
+    cleanup();
+    blocked = true;
+    assert.equal(document.dispatchEvent(new Event("submit", { cancelable: true })), true);
+    assert.equal(navigation.dispatchEvent(Object.assign(new Event("navigate", { cancelable: true }), { navigationType: "traverse" })), true);
+    assert.equal(window.dispatchEvent(new Event("beforeunload", { cancelable: true })), true);
+    window.dispatchEvent(new Event("popstate"));
+    assert.equal(restored.length, 1);
+    assert.equal(notices, 3);
+  } finally {
+    cleanup?.();
+    if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow); else delete globalThis.window;
+    if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument); else delete globalThis.document;
+  }
 });
 
 test("draft normalization is an explicit projection with no metadata or question keys", () => {
@@ -73,7 +120,8 @@ test("assessment UI uses bounded authenticated actions, not a browser database o
   assert.match(runner, /saveStudentAssessmentAction/);
   assert.match(runner, /pending\.current \?\?/);
   assert.match(runner, /crypto\.randomUUID/);
-  assert.match(runner, /beforeunload/);
+  assert.match(runner, /installAssessmentExitGuard/);
+  assert.match(runner, /disabled=\{completing \|\| error\?\.code === "conflict"\}/);
   assert.doesNotMatch(runner, /createClient|supabase|localStorage|sessionStorage|gradingRules|correctOptionId|fetch\(/);
 });
 
@@ -83,5 +131,6 @@ test("published content passes the same actual Student metadata projection", () 
     const normalized = normalizeAssessmentAttempt({ ...draft, instrumentKey, metadata: content.metadata, questions: content.questions });
     assert.equal(normalized.questions.length, instrumentKey === "english36" ? 36 : 92);
     assert.doesNotMatch(JSON.stringify(normalized.questions), /correctOptionId|gradingRules|originalPrompt/);
+    if (instrumentKey === "orvis92") assert.equal(normalized.metadata.professionAttribution, content.metadata.professionAttribution);
   }
 });

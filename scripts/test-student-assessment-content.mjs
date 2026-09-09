@@ -65,7 +65,8 @@ test("generated seed exactly matches committed artifact and inserts only private
   assert.equal(readFileSync(SEED_PATH, "utf8"), sql);
   assert.equal((sql.match(/INSERT INTO platform_private\.student_assessment_versions/g) ?? []).length, 2);
   assert.doesNotMatch(sql, /ON CONFLICT|UPDATE platform|INSERT INTO auth\.|INSERT INTO platform\./);
-  assert.ok(sql.endsWith("COMMIT;\n\n"));
+  assert.ok(sql.endsWith("COMMIT;\n"));
+  assert.ok(!sql.endsWith("\n\n"));
 });
 
 function plainText(html) {

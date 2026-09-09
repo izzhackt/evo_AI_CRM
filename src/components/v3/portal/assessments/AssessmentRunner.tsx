@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { completeStudentAssessmentAction, readStudentAssessmentAttemptAction, saveStudentAssessmentAction, startStudentAssessmentAction } from "@/lib/student-assessment-actions";
 import { assessmentAnswersFingerprint, assessmentPath, type AssessmentActionResult, type AssessmentAnswers, type AssessmentAttempt, type AssessmentCatalog, type AssessmentWriteInput } from "@/lib/student-assessment-contract";
 import { AssessmentResults } from "./AssessmentResults";
+import { installAssessmentExitGuard } from "@/lib/student-assessment-exit-guard";
 
 const CONTROL = "inline-flex min-h-11 items-center justify-center rounded-nav border px-5 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-50";
 const BUTTON = `${CONTROL} border-control-edge text-fg hover:bg-surface-2`;
@@ -25,6 +26,8 @@ export function AssessmentRunner({ instrument, initialAttempt }: { instrument: A
   const pending = useRef<PendingWrite | null>(null);
   const startRequestId = useRef<string | null>(null);
   const [error, setError] = useState<ActionError | null>(null);
+  const [exitNotice, setExitNotice] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
   const pageSize = instrument.instrumentKey === "english36" ? 1 : 4;
   const firstUnanswered = initialAttempt?.questions.findIndex(q => !initialAttempt.answers[q.id]) ?? 0;
   const [page, setPage] = useState(Math.floor(Math.max(0, firstUnanswered) / pageSize));
@@ -38,20 +41,22 @@ export function AssessmentRunner({ instrument, initialAttempt }: { instrument: A
   const write = useCallback(async (complete = false): Promise<boolean> => {
     const current = attemptRef.current;
     if (busyRef.current || !current || current.status !== "draft") return false;
-    busyRef.current = true; setBusy(true); setError(null);
+    busyRef.current = true; setBusy(true); setError(null); setExitNotice(null);
     // Retry an uncertain response using the SAME request and snapshot first.
     const request = pending.current ?? { complete, input: { attemptId: current.attemptId, expectedRevision: current.revision, answers: { ...answersRef.current }, requestId: crypto.randomUUID() } };
     pending.current = request;
+    setCompleting(request.complete);
     try {
       const response = await (request.complete ? completeStudentAssessmentAction : saveStudentAssessmentAction)(request.input);
       if (!response.ok) {
         setError(response);
-        if (response.code !== "unavailable") pending.current = null;
+        if (response.code !== "unavailable") { pending.current = null; setCompleting(false); }
         return false;
       }
       attemptRef.current = response.attempt; setAttempt(response.attempt);
       setSaved(assessmentAnswersFingerprint(request.input.answers));
       pending.current = null;
+      setCompleting(false); setExitNotice(null);
       if (response.attempt.status === "completed") {
         setAnswers(response.attempt.answers); answersRef.current = response.attempt.answers;
         window.history.replaceState(null, "", `${assessmentPath(response.attempt.instrumentKey)}?attempt=${response.attempt.attemptId}`);
@@ -69,11 +74,13 @@ export function AssessmentRunner({ instrument, initialAttempt }: { instrument: A
   }, [dirty, fingerprint, busy, error, attempt?.status, write]);
 
   useEffect(() => {
-    if (!dirty && !busy) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty, busy]);
+    if (!attempt?.attemptId || attempt.status !== "draft") return;
+    return installAssessmentExitGuard({
+      blocked: () => attemptRef.current?.status === "draft" && (busyRef.current || pending.current !== null
+        || assessmentAnswersFingerprint(answersRef.current) !== assessmentAnswersFingerprint(attemptRef.current.answers)),
+      notify: () => setExitNotice("Переход остановлен: сначала сохраните ответы. Если соединение пропало, дождитесь восстановления и повторите сохранение — ваш ввод остаётся здесь."),
+    });
+  }, [attempt?.attemptId, attempt?.status]);
 
   async function start() {
     if (busyRef.current) return;
@@ -92,11 +99,13 @@ export function AssessmentRunner({ instrument, initialAttempt }: { instrument: A
   }
 
   function select(id: string, value: string) {
+    if (pending.current?.complete) return;
     const next = { ...answersRef.current, [id]: value };
     answersRef.current = next; setAnswers(next);
   }
 
   function goTo(next: number) {
+    if (pending.current?.complete) return;
     setPage(next);
     requestAnimationFrame(() => { heading.current?.focus(); heading.current?.scrollIntoView({ block: "start" }); });
   }
@@ -125,9 +134,10 @@ export function AssessmentRunner({ instrument, initialAttempt }: { instrument: A
 
   if (attempt?.status === "completed") return <AssessmentResults attempt={attempt} />;
 
-  const errorNotice = error ? <div role="alert" className="rounded-card border border-border bg-surface-2 p-4 text-sm leading-6 text-fg">
-    <p>{error.message}</p>
-    {attempt && error.code === "conflict" ? <button className={`${BUTTON} mt-3`} onClick={() => void loadLatest()} disabled={busy}>Загрузить сохранённую попытку</button> : attempt && error.code === "unavailable" ? <button className={`${BUTTON} mt-3`} onClick={() => void write()} disabled={busy}>Повторить сохранение</button> : null}
+  const errorNotice = error || exitNotice ? <div role="alert" className="rounded-card border border-border bg-surface-2 p-4 text-sm leading-6 text-fg">
+    {error ? <p>{error.message}</p> : null}
+    {exitNotice ? <p>{exitNotice}</p> : null}
+    {attempt && error?.code === "conflict" ? <button className={`${BUTTON} mt-3`} onClick={() => void loadLatest()} disabled={busy}>Загрузить сохранённую попытку</button> : attempt && error?.code === "unavailable" ? <button className={`${BUTTON} mt-3`} onClick={() => void write()} disabled={busy}>Повторить сохранение</button> : null}
   </div> : null;
 
   if (!attempt) return <section className="max-w-3xl space-y-6 rounded-card border border-border bg-surface p-5 sm:p-7">
@@ -156,14 +166,14 @@ export function AssessmentRunner({ instrument, initialAttempt }: { instrument: A
         {question.passage ? <p lang="en" className="mt-4 whitespace-pre-line rounded-nav bg-surface-2 p-4 text-base leading-7 text-fg-2">{question.passage}</p> : null}
         <div className={`mt-4 ${instrument.instrumentKey === "orvis92" ? "grid gap-2 sm:grid-cols-5" : "space-y-3"}`}>
           {question.options.map(option => <label key={option.id} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-nav border px-4 py-3 text-sm leading-6 transition-colors ${answers[question.id] === option.id ? "border-accent bg-accent/5 text-fg" : "border-control-edge text-fg-2 hover:bg-surface-2"}`}>
-            <input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => select(question.id, option.id)} disabled={error?.code === "conflict"} className="h-4 w-4 shrink-0 accent-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" />
+            <input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => select(question.id, option.id)} disabled={completing || error?.code === "conflict"} className="h-4 w-4 shrink-0 accent-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" />
             <span lang={instrument.instrumentKey === "english36" && option.id !== "unknown" ? "en" : "ru"}>{option.label}</span>
           </label>)}
         </div>
       </fieldset>)}</div>}
       <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-border pt-5">
-        <button className={BUTTON} disabled={page === 0} onClick={() => goTo(page - 1)}>Назад</button>
-        {!review ? <button className={PRIMARY} onClick={() => goTo(page + 1)}>{page + 1 === pageCount ? "Проверить и завершить" : "Далее"}</button> : null}
+        <button className={BUTTON} disabled={page === 0 || completing} onClick={() => goTo(page - 1)}>Назад</button>
+        {!review ? <button className={PRIMARY} disabled={completing} onClick={() => goTo(page + 1)}>{page + 1 === pageCount ? "Проверить и завершить" : "Далее"}</button> : null}
       </div>
     </section>
     <div className="flex flex-wrap items-center justify-between gap-3"><button className={BUTTON} disabled={busy || error?.code === "conflict"} onClick={() => void pause()}>Сохранить и выйти</button><p className="text-xs leading-5 text-fg-3">Можно вернуться к любому ответу до завершения.</p></div>

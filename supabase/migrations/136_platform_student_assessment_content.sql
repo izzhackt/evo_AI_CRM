@@ -35,4 +35,3 @@ VALUES (
 );
 
 COMMIT;
-

@@ -5,7 +5,7 @@ export const DIRECTION_LABELS: Record<AdmissionsDirection | "unknown", string> =
   CN: "Китай", MY: "Малайзия", EUROPE: "Европа", AE: "ОАЭ", TR: "Турция", unknown: "Не указано",
 };
 export const ATTENTION_LABELS: Record<AdmissionsAttention, string> = {
-  overdue: "Просрочен следующий шаг", awaiting_partner: "Ждём партнёра", submitted: "Подано в университет",
+  overdue: "Есть просрочки", awaiting_partner: "Ждём партнёра", submitted: "Подано в университет",
   decisions: "Решения университета", visas: "Визовые дела", arrivals: "Поездка и прибытие", awaiting_ack: "Передача ещё не принята",
 };
 export function admissionsDirectoryHref(params: V3ProfileCaseDirectoryParams, cursor?: Readonly<{ sortAt: string; id: string }>): string {

@@ -21,7 +21,10 @@ export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentN
   const current = workspace.case;
   const index = ADMISSIONS_STAGES.indexOf(current.stage as AdmissionsStage);
   const selectedStage = workspace.playbook?.content.stages.find((item) => item.key === viewStage) ?? workspace.playbook?.content.stages[Math.max(index, 0)];
-  const currentGate = workspace.gates.find((gate) => gate.stage === current.stage);
+  // A fact from an earlier stage may have changed. The next transition checks
+  // the whole completed route, so display those blockers before submission too.
+  const requiredGates = workspace.gates.filter((gate) => ADMISSIONS_STAGES.indexOf(gate.stage) <= index);
+  const currentGate = index < 0 ? null : { ready: requiredGates.length === index + 1 && requiredGates.every((gate) => gate.ready), blockers: requiredGates.flatMap((gate) => gate.blockers.map((blocker) => gate.stage === current.stage ? blocker : `${ADMISSIONS_STAGE_LABELS[gate.stage]}: ${blocker}`)) };
   const editable = current.state === "active";
   function saved(confirmed: boolean) { setEditor(null); setMessage(confirmed ? "Изменения сохранены. Загружаем актуальное дело…" : "Загружаем актуальные данные…"); router.refresh(); }
   function start(next: Editor) { if (!editor) { setEditor(next); setMessage(""); } }

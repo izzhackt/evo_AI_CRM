@@ -17,8 +17,10 @@ export function AdmissionsFieldInput({ field, value, onChange, documents }: {
 }) {
   if (field.key === "documentSlotIds" || field.key === "documentExceptionSlotIds") {
     const selected = value ? value.split(",") : [];
+    const unavailable = selected.filter((id) => !documents.some((document) => document.id === id));
     return <fieldset className="rounded-nav border border-border p-3 sm:col-span-2"><legend className="px-1 text-sm font-medium text-fg-2">{field.label}</legend>
       <p className="mb-2 text-xs leading-5 text-fg-3">Здесь показаны активные пункты, связанные именно с этой заявкой. Добавьте или измените связь во вкладке «Документы».</p>
+      {unavailable.length ? <div className="mb-3 space-y-2"><p className="text-sm text-danger">Ранее выбранные пункты больше не связаны с этой заявкой или удалены: {unavailable.length}. Восстановите связь либо уберите их из выбора.</p><button type="button" className={ADMISSIONS_BUTTON} onClick={() => onChange(selected.filter((id) => !unavailable.includes(id)).join(","))}>Убрать недоступные пункты из выбора</button></div> : null}
       {!documents.length ? <p className="text-sm text-fg-2">Сначала свяжите нужные пункты с этой заявкой во вкладке «Документы».</p> : documents.map((document) => <label key={document.id} className="flex min-h-11 items-center gap-3 text-sm text-fg">
         <input type="checkbox" className="size-5 accent-accent" checked={selected.includes(document.id)} onChange={(event) => onChange((event.target.checked ? [...selected, document.id] : selected.filter((id) => id !== document.id)).join(","))} />{document.name}
       </label>)}

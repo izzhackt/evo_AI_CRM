@@ -24,12 +24,12 @@ export async function AdmissionsSummaryPanel({ actor, params, period }: { actor:
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Дела в работе сейчас" value={active} href={admissionsDirectoryHref({ ...linkParams, state: "active" })} />
-        <Metric label="Просрочен следующий шаг" value={overdue} href={admissionsDirectoryHref({ ...linkParams, attention: "overdue" })} />
+        <Metric label="Есть просрочки" value={overdue} href={admissionsDirectoryHref({ ...linkParams, attention: "overdue" })} />
         <Metric label="Ждём партнёра" value={partner} href={admissionsDirectoryHref({ ...linkParams, attention: "awaiting_partner" })} />
         <Metric label={`Прибыли за ${selected.month}`} value={arrivals} />
       </div>
       <details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">Короткий отчёт по направлениям</summary>
-        <p className="mb-3 text-sm leading-6 text-fg-2">«В работе» и ожидания — состояние сейчас. «Прибыли» — уникальные дела с подтверждённым прибытием за выбранный месяц. Отменённые дела не считаются прибытием.</p>
+        <p className="mb-3 text-sm leading-6 text-fg-2">«В работе» и ожидания — состояние сейчас. Просрочки включают следующий шаг, задачи, ответ партнёра и исправления. «Прибыли» — закрытые по подтверждённому прибытию дела с актуальной датой в выбранном месяце. Возобновлённые и отменённые дела сюда не входят.</p>
         <ul className="divide-y divide-border">{summary.stock.map((row) => <li key={row.direction} className="grid gap-3 py-4 sm:grid-cols-[140px_1fr]">
           <Link href={admissionsDirectoryHref({ ...linkParams, direction: row.direction })} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline">{DIRECTION_LABELS[row.direction]}</Link>
           <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><div><dt className="text-xs text-fg-3">В работе</dt><dd className="mt-1 font-semibold text-fg">{row.active}</dd></div><div><dt className="text-xs text-fg-3">Ждём партнёра</dt><dd className="mt-1 text-fg">{row.awaiting_partner}</dd></div><div><dt className="text-xs text-fg-3">Просрочен шаг</dt><dd className="mt-1 text-fg">{row.overdue}</dd></div><div><dt className="text-xs text-fg-3">Прибыли за месяц</dt><dd className="mt-1 text-fg">{summary.periodArrivals.find((item) => item.direction === row.direction)?.count ?? 0}</dd></div></dl>

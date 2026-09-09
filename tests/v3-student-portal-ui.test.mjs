@@ -27,7 +27,7 @@ function filesUnder(path) {
     .sort();
 }
 
-test("the Student workspace exposes exactly five portal pages", () => {
+test("the Student workspace preserves five portal pages and adds three private test pages", () => {
   const pageFiles = filesUnder("src/app/(portal)/portal/")
     .filter((path) => path.endsWith("/page.tsx") || path.endsWith("portal/page.tsx"));
 
@@ -37,6 +37,9 @@ test("the Student workspace exposes exactly five portal pages", () => {
     "src/app/(portal)/portal/notifications/page.tsx",
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal/payments/page.tsx",
+    "src/app/(portal)/portal/tests/career/page.tsx",
+    "src/app/(portal)/portal/tests/english/page.tsx",
+    "src/app/(portal)/portal/tests/page.tsx",
   ]);
 
   const shell = source("src/components/v3/portal/PortalShell.tsx");
@@ -48,6 +51,7 @@ test("the Student workspace exposes exactly five portal pages", () => {
       "/portal/applications",
       "/portal/payments",
       "/portal/notifications",
+      "/portal/tests",
     ],
   );
 });
@@ -297,9 +301,9 @@ test("Student stage wording matches the exact schema and published OZO lifecycle
   );
 });
 
-test("portal components stay presentation-only and never render raw status keys", () => {
+test("existing case portal views stay presentation-only and never render raw status keys", () => {
   const componentFiles = filesUnder("src/components/v3/portal/")
-    .filter((path) => path.endsWith(".tsx"));
+    .filter((path) => path.endsWith(".tsx") && !path.includes("/assessments/"));
   const components = componentFiles.map(source).join("\n");
 
   assert.doesNotMatch(

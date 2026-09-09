@@ -1,0 +1,1494 @@
+{
+  "instrumentKey": "english36",
+  "version": "1.0.0",
+  "locale": "ru",
+  "metadata": {
+    "title": "Английский",
+    "subtitle": "Сильные стороны и темы для подготовки",
+    "description": "36 оригинальных заданий EVO по грамматике, лексике и чтению для будущих студентов.",
+    "instructions": [
+      "Выберите один ответ в каждом задании. Если не знаете, выберите «Не знаю».",
+      "Не используйте переводчик, словарь или помощь другого человека: так результат будет полезнее вам.",
+      "Обязательного таймера нет. Можно сделать паузу и продолжить после сохранения ответов.",
+      "Перед завершением проверьте, что ответили на все задания. Объяснения откроются в результате."
+    ],
+    "limitations": [
+      "Это предварительный скрининг EVO, а не сертификат и не подтверждённый уровень CEFR.",
+      "Результат описывает выполнение этих заданий; аудирование, письмо и речь не оцениваются.",
+      "Задания и пороги не прошли калибровку на клиентах EVO. По одному заданию нельзя уверенно оценить владение отдельной темой.",
+      "После просмотра объяснений повторная попытка отражает в том числе запоминание ответов.",
+      "Личные ответы и результаты не доступны кураторам и не влияют на поступление."
+    ],
+    "estimatedMinutes": 25,
+    "estimatedDurationNote": "Редакционная оценка до клиентского пилота; реальное время может отличаться.",
+    "privacy": "Результаты доступны только вам в вашем кабинете.",
+    "contentAuthor": "EVO editorial adaptation, 2026-09-09",
+    "contentOrigin": "Original EVO questions and original reading passages; no external question bank copied.",
+    "interpretationVersion": "evo-quiz-performance-1.0.0",
+    "bands": [
+      {
+        "id": "basic",
+        "min": 0,
+        "max": 17,
+        "label": "Базовый результат на этом тесте"
+      },
+      {
+        "id": "developing",
+        "min": 18,
+        "max": 27,
+        "label": "Развивающийся результат на этом тесте"
+      },
+      {
+        "id": "strong",
+        "min": 28,
+        "max": 36,
+        "label": "Сильный результат на этом тесте"
+      }
+    ],
+    "skillLabels": {
+      "present-simple": "Регулярные действия: Present Simple",
+      "past-simple": "Завершённые действия в прошлом",
+      "present-continuous": "Действие в процессе: Present Continuous",
+      "present-perfect-since": "Present Perfect с since",
+      "questions-did": "Вопросы с did",
+      "articles": "Артикли",
+      "time-prepositions": "Предлоги времени",
+      "modals-prohibition": "Запрет и отсутствие необходимости",
+      "second-conditional": "Нереальное условие: second conditional",
+      "future-passive": "Будущее время в пассивном залоге",
+      "gerund-after-preposition": "Герундий после предлога",
+      "time-clause-connectors": "Связки времени и условия",
+      "deadline-extension": "Продление срока",
+      "track-application": "Выражения о ходе заявки",
+      "optional": "Обязательность и выбор",
+      "clear-instructions": "Описание понятных инструкций",
+      "suitable-for-beginners": "Уровень подготовки аудитории",
+      "word-formation-information": "Словообразование",
+      "meet-a-deadline": "Устойчивые сочетания со сроками",
+      "reliable-source": "Надёжность источника",
+      "contradict": "Противоречие утверждений",
+      "address-a-concern": "Работа с проблемой: значение в контексте",
+      "preliminary-findings": "Предварительные выводы",
+      "undermine-a-claim": "Убедительность утверждения",
+      "locate-explicit-information": "Поиск явной информации",
+      "interpret-booking-condition": "Понимание условия",
+      "identify-purpose": "Цель текста",
+      "draw-supported-inference": "Вывод с опорой на текст",
+      "locate-numerical-result": "Поиск числового результата",
+      "identify-intervention": "Действия участников исследования",
+      "evaluate-causal-claim": "Причина и альтернативное объяснение",
+      "identify-improved-method": "Понимание метода исследования",
+      "connect-problem-and-solution": "Связь проблемы и решения",
+      "identify-balanced-position": "Позиция автора",
+      "evaluate-sample-limitation": "Ограничения опроса",
+      "distinguish-evidence-from-claim": "Доказательство и предположение"
+    },
+    "topicLabels": {
+      "grammar": "Грамматика",
+      "vocabulary": "Лексика",
+      "reading": "Чтение"
+    },
+    "recommendations": {
+      "grammar": "Разберите объяснения ошибок и повторите соответствующие конструкции; затем попробуйте составить свои предложения.",
+      "vocabulary": "Соберите незнакомые слова и выражения из заданий и используйте их в собственных примерах.",
+      "reading": "Перечитайте текст: отдельно отмечайте явные факты, выводы и то, чего текст не доказывает."
+    },
+    "blueprint": [
+      {
+        "questionId": "grammar-01",
+        "topic": "grammar",
+        "skill": "present-simple",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "grammar-02",
+        "topic": "grammar",
+        "skill": "past-simple",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "grammar-03",
+        "topic": "grammar",
+        "skill": "present-continuous",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "grammar-04",
+        "topic": "grammar",
+        "skill": "present-perfect-since",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "grammar-05",
+        "topic": "grammar",
+        "skill": "questions-did",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "grammar-06",
+        "topic": "grammar",
+        "skill": "articles",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "grammar-07",
+        "topic": "grammar",
+        "skill": "time-prepositions",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "grammar-08",
+        "topic": "grammar",
+        "skill": "modals-prohibition",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "grammar-09",
+        "topic": "grammar",
+        "skill": "second-conditional",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "grammar-10",
+        "topic": "grammar",
+        "skill": "future-passive",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "grammar-11",
+        "topic": "grammar",
+        "skill": "gerund-after-preposition",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "grammar-12",
+        "topic": "grammar",
+        "skill": "time-clause-connectors",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "vocabulary-01",
+        "topic": "vocabulary",
+        "skill": "deadline-extension",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "vocabulary-02",
+        "topic": "vocabulary",
+        "skill": "track-application",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "vocabulary-03",
+        "topic": "vocabulary",
+        "skill": "optional",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "vocabulary-04",
+        "topic": "vocabulary",
+        "skill": "clear-instructions",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "vocabulary-05",
+        "topic": "vocabulary",
+        "skill": "suitable-for-beginners",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "vocabulary-06",
+        "topic": "vocabulary",
+        "skill": "word-formation-information",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "vocabulary-07",
+        "topic": "vocabulary",
+        "skill": "meet-a-deadline",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "vocabulary-08",
+        "topic": "vocabulary",
+        "skill": "reliable-source",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "vocabulary-09",
+        "topic": "vocabulary",
+        "skill": "contradict",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "vocabulary-10",
+        "topic": "vocabulary",
+        "skill": "address-a-concern",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "vocabulary-11",
+        "topic": "vocabulary",
+        "skill": "preliminary-findings",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "vocabulary-12",
+        "topic": "vocabulary",
+        "skill": "undermine-a-claim",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "reading-01",
+        "topic": "reading",
+        "skill": "locate-explicit-information",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "reading-02",
+        "topic": "reading",
+        "skill": "interpret-booking-condition",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "reading-03",
+        "topic": "reading",
+        "skill": "identify-purpose",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "reading-04",
+        "topic": "reading",
+        "skill": "draw-supported-inference",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "reading-05",
+        "topic": "reading",
+        "skill": "locate-numerical-result",
+        "difficulty": "foundation"
+      },
+      {
+        "questionId": "reading-06",
+        "topic": "reading",
+        "skill": "identify-intervention",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "reading-07",
+        "topic": "reading",
+        "skill": "evaluate-causal-claim",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "reading-08",
+        "topic": "reading",
+        "skill": "identify-improved-method",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "reading-09",
+        "topic": "reading",
+        "skill": "connect-problem-and-solution",
+        "difficulty": "developing"
+      },
+      {
+        "questionId": "reading-10",
+        "topic": "reading",
+        "skill": "identify-balanced-position",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "reading-11",
+        "topic": "reading",
+        "skill": "evaluate-sample-limitation",
+        "difficulty": "stretch"
+      },
+      {
+        "questionId": "reading-12",
+        "topic": "reading",
+        "skill": "distinguish-evidence-from-claim",
+        "difficulty": "stretch"
+      }
+    ],
+    "sources": [
+      {
+        "title": "CEFR descriptors — reference for skill descriptions, not a source of questions or level certification",
+        "url": "https://www.coe.int/en/web/common-european-framework-reference-languages/cefr-descriptors",
+        "retrievedOn": "2026-09-09"
+      }
+    ],
+    "license": {
+      "name": "Original EVO content",
+      "notice": "Оригинальные задания и тексты созданы для EVO. Названия сторонних экзаменов не означают их одобрение."
+    }
+  },
+  "questions": [
+    {
+      "id": "grammar-01",
+      "prompt": "Mina usually ___ to the library after class.",
+      "options": [
+        {
+          "id": "a",
+          "label": "go"
+        },
+        {
+          "id": "b",
+          "label": "goes"
+        },
+        {
+          "id": "c",
+          "label": "going"
+        },
+        {
+          "id": "d",
+          "label": "went"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-02",
+      "prompt": "Yesterday we ___ a tour of the laboratory.",
+      "options": [
+        {
+          "id": "a",
+          "label": "have"
+        },
+        {
+          "id": "b",
+          "label": "having"
+        },
+        {
+          "id": "c",
+          "label": "had"
+        },
+        {
+          "id": "d",
+          "label": "has"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-03",
+      "prompt": "Please wait a moment. I ___ my timetable right now.",
+      "options": [
+        {
+          "id": "a",
+          "label": "check"
+        },
+        {
+          "id": "b",
+          "label": "am checking"
+        },
+        {
+          "id": "c",
+          "label": "checked"
+        },
+        {
+          "id": "d",
+          "label": "have checked"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-04",
+      "prompt": "We ___ each other since orientation started.",
+      "options": [
+        {
+          "id": "a",
+          "label": "know"
+        },
+        {
+          "id": "b",
+          "label": "knew"
+        },
+        {
+          "id": "c",
+          "label": "are knowing"
+        },
+        {
+          "id": "d",
+          "label": "have known"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-05",
+      "prompt": "Did Sam ___ the registration form?",
+      "options": [
+        {
+          "id": "a",
+          "label": "finished"
+        },
+        {
+          "id": "b",
+          "label": "finishes"
+        },
+        {
+          "id": "c",
+          "label": "finish"
+        },
+        {
+          "id": "d",
+          "label": "finishing"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-06",
+      "prompt": "There is ___ useful guide on the desk.",
+      "options": [
+        {
+          "id": "a",
+          "label": "an"
+        },
+        {
+          "id": "b",
+          "label": "a"
+        },
+        {
+          "id": "c",
+          "label": "some"
+        },
+        {
+          "id": "d",
+          "label": "any"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-07",
+      "prompt": "The workshop begins ___ Monday at nine.",
+      "options": [
+        {
+          "id": "a",
+          "label": "in"
+        },
+        {
+          "id": "b",
+          "label": "at"
+        },
+        {
+          "id": "c",
+          "label": "on"
+        },
+        {
+          "id": "d",
+          "label": "to"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-08",
+      "prompt": "You ___ bring food into this laboratory. It is not allowed.",
+      "options": [
+        {
+          "id": "a",
+          "label": "don't have to"
+        },
+        {
+          "id": "b",
+          "label": "mustn't"
+        },
+        {
+          "id": "c",
+          "label": "needn't"
+        },
+        {
+          "id": "d",
+          "label": "may"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-09",
+      "prompt": "If I had a larger desk, I ___ my books next to the computer.",
+      "options": [
+        {
+          "id": "a",
+          "label": "keep"
+        },
+        {
+          "id": "b",
+          "label": "kept"
+        },
+        {
+          "id": "c",
+          "label": "would keep"
+        },
+        {
+          "id": "d",
+          "label": "had kept"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-10",
+      "prompt": "The forms ___ by the admissions office tomorrow.",
+      "options": [
+        {
+          "id": "a",
+          "label": "will check"
+        },
+        {
+          "id": "b",
+          "label": "are checking"
+        },
+        {
+          "id": "c",
+          "label": "will be checked"
+        },
+        {
+          "id": "d",
+          "label": "have checking"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-11",
+      "prompt": "I look forward to ___ the course.",
+      "options": [
+        {
+          "id": "a",
+          "label": "start"
+        },
+        {
+          "id": "b",
+          "label": "starting"
+        },
+        {
+          "id": "c",
+          "label": "started"
+        },
+        {
+          "id": "d",
+          "label": "will start"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "grammar-12",
+      "prompt": "All required details must be complete before submission. You can submit the form ___ you have entered all the required details.",
+      "options": [
+        {
+          "id": "a",
+          "label": "unless"
+        },
+        {
+          "id": "b",
+          "label": "once"
+        },
+        {
+          "id": "c",
+          "label": "despite"
+        },
+        {
+          "id": "d",
+          "label": "during"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "grammar"
+    },
+    {
+      "id": "vocabulary-01",
+      "prompt": "The deadline is tomorrow, but I need two more days. I should ask for an ___.",
+      "options": [
+        {
+          "id": "a",
+          "label": "extension"
+        },
+        {
+          "id": "b",
+          "label": "transcript"
+        },
+        {
+          "id": "c",
+          "label": "accommodation"
+        },
+        {
+          "id": "d",
+          "label": "appointment"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-02",
+      "prompt": "You can ___ the progress of your application in your account.",
+      "options": [
+        {
+          "id": "a",
+          "label": "catch"
+        },
+        {
+          "id": "b",
+          "label": "carry"
+        },
+        {
+          "id": "c",
+          "label": "hold"
+        },
+        {
+          "id": "d",
+          "label": "track"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-03",
+      "prompt": "The welcome workshop is optional. What does this mean?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Every student must attend."
+        },
+        {
+          "id": "b",
+          "label": "Students can choose whether to attend."
+        },
+        {
+          "id": "c",
+          "label": "The workshop has been cancelled."
+        },
+        {
+          "id": "d",
+          "label": "Only teachers may attend."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-04",
+      "prompt": "The written instructions are ___: each step is easy to understand.",
+      "options": [
+        {
+          "id": "a",
+          "label": "heavy"
+        },
+        {
+          "id": "b",
+          "label": "narrow"
+        },
+        {
+          "id": "c",
+          "label": "clear"
+        },
+        {
+          "id": "d",
+          "label": "loud"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-05",
+      "prompt": "A course is described as suitable for beginners. Who is it designed for?",
+      "options": [
+        {
+          "id": "a",
+          "label": "People with little or no experience in the subject."
+        },
+        {
+          "id": "b",
+          "label": "People who already teach the subject."
+        },
+        {
+          "id": "c",
+          "label": "Only students in their final year."
+        },
+        {
+          "id": "d",
+          "label": "Only people with a professional qualification."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-06",
+      "prompt": "We need further ___ about campus transport.",
+      "options": [
+        {
+          "id": "a",
+          "label": "inform"
+        },
+        {
+          "id": "b",
+          "label": "information"
+        },
+        {
+          "id": "c",
+          "label": "informed"
+        },
+        {
+          "id": "d",
+          "label": "informative"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-07",
+      "prompt": "What does 'meet the deadline' mean?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Arrange a meeting with a teacher."
+        },
+        {
+          "id": "b",
+          "label": "Choose a later date."
+        },
+        {
+          "id": "c",
+          "label": "Finish or submit something by the required time."
+        },
+        {
+          "id": "d",
+          "label": "Start work after the closing date."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-08",
+      "prompt": "A reliable source is one whose information you can ___.",
+      "options": [
+        {
+          "id": "a",
+          "label": "trust"
+        },
+        {
+          "id": "b",
+          "label": "decorate"
+        },
+        {
+          "id": "c",
+          "label": "postpone"
+        },
+        {
+          "id": "d",
+          "label": "borrow"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-09",
+      "prompt": "The two reports contradict each other. Their main claims ___.",
+      "options": [
+        {
+          "id": "a",
+          "label": "are exactly the same"
+        },
+        {
+          "id": "b",
+          "label": "have no connection to either report"
+        },
+        {
+          "id": "c",
+          "label": "were written on the same day"
+        },
+        {
+          "id": "d",
+          "label": "cannot both be true in the same situation"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-10",
+      "prompt": "The tutor promised to address our concerns about the timetable. What will the tutor do?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Write our home addresses."
+        },
+        {
+          "id": "b",
+          "label": "Deal with the issues we raised."
+        },
+        {
+          "id": "c",
+          "label": "Remove our names from the course."
+        },
+        {
+          "id": "d",
+          "label": "Ask us to ignore the timetable."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-11",
+      "prompt": "The findings are preliminary. This means that they ___.",
+      "options": [
+        {
+          "id": "a",
+          "label": "are based on no observations at all"
+        },
+        {
+          "id": "b",
+          "label": "have already become permanent rules"
+        },
+        {
+          "id": "c",
+          "label": "are early findings that may change after further work"
+        },
+        {
+          "id": "d",
+          "label": "must be kept secret forever"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "vocabulary-12",
+      "prompt": "The new evidence ___ the claim: it makes the claim less convincing.",
+      "options": [
+        {
+          "id": "a",
+          "label": "duplicates"
+        },
+        {
+          "id": "b",
+          "label": "announces"
+        },
+        {
+          "id": "c",
+          "label": "translates"
+        },
+        {
+          "id": "d",
+          "label": "undermines"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "vocabulary"
+    },
+    {
+      "id": "reading-01",
+      "prompt": "Can a student use a campus study room at 4 p.m. on Wednesday?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Yes, because rooms never close before 9 p.m."
+        },
+        {
+          "id": "b",
+          "label": "Yes, but only with a reservation."
+        },
+        {
+          "id": "c",
+          "label": "No, because the rooms close from 3 p.m. to 5 p.m."
+        },
+        {
+          "id": "d",
+          "label": "No, because the library is closed all Wednesday."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "Starting next Monday, the campus study rooms will open from 8 a.m. to 9 p.m. on weekdays. On Wednesdays, they will close between 3 p.m. and 5 p.m. for staff training. You can still return borrowed books through the blue box outside the building at any time. To reserve a study room, use the online form at least one day before your visit. Students without a reservation may use a room only if it is available. After the first week, the library will review student feedback before deciding whether to keep these hours."
+    },
+    {
+      "id": "reading-02",
+      "prompt": "A student wants a reserved room on Friday. What is the latest day to submit the booking form?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Thursday"
+        },
+        {
+          "id": "b",
+          "label": "Friday"
+        },
+        {
+          "id": "c",
+          "label": "Saturday"
+        },
+        {
+          "id": "d",
+          "label": "The following Monday"
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "Starting next Monday, the campus study rooms will open from 8 a.m. to 9 p.m. on weekdays. On Wednesdays, they will close between 3 p.m. and 5 p.m. for staff training. You can still return borrowed books through the blue box outside the building at any time. To reserve a study room, use the online form at least one day before your visit. Students without a reservation may use a room only if it is available. After the first week, the library will review student feedback before deciding whether to keep these hours."
+    },
+    {
+      "id": "reading-03",
+      "prompt": "What is the main purpose of the library notice?",
+      "options": [
+        {
+          "id": "a",
+          "label": "To ask students to buy new books."
+        },
+        {
+          "id": "b",
+          "label": "To explain new hours and how to use the study rooms."
+        },
+        {
+          "id": "c",
+          "label": "To report the final results of a student survey."
+        },
+        {
+          "id": "d",
+          "label": "To announce that reservations are no longer possible."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "Starting next Monday, the campus study rooms will open from 8 a.m. to 9 p.m. on weekdays. On Wednesdays, they will close between 3 p.m. and 5 p.m. for staff training. You can still return borrowed books through the blue box outside the building at any time. To reserve a study room, use the online form at least one day before your visit. Students without a reservation may use a room only if it is available. After the first week, the library will review student feedback before deciding whether to keep these hours."
+    },
+    {
+      "id": "reading-04",
+      "prompt": "What can a student do when the study rooms are closed?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Attend staff training."
+        },
+        {
+          "id": "b",
+          "label": "Enter any unreserved room."
+        },
+        {
+          "id": "c",
+          "label": "Collect a newly reserved book inside."
+        },
+        {
+          "id": "d",
+          "label": "Return borrowed books through the outside box."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "Starting next Monday, the campus study rooms will open from 8 a.m. to 9 p.m. on weekdays. On Wednesdays, they will close between 3 p.m. and 5 p.m. for staff training. You can still return borrowed books through the blue box outside the building at any time. To reserve a study room, use the online form at least one day before your visit. Students without a reservation may use a room only if it is available. After the first week, the library will review student feedback before deciding whether to keep these hours."
+    },
+    {
+      "id": "reading-05",
+      "prompt": "Where did electricity use fall by 18 percent?",
+      "options": [
+        {
+          "id": "a",
+          "label": "In all three rooms."
+        },
+        {
+          "id": "b",
+          "label": "In two rooms."
+        },
+        {
+          "id": "c",
+          "label": "In one room."
+        },
+        {
+          "id": "d",
+          "label": "In none of the rooms."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A student team wanted to find out whether reminders could reduce electricity use in computer rooms. They recorded use in three rooms for one week, then placed signs asking students to turn off unused computers. During the second week, electricity use in one room fell by 18 percent, but the other two rooms showed little change. The team also discovered that fewer classes had used the first room that week. Their report therefore did not claim that the signs caused the reduction. For the next study, they plan to compare weeks with similar class schedules and record how many computers are used."
+    },
+    {
+      "id": "reading-06",
+      "prompt": "What did the team deliberately change before the second week?",
+      "options": [
+        {
+          "id": "a",
+          "label": "They removed all computers."
+        },
+        {
+          "id": "b",
+          "label": "They put up signs about turning off unused computers."
+        },
+        {
+          "id": "c",
+          "label": "They reduced every class to half its length."
+        },
+        {
+          "id": "d",
+          "label": "They replaced the electricity meters."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A student team wanted to find out whether reminders could reduce electricity use in computer rooms. They recorded use in three rooms for one week, then placed signs asking students to turn off unused computers. During the second week, electricity use in one room fell by 18 percent, but the other two rooms showed little change. The team also discovered that fewer classes had used the first room that week. Their report therefore did not claim that the signs caused the reduction. For the next study, they plan to compare weeks with similar class schedules and record how many computers are used."
+    },
+    {
+      "id": "reading-07",
+      "prompt": "Why did the team avoid saying that the signs caused the reduction?",
+      "options": [
+        {
+          "id": "a",
+          "label": "The electricity figures were written in a different language."
+        },
+        {
+          "id": "b",
+          "label": "The signs had been removed before the study."
+        },
+        {
+          "id": "c",
+          "label": "Students refused to use any computer room."
+        },
+        {
+          "id": "d",
+          "label": "Fewer classes used that room, which could also explain lower use."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A student team wanted to find out whether reminders could reduce electricity use in computer rooms. They recorded use in three rooms for one week, then placed signs asking students to turn off unused computers. During the second week, electricity use in one room fell by 18 percent, but the other two rooms showed little change. The team also discovered that fewer classes had used the first room that week. Their report therefore did not claim that the signs caused the reduction. For the next study, they plan to compare weeks with similar class schedules and record how many computers are used."
+    },
+    {
+      "id": "reading-08",
+      "prompt": "Which change is part of the team's next study?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Compare weeks with similar schedules and record computer use."
+        },
+        {
+          "id": "b",
+          "label": "Stop collecting data from the rooms."
+        },
+        {
+          "id": "c",
+          "label": "Assume the signs work equally well everywhere."
+        },
+        {
+          "id": "d",
+          "label": "Use only the room with the lowest electricity bill."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A student team wanted to find out whether reminders could reduce electricity use in computer rooms. They recorded use in three rooms for one week, then placed signs asking students to turn off unused computers. During the second week, electricity use in one room fell by 18 percent, but the other two rooms showed little change. The team also discovered that fewer classes had used the first room that week. Their report therefore did not claim that the signs caused the reduction. For the next study, they plan to compare weeks with similar class schedules and record how many computers are used."
+    },
+    {
+      "id": "reading-09",
+      "prompt": "Who would most directly benefit from the downloadable guide?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Students who have unreliable internet access."
+        },
+        {
+          "id": "b",
+          "label": "Students who want all help sessions cancelled."
+        },
+        {
+          "id": "c",
+          "label": "Students who have not applied to the university."
+        },
+        {
+          "id": "d",
+          "label": "Students who are writing the survey questions."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A university tested a new orientation programme: students watched short videos before arriving and attended a discussion on their first day. Of the 120 students invited to complete a survey, 78 replied. Many respondents liked being able to watch the transport video again. However, several had unreliable internet access, and some wanted more opportunities to ask questions. The programme coordinator decided to keep the videos, provide a downloadable guide and retain a live help session. The survey suggests that the videos were useful to some students, but it does not show whether they helped all students settle in more successfully than the previous programme."
+    },
+    {
+      "id": "reading-10",
+      "prompt": "Which statement best describes the coordinator's decision?",
+      "options": [
+        {
+          "id": "a",
+          "label": "Remove every part of the new programme."
+        },
+        {
+          "id": "b",
+          "label": "Replace all human support with videos."
+        },
+        {
+          "id": "c",
+          "label": "Keep the videos while adding other forms of support."
+        },
+        {
+          "id": "d",
+          "label": "Make survey replies compulsory."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A university tested a new orientation programme: students watched short videos before arriving and attended a discussion on their first day. Of the 120 students invited to complete a survey, 78 replied. Many respondents liked being able to watch the transport video again. However, several had unreliable internet access, and some wanted more opportunities to ask questions. The programme coordinator decided to keep the videos, provide a downloadable guide and retain a live help session. The survey suggests that the videos were useful to some students, but it does not show whether they helped all students settle in more successfully than the previous programme."
+    },
+    {
+      "id": "reading-11",
+      "prompt": "Why should the survey results not be treated as the views of every invited student?",
+      "options": [
+        {
+          "id": "a",
+          "label": "All 120 students replied."
+        },
+        {
+          "id": "b",
+          "label": "Only 78 of the 120 invited students replied."
+        },
+        {
+          "id": "c",
+          "label": "The survey asked only about tuition fees."
+        },
+        {
+          "id": "d",
+          "label": "No student had watched a video."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A university tested a new orientation programme: students watched short videos before arriving and attended a discussion on their first day. Of the 120 students invited to complete a survey, 78 replied. Many respondents liked being able to watch the transport video again. However, several had unreliable internet access, and some wanted more opportunities to ask questions. The programme coordinator decided to keep the videos, provide a downloadable guide and retain a live help session. The survey suggests that the videos were useful to some students, but it does not show whether they helped all students settle in more successfully than the previous programme."
+    },
+    {
+      "id": "reading-12",
+      "prompt": "Which conclusion is supported by the passage?",
+      "options": [
+        {
+          "id": "a",
+          "label": "The new programme helped every student more than the old one."
+        },
+        {
+          "id": "b",
+          "label": "The transport video was useless to everyone."
+        },
+        {
+          "id": "c",
+          "label": "Internet access no longer affects orientation."
+        },
+        {
+          "id": "d",
+          "label": "Some respondents found the videos useful, but overall improvement is not established."
+        },
+        {
+          "id": "unknown",
+          "label": "Не знаю"
+        }
+      ],
+      "topic": "reading",
+      "passage": "A university tested a new orientation programme: students watched short videos before arriving and attended a discussion on their first day. Of the 120 students invited to complete a survey, 78 replied. Many respondents liked being able to watch the transport video again. However, several had unreliable internet access, and some wanted more opportunities to ask questions. The programme coordinator decided to keep the videos, provide a downloadable guide and retain a live help session. The survey suggests that the videos were useful to some students, but it does not show whether they helped all students settle in more successfully than the previous programme."
+    }
+  ],
+  "gradingRules": {
+    "grammar-01": {
+      "correctOptionId": "b",
+      "explanation": "В Present Simple после Mina (she) нужна форма goes. Usually указывает на регулярное действие.",
+      "topic": "grammar"
+    },
+    "grammar-02": {
+      "correctOptionId": "c",
+      "explanation": "Yesterday задаёт завершённое прошлое. Прошедшая форма have — had.",
+      "topic": "grammar"
+    },
+    "grammar-03": {
+      "correctOptionId": "b",
+      "explanation": "Right now и просьба подождать описывают действие в процессе: am checking.",
+      "topic": "grammar"
+    },
+    "grammar-04": {
+      "correctOptionId": "d",
+      "explanation": "Since задаёт начало периода, который продолжается сейчас: have known. Know обычно не используется здесь в Continuous.",
+      "topic": "grammar"
+    },
+    "grammar-05": {
+      "correctOptionId": "c",
+      "explanation": "После did основной глагол стоит в начальной форме: finish.",
+      "topic": "grammar"
+    },
+    "grammar-06": {
+      "correctOptionId": "b",
+      "explanation": "Useful начинается со звука /j/, а не гласного звука, поэтому перед исчисляемым guide нужен артикль a.",
+      "topic": "grammar"
+    },
+    "grammar-07": {
+      "correctOptionId": "c",
+      "explanation": "С днями недели используется on: on Monday.",
+      "topic": "grammar"
+    },
+    "grammar-08": {
+      "correctOptionId": "b",
+      "explanation": "Mustn't выражает запрет. Don't have to и needn't означают отсутствие необходимости, а не запрет.",
+      "topic": "grammar"
+    },
+    "grammar-09": {
+      "correctOptionId": "c",
+      "explanation": "Во втором условном предложении во второй части используется would + глагол: would keep.",
+      "topic": "grammar"
+    },
+    "grammar-10": {
+      "correctOptionId": "c",
+      "explanation": "Формы будут проверены кем-то: future passive строится как will be + past participle.",
+      "topic": "grammar"
+    },
+    "grammar-11": {
+      "correctOptionId": "b",
+      "explanation": "В выражении look forward to слово to — предлог; после него используется starting.",
+      "topic": "grammar"
+    },
+    "grammar-12": {
+      "correctOptionId": "b",
+      "explanation": "Первое предложение требует заполнить все обязательные данные до отправки. Once означает «как только» и соответствует этому условию. Unless означало бы «если не», что противоречит правилу; during и despite требуют другую грамматическую структуру.",
+      "topic": "grammar"
+    },
+    "vocabulary-01": {
+      "correctOptionId": "a",
+      "explanation": "Extension — продление срока. Transcript — выписка оценок, accommodation — жильё, appointment — назначенная встреча.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-02": {
+      "correctOptionId": "d",
+      "explanation": "Track the progress означает отслеживать ход рассмотрения или выполнения.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-03": {
+      "correctOptionId": "b",
+      "explanation": "Optional означает необязательный: студент может решить, участвовать ли.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-04": {
+      "correctOptionId": "c",
+      "explanation": "Clear instructions — понятные инструкции. Остальные прилагательные не передают этот смысл.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-05": {
+      "correctOptionId": "a",
+      "explanation": "Beginners — начинающие, поэтому курс рассчитан на небольшой опыт или его отсутствие.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-06": {
+      "correctOptionId": "b",
+      "explanation": "После further здесь нужно существительное information. Inform — глагол, informed и informative — прилагательные.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-07": {
+      "correctOptionId": "c",
+      "explanation": "Meet a deadline означает выполнить или сдать работу к установленному сроку.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-08": {
+      "correctOptionId": "a",
+      "explanation": "Reliable — надёжный; информацию из такого источника можно считать заслуживающей доверия.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-09": {
+      "correctOptionId": "d",
+      "explanation": "Contradict — противоречить: утверждения несовместимы в одной и той же ситуации.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-10": {
+      "correctOptionId": "b",
+      "explanation": "Address a concern означает рассмотреть проблему и заняться ею, а не записать почтовый адрес.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-11": {
+      "correctOptionId": "c",
+      "explanation": "Preliminary — предварительный. После дополнительной работы выводы могут измениться.",
+      "topic": "vocabulary"
+    },
+    "vocabulary-12": {
+      "correctOptionId": "d",
+      "explanation": "Undermine a claim — ослаблять убедительность утверждения. Подсказка вторая часть предложения объясняет значение слова в контексте.",
+      "topic": "vocabulary"
+    },
+    "reading-01": {
+      "correctOptionId": "c",
+      "explanation": "В тексте указано закрытие в среду между 15:00 и 17:00. Оно касается и студентов с бронью.",
+      "topic": "reading"
+    },
+    "reading-02": {
+      "correctOptionId": "a",
+      "explanation": "Бронировать нужно как минимум за день до визита. Для пятницы последний подходящий день — четверг.",
+      "topic": "reading"
+    },
+    "reading-03": {
+      "correctOptionId": "b",
+      "explanation": "Объявление объясняет часы работы, исключение в среду и правила пользования комнатами. Итогов опроса ещё нет.",
+      "topic": "reading"
+    },
+    "reading-04": {
+      "correctOptionId": "d",
+      "explanation": "Ящик для возврата находится снаружи и доступен в любое время. Возможность войти в закрытые комнаты не указана.",
+      "topic": "reading"
+    },
+    "reading-05": {
+      "correctOptionId": "c",
+      "explanation": "Снижение на 18% зафиксировано только в одной комнате; в двух других изменения были небольшими.",
+      "topic": "reading"
+    },
+    "reading-06": {
+      "correctOptionId": "b",
+      "explanation": "Команда разместила напоминания выключать неиспользуемые компьютеры. Других перечисленных вмешательств в тексте нет.",
+      "topic": "reading"
+    },
+    "reading-07": {
+      "correctOptionId": "d",
+      "explanation": "Снижение числа занятий — другое возможное объяснение результата. Одного наблюдения недостаточно для вывода о причине.",
+      "topic": "reading"
+    },
+    "reading-08": {
+      "correctOptionId": "a",
+      "explanation": "В последнем предложении указаны сопоставимые расписания и учёт использованных компьютеров.",
+      "topic": "reading"
+    },
+    "reading-09": {
+      "correctOptionId": "a",
+      "explanation": "Скачанный заранее путеводитель помогает при нестабильном интернете — проблеме, названной в тексте.",
+      "topic": "reading"
+    },
+    "reading-10": {
+      "correctOptionId": "c",
+      "explanation": "Координатор сохраняет видео, но добавляет скачиваемое руководство и оставляет живую помощь.",
+      "topic": "reading"
+    },
+    "reading-11": {
+      "correctOptionId": "b",
+      "explanation": "Ответили 78 из 120 приглашённых; мнение неответивших из этих данных неизвестно.",
+      "topic": "reading"
+    },
+    "reading-12": {
+      "correctOptionId": "d",
+      "explanation": "Опрос подтверждает пользу для части ответивших, но не доказывает улучшение адаптации всех студентов по сравнению со старой программой.",
+      "topic": "reading"
+    }
+  }
+}

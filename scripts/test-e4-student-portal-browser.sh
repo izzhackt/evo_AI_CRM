@@ -88,13 +88,18 @@ supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
 provision_log="$tmp_dir/provision.log"
 provision_result="$tmp_dir/provision-result.json"
+second_provision_log="$tmp_dir/second-provision.log"
+second_provision_result="$tmp_dir/second-provision-result.json"
 app_log="$tmp_dir/app.log"
+browser_log="$evidence_root/browser.log"
 mkdir -p "$project_root/supabase" "$app_root/tests/e2e" "$evidence_root/screenshots"
 chmod 700 "$tmp_dir" "$project_root" "$project_root/supabase" "$app_root" "$evidence_root" "$evidence_root/screenshots"
 : >"$supabase_log"
 : >"$provision_log"
 : >"$app_log"
-chmod 600 "$supabase_log" "$provision_log" "$app_log"
+: >"$second_provision_log"
+: >"$browser_log"
+chmod 600 "$supabase_log" "$provision_log" "$second_provision_log" "$app_log" "$browser_log"
 
 # Never share .next or load a checkout's .env files while another preview runs.
 cp -R "$repo_root/src" "$repo_root/public" "$app_root/"
@@ -102,6 +107,7 @@ for config_file in package.json package-lock.json tsconfig.json next.config.ts p
   cp "$repo_root/$config_file" "$app_root/$config_file"
 done
 cp "$repo_root/tests/e2e/student-portal.spec.ts" \
+  "$repo_root/tests/e2e/student-assessments.spec.ts" \
   "$repo_root/tests/e2e/playwright.student-portal.config.ts" "$app_root/tests/e2e/"
 if [[ "$(uname -s)" == "Darwin" ]]; then
   cp -cR "$repo_root/node_modules" "$app_root/node_modules"
@@ -246,8 +252,8 @@ const expectedVersions = (await readdir(migrationsDirectory))
   .map((name) => /^(\d+)_.*\.sql$/u.exec(name)?.[1] ?? null)
   .filter((version) => version !== null)
   .sort();
-if (expectedVersions.length === 0 || !expectedVersions.includes("127")) {
-  throw new Error("repository migration inventory omits the Student Portal authority");
+if (expectedVersions.length === 0 || !expectedVersions.includes("136")) {
+  throw new Error("repository migration inventory omits the assessment content");
 }
 
 const sql = postgres(databaseUrl, { max: 1, prepare: false });
@@ -266,7 +272,7 @@ try {
 }
 EOF
 then
-  fail "The isolated E4 database did not apply the exact repository migration ledger including 127"
+  fail "The isolated E4 database did not apply the exact repository migration ledger including 136"
 fi
 
 if ! API_URL="$supabase_api_url" SERVICE_ROLE_KEY="$supabase_service_role_key" \
@@ -288,6 +294,10 @@ admin_email="admin-${identity_suffix}@e4.local.test"
 student_email="student-${identity_suffix}@e4.local.test"
 admin_password="$(openssl rand -hex 24)"
 student_password="$(openssl rand -hex 24)"
+second_admin_email="admin-second-${identity_suffix}@e4.local.test"
+second_student_email="student-second-${identity_suffix}@e4.local.test"
+second_admin_password="$(openssl rand -hex 24)"
+second_student_password="$(openssl rand -hex 24)"
 
 if ! EVO_E4_SUPABASE_URL="$supabase_api_url" \
   EVO_E4_SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
@@ -311,9 +321,30 @@ for value in "$organization_id" "$student_membership_id" "$notification_id"; do
   [[ "$value" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
     || fail "The E4 Student Portal provisioner returned an invalid UUID"
 done
+
+# A second invocation creates another real Auth identity and a separate private
+# organization. Both are preactivated local fixtures, never normal invite proof.
+if ! EVO_E4_SUPABASE_URL="$supabase_api_url" \
+  EVO_E4_SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
+  EVO_E4_SUPABASE_DB_URL="$supabase_database_url" \
+  EVO_E4_ADMIN_EMAIL="$second_admin_email" \
+  EVO_E4_ADMIN_PASSWORD="$second_admin_password" \
+  EVO_E4_STUDENT_EMAIL="$second_student_email" \
+  EVO_E4_STUDENT_PASSWORD="$second_student_password" \
+  EVO_E4_PROVISION_RESULT="$second_provision_result" \
+  "$node_bin" scripts/provision-local-student-portal-browser.mjs \
+    >"$second_provision_log" 2>&1; then
+  fail "The isolated second Student fixture could not be provisioned"
+fi
+second_marker="$(grep -m 1 -E '^LOCAL_STUDENT_PORTAL_BROWSER_PROVISIONED [0-9a-f-]{36} [0-9a-f-]{36} [0-9a-f-]{36}$' "$second_provision_log" || true)"
+[[ -n "$second_marker" ]] || fail "The second fixture returned no success marker"
+read -r _ second_organization_id second_membership_id second_notification_id <<<"$second_marker"
+[[ "$second_organization_id" != "$organization_id" && "$second_membership_id" != "$student_membership_id" ]] \
+  || fail "The second Student fixture did not isolate its authority"
 for sensitive_value in "$supabase_service_role_key" "$supabase_database_url" \
-  "$admin_email" "$admin_password" "$student_email" "$student_password"; do
-  if grep -F "$sensitive_value" "$provision_log" >/dev/null; then
+  "$admin_email" "$admin_password" "$student_email" "$student_password" \
+  "$second_admin_email" "$second_admin_password" "$second_student_email" "$second_student_password"; do
+  if grep -F "$sensitive_value" "$provision_log" "$second_provision_log" >/dev/null; then
     fail "The E4 Student Portal provisioner exposed a credential"
   fi
 done
@@ -334,7 +365,6 @@ app_pid=$!
 app_deadline=$((SECONDS + 180))
 while (( SECONDS < app_deadline )); do
   if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-    sed -n '1,200p' "$app_log" >&2
     fail "The E4 application exited before browser validation"
   fi
   health_code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
@@ -343,11 +373,11 @@ while (( SECONDS < app_deadline )); do
   sleep 1
 done
 [[ "${health_code:-}" == "200" ]] || {
-  sed -n '1,200p' "$app_log" >&2
   fail "The E4 application did not become reachable"
 }
 
 echo "E4_STUDENT_PORTAL_LOCAL_ORIGIN http://127.0.0.1:${app_port}"
+browser_status=0
 (
 cd "$app_root"
 PLAYWRIGHT_BASE_URL="http://127.0.0.1:${app_port}" \
@@ -356,19 +386,26 @@ EVO_STUDENT_PORTAL_ADMIN_EMAIL="$admin_email" \
 EVO_STUDENT_PORTAL_ADMIN_PASSWORD="$admin_password" \
 EVO_STUDENT_PORTAL_STUDENT_EMAIL="$student_email" \
 EVO_STUDENT_PORTAL_STUDENT_PASSWORD="$student_password" \
+EVO_STUDENT_PORTAL_STUDENT_SECOND_EMAIL="$second_student_email" \
+EVO_STUDENT_PORTAL_STUDENT_SECOND_PASSWORD="$second_student_password" \
 EVO_STUDENT_PORTAL_NOTIFICATION_ID="$notification_id" \
 EVO_STUDENT_PORTAL_DB_URL="$supabase_database_url" \
 EVO_STUDENT_PORTAL_SUPABASE_URL="$supabase_api_url" \
 EVO_STUDENT_PORTAL_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   "$node_bin" node_modules/@playwright/test/cli.js test \
     --config=tests/e2e/playwright.student-portal.config.ts --reporter=list
-)
+) >"$browser_log" 2>&1 || browser_status=$?
 
 for sensitive_value in "$supabase_service_role_key" "$supabase_database_url" \
-  "$admin_password" "$student_password"; do
-  if grep -F "$sensitive_value" "$app_log" >/dev/null; then
+  "$admin_password" "$student_password" "$second_admin_password" "$second_student_password"; do
+  if grep -F "$sensitive_value" "$app_log" "$browser_log" >/dev/null; then
+    rm -f -- "$browser_log"
     fail "The E4 application log exposed a credential"
   fi
 done
+cat "$browser_log"
+[[ "$browser_status" == "0" ]] || exit "$browser_status"
 
-echo "E4_STUDENT_PORTAL_BROWSER_VERIFIED"
+echo "E4_STUDENT_PORTAL_MIGRATION_LEDGER_VERIFIED_THROUGH 136" | tee -a "$browser_log"
+echo "E4_STUDENT_PORTAL_FIXTURE_MODE preactivated_synthetic_real_auth_db_two_organizations_not_invite_proof" | tee -a "$browser_log"
+echo "E4_STUDENT_PORTAL_BROWSER_VERIFIED" | tee -a "$browser_log"

@@ -36,6 +36,7 @@ function metadata(value: unknown): AssessmentMetadata {
     ...(row.skillLabels ? { skillLabels: Object.fromEntries(Object.entries(record(row.skillLabels)).slice(0, 36).map(([id, value]) => [text(id, 100), text(value, 300)])) } : {}),
     ...(row.scales ? { scales: list(row.scales, item => { const s = record(item); return { id: scale(s.id), label: text(s.label, 100), description: text(s.description) }; }, 8) } : {}),
     ...(row.professions ? { professions: list(row.professions, profession, 32) } : {}),
+    ...(row.professionAttribution ? { professionAttribution: text(row.professionAttribution) } : {}),
   };
 }
 function question(value: unknown): AssessmentQuestion {

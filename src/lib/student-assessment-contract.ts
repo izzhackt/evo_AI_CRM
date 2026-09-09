@@ -25,6 +25,7 @@ export type AssessmentMetadata = {
   skillLabels?: Record<string, string>;
   scales?: { id: OrvisScale; label: string; description: string }[];
   professions?: AssessmentProfession[];
+  professionAttribution?: string;
 };
 export type AssessmentResult = {
   instrumentKey: StudentAssessmentKey; version: string; metadata: AssessmentMetadata;

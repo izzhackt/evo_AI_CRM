@@ -22522,3 +22522,26 @@ harness/contract checks plus a fresh exact-main full CI provide the green proof.
 If inspection shows an actual product regression, treat it separately rather
 than changing the expected result. No additional schema or account mutation is
 requested by this repair. Deploy only after review and all applicable gates.
+
+### 2026-09-09 — record accepted Student/Admissions release and same-source tunnel
+
+Status/evidence update, not additional product or production authority. Browser
+expectation repair #705 was independently reviewed at f48927b2 and merged as
+76c62b902d9a2e094be8fcd65259a4962ad597b1. Full CI34391182045 passed all five jobs;
+automatic release34391907814 accepted that exact revision as r29.1-76c62b90.
+Fresh accepted-pointer/image/receipt/health readback matched; pending-current was
+absent. The release arm was reset to false and freshly verified19:00:06UTC.
+
+The same existing production database/Auth/Storage remains permanent. Aggregate
+readback19:03:01UTC confirmed exact ledger001–138,209sales/4targets,Auth2 with one
+active Platform Admin and zero Student identities/cases. No new backup/rehearsal,
+clone, synthetic production account, business mutation or account cleanup was
+performed. Existing Chrome at localhost3000 now shows the accepted app through
+its original loopback SSH tunnel; country/filter/monthly-summary/Sales read-only
+checks passed. Preserve unrelated localhost3100 resources.
+
+Update the two active plans and add the detailed sanitized production reference.
+P9 is technically deployed, but owner UX/business acceptance and actual Student
+production invitation/private-test coverage remain distinct. Account target is
+still awaiting clarification; do not infer deletion or relax Student privacy.
+Do not repeat migrations/import/deployment for this docs-only checkpoint.

@@ -9,15 +9,20 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded deployed application: `0cbb2d42d9691fac392864fea72a3f0894826773`, version
-`r27.1-0cbb2d42`, after full CI `34223961358` and release `34224668896` passed.
-Production schema is at 138 after manual ledger apply `34389465309` on September 9;
-the release arm was reset to false after candidate `3b4e08db` full CI
-`34389680062` failed before deployment. The one-time import of
-209 sales/4 targets is reconciled; owner business acceptance remains deferred.
-The earlier accepted
-`4e6057f0` evidence in closed #552/#553 remains first-release history, not the
-current app revision. A documentation change does not by itself deploy the app.
+Last recorded accepted application: `76c62b902d9a2e094be8fcd65259a4962ad597b1`,
+version `r29.1-76c62b90`, after full CI `34391182045` passed all five jobs and
+release `34391907814` succeeded, including `Accept exact V3 candidate`.
+Production ledger001–138 is exact after manual apply `34389465309` and readback.
+Accepted pointer: `v3-r34391907814-a1-76c62b90`; app/ClamAV are healthy with zero
+restarts, public HTTPS health200, `pending-current.json` absent, and release arm=false was read back at
+19:00:06 UTC. See the [production evidence](design/v3/references/2026-09-09-student-admissions-production.md)
+for immutable image/acceptance hashes and bounded live Admin/tunnel proof.
+The one-time import of 209 sales/4 targets remains reconciled. Owner business
+acceptance and live Student proof remain separate. No new backup/rehearsal was
+performed under the owner waiver; retained backups and the previous `0cbb2d42`
+image remain rollback evidence, not a new recovery point. Earlier `4e6057f0`
+evidence in closed #552/#553 is first-release history. A documentation change
+does not deploy a new app revision or require repeating this accepted release.
 
 ## Predecessor UI block: EVO brand and usability refresh (2026-09-09)
 
@@ -70,7 +75,8 @@ viewport skips, 15 inspected screenshots. The fixture uses real Auth/Postgres wi
 a preactivated synthetic case, not proof of the normal invitation flow. See the
 reference note. PR #692 subsequently passed independent exact-head review and
 CI34358523190 and merged as `198f5551`; do not reset the password again.
-The September 8 deployment above remains the last recorded production checkpoint.
+The September 8 deployment is predecessor history; the current accepted
+production checkpoint is recorded above.
 
 ## Current run: Student Portal and China/Malaysia Admissions (2026-09-09)
 
@@ -89,16 +95,27 @@ choices for documented post-edit; Malaysia is not awaiting a source document.
 
 ### Latest owner direction: release, no new backup, persistent source
 
-Current execution checkpoint: docs #704 merged as `3b4e08db`; reviewed forward
-migrations 135–138 applied successfully, ledger001–138 read back. The app remains
-`0cbb2d42`; attempted release `34390292724` was skipped after four browser-check
-failures in full CI. Next fix only the stale profile denial copy/directory entry
-tab assertions. The earlier Student360 scenario produces the P4 media fixture;
-its failed link assertion prevented that receipt, causing the later D2 failure.
-Preserve the existing producer and denial/RLS/media checks; no test skips or
-fabricated acceptance files. Re-run the affected real harness before claiming
-the next exact-main full CI/release successful. Existing owner waiver and
-persistent-source boundaries remain unchanged.
+Current execution checkpoint: P9 is technically DEPLOYED on `76c62b90`.
+The earlier `3b4e08db` full CI `34389680062` failed before deployment and
+release `34390292724` was skipped. Stale profile-denial copy, the directory's
+route-tab destination and its collapsed workspace were corrected without
+changing the real P4 producer or weakening denial/RLS/media checks. The failed
+producer had prevented its receipt, causing the secondary D2 error; no receipt
+was fabricated. Full exact-main CI `34391182045` then passed all five jobs;
+release `34391907814` and its exact-candidate acceptance completed successfully.
+
+The existing localhost3000 tunnel targets the current Hermes app at
+`172.16.8.4:3000`, not a second runtime. A real Chrome session using the existing
+Admin loaded the branded Admissions worklist, zero-count summary and direction
+links. Read-only CN/MY navigation, MY overdue/reset, short-report expansion and
+September2026 period submission, plus the Sales report, passed in that session.
+This is bounded live Admin evidence, not a full country-case journey,
+production Student assessment/invitation proof or owner business acceptance.
+Detailed browser outcomes are recorded in the production evidence.
+No new synthetic production users/cases or business writes were made. One active
+Admin membership and the second legacy Auth identity remain unchanged pending
+the exact account-consolidation target. Existing owner waiver and persistent-source
+boundaries remain unchanged; #687 still needs its separate owner acceptance.
 
 On September 9, after the backup blockers were explained, the owner explicitly
 requested this release without a new backup for now, plus a localhost tunnel to
@@ -149,7 +166,8 @@ The September9 pre-waiver production preflight reported `0cbb2d42`/schema134,
 health200 and arm=false. At that point a fresh backup of current imported data,
 its isolated restore/migration rehearsal, final-main CI and controlled release
 were remaining gates. The owner subsequently deferred the new backup/rehearsal;
-final-main CI and controlled release/readback remain required. Bounded temporary
+the later completed exact-main CI and controlled release/readback are recorded
+in the current checkpoint above. Bounded temporary
 read-only backup transport #703 at
 `279787cd` passed independent review, focused tests, real isolated PostgreSQL18.6
 dump-parity/privilege checks and actual read-only exporter preflight. No live
@@ -169,8 +187,9 @@ check or delete that user. See the [managed read-only checkpoint](design/v3/back
 `62842346`, CI `34372235415`. Export is now deferred; tooling merge is not
 cleanup authority.
 These were pre-waiver P9 blockers, not unfinished Student/Admissions features.
-The latest owner direction above defers that backup/restore path; no database
-password reset, JIT/SSL setting change or production runtime mutation occurred.
+The latest owner direction above defers that backup/restore path. At that
+pre-waiver checkpoint no database password reset, JIT/SSL setting change or
+production runtime mutation had occurred; the subsequent app release is recorded above.
 Existing #687 rollback exceptions remain under their separate owner-acceptance gate.
 
 ## Historical integration and release-preparation checkpoints

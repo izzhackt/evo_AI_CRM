@@ -575,6 +575,14 @@ BEGIN
  IF body=original OR strpos(body,'page.admissions_version')=0 OR strpos(body,'p_direction text DEFAULT')=0 OR strpos(body,'visible.admissions_direction')=0 THEN RAISE EXCEPTION 'Admissions directory source anchor drift'; END IF;
  DROP FUNCTION platform.staff_student_case_page(INTEGER,TIMESTAMPTZ,UUID,platform.student_case_state,TEXT,UUID);
  EXECUTE body;
+
+ -- The existing detail snapshot has a fixed legacy return signature. Its SQL
+ -- body is validated lazily, so page.* would shift handoff columns at runtime
+ -- after the directory gains fields. Keep its projection and authority intact.
+ SELECT pg_get_functiondef('platform.staff_student_case_read_snapshot(uuid)'::regprocedure) INTO original;
+ IF strpos(original,E'    page.*,')=0 THEN RAISE EXCEPTION 'Admissions snapshot source anchor drift'; END IF;
+ body:=replace(original,E'    page.*,',E'    page.access_mode, page.sort_at, page.organization_id, page.student_case_id,\n    page.student_display_name, page.target_country, page.target_degree,\n    page.program_direction, page.intake, page.language_assumption,\n    page.funding_assumption, page.route_approval_status, page.operational_stage,\n    page.state, page.created_at, page.updated_at, page.handoff_at, page.next_action,\n    page.responsible_sales_display_name, page.current_curator_display_name,\n    page.applied_ozo_workflow_contract_version_id, page.overdue_task_count,\n    page.overdue_obligation_count, page.rejected_document_count,');
+ EXECUTE body;
 END $migration$;
 
 -- Old status RPCs keep their single canonical implementation, with a shared

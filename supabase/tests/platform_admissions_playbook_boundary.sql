@@ -177,6 +177,8 @@ END $$;
 -- Scope, least privilege, pagination and immutable snapshots.
 SELECT platform.configure_case_admissions_v1(pg_temp.a137_id(503),0,'CN',(SELECT (v->>'id')::UUID FROM jsonb_array_elements(platform.admissions_playbook_catalog_v1()->'playbooks') v WHERE v->>'direction'='CN' LIMIT 1),'Просроченный контакт',CURRENT_DATE-2,pg_temp.a137_id(950));
 SELECT pg_temp.a137_assert((SELECT count(*)=1 FROM platform.staff_student_case_page(1,NULL,NULL,NULL,NULL,NULL,'CN',pg_temp.a137_id(303),'overdue') WHERE student_case_id=pg_temp.a137_id(503)),'filters apply before limit');
+SELECT pg_temp.a137_assert((SELECT count(*)=1 FROM platform.staff_student_case_read_snapshot(pg_temp.a137_id(503)) WHERE student_case_id=pg_temp.a137_id(503) AND access_mode='full'),'legacy detail snapshot executes after expanded directory');
+SELECT pg_temp.a137_assert((SELECT (SELECT count(*)=33 FROM jsonb_object_keys(to_jsonb(snapshot))) AND NOT(to_jsonb(snapshot) ?| ARRAY['admissions_direction','next_action_due_on','admissions_version']) FROM platform.staff_student_case_read_snapshot(pg_temp.a137_id(503)) snapshot),'legacy detail snapshot keeps its exact 33-column projection');
 SELECT platform.transition_case_admissions_v1(pg_temp.a137_id(503),1,'intake','cancelled','Клиент отказался',pg_temp.a137_id(951));
 SELECT pg_temp.a137_assert((SELECT s->>'cancelled'='1' AND s->>'arrived'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'stock') s),'cancelled and arrived are separate');
 SELECT pg_temp.a137_assert((SELECT s->>'count'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'periodArrivals') s),'period report counts currently confirmed arrival dates');

@@ -22371,3 +22371,14 @@ https://www.imi.gov.my/index.php/en/main-services/pass/student-pass/ .
 Verify MY through arrival without invented generic visa dates and with Student
 Pass still pending, plus a negative CN missing-date regression. Also align the
 direction summary's overdue label with its task/partner/correction scope.
+
+### 2026-09-09 — preserve the existing case snapshot projection
+
+Real E5 Curator navigation exposed a lazy SQL validation failure: migration137
+adds directory columns, while the existing 078 staff_student_case_read_snapshot
+uses page.* inside its fixed 33-column return contract. Preserve that snapshot
+API and its access boundaries by selecting its original 24 page columns by name,
+followed by the unchanged nine conditional handoff fields. Do not expand the old
+snapshot or remove authority checks. Add an actual authenticated snapshot RPC
+regression after migrations137/138, including its exact legacy projection, and
+repeat the real browser navigation. Source-only tests did not catch this failure.

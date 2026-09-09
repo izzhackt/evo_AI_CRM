@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Read-only #551 managed-Supabase backup exporter.
+ * #551 managed-Supabase backup exporter with explicit bounded login transport.
  *
- * The command never links, migrates, restores, uploads, deletes, or changes a
- * provider project. It binds one authenticated Management API receipt to
+ * Password mode is provider-read-only. Explicit temporary-cli-readonly run mode
+ * creates and revokes one verified read-only login lease; neither mode links,
+ * migrates, restores, uploads, or changes project configuration. It binds one
+ * authenticated Management API receipt to
  * encrypted logical database/Auth artifacts and a separately captured Storage
  * byte archive. Only the redacted signed receipt is safe to publish.
  */
@@ -46,6 +48,11 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  ManagedReadOnlyLeaseError, TEMPORARY_LEASE_PROJECT_REF, READ_ONLY_EFFECTIVE_ROLE,
+  withTemporaryReadOnlyLease, validateAccessLifecycleEvidence,
+  buildReadOnlyCapabilitySql, normalizeReadOnlyCapabilities, validateReadOnlyCopyCoverage,
+} from "./lib/managed-supabase-readonly-lease.mjs";
 
 const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_EXPORT";
 const OPT_IN_VALUE = "1";
@@ -71,6 +78,7 @@ const MAX_STORAGE_TOTAL_BYTES = 500 * 1024 * 1024 * 1024;
 const DATABASE_SCHEMA = "evo-v3-managed-supabase-logical-backup/v1";
 const STORAGE_SCHEMA = "evo-v3-managed-supabase-storage-backup/v1";
 const RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v1";
+const LEASE_RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v2";
 const SIGNATURE_NAMESPACE = "evo-v3-managed-supabase-recovery";
 const SIGNATURE_IDENTITY = "evo-v3-managed-supabase-export";
 const RUN_MARKER = ".evo-v3-managed-supabase-export";
@@ -268,6 +276,8 @@ export function parseArgs(argv) {
     "--age-recipient",
     "--signing-key",
     "--trusted-public-key",
+    "--database-auth",
+    "--exclusive-project-ref",
   ]);
   for (let index = 1; index < argv.length; index += 2) {
     const name = argv[index];
@@ -277,11 +287,19 @@ export function parseArgs(argv) {
     }
     values.set(name, value);
   }
-  if (values.size !== allowed.size || argv.length !== 1 + allowed.size * 2) {
+  if (!["--project-ref", "--output-root", "--age-recipient", "--signing-key", "--trusted-public-key"].every((name) => values.has(name)) ||
+    argv.length !== 1 + values.size * 2) {
     fail("arguments_invalid");
   }
   const projectRef = requiredString(values.get("--project-ref"), "project_ref_invalid");
   if (!PROJECT_REF.test(projectRef)) fail("project_ref_invalid");
+  const databaseAuth = values.get("--database-auth") ?? "password";
+  if (!["password", "temporary-cli-readonly"].includes(databaseAuth) ||
+    (databaseAuth === "password" && values.has("--exclusive-project-ref")) ||
+    (databaseAuth === "temporary-cli-readonly" &&
+      (projectRef !== TEMPORARY_LEASE_PROJECT_REF || values.get("--exclusive-project-ref") !== projectRef))) {
+    fail("temporary_lease_scope_invalid");
+  }
   const ageRecipient = requiredString(values.get("--age-recipient"), "age_recipient_invalid");
   if (!AGE_RECIPIENT.test(ageRecipient)) fail("age_recipient_invalid");
   return Object.freeze({
@@ -291,12 +309,15 @@ export function parseArgs(argv) {
     ageRecipient,
     signingKey: values.get("--signing-key"),
     trustedPublicKey: values.get("--trusted-public-key"),
+    ...(values.has("--database-auth") ? { databaseAuth } : {}),
+    ...(databaseAuth === "temporary-cli-readonly" ? { exclusiveProjectRef: projectRef } : {}),
   });
 }
 
-function requireSecrets(environment) {
+function requireSecrets(environment, databaseAuth = "password") {
   const result = {};
   for (const name of REQUIRED_SECRET_NAMES) {
+    if (name === "SUPABASE_DB_PASSWORD" && databaseAuth === "temporary-cli-readonly") continue;
     result[name] = requiredString(environment[name], "required_secret_missing", 16_384);
   }
   if (!isSupabasePublishableKey(result.EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY)) {
@@ -713,7 +734,7 @@ function artifactMetadata(path, { allowEmpty = false } = {}) {
   });
 }
 
-export async function analyzeCopyDumpFile(path, requireLedger = false) {
+export async function analyzeCopyDumpFile(path, requireLedger = false, { includeTableNames = false } = {}) {
   const counts = {};
   const sectionHashes = {};
   let current = null;
@@ -793,6 +814,7 @@ export async function analyzeCopyDumpFile(path, requireLedger = false) {
   const entries = Object.entries(counts).sort(([left], [right]) => left.localeCompare(right, "en"));
   return Object.freeze({
     ledger,
+    ...(includeTableNames ? { copyTables: Object.freeze(entries.map(([table]) => table)) } : {}),
     copy_sections_sha256: sha256(
       canonicalJson(
         Object.fromEntries(
@@ -948,6 +970,7 @@ export function assertRedactedReceipt(receipt) {
       "tools",
       "signature",
       "result",
+      ...(receipt?.schema === LEASE_RECEIPT_SCHEMA ? ["source_access"] : []),
     ],
     "receipt_shape_invalid",
   );
@@ -968,9 +991,10 @@ export function assertRedactedReceipt(receipt) {
   ]) {
     if (text.includes(forbidden)) fail("receipt_contains_sensitive_material");
   }
-  if (receipt.schema !== RECEIPT_SCHEMA || receipt.result !== "export_verified") {
+  if (![RECEIPT_SCHEMA, LEASE_RECEIPT_SCHEMA].includes(receipt.schema) || receipt.result !== "export_verified") {
     fail("receipt_shape_invalid");
   }
+  if (receipt.schema === LEASE_RECEIPT_SCHEMA) validateAccessLifecycleEvidence(receipt.source_access);
   requireExactKeys(
     receipt.signature,
     ["namespace", "identity", "public_key_fingerprint", "trust_root"],
@@ -1051,6 +1075,7 @@ export function spawnCommand(command, args, {
   signal,
   input = null,
   captureStdout = false,
+  captureLimit = MAX_CAPTURE_BYTES,
   stdoutPath = null,
   code = "command_failed",
   timeoutMs = COMMAND_TIMEOUT_MS,
@@ -1074,7 +1099,11 @@ export function spawnCommand(command, args, {
       reject(new ManagedSupabaseExportError("command_output_contract_invalid"));
       return;
     }
-    const stdout = limitedCollector();
+    if (!Number.isSafeInteger(captureLimit) || captureLimit < 1 || captureLimit > MAX_MANAGEMENT_BYTES) {
+      reject(new ManagedSupabaseExportError("command_output_contract_invalid"));
+      return;
+    }
+    const stdout = limitedCollector(captureLimit);
     let outputDescriptor = null;
     let child;
     try {
@@ -1224,6 +1253,7 @@ export async function openSynchronizedDatabaseSnapshot(command, args, {
   if (!environment || typeof environment !== "object") {
     fail("command_environment_required");
   }
+  if (![undefined, "postgres", READ_ONLY_EFFECTIVE_ROLE].includes(environment.EVO_DUMP_EFFECTIVE_ROLE)) fail("database_source_mismatch");
   if (signal?.aborted) fail("export_interrupted");
   if (process.platform === "win32") fail("process_group_unsupported");
 
@@ -1391,6 +1421,7 @@ export async function openSynchronizedDatabaseSnapshot(command, args, {
   });
   child.stdin.on("error", () => terminate("database_snapshot_holder_failed"));
   child.stdin.write(
+    (environment.EVO_DUMP_EFFECTIVE_ROLE === READ_ONLY_EFFECTIVE_ROLE ? `SET ROLE "${READ_ONLY_EFFECTIVE_ROLE}";\n` : "") +
     `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\n` +
       `SELECT '${SNAPSHOT_OUTPUT_PREFIX}' || pg_export_snapshot();\n`,
     (error) => {
@@ -1731,6 +1762,27 @@ async function managementReceipt(projectRef, accessToken, signal, nowMs) {
     pooler,
     sha256: sha256(canonicalJson({ project, backup, pooler })),
   });
+}
+
+export function normalizeLeaseSourceLedger(rows, localVersions) {
+  if (!Array.isArray(rows) || rows.length === 0 || !Array.isArray(localVersions)) fail("lease_source_ledger_invalid");
+  const versions = rows.map((row) => {
+    requireExactKeys(row, ["version", "name"], "lease_source_ledger_invalid");
+    if (typeof row.version !== "string" || !/^\d{3}$/u.test(row.version) ||
+      (row.name !== null && typeof row.name !== "string")) fail("lease_source_ledger_invalid");
+    return row.version;
+  }).sort();
+  if (versions.length > localVersions.length || versions.some((version, index) =>
+    version !== String(index + 1).padStart(3, "0") || version !== [...localVersions].sort()[index])) fail("lease_source_ledger_invalid");
+  return Object.freeze({ count: versions.length, minVersion: versions[0], maxVersion: versions.at(-1) });
+}
+
+async function readLeaseSourceLedger({ projectRef, accessToken, signal, root }) {
+  const rows = await fetchJson(`https://api.supabase.com/v1/projects/${projectRef}/database/migrations`,
+    { method: "GET", headers: { Authorization: `Bearer ${accessToken}` } }, "lease_source_ledger_lookup_failed", signal);
+  const localVersions = readdirSync(join(root, "supabase", "migrations"))
+    .filter((name) => /^\d{3}_.+\.sql$/u.test(name)).map((name) => name.slice(0, 3));
+  return normalizeLeaseSourceLedger(rows, localVersions);
 }
 
 async function verifyProjectKeys(projectRef, publishableKey, secretKey, signal) {
@@ -2258,8 +2310,13 @@ async function dumpDatabase({
   state,
   environment,
   reverse = false,
+  sessionRole = null,
 }) {
-  if (environment.PGUSER !== `postgres.${projectRef}`) fail("database_source_mismatch");
+  const expectedRole = sessionRole ?? "postgres";
+  if ((sessionRole !== null && !/^cli_login_[a-z0-9_]{1,53}$/u.test(sessionRole)) ||
+    environment.PGUSER !== `${expectedRole}.${projectRef}` ||
+    (sessionRole !== null ? environment.EVO_DUMP_EFFECTIVE_ROLE !== READ_ONLY_EFFECTIVE_ROLE :
+      ![undefined, "postgres"].includes(environment.EVO_DUMP_EFFECTIVE_ROLE))) fail("database_source_mismatch");
   const commands = managedDatabaseDumpPlan(snapshotId);
   const orderedCommands = reverse ? [...commands].reverse() : commands;
   for (const command of orderedCommands) {
@@ -2290,6 +2347,7 @@ async function verifyDatabaseSnapshotStable({
   signal,
   state,
   environment,
+  sessionRole = null,
 }) {
   const verification = join(staging, "database-stability");
   mkdirSync(verification, { mode: 0o700 });
@@ -2302,6 +2360,7 @@ async function verifyDatabaseSnapshotStable({
     signal,
     state,
     environment,
+    sessionRole,
     reverse: true,
   });
   const semanticArtifacts = {};
@@ -2597,8 +2656,10 @@ async function collectPreflight({
     ...commandEnvironment,
     PGHOST: source.pooler.host,
     PGPORT: String(source.pooler.session_port),
-    PGUSER: source.pooler.user,
-    PGPASSWORD: secrets.SUPABASE_DB_PASSWORD,
+    ...(args.databaseAuth === "temporary-cli-readonly" ? {} : {
+      PGUSER: source.pooler.user,
+      PGPASSWORD: secrets.SUPABASE_DB_PASSWORD,
+    }),
     PGDATABASE: source.pooler.database,
     PGSSLMODE: "verify-full",
     PGSSLROOTCERT: databaseCa.path,
@@ -2614,6 +2675,8 @@ async function collectPreflight({
     signal,
   );
   const storageBefore = await listStorageInventory(storageClient);
+  const sourceLedger = args.databaseAuth === "temporary-cli-readonly" ?
+    await readLeaseSourceLedger({ projectRef: args.projectRef, accessToken: secrets.SUPABASE_ACCESS_TOKEN, signal, root }) : null;
   return Object.freeze({
     outputRoot,
     signing,
@@ -2626,6 +2689,7 @@ async function collectPreflight({
     storageBefore,
     commandEnvironment,
     databaseEnvironment,
+    ...(sourceLedger ? { sourceLedger } : {}),
     executables: runtimeExecutables,
   });
 }
@@ -2678,82 +2742,84 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
     });
     state.cleanup = cleanup;
 
-    const snapshotHolder = await openSynchronizedDatabaseSnapshot(
-      preflight.executables.psql.real,
-      [
-        "--no-psqlrc",
-        "--quiet",
-        "--tuples-only",
-        "--no-align",
-        "--set",
-        "ON_ERROR_STOP=1",
-      ],
-      {
-        cwd: root,
-        environment: preflight.databaseEnvironment,
-        signal,
-        state,
-      },
-    );
-    const databaseController = new AbortController();
-    const databaseSignal = AbortSignal.any([signal, databaseController.signal]);
-    const runWithSnapshot = async (operation) => {
-      try {
-        return await Promise.race([
-          operation,
-          snapshotHolder.done.then(() => {
-            fail("database_snapshot_holder_exited_early");
-          }),
-        ]);
-      } catch (error) {
-        databaseController.abort(error);
-        await Promise.allSettled([operation]);
-        throw error;
+    const captureDatabase = async (lease = null, operationSignal = signal) => {
+      const databaseEnvironment = lease ? {
+        ...preflight.databaseEnvironment,
+        PGUSER: `${lease.role}.${args.projectRef}`,
+        PGPASSWORD: lease.password,
+        EVO_DUMP_EFFECTIVE_ROLE: READ_ONLY_EFFECTIVE_ROLE,
+        PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=60000 -c idle_in_transaction_session_timeout=900000",
+      } : preflight.databaseEnvironment;
+      const psqlArgs = ["--no-psqlrc", "--quiet", "--tuples-only", "--no-align", "--set", "ON_ERROR_STOP=1"];
+      let capabilities = null;
+      if (lease) {
+        const output = await spawnCommand(preflight.executables.psql.real, psqlArgs, {
+          cwd: root, environment: databaseEnvironment, signal: operationSignal, state,
+          input: buildReadOnlyCapabilitySql(), captureStdout: true, captureLimit: MAX_MANAGEMENT_BYTES,
+          code: "readonly_capability_query_failed", timeoutMs: 60_000,
+        });
+        let payload;
+        try { payload = JSON.parse(output); } catch { fail("readonly_capabilities_invalid"); }
+        capabilities = normalizeReadOnlyCapabilities(payload, { sessionRole: lease.role });
       }
+      const snapshotHolder = await openSynchronizedDatabaseSnapshot(preflight.executables.psql.real, psqlArgs, {
+        cwd: root, environment: databaseEnvironment, signal: operationSignal, state,
+      });
+      const databaseController = new AbortController();
+      const databaseSignal = AbortSignal.any([operationSignal, databaseController.signal]);
+      const runWithSnapshot = async (operation) => {
+        try {
+          return await Promise.race([
+            operation,
+            snapshotHolder.done.then(() => { fail("database_snapshot_holder_exited_early"); }),
+          ]);
+        } catch (error) {
+          databaseController.abort(error);
+          await Promise.allSettled([operation]);
+          throw error;
+        }
+      };
+      let databaseStability;
+      try {
+        const dumpOptions = {
+          root, executables: preflight.executables, projectRef: args.projectRef,
+          snapshotId: snapshotHolder.snapshotId, staging: temporaryDirectory,
+          signal: databaseSignal, state, environment: databaseEnvironment, sessionRole: lease?.role ?? null,
+        };
+        await runWithSnapshot(dumpDatabase(dumpOptions));
+        databaseStability = await runWithSnapshot(verifyDatabaseSnapshotStable(dumpOptions));
+      } finally {
+        await snapshotHolder.close();
+      }
+      ensureInterrupted(operationSignal);
+      const historyAnalysis = await analyzeCopyDumpFile(join(temporaryDirectory, "history-data.sql"), true,
+        { includeTableNames: !!lease });
+      const dataAnalysis = await analyzeCopyDumpFile(join(temporaryDirectory, "data.sql"), false,
+        { includeTableNames: !!lease });
+      if (lease) {
+        validateReadOnlyCopyCoverage({ capabilities, dataAnalysis, historyAnalysis });
+        const observed = historyAnalysis.ledger;
+        if (observed.count !== preflight.sourceLedger.count || observed.min_version !== preflight.sourceLedger.minVersion ||
+          observed.max_version !== preflight.sourceLedger.maxVersion) fail("lease_source_ledger_drift");
+      }
+      if (dataAnalysis.aggregates.storage_bucket_row_count !== preflight.storageBefore.bucket_count ||
+        dataAnalysis.aggregates.storage_object_row_count !== preflight.storageBefore.object_count) fail("storage_database_inventory_mismatch");
+      return { databaseStability, historyAnalysis, dataAnalysis };
     };
-    let databaseStability;
-    try {
-      await runWithSnapshot(dumpDatabase({
-        root,
-        executables: preflight.executables,
-        projectRef: args.projectRef,
-        snapshotId: snapshotHolder.snapshotId,
-        staging: temporaryDirectory,
-        signal: databaseSignal,
-        state,
-        environment: preflight.databaseEnvironment,
-      }));
-      databaseStability = await runWithSnapshot(verifyDatabaseSnapshotStable({
-        root,
-        executables: preflight.executables,
-        projectRef: args.projectRef,
-        snapshotId: snapshotHolder.snapshotId,
-        staging: temporaryDirectory,
-        signal: databaseSignal,
-        state,
-        environment: preflight.databaseEnvironment,
-      }));
-    } finally {
-      await snapshotHolder.close();
-    }
+    const capture = args.databaseAuth === "temporary-cli-readonly" ? await withTemporaryReadOnlyLease({
+      projectRef: args.projectRef, exclusiveProjectRef: args.exclusiveProjectRef,
+      accessToken: secrets.SUPABASE_ACCESS_TOKEN, signal,
+      processesDrained: () => state.terminators.size === 0 && state.processGroups.size === 0,
+    }, captureDatabase) : { value: await captureDatabase(), sourceAccess: null };
+    const { databaseStability, historyAnalysis, dataAnalysis } = capture.value;
+    const sourceAccess = capture.sourceAccess;
     ensureInterrupted(signal);
 
     const databaseArtifacts = Object.fromEntries(
       EXPECTED_ARTIFACTS.map((filename) => [filename, artifactMetadata(join(temporaryDirectory, filename))]),
     );
-    const historyAnalysis = await analyzeCopyDumpFile(
-      join(temporaryDirectory, "history-data.sql"),
-      true,
-    );
-    const dataAnalysis = await analyzeCopyDumpFile(join(temporaryDirectory, "data.sql"));
     const ledger = historyAnalysis.ledger;
     const aggregates = dataAnalysis.aggregates;
-    if (
-      aggregates.storage_bucket_row_count !== preflight.storageBefore.bucket_count ||
-      aggregates.storage_object_row_count !== preflight.storageBefore.object_count
-    ) {
-      fail("storage_database_inventory_mismatch");
-    }
     const databaseManifest = Object.freeze({
       schema: DATABASE_SCHEMA,
       captured_at: timestamp,
@@ -2835,7 +2901,8 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
     }
 
     const receipt = assertRedactedReceipt(Object.freeze({
-      schema: RECEIPT_SCHEMA,
+      schema: sourceAccess ? LEASE_RECEIPT_SCHEMA : RECEIPT_SCHEMA,
+      ...(sourceAccess ? { source_access: sourceAccess } : {}),
       captured_at: timestamp,
       git: preflight.git,
       source: Object.freeze({ identity_sha256: preflight.source.sha256 }),
@@ -2907,7 +2974,7 @@ async function executeExport({ args, root, secrets, signal, state, preflight }) 
 export async function runManagedSupabaseExport(argv, environment = process.env) {
   if (environment[OPT_IN] !== OPT_IN_VALUE) fail("explicit_opt_in_required");
   const args = parseArgs(argv);
-  const secrets = requireSecrets(environment);
+  const secrets = requireSecrets(environment, args.databaseAuth);
   const operatorHome = validateOperatorHome(environment.HOME);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const abortController = new AbortController();
@@ -2978,7 +3045,7 @@ if (isDirectRun()) {
       }
     })
     .catch((error) => {
-      const code = error instanceof ManagedSupabaseExportError ? error.code : "unexpected_failure";
+      const code = error instanceof ManagedSupabaseExportError || error instanceof ManagedReadOnlyLeaseError ? error.code : "unexpected_failure";
       process.stderr.write(`managed_supabase_export_failed=${code}\n`);
       process.exitCode = code === "export_interrupted" ? 130 : 1;
     });

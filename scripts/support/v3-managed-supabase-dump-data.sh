@@ -1,5 +1,9 @@
 #!/bin/bash
 set -euo pipefail
+case "${EVO_DUMP_EFFECTIVE_ROLE:-postgres}" in
+  postgres|supabase_read_only_user) ;;
+  *) exit 64 ;;
+esac
 
 echo "SET session_replication_role = replica;
 "
@@ -9,7 +13,7 @@ echo "SET session_replication_role = replica;
 "$PG_DUMP_BIN" \
     --data-only \
     --quote-all-identifier \
-    --role "postgres" \
+    --role "${EVO_DUMP_EFFECTIVE_ROLE:-postgres}" \
     --exclude-schema "${EXCLUDED_SCHEMAS:-}" \
     --exclude-table "auth.schema_migrations" \
     --exclude-table "storage.migrations" \

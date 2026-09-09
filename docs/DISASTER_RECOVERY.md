@@ -148,12 +148,14 @@ cannot substitute for the corresponding recoverable artifact.
 
 ## Trusted managed-Supabase source export
 
-The #551 restore accepts only artifacts produced by the reviewed read-only
+The #551 restore accepts only artifacts produced by the reviewed
 export command. The command verifies the exact project through the Management
 API, requires a fresh completed provider backup, verifies both runtime API keys
 against that same project, allowlists its existing session-pooler identity, and
 then captures database/Auth and Storage as two separate sources. It does not
-link or modify the project.
+link or modify project configuration. Default password mode performs provider
+reads only; the explicitly selected temporary-access mode below additionally
+creates and revokes one verified read-only login lease.
 
 Prerequisites:
 
@@ -170,7 +172,7 @@ Prerequisites:
   pinned SHA-256 and X.509 fingerprint and is inside its validity period. The
   exporter records both identifiers in the signed receipt and uses this exact
   file for `verify-full`; it never relies on an ambient user CA file;
-- `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
+- `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` (password mode only),
   `EVO_PLATFORM_SUPABASE_PUBLISHABLE_KEY` and
   `EVO_PLATFORM_SUPABASE_SECRET_KEY` are injected into the exporter process,
   never written to arguments, output or Git. The Management token is available
@@ -235,9 +237,97 @@ existing application-facing recovery result remains `u11-recovery-result`; it
 may become ready only after a separate isolated restore proves database/Auth,
 applicable real-role RLS/browser behavior, exact Storage evidence and malware
 scanning: source-byte restore when the signed source inventory is non-empty, or
-a signed empty-source inventory when it is zero. For the current Admin-only
-source, the Admin proof and Sales/Admissions limits below remain the live
-acceptance boundary.
+a signed empty-source inventory when it is zero. The Admin-only source recorded
+by the earlier rehearsal cannot prove the newer Sales/Admissions data: a fresh
+source requires fresh role/data evidence and its own documented limits.
+
+### Explicit short-lived read-only transport
+
+Use this mode only during an approved exclusive operator window for the EVO
+project `iosckaqtovbbnssqcpde`, when no other operator or automation will run
+Supabase CLI login/link/database commands. The flag is an explicit operator
+acknowledgement of that window, not a distributed provider lock. Do not enable
+JIT/SSL, reboot the project, retry a rejected database password, reset a password,
+or use linked CLI commands as a fallback. This mode needs the existing Management
+token's `database_write` permission to create/revoke the temporary role, although
+the returned database session is used only for read-only capture.
+
+With the same process-only Management/runtime API-key injection and the same
+private output/signing inputs, append these flags to either the preflight or
+run command:
+
+```bash
+--database-auth temporary-cli-readonly \
+--exclusive-project-ref iosckaqtovbbnssqcpde
+```
+
+`EVO_RUN_V3_MANAGED_SUPABASE_EXPORT=1 node scripts/export-v3-managed-supabase-backup.mjs preflight <inputs-and-flags>`
+remains side-effect free: no lease is created and no password is required or attempted. It validates
+the existing tools, API keys, project, fresh provider backup, endpoint and source
+migration versions against a contiguous known repository prefix. The actual
+`npm run backup:v3:managed -- <inputs-and-flags>` repeats that preflight before
+making a single `POST /v1/projects/{ref}/cli/login-role` with
+`{"read_only":true}`. The returned password stays in process memory and in
+the isolated PostgreSQL child environment, never in arguments, receipts,
+persistent `.env` files, dumps or logs. The role name is also kept out of public
+receipts/logs; the private encrypted role dump can contain commented provider-role
+metadata, with passwords excluded by `--no-role-passwords`.
+
+Before creation, the exact project's read-only metadata query must prove no
+`cli_login_` roles exist. After a successful response, another query must prove
+that the returned role is the only such role; its name/OID/expiry bind ownership.
+The effective role must be `supabase_read_only_user`, non-superuser with
+`BYPASSRLS`, while the login cannot set `postgres`. The login/effective role must
+not reach any role with superuser, create-role, create-database or replication
+attributes, or any other role beyond that exact login, `supabase_read_only_user`
+and `pg_read_all_data` via SET/USAGE membership. A real read-only SQL probe checks
+schema/table/sequence access. The expected included table inventory must
+match the actual data/history COPY sections exactly, including `auth.users`,
+Storage metadata and the exact migration ledger; missing tables are not counted
+as empty. Existing Supabase exclusions are not narrowed to make access pass.
+All five SQL artifacts still use two matching rounds under one exported
+repeatable-read/read-only snapshot, and Storage bytes retain their separate
+inventory/hash/encryption gates.
+
+The database phase has a local deadline of the lesser of 15 minutes or the
+provider's returned TTL minus 30 seconds (accepted TTL: 60–86,400 seconds).
+There is no lease retry/reissue. Every child process group must drain before
+cleanup. Cleanup has its own bounded signal independent of an interrupted or
+expired capture. Immediately before the provider's **collective** DELETE,
+fresh metadata must still equal the exact owned singleton (name, OID and expiry).
+Any foreign/concurrent role prevents DELETE. A successful DELETE must be followed
+by an empty inventory; an already-empty inventory is recorded explicitly.
+
+An ambiguous creation response is not ownership proof: no blind DELETE, retry,
+or bundle publication follows it. Ownership ambiguity, foreign role detection,
+expiry, missing coverage or cleanup failure is a failed export, not a recovery
+input. Stop competing CLI activity and reconcile the exact project's role
+inventory with an authorized operator before a separate attempt. Provider TTL
+alone is not revocation proof, because password expiry does not terminate an
+already-open database session. The shared-role DELETE has no documented
+compare-and-swap operation; the exclusive operator window is therefore required
+in addition to the before/after inventory checks.
+
+Only after successful capture, process drain and verified role cleanup does
+execution proceed to Storage capture, encryption, signing and atomic publication.
+Temporary mode emits strict `evo-v3-managed-supabase-export-receipt/v2` with a
+signed `source_access` record: requested read-only mode, fixed effective role,
+ownership hash (not the role name), TTL, issue/cleanup timestamps and verified
+cleanup outcome. It binds the same eight encrypted artifacts and external signing
+trust root. The isolated recovery consumer validates that record after verifying
+the signature; unchanged v1 password-mode receipts remain accepted. A valid
+export, including v2, still requires the separate isolated restore and candidate
+migration rehearsal before release.
+
+Implementation references (checked 2026-09-09):
+
+- [Create temporary CLI login role](https://supabase.com/docs/reference/api/v1-create-login-role)
+  and [collective login-role deletion](https://supabase.com/docs/reference/api/v1-delete-login-roles).
+- [Read-only Management SQL](https://supabase.com/docs/reference/api/v1-read-only-query)
+  and [applied migration versions](https://supabase.com/docs/reference/api/v1-list-migration-history).
+- [Supabase initial role definitions](https://github.com/supabase/postgres/blob/develop/migrations/db/init-scripts/00000000000000-initial-schema.sql)
+  and [PostgreSQL predefined roles](https://www.postgresql.org/docs/17/predefined-roles.html).
+- [pg_dumpall and `--no-role-passwords`](https://www.postgresql.org/docs/17/app-pg-dumpall.html).
 
 ## Isolated managed-Supabase recovery consumer
 

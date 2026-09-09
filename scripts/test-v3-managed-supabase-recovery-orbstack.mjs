@@ -40,11 +40,13 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { createInterface } from "node:readline";
 import { finished } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { validateAccessLifecycleEvidence } from "./lib/managed-supabase-readonly-lease.mjs";
 import { parse as parseToml } from "smol-toml";
 
 const OPT_IN = "EVO_RUN_V3_MANAGED_SUPABASE_RECOVERY_ORBSTACK";
 const OPT_IN_VALUE = "1";
 const RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v1";
+const LEASE_RECEIPT_SCHEMA = "evo-v3-managed-supabase-export-receipt/v2";
 const DATABASE_SCHEMA = "evo-v3-managed-supabase-logical-backup/v1";
 const STORAGE_SCHEMA = "evo-v3-managed-supabase-storage-backup/v1";
 const RESULT_SCHEMA = "evo-v3-managed-supabase-recovery-result/v2";
@@ -751,11 +753,17 @@ export function validateSignedReceipt(receipt, expected) {
       "tools",
       "signature",
       "result",
+      ...(receipt?.schema === LEASE_RECEIPT_SCHEMA ? ["source_access"] : []),
     ],
     "receipt_shape_invalid",
   );
-  if (receipt.schema !== RECEIPT_SCHEMA || receipt.result !== "export_verified") {
+  if (![RECEIPT_SCHEMA, LEASE_RECEIPT_SCHEMA].includes(receipt.schema) || receipt.result !== "export_verified") {
     fail("receipt_schema_invalid", "artifact_validation");
+  }
+  let sourceAccess;
+  if (receipt.schema === LEASE_RECEIPT_SCHEMA) {
+    try { sourceAccess = validateAccessLifecycleEvidence(receipt.source_access); }
+    catch { fail("access_lifecycle_invalid", "artifact_validation"); }
   }
   const capturedAt = iso(receipt.captured_at, "receipt_timestamp_invalid").toISOString();
   const git = validateGit(receipt.git, "receipt_git_invalid");
@@ -796,6 +804,7 @@ export function validateSignedReceipt(receipt, expected) {
     ageHours: timestampAge(capturedAt, expected.now, expected.maxAgeHours),
     git,
     sourceIdentity,
+    ...(sourceAccess ? { sourceAccess } : {}),
     providerBackup,
     database: validateReceiptDatabase(receipt.database),
     storage: validateReceiptStorage(receipt.storage),

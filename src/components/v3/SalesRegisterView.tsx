@@ -58,16 +58,16 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         isAdmin={isAdmin} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={href()} readUnavailable={!workspace}
         ownMembershipId={actor.membershipId} ownLabel={actor.displayName} />
     </div> : <>
-      <form method="get" aria-label="Фильтры отчёта продаж" className="mt-6 flex flex-wrap items-end gap-3 rounded-card border border-border bg-surface p-4">
+      <form method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-end gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
         <input type="hidden" name="view" value="sales" />
-        <label><span className={labelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11 w-28`} /></label>
-        <label className="min-w-0 flex-1 sm:flex-none"><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
+        <label className="min-w-0 @2xl:w-28"><span className={labelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11`} /></label>
+        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
           <option value="all">Весь год</option>{MONTHS.map((title, i) => <option key={title} value={i + 1}>{title}</option>)}
         </select></label>
-        <label className="min-w-0 flex-1 sm:flex-none"><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
+        <label className="min-w-0 @2xl:w-40"><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
-        <button className={`${btnGhostCls} min-h-11 shrink-0`} type="submit">Показать</button>
+        <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`} type="submit">Показать</button>
       </form>
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
         <p>{valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
@@ -81,7 +81,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
               {isAdmin && month && query.archived !== "true" ? <div><dt className="text-sm text-fg-2">План месяца</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</dd></div> : null}
             </dl>
             {workspace.totals.length > 0 ? <div className="min-w-0">
-              <div role="region" aria-label="Денежные итоги по валютам" tabIndex={0} className="max-w-full overflow-x-auto rounded-nav focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              <div role="region" aria-label="Денежные итоги по валютам" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                 <table className="w-full min-w-[400px] text-sm tabular-nums">
                   <caption className="sr-only">Стоимость и накопленная оплата за выбранный период, отдельно по валютам</caption>
                   <thead className="border-b border-border text-xs text-fg-2"><tr><th scope="col" className="pb-3 pe-4 text-left font-medium">Валюта</th><th scope="col" className="pb-3 px-3 text-right font-medium">Стоимость</th><th scope="col" className="pb-3 ps-3 text-right font-medium">Оплачено по записям</th></tr></thead>
@@ -99,7 +99,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           <p className="text-sm text-fg-2">{offset > 0 ? "Вернитесь к началу списка." : "Выберите другой месяц или весь год в фильтрах выше."}</p>
         </div> : <div className="mt-6">
           <p id="sales-table-help" className="mb-3 text-xs text-fg-2">Откройте продажу для просмотра деталей. Таблицу можно прокручивать по горизонтали.</p>
-          <div role="region" aria-label="Записи продаж" aria-describedby="sales-table-help" tabIndex={0} className="max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          <div role="region" aria-label="Записи продаж" aria-describedby="sales-table-help" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <table className="w-full min-w-[960px] text-left text-sm">
               <caption className="sr-only">Продажи выбранного периода</caption>
               <thead className="border-b border-border bg-surface-2 text-xs text-fg-2"><tr><th scope="col" className="px-4 py-3 font-medium">Студент и программа</th><th scope="col" className="px-4 py-3 font-medium">Менеджер и дата</th><th scope="col" className="px-4 py-3 text-right font-medium">Стоимость</th><th scope="col" className="px-4 py-3 text-right font-medium">Оплачено по записи</th><th scope="col" className="px-4 py-3 font-medium">Уточнения</th><th scope="col" className="px-4 py-3"><span className="sr-only">Действие</span></th></tr></thead>

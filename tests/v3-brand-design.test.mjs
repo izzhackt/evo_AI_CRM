@@ -59,3 +59,22 @@ test("brand shell retains native disclosure, visible preview status and reduced 
   assert.match(css, /scroll-behavior: auto !important/u);
   assert.match(read("src/app/globals.css"), /--text-base:\s*16px/u);
 });
+
+test("directory filters reset native form state when applied URL filters change", () => {
+  const directory = read("src/components/v3/profile/ProfileCaseDirectory.tsx");
+  assert.match(directory, /<form\s+key=\{JSON\.stringify\(\[params\.query, params\.state\]\)\}/u);
+  assert.match(directory, /defaultValue=\{params\.query\}/u);
+  assert.match(directory, /defaultValue=\{params\.state \?\? ""\}/u);
+  assert.match(directory, /<a\s[^>]*href="\/v3\/profile"\s*>\s*Сбросить\s*<\/a>/u);
+});
+
+test("sales table scroll regions contain absolutely positioned screen-reader labels", () => {
+  const sales = read("src/components/v3/SalesRegisterView.tsx");
+  for (const label of ["Денежные итоги по валютам", "Записи продаж"]) {
+    const region = sales.match(new RegExp(`<div role="region" aria-label="${label}"[^>]*className="([^"]+)"`, "u"));
+    assert.ok(region, `named scroll region: ${label}`);
+    const classes = region[1].split(/\s+/u);
+    assert.ok(classes.includes("overflow-x-auto"), `horizontal scrolling: ${label}`);
+    assert.ok(classes.includes("relative"), `positioned containing block: ${label}`);
+  }
+});

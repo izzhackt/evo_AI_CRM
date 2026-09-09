@@ -81,11 +81,10 @@ Local preview: `http://localhost:3100/login`, separate from the unchanged port30
 production tunnel. It uses normal authentication against the canonical backend,
 not mock records or an Auth bypass. Production was not deployed.
 
-**Still required before completion/merge:** ordinary active Admin login, then
-read-only desktop/mobile checks of staff navigation, report year/month filters,
-real report rows, directory/empty states and role-preview disclosure. A real
-Student session is needed to verify portal routes. Do not seed business records,
-bypass Auth or mutate business data to manufacture visual proof.
+**Remaining before completion/merge:** real Student visual acceptance, or an
+explicit owner deferral of that acceptance. Staff checks below are complete;
+they are not Student proof. Do not seed business records, bypass Auth or mutate
+business data to manufacture visual proof. PR #692 stays draft with this gap.
 
 ### Owner-approved access restoration — 09.09, 11:12 UTC
 
@@ -104,6 +103,48 @@ updated through stdin at 11:12:58 and 11:12:59 UTC; GitHub timestamps rechecked.
 Secret values stayed out of scripts, command arguments, logs, chat and Git.
 
 The owner handoff is ignored local `.env.evo-smoke`, mode 0600; do not commit it.
-Do not rotate again on resume. Ordinary browser entry and the real internal UI
-checks remain pending; this API proof does not validate those pages or a complete
-production browser smoke. Keep the PR draft until the visual gap is resolved.
+Do not rotate again on resume. The owner subsequently signed in normally; the
+read-only browser result is recorded below. This API proof alone does not
+validate those pages or a complete production browser smoke.
+
+### Real authenticated staff acceptance — 09.09
+
+Chrome, the actual Next 16.2.11 production build served at localhost:3100,
+canonical managed backend, owner-entered Admin session. Measured CSS viewports:
+1440×900 and 393×852 (browser zoom means emulation dimensions are not CSS dimensions).
+No mocks, seeded records, record submissions, provider messages or production deploy.
+
+- All seven staff routes loaded meaningful content with the correct title/heading:
+  main, pipeline, inbox, profile, calendar, knowledge and settings. No framework
+  error overlay. Empty lead/case/conversation queues were kept genuinely empty.
+- Report GET filters: August 2026 = 9 records, September = 6, all 2026 = 187
+  (50 on page 1), all 2025 = 22. The 2025 archive filter returned a real zero-record
+  state. URL, selected filter, count and rendered rows agreed. One existing sale
+  opened in its detail form; no save/archive/import action was submitted.
+- Mobile month/record selectors initially collapsed to about 52px. A two-column
+  filter grid now yields 153px-wide, 44px-high selectors; the desktop compact row
+  is preserved (176/160px selectors).
+- Mobile report initially leaked absolutely positioned `sr-only` action labels
+  beyond its scroll region: document width 919px at a 393px viewport. Positioned
+  scroll containers contain these labels; retake document width 384px, no page
+  overflow. The 960px records table and 400px totals table scroll inside their
+  regions. Tab/ArrowRight moved them by 53/48px with a visible red focus outline.
+- Directory search for country + Active updated `case_q`/`case_status` and showed
+  the honest no-results message. Reset initially retained the native select's
+  old value despite a clean URL. A URL-keyed form plus ordinary document navigation
+  for Reset clears both applied and unapplied input; both scenarios rechecked.
+  React's [uncontrolled select](https://react.dev/reference/react-dom/components/select)
+  and [key-based reset](https://react.dev/learn/preserving-and-resetting-state)
+  contracts were verified against the official docs. No query policy changed.
+- Admin preview opened normally; Sales preview displayed its warning even with
+  the disclosure closed. Restored Admin and verified the preview warning gone.
+- Console inspection found 60 errors from a Chrome extension's own toolbar script,
+  no application-origin warning/error in the inspected log. The extension was not
+  changed. Screenshot evidence was inspected privately, not committed with PII.
+- Final production build/TypeScript/import bundle, scoped ESLint, diff check and
+  29 source/token checks pass. These source checks do not pretend to be live DB
+  or Student-session tests. Independent final-head review is recorded in PR #692.
+
+Remaining limitation: no real Student session/assigned case is available for the
+portal. Staff role preview is not a Student login. Keep the portal visual gate
+explicit; do not reopen SMTP, user creation, or deferred #687 as part of this UI run.

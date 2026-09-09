@@ -22137,3 +22137,24 @@ at 11:12:57 UTC. GitHub smoke email/password secrets updated through stdin at
 owner credential handoff is local ignored `.env.evo-smoke`, mode 0600; no values in
 Git, chat or logs. Do not repeat the reset on resume. Browser entry and read-only
 staff/Student visual checks remain pending; no merge or application deployment.
+
+## 2026-09-09 — authenticated staff UX verification and narrow corrections
+
+Owner confirmed ordinary browser login. On the actual local production build,
+checked all seven staff routes at desktop/393px, real report year/month/archive
+filters and record details, directory search/reset/empty states, keyboard table
+scrolling and role-preview disclosure. No business record was created or changed;
+Admin preview was restored and no production deployment occurred.
+
+Three observed UI corrections stay within the approved usability scope: mobile
+report filters now use two readable columns; positioned scroll containers prevent
+absolute screen-reader labels from widening the entire page; keyed native search
+fields and document-navigation Reset clear both applied and unapplied filters.
+Official React select/reset behavior was verified and linked in the reference note.
+Real retakes passed: report document width 384px at CSS viewport 393px, selectors
+153×44px, and both search-reset cases clear the visible values and URL together.
+Final build, scoped ESLint, whitespace and 29 source/token checks pass.
+
+Staff acceptance replaces the earlier pending-login status, not Student acceptance.
+No real Student session is available; PR #692 remains draft until that visual
+check or explicit owner deferral. Preserve #687 and the no-production-deploy scope.

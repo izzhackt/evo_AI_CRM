@@ -46,17 +46,23 @@ overflow at 393px, no lost actions or changed authorization. No country workflow
 catalogue, parent roles, post-arrival module, schema, authentication or integration
 changes. Keep owner-deferred #687 intact.
 
-Status: implementation and build complete; scoped source/token checks pass.
-Real Chrome login branding/layout checked at desktop and 393px CSS width.
+Status: implementation, production build and 29 scoped source/token checks pass.
+The owner signed into the real local Chrome preview. All seven staff routes,
+report period/archive filters, actual sales rows, directory empty/search/reset
+states and Admin role-preview disclosure were checked at desktop and 393px CSS
+width. Mobile filter compression, escaped screen-reader labels causing page
+overflow, and stale native search fields after reset were fixed and rechecked.
+No business data was written. See the reference note for exact evidence/limits.
 The owner separately approved rotating the existing smoke Admin password and
 updating the associated GitHub secrets on September 9. Real password sign-in,
 verified Auth identity and canonical active Admin authority passed at 11:12:57 UTC;
 both GitHub smoke secrets were updated at 11:12:58–59 UTC. No role or metadata change.
 The local private ignored `.env.evo-smoke` (0600) is the owner handoff, not repo data.
-Authenticated staff/portal visual acceptance still requires browser sign-in and
-read-only route checks; API Auth proof does not replace these. Keep this slice in
-draft PR, do not merge/deploy, and do not reset the password again. The September 8
-deployment above remains the last recorded production checkpoint.
+Staff visual acceptance is now exercised in a real browser, not inferred from
+API Auth proof. A real Student session remains unavailable, so portal visual
+acceptance is still unverified. Keep PR #692 draft until that check or an explicit
+owner acceptance deferral; do not merge/deploy or reset the password again.
+The September 8 deployment above remains the last recorded production checkpoint.
 
 ## Historical integration and release-preparation checkpoints
 

@@ -83,6 +83,7 @@ export function ProfileCaseDirectory({
 
       <div className="min-w-0 space-y-4 border-t border-border px-4 py-5 sm:px-5">
         <form
+          key={JSON.stringify([params.query, params.state])}
           action="/v3/profile"
           method="get"
           className="grid gap-3 @3xl:grid-cols-[minmax(260px,1fr)_minmax(180px,0.35fr)_auto]"
@@ -117,12 +118,13 @@ export function ProfileCaseDirectory({
             >
               Найти
             </button>
-            <Link
+            {/* A document navigation also clears unapplied native form edits. */}
+            <a
               className="inline-flex min-h-11 items-center rounded-nav border border-control-edge px-4 text-sm font-medium text-fg-2 hover:bg-surface-2"
               href="/v3/profile"
             >
               Сбросить
-            </Link>
+            </a>
           </div>
         </form>
 
@@ -147,7 +149,7 @@ export function ProfileCaseDirectory({
             </p>
           </div>
         ) : (
-          <div role="region" aria-label="Результаты поиска студентов" tabIndex={0} className="max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          <div role="region" aria-label="Результаты поиска студентов" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <table className="w-full min-w-[920px] text-left text-sm">
               <caption className="sr-only">Доступные дела студентов</caption>
               <thead className="border-b border-border bg-surface-2 text-xs text-fg-2">

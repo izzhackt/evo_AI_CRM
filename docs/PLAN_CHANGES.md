@@ -22295,3 +22295,37 @@ working DOCX uses LOE ambiguously. EMGS distinguishes the university Letter of
 Offer from a nationality-specific Letter of Eligibility (LOE). The product uses
 «Letter of Offer» for the university offer and does not invent a universal LOE
 requirement. Verified against https://visa.educationmalaysia.gov.my/guidelines/required-documents .
+
+## 2026-09-09 — Student/Admissions release dependency prerequisite
+
+Before the authorized production release, replace the vulnerable root app pins
+Next.js / eslint-config-next 16.2.11 with 16.3.4 and Sharp 0.35.0 (including its
+override) with 0.35.4; regenerate the npm lockfile, without a blanket audit fix or
+changes to the separate Inbox project. The production dependency audit currently
+reports Next critical / Sharp high. The Windows-only advisory is not evidence of
+exploitation on Linux; the separate AVIF image-optimizer advisory is relevant to
+the framework release and must not be hidden by an allowlist. No exploit or live
+customer image is needed to validate this patch.
+
+Official maintainer evidence checked before editing:
+- https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36
+- https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4
+- https://github.com/lovell/sharp/security/advisories/GHSA-rgj7-g3m4-5g8c
+- https://github.com/vercel/next.js/releases/tag/v16.3.4
+
+Require a fresh clean dependency audit, build, focused Auth/assessment/Admissions
+regressions and the final isolated runtime/browser proof on the repaired pins.
+This is a release prerequisite, not a new feature, and does not claim production
+has been patched before the exact-main deployment and readback succeed.
+
+The remaining development-only finding is ESLint's transitive js-yaml 4.3.1.
+Refresh only that compatible v4 lock entry to patched 4.3.2 (no v5 upgrade), per
+https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh .
+
+Admissions report clarification before the final SQL summary adjustment: the
+monthly arrival KPI counts only currently confirmed arrived cases using their
+current actual arrival date, supported by the latest confirmation event.
+Reopened/cancelled cases are excluded; a corrected arrival date moves the case
+between months instead of preserving two successes. Immutable event history is
+retained for audit but is not the business KPI. "Overdue" includes pending task,
+partner-response and correction deadlines, not just the next-action date.

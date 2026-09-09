@@ -66,12 +66,12 @@
     "@supabase/ssr": "0.12.0",
     "@supabase/supabase-js": "^2.111.0",
     "@types/three": "^0.185.0",
-    "next": "16.2.11",
+    "next": "16.3.4",
     "postgres": "3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "0.0.1",
-    "sharp": "0.35.0",
+    "sharp": "0.35.4",
     "three": "^0.185.0"
   },
   "devDependencies": {
@@ -84,7 +84,7 @@
     "ajv": "^8.18.0",
     "esbuild": "^0.28.2",
     "eslint": "^9",
-    "eslint-config-next": "16.2.11",
+    "eslint-config-next": "16.3.4",
     "smol-toml": "1.8.0",
     "supabase": "2.116.0",
     "tailwindcss": "^4",
@@ -93,6 +93,6 @@
   "overrides": {
     "browserslist": "^4.28.8",
     "postcss": "8.5.23",
-    "sharp": "0.35.0"
+    "sharp": "0.35.4"
   }
 }

@@ -58,10 +58,11 @@ export function AdmissionsRouteEditor({ title, initialValues, fields, documents 
   useEffect(() => { heading.current?.focus(); }, []);
   useEffect(() => installAssessmentExitGuard({ blocked: () => blocked.current, notify: () => setNotice("Сначала сохраните изменения или отмените редактирование.") }), []);
   const uncertain = result?.ok === false && result.code === "unavailable";
+  const confirmed = result?.ok === true;
   const stale = result?.ok === false && ["stale", "denied", "request_conflict"].includes(result.code);
   function change(key: string, value: string) { setValues((current) => ({ ...current, [key]: value })); setResult(null); setNotice(""); }
   async function save() {
-    if (busy || stale) return;
+    if (busy || stale || confirmed) return;
     const command = pending.current ?? buildCommand(values, crypto.randomUUID());
     pending.current = command; blocked.current = true; setBusy(true); setNotice("");
     let response: AdmissionsCommandResult;
@@ -74,7 +75,7 @@ export function AdmissionsRouteEditor({ title, initialValues, fields, documents 
   return <section className="rounded-card border-2 border-accent bg-surface p-4 sm:p-5" aria-label={title}>
     <h3 ref={heading} tabIndex={-1} className="text-lg font-semibold text-fg">{title}</h3>
     <p className="mt-2 text-sm leading-6 text-fg-2">Записывайте подтверждённые факты. Поле с основанием — ссылка или описание подтверждения, а не отметка об автоматической проверке.</p>
-    <fieldset disabled={busy || uncertain || stale} onChangeCapture={() => { blocked.current = true; }} className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
+    <fieldset disabled={busy || uncertain || stale || confirmed} onChangeCapture={() => { blocked.current = true; }} className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
       <legend className="sr-only">Изменения</legend>
       {fields.map((field) => <AdmissionsFieldInput key={field.key} field={field} value={values[field.key] ?? ""} onChange={(value) => change(field.key, value)} documents={documents} />)}
       {extra?.(values, change)}
@@ -82,8 +83,8 @@ export function AdmissionsRouteEditor({ title, initialValues, fields, documents 
     {notice ? <p role="status" className="mt-4 text-sm text-fg-2">{notice}</p> : null}
     {result && !result.ok ? <p role="alert" className="mt-4 text-sm text-danger">{result.message}</p> : null}
     <div className="mt-5 flex flex-wrap gap-3">
-      <button type="button" disabled={busy || stale} className="min-h-11 rounded-nav bg-accent px-5 text-sm font-semibold text-on-accent disabled:opacity-50" onClick={() => void save()}>{busy ? "Сохраняем…" : uncertain ? "Повторить тот же запрос" : "Сохранить"}</button>
-      <button type="button" disabled={busy || uncertain} className={ADMISSIONS_BUTTON} onClick={() => {
+      <button type="button" disabled={busy || stale || confirmed} className="min-h-11 rounded-nav bg-accent px-5 text-sm font-semibold text-on-accent disabled:opacity-50" onClick={() => void save()}>{busy ? "Сохраняем…" : confirmed ? "Сохранено" : uncertain ? "Повторить тот же запрос" : "Сохранить"}</button>
+      <button type="button" disabled={busy || uncertain || confirmed} className={ADMISSIONS_BUTTON} onClick={() => {
         if (dirty && !window.confirm("Отменить несохранённые изменения? Сохранённые данные дела останутся прежними.")) return;
         blocked.current = false; onClose();
       }}>Отмена</button>

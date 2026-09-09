@@ -22382,3 +22382,17 @@ followed by the unchanged nine conditional handoff fields. Do not expand the old
 snapshot or remove authority checks. Add an actual authenticated snapshot RPC
 regression after migrations137/138, including its exact legacy projection, and
 repeat the real browser navigation. Source-only tests did not catch this failure.
+
+### 2026-09-09 — coordinate route save with canonical form refresh
+
+E5 real CN/MY journeys exposed a sibling-form race: the route editor closed before
+its RSC refresh completed, allowing entry into a canonical application form that
+the incoming application revision then remounted. Keep that editor visible and
+confirmed/locked during the refresh transition; disable canonical sibling inputs
+while the route editor or its refresh is active. Render the existing canonical
+workspace as a server-composed child of this coordination boundary, without new
+RPCs or authority changes. Only unlock after the refreshed UI commits. Prove this
+with a held-and-released real RSC network request, then persist the next canonical
+status/evidence; no sleeps, fake responses, or forced status changes for acceptance.
+After an explicitly confirmed stage transition, show the new current-stage
+checklist. Merely browsing another stage still does not change the actual route.

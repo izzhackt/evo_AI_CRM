@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ADMISSIONS_APPLICATION_FIELDS, ADMISSIONS_CASE_FIELDS, ADMISSIONS_DIRECTIONS, ADMISSIONS_STAGE_LABELS, ADMISSIONS_STAGES, ADMISSIONS_VISA_FIELDS, admissionsVisaFields, type AdmissionsField, type AdmissionsPlaybook, type AdmissionsStage, type AdmissionsWorkspace } from "@/lib/platform-admissions-playbook-contract";
 import { AdmissionsRouteEditor, ADMISSIONS_BUTTON, ADMISSIONS_INPUT, admissionsValueLabel } from "./AdmissionsRouteEditor";
@@ -13,21 +13,32 @@ function compact(values: Record<string, string | undefined>): Record<string, str
 function fieldValues(values: Record<string, string>, fields: readonly AdmissionsField[]): Record<string, string> { return Object.fromEntries(fields.flatMap((field) => values[field.key]?.trim() ? [[field.key, values[field.key].trim()]] : [])); }
 const META = "Следующий шаг и маршрут";
 
-export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentName }: { workspace: AdmissionsWorkspace; playbooks: AdmissionsPlaybook[]; documents: readonly { id: string; name: string; applicationIds: readonly string[] }[]; studentName: string }) {
+export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentName, children }: { workspace: AdmissionsWorkspace; playbooks: AdmissionsPlaybook[]; documents: readonly { id: string; name: string; applicationIds: readonly string[] }[]; studentName: string; children?: React.ReactNode }) {
   const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
   const [editor, setEditor] = useState<Editor | null>(null);
   const [message, setMessage] = useState("");
-  const [viewStage, setViewStage] = useState(workspace.case.stage);
+  const [viewStage, setViewStage] = useState<string | null>(null);
   const current = workspace.case;
   const visaFields = admissionsVisaFields(current.direction);
   const index = ADMISSIONS_STAGES.indexOf(current.stage as AdmissionsStage);
-  const selectedStage = workspace.playbook?.content.stages.find((item) => item.key === viewStage) ?? workspace.playbook?.content.stages[Math.max(index, 0)];
+  const selectedStage = workspace.playbook?.content.stages.find((item) => item.key === (viewStage ?? current.stage)) ?? workspace.playbook?.content.stages[Math.max(index, 0)];
   // A fact from an earlier stage may have changed. The next transition checks
   // the whole completed route, so display those blockers before submission too.
   const requiredGates = workspace.gates.filter((gate) => ADMISSIONS_STAGES.indexOf(gate.stage) <= index);
   const currentGate = index < 0 ? null : { ready: requiredGates.length === index + 1 && requiredGates.every((gate) => gate.ready), blockers: requiredGates.flatMap((gate) => gate.blockers.map((blocker) => gate.stage === current.stage ? blocker : `${ADMISSIONS_STAGE_LABELS[gate.stage]}: ${blocker}`)) };
   const editable = current.state === "active";
-  function saved(confirmed: boolean) { setEditor(null); setMessage(confirmed ? "Изменения сохранены. Загружаем актуальное дело…" : "Загружаем актуальные данные…"); router.refresh(); }
+  function saved(confirmed: boolean) {
+    setMessage(confirmed ? "Изменения сохранены. Загружаем актуальное дело…" : "Загружаем актуальные данные…");
+    // Commit editor dismissal together with the refreshed revision. Otherwise
+    // a sibling keyed by application.version can erase the user's next input.
+    startRefresh(() => {
+      router.refresh();
+      if (confirmed && editor?.kind === "transition") setViewStage(null);
+      setEditor(null);
+      setMessage(confirmed ? "Изменения сохранены." : "Показаны актуальные данные.");
+    });
+  }
   function start(next: Editor) { if (!editor) { setEditor(next); setMessage(""); } }
   function editButton(next: Editor, label = "Изменить") {
     const postArrival = current.outcome === "arrived" && next.kind === "case" && [META, "После прибытия"].includes(next.section);
@@ -77,7 +88,7 @@ export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentN
       {current.state === "closed" ? <div className="mt-3 space-y-3"><p className="text-sm leading-6 text-fg-2">Это закрытое дело. Неотмеченные формальности после прибытия не считаются выполненными. Для изменения маршрута сначала возобновите работу с указанием причины.</p>{current.playbookVersionId && index >= 0 ? <button type="button" className={ADMISSIONS_BUTTON} disabled={!!editor} onClick={() => start({ kind: "transition", stage: ADMISSIONS_STAGES[index], outcome: "active" })}>Возобновить работу по делу</button> : null}</div> : null}
     </section>
     {message ? <p role="status" className="text-sm text-fg-2">{message}</p> : null}
-    {editorView}
+    {editorView ? <fieldset disabled={refreshing} className="min-w-0" aria-label="Редактор маршрута" aria-busy={refreshing}>{editorView}</fieldset> : null}
     {workspace.playbook && selectedStage ? <section className="rounded-card border border-border bg-surface p-4 sm:p-5">
       <h3 className="text-base font-semibold text-fg">Маршрут · {workspace.playbook.version}</h3>
       <ol className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{workspace.playbook.content.stages.map((stage, stageIndex) => <li key={stage.key}><button type="button" className={`flex min-h-11 w-full items-center gap-2 rounded-nav border px-3 py-2 text-left text-sm ${selectedStage.key === stage.key ? "border-accent bg-accent-weak text-accent" : "border-control-edge text-fg-2"}`} aria-pressed={selectedStage.key === stage.key} onClick={() => setViewStage(stage.key)}><span>{stageIndex + 1}.</span>{stage.title}{current.stage === stage.key ? <span className="sr-only"> — текущий этап дела</span> : null}</button></li>)}</ol>
@@ -99,6 +110,11 @@ export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentN
     {workspace.playbook ? <><AdmissionsMessageTemplates playbook={workspace.playbook} stage={current.stage} studentName={studentName} /><details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg-2">Источники и ограничения маршрута</summary><ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-fg-2">{workspace.playbook.content.limitations.map((item) => <li key={item}>{item}</li>)}</ul>{workspace.playbook.content.sources.map((source) => <p key={source.id} className="mt-3 text-xs leading-5 text-fg-3">{source.url ? <a href={source.url} target="_blank" rel="noreferrer" className="underline">{source.title}</a> : source.title} · проверено {source.reviewedOn}. {source.scope}</p>)}</details></> : null}
     {current.playbookVersionId && editable ? <details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg-2">Вернуться на этап или прекратить работу</summary><p className="mt-2 text-sm text-fg-2">Потребуется основание. Подтверждения и история сохранятся; закрытие без прибытия не считается успехом.</p><div className="mt-3 flex flex-wrap gap-2">{ADMISSIONS_STAGES.slice(0, Math.max(index, 0)).map((stage) => <button key={stage} type="button" className={ADMISSIONS_BUTTON} disabled={!!editor} onClick={() => start({ kind: "transition", stage, outcome: "active" })}>{ADMISSIONS_STAGE_LABELS[stage]}</button>)}<button type="button" className={ADMISSIONS_BUTTON} disabled={!!editor} onClick={() => start({ kind: "transition", stage: ADMISSIONS_STAGES[Math.max(index, 0)], outcome: "cancelled" })}>Закрыть без прибытия</button></div></details> : null}
     {workspace.events.length ? <details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg-2">История маршрута</summary><ol className="mt-3 space-y-3">{workspace.events.map((event) => <li key={event.id} className="text-sm leading-6 text-fg-2"><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleDateString("ru-RU", { timeZone: "Asia/Bishkek" })}</time> · {ADMISSIONS_STAGE_LABELS[event.stage as AdmissionsStage] ?? (event.outcome === "arrived" ? "Прибытие" : "Изменение маршрута")} — {event.reason}</li>)}</ol></details> : null}
+    {children ? <fieldset disabled={!!editor || refreshing} className="min-w-0" aria-busy={refreshing}>
+      <legend className="sr-only">Заявки, статусы и визовое дело</legend>
+      {editor || refreshing ? <p role="status" className="mb-3 text-sm text-fg-2">Сначала завершите редактирование маршрута и дождитесь обновления дела.</p> : null}
+      {children}
+    </fieldset> : null}
   </div>;
 }
 

@@ -128,3 +128,16 @@ test("new UI keeps manual copy, scoped actions and one memory-only editor", () =
   assert.match(messages, /clipboard\.writeText/); assert.match(messages, /Скопировано/);
   assert.doesNotMatch(messages, /fetch\(|supabase|sendMessage|api\/waha/);
 });
+
+test("route refresh coordinates canonical siblings and confirmed editor dismissal", () => {
+  const panel = readFileSync(new URL("../src/components/v3/profile/AdmissionsRoutePanel.tsx", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../src/components/v3/profile/AdmissionsRouteEditor.tsx", import.meta.url), "utf8");
+  const composition = readFileSync(new URL("../src/components/v3/profile/ProfileAdmissionsRoute.tsx", import.meta.url), "utf8");
+  assert.match(panel, /startRefresh\(\(\) => \{\s*router\.refresh\(\);[\s\S]*?setEditor\(null\)/);
+  assert.match(panel, /fieldset disabled=\{!!editor \|\| refreshing\}/);
+  assert.match(panel, /if \(confirmed && editor\?\.kind === "transition"\) setViewStage\(null\)/);
+  assert.match(panel, /viewStage \?\? current\.stage/);
+  assert.match(editor, /if \(busy \|\| stale \|\| confirmed\) return/);
+  assert.match(editor, /disabled=\{busy \|\| uncertain \|\| stale \|\| confirmed\}/);
+  assert.match(composition, /<AdmissionsRoutePanel[^>]*>[\s\S]*<ProfileAdmissionsWorkspacePanel[\s\S]*<\/AdmissionsRoutePanel>/);
+});

@@ -15,11 +15,12 @@ export async function ProfileAdmissionsRoute({ actor, draft, studentName }: { ac
     const documents = draft.documents.flatMap((group) => group.kind === "active" ? group.items.map((item) => ({ id: item.id, name: item.name, applicationIds: item.caseLinkTargets.filter((target) => target.linked && target.kind === "university_application").map((target) => target.id) })) : []);
     return <div className="space-y-5">
       {draft.handoffAcknowledgement ? <ProfileHandoffAcknowledgement snapshot={draft.handoffAcknowledgement} /> : null}
-      <AdmissionsRoutePanel workspace={workspace} playbooks={playbooks} documents={documents} studentName={studentName} />
+      <AdmissionsRoutePanel workspace={workspace} playbooks={playbooks} documents={documents} studentName={studentName}>
       <details className="rounded-card border border-border bg-surface p-4 sm:p-5">
         <summary className="min-h-11 cursor-pointer font-semibold text-fg">Заявки, статусы и визовое дело</summary>
         <p className="my-3 text-sm leading-6 text-fg-2">Создайте заявку или визовое дело здесь. Подтверждения партнёра и страны заполняются в маршруте выше. Загруженные документы сами по себе не подтверждают подачу.</p>
         <ProfileAdmissionsWorkspacePanel actorRole={actor.presentationRole} workspace={draft.admissions} />
       </details>
+      </AdmissionsRoutePanel>
     </div>;
 }

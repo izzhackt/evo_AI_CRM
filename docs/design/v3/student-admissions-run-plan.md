@@ -1,6 +1,6 @@
 # Student Portal и поступление: план нового запуска
 
-Дата: 2026-09-09 (Asia/Dubai). Статус: **Student Portal, тесты и China/Malaysia реализованы, локально проверены и слиты в main; P9 IN FLIGHT — владелец разрешил выпуск без нового backup/recovery rehearsal, остальные release gates ещё нужно выполнить**.
+Дата: 2026-09-09 (Asia/Dubai). Статус: **Student Portal, тесты и China/Malaysia выпущены на production; P9 DEPLOYED — технический acceptance подтверждён на `76c62b90`. Live Student-проверка и пользовательская приёмка остаются отдельными; новый backup/rehearsal отложен владельцем**.
 Для владельца продукта и любого следующего исполнителя: Codex, Sol, Astra или другого агента.
 Главный контракт — [EVO Launch Plan](../../EVO_LAUNCH_PLAN.md); этот документ раскрывает новый объём.
 Рабочая задача: [#693](https://github.com/izzhackt/evo_AI_CRM/issues/693).
@@ -49,6 +49,33 @@
 | Production | Последняя запись: app `0cbb2d42d9691fac392864fea72a3f0894826773`, `r27.1`, schema 134 | В этом планировании VPS не проверялся; прочитать live revision/schema/arm перед выпуском |
 | Новый Student/Admissions запуск | Только документы и исследование | Не отмечать функции implemented/deployed по факту создания плана |
 | Rollback cleanup | Issue [#687](https://github.com/izzhackt/evo_AI_CRM/issues/687) открыт до приёмки владельца | Не удалять portal v1 и временное Admin reason-исключение в этой волне |
+
+### Технический production checkpoint — 9 сентября
+
+- Выпущен exact SHA `76c62b902d9a2e094be8fcd65259a4962ad597b1`, версия
+  `r29.1-76c62b90`. [Full CI34391182045](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34391182045)
+  прошёл все пять jobs; [release34391907814](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34391907814)
+  завершён SUCCESS, включая `Accept exact V3 candidate`. Accepted pointer:
+  `v3-r34391907814-a1-76c62b90`. Production ledger001–138 применён и прочитан
+  в том же Supabase `iosckaqtovbbnssqcpde`.
+- Host readback подтвердил новый app/image, healthy app и ClamAV без рестартов,
+  публичный HTTPS health200 и отсутствие `pending-current.json`. Acceptance
+  record совпадает с accepted pointer; release arm=false подтверждён свежим API
+  readback, `updated_at=2026-09-09T19:00:06Z`.
+  Точные image/acceptance hashes и readback — в
+  [production evidence](references/2026-09-09-student-admissions-production.md).
+- Существующий туннель `127.0.0.1:3000` направлен на текущий app
+  `172.16.8.4:3000` на Hermes. В реальном Chrome обычный Admin открыл
+  `/v3/profile`: новое оформление «Поступление», нулевые показатели, ссылки
+  направлений и пустой рабочий список. Это та же production, не локальная сборка.
+  Read-only проверки CN/MY, MY overdue filter/reset, раскрытия короткого отчёта,
+  периода `2026-09` и Sales report прошли; бизнес-записей не создавали.
+- Это технический выпуск и ограниченная live Admin-проверка, не полный проход
+  China/Malaysia, production Student-тестов или приёмка владельца. Точные
+  browser-результаты записаны в production evidence. Новые
+  synthetic production users/cases, backup/restore, новая БД и бизнес-записи
+  не создавались. Одна active Admin membership и второй legacy Auth сохранены;
+  точная сохраняемая identity для отдельного account cleanup ещё не определена.
 
 ### Контрольная точка реализации — 9 сентября
 
@@ -453,6 +480,8 @@ actor; не открывать таблицы по шаблону публичн
 исполнитель/ветка; BLOCKED — точная внешняя зависимость; VERIFIED — доказано;
 DEPLOYED — отдельно подтверждён live SHA. Ниже текущий checkpoint реализации;
 VERIFIED означает изолированную проверку, а не production.
+Зависимость от P9 ниже выполнена техническим выпуском; это не переносит
+локальные E4/E5 PASS на реальные Student-сессии или бизнес-приёмку.
 
 | Волна | Статус | Результат и критерий выхода | Зависимости |
 | --- | --- | --- | --- |
@@ -465,7 +494,7 @@ VERIFIED означает изолированную проверку, а не p
 | P6. Профориентация | VERIFIED | ORVIS92 RU, карточки профессий, источник и ограничения; независимый review/E4 PASS | P9; клиентский пилот не подменён QA |
 | P7. Portal + staff UX | VERIFIED | #692/#695/#697 слиты; E4/E5 desktop/393px, клавиатура, состояния и ручное копирование PASS | P9 |
 | P8. E2E/acceptance | VERIFIED (local) | E4, normal invite, SQL001–138 и E5 PASS; отдельные границы доказательств в §2/§9 | Это не owner acceptance/production smoke |
-| P9. Production | IN FLIGHT | Owner waiver нового backup/rehearsal записан; далее exact-main review → missing schema → full CI → guarded release/acceptance → disarm и production tunnel | Свежий live inventory и оставшиеся технические gates; account consolidation отдельно; production PASS ещё нет |
+| P9. Production | DEPLOYED (technical) | `76c62b90`, `r29.1-76c62b90`; CI34391182045 все5 PASS, release34391907814/acceptance SUCCESS; ledger001–138, live readback, arm=false и same-production tunnel подтверждены; новый backup/rehearsal отложен | Owner UX/business acceptance и live Student-проверка отдельно; account consolidation требует точного target |
 | M1. Malaysia | VERIFIED | #697 слит; семь этапов из §11 до confirmed arrival/reopen в реальном browser; post-arrival formalities не отмечаются автоматически | P9 |
 | L1. Валидированный CEFR | FUTURE, не v1 | Проверены level rubric/пороги на целевой аудитории с методическим обоснованием | Компетентная методическая проверка; v1 не заявляет CEFR |
 
@@ -570,6 +599,9 @@ QA cleanup — по точному заранее записанному invento
 Исполнитель использует [актуальный production runbook](../../../deploy/production-release.md),
 с [узким owner exception](#owner-release-exception-2026-09-09) для нового
 backup/rehearsal этого выпуска. Остальные gates не отменены.
+Последовательность ниже выполнена для `76c62b90` в пределах
+[production checkpoint](#технический-production-checkpoint--9-сентября); не повторять
+schema apply или release ради последующего docs-only обновления.
 
 1. Сверить VPS `/opt/evo-crm`, live app/image/schema, актуальный публичный URL,
    состояние release arm и расхождения с GitHub. Не трогать соседний Acadis/companion.
@@ -682,22 +714,23 @@ Europe/UAE/Turkey пока имеют направления и существу
 2. E5 завершён на `452e3e05`; финальный #697 head `806c0b40` прошёл review/CI
    и слит как `c95a892c`. Не повторять browser из-за docs-only изменений. При
    новых product changes повторять затронутые gates, не переносить PASS вслепую.
-3. #703 слит как `11cfbd30`; exporter сейчас не запускать. Завершить review/checks
-   документации owner waiver, merge и зафиксировать новый exact-current-main SHA.
-   Сверить production app/image, project ref, ledger, accepted/pending state и arm.
-4. При arm=false выполнить schema check; если production остаётся на 134 и
-   отсутствуют только 135–138, применить этот reviewed хвост штатным workflow.
-   Добиться точного ledger001–138 в существующем `iosckaqtovbbnssqcpde`.
-   Новый backup/rehearsal, clone/reset и foreign CLI-role cleanup не выполнять.
+3. P9 технически выпущен: `76c62b90`, ledger001–138, CI34391182045,
+   release34391907814 и arm=false. Не повторять schema apply, full CI/release
+   или Sales import ради документации. #703 exporter, новый backup/rehearsal,
+   clone/reset и foreign CLI-role cleanup не запускать без нового запроса.
+4. Показать владельцу ту же production через localhost3000 и получить отдельный
+   owner UX/business feedback. Read-only проверки CN/MY/overdue/reset, короткого
+   отчёта/периода и Sales уже записаны в production evidence; не повторять их
+   ради документации. Пустые дела не заменяют полный business-flow proof.
 5. Отдельно уточнить сохраняемую учётную запись и read-only ownership/dependencies
-   перед любым account cleanup. Не задерживать из-за этого deployment, не менять
-   пароли или роли и не создавать synthetic production users/cases для smoke.
-6. После schema/host gates включить arm, выполнить один manual full CI на frozen
-   current main, дождаться guarded release и реального acceptance/readback,
-   затем disarm. Показать ту же production через проверенный localhost tunnel.
-   Не повторять Sales import, не активировать провайдеры, не выполнять cleanup #687.
-7. Внести реальные merged SHA, schema, release run, waiver и live readback в журнал;
-   до этого не закрывать #693/P9 и не называть локальный runtime production.
+   перед любым account cleanup. Существующий Admin и второй legacy Auth остаются
+   нетронутыми; не менять пароли/роли и не создавать synthetic production users/cases.
+6. Live Student-тесты и managed invite не считать проверенными обычным Admin smoke.
+   До подходящей разрешённой Student identity сохранить это ограничение; не
+   расширять Admin authority и не выдавать локальный E4 за production proof.
+7. Дополнять журнал только подтверждёнными readback/owner acceptance фактами.
+   Не закрывать оставшуюся пользовательскую приёмку #693 по одному техническому
+   DEPLOYED; не активировать провайдеры и не выполнять отдельный cleanup #687.
 8. В финальном отчёте отделить работоспособный native screening v1 от будущего
    L1/клиентского пилота; не называть первые результаты валидированным CEFR.
 
@@ -718,6 +751,7 @@ Europe/UAE/Turkey пока имеют направления и существу
 | 2026-09-09 | main `c95a892c` / #697 | Reviewed `806c0b40`, CI34371092144 все6 PASS; exact-head squash merge в 15:40 UTC. P1–P8/M1 — локально VERIFIED и код в main | Production всё ещё `0cbb2d42`/134; arm=false; #693/P9 не закрыты |
 | 2026-09-09 | P9 source inventory | Auth2: оба legacy account owner; один active Platform Admin, Student-связей0. Чужая expired CLI role без активных сессий не тронута. #703 наследует current main | Явное разрешение на точный CLI cleanup; отдельный restore contract, fresh export/rehearsal, затем managed release |
 | 2026-09-09 | P9 owner direction / main `11cfbd30` | Владелец отложил новый backup/rehearsal для текущего Student/Admissions release; один существующий Supabase и localhost tunnel к той же production; старые recovery blockers сохранены как история, не PASS | Docs review/merge → frozen main → missing schema → full CI/release/acceptance → disarm/tunnel. Account target уточняется отдельно; новые synthetic production users/cases не разрешены |
+| 2026-09-09 | P9 / `76c62b902d9a2e094be8fcd65259a4962ad597b1` | `r29.1-76c62b90`; CI34391182045 все5 PASS; release34391907814/Accept exact V3 candidate SUCCESS; accepted `v3-r34391907814-a1-76c62b90`, pending отсутствует; ledger001–138, healthy app/ClamAV, HTTPS200; arm=false (API updated_at 19:00:06 UTC). Тот же Hermes app через localhost3000: обычный Admin, CN/MY/overdue/reset, короткий отчёт/период и Sales read-only PASS | Технически DEPLOYED; owner UX/business acceptance отдельно. Live Student/managed invite не доказаны; account target не уточнён; backup/rehearsal отложен, данные/Auth сохранены |
 
 Сейчас новых продуктовых вопросов нет. Потенциальные внешние зависимости:
 разрешённый QA mailbox для managed invite (сначала использовать безопасный реальный

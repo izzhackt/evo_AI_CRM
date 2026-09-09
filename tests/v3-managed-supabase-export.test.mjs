@@ -29,6 +29,7 @@ import {
   managedDatabaseDumpPlan,
   normalizeProjectReceipt,
   normalizePoolerReceipt,
+  normalizeLeaseSourceLedger,
   openSynchronizedDatabaseSnapshot,
   parseArgs,
   parseCopySections,
@@ -48,8 +49,271 @@ import {
   verifyPrivateSigningKey,
   verifySigningKeyPair,
 } from "../scripts/export-v3-managed-supabase-backup.mjs";
+import {
+  createTemporaryReadOnlyLease,
+  buildReadOnlyCapabilitySql,
+  normalizeCliRoleInventory,
+  normalizeReadOnlyCapabilities,
+  normalizeTemporaryReadOnlyLease,
+  validateAccessLifecycleEvidence,
+  validateReadOnlyCopyCoverage,
+  withTemporaryReadOnlyLease,
+} from "../scripts/lib/managed-supabase-readonly-lease.mjs";
 
 const REF = "a".repeat(20);
+const LEASE_REF = "iosckaqtovbbnssqcpde";
+const LEASE_NOW = Date.parse("2026-09-09T15:00:00.000Z");
+const LEASE_ROLE = { role_name: "cli_login_fixture_readonly", role_oid: 42001, valid_until: "2026-09-09T16:00:00.000Z" };
+const LEASE_PASSWORD = "fictional-lease-password-not-a-provider-secret";
+const LEASE_REPLY = { role: LEASE_ROLE.role_name, password: LEASE_PASSWORD, ttl_seconds: 3600 };
+
+// This double is the external Management HTTP boundary. Every unplanned request
+// fails, so tests cannot silently contact a provider or choose a wider endpoint.
+function leaseApi(steps) {
+  const observed = [];
+  const remaining = [...steps];
+  const fetchImpl = async (input, options) => {
+    const url = new URL(input);
+    assert.equal(url.origin, "https://api.supabase.com");
+    assert.equal(options.redirect, "error");
+    assert.equal(options.headers.Authorization, `Bearer sbp_${"x".repeat(32)}`);
+    const suffix = url.pathname.slice(`/v1/projects/${LEASE_REF}`.length);
+    assert.equal(url.pathname, `/v1/projects/${LEASE_REF}${suffix}`);
+    const kind = suffix === "/database/query/read-only" ? "inventory" : options.method === "DELETE" ? "delete" : "create";
+    const step = remaining.shift();
+    assert.ok(step, `unexpected ${kind} request`);
+    assert.equal(kind, step.kind);
+    assert.equal(options.method, kind === "delete" ? "DELETE" : "POST");
+    assert.equal(suffix, kind === "inventory" ? "/database/query/read-only" : "/cli/login-role");
+    if (kind === "create") assert.deepEqual(JSON.parse(options.body), { read_only: true });
+    if (kind === "inventory") {
+      const body = JSON.parse(options.body);
+      assert.deepEqual(Object.keys(body), ["query"]);
+      assert.match(body.query, /^select /i);
+      assert.match(body.query, /pg_catalog\.pg_roles/);
+      assert.doesNotMatch(body.query, /\b(drop|grant|revoke|alter|create)\b/i);
+    }
+    if (kind === "delete") assert.equal(options.body, undefined);
+    observed.push({ kind, signal: options.signal });
+    step.onRequest?.();
+    if (step.wait) await step.wait;
+    if (step.error) throw step.error;
+    return new Response(step.raw ?? JSON.stringify(step.value), { status: step.status ?? (kind === "delete" ? 200 : 201) });
+  };
+  return { fetchImpl, observed, assertConsumed: () => assert.equal(remaining.length, 0) };
+}
+
+function leaseOptions(api, extra = {}) {
+  return { projectRef: LEASE_REF, exclusiveProjectRef: LEASE_REF, accessToken: `sbp_${"x".repeat(32)}`,
+    fetchImpl: api.fetchImpl, now: () => LEASE_NOW, ...extra };
+}
+
+const ownInventory = () => ({ kind: "inventory", value: [LEASE_ROLE] });
+const leaseStart = () => [{ kind: "inventory", value: [] }, { kind: "create", value: LEASE_REPLY }, ownInventory()];
+
+test("temporary credentials are strictly bounded and never accept an arbitrary database role", () => {
+  const lease = normalizeTemporaryReadOnlyLease(LEASE_REPLY, { nowMs: LEASE_NOW });
+  assert.equal(lease.role, "cli_login_fixture_readonly");
+  assert.equal(lease.deadlineMs, LEASE_NOW + 900_000);
+  assert.equal(normalizeTemporaryReadOnlyLease({ ...LEASE_REPLY, ttl_seconds: 60 }, { nowMs: LEASE_NOW }).deadlineMs, LEASE_NOW + 30_000);
+  for (const change of [{ role: "postgres" }, { role: "cli_login_bad;DROP" }, { password: "bad\nvalue" }, { password: "" },
+    { ttl_seconds: 0 }, { ttl_seconds: 59 }, { ttl_seconds: 86401 }, { ttl_seconds: "3600" }, { ttl_seconds: 1.5 }, { extra: true }]) {
+    assert.throws(() => normalizeTemporaryReadOnlyLease({ ...LEASE_REPLY, ...change }, { nowMs: LEASE_NOW }));
+  }
+  assert.throws(() => normalizeTemporaryReadOnlyLease(LEASE_REPLY, { nowMs: NaN }));
+  assert.throws(() => normalizeCliRoleInventory([LEASE_ROLE, LEASE_ROLE]));
+  assert.throws(() => normalizeCliRoleInventory([{ ...LEASE_ROLE, role_oid: "42001" }]));
+  assert.throws(() => normalizeCliRoleInventory([{ ...LEASE_ROLE, valid_until: "not a date" }]));
+});
+
+test("owned read-only lease closes only after process drain and emits secret-free verified evidence", async () => {
+  const api = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", value: { message: "ok" } }, { kind: "inventory", value: [] }]);
+  const lease = await createTemporaryReadOnlyLease(leaseOptions(api));
+  await assert.rejects(lease.release({ processesDrained: false }), { code: "temporary_lease_processes_not_drained" });
+  const evidence = await lease.release({ processesDrained: true });
+  assert.equal(evidence.requested_read_only, true);
+  assert.equal(evidence.effective_role, "supabase_read_only_user");
+  assert.equal(evidence.cleanup, "verified");
+  assert.equal(evidence.cleanup_action, "deleted");
+  assert.match(evidence.role_sha256, /^[a-f0-9]{64}$/);
+  assert.doesNotMatch(JSON.stringify(evidence), /fictional-lease-password|cli_login_fixture|sbp_/);
+  assert.deepEqual(await lease.release({ processesDrained: true }), evidence);
+  assert.deepEqual(api.observed.map((call) => call.kind), ["inventory", "create", "inventory", "inventory", "delete", "inventory"]);
+  api.assertConsumed();
+});
+
+test("pre-existing or concurrently created CLI roles are never deleted", async () => {
+  const before = leaseApi([{ kind: "inventory", value: [LEASE_ROLE] }]);
+  await assert.rejects(createTemporaryReadOnlyLease(leaseOptions(before)), { code: "temporary_lease_preexisting_roles" });
+  assert.deepEqual(before.observed.map((call) => call.kind), ["inventory"]);
+  const foreign = { ...LEASE_ROLE, role_name: "cli_login_another_operator", role_oid: 42002 };
+  for (const roles of [[LEASE_ROLE, foreign], [foreign], [{ ...LEASE_ROLE, role_oid: 42003 }], [{ ...LEASE_ROLE, valid_until: "2026-09-09T17:00:00.000Z" }]]) {
+    const api = leaseApi([...leaseStart(), { kind: "inventory", value: roles }]);
+    const lease = await createTemporaryReadOnlyLease(leaseOptions(api));
+    await assert.rejects(lease.release({ processesDrained: true }), { code: "temporary_lease_foreign_role_detected" });
+    assert.equal(api.observed.some((call) => call.kind === "delete"), false);
+    api.assertConsumed();
+  }
+});
+
+test("ambiguous or malformed creation is not retried and grants no collective cleanup authority", async () => {
+  for (const response of [{ error: new DOMException("request timed out", "TimeoutError") }, { raw: "{broken" },
+    { value: { ...LEASE_REPLY, role: "postgres" } }, { value: { ...LEASE_REPLY, ttl_seconds: 1 } }, { status: 503, value: {} }]) {
+    const api = leaseApi([{ kind: "inventory", value: [] }, { kind: "create", ...response }]);
+    await assert.rejects(createTemporaryReadOnlyLease(leaseOptions(api)), { code: "temporary_lease_creation_unconfirmed" });
+    assert.deepEqual(api.observed.map((call) => call.kind), ["inventory", "create"]);
+    api.assertConsumed();
+  }
+  const mismatch = leaseApi([...leaseStart().slice(0, 2), { kind: "inventory", value: [{ ...LEASE_ROLE, role_name: "cli_login_foreign" }] }]);
+  await assert.rejects(createTemporaryReadOnlyLease(leaseOptions(mismatch)), { code: "temporary_lease_ownership_unconfirmed" });
+  assert.equal(mismatch.observed.some((call) => call.kind === "delete"), false);
+});
+
+test("cleanup uses its own live signal after operation abort and rejects an unconfirmed delete", async () => {
+  const controller = new AbortController();
+  const api = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", value: { message: "ok" } }, { kind: "inventory", value: [] }]);
+  const lease = await createTemporaryReadOnlyLease(leaseOptions(api, { signal: controller.signal }));
+  controller.abort();
+  await lease.release({ processesDrained: true });
+  for (const call of api.observed.slice(3)) assert.equal(call.signal.aborted, false);
+  for (const response of [{ error: new Error("fictional provider unavailable") }, { value: { message: "failed" } }, { status: 500, value: {} }]) {
+    const broken = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", ...response }]);
+    const pending = await createTemporaryReadOnlyLease(leaseOptions(broken));
+    await assert.rejects(pending.release({ processesDrained: true }));
+    await assert.rejects(pending.release({ processesDrained: true }), { code: "temporary_lease_cleanup_unconfirmed" });
+    assert.equal(broken.observed.filter((call) => call.kind === "delete").length, 1);
+  }
+});
+
+test("a successful DELETE response is insufficient when a CLI role remains", async () => {
+  const api = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", value: { message: "ok" } }, ownInventory()]);
+  const lease = await createTemporaryReadOnlyLease(leaseOptions(api));
+  await assert.rejects(lease.release({ processesDrained: true }), { code: "temporary_lease_cleanup_unconfirmed" });
+  api.assertConsumed();
+});
+
+test("lease scope and token failures happen before any Management request", async () => {
+  for (const change of [{ projectRef: REF }, { exclusiveProjectRef: REF }, { exclusiveProjectRef: undefined }, { accessToken: "not-a-PAT" }]) {
+    let requests = 0;
+    await assert.rejects(createTemporaryReadOnlyLease({ ...leaseOptions({ fetchImpl() { requests++; throw new Error("must not contact network"); } }), ...change }));
+    assert.equal(requests, 0);
+  }
+});
+
+function capabilitiesFixture() {
+  const table = (name) => ({ schema_name: name.split(".")[0], table_name: name.split(".")[1], schema_allowed: true, select_allowed: true });
+  return { session_user: LEASE_ROLE.role_name, effective_role: "supabase_read_only_user", bypass_rls: true,
+    is_superuser: false, transaction_read_only: "on", can_set_postgres: false,
+    can_create_role: false, can_create_database: false, can_replicate: false, can_elevate: false,
+    relations: ["auth.users", "auth.identities", "platform.student_cases", "platform_private.owner_private", "storage.buckets", "storage.objects", "supabase_migrations.schema_migrations"].map(table),
+    sequences: [{ schema_name: "platform", sequence_name: "case_number_seq", schema_allowed: true, select_allowed: true }] };
+}
+
+test("read-only capability boundary rejects role drift, hidden RLS rows and incomplete schema/sequence access", () => {
+  const input = capabilitiesFixture();
+  const result = normalizeReadOnlyCapabilities(input, { sessionRole: LEASE_ROLE.role_name });
+  assert.ok(result.relations.includes("platform_private.owner_private"));
+  for (const change of [{ session_user: "cli_login_other" }, { effective_role: "postgres" }, { bypass_rls: false },
+    { is_superuser: true }, { transaction_read_only: "off" }, { can_set_postgres: true }, { unexpected: true },
+    { can_create_role: true }, { can_create_database: true }, { can_replicate: true }, { can_elevate: true },
+    { relations: input.relations.slice(1) }, { relations: [...input.relations, input.relations[0]] },
+    { relations: input.relations.map((row, i) => i === 3 ? { ...row, select_allowed: false } : row) },
+    { relations: input.relations.map((row, i) => i === 3 ? { ...row, schema_allowed: false } : row) },
+    { sequences: [{ ...input.sequences[0], select_allowed: false }] }]) {
+    assert.throws(() => normalizeReadOnlyCapabilities({ ...input, ...change }, { sessionRole: LEASE_ROLE.role_name }));
+  }
+  const query = buildReadOnlyCapabilitySql();
+  assert.match(query, /READ ONLY/);
+  assert.doesNotMatch(query, /\b(?:CREATE|ALTER|GRANT|REVOKE|INSERT|UPDATE|DELETE|DROP)\b/i);
+});
+
+test("COPY completeness distinguishes an empty Auth table from an omitted Auth table", () => {
+  const capabilities = normalizeReadOnlyCapabilities(capabilitiesFixture(), { sessionRole: LEASE_ROLE.role_name });
+  const dataAnalysis = { copyTables: ["auth.users", "auth.identities", "platform.student_cases", "platform_private.owner_private", "storage.buckets", "storage.objects"], aggregates: { auth_user_count: 0 } };
+  const historyAnalysis = { copyTables: ["supabase_migrations.schema_migrations"] };
+  assert.doesNotThrow(() => validateReadOnlyCopyCoverage({ capabilities, dataAnalysis, historyAnalysis }));
+  for (const table of dataAnalysis.copyTables) {
+    assert.throws(() => validateReadOnlyCopyCoverage({ capabilities, dataAnalysis: { ...dataAnalysis, copyTables: dataAnalysis.copyTables.filter((name) => name !== table) }, historyAnalysis }));
+  }
+  assert.throws(() => validateReadOnlyCopyCoverage({ capabilities, dataAnalysis, historyAnalysis: { copyTables: [] } }));
+  assert.throws(() => validateReadOnlyCopyCoverage({ capabilities, dataAnalysis: { copyTables: [...dataAnalysis.copyTables, "public.unexpected"] }, historyAnalysis }));
+});
+
+test("lifecycle evidence cannot carry credentials, privileged mode, pending cleanup or reversed time", () => {
+  const evidence = { mode: "temporary-cli-readonly", requested_read_only: true, effective_role: "supabase_read_only_user",
+    role_sha256: "d".repeat(64), lease_ttl_seconds: 3600, issued_at: "2026-09-09T15:00:00.000Z",
+    cleanup_completed_at: "2026-09-09T15:05:00.000Z", cleanup: "verified", cleanup_action: "deleted" };
+  assert.deepEqual(validateAccessLifecycleEvidence(evidence), evidence);
+  for (const change of [{ password: LEASE_PASSWORD }, { role: LEASE_ROLE.role_name }, { requested_read_only: false },
+    { effective_role: "postgres" }, { cleanup: "pending" }, { cleanup_action: "assumed_expired" }, { lease_ttl_seconds: 0 },
+    { cleanup_completed_at: "2026-09-09T14:59:59.000Z" }]) assert.throws(() => validateAccessLifecycleEvidence({ ...evidence, ...change }));
+});
+
+test("capture result remains unavailable until the owned role is verifiably revoked", async () => {
+  let resolveDelete;
+  let sawDelete;
+  const deletion = new Promise((resolve) => { resolveDelete = resolve; });
+  const requested = new Promise((resolve) => { sawDelete = resolve; });
+  const api = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", value: { message: "ok" }, wait: deletion, onRequest: sawDelete }, { kind: "inventory", value: [] }]);
+  let settled = false;
+  const capture = withTemporaryReadOnlyLease({ ...leaseOptions(api), processesDrained: () => true }, async () => "complete-synthetic-capture");
+  void capture.then(() => { settled = true; }, () => { settled = true; });
+  await requested;
+  assert.equal(settled, false);
+  resolveDelete();
+  const result = await capture;
+  assert.equal(result.value, "complete-synthetic-capture");
+  assert.equal(result.sourceAccess.cleanup, "verified");
+  api.assertConsumed();
+});
+
+test("expired, aborted and failed captures still clean their own role without returning success", async () => {
+  for (const scenario of ["expired", "aborted", "failed"]) {
+    let clock = LEASE_NOW;
+    const controller = new AbortController();
+    const api = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", value: { message: "ok" } }, { kind: "inventory", value: [] }]);
+    await assert.rejects(withTemporaryReadOnlyLease({ ...leaseOptions(api, { now: () => clock, signal: controller.signal }), processesDrained: () => true }, async (lease, signal) => {
+      assert.equal(signal.aborted, false);
+      if (scenario === "expired") clock = lease.deadlineMs;
+      if (scenario === "aborted") controller.abort();
+      if (scenario === "failed") throw new Error("synthetic capture failed");
+      return "must-not-be-published";
+    }));
+    assert.equal(api.observed.filter((call) => call.kind === "delete").length, 1);
+    assert.equal(api.observed.at(-1).signal.aborted, false);
+    api.assertConsumed();
+  }
+});
+
+test("failed cleanup or undrained processes prevent an otherwise successful capture", async () => {
+  const broken = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", value: { message: "failed" } }]);
+  await assert.rejects(withTemporaryReadOnlyLease({ ...leaseOptions(broken), processesDrained: () => true }, async () => "must-not-be-published"));
+  const undrained = leaseApi(leaseStart());
+  await assert.rejects(withTemporaryReadOnlyLease({ ...leaseOptions(undrained), processesDrained: () => false }, async () => "must-not-be-published"), { code: "temporary_lease_processes_not_drained" });
+  assert.equal(undrained.observed.some((call) => call.kind === "delete"), false);
+  undrained.assertConsumed();
+});
+
+test("temporary source ledger must be a nonempty contiguous known local migration prefix", () => {
+  const rows = [{ version: "002", name: "second" }, { version: "001", name: "first" }];
+  assert.deepEqual(normalizeLeaseSourceLedger(rows, ["003", "002", "001"]), { count: 2, minVersion: "001", maxVersion: "002" });
+  for (const invalid of [[], [{ version: "001", name: "first" }, { version: "003", name: "gap" }],
+    [rows[0], rows[0]], [{ version: "000", name: "invalid" }], [{ version: "1", name: "not-canonical" }],
+    [{ version: "001", name: "first", statements: [] }], [{ version: "001", name: 42 }]]) {
+    assert.throws(() => normalizeLeaseSourceLedger(invalid, ["001", "002", "003"]));
+  }
+  assert.throws(() => normalizeLeaseSourceLedger(rows, ["001"]));
+});
+
+test("an already expired lease never starts capture, but still reconciles its owned role", async () => {
+  let ticks = 0;
+  let captures = 0;
+  const api = leaseApi([...leaseStart(), ownInventory(), { kind: "delete", value: { message: "ok" } }, { kind: "inventory", value: [] }]);
+  await assert.rejects(withTemporaryReadOnlyLease({ ...leaseOptions(api, { now: () => ticks++ === 0 ? LEASE_NOW : LEASE_NOW + 900_001 }),
+    processesDrained: () => true }, async () => { captures++; }), { code: "temporary_lease_expired" });
+  assert.equal(captures, 0);
+  api.assertConsumed();
+});
 const DATABASE_CA = fileURLToPath(
   new URL("../scripts/support/supabase-prod-ca-2021.crt", import.meta.url),
 );
@@ -76,6 +340,19 @@ async function expectCodeAsync(action, code) {
 function jwtForRole(role) {
   return `e30.${Buffer.from(JSON.stringify({ role })).toString("base64url")}.signature`;
 }
+
+test("temporary read-only transport requires an exact exclusive project window", () => {
+  const required = ["run", "--project-ref", LEASE_REF, "--output-root", "/private/evo",
+    "--age-recipient", `age1${"q".repeat(30)}`, "--signing-key", "/private/signing-key",
+    "--trusted-public-key", "/private/trusted-signing-key.pub"];
+  const selected = parseArgs([...required, "--database-auth", "temporary-cli-readonly", "--exclusive-project-ref", LEASE_REF]);
+  assert.equal(selected.databaseAuth, "temporary-cli-readonly");
+  assert.equal(selected.exclusiveProjectRef, LEASE_REF);
+  assert.throws(() => parseArgs([...required, "--database-auth", "temporary-cli-readonly"]));
+  assert.throws(() => parseArgs([...required, "--database-auth", "temporary-cli-readonly", "--exclusive-project-ref", "b".repeat(20)]));
+  assert.throws(() => parseArgs([...required, "--database-auth", "postgres-fallback"]));
+  assert.throws(() => parseArgs([...required, "--database-auth", "temporary-cli-readonly", "--exclusive-project-ref", REF, "--password", "fictional-secret"]));
+});
 
 test("argument contract accepts no secret values and rejects missing or duplicate fields", () => {
   const parsed = parseArgs([

@@ -25,7 +25,15 @@ image remain rollback evidence, not a new recovery point. Earlier `4e6057f0`
 evidence in closed #552/#553 is first-release history. A documentation change
 does not deploy a new app revision or require repeating this accepted release.
 
-## Next-run planning contract: team workspace (2026-09-10)
+## Active implementation: team workspace (2026-09-10)
+
+After planning PR #709, the owner approved implementation of issue #708 and
+explicitly deferred WAHA confirmation because employee WhatsApp numbers are
+not available. Implement R1–R4 and prepare R5 through its real release gates;
+prepare the future provider activation checklist, but do not pair, send,
+activate or claim live WAHA success now. Existing real employee inputs are
+needed for multi-user acceptance; no new synthetic staff authority is granted.
+The planning-only wording below records R0 history, not the current stop point.
 
 The owner requests a current gap inventory and an optimized long-run plan for
 employee-only corporate chat and useful task creation, preserving the EVO UX.

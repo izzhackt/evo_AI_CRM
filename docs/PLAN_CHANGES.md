@@ -22642,3 +22642,37 @@ has no listener and its health request failed to connect. Record the preview as
 stopped, not a working deliverable URL. No process was started/stopped in R0;
 restore the preview deliberately in the next execution run after checking its
 owner/port/build. Previous sidebar browser proof is historical, not current uptime.
+
+### 2026-09-10 — execute approved team workspace; defer WhatsApp proof
+
+Owner approves the #709 plan and says to implement now, with no WAHA confirmation
+until working phone numbers exist. Execute issue #708 native R1–R4; prepare R5
+under the existing release/recovery controls. W1/W2 provider pairing, session
+mutation, sends, webhook activation and delivery claims are deferred. An exact
+future operator activation/checklist is in scope, not an untested implicit bridge.
+
+Freeze the existing Auth/membership contract for parallel work: all modules use
+canonical current_actor_authority, organization/profile/membership IDs and fixed
+admin/sales/curator database roles (admissions in UI). Identity owner owns migration
+139 staff workspace participants/invitation state; coordinator owns shared
+navigation/route/role contracts and later142 notifications/message-to-task integration. Tasks owns140
+staff-task domain and task UI; Chat owns141 native channels/messages and chat UI.
+Migration numbers are reserved against main71d97dd9; recheck before integration.
+No peer overwrites another agent's files. Existing case tasks stay unchanged
+except reusable entry points and paginated selection. Separate branches permit
+review/merge of coherent blocks while independent implementation continues.
+
+Real staff roster was requested asynchronously for multi-user proof; do not
+manufacture staff, share Admin credentials, send unapproved invitations or
+expand prior fictional Student QA permission. Validate schema/real read paths
+where available and name unexercised business paths precisely. Research refreshed
+from official Supabase Auth/Realtime and installed Next docs; Context7 remains
+quota-blocked, without purchase or retry loop.
+
+R1 records a compact private invitation/recovery ledger before a Supabase Auth
+operation. The external email operation and authenticated-Admin membership command
+cannot be one database transaction: preserve partial/unknown outcomes, reconcile
+by stable request and verified Auth identity, and never blindly resend on timeout.
+Auth creation alone grants no business role. Completion uses the existing
+authenticated Admin RPC; the service client is limited to Auth administration.
+Confirmed recipients remain mandatory before actual delivery.

@@ -1,7 +1,7 @@
 import "server-only";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isStaffRole, type StaffWorkspaceData } from "./staff-workspace-contract";
+import { isStaffRole, type StaffAuthRequest, type StaffWorkspaceData } from "./staff-workspace-contract";
 
 export async function readStaffWorkspace(actor: ActivePlatformActor): Promise<StaffWorkspaceData> {
   if (actor.authorityRole !== "admin" || actor.presentationRole !== "admin") {
@@ -22,11 +22,15 @@ export async function readStaffWorkspace(actor: ActivePlatformActor): Promise<St
         return { membershipId: String(row.membership_id), displayName: String(row.display_name),
           role: row.platform_role, status: String(row.membership_status), version: Number(row.access_version) };
       }),
-      requests: (history.data ?? []).map((row: Record<string, unknown>) => ({
-        requestId: String(row.request_id), operation: row.operation as "invite" | "recovery",
-        displayName: String(row.display_name), status: row.status as "dispatching" | "reconciliation_required" | "completed",
-        createdAt: String(row.created_at),
-      })),
+      requests: (history.data ?? []).map((row: Record<string, unknown>): StaffAuthRequest => {
+        if ((row.operation !== "invite" && row.operation !== "recovery")
+          || !["dispatching", "reconciliation_required", "completed", "rejected"].includes(String(row.status))) {
+          throw new Error("Unexpected staff request state.");
+        }
+        return { requestId: String(row.request_id), operation: row.operation,
+          displayName: String(row.display_name), status: row.status as StaffAuthRequest["status"],
+          createdAt: String(row.created_at), rejectionCode: typeof row.rejection_code === "string" ? row.rejection_code : null };
+      }),
     };
   } catch {
     return { available: false, members: [], requests: [] };

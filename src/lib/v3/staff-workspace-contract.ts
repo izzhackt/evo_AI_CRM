@@ -8,16 +8,27 @@ export type StaffWorkspaceMember = Readonly<{
 }>;
 export type StaffAuthRequest = Readonly<{
   requestId: string; operation: "invite" | "recovery"; displayName: string;
-  status: "dispatching" | "reconciliation_required" | "completed"; createdAt: string;
+  status: "dispatching" | "reconciliation_required" | "completed" | "rejected"; createdAt: string;
+  rejectionCode: string | null;
 }>;
 export type StaffWorkspaceData = Readonly<{
   members: readonly StaffWorkspaceMember[]; requests: readonly StaffAuthRequest[]; available: boolean;
 }>;
 export type StaffWorkspaceActionState = Readonly<{
   status: "idle" | "success" | "error"; message: string;
+  retryAllowed?: boolean;
 }>;
 export const STAFF_WORKSPACE_INITIAL_STATE: StaffWorkspaceActionState = { status: "idle", message: "" };
 export const STAFF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function isStaffRole(value: unknown): value is StaffRole {
   return typeof value === "string" && STAFF_ROLES.includes(value as StaffRole);
+}
+
+export function staffAuthRejectionMessage(code: string | null | undefined): string {
+  if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit") return "Сервис входа отклонил запрос из-за ограничения частоты. Подождите перед новым запросом.";
+  if (code === "email_address_not_authorized") return "Почтовый сервис не разрешает отправку этому адресату. Администратору нужно проверить настройки SMTP.";
+  if (code === "email_address_invalid") return "Сервис входа отклонил email. Проверьте рабочий адрес сотрудника.";
+  if (code === "email_exists") return "Этот email уже зарегистрирован. Проверьте существующий аккаунт перед новым запросом.";
+  if (code === "not_admin" || code === "bad_jwt" || code === "no_authorization") return "Сервис входа отклонил серверные полномочия. Администратору нужно проверить настройку доступа к Auth.";
+  return "Сервис входа отклонил запрос. Администратору нужно проверить настройки Auth перед новым запросом.";
 }

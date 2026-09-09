@@ -77,14 +77,17 @@ CREATE TABLE platform_private.staff_auth_requests (
   requested_role platform.business_role NOT NULL CHECK (requested_role IN ('admin','sales','curator')),
   target_membership_id UUID REFERENCES platform.organization_memberships(id),
   auth_user_id UUID REFERENCES auth.users(id),
-  status TEXT NOT NULL DEFAULT 'dispatching' CHECK (status IN ('dispatching','reconciliation_required','completed')),
+  status TEXT NOT NULL DEFAULT 'dispatching' CHECK (status IN ('dispatching','reconciliation_required','completed','rejected')),
   baseline_recovery_sent_at TIMESTAMPTZ,
   provider_observed_at TIMESTAMPTZ,
+  rejection_code TEXT,
+  rejection_http_status INTEGER,
+  rejected_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   completed_at TIMESTAMPTZ
 );
 CREATE UNIQUE INDEX staff_auth_requests_pending_email ON platform_private.staff_auth_requests
-  (organization_id, normalized_email) WHERE status <> 'completed';
+  (organization_id, normalized_email) WHERE status IN ('dispatching','reconciliation_required');
 CREATE INDEX staff_auth_requests_org_created ON platform_private.staff_auth_requests
   (organization_id, created_at DESC);
 ALTER TABLE platform_private.staff_auth_requests ENABLE ROW LEVEL SECURITY;
@@ -142,13 +145,57 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::TEXT || ':' || v_email,139));
   IF EXISTS (SELECT 1 FROM platform_private.staff_auth_requests
     WHERE organization_id = p_organization_id AND normalized_email = v_email
-      AND (status <> 'completed' OR created_at > clock_timestamp() - interval '60 seconds')) THEN
+      AND status IN ('dispatching','reconciliation_required')) THEN
     RAISE EXCEPTION 'staff_workspace_auth_pending' USING ERRCODE = '55000';
+  END IF;
+  IF EXISTS (SELECT 1 FROM platform_private.staff_auth_requests
+    WHERE organization_id = p_organization_id AND normalized_email = v_email
+      AND created_at > clock_timestamp() - interval '60 seconds') THEN
+    RAISE EXCEPTION 'staff_workspace_auth_cooldown' USING ERRCODE = '55000';
   END IF;
   INSERT INTO platform_private.staff_auth_requests(id,organization_id,actor_membership_id,operation,
     normalized_email,display_name,requested_role,target_membership_id,auth_user_id,baseline_recovery_sent_at)
     VALUES(p_request_id,p_organization_id,a.membership_id,p_operation,v_email,v_name,v_role,p_membership_id,v_auth,v_baseline);
   RETURN jsonb_build_object('id',p_request_id,'dispatch',true,'email',v_email,'status','dispatching');
+END $$;
+
+-- Only the trusted server may record an actual Auth API rejection. This grants
+-- no business authority: role/provisioning commands remain authenticated Admin.
+-- Safe code/status only, never the provider body, tokens or arbitrary evidence.
+CREATE FUNCTION platform.staff_workspace_record_auth_rejection(
+  p_organization_id UUID,p_request_id UUID,p_code TEXT,p_http_status INTEGER
+) RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE r platform_private.staff_auth_requests%ROWTYPE; v_no_side_effect BOOLEAN;
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'staff_workspace_trusted_receipt_required' USING ERRCODE = '42501';
+  END IF;
+  IF NOT coalesce((p_http_status = 429 AND p_code IN ('over_email_send_rate_limit','over_request_rate_limit'))
+    OR (p_http_status IN (400,401,403,422) AND p_code IN ('email_address_invalid','email_address_not_authorized',
+      'email_exists','email_provider_disabled','otp_disabled','signup_disabled','not_admin','bad_jwt','no_authorization','captcha_failed')),false) THEN
+    RAISE EXCEPTION 'staff_workspace_unproven_rejection' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO r FROM platform_private.staff_auth_requests
+    WHERE id = p_request_id AND organization_id = p_organization_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'staff_workspace_request_missing' USING ERRCODE = '22023'; END IF;
+  IF r.status IN ('completed','rejected') THEN
+    RETURN jsonb_build_object('status',r.status,'operation',r.operation);
+  END IF;
+  IF r.operation = 'invite' THEN
+    -- Even an unbound new Auth identity is a possible side effect. Never let
+    -- a rejection overwrite it or turn an ambiguous result into resend authority.
+    v_no_side_effect := NOT EXISTS (SELECT 1 FROM auth.users WHERE lower(email) = r.normalized_email);
+  ELSE
+    v_no_side_effect := EXISTS (SELECT 1 FROM auth.users WHERE id = r.auth_user_id
+      AND lower(email) = r.normalized_email AND recovery_sent_at IS NOT DISTINCT FROM r.baseline_recovery_sent_at);
+  END IF;
+  IF v_no_side_effect THEN
+    UPDATE platform_private.staff_auth_requests SET status = 'rejected',rejection_code = p_code,
+      rejection_http_status = p_http_status,rejected_at = clock_timestamp() WHERE id = r.id;
+    RETURN jsonb_build_object('status','rejected','operation',r.operation);
+  END IF;
+  UPDATE platform_private.staff_auth_requests SET status = 'reconciliation_required' WHERE id = r.id;
+  RETURN jsonb_build_object('status','reconciliation_required','operation',r.operation);
 END $$;
 
 CREATE FUNCTION platform.staff_workspace_reconcile_auth(p_organization_id UUID,p_request_id UUID)
@@ -159,7 +206,9 @@ BEGIN
   SELECT * INTO r FROM platform_private.staff_auth_requests
     WHERE id = p_request_id AND organization_id = p_organization_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'staff_workspace_request_missing' USING ERRCODE = '22023'; END IF;
-  IF r.status = 'completed' THEN RETURN jsonb_build_object('status','completed','operation',r.operation); END IF;
+  IF r.status IN ('completed','rejected') THEN
+    RETURN jsonb_build_object('status',r.status,'operation',r.operation,'rejection_code',r.rejection_code);
+  END IF;
   IF r.operation = 'invite' THEN
     SELECT id, invited_at INTO u FROM auth.users
       WHERE lower(email) = r.normalized_email AND invited_at >= r.created_at
@@ -189,13 +238,15 @@ BEGIN
 END $$;
 
 CREATE FUNCTION platform.staff_workspace_auth_history(p_organization_id UUID)
-RETURNS TABLE(request_id UUID,operation TEXT,display_name TEXT,status TEXT,created_at TIMESTAMPTZ,provider_observed_at TIMESTAMPTZ)
+RETURNS TABLE(request_id UUID,operation TEXT,display_name TEXT,status TEXT,created_at TIMESTAMPTZ,
+  provider_observed_at TIMESTAMPTZ,rejection_code TEXT,rejection_http_status INTEGER,rejected_at TIMESTAMPTZ)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   PERFORM 1 FROM platform_private.require_admin_actor(p_organization_id, 'membership.read');
-  RETURN QUERY SELECT r.id,r.operation,r.display_name,r.status,r.created_at,r.provider_observed_at
+  RETURN QUERY SELECT r.id,r.operation,r.display_name,r.status,r.created_at,r.provider_observed_at,
+    r.rejection_code,r.rejection_http_status,r.rejected_at
     FROM platform_private.staff_auth_requests r WHERE r.organization_id = p_organization_id
-    ORDER BY (r.status <> 'completed') DESC,r.created_at DESC,r.id DESC LIMIT 100;
+    ORDER BY (r.status IN ('dispatching','reconciliation_required')) DESC,r.created_at DESC,r.id DESC LIMIT 100;
 END $$;
 
 REVOKE ALL ON FUNCTION platform_private.staff_workspace_keep_admin() FROM PUBLIC,anon,authenticated,service_role;
@@ -203,11 +254,13 @@ REVOKE ALL ON FUNCTION platform.staff_workspace_participants(UUID) FROM PUBLIC,a
 REVOKE ALL ON FUNCTION platform.staff_workspace_change_member(UUID,UUID,BIGINT,TEXT,TEXT,TEXT,UUID) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION platform.staff_workspace_claim_auth(UUID,UUID,TEXT,TEXT,TEXT,platform.business_role,UUID) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION platform.staff_workspace_reconcile_auth(UUID,UUID) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION platform.staff_workspace_record_auth_rejection(UUID,UUID,TEXT,INTEGER) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION platform.staff_workspace_auth_history(UUID) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION platform.staff_workspace_participants(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.staff_workspace_change_member(UUID,UUID,BIGINT,TEXT,TEXT,TEXT,UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.staff_workspace_claim_auth(UUID,UUID,TEXT,TEXT,TEXT,platform.business_role,UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION platform.staff_workspace_reconcile_auth(UUID,UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION platform.staff_workspace_record_auth_rejection(UUID,UUID,TEXT,INTEGER) TO service_role;
 GRANT EXECUTE ON FUNCTION platform.staff_workspace_auth_history(UUID) TO authenticated;
 
 NOTIFY pgrst,'reload schema';

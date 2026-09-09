@@ -1,12 +1,16 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { changeStaffMember, requestStaffAuth, staffWorkspaceError } from "./server/staff-workspace-service";
-import type { StaffWorkspaceActionState } from "./v3/staff-workspace-contract";
+import { staffAuthRejectionMessage, type StaffWorkspaceActionState } from "./v3/staff-workspace-contract";
 
 export async function staffAuthAction(_previous: StaffWorkspaceActionState, form: FormData): Promise<StaffWorkspaceActionState> {
   try {
     const result = await requestStaffAuth(form);
     revalidatePath("/v3/settings");
+    if (result.status === "rejected") return {
+      status: "error", retryAllowed: true,
+      message: `${staffAuthRejectionMessage(result.rejection_code)} Отправка не подтверждена, изменений в Auth не обнаружено. После устранения причины можно явно отправить новый запрос.`,
+    };
     return result.status === "completed"
       ? { status: "success", message: result.operation === "invite"
         ? "Приглашение зарегистрировано в сервисе входа, доступ сотрудника создан. Доставка письма и первый вход пока не подтверждены."

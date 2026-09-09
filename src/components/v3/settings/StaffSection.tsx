@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import { staffAuthAction, staffMemberAction } from "@/lib/staff-workspace-actions";
-import { STAFF_WORKSPACE_INITIAL_STATE, STAFF_ROLE_LABELS, STAFF_ROLES,
+import { STAFF_WORKSPACE_INITIAL_STATE, STAFF_ROLE_LABELS, STAFF_ROLES, staffAuthRejectionMessage,
   type StaffWorkspaceActionState, type StaffWorkspaceData, type StaffWorkspaceMember,
   type StaffRole, type StaffAuthRequest } from "@/lib/v3/staff-workspace-contract";
 import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
@@ -15,6 +15,9 @@ function Feedback({ state }: { state: StaffWorkspaceActionState }) {
 function useStaffForm(action: typeof staffAuthAction) {
   const requestId = useRef<string | null>(null);
   return useActionState(async (previous: StaffWorkspaceActionState, form: FormData) => {
+    // Only an explicit submit after a proved rejection starts a fresh attempt.
+    // An uncertain result always retains its original request ID.
+    if (previous.retryAllowed && form.get("retry_rejected") === "yes") requestId.current = null;
     requestId.current ??= crypto.randomUUID();
     form.set("request_id", requestId.current);
     return action(previous, form);
@@ -43,7 +46,8 @@ function InviteForm() {
       <label className="flex min-h-11 items-center gap-3 text-sm leading-6"><input name="recipient_confirmed" type="checkbox" value="yes" required
         checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="h-5 w-5 shrink-0" />
         Адресат согласован, письмо на этот адрес можно отправить</label>
-      <button className={`${btnCls} min-h-11`} type="submit">{pending ? "Регистрируем приглашение…" : "Отправить приглашение"}</button>
+      <button className={`${btnCls} min-h-11`} type="submit" name="retry_rejected" value={state.retryAllowed ? "yes" : "no"}>
+        {pending ? "Регистрируем приглашение…" : state.retryAllowed ? "Отправить новое приглашение" : "Отправить приглашение"}</button>
     </fieldset>
     <Feedback state={state} />
   </form>;
@@ -81,7 +85,8 @@ function RecoveryForm({ member }: { member: StaffWorkspaceMember }) {
     <fieldset disabled={pending || state.status === "success"} className="space-y-3">
       <label className="flex min-h-11 items-center gap-3 text-sm leading-6"><input type="checkbox" required name="recipient_confirmed" value="yes" className="h-5 w-5 shrink-0" />
         Сотрудник согласовал письмо для восстановления входа на свой email</label>
-      <button type="submit" className={`${btnGhostCls} min-h-11`}>{pending ? "Регистрируем запрос…" : "Отправить восстановление входа"}</button>
+      <button type="submit" className={`${btnGhostCls} min-h-11`} name="retry_rejected" value={state.retryAllowed ? "yes" : "no"}>
+        {pending ? "Регистрируем запрос…" : state.retryAllowed ? "Отправить новый запрос восстановления" : "Отправить восстановление входа"}</button>
     </fieldset><Feedback state={state} />
   </form>;
 }
@@ -91,9 +96,10 @@ function RequestRow({ request }: { request: StaffAuthRequest }) {
   return <li className="space-y-2 border-b border-border py-4 last:border-0">
     <p className="break-words text-sm font-medium">{request.displayName} · {request.operation === "invite" ? "Приглашение" : "Восстановление входа"}</p>
     <p className="text-sm text-fg-3">{request.status === "completed" ? "Зарегистрировано в сервисе входа; доставка письма не подтверждена"
+      : request.status === "rejected" ? `${staffAuthRejectionMessage(request.rejectionCode)} Изменений в Auth не обнаружено. После устранения причины используйте новое приглашение или форму восстановления сотрудника.`
       : "Требуется проверка результата; повторная отправка заблокирована"}</p>
     <p className="text-xs text-fg-3">{new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Dubai" })} (Dubai)</p>
-    {request.status !== "completed" ? <form action={action}>
+    {request.status !== "completed" && request.status !== "rejected" ? <form action={action}>
       <input type="hidden" name="operation" value="reconcile" /><input type="hidden" name="request_id" value={request.requestId} />
       <button className={`${btnGhostCls} min-h-11`} disabled={pending}>{pending ? "Проверяем…" : "Проверить без повторного письма"}</button>
     </form> : null}<Feedback state={state} />

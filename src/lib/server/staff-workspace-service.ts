@@ -5,6 +5,9 @@ import { studentInviteCallbackUrl } from "@/lib/student-invite-callback-contract
 import { getPlatformSupabaseBackendConfig, PlatformSupabaseBackendConfigurationError } from "./platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client";
 import { isStaffRole, STAFF_UUID } from "@/lib/v3/staff-workspace-contract";
+import { definiteStaffAuthRejection } from "./staff-auth-failure";
+
+type StaffAuthResult = { status: string; operation: string; rejection_code?: string | null };
 
 export async function staffAdminContext() {
   const result = await resolvePlatformActor();
@@ -33,7 +36,7 @@ export async function requestStaffAuth(form: FormData) {
       p_organization_id: actor.organizationId, p_request_id: requestId,
     });
     if (result.error) throw new Error(result.error.message);
-    return result.data as { status: string; operation: string };
+    return result.data as StaffAuthResult;
   }
   if (form.get("recipient_confirmed") !== "yes") throw new Error("staff_workspace_recipient_required");
   const email = String(form.get("email") ?? "").trim().toLowerCase();
@@ -56,28 +59,42 @@ export async function requestStaffAuth(form: FormData) {
   });
   if (claim.error) throw new Error(claim.error.message);
   if (claim.data?.dispatch === true) {
+    let providerError: unknown = null;
     try {
-      // The privileged client is used ONLY for Auth, never platform provisioning.
+      // The privileged client is used for Auth and the narrow rejection receipt,
+      // never platform provisioning or another business command.
       // Official API: invite sends an email; neither a success response nor an
       // Auth timestamp proves inbox delivery. Recovery timestamps are read back.
       // https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail
       // https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
       if (operation === "invite") {
-        await authClient.auth.admin.inviteUserByEmail(claim.data.email, {
+        const result = await authClient.auth.admin.inviteUserByEmail(claim.data.email, {
           redirectTo, data: { evo_staff_invitation_request_id: requestId },
         });
+        providerError = result.error;
       } else {
-        await authClient.auth.resetPasswordForEmail(claim.data.email, { redirectTo });
+        const result = await authClient.auth.resetPasswordForEmail(claim.data.email, { redirectTo });
+        providerError = result.error;
       }
-    } catch {
+    } catch (error) {
+      providerError = error;
       // A timeout can follow a successful email side effect. Read back, never retry.
+    }
+    const rejection = definiteStaffAuthRejection(providerError);
+    if (rejection) {
+      // The receipt RPC independently reads Auth before unlocking the recipient.
+      // A failed receipt write leaves the request pending; no blind retry.
+      await authClient.schema("platform").rpc("staff_workspace_record_auth_rejection", {
+        p_organization_id: actor.organizationId, p_request_id: requestId,
+        p_code: rejection.code, p_http_status: rejection.httpStatus,
+      });
     }
   }
   const result = await client.rpc("staff_workspace_reconcile_auth", {
     p_organization_id: actor.organizationId, p_request_id: requestId,
   });
   if (result.error) throw new Error("staff_workspace_reconciliation_required");
-  return result.data as { status: string; operation: string };
+  return result.data as StaffAuthResult;
 }
 
 export async function changeStaffMember(form: FormData) {
@@ -112,6 +129,7 @@ export function staffWorkspaceError(error: unknown): string {
   if (message.includes("version_conflict")) return "Данные сотрудника изменились. Обновите страницу и проверьте роль и статус.";
   if (message.includes("email_exists")) return "Для этого email уже есть аккаунт. Новый аккаунт не создан; для сотрудника используйте восстановление входа.";
   if (message.includes("auth_pending")) return "Для адресата уже есть запрос. Проверьте его в журнале; повторная отправка заблокирована.";
+  if (message.includes("auth_cooldown")) return "Между запросами одному адресату нужна пауза не менее 60 секунд. Подождите и отправьте новый запрос явно.";
   if (message.includes("recipient_required")) return "Подтвердите, что адресат согласован и письмо можно отправить.";
   if (message.includes("reconciliation_required")) return "Результат отправки требует проверки в журнале. Не отправляйте письмо повторно.";
   if (message.includes("forbidden")) return "Действие доступно только активному администратору. Проверьте сеанс входа.";

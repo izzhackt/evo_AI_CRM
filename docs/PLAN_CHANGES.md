@@ -22241,3 +22241,51 @@ fixture does not prove normal invitation/provisioning or production deployment.
 The old preview and production tunnel were not altered. PR #692 incorporates
 current main's separate Student/Admissions run contract without dropping either
 decision history; its source delta still requires exact-head review and CI.
+
+### 2026-09-09 — P2/P3/M1 implementation contract before coding
+
+PR #692 is now merged at `198f5551`, after independent exact-head approval and
+CI 34358523190. Continue native assessments in their owned worktree; implement
+Admissions in a separate branch. Schema allocation after checking main: 135/136
+belong to assessments, 137 Admissions commands/boundaries, 138 reviewed CN/MY
+playbook content. These candidates are unapplied; never edit deployed 001–134.
+
+Use existing cases, tasks, applications, visas, documents, payments and Sales
+handoffs. Add a nullable typed direction, immutable editorial playbook binding,
+separate optimistic admissions revision, dated next action and validated facts.
+Do not misuse access-scope versions, replace applied OZO/requirements contracts,
+auto-classify historical cases, or create another workflow engine. Existing
+`operational_stage` remains the state. Primary application governs case progression;
+alternatives remain independent and visible. Cancellation is not successful arrival.
+
+Add scoped partner/decision details to existing versioned applications and CN/MY
+country details to visas. A partner receipt is not proof of university submission.
+Malaysia separates referral, university and submission partner, offer conditions,
+invoice/payment references, EMGS, eVAL, entry visa applicability, MDAC, housing,
+departure and confirmed arrival. Unknown applicability stays unresolved. Published
+playbooks are editorial working instructions, not universal legal requirements.
+Current official requirements and real invoices govern. Post-arrival medical,
+registration and Student Pass endorsement stay pending until evidenced, including
+after the recommended confirmed-arrival completion endpoint.
+
+Seven canonical stage keys remain `intake`, `profile_and_route`, `documents`,
+`applications`, `decisions`, `visa_and_predeparture`, `arrival_and_adaptation`.
+Transitions check real evidence and finance blockers, with explicit reason for
+back-steps and no erasure of facts. Existing route/lifecycle/application/visa
+commands must not bypass new gates on configured cases. Arrival success requires
+date, confirming person and evidence; tickets alone never complete a case.
+Handoff acknowledgement remains operational evidence, not a new access gate.
+
+New RPCs use live actor/scope checks, expected revision and exact replay receipts.
+Read views preserve staff projection boundaries and never include personal tests.
+Direction/curator/attention filters run before server pagination. The summary
+counts the full visible case set and distinguishes current stock from period
+arrival events. Tasks reuse existing idempotent source keys and manual curator
+assignment. Templates are editable/copyable only, with no provider sends.
+
+The implementation contract is detailed in
+`docs/design/v3/admissions-playbook-implementation.md`. Official foundations:
+https://supabase.com/docs/guides/database/functions and
+https://www.postgresql.org/docs/current/explicit-locking.html; current Malaysia
+entry sources remain in the run plan. Recommendations here are logged for owner
+post-edit rather than interrupting the authorized run with product questions.

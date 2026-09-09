@@ -12,7 +12,7 @@ const outputRoot = resolve(process.cwd(), "output/playwright-student-portal");
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "student-portal.spec.ts",
+  testMatch: ["student-portal.spec.ts", "student-assessments.spec.ts"],
   timeout: 90_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,

@@ -33,6 +33,10 @@ async function screenshot(page: Page, name: string) {
   const directory = process.env.EVO_STUDENT_PORTAL_SCREENSHOT_DIR;
   if (!directory) throw new Error("Private evidence directory is required");
   const path = join(directory, name);
+  // Full-page captures start at the top so sticky navigation is not rendered
+  // halfway down the document after Playwright scrolls to a question control.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await page.screenshot({ path, fullPage: true, animations: "disabled" });
   await chmod(path, 0o600);
 }
@@ -51,6 +55,17 @@ async function ownerRpc(kind = "STUDENT") {
   const { error } = await client.auth.signInWithPassword({ email: required(`EVO_STUDENT_PORTAL_${kind}_EMAIL`), password: required(`EVO_STUDENT_PORTAL_${kind}_PASSWORD`) });
   if (error) throw new Error("Isolated QA identity login failed");
   return client;
+}
+
+async function contextOfflineCompletion(page: Page) {
+  await page.context().setOffline(true);
+  try {
+    await page.getByRole("button", { name: "Завершить и получить результат" }).click();
+    await expect(page.getByTestId("assessment-runner").getByRole("alert")).toContainText("Не удалось подтвердить сохранение");
+    await expect(page.getByRole("button", { name: "Назад", exact: true })).toBeDisabled();
+    await screenshot(page, "assessments-desktop-completion-retry.png");
+  } finally { await page.context().setOffline(false); }
+  await page.getByRole("button", { name: "Повторить сохранение" }).click();
 }
 
 test("English: actual UI save, logout/resume, immutable completion and owner-only access", async ({ page }, info) => {
@@ -86,7 +101,7 @@ test("English: actual UI save, logout/resume, immutable completion and owner-onl
     await saved(page);
     await page.getByRole("button", { name: index === 35 ? "Проверить и завершить" : "Далее", exact: true }).click();
   }
-  await page.getByRole("button", { name: "Завершить и получить результат" }).click();
+  await contextOfflineCompletion(page);
   await expect(page.getByRole("heading", { name: "0 из 36", exact: true })).toBeVisible();
   await quality(page); await screenshot(page, "assessments-desktop-english-result.png");
   await page.reload();
@@ -127,6 +142,7 @@ test("Career: all 92 real answers produce eight descriptive scales and professio
   await page.getByRole("button", { name: "Завершить и получить результат" }).click();
   await expect(page.getByRole("heading", { name: "Ваша карта интересов", exact: true })).toBeVisible();
   await expect(page.getByRole("meter")).toHaveCount(8);
+  await expect(page.getByText(/Использованы сведения O\*NET® 31\.0 Database, U\.S\. Department of Labor/)).toBeVisible();
   await quality(page); await screenshot(page, "assessments-desktop-career-result.png");
   await page.locator("details").filter({ hasText: "Попробуйте:" }).first().locator("summary").click();
   await expect(page.getByText("Возможное развитие:", { exact: true }).first()).toBeVisible();
@@ -138,6 +154,55 @@ test("Career: all 92 real answers produce eight descriptive scales and professio
   expect(result.error).toBeNull(); expect(result.data.result.orvis.scales).toHaveLength(8);
   expect(result.data.result.orvis.scales.every((s: { mean: number }) => s.mean === 3)).toBe(true);
   expect(result.data.result.orvis.topScales).toHaveLength(8); await owner.auth.signOut();
+});
+
+test("unsaved answers survive immediate portal navigation, logout and browser Back offline", async ({ page, context }, info) => {
+  test.skip(info.project.name !== "desktop-chromium", "Exit recovery uses one real draft.");
+  await login(page, "STUDENT_SECOND");
+  await page.goto("/portal/tests");
+  await page.goto("/portal/tests/english?new=1");
+  await page.getByRole("button", { name: "Начать тест", exact: true }).click();
+  await expect(page.getByTestId("assessment-runner")).toBeVisible();
+  await expect(page).toHaveURL(/attempt=[0-9a-f-]{36}/);
+  const attemptUrl = page.url();
+  const last = page.getByRole("radio").last();
+  await context.setOffline(true);
+  try {
+    await last.check();
+    await page.getByRole("navigation", { name: "Разделы кабинета" }).getByRole("link", { name: "Документы", exact: true }).click();
+    await expect(page).toHaveURL(attemptUrl);
+    await expect(page.getByTestId("assessment-runner").getByRole("alert")).toContainText("Переход остановлен");
+    await expect(last).toBeChecked();
+    await page.getByRole("button", { name: "Выйти", exact: true }).click();
+    await expect(page).toHaveURL(attemptUrl); await expect(last).toBeChecked();
+    // The previous entry was a full document navigation. Explicitly choose
+    // "stay": Playwright auto-accepts beforeunload when no handler is present.
+    const beforeUnload = page.waitForEvent("dialog");
+    page.once("dialog", dialog => dialog.dismiss());
+    await page.evaluate(() => window.history.back());
+    expect((await beforeUnload).type()).toBe("beforeunload");
+    await expect(page).toHaveURL(attemptUrl); await expect(last).toBeChecked();
+    await expect(page.getByTestId("assessment-runner").getByRole("alert")).toContainText("Не удалось подтвердить сохранение");
+    await screenshot(page, "assessments-desktop-unsaved-exit.png");
+  } finally { await context.setOffline(false); }
+  await page.getByRole("button", { name: "Повторить сохранение" }).click();
+  await saved(page);
+  await page.getByRole("button", { name: "Сохранить и выйти" }).click();
+  await expect(page).toHaveURL(/\/portal\/tests$/);
+  await page.getByRole("link", { name: "Продолжить", exact: true }).click();
+  await expect(page.getByTestId("assessment-runner")).toBeVisible();
+  // Same-document Next navigation must be cancelled without a browser dialog.
+  await context.setOffline(true);
+  try {
+    await page.getByRole("radio").first().check();
+    await page.evaluate(() => window.history.back());
+    await expect(page.getByTestId("assessment-runner").getByRole("alert")).toContainText("Переход остановлен");
+    await expect(page).toHaveURL(attemptUrl);
+    await expect(page.getByRole("radio").first()).toBeChecked();
+    await expect(page.getByTestId("assessment-runner").getByRole("alert")).toContainText("Не удалось подтвердить сохранение");
+  } finally { await context.setOffline(false); }
+  await page.getByRole("button", { name: "Повторить сохранение" }).click();
+  await saved(page);
 });
 
 test("393px and keyboard: test options, pause and saved result stay usable", async ({ page }, info) => {
@@ -162,7 +227,7 @@ test("real competing tabs: stale save is visible and explicit reload recovers", 
   await expect(second.getByTestId("assessment-runner")).toBeVisible();
   await page.getByRole("radio").first().check(); await saved(page);
   await second.getByRole("radio").last().check();
-  await expect(second.getByRole("alert")).toContainText("Ответы изменились в другой вкладке");
+  await expect(second.getByTestId("assessment-runner").getByRole("alert")).toContainText("Ответы изменились в другой вкладке");
   await expect(second.getByRole("radio").last()).toBeChecked();
   second.once("dialog", dialog => dialog.accept());
   await second.getByRole("button", { name: "Загрузить сохранённую попытку" }).click();
@@ -177,7 +242,7 @@ test("real connection loss preserves input and retries the same save after recov
   await context.setOffline(true);
   try {
     await page.getByRole("radio").last().check();
-    await expect(page.getByRole("alert")).toContainText("Не удалось подтвердить сохранение");
+    await expect(page.getByTestId("assessment-runner").getByRole("alert")).toContainText("Не удалось подтвердить сохранение");
     await expect(page.getByRole("radio").last()).toBeChecked();
     await screenshot(page, "assessments-desktop-offline.png");
   } finally { await context.setOffline(false); }

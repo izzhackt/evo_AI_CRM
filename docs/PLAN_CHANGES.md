@@ -22636,3 +22636,9 @@ https://waha.devlike.pro/docs/how-to/sessions/,
 https://waha.devlike.pro/docs/how-to/groups/ and
 https://slack.com/help/articles/360017938993-What-is-a-channel.
 Context7 quota was exhausted; direct official documentation was used instead.
+
+Final local status check: existing SSH localhost3000 health passed; localhost3101
+has no listener and its health request failed to connect. Record the preview as
+stopped, not a working deliverable URL. No process was started/stopped in R0;
+restore the preview deliberately in the next execution run after checking its
+owner/port/build. Previous sidebar browser proof is historical, not current uptime.

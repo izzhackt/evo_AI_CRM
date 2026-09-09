@@ -350,7 +350,7 @@ BEGIN
     INSERT INTO platform.audit_events (organization_id, actor_kind, actor_profile_id, actor_principal,
       action, resource_type, resource_id, before_state, after_state, reason, request_id)
     VALUES (p_organization_id, 'user', actor.profile_id, 'auth:' || actor.auth_user_id::TEXT,
-      'team_chat.' || operation, 'team_chat_message', msg.id,
+      'team.chat.' || operation, 'team_chat_message', msg.id,
       jsonb_build_object('version', before_version), result,
       CASE WHEN operation = 'moderate' THEN reason ELSE 'Staff chat ' || operation END, p_request_id);
     -- No message ID, author, body, membership or timestamps on stale sessions.

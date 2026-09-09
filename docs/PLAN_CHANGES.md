@@ -22499,3 +22499,26 @@ https://supabase.com/docs/guides/auth/managing-user-data and
 https://supabase.com/docs/reference/javascript/auth-admin-deleteuser .
 Deletion can encounter dependent ownership and does not retroactively invalidate
 already issued JWTs; do not confuse account removal with a cosmetic profile flag.
+
+### 2026-09-09 — align final browser proof with the shipped Admissions workflow
+
+Owner-authorized release checkpoint: #704 merged at 3b4e08db; canonical schema
+check34389381978/apply34389465309 succeeded for only135–138 and source ledger001–138.
+Full CI34389680062 passed Node/static and dependency audit but failed four real
+browser scenarios: two expected superseded profile-denial copy; the Student360
+scenario expected the directory link to open overview instead of the new route
+workspace; D2 media lacked its real P4 acceptance fixture file. Release34390292724
+was skipped; arm=false verified18:39:40UTC. Prior app0cbb2d42 remains accepted.
+
+Repair scope: first verify the equivalent denial and exact-case/role boundaries,
+then align only outdated browser expectations with approved Admissions UX.
+Inspection confirms the earlier Student360 scenario itself writes the P4
+receipt: its link failure prevented fixture creation, cascading into D2.
+Preserve that existing real producer and test ordering; no harness or receipt
+fallback is needed. Do not delete or skip failing scenarios, weaken
+RLS/role/media assertions, manufacture a passing receipt, or modify production
+data to satisfy CI. Use the observed full-CI failure as the red baseline; focused
+harness/contract checks plus a fresh exact-main full CI provide the green proof.
+If inspection shows an actual product regression, treat it separately rather
+than changing the expected result. No additional schema or account mutation is
+requested by this repair. Deploy only after review and all applicable gates.

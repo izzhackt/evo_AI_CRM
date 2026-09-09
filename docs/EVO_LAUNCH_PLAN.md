@@ -11,7 +11,9 @@ those higher-level authorities.
 
 Last recorded deployed application: `0cbb2d42d9691fac392864fea72a3f0894826773`, version
 `r27.1-0cbb2d42`, after full CI `34223961358` and release `34224668896` passed.
-Production schema is at 134; the release arm is false. The one-time import of
+Production schema is at 138 after manual ledger apply `34389465309` on September 9;
+the release arm was reset to false after candidate `3b4e08db` full CI
+`34389680062` failed before deployment. The one-time import of
 209 sales/4 targets is reconciled; owner business acceptance remains deferred.
 The earlier accepted
 `4e6057f0` evidence in closed #552/#553 remains first-release history, not the
@@ -86,6 +88,17 @@ The owner supplied both country DOCX sources and delegates uncertain product
 choices for documented post-edit; Malaysia is not awaiting a source document.
 
 ### Latest owner direction: release, no new backup, persistent source
+
+Current execution checkpoint: docs #704 merged as `3b4e08db`; reviewed forward
+migrations 135–138 applied successfully, ledger001–138 read back. The app remains
+`0cbb2d42`; attempted release `34390292724` was skipped after four browser-check
+failures in full CI. Next fix only the stale profile denial copy/directory entry
+tab assertions. The earlier Student360 scenario produces the P4 media fixture;
+its failed link assertion prevented that receipt, causing the later D2 failure.
+Preserve the existing producer and denial/RLS/media checks; no test skips or
+fabricated acceptance files. Re-run the affected real harness before claiming
+the next exact-main full CI/release successful. Existing owner waiver and
+persistent-source boundaries remain unchanged.
 
 On September 9, after the backup blockers were explained, the owner explicitly
 requested this release without a new backup for now, plus a localhost tunnel to

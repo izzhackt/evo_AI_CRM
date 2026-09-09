@@ -61,7 +61,7 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
         </details> : null}
       </form>
       {params.invalid ? <p role="alert" className="rounded-nav border border-danger p-4 text-sm text-danger" data-testid="v3-student-case-filter-rejected">Не удалось применить фильтры. Проверьте запрос или сбросьте поиск.</p>
-        : directory.rows.length === 0 ? <div className="space-y-2 py-8 text-center"><p className="font-medium text-fg">{params.active ? "По вашему запросу ничего не найдено." : "Пока нет доступных дел студентов."}</p><p className="text-sm text-fg-2">{params.active ? "Измените запрос или сбросьте фильтры." : "Здесь появятся дела после передачи из продаж."}</p></div>
+        : directory.rows.length === 0 ? <div className="space-y-2 py-8 text-center"><p className="font-medium text-fg">{params.active ? "По вашему запросу ничего не найдено." : "Пока нет доступных дел студентов."}</p><p className="text-sm text-fg-2">{params.active ? "Измените запрос или сбросьте фильтры." : "Здесь появятся дела после передачи из продаж."}</p>{allowAdmissionsFilters ? <p className="mx-auto max-w-xl text-sm leading-6 text-fg-2">Маршруты Китая и Малайзии находятся в деле студента на вкладке «Маршрут». Откройте дело и выберите маршрут. Кнопки стран выше только фильтруют рабочий список.</p> : null}</div>
         : <ul aria-label="Доступные дела студентов" className="divide-y divide-border">{directory.rows.map((row) => {
           const href = row.access === "full" ? `/v3/profile?case=${row.studentCaseId}&tab=route` : row.leadId ? `/v3/profile?id=${row.leadId}` : null;
           const issue = attention(row);

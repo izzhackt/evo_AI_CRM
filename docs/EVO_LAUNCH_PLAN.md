@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-09 (Asia/Dubai)
+Date: 2026-09-10 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -24,6 +24,35 @@ performed under the owner waiver; retained backups and the previous `0cbb2d42`
 image remain rollback evidence, not a new recovery point. Earlier `4e6057f0`
 evidence in closed #552/#553 is first-release history. A documentation change
 does not deploy a new app revision or require repeating this accepted release.
+
+## Current bounded follow-up: sidebar Option 2 (2026-09-10)
+
+Owner selected collapsible department groups from the three visual options.
+Implement inside the existing app: Sales → Pipeline / Sales report; Admissions
+→ Worklist / Direction summary; shared Inbox / Calendar / Knowledge; Settings
+and account controls at the bottom. Preserve fixed-role visibility and server
+authorization, original EVO assets/tokens, current page content and all four
+Admissions metrics. Keep countries inside Admissions and private Student tests
+outside the staff navigation. Settings remains a direct link, not an empty group.
+
+Current-route group opens on navigation; users can collapse or expand groups.
+Use query-aware active links to distinguish Main/Sales report and Worklist/
+Direction summary. The summary shortcut must actually reveal the existing report.
+Explain the empty Admissions list: cases appear after Sales handoff, and China/
+Malaysia playbooks are selected inside the case's «Маршрут» tab. Do not create
+production cases/accounts to make this UI look populated.
+
+Delivery gates: focused navigation/role/report tests, lint/typecheck/build,
+real local browser checks (desktop/mobile, keyboard, query navigation), visual
+comparison with selected Option 2, independent review and exact-head PR checks.
+No migrations, provider changes, Auth bypass, new database, data imports or
+backups. Keep the existing production/tunnel working. Production release, if
+performed, must follow the existing exact-main acceptance process; local visual
+proof alone is not deployment proof. Implementation and local validation are
+complete: build/TypeScript/lint,152 frontend tests and15 role/brand/auth tests
+passed; actual desktop/mobile/query/focus checks are in [design QA](../design-qa.md).
+The PR records final-head independent review and CI/merge status. Accepted
+production remains the revision recorded above until separately released.
 
 ## Predecessor UI block: EVO brand and usability refresh (2026-09-09)
 

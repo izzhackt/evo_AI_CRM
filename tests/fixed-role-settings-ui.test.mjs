@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
+import { fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
 
 const actionSource = readFileSync(
   new URL("../src/lib/staff-auth-actions.ts", import.meta.url),
@@ -63,7 +65,14 @@ test("the V3 shell renders presentation navigation and an authority-Admin contro
   assert.match(shellSource, /data-testid="v3-shell"/);
   assert.match(shellSource, /data-authority-role=\{authorityRole\}/);
   assert.match(shellSource, /data-presentation-role=\{presentationRole\}/);
-  assert.match(shellSource, /fixedRoleCanAccessRoute\(presentationRole/);
+  assert.match(shellSource, /buildV3Navigation\(presentationRole,/);
+  for (const role of ["admin", "sales", "admissions"]) {
+    const navigation = buildV3Navigation(role, "/v3/profile", new URLSearchParams());
+    const links = [navigation.home, ...navigation.groups.flatMap((group) => group.links), ...navigation.common, navigation.settings].filter(Boolean);
+    for (const link of links) assert.ok(fixedRoleCanAccessRoute(role, link.route), `${role}: ${link.href}`);
+    assert.equal(Boolean(navigation.settings), role === "admin");
+    assert.equal(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-summary")), role !== "sales");
+  }
   assert.match(shellSource, /authorityRole === "admin"/);
   assert.match(shellSource, /data-testid="staff-role-preview"/);
   assert.match(shellSource, /selectStaffRolePreviewAction/);

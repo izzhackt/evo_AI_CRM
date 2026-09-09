@@ -140,4 +140,6 @@ test("route refresh coordinates canonical siblings and confirmed editor dismissa
   assert.match(editor, /if \(busy \|\| stale \|\| confirmed\) return/);
   assert.match(editor, /disabled=\{busy \|\| uncertain \|\| stale \|\| confirmed\}/);
   assert.match(composition, /<AdmissionsRoutePanel[^>]*>[\s\S]*<ProfileAdmissionsWorkspacePanel[\s\S]*<\/AdmissionsRoutePanel>/);
+  const canonical = readFileSync(new URL("../src/components/v3/profile/ProfileAdmissionsWorkspace.tsx", import.meta.url), "utf8");
+  assert.match(canonical, /<VisaForm\s+key=\{`visa-\$\{workspace\.studentCaseId\}-\$\{workspace\.visa\?\.visaCaseId \?\? "new"\}-\$\{workspace\.visa\?\.version \?\? 0\}`\}/);
 });

@@ -22396,3 +22396,14 @@ with a held-and-released real RSC network request, then persist the next canonic
 status/evidence; no sleeps, fake responses, or forced status changes for acceptance.
 After an explicitly confirmed stage transition, show the new current-stage
 checklist. Merely browsing another stage still does not change the actual route.
+
+### 2026-09-09 — rebind canonical visa controls to the refreshed revision
+
+The complete MY browser journey reached all eVAL/SEV/MDAC evidence, then found
+that the existing VisaForm retained its first useActionState revision after
+route edits advanced the same visa record. Match the existing application form
+pattern: key the visa editor by case, visa identity and canonical revision, so a
+confirmed refresh resets stale action state. The route coordination boundary
+keeps sibling inputs disabled while those updates commit. Keep actual expected-
+revision validation; prove docs-to-approved after route facts without a reload
+workaround or forced database status.

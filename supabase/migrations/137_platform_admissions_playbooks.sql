@@ -536,8 +536,17 @@ BEGIN
    'cancelled',count(*) FILTER(WHERE admissions_outcome='cancelled'),'arrived',count(*) FILTER(WHERE admissions_outcome='arrived')) AS row
   FROM visible GROUP BY direction_key
  ), arrival AS (
-  SELECT v.direction_key,count(DISTINCT e.student_case_id) AS total FROM visible v JOIN platform_private.admissions_events e ON e.organization_id=v.organization_id AND e.student_case_id=v.id
-   WHERE e.kind='transition' AND e.outcome='arrived' AND (p_period_from IS NULL OR e.effective_on BETWEEN p_period_from AND p_period_to)
+  -- Business result, not a count of historical clicks: reopening/cancellation
+  -- removes a case; a reasoned date correction moves it to the confirmed month.
+  -- Keep every prior event immutable, but verify the latest transition supports
+  -- the currently recorded outcome and date before counting this case once.
+  SELECT v.direction_key,count(*) AS total FROM visible v
+   JOIN LATERAL (SELECT e.outcome,e.effective_on FROM platform_private.admissions_events e
+    WHERE e.organization_id=v.organization_id AND e.student_case_id=v.id AND e.kind='transition'
+    ORDER BY e.created_at DESC,e.id DESC LIMIT 1) confirmed ON TRUE
+   WHERE v.state='closed' AND v.admissions_outcome='arrived' AND confirmed.outcome='arrived'
+    AND confirmed.effective_on=(v.admissions_facts->>'arrivalOn')::DATE
+    AND (p_period_from IS NULL OR confirmed.effective_on BETWEEN p_period_from AND p_period_to)
    GROUP BY v.direction_key
  ) SELECT jsonb_build_object('periodFrom',p_period_from,'periodTo',p_period_to,'stock',COALESCE((SELECT jsonb_agg(row ORDER BY direction_key) FROM stock),'[]'::JSONB),
    'periodArrivals',COALESCE((SELECT jsonb_agg(jsonb_build_object('direction',direction_key,'count',total) ORDER BY direction_key) FROM arrival),'[]'::JSONB)) INTO result;

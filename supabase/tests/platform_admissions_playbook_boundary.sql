@@ -173,7 +173,7 @@ SELECT platform.configure_case_admissions_v1(pg_temp.a137_id(503),0,'CN',(SELECT
 SELECT pg_temp.a137_assert((SELECT count(*)=1 FROM platform.staff_student_case_page(1,NULL,NULL,NULL,NULL,NULL,'CN',pg_temp.a137_id(303),'overdue') WHERE student_case_id=pg_temp.a137_id(503)),'filters apply before limit');
 SELECT platform.transition_case_admissions_v1(pg_temp.a137_id(503),1,'intake','cancelled','Клиент отказался',pg_temp.a137_id(951));
 SELECT pg_temp.a137_assert((SELECT s->>'cancelled'='1' AND s->>'arrived'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'stock') s),'cancelled and arrived are separate');
-SELECT pg_temp.a137_assert((SELECT s->>'count'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'periodArrivals') s),'period report counts actual arrival events');
+SELECT pg_temp.a137_assert((SELECT s->>'count'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'periodArrivals') s),'period report counts currently confirmed arrival dates');
 SELECT pg_temp.a137_assert(jsonb_array_length(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE-10,CURRENT_DATE-1)->'periodArrivals')=0,'period filter is not current stock');
 SELECT pg_temp.a137_assert(pg_temp.a137_error('SELECT * FROM platform_private.admissions_events')='42501','no raw event access');
 SELECT pg_temp.a137_assert(pg_temp.a137_error('SELECT * FROM platform_private.admissions_playbook_versions')='42501','no raw playbook access');
@@ -187,7 +187,21 @@ DO $$ DECLARE w JSONB; obligation UUID; BEGIN
  w:=platform.staff_case_admissions_workspace_v1(pg_temp.a137_id(501));
  PERFORM pg_temp.a137_assert(pg_temp.a137_error(format('SELECT platform.transition_case_admissions_v1(%L,%s,%L,%L,%L,%L)',pg_temp.a137_id(501),w#>>'{case,version}','arrival_and_adaptation','arrived','All travel facts exist',pg_temp.a137_id(955)))='22023','active Finance stop prevents successful arrival');
  PERFORM pg_temp.a137_assert((SELECT s->>'arrived'='0' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'stock') s),'reopened case leaves arrived current stock');
- PERFORM pg_temp.a137_assert((SELECT s->>'count'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'periodArrivals') s),'reopening does not erase the historical confirmed-arrival event');
+ PERFORM pg_temp.a137_assert(jsonb_array_length(platform.admissions_direction_summary_v1('CN',NULL,CURRENT_DATE,CURRENT_DATE)->'periodArrivals')=0,'reopened cases do not remain in successful arrivals KPI');
+END $$;
+-- Correcting a confirmed arrival must move the KPI period, not double-count it.
+DO $$ DECLARE w JSONB; r JSONB; corrected_date DATE:=CURRENT_DATE-40; BEGIN
+ w:=platform.staff_case_admissions_workspace_v1(pg_temp.a137_id(502));
+ r:=platform.transition_case_admissions_v1(pg_temp.a137_id(502),(w#>>'{case,version}')::BIGINT,'arrival_and_adaptation','active','Исправляем дату прибытия',pg_temp.a137_id(956));
+ PERFORM pg_temp.a137_assert(jsonb_array_length(platform.admissions_direction_summary_v1('MY',NULL,NULL,NULL)->'periodArrivals')=0,'reopened Malaysia result is not success');
+ r:=platform.update_case_admissions_facts_v1(pg_temp.a137_id(502),(r->>'version')::BIGINT,(w#>'{case,facts}')||jsonb_build_object('arrivalOn',corrected_date),(w#>>'{case,primaryApplicationId}')::UUID,'approved','Проверить исправленную дату',CURRENT_DATE,pg_temp.a137_id(957));
+ r:=platform.transition_case_admissions_v1(pg_temp.a137_id(502),(r->>'version')::BIGINT,'arrival_and_adaptation','arrived','Исправленная дата подтверждена',pg_temp.a137_id(958));
+ PERFORM pg_temp.a137_assert(jsonb_array_length(platform.admissions_direction_summary_v1('MY',NULL,CURRENT_DATE,CURRENT_DATE)->'periodArrivals')=0,'date correction removes the superseded arrival month');
+ PERFORM pg_temp.a137_assert((SELECT s->>'count'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('MY',NULL,corrected_date,corrected_date)->'periodArrivals') s),'corrected arrival appears exactly once in its effective period');
+ PERFORM pg_temp.a137_assert((SELECT s->>'count'='1' FROM jsonb_array_elements(platform.admissions_direction_summary_v1('MY',NULL,NULL,NULL)->'periodArrivals') s),'two arrival confirmations never double-count one case');
+ r:=platform.transition_case_admissions_v1(pg_temp.a137_id(502),(r->>'version')::BIGINT,'arrival_and_adaptation','active','Пересмотр итогового результата',pg_temp.a137_id(959));
+ PERFORM platform.transition_case_admissions_v1(pg_temp.a137_id(502),(r->>'version')::BIGINT,'arrival_and_adaptation','cancelled','Случай закрыт без подтверждённого успеха',pg_temp.a137_id(961));
+ PERFORM pg_temp.a137_assert(jsonb_array_length(platform.admissions_direction_summary_v1('MY',NULL,NULL,NULL)->'periodArrivals')=0,'cancelled case with previous arrival history is not successful arrival');
 END $$;
 RESET ROLE;
 SELECT claims AS a137_curator FROM a137_actors WHERE n=3 \gset
@@ -221,6 +235,7 @@ SET LOCAL ROLE service_role;
 SELECT pg_temp.a137_assert(pg_temp.a137_error('SELECT platform.admissions_playbook_catalog_v1()')='42501','service role cannot call staff RPC');
 RESET ROLE;
 DO $$ BEGIN
+ PERFORM pg_temp.a137_assert((SELECT count(*)=2 FROM platform_private.admissions_events WHERE student_case_id=pg_temp.a137_id(502) AND kind='transition' AND outcome='arrived'),'date correction and cancellation preserve both immutable arrival events');
  PERFORM pg_temp.a137_assert(pg_temp.a137_error('UPDATE platform_private.admissions_playbook_versions SET title=title')='55000','published playbooks immutable');
  PERFORM pg_temp.a137_assert(pg_temp.a137_error('DELETE FROM platform_private.admissions_events')='55000','events append-only');
  PERFORM pg_temp.a137_assert(NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='platform_private' AND p.proname LIKE 'admissions_%' AND has_function_privilege('authenticated',p.oid,'EXECUTE')),'private helpers revoked');

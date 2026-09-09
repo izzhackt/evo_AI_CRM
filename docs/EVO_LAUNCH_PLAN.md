@@ -17,6 +17,59 @@ The earlier accepted
 `4e6057f0` evidence in closed #552/#553 remains first-release history, not the
 current app revision. A documentation change does not by itself deploy the app.
 
+## Predecessor UI block: EVO brand and usability refresh (2026-09-09)
+
+This is the bounded PR #692 scope. The current run below supersedes its earlier
+no-synthetic-Student restriction and separately authorizes reviewed deployment.
+
+Owner request: apply the British Higher School of Art and Design article and
+bring EVO logobook colours/logos into the existing platform. This supersedes the
+earlier monochrome-only visual experiment, not its business contracts. Baseline:
+`bd4af5cb31f9b17d9c0ec09d4cd7c5f4bbbb2294`.
+
+One cohesive frontend slice, with parallel ownership inside the slice:
+
+1. Ground the visual contract in the article, logobook and current screens;
+   record decisions in `design/v3/references/2026-09-09-evo-brand-ux.md`.
+2. Refresh shared V3 colour/type/spacing/control tokens. Use original EVO artwork,
+   red primary actions, restrained active navigation and neutral work surfaces.
+3. Simplify staff navigation/account controls, page hierarchy, student-directory
+   search and Sales report. Carry shared branding into login and student portal.
+   Preserve existing routes, permissions, data, forms and server actions.
+4. Validate the actual build, scoped checks and real authenticated navigation at
+   desktop/mobile sizes. No seeded users/cases, mock responses, Auth bypass,
+   provider calls or business writes. Empty surfaces stay honestly empty; record
+   unavailable real-case coverage separately from successful checks.
+5. Independent exact-head review, scoped PR checks, push and PR. Merge only after
+   approval. Production deployment is not part of this new visual request.
+
+Acceptance: original logo proportions/clear space, coherent action colours,
+readable controls/content, keyboard focus and reduced-motion support, no page
+overflow at 393px, no lost actions or changed authorization. No country workflows,
+catalogue, parent roles, post-arrival module, schema, authentication or integration
+changes. Keep owner-deferred #687 intact.
+
+Status: implementation, production build and 29 scoped source/token checks pass.
+The owner signed into the real local Chrome preview. All seven staff routes,
+report period/archive filters, actual sales rows, directory empty/search/reset
+states and Admin role-preview disclosure were checked at desktop and 393px CSS
+width. Mobile filter compression, escaped screen-reader labels causing page
+overflow, and stale native search fields after reset were fixed and rechecked.
+No business data was written. See the reference note for exact evidence/limits.
+The owner separately approved rotating the existing smoke Admin password and
+updating the associated GitHub secrets on September 9. Real password sign-in,
+verified Auth identity and canonical active Admin authority passed at 11:12:57 UTC;
+both GitHub smoke secrets were updated at 11:12:58–59 UTC. No role or metadata change.
+The local private ignored `.env.evo-smoke` (0600) is the owner handoff, not repo data.
+Staff visual acceptance is now exercised in a real browser, not inferred from
+API Auth proof. Student visual acceptance subsequently passed in an isolated E4
+runtime: all five pages at desktop, 393px and forced-dark; 6 passed/6 intentional
+viewport skips, 15 inspected screenshots. The fixture uses real Auth/Postgres with
+a preactivated synthetic case, not proof of the normal invitation flow. See the
+reference note. Exact-head review and CI remain required before merging #692;
+do not reset the password again.
+The September 8 deployment above remains the last recorded production checkpoint.
+
 ## Current run: Student Portal and China/Malaysia Admissions (2026-09-09)
 
 The owner authorizes the separate [Student/Admissions run plan](design/v3/student-admissions-run-plan.md)
@@ -36,7 +89,8 @@ The owner now explicitly permits bounded fictional Student QA data for this run,
 with real Auth/backend/browser and report isolation. This narrowly supersedes the
 prior run's no-synthetic-case acceptance restriction, not real-service or release
 gates. Production authorization does not imply migrations/features are already
-deployed. PR #692's Student visual check remains unclosed until real proof.
+deployed. PR #692's Student visual check is locally verified as described above;
+normal invitation/provisioning acceptance remains distinct and unproven.
 Existing #687 rollback exceptions remain under their separate owner-acceptance gate.
 
 ## Historical integration and release-preparation checkpoints

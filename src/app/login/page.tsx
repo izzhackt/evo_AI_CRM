@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 
 import { LoginForm } from "@/components/AuthForms";
-import { EvoIsometricField } from "@/components/platform/brand/EvoIsometricField";
-import { EvoMark } from "@/components/platform/brand/EvoMark";
+import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getT } from "@/lib/i18n";
@@ -28,10 +27,10 @@ const COPY: Record<
     staffAccessDenied: "Аккаунт не имеет активного доступа к продукту EVO.",
     email: "Email",
     intro:
-      "Единый защищённый вход сотрудников и студентов EVO через Supabase Auth.",
+      "Для сотрудников и студентов EVO.",
     password: "Пароль",
     signIn: "Войти в CRM",
-    title: "Вход в EVO Admissions CRM",
+    title: "Вход в EVO",
   },
   ky: {
     accessDenied: "Кирүү ишке ашкан жок. Эки маанини тең текшериңиз.",
@@ -39,10 +38,10 @@ const COPY: Record<
     staffAccessDenied: "Аккаунтта EVO продуктусуна активдүү мүмкүнчүлүк жок.",
     email: "Email",
     intro:
-      "EVO кызматкерлери жана студенттери үчүн Supabase Auth аркылуу бирдиктүү корголгон кирүү.",
+      "EVO кызматкерлери жана студенттери үчүн.",
     password: "Сырсөз",
     signIn: "CRMге кирүү",
-    title: "EVO Admissions CRMге кирүү",
+    title: "EVO'го кирүү",
   },
   en: {
     accessDenied: "Access was not granted. Check both values.",
@@ -50,10 +49,10 @@ const COPY: Record<
     staffAccessDenied: "This account has no active access to EVO.",
     email: "Email",
     intro:
-      "One protected EVO sign-in for staff and students, backed by Supabase Auth.",
+      "For EVO staff and students.",
     password: "Password",
     signIn: "Sign in to CRM",
-    title: "Sign in to EVO Admissions CRM",
+    title: "Sign in to EVO",
   },
 };
 
@@ -89,27 +88,24 @@ export default async function LoginPage({
         : null;
 
   return (
-    <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
-      <EvoIsometricField />
-      <div className="absolute left-5 top-5 flex items-center gap-2.5">
-        <EvoMark size={34} />
-        <span className="leading-tight">
-          <span className="block text-md font-bold text-fg">EVO</span>
-          <span className="block text-xs text-fg-3">Admissions CRM</span>
-        </span>
-      </div>
-      <div className="absolute right-5 top-5 flex items-center gap-2.5">
+    <main className="flex min-h-dvh flex-col bg-bg px-4 py-6 sm:px-6">
+      <div className="flex min-h-11 items-center justify-end gap-3">
         <LangSwitcher current={locale} />
         <ThemeToggle label={t("toggleTheme")} />
       </div>
 
-      <div className="page-in w-full max-w-[392px] rounded-[20px] bg-surface p-7 shadow-evo-lg">
-        <h1 id="login-title" className="text-2xl font-bold leading-tight text-fg">
-          {copy.title}
-        </h1>
-        <p className="mt-1.5 max-w-[56ch] text-sm leading-6 text-fg-3">{copy.intro}</p>
-        <div className="mt-6">
-          <LoginForm labels={copy} initialError={initialError} />
+      <div className="flex flex-1 items-center justify-center py-8 sm:py-12">
+        <div className="w-full max-w-[420px] rounded-card border border-border bg-surface p-6 sm:p-8">
+          <div data-theme="light" className="mb-6 w-fit rounded-ctl bg-surface p-4">
+            <EvoLogo width={156} />
+          </div>
+          <h1 id="login-title" className="text-2xl font-semibold leading-tight tracking-[-0.02em] text-fg">
+            {copy.title}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-fg-2">{copy.intro}</p>
+          <div className="mt-6">
+            <LoginForm labels={copy} initialError={initialError} />
+          </div>
         </div>
       </div>
     </main>

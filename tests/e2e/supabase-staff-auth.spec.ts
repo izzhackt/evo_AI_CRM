@@ -1330,7 +1330,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.goto(`/v3/profile?id=${leadId}&case_q=${studentCaseId}`);
   await expect(page.getByText(
-    "Профиль не открыт: адрес должен содержать только один точный идентификатор без параметров каталога.",
+    "Ссылка на профиль некорректна. Найдите студента через поиск.",
   )).toBeVisible();
   await expect(page.getByTestId("v3-student-case-directory")).toHaveCount(0);
   await expect(page.getByTestId("v3-student-case-row")).toHaveCount(0);
@@ -1351,6 +1351,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const exactCaseLink = exactCaseRow.locator(`a[href="${caseHref}"]`);
   await expect(exactCaseLink).toHaveCount(1);
 
+  await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
   await page.goto(`/v3/profile?case_q=${studentCaseId}`);
@@ -2387,6 +2388,7 @@ test("D2 media stays opaque and exact-case attach fails safely without source by
 
   await page.context().clearCookies();
   await signIn(page, "admin");
+  await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
   await page.goto(inboxHref);
@@ -2655,6 +2657,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await page.goto("/v3/settings");
   await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 
+  await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
   await expect(page).toHaveURL(/\/v3\/main$/);

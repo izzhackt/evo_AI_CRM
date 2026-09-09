@@ -1,16 +1,14 @@
 /*
- * Мир V3 — проба по референсу заказчика (светлая CRM в духе Attio).
+ * EVO workbench — owner-requested brand refresh, 09.09.2026.
  *
  * Направление: светлая нейтральная земля, белая плоская поверхность, тонкая
  * волосяная рамка вместо тени, маленькое скругление, много воздуха. Хрома
- * почти отсутствует: действия и активные состояния почти чёрные, а ЦВЕТ ЖИВЁТ
- * ТОЛЬКО В СТАТУС-ПИЛЮЛЯХ. Это главное правило этого мира — цветное пятно в
- * интерфейсе означает состояние записи и ничего больше.
+ * почти отсутствует: фирменный красный выделяет действия и навигацию.
+ * Статусы сохраняют свои тона и всегда названы текстом.
  *
- * Отличие от предыдущей пробы (тёплая земля, парящая поверхность, красный
- * акцент) — намеренное, по прямой просьбе: «avoid EVO's dark & red stuff, i
- * just wanna try». Красный #d70217 остаётся фактом бренда в logobook и в V2;
- * здесь его нет, потому что это проба другого направления, а не смена бренда.
+ * 09.09 заказчик завершил монохромную пробу и попросил вернуть бренд EVO.
+ * Красный #d70217 взят из logobook; нейтральные панели сохраняют спокойную
+ * рабочую среду без декоративных цветных подложек.
  *
  * Тёмной темы у этого мира нет. Референс — светлый, и держать тёмного близнеца
  * для пробы значило бы удваивать работу по контрасту ради того, чего в
@@ -23,40 +21,35 @@
  */
 
 .v3-world {
+  color-scheme: light;
   /* Земля светлее поверхности была бы бессмыслицей: белое — это лист, серое —
      стол. Ступени идут от белого вниз: surface → bg → surface-2 → surface-3. */
   --surface: #ffffff;
-  --bg: #f1f0ed;        /* 1.140 к белому */
-  --surface-2: #e9e7e3; /* 1.084 к bg */
-  --surface-3: #dfddd8; /* 1.099 к surface-2 */
+  --bg: #f3f3f3;
+  --surface-2: #e7e7e7;
+  --surface-3: #dbdbdb;
 
-  --text: #1a1a19;
-  --text-2: #464541;    /* 7.07:1 на самой тёмной поверхности */
-  --text-3: #62615d;    /* 4.57:1 там же — самый светлый, который проходит */
+  --text: #202020;
+  --text-2: #434343;
+  --text-3: #5f5f5f;
 
-  --border: #e4e2de;
-  --border-strong: #cfccc7;
-  --control-edge: #7e7d79; /* 4.12 на белом, 3.04 на surface-3 */
+  --border: #dedede;
+  --border-strong: #c5c5c5;
+  --control-edge: #777777;
 
-  /* Акцент — почти чёрный. Кнопка, активная вкладка, выделение: цвет здесь не
-     нужен, он занят статусами. */
-  --accent: #1a1a19;
-  --accent-2: #3a3936;
+  /* Primary red is from the logobook; text uses a darker accessible red. */
+  --accent: #d70217;
+  --accent-2: #b50013;
   --on-accent: #ffffff;
-  --accent-text: #3d3c39;
-  /* «Слабый акцент» в этом мире — не подкраска, а просто светлая подложка:
-     подкрашивать панель значило бы завести второй смысл у цвета. */
-  --accent-weak: #eeece8;
-  --accent-weak-muted: #e9e7e3;
+  --accent-text: #b50013;
+  /* Active controls only, never decorative colour behind business records. */
+  --accent-weak: #fff0f1;
+  --accent-weak-muted: #f8e4e6;
 
-  /* Фокус. Переопределить только `outline` было мало: globals.css красит ещё
-     `box-shadow` и `border-color` теми же токенами, поэтому у полей ввода при
-     фокусе оставалось брендовое красное кольцо — ровно то, чего в этой пробе
-     быть не должно, и нарушение правила «цвет живёт только в пилюлях». */
-  --focus-ring: var(--accent);
-  --focus-halo: rgb(26 26 25 / 0.16);
+  --focus-ring: #b50013;
+  --focus-halo: rgb(215 2 23 / 0.12);
 
-  /* Статусы. Единственное место, где в этом мире есть цвет.
+  /* Статусы сохраняют собственные тона и подписи.
      Текст пилюли на своей подложке: 5.7–6.7:1. */
   --ok: #0f6b41;
   --ok-weak: #e4f3ea;
@@ -67,8 +60,8 @@
   --info: #1c4fa8;
   --info-weak: #e8f0fd;
 
-  --sidebar: #e9e7e3;
-  --sidebar-muted: #62615d;
+  --sidebar: #ffffff;
+  --sidebar-muted: #5f5f5f;
 
   /* Материал этого мира — рамка, а не тень. Тень остаётся только тому, что
      действительно висит над страницей: выпадающим спискам. */
@@ -115,6 +108,30 @@
 
 /* Тонкая полоса фокуса под цвет мира: по умолчанию браузер рисует синюю. */
 .v3-world :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* Foreground red stays readable even on the deepest neutral surface. */
+.v3-world .text-accent {
+  color: var(--accent-text);
+}
+
+/* Comfortable disclosure targets without surrounding every action in a card. */
+.v3-world summary {
+  min-height: 44px;
+  align-content: center;
+}
+
+.v3-world :where(button, a, summary) {
+  transition-duration: 150ms;
+  transition-property: color, background-color, border-color;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v3-world *, .v3-world *::before, .v3-world *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

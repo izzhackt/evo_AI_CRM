@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { EvoMark } from "@/components/platform/brand/EvoMark";
+import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 
 const SECTIONS = [
@@ -27,25 +27,22 @@ export function PortalShell({
   return (
     <div className="v3-world min-h-dvh" data-testid="student-portal-shell">
       <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex min-h-16 max-w-[1180px] items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex min-h-20 max-w-[1180px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link
             href="/portal"
-            className="inline-flex min-h-11 items-center gap-2 text-fg"
+            className="inline-flex shrink-0 items-center rounded-nav focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
             aria-label="EVO Admissions — кабинет студента"
           >
-            <EvoMark size={22} tone="mono" />
-            <span className="text-sm font-semibold tracking-[-0.01em]">
-              EVO Admissions
-            </span>
+            <EvoLogo width={116} />
           </Link>
           <div className="flex min-w-0 items-center gap-2">
-            <p className="hidden max-w-48 truncate text-xs font-medium text-fg-3 sm:block">
+            <p className="hidden max-w-48 truncate text-sm font-medium text-fg-2 sm:block">
               {displayName}
             </p>
             <form action={logoutStudentPortalAction}>
               <button
                 type="submit"
-                className="inline-flex min-h-10 items-center rounded-nav border border-control-edge px-3 text-xs font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
+                className="inline-flex min-h-11 items-center rounded-nav border border-control-edge px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
               >
                 Выйти
               </button>
@@ -56,7 +53,7 @@ export function PortalShell({
 
       <nav
         aria-label="Разделы кабинета"
-        className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur"
+        className="sticky top-0 z-20 border-b border-border bg-surface"
       >
         <ul
           aria-label="Навигация по разделам кабинета"
@@ -76,9 +73,9 @@ export function PortalShell({
                       inline: "nearest",
                     })
                   }
-                  className={`inline-flex min-h-10 items-center rounded-nav px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                  className={`inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
                     active
-                      ? "bg-accent text-on-accent"
+                      ? "bg-accent-weak text-accent"
                       : "text-fg-2 hover:bg-surface-2 hover:text-fg"
                   }`}
                 >

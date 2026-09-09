@@ -1,19 +1,8 @@
 import Link from "next/link";
 
-import { EvoMark } from "@/components/platform/brand/EvoMark";
-
 /**
- * Шапка главной: знак и имя слева, период справа. Одна строка высоты.
- *
- * Выбрано заказчиком из четырёх вариантов фирменного блока. Крупный
- * центральный блок отклонён — он сдвинул бы цифры за первый экран; изразцовое
- * поле из логобука отклонено — книга запрещает его под плотными рабочими
- * данными.
- *
- * Знак берётся в моно-исполнении (`tone="mono"` — заливка `currentColor`), а
- * цвет ему задаёт текстовый класс мира. Логобук такое исполнение разрешает, и
- * оно не приносит сюда фирменный красный, которого в этой пробе нет. Размер
- * задаётся одним числом, поэтому пропорции не искажаются; эффектов нет.
+ * Шапка обзора: название рабочей страницы слева, период справа.
+ * Фирменный блок находится в общей навигации, поэтому здесь не повторяется.
  *
  * ПЕРЕКЛЮЧАТЕЛЬ ПЕРИОДА — ССЫЛКИ, А НЕ КНОПКИ С СОСТОЯНИЕМ. Период живёт в
  * адресе, поэтому экран можно переслать целиком и вернуться к прошлому
@@ -48,11 +37,10 @@ export function MainHeader({
   range: PeriodRange | null;
 }) {
   return (
-    <header className="flex flex-col gap-3 border-b border-border pb-3">
+    <header className="flex flex-col gap-4 border-b border-border pb-4">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold tracking-[-0.01em] text-fg">
-          <EvoMark size={22} tone="mono" className="shrink-0" />
-          EVO Admissions
+        <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.02em] text-fg">
+          Обзор
         </h1>
 
         {/* Пять названий не помещаются в 393px, поэтому полоса прокручивается.
@@ -69,10 +57,10 @@ export function MainHeader({
                 <Link
                   href={choice.href}
                   aria-current={choice.active ? "page" : undefined}
-                  className={`inline-flex min-h-10 items-center whitespace-nowrap rounded-nav px-3 text-sm ${
+                  className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 text-sm transition-colors ${
                     choice.active
-                      ? "bg-accent font-medium text-on-accent"
-                      : "text-fg-2 hover:bg-surface-2"
+                      ? "bg-accent-weak font-semibold text-accent"
+                      : "text-fg-2 hover:bg-surface-2 hover:text-fg"
                   }`}
                 >
                   {choice.title}
@@ -99,7 +87,7 @@ export function MainHeader({
               диапазон. Раньше форма отправлялась с пустым полем, сервер
               выбрасывал обе даты и молча показывал последние тридцать дней —
               человек называл день, а получал месяц и не узнавал об этом. */}
-          <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
+          <label className="inline-flex items-center gap-2 text-sm text-fg-2">
             Начало
             <input
               type="date"
@@ -111,7 +99,7 @@ export function MainHeader({
             />
           </label>
 
-          <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
+          <label className="inline-flex items-center gap-2 text-sm text-fg-2">
             Конец
             <input
               type="date"
@@ -125,7 +113,7 @@ export function MainHeader({
 
           <button
             type="submit"
-            className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-medium text-on-accent"
+            className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-medium text-on-accent transition-colors hover:bg-accent-2"
           >
             Показать
           </button>

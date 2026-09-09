@@ -435,7 +435,7 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
   assert.match(shell, /inline: "nearest"/u);
   assert.match(shell, /aria-label="Навигация по разделам кабинета"/u);
   assert.match(shell, /tabIndex=\{0\}/u);
-  assert.match(shell, /min-h-10/u);
+  assert.match(shell, /min-h-11/u);
   assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);
   assert.match(shell, /aria-label="Разделы кабинета"/u);
   assert.match(components, /sm:grid-cols-2|sm:grid-cols-3/u);

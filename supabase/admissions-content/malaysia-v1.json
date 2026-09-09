@@ -1,0 +1,956 @@
+{
+  "direction": "MY",
+  "version": "1.0.0",
+  "title": "Малайзия — маршрут поступления",
+  "content": {
+    "stages": [
+      {
+        "key": "intake",
+        "title": "Приём дела",
+        "summary": "Принять передачу Sales и различить источник клиента, университет и принимающего партнёра.",
+        "checklist": [
+          "Открыть существующий handoff и задачи u6 по контексту, маршруту и первичному запросу документов; не создавать повторную передачу или копии задач.",
+          "Сверить программу, кампус, набор, бюджет, язык, канал связи и назначенного куратора. Недостающее запросить через существующее подтверждение передачи.",
+          "Указать входящее агентство, если оно есть. Interstudy в регламенте — источник переданного клиента, не принимающий университет и не автоматически партнёр подачи.",
+          "После проверки принять передачу и сохранить следующий шаг с согласованной датой."
+        ],
+        "exitCriteria": [
+          "Текущий куратор принял реальный handoff; ближайшее действие и дата записаны."
+        ],
+        "cautions": [
+          "Не назначать роли сторон по названию группы или контакта. Личные тесты студента не являются источником для этого staff-маршрута."
+        ]
+      },
+      {
+        "key": "profile_and_route",
+        "title": "Выбор программы",
+        "summary": "Согласовать конкретный вуз, кампус, программу и набор с условиями текущего предложения.",
+        "checklist": [
+          "Уточнить цель, академическую подготовку, язык, город, кампус, набор и бюджет; проверить требования программы по текущему источнику.",
+          "Сравнить подходящие варианты. INTI, Sunway, Taylor's, MMU, APU и ALFA — варианты из рабочего регламента, а не обязательный или гарантированно актуальный каталог предложений.",
+          "Проверить состав стоимости, валюту, сроки, языковые требования и проживание. Если условие APU или другого вуза неизвестно, запросить его, не заимствовать правило соседней строки таблицы.",
+          "Сохранить согласие клиента, одобренный маршрут и отдельные applications; выбрать основную заявку, оставив альтернативы видимыми."
+        ],
+        "exitCriteria": [
+          "Программа, кампус и набор согласованы; выбор подтверждён, маршрут одобрен, основная заявка выбрана."
+        ],
+        "cautions": [
+          "Местоположение жилья определяется кампусом конкретной программы. Рекомендация программы не обещает поступление, грант или визовое одобрение."
+        ]
+      },
+      {
+        "key": "documents",
+        "title": "Документы",
+        "summary": "Проверить требования университета и применимые документы EMGS, сохраняя версии и исправления.",
+        "checklist": [
+          "Использовать уже применённую версию requirements; дополнительные требования оформлять существующими индивидуальными document slots со ссылкой на источник. Не перепривязывать утверждённые версии автоматически.",
+          "Уточнить паспорт и нужные страницы, фото, образование и переводы, application form, Health Declaration Form и подтверждение языка для конкретной программы и процедуры.",
+          "Различать университетский Letter of Offer и Letter of Eligibility: сокращение LOE не использовать как универсальное название предложения. Дополнительный документ применим только по соответствующему требованию.",
+          "Проверить качество, имена, даты, перевод и полноту; вернуть замечания с понятным исправлением и датой. Хранить private files и предыдущие версии в существующих слотах.",
+          "Связать документы с нужной application/visa и проверить пакет основной заявки. Исключения фиксировать адресно с основанием."
+        ],
+        "exitCriteria": [
+          "Применимые документы основной заявки проверены либо есть явные обоснованные исключения."
+        ],
+        "cautions": [
+          "Загрузка файла не означает его принятие. Внутренний английский тест EVO не заменяет признанный языковой сертификат для вуза или Student Pass."
+        ]
+      },
+      {
+        "key": "applications",
+        "title": "Подача через партнёра",
+        "summary": "Сохранить передачу пакета и отдельное подтверждение фактической подачи в университет.",
+        "checklist": [
+          "В существующей application указать принимающего партнёра и его роль, университет, пакет/версию, дату передачи и ожидаемый ответ. Входящее агентство остаётся отдельным участником.",
+          "Подтверждение получения пакета сохранить отдельно от university submission. Запросить дату подачи, reference и evidence из согласованного канала.",
+          "Отметить submitted только после фактического подтверждения. Повторная передача и исправления не создают новую заявку.",
+          "При дополнительном запросе указать, что изменить, кто отвечает, срок и версию пакета; после исправления получить подтверждение приёма.",
+          "Срок ожидания записать по реальной договорённости, при задержке назначить ручной контакт или эскалацию."
+        ],
+        "exitCriteria": [
+          "Подача основной заявки в университет подтверждена датой, reference и evidence."
+        ],
+        "cautions": [
+          "Пересылка документов или ответ входящего агентства не доказывают подачу. Ни шаблон, ни нажатие «Копировать» не отправляют пакет."
+        ]
+      },
+      {
+        "key": "decisions",
+        "title": "Решение и оплата",
+        "summary": "Проверить Letter of Offer, индивидуальные условия и финансовые подтверждения.",
+        "checklist": [
+          "Сохранить Letter of Offer, дату, тип решения, программу, кампус, набор, условия и срок ответа. Условное предложение не отмечать как окончательное зачисление.",
+          "Разобрать нужные действия и запросы исправлений; отказ или задержку оставить видимыми с ответственным и следующим шагом.",
+          "Связать текущие invoice с существующими Finance obligations: tuition, visa, administration и другие расходы раздельно; не дублировать суммы в новом финансовом учёте.",
+          "Проверить валюту, срок, остаток и депозит по текущему счёту/договору. Квитанцию привязать к правильному обязательству; полученные деньги подтверждает уполномоченный сотрудник.",
+          "Согласовать основной вариант, проверить необходимые для визового шага условия и действующие финансовые ограничения; альтернативные заявки не закрывать молча."
+        ],
+        "exitCriteria": [
+          "Выбранное решение подтверждено; необходимые условия следующего шага проверены, финансовые действия выполнены в Finance."
+        ],
+        "cautions": [
+          "В исходнике есть приблизительные проценты, суммы и непроверенные условия APU: они не используются как общая формула. Разные валюты не суммируются в один платёж."
+        ]
+      },
+      {
+        "key": "visa_and_predeparture",
+        "title": "Визовая подготовка",
+        "summary": "Раздельно проверить EMGS, eVAL и применимые документы для въезда.",
+        "checklist": [
+          "В существующем visa case записать EMGS application/reference и её фактическое состояние; решение eVAL и его подтверждение вести отдельно.",
+          "Проверить необходимость въездной визы для конкретного паспорта и ситуации: требуется, не требуется или нужно уточнить; сохранить официальный источник, дату проверки и основание.",
+          "Если нужна SEV/eVISA, сохранить её фактическое состояние и документ отдельно от eVAL. Не предлагать поездку на основании предположения о получении визы по прибытии.",
+          "Записать исправления и задержки с ответственным и следующей датой; проверить применимые Finance stop factors без их самостоятельного снятия куратором.",
+          "Подготовить последующие medical, university registration и Student Pass endorsement как отдельные ещё не выполненные действия; не считать их завершёнными при выдаче eVAL."
+        ],
+        "exitCriteria": [
+          "Применимая готовность к поездке подтверждена: eVAL и требуемая въездная виза проверены; неизвестная применимость не скрыта как готовность."
+        ],
+        "cautions": [
+          "EMGS application, eVAL, entry visa и Student Pass — разные факты. Срок medical нужно уточнить до поездки: формулировки Immigration и EMGS различаются; автоматически выбирать более поздний срок нельзя."
+        ]
+      },
+      {
+        "key": "arrival_and_adaptation",
+        "title": "Поездка и прибытие",
+        "summary": "Согласовать жильё и поездку, подтвердить прибытие и передать незавершённые последующие инструкции.",
+        "checklist": [
+          "Для жилья указать кампус, бюджет и валюту, дату заезда, согласованный вариант, ссылку/договор, условия депозита и подтверждение брони. Проверить нужные характеристики и условия отмены по текущему предложению.",
+          "Разделить согласованный вариант, бронь и оплату. Не переносить частный пример аренды, контакты или суммы из регламента в каталог; не покупать жильё или билет автоматически.",
+          "Согласовать маршрут, статус билета, даты и местное время; вручную уведомить принимающий вуз о планируемом прилёте и уточнить встречу/регистрацию.",
+          "До въезда отдельно проверить MDAC: требуется, не требуется или нужно уточнить, с источником и основанием; при необходимости сохранить подтверждение в применимое окно подачи.",
+          "Передать проверенную памятку, оригиналы/копии нужных документов и контакт принимающей стороны. Выезд и фактическое прибытие записывать отдельно.",
+          "После поездки сохранить фактическую дату прибытия, подтверждающее лицо и основание; только это завершает успешный EVO admissions маршрут.",
+          "Передать студенту и принимающей стороне последующие medical, регистрацию в вузе, активацию аккаунта/почты и Student Pass endorsement с индивидуальными сроками. Они остаются pending/требуют уточнения, пока нет отдельных подтверждений."
+        ],
+        "exitCriteria": [
+          "Фактическое прибытие подтверждено датой, подтверждающим лицом и основанием; последующие формальности не объявлены выполненными заранее."
+        ],
+        "cautions": [
+          "Confirmed arrival — выбранный общий endpoint EVO, не юридическое завершение иммиграционной процедуры. MDAC не отмечается обязательной для всех, предварительная бронь не становится купленным билетом, регулярное сопровождение учёбы не добавляется."
+        ]
+      }
+    ],
+    "tasks": [
+      {
+        "key": "check-program-documents",
+        "stageKey": "documents",
+        "title": "Проверить пакет документов по требованиям программы и EMGS",
+        "priority": "high",
+        "studentVisible": false
+      },
+      {
+        "key": "check-translations-forms",
+        "stageKey": "documents",
+        "title": "Проверить применимые переводы, анкеты и языковые документы",
+        "priority": "normal",
+        "studentVisible": false
+      },
+      {
+        "key": "record-receiving-partner",
+        "stageKey": "applications",
+        "title": "Зафиксировать получателя, пакет и подтверждение передачи",
+        "priority": "normal",
+        "studentVisible": false
+      },
+      {
+        "key": "verify-university-submission",
+        "stageKey": "applications",
+        "title": "Получить доказательство реальной подачи в университет",
+        "priority": "high",
+        "studentVisible": false
+      },
+      {
+        "key": "review-offer-conditions",
+        "stageKey": "decisions",
+        "title": "Проверить Letter of Offer, условия и срок ответа",
+        "priority": "high",
+        "studentVisible": false
+      },
+      {
+        "key": "link-fees-receipts",
+        "stageKey": "decisions",
+        "title": "Связать раздельные tuition, visa и admin счета с Finance",
+        "priority": "normal",
+        "studentVisible": false
+      },
+      {
+        "key": "record-emgs-eval",
+        "stageKey": "visa_and_predeparture",
+        "title": "Проверить EMGS application и отдельное решение eVAL",
+        "priority": "high",
+        "studentVisible": false
+      },
+      {
+        "key": "verify-entry-visa",
+        "stageKey": "visa_and_predeparture",
+        "title": "Проверить применимость и подтверждение SEV/eVISA",
+        "priority": "high",
+        "studentVisible": false
+      },
+      {
+        "key": "approve-housing",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Согласовать жильё, договор, депозит и подтверждение брони",
+        "priority": "normal",
+        "studentVisible": false
+      },
+      {
+        "key": "coordinate-travel",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Согласовать поездку и вручную уведомить вуз о прилёте",
+        "priority": "normal",
+        "studentVisible": false
+      },
+      {
+        "key": "verify-mdac",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Проверить применимость MDAC и нужное подтверждение",
+        "priority": "high",
+        "studentVisible": false
+      },
+      {
+        "key": "share-post-arrival-instructions",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Передать инструкции по medical, регистрации и Student Pass",
+        "priority": "high",
+        "studentVisible": false
+      },
+      {
+        "key": "confirm-actual-arrival",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Получить и сохранить подтверждение фактического прибытия",
+        "priority": "high",
+        "studentVisible": false
+      }
+    ],
+    "messages": [
+      {
+        "id": "my-welcome",
+        "stageKey": "intake",
+        "title": "Знакомство после передачи Sales",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "После принятия текущего handoff, без повторной первичной продажи.",
+        "body": "Здравствуйте, {{student_name}}! Я {{curator_name}}, ваш куратор EVO Admissions по поступлению в Малайзию. Получил(а) дело от отдела продаж. Сейчас в плане {{programme}}, {{campus}}, набор {{intake}}. Подтвердите, пожалуйста, что планы актуальны. Ближайший шаг — {{next_step}}, свяжемся {{contact_date}}.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "curator_name",
+            "label": "Имя куратора"
+          },
+          {
+            "key": "programme",
+            "label": "Программа"
+          },
+          {
+            "key": "campus",
+            "label": "Кампус"
+          },
+          {
+            "key": "intake",
+            "label": "Набор"
+          },
+          {
+            "key": "next_step",
+            "label": "Следующий шаг"
+          },
+          {
+            "key": "contact_date",
+            "label": "Дата контакта"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-referral-clarification",
+        "stageKey": "intake",
+        "title": "Уточнение у входящего агентства",
+        "audience": "referral",
+        "locale": "ru",
+        "whenToUse": "Если дело действительно пришло от этого агентства; не подставляйте Interstudy автоматически.",
+        "body": "Здравствуйте, {{agency_name}}! По переданному делу {{case_reference}} нужно уточнить {{missing_context}}. Сообщите, пожалуйста, какие договорённости уже подтверждены и кем. Следующий контакт согласуем на {{reply_date}}. Принимающий университет и сторона, которая подаёт документы, будут указаны в заявке отдельно.",
+        "placeholders": [
+          {
+            "key": "agency_name",
+            "label": "Фактическое входящее агентство"
+          },
+          {
+            "key": "case_reference",
+            "label": "Согласованный идентификатор дела"
+          },
+          {
+            "key": "missing_context",
+            "label": "Недостающие договорённости"
+          },
+          {
+            "key": "reply_date",
+            "label": "Дата следующего контакта"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-shortlist",
+        "stageKey": "profile_and_route",
+        "title": "Согласование программы и кампуса",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "После проверки вариантов, валют и условий текущего набора.",
+        "body": "{{student_name}}, подготовлены варианты: {{programme_options}}. Для каждого указаны университет, кампус, язык, набор, стоимость с валютой и требования. Напишите, пожалуйста, какой вариант выбираем основным и какие оставляем альтернативными. Если хотите изменить бюджет или направление, обсудим это {{contact_date}}.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "programme_options",
+            "label": "Проверенные варианты и условия"
+          },
+          {
+            "key": "contact_date",
+            "label": "Дата обсуждения"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-document-request",
+        "stageKey": "documents",
+        "title": "Запрос документов",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "Индивидуальный список по программе и применимому процессу; не общий безусловный набор.",
+        "body": "{{student_name}}, для {{programme}} в {{university}} нужны {{document_list}}. Требования к переводу, фото и оформлению: {{format_requirements}}. Загрузите файлы в EVO до согласованной даты {{due_date}}. Я проверю комплектность и отдельно сообщу о принятых документах или исправлениях. Если сертификат языка ещё не готов, сообщите мне — уточним допустимый путь для этой программы.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "programme",
+            "label": "Программа"
+          },
+          {
+            "key": "university",
+            "label": "Университет"
+          },
+          {
+            "key": "document_list",
+            "label": "Применимый список документов"
+          },
+          {
+            "key": "format_requirements",
+            "label": "Проверенные требования к оформлению"
+          },
+          {
+            "key": "due_date",
+            "label": "Согласованная дата"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "emgs-documents"
+        ]
+      },
+      {
+        "id": "my-partner-handoff",
+        "stageKey": "applications",
+        "title": "Передача пакета принимающей стороне",
+        "audience": "partner",
+        "locale": "en",
+        "whenToUse": "Для подтверждённого англоязычного получателя пакета. Укажите реальную роль и согласованный private channel; копирование не передаёт документы.",
+        "body": "Hello {{recipient_name}}, we are sharing the agreed application package for {{application_reference}}, {{programme}} at {{university}}, {{intake}} intake. Package reference/version: {{package_reference}}. Please confirm receipt and any corrections required. Once the application is actually submitted to the university, please provide the submission date, university reference and supporting confirmation. Our next agreed follow-up is {{reply_date}}.",
+        "placeholders": [
+          {
+            "key": "recipient_name",
+            "label": "Подтверждённый получатель"
+          },
+          {
+            "key": "application_reference",
+            "label": "Идентификатор заявки"
+          },
+          {
+            "key": "programme",
+            "label": "Программа"
+          },
+          {
+            "key": "university",
+            "label": "Университет"
+          },
+          {
+            "key": "intake",
+            "label": "Набор"
+          },
+          {
+            "key": "package_reference",
+            "label": "Пакет и версия"
+          },
+          {
+            "key": "reply_date",
+            "label": "Дата следующего контакта"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-submission-confirmed",
+        "stageKey": "applications",
+        "title": "Подтверждение подачи студенту",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "Только после сохранения доказательства фактической подачи в вуз.",
+        "body": "{{student_name}}, получено подтверждение подачи вашей заявки в {{university}} от {{submission_date}}. Номер заявки: {{application_reference}}; подтверждение: {{submission_evidence}}. Следующая проверка {{follow_up_date}}. Если потребуется дополнение, сообщу точный запрос. Это подтверждение подачи, а не решение о приёме.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "university",
+            "label": "Университет"
+          },
+          {
+            "key": "submission_date",
+            "label": "Реальная дата подачи"
+          },
+          {
+            "key": "application_reference",
+            "label": "Номер заявки в вузе"
+          },
+          {
+            "key": "submission_evidence",
+            "label": "Подтверждение, доступное студенту"
+          },
+          {
+            "key": "follow_up_date",
+            "label": "Дата проверки"
+          }
+        ],
+        "sourceIds": [
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-offer-conditions",
+        "stageKey": "decisions",
+        "title": "Letter of Offer и условия",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "После проверки полученного Offer Letter. Условное предложение не означает безусловное зачисление.",
+        "body": "{{student_name}}, получен Letter of Offer от {{university}}: программа {{programme}}, кампус {{campus}}, набор {{intake}}. Тип предложения и условия: {{offer_conditions}}. Срок ответа: {{response_deadline}}. Давайте подтвердим выбор; следующий шаг — {{next_step}}. Платежи будем сверять с актуальными счетами отдельно от самого предложения.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "university",
+            "label": "Университет"
+          },
+          {
+            "key": "programme",
+            "label": "Программа"
+          },
+          {
+            "key": "campus",
+            "label": "Кампус"
+          },
+          {
+            "key": "intake",
+            "label": "Набор"
+          },
+          {
+            "key": "offer_conditions",
+            "label": "Тип и условия из письма"
+          },
+          {
+            "key": "response_deadline",
+            "label": "Срок из письма"
+          },
+          {
+            "key": "next_step",
+            "label": "Следующий шаг"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "emgs-documents",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-receipt-request",
+        "stageKey": "decisions",
+        "title": "Счёт и запрос квитанции",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "По конкретному invoice. Для tuition, visa/admin и депозита используйте отдельные записи и не смешивайте валюты.",
+        "body": "{{student_name}}, по счёту {{invoice_reference}} предусмотрен платёж {{payment_purpose}}: {{amount_and_currency}}, срок {{due_date}}. Получателя и реквизиты проверьте в самом счёте. После оплаты загрузите квитанцию в EVO с указанием этого счёта. Факт получения денег подтвердит уполномоченный сотрудник; я помогу отследить следующий шаг по поступлению.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "invoice_reference",
+            "label": "Текущий счёт"
+          },
+          {
+            "key": "payment_purpose",
+            "label": "Назначение платежа"
+          },
+          {
+            "key": "amount_and_currency",
+            "label": "Сумма и валюта из счёта"
+          },
+          {
+            "key": "due_date",
+            "label": "Срок из счёта"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-visa-status-request",
+        "stageKey": "visa_and_predeparture",
+        "title": "Уточнение визового статуса у вуза",
+        "audience": "university",
+        "locale": "en",
+        "whenToUse": "Для международного офиса выбранного вуза; не заявляйте, что неизвестные разрешения уже выданы.",
+        "body": "Hello {{office_name}}, please confirm the current status for application {{application_reference}}: EMGS application, eVAL and, where applicable, the entry visa step. Our latest recorded information is {{known_status}}. Please identify any outstanding documents, the next action and its applicable deadline. We also need the current post-arrival medical, university registration and Student Pass endorsement instructions. Please provide the relevant official guidance or case-specific confirmation.",
+        "placeholders": [
+          {
+            "key": "office_name",
+            "label": "Международный офис"
+          },
+          {
+            "key": "application_reference",
+            "label": "Идентификатор заявки"
+          },
+          {
+            "key": "known_status",
+            "label": "Последний подтверждённый статус без догадок"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "my-student-pass",
+          "emgs-medical"
+        ]
+      },
+      {
+        "id": "my-correction-request",
+        "stageKey": "visa_and_predeparture",
+        "title": "Исправление документов или визового запроса",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "При конкретном запросе от куратора, вуза или визовой процедуры; укажите источник замечания.",
+        "body": "{{student_name}}, по {{item_name}} получено замечание от {{request_source}}: {{correction_reason}}. Нужно {{required_change}} до согласованной даты {{due_date}}. Загрузите новую версию в EVO; предыдущая останется в истории. Это запрос исправления, не отказ и не подтверждение готовности визы. Если выполнить условие невозможно, сообщите мне для уточнения следующего шага.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "item_name",
+            "label": "Документ или запрос"
+          },
+          {
+            "key": "request_source",
+            "label": "Кто запросил исправление"
+          },
+          {
+            "key": "correction_reason",
+            "label": "Замечание"
+          },
+          {
+            "key": "required_change",
+            "label": "Точное действие"
+          },
+          {
+            "key": "due_date",
+            "label": "Согласованная дата"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-ticket-status",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Уточнение плана и статуса билета",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "Для согласования поездки; без покупки, бронирования или обещания въезда от имени приложения.",
+        "body": "{{student_name}}, согласуем маршрут {{travel_plan}}. Сейчас статус билета: {{ticket_status}}; условия изменения/возврата: {{ticket_terms}}. Подтвердите, пожалуйста, что данные верны. Предварительная бронь не означает покупку билета. Перед окончательным решением ещё раз сверим действительные въездные документы и требования принимающего вуза.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "travel_plan",
+            "label": "Маршрут, рейс и даты"
+          },
+          {
+            "key": "ticket_status",
+            "label": "Фактический статус билета"
+          },
+          {
+            "key": "ticket_terms",
+            "label": "Проверенные условия либо требуется уточнение"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-housing-approval",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Согласование жилья",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "После проверки текущих вариантов рядом с нужным кампусом; без частных примеров и гарантии возврата депозита.",
+        "body": "{{student_name}}, для кампуса {{campus}} и заезда {{move_in_date}} подготовлены варианты {{housing_options}} в согласованном бюджете {{budget_and_currency}}. Условия договора и депозита: {{contract_and_deposit_terms}}. Выберите, пожалуйста, подходящий вариант или уточните пожелания. Согласование варианта ещё не означает бронь или оплату; подтверждение получим отдельно.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "campus",
+            "label": "Кампус"
+          },
+          {
+            "key": "move_in_date",
+            "label": "Планируемый заезд"
+          },
+          {
+            "key": "housing_options",
+            "label": "Проверенные варианты"
+          },
+          {
+            "key": "budget_and_currency",
+            "label": "Согласованный бюджет и валюта"
+          },
+          {
+            "key": "contract_and_deposit_terms",
+            "label": "Проверенные условия договора и депозита"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-university-arrival-notice",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Уведомление вуза о планируемом прилёте",
+        "audience": "university",
+        "locale": "en",
+        "whenToUse": "Перед фактической отправкой человеком в согласованный канал вуза. Это план, а не подтверждение прибытия.",
+        "body": "Hello {{office_name}}, the planned arrival for {{student_name}}, application {{application_reference}}, is {{arrival_date}} at {{arrival_time_local}} local time, flight {{flight_reference}}, {{arrival_airport}}. Please confirm any arrival-notification requirements and whether a meeting or transfer has been arranged. Please also confirm the next steps and contact for university registration. We will notify you if the travel plan changes.",
+        "placeholders": [
+          {
+            "key": "office_name",
+            "label": "Международный офис"
+          },
+          {
+            "key": "student_name",
+            "label": "Имя студента для заявки"
+          },
+          {
+            "key": "application_reference",
+            "label": "Идентификатор заявки"
+          },
+          {
+            "key": "arrival_date",
+            "label": "Планируемая дата прилёта"
+          },
+          {
+            "key": "arrival_time_local",
+            "label": "Местное время"
+          },
+          {
+            "key": "flight_reference",
+            "label": "Рейс"
+          },
+          {
+            "key": "arrival_airport",
+            "label": "Аэропорт"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "sunway-arrival",
+          "apu-application"
+        ]
+      },
+      {
+        "id": "my-predeparture-instructions",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Памятка перед поездкой и MDAC",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "Когда применимость entry visa и MDAC проверена. При статусе «нужно уточнить» сначала уточните требования.",
+        "body": "{{student_name}}, перед поездкой проверьте документы по вашему маршруту: {{entry_documents}}. Для MDAC в вашей ситуации подтверждено: {{mdac_instruction}}; источник и дата проверки: {{official_source_and_date}}. Подготовьте {{originals_list}} и сохраните контакт принимающей стороны {{arrival_contact}}. После прибытия останутся отдельные действия: {{post_arrival_actions}}. Их сроки уточнены в памятке {{instructions_reference}}; наличие eVAL само по себе не означает выдачу Student Pass.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "entry_documents",
+            "label": "Проверенные применимые въездные документы"
+          },
+          {
+            "key": "mdac_instruction",
+            "label": "Требуется/не требуется с основанием и конкретным действием"
+          },
+          {
+            "key": "official_source_and_date",
+            "label": "Официальный источник и дата"
+          },
+          {
+            "key": "originals_list",
+            "label": "Применимые оригиналы документов"
+          },
+          {
+            "key": "arrival_contact",
+            "label": "Контакт принимающей стороны"
+          },
+          {
+            "key": "post_arrival_actions",
+            "label": "Невыполненные действия после прибытия"
+          },
+          {
+            "key": "instructions_reference",
+            "label": "Актуальная памятка со сроками"
+          }
+        ],
+        "sourceIds": [
+          "my-student-pass",
+          "my-mdac",
+          "emgs-medical",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-arrival-confirmation",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Подтверждение фактического прибытия",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "После предполагаемой поездки, пока нет доказанного факта прибытия.",
+        "body": "{{student_name}}, подтвердите, пожалуйста, удалось ли прибыть в {{destination}}. Если да, напишите фактические дату и время по местному времени и подтвердите, что вы уже на месте. Если поездка изменилась или возникла проблема, сообщите текущую ситуацию и нужную помощь. Билет или плановая дата не заменяют подтверждение прибытия.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "destination",
+            "label": "Согласованное место прибытия"
+          }
+        ],
+        "sourceIds": [
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-post-arrival-handover",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Следующие действия после прибытия",
+        "audience": "student",
+        "locale": "ru",
+        "whenToUse": "После подтверждения прибытия. Не отмечайте medical, регистрацию или endorsement выполненными без отдельных доказательств.",
+        "body": "{{student_name}}, прибытие {{arrival_date}} подтверждено. Следующие действия пока остаются открытыми: {{remaining_actions}}. Для medical, регистрации в университете, активации аккаунта/почты и Student Pass действуйте по применимым инструкциям {{instructions_reference}}. Согласованные сроки: {{individual_deadlines}}; контакт принимающего офиса: {{office_contact}}. Завершение маршрута EVO по прибытию не означает завершение этих формальностей. Если данные памятки расходятся с сообщением офиса, уточните их до истечения срока.",
+        "placeholders": [
+          {
+            "key": "student_name",
+            "label": "Имя студента"
+          },
+          {
+            "key": "arrival_date",
+            "label": "Подтверждённая дата прибытия"
+          },
+          {
+            "key": "remaining_actions",
+            "label": "Фактически открытые действия"
+          },
+          {
+            "key": "instructions_reference",
+            "label": "Проверенные применимые инструкции"
+          },
+          {
+            "key": "individual_deadlines",
+            "label": "Уточнённые сроки каждого действия"
+          },
+          {
+            "key": "office_contact",
+            "label": "Подтверждённый контакт офиса"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "my-student-pass",
+          "emgs-medical",
+          "owner-run"
+        ]
+      },
+      {
+        "id": "my-referral-arrival-summary",
+        "stageKey": "arrival_and_adaptation",
+        "title": "Подтверждённое прибытие для входящего агентства",
+        "audience": "referral",
+        "locale": "ru",
+        "whenToUse": "Только для действительно участвующего агентства и разрешённого объёма сведений; после доказанного прибытия.",
+        "body": "Здравствуйте, {{agency_name}}! По делу {{case_reference}} фактическое прибытие подтверждено {{arrival_date}}. Маршрут поступления EVO завершён на согласованном этапе прибытия. Последующие действия {{remaining_actions}} переданы по инструкции {{handover_reference}}; мы не отмечаем их выполненными без отдельного подтверждения. Спасибо за взаимодействие.",
+        "placeholders": [
+          {
+            "key": "agency_name",
+            "label": "Входящее агентство"
+          },
+          {
+            "key": "case_reference",
+            "label": "Разрешённый идентификатор дела"
+          },
+          {
+            "key": "arrival_date",
+            "label": "Подтверждённая дата прибытия"
+          },
+          {
+            "key": "remaining_actions",
+            "label": "Разрешённые к передаче открытые действия"
+          },
+          {
+            "key": "handover_reference",
+            "label": "Подтверждение передачи инструкций"
+          }
+        ],
+        "sourceIds": [
+          "my-regulation",
+          "owner-run"
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "my-regulation",
+        "title": "Должностная инструкция куратора по обучению в Малайзии (EVO стиль).docx",
+        "kind": "owner-regulation",
+        "sourceVersion": "Предоставленный владельцем исходник, сверка 2026-09-09",
+        "sha256": "9e06092bcd977f6c595fa660a3ba3421189746ac1eebe9f47b1afdb0d9a5575d",
+        "reviewedOn": "2026-09-09",
+        "scope": "12 страниц: обязанности/партнёры/условия 2–6, сообщения 7–8, жильё 9–10, языки 11, памятка 12. Поля утверждения пусты. Частные контакты, пример аренды и предполагаемые общие условия не перенесены."
+      },
+      {
+        "id": "owner-run",
+        "title": "Решения владельца и контракт запуска Student/Admissions",
+        "kind": "owner-decision",
+        "sourceVersion": "2026-09-09; student-admissions-run-plan.md §11 и admissions-playbook-implementation.md",
+        "reviewedOn": "2026-09-09",
+        "scope": "После Sales, одна существующая модель дела, подача фактическим партнёром, primary application, ручные сообщения и Finance. Для post-edit выбран endpoint подтверждённого прибытия с незавершёнными post-arrival действиями."
+      },
+      {
+        "id": "my-student-pass",
+        "title": "Immigration Malaysia — Student Pass",
+        "kind": "official",
+        "sourceVersion": "Живая страница, проверена 2026-09-09",
+        "url": "https://www.imi.gov.my/index.php/en/main-services/pass/student-pass/",
+        "reviewedOn": "2026-09-09",
+        "scope": "Различие EMGS/eVAL, применимой въездной визы и последующего Student Pass endorsement. Применимость зависит от конкретной категории и ситуации; это не универсальный автоматический checklist."
+      },
+      {
+        "id": "emgs-documents",
+        "title": "EMGS — Required Documents",
+        "kind": "official",
+        "sourceVersion": "Живая страница, проверена 2026-09-09",
+        "url": "https://visa.educationmalaysia.gov.my/guidelines/required-documents",
+        "reviewedOn": "2026-09-09",
+        "scope": "Точка проверки применимых документов и языковых подтверждений; Offer Letter и отдельный Letter of Eligibility не смешиваются. EVO self-test не выдаётся за принимаемый сертификат."
+      },
+      {
+        "id": "emgs-medical",
+        "title": "EMGS — Medical Screening",
+        "kind": "official",
+        "sourceVersion": "Живая страница, проверена 2026-09-09",
+        "url": "https://visa.educationmalaysia.gov.my/guidelines/medical-screening",
+        "reviewedOn": "2026-09-09",
+        "scope": "Post-arrival medical и связь с endorsement. Формулировка срока отличается от Immigration; до поездки нужно уточнение применимого срока, а не автоматический выбор более позднего."
+      },
+      {
+        "id": "my-mdac",
+        "title": "Immigration Malaysia — Malaysia Digital Arrival Card",
+        "kind": "official",
+        "sourceVersion": "Официальный портал, проверен 2026-09-09",
+        "url": "https://imigresen-online.imi.gov.my/mdac/main",
+        "reviewedOn": "2026-09-09",
+        "scope": "Официальная точка проверки MDAC и действующих исключений. Для дела сохраняются применимость, основание и дата проверки; универсальная обязанность для всех не утверждается."
+      },
+      {
+        "id": "sunway-arrival",
+        "title": "Sunway University — Pre-Arrival",
+        "kind": "official",
+        "sourceVersion": "Живая страница, проверена 2026-09-09",
+        "url": "https://sunwayuniversity.edu.my/international/pre-arrival",
+        "reviewedOn": "2026-09-09",
+        "scope": "Проверка предвыездных действий именно для Sunway; не универсальные условия для всех университетов."
+      },
+      {
+        "id": "apu-application",
+        "title": "APU — International Students Application Procedures",
+        "kind": "official",
+        "sourceVersion": "Живая страница, проверена 2026-09-09",
+        "url": "https://www.apu.edu.my/international-students-application-procedures",
+        "reviewedOn": "2026-09-09",
+        "scope": "Точка проверки процесса APU вместо предположительной строки старого регламента. Текущий offer/invoice и подтверждение вуза определяют условия конкретного дела."
+      },
+      {
+        "id": "mmu-visa",
+        "title": "Multimedia University — Visa Information",
+        "kind": "official",
+        "sourceVersion": "Живая страница, проверена 2026-09-09",
+        "url": "https://www.mmu.edu.my/visa-information/",
+        "reviewedOn": "2026-09-09",
+        "scope": "Проверка визовых и следующих после прибытия действий именно для MMU; ставки и проценты из примеров не становятся общими правилами."
+      }
+    ],
+    "limitations": [
+      "Редакционный playbook EVO 1.0.0 по рабочему исходнику с незаполненным утверждением. Он организует действия, но не является юридическим заключением или доказательством права въезда.",
+      "Привязка явная: старые дела остаются без определённого направления до проверки. Применённые workflow/requirements не заменяются. Задачи u6 по приёму, маршруту и первичному плану документов повторно не создаются.",
+      "Маршрут следует основной заявке; альтернативы самостоятельны. Interstudy как referral, submission partner и университет — разные роли. Указанные в регламенте вузы не образуют обязательный каталог предложений.",
+      "Offer Letter не называется универсально LOE: EMGS использует Letter of Eligibility для отдельного применимого требования. Вид письма определяется фактическим документом, а не сокращением из рабочего регламента.",
+      "Никаких общих сумм, авансовых процентов, сроков рассмотрения или бронирования. Текущие счета, валюта, условия договора и официальные требования проверяются по делу; неизвестное остаётся требующим уточнения.",
+      "eVAL не равен въездной визе или Student Pass. Необходимость SEV/eVISA и MDAC проверяется отдельно. Источники по medical расходятся в формулировке срока; не выбирать автоматически более позднюю дату.",
+      "Для post-edit выбран endpoint подтверждённого прибытия, как для Китая. Medical, university registration, активация аккаунта и Student Pass endorsement остаются отдельными pending/неуточнёнными действиями, пока нет доказательств. Закрытие EVO не завершает их автоматически.",
+      "Сообщения — оригинальные редактируемые тексты для ручного копирования. Проверьте адресата, язык, факты и все поля. Копирование не означает отправку. Университету — EN, referral/студенту — RU по умолчанию с ручным изменением по предпочтению.",
+      "Частные примеры аренды, контакты, документы и переписка не входят в seed. Жильё, билеты, платежи и сообщения не оформляются автоматически; финансовое подтверждение остаётся в Finance.",
+      "Двойной ввод в Google Sheets отменён решением владельца; sync не добавляется. Регулярные check-in, продления и постоянное сопровождение учёбы вне этого запуска; личные тесты студента не доступны staff-маршруту."
+    ]
+  }
+}

@@ -12,6 +12,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     .filter((name) => name.endsWith(".ts"))
     .sort();
   assert.deepEqual(typescriptFiles, [
+    "admissions-source.ts",
     "calendar-contract.ts",
     "calendar-source.ts",
     "funnel-source.ts",
@@ -40,6 +41,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     name.endsWith("-source.ts"),
   );
   assert.deepEqual(adapterFiles, [
+    "admissions-source.ts",
     "calendar-source.ts",
     "funnel-source.ts",
     "inbox-source.ts",

@@ -596,7 +596,10 @@ export function ProfileAdmissionsWorkspacePanel({
         {workspace.visa?.note ? (
           <p className="px-4 pt-3 text-sm text-fg-3">{workspace.visa.note}</p>
         ) : null}
-        {canWrite ? <div className="px-4 py-3"><VisaForm workspace={workspace} /></div> : null}
+        {canWrite ? <div className="px-4 py-3"><VisaForm
+          key={`visa-${workspace.studentCaseId}-${workspace.visa?.visaCaseId ?? "new"}-${workspace.visa?.version ?? 0}`}
+          workspace={workspace}
+        /></div> : null}
       </Card>
     </div>
   );

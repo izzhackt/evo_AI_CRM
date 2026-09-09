@@ -6,6 +6,8 @@ import Link from "next/link";
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
+import { ProfileAdmissionsRoute } from "@/components/v3/profile/ProfileAdmissionsRoute";
+import { AdmissionsSummaryPanel } from "@/components/v3/profile/AdmissionsSummaryPanel";
 import { CuratorCoveragePanel } from "@/components/v3/profile/CuratorCoveragePanel";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
@@ -41,7 +43,7 @@ import {
 } from "@/lib/v3/profile-route-load";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "V3 · Профиль" };
+export const metadata = { title: "EVO · Поступление" };
 
 type ProfileSearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
@@ -196,7 +198,7 @@ export default async function ProfilePart({
   let studentPortalCuratorsAvailable = true;
   if (
     actor.presentationRole === "admin" &&
-    view?.details.admissions?.caseState === "pending"
+    (directory || view?.details.admissions?.caseState === "pending")
   ) {
     try {
       studentPortalCurators = await listStudentPortalActiveCurators(actor);
@@ -206,13 +208,18 @@ export default async function ProfilePart({
   }
 
   return (
-    <PartShell title={view ? "Профиль" : "Студенты"}>
+    <PartShell title={view ? "Профиль" : "Поступление"}>
       <div className="space-y-6">
+        {directory && actor.presentationRole !== "sales" ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
+          <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} />
+        </Suspense> : null}
         {directory ? (
           <ProfileCaseDirectory
             directory={directory}
             initiallyOpen={directoryParams.active || !view}
             params={directoryParams}
+            curators={studentPortalCurators}
+            allowAdmissionsFilters={actor.presentationRole !== "sales"}
           />
         ) : null}
         {directory && actor.authorityRole === "admin" && actor.presentationRole === "admin" ? (
@@ -226,10 +233,11 @@ export default async function ProfilePart({
               className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
               href="/v3/profile"
             >
-              К каталогу студентов
+              К списку поступления
             </Link>
             <Profile
               profile={view.profile}
+              admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person} /> : undefined}
               draft={view.details}
               sales={view.sales}
               actorRole={actor.presentationRole}

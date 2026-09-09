@@ -208,6 +208,7 @@ export type ProfileDraft = Readonly<{
 
 export const TABS = [
   { key: "overview", title: "Обзор" },
+  { key: "route", title: "Маршрут" },
   { key: "anketa", title: "Анкета" },
   { key: "documents", title: "Документы" },
   { key: "money", title: "Деньги" },
@@ -239,7 +240,7 @@ export function tabsFor(
   actorRole: ProfileActorRole,
 ): readonly (typeof TABS)[number][] {
   return TABS.filter((tab) => {
-    if (tab.key === "documents" || tab.key === "contract") {
+    if (tab.key === "documents" || tab.key === "contract" || tab.key === "route") {
       return student && actorRole !== "sales";
     }
     return true;

@@ -66,8 +66,8 @@ API Auth proof. Student visual acceptance subsequently passed in an isolated E4
 runtime: all five pages at desktop, 393px and forced-dark; 6 passed/6 intentional
 viewport skips, 15 inspected screenshots. The fixture uses real Auth/Postgres with
 a preactivated synthetic case, not proof of the normal invitation flow. See the
-reference note. Exact-head review and CI remain required before merging #692;
-do not reset the password again.
+reference note. PR #692 subsequently passed independent exact-head review and
+CI34358523190 and merged as `198f5551`; do not reset the password again.
 The September 8 deployment above remains the last recorded production checkpoint.
 
 ## Current run: Student Portal and China/Malaysia Admissions (2026-09-09)
@@ -89,8 +89,39 @@ The owner now explicitly permits bounded fictional Student QA data for this run,
 with real Auth/backend/browser and report isolation. This narrowly supersedes the
 prior run's no-synthetic-case acceptance restriction, not real-service or release
 gates. Production authorization does not imply migrations/features are already
-deployed. PR #692's Student visual check is locally verified as described above;
-normal invitation/provisioning acceptance remains distinct and unproven.
+deployed. PR #692's Student visual check is locally verified as described above.
+The separate normal invitation flow now passed real isolated Auth/Mailpit/browser
+acceptance and merged through #696 (`24267beb`, reviewed `b0a763db`). Private
+assessments merged through #695 (`4d122ab5`, reviewed `95c0847a`, all six CI checks
+passed); E4 proves both native tests, persistence, private results and failure
+recovery, not production use. Admissions #697 contains implemented CN/MY routes
+and has passed fresh SQL001–138, independent product/content review and scoped
+CI. Final E5 at `452e3e05` passed 8 tests/8 intentional viewport skips: the full MY
+route through confirmed arrival/reopen, CN through conditional decision, private
+Auth boundaries, races/offline recovery, direction worklists and manager report.
+CN beyond conditional through arrival is separately SQL-proven, not claimed as a
+full browser journey. Six axe scans found no violations; all 16 screenshots were
+inspected; owned isolated runtime cleanup passed. See [E5 evidence](design/v3/references/2026-09-09-admissions-e5-browser.md).
+The snapshot projection, route-refresh race and stale visa revision fixes were
+independently reviewed and exercised. Frontend140, typecheck and lint passed.
+Final documentation checkpoint/exact-head PR checks and merge remain distinct
+from this local evidence. Any later product fix repeats its affected gates.
+
+September9 read-only production preflight still reports `0cbb2d42`/schema134,
+health200 and arm=false. A fresh backup of current imported data, its isolated
+restore/migration rehearsal, final-main CI and controlled release/readback are
+separate remaining gates. Bounded temporary read-only backup transport #703 at
+`279787cd` passed independent review, focused tests, real isolated PostgreSQL18.6
+dump-parity/privilege checks and actual read-only exporter preflight. No live
+lease/export/restore was performed. Source inventory found a foreign expired CLI
+login role (no active sessions); its collective provider cleanup must not run
+without ownership reconciliation and explicit authorization. The exporter must
+retain its zero-baseline guard. Source also has two Auth identities, one active
+Admin membership and 209 sales: the old recovery exception for exactly one Auth
+identity/Admin does not cover this inventory. Complete authority classification
+and separately reviewed restore proof are required; do not loosen a count check.
+These are P9 blockers, not unfinished Student/Admissions features. No database
+password reset, JIT/SSL setting change or production runtime mutation occurred.
 Existing #687 rollback exceptions remain under their separate owner-acceptance gate.
 
 ## Historical integration and release-preparation checkpoints

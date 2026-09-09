@@ -28,8 +28,11 @@ and regression tests. Migration138 owns original reviewed playbook seed only.
 - Private immutable playbook versions: `id`, `direction`, `version`, `title`,
   `content` JSON, `published_at`. `content` contains `stages`, `tasks`, `messages`,
   `sources`, `limitations`; no personal contacts, private examples or documents.
-- Append-only admissions events: actual transitions/arrival events for truthful
-  period reporting. No assessment results in any staff projection.
+- Append-only admissions events preserve transitions and arrival evidence.
+  Monthly reporting counts currently confirmed arrived cases by their current
+  actual arrival date, backed by the latest confirmation event. Reopening or
+  cancelling removes that success; a corrected date moves its month without
+  counting the same case twice. No assessment results in any staff projection.
 
 Planned authenticated RPC commands: configure case admissions; update case facts;
 transition stage; update application admissions details; update visa country
@@ -70,6 +73,11 @@ booking confirmation. Approval does not mean payment. Departure is not arrival.
 Medical, university registration and Student Pass endorsement remain separately
 pending after arrival unless explicitly evidenced. No automatic post-arrival
 completion, universal payment percentage, visa-on-arrival rule or guessed timing.
+For MY, the existing visa-case approved status means pre-arrival clearance, not
+Student Pass endorsement. Generic visa issue/expiry dates and China's JW field
+are absent from both MY read and edit views; dated eVAL/entry requirements remain
+separate. CN still requires its applicable visa dates. Hidden legacy facts are
+preserved when a different section is edited, never silently deleted.
 
 ## UI and acceptance
 

@@ -55,7 +55,7 @@ test("reviewed seed content round-trips through the actual allowlisted UI projec
   for (const file of ["china-v1.json", "malaysia-v1.json"]) {
     const raw = JSON.parse(readFileSync(new URL(`../supabase/admissions-content/${file}`, import.meta.url), "utf8"));
     const normalized = normalizeAdmissionsPlaybook({ ...raw, id: ID, publishedAt: NOW, unexpectedField: "must-not-serialize" });
-    assert.equal(normalized.token, undefined);
+    assert.equal(normalized.unexpectedField, undefined);
     assert.equal(normalized.content.stages.length, 7);
     assert.deepEqual(normalized.content.stages.map((item) => item.key), ADMISSIONS_STAGES);
     assert.deepEqual(normalized.content.messages, raw.content.messages);

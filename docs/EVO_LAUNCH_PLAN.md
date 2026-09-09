@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-08 (Asia/Dubai)
+Date: 2026-09-09 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -9,13 +9,35 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Current deployed application: `0cbb2d42d9691fac392864fea72a3f0894826773`, version
+Last recorded deployed application: `0cbb2d42d9691fac392864fea72a3f0894826773`, version
 `r27.1-0cbb2d42`, after full CI `34223961358` and release `34224668896` passed.
 Production schema is at 134; the release arm is false. The one-time import of
 209 sales/4 targets is reconciled; owner business acceptance remains deferred.
 The earlier accepted
 `4e6057f0` evidence in closed #552/#553 remains first-release history, not the
 current app revision. A documentation change does not by itself deploy the app.
+
+## Current run: Student Portal and China/Malaysia Admissions (2026-09-09)
+
+The owner authorizes the separate [Student/Admissions run plan](design/v3/student-admissions-run-plan.md)
+and sustained implementation through reviewed production release. Scope: improve
+the existing Student Portal; native English screening and Russian career-interest
+assessment with saved private results/profession guidance; full China and Malaysia
+Admissions using existing cases/tasks/applications/Finance; direction worklists,
+manual partner-message templates and a short manager report. Read [DESIGN.md](../DESIGN.md).
+
+All English questions remain inside EVO. Assessment results are Student-private,
+not staff projections or curator assignments. Initial screening reports factual
+quiz performance and topic strengths/weaknesses, not a validated CEFR certificate.
+The owner supplied both country DOCX sources and delegates uncertain product
+choices for documented post-edit; Malaysia is not awaiting a source document.
+
+The owner now explicitly permits bounded fictional Student QA data for this run,
+with real Auth/backend/browser and report isolation. This narrowly supersedes the
+prior run's no-synthetic-case acceptance restriction, not real-service or release
+gates. Production authorization does not imply migrations/features are already
+deployed. PR #692's Student visual check remains unclosed until real proof.
+Existing #687 rollback exceptions remain under their separate owner-acceptance gate.
 
 ## Historical integration and release-preparation checkpoints
 

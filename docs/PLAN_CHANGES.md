@@ -22086,3 +22086,50 @@ DEFERRED; #687 stays OPEN until owner acceptance permits a separately reviewed
 forward removal of portal v1 and the Admin-only omitted-reason exception.
 The requested localhost view is a loopback SSH tunnel to production, never a
 local-development copy; refresh its private target after container replacement.
+
+## 2026-09-09 — Student Portal, native assessments and China/Malaysia Admissions
+
+Owner authority: improve/deploy the current EVO design; add personal English and
+Russian career-interest tests; one Admissions area with CN/MY/EUROPE/AE/TR,
+China/Malaysia end-to-end operations using the supplied curator regulations,
+manual curator assignment, partner-submission tracking, editable/copied messages
+and a concise direction report. Begin after Sales; China ends at confirmed arrival.
+The later owner message supplies Malaysia DOCX, requests sustained execution
+without additional product questions, and delegates uncertainties to documented
+recommendations followed by post-edit. Implementation is authorized, not completed.
+
+Contract: `docs/design/v3/student-admissions-run-plan.md`; shared visual contract:
+root `DESIGN.md`; primary-source selection: `student-assessment-research.md` in
+the same design directory. The new run does not repeat completed first-launch,
+Sales import, or provider activation work. PR #692 remains a separate predecessor
+with its Student visual check still requiring real evidence.
+
+Confirmed boundaries: native-only English; no curator access to personal tests,
+assignments, tasks or case-history projections; no partner/parent login; reuse
+canonical Supabase Auth/Storage/cases/tasks/applications, not parallel products.
+Owner permits fictional Student QA identities/data in this run only, with actual
+Auth/RLS/browser execution, no forged invites/provider acceptance and no working
+sales-report contamination. Prior no-synthetic acceptance instructions are narrowed
+only by this explicit permission. #687 remains a separate deferred cleanup.
+
+Selected recommendations before coding: original 36-question English screening
+with factual topic scores and descriptive quiz-performance bands, not validated
+CEFR; public-domain ORVIS92 Russian exploratory adaptation, independent content/
+language review before merge. Qualified CEFR calibration and real-audience
+comprehension pilot are future improvements, truthfully unperformed, not invented
+release evidence. Owner never specifically required CEFR certification. Initial
+results must disclose what is and is not assessed and retain immutable versions.
+
+Malaysia source SHA256 `9e06092bcd977f6c595fa660a3ba3421189746ac1eebe9f47b1afdb0d9a5575d`;
+China source SHA256 `80f8d69dfff652c1be32fb74b840598ccbcc8957dded0d5356c8438ccba70c8a`.
+Owner decisions override source instructions for double Google Sheets entry,
+automatic assumptions about who submits, and extended after-arrival support.
+Interstudy referral and submission partner remain distinct; eVAL, entry visa and
+Student Pass remain distinct. Selected Malaysia endpoint mirrors confirmed arrival,
+with post-arrival legal obligations disclosed rather than marked completed;
+record this assumption for post-edit. University invoices/current official sources
+govern fees/visa details; uncertain source percentages/timings are not hardcoded.
+
+No new app, migrations, Auth users, provider messages or production deployment
+were performed by this plan amendment. Runtime and release proof will be recorded
+per block, bound to exact SHA, independently reviewed and pushed to GitHub.

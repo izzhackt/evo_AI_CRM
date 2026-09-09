@@ -387,7 +387,7 @@ DEPLOYED — отдельно подтверждён live SHA. Ниже стат
 | P5. Английский | VERIFIED | Оригинальные 36 заданий, seed136, тематический результат; контентный review/E4 PASS; это не валидированный CEFR | P9; L1 отдельно |
 | P6. Профориентация | VERIFIED | ORVIS92 RU, карточки профессий, источник и ограничения; независимый review/E4 PASS | P9; клиентский пилот не подменён QA |
 | P7. Portal + staff UX | IN FLIGHT | Tests/brand проверены E4; admissions worklist и manager summary ждут E5 | P1/P3/M1/P5/P6 |
-| P8. E2E/acceptance | IN FLIGHT | Assessment E4 и штатный invite PASS; Admissions SQL/full browser в работе | Проверяется по мере готовности P2–P7 |
+| P8. E2E/acceptance | IN FLIGHT | Assessment E4, штатный invite и Admissions SQL PASS; полный Admissions browser в работе | Проверяется по мере готовности P2–P7 |
 | P9. Production | TODO | Frozen reviewed main → CI/schema/backup → release → readback → owner inspection | P8 и release gates; отдельная запись от implementation |
 | M1. Malaysia | IN FLIGHT | Полный маршрут из §11, offer/fees/visa/жильё/прибытие, собственные templates и partner semantics; контент `cc7db453` | P2; E5 browser |
 | L1. Валидированный CEFR | FUTURE, не v1 | Проверены level rubric/пороги на целевой аудитории с методическим обоснованием | Компетентная методическая проверка; v1 не заявляет CEFR |
@@ -605,6 +605,7 @@ Europe/UAE/Turkey пока имеют направления и существу
 | 2026-09-09 | P1 / `198f5551`; P4–6 / `a0a0694e` | #692 слит; реальный E4 12 PASS; обычное приглашение отдельно PASS; migrations 135–136 и редакционный контент готовы к final review | #695 CI/review/merge; отдельный invite PR |
 | 2026-09-09 | P2/P3/M1 / `cc7db453` + рабочая реализация | CN/MY контент 138 опубликован локальным commit; forms/list/summary и SQL137 в работе; 138 frontend checks PASS | Довести SQL guards/races, независимый review и E5; production ещё не тронут |
 | 2026-09-09 | main `4d122ab5`; Admissions `d48cb55c` | #695/#696 слиты после независимого review и exact-head CI; SQL001–138/CN/MY/races PASS; frontend139 PASS; MY pre-arrival уточнение внесено | E5/final Admissions review, fresh backup/rehearsal и P9; live app/schema остаются `0cbb2d42`/134 |
+| 2026-09-09 | Admissions #697 / `32fb342c` | E5 обнаружил несовместимый page.* в старом snapshot карточки. Сохранена прежняя 33-column проекция; новый реальный RPC test и fresh SQL001–138 PASS. Начальный CI34365973218 — все6 PASS | Повтор E5 и exact-head CI на исправлении; backup-tool transport в отдельной ветке |
 
 Сейчас новых продуктовых вопросов нет. Потенциальные внешние зависимости:
 разрешённый QA mailbox для managed invite (сначала использовать безопасный реальный

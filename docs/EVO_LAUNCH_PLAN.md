@@ -66,8 +66,8 @@ API Auth proof. Student visual acceptance subsequently passed in an isolated E4
 runtime: all five pages at desktop, 393px and forced-dark; 6 passed/6 intentional
 viewport skips, 15 inspected screenshots. The fixture uses real Auth/Postgres with
 a preactivated synthetic case, not proof of the normal invitation flow. See the
-reference note. Exact-head review and CI remain required before merging #692;
-do not reset the password again.
+reference note. PR #692 subsequently passed independent exact-head review and
+CI34358523190 and merged as `198f5551`; do not reset the password again.
 The September 8 deployment above remains the last recorded production checkpoint.
 
 ## Current run: Student Portal and China/Malaysia Admissions (2026-09-09)
@@ -89,8 +89,23 @@ The owner now explicitly permits bounded fictional Student QA data for this run,
 with real Auth/backend/browser and report isolation. This narrowly supersedes the
 prior run's no-synthetic-case acceptance restriction, not real-service or release
 gates. Production authorization does not imply migrations/features are already
-deployed. PR #692's Student visual check is locally verified as described above;
-normal invitation/provisioning acceptance remains distinct and unproven.
+deployed. PR #692's Student visual check is locally verified as described above.
+The separate normal invitation flow now passed real isolated Auth/Mailpit/browser
+acceptance and merged through #696 (`24267beb`, reviewed `b0a763db`). Private
+assessments merged through #695 (`4d122ab5`, reviewed `95c0847a`, all six CI checks
+passed); E4 proves both native tests, persistence, private results and failure
+recovery, not production use. Admissions #697 contains implemented CN/MY routes
+and has passed fresh SQL001–138, independent product/content review and initial
+CI; final E5 browser acceptance remains in progress. E5 found a lazy legacy
+snapshot projection error, corrected in `32fb342c` with an actual 33-column RPC
+regression and a fresh SQL run. Any later fix repeats its affected gates.
+
+September9 read-only production preflight still reports `0cbb2d42`/schema134,
+health200 and arm=false. A fresh backup of current imported data, its isolated
+restore/migration rehearsal, final-main CI and controlled release/readback are
+separate remaining gates. A bounded temporary read-only backup transport is
+being prepared because the retained Sep8 export predates the Sales import;
+no database password reset, JIT/SSL setting change or runtime mutation is implied.
 Existing #687 rollback exceptions remain under their separate owner-acceptance gate.
 
 ## Historical integration and release-preparation checkpoints

@@ -22451,3 +22451,51 @@ confirmed refresh resets stale action state. The route coordination boundary
 keeps sibling inputs disabled while those updates commit. Keep actual expected-
 revision validation; prove docs-to-approved after route facts without a reload
 workaround or forced database status.
+
+### 2026-09-09 — owner-directed release without a new backup; one persistent source
+
+After the plain-language explanation of the backup/restore blockers, the owner
+explicitly requested: update the platform and expose that same server through a
+localhost tunnel; do not make a new backup for now (the owner will request it
+later); keep one account and one permanent database until explicitly told to
+delete it. This is new authority, not a claim that the previous gates passed.
+
+For this Student/Admissions evaluation release, defer the new managed export
+and its isolated restore/migration-rehearsal prerequisite. Record this waiver
+instead of fabricating or reusing a current-data recovery receipt. The existing
+expired CLI role and the old Auth2 restore-exception mismatch are consequently
+not blockers to this authorized no-new-backup release. Do not create an export
+lease or clean up foreign CLI roles just to satisfy a deferred operation. Keep
+all retained backups and accepted image/rollback evidence. The owner is accepting
+that this release has no newly verified restore point for current data; image
+rollback alone does not reverse database changes.
+
+All other controls remain: reviewed exact current main, fresh real source/schema
+inventory, only missing reviewed forward migrations, matching ledger, required
+manual full CI, scanner/resource/environment checks, immutable image admission,
+controlled release, actual authenticated/read-only browser acceptance, and
+disarm. No broad CI bypass, false restore success, direct ad-hoc Compose update,
+Auth bypass, provider activation or business-data import is authorized here.
+
+Use the existing EVO Supabase project iosckaqtovbbnssqcpde as the sole permanent
+product database/Auth/Storage source. No replacement project, reset, disposable
+preview database, or deletion of the persistent source is authorized. The local
+view is a loopback SSH tunnel to the same production app and database, not a
+second Next.js instance or a fork of the data. Preserve unrelated existing local
+resources; one-source intent does not authorize deleting old local volumes.
+
+Account consolidation is a separate bounded operation, not a deployment gate:
+inspect the actual two identities, their ownership/foreign keys and dependent
+row counts; resolve which account the owner means to retain before deletion.
+Recommend the existing active Platform Admin, without changing its password or
+granting any new role. Do not silently delete owned data or turn the platform
+into a permanently single-user product. Any necessary transfer or destructive
+inventory must be explicit and verified; ordinary student/staff permissions and
+private assessment boundaries remain unchanged. No new synthetic production
+users or cases are part of this release verification.
+
+Official account-deletion behavior checked through Supabase docs and Context7:
+https://supabase.com/docs/guides/auth/managing-user-data and
+https://supabase.com/docs/reference/javascript/auth-admin-deleteuser .
+Deletion can encounter dependent ownership and does not retroactively invalidate
+already issued JWTs; do not confuse account removal with a cosmetic profile flag.

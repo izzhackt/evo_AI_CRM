@@ -85,6 +85,30 @@ quiz performance and topic strengths/weaknesses, not a validated CEFR certificat
 The owner supplied both country DOCX sources and delegates uncertain product
 choices for documented post-edit; Malaysia is not awaiting a source document.
 
+### Latest owner direction: release, no new backup, persistent source
+
+On September 9, after the backup blockers were explained, the owner explicitly
+requested this release without a new backup for now, plus a localhost tunnel to
+the same server and one permanent working database. The latest PLAN_CHANGES
+entry is the bounded exception to the earlier fresh-export/restore prerequisite
+for this Student/Admissions evaluation release. Do not claim either proof passed,
+delete retained backups, or bypass any other release control. There is no newly
+verified recovery point for current data; image rollback does not undo migrations.
+
+Retain project `iosckaqtovbbnssqcpde` as the permanent product source until a new
+explicit owner deletion instruction. No database clone/reset or new local app is
+needed: localhost forwards to the existing server. The old CLI-role cleanup and
+Auth2 restore-harness extension are deferred with export/restore, not prerequisites
+to this release. Exact-main CI, reviewed forward schema, immutable app release,
+real authenticated readback and disarm still apply.
+
+Resolve the requested single-account target through actual ownership inventory;
+preserve the existing Platform Admin and all data pending that decision. Do not
+add a permanent one-user restriction or merge Student-private authority into Admin.
+Account consolidation does not require delaying the independent release.
+
+### Implementation and pre-waiver evidence
+
 The owner now explicitly permits bounded fictional Student QA data for this run,
 with real Auth/backend/browser and report isolation. This narrowly supersedes the
 prior run's no-synthetic-case acceptance restriction, not real-service or release
@@ -108,10 +132,12 @@ Final reviewed head `806c0b40` passed all six checks in CI `34371092144` and mer
 through #697 as `c95a892c` on September 9 at 15:40 UTC. This is not a production
 release. Any later product fix repeats its affected gates.
 
-September9 read-only production preflight still reports `0cbb2d42`/schema134,
-health200 and arm=false. A fresh backup of current imported data, its isolated
-restore/migration rehearsal, final-main CI and controlled release/readback are
-separate remaining gates. Bounded temporary read-only backup transport #703 at
+The September9 pre-waiver production preflight reported `0cbb2d42`/schema134,
+health200 and arm=false. At that point a fresh backup of current imported data,
+its isolated restore/migration rehearsal, final-main CI and controlled release
+were remaining gates. The owner subsequently deferred the new backup/rehearsal;
+final-main CI and controlled release/readback remain required. Bounded temporary
+read-only backup transport #703 at
 `279787cd` passed independent review, focused tests, real isolated PostgreSQL18.6
 dump-parity/privilege checks and actual read-only exporter preflight. No live
 lease/export/restore was performed. Source inventory found a foreign expired CLI
@@ -126,9 +152,11 @@ identity is not fully unassigned. A separately reviewed restore contract must
 preserve both identities/legacy ownership, check account isolation and absence
 of new Platform/Student authority for the second identity; do not loosen a count
 check or delete that user. See the [managed read-only checkpoint](design/v3/backup-lease-local-proof.md#managed-read-only-checkpoint--september-9-1534-utc).
-The #703 tooling branch inherits reviewed main `c95a892c`; verify its exact PR
-checks/merge before a current-main export. Tooling merge is not cleanup authority.
-These are P9 blockers, not unfinished Student/Admissions features. No database
+#703 merged as `11cfbd306f6c3bceeac1efd4fe8f4005c0badc04`, reviewed head
+`62842346`, CI `34372235415`. Export is now deferred; tooling merge is not
+cleanup authority.
+These were pre-waiver P9 blockers, not unfinished Student/Admissions features.
+The latest owner direction above defers that backup/restore path; no database
 password reset, JIT/SSL setting change or production runtime mutation occurred.
 Existing #687 rollback exceptions remain under their separate owner-acceptance gate.
 

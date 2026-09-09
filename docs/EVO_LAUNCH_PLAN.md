@@ -104,8 +104,9 @@ full browser journey. Six axe scans found no violations; all 16 screenshots were
 inspected; owned isolated runtime cleanup passed. See [E5 evidence](design/v3/references/2026-09-09-admissions-e5-browser.md).
 The snapshot projection, route-refresh race and stale visa revision fixes were
 independently reviewed and exercised. Frontend140, typecheck and lint passed.
-Final documentation checkpoint/exact-head PR checks and merge remain distinct
-from this local evidence. Any later product fix repeats its affected gates.
+Final reviewed head `806c0b40` passed all six checks in CI `34371092144` and merged
+through #697 as `c95a892c` on September 9 at 15:40 UTC. This is not a production
+release. Any later product fix repeats its affected gates.
 
 September9 read-only production preflight still reports `0cbb2d42`/schema134,
 health200 and arm=false. A fresh backup of current imported data, its isolated
@@ -118,8 +119,15 @@ login role (no active sessions); its collective provider cleanup must not run
 without ownership reconciliation and explicit authorization. The exporter must
 retain its zero-baseline guard. Source also has two Auth identities, one active
 Admin membership and 209 sales: the old recovery exception for exactly one Auth
-identity/Admin does not cover this inventory. Complete authority classification
-and separately reviewed restore proof are required; do not loosen a count check.
+identity/Admin does not cover this inventory. Aggregate read-only classification
+at 15:34 UTC found both Auth identities own separate legacy accounts; only one
+has new Platform Admin membership, and neither has Student links. The second
+identity is not fully unassigned. A separately reviewed restore contract must
+preserve both identities/legacy ownership, check account isolation and absence
+of new Platform/Student authority for the second identity; do not loosen a count
+check or delete that user. See the [managed read-only checkpoint](design/v3/backup-lease-local-proof.md#managed-read-only-checkpoint--september-9-1534-utc).
+The #703 tooling branch inherits reviewed main `c95a892c`; verify its exact PR
+checks/merge before a current-main export. Tooling merge is not cleanup authority.
 These are P9 blockers, not unfinished Student/Admissions features. No database
 password reset, JIT/SSL setting change or production runtime mutation occurred.
 Existing #687 rollback exceptions remain under their separate owner-acceptance gate.

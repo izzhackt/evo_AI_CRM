@@ -1,6 +1,6 @@
 # Student Portal и поступление: план нового запуска
 
-Дата: 2026-09-09 (Asia/Dubai). Статус: **Student Portal, тесты и China/Malaysia реализованы и локально проверены; финальный Admissions PR готовится к merge; production заблокирован prerequisites резервного копирования/восстановления**.
+Дата: 2026-09-09 (Asia/Dubai). Статус: **Student Portal, тесты и China/Malaysia реализованы, локально проверены и слиты в main; production заблокирован prerequisites резервного копирования/восстановления**.
 Для владельца продукта и любого следующего исполнителя: Codex, Sol, Astra или другого агента.
 Главный контракт — [EVO Launch Plan](../../EVO_LAUNCH_PLAN.md); этот документ раскрывает новый объём.
 Рабочая задача: [#693](https://github.com/izzhackt/evo_AI_CRM/issues/693).
@@ -53,7 +53,8 @@
 ### Контрольная точка реализации — 9 сентября
 
 Стартовая таблица выше сохранена как история, не текущий статус. Последняя
-проверенная общая база — main `4d122ab5` после #695; brand PR #692 слит ранее. Его reviewed head
+проверенная общая база — main `c95a892c` после #697; #692/#695/#696 слиты ранее.
+У brand PR #692 reviewed head
 `3cca6852`, CI `34358523190`, реальные desktop/mobile/forced-dark Student экраны
 проверены. Личный рабочий preview 3100 и существующий туннель 3000 сохранены.
 
@@ -74,6 +75,8 @@
   только для динамического порта изолированной проверки.
 - Admissions [#697](https://github.com/izzhackt/evo_AI_CRM/pull/697): migrations
   137–138, формы/рабочий список/сводка реализованы и независимо проверены.
+  **Слит** 9 сентября 15:40 UTC как `c95a892c`; reviewed head `806c0b40`,
+  точный CI `34371092144` — все шесть checks PASS.
   Финальный E5 на `452e3e05`: **8 PASS**, 8 намеренных viewport skips,
   16 просмотренных снимков, 6 axe-сканирований без нарушений, cleanup exit0.
   Реальные Auth/Postgres001–138; MY пройден через все семь этапов до прибытия
@@ -104,9 +107,14 @@
 - Второй P9 gate: в source две Auth identity, одна active Admin membership,
   209 продаж и ноль клиентов. Старое исключение restore consumer для пустого
   Storage допускает ровно одну Auth identity/одного Admin. Второй пользователь
-  ещё не классифицирован. Нужны полный identity/authority inventory и отдельно
-  reviewed точное доказательство восстановления этого состава; нельзя просто
-  заменить проверку `=== 1` на `>= 1` или назвать source пустой базой.
+  не имеет нового Platform profile/membership, но **оба Auth владеют отдельными
+  legacy accounts** через `public.profiles.account_role=owner`. Student-связей
+  нет; второй Auth не является полностью непривязанным. Нужен отдельно reviewed
+  restore contract с сохранением обоих Auth/legacy ownership, проверкой изоляции
+  аккаунтов и отсутствия нового Platform/Student-доступа у второго пользователя.
+  Нельзя удалить эту учётную запись, просто заменить `=== 1` на `>= 1` или назвать
+  source пустой базой. Полный aggregate checkpoint и границы — в
+  [backup proof](backup-lease-local-proof.md#managed-read-only-checkpoint--september-9-1534-utc).
 
 Рабочий preview PR #692 находится в отдельном worktree
 `evo_AI_CRM-adapter-inventory`, ветка `izzhackt/evo-brand-ux-refresh`.
@@ -408,15 +416,15 @@ VERIFIED означает изолированную проверку, а не p
 | --- | --- | --- | --- |
 | P0. Контракт | VERIFIED | PR #694 слит в main `5981363a`; независимый exact-head review approved; CI 34355891107, 132/132 source contracts PASS | Нет |
 | P1. Fixture и brand | VERIFIED | #692 и #696 слиты; E4 и отдельный штатный invite путь PASS; production Auth не обходится | Нет |
-| P2. Admissions foundation | VERIFIED | Серверный direction filter, versioned commands/templates; SQL/E5 и независимый review PASS | #697 final-head CI/merge; P9 |
-| P3. Китай | VERIFIED | Семь этапов и partner facts; browser до conditional decision, SQL до confirmed arrival; ручные сообщения | #697 final-head CI/merge; P9 |
+| P2. Admissions foundation | VERIFIED | #697 слит; серверный direction filter, versioned commands/templates; SQL/E5/review/CI PASS | P9 |
+| P3. Китай | VERIFIED | #697 слит; семь этапов и partner facts; browser до conditional decision, SQL до confirmed arrival; ручные сообщения | P9 |
 | P4. Private assessments | VERIFIED | #695 слит: migration135, Student-only RPC, draft/resume/idempotent completion; SQL/E4/review/CI PASS | P9 для production |
 | P5. Английский | VERIFIED | Оригинальные 36 заданий, seed136, тематический результат; контентный review/E4 PASS; это не валидированный CEFR | P9; L1 отдельно |
 | P6. Профориентация | VERIFIED | ORVIS92 RU, карточки профессий, источник и ограничения; независимый review/E4 PASS | P9; клиентский пилот не подменён QA |
-| P7. Portal + staff UX | VERIFIED | Brand/Tests E4 и worklist/report E5; desktop/393px, клавиатура, состояния и ручное копирование PASS | #697 final-head CI/merge; P9 |
+| P7. Portal + staff UX | VERIFIED | #692/#695/#697 слиты; E4/E5 desktop/393px, клавиатура, состояния и ручное копирование PASS | P9 |
 | P8. E2E/acceptance | VERIFIED (local) | E4, normal invite, SQL001–138 и E5 PASS; отдельные границы доказательств в §2/§9 | Это не owner acceptance/production smoke |
 | P9. Production | BLOCKED | Fresh backup + полный restore состава source → schema/main CI → release/readback | Чужая expired CLI role; Auth2 не покрывается прежним restore exception; #703 |
-| M1. Malaysia | VERIFIED | Семь этапов из §11 до confirmed arrival/reopen в реальном browser; post-arrival formalities не отмечаются автоматически | #697 final-head CI/merge; P9 |
+| M1. Malaysia | VERIFIED | #697 слит; семь этапов из §11 до confirmed arrival/reopen в реальном browser; post-arrival formalities не отмечаются автоматически | P9 |
 | L1. Валидированный CEFR | FUTURE, не v1 | Проверены level rubric/пороги на целевой аудитории с методическим обоснованием | Компетентная методическая проверка; v1 не заявляет CEFR |
 
 ### Быстрый путь и границы владельцев
@@ -609,19 +617,22 @@ Europe/UAE/Turkey пока имеют направления и существу
 
 ## 12. Точные следующие действия
 
-1. Не повторять P0/#692/#695/#696: все слиты. Сохранить доказательства E4 и
+1. Не повторять P0/#692/#695/#696/#697: все слиты. Сохранить доказательства E4/E5 и
    штатного приглашения; не создавать фиктивного Student в production.
-2. E5 завершён на `452e3e05`; не повторять его из-за одних docs-only изменений.
-   Push финального checkpoint, exact-head CI и merge #697 после review. При
+2. E5 завершён на `452e3e05`; финальный #697 head `806c0b40` прошёл review/CI
+   и слит как `c95a892c`. Не повторять browser из-за docs-only изменений. При
    новых product changes повторять затронутые gates, не переносить PASS вслепую.
-3. В #703 наследовать merged #697/main (включая уже reviewed dependency pins),
-   подтвердить узкий backup-only diff, независимый review и exact-head CI.
+3. В #703 уже унаследован merged #697/main и reviewed dependency pins. Сверить
+   текущий статус PR/точный head, review/CI/merge прежде чем использовать exporter
+   на current main. Сам merge инструмента не разрешает чужой CLI-role cleanup.
 4. До live export заново проверить CLI role inventory. Имеющийся чужой expired
    доступ не удалять без owner reconciliation/явного разрешения; preflight PASS
    не отменяет этот gate. Не сбрасывать DB password, не включать JIT/SSL.
-5. Классифицировать обе source Auth identity без вывода PII/секретов; подготовить
-   отдельный точный restore-proof contract для реального состава, включая
-   отсутствие лишних полномочий. Старый single-Admin exception не подходит.
+5. Source Auth классифицированы read-only 9 сентября 15:34 UTC: два legacy owner,
+   один из них новый Platform Admin, Student-связей нет. Перед новым запуском
+   сверить inventory; подготовить точный restore-proof contract для обеих
+   идентичностей/ownership и изоляции, без добавления полномочий. Ни single-Admin,
+   ни fully-unassigned-second-user exception не подходят.
 6. После разрешения blockers: fresh signed export текущих 209 продаж/всего source,
    isolated restore/migration rehearsal и только затем P9 по runbook. Не повторять
    Sales import, не активировать внешние провайдеры, не выполнять cleanup #687.
@@ -644,6 +655,8 @@ Europe/UAE/Turkey пока имеют направления и существу
 | 2026-09-09 | Admissions #697 / `32fb342c` | E5 обнаружил несовместимый page.* в старом snapshot карточки. Сохранена прежняя 33-column проекция; новый реальный RPC test и fresh SQL001–138 PASS. Начальный CI34365973218 — все6 PASS | Повтор E5 и exact-head CI на исправлении; backup-tool transport в отдельной ветке |
 | 2026-09-09 | Admissions #697 / `452e3e05` | Финальный E5: 8 PASS/8 намеренных skips, 16 просмотренных screenshots, 6 axe scans0; MY confirmed arrival/reopen, CN conditional, Auth denial/races/offline PASS. Исправления route refresh `e07d9050` и visa revision `5d4abe79` независимо reviewed; frontend140/typecheck/lint PASS | Docs-only checkpoint, final-head CI/merge; затем P9, не повторять готовые продуктовые волны |
 | 2026-09-09 | Backup #703 / `279787cd` | Локальные transport/restore-parser gates PASS; actual read-only exporter preflight PASS. Ни lease, ни dump, ни restore/release не запускались | Чужая expired CLI role требует owner reconciliation; source Auth2 требует полного authority/restore proof вместо single-Admin exception |
+| 2026-09-09 | main `c95a892c` / #697 | Reviewed `806c0b40`, CI34371092144 все6 PASS; exact-head squash merge в 15:40 UTC. P1–P8/M1 — локально VERIFIED и код в main | Production всё ещё `0cbb2d42`/134; arm=false; #693/P9 не закрыты |
+| 2026-09-09 | P9 source inventory | Auth2: оба legacy account owner; один active Platform Admin, Student-связей0. Чужая expired CLI role без активных сессий не тронута. #703 наследует current main | Явное разрешение на точный CLI cleanup; отдельный restore contract, fresh export/rehearsal, затем managed release |
 
 Сейчас новых продуктовых вопросов нет. Потенциальные внешние зависимости:
 разрешённый QA mailbox для managed invite (сначала использовать безопасный реальный

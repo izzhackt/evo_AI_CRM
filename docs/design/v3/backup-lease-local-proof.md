@@ -69,3 +69,46 @@ head CI, obtain the bounded lease/export authorization, perform one real export
 inside the exclusive operator window, and then complete isolated restore and
 candidate-migration rehearsal. Do not promote this local note into any of those
 receipts. Update this note only with a new explicit candidate and observed result.
+
+## Managed read-only checkpoint — September 9, 15:34 UTC
+
+The exporter **preflight**, not `run`, passed on clean `279787cd`. It verified
+the configured source identity/runtime keys, six private Storage buckets with
+zero objects/bytes, and metadata for the provider backup inserted at September 8,
+22:54:26 UTC. This does not capture or restore that backup, attest a usable lease,
+or replace the required fresh export of the current 209 imported sales.
+
+Separate read-only Management API inventories established two release blockers:
+
+1. One pre-existing CLI login role expired September 8 at 12:01:57 UTC; zero
+   active sessions. It is not the observer role and was not created by this run.
+   The provider deletion endpoint is collective. No role was deleted and no
+   lease created. Reconcile ownership and obtain explicit authorization before
+   cleanup; re-inventory immediately and stop if the exact target changes.
+   Retain the exporter's zero-baseline/owned-singleton checks.
+2. Source contains two ordinary authenticated Auth identities, both with legacy
+   `public.profiles.account_role=owner` links to two distinct `public.accounts`.
+   Exactly one has an active Platform profile/Admin membership in the one active
+   organization; the second has no Platform membership but owns its legacy
+   account. There are no Student case/invitation/provisioning links, other staff
+   roles or inactive Platform memberships. No authority-like `app_metadata`
+   keys, anonymous/super-admin flags, deleted or banned Auth identities were
+   found. No live user login was attempted.
+
+Thus neither the existing exact-one-Auth/Admin recovery exception nor a proposed
+one-Admin-plus-fully-unassigned-user exception matches the source. A separately
+reviewed restore contract must preserve both Auth identities and legacy account
+ownership, verify account isolation, and prove the second identity does not gain
+Platform/Student authority. Do not delete that user/account, grant roles, relax a
+count comparison, or treat absence of a new Platform profile as absence of all
+authority. Current counts also include 209 sales and zero clients: this is not
+an empty database.
+
+Root re-read the aggregate evidence; no PII, UUIDs, credentials or metadata blobs
+were exposed. Preflight terminal proof: `cfw://span/01a086c5913f75e0bec6db18f2b264a5`.
+Classification proofs: `cfw://span/01a086cc62947e30a70fba5b9f14e791`,
+`cfw://span/01a086cd1bea7de2a774a55438759748`,
+`cfw://span/01a086ce190e77a3bb8aae3fcc25cee4`.
+These observations leave the managed export, isolated restore/rehearsal and
+production rollout **blocked and unperformed**; the application remains at
+`0cbb2d42`, schema 134, with the release arm false.

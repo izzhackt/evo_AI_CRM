@@ -34,10 +34,12 @@ reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
 Resume the current September10 continuation from
-[`business-operations-universities-run-plan.md`](docs/design/v3/business-operations-universities-run-plan.md):
-daily Sales/Finance/Admissions gaps, native team-workspace integration and a
-source-backed university catalogue for staff and Student. Status and release
-evidence live in that plan; planned features are not yet deployment evidence.
+[`admin-realtime-university-expansion-run-plan.md`](docs/design/v3/admin-realtime-university-expansion-run-plan.md):
+Admin assignment parity, clear automatic staff chat and additional source-backed
+university cards/photos. The preceding
+[`business operations run`](docs/design/v3/business-operations-universities-run-plan.md)
+is shipped in accepted `f5d0157a`; real multi-user/business acceptance remains
+separate. Do not repeat that release or import. Current work is not yet deployed.
 
 The September 9 implementation baseline is recorded in
 [`student-admissions-run-plan.md`](docs/design/v3/student-admissions-run-plan.md):

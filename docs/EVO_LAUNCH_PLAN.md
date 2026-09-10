@@ -10,6 +10,17 @@ root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
 Last recorded accepted application: `f5d0157a92b8929d0f9271e76a99f02b876517de`
+
+## Current bounded continuation: Admin, chat and university expansion
+
+The September10 screenshots/request start
+[the Admin/realtime/university expansion run](design/v3/admin-realtime-university-expansion-run-plan.md).
+Implement Admin as the functional staff-role superset in both assignment readers
+and commands; clarify existing automatic chat updates and prove the real path;
+expand reviewed institutional content with real licensed photos. Preserve Auth,
+private Student assessments, business transition conditions and provider boundaries.
+This new run does not reopen the accepted O1–O6 release or authorize synthetic
+production records. Its plan owns current progress and remaining acceptance.
 (PR #714), version `r32.1-f5d0157a`, after full CI `34424853227` passed all five
 jobs and release `34425391638` succeeded, including `Accept exact V3 candidate`.
 The permanent Supabase source `iosckaqtovbbnssqcpde` has ledger001–148; the

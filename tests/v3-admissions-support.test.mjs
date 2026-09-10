@@ -69,6 +69,14 @@ test("uncertain command retries preserve the original payload and do not silentl
   assert.match(actions, /actor\.presentationRole !== actor\.authorityRole/u);
 });
 
+test("case navigation remounts scoped drafts without resetting same-case retries", () => {
+  const page = source("src/app/(v3)/v3/profile/page.tsx");
+  const key = page.slice(page.indexOf("<Profile\n"), page.indexOf("profile={view.profile}"));
+  for (const identity of ["actor.organizationId", "actor.authUserId", "actor.authorityRole", "actor.presentationRole", "routeTarget.studentCaseId", "routeTarget.leadId"]) assert.ok(key.includes(identity));
+  assert.doesNotMatch(key, /randomUUID|requestId/u);
+  assert.match(source("src/components/v3/profile/CaseHelpWorkspace.tsx"), /<CaseHelpPanel key=/u);
+});
+
 test("Student next action reuses canonical finance without adding payment writes", () => {
   const portal = source("src/lib/v3/portal-source.ts");
   assert.match(portal, /readStudentPortalPayments/u);

@@ -236,6 +236,8 @@ export default async function ProfilePart({
               К списку поступления
             </Link>
             <Profile
+              key={[actor.organizationId, actor.authUserId, actor.authorityRole, actor.presentationRole,
+                view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
               profile={view.profile}
               admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person} /> : undefined}
               draft={view.details}

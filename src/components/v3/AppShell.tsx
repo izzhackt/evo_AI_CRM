@@ -200,6 +200,14 @@ function Sidebar({
               className="border-t border-border px-3 py-2"
               data-testid="staff-role-preview"
             >
+              <Link
+                href="/preview/student"
+                onClick={closeMobileNavigation}
+                data-testid="student-portal-preview-link"
+                className="flex min-h-11 items-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              >
+                Предпросмотр кабинета студента
+              </Link>
               <details open={previewing}>
                 <summary className="min-h-11 cursor-pointer content-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
                   Предпросмотр роли

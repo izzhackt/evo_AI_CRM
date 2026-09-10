@@ -76,6 +76,12 @@
 - Assessment answers/results are Student-owner private in this run, including
   denial on ordinary Admin/Curator product paths. Do not add staff tracking,
   test assignments or case-timeline projections. No invented CEFR certification.
+- The owner-approved Admin Student Portal preview is tracked in #721 and
+  `docs/design/v3/student-portal-admin-preview-plan.md`. `/preview/student` is a
+  separately guarded read-only presentation, not a Student role or impersonation.
+  Keep `/portal` authority unchanged. Preview uses empty personal sections, the
+  published university catalogue and public authored question content only;
+  no Student attempts, private answers, grading keys or persisted selections.
 - The owner explicitly permits bounded fictional Student QA identities/data for
   this run, with real Auth/backend/browser execution and isolation from working
   sales reports. This is not an Auth bypass, fake provider acceptance or blanket

@@ -13,6 +13,7 @@ import {
   isConnectedStudentAuthPage,
   isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
+  isConnectedStudentPortalPreviewPage,
   isRetiredPlatformRoute,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
@@ -20,6 +21,37 @@ import {
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
+
+test("Admin Student preview has exact staff-only presentation routes, not Student endpoints", () => {
+  const id = "b6214cbe-6d08-4a33-86b4-cdf5cc6ca5e2";
+  for (const path of [
+    "/preview/student",
+    "/preview/student/documents",
+    "/preview/student/applications",
+    "/preview/student/payments",
+    "/preview/student/notifications",
+    "/preview/student/universities",
+    `/preview/student/universities/${id}`,
+    "/preview/student/tests",
+    "/preview/student/tests/english",
+    "/preview/student/tests/career",
+  ]) {
+    assert.equal(isConnectedStudentPortalPreviewPage(path), true, path);
+    assert.equal(isConnectedPlatformPage(path), true, path);
+    assert.equal(isConnectedStudentPortalPage(path), false, path);
+    assert.equal(isConnectedStudentPortalApi(path, "POST"), false, path);
+  }
+  for (const path of [
+    "/preview", "/preview/student/", "/preview/Student", "/preview/student//tests",
+    "/preview/student/profile", "/preview/student/documents/upload",
+    "/preview/student/tests/history", "/preview/student/tests/english/submit",
+    "/preview/student/universities/manage", "/preview/student/universities/not-an-id",
+    `/preview/student/universities/${id}/edit`, "/portal/preview", "/api/preview/student",
+  ]) {
+    assert.equal(isConnectedStudentPortalPreviewPage(path), false, path);
+    assert.equal(isConnectedPlatformPage(path), false, path);
+  }
+});
 
 test("only the exact V3 pages enter the active staff page contract", () => {
   for (const path of [

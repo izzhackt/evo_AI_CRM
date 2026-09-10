@@ -22867,3 +22867,25 @@ can renew a session even before expiry; the
 [Next.js SSR client guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client?queryGroups=framework&framework=nextjs)
 requires authenticated server checks and propagation of refreshed cookies.
 Use the existing authenticated client, never service-role or supplied token data.
+
+### 2026-09-10 — owner-approved Admin preview of the existing Student Portal
+
+Real Chrome navigation as the current Admin reproduced `/portal` → `/v3/main`
+twice; the staff/Student separation is intentional, but the owner could not inspect
+the Student UI. The owner now explicitly approves a separate Admin preview button.
+The bounded contract is `docs/design/v3/student-portal-admin-preview-plan.md`.
+
+Use server-verified Admin-only `/preview/student` routes and shared Portal views.
+Personal sections contain honest empty states, not invented people or records;
+universities use the live published catalogue through the existing Admin reader.
+Native test preview uses the version-pinned real question files, serializing only
+questions/instructions. Optional selections live only in component memory, with
+no attempt, grading, saved result or personal Student access. This is a requested
+UI preview feature, never fallback behavior or evidence of Student persistence.
+
+The existing `/portal` role policy, private assessment/RLS boundaries and staff
+role-preview identity stay intact. No migration, account, invitation, provider
+activation, new database or backup. Real-browser proof and normal exact-head
+review/PR/full-CI/release gates remain required before claiming deployment.
+Next16.3.4 official authentication and server/client guides, linked in the plan,
+confirm per-read server authorization and minimal client data serialization.

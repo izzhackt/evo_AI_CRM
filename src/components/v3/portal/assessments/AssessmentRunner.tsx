@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { completeStudentAssessmentAction, readStudentAssessmentAttemptAction, saveStudentAssessmentAction, startStudentAssessmentAction } from "@/lib/student-assessment-actions";
 import { assessmentAnswersFingerprint, assessmentPath, type AssessmentActionResult, type AssessmentAnswers, type AssessmentAttempt, type AssessmentCatalog, type AssessmentWriteInput } from "@/lib/student-assessment-contract";
 import { AssessmentResults } from "./AssessmentResults";
+import { AssessmentQuestion } from "./AssessmentQuestion";
 import { installAssessmentExitGuard } from "@/lib/student-assessment-exit-guard";
 
 const CONTROL = "inline-flex min-h-11 items-center justify-center rounded-nav border px-5 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-50";
@@ -161,16 +162,7 @@ export function AssessmentRunner({ instrument, initialAttempt }: { instrument: A
         <p>{count === total ? "Все вопросы заполнены. После завершения ответы этой попытки нельзя изменить. Результат останется в истории." : `Осталось ответить: ${total - count}. Можно выбрать «Не знаю» в английском тесте — это честнее случайного ответа.`}</p>
         {count < total ? <button className={BUTTON} onClick={() => goTo(Math.floor(attempt.questions.findIndex(q => !answers[q.id]) / pageSize))}>К первому пропущенному вопросу</button> : null}
         <button className={PRIMARY} disabled={busy || count !== total || !!error} onClick={() => void write(true)}>Завершить и получить результат</button>
-      </div> : <div className="mt-6 space-y-8">{attempt.questions.slice(page * pageSize, (page + 1) * pageSize).map((question, offset) => <fieldset key={question.id} className="min-w-0">
-        <legend className="w-full whitespace-pre-line text-base font-medium leading-7 text-fg" lang={instrument.instrumentKey === "english36" ? "en" : "ru"}>{instrument.instrumentKey === "orvis92" ? `${page * pageSize + offset + 1}. ` : ""}{question.prompt}</legend>
-        {question.passage ? <p lang="en" className="mt-4 whitespace-pre-line rounded-nav bg-surface-2 p-4 text-base leading-7 text-fg-2">{question.passage}</p> : null}
-        <div className={`mt-4 ${instrument.instrumentKey === "orvis92" ? "grid gap-2 sm:grid-cols-5" : "space-y-3"}`}>
-          {question.options.map(option => <label key={option.id} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-nav border px-4 py-3 text-sm leading-6 transition-colors ${answers[question.id] === option.id ? "border-accent bg-accent/5 text-fg" : "border-control-edge text-fg-2 hover:bg-surface-2"}`}>
-            <input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => select(question.id, option.id)} disabled={completing || error?.code === "conflict"} className="h-4 w-4 shrink-0 accent-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" />
-            <span lang={instrument.instrumentKey === "english36" && option.id !== "unknown" ? "en" : "ru"}>{option.label}</span>
-          </label>)}
-        </div>
-      </fieldset>)}</div>}
+      </div> : <div className="mt-6 space-y-8">{attempt.questions.slice(page * pageSize, (page + 1) * pageSize).map((question, offset) => <AssessmentQuestion key={question.id} question={question} instrumentKey={instrument.instrumentKey} answer={answers[question.id]} number={page * pageSize + offset + 1} disabled={completing || error?.code === "conflict"} onSelect={select} />)}</div>}
       <div className="mt-8 flex flex-wrap justify-between gap-3 border-t border-border pt-5">
         <button className={BUTTON} disabled={page === 0 || completing} onClick={() => goTo(page - 1)}>Назад</button>
         {!review ? <button className={PRIMARY} disabled={completing} onClick={() => goTo(page + 1)}>{page + 1 === pageCount ? "Проверить и завершить" : "Далее"}</button> : null}

@@ -32,6 +32,18 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal/tests/career",
 ]);
 
+const STUDENT_PORTAL_PREVIEW_PAGE_ALLOWLIST = new Set([
+  "/preview/student",
+  "/preview/student/documents",
+  "/preview/student/applications",
+  "/preview/student/universities",
+  "/preview/student/payments",
+  "/preview/student/notifications",
+  "/preview/student/tests",
+  "/preview/student/tests/english",
+  "/preview/student/tests/career",
+]);
+
 const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   "/auth/callback",
   "/auth/set-password",
@@ -40,6 +52,7 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
 
 const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_PREVIEW_UNIVERSITY_DETAIL_PATH = /^\/preview\/student\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const STUDENT_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/portal\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions$/i;
@@ -107,9 +120,16 @@ export function isConnectedPlatformPage(path: string): boolean {
   return (
     PLATFORM_STAFF_PAGE_ALLOWLIST.has(path) ||
     STAFF_UNIVERSITY_DETAIL_PATH.test(path) ||
+    isConnectedStudentPortalPreviewPage(path) ||
     isConnectedStudentPortalPage(path) ||
     isConnectedStudentAuthPage(path)
   );
+}
+
+/** Admin-only presentation pages; never part of the Student session/API path. */
+export function isConnectedStudentPortalPreviewPage(path: string): boolean {
+  return STUDENT_PORTAL_PREVIEW_PAGE_ALLOWLIST.has(path)
+    || STUDENT_PREVIEW_UNIVERSITY_DETAIL_PATH.test(path);
 }
 
 /** Only implemented Student pages and bounded university detail paths. */

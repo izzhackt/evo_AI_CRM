@@ -11,6 +11,16 @@ those higher-level authorities.
 
 Last recorded accepted application: `a52cca376ff05db8dcc220d4b043720fe98a6f6c`
 
+## Current follow-up: Admin Student Portal preview
+
+The owner approved [a bounded Admin-only Student UI preview](design/v3/student-portal-admin-preview-plan.md)
+after the real browser reproduced the existing Admin `/portal` → staff-home redirect.
+Implement an explicitly marked, read-only preview using the existing Portal UI,
+genuine published university catalogue and version-pinned questionnaire content.
+No Student identity, case or private attempt is loaded or created; answers remain
+unsaved in-memory UI selections. Preserve the ordinary Student/private boundaries.
+This new block is implementation in progress, not a claim of a deployed preview.
+
 ## Current bounded continuation: Admin, chat and university expansion
 
 The September10 screenshots/request are implemented in

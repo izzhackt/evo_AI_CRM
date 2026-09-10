@@ -1,0 +1,2940 @@
+[
+  {
+    "key": "xjtlu",
+    "content": {
+      "name": "Xi’an Jiaotong-Liverpool University",
+      "country": "CN",
+      "city": "Suzhou",
+      "overview": "Университет в Сучжоу, Китай. Карточка показывает одну проверенную инженерную бакалаврскую программу, а не все доступные направления.",
+      "websiteUrl": "https://www.xjtlu.edu.cn",
+      "sourceUrl": "https://www.xjtlu.edu.cn/en/study/undergraduate/computer-science-and-technology",
+      "verifiedOn": "2026-09-10",
+      "notes": "На странице программы указан сентябрь 2027. Дедлайн бакалавриата для этого набора не подтверждён. Сроки магистратуры и истёкший срок бакалавриата 2026 не применяются к нему.",
+      "photoKey": "xjtlu",
+      "programs": [
+        {
+          "id": "computer-science-and-technology",
+          "title": "BEng (Hons) Computer Science and Technology",
+          "level": "bachelor",
+          "duration": "4 года, очно",
+          "language": null,
+          "summary": "Инженерная программа объединяет компьютерные науки с основами электротехники и электроники. Возможности обучения по маршруту 2+2 нужно отдельно сверить с условиями программы.",
+          "sourceUrl": "https://www.xjtlu.edu.cn/en/study/undergraduate/computer-science-and-technology",
+          "intakes": [
+            {
+              "label": "Сентябрь 2027",
+              "startDate": null,
+              "startMonth": "2027-09",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликован месяц начала. Дедлайн подачи для этого бакалаврского набора пока не подтверждён.",
+              "sourceUrl": "https://www.xjtlu.edu.cn/en/study/undergraduate/computer-science-and-technology",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "unnc",
+    "content": {
+      "name": "University of Nottingham Ningbo China",
+      "country": "CN",
+      "city": "Ningbo",
+      "overview": "Кампус University of Nottingham в Нинбо, Китай. В карточке представлен пример программы по компьютерным наукам.",
+      "websiteUrl": "https://www.nottingham.edu.cn",
+      "sourceUrl": "https://www.nottingham.edu.cn/en/study-with-us/undergraduate/courses/prospectus.aspx?id=9270dd66-3c75-45de-bebe-bafe5d78c7c1",
+      "verifiedOn": "2026-09-10",
+      "notes": "Новый дедлайн бакалавриата не подтверждён. Страница приёма содержит старый заголовок 30 июня 2026 и более точное обновление о закрытии обычного приёма 21 июня 2026; эти прошедшие даты не показаны как действующий набор.",
+      "photoKey": "unnc",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "BSc (Hons) Computer Science",
+          "level": "bachelor",
+          "duration": "3 или 4 года в зависимости от уровня поступления",
+          "language": null,
+          "summary": "Программа по компьютерным наукам с вариантами обучения 4+0 и 2+2. Условия перевода и конкретный маршрут согласуются отдельно; они не гарантируются этой карточкой.",
+          "sourceUrl": "https://www.nottingham.edu.cn/en/study-with-us/undergraduate/courses/prospectus.aspx?id=9270dd66-3c75-45de-bebe-bafe5d78c7c1",
+          "intakes": [
+            {
+              "label": "Следующий сентябрьский набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "Дата начала и срок подачи следующего набора ещё не подтверждены. Прошедший приём 2026 не считается открытым.",
+              "sourceUrl": "https://www.nottingham.edu.cn/en/study-with-us/undergraduate/how-to-apply.aspx",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "scut",
+    "content": {
+      "name": "South China University of Technology",
+      "country": "CN",
+      "city": "Guangzhou",
+      "overview": "Технологический университет в Гуанчжоу с несколькими кампусами. Представлен международный подготовительный маршрут перед бакалавриатом.",
+      "websiteUrl": "https://www.scut.edu.cn/en",
+      "sourceUrl": "https://www.scut.edu.cn/en/2025/1202/c607a58742/page.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Завершение подготовки не гарантирует поступление: необходимо выполнить требования программы и университета. Фото показывает University Town Campus, а не подтверждённое место занятий конкретного набора.",
+      "photoKey": "scut",
+      "programs": [
+        {
+          "id": "international-foundation",
+          "title": "International Foundation Program",
+          "level": "foundation",
+          "duration": null,
+          "language": "Китайский или английский — по маршруту",
+          "summary": "Подготовка по математике, физике и языку. Англоязычный маршрут также включает введение в компьютерные науки.",
+          "sourceUrl": "https://www.scut.edu.cn/en/2025/1202/c607a58742/page.htm",
+          "intakes": [
+            {
+              "label": "Следующий подготовительный набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "Продолжительность, точные даты старта и срок подачи выбранного маршрута на проверенной странице не указаны.",
+              "sourceUrl": "https://www.scut.edu.cn/en/2025/1202/c607a58742/page.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "zjut",
+    "content": {
+      "name": "Zhejiang University of Technology",
+      "country": "CN",
+      "city": "Hangzhou",
+      "overview": "Технологический университет в Ханчжоу. В международном каталоге 2026 года есть англоязычная программа по химической инженерии.",
+      "websiteUrl": "https://www.zjut.edu.cn",
+      "sourceUrl": "https://www.gjxy.zjut.edu.cn/ueditor/upload/file/20251125/1764050265176062.pdf",
+      "verifiedOn": "2026-09-10",
+      "notes": "Руководство 2026 указывает минимальное число студентов для англоязычных программ и необходимость второго выбора. Не путать этот университет с Zhejiang University.",
+      "photoKey": "zjut",
+      "programs": [
+        {
+          "id": "chemical-engineering",
+          "title": "Chemical Engineering and Technology",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Бакалаврская программа College of Chemical Engineering. Для поступления важна подготовка по математике и химии.",
+          "sourceUrl": "https://www.gjxy.zjut.edu.cn/ueditor/upload/file/20251125/1764050265176062.pdf",
+          "intakes": [
+            {
+              "label": "Приём 2026 — опубликованный срок",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-30",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Руководство 2026 указывает этот срок с оговоркой о возможных изменениях для отдельных программ. Приём по этому сроку уже закрыт.",
+              "sourceUrl": "https://www.gjxy.zjut.edu.cn/ueditor/upload/file/20251125/1764050265176062.pdf",
+              "verifiedOn": "2026-09-10"
+            },
+            {
+              "label": "Следующий осенний набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "Дата следующего набора и его дедлайн не опубликованы в проверенном руководстве; сроки 2026 года не переносятся на 2027 автоматически.",
+              "sourceUrl": "https://www.gjxy.zjut.edu.cn/ueditor/upload/file/20251125/1764050265176062.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "gdut",
+    "content": {
+      "name": "Guangdong University of Technology",
+      "country": "CN",
+      "city": "Guangzhou",
+      "overview": "Университет в Гуанчжоу с инженерными, научными и управленческими направлениями. Представлена англоязычная программа международной экономики и торговли.",
+      "websiteUrl": "https://www.gdut.edu.cn",
+      "sourceUrl": "https://iec.gdut.edu.cn/info/1093/5324.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Заголовок и содержание руководства расходятся по семестру. Не считать страницу подтверждением открытого приёма. Фото показывает Dongfeng Road Campus; место занятий зависит от программы.",
+      "photoKey": "gdut",
+      "programs": [
+        {
+          "id": "international-economics-trade",
+          "title": "International Economics and Trade",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Бакалаврская программа международной экономики и торговли из официального списка англоязычных программ для иностранных студентов.",
+          "sourceUrl": "https://iec.gdut.edu.cn/info/1093/5324.htm",
+          "intakes": [
+            {
+              "label": "Следующий осенний набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "В тексте руководства указан осенний набор и прошедший срок 30 июня 2026. Заголовок страницы говорит о весеннем семестре; точные сроки следующего цикла требуют подтверждения.",
+              "sourceUrl": "https://iec.gdut.edu.cn/info/1093/5324.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "upc-east-china",
+    "content": {
+      "name": "China University of Petroleum (East China)",
+      "country": "CN",
+      "city": "Qingdao",
+      "overview": "Университет в Циндао с профильными направлениями в области энергетики и инженерии. Это East China, не одноимённый университет в Пекине.",
+      "websiteUrl": "https://www.upc.edu.cn",
+      "sourceUrl": "https://cie.upc.edu.cn/admission_cn/info/1095/1357.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Текущий каталог международного образования подтверждает программу; старые стоимость и числовые требования из описания 2020 года не перенесены. Фото кампуса Huangdao/Qingdao.",
+      "photoKey": "upc-east-china",
+      "programs": [
+        {
+          "id": "petroleum-engineering",
+          "title": "Petroleum Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Инженерная подготовка по разработке нефтегазовых месторождений, бурению, добыче, геологии и управлению производственными процессами.",
+          "sourceUrl": "https://cie.upc.edu.cn/admission_cn/info/1095/1357.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "Программа остаётся в текущем разделе англоязычного бакалавриата; её подробная страница датирована 2020 годом. Даты и доступность следующего набора нужно подтвердить.",
+              "sourceUrl": "https://cie.upc.edu.cn/admission_cn/info/1095/1357.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "ecust",
+    "content": {
+      "name": "East China University of Science and Technology",
+      "country": "CN",
+      "city": "Shanghai",
+      "overview": "Университет в Шанхае. Представлена четырёхлетняя китайскоязычная программа по химической инженерии из международного каталога 2026.",
+      "websiteUrl": "https://www.ecust.edu.cn",
+      "sourceUrl": "https://cie.ecust.edu.cn/notices/518.html",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не путать эту программу с трёхлетними Joint Multi-Degree: у них другие язык, структура и условия получения дипломов.",
+      "photoKey": "ecust",
+      "programs": [
+        {
+          "id": "chemical-engineering-chinese",
+          "title": "Chemical Engineering and Technology",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Китайский",
+          "summary": "Бакалавриат School of Chemical Engineering. В международном каталоге для этой программы указаны предметы CSCA по китайскому, математике, физике и химии.",
+          "sourceUrl": "https://cie.ecust.edu.cn/notices/518.html",
+          "intakes": [
+            {
+              "label": "Приём 2026 — опубликованный срок",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-07-10",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Срок подачи на платное обучение (self-sponsored), не срок оплаты. Стипендиальный срок был отдельно 30 апреля 2026; это не подтверждение следующего набора.",
+              "sourceUrl": "https://cie.ecust.edu.cn/notices/514.html",
+              "verifiedOn": "2026-09-10"
+            },
+            {
+              "label": "Следующий набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "Точные сроки следующего приёма пока не подтверждены. Опубликованные сроки 2026 года уже прошли.",
+              "sourceUrl": "https://cie.ecust.edu.cn/notices/518.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "beijing-institute-of-technology-zhuhai-bit-zhuhai",
+    "content": {
+      "name": "Beijing Institute of Technology",
+      "country": "CN",
+      "city": "Пекин / Чжухай",
+      "overview": "Технический университет с международными программами в Пекине и Чжухае. Artificial Intelligence ниже относится к Zhuhai; авиационно-космическая программа — к Beijing. Для выбора важен кампус, а не только название университета.",
+      "websiteUrl": "https://isc.bit.edu.cn",
+      "sourceUrl": "https://isc.bit.edu.cn/aboutbit/faq/70fe36ccf5f64defb9ecda409efd2b71.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подача через apply.isc.bit.edu.cn. Нужны школьные документы, языковое подтверждение и предметы CSCA по программе. Фото показывает кампус Zhuhai. Старый материал EVO называл пекинское направление Aerospace Engineering; актуальное название приведено ниже.",
+      "photoKey": "beijing-institute-of-technology-zhuhai-bit-zhuhai",
+      "programs": [
+        {
+          "id": "artificial-intelligence",
+          "title": "Artificial Intelligence",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Искусственный интеллект, кампус Zhuhai. Программа прямо указана в международном каталоге BIT 2026.",
+          "sourceUrl": "https://isc.bit.edu.cn/aboutbit/faq/70fe36ccf5f64defb9ecda409efd2b71.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-01",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://isc.bit.edu.cn/aboutbit/faq/70fe36ccf5f64defb9ecda409efd2b71.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "aeronautical-astronautical-engineering",
+          "title": "Aeronautical and Astronautical Engineering — Beijing",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Авиационная и космическая инженерия, пекинский кампус. Не относится к списку Zhuhai; CSCA по математике и физике.",
+          "sourceUrl": "https://isc.bit.edu.cn/aboutbit/faq/70fe36ccf5f64defb9ecda409efd2b71.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-01",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://isc.bit.edu.cn/aboutbit/faq/70fe36ccf5f64defb9ecda409efd2b71.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "beijing-normal-university",
+    "content": {
+      "name": "Beijing Normal University",
+      "country": "CN",
+      "city": "Пекин",
+      "overview": "Университет с направлениями образования, языка, гуманитарных и естественных наук. Международный бакалавриат 2026 преподаётся на китайском; условия отдельно учитывают кампусы Пекин и Чжухай.",
+      "websiteUrl": "https://www.bnu.edu.cn",
+      "sourceUrl": "https://international.bnu.edu.cn/user/sysNews/detail/22",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подача через international.bnu.edu.cn, затем проверка документов и собеседование. Для выбранной программы нужно подтвердить кампус, HSK и предметы CSCA. Набор 2026 завершён; будущие сроки не переносим автоматически.",
+      "photoKey": "beijing-normal-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Китайский",
+          "summary": "Китайский язык для международных студентов; в правилах 2026 указан HSK 4 не ниже 180.",
+          "sourceUrl": "https://international.bnu.edu.cn/user/sysNews/detail/22",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-15",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://international.bnu.edu.cn/user/sysNews/detail/22",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "international-chinese-education",
+          "title": "International Chinese Language Education",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Китайский",
+          "summary": "Международное преподавание китайского языка; требования к языку и оцениванию приведены в правилах набора.",
+          "sourceUrl": "https://international.bnu.edu.cn/user/sysNews/detail/22",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-15",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://international.bnu.edu.cn/user/sysNews/detail/22",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "fudan-university",
+    "content": {
+      "name": "Fudan University",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Университет в Шанхае. Здесь собраны языковые маршруты из материалов EVO: курс китайского и отдельный стипендиальный семестр для изучения языка; это разные условия поступления.",
+      "websiteUrl": "https://www.fudan.edu.cn",
+      "sourceUrl": "https://ices.fudan.edu.cn/_t326/69/08/c6658a485640/page.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для обычного курса и стипендиального маршрута разные заявки. Наличие программы не означает предоставление стипендии. Полный перечень языковых программ — ICES Fudan.",
+      "photoKey": "fudan-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Программа китайского языка ICES. Официальное объявление относится к осени 2026; ближайший доступный набор и длительность нужно подтвердить.",
+          "sourceUrl": "https://ices.fudan.edu.cn/_t326/69/08/c6658a485640/page.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://ices.fudan.edu.cn/_t326/69/08/c6658a485640/page.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "chinese-study-teachers-scholarship",
+          "title": "One-Semester Chinese Study — International Chinese Language Teachers Scholarship",
+          "level": "language",
+          "duration": "До 5 месяцев",
+          "language": "Китайский",
+          "summary": "Отдельный конкурсный маршрут: HSK 3 от 180 и результат HSKK по объявлению 2026. Стипендия не гарантирована.",
+          "sourceUrl": "https://www.ci.fudan.edu.cn/_upload/article/files/62/1e/9dc7f7cd44089734840e95e5f44d/558f0afc-4472-4a44-9c33-31c24e92f6aa.pdf",
+          "intakes": [
+            {
+              "label": "Март 2027 — стипендиальный семестр",
+              "startDate": null,
+              "startMonth": "2027-03",
+              "applicationDeadline": "2026-10-31",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "announced",
+              "note": "Опубликован срок стипендиальной заявки. Требуются рекомендация и конкурсное рассмотрение; наличие места не подтверждено.",
+              "sourceUrl": "https://www.ci.fudan.edu.cn/_upload/article/files/62/1e/9dc7f7cd44089734840e95e5f44d/558f0afc-4472-4a44-9c33-31c24e92f6aa.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "hangzhou-normal-university-hznu",
+    "content": {
+      "name": "Hangzhou Normal University",
+      "country": "CN",
+      "city": "Ханчжоу",
+      "overview": "Университет в Ханчжоу. Alibaba Business School предлагает международный бакалавриат по бизнесу с фокусом на трансграничную электронную коммерцию.",
+      "websiteUrl": "https://english.hznu.edu.cn",
+      "sourceUrl": "https://abc.hznu.edu.cn/c/2025-03-03/2781413.shtml",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальная страница описывает когорту 2026–2030; название школы не означает гарантию работы в Alibaba. Следующие сроки и выбранный язык потока нужно подтвердить в международном отделе.",
+      "photoKey": "hangzhou-normal-university-hznu",
+      "programs": [
+        {
+          "id": "international-business-ecommerce",
+          "title": "International Business (Cross-border eCommerce)",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский или китайский — по потоку",
+          "summary": "Международный бизнес и трансграничная электронная коммерция; по завершении присваивается Bachelor Degree in Management. Адрес школы: Yuhangtang Road, Hangzhou.",
+          "sourceUrl": "https://abc.hznu.edu.cn/c/2025-03-03/2781413.shtml",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://abc.hznu.edu.cn/c/2025-03-03/2781413.shtml",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "harbin-institute-of-technology-hit",
+    "content": {
+      "name": "Harbin Institute of Technology",
+      "country": "CN",
+      "city": "Харбин",
+      "overview": "Технический университет с кампусами Харбин, Вэйхай и Шэньчжэнь. Языковые курсы ниже относятся к Харбину; отдельный материал EVO о Shenzhen не является доказательством одинаковых условий во всех кампусах.",
+      "websiteUrl": "https://www.hit.edu.cn",
+      "sourceUrl": "https://studyathit.hit.edu.cn/18337/list.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для англоязычного бакалавриата действует условие минимального набора группы; конкретный кампус и специальность сверяют с международным каталогом. Старый Shenzhen-буклет с дедлайном 15 мая 2025 не используется как текущий набор.",
+      "photoKey": "harbin-institute-of-technology-hit",
+      "programs": [
+        {
+          "id": "pre-university",
+          "title": "Pre-university Program",
+          "level": "foundation",
+          "duration": "18 или 36 недель",
+          "language": "Китайский или английский — по потоку",
+          "summary": "Подготовка к академическому обучению: язык, предметная база и адаптация. Это подготовительный сертификат, не степень бакалавра.",
+          "sourceUrl": "https://studyathit.hit.edu.cn/18362/list.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://studyathit.hit.edu.cn/18362/list.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "long-term-chinese",
+          "title": "Long-term Chinese Language Program",
+          "level": "language",
+          "duration": "16 недель",
+          "language": "Китайский",
+          "summary": "Курс китайского в Харбине с распределением по уровням; языковая подготовка не равна зачислению на бакалавриат.",
+          "sourceUrl": "https://studyathit.hit.edu.cn/LongwtermChineseLanguageProgram/list.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-07-15",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://studyathit.hit.edu.cn/LongwtermChineseLanguageProgram/list.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "winter-chinese",
+          "title": "Short-term Chinese Language Program — Winter",
+          "level": "language",
+          "duration": "4 недели",
+          "language": "Китайский",
+          "summary": "Зимний курс языка и культуры в Харбине. Проживание распределяется по доступности и не гарантировано.",
+          "sourceUrl": "https://studyathit.hit.edu.cn/ShortwTermPrograms/list.htm",
+          "intakes": [
+            {
+              "label": "Зима 2026–2027",
+              "startDate": "2026-12-28",
+              "startMonth": "2026-12",
+              "applicationDeadline": "2026-11-30",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "announced",
+              "note": "Официальные даты обучения: 28 декабря 2026 — 22 января 2027. Дедлайн опубликован; наличие места нужно уточнить.",
+              "sourceUrl": "https://studyathit.hit.edu.cn/ShortwTermPrograms/list.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "huazhong-university-of-science-and-technology-hust",
+    "content": {
+      "name": "Huazhong University of Science and Technology",
+      "country": "CN",
+      "city": "Ухань",
+      "overview": "Университет в Ухане с международными инженерными, фармацевтическими и медицинскими программами. Ниже — конкретные англоязычные специальности из официального бакалаврского набора 2026.",
+      "websiteUrl": "https://english.hust.edu.cn",
+      "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подача через admission.hust.edu.cn. Условия языка, школьных предметов и медицинского допуска проверяются по специальности. Набор 2026 закрыт; степень по медицине не означает автоматического допуска к практике в другой стране.",
+      "photoKey": "huazhong-university-of-science-and-technology-hust",
+      "programs": [
+        {
+          "id": "mechanical-design",
+          "title": "Mechanical Design, Manufacturing and Automation",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Машиностроение, проектирование и автоматизация.",
+          "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-15",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "telecommunication-engineering",
+          "title": "Telecommunication Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Телекоммуникации и инженерия связи.",
+          "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-15",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "biomedical-engineering",
+          "title": "Biomedical Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Инженерные технологии для биомедицины.",
+          "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-15",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "clinical-medicine",
+          "title": "Clinical Medicine (MBBS)",
+          "level": "bachelor",
+          "duration": "6 лет",
+          "language": "Английский",
+          "summary": "Медицинская программа MBBS. Требования признания диплома и лицензирования проверяют отдельно.",
+          "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-15",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://iso.hust.edu.cn/info/1194/4638.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "nanjing-university",
+    "content": {
+      "name": "Nanjing University",
+      "country": "CN",
+      "city": "Нанкин",
+      "overview": "Университет в Нанкине. Международный бакалавриат ведётся на китайском; для набора 2026/2027 официальный порядок включает CSCA.",
+      "websiteUrl": "https://www.nju.edu.cn",
+      "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подача через istudy.nju.edu.cn. Языковые и дополнительные требования различаются: English требует английский сертификат, Architecture — подтверждение профильной подготовки или работы. Даты следующего набора не подтверждены.",
+      "photoKey": "nanjing-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Китайский язык; для поступления и перевода действуют разные требования HSK.",
+          "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "english",
+          "title": "English",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Китайский; требуется английский",
+          "summary": "Программа английского языка; международный порядок отдельно требует подтверждение английского уровня.",
+          "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "architecture",
+          "title": "Architecture",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Архитектура; при подаче требуются подтверждения профессиональных навыков или архитектурные работы.",
+          "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "ocean-university-of-china-ouc",
+    "content": {
+      "name": "Ocean University of China",
+      "country": "CN",
+      "city": "Циндао",
+      "overview": "Университет в Циндао с морским и естественно-научным профилем. Международный отдел публикует отдельные каталоги академических и языковых программ.",
+      "websiteUrl": "https://www.ouc.edu.cn",
+      "sourceUrl": "https://sie.ouc.edu.cn/english/Admission/list.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке подтверждён языковой маршрут, а не ошибочно сопоставленная программа зарубежного обмена. Полный список специальностей — International Programs / Program List 2026 на официальной странице. Подача через ouc.at0086.cn.",
+      "photoKey": "ocean-university-of-china-ouc",
+      "programs": [
+        {
+          "id": "long-term-chinese",
+          "title": "Long-term Chinese Language Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Долгосрочный курс китайского языка по официальному объявлению 2026. Точный срок обучения, ближайший набор и стоимость нужно подтвердить.",
+          "sourceUrl": "https://sie.ouc.edu.cn/english/2025/1212/c18028a513107/page.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://sie.ouc.edu.cn/english/2025/1212/c18028a513107/page.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "peking-university",
+    "content": {
+      "name": "Peking University",
+      "country": "CN",
+      "city": "Пекин",
+      "overview": "Университет в Пекине. Для выпускников школы с сильной академической подготовкой существует Yuke — подготовительный маршрут с китайским языком и математикой перед бакалавриатом.",
+      "websiteUrl": "https://www.pku.edu.cn",
+      "sourceUrl": "https://isd.pku.edu.cn/en/yuke_pre_university_program.php",
+      "verifiedOn": "2026-09-10",
+      "notes": "Yuke и прямая заявка на бакалавриат — разные процедуры. Переход на степень требует выполнения критериев университета; участие в подготовке не является безусловной гарантией зачисления.",
+      "photoKey": "peking-university",
+      "programs": [
+        {
+          "id": "yuke-pre-university",
+          "title": "Yuke / Pre-university Program",
+          "level": "foundation",
+          "duration": "1–2 года — по учебному плану",
+          "language": "Китайский",
+          "summary": "Китайский язык и академическая подготовка; траектория математики зависит от исходного уровня и выбранного направления бакалавриата.",
+          "sourceUrl": "https://isd.pku.edu.cn/en/detail.php?id=772",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://isd.pku.edu.cn/en/detail.php?id=772",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "shanghai-jiao-tong-university",
+    "content": {
+      "name": "Shanghai Jiao Tong University",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Университет в Шанхае. Языковые маршруты School of Humanities проходят через отдельный центр китайского образования; для них важно отличать кампус Xuhui от Minhang.",
+      "websiteUrl": "https://www.sjtu.edu.cn",
+      "sourceUrl": "https://ichinese.sjtu.edu.cn/en",
+      "verifiedOn": "2026-09-10",
+      "notes": "Ниже языковой курс и академический бакалавриат — это разные заявки и результаты обучения. Полный актуальный набор нужно сверять в Study@SJTU; старые суммы из материалов EVO не подтверждены как текущие.",
+      "photoKey": "shanghai-jiao-tong-university",
+      "programs": [
+        {
+          "id": "long-term-chinese",
+          "title": "Long-term Full Time Chinese Language Course",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Китайский язык по уровням, 20 учебных часов в неделю в общем треке; подразделение находится в Xuhui. Доступны культурные факультативы.",
+          "sourceUrl": "https://ichinese.sjtu.edu.cn/en/programs/10/detail",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://ichinese.sjtu.edu.cn/en/programs/10/detail",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Академическая китайскоязычная программа для международных студентов; отдельные вступительные требования и проверка языка.",
+          "sourceUrl": "https://global.sjtu.edu.cn/en/study-sjtu/prospective/degree-programs/387",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-10",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://global.sjtu.edu.cn/en/study-sjtu/prospective/degree-programs/387",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "tsinghua-university",
+    "content": {
+      "name": "Tsinghua University",
+      "country": "CN",
+      "city": "Пекин",
+      "overview": "Университет в Пекине. Zijing College предлагает англоязычный маршрут городского развития и проектирования; художественные направления имеют отдельные творческие требования.",
+      "websiteUrl": "https://www.tsinghua.edu.cn/en",
+      "sourceUrl": "https://international.join-tsinghua.edu.cn/info/1082/1152.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Портфолио и оценивание зависят от программы. По официальному FAQ CSCA не обязателен для набора Tsinghua 2026 — общее правило других вузов сюда не переносится. Полный каталог доступен на сайте университета.",
+      "photoKey": "tsinghua-university",
+      "programs": [
+        {
+          "id": "urban-regeneration-design",
+          "title": "Urban Regeneration and Design",
+          "level": "bachelor",
+          "duration": "4 года; профессиональный Bachelor of Architecture — 5 лет",
+          "language": "Английский",
+          "summary": "Городское развитие, проектирование и инженерные технологии. Варианты выпуска и продолжения пятого года регулируются программой Zijing College.",
+          "sourceUrl": "https://international.join-tsinghua.edu.cn/info/1082/1152.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://international.join-tsinghua.edu.cn/info/1082/1152.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "visual-communication-design",
+          "title": "Visual Communication Design",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": null,
+          "summary": "Творческая программа Academy of Arts & Design. Подача только в специальный первый раунд; требуется профильное оценивание.",
+          "sourceUrl": "https://international.join-tsinghua.edu.cn/Admission1/Undergraduate_Programs_of_Academy_of_Arts___Desi.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2025-11-28",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://international.join-tsinghua.edu.cn/Admission1/Undergraduate_Programs_of_Academy_of_Arts___Desi.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "product-design",
+          "title": "Product Design",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": null,
+          "summary": "Промышленный и предметный дизайн; специальные творческие требования Academy of Arts & Design.",
+          "sourceUrl": "https://international.join-tsinghua.edu.cn/Admission1/Undergraduate_Programs_of_Academy_of_Arts___Desi.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2025-11-28",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://international.join-tsinghua.edu.cn/Admission1/Undergraduate_Programs_of_Academy_of_Arts___Desi.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-electronic-science-and-technology-of-china-uestc",
+    "content": {
+      "name": "University of Electronic Science and Technology of China",
+      "country": "CN",
+      "city": "Чэнду",
+      "overview": "Университет в Чэнду с направлениями электроники, связи и вычислительных технологий. Международный каталог разделяет программы на китайском и английском.",
+      "websiteUrl": "https://en.uestc.edu.cn",
+      "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-CN.pdf",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальная китайская брошюра относится к 2026; ссылка на английскую версию ранее содержала сведения 2025. Детали выбранного потока и требования сверяют с международным отделом; старые цены не перенесены.",
+      "photoKey": "university-of-electronic-science-and-technology-of-china-uestc",
+      "programs": [
+        {
+          "id": "computer-science-master",
+          "title": "Computer Science and Technology",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Магистерская программа из международного каталога 2026; требуется предыдущее высшее образование.",
+          "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-CN.pdf",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-01",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-CN.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "electronic-science-master",
+          "title": "Electronic Science and Technology",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Магистратура по электронной науке и технологиям из каталога 2026.",
+          "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-CN.pdf",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-01",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-CN.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-science-bachelor",
+          "title": "Computer Science and Technology",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский или китайский — по потоку",
+          "summary": "Бакалаврская программа подтверждена официальной англоязычной брошюрой 2025. Доступность и условия следующего набора требуют повторного подтверждения.",
+          "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-EN.pdf",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-EN.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-science-and-technology-of-china-ustc",
+    "content": {
+      "name": "University of Science and Technology of China",
+      "country": "CN",
+      "city": "Хэфэй",
+      "overview": "Университет в Хэфэе с естественно-научными и инженерными направлениями. В официальном списке бакалавриата присутствуют физика, вычислительные науки и искусственный интеллект.",
+      "websiteUrl": "https://www.ustc.edu.cn",
+      "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальная система isa.ustc.edu.cn публикует отдельные инструкции набора 2026. Указание программы в каталоге не подтверждает открытый приём: язык, сроки и вступительные требования нужно сверить с актуальной инструкцией.",
+      "photoKey": "university-of-science-and-technology-of-china-ustc",
+      "programs": [
+        {
+          "id": "physics",
+          "title": "Physics",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Бакалаврская физика; название подтверждено текущим официальным списком специальностей.",
+          "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-science",
+          "title": "Computer Science and Technology",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Компьютерные науки и технологии из официального каталога бакалавриата.",
+          "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "artificial-intelligence",
+          "title": "Artificial Intelligence",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Искусственный интеллект; индивидуальные требования к следующему набору уточняются.",
+          "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "wuhan-university",
+    "content": {
+      "name": "Wuhan University",
+      "country": "CN",
+      "city": "Ухань",
+      "overview": "Университет в Ухане. School of International Education ведёт международные программы по китайскому языку, его преподаванию и международному праву.",
+      "websiteUrl": "https://en.whu.edu.cn",
+      "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальный университетский раздел подтверждает перечисленные программы. Подача через admission.whu.edu.cn; доступность сайта и актуальные требования нужно перепроверить перед заявкой. Не путать с Wuhan University of Technology.",
+      "photoKey": "wuhan-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Академическая программа китайского языка School of International Education.",
+          "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "teaching-chinese-master",
+          "title": "Teaching Chinese to Speakers of Other Languages",
+          "level": "master",
+          "duration": null,
+          "language": null,
+          "summary": "Магистерская программа преподавания китайского языка иностранным учащимся.",
+          "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "international-law-master",
+          "title": "International Law",
+          "level": "master",
+          "duration": null,
+          "language": null,
+          "summary": "Магистерский маршрут международного права с тематикой международной торговли и WTO. Формат и язык нужно подтвердить по текущему предложению.",
+          "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "zhejiang-university",
+    "content": {
+      "name": "Zhejiang University",
+      "country": "CN",
+      "city": "Ханчжоу",
+      "overview": "Университет с основными кампусами в Ханчжоу и международным кампусом в Хайнине. Город программы важно проверять отдельно: англоязычный Global Communication and Management относится к Haining.",
+      "websiteUrl": "https://www.zju.edu.cn/english",
+      "sourceUrl": "https://iczu.zju.edu.cn/admissionsen/2024/1030/c68988a2981659/page.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "В международном бакалавриате 2026 действуют требования CSCA по программе; китайские и английские потоки имеют разные критерии. Не распространяем сроки и стоимость одного международного колледжа на весь университет.",
+      "photoKey": "zhejiang-university",
+      "programs": [
+        {
+          "id": "global-communication-management",
+          "title": "Global Communication and Management",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Программа Zhejiang University International Business School; обучение на международном кампусе Haining. CSCA: математика на английском по правилам 2026.",
+          "sourceUrl": "https://zibs.zju.edu.cn/enzibs/UndergraduateApplication/list.psp",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-31",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://zibs.zju.edu.cn/enzibs/UndergraduateApplication/list.psp",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "beijing-language-and-culture-university",
+    "content": {
+      "name": "Beijing Language and Culture University",
+      "country": "CN",
+      "city": "Пекин",
+      "overview": "Языковой университет: китайский язык, международная коммуникация и отдельные англоязычные бизнес-программы. В старом материале EVO сокращённое Beijing Language University нормализовано до официального названия BLCU.",
+      "websiteUrl": "https://english.blcu.edu.cn",
+      "sourceUrl": "https://admission.blcu.edu.cn/en/384/list.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подача через apply.blcu.edu.cn. Для части иностранных стипендиатов 2026 первые два года организованы на кампусе Hainan: фактический кампус необходимо проверить в предложении. На странице приёма есть несогласованность годов; будущий дедлайн не объявлен.",
+      "photoKey": "beijing-language-and-culture-university",
+      "programs": [
+        {
+          "id": "chinese-language-long-short",
+          "title": "Chinese Language Courses",
+          "level": "language",
+          "duration": "От 4 недель до 1 года — по курсу",
+          "language": "Китайский",
+          "summary": "Краткосрочные и долгосрочные курсы китайского языка и культуры; конкретный формат выбирается отдельно.",
+          "sourceUrl": "https://english.blcu.edu.cn/ad/Featured_Programs.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://english.blcu.edu.cn/ad/Featured_Programs.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "finance",
+          "title": "Finance",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Англоязычная бизнес-программа с проверкой английского языка и собеседованием.",
+          "sourceUrl": "https://admission.blcu.edu.cn/en/384/list.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admission.blcu.edu.cn/en/384/list.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "international-economics-trade",
+          "title": "International Economics and Trade",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Международная экономика и торговля; в каталоге есть также другой, китайскоязычный маршрут — не смешивать потоки.",
+          "sourceUrl": "https://admission.blcu.edu.cn/en/384/list.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admission.blcu.edu.cn/en/384/list.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "guangdong-university-of-foreign-studies",
+    "content": {
+      "name": "Guangdong University of Foreign Studies",
+      "country": "CN",
+      "city": "Гуанчжоу",
+      "overview": "Университет иностранных языков и внешней торговли в Гуанчжоу. Международный отдел отдельно публикует языковые курсы и подготовительную программу перед академическим обучением.",
+      "websiteUrl": "https://english.gdufs.edu.cn",
+      "sourceUrl": "https://iie.gdufs.edu.cn/zsxx1/zsjz.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не путать с Guangdong University of Technology. Официальные объявления ниже относятся к осени 2026; следующий доступный набор, кампус и места нужно подтвердить. Старые цены из Guangzhou-буклета не являются текущим предложением.",
+      "photoKey": "guangdong-university-of-foreign-studies",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Training Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Китайский язык для иностранных студентов по объявлению осени 2026.",
+          "sourceUrl": "https://iie.gdufs.edu.cn/info/1099/5508.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://iie.gdufs.edu.cn/info/1099/5508.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "international-pre-university",
+          "title": "International Pre-university Program",
+          "level": "foundation",
+          "duration": null,
+          "language": null,
+          "summary": "Международная подготовительная программа по объявлению осени 2026; учебный план и требования зависят от выбранного маршрута.",
+          "sourceUrl": "https://iie.gdufs.edu.cn/info/1099/5718.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://iie.gdufs.edu.cn/info/1099/5718.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "guangzhou-huashang-vocational-college",
+    "content": {
+      "name": "Guangzhou Huashang Vocational College",
+      "country": "CN",
+      "city": "Гуанчжоу",
+      "overview": "Профессиональный колледж в Гуанчжоу, не исследовательский университет. В материалах EVO он указан как место языковой подготовки; официальный сайт подтверждает работу с международными студентами в 2026.",
+      "websiteUrl": "https://www.gzhsvc.edu.cn",
+      "sourceUrl": "https://health.gzhsvc.edu.cn/info/1006/4765.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Языковое предложение известно по историческому буклету EVO. Текущий набор, длительность, стоимость, размещение и право конкретного курса оформлять учебные документы не подтверждены; сначала получить актуальный официальный ответ колледжа.",
+      "photoKey": "guangzhou-huashang-vocational-college",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Course — требуется подтверждение",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Исторический языковой маршрут из материалов EVO, не академическая степень. До подтверждения нового объявления нельзя считать курс доступным для подачи.",
+          "sourceUrl": "https://health.gzhsvc.edu.cn/info/1006/4765.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://health.gzhsvc.edu.cn/info/1006/4765.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "east-china-normal-university",
+    "content": {
+      "name": "East China Normal University",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Университет в Шанхае с международной подготовкой по китайскому языку. Intensive Chinese Language Program проходит в кампусе Putuo.",
+      "websiteUrl": "https://www.ecnu.edu.cn",
+      "sourceUrl": "https://lxs.ecnu.edu.cn/en_admission_chinese_language_programs_intensive_chinese_language_program/list.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальный осенний курс 2026 начинается с регистрации 14 сентября, занятия — 21 сентября. Дедлайн подачи уже прошёл; начало занятий не означает открытый приём. Языковой курс не является бакалавриатом.",
+      "photoKey": "east-china-normal-university",
+      "programs": [
+        {
+          "id": "intensive-chinese",
+          "title": "Intensive Chinese Language Program",
+          "level": "language",
+          "duration": "17 недель с регистрацией",
+          "language": "Китайский",
+          "summary": "Интенсивный китайский на кампусе Putuo; опубликованный период 14 сентября 2026 — 8 января 2027.",
+          "sourceUrl": "https://lxs.ecnu.edu.cn/en_admission_chinese_language_programs_intensive_chinese_language_program/list.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": "2026-09-14",
+              "startMonth": "2026-09",
+              "applicationDeadline": "2026-07-31",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://lxs.ecnu.edu.cn/en_admission_chinese_language_programs_intensive_chinese_language_program/list.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "shanghai-university",
+    "content": {
+      "name": "Shanghai University",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Университет в Шанхае. Международная система подачи разделяет интенсивный китайский на семестр или год, бизнес-китайский и подготовительный маршрут.",
+      "websiteUrl": "https://www.shu.edu.cn",
+      "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
+      "verifiedOn": "2026-09-10",
+      "notes": "Эти маршруты не взаимозаменяемы: перед оплатой уточняют длительность, кампус и целевую академическую программу. Список в системе подтверждает названия, но не наличие места в ближайшем наборе.",
+      "photoKey": "shanghai-university",
+      "programs": [
+        {
+          "id": "chinese-one-semester",
+          "title": "One-Semester Intensive Chinese Language Program",
+          "level": "language",
+          "duration": "1 семестр",
+          "language": "Китайский",
+          "summary": "Интенсивный китайский на один семестр из официальной системы международных заявок.",
+          "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "chinese-one-year",
+          "title": "One-Year Intensive Chinese Language Program",
+          "level": "language",
+          "duration": "1 год",
+          "language": "Китайский",
+          "summary": "Годовая языковая подготовка; расписание и кампус уточняются по выбранному набору.",
+          "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "international-foundation",
+          "title": "International Foundation Program",
+          "level": "foundation",
+          "duration": null,
+          "language": null,
+          "summary": "Подготовительный маршрут, представленный отдельно от языковых курсов. Условия перехода на степень проверяются по официальному предложению.",
+          "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "shanghai-normal-university",
+    "content": {
+      "name": "Shanghai Normal University",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Университет в Шанхае. International College of Chinese Studies публикует долгосрочные и краткосрочные программы китайского языка для иностранных студентов.",
+      "websiteUrl": "https://www.shnu.edu.cn",
+      "sourceUrl": "https://iccs.shnu.edu.cn/en/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Материалы EVO о языковом Шанхае сверены с официальным разделом ICCS. Точный календарь, длительность и стоимость нового курса нужно подтвердить; старый буклет не означает действующий набор.",
+      "photoKey": "shanghai-normal-university",
+      "programs": [
+        {
+          "id": "long-term-chinese",
+          "title": "Long-term Chinese Language Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Долгосрочная языковая подготовка через ICCS. Официальный раздел содержит Admission Guide for Long-term Programs.",
+          "sourceUrl": "https://iccs.shnu.edu.cn/en/",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://iccs.shnu.edu.cn/en/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "short-term-chinese",
+          "title": "Short-term Chinese Language Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Краткосрочная языковая программа; продолжительность и формат согласовываются по текущему объявлению.",
+          "sourceUrl": "https://iccs.shnu.edu.cn/en/",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://iccs.shnu.edu.cn/en/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "shanghai-international-studies-university",
+    "content": {
+      "name": "Shanghai International Studies University",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Языковой университет в Шанхае. Интенсивный китайский и перечисленные международные бакалаврские маршруты относятся к кампусу Hongkou.",
+      "websiteUrl": "https://en.shisu.edu.cn",
+      "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/en/index/lxxm/cid/136.html",
+      "verifiedOn": "2026-09-10",
+      "notes": "Языковая подготовка и академическая степень оформляются отдельно. Указанный университетом целевой HSK — учебная цель, а не гарантия результата. Бакалаврский дедлайн 2026 уже прошёл.",
+      "photoKey": "shanghai-international-studies-university",
+      "programs": [
+        {
+          "id": "intensive-chinese",
+          "title": "Intensive Chinese Language Program",
+          "level": "language",
+          "duration": "1 год",
+          "language": "Китайский",
+          "summary": "Интенсивная языковая подготовка, кампус Hongkou. Ближайший свободный набор требует подтверждения.",
+          "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/en/index/lxxm/cid/136.html",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/en/index/lxxm/cid/136.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Китайский",
+          "summary": "Китайский язык с бизнес- или китайско-английским треком; кампус Hongkou.",
+          "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/Index/lxxm/cid/87",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-07-20",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/Index/lxxm/cid/87",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "international-economics-trade",
+          "title": "International Economics and Trade",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Китайский",
+          "summary": "Международная экономика и торговля для иностранных студентов, кампус Hongkou.",
+          "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/Index/lxxm/cid/87",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-07-20",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/Index/lxxm/cid/87",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-shanghai-for-science-and-technology",
+    "content": {
+      "name": "University of Shanghai for Science and Technology",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Технический университет в Шанхае. Официальный FAQ 2026 подтверждает китайский языковой подготовительный курс перед заявкой на китайскоязычную академическую программу.",
+      "websiteUrl": "https://www.usst.edu.cn",
+      "sourceUrl": "https://isoe.usst.edu.cn/2025/1128/c9774a352906/page.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Нужно отличать собственный языковой курс USST от отдельного маршрута Shanghai International Student Pre-College. У них разные условия финансирования. Получение HSK после курса не гарантирует стипендию или зачисление.",
+      "photoKey": "university-of-shanghai-for-science-and-technology",
+      "programs": [
+        {
+          "id": "chinese-language-preparatory",
+          "title": "Chinese Language Preparatory Program",
+          "level": "language",
+          "duration": "1 семестр или год — по маршруту",
+          "language": "Китайский",
+          "summary": "Китайский язык и культурная подготовка. FAQ указывает обычные сезонные окна; конкретный будущий год и доступность места ещё нужно подтвердить.",
+          "sourceUrl": "https://isoe.usst.edu.cn/2025/1128/c9774a352906/page.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://isoe.usst.edu.cn/2025/1128/c9774a352906/page.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "tongji-university",
+    "content": {
+      "name": "Tongji University",
+      "country": "CN",
+      "city": "Шанхай",
+      "overview": "Университет в Шанхае. Международный отдел ведёт отдельные языковые, подготовительные и академические программы.",
+      "websiteUrl": "https://www.tongji.edu.cn",
+      "sourceUrl": "https://study.tongji.edu.cn/en/ADMISSION/Application_Information_Updates.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальный календарь 2026 закрыт. Старые прямые ссылки части программ возвращают 404; рабочая страница International Students Office сохраняет перечень и маршруты подачи. Следующие даты требуют подтверждения.",
+      "photoKey": "tongji-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Китайский язык без академической степени. Для осени 2026 действовал общий срок non-degree applications.",
+          "sourceUrl": "https://study.tongji.edu.cn/en/ADMISSION/Application_Information_Updates.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-30",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://study.tongji.edu.cn/en/ADMISSION/Application_Information_Updates.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "pre-university",
+          "title": "Pre-University Program",
+          "level": "foundation",
+          "duration": null,
+          "language": null,
+          "summary": "Подготовительная программа, отдельно указанная международным отделом. Учебный план и доступность следующего набора нужно подтвердить.",
+          "sourceUrl": "https://study.tongji.edu.cn/en/ADMISSION/Application_Information_Updates.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://study.tongji.edu.cn/en/ADMISSION/Application_Information_Updates.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "communication-university-of-zhejiang",
+    "content": {
+      "name": "Communication University of Zhejiang",
+      "country": "CN",
+      "city": "Ханчжоу / Тунсян",
+      "overview": "Университет медиа, коммуникаций и творческих технологий с кампусами в Ханчжоу и Тунсяне. В международном каталоге есть прикладные медиа- и инженерные направления.",
+      "websiteUrl": "https://eng.cuz.edu.cn",
+      "sourceUrl": "https://eng.cuz.edu.cn/Admissions1/Programs.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не путать с Communication University of China в Пекине. Конкретный кампус, язык обучения и портфолио определяются программой. Языковой маршрут из исторической таблицы EVO требует отдельного подтверждения нового набора.",
+      "photoKey": "communication-university-of-zhejiang",
+      "programs": [
+        {
+          "id": "digital-media-technology",
+          "title": "Digital Media Technology",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Цифровые медиа и технологии, School of Media Engineering.",
+          "sourceUrl": "https://eng.cuz.edu.cn/Admissions1/Programs.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://eng.cuz.edu.cn/Admissions1/Programs.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "animation",
+          "title": "Animation",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Анимация в School of Animation and Digital Arts; для творческого поступления проверяют требования к портфолио.",
+          "sourceUrl": "https://eng.cuz.edu.cn/Admissions1/Programs.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://eng.cuz.edu.cn/Admissions1/Programs.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "visual-communication",
+          "title": "Visual Communication Design",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Визуальные коммуникации, School of Design Arts.",
+          "sourceUrl": "https://eng.cuz.edu.cn/Admissions1/Programs.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://eng.cuz.edu.cn/Admissions1/Programs.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "zhejiang-international-studies-university",
+    "content": {
+      "name": "Zhejiang International Studies University",
+      "country": "CN",
+      "city": "Ханчжоу",
+      "overview": "Университет иностранных языков в Ханчжоу. College of International Education ведёт языковую подготовку и программы для иностранных студентов на кампусе Xiaoheshan.",
+      "websiteUrl": "https://www.zisu.edu.cn/english/index.htm",
+      "sourceUrl": "https://cie.zisu.edu.cn/Study_Programs/Non_degree_Education.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Англоязычная страница содержит старые шаблонные цены и сведения без года — они не используются как текущий тариф или открытый набор. Подтверждаем формат, возрастные условия и ближайшие даты напрямую через международный отдел.",
+      "photoKey": "zhejiang-international-studies-university",
+      "programs": [
+        {
+          "id": "hsk-training",
+          "title": "HSK Training",
+          "level": "language",
+          "duration": "4 недели — по описанию курса",
+          "language": "Китайский; язык пояснений уточняется",
+          "summary": "Подготовка к HSK по уровням; программа указана в официальном разделе non-degree. Актуальность формата и расписание требуют подтверждения.",
+          "sourceUrl": "https://cie.zisu.edu.cn/Study_Programs/Non_degree_Education.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://cie.zisu.edu.cn/Study_Programs/Non_degree_Education.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "short-term-chinese",
+          "title": "Short-term Chinese Language Course",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский; язык пояснений уточняется",
+          "summary": "Китайский язык и культура с практикой устной речи. Новый набор и срок обучения нужно согласовать.",
+          "sourceUrl": "https://cie.zisu.edu.cn/Study_Programs/Non_degree_Education.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://cie.zisu.edu.cn/Study_Programs/Non_degree_Education.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "zhejiang-gongshang-university",
+    "content": {
+      "name": "Zhejiang Gongshang University",
+      "country": "CN",
+      "city": "Ханчжоу",
+      "overview": "Университет в Ханчжоу. School of International Education предлагает Chinese Language and Culture Programme на семестр или учебный год.",
+      "websiteUrl": "https://www.zjgsu.edu.cn",
+      "sourceUrl": "https://sie.zjgsu.edu.cn/gjen/2131/list.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не путать с Zhejiang University of Technology. В текущем объявлении указан закрытый срок 1 мая 2026; следующий дедлайн не перенесён автоматически. Старые цены и проживание из таблицы EVO требуют повторной проверки.",
+      "photoKey": "zhejiang-gongshang-university",
+      "programs": [
+        {
+          "id": "chinese-language-culture",
+          "title": "Chinese Language and Culture Programme",
+          "level": "language",
+          "duration": "1 семестр или 1 год",
+          "language": "Китайский",
+          "summary": "Китайский язык и культура; официальный маршрут для выпускников школы.",
+          "sourceUrl": "https://sie.zjgsu.edu.cn/gjen/2131/list.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-01",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://sie.zjgsu.edu.cn/gjen/2131/list.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "hubei-university-of-arts-and-science",
+    "content": {
+      "name": "Hubei University of Arts and Science",
+      "country": "CN",
+      "city": "Сянъян",
+      "overview": "Университет в Сянъяне, провинция Хубэй. Официальный международный отдел опубликовал брошюру приёма иностранных студентов на 2026 год.",
+      "websiteUrl": "https://www.hbuas.edu.cn",
+      "sourceUrl": "https://gjc.hbuas.edu.cn/info/1311/2927.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "В таблице EVO вуз указан для языкового обучения. Текущие сроки и условия именно этого курса ещё требуют подтверждения по полной брошюре международного отдела; архивные обещания скидок и возрастного допуска не перенесены.",
+      "photoKey": "hubei-university-of-arts-and-science",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Programme — требуется подтверждение",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Исторический языковой маршрут из материалов EVO. Наличие университета и брошюры 2026 подтверждено, но доступность конкретного нового языкового набора не установлена.",
+          "sourceUrl": "https://gjc.hbuas.edu.cn/info/1311/2927.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://gjc.hbuas.edu.cn/info/1311/2927.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "yibin-university",
+    "content": {
+      "name": "Yibin University",
+      "country": "CN",
+      "city": "Ибинь",
+      "overview": "Университет в Ибине, провинция Сычуань. Официальный международный раздел перечисляет академические программы по бизнесу, китайскому образованию, агрономии и компьютерным наукам.",
+      "websiteUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+      "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Вуз также присутствует в языковой таблице EVO; это не подтверждает неизменность старой стоимости или допуска после 9 класса. Международный отдел выпустил отдельный Fall Enrollment Guide 2026; для новой заявки нужны его актуальные условия.",
+      "photoKey": "yibin-university",
+      "programs": [
+        {
+          "id": "international-economics-trade",
+          "title": "International Economics and Trade",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Международная экономика и торговля из официального международного перечня.",
+          "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-science",
+          "title": "Computer Science and Technology",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Компьютерные науки и технологии; язык и срок обучения проверяются по текущему набору.",
+          "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "teaching-chinese",
+          "title": "Teaching Chinese to Speakers of Other Languages",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Академический маршрут преподавания китайского языка, не краткосрочный языковой курс.",
+          "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "southwest-university",
+    "content": {
+      "name": "Southwest University",
+      "country": "CN",
+      "city": "Чунцин",
+      "overview": "Университет в районе Beibei города Чунцин. Международный центр предлагает китайский язык и академические программы в том числе аграрного и технологического профиля.",
+      "websiteUrl": "https://admissions.swu.edu.cn",
+      "sourceUrl": "https://admissions.swu.edu.cn/info/1048/1051.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не путать с Southwest University of Finance and Economics. В языковой таблице EVO старые суммы и июньские даты не являются действующим предложением. Полный перечень и текущие условия опубликованы в international admissions.",
+      "photoKey": "southwest-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Training Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Подготовка по китайскому языку с базовым, средним и продвинутым уровнем.",
+          "sourceUrl": "https://admissions.swu.edu.cn/info/1048/1051.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admissions.swu.edu.cn/info/1048/1051.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "tea-science",
+          "title": "Tea Science",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Бакалаврское направление, представленное в официальном каталоге международного приёма; язык и условия нового набора уточняются.",
+          "sourceUrl": "https://admissions.swu.edu.cn/",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admissions.swu.edu.cn/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "food-quality-safety",
+          "title": "Food Quality and Safety",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Качество и безопасность пищевой продукции; конкретные требования проверяются по текущему каталогу.",
+          "sourceUrl": "https://admissions.swu.edu.cn/",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admissions.swu.edu.cn/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "china-jiliang-university",
+    "content": {
+      "name": "China Jiliang University",
+      "country": "CN",
+      "city": "Ханчжоу",
+      "overview": "Университет в Ханчжоу. Международный отдел публикует отдельные брошюры бакалавриата и магистратуры 2026; языковая подготовка указана в материалах EVO.",
+      "websiteUrl": "https://www.cjlu.edu.cn",
+      "sourceUrl": "https://sie.cjlu.edu.cn/Admission/Brochure.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальные вложения требуют интерактивного подтверждения загрузки. Название вуза и действующий международный отдел проверены, но условия языкового предложения из архива не считаются текущими. Нужна новая программа или официальный ответ перед подачей.",
+      "photoKey": "china-jiliang-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Programme — требуется подтверждение",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Исторический языковой маршрут EVO. Продолжительность, возрастной допуск, стоимость и ближайший набор нужно подтвердить; академическая степень не заявляется.",
+          "sourceUrl": "https://sie.cjlu.edu.cn/Admission/Brochure.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://sie.cjlu.edu.cn/Admission/Brochure.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "hangzhou-city-university",
+    "content": {
+      "name": "Hangzhou City University",
+      "country": "CN",
+      "city": "Ханчжоу",
+      "overview": "Университет в Ханчжоу с отдельной годовой программой китайского языка для иностранных студентов. Современное название следует отличать от прежнего Zhejiang University City College.",
+      "websiteUrl": "https://english.hzcu.edu.cn",
+      "sourceUrl": "https://english.hzcu.edu.cn/info/1106/1299.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальное объявление 2026 описывает выпускников школы и возрастные условия. Дедлайн 30 июня 2026 закрыт; условия следующего года не подтверждены. Связь с Zhejiang University не означает зачисление на его программы.",
+      "photoKey": "hangzhou-city-university",
+      "programs": [
+        {
+          "id": "one-year-chinese",
+          "title": "One-Year Chinese Language Programme",
+          "level": "language",
+          "duration": "1 год",
+          "language": "Китайский",
+          "summary": "Годовая языковая подготовка; объявление 2026 не требует предварительного уровня китайского.",
+          "sourceUrl": "https://english.hzcu.edu.cn/info/1106/1299.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-30",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://english.hzcu.edu.cn/info/1106/1299.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "chang-an-university",
+    "content": {
+      "name": "Chang’an University",
+      "country": "CN",
+      "city": "Сиань",
+      "overview": "Университет в Сиане. Международный центр публикует самостоятельные языковые и академические маршруты; для китайского языка предусмотрены семестр или учебный год.",
+      "websiteUrl": "https://ies.chd.edu.cn/en/",
+      "sourceUrl": "https://webplus.chd.edu.cn/en/2025/1203/c8645a257548/page.psp",
+      "verifiedOn": "2026-09-10",
+      "notes": "Стипендиальные сроки в брошюре относятся к конкретным конкурсам, а не ко всем заявкам. Текущий приём на самостоятельно оплачиваемый курс и новые даты нужно подтвердить отдельно.",
+      "photoKey": "chang-an-university",
+      "programs": [
+        {
+          "id": "self-funded-chinese",
+          "title": "Self-Funded Chinese Language Programme",
+          "level": "language",
+          "duration": "1 семестр или 1 год",
+          "language": "Китайский",
+          "summary": "Языковой курс без академической степени: годовой осенний либо семестровый весенний/осенний формат по брошюре 2026.",
+          "sourceUrl": "https://webplus.chd.edu.cn/en/2025/1203/c8645a257548/page.psp",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://webplus.chd.edu.cn/en/2025/1203/c8645a257548/page.psp",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "xi-an-international-studies-university",
+    "content": {
+      "name": "Xi’an International Studies University",
+      "country": "CN",
+      "city": "Сиань",
+      "overview": "Университет иностранных языков в Сиане. Международный отдел ведёт языковые программы и академические маршруты перевода и китайского образования.",
+      "websiteUrl": "https://six.xisu.edu.cn/lxxwywz/",
+      "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/info/1077/4591.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Магистратура по переводу требует предыдущего высшего образования и соответствующей языковой подготовки. Указанный дедлайн относится к объявлению 2026 со стипендиальным маршрутом, а не ко всем возможным курсам.",
+      "photoKey": "xi-an-international-studies-university",
+      "programs": [
+        {
+          "id": "translation-master",
+          "title": "Master of Translation",
+          "level": "master",
+          "duration": null,
+          "language": null,
+          "summary": "Перевод и устный перевод; специализация и рабочие языки выбираются по официальному перечню. Требования 2026 включают высокий уровень китайского.",
+          "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/info/1077/4591.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-31",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/info/1077/4591.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Programme — требуется подтверждение набора",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Языковой маршрут представлен в материалах EVO и международном направлении вуза. Календарь, продолжительность и стоимость следующего курса нужно подтвердить.",
+          "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "xidian-university",
+    "content": {
+      "name": "Xidian University",
+      "country": "CN",
+      "city": "Сиань",
+      "overview": "Университет в Сиане с электронным и информационно-технологическим профилем. School of Foreign Languages отдельно предлагает международное китайское образование для иностранных студентов.",
+      "websiteUrl": "https://en.xidian.edu.cn",
+      "sourceUrl": "https://en.xidian.edu.cn/info/1003/2040.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "В архивной таблице EVO указан языковой курс. Его текущий набор не подтверждён; ниже академическая программа из официального описания школы, не обещание доступного места. Южный и северный кампусы не следует считать отдельными университетами.",
+      "photoKey": "xidian-university",
+      "programs": [
+        {
+          "id": "international-chinese-education",
+          "title": "International Education of Chinese Language",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Бакалаврский маршрут School of Foreign Languages, прямо обозначенный для иностранных студентов. Язык, длительность и условия поступления уточняются.",
+          "sourceUrl": "https://en.xidian.edu.cn/info/1003/2040.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://en.xidian.edu.cn/info/1003/2040.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "nanchang-university",
+    "content": {
+      "name": "Nanchang University",
+      "country": "CN",
+      "city": "Наньчан",
+      "overview": "Университет в Наньчане. Международный отдел подтверждает академические маршруты китайского языка, литературы и преподавания китайского.",
+      "websiteUrl": "https://www.ncu.edu.cn",
+      "sourceUrl": "https://iec.ncu.edu.cn/info/1691/21306.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Объявление 2026 о магистратуре относится к конкурсной стипендии Silk Road: её получение не гарантировано. Языковая цена из старой таблицы EVO не перенесена. Для обычной заявки нужны отдельные текущие условия.",
+      "photoKey": "nanchang-university",
+      "programs": [
+        {
+          "id": "chinese-language-literature-bachelor",
+          "title": "Chinese Language and Literature",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Академическая программа китайского языка и литературы, подтверждённая официальной страницей школы.",
+          "sourceUrl": "https://rwxy.ncu.edu.cn/English/Education/Undergraduate/clal/index.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://rwxy.ncu.edu.cn/English/Education/Undergraduate/clal/index.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "chinese-language-literature-master",
+          "title": "Chinese Language and Literature",
+          "level": "master",
+          "duration": null,
+          "language": null,
+          "summary": "Магистерский маршрут, включённый в официальное объявление Silk Road 2026.",
+          "sourceUrl": "https://iec.ncu.edu.cn/info/1691/21306.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-18",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://iec.ncu.edu.cn/info/1691/21306.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "teaching-chinese-master",
+          "title": "Teaching Chinese to Speakers of Other Languages",
+          "level": "master",
+          "duration": null,
+          "language": null,
+          "summary": "Магистратура по преподаванию китайского языка; срок указан для стипендиального конкурса 2026.",
+          "sourceUrl": "https://iec.ncu.edu.cn/info/1691/21306.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-18",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://iec.ncu.edu.cn/info/1691/21306.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "zhejiang-sci-tech-university",
+    "content": {
+      "name": "Zhejiang Sci-Tech University",
+      "country": "CN",
+      "city": "Ханчжоу",
+      "overview": "Университет в Ханчжоу. Международные программы включают академические направления и китайский язык без академической степени.",
+      "websiteUrl": "https://admission.zstu.edu.cn/en/",
+      "sourceUrl": "https://admission.zstu.edu.cn/upfile/file/2026ZSTUAdmissionBrochure.pdf",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не путать с Zhejiang University of Technology и Zhejiang University. Условия языка и предметы CSCA зависят от программы; архивные тарифы EVO не используются как текущие. Полный каталог специальностей доступен в официальной системе.",
+      "photoKey": "zhejiang-sci-tech-university",
+      "programs": [
+        {
+          "id": "chinese-language",
+          "title": "Chinese Language Program",
+          "level": "language",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Языковая подготовка: брошюра 2026 не требует исходного уровня китайского. Продолжительность и следующий набор уточняются.",
+          "sourceUrl": "https://admission.zstu.edu.cn/upfile/file/2026ZSTUAdmissionBrochure.pdf",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admission.zstu.edu.cn/upfile/file/2026ZSTUAdmissionBrochure.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "chinese-language-literature",
+          "title": "Chinese Language and Literature",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Китайский",
+          "summary": "Китайский язык и литература. Требования HSK и CSCA сверяют по этой специальности, а не по инженерным направлениям.",
+          "sourceUrl": "https://admission.zstu.edu.cn/en/applicationinfo/252",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admission.zstu.edu.cn/en/applicationinfo/252",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "communication-engineering",
+          "title": "Communication Engineering",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Инженерия связи; в условиях 2026 указана необходимость физики в составе CSCA.",
+          "sourceUrl": "https://admission.zstu.edu.cn/en/applicationinfo/252",
+          "intakes": [
+            {
+              "label": "Следующий набор — уточнить",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Дата проверки источника: 10 сентября 2026. Ближайший доступный набор, срок подачи и наличие места не подтверждены.",
+              "sourceUrl": "https://admission.zstu.edu.cn/en/applicationinfo/252",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "southwestern-university-of-finance-and-economics",
+    "content": {
+      "name": "Southwestern University of Finance and Economics",
+      "country": "CN",
+      "city": "Чэнду",
+      "overview": "Университет экономики и финансов в Чэнду. Международный каталог 2026 включает англоязычный бакалавриат и магистратуру; конкретная школа и язык определяют длительность программы.",
+      "websiteUrl": "https://international.swufe.edu.cn/EN/Home.htm",
+      "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не путать с Southwest University в Чунцине. В старом документе EVO смешаны сроки разных лет, поэтому старые цены и дедлайны не перенесены. Полный список специальностей — в официальном каталоге.",
+      "photoKey": "southwestern-university-of-finance-and-economics",
+      "programs": [
+        {
+          "id": "accounting",
+          "title": "Accounting",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Бухгалтерский учёт и финансовая отчётность.",
+          "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+          "intakes": [
+            {
+              "label": "Следующий набор уточняется",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Программа подтверждена источником. Даты следующего набора и индивидуальные условия нужно уточнить до подачи.",
+              "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "finance",
+          "title": "Finance",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Финансы, финансовые рынки и анализ.",
+          "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+          "intakes": [
+            {
+              "label": "Следующий набор уточняется",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Программа подтверждена источником. Даты следующего набора и индивидуальные условия нужно уточнить до подачи.",
+              "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "enterprise-management",
+          "title": "Enterprise Management",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Магистратура Research Institute of Economics and Management.",
+          "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+          "intakes": [
+            {
+              "label": "Следующий набор уточняется",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Программа подтверждена источником. Даты следующего набора и индивидуальные условия нужно уточнить до подачи.",
+              "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "international-business",
+          "title": "International Business",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Магистратура School of International Business. Китайскоязычный вариант имеет другую длительность.",
+          "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+          "intakes": [
+            {
+              "label": "Следующий набор уточняется",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Программа подтверждена источником. Даты следующего набора и индивидуальные условия нужно уточнить до подачи.",
+              "sourceUrl": "https://international.swufe.edu.cn/__local/8/53/1D/527EFAA78A778469B7FAA2ED1E6_65EE7881_598E3.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "northwestern-polytechnical-university",
+    "content": {
+      "name": "Northwestern Polytechnical University",
+      "country": "CN",
+      "city": "Сиань",
+      "overview": "Технический университет в Сиане. В международном бакалавриате есть англоязычные инженерные и компьютерные программы; Aerospace Engineering представлен в двух разных школах.",
+      "websiteUrl": "https://studyat.nwpu.edu.cn",
+      "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Инженерная программа не является лицензией пилота. Для подачи нужно выбрать школу и проверить предметы CSCA. Цены из старого материала EVO не опубликованы как актуальные.",
+      "photoKey": "northwestern-polytechnical-university",
+      "programs": [
+        {
+          "id": "aerospace-aeronautics",
+          "title": "Aerospace Engineering — School of Aeronautics",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Авиационно-космическое направление в School of Aeronautics. CSCA: математика и физика.",
+          "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-20",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "aerospace-astronautics",
+          "title": "Aerospace Engineering — School of Astronautics",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Отдельный маршрут School of Astronautics. При выборе заявления важно указать нужную школу.",
+          "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-20",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-science",
+          "title": "Computer Science and Technology",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Информатика и компьютерные технологии.",
+          "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
+          "intakes": [
+            {
+              "label": "Набор 2026 — приём завершён",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-20",
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "closed",
+              "note": "Опубликованный срок подачи прошёл. Эти даты не являются расписанием следующего набора.",
+              "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "shenyang-aerospace-university",
+    "content": {
+      "name": "Shenyang Aerospace University",
+      "country": "CN",
+      "city": "Шэньян",
+      "overview": "Университет в Шэньяне с авиационно-техническими и компьютерными направлениями. Официальный международный каталог перечисляет четырёхлетние программы бакалавриата.",
+      "websiteUrl": "https://en.sau.edu.cn",
+      "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
+      "verifiedOn": "2026-09-10",
+      "notes": "Язык преподавания, кампус, стоимость и даты следующего набора нужно подтвердить для выбранной программы. Академическая степень сама по себе не означает выдачу лицензии пилота или авиационного специалиста.",
+      "photoKey": "shenyang-aerospace-university",
+      "programs": [
+        {
+          "id": "aeronautical-engineering",
+          "title": "Aeronautical Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": null,
+          "summary": "Авиационная инженерия из официального списка международного бакалавриата.",
+          "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор уточняется",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Программа подтверждена источником. Даты следующего набора и индивидуальные условия нужно уточнить до подачи.",
+              "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "aircraft-maintenance",
+          "title": "Aircraft Maintenance",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": null,
+          "summary": "Техническое обслуживание воздушных судов. Профессиональную сертификацию следует уточнять отдельно.",
+          "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор уточняется",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Программа подтверждена источником. Даты следующего набора и индивидуальные условия нужно уточнить до подачи.",
+              "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-science",
+          "title": "Computer Science and Technology",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": null,
+          "summary": "Информатика и компьютерные технологии.",
+          "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
+          "intakes": [
+            {
+              "label": "Следующий набор уточняется",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Asia/Shanghai",
+              "status": "needs_reconfirmation",
+              "note": "Программа подтверждена источником. Даты следующего набора и индивидуальные условия нужно уточнить до подачи.",
+              "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -24,7 +24,7 @@ const { mutateUniversityCatalogAction } = await import("../src/lib/platform-univ
 const catalog = await import("../src/lib/platform-university-catalog.ts");
 const requestId = "59948000-0000-4000-8000-000000000801", draftId = "59948000-0000-4000-8000-000000000802", institutionId = "59948000-0000-4000-8000-000000000803";
 const previous = { status: "idle", requestId, draftId: null, institutionId: null };
-const content = JSON.parse(readFileSync(new URL("../src/lib/server/university-catalog-reviewed-content.json", import.meta.url), "utf8"))[0].content;
+const content = JSON.parse(readFileSync(new URL("../src/lib/server/university-catalog-reviewed-malaysia.json", import.meta.url), "utf8")).find((entry) => entry.key === "apu").content;
 function reset() { harness.actor.authorityRole = "admin"; harness.actor.presentationRole = "admin"; harness.calls = []; harness.revalidated = []; harness.fail = false; harness.response = { data: { requestId, draftId, institutionId: null, status: "saved" }, error: null }; }
 function form(overrides = {}) { const data = new FormData(); for (const [key, value] of Object.entries({ operation: "stage", request_id: requestId, institution_id: "", base_version: "0", content: JSON.stringify(content), reason: "Source reviewed", draft_id: "", confirmed: "", ...overrides })) data.set(key, value); return data; }
 test("real action binds organization to actor and invokes only reviewed stage RPC", async () => {

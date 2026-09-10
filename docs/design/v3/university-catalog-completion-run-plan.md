@@ -125,6 +125,13 @@ UI сохраняет DESIGN.md: краткие карточки, поиск/с�
   backup/rehearsal, не спрашивать повторно. Остальные release gates сохраняются.
 - Перед выпуском проверять arm; после release disarm/readback. Публичный HTTPS,
   accepted pointer, app image/restarts, pending state и ledger — отдельные факты.
+- Порядок изменения живого каталога: schema151 → acceptance нового приложения
+  → Admin-публикация. До публикации прежний образ `32693abb` совместим с прежними
+  данными. После публикации новых photo keys / уровня `language` старый reader
+  может отклонить целую страницу каталога: слепой откат к этому образу больше
+  не является совместимым восстановлением. Нужен forward fix с новым reader
+  либо отдельно проверенный совместимый rollback. Не переписывать immutable
+  publication revisions и не ослаблять parser ради отката.
 - Admin batch публикует только просмотренный frozen manifest; затем сверить
   все страницы/версии/уникальные identity и загрузку фото, staff + Admin preview.
   Не выдавать Admin preview за настоящий Student/private-session acceptance.

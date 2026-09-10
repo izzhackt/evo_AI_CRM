@@ -29,6 +29,14 @@
 
 ## Current Product Authority
 
+- Current September10 screenshot follow-up is
+  `docs/design/v3/admin-realtime-university-expansion-run-plan.md`. Admin must be
+  eligible for Sales/Admissions work under their own identity; preserve active
+  membership, organization, business invariants and Student-private assessments.
+  Clarify and verify existing native automatic chat, and extend reviewed real
+  university content/photos. Do not reopen completed operations waves or activate
+  WAHA. Use genuine inputs and state exactly which real journeys remain unverified.
+
 - Latest September10 continuation approves the audited business gaps and adds
   universities with real pictures/details/deadlines, production update and
   same-server localhost tunnel. Read

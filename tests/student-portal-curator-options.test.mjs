@@ -10,7 +10,6 @@ const {
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
 const OTHER_ORGANIZATION_ID = "10000000-0000-4000-8000-000000000002";
 const CURATOR_MEMBERSHIP_ID = "20000000-0000-4000-8000-000000000001";
-const CURATOR_PROFILE_ID = "30000000-0000-4000-8000-000000000001";
 
 function actor(platformRole = "admin") {
   return {
@@ -28,27 +27,6 @@ function actor(platformRole = "admin") {
   };
 }
 
-function thenableQuery(response, calls, table) {
-  const query = {
-    select(columns) {
-      calls.push([table, "select", columns]);
-      return query;
-    },
-    eq(column, value) {
-      calls.push([table, "eq", column, value]);
-      return query;
-    },
-    in(column, values) {
-      calls.push([table, "in", column, values]);
-      return query;
-    },
-    then(resolve, reject) {
-      return Promise.resolve(response).then(resolve, reject);
-    },
-  };
-  return query;
-}
-
 function fakeClient(responses) {
   const calls = [];
   return {
@@ -57,9 +35,9 @@ function fakeClient(responses) {
       schema(name) {
         calls.push(["schema", name]);
         return {
-          from(table) {
-            calls.push(["from", table]);
-            return thenableQuery(responses.shift(), calls, table);
+          rpc(name, args) {
+            calls.push(["rpc", name, args]);
+            return Promise.resolve(responses.shift());
           },
         };
       },
@@ -67,21 +45,18 @@ function fakeClient(responses) {
   };
 }
 
-test("normalizer returns only exact active same-organization Curators", () => {
+// Existing technical adapter contracts, not proof of genuine staff execution.
+// The RPC, not this DTO decoder, owns active role/bundle eligibility.
+test("normalizer returns only the organization-bound eligible-owner DTO", () => {
   assert.deepEqual(
     normalizeStudentPortalCuratorOptions(
-      [{
-        id: CURATOR_MEMBERSHIP_ID,
+      {
         organization_id: ORGANIZATION_ID,
-        profile_id: CURATOR_PROFILE_ID,
-        status: "active",
-        current_role: "curator",
-      }],
-      [{
-        id: CURATOR_PROFILE_ID,
-        display_name: "  Assigned Curator  ",
-        status: "active",
-      }],
+        owners: [{
+          membership_id: CURATOR_MEMBERSHIP_ID,
+          display_name: "  Assigned Curator  ",
+        }],
+      },
       ORGANIZATION_ID,
     ),
     [{
@@ -91,36 +66,26 @@ test("normalizer returns only exact active same-organization Curators", () => {
   );
 });
 
-test("normalizer fails closed on invalid, cross-organization, and wrong-role rows", () => {
-  const profileRows = [{
-    id: CURATOR_PROFILE_ID,
-    display_name: "Assigned Curator",
-    status: "active",
-  }];
-  const membership = {
-    id: CURATOR_MEMBERSHIP_ID,
+test("normalizer fails closed on invalid, cross-organization, and extra-field rows", () => {
+  const snapshot = {
     organization_id: ORGANIZATION_ID,
-    profile_id: CURATOR_PROFILE_ID,
-    status: "active",
-    current_role: "curator",
+    owners: [{ membership_id: CURATOR_MEMBERSHIP_ID, display_name: "Assigned Curator" }],
   };
 
   assert.throws(
-    () => normalizeStudentPortalCuratorOptions({}, profileRows, ORGANIZATION_ID),
+    () => normalizeStudentPortalCuratorOptions({}, ORGANIZATION_ID),
     StudentPortalCuratorOptionsError,
   );
   assert.throws(
     () => normalizeStudentPortalCuratorOptions(
-      [{ ...membership, organization_id: OTHER_ORGANIZATION_ID }],
-      profileRows,
+      { ...snapshot, organization_id: OTHER_ORGANIZATION_ID },
       ORGANIZATION_ID,
     ),
     StudentPortalCuratorOptionsError,
   );
   assert.throws(
     () => normalizeStudentPortalCuratorOptions(
-      [{ ...membership, current_role: "sales" }],
-      profileRows,
+      { ...snapshot, owners: [{ ...snapshot.owners[0], current_role: "sales" }] },
       ORGANIZATION_ID,
     ),
     StudentPortalCuratorOptionsError,
@@ -130,21 +95,10 @@ test("normalizer fails closed on invalid, cross-organization, and wrong-role row
 test("repository binds the actor organization and returns normalized options", async () => {
   const fake = fakeClient([
     {
-      data: [{
-        id: CURATOR_MEMBERSHIP_ID,
+      data: {
         organization_id: ORGANIZATION_ID,
-        profile_id: CURATOR_PROFILE_ID,
-        status: "active",
-        current_role: "curator",
-      }],
-      error: null,
-    },
-    {
-      data: [{
-        id: CURATOR_PROFILE_ID,
-        display_name: "Assigned Curator",
-        status: "active",
-      }],
+        owners: [{ membership_id: CURATOR_MEMBERSHIP_ID, display_name: "Assigned Curator" }],
+      },
       error: null,
     },
   ]);
@@ -157,16 +111,10 @@ test("repository binds the actor organization and returns normalized options", a
     }],
   );
   assert.deepEqual(
-    fake.calls.filter((call) => call[0] === "organization_memberships"),
+    fake.calls,
     [
-      [
-        "organization_memberships",
-        "select",
-        "id,organization_id,profile_id,status,current_role",
-      ],
-      ["organization_memberships", "eq", "organization_id", ORGANIZATION_ID],
-      ["organization_memberships", "eq", "status", "active"],
-      ["organization_memberships", "eq", "current_role", "curator"],
+      ["schema", "platform"],
+      ["rpc", "staff_student_portal_curator_options", { p_organization_id: ORGANIZATION_ID }],
     ],
   );
 });

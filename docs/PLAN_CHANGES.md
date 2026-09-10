@@ -22786,3 +22786,47 @@ The isolated client catch uses documented
 to preserve navigation. Upstream labels that helper unstable/not recommended for
 production; it is limited to this pinned Next16.3.4 seam with real-function
 regressions, not a general dependency on private error strings.
+
+### 2026-09-10 — Admin assignment parity, automatic chat clarity, catalogue expansion
+
+Owner screenshots show manual lead creation blocked when no Sales-only employee
+exists, despite the authenticated user being Admin. They explicitly request Admin
+can perform all staff-role work, automatic office chat and more university cards
+from EVO institutional material with photos. Contract before implementation:
+`docs/design/v3/admin-realtime-university-expansion-run-plan.md`.
+
+Extend existing assignment eligibility and latest canonical command bodies so an
+active Admin can own Sales/Admissions work under their real identity. Keep Auth,
+active membership, organization boundaries, role/audit identity and business
+conditions. This is not access to Student-private assessment answers/results.
+Use forward migration149 only after confirming the number is free; do not edit
+applied migrations or create alternate workflows. Existing Admin-capable commands
+remain unchanged unless an actual incompatibility is found.
+
+Existing native staff chat already uses private Broadcast invalidation and
+authorized changes readers, including reconnect/visibility/online catch-up.
+Clarify its healthy automatic status; expose manual recovery when needed. Do not
+claim message delivery from connection status. Validate through genuine authorized
+messages, not fake staff/test records; a two-tab Admin check is not two-person
+acceptance. No WAHA, amoCRM or autonomous messages are enabled by this request.
+
+Expand the existing reviewed university content/approval path with a first bounded
+12-institution China/Malaysia tranche. Institution-only EVO notes guide discovery;
+current official facts and attributable, correctly identified licensed campus
+photos govern public cards. Do not import applicant documents, correspondence,
+trash, internal terms or unsupported old prices/deadlines. Root performs normal
+Admin stage/review/publish; do not bypass approval with SQL. Source inventory and
+unverified remainder are explicit. Existing five publications are not repeated.
+
+Production and same-server local preview remain in the previously approved scope;
+normal release controls, one persistent Supabase source, enabled Auth and the
+owner's no-new-backup decision remain. No synthetic business acceptance, gate
+bypass or duplicate migration/import. Official Supabase Realtime authorization,
+Broadcast/database changes and RLS documentation checked on September10; direct
+official docs used after Context7 quota exhaustion (links in the run plan).
+
+Implementation inventory уточняет A3: photo keys are deliberately validated in
+both TypeScript and the applied migration148. Reserve forward migration150 for
+the additional licensed-photo keys, coordinated with the same manifest/types.
+Migration149 remains Admin-only. Neither existing validator nor media restrictions
+are removed; existing five reviewed templates/publications stay unchanged.

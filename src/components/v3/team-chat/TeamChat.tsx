@@ -47,6 +47,10 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const contextRequest = useRef(0);
   const storageScope = `${organizationId}:${membershipId}`;
   const forbidden = error === "forbidden";
+  const needsHistoryRecovery = !forbidden && (transport === "error" || error !== null);
+  const transportLabel = forbidden ? "Доступ к каналу закрыт"
+    : transport === "live" ? error ? "Соединение установлено" : "Сообщения появляются автоматически"
+    : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
 
   const accept = useCallback((snapshot: TeamChatSnapshot) => {
     setChannels(snapshot.channels);
@@ -249,9 +253,9 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
           })}>{currentChannel.muted ? "Включить уведомления" : "Приглушить"}</button> : null}
         </div>
         <div className={styles.transport} role="status">
-          {transport === "live" ? "Обновления подключены" : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны"}
-          <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { void refresh(); })}>Обновить историю</button>
-          {transport === "error" ? <button type="button" className={styles.textButton} onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
+          {transportLabel}
+          {needsHistoryRecovery ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { void refresh(); })}>Обновить историю</button> : null}
+          {transport === "error" && !forbidden ? <button type="button" className={styles.textButton} onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
         </div>
         {error ? <div role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[error]}</div> : null}
         {error === "forbidden" ? <a className={styles.secondary} href="/login">Войти снова</a> : <>

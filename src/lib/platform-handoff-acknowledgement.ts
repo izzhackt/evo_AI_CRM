@@ -138,7 +138,7 @@ export async function getHandoffAcknowledgement(actor: PlatformActor, studentCas
     { p_student_case_id: studentCaseId });
   if (result.error) return rpcFailure(result.error);
   const snapshot = normalizeHandoffAcknowledgement(result.data, actor.organizationId, studentCaseId);
-  if (snapshot.canRespond && actor.authorityRole !== "admissions") return fail();
+  if (snapshot.canRespond && actor.authorityRole !== "admissions" && actor.authorityRole !== "admin") return fail();
   return snapshot;
 }
 export function normalizeSalesHandoffAcknowledgement(
@@ -162,8 +162,9 @@ export async function getSalesHandoffAcknowledgement(
 export async function respondToHandoff(actor: PlatformActor, input: HandoffResponseInput): Promise<HandoffResponse> {
   const parsed = parseHandoffResponseInput(input);
   if (!parsed || !handoffUuid(actor.organizationId)) return fail("invalid");
-  // Real authority, never Admin's presentation-role preview.
-  if (actor.authorityRole !== "admissions") return fail("forbidden");
+  // Actual Admin may be the assigned curator without changing identity. The RPC
+  // rechecks current ownership and the exact assignment event, never a preview role.
+  if (actor.authorityRole !== "admissions" && actor.authorityRole !== "admin") return fail("forbidden");
   const result = await (await client()).schema("platform").rpc("respond_student_case_handoff", {
     p_organization_id: actor.organizationId, p_student_case_id: parsed.studentCaseId,
     p_assignment_event_id: parsed.assignmentEventId,

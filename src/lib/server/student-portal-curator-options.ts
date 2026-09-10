@@ -63,48 +63,35 @@ async function getPlatformClient(): Promise<SupabaseClient> {
 }
 
 export function normalizeStudentPortalCuratorOptions(
-  membershipRows: unknown,
-  profileRows: unknown,
+  value: unknown,
   expectedOrganizationId: string,
 ): readonly StudentPortalCuratorOption[] {
   const organizationId = requiredUuid(expectedOrganizationId);
-  if (!Array.isArray(membershipRows) || !Array.isArray(profileRows)) {
+  if (!isRecord(value)
+    || Object.keys(value).sort().join(",") !== "organization_id,owners"
+    || requiredUuid(value.organization_id) !== organizationId
+    || !Array.isArray(value.owners) || value.owners.length > 100
+  ) {
     return invalidShape();
   }
-
-  const profiles = new Map<string, string>();
-  for (const rawProfile of profileRows) {
-    if (!isRecord(rawProfile) || rawProfile.status !== "active") {
-      return invalidShape();
-    }
-    const profileId = requiredUuid(rawProfile.id);
-    if (profiles.has(profileId)) return invalidShape();
-    profiles.set(profileId, requiredDisplayName(rawProfile.display_name));
-  }
-
   const seenMemberships = new Set<string>();
-  const options = membershipRows.map((rawMembership) => {
-    if (
-      !isRecord(rawMembership)
-      || rawMembership.status !== "active"
-      || rawMembership.current_role !== "curator"
-      || requiredUuid(rawMembership.organization_id) !== organizationId
+  const options = value.owners.map((owner) => {
+    if (!isRecord(owner)
+      || Object.keys(owner).sort().join(",") !== "display_name,membership_id"
     ) {
       return invalidShape();
     }
-    const membershipId = requiredUuid(rawMembership.id);
-    const profileId = requiredUuid(rawMembership.profile_id);
-    const displayName = profiles.get(profileId);
-    if (seenMemberships.has(membershipId) || !displayName) return invalidShape();
+    const membershipId = requiredUuid(owner.membership_id);
+    const displayName = requiredDisplayName(owner.display_name);
+    if (seenMemberships.has(membershipId)) return invalidShape();
     seenMemberships.add(membershipId);
-    return { membershipId, displayName };
+    return Object.freeze({ membershipId, displayName });
   });
 
-  if (profiles.size !== options.length) return invalidShape();
-  return options.sort((left, right) =>
+  return Object.freeze(options.sort((left, right) =>
     left.displayName.localeCompare(right.displayName)
     || left.membershipId.localeCompare(right.membershipId)
-  );
+  ));
 }
 
 export async function listStudentPortalActiveCurators(
@@ -112,41 +99,19 @@ export async function listStudentPortalActiveCurators(
   options: StudentPortalCuratorOptionsRepositoryOptions = {},
 ): Promise<readonly StudentPortalCuratorOption[]> {
   const organizationId = requiredUuid(actor.organizationId);
-  if (actor.platformRole !== "admin") return invalidShape();
+  if (actor.authorityRole !== "admin") return invalidShape();
 
   try {
     const client = options.client ?? await getPlatformClient();
-    const membershipsResponse = await client
+    const response = await client
       .schema("platform")
-      .from("organization_memberships")
-      .select("id,organization_id,profile_id,status,current_role")
-      .eq("organization_id", organizationId)
-      .eq("status", "active")
-      .eq("current_role", "curator");
-    if (membershipsResponse.error || !Array.isArray(membershipsResponse.data)) {
+      .rpc("staff_student_portal_curator_options", {
+        p_organization_id: organizationId,
+      });
+    if (response.error) {
       return invalidShape();
     }
-    if (membershipsResponse.data.length === 0) return [];
-
-    const profileIds = membershipsResponse.data.map((membership) => {
-      if (!isRecord(membership)) return invalidShape();
-      return requiredUuid(membership.profile_id);
-    });
-    const profilesResponse = await client
-      .schema("platform")
-      .from("profiles")
-      .select("id,display_name,status")
-      .in("id", profileIds)
-      .eq("status", "active");
-    if (profilesResponse.error || !Array.isArray(profilesResponse.data)) {
-      return invalidShape();
-    }
-
-    return normalizeStudentPortalCuratorOptions(
-      membershipsResponse.data,
-      profilesResponse.data,
-      organizationId,
-    );
+    return normalizeStudentPortalCuratorOptions(response.data, organizationId);
   } catch (error) {
     if (error instanceof StudentPortalCuratorOptionsError) throw error;
     throw new StudentPortalCuratorOptionsError();

@@ -1,10 +1,12 @@
 # Полный университетский каталог — run 2026-09-10
 
-Статус: APPLICATION ACCEPTED / 143 PUBLISHED / TWO PHOTO FIXES PENDING,
-11 сентября 2026. Приложение `88d0354f` принято; 143 карточки опубликованы.
+Статус: COMPLETE — ELIGIBLE INSTITUTIONAL SCOPE / 143 PUBLISHED / 143 PHOTOS VERIFIED,
+11 сентября 2026. Приложение `892558b2` принято; 143 карточки опубликованы.
 Полное чтение пяти страниц подтвердило 143 уникальных ID и 251 программу,
-все 16 прежних ID сохранены. Загрузились 141/143 фото; корректировка двух
-внешних источников проходит отдельный выпуск без повторной публикации данных.
+все 16 прежних ID сохранены. После корректирующего выпуска загрузились 143/143
+фото. Пакетная сверка: 143 актуальны, 0 конфликтов, 0 оставшихся публикаций.
+Неподтверждённые поля программ перечислены ниже; полнота учреждений не означает
+полноту всех возможных программ, цен и наборов каждого вуза.
 Доказательства: [production acceptance ledger](references/2026-09-11-university-catalog-production-acceptance.md).
 Tracking: [issue725](https://github.com/izzhackt/evo_AI_CRM/issues/725).
 Владелец просит заполнить университеты из всей доступной институциональной базы
@@ -15,11 +17,12 @@ Tracking: [issue725](https://github.com/izzhackt/evo_AI_CRM/issues/725).
 
 1. Читать AGENTS.md, CONTEXT.md, DESIGN.md, этот план и свежую запись PLAN_CHANGES.
 2. GitHub main — общая истина. Первичная ветка `izzhackt/university-catalog-completion`
-   объединена PR726 в `88d0354f`; текущая корректировка двух фото и proof-документ —
-   ветка `izzhackt/university-catalog-live-proof` от `88d0354f`.
+   объединена PR726 в `88d0354f`; корректировка двух фото объединена PR727
+   в `892558b2`. Последующее docs-only закрытие не требует нового выпуска.
    Не трогать другую грязную рабочую копию/ветку Inbox.
-3. Текущий принятый app `88d0354f`, schema001–151, каталог143; проверить живые
-   SHA/ledger/arm. Не повторять уже применённые миграции или публикацию пакета.
+3. Последний принятый app `892558b2`, schema001–151, каталог143; перед новой
+   работой проверить живые SHA/ledger/arm. Release34530968045 attempt1 принят,
+   arm=false. Не повторять уже применённые миграции или публикацию пакета.
 4. Прочитать source-roster и country/photo research в `references/`; статус
    candidate не равен approved. Независимое ревью точного HEAD обязательно.
 5. Одна интеграция → PR checks → exact-current-main full CI → проверенный
@@ -59,10 +62,10 @@ Tracking: [issue725](https://github.com/izzhackt/evo_AI_CRM/issues/725).
 | U2 | Malaysia13: official facts + reviewed JSON | Done: 13 /39 programmes |
 | U3 | China + raw additions: official facts + reviewed JSON | Done: 47 /94, including27 language |
 | U4 | Europe/Turkey/UAE/other: official facts + reviewed JSON | Done: 83 institutions |
-| U5 | Фото всего итогового roster, license/identity/availability | 141/143 live loaded; two verified replacement hosts pending release |
+| U5 | Фото всего итогового roster, license/identity/availability | Done: 143/143 live loaded; two replacements accepted in PR727/release892558b2 |
 | U6 | Интеграция existing catalogue и быстрая Admin batch review | Implemented; ordinary Admin RPCs |
-| U7 | Проверки, независимое ревью, PR/CI/schema/release/publication | PR726, full CI, schema151, release88d and 136 mutations accepted; seven already current |
-| U8 | Full live readback, tunnel, честные remaining gaps | 143/251/16 legacy IDs verified through tunnel; final photo check pending |
+| U7 | Проверки, независимое ревью, PR/CI/schema/release/publication | Done: PR726/727, exact-main CI and guarded releases accepted; schema151 once, 136 mutations, seven already current |
+| U8 | Full live readback, tunnel, честные remaining gaps | Done: 143/251/16 legacy IDs, all photos, zero pending publications; staff + bounded Admin Student preview |
 
 ## Итоговый подготовленный пакет
 
@@ -90,8 +93,24 @@ snapshot16 canonical identities. История исходного файла с
 Исследование дополнено [Europe/international](references/2026-09-11-university-completion-europe-international.md),
 [Other](references/2026-09-11-university-completion-other-research.md),
 [Turkey](references/2026-09-10-university-completion-turkey-research.md).
-Публикацию, реальные версии, фото в браузере и release receipt фиксировать
-отдельно после завершения; подготовленные143 не равны live143.
+Публикация, реальные версии, фото в браузере и release receipt подтверждены
+отдельно в [acceptance ledger](references/2026-09-11-university-catalog-production-acceptance.md).
+Подготовленный пакет сам по себе не был доказательством живых данных.
+
+## Результат выпуска
+
+- Основной PR726: managed migration151 применена один раз, 136 обычных Admin
+  публикаций (127 новых /9 обновлений), семь карточек уже были актуальны.
+- Корректирующий PR727: только два внешних фотоисточника; full CI34530087316
+  и release34530968045 attempt1 прошли на точном `892558b2`. Повторной записи
+  каталога или миграции не было. Healthy/restarts0, pending отсутствует,
+  публичный HTTPS200, acceptance hash проверен, release arm=false.
+- Свежий browser readback на принятом образе: 30/30/30/30/23 карточки,
+  143 уникальных ID, 251 программа, 143 загруженных фото. Обе заменённые
+  фотографии открылись также в read-only Admin Student preview.
+- [Каталог через SSH tunnel](http://localhost:3000/v3/universities) и
+  [production](https://evo-crm.72.62.119.112.sslip.io/v3/universities)
+  показывают одну серверную версию/базу. Туннель должен оставаться запущенным.
 
 ## Минимальная техническая доработка
 

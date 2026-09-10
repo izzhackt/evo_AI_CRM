@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `88d0354f828f1e753b902480de38b075d63442d9`
+Last recorded accepted application: `892558b2f51ad8df1ec59ee0fabfe139572e342a`
 
 ## Current run: complete university catalogue
 
@@ -21,8 +21,14 @@ PR726, full CI34526967052, managed151 and release34527806723 attempt2 passed.
 Real Admin publication and complete five-page readback confirm143 institutions /
 251 programmes, all16 original IDs retained. There were136 published changes
 and seven already-current records. The tunnel serves this accepted server.
-141/143 images loaded in Chrome; two externally failing photo sources have
-verified replacements pending corrective release and final browser acceptance.
+Corrective PR727, exact-main full CI34530087316 and release34530968045 attempt1
+accepted `892558b2`. All143 images loaded in the fresh five-page Chrome readback;
+both replaced images also loaded in the read-only Admin Student preview.
+The batch readback remains143 current /0 conflicts /0 remaining, with no repeat
+publication or schema apply. Healthy/restarts0, no pending release, public HTTPS200,
+acceptance hash verified and release arm=false. This institutional inventory scope
+is complete; unknown programme language/duration/intake fields remain explicitly
+unconfirmed, not invented. Documentation closeout does not redeploy the app.
 See the [production evidence ledger](design/v3/references/2026-09-11-university-catalog-production-acceptance.md).
 Preserve raw/privacy
 boundaries, source authority, immutable canonical identity and normal release gates.

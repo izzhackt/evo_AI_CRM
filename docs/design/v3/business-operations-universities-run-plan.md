@@ -1,6 +1,6 @@
 # EVO: ежедневная работа и университеты
 
-Дата: 2026-09-10 (Asia/Dubai). Статус: **реализовано в ветке, общая проверка перед выпуском**.
+Дата: 2026-09-10 (Asia/Dubai). Статус: **код в main, схема148 применена, выпуск приложения в работе**.
 
 ## Что получит команда
 
@@ -19,10 +19,10 @@ production-выпуск и локальный просмотр. Первонач
 
 1. Прочитать root `AGENTS.md`, `CONTEXT.md`, `DESIGN.md`, текущий checkpoint
    `docs/EVO_LAUNCH_PLAN.md` и последние записи `docs/PLAN_CHANGES.md`.
-2. Сверить GitHub main, PR #712 и текущий сервер. PR #710 уже merged:
-   main `0f65908801081425a9d0b652af6647d765a3e433` на этом checkpoint.
-   Текущая ветка `izzhackt/business-operations-universities`, issue #711,
-   PR #712; исходный team-кандидат `bc45f1df72b0e76c58d16fd735358d7a2d08bded`.
+2. Сверить GitHub main и текущий сервер. PR #710 и #712 merged:
+   main `cb8e932f7c4cc5cee04c0767519ae6e83ba1df33` на этом checkpoint.
+   Выпуск продолжается в `izzhackt/operations-release-test-alignment`, issue #711;
+   исходная feature-ветка `izzhackt/business-operations-universities`.
    Рабочий checkout — `evo_AI_CRM-backup-lease` под `run-plan-handover`.
    Основной checkout содержит чужие изменения: не сбрасывать и не использовать
    как чистую release-копию.
@@ -45,7 +45,7 @@ production-выпуск и локальный просмотр. Первонач
 | O3 Admissions | Полное покрытие сроков; фиксированный состав пакета партнёру; помощь и следующий шаг Student | Альтернативные заявления/offer/истечение документов видны; пакет не меняется при замене файла; обращение связано с делом | Implemented; review fixes applied |
 | O4 Tasks/chat | Связь staff-задачи с лидом, комментарий результата, безопасные ссылки в чате | Список задач и Sales показывают один связанный контекст; completion сохраняет результат; URL не превращается в HTML | Implemented; independent re-review passed |
 | O5 Universities | Каталог staff + Student, подробности/фото/программы/сроки и управляемые источники | Реальные карточки доступны из меню; срок относится к набору/программе; изменения сохраняются в общей базе | Implemented; independent review and SQL boundary passed |
-| O6 Release | Объединить, review, gates, production, same-server tunnel, handover | Подтверждены exact image/schema/health и доступный localhost; недоказанные рабочие пути перечислены отдельно | Planned |
+| O6 Release | Объединить, review, gates, production, same-server tunnel, handover | Подтверждены exact image/schema/health и доступный localhost; недоказанные рабочие пути перечислены отдельно | In flight; main merged, schema148 applied, app pending |
 
 ### O1: лид не равен строке отчёта
 
@@ -164,7 +164,26 @@ Visual thesis: прежний светлый EVO, оригинальный кр�
 
 ## Источники и решения для последующей корректировки
 
-### Предрелизный checkpoint
+### Текущий checkpoint выпуска
+
+- PR712 merged; точный main `cb8e932f7c4cc5cee04c0767519ae6e83ba1df33`.
+  Final candidate `4d761040` независимо approved; шесть fast checks
+  `34421255285` — PASS. Полный свежий локальный SQL authorization harness — PASS.
+- Managed workflow `34421758765` применил только139–148 после dry-run;
+  readback подтвердил ровно001–148. Эти миграции повторно не применять.
+- Full release CI `34421761988`: Node/static остановился на устаревшем ожидании
+  текста старого выбора дел вместо нового TaskCasePicker. Тест исправлен в
+  `izzhackt/operations-release-test-alignment`: полный Node-прогон1283/1283
+  по137 файлам — PASS, без пропусков; код приложения не менялся.
+  Release arm=false; приложение по-прежнему принятое `76c62b90`, health200.
+- После review/merge коррекции заморозить новый main, выполнить полный release
+  CI и guarded release; schema только сверить. Затем acceptance/readback/disarm,
+  Admin-публикация пяти вузов и browser/tunnel проверка. Нового backup не было.
+- Две созданные для проверки локальные базы `evo_ops_schema_20260910` и
+  `evo_ops_order_20260910` удалены после завершения проверок; исходная локальная
+  база и единственная постоянная Supabase-база сохранены.
+
+### История проверки перед объединением
 
 - Tracker: [issue711](https://github.com/izzhackt/evo_AI_CRM/issues/711),
   [PR712](https://github.com/izzhackt/evo_AI_CRM/pull/712).
@@ -181,13 +200,9 @@ Visual thesis: прежний светлый EVO, оригинальный кр�
   tail126–148 к исходной схеме125. Это проверка SQL-совместимости, не backup
   production и не доказательство восстановления данных. Рабочая постоянная
   база не менялась.
-- Read-only production ledger check `34418530574` подтверждает001–138;
- 139–148 пока ждут выпуска. Последняя принятая app-версия остаётся `76c62b90`.
-- Следующий исполнитель: завершить exact-head integration review/checks,
-  merge PR712, заморозить main; штатные schema apply + полный release CI,
-  acceptance/readback/disarm. Затем открыть текущий SSH tunnel, опубликовать
-  пять подготовленных вузов через настоящий Admin review, проверить их UI.
-  Статусы «Implemented» выше не являются production acceptance.
+- Исходный read-only ledger check `34418530574` подтверждал001–138;
+  последующее применение отражено в текущем checkpoint выше.
+  Статусы «Implemented» не являются production acceptance.
 - Реальные пользовательские лиды, платежи, обращения и документы не создавались
   ради тестов. Multi-user, Student и provider acceptance остаются отдельными.
 

@@ -33,17 +33,21 @@ GitHub `main` is the shared source of truth. Work through a GitHub Issue and a
 reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
-Resume the current September10 continuation from
-[`admin-realtime-university-expansion-run-plan.md`](docs/design/v3/admin-realtime-university-expansion-run-plan.md):
-Admin assignment parity, clear automatic staff chat and additional source-backed
-university cards/photos are deployed in accepted `a52cca37`. The live catalogue
-contains16 institutions,14 with photos;11 institutions were added in this run.
-See the [release and real-browser record](docs/design/v3/references/2026-09-10-admin-catalogue-release.md)
-for exact CI/runtime evidence and remaining genuine business/chat acceptance.
-The preceding
+The September11 [university completion run](docs/design/v3/university-catalog-completion-run-plan.md)
+is accepted in `892558b2`: **143 institutions across15 countries, 251 selected
+programmes and143 verified photos**. The eligible institutional source inventory
+is covered; unconfirmed programme language, duration and intake fields remain
+explicitly unknown. See the [production/readback evidence](docs/design/v3/references/2026-09-11-university-catalog-production-acceptance.md)
+and the [catalogue through the existing SSH tunnel](http://localhost:3000/v3/universities).
+Do not repeat the completed publications or migrations001–151.
+
+The preceding [Admin/chat expansion](docs/design/v3/admin-realtime-university-expansion-run-plan.md)
+and [read-only Admin Student preview](docs/design/v3/student-portal-admin-preview-plan.md)
+remain implemented; genuine multi-user/business and private Student acceptance
+are separate from this catalogue run. The preceding
 [`business operations run`](docs/design/v3/business-operations-universities-run-plan.md)
 is shipped in accepted `f5d0157a`; real multi-user/business acceptance remains
-separate. Do not repeat those releases, migrations001–150 or completed imports.
+separate. Do not repeat those historical releases or completed imports.
 
 The September 9 implementation baseline is recorded in
 [`student-admissions-run-plan.md`](docs/design/v3/student-admissions-run-plan.md):

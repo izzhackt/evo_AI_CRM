@@ -1,8 +1,9 @@
 # University catalogue: production acceptance ledger, 11 September 2026
 
-Status: **APPLICATION ACCEPTED / 143 CATALOGUE CARDS PUBLISHED / TWO-PHOTO CORRECTION PENDING**.
-The application and catalogue content are live. Browser acceptance found two
-failed photo embeds; their corrective release is not yet accepted.
+Status: **BOUNDED INSTITUTIONAL CATALOGUE SCOPE COMPLETE / APPLICATION AND LIVE READBACK ACCEPTED**.
+The accepted application serves 143 published institution cards, 251 selected
+programmes and 143/143 loaded photos. Known metadata gaps below remain explicit;
+this is not a claim that every university programme or private Student flow is complete.
 Times below are UTC unless explicitly stated; the run date uses Asia/Dubai.
 
 Contract: [university completion run plan](../university-catalog-completion-run-plan.md).
@@ -152,16 +153,91 @@ The executor researched official related-source alternatives and changed only
 these two photo-registry records. The image identities and same `photoKey`
 values are retained; no migration or database content republication is needed.
 See the [photo corrective evidence](2026-09-10-university-completion-photos.md).
-Replacement-source checks do not yet prove the new embeds work inside EVO:
-**the corrective application release and browser readback remain pending**.
+Replacement-source checks alone did not prove the embeds worked inside EVO.
+The accepted corrective release and actual staff-browser results are recorded
+below; the initial 141/143 count above belongs to the predecessor `88d0354f`.
 
 Actual Admin Student preview opened the real published catalogue without the
 Admin management controls. The language-level filter returned **22 institutions
 and 27 programmes**. Combining Malaysia with the language-level filter returned
-zero results, correctly; Malaysia with all levels returned13 institutions and39
-programmes. APU detail opened with3 programmes,13 HTTPS source links and a loaded
+zero results, correctly; Malaysia with all levels returned 13 institutions and 39
+programmes. APU detail opened with 3 programmes, 13 HTTPS source links and a loaded
 960px photo explicitly captioned as the historical UCTI building, not current MRANTI.
 This proves the Admin preview only, not a real Student/private-session journey.
+
+## Two-photo corrective release evidence
+
+The corrective implementation changes only the GBS Dubai and Guangzhou
+Huashang photo-registry source/attribution records, with unchanged `photoKey`
+values. There is **no SQL change and no database republication**. Associated
+documentation records the already completed catalogue publication and the two
+observed embed failures.
+
+- Independent review approved exact head
+  `3102c50aab2a3cdc688d1cc8da451baab56e6411`.
+- [PR 727](https://github.com/izzhackt/evo_AI_CRM/pull/727) merged at
+  `2026-09-10T21:04:10Z` as
+  `892558b2f51ad8df1ec59ee0fabfe139572e342a`. Its tree equals the reviewed head;
+  `git diff --quiet` independently confirmed equality.
+- [Corrective PR checks 34529875768](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34529875768)
+  succeeded on exact `3102c50a`. All selected jobs passed; migration-boundary
+  work was not selected because this correction contains no migration.
+- [Full corrective CI 34530087316](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34530087316)
+  succeeded on exact `892558b2`, with all five jobs successful: Current main
+  admission, Dependency audit, Main CRM database/browser proof, Main CRM
+  Node/static and Main CRM aggregate.
+- With arm=true and the same configured/current actor `72846050`, the automatic
+  [release 34530968045](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34530968045)
+  completed successfully on **attempt 1**, against exact `892558b2`; both build
+  and deploy/accept jobs passed. The new server receipts are distinct from the
+  previous `88d0354f` release above.
+
+| Evidence | Accepted corrective application |
+| --- | --- |
+| Revision | `892558b2f51ad8df1ec59ee0fabfe139572e342a` |
+| Accepted pointer | `v3-r34530968045-a1-892558b2` |
+| Image | `sha256:6f187e7db4b43083394a0a8d734de1ba1a183918b55b7f4f976c691204289e31` |
+| Acceptance SHA-256 | `bb6eaed73e67650f079b5b23bccdfe8924970b10f5019cd0da19b8e255b247d6`; independent server `sha256sum` matches |
+| Container | Healthy; restarts `0` at readback |
+| Pending release | Absent at accepted-state readback |
+| Public HTTPS | Fallback login returned HTTP `200` |
+| Release arm | Set to `false` and read back after completion |
+
+Real Chrome through `http://localhost:3000` loaded both corrected images in the
+**staff detail pages**, not just by opening their URLs directly:
+
+- GBS Dubai: English Path image loaded at intrinsic **1600 × 1200**.
+- Guangzhou Huashang Vocational College: `gbabs.hk` image loaded at intrinsic
+  **1080 × 650**.
+
+Neither showed the image fallback. These corrected staff embeds passed before
+the complete fresh readback below; direct source URL checks were not substituted
+for actual EVO rendering.
+
+## Final post-correction live readback
+
+The executor then repeated the checks in real Chrome against accepted revision
+`892558b2f51ad8df1ec59ee0fabfe139572e342a`, through the working
+`http://localhost:3000` tunnel to the same production application:
+
+- All five staff pages returned **30 / 30 / 30 / 30 / 23 cards**: **143 unique
+  institution IDs**, **251 programmes**, and all **16 previously accepted IDs**.
+- **143/143 photos loaded**, each with `naturalWidth > 0`. Tongmyong's image
+  was initially still loading; a readback of the same page after network
+  completion confirmed it loaded. No additional broken-source fix was needed.
+- A fresh Admin batch GET returned **143 prepared, 143 already current,
+  0 conflicts**, with **0 remaining** and the publish button displaying **0**
+  and disabled. **No database republication was performed** for the photo fix.
+- Admin Student preview loaded both corrected photos — GBS **1600 × 1200**
+  and Huashang **1080 × 650** — with the preview label present and no Admin
+  batch controls. This is genuine preview rendering, not a real Student's
+  private-session acceptance.
+
+Together with the accepted release receipts, HTTPS login check and final
+arm=false readback above, this completes the approved institutional catalogue,
+staff rendering and Admin-preview scope on the deployed application. The tunnel
+serves that production application; no separate local application or database
+was created.
 
 Before new content is published, the predecessor reader remains compatible with
 the old catalogue. After new photo keys / `language` publications, old app
@@ -170,17 +246,18 @@ therefore not a compatible catalogue recovery. Use a compatible forward fix or
 an independently verified rollback; never rewrite immutable publication history
 or weaken the parser to conceal incompatibility.
 
-## Pending acceptance evidence
+## Preserved limits and follow-up boundaries
 
-- Reviewed and guarded corrective release for the two photo registry changes,
-  with new accepted revision/receipts and final arm=false readback. Verify both
-  formerly failed embeds inside EVO; do not count direct image HTTP 200 as proof.
-- Recheck the two changed photos in staff and Admin Student preview after the
-  corrective release. Other preview/filter/detail checks above passed; this is
-  not real Student/private-session acceptance.
-- Final public/tunnel catalogue checks after publication, against the same
-  accepted Hermes app; the public login and tunnel batch screen already loaded.
-  No separate local application/database.
+- Coverage is the reviewed institutional source roster and **251 selected
+  programmes**, not every degree offered by every institution.
+- **78 programme languages**, **76 durations** and intake data for **112
+  programmes** remain unconfirmed/absent. Three historical Chinese language
+  offers require reconfirmation; unknown values were not filled with guesses.
+- Admin Student preview is accepted here; real Student authentication/private
+  data flows were not newly exercised in this catalogue run.
+- Photo loading is verified at this checkpoint, not guaranteed indefinitely.
+  External university/partner hosts can later change DNS, content or embedding
+  policy. Retain the visible source and historical captions when changing a photo.
 
 The standing owner decision remains one persistent Supabase database and no new
 backup/rehearsal. Auth remains enabled. No WhatsApp, amoCRM, applicant-file or

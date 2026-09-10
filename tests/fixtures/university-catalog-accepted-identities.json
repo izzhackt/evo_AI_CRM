@@ -1,0 +1,98 @@
+[
+  {
+    "key": "apu",
+    "name": "Asia Pacific University of Technology & Innovation",
+    "country": "MY",
+    "city": "Kuala Lumpur"
+  },
+  {
+    "key": "sunway",
+    "name": "Sunway University",
+    "country": "MY",
+    "city": null
+  },
+  {
+    "key": "mmu",
+    "name": "Multimedia University",
+    "country": "MY",
+    "city": "Cyberjaya"
+  },
+  {
+    "key": "xjtlu",
+    "name": "Xi’an Jiaotong-Liverpool University",
+    "country": "CN",
+    "city": "Suzhou"
+  },
+  {
+    "key": "unnc",
+    "name": "University of Nottingham Ningbo China",
+    "country": "CN",
+    "city": "Ningbo"
+  },
+  {
+    "key": "taylors",
+    "name": "Taylor’s University",
+    "country": "MY",
+    "city": "Subang Jaya"
+  },
+  {
+    "key": "inti",
+    "name": "INTI International University",
+    "country": "MY",
+    "city": "Nilai"
+  },
+  {
+    "key": "ucsi",
+    "name": "UCSI University",
+    "country": "MY",
+    "city": "Kuala Lumpur"
+  },
+  {
+    "key": "city-malaysia",
+    "name": "City University Malaysia",
+    "country": "MY",
+    "city": "Petaling Jaya / Cyberjaya"
+  },
+  {
+    "key": "xiamen-malaysia",
+    "name": "Xiamen University Malaysia",
+    "country": "MY",
+    "city": "Sepang"
+  },
+  {
+    "key": "monash-malaysia",
+    "name": "Monash University Malaysia",
+    "country": "MY",
+    "city": "Bandar Sunway"
+  },
+  {
+    "key": "scut",
+    "name": "South China University of Technology",
+    "country": "CN",
+    "city": "Guangzhou"
+  },
+  {
+    "key": "zjut",
+    "name": "Zhejiang University of Technology",
+    "country": "CN",
+    "city": "Hangzhou"
+  },
+  {
+    "key": "gdut",
+    "name": "Guangdong University of Technology",
+    "country": "CN",
+    "city": "Guangzhou"
+  },
+  {
+    "key": "upc-east-china",
+    "name": "China University of Petroleum (East China)",
+    "country": "CN",
+    "city": "Qingdao"
+  },
+  {
+    "key": "ecust",
+    "name": "East China University of Science and Technology",
+    "country": "CN",
+    "city": "Shanghai"
+  }
+]

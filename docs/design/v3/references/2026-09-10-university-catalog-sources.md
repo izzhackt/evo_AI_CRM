@@ -2,8 +2,13 @@
 
 ## Publication boundary
 
-The five records in `src/lib/server/university-catalog-reviewed-content.json`
-are **editorial templates**, not live database seed rows. Migration 148 creates
+The initial five records were **editorial templates**, not live database seed
+rows. That initial runtime file was retired in the
+[full-catalogue run](../university-catalog-completion-run-plan.md); the current
+country-specific reviewed JSON files replace it, not a second catalogue.
+The sixteen previously accepted identities remain only as a compact regression
+snapshot in `tests/fixtures/university-catalog-accepted-identities.json`.
+Migration 148 creates
 no university, Admin, student or approved source. An existing authenticated,
 organization-scoped Admin must save a draft, inspect every public field and
 official source, then explicitly publish it. Drafts remain private to Admin.

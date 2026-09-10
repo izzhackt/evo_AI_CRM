@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-10 (Asia/Dubai)
+Date: 2026-09-11 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -11,7 +11,20 @@ those higher-level authorities.
 
 Last recorded accepted application: `32693abb3fac3bcdb345d0851363d57c474016ef`
 
-## Current follow-up: Admin Student Portal preview
+## Current run: complete university catalogue
+
+The owner authorizes the [full university-catalogue completion run](design/v3/university-catalog-completion-run-plan.md):
+inventory all eligible institutional KB/raw files, deduplicate and verify official
+facts, include correctly attributed real campus photos, publish through existing
+Admin authority, deploy and show the same server through the localhost tunnel.
+Research and implementation are ready:143 institutions /251 verified programmes,
+all143 with a reviewed image. Local checks pass; final exact-head approval,
+managed151, accepted release and real Admin publication/readback are pending.
+The previously published16 institutions are not proof that this package is live.
+Preserve raw/privacy
+boundaries, source authority, immutable canonical identity and normal release gates.
+
+## Previous follow-up: Admin Student Portal preview
 
 The owner approved [a bounded Admin-only Student UI preview](design/v3/student-portal-admin-preview-plan.md)
 after the real browser reproduced the existing Admin `/portal` → staff-home redirect.

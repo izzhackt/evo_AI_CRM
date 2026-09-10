@@ -1,0 +1,1753 @@
+{
+  "date": "2026-09-10",
+  "scope": "Non-Malaysia institutional source roster; values are source candidates, not approved publication facts",
+  "institutionalNoteCount": 84,
+  "universities": [
+    {
+      "key": "agh-university-of-krakow",
+      "name": "AGH University of Krakow",
+      "country": "Польша",
+      "city": "Краков",
+      "officialUrlCandidate": "https://www.agh.edu.pl/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Krakow%20AGH%201.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "AGH University of Krakow 39ada243139281a6a15dd92a50312286.md",
+        "sha256": "da26d83216a6f8a016d6ba03c9c08d005c1d2e4f75f238f6c439fef1a04c5b90"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "academy-of-arts-architecture-and-design-in-prague",
+      "name": "Academy of Arts, Architecture and Design in Prague",
+      "country": "Чехия",
+      "city": "Прага",
+      "officialUrlCandidate": "https://www.umprum.cz/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Technologick%C3%A9%20centrum%20UMPRUM.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Academy of Arts, Architecture and Design in Prague 39ada243139281f78302c7d319788b25.md",
+        "sha256": "c621152b8e285c346d95dac4519efb521d2bb4f83d787fc2750a3c32c96e9c8b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "ankara-university",
+      "name": "Ankara University",
+      "country": "Турция",
+      "city": "Анкара",
+      "officialUrlCandidate": "https://en.ankara.edu.tr/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Dil%20ve%20Tarih%20Co%C4%9Frafya%20Fak%C3%BCltesi%20Binas%C4%B1%2C%20Ankara.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Ankara University 39ada2431392812790b3fa7ba572fdcc.md",
+        "sha256": "6e551a3013c7a9440f606f589dd030ba716ca786c494f7acda78138f436de29a"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "bahcesehir-university",
+      "name": "Bahçeşehir University",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://bau.edu.tr/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Bah%C3%A7e%C5%9Fehir%20University.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Bahçeşehir University 39ada24313928121afdfe4a5eeaca890.md",
+        "sha256": "fc8d3ca0c00a3f6fd87c711fd3c5bae87ff20e8108e783837e33c711e4345187"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "beijing-institute-of-technology-zhuhai-bit-zhuhai",
+      "name": "Beijing Institute of Technology, Zhuhai (BIT Zhuhai)",
+      "country": "Китай",
+      "city": "Чжухай",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Beijing%20Institute%20of%20Technology%2C%20Zhuhai%2020250920%2006.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Beijing Institute of Technology, Zhuhai (BIT Zhuha 39eda243139281f59a68cde3fa4b884b.md",
+        "sha256": "0a3acee21679928cd10c4c1bb5a1470bd3e66b7a97fe75b306ada37aa542704d"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "beijing-normal-university",
+      "name": "Beijing Normal University",
+      "country": "Китай",
+      "city": "Пекин",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Beijing Normal University 39ada243139281a28e00d1c692adf298.md",
+        "sha256": "2a8b9dccb96c0f13340f10fdad4c7392f22df1dfa60fc7063ada9d43c6c3e20d"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "bilkent-university",
+      "name": "Bilkent University",
+      "country": "Турция",
+      "city": "Анкара",
+      "officialUrlCandidate": "https://w3.bilkent.edu.tr/bilkent/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Bilkent-University.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Bilkent University 39ada243139281bdafe7d181dc128e21.md",
+        "sha256": "38b57c4bb1db1d0a81257c1d20e1a76536cd25599ec65f351578a8fda6c13114"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "bocconi-university",
+      "name": "Bocconi University",
+      "country": "Италия",
+      "city": "Милан",
+      "officialUrlCandidate": "https://www.unibocconi.it/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/SDA%20Bocconi%20new%20campus.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Bocconi University 39ada2431392815a98fcf1f2df6530ec.md",
+        "sha256": "d61701685f3c0e316b9bb29f4b466b5427271c8e8617305f09aaa9fd0b1738ce"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "bogazici-university",
+      "name": "Boğaziçi University",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://bogazici.edu.tr/en_EN",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Bogazici%20University.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Boğaziçi University 39ada243139281fcad80d45a38d21f5c.md",
+        "sha256": "04708204f744603a16b3b50104536d3134213fdec9fdddf577e42255e5c31f86"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "brno-university-of-technology",
+      "name": "Brno University of Technology",
+      "country": "Чехия",
+      "city": "Брно",
+      "officialUrlCandidate": "https://www.vut.cz/en/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Brno%2C%20rektor%C3%A1t%20VUT.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Brno University of Technology 39ada243139281ff9d4ff000e3e68744.md",
+        "sha256": "5aa39e7bbe450f7586259910d5023d761f0e57419374fc73c992fbd94ccde52c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "ca-foscari-university-of-venice",
+      "name": "Ca'Foscari University of Venice",
+      "country": "Италия",
+      "city": "Падуя",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Ca'Foscari University of Venice 3a7da243139281908cf6ccbc9fe4e278.md",
+        "sha256": "107cf5d58c197ed3ada9a7048127ac01a0be40f29cad4692892ff60c5cbadf01"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "charles-university",
+      "name": "Charles University",
+      "country": "Чехия",
+      "city": "Прага",
+      "officialUrlCandidate": "http://studycharles.cz",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Prague_Charles_University.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Charles University 39ada24313928167bc19f82d36d82374.md",
+        "sha256": "45375a94d571edf74692d4d80b97c5bd8929c3b6d81bea9d3d8ea7b2aaf44df9"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "china-university-of-petroleum-east-china-upc",
+      "name": "China University of Petroleum, East China (UPC)",
+      "country": "Китай",
+      "city": "Циндао",
+      "officialUrlCandidate": "https://english.upc.edu.cn/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/%E5%88%9B%E9%80%A0%E5%A4%AA%E9%98%B3%20%E9%BB%84%E5%B2%9B.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "China University of Petroleum, East China (UPC) 39eda2431392816e8cc2f3ec1eee3c30.md",
+        "sha256": "561505aade8b62f08622ff443d0da641f61bef01f0e73fd77940a850b8bc19d3"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "cyprus-university-of-technology",
+      "name": "Cyprus University of Technology",
+      "country": "Кипр",
+      "city": "Лимассол",
+      "officialUrlCandidate": "https://www.cut.ac.cy/?languageId=1",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Cyprus University of Technology 39ada2431392814b8e5dd5fa8a571b03.md",
+        "sha256": "a9088bd3cfb5a787b77227e8b9a06da49198093059c1a3b7c91101874714ee09"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "czech-technical-university-ctu",
+      "name": "Czech Technical University (CTU)",
+      "country": "Чехия",
+      "city": "Прага",
+      "officialUrlCandidate": "http://international.cvut.cz",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/CzechTech_Univ_Hq,_Prague_Dejvice.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Czech Technical University (CTU) 39ada2431392819eabd2f3c3d7ef4bbc.md",
+        "sha256": "2ac2f19d8ddde857b38ec8f39f6219fc67219b9abbddf96d697338b6b9300ee9"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "czech-university-of-life-sciences-prague-czu",
+      "name": "Czech University of Life Sciences Prague (CZU)",
+      "country": "Чехия",
+      "city": "Прага",
+      "officialUrlCandidate": "http://czu.cz/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Praha_Suchdol_CZU_kampus.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Czech University of Life Sciences Prague (CZU) 39dda2431392815bbc13db0224f01f62.md",
+        "sha256": "3367d67f501a43c8204561e47986906a1f8bb46600279005918e1722340f7b5a"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "east-china-university-of-science-and-technology-ecust",
+      "name": "East China University of Science and Technology (ECUST)",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Scenery_on_Xuhui_Campus,_ECUST.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "East China University of Science and Technology (E 39eda2431392812e9c70c20292ccc0b0.md",
+        "sha256": "57618835cda15a1600c3c22d544c2d695b9473044b2b6afae0243dabe1bba6eb"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "eastern-mediterranean-university",
+      "name": "Eastern Mediterranean University",
+      "country": "Кипр",
+      "city": "Фамагуста",
+      "officialUrlCandidate": "https://www.emu.edu.tr/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Eastern%20Mediterranean%20University%2C%20Famagusta.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Eastern Mediterranean University 39ada2431392814b8956d00e443aea12.md",
+        "sha256": "fbef06bf298221efcb14c7f541165833d9be93d25f3ff86c67c7b38b6c810d3c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "european-university-cyprus",
+      "name": "European University Cyprus",
+      "country": "Кипр",
+      "city": "Никосия",
+      "officialUrlCandidate": "https://euc.ac.cy/en/",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "European University Cyprus 39ada24313928150a130cca2dc9f3eec.md",
+        "sha256": "7ce1bec0f2a80c3b0654744b154977c8d86cd8f2bfed621796371558d235a105"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "frederick-university",
+      "name": "Frederick University",
+      "country": "Кипр",
+      "city": "Никосия",
+      "officialUrlCandidate": "https://www.frederick.ac.cy/",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Frederick University 39ada24313928165bbd6fd95be223dfc.md",
+        "sha256": "63f21dafe9bce5c25e89a1283404ae7de6a3aad53377314a89ecdf2338c85f86"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "fudan-university",
+      "name": "Fudan University",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Fudan University 39ada243139281cf950efba5f4663fc6.md",
+        "sha256": "57ec7185d09818401a740f094781a6fb40c58b5d31363c7de7eec070ab1ca302"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "gbs-global-banking-school-dubai-campus",
+      "name": "GBS (Global Banking School) — Dubai Campus",
+      "country": "ОАЭ",
+      "city": "Дубай",
+      "officialUrlCandidate": "https://globalbanking.ac.uk/",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "GBS (Global Banking School) — Dubai Campus 39ada243139281fb9bece9664c9c7c71.md",
+        "sha256": "9520811c6399b32b10d91f01ab81651cbe79659d89f6e766df4c18a9c70fabf7"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "guangdong-university-of-technology-gdut",
+      "name": "Guangdong University of Technology (GDUT)",
+      "country": "Китай",
+      "city": "Гуанчжоу",
+      "officialUrlCandidate": "https://english.gdut.edu.cn/",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Guangdong University of Technology (GDUT) 39eda243139281e39e07f6b0ee41ac5b.md",
+        "sha256": "80ec3505685da69a18f6fbdf81a9b1da51a21322bed6d81c42cb0cc99d387c67"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "hangzhou-normal-university-hznu",
+      "name": "Hangzhou Normal University (HZNU)",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": "https://english.hznu.edu.cn/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/%E6%9D%AD%E5%B7%9E%E5%B8%88%E8%8C%83%E5%A4%A7%E5%AD%A6.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Hangzhou Normal University (HZNU) 39eda2431392816d9318cccaba13b2f5.md",
+        "sha256": "ef26327a1c44a7dfb44d1ce74a6f2030ca84dfe5ce1936051460f0bf17215af1"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "harbin-institute-of-technology-hit",
+      "name": "Harbin Institute of Technology (HIT)",
+      "country": "Китай",
+      "city": "Харбин",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Harbin_Institute_of_Technology_-_Main_Bldg.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Harbin Institute of Technology (HIT) 39eda2431392818fba3efb4e09c0f568.md",
+        "sha256": "b3092ddeedd8feb87c47f655f937446cf2698d187ff4d34fc5ab2faf9edb927d"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "huazhong-university-of-science-and-technology-hust",
+      "name": "Huazhong University of Science and Technology (HUST)",
+      "country": "Китай",
+      "city": "Ухань",
+      "officialUrlCandidate": "https://english.hust.edu.cn/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/HUST-Main-building-4111.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Huazhong University of Science and Technology (HUS 39eda243139281dbadd0c43e776a803a.md",
+        "sha256": "96eb68535601a801bb72fcb94ee4083d2bcc69d113253a304782b2795346294e"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "iulm-university",
+      "name": "IULM University",
+      "country": "Италия",
+      "city": "Милан",
+      "officialUrlCandidate": "https://www.iulm.it/en/home",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "IULM University 3a7da2431392817191a6e140b476f21a.md",
+        "sha256": "f5d25b4ce86d439b8cd800f636cdbccfe7df9790d1c0c45bc4652ea22b0759ee"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "istanbul-university",
+      "name": "Istanbul University",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://www.istanbul.edu.tr/en/_",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Istanbul%20University%2020220421%20%281%29.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Istanbul University 39ada2431392819e85ded50e67cbcd16.md",
+        "sha256": "00adc5ca48ff6ef2790c07d864a6d3d2f149263276537c1daa6c9cbaedc59509"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "jagiellonian-university",
+      "name": "Jagiellonian University",
+      "country": "Польша",
+      "city": "Краков",
+      "officialUrlCandidate": "https://en.uj.edu.pl/en_GB/start",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Collegium%20Maius%202017.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Jagiellonian University 39ada2431392815583a8cecac57dbd54.md",
+        "sha256": "019f2c27f02b6da3620a28ac2638309078fb9134a3ce5698759531f6b273efb9"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "kozminski-university",
+      "name": "Kozminski University",
+      "country": "Польша",
+      "city": "Варшава",
+      "officialUrlCandidate": "https://www.kozminski.edu.pl/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Akademia%20Leona%20Ko%C5%BAmi%C5%84skiego%202014%2001.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Kozminski University 39ada24313928186875be915267c9c21.md",
+        "sha256": "0b28b6f80af2a156fc83b3e1a1f7cb48048c87055b5b7747804dbdbca6a7e34b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "koc-university",
+      "name": "Koç University",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://www.ku.edu.tr/en/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Ko%C3%A7University2.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Koç University 39ada243139281fe9f85f2af17e868a8.md",
+        "sha256": "817b81b92835578e7d10a0cf8e6f46df186440c91f32c93fb4940a55c07f9da3"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "krakow-university-of-economics-uniwersytet-ekonomiczny-w-krakowie",
+      "name": "Krakow University of Economics (Uniwersytet Ekonomiczny w Krakowie)",
+      "country": "Польша",
+      "city": "Краков",
+      "officialUrlCandidate": "http://uek.krakow.pl",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Akademia_Ekonomiczna_w_Krakowie_Main_building_00.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Krakow University of Economics (Uniwersytet Ekonom 39dda243139281b88cfcfe27faf86ba8.md",
+        "sha256": "6940468602a6b8633edd2fd2ab605c032a0960726438a0dca8a517e48088a54b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "masaryk-university",
+      "name": "Masaryk University",
+      "country": "Чехия",
+      "city": "Брно",
+      "officialUrlCandidate": "https://www.muni.cz/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Kounics%20palace%20in%20Brno%202010%20%282%29.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Masaryk University 39ada243139281068979dabab816421d.md",
+        "sha256": "97cc62ce072c46b6fb08404481c79d13aecea59359bd457070afd6d1a142f739"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "medical-university-of-gdansk",
+      "name": "Medical University of Gdańsk",
+      "country": "Польша",
+      "city": "Гданьск",
+      "officialUrlCandidate": "https://en.gumed.edu.pl/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Gdansk%20GUMed%202.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Medical University of Gdańsk 39ada243139281079e33d86ab18f9b20.md",
+        "sha256": "eeed7235246368880f2a46843eab103ae03bfa2bdcde023840654d9e8e97c5db"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "medical-university-of-warsaw",
+      "name": "Medical University of Warsaw",
+      "country": "Польша",
+      "city": "Варшава",
+      "officialUrlCandidate": "https://en.wum.edu.pl/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Warszawski%20Uniwersytet%20Medyczny%202025.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Medical University of Warsaw 39ada2431392814db68bccf7b8829518.md",
+        "sha256": "f104abcefe00e1ce1b5fca85c84cea87bde2cb4b8bb6b7383a250e0276523fad"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "middle-east-technical-university-metu-odtu",
+      "name": "Middle East Technical University (METU/ODTÜ)",
+      "country": "Турция",
+      "city": "Анкара",
+      "officialUrlCandidate": "https://www.metu.edu.tr/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/MiddleEastTechnicalUniversityCampus800x470.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Middle East Technical University (METU ODTÜ) 39ada243139281a7b94cf4c6c777b896.md",
+        "sha256": "aa4597dccc63f999e2acd69211d041c5b376c8554f0a6d992e5acc20afc1e676"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "nanjing-university",
+      "name": "Nanjing University",
+      "country": "Китай",
+      "city": "Нанкин",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Nanjing University 39ada243139281aab689cb094b4d0a85.md",
+        "sha256": "2b2784e80fc55a1be2fffd44a2fb0583a8a5f1b18c30d9c6acfb7f744a2ec64c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "near-east-university",
+      "name": "Near East University",
+      "country": "Кипр",
+      "city": "Никосия",
+      "officialUrlCandidate": "https://neu.edu.tr/?lang=en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Yak%C4%B1n%20Do%C4%9Fu%20%C3%9Cniversitesi%20Hukuk%20Fak%C3%BCltesi.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Near East University 39ada243139281baa440c93c3ba32ed8.md",
+        "sha256": "74a568cf4e6cd554d3ba28b526dace1a6530082b6e0614789f1b85f2a123e24f"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "ocean-university-of-china-ouc",
+      "name": "Ocean University of China (OUC)",
+      "country": "Китай",
+      "city": "Циндао",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/%E4%B8%AD%E5%9B%BD%E6%B5%B7%E6%B4%8B%E5%A4%A7%E5%AD%A6%E6%B5%B7%E6%B4%8B%E7%A7%91%E6%8A%80%E4%B8%AD%E5%BF%83%E6%A5%BC%E5%8F%8A%E6%95%99%E5%AD%A6%E6%A5%BC.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Ocean University of China (OUC) 39eda243139281afad10ffdf36f24837.md",
+        "sha256": "864cb73aa6732238ad0dda9b0fd82d16ca3d427198848099ac25e514a050e595"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "peking-university",
+      "name": "Peking University",
+      "country": "Китай",
+      "city": "Пекин",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Peking University 39ada243139281ffa316e159481101e5.md",
+        "sha256": "6164d64a3c0b4993bbd0193929ef164f47d8d3cfdbcabe5d868e074f47119017"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "politecnico-di-milano",
+      "name": "Politecnico di Milano",
+      "country": "Италия",
+      "city": "Милан",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/PoliMi_main_building.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Politecnico di Milano 39ada24313928174865bceb95abcb926.md",
+        "sha256": "a369439c80714e37e6a9bf8e4b8909db70f89a09fefb4014fc5119940997df05"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "politecnico-di-torino",
+      "name": "Politecnico di Torino",
+      "country": "Италия",
+      "city": "Турин",
+      "officialUrlCandidate": "https://www.polito.it/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Politecnico%20Torino.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Politecnico di Torino 39ada24313928114b98ac49fe493ac21.md",
+        "sha256": "2c7bd72d05a4430765dd502d63b2968002e81d7dc7259908d32937267fa87860"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "poznan-university-of-technology",
+      "name": "Poznań University of Technology",
+      "country": "Польша",
+      "city": "Познань",
+      "officialUrlCandidate": "https://www.put.poznan.pl/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Rektorat%20Politechniki%20Pozna%C5%84skiej%2003.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Poznań University of Technology 39ada243139281d3b94be63930ea4176.md",
+        "sha256": "648ce2dbb330ab74bdcd53a13b300ef5a2fa0fc98da2df2411a8e08a47704695"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "prague-college",
+      "name": "Prague College",
+      "country": "Чехия",
+      "city": "Прага",
+      "officialUrlCandidate": "https://www.praguecityuniversity.cz/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Praha%20Nove%20Mesto%20Biskupsky%20dvur%206%20Prague%20City%20University.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Prague College 39ada24313928163baebcffebd53cfe8.md",
+        "sha256": "d6638b40c6a78befafcf2286548313ce8aef6505589b2f9f1d296499d5b29820"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "sabanc-university",
+      "name": "Sabancı University",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://www.sabanciuniv.edu/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/SabanciUniversity_DormView.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Sabancı University 39ada24313928144bddede1ff2f316cd.md",
+        "sha256": "a3403d2922d62e313d0339badc25647c390aa6594a2691707999dbc262e08fec"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "sapienza-university-of-rome",
+      "name": "Sapienza University of Rome",
+      "country": "Италия",
+      "city": "Рим",
+      "officialUrlCandidate": "http://sapienza.gomovein.com/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Courtyard_of_Sant%27Ivo_alla_Sapienza_Church%2C_Piazza_Navona%2C_Rome%2C_Italy.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Sapienza University of Rome 39ada243139281c3962fc3d0abab556e.md",
+        "sha256": "0ebbb9b1c5a5f4bfc590d9ba64ff1a4de67f2a609c6150e2aa012ffa6e9c5c1f"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "shanghai-jiao-tong-university",
+      "name": "Shanghai Jiao Tong University",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Shanghai Jiao Tong University 39ada24313928169a161cebc58723550.md",
+        "sha256": "dfd30b655890117abd80913a7bc4e5025c428369d9df317dda7b80cd53cb5987"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "south-china-university-of-technology-scut",
+      "name": "South China University of Technology (SCUT)",
+      "country": "Китай",
+      "city": "Гуанчжоу",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/South_China_University_of_Technology_South_Campus.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "South China University of Technology (SCUT) 39eda243139281ed9fc7fdf4ea6e634d.md",
+        "sha256": "1ca191feef2c19478d02b420e0faddc062179e4b6248aec5d25dceda02b21730"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "technical-university-of-liberec",
+      "name": "Technical University of Liberec",
+      "country": "Чехия",
+      "city": "Либерец",
+      "officialUrlCandidate": "https://www.tul.cz/en/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Liberec-TUL-Rektorat-1.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Technical University of Liberec 39ada243139281f4aef6c8bb8122b2c7.md",
+        "sha256": "02bc8a57475c6807250e4e5f23b6aec6ec21afb003c7044b604715c684d07fc2"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "tsinghua-university",
+      "name": "Tsinghua University",
+      "country": "Китай",
+      "city": "Пекин",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Tsinghua University 39ada2431392812ea2dce8efa21d383c.md",
+        "sha256": "2095cb485bfa3b509cddbd6250e966d7380e5ada980d27938f1b2c3ebcc6c59f"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "uclan-cyprus",
+      "name": "UCLan Cyprus",
+      "country": "Кипр",
+      "city": "Ларнака",
+      "officialUrlCandidate": "https://www.uclancyprus.ac.cy/",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "UCLan Cyprus 39ada2431392811b905cc27de5054a89.md",
+        "sha256": "ff1d8ed2872a5cce2337db56f1cd3f9a7aeba496c107df7d2cac280c67e5599f"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-bologna",
+      "name": "University of Bologna",
+      "country": "Италия",
+      "city": "Болонья",
+      "officialUrlCandidate": "https://www.unibo.it/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Archiginnasio_ora_blu_Bologna.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Bologna 39ada2431392810296b9db6f568b8539.md",
+        "sha256": "766f8bb2aa52bc5ef5dd0e12eecc2663d7d29ad1950bb12a2accd8c311a2a193"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-camerino",
+      "name": "University of Camerino",
+      "country": "Италия",
+      "city": "Рим",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Camerino 3a7da24313928174a9bcc95cabea9ba5.md",
+        "sha256": "2919975c4ad6410b157f73daaf4d3951eb4293cd1b667d3a0a4569210505313d"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-cassino-and-southern-lazio",
+      "name": "University of Cassino and Southern Lazio",
+      "country": "Италия",
+      "city": "Кассино",
+      "officialUrlCandidate": "http://unicas.it/international-unicas",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Cassino and Southern Lazio 39dda24313928102bdece2312a488be3.md",
+        "sha256": "0ad361d682f6ba70b0fe2c7a37acd7356f8f3e3641eecee8e44aa770e9143075"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-chemistry-and-technology-prague-vscht",
+      "name": "University of Chemistry and Technology Prague (VŠCHT)",
+      "country": "Чехия",
+      "city": "Прага",
+      "officialUrlCandidate": "http://vscht.cz/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Fakulta_chemicko-in%C5%BEen%C3%BDrsk%C3%A1_Vysok%C3%A9_%C5%A1koly_chemicko-technologick%C3%A9_v_Praze.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Chemistry and Technology Prague (VŠC 39dda243139281c3a290f3975af38a3d.md",
+        "sha256": "c2aaa85e3cc0974b33141ed267cf8ee39a5db35fb72023b76bf1cdd96c94c6e1"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-cyprus",
+      "name": "University of Cyprus",
+      "country": "Кипр",
+      "city": "Никосия",
+      "officialUrlCandidate": "https://www.ucy.ac.cy/en/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Cyprus%20in%20Nicosia%20capital%20of%20the%20Republic%20of%20Cyprus%204.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Cyprus 39ada243139281a0b7f9c50d967de27f.md",
+        "sha256": "61d950c8e4bddfafce68adf31a272e520d857ea5d45b987a44318bc483d543cd"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-economics-prague-vse",
+      "name": "University of Economics, Prague (VŠE)",
+      "country": "Чехия",
+      "city": "Прага",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Rajsk%C3%A1_Building_-_University_of_Economics,_Prague.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Economics, Prague (VŠE) 39ada243139281b4a1e9f25f5c1a0e83.md",
+        "sha256": "edda5b58e2f6a728326f57707958d4d1e2a0361c99ad8691cecaa4c6d7e0759f"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-electronic-science-and-technology-of-china-uestc",
+      "name": "University of Electronic Science and Technology of China (UESTC)",
+      "country": "Китай",
+      "city": "Чэнду",
+      "officialUrlCandidate": "https://en.uestc.edu.cn/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Uestc_library.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Electronic Science and Technology of 39eda243139281719291f385f8d5b920.md",
+        "sha256": "12538afee5015fa0f3553e9be3b3a928945d5659bd5868f6fa9556459174158c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-florence",
+      "name": "University of Florence",
+      "country": "Италия",
+      "city": "Болонья",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Florence 3a7da2431392814fb356ffab2a356b8a.md",
+        "sha256": "180f6794232589ea8210a85cb47833a26cf60aa6881e94b8a1f6bba021f05436"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-genoa",
+      "name": "University of Genoa",
+      "country": "Италия",
+      "city": "Рим",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Genoa 3a7da243139281d284d8cd3dfe919f28.md",
+        "sha256": "c0ec18180a29701439ab7fca3fc5ab767e29684b9d11e92af5598ea9fe65b0a9"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-macerata",
+      "name": "University of Macerata",
+      "country": "Италия",
+      "city": "Рим",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Macerata 3a7da24313928143903cc8c26a484c7a.md",
+        "sha256": "0047143fbf536fa457d1f3c201770a68fbfa5b822aa08a353091c37d150da018"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-messina",
+      "name": "University of Messina",
+      "country": "Италия",
+      "city": "Мессина",
+      "officialUrlCandidate": "http://international.unime.it",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Rettorato_di_Messina.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Messina 39dda243139281f6b1e2c59a22c2c86a.md",
+        "sha256": "7360817e2cad566d329b8c5c79d3062ba28cc157e7db60fe73de3d4895076239"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-milan-universita-degli-studi-di-milano-statale",
+      "name": "University of Milan (Università degli Studi di Milano - Statale)",
+      "country": "Италия",
+      "city": "Милан",
+      "officialUrlCandidate": "https://www.unimi.it",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Milan (Università degli Studi di Mil 3a7da2431392813fb958da3861fb3028.md",
+        "sha256": "9ce9579dbc34b78a52e2cd62497893739351a724c01af0e6e4554f908504f37b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-milan-bicocca",
+      "name": "University of Milan-Bicocca",
+      "country": "Италия",
+      "city": "Милан",
+      "officialUrlCandidate": "https://www.unimib.it",
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Milan-Bicocca 3a7da24313928187adfdfea6c1406e10.md",
+        "sha256": "aebc5d4ed86dca9e02690bcd0df70f17ed872a0979ce1dc996a8653e468f710a"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-naples-federico-ii",
+      "name": "University of Naples Federico II",
+      "country": "Италия",
+      "city": "Болонья",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Naples Federico II 3a7da2431392812eb5ade7d4745e10e0.md",
+        "sha256": "bdb324a7db04c0a12ccfebe291a766a97f3d76573213ac944d6ecf95e1332bfc"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-nicosia",
+      "name": "University of Nicosia",
+      "country": "Кипр",
+      "city": "Никосия",
+      "officialUrlCandidate": "https://www.unic.ac.cy/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/University%20of%20Nicosia%20Amfitheatre.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Nicosia 39ada243139281458546e1f8e8423552.md",
+        "sha256": "068a77c455757be0b1dbb7e026a5ec185dcdb6360f3eae6d19fbd46eab5be963"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-padova",
+      "name": "University of Padova",
+      "country": "Италия",
+      "city": "Падуя",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Palazzo_Bo_%28Padua%29.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Padova 39ada243139281bd86fec03280f29568.md",
+        "sha256": "94da56183f9d20037f6e92a919c0cfbb4c8d8741e577d1f03c972ff9fd3e7380"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-palermo",
+      "name": "University of Palermo",
+      "country": "Италия",
+      "city": "Болонья",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Palermo 3a7da24313928122ba83d205a3391c03.md",
+        "sha256": "aff5b89ba8958ae792660fbb2642167af43c3b860390dfff8a86ad945ea21457"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-pavia-universita-degli-studi-di-pavia",
+      "name": "University of Pavia (Università degli Studi di Pavia)",
+      "country": "Италия",
+      "city": "Павия",
+      "officialUrlCandidate": "http://en.unipv.it",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Palazzo_centrale_Universit%C3%A0_di_Pavia.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Pavia (Università degli Studi di Pav 39dda24313928107919dcea1190cab51.md",
+        "sha256": "a340b25fd0a535839ee8cb13c9c957fdd1312f11cfa0709f24fb6a814e270ff2"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-rome-tor-vergata",
+      "name": "University of Rome Tor Vergata",
+      "country": "Италия",
+      "city": "Рим",
+      "officialUrlCandidate": "http://web.uniroma2.it",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Rettorato_Universit%C3%A0_di_Roma_Tor_Vergata.png",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Rome Tor Vergata 39dda24313928170aadff5fa1dcda8cd.md",
+        "sha256": "d850c01be43ae797d1bb7e113c4218238aa5506e7fd1dcbf236c3b7cd2d92f3d"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-science-and-technology-of-china-ustc",
+      "name": "University of Science and Technology of China (USTC)",
+      "country": "Китай",
+      "city": "Хэфэй",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Science and Technology of China (UST 39ada243139281ac9ea0e9c479915c92.md",
+        "sha256": "94d98e87f309302f11865b36f51083b3f63edab567c775eef0b1fde34ee77216"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-turin",
+      "name": "University of Turin",
+      "country": "Италия",
+      "city": "Турин",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Turin 3a7da243139281739f03f69092205915.md",
+        "sha256": "513a90239c6aa1b219edf0bd841bdacedeef57b41c2182aca66bd3f2e47468ae"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-vienna-universitat-wien",
+      "name": "University of Vienna (Universität Wien)",
+      "country": "Австрия",
+      "city": "Вена",
+      "officialUrlCandidate": "http://studieren.univie.ac.at",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Universit%C3%A4t_Wien_Hauptgeb%C3%A4ude_Seitenfassade.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Vienna (Universität Wien) 39dda24313928167963dda54b1152943.md",
+        "sha256": "ba47f7ea5a6011006cd43c0c08a289944e82cf735fb0ec2806a5a16d853eff99"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-warsaw",
+      "name": "University of Warsaw",
+      "country": "Польша",
+      "city": "Варшава",
+      "officialUrlCandidate": "https://en.uw.edu.pl/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Warszawa%2C%20ul.%20Krakowskie%20Przedmie%C5%9Bcie%2026%2C%2028%2020170517%20001.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Warsaw 39ada243139281419ca5d4cb39d4d5b3.md",
+        "sha256": "973692ecd65948e48ebdb778b1463c008ec2e51b7a43d7a639e6b588429aa812"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-wroc-aw",
+      "name": "University of Wrocław",
+      "country": "Польша",
+      "city": "Вроцлав",
+      "officialUrlCandidate": "https://uwr.edu.pl/en/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Wroclaw-%20Uniwersytet%20i%20Kosciol%20Uniwersytecki.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "University of Wrocław 39ada243139281deb57ec913cc31cd46.md",
+        "sha256": "f6a0df39f23d56a634708491bf5a06ed5dff04274a615b12d022e49cff3f0f36"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "vistula-university-uczelnia-vistula",
+      "name": "Vistula University (Uczelnia Vistula)",
+      "country": "Польша",
+      "city": "Варшава",
+      "officialUrlCandidate": "http://vistula.edu.pl/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Uczelnia_vistula.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Vistula University (Uczelnia Vistula) 39dda24313928146b1c9e7fa2e5949ae.md",
+        "sha256": "93df798b37697daae70336ed5ea170e5bae8ca828da0bdf9797380208f91ea5a"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "warsaw-university-of-technology",
+      "name": "Warsaw University of Technology",
+      "country": "Польша",
+      "city": "Варшава",
+      "officialUrlCandidate": "https://www.pw.edu.pl/engpw",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Gmach%20G%C5%82%C3%B3wny%20Politechniki%20Warszawskiej%202018.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Warsaw University of Technology 39ada243139281979755f6199284903f.md",
+        "sha256": "a35c8ce36d25f6b32e291c6410a704a473a40733c49160236964d834dfc5c468"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "wuhan-university",
+      "name": "Wuhan University",
+      "country": "Китай",
+      "city": "Ухань",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Wuhan University 39ada243139281e884f6c7b145f4f4a7.md",
+        "sha256": "309c9388e27bc04d1f061f9992ff25b8cee934c44f316cae116512a2cd26274a"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "xi-an-jiaotong-liverpool-university-xjtlu",
+      "name": "Xi'an Jiaotong-Liverpool University (XJTLU)",
+      "country": "Китай",
+      "city": "Сучжоу",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/XJTLU_campus_2013.JPG",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Xi'an Jiaotong-Liverpool University (XJTLU) 39eda243139281aabecbd403ddd2302d.md",
+        "sha256": "ff83217a5de02fd5f69073771c58d022c2126de422203f9d05843169f4351592"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "yeditepe-university",
+      "name": "Yeditepe University",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://yeditepe.edu.tr/en",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Yeditepe%20University%2026%20August%20Campus%20%282%29%2020220315.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Yeditepe University 39ada24313928158a436d2b91a2cfc0a.md",
+        "sha256": "d6c0999205ecfd14e2e1e14c4a8d8aaf98df6aedcde0e3261fc6541b6a5ce464"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "zhejiang-university",
+      "name": "Zhejiang University",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": null,
+      "photoCandidate": null,
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Zhejiang University 39ada24313928110be52da2ebc01814f.md",
+        "sha256": "1a93c5784b1e215b06077fa0f896ea2c6adf6c0ea7d5695fd0b5a6d08744045a"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "zhejiang-university-of-technology-zjut",
+      "name": "Zhejiang University of Technology (ZJUT)",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": null,
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/20250423_Zhejiang_Gongye_Daxue.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "Zhejiang University of Technology (ZJUT) 39eda243139281ada6a2c6092477cf2a.md",
+        "sha256": "726126a3d8d045ea53274778aba20750abe40200fcda2ad48b01053dab91ca91"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "istanbul-ayd-n-university",
+      "name": "İstanbul Aydın University",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://global.aydin.edu.tr/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/%C4%B0stanbul%20Ayd%C4%B1n%20%C3%9Cniversitesi%20Florya%20Kamp%C3%BCs%C3%BC%20Bah%C3%A7esi.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "İstanbul Aydın University 39ada243139281b28938f565d023df5b.md",
+        "sha256": "ba47483b406d48289627dd43563f7d52fc2f629ff636416f95d8644cc010d23a"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "istanbul-teknik-universitesi-itu",
+      "name": "İstanbul Teknik Üniversitesi (İTÜ)",
+      "country": "Турция",
+      "city": "Стамбул",
+      "officialUrlCandidate": "https://global.itu.edu.tr/",
+      "photoCandidate": "https://commons.wikimedia.org/wiki/Special:FilePath/Istanbul%20asv2020-02%20img69%20Ma%C3%A7ka%20Armory.jpg",
+      "source": {
+        "root": "institutional-notion-notes",
+        "file": "İstanbul Teknik Üniversitesi (İTÜ) 39ada2431392811b8145f1a6bd75b824.md",
+        "sha256": "f695beafb33806c6d0055cfc24c5485d3671cf724a83c4b56b441367952fb5a5"
+      },
+      "status": "inventory-only-official-verification-required"
+    }
+  ],
+  "rawAdditions": [
+    {
+      "key": "beijing-language-and-culture-university",
+      "name": "Beijing Language and Culture University",
+      "country": "Китай",
+      "city": "Пекин",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "EVOСhina.pdf",
+        "sha256": "e69025dc854b9610d3215a569fe9ec8186556edc4c6717d8e1c9abe9ccb0c5b5"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "guangdong-university-of-foreign-studies",
+      "name": "Guangdong University of Foreign Studies",
+      "country": "Китай",
+      "city": "Гуанчжоу",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "Language courses in Guangzhou.pdf",
+        "sha256": "b7dad760c7524bdf2c37c1da9225975d48146cfd7b751f7b6c86e1b9f01d6b34"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "guangzhou-huashang-vocational-college",
+      "name": "Guangzhou Huashang Vocational College",
+      "country": "Китай",
+      "city": "Гуанчжоу",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "Language courses in Guangzhou.pdf",
+        "sha256": "b7dad760c7524bdf2c37c1da9225975d48146cfd7b751f7b6c86e1b9f01d6b34"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "east-china-normal-university",
+      "name": "East China Normal University",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковойШанхай.pdf",
+        "sha256": "bfdbd26664a3d5274fc1745560a3dca704485340c76589caa5996eaab981d5a0"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "shanghai-university",
+      "name": "Shanghai University",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковойШанхай.pdf",
+        "sha256": "bfdbd26664a3d5274fc1745560a3dca704485340c76589caa5996eaab981d5a0"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "shanghai-normal-university",
+      "name": "Shanghai Normal University",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковойШанхай.pdf",
+        "sha256": "bfdbd26664a3d5274fc1745560a3dca704485340c76589caa5996eaab981d5a0"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "shanghai-international-studies-university",
+      "name": "Shanghai International Studies University",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковойШанхай.pdf",
+        "sha256": "bfdbd26664a3d5274fc1745560a3dca704485340c76589caa5996eaab981d5a0"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-shanghai-for-science-and-technology",
+      "name": "University of Shanghai for Science and Technology",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковойШанхай.pdf",
+        "sha256": "bfdbd26664a3d5274fc1745560a3dca704485340c76589caa5996eaab981d5a0"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "tongji-university",
+      "name": "Tongji University",
+      "country": "Китай",
+      "city": "Шанхай",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковойШанхай.pdf",
+        "sha256": "bfdbd26664a3d5274fc1745560a3dca704485340c76589caa5996eaab981d5a0"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "communication-university-of-zhejiang",
+      "name": "Communication University of Zhejiang",
+      "country": "Китай",
+      "city": "Ханчжоу и Тунсян",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "zhejiang-international-studies-university",
+      "name": "Zhejiang International Studies University",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "zhejiang-gongshang-university",
+      "name": "Zhejiang Gongshang University",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "hubei-university-of-arts-and-science",
+      "name": "Hubei University of Arts and Science",
+      "country": "Китай",
+      "city": "Сянъян",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "yibin-university",
+      "name": "Yibin University",
+      "country": "Китай",
+      "city": "Ибинь",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "southwest-university",
+      "name": "Southwest University",
+      "country": "Китай",
+      "city": "Чунцин",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "china-jiliang-university",
+      "name": "China Jiliang University",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "hangzhou-city-university",
+      "name": "Hangzhou City University",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "chang-an-university",
+      "name": "Chang'an University",
+      "country": "Китай",
+      "city": "Сиань",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "xi-an-international-studies-university",
+      "name": "Xi'an International Studies University",
+      "country": "Китай",
+      "city": "Сиань",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "xidian-university",
+      "name": "Xidian University",
+      "country": "Китай",
+      "city": "Сиань",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "nanchang-university",
+      "name": "Nanchang University",
+      "country": "Китай",
+      "city": "Наньчан",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "zhejiang-sci-tech-university",
+      "name": "Zhejiang Sci-Tech University",
+      "country": "Китай",
+      "city": "Ханчжоу",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ЯзыковыПрограммы9класс.xlsx",
+        "sha256": "c8a672151aa0c0ba8391bf3501bf6487ad53c9106e5f76e643722ad248a6ac8c"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "harbin-institute-of-technology-shenzhen",
+      "name": "Harbin Institute of Technology, Shenzhen",
+      "country": "Китай",
+      "city": "Шэньчжэнь",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "Харбинский_Политехнический_Университет_1.pdf",
+        "sha256": "a3694f036a804b56bd8849eb2c9a3d110dc5139777004333040c9aa351aabf00"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-pisa",
+      "name": "University of Pisa",
+      "country": "Италия",
+      "city": "Пиза",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-trento",
+      "name": "University of Trento",
+      "country": "Италия",
+      "city": "Тренто",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-parma",
+      "name": "University of Parma",
+      "country": "Италия",
+      "city": "Парма",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-siena",
+      "name": "University of Siena",
+      "country": "Италия",
+      "city": "Сиена",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-bergamo",
+      "name": "University of Bergamo",
+      "country": "Италия",
+      "city": "Бергамо",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "universita-cattolica-del-sacro-cuore",
+      "name": "Università Cattolica del Sacro Cuore",
+      "country": "Италия",
+      "city": "Милан и другие кампусы",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-calabria",
+      "name": "University of Calabria",
+      "country": "Италия",
+      "city": "Ренде",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-perugia",
+      "name": "University of Perugia",
+      "country": "Италия",
+      "city": "Перуджа",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-verona",
+      "name": "University of Verona",
+      "country": "Италия",
+      "city": "Верона",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-catania",
+      "name": "University of Catania",
+      "country": "Италия",
+      "city": "Катания",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-insubria",
+      "name": "University of Insubria",
+      "country": "Италия",
+      "city": "Варезе и Комо",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "university-of-brescia",
+      "name": "University of Brescia",
+      "country": "Италия",
+      "city": "Брешиа",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "ITALIAN UNIVERSITIES (2).docx",
+        "sha256": "8b7beb613e26bcf524785b7949a920d41987f256e4160d2fe1afae78bf32991b"
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "tongmyong-university",
+      "name": "Tongmyong University",
+      "country": "Южная Корея",
+      "city": "Пусан",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "approved-internal-institutional-notes",
+        "file": "Tongmyong University для направления Южная Корея — f8178d766351.md",
+        "sha256": null
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "scuola-politecnica-di-design",
+      "name": "Scuola Politecnica di Design",
+      "country": "Италия",
+      "city": "Милан",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "approved-internal-institutional-notes",
+        "file": "Брошюры SPD по BA-программам в fashion — 072e735b5467.md",
+        "sha256": null
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "schiller-international-university",
+      "name": "Schiller International University",
+      "country": "США / Германия / Испания / Франция",
+      "city": "Тампа / Гейдельберг / Мадрид / Париж",
+      "officialUrlCandidate": null,
+      "source": {
+        "root": "raw-business-materials",
+        "file": "Catalog - Schiller International University.pdf",
+        "sha256": null
+      },
+      "status": "inventory-only-official-verification-required"
+    },
+    {
+      "key": "southwestern-university-of-finance-and-economics",
+      "name": "Southwestern University of Finance and Economics",
+      "country": "Китай",
+      "city": "Чэнду",
+      "officialUrlCandidate": "https://international.swufe.edu.cn/EN/Home.htm",
+      "source": {
+        "root": "raw-business-materials",
+        "file": "Chengdu- Enterprise Management International Business.docx",
+        "sha256": "c2e8f13772ed5853e3c9a4a40acb0471f7ed298ff1774c88de0e979d1fde6543"
+      },
+      "status": "official-institution-and-programmes-verified"
+    },
+    {
+      "key": "northwestern-polytechnical-university",
+      "name": "Northwestern Polytechnical University",
+      "country": "Китай",
+      "city": "Сиань",
+      "officialUrlCandidate": "https://studyat.nwpu.edu.cn",
+      "source": {
+        "root": "raw-business-materials",
+        "file": "авиационные программы.docx",
+        "sha256": "b170190ea4533a6eba3b65278f3edaa591fd2ad3eedfebec411c04801eeabf66"
+      },
+      "status": "official-institution-and-programmes-verified"
+    },
+    {
+      "key": "shenyang-aerospace-university",
+      "name": "Shenyang Aerospace University",
+      "country": "Китай",
+      "city": "Шэньян",
+      "officialUrlCandidate": "https://en.sau.edu.cn",
+      "source": {
+        "root": "raw-business-materials",
+        "file": "авиационные программы.docx",
+        "sha256": "b170190ea4533a6eba3b65278f3edaa591fd2ad3eedfebec411c04801eeabf66"
+      },
+      "status": "official-institution-and-programmes-verified"
+    },
+    {
+      "key": "beijing-institute-of-technology-beijing",
+      "name": "Beijing Institute of Technology — Beijing campus",
+      "country": "Китай",
+      "city": "Пекин",
+      "officialUrlCandidate": "https://isc.bit.edu.cn",
+      "source": {
+        "root": "raw-business-materials",
+        "file": "авиационные программы.docx",
+        "sha256": "b170190ea4533a6eba3b65278f3edaa591fd2ad3eedfebec411c04801eeabf66"
+      },
+      "status": "campus-merged-into-beijing-institute-of-technology-zhuhai-bit-zhuhai"
+    }
+  ],
+  "exclusions": [
+    {
+      "reason": "No identifiable institution name",
+      "source": "ЯзыковыПрограммы9класс.xlsx",
+      "sections": [
+        "с HSK3-4: unnamed Xiamen secondary vocational programme",
+        "9й класс: unnamed Shanghai big-data 1+3 programme"
+      ]
+    },
+    {
+      "reason": "School/secondary education; not a university offering",
+      "source": "ЯзыковыПрограммы9класс.xlsx",
+      "names": [
+        "Guangxi Overseas Chinese School",
+        "Шанхайская школа иностранных языков и промышленности"
+      ]
+    },
+    {
+      "reason": "Transfer/double-degree destination mentions are not separate EVO direct offerings",
+      "source": "INTI AUP and partner-degree brochures"
+    }
+  ]
+}

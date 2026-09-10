@@ -1,25 +1,87 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
-import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, parseUniversityPage, universityPublicUrl, universityIntakeLabel } from "../src/lib/platform-university-catalog.ts";
-const bundle = JSON.parse(readFileSync(new URL("../src/lib/server/university-catalog-reviewed-content.json", import.meta.url), "utf8"));
-const clone = () => structuredClone(bundle[0].content);
+import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, parseUniversityPage, universityPublicUrl, universityIntakeLabel, UNIVERSITY_PHOTOS } from "../src/lib/platform-university-catalog.ts";
+import { universityBatchRequestId, universityContentHash, universityBatchRows } from "../src/lib/server/university-catalog-batch.ts";
+const acceptedIdentities = JSON.parse(readFileSync(new URL("fixtures/university-catalog-accepted-identities.json", import.meta.url), "utf8"));
+const clone = () => structuredClone(current.find((entry) => entry.key === "apu").content);
 const id = "59948000-0000-4000-8000-000000000001";
-test("all sixteen real editorial templates parse, have sources and no implied partnerships", () => {
-  assert.deepEqual(bundle.map((entry) => entry.key), ["apu", "sunway", "mmu", "xjtlu", "unnc", "taylors", "inti", "ucsi", "city-malaysia", "xiamen-malaysia", "monash-malaysia", "scut", "zjut", "gdut", "upc-east-china", "ecust"]);
-  for (const { content } of bundle) {
+const currentBundles = readdirSync(new URL("../src/lib/server/", import.meta.url)).filter((name) => /^university-catalog-reviewed-(?!content\.json$).+\.json$/.test(name));
+const current = currentBundles.flatMap((name) => JSON.parse(readFileSync(new URL(`../src/lib/server/${name}`, import.meta.url), "utf8")));
+test("the complete real research package parses, has campus photos, and retains existing identities", () => {
+  assert.ok(current.length >= 140);
+  const rows = universityBatchRows(current, []);
+  assert.equal(rows.length, current.length);
+  for (const entry of current) {
+    assert.deepEqual(parseUniversityContent(entry.content), entry.content, entry.key);
+    assert.ok(entry.content.photoKey, entry.key);
+    const photo = UNIVERSITY_PHOTOS[entry.content.photoKey];
+    assert.ok(photo?.caption && photo.author && photo.title && photo.license, entry.key);
+    assert.ok(photo.path.startsWith("https://"), entry.key);
+    assert.ok(universityPublicUrl(photo.sourceUrl), entry.key);
+  }
+  for (const old of acceptedIdentities) {
+    const entry = current.find((row) => row.key === old.key);
+    assert.ok(entry, old.key);
+    assert.deepEqual([entry.content.name, entry.content.country, entry.content.city], [old.name, old.country, old.city], old.key);
+  }
+});
+test("all country packages are wired into the real server source, never a published fallback", () => {
+  const source = readFileSync(new URL("../src/lib/v3/university-source.ts", import.meta.url), "utf8");
+  for (const name of currentBundles) assert.ok(source.includes(name), name);
+  assert.match(source, /staff_university_catalog/);
+  assert.match(source, /student_university_catalog/);
+});
+test("every institutional roster entry is represented, with explicit campus and legacy-key deduplication", () => {
+  const roster = JSON.parse(readFileSync(new URL("../docs/design/v3/references/2026-09-10-university-source-roster.json", import.meta.url), "utf8"));
+  const aliases = {
+    "china-university-of-petroleum-east-china-upc": "upc-east-china",
+    "east-china-university-of-science-and-technology-ecust": "ecust",
+    "guangdong-university-of-technology-gdut": "gdut",
+    "south-china-university-of-technology-scut": "scut",
+    "xi-an-jiaotong-liverpool-university-xjtlu": "xjtlu",
+    "zhejiang-university-of-technology-zjut": "zjut",
+    "harbin-institute-of-technology-shenzhen": "harbin-institute-of-technology-hit",
+    "beijing-institute-of-technology-beijing": "beijing-institute-of-technology-zhuhai-bit-zhuhai",
+  };
+  for (const entry of [...roster.universities, ...roster.rawAdditions]) assert.ok(current.some((row) => row.key === (aliases[entry.key] ?? entry.key)), entry.key);
+});
+test("content hashes ignore JSON property order and exact review retries retain their request IDs", () => {
+  const content = current[0].content;
+  assert.equal(universityContentHash(content), universityContentHash(Object.fromEntries(Object.entries(content).reverse())));
+  assert.notEqual(universityContentHash(content), universityContentHash({ ...content, notes: content.notes + " Новая редакция." }));
+  const scope = ["organization", "membership", current[0].key, universityContentHash(content), null, 0];
+  assert.equal(universityBatchRequestId(scope, "stage"), universityBatchRequestId(scope, "stage"));
+  assert.notEqual(universityBatchRequestId(scope, "stage"), universityBatchRequestId(scope, "publish"));
+  assert.notEqual(universityBatchRequestId(scope, "stage"), universityBatchRequestId([...scope, "changed"], "stage"));
+});
+test("language courses have their own valid filter rather than masquerading as degree programmes", () => {
+  assert.ok(current.flatMap((row) => row.content.programs).filter((p) => p.level === "language").length >= 27);
+  assert.equal(parseUniversityFilters({ level: "language" }).level, "language");
+});
+test("forward migration photo vocabulary matches the fixed reviewed image registry", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/151_platform_university_catalog_completion.sql", import.meta.url), "utf8");
+  const values = sql.match(/new_photo CONSTANT TEXT := \$new\$value->>'photoKey' IN \(([^)]+)\)/)[1].split(",").map((v) => v.slice(1, -1)).sort();
+  assert.deepEqual(values, Object.keys(UNIVERSITY_PHOTOS).sort());
+  assert.match(sql, /platform_private\.valid_university_content\(jsonb\)/);
+  assert.match(sql, /platform_private\.university_catalog_page\(uuid,text,text,text,uuid,integer\)/);
+  assert.match(sql, /'doctorate','language'/);
+  assert.doesNotMatch(sql, /INSERT INTO|UPDATE platform\.|GRANT |DROP /i);
+});
+test("all real editorial templates have sources and no implied partnerships", () => {
+  assert.equal(acceptedIdentities.length, 16);
+  for (const { content } of current) {
     assert.deepEqual(parseUniversityContent(content), content);
-    assert.equal(content.verifiedOn, "2026-09-10");
+    assert.ok(content.verifiedOn >= "2026-09-10");
     assert.ok(content.programs.every((program) => universityPublicUrl(program.sourceUrl)));
     assert.equal(Object.hasOwn(content, "partner"), false);
   }
-  assert.equal(bundle[0].content.photoKey, null);
+  assert.equal(clone().photoKey, "apu");
 });
 test("source gaps remain null instead of imported stale or cross-level deadlines", () => {
-  for (const key of ["apu", "sunway", "xjtlu", "unnc"]) assert.ok(bundle.find((row) => row.key === key).content.programs.every((program) => program.intakes.every((intake) => intake.applicationDeadline === null)));
-  const mmu = bundle.find((row) => row.key === "mmu").content.programs[0].intakes[0];
-  assert.equal(mmu.applicationDeadline, "2026-09-23"); assert.equal(mmu.startDate, null); assert.equal(mmu.status, "needs_reconfirmation");
-  assert.match(bundle.find((row) => row.key === "xjtlu").content.programs[0].title, /^BEng/);
+  for (const key of ["apu", "sunway", "mmu"]) assert.ok(current.find((row) => row.key === key).content.programs.every((program) => program.intakes.every((intake) => intake.applicationDeadline === null)));
+  const uncertain = clone().programs.find((p) => p.level === "foundation").intakes.find((i) => i.status === "needs_reconfirmation");
+  assert.equal(uncertain.startDate, null); assert.equal(uncertain.startMonth, "2026-11"); assert.equal(uncertain.applicationDeadline, null);
 });
 test("content is closed at all nesting levels and rejects private metadata", () => {
   for (const target of ["root", "program", "intake"]) {

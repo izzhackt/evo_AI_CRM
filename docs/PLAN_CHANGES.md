@@ -22889,3 +22889,33 @@ activation, new database or backup. Real-browser proof and normal exact-head
 review/PR/full-CI/release gates remain required before claiming deployment.
 Next16.3.4 official authentication and server/client guides, linked in the plan,
 confirm per-read server authorization and minimal client data serialization.
+
+### 2026-09-10 — complete the source-backed university catalogue
+
+Owner explicitly requests all institutional KB/raw university materials, official
+web enrichment and mandatory photographs, production deployment and same-server
+localhost tunnel. Contract: `docs/design/v3/university-catalog-completion-run-plan.md`.
+Inventory is larger than the existing16 publications:94 primary Notion university
+notes plus distinct raw business additions. Exclude applicant/credential/trash/
+correspondence content; historical transfer destinations are not direct EVO offers.
+Correct stale copied geography against official sources; keep unknown deadlines,
+unverified fees and partnership claims out of current factual promises.
+
+Reuse existing publication DTO, canonical institution identity and Admin RPCs.
+For efficient controlled publication, add a bounded explicit Admin batch-review
+UI using frozen reviewed templates, exact versions, validated receipts and stable
+request IDs. Do not write directly to SQL, bypass review or use service-role.
+Reserve additive151 only for coordinated reviewed photo-key extension; preserve
+all other content validation/ACL and already-applied148/150 unchanged. Any broader
+schema/identity change requires another documented decision before implementation.
+Keep DESIGN.md, one persistent database, enabled Auth, independent exact-head
+review and release gates. Standing no-new-backup decision remains unchanged.
+
+Research refinement before implementation: raw China institutional materials
+contain genuine non-degree Chinese-language programmes, which are not foundation
+or diploma awards. Extend the coordinated151/DTO/filter label with `language`
+(«Языковая программа»), preserving all existing levels and access/receipt checks.
+Do not misclassify language study as a degree or promise degree progression.
+Multiple campuses of one canonical institution belong in its programmes/notes,
+not duplicate university identities. This is an additive content-model extension
+required by the owner's all-university-materials scope, not an admissions workflow.

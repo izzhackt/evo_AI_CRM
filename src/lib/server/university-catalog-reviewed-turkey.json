@@ -1,0 +1,398 @@
+[
+  {
+    "key": "ankara-university",
+    "content": {
+      "name": "Ankara University",
+      "country": "TR",
+      "city": "Анкара",
+      "overview": "Государственный университет в Анкаре. Подборка показывает два инженерных направления кампуса Gölbaşı; у университета значительно больше факультетов и программ. Английскую и турецкую версии одной специальности нужно выбирать отдельно.",
+      "websiteUrl": "https://en.ankara.edu.tr/",
+      "sourceUrl": "https://www.eng.ankara.edu.tr/bolumler/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Каталог инженерных направлений: https://www.eng.ankara.edu.tr/bolumler/. Общий приём иностранных студентов 2026/27: https://oidb.ankara.edu.tr/2026/05/20/2026-2027-academic-year-international-student-admission-of-ankara-university/. Biomedical Engineering описан по официальной брошюре 2025 года и действующему списку кафедр. Совместная программа Ankara–SUNY — отдельный маршрут, не включённый сюда. Дедлайны и применимые цены нужно подтвердить.",
+      "photoKey": "ankara-university",
+      "programs": [
+        {
+          "id": "computer-engineering-english",
+          "title": "Computer Engineering (English)",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Программирование, алгоритмы, базы данных, компьютерные системы и разработка ПО; предусмотрена практика. Выбрана англоязычная программа, а не отдельная турецкая версия или старый учебный план с 30% английского.",
+          "sourceUrl": "https://comp.eng.ankara.edu.tr/en/undergraduate/",
+          "intakes": []
+        },
+        {
+          "id": "biomedical-engineering",
+          "title": "Biomedical Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Инженерия на стыке медицины и технологий: медицинские приборы, биоматериалы, обработка биосигналов и изображений. В официальной брошюре указаны лаборатории и производственная практика. Конкретный международный набор требует подтверждения.",
+          "sourceUrl": "https://bme.eng.ankara.edu.tr/wp-content/uploads/sites/47/2025/07/BME_brosur_2025_ENG.pdf",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "bahcesehir-university",
+    "content": {
+      "name": "Bahçeşehir University",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Университет в Стамбуле с программами инженерии, бизнеса, дизайна и других направлений. В подборке — англоязычные бакалавриаты по программной инженерии и управлению бизнесом; это не полный каталог.",
+      "websiteUrl": "https://bau.edu.tr/en",
+      "sourceUrl": "https://int.bau.edu.tr/programs/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный международный каталог: https://int.bau.edu.tr/programs/. У Business Administration указан кампус Beşiktaş South. Условия подготовительного английского, стоимость и срок подачи проверяются по выбранной программе и году. Старые даты аккредитации не представлены как действующие.",
+      "photoKey": "bahcesehir-university",
+      "programs": [
+        {
+          "id": "software-engineering",
+          "title": "Software Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Проектирование, разработка и сопровождение программных систем: от основ программирования до командной разработки и инженерных подходов к качеству ПО.",
+          "sourceUrl": "https://www.bau.edu.tr/content/3879-software-engineering",
+          "intakes": []
+        },
+        {
+          "id": "business-administration",
+          "title": "Business Administration",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Управление организациями с направлениями в маркетинге, финансах, продажах и управлении персоналом. На странице международного приёма программа указана как бакалавриат на английском.",
+          "sourceUrl": "https://int.bau.edu.tr/programs/business-administration/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "bilkent-university",
+    "content": {
+      "name": "Bilkent University",
+      "country": "TR",
+      "city": "Анкара",
+      "overview": "Университет в Анкаре с обучением на английском языке. Представлены компьютерная инженерия и управление; актуальный каталог раскрывает учебные планы по годам и обязательные практические компоненты.",
+      "websiteUrl": "https://w3.bilkent.edu.tr/bilkent/",
+      "sourceUrl": "https://w3.bilkent.edu.tr/international/undergraduate-programs/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный список бакалавриатов: https://w3.bilkent.edu.tr/international/undergraduate-programs/. Условия международного приёма: https://w3.bilkent.edu.tr/international/how-to-apply/. Минимальные показатели подачи не означают гарантированное зачисление. Учебный план Management обновлён в сентябре 2026 года; старые сезонные дедлайны и стипендии из архива не перенесены.",
+      "photoKey": "bilkent-university",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "Computer Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Алгоритмы, математические основы, программные и аппаратные системы. Учебный план включает лаборатории, летние стажировки и выпускной проект.",
+          "sourceUrl": "https://catalog.bilkent.edu.tr/dep/d11.html",
+          "intakes": []
+        },
+        {
+          "id": "management",
+          "title": "Management",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Управление бизнесом, финансы, маркетинг и количественный анализ. Программа включает бизнес-аналитику, летнюю практику и итоговый проект.",
+          "sourceUrl": "https://catalog.bilkent.edu.tr/dep/d31.html",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "bogazici-university",
+    "content": {
+      "name": "Boğaziçi University",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Университет в Стамбуле с англоязычным обучением. В подборке представлены компьютерная инженерия и управление; остальные направления доступны в официальном каталоге.",
+      "websiteUrl": "https://bogazici.edu.tr/en/pages/undergraduate-programs/434",
+      "sourceUrl": "https://bogazici.edu.tr/en/pages/undergraduate-catalogue/213",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог: https://bogazici.edu.tr/en/pages/undergraduate-catalogue/213. Учебные планы зависят от года поступления. Группы A/B на странице Management распределяют студентов по учебным потокам, а не обозначают отдельные специальности. Универсальные требования IELTS/SAT и цены из старых заметок не подтверждены для текущего набора.",
+      "photoKey": "bogazici-university",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "Computer Engineering",
+          "level": "bachelor",
+          "duration": "8 семестров",
+          "language": "Английский",
+          "summary": "Программирование, алгоритмы, компьютерные системы и инженерная практика. Учебный план 2025 года включает выпускное проектирование и стажировку.",
+          "sourceUrl": "https://cmpe.bogazici.edu.tr/undergraduate/curriculum/",
+          "intakes": []
+        },
+        {
+          "id": "management",
+          "title": "Bachelor of Arts in Management",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Управление, маркетинг, финансы и международный бизнес. Факультет предлагает бакалаврскую программу с возможностью выбора профильных дисциплин; точную продолжительность нужно сверить в актуальном плане.",
+          "sourceUrl": "https://mgmt.bogazici.edu.tr/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "istanbul-university",
+    "content": {
+      "name": "Istanbul University",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Государственный университет в Стамбуле с большим выбором факультетов. Для сравнения выбраны две англоязычные программы факультета экономики; в университете также есть программы на турецком и с частичным английским.",
+      "websiteUrl": "https://www.istanbul.edu.tr/en/_",
+      "sourceUrl": "https://ebs.istanbul.edu.tr/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог учебных программ: https://ebs.istanbul.edu.tr/. Факультет экономики: https://international-iktisat.istanbul.edu.tr/en/content/general-information/welcome. Выбраны варианты English Curriculum. Business Administration с 30% английского не смешивается с полностью англоязычным обучением. Продолжительность, вступительные документы и сроки уточняются для конкретного международного набора.",
+      "photoKey": "istanbul-university",
+      "programs": [
+        {
+          "id": "economics-english",
+          "title": "Economics (English Curriculum)",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Англоязычный бакалавриат факультета экономики. Для подбора дисциплин и требований используется официальный учебный каталог, а не обобщённое описание всех программ университета.",
+          "sourceUrl": "https://international-iktisat.istanbul.edu.tr/en/content/general-information/welcome",
+          "intakes": []
+        },
+        {
+          "id": "management-information-systems-english",
+          "title": "Management Information Systems (English Curriculum)",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Англоязычный бакалавриат по управленческим информационным системам на факультете экономики. Это отдельная программа, не краткий курс и не бакалавриат Business Administration с частичным английским.",
+          "sourceUrl": "https://international-iktisat.istanbul.edu.tr/en/content/general-information/welcome",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "koc-university",
+    "content": {
+      "name": "Koç University",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Университет в Стамбуле с инженерными, общественными, бизнес- и другими направлениями. В подборку включены англоязычные бакалавриаты по компьютерной инженерии и бизнесу; язык других программ проверяется отдельно.",
+      "websiteUrl": "https://www.ku.edu.tr/en/",
+      "sourceUrl": "https://apply.ku.edu.tr/institutions",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный список программ в официальной системе: https://apply.ku.edu.tr/institutions. Бизнес-направления: https://international.ku.edu.tr/undergraduate-programs/programs-offered/case/. Страницы перевода из другого вуза не используются как правила первичного поступления. Стипендия и размер оплаты устанавливаются индивидуальным решением, не обещанием из старой заметки.",
+      "photoKey": "koc-university",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "BSc Computer Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Разработка программных и аппаратных систем; направления включают базы данных, сети, искусственный интеллект и встроенные системы. Академические и языковые условия подачи проверяются отдельно.",
+          "sourceUrl": "https://apply.ku.edu.tr/tr_TR/courses/course/29-bsc-computer-engineering/",
+          "intakes": []
+        },
+        {
+          "id": "business-administration",
+          "title": "BA Business Administration",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Программа College of Administrative Sciences and Economics: основы управления бизнесом и выбор профильных дисциплин. На официальной странице указаны восемь семестров и обучение на английском.",
+          "sourceUrl": "https://international.ku.edu.tr/undergraduate-programs/programs-offered/case/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "middle-east-technical-university-metu-odtu",
+    "content": {
+      "name": "Middle East Technical University (METU/ODTÜ)",
+      "country": "TR",
+      "city": "Анкара",
+      "overview": "Технический университет в Анкаре с инженерными, естественно-научными и социально-экономическими направлениями. Эта карточка относится к основному кампусу в Турции, а не к отдельному кампусу Northern Cyprus.",
+      "websiteUrl": "https://www.metu.edu.tr/",
+      "sourceUrl": "https://iso.metu.edu.tr/tr/node/61",
+      "verifiedOn": "2026-09-10",
+      "notes": "Международный каталог и квоты 2026/27: https://iso.metu.edu.tr/tr/node/61. Опубликованная квота не означает свободное место или открытый приём. Совместные METU–SUNY маршруты и кампус Northern Cyprus не объединяются с обычными программами Анкары. Стоимость, допустимые экзамены и будущий дедлайн требуют актуальной проверки.",
+      "photoKey": "middle-east-technical-university-metu-odtu",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "Computer Engineering",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Алгоритмы, программирование, операционные системы, базы данных, искусственный интеллект и цифровые системы. Программа включена в официальный каталог международных бакалавриатов.",
+          "sourceUrl": "https://iso.metu.edu.tr/en/node/367",
+          "intakes": []
+        },
+        {
+          "id": "economics",
+          "title": "Economics",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Экономическая теория с математикой, статистикой и эконометрикой. На старших курсах предусмотрена самостоятельная исследовательская работа; точную продолжительность и требования нужно сверить по набору.",
+          "sourceUrl": "https://iso.metu.edu.tr/en/economics",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "sabanc-university",
+    "content": {
+      "name": "Sabancı University",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Университет в Стамбуле с англоязычными четырёхлетними бакалавриатами. Подборка показывает компьютерные науки и управление; гибкость учебного плана не заменяет проверки условий выбора программы и её требований.",
+      "websiteUrl": "https://www.sabanciuniv.edu/en",
+      "sourceUrl": "https://iro.sabanciuniv.edu/en/all-bachelors-programs",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог бакалавриатов: https://iro.sabanciuniv.edu/en/all-bachelors-programs. Подготовительный языковой этап, если он требуется, проверяется отдельно от четырёхлетнего основного обучения. Срок подачи и стипендиальное решение не подтверждаются старыми архивными обещаниями.",
+      "photoKey": "sabanc-university",
+      "programs": [
+        {
+          "id": "computer-science-engineering",
+          "title": "Computer Science and Engineering",
+          "level": "bachelor",
+          "duration": "4 года / 8 семестров",
+          "language": "Английский",
+          "summary": "Программирование, компьютерные системы и инженерные подходы к вычислительным задачам. Студенты могут сочетать профильные и междисциплинарные дисциплины в рамках учебного плана.",
+          "sourceUrl": "https://iro.sabanciuniv.edu/en/computer-science-and-engineering",
+          "intakes": []
+        },
+        {
+          "id": "management",
+          "title": "Management",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Бакалавриат School of Business: фундаментальная подготовка для управления организациями с возможностью выбора профильных дисциплин.",
+          "sourceUrl": "https://sbs.sabanciuniv.edu/en/academics/management-undergraduate-program",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "yeditepe-university",
+    "content": {
+      "name": "Yeditepe University",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Университет в Стамбуле с широким набором академических направлений. В подборке — два англоязычных бакалавриата: компьютерная инженерия и бизнес; совместные зарубежные программы рассматриваются отдельно.",
+      "websiteUrl": "https://yeditepe.edu.tr/en",
+      "sourceUrl": "https://www.yeditepe.edu.tr/en/prospective-students/fees",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальный список программ: https://www.yeditepe.edu.tr/en/prospective-students/fees. Денежные значения на этой странице не скопированы: применимость к иностранным студентам и актуальный год нужно подтвердить. Исторические даты аккредитации не названы текущими. Обычный Business Administration не смешивается с отдельным совместным маршрутом UNCW.",
+      "photoKey": "yeditepe-university",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "Computer Engineering",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Программное и аппаратное обеспечение, теоретические основы вычислений и проектирование компьютерных систем. Официальная страница кафедры подтверждает английский язык бакалавриата.",
+          "sourceUrl": "https://mdbf.yeditepe.edu.tr/en/computer-engineering-department",
+          "intakes": []
+        },
+        {
+          "id": "business-administration",
+          "title": "Business Administration",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Основы управления бизнесом, маркетинг и количественные методы с практическими компонентами. Выбран обычный четырёхлетний бакалавриат, не программа совместного диплома.",
+          "sourceUrl": "https://isletme.yeditepe.edu.tr/en/business-administration-department",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "istanbul-ayd-n-university",
+    "content": {
+      "name": "İstanbul Aydın University",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Университет в Стамбуле. Международный каталог отдельно перечисляет бакалавриат, associate и последипломные программы; здесь выбраны два англоязычных бакалавриата, чтобы не смешивать уровни квалификаций.",
+      "websiteUrl": "https://global.aydin.edu.tr/",
+      "sourceUrl": "https://study.aydin.edu.tr/programs/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный международный каталог: https://study.aydin.edu.tr/programs/. Учебные планы и квалификации: https://ebs.aydin.edu.tr/. Названия и язык подтверждены текущим списком; точные сроки обучения, подготовительный английский, цена и дата подачи требуют проверки конкретного предложения университета. Associate Business Management не является этим бакалавриатом.",
+      "photoKey": "istanbul-ayd-n-university",
+      "programs": [
+        {
+          "id": "computer-engineering-english",
+          "title": "Computer Engineering (English)",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Бакалаврская программа по компьютерной инженерии из официального международного каталога. Английская версия отделена от турецкой; состав дисциплин проверяется в системе EBS по текущему учебному плану.",
+          "sourceUrl": "https://study.aydin.edu.tr/programs/",
+          "intakes": []
+        },
+        {
+          "id": "business-administration-english",
+          "title": "Business Administration (English)",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Англоязычный бакалавриат по управлению бизнесом. Это не двухлетний associate Business Management: уровень и учебный план нужно выбирать именно по записи Undergraduate.",
+          "sourceUrl": "https://study.aydin.edu.tr/programs/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "istanbul-teknik-universitesi-itu",
+    "content": {
+      "name": "İstanbul Teknik Üniversitesi (İTÜ)",
+      "country": "TR",
+      "city": "Стамбул",
+      "overview": "Технический университет в Стамбуле. Представлены англоязычные направления факультета компьютерных технологий; планы могут различаться по году поступления и доле английского языка.",
+      "websiteUrl": "https://global.itu.edu.tr/",
+      "sourceUrl": "https://www.sis.itu.edu.tr/EN/student/undergraduate/course-plans/course-plans.php?fakulte=BB",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальные учебные планы: https://www.sis.itu.edu.tr/EN/student/undergraduate/course-plans/course-plans.php?fakulte=BB. Для Computer Engineering существуют варианты 30% и 100% английского; выбран 100%. Архивный план 2021–2024 не выдаётся за план нового набора. Языковая подготовка и актуальные требования к экзаменам проверяются отдельно.",
+      "photoKey": "istanbul-teknik-universitesi-itu",
+      "programs": [
+        {
+          "id": "computer-engineering-english",
+          "title": "Computer Engineering (100% English)",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский — 100%",
+          "summary": "Бакалаврское направление компьютерной инженерии. Официальный список позволяет выбрать полностью англоязычную версию; конкретный набор дисциплин зависит от учебного плана года зачисления.",
+          "sourceUrl": "https://www.sis.itu.edu.tr/EN/student/undergraduate/course-plans/course-plans.php?fakulte=BB",
+          "intakes": []
+        },
+        {
+          "id": "artificial-intelligence-data-engineering",
+          "title": "Artificial Intelligence and Data Engineering",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский — 100%",
+          "summary": "Бакалавриат по искусственному интеллекту и инженерии данных. Официальная квалификационная страница указывает четырёхлетнее обучение; при необходимости языковая подготовка проходит отдельно.",
+          "sourceUrl": "https://www.tyyc.itu.edu.tr/ProgramHakkinda.php?Dili=EN&Program=YZV_LS",
+          "intakes": []
+        }
+      ]
+    }
+  }
+]

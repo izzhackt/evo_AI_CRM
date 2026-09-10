@@ -1,0 +1,1735 @@
+[
+  {
+    "key": "agh-university-of-krakow",
+    "content": {
+      "name": "AGH University of Krakow",
+      "country": "PL",
+      "city": "Краков",
+      "websiteUrl": "https://www.agh.edu.pl/en",
+      "overview": "Технический университет в Кракове. Международный каталог включает вычислительные науки, инженерию, геологию и космические технологии.",
+      "sourceUrl": "https://www.international.agh.edu.pl/en/studies/education-offer-bachelor-studies",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "agh-university-of-krakow",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Computer Science",
+          "level": "bachelor",
+          "duration": "7 семестров",
+          "language": "Английский",
+          "summary": "Программирование и вычислительные науки. В официальном перечне международного приёма указан старт 1 октября; точный дедлайн конкретного цикла нужно проверить отдельно.",
+          "sourceUrl": "https://www.international.agh.edu.pl/en/studies/education-offer-bachelor-studies",
+          "intakes": []
+        },
+        {
+          "id": "mechatronic-engineering",
+          "title": "Mechatronic Engineering",
+          "level": "bachelor",
+          "duration": "7 семестров",
+          "language": "Английский",
+          "summary": "Механика, электроника, управление и робототехника; лабораторные и проектные занятия.",
+          "sourceUrl": "https://sylabusy.agh.edu.pl/en/1/1/22/1/4/17/55",
+          "intakes": []
+        },
+        {
+          "id": "mechanical-engineering",
+          "title": "Mechanical Engineering",
+          "level": "bachelor",
+          "duration": "7 семестров",
+          "language": "Английский",
+          "summary": "Бакалаврское инженерное направление Faculty of Mechanical Engineering and Robotics.",
+          "sourceUrl": "https://www.international.agh.edu.pl/en/studies/education-offer-bachelor-studies",
+          "intakes": []
+        },
+        {
+          "id": "space-engineering",
+          "title": "Space Engineering",
+          "level": "bachelor",
+          "duration": "7 семестров",
+          "language": "Английский",
+          "summary": "Программа Faculty of Space Technologies из международного бакалаврского каталога.",
+          "sourceUrl": "https://www.international.agh.edu.pl/en/studies/education-offer-bachelor-studies",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "jagiellonian-university",
+    "content": {
+      "name": "Jagiellonian University",
+      "country": "PL",
+      "city": "Краков",
+      "websiteUrl": "https://en.uj.edu.pl/en_GB/start",
+      "overview": "Многопрофильный университет в Кракове. Международные отношения представлены отдельной англоязычной программой; требования и раунды приёма публикуются в системе IRK.",
+      "sourceUrl": "https://studia.uj.edu.pl/en_GB/kierunki/wsmip/intern.rela.area.stud",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для IRAS в официальной карточке 2026 указано 5 000EUR за год; итоговые условия и основания освобождения проверять в IRK. Срок доставки оригиналов не равен сроку подачи заявления. Карточка программы: https://irk.uj.edu.pl/en-gb/offer/IiJM_C_26/programme/intern.rela.area.stud_s1s_C_en/",
+      "photoKey": "jagiellonian-university",
+      "programs": [
+        {
+          "id": "international-relations-area-studies",
+          "title": "International Relations and Area Studies",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Международная политика, экономика и регионоведение; специализации International Security и Area Studies. Для приёма 2026 опубликовано собеседование на английском.",
+          "sourceUrl": "https://studia.uj.edu.pl/en_GB/kierunki/wsmip/intern.rela.area.stud",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "kozminski-university",
+    "content": {
+      "name": "Kozminski University",
+      "country": "PL",
+      "city": "Варшава",
+      "websiteUrl": "https://www.kozminski.edu.pl/en",
+      "overview": "Университет в Варшаве с англоязычными программами управления и финансов. Ниже — направления для абитуриентов бакалавриата.",
+      "sourceUrl": "https://www.kozminski.edu.pl/en/programs/undergraduate-programs-bachelor/bachelor-management",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "kozminski-university",
+      "programs": [
+        {
+          "id": "management",
+          "title": "Bachelor in Management",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Управление, финансы, маркетинг и предпринимательство; специализации выбираются в ходе обучения.",
+          "sourceUrl": "https://www.kozminski.edu.pl/en/programs/undergraduate-programs-bachelor/bachelor-management",
+          "intakes": []
+        },
+        {
+          "id": "finance-accounting",
+          "title": "Bachelor in Finance and Accounting",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Финансовая отчётность, корпоративные финансы, рынки и финансовые технологии.",
+          "sourceUrl": "https://www.kozminski.edu.pl/en/programs/undergraduate-programs-bachelor/bachelor-finance-and-accounting",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "krakow-university-of-economics-uniwersytet-ekonomiczny-w-krakowie",
+    "content": {
+      "name": "Krakow University of Economics",
+      "country": "PL",
+      "city": "Краков",
+      "websiteUrl": "https://uek.krakow.pl/",
+      "overview": "Экономический университет в Кракове. Международный бизнес сочетает экономику с практикой работы компаний на зарубежных рынках.",
+      "sourceUrl": "https://study.uek.krakow.pl/forma-studiow/part-time/international-business-i-stopien/",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "krakow-university-of-economics-uniwersytet-ekonomiczny-w-krakowie",
+      "programs": [
+        {
+          "id": "international-business",
+          "title": "International Business",
+          "level": "bachelor",
+          "duration": "6 семестров",
+          "language": "Английский",
+          "summary": "Первый цикл: международное предпринимательство, экономическая теория и деятельность компаний на местных и глобальных рынках.",
+          "sourceUrl": "https://study.uek.krakow.pl/forma-studiow/part-time/international-business-i-stopien/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "poznan-university-of-technology",
+    "content": {
+      "name": "Poznań University of Technology",
+      "country": "PL",
+      "city": "Познань",
+      "websiteUrl": "https://put.poznan.pl/en",
+      "overview": "Технический университет в Познани. Англоязычная программа искусственного интеллекта включает вычислительные методы и практические инженерные задачи.",
+      "sourceUrl": "https://put.poznan.pl/en/kierunek/sztuczna-inteligencjaartificial-intelligence",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "poznan-university-of-technology",
+      "programs": [
+        {
+          "id": "artificial-intelligence",
+          "title": "Artificial Intelligence",
+          "level": "bachelor",
+          "duration": "7 семестров",
+          "language": "Английский",
+          "summary": "Алгоритмы, машинное обучение, нейронные сети, анализ данных и робототехника; обязательная четырёхнедельная практика после третьего года.",
+          "sourceUrl": "https://put.poznan.pl/en/kierunek/sztuczna-inteligencjaartificial-intelligence",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "medical-university-of-gdansk",
+    "content": {
+      "name": "Medical University of Gdańsk",
+      "country": "PL",
+      "city": "Гданьск",
+      "websiteUrl": "https://gumed.edu.pl/en",
+      "overview": "Медицинский университет в Гданьске. Помимо медицины, в официальном англоязычном каталоге есть сестринское дело, фармация и подготовительный курс.",
+      "sourceUrl": "https://gumed.edu.pl/en/candidates/programmes-and-courses-in-english",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для англоязычного обучения официальный FAQ указывает минимум B2 и перечень принимаемых подтверждений/исключений. Документы, вступительные испытания и актуальные платежи: https://admission.mug.edu.pl/53202.html . Медицинское образование само по себе не гарантирует право практики в другой стране.",
+      "photoKey": "medical-university-of-gdansk",
+      "programs": [
+        {
+          "id": "nursing",
+          "title": "Bachelor of Nursing",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Англоязычная программа сестринского дела. Приём 2026 уже завершён.",
+          "sourceUrl": "https://gumed.edu.pl/en/candidates/programmes-and-courses-in-english",
+          "intakes": [
+            {
+              "label": "Приём 2026",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-07-31",
+              "deadlineTime": null,
+              "timezone": "Europe/Warsaw",
+              "status": "closed",
+              "note": "Дедлайн регистрации по официальному FAQ; следующий набор здесь не объявляется.",
+              "sourceUrl": "https://admission.mug.edu.pl/53202.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "pharmacy",
+          "title": "Master of Pharmacy — единый цикл",
+          "level": "master",
+          "duration": "5,5 года",
+          "language": "Английский",
+          "summary": "Длинный непрерывный цикл после школы, а не обычная магистратура после бакалавриата.",
+          "sourceUrl": "https://gumed.edu.pl/en/candidates/programmes-and-courses-in-english",
+          "intakes": []
+        },
+        {
+          "id": "premedical",
+          "title": "Premedical Course",
+          "level": "foundation",
+          "duration": "1 год",
+          "language": "Английский",
+          "summary": "Подготовка к медицинскому обучению; прохождение курса не является гарантией зачисления на Medicine.",
+          "sourceUrl": "https://gumed.edu.pl/en/candidates/programmes-and-courses-in-english",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "medical-university-of-warsaw",
+    "content": {
+      "name": "Medical University of Warsaw",
+      "country": "PL",
+      "city": "Варшава",
+      "websiteUrl": "https://en.wum.edu.pl/",
+      "overview": "Медицинский университет в Варшаве. English Division ведёт шестилетнюю медицинскую программу с отдельным конкурсным отбором.",
+      "sourceUrl": "https://ed.wum.edu.pl/en/recruitment-paths",
+      "verifiedOn": "2026-09-10",
+      "notes": "Medicine — единый профессиональный цикл, не обычная магистратура после бакалавриата. Регистрация только через официальную ORS; требования к признанию школьного документа и экзамену индивидуальны. Право медицинской практики зависит от юрисдикции.",
+      "photoKey": "medical-university-of-warsaw",
+      "programs": [
+        {
+          "id": "medicine",
+          "title": "Medicine — единый шестилетний цикл",
+          "level": "master",
+          "duration": "6 лет",
+          "language": "Английский",
+          "summary": "Обучение медицине после школы; не исследовательская докторантура. Официальный приём оценивает школьные результаты и компетентностное испытание; освобождения зависят от документов кандидата.",
+          "sourceUrl": "https://ed.wum.edu.pl/en/recruitment-paths",
+          "intakes": [
+            {
+              "label": "Основной путь приёма 2026",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-06-30",
+              "deadlineTime": null,
+              "timezone": "Europe/Warsaw",
+              "status": "closed",
+              "note": "Последний день регистрации на основной путь с competency test; не универсальный срок всех специальных маршрутов.",
+              "sourceUrl": "https://ed.wum.edu.pl/en/recruitment-paths",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-warsaw",
+    "content": {
+      "name": "University of Warsaw",
+      "country": "PL",
+      "city": "Варшава",
+      "websiteUrl": "https://en.uw.edu.pl/",
+      "overview": "Многопрофильный университет в Варшаве. Англоязычный международный бакалавриат включает изучение политики, права, экономики и культуры.",
+      "sourceUrl": "https://wnpism.uw.edu.pl/en/undergraduate-programme-in-international-relations/",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "university-of-warsaw",
+      "programs": [
+        {
+          "id": "international-relations",
+          "title": "International Relations",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Международные отношения с междисциплинарными курсами, иностранным языком и выпускной работой.",
+          "sourceUrl": "https://wnpism.uw.edu.pl/en/undergraduate-programme-in-international-relations/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-wroc-aw",
+    "content": {
+      "name": "University of Wrocław",
+      "country": "PL",
+      "city": "Вроцлав",
+      "websiteUrl": "https://uwr.edu.pl/en/",
+      "overview": "Университет во Вроцлаве с англоязычными социальными и бизнес-программами. Направления имеют отдельные условия и раунды приёма.",
+      "sourceUrl": "https://law.uwr.edu.pl/enrollment/bachelor-of-business-and-administration-enrolment/",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "university-of-wroc-aw",
+      "programs": [
+        {
+          "id": "business-administration",
+          "title": "Business and Administration",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Лидерство, маркетинг, бухгалтерский учёт, финансы, право и управление; направления специализации Business, Finance или Governance.",
+          "sourceUrl": "https://law.uwr.edu.pl/enrollment/bachelor-of-business-and-administration-enrolment/",
+          "intakes": [
+            {
+              "label": "2026/27",
+              "startDate": "2026-10-01",
+              "startMonth": null,
+              "applicationDeadline": "2026-08-31",
+              "deadlineTime": null,
+              "timezone": "Europe/Warsaw",
+              "status": "closed",
+              "note": "Официальная страница закрывает приём 31 августа 2026; летний набор факультет не предлагает.",
+              "sourceUrl": "https://law.uwr.edu.pl/enrollment/bachelor-of-business-and-administration-enrolment/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "global-studies",
+          "title": "International Relations — Global Studies",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Глобализация и связи между локальными и мировыми процессами; программа первого цикла 180ECTS.",
+          "sourceUrl": "https://international.uni.wroc.pl/en/admission-full-degree-studies/programmes-english/international-relations-global-studies-bachelor",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "vistula-university-uczelnia-vistula",
+    "content": {
+      "name": "Vistula University",
+      "country": "PL",
+      "city": "Варшава",
+      "websiteUrl": "https://vistula.edu.pl/en",
+      "overview": "Университет в Варшаве с программами в области бизнеса и информационных технологий. В официальных карточках указаны англоязычный и польскоязычный варианты.",
+      "sourceUrl": "https://vistula.edu.pl/en/major/computer-engineering",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "vistula-university-uczelnia-vistula",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "Computer Engineering",
+          "level": "bachelor",
+          "duration": "3,5 года",
+          "language": "Английский или польский — по выбранному потоку",
+          "summary": "Программирование, базы данных, сети, разработка ПО и специализации; инженерный первый цикл.",
+          "sourceUrl": "https://vistula.edu.pl/en/major/computer-engineering",
+          "intakes": []
+        },
+        {
+          "id": "finance-accounting",
+          "title": "Finance and Accounting",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский или польский — по выбранному потоку",
+          "summary": "Финансы, учёт, банковские услуги и инвестиционные рынки; содержание специализации проверяется при выборе.",
+          "sourceUrl": "https://vistula.edu.pl/en/major/finance-and-accounting",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "warsaw-university-of-technology",
+    "content": {
+      "name": "Warsaw University of Technology",
+      "country": "PL",
+      "city": "Варшава",
+      "websiteUrl": "https://www.pw.edu.pl/engpw",
+      "overview": "Технический университет в Варшаве. Представлена программа Faculty of Mathematics and Information Science с математической основой и командными IT-проектами.",
+      "sourceUrl": "https://www.students.pw.edu.pl/Studies-Offer/B.Sc.-offer/Computer-Science-Information-Systems",
+      "verifiedOn": "2026-09-10",
+      "notes": "В карточке — проверенная подборка, не все программы университета. Условия, признание школьного документа, языковой сертификат и стоимость проверяются для выбранной программы и набора по официальному источнику.",
+      "photoKey": "warsaw-university-of-technology",
+      "programs": [
+        {
+          "id": "computer-science-information-systems",
+          "title": "Computer Science and Information Systems",
+          "level": "bachelor",
+          "duration": "3,5 года",
+          "language": "Английский",
+          "summary": "Математика, алгоритмы, программирование, операционные системы, базы данных и сети; заключительный семестр включает проект и выпускную работу.",
+          "sourceUrl": "https://www.students.pw.edu.pl/Studies-Offer/B.Sc.-offer/Computer-Science-Information-Systems",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "academy-of-arts-architecture-and-design-in-prague",
+    "content": {
+      "name": "Academy of Arts, Architecture and Design in Prague (UMPRUM)",
+      "country": "CZ",
+      "city": "Прага",
+      "websiteUrl": "https://www.umprum.cz/en",
+      "overview": "Академия искусства, архитектуры и дизайна в Праге. Англоязычный Visual Arts — магистратура с выбором студии, а не единая специальность для всех студентов.",
+      "sourceUrl": "https://www.umprum.cz/en/web/applicant/ma-program-in-english/application-process-and-other-faq",
+      "verifiedOn": "2026-09-10",
+      "notes": "FAQ указывает 89 000CZK за семестр. В одном FAQ расходятся численные IELTS/TOEFL пороги: не переносим противоречивые баллы; уровень и документ подтвердить у координатора. Портфолио и онлайн-собеседование обязательны; приём не гарантирован.",
+      "photoKey": "academy-of-arts-architecture-and-design-in-prague",
+      "programs": [
+        {
+          "id": "visual-arts",
+          "title": "Visual Arts",
+          "level": "master",
+          "duration": "2 года; архитектурные студии — 3 года",
+          "language": "Английский",
+          "summary": "Графика, прикладное искусство, дизайн, изобразительное искусство и архитектура. Для поступления нужны профильный бакалавриат, портфолио и конкурсный отбор.",
+          "sourceUrl": "https://www.umprum.cz/en/web/applicant/ma-program-in-english/application-process-and-other-faq",
+          "intakes": [
+            {
+              "label": "2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-31",
+              "deadlineTime": null,
+              "timezone": "Europe/Prague",
+              "status": "closed",
+              "note": "Официальный дедлайн электронных заявок. Архитектура требует предшествующий BA по архитектуре.",
+              "sourceUrl": "https://www.umprum.cz/www/en/web/applicant/ma-program-in-english",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "brno-university-of-technology",
+    "content": {
+      "name": "Brno University of Technology",
+      "country": "CZ",
+      "city": "Брно",
+      "websiteUrl": "https://www.vut.cz/en/",
+      "overview": "Технический университет в Брно. Каталог разделён по факультетам и языкам; англоязычные и чешскоязычные потоки имеют разные условия.",
+      "sourceUrl": "https://www.fme.vutbr.cz/en/studenti/programy",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подборка проверенных программ, не полный список. Признание предыдущего образования, требования к языку, вступительные задания, сроки и стоимость уточняются по выбранной программе.",
+      "photoKey": "brno-university-of-technology",
+      "programs": [
+        {
+          "id": "mechanical-engineering",
+          "title": "Fundamentals of Mechanical Engineering",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Очный бакалавриат Faculty of Mechanical Engineering; проверять именно международный код B-STI-A.",
+          "sourceUrl": "https://www.fme.vutbr.cz/en/studenti/programy",
+          "intakes": []
+        },
+        {
+          "id": "architecture-urban-design",
+          "title": "Architecture and Urban Design",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": null,
+          "summary": "Бакалавриат архитектуры и городского проектирования; поступление и язык зависят от конкретного потока BE_A+U/B_A+U.",
+          "sourceUrl": "https://www.vut.cz/en/students/programmes",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "charles-university",
+    "content": {
+      "name": "Charles University",
+      "country": "CZ",
+      "city": "Прага",
+      "websiteUrl": "https://cuni.cz/UKEN-1.html",
+      "overview": "Карлов университет; в карточке представлена программа Faculty of Mathematics and Physics в Праге. Факультеты ведут самостоятельные процедуры приёма.",
+      "sourceUrl": "https://is.cuni.cz/studium/eng/prijimacky/index.php?do=detail_obor&id_obor=34738",
+      "verifiedOn": "2026-09-10",
+      "notes": "В правилах Computer Science2026 указаны, среди вариантов, IELTS6.5 и отдельные математические квалификации. Условия зависят от вида и страны школьного документа; не распространять их на весь университет.",
+      "photoKey": "charles-university",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Computer Science",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Очный англоязычный бакалавриат. Требуются школьный документ, подтверждение математической подготовки и английского; перечень допустимых экзаменов опубликован в карточке.",
+          "sourceUrl": "https://is.cuni.cz/studium/eng/prijimacky/index.php?do=detail_obor&id_obor=34738",
+          "intakes": [
+            {
+              "label": "2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-04-30",
+              "deadlineTime": null,
+              "timezone": "Europe/Prague",
+              "status": "closed",
+              "note": "Срок подачи, не крайняя дата последующей доставки оригиналов.",
+              "sourceUrl": "https://is.cuni.cz/studium/eng/prijimacky/index.php?do=detail_obor&id_obor=34738",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "czech-technical-university-ctu",
+    "content": {
+      "name": "Czech Technical University in Prague",
+      "country": "CZ",
+      "city": "Прага",
+      "websiteUrl": "https://www.cvut.cz/en",
+      "overview": "Чешский технический университет в Праге. EECS объединяет электротехнику и компьютерные науки в одном инженерном бакалавриате.",
+      "sourceUrl": "https://fel.cvut.cz/en/study-programs/eecs-electrical-engineering-and-computer-science/interest-in-studying/bachelor-degree",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подборка проверенных программ, не полный список. Признание предыдущего образования, требования к языку, вступительные задания, сроки и стоимость уточняются по выбранной программе.",
+      "photoKey": "czech-technical-university-ctu",
+      "programs": [
+        {
+          "id": "electrical-engineering-computer-science",
+          "title": "Electrical Engineering and Computer Science",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Математика, физика, алгоритмы, программирование, электротехника и встроенные системы; сочетание теории и практики.",
+          "sourceUrl": "https://fel.cvut.cz/en/study-programs/eecs-electrical-engineering-and-computer-science/interest-in-studying/bachelor-degree",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "czech-university-of-life-sciences-prague-czu",
+    "content": {
+      "name": "Czech University of Life Sciences Prague",
+      "country": "CZ",
+      "city": "Прага",
+      "websiteUrl": "https://www.czu.cz/en",
+      "overview": "Университет в районе Suchdol, Прага. Faculty of Economics and Management предлагает англоязычные программы информатики и управления.",
+      "sourceUrl": "https://www.pef.czu.cz/en/r-9396-study/r-9485-study-programmes/r-10298-bachelors-study/r-10432-informatics-infoa/informatics.html",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подборка проверенных программ, не полный список. Признание предыдущего образования, требования к языку, вступительные задания, сроки и стоимость уточняются по выбранной программе.",
+      "photoKey": "czech-university-of-life-sciences-prague-czu",
+      "programs": [
+        {
+          "id": "informatics",
+          "title": "Informatics",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Очное обучение информационным и коммуникационным технологиям для прикладной профессиональной работы.",
+          "sourceUrl": "https://www.pef.czu.cz/en/r-9396-study/r-9485-study-programmes/r-10298-bachelors-study/r-10432-informatics-infoa/informatics.html",
+          "intakes": []
+        },
+        {
+          "id": "business-administration",
+          "title": "Business Administration",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Экономические, управленческие, предпринимательские и административные дисциплины.",
+          "sourceUrl": "https://www.pef.czu.cz/en/r-9396-study/r-9485-study-programmes/r-10298-bachelors-study/r-10434-business-administration-ba/business.html",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "masaryk-university",
+    "content": {
+      "name": "Masaryk University",
+      "country": "CZ",
+      "city": "Брно",
+      "websiteUrl": "https://www.muni.cz/en",
+      "overview": "Университет в Брно. ECON MUNI предлагает бизнес-бакалавриат с двумя траекториями — управление и финансы.",
+      "sourceUrl": "https://www.econ.muni.cz/en/admissions/bachelor-studies/26520-business-management-and-finance",
+      "verifiedOn": "2026-09-10",
+      "notes": "На странице указана стоимость 120 000CZK за учебный год. Указанный открытый раунд относится только к этой программе; наличие места и условия зачисления подтверждает факультет.",
+      "photoKey": "masaryk-university",
+      "programs": [
+        {
+          "id": "business-management-finance",
+          "title": "Business Management and Finance",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Менеджмент, финансы, маркетинг, экономика, количественные методы и прикладные проекты. Отбор оценивает академическую готовность и английский.",
+          "sourceUrl": "https://www.econ.muni.cz/en/admissions/bachelor-studies/26520-business-management-and-finance",
+          "intakes": [
+            {
+              "label": "Раунд 15 июня–31 октября 2026",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-10-31",
+              "deadlineTime": null,
+              "timezone": "Europe/Prague",
+              "status": "open",
+              "note": "Даты опубликованы на странице программы. Начало обучения и визовый график подтвердить для конкретного зачисления.",
+              "sourceUrl": "https://www.econ.muni.cz/en/admissions/bachelor-studies/26520-business-management-and-finance",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "prague-college",
+    "content": {
+      "name": "Prague City University — Prague College",
+      "country": "CZ",
+      "city": "Прага",
+      "websiteUrl": "https://www.praguecityuniversity.cz/",
+      "overview": "Prague College входит в объединение под названием Prague City University. Программы разных школ имеют разные организации, присуждающие диплом; это важно проверить до подачи.",
+      "sourceUrl": "https://www.praguecityuniversity.cz/programmes/bsc-hons-computing",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальный каталог указывает Teesside University для программ Business/Technology и Art/Design; School of Education имеет другую аккредитационную основу. Полный трёхлетний маршрут не равен одногодичному top-up. Каталог: https://www.praguecityuniversity.cz/programmes",
+      "photoKey": "prague-college",
+      "programs": [
+        {
+          "id": "computing",
+          "title": "BSc (Hons) Computing",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Бакалаврская программа Computing; полный учебный план и условия доступны на странице программы.",
+          "sourceUrl": "https://www.praguecityuniversity.cz/programmes/bsc-hons-computing",
+          "intakes": []
+        },
+        {
+          "id": "graphic-design",
+          "title": "BA (Hons) Graphic Design",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Графический дизайн; требования к портфолио и учебные проекты нужно сверить по выбранному маршруту.",
+          "sourceUrl": "https://www.praguecityuniversity.cz/programmes/ba-hons-graphic-design",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-economics-prague-vse",
+    "content": {
+      "name": "Prague University of Economics and Business (VŠE)",
+      "country": "CZ",
+      "city": "Прага",
+      "websiteUrl": "https://www.vse.cz/english/",
+      "overview": "Экономический университет в Праге. Современное английское название — Prague University of Economics and Business; в архиве встречается University of Economics, Prague.",
+      "sourceUrl": "https://bba.vse.cz/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Подборка проверенных программ, не полный список. Признание предыдущего образования, требования к языку, вступительные задания, сроки и стоимость уточняются по выбранной программе.",
+      "photoKey": "university-of-economics-prague-vse",
+      "programs": [
+        {
+          "id": "business-administration",
+          "title": "Bachelor of Business Administration",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Управление компаниями, менеджмент и маркетинг; полный маршрут и требования опубликованы на сайте программы.",
+          "sourceUrl": "https://bba.vse.cz/",
+          "intakes": []
+        },
+        {
+          "id": "international-business",
+          "title": "Bachelor of International Business",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Международный бизнес и иностранные языки; приём 2026/27 официально закрыт.",
+          "sourceUrl": "https://ibb.vse.cz/admission-process/entrance-exam/",
+          "intakes": [
+            {
+              "label": "2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Europe/Prague",
+              "status": "closed",
+              "note": "Сайт программы прямо сообщает о завершении приёма; следующий набор не подставлен вместо него.",
+              "sourceUrl": "https://ibb.vse.cz/admission-process/entrance-exam/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-chemistry-and-technology-prague-vscht",
+    "content": {
+      "name": "University of Chemistry and Technology Prague",
+      "country": "CZ",
+      "city": "Прага",
+      "websiteUrl": "https://www.vscht.cz/en",
+      "overview": "Химико-технологический университет в Праге. Англоязычное обучение включает химию, технологии и материалы с лабораторной подготовкой.",
+      "sourceUrl": "https://study.vscht.cz/degree-programmes/bachelor/ab108",
+      "verifiedOn": "2026-09-10",
+      "notes": "В официальном каталоге бакалавриат на английском длится 3 года и является платным. Полный список областей и актуальные требования: https://study.vscht.cz/degree-programmes/bachelor",
+      "photoKey": "university-of-chemistry-and-technology-prague-vscht",
+      "programs": [
+        {
+          "id": "chemistry-technology",
+          "title": "Chemistry and Technology",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Бакалавриат Faculty of Chemical Technology; при подаче выбрать программу AB108 и английский язык.",
+          "sourceUrl": "https://study.vscht.cz/degree-programmes/bachelor/ab108",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "technical-university-of-liberec",
+    "content": {
+      "name": "Technical University of Liberec",
+      "country": "CZ",
+      "city": "Либерец",
+      "websiteUrl": "https://www.tul.cz/en/",
+      "overview": "Технический университет в Либерце с профильным факультетом текстильной инженерии. Наличие программы в каталоге не означает открытый набор.",
+      "sourceUrl": "https://www.tul.cz/en/admissions/study-programmes/detailed-information-for-english-programmes/undergraduate-programmes/bachelor-textile-technologies-materials-and-nanomaterials/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Программа сохранена как реальная возможность из каталога, но не как доступный набор 2026/27. Другие программы и следующий цикл проверять на официальном сайте; старую цену не использовать как предложение.",
+      "photoKey": "technical-university-of-liberec",
+      "programs": [
+        {
+          "id": "textile-technologies",
+          "title": "Textile Technologies, Materials and Nanomaterials",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Текстильные технологии, материалы и наноматериалы. Университет прямо указывает, что англоязычный набор 2026/27 не открывается.",
+          "sourceUrl": "https://www.tul.cz/en/admissions/study-programmes/detailed-information-for-english-programmes/undergraduate-programmes/bachelor-textile-technologies-materials-and-nanomaterials/",
+          "intakes": [
+            {
+              "label": "2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Europe/Prague",
+              "status": "closed",
+              "note": "В официальной карточке: программа не открывается в этом учебном году. Не принимать заявления как на действующий набор.",
+              "sourceUrl": "https://www.tul.cz/en/admissions/study-programmes/detailed-information-for-english-programmes/undergraduate-programmes/bachelor-textile-technologies-materials-and-nanomaterials/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "bocconi-university",
+    "content": {
+      "name": "Bocconi University",
+      "country": "IT",
+      "city": "Милан",
+      "websiteUrl": "https://www.unibocconi.it/en",
+      "overview": "Университет в Милане с направлениями экономики, управления и социальных наук. Карточка использует актуальное название программы Management, а не только старый раздел для уже зачисленных студентов.",
+      "sourceUrl": "https://www.unibocconi.it/en/programs/bachelor-science/management",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "bocconi-university",
+      "programs": [
+        {
+          "id": "management",
+          "title": "Management",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Управление ресурсами и организациями, маркетинг, финансы, логистика и аналитические методы.",
+          "sourceUrl": "https://www.unibocconi.it/en/programs/bachelor-science/management",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "ca-foscari-university-of-venice",
+    "content": {
+      "name": "Ca’ Foscari University of Venice",
+      "country": "IT",
+      "city": "Венеция",
+      "websiteUrl": "https://www.unive.it/",
+      "overview": "Университет в Венеции. Digital Management проходит в H-Campus в Ронкаде, провинция Тревизо; это не кампус в Падуе.",
+      "sourceUrl": "https://apply.unive.it/courses/course/593-ba-digital-management",
+      "verifiedOn": "2026-09-10",
+      "notes": "Входной уровень английского — B2 по правилам программы; допустимые документы и дополнительные языковые обязательства проверяются индивидуально. Место занятий: H-Campus, Ca’ Tron, Roncade. Не путать город университета и площадку программы.",
+      "photoKey": "ca-foscari-university-of-venice",
+      "programs": [
+        {
+          "id": "digital-management",
+          "title": "Digital Management",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Цифровая трансформация бизнеса, предпринимательство и проектная работа. Программа Ca’ Foscari/H-FARM в Ронкаде.",
+          "sourceUrl": "https://apply.unive.it/courses/course/593-ba-digital-management",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "iulm-university",
+    "content": {
+      "name": "IULM University",
+      "country": "IT",
+      "city": "Милан",
+      "websiteUrl": "https://www.iulm.it/en/home",
+      "overview": "Университет в Милане с профильными направлениями коммуникаций. Программа 2026/27 Corporate Communication имеет отдельные итальянский и английский учебные маршруты.",
+      "sourceUrl": "https://www.iulm.it/en/offerta-formativa/corsi-di-lauree-triennali/comunicazione-impresa-relazioni-pubbliche",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "iulm-university",
+      "programs": [
+        {
+          "id": "corporate-communication",
+          "title": "Corporate Communication and Public Relations",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский или итальянский — по curriculum",
+          "summary": "Корпоративные коммуникации, отношения с заинтересованными сторонами и работа с брендами; конкурсный тест и ограниченное число мест.",
+          "sourceUrl": "https://www.iulm.it/en/offerta-formativa/corsi-di-lauree-triennali/comunicazione-impresa-relazioni-pubbliche",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "politecnico-di-milano",
+    "content": {
+      "name": "Politecnico di Milano",
+      "country": "IT",
+      "city": "Милан",
+      "websiteUrl": "https://www.polimi.it/en/",
+      "overview": "Технический университет Милана. Архитектурная программа ведётся на площадках Milano Leonardo, Mantova и Piacenza; кампус выбирается вместе с учебным потоком.",
+      "sourceUrl": "https://www.polimi.it/en/education/laurea-programmes/programme-detail/architectural-design",
+      "verifiedOn": "2026-09-10",
+      "notes": "Язык и места конкретного потока следует сверить в ежегодном конкурсе. Архитектурный бакалавриат не означает автоматического получения права профессиональной практики.",
+      "photoKey": "politecnico-di-milano",
+      "programs": [
+        {
+          "id": "architectural-design",
+          "title": "Architectural Design",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Архитектурное проектирование, история, конструкции, технологии и городская среда; студии, практические занятия и стажировка.",
+          "sourceUrl": "https://www.polimi.it/en/education/laurea-programmes/programme-detail/architectural-design",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "politecnico-di-torino",
+    "content": {
+      "name": "Politecnico di Torino",
+      "country": "IT",
+      "city": "Турин",
+      "websiteUrl": "https://www.polito.it/en",
+      "overview": "Технический университет в Турине. Компьютерная и автомобильная инженерия представлены в каталоге 2026/27; приём ограниченный, со вступительным испытанием.",
+      "sourceUrl": "https://www.polito.it/en/education/bachelor-s-degree-programmes/computer-engineering",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "politecnico-di-torino",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "Computer Engineering",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский или итальянский — по выбранному потоку",
+          "summary": "Компьютерная инженерия на основном кампусе; техническая подготовка по информационным системам.",
+          "sourceUrl": "https://www.polito.it/en/education/bachelor-s-degree-programmes/computer-engineering",
+          "intakes": []
+        },
+        {
+          "id": "automotive-engineering",
+          "title": "Automotive Engineering",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский или итальянский — по выбранному потоку",
+          "summary": "Устройство автомобиля, подсистемы, производство и проектирование компонентов.",
+          "sourceUrl": "https://www.polito.it/en/education/bachelor-s-degree-programmes/automotive-engineering",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "sapienza-university-of-rome",
+    "content": {
+      "name": "Sapienza University of Rome",
+      "country": "IT",
+      "city": "Рим",
+      "websiteUrl": "https://www.uniroma1.it/en",
+      "overview": "Многопрофильный университет в Риме. Представлен англоязычный бакалавриат по прикладной информатике и искусственному интеллекту.",
+      "sourceUrl": "https://corsidilaurea.uniroma1.it/en/course/33502",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "sapienza-university-of-rome",
+      "programs": [
+        {
+          "id": "applied-computer-science-ai",
+          "title": "Applied Computer Science and Artificial Intelligence",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Математика, физика, статистика, вычислительные методы и AI; на старших курсах выбор дисциплин и стажировка. Ограниченный набор со вступительным тестом.",
+          "sourceUrl": "https://corsidilaurea.uniroma1.it/en/course/33502",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-bologna",
+    "content": {
+      "name": "University of Bologna",
+      "country": "IT",
+      "city": "Болонья",
+      "websiteUrl": "https://www.unibo.it/en",
+      "overview": "Университет с несколькими кампусами. Business and Economics проходит в Болонье; похожая по названию Business Economics — в Римини.",
+      "sourceUrl": "https://www.unibo.it/en/study/first-and-single-cycle-degree/programme/2026/6609",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-bologna",
+      "programs": [
+        {
+          "id": "business-economics-bologna",
+          "title": "Business and Economics",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Англоязычный бакалавриат бизнес-направления на кампусе Bologna; каталог 2026/27 указывает конкурсный набор.",
+          "sourceUrl": "https://www.unibo.it/en/study/first-and-single-cycle-degree/programme/2026/6609",
+          "intakes": []
+        },
+        {
+          "id": "business-economics-rimini",
+          "title": "Business Economics — Rimini",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский или итальянский — по curriculum",
+          "summary": "Бизнес и управление на кампусе Rimini; есть отдельные учебные маршруты, включая Financial and Business Management.",
+          "sourceUrl": "https://www.unibo.it/en/study/first-and-single-cycle-degree/programme/2026/6611",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-camerino",
+    "content": {
+      "name": "University of Camerino",
+      "country": "IT",
+      "city": "Камерино",
+      "websiteUrl": "https://www.unicam.it/",
+      "overview": "Университет в Камерино, не в Риме. Бионауки и биотехнологии объединены в англоязычной программе с двумя учебными траекториями.",
+      "sourceUrl": "https://biologybiotechnology.unicam.it/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-camerino",
+      "programs": [
+        {
+          "id": "biosciences-biotechnology",
+          "title": "Biosciences and Biotechnology",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Основы биологии и биотехнологий, лабораторные занятия; после общего первого года выбирается траектория, завершение включает стажировку.",
+          "sourceUrl": "https://biologybiotechnology.unicam.it/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-cassino-and-southern-lazio",
+    "content": {
+      "name": "University of Cassino and Southern Lazio",
+      "country": "IT",
+      "city": "Кассино",
+      "websiteUrl": "https://www.unicas.it/",
+      "overview": "Университет в Кассино и южном Лацио. Международный каталог содержит Economics and Business от Department of Economics and Law.",
+      "sourceUrl": "https://www.unicas.it/international-unicas/international-bachelor-master-and-phd-programs-enrollment-26-27-now-open/bachelors-degree-programs/economics-and-business/bachelor-description/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-cassino-and-southern-lazio",
+      "programs": [
+        {
+          "id": "economics-business",
+          "title": "Economics and Business",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Экономика, бизнес и методы анализа данных для решения экономических задач.",
+          "sourceUrl": "https://www.unicas.it/international-unicas/international-bachelor-master-and-phd-programs-enrollment-26-27-now-open/bachelors-degree-programs/economics-and-business/bachelor-description/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-florence",
+    "content": {
+      "name": "University of Florence",
+      "country": "IT",
+      "city": "Флоренция",
+      "websiteUrl": "https://www.unifi.it/en",
+      "overview": "Университет во Флоренции. Economics and Development — англоязычная магистратура School of Economics and Management.",
+      "sourceUrl": "https://apply.unifi.it/courses/course/27-economics-and-development",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для этой магистратуры нужен подходящий предыдущий диплом и подтверждение английского не нижеB2 по правилам программы. Город исправлен по официальному источнику; старое указание Болоньи ошибочно.",
+      "photoKey": "university-of-florence",
+      "programs": [
+        {
+          "id": "economics-development",
+          "title": "Economics and Development",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Экономическая теория, экономика развития, количественные и качественные исследования; две учебные траектории Economics и Development Economics.",
+          "sourceUrl": "https://apply.unifi.it/courses/course/27-economics-and-development",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-genoa",
+    "content": {
+      "name": "University of Genoa",
+      "country": "IT",
+      "city": "Генуя",
+      "websiteUrl": "https://unige.it/en",
+      "overview": "Университет в Генуе. Актуальная магистратура Computer Science имеет код 11964 и отличается от старой версии курса 10852.",
+      "sourceUrl": "https://corsi.unige.it/en/corsi/11964",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-genoa",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Computer Science",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Очная магистратура 120ECTS в Генуе, направление LM-18; приём с проверкой необходимых требований.",
+          "sourceUrl": "https://corsi.unige.it/en/corsi/11964",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-macerata",
+    "content": {
+      "name": "University of Macerata",
+      "country": "IT",
+      "city": "Мачерата",
+      "websiteUrl": "https://www.unimc.it/en",
+      "overview": "Университет в Мачерате. IECoLS — англоязычный юридический бакалавриат с международной и сравнительной направленностью.",
+      "sourceUrl": "https://apply.unimc.it/en_GB/courses/course/18-iecols-international-european-and-comparative-legal-studies",
+      "verifiedOn": "2026-09-10",
+      "notes": "В правилах указаны 12 лет предшествующего образования и английскийB2. Duolingo и EF SET не принимаются как подтверждение в этом маршруте. Альтернативная университетская проверка имеет собственные условия; не заменять их тестом EVO. Диплом не гарантирует адвокатскую квалификацию.",
+      "photoKey": "university-of-macerata",
+      "programs": [
+        {
+          "id": "iecols",
+          "title": "International, European and Comparative Legal Studies",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Международное, европейское и сравнительное право; семинары, стажировка и выпускная работа.",
+          "sourceUrl": "https://apply.unimc.it/en_GB/courses/course/18-iecols-international-european-and-comparative-legal-studies",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-messina",
+    "content": {
+      "name": "University of Messina",
+      "country": "IT",
+      "city": "Мессина",
+      "websiteUrl": "https://international.unime.it/",
+      "overview": "Университет в Мессине. Data Analysis — траектория в области информатики с акцентом на обработку больших данных.",
+      "sourceUrl": "https://informatica.cdl.unime.it/en",
+      "verifiedOn": "2026-09-10",
+      "notes": "Брошюра 2025 для Data Analysis указывает школьный документ, эквивалентный 12 годам обучения, и английскийB2. Текущий цикл и документы сверять на официальном сайте; старый набор не считается открытым.",
+      "photoKey": "university-of-messina",
+      "programs": [
+        {
+          "id": "data-analysis",
+          "title": "Computer Science — Data Analysis",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский — Data Analysis; другие потоки могут быть итальянскими",
+          "summary": "Хранение, обработка и анализ данных; техническая подготовка сочетается с прикладными задачами разных отраслей.",
+          "sourceUrl": "https://informatica.cdl.unime.it/en",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-milan-universita-degli-studi-di-milano-statale",
+    "content": {
+      "name": "University of Milan (Statale)",
+      "country": "IT",
+      "city": "Милан",
+      "websiteUrl": "https://www.unimi.it/en",
+      "overview": "Миланский государственный университет, отдельно от Milano-Bicocca и Politecnico. IPLE объединяет международную политику, право и экономику.",
+      "sourceUrl": "https://www.unimi.it/en/education/bachelor/international-politics-law-and-economics-iple",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальная карточка отмечена 2026/27, но часть текста приёма ссылается на 2025. Эти даты не перенесены как текущие. Проверять новый конкурс и категорию EU/non-EU; языковые требования опубликованы отдельно.",
+      "photoKey": "university-of-milan-universita-degli-studi-di-milano-statale",
+      "programs": [
+        {
+          "id": "iple",
+          "title": "International Politics, Law and Economics",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Политология, право, экономика, социология и история с международной сравнительной перспективой; конкурсный приём.",
+          "sourceUrl": "https://www.unimi.it/en/education/bachelor/international-politics-law-and-economics-iple",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-milan-bicocca",
+    "content": {
+      "name": "University of Milan-Bicocca",
+      "country": "IT",
+      "city": "Милан",
+      "websiteUrl": "https://en.unimib.it/",
+      "overview": "Университет Milano-Bicocca. Бакалавриат Artificial Intelligence — совместная программа с Pavia и Milan Statale, а не три независимых маршрута.",
+      "sourceUrl": "https://en.unimib.it/undergraduate/artificial-intelligence",
+      "verifiedOn": "2026-09-10",
+      "notes": "Не создавать три заявки на один и тот же совместный курс. Проверять актуальные условия у координатора University of Pavia.",
+      "photoKey": "university-of-milan-bicocca",
+      "programs": [
+        {
+          "id": "artificial-intelligence",
+          "title": "Artificial Intelligence — совместная программа",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Полностью англоязычная межуниверситетская программа. Администрирование и приём через University of Pavia; занятия на участвующих кампусах.",
+          "sourceUrl": "https://en.unimib.it/undergraduate/artificial-intelligence",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-naples-federico-ii",
+    "content": {
+      "name": "University of Naples Federico II",
+      "country": "IT",
+      "city": "Неаполь",
+      "websiteUrl": "https://www.unina.it/en",
+      "overview": "Университет FedericoII в Неаполе. Mathematical Engineering связывает прикладную математику и инженерные задачи.",
+      "sourceUrl": "https://www.scuolapsb.unina.it/en/7-key-features-of-the-msc-course-in-mathematical-engineering/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для программы проверяются профиль предыдущего диплома, математические/физические/IT-кредиты и английскийB2. Не переносить эти условия на другой факультет.",
+      "photoKey": "university-of-naples-federico-ii",
+      "programs": [
+        {
+          "id": "mathematical-engineering",
+          "title": "Mathematical Engineering",
+          "level": "master",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Магистратура с направлениями численного моделирования и приложений в промышленной/гражданской инженерии.",
+          "sourceUrl": "https://www.scuolapsb.unina.it/en/7-key-features-of-the-msc-course-in-mathematical-engineering/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-padova",
+    "content": {
+      "name": "University of Padova",
+      "country": "IT",
+      "city": "Падуя",
+      "websiteUrl": "https://www.unipd.it/en",
+      "overview": "Университет в Падуе. Information Engineering сочетает физико-математическую основу с электроникой, управлением, телекоммуникациями и информатикой.",
+      "sourceUrl": "https://apply.unipd.it/courses/course/182-information-engineering",
+      "verifiedOn": "2026-09-10",
+      "notes": "В текущей карточке указан тест CISIA CEnT-S. Стоимость зависит от экономического статуса и оснований снижения; суммы платежей и визовые требования проверять до оплаты. Английский язык и длительность подтверждены в официальном описании: https://www.unipd.it/en/corsi-di-laurea/information-engineering .",
+      "photoKey": "university-of-padova",
+      "programs": [
+        {
+          "id": "information-engineering",
+          "title": "Information Engineering",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Математика, программирование, схемотехника, сигналы и системы; на третьем году лаборатории и выбор профильных дисциплин.",
+          "sourceUrl": "https://apply.unipd.it/courses/course/182-information-engineering",
+          "intakes": [
+            {
+              "label": "2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Europe/Rome",
+              "status": "closed",
+              "note": "Официальная карточка сообщает, что приём завершён; начало занятий 1 октября 2026.",
+              "sourceUrl": "https://apply.unipd.it/courses/course/182-information-engineering",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-palermo",
+    "content": {
+      "name": "University of Palermo",
+      "country": "IT",
+      "city": "Палермо",
+      "websiteUrl": "https://www.unipa.it/",
+      "overview": "Университет в Палермо. Электронная инженерия включает направления современной электроники, робототехники, биоэлектроники и телекоммуникаций.",
+      "sourceUrl": "https://www.unipa.it/dipartimenti/ingegneria/cds/ingegneriaelettronica2092/.content/documenti/Brochure-Electronic-Engineering.pdf",
+      "verifiedOn": "2026-09-10",
+      "notes": "Программа подтверждена университетской брошюрой; актуальный набор и учебный план требуют сверки на сайте факультета. Старое указание города Болонья исправлено.",
+      "photoKey": "university-of-palermo",
+      "programs": [
+        {
+          "id": "electronics-engineering",
+          "title": "Electronics Engineering",
+          "level": "master",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Англоязычная магистратура электронной инженерии. Бакалаврский курс с похожим названием не следует автоматически считать англоязычным.",
+          "sourceUrl": "https://www.unipa.it/dipartimenti/ingegneria/cds/ingegneriaelettronica2092/.content/documenti/Brochure-Electronic-Engineering.pdf",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-pavia-universita-degli-studi-di-pavia",
+    "content": {
+      "name": "University of Pavia",
+      "country": "IT",
+      "city": "Павия",
+      "websiteUrl": "https://en.unipv.it/en",
+      "overview": "Университет в Павии. Координирует совместный англоязычный AI-бакалавриат с Milan Statale и Milano-Bicocca.",
+      "sourceUrl": "https://en.unipv.it/en/education/bachelors-and-masters-degree-programs/first-cycle-degree-course/artificial-intelligence",
+      "verifiedOn": "2026-09-10",
+      "notes": "Заявление на совместную программу подаётся через University of Pavia; участники программы не означают отдельные независимые зачисления. Конкурс 2026/27 и категории кандидатов опубликованы на странице.",
+      "photoKey": "university-of-pavia-universita-degli-studi-di-pavia",
+      "programs": [
+        {
+          "id": "artificial-intelligence",
+          "title": "Artificial Intelligence — совместная программа",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Основы, методы и применения искусственного интеллекта;180ECTS, ограниченный набор.",
+          "sourceUrl": "https://en.unipv.it/en/education/bachelors-and-masters-degree-programs/first-cycle-degree-course/artificial-intelligence",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-rome-tor-vergata",
+    "content": {
+      "name": "University of Rome Tor Vergata",
+      "country": "IT",
+      "city": "Рим",
+      "websiteUrl": "https://web.uniroma2.it/en",
+      "overview": "Университет Tor Vergata в Риме. Global Governance — междисциплинарный бакалавриат на стыке гуманитарных наук, экономики, права и технологий.",
+      "sourceUrl": "https://economia.uniroma2.it/ba/globalgovernance",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-rome-tor-vergata",
+      "programs": [
+        {
+          "id": "global-governance",
+          "title": "Global Governance",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Полностью англоязычное очное обучение глобальным процессам и управлению; конкурсный набор и обязательное участие в занятиях.",
+          "sourceUrl": "https://economia.uniroma2.it/ba/globalgovernance",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-turin",
+    "content": {
+      "name": "University of Turin",
+      "country": "IT",
+      "city": "Турин",
+      "websiteUrl": "https://en.unito.it/",
+      "overview": "Многопрофильный университет в Турине, отдельно от Politecnico di Torino. Business & Management изучает организации в международной деловой среде.",
+      "sourceUrl": "https://en.unito.it/studying-unito/programs/degree-programs/business-management",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-turin",
+      "programs": [
+        {
+          "id": "business-management",
+          "title": "Business & Management",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Учёт и финансы, маркетинг, стратегия, экономика и организационное поведение; англоязычный бакалавриат.",
+          "sourceUrl": "https://en.unito.it/studying-unito/programs/degree-programs/business-management",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-pisa",
+    "content": {
+      "name": "University of Pisa",
+      "country": "IT",
+      "city": "Пиза",
+      "websiteUrl": "https://www.unipi.it/en/",
+      "overview": "Университет в Пизе. MBE — англоязычный бизнес-бакалавриат Department of Economics and Management.",
+      "sourceUrl": "https://www.unipi.it/en/education/courses/bachelor-and-single-cycle-master-degree/management-for-business-and-economics-mber-l-en/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для MBE указаны английскийB2, подходящий школьный документ и конкурсный отбор по ежегодному call. Формулировка «приём открыт» без точной категории и даты не используется как универсальная доступность.",
+      "photoKey": "university-of-pisa",
+      "programs": [
+        {
+          "id": "management-business-economics",
+          "title": "Management for Business and Economics",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Менеджмент, экономика, финансы, маркетинг, учёт и право с международной направленностью.",
+          "sourceUrl": "https://www.unipi.it/en/education/courses/bachelor-and-single-cycle-master-degree/management-for-business-and-economics-mber-l-en/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-trento",
+    "content": {
+      "name": "University of Trento",
+      "country": "IT",
+      "city": "Тренто",
+      "websiteUrl": "https://www.unitn.it/en",
+      "overview": "Университет в Тренто. Computer Science проходит в Povo на площадке Department of Information Engineering and Computer Science.",
+      "sourceUrl": "https://corsi.unitn.it/en/computer-science-bachelor",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-trento",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Computer Science",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский или итальянский — по curriculum",
+          "summary": "Бакалаврская информатика; существуют отдельные английский и итальянский curriculum2026/27, места распределяются по конкурсу.",
+          "sourceUrl": "https://corsi.unitn.it/en/computer-science-bachelor",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-parma",
+    "content": {
+      "name": "University of Parma",
+      "country": "IT",
+      "city": "Парма",
+      "websiteUrl": "https://www.unipr.it/en",
+      "overview": "Университет в Парме. Международная подборка включает устойчивое развитие на бакалавриате и международный бизнес на магистратуре.",
+      "sourceUrl": "https://corsi.unipr.it/en/cdl-globals",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-parma",
+      "programs": [
+        {
+          "id": "global-studies",
+          "title": "Global Studies for Sustainable Local and International Development and Cooperation",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Англоязычный бакалавриат международного сотрудничества и устойчивого территориального развития; смешанный формат очных и дистанционных занятий.",
+          "sourceUrl": "https://corsi.unipr.it/en/cdl-globals",
+          "intakes": []
+        },
+        {
+          "id": "international-business-development",
+          "title": "International Business and Development",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Магистратура международной экономики и глобального развития; интерактивное обучение и проектная работа.",
+          "sourceUrl": "https://corsi.unipr.it/en/siti-magistrali",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-siena",
+    "content": {
+      "name": "University of Siena",
+      "country": "IT",
+      "city": "Сиена",
+      "websiteUrl": "https://www.unisi.it/",
+      "overview": "Университет в Сиене. Англоязычный Economics and Management сочетает управление, банковское дело и экономику.",
+      "sourceUrl": "https://apply.unisi.it/courses/course/41-b-economics-and-management",
+      "verifiedOn": "2026-09-10",
+      "notes": "Правила международного приёма указывают английскийB2. Для non-EU кандидатов с визой требуется признаваемый сертификат, если нет установленного исключения; письмо о языке обучения не принимается вместо него.",
+      "photoKey": "university-of-siena",
+      "programs": [
+        {
+          "id": "economics-management",
+          "title": "Economics and Management",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Учёт, управление, финансовое посредничество, микро- и макроэкономика, статистика.",
+          "sourceUrl": "https://apply.unisi.it/courses/course/41-b-economics-and-management",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-bergamo",
+    "content": {
+      "name": "University of Bergamo",
+      "country": "IT",
+      "city": "Бергамо",
+      "websiteUrl": "https://en.unibg.it/",
+      "overview": "Университет в Бергамо. Актуальная программа International Management and Marketing имеет две специализации; старое название MMF не перенесено как отдельная новая программа.",
+      "sourceUrl": "https://ls-imm.unibg.it/en/course/imm-why-do-you-choose-course/masters-program-international-management-and-marketing",
+      "verifiedOn": "2026-09-10",
+      "notes": "Для подачи указаны предыдущий диплом, транскрипт, английскийB2 и идентификационный документ. Сроки и доступность международных обменов проверяются отдельно.",
+      "photoKey": "university-of-bergamo",
+      "programs": [
+        {
+          "id": "international-management-marketing",
+          "title": "International Management and Marketing",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Англоязычная магистратура 120ECTS: международное управление или маркетинг, очное обучение и прикладные задания.",
+          "sourceUrl": "https://ls-imm.unibg.it/en/course/imm-why-do-you-choose-course/masters-program-international-management-and-marketing",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "universita-cattolica-del-sacro-cuore",
+    "content": {
+      "name": "Università Cattolica del Sacro Cuore",
+      "country": "IT",
+      "city": "Милан",
+      "websiteUrl": "https://international.unicatt.it/",
+      "overview": "Университет с несколькими итальянскими кампусами. Ниже — программа Economics and Management именно в Милане.",
+      "sourceUrl": "https://international.unicatt.it/ucscinternational-undergraduate-programs-economics-and-management",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "universita-cattolica-del-sacro-cuore",
+      "programs": [
+        {
+          "id": "economics-management",
+          "title": "Economics and Management",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Англоязычный бакалавриат экономики и управления с прикладной деловой подготовкой.",
+          "sourceUrl": "https://international.unicatt.it/ucscinternational-undergraduate-programs-economics-and-management",
+          "intakes": [
+            {
+              "label": "2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": "Europe/Rome",
+              "status": "closed",
+              "note": "Сайт сообщает, что заявления 2026/27 закрыты; следующий период 2027/28 ожидается осенью 2026, точная дата не задана.",
+              "sourceUrl": "https://international.unicatt.it/ucscinternational-undergraduate-programs-economics-and-management",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-calabria",
+    "content": {
+      "name": "University of Calabria",
+      "country": "IT",
+      "city": "Ренде",
+      "websiteUrl": "https://www.unical.it/",
+      "overview": "Университет Калабрии расположен в Ренде. Международный конкурс магистратуры 2026/27 включает Artificial Intelligence and Computer Science.",
+      "sourceUrl": "https://www.unical.it/media/medias/2026/Bando_Unicaladmission_Lauree_Magistrali_aa_26-27_ING.pdf",
+      "verifiedOn": "2026-09-10",
+      "notes": "Официальная страница общего описания ещё содержит старт 2025; текущий статус основан на отдельном конкурсе 2026/27. Не переносить старые даты или обещать стипендию.",
+      "photoKey": "university-of-calabria",
+      "programs": [
+        {
+          "id": "artificial-intelligence-computer-science",
+          "title": "Artificial Intelligence and Computer Science",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Англоязычная магистратура 120ECTS; для поступления оцениваются предыдущая подготовка и собеседование.",
+          "sourceUrl": "https://www.unical.it/media/medias/2026/Bando_Unicaladmission_Lauree_Magistrali_aa_26-27_ING.pdf",
+          "intakes": [
+            {
+              "label": "Международный конкурс non-EU2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-03-30",
+              "deadlineTime": null,
+              "timezone": "Europe/Rome",
+              "status": "closed",
+              "note": "Дедлайн именно этого конкурса. Стипендия конкурсная, не гарантируется всем кандидатам.",
+              "sourceUrl": "https://www.unical.it/media/medias/2026/Bando_Unicaladmission_Lauree_Magistrali_aa_26-27_ING.pdf",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-perugia",
+    "content": {
+      "name": "University of Perugia",
+      "country": "IT",
+      "city": "Перуджа",
+      "websiteUrl": "https://www.unipg.it/en",
+      "overview": "Университет в Перудже. Engineering Management объединяет инженерную подготовку с управлением организациями и технологическими изменениями.",
+      "sourceUrl": "https://ing.unipg.it/en/courses/engineering-management/second-cycle-degree-course",
+      "verifiedOn": "2026-09-10",
+      "notes": "На странице смешаны пояснения для бакалавриата и магистратуры; требования не смешиваются. Для магистратуры проверяются предыдущий диплом, профильные кредиты и английскийB2. Язык конкретного потока подтвердить перед подачей.",
+      "photoKey": "university-of-perugia",
+      "programs": [
+        {
+          "id": "engineering-management",
+          "title": "Engineering Management",
+          "level": "master",
+          "duration": "2 года",
+          "language": null,
+          "summary": "Магистратура: управление сложными системами, проектами, инновациями, цифровой и устойчивой трансформацией.",
+          "sourceUrl": "https://ing.unipg.it/en/courses/engineering-management/second-cycle-degree-course",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-verona",
+    "content": {
+      "name": "University of Verona",
+      "country": "IT",
+      "city": "Верона",
+      "websiteUrl": "https://www.univr.it/en/",
+      "overview": "Университет в Вероне. Economics and Data Analysis — англоязычная магистратура, указанная в каталоге 2026/27.",
+      "sourceUrl": "https://www.corsi.univr.it/?ent=cs&id=1307&lang=en",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-verona",
+      "programs": [
+        {
+          "id": "economics-data-analysis",
+          "title": "Economics and Data Analysis",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Экономика и анализ данных; поступление зависит от проверки входных академических требований.",
+          "sourceUrl": "https://www.corsi.univr.it/?ent=cs&id=1307&lang=en",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-catania",
+    "content": {
+      "name": "University of Catania",
+      "country": "IT",
+      "city": "Катания",
+      "websiteUrl": "https://www.unict.it/en",
+      "overview": "Университет в Катании. Политико-социальный факультет ведёт международную программу о глобальной политике и Евро-Средиземноморье.",
+      "sourceUrl": "https://www.dsps.unict.it/en/courses/lm-62/course-overview",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-catania",
+      "programs": [
+        {
+          "id": "global-politics",
+          "title": "Global Politics and Euro-Mediterranean Relations",
+          "level": "master",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Англоязычная магистратура: глобальные политические системы, европейское управление и региональные отношения; очное участие, исследования и практические задания.",
+          "sourceUrl": "https://www.dsps.unict.it/en/courses/lm-62/course-overview",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-insubria",
+    "content": {
+      "name": "University of Insubria",
+      "country": "IT",
+      "city": "Варезе / Комо",
+      "websiteUrl": "https://www.uninsubria.it/",
+      "overview": "Университет Инсубрии имеет площадки в Варезе и Комо. Магистратура GEEM из этой карточки проводится в Варезе.",
+      "sourceUrl": "https://www.uninsubria.it/formazione/offerta-formativa/corsi-di-laurea/global-entrepreneurship-economics-and-management",
+      "verifiedOn": "2026-09-10",
+      "notes": "Приём зависит от профиля и оценки предыдущего диплома; требования итальянских классов дипломов не переносятся механически на иностранный документ.",
+      "photoKey": "university-of-insubria",
+      "programs": [
+        {
+          "id": "geem",
+          "title": "Global Entrepreneurship, Economics and Management",
+          "level": "master",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Англоязычная магистратура с траекториями International Business and Entrepreneurship и Economics of Innovation.",
+          "sourceUrl": "https://www.uninsubria.it/formazione/offerta-formativa/corsi-di-laurea/global-entrepreneurship-economics-and-management",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-brescia",
+    "content": {
+      "name": "University of Brescia",
+      "country": "IT",
+      "city": "Брешиа",
+      "websiteUrl": "https://www.unibs.it/en",
+      "overview": "Университет в Брешиа. В магистратуре Management имеются два англоязычных curriculum, отличные от итальянских вариантов.",
+      "sourceUrl": "https://corsi.unibs.it/en/management",
+      "verifiedOn": "2026-09-10",
+      "notes": "Проверенная подборка программ, не весь каталог. Условия приёма, признание предыдущего образования, языковой сертификат и стоимость зависят от программы и статуса кандидата. Актуальный конкурс проверять по официальной ссылке; общий дедлайн не придумывается.",
+      "photoKey": "university-of-brescia",
+      "programs": [
+        {
+          "id": "management-international-business",
+          "title": "Management — International Business",
+          "level": "master",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Международное управление бизнесом, зарубежными операциями компаний и межкультурное взаимодействие.",
+          "sourceUrl": "https://corsi.unibs.it/en/management",
+          "intakes": []
+        },
+        {
+          "id": "management-green-economy",
+          "title": "Management — Green Economy and Sustainability",
+          "level": "master",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Управление устойчивостью, экономические и экологические аспекты бизнеса; отдельная траектория той же магистратуры.",
+          "sourceUrl": "https://www.unibs.it/en/english-study-programmes",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "scuola-politecnica-di-design",
+    "content": {
+      "name": "Scuola Politecnica di Design (SPD)",
+      "country": "IT",
+      "city": "Милан",
+      "websiteUrl": "https://www.scuoladesign.com/",
+      "overview": "Школа дизайна в Милане, не Politecnico di Milano. Для приведённого британского BA школа указывает образовательного партнёра Teesside University.",
+      "sourceUrl": "https://www.scuoladesign.com/courses/communication-design-creative-strategy/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Требуются минимум 12 лет школьного образования, мотивационное письмо, портфолио при наличии и интервью. Официально указан IELTS5.5 или эквивалент. Программа 360UK credits/180ECTS; проверить организацию, присуждающую диплом, и признание для вашей страны.",
+      "photoKey": "scuola-politecnica-di-design",
+      "programs": [
+        {
+          "id": "communication-design",
+          "title": "BA (Hons) Communication Design & Creative Strategy",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский",
+          "summary": "Коммуникационный дизайн, исследования аудитории, маркетинг, визуальные и цифровые медиа; проекты, профессиональная практика и выпускная работа.",
+          "sourceUrl": "https://www.scuoladesign.com/courses/communication-design-creative-strategy/",
+          "intakes": []
+        }
+      ]
+    }
+  }
+]

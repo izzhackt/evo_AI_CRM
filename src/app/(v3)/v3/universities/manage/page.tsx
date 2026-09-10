@@ -22,7 +22,8 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
   if (draftId) {
     let drafts;
     try { drafts = await readUniversityDrafts(actor, draftId); } catch { return <PartShell title="Проверка карточки"><UniversityUnavailable /></PartShell>; }
-    const draft = drafts[0] ?? notFound();
+    const draft = drafts[0];
+    if (!draft) return <PartShell title="Проверка карточки">{back}<p role="status" className="mb-5 text-sm leading-6 text-fg-2">Этот черновик больше не ожидает проверки или недоступен. Если решение уже было сохранено, не создавайте дубликат — проверьте опубликованный каталог.</p><Link className={link} href="/v3/universities">Открыть опубликованный каталог</Link></PartShell>;
     return <PartShell title={`Проверка: ${draft.content.name}`}>{back}<p className="mb-5 text-sm leading-6 text-fg-2">Это черновик на основе версии {draft.baseVersion}. Студенты его не видят. Причина: {draft.reason}</p><UniversityContentView content={draft.content} now={new Date()} /><div className="mt-6"><UniversityReviewForm draftId={draft.id} requestId={randomUUID()} /></div></PartShell>;
   }
   const templates = reviewedUniversityTemplates();

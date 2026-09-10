@@ -43,12 +43,23 @@ const review = () => form({ operation: "publish", draft_id: draftId, institution
 test("explicit decision binds draft and validates complete receipt before revalidation", async () => {
   reset(); harness.response.data = { requestId, draftId, institutionId, status: "published" };
   assert.equal((await mutateUniversityCatalogAction(previous, review())).status, "published");
+  assert.equal(harness.revalidated.some(([path]) => path === "/v3/universities/manage"), false);
   assert.equal(harness.calls[0].name, "review_university_catalog_publication"); assert.equal(harness.calls[0].args.p_draft_id, draftId); assert.equal(harness.calls[0].args.p_decision, "publish");
   for (const patch of [{ requestId: institutionId }, { draftId: institutionId }, { institutionId: null }, { status: "saved" }, { private: "leak" }]) {
     reset(); harness.response.data = { requestId, draftId, institutionId, status: "published", ...patch };
     assert.equal((await mutateUniversityCatalogAction(previous, review())).status, "unavailable"); assert.equal(harness.revalidated.length, 0);
   }
 });
+test("rejection preserves its receipt and reviewed draft links have a recovery screen", async () => {
+  reset(); harness.response.data = { requestId, draftId, institutionId: null, status: "rejected" };
+  const data = review(); data.set("operation", "reject");
+  assert.equal((await mutateUniversityCatalogAction(previous, data)).status, "rejected");
+  assert.equal(harness.revalidated.some(([path]) => path === "/v3/universities/manage"), false);
+  const page = readFileSync(new URL("../src/app/(v3)/v3/universities/manage/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /if \(!draft\) return <PartShell/u);
+  assert.doesNotMatch(page, /drafts\[0\] \?\? notFound/u);
+});
+
 test("stale, denied, changed-replay and uncertain errors stay explicit without secret reflection", async () => {
   for (const [code, status] of [["40001", "stale"], ["23505", "request_conflict"], ["42501", "forbidden"], ["22023", "invalid"], ["XX000", "unavailable"]]) {
     reset(); harness.response = { data: null, error: { code, message: "PRIVATE provider text" } };

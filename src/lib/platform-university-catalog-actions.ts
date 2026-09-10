@@ -38,7 +38,10 @@ export async function mutateUniversityCatalogAction(previous: UniversityActionSt
     const expected = operation === "stage" ? "saved" : operation === "publish" ? "published" : "rejected";
     if (!data || typeof data !== "object" || Array.isArray(data) || Object.keys(data).sort().join() !== "draftId,institutionId,requestId,status" || data.requestId !== requestId || data.status !== expected || !universityUuid(data.draftId) || !(data.institutionId === null || universityUuid(data.institutionId)) || (draftId && data.draftId !== draftId) || (targetId && data.institutionId !== targetId) || (expected === "published" && !data.institutionId)) return result("unavailable");
     revalidatePath("/v3/universities");
-    revalidatePath("/v3/universities/manage");
+    // A decision removes this draft from the pending-only reader. Preserve the
+    // current form's confirmed receipt; the dynamic management list reads fresh
+    // when the operator follows its link.
+    if (operation === "stage") revalidatePath("/v3/universities/manage");
     revalidatePath("/portal/universities");
     if (data.institutionId) {
       revalidatePath(`/v3/universities/${data.institutionId}`);

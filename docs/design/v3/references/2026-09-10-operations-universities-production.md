@@ -6,7 +6,11 @@ It does not turn successful CI or an Admin release smoke into two-employee,
 Student-private or provider acceptance. All times below are UTC. No credentials,
 customer rows or private screenshots belong in this note.
 
-## Exact candidate and schema
+Current accepted runtime is `f5d0157a92b8929d0f9271e76a99f02b876517de`,
+version `r32.1-f5d0157a`; the corrective-release evidence is recorded below.
+The initial `8b70332f` release and its browser findings remain historical evidence.
+
+## Initial release: exact candidate and schema
 
 - Accepted candidate: `8b70332fa1417a301890e507b7d6fc2ea20a4255`, exact current
   GitHub `main` at admission and acceptance.
@@ -28,7 +32,7 @@ customer rows or private screenshots belong in this note.
 - The permanent database/Auth/Storage source remains Supabase
   `iosckaqtovbbnssqcpde`; this release did not clone, reset or replace it.
 
-## Immutable release identity
+## Initial release: immutable identity
 
 Automatic [release34423266788](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34423266788),
 attempt 1, completed successfully at `00:58:58`. Both jobs passed.
@@ -52,7 +56,7 @@ The actual image's OCI source is `https://github.com/izzhackt/evo_AI_CRM`;
 revision/version labels match the candidate and version above. The protected
 acceptance record binds the same image, artifact, upstream CI and workflow IDs.
 
-## Server readback and disarm
+## Initial release: server readback and disarm
 
 Read-only verification on `hermes-vps`, `/opt/evo-crm`, at `00:59:23` confirmed:
 
@@ -109,6 +113,11 @@ before future reuse; these are observations, not permanent configuration.
 
 ## University publication and visible browser proof
 
+The following observations were made on the initial `8b70332f` release. Its
+publication-feedback and chat-configuration findings led to the corrective
+release below; the pending statements in this historical section describe that
+earlier checkpoint, not the current deployment status.
+
 All five [reviewed university records](2026-09-10-university-catalog-sources.md)
 were staged, read in the public preview and approved once using the existing
 Admin account through `http://localhost:3000`. No service-key publication, fake
@@ -164,3 +173,88 @@ No test task was submitted. Sales opened the manual-lead entry and correctly
 reported no active Sales assignee; a genuine Sales membership is required before
 creating a real lead. The Admin account was not assigned a fake Sales identity
 to work around that business requirement.
+
+## Corrective release continuation
+
+PR714 merged as `f5d0157a92b8929d0f9271e76a99f02b876517de`, with the exact tree
+of independently approved `c39ff6af0403f8290499416e5dabb37fcb2c03dd`.
+Fast CI34424624216 passed its selected checks (migration boundary skipped: no
+SQL changes). The whole local Node suite passed 1289/1289 with no skips; full
+[CI34424853227](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34424853227)
+passed all five jobs for the exact merged revision. Automatic guarded
+[release34425391638](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34425391638)
+started at `01:25:08`; both jobs completed successfully, with the deployment job
+completed at `01:29:42`. `Accept exact V3 candidate` passed at `01:29:33`.
+Authenticated read-only browser smoke and the final GitHub/Supabase ledger
+guards passed. Schema 001–148 was read and checked, not reapplied.
+
+While waiting, the coordinator staged a legitimate APU editorial improvement:
+replace the internal knowledge-transfer explanation with a plain-language prompt
+to ask the curator about document deadline, places, language and current price.
+No factual date/program/source was changed. Draft
+`cc3824a4-6a78-4370-8eff-466dbe78c258`, based on publication version1, was
+kept pending until the corrected release was accepted, then approved once in
+the normal UI as recorded below. No second draft or source-template change
+was used to manufacture test data.
+
+### Corrective release: immutable identity and live readback
+
+| Identity | Verified value |
+| --- | --- |
+| Release ID / attempt | `v3-r34425391638-a1-f5d0157a` / `1` |
+| Exact revision | `f5d0157a92b8929d0f9271e76a99f02b876517de` |
+| Version / platform | `r32.1-f5d0157a` / `linux/amd64` |
+| Image ID | `sha256:4d128a7e80ce57dcc6c341bd1bb8576536cabb1ec2ddb7df0cefa06a26c2444f` |
+| Image config digest, bound by acceptance | `sha256:2ab911835b1c58b4f40d45978768be5b488038759dcf157f35bbd44efa21e8b3` |
+| GitHub artifact ID | `10132472619` |
+| GitHub artifact digest | `sha256:7daa746849c8b9b9cbed004ad04e868c4cc57cb6b7585f193050997e996d3504` |
+| Acceptance-record SHA-256 | `59cd5613d3a5399cf9e91541403b985ac335b98ecca1ed00a37fe114acbe4a88` |
+| Browser-receipt SHA-256 | `266f345efdef7e1a0615f8712c2c97694dca576df06f13d64f06c1bf38617aea` |
+| Upstream CI / attempt | `34424853227` / `1` |
+
+Read-only Hermes checks at `01:30:12` and `01:30:35` confirmed the actual
+`release-evidence/current-v3-accepted.json` names this release and
+`v3-r34425391638-a1-f5d0157a/v3-acceptance-record.json`. The pointer modification
+time is `2026-09-10 01:29:33.052056751 +0000`. The acceptance file's calculated
+SHA-256 matches the pointer; the calculated browser-receipt hash matches the
+acceptance record. The browser receipt has `result=passed` and the exact
+revision, release, workflow run and attempt above. The image OCI source remains
+`https://github.com/izzhackt/evo_AI_CRM`; its revision/version labels match.
+
+- Actual app container `fbbe8913277a` runs that image, is healthy and has restart
+  count 0. ClamAV is healthy with restart count 0 and the same digest recorded
+  for the initial release. `release-evidence/pending-current.json` is absent.
+- This release's `rollback-command.sh` is mode `0700` and retains the preceding
+  accepted `v3-r34423266788-a1-8b70332f` image/version. No new backup, restore
+  rehearsal, database clone or migration apply was performed for this correction;
+  the standing owner exception and image-rollback limitations above still apply.
+- Hermes HTTPS health returned 200 with normal certificate validation. The app's
+  actual `evo_crm_private` IP is still `172.16.8.4`. Existing SSH PID `93942`
+  still forwards only `127.0.0.1:3000` to `172.16.8.4:3000` on Hermes;
+  localhost health returned 200. No tunnel replacement or separate app/database
+  was needed.
+- The coordinator disarmed after acceptance. An independent GitHub API read at
+  `01:30:36` confirmed `EVO_PRODUCTION_RELEASE_ARMED=false`; its `updated_at`
+  is `2026-09-10T01:30:06Z`, distinct from that observation time.
+
+On this final accepted version, the coordinator fully navigated the existing
+genuine Admin Chrome session to `/v3/team-chat` and observed the live-update
+status transition to `Обновления подключены`. This is bounded production proof
+of the existing user's private realtime subscription, not message delivery or
+two-employee acceptance. No chat message was sent and no second employee joined.
+
+For APU, the coordinator read that existing draft's full preview, confirmed
+source review and clicked `Подтвердить решение` exactly once. The app navigated
+automatically to `/v3/universities/a0509b28-0dee-4c82-b59f-4440cf57d8d7` and
+displayed `Опубликованная версия 2` with the revised curator-next-step caveat.
+There was no manual navigation after the decision, duplicate publication or
+synthetic business record. This verifies the corrected publication navigation
+on an actual approved editorial change, separately from the release smoke.
+
+The subsequent management view showed `На проверке (0)` and
+`Новых черновиков нет`. Its actual `← Опубликованный каталог` link opened
+`/v3/universities`, where all five existing names and canonical IDs above
+remained present. The final desktop screenshot showed the same four campus
+photos and APU's intentional placeholder. Both narrow corrections now have
+the bounded live browser proof described here; two-employee chat/task journeys,
+Student-private acceptance and the deferred provider work remain unproven.

@@ -9,15 +9,15 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `8b70332fa1417a301890e507b7d6fc2ea20a4255`,
-version `r31.1-8b70332f`, after full CI `34422704610` passed all five jobs and
-release `34423266788` succeeded, including `Accept exact V3 candidate`.
+Last recorded accepted application: `f5d0157a92b8929d0f9271e76a99f02b876517de`
+(PR #714), version `r32.1-f5d0157a`, after full CI `34424853227` passed all five
+jobs and release `34425391638` succeeded, including `Accept exact V3 candidate`.
 The permanent Supabase source `iosckaqtovbbnssqcpde` has ledger001–148; the
 reviewed tail139–148 was applied once by `34421758765` and checked again by release.
-Accepted pointer: `v3-r34423266788-a1-8b70332f`; at 00:59 UTC app/ClamAV were
+Accepted pointer: `v3-r34425391638-a1-f5d0157a`; at 01:30:12 UTC app/ClamAV were
 healthy with zero restarts, public HTTPS and localhost health200, and
-`pending-current.json` absent. API readback at 00:59:55 UTC confirmed arm=false,
-with variable `updated_at=2026-09-10T00:59:29Z`. SSH PID93942 forwards
+`pending-current.json` absent. API readback at 01:30:36 UTC confirmed arm=false,
+with variable `updated_at=2026-09-10T01:30:06Z`. SSH PID93942 forwards
 `127.0.0.1:3000` to the same Hermes app at `172.16.8.4:3000`; recheck PID/IP before reuse.
 See the [production evidence](design/v3/references/2026-09-10-operations-universities-production.md)
 for immutable image/acceptance hashes, schema and bounded live Admin/tunnel proof.
@@ -25,7 +25,9 @@ The one-time import of 209 sales/4 targets remains the prior reconciled import,
 not a new import or evidence of student cases. Two-employee business acceptance
 and live Student proof remain separate. No new backup/rehearsal was performed
 under the standing owner instruction; retained backups and the previous
-accepted `76c62b90` image remain rollback evidence, not a new recovery point.
+accepted `8b70332f` image remain rollback evidence, not a new recovery point.
+That image is the immediate predecessor of the current release; `76c62b90`
+remains earlier acceptance history.
 The [September9 acceptance](design/v3/references/2026-09-09-student-admissions-production.md)
 and earlier #552/#553 records remain history. Documentation alone does not
 deploy a new revision or require repeating this accepted release or schema tail.
@@ -49,17 +51,27 @@ genuine Admin UI and confirmed by canonical catalogue readbacks; four photos
 loaded in the browser. The coordinator owns the detailed browser/publication record
 in the linked production evidence. This does not prove a private Student visit.
 
-Post-release follow-up: a narrow publication-feedback correction is in progress.
-Publication succeeds, but draft-page revalidation can show the recovery screen
-instead of the success destination. Do not republish those records. The fix
-changes only the presentation handoff, not SQL; it is not yet an accepted release.
-Finish its focused regression/review and normal exact-head release gates.
-The same follow-up corrects chat's browser/runtime public-configuration boundary:
-history/form work, but the build-time browser config is absent and live updates
-remain unavailable on the first accepted image. Pass only the existing validated
-public URL/key from the authenticated server page; private Auth/RLS and schema
-remain unchanged. Verify the actual private subscription after release, without
-claiming two-person message delivery from connection status alone.
+The narrow post-release corrections shipped in PR #714 and the current accepted
+`f5d0157a` release. Independent review covered `c39ff6af`, fast CI `34424624216`
+passed its selected checks, and the whole local Node suite passed1289/1289 with
+no skips before the exact-main full CI/release above. No SQL or schema changed.
+The first image's draft-page revalidation hid a successful publication receipt;
+the correction now navigates to the canonical result after a validated write.
+In the genuine Admin browser, the already-staged APU editorial draft was
+published once and automatically opened its canonical detail page with version2
+and the revised caveat. No manual navigation supplied that success destination;
+do not repeat the original five publications or create a duplicate draft.
+
+The same release supplies only validated public URL/key from the authenticated
+server page to chat; private Auth/RLS and private-channel/session checks remain
+unchanged. In the genuine Admin Chrome session, `/v3/team-chat` reached
+`Обновления подключены`: the existing user's private subscription is verified.
+No message was sent and no second employee joined; connection status does not
+prove delivery, reconnect or revocation. Both bounded browser fixes are checked.
+This handover records the completed release. The next work is the separate
+real-employee/Student acceptance checklist and, only when authorized, the
+deferred provider lane. Do not rerun this accepted release, migrations or sales
+import as an unfinished step.
 
 Historical pre-release failure: full CI `34421761988` stopped at stale task-picker text and browser
 selectors for newly nested disclosures. The following media test lacked the
@@ -74,8 +86,9 @@ the existing persistent Supabase project, Auth and deferred WAHA boundary.
 
 ## Previous implementation checkpoint: team workspace (2026-09-10)
 
-Completion notice: R1–R4 shipped in accepted `8b70332f`; R5 technical release and
-same-server tunnel are complete. Real two-employee invitation/chat/task and
+Completion notice: R1–R4 first shipped in accepted `8b70332f` and remain included
+in current `f5d0157a`; R5 technical release and same-server tunnel are complete.
+The current Admin private-chat subscription is verified, but real two-employee invitation/chat/task and
 access-revocation acceptance remains pending. The candidate/R0 wording below
 is retained as history, superseded by the current checkpoint and
 [team-workspace status](design/v3/team-workspace-run-plan.md#9-холодное-продолжение-и-дисциплина).

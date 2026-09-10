@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `32693abb3fac3bcdb345d0851363d57c474016ef`
+Last recorded accepted application: `88d0354f828f1e753b902480de38b075d63442d9`
 
 ## Current run: complete university catalogue
 
@@ -17,10 +17,13 @@ The owner authorizes the [full university-catalogue completion run](design/v3/un
 inventory all eligible institutional KB/raw files, deduplicate and verify official
 facts, include correctly attributed real campus photos, publish through existing
 Admin authority, deploy and show the same server through the localhost tunnel.
-Research and implementation are ready:143 institutions /251 verified programmes,
-all143 with a reviewed image. Local checks pass; final exact-head approval,
-managed151, accepted release and real Admin publication/readback are pending.
-The previously published16 institutions are not proof that this package is live.
+PR726, full CI34526967052, managed151 and release34527806723 attempt2 passed.
+Real Admin publication and complete five-page readback confirm143 institutions /
+251 programmes, all16 original IDs retained. There were136 published changes
+and seven already-current records. The tunnel serves this accepted server.
+141/143 images loaded in Chrome; two externally failing photo sources have
+verified replacements pending corrective release and final browser acceptance.
+See the [production evidence ledger](design/v3/references/2026-09-11-university-catalog-production-acceptance.md).
 Preserve raw/privacy
 boundaries, source authority, immutable canonical identity and normal release gates.
 
@@ -39,7 +42,7 @@ existing localhost tunnel opened the preview and both authored questionnaires.
 Use `/preview/student` (or `/preview/student/tests`), not the Student-only `/portal`.
 See the linked plan for proof limits; this is not Student account/persistence proof.
 
-## Current bounded continuation: Admin, chat and university expansion
+## Historical bounded continuation: Admin, chat and university expansion
 
 The September10 screenshots/request are implemented in
 [the Admin/realtime/university expansion run](design/v3/admin-realtime-university-expansion-run-plan.md).
@@ -54,10 +57,11 @@ Full CI `34466066204` passed all five jobs on exact `a52cca37`; guarded release
 `v3-r34466804312-a1-a52cca37`, healthy app/restarts0, no pending release, public
 HTTPS and localhost health200, and release arm=false. Managed ledger001–150:
 149/150 were applied once by `34462429988`, not repeated by later releases.
-The live catalogue has16 distinct institutions (CN7/MY9),14 photo-backed;11 new
+At that acceptance the catalogue had16 distinct institutions (CN7/MY9),14 photo-backed;11 new
 institutions were published through the real Admin approval flow with all10 new
 photos loaded. No duplicate records or pending drafts remain. City/APU photos,
-OUC source confirmation and further institutional expansion remain explicit gaps.
+OUC source confirmation and further institutional expansion were explicit gaps,
+superseded by the current catalogue run above.
 The localhost SSH tunnel serves the same Hermes application, not a second app/DB.
 See [exact release/publication evidence and remaining acceptance](design/v3/references/2026-09-10-admin-catalogue-release.md).
 Do not repeat these schema changes, publications or the prior sales import.

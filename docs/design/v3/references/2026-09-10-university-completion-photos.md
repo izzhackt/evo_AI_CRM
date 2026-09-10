@@ -160,3 +160,25 @@ Commons-страницы либо официальные институцион�
 Ни файлы абитуриентов, ни переписка, ни секреты в реестр не попадали. Генеративные
 изображения кампусов, скачивание для обхода ограничений отображения и массовая
 перепубликация raw-фотографий не использовались.
+
+## 2026-09-11: проверка production и две замены источника
+
+На принятом `88d0354f` все пять страниц дали143 уникальные карточки и251 программу;
+141 изображение загрузилось в настоящем Chrome. Две записи таблицы выше
+переопределены следующими результатами (ключи фото и опубликованные DTO прежние):
+
+- **GBS Dubai:** старый `gbs.ac.ae/media/d0ejs0im/...` отвечает200, но выдаёт
+  `Cross-Origin-Resource-Policy: same-origin`; в EVO показался честный fallback.
+  Его не проксировали и не скачивали. [Официальная галерея English Path](https://www.englishpath.com/destinations/middle-east/dubai/)
+  содержит другой [снимок фасада с вывеской GBS Dubai](https://www.englishpath.com/media/uaejybqu/ep-dubai-40.webp?width=1600&height=1200&quality=90&v=1dae895af5f23f0).
+  [English Path подтверждает общий кампус и помещения с GBS](https://www.englishpath.com/young-learners-dubai/).
+  Снимок реально открылся1600×1200; HEAD200 image/webp, CORP отсутствует.
+- **Guangzhou Huashang Vocational College:** исходный `www.gzhsvc.edu.cn`
+  выдаёт DNS ENOTFOUND/ESERVFAIL. Та же [фотография ворот](https://gbabs.hk/wp-content/uploads/2026/06/xiaomen.jpeg)
+  с точной вывеской колледжа размещена на [странице связанной GBA Business School](https://gbabs.hk/school-overview/).
+  Реально открылась1080×650; HEAD200 image/jpeg, CORP отсутствует.
+
+У обеих фотографий видимы издатель/источник, свободная лицензия не заявлена.
+Проверка прямого изображения не заменяет финальную проверку встраивания в EVO
+после корректирующего выпуска; её результат фиксируется в
+[production acceptance ledger](2026-09-11-university-catalog-production-acceptance.md).

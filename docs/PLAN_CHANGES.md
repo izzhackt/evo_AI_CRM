@@ -22919,3 +22919,14 @@ Do not misclassify language study as a degree or promise degree progression.
 Multiple campuses of one canonical institution belong in its programmes/notes,
 not duplicate university identities. This is an additive content-model extension
 required by the owner's all-university-materials scope, not an admissions workflow.
+
+### 2026-09-11 — correct two photo hosts after real catalogue readback
+
+Release `88d0354f` and 143 published institutions are accepted; full browser
+readback found 141/143 images loaded. GBS serves its image with CORP same-origin;
+Huashang's original host has DNS errors. Replace only those two registry records
+with independently verified official related-school photographs and attribution.
+Do not proxy restricted media, disable browser/TLS protections, download images,
+change photo keys/schema, or republish unchanged university content. Preserve the
+successful release as evidence, then verify the two embeds on the corrective
+release. All ordinary exact-head/CI/release gates remain in place.

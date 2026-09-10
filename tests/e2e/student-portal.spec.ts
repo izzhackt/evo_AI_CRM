@@ -343,6 +343,12 @@ test("anonymous, staff and Student routes stay mutually isolated", async ({ page
   await expect(page.getByTestId("v3-shell")).toHaveCount(0);
   await expect(page.getByTestId("student-portal-shell")).toBeVisible();
 
+  for (const path of ["/preview/student", "/preview/student/tests/english"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/portal$/);
+    await expect(page.getByTestId("assessment-preview")).toHaveCount(0);
+  }
+
   await submitLogin(page, "admin");
   await page.goto("/portal");
   await expect(page).toHaveURL(/\/v3\/main$/);

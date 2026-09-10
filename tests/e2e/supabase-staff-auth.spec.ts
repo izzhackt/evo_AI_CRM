@@ -723,6 +723,59 @@ test("all three real identities persist, enforce role routes, and log out", asyn
   }
 });
 
+test("Admin previews Student screens and authored questions without saving an attempt", async ({ page }) => {
+  test.skip(authMode !== "configured");
+
+  await page.goto("/preview/student");
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  await signIn(page, "admin");
+  await page.getByRole("link", { name: "Предпросмотр кабинета студента", exact: true }).click();
+  await expect(page).toHaveURL(/\/preview\/student$/);
+  await expect(page.getByRole("heading", { name: "План поступления пока не опубликован" })).toBeVisible();
+
+  const writes: string[] = [];
+  const appOrigin = new URL(page.url()).origin;
+  page.on("request", (request) => {
+    if (new URL(request.url()).origin === appOrigin && !["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+      writes.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    }
+  });
+  for (const section of ["documents", "applications", "payments", "notifications", "universities"]) {
+    await page.locator(`nav a[href="/preview/student/${section}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/preview/student/${section}$`));
+    await expect(page.locator("main h1")).toBeVisible();
+  }
+  await page.locator('nav a[href="/preview/student/tests"]').click();
+  await expect(page.getByRole("heading", { name: "Тесты", exact: true })).toBeVisible();
+  for (const [title, firstPage, secondPage] of [
+    ["Английский", "Задание 1 из 36", "Задание 2 из 36"],
+    ["Профориентация", "Часть 1 из 23", "Часть 2 из 23"],
+  ]) {
+    await page.getByRole("link", { name: `Просмотреть: ${title}`, exact: true }).click();
+    const runner = page.getByTestId("assessment-preview");
+    await expect(runner.getByText("Ответы не сохраняются.", { exact: false })).toBeVisible();
+    await runner.getByRole("button", { name: "Начать просмотр", exact: true }).click();
+    await expect(runner.getByRole("heading", { name: firstPage, exact: true })).toBeVisible();
+    const firstChoice = runner.getByRole("radio").first();
+    await firstChoice.check();
+    await expect(firstChoice).toBeChecked();
+    await runner.getByRole("button", { name: "Далее", exact: true }).click();
+    await expect(runner.getByRole("heading", { name: secondPage, exact: true })).toBeVisible();
+    await runner.getByRole("button", { name: "Назад", exact: true }).click();
+    await expect(firstChoice).toBeChecked();
+    await page.reload();
+    await expect(runner.getByRole("button", { name: "Начать просмотр", exact: true })).toBeVisible();
+    await runner.getByRole("button", { name: "Начать просмотр", exact: true }).click();
+    await expect(runner.locator('input[type="radio"]:checked')).toHaveCount(0);
+    await runner.getByRole("link", { name: "К списку тестов", exact: true }).click();
+  }
+  expect(writes, "preview must not submit app commands or create assessment attempts").toEqual([]);
+  await page.getByRole("link", { name: "Вернуться в CRM", exact: true }).click();
+  await expectActiveRole(page, "admin");
+  await page.goto("/portal");
+  await expect(page).toHaveURL(/\/v3\/main$/);
+});
+
 test("retired V2 staff and API routes are absent from the authenticated runtime", async ({
   page,
 }) => {
@@ -785,6 +838,12 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   }
   await expectKnowledgeSurface(page, { documents: false, snippets: true });
 
+  for (const path of ["/preview/student", "/preview/student/tests/english"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/access-denied\?from=%2Fpreview%2Fstudent$/);
+    await expect(page.getByTestId("assessment-preview")).toHaveCount(0);
+  }
+
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
@@ -796,6 +855,11 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await expectDirectRouteAllowed(page, "/v3/knowledge");
   await expectKnowledgeDocumentsAndSnippets(page);
   await expectDirectRouteAllowed(page, "/v3/inbox");
+  for (const path of ["/preview/student", "/preview/student/tests/career"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/access-denied\?from=%2Fpreview%2Fstudent$/);
+    await expect(page.getByTestId("assessment-preview")).toHaveCount(0);
+  }
 });
 
 test("Admin downloads the canonical audit CSV while Sales is denied", async ({

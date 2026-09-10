@@ -9,22 +9,26 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `76c62b902d9a2e094be8fcd65259a4962ad597b1`,
-version `r29.1-76c62b90`, after full CI `34391182045` passed all five jobs and
-release `34391907814` succeeded, including `Accept exact V3 candidate`.
-That application was accepted with ledger001–138. Current schema progress is
-recorded in the active continuation below.
-Accepted pointer: `v3-r34391907814-a1-76c62b90`; app/ClamAV are healthy with zero
-restarts, public HTTPS health200 and `pending-current.json` absent. A fresh API
-readback confirms release arm=false, `updated_at=2026-09-09T19:00:06Z`.
-See the [production evidence](design/v3/references/2026-09-09-student-admissions-production.md)
-for immutable image/acceptance hashes and bounded live Admin/tunnel proof.
-The one-time import of 209 sales/4 targets remains reconciled. Owner business
-acceptance and live Student proof remain separate. No new backup/rehearsal was
-performed under the owner waiver; retained backups and the previous `0cbb2d42`
-image remain rollback evidence, not a new recovery point. Earlier `4e6057f0`
-evidence in closed #552/#553 is first-release history. A documentation change
-does not deploy a new app revision or require repeating this accepted release.
+Last recorded accepted application: `8b70332fa1417a301890e507b7d6fc2ea20a4255`,
+version `r31.1-8b70332f`, after full CI `34422704610` passed all five jobs and
+release `34423266788` succeeded, including `Accept exact V3 candidate`.
+The permanent Supabase source `iosckaqtovbbnssqcpde` has ledger001–148; the
+reviewed tail139–148 was applied once by `34421758765` and checked again by release.
+Accepted pointer: `v3-r34423266788-a1-8b70332f`; at 00:59 UTC app/ClamAV were
+healthy with zero restarts, public HTTPS and localhost health200, and
+`pending-current.json` absent. API readback at 00:59:55 UTC confirmed arm=false,
+with variable `updated_at=2026-09-10T00:59:29Z`. SSH PID93942 forwards
+`127.0.0.1:3000` to the same Hermes app at `172.16.8.4:3000`; recheck PID/IP before reuse.
+See the [production evidence](design/v3/references/2026-09-10-operations-universities-production.md)
+for immutable image/acceptance hashes, schema and bounded live Admin/tunnel proof.
+The one-time import of 209 sales/4 targets remains the prior reconciled import,
+not a new import or evidence of student cases. Two-employee business acceptance
+and live Student proof remain separate. No new backup/rehearsal was performed
+under the standing owner instruction; retained backups and the previous
+accepted `76c62b90` image remain rollback evidence, not a new recovery point.
+The [September9 acceptance](design/v3/references/2026-09-09-student-admissions-production.md)
+and earlier #552/#553 records remain history. Documentation alone does not
+deploy a new revision or require repeating this accepted release or schema tail.
 
 ## Active continuation: business operations and universities (2026-09-10)
 
@@ -37,21 +41,44 @@ parallel; coordinator owns O4 task links/results and shared integration/release.
 O0–O5 merged in PR #712, main `cb8e932f7c4cc5cee04c0767519ae6e83ba1df33`.
 Exact-head independent review and all six fast checks `34421255285` passed.
 Managed schema apply `34421758765` succeeded with dry-run and exact readback
-001–148; do not repeat those migrations. The old accepted app remains running.
-Full release CI `34421761988` stopped at stale task-picker text and browser
+001–148; do not repeat those migrations. PR #713 then merged the test-only
+alignment as `8b70332f`; fresh full CI `34422704610` and guarded release
+`34423266788` passed. O6 technical release/readback/disarm is complete.
+All five reviewed university records were subsequently published through the
+genuine Admin UI and confirmed by canonical catalogue readbacks; four photos
+loaded in the browser. The coordinator owns the detailed browser/publication record
+in the linked production evidence. This does not prove a private Student visit.
+
+Post-release follow-up: a narrow publication-feedback correction is in progress.
+Publication succeeds, but draft-page revalidation can show the recovery screen
+instead of the success destination. Do not republish those records. The fix
+changes only the presentation handoff, not SQL; it is not yet an accepted release.
+Finish its focused regression/review and normal exact-head release gates.
+The same follow-up corrects chat's browser/runtime public-configuration boundary:
+history/form work, but the build-time browser config is absent and live updates
+remain unavailable on the first accepted image. Pass only the existing validated
+public URL/key from the authenticated server page; private Auth/RLS and schema
+remain unchanged. Verify the actual private subscription after release, without
+claiming two-person message delivery from connection status alone.
+
+Historical pre-release failure: full CI `34421761988` stopped at stale task-picker text and browser
 selectors for newly nested disclosures. The following media test lacked the
 proof file because the first browser flow stopped before writing it; do not
-fabricate or skip that proof. Release `34422198926` was guarded/skipped. Arm is
-false and no new app acceptance is claimed. Test-only alignment is in
-`izzhackt/operations-release-test-alignment` (PR #713); the complete Node suite now passes
-1283/1283 across137 files. Review/merge the correction and prove its exact new
-main before releasing.
-Do not report these new features as live until O6 records exact acceptance.
+fabricate or skip that proof. Release `34422198926` was guarded/skipped; no app
+changed in that failed attempt. PR #713 corrected the expectations/selectors,
+with the complete Node suite passing1283/1283 across137 files, before the
+successful exact-main CI/release above. This paragraph is not a remaining action.
 The standing no-new-backup instruction is recorded explicitly in the new plan;
 do not ask it again or fabricate restore evidence. Keep all other release gates,
 the existing persistent Supabase project, Auth and deferred WAHA boundary.
 
 ## Previous implementation checkpoint: team workspace (2026-09-10)
+
+Completion notice: R1–R4 shipped in accepted `8b70332f`; R5 technical release and
+same-server tunnel are complete. Real two-employee invitation/chat/task and
+access-revocation acceptance remains pending. The candidate/R0 wording below
+is retained as history, superseded by the current checkpoint and
+[team-workspace status](design/v3/team-workspace-run-plan.md#9-холодное-продолжение-и-дисциплина).
 
 After planning PR #709, the owner approved implementation of issue #708 and
 explicitly deferred WAHA confirmation because employee WhatsApp numbers are
@@ -88,9 +115,10 @@ Corporate WhatsApp mirroring is an explicit optional W2 lane; Sales Inbox live
 provider acceptance is separate W1. Neither may silently block native chat or
 be claimed as working without actual provider evidence. Do not reopen completed
 Portal/CN/MY/report implementation, repeat the sales import, revive retired
-routes, or apply #687 before owner acceptance. Preserve the September9 backup
-waiver for its original release; determine recovery authority for a later
-schema-changing release rather than treating that waiver as perpetual.
+routes, or apply #687 before owner acceptance. The R0 audit treated the
+September9 backup waiver as specific to its original release. The subsequent
+September10 instruction explicitly retained no-new-backup authority for this
+continuation under O6; do not reopen that resolved question or invent restore proof.
 
 Read-only server recheck during this planning turn confirmed the accepted
 revision/image recorded above, healthy app/WAHA containers and HTTPS health200.
@@ -100,6 +128,10 @@ R0 uses docs/contract checks and independent review, not a product build or
 full database/browser replay. See the new plan for exact acceptance and inputs.
 
 ## Completed local follow-up: sidebar Option 2 (2026-09-10)
+
+Production notice: the menu described below is now included in accepted
+`8b70332f`. The local delivery sequence and unreleased wording below record
+the earlier #707 checkpoint, not the current production state.
 
 Owner selected collapsible department groups from the three visual options.
 Implement inside the existing app: Sales → Pipeline / Sales report; Admissions
@@ -198,6 +230,10 @@ The owner supplied both country DOCX sources and delegates uncertain product
 choices for documented post-edit; Malaysia is not awaiting a source document.
 
 ### Latest owner direction: release, no new backup, persistent source
+
+Historical checkpoint notice: this subsection records the September9 acceptance
+of `76c62b90`. It has since been superseded by accepted `8b70332f` with schema148
+at the top of this plan; do not repeat the earlier release or migration steps.
 
 Current execution checkpoint: P9 is technically DEPLOYED on `76c62b90`.
 The earlier `3b4e08db` full CI `34389680062` failed before deployment and

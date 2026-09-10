@@ -22748,3 +22748,41 @@ Official Supabase database functions/Storage access-control and Next.js data-sec
 docs were refreshed directly; Context7 reports exhausted monthly quota. Use narrow
 grants, empty search_path on privileged RPCs and live command/Storage authorization.
 No new compatibility lane, mock backend or second product database is introduced.
+
+### 2026-09-10 — post-release university publication feedback correction
+
+Release34423266788 accepted exact main8b70332f with schema148. Actual Admin
+publication saved the university correctly, but any `revalidatePath` causes
+the installed Next16.3.4 Server Action to render the current draft-only page.
+The reviewed draft disappears from its pending reader, replacing the confirmed
+receipt with a neutral recovery message. Catalogue readback proves publication;
+do not retry it as a new draft or invent a second record.
+
+Correct only the presentation handoff: after validating the existing RPC receipt
+and invalidating the same caches, a successful publish redirects to its canonical
+institution; rejection redirects to the management list. Framework navigation
+must not be swallowed as a transport failure. Stage, role checks, SQL, versions,
+exact-request replay and stale/conflict handling remain unchanged. Add a focused
+red-to-green regression; no new migration or product scope. Publish this narrow
+follow-up through the ordinary exact-head review and guarded release gates.
+
+The same bounded browser pass found native chat history/composer available but
+Realtime unavailable. Its new browser code reads build-time `NEXT_PUBLIC_*`
+variables, whereas this immutable image receives the validated Supabase public
+configuration at server runtime. Confirm that boundary using presence-only
+evidence, never printing values. Pass only the existing validated URL and public
+publishable key from the authenticated server page to the chat component; do not
+serialize service credentials, build environment files into the image, change
+Auth/RLS, make channels public or add a second configuration source. Verify the
+private subscription after the combined corrective release. Two-person message
+delivery remains a separate acceptance step, not implied by a connected socket.
+
+Official behavior checked on10September: [Next redirect](https://nextjs.org/docs/app/api-reference/functions/redirect)
+uses framework control flow and belongs outside broad catches;
+[browser environment variables](https://nextjs.org/docs/app/guides/environment-variables)
+are frozen at build time unless explicitly supplied during runtime initialization.
+The isolated client catch uses documented
+[unstable_rethrow](https://nextjs.org/docs/app/api-reference/functions/unstable_rethrow)
+to preserve navigation. Upstream labels that helper unstable/not recommended for
+production; it is limited to this pinned Next16.3.4 seam with real-function
+regressions, not a general dependency on private error strings.

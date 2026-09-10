@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { useActionState, useRef, useState } from "react";
 import { mutateUniversityCatalogAction } from "@/lib/platform-university-catalog-actions";
 import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, parseUniversityContent, type UniversityActionState, type UniversityContent, type UniversityIntake, type UniversityLevel, type UniversityProgram } from "@/lib/platform-university-catalog";
@@ -22,7 +23,8 @@ function useUniversityAction(requestId: string) {
       const state = await mutateUniversityCatalogAction(previous, exactForm);
       if (state.status !== "unavailable") pendingForm.current = null;
       return state;
-    } catch {
+    } catch (error) {
+      unstable_rethrow(error);
       return { status: "unavailable", requestId, draftId: null, institutionId: null };
     }
   }, initial(requestId));

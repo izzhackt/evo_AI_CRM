@@ -38,10 +38,12 @@ O0–O5 merged in PR #712, main `cb8e932f7c4cc5cee04c0767519ae6e83ba1df33`.
 Exact-head independent review and all six fast checks `34421255285` passed.
 Managed schema apply `34421758765` succeeded with dry-run and exact readback
 001–148; do not repeat those migrations. The old accepted app remains running.
-Full release CI `34421761988` stopped at a stale task-picker text assertion in
-Node/static; the database/browser job is tracked separately. Release arm is
+Full release CI `34421761988` stopped at stale task-picker text and browser
+selectors for newly nested disclosures. The following media test lacked the
+proof file because the first browser flow stopped before writing it; do not
+fabricate or skip that proof. Release `34422198926` was guarded/skipped. Arm is
 false and no new app acceptance is claimed. Test-only alignment is in
-`izzhackt/operations-release-test-alignment`; the complete Node suite now passes
+`izzhackt/operations-release-test-alignment` (PR #713); the complete Node suite now passes
 1283/1283 across137 files. Review/merge the correction and prove its exact new
 main before releasing.
 Do not report these new features as live until O6 records exact acceptance.

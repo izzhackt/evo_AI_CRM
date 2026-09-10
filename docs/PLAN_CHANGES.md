@@ -22844,3 +22844,26 @@ and subsequent receipt dependency. This is a bounded harness correction under th
 approved Admin parity work, not weaker product authorization or skipped gates.
 Do not modify already-applied149/150 or reapply them. Fresh exact-head review,
 PR checks and exact-current-main full CI remain required before releasing the app.
+
+### 2026-09-10 — keep the Admin session after a confirmed self-handoff
+
+Source tracing of the new Admin-as-recipient path found a bounded UX seam:
+handoff088 bumps the selected profile's access version, so self-handoff makes the
+actor's existing token stale. The current action only revalidates and the next
+authority read redirects to login. The receipt is already committed; do not
+present a refresh failure as an unsaved handoff or retry with a new request ID.
+
+After a validated successful self-handoff only, explicitly refresh the existing
+SSR session and reauthorize the same Auth/profile/membership/organization identity
+before rendering protected content. Preserve token-version invalidation, live
+membership/role checks, role-preview restrictions and receipt idempotency. If
+refresh or matching authority fails, send the user to the normal sign-in recovery;
+do not return a success screen with stale authority or broaden generic stale-token
+recovery. No new migration, actor, business record or provider integration.
+
+Official references checked10September: Supabase
+[refreshSession](https://supabase.com/docs/reference/javascript/auth-refreshsession)
+can renew a session even before expiry; the
+[Next.js SSR client guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client?queryGroups=framework&framework=nextjs)
+requires authenticated server checks and propagation of refreshed cookies.
+Use the existing authenticated client, never service-role or supplied token data.

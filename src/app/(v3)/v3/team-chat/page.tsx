@@ -5,6 +5,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { TEAM_CHAT_FAILURE_COPY, isTeamChatChannel, teamChatUuid } from "@/lib/platform-team-chat";
 import { TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readV3TeamChat } from "@/lib/v3/team-chat-source";
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "EVO · Командный чат" };
@@ -27,8 +28,12 @@ export default async function TeamChatPage({ searchParams }: {
       <a className="mt-4 inline-flex min-h-11 items-center text-[var(--accent-text)] underline" href={`/v3/team-chat?channel=${channel}`}>Обновить канал</a>
     </div></PartShell>;
   }
+  // The promoted image has no build-time Supabase config. Serialize only the
+  // validated public fields from this authenticated runtime request.
+  const realtimeConfig = getSupabasePublicConfig();
   return <PartShell title="Командный чат"><TeamChat key={`${actor.membershipId}:${channel}:${messageId ?? "latest"}`}
     initial={initial} channel={channel} organizationId={actor.organizationId} membershipId={actor.membershipId}
+    realtimeConfig={realtimeConfig}
     canModerate={actor.presentationRole === "admin"} initialMessageId={messageId} showChannelsInitially={params.channel === undefined} />
   </PartShell>;
 }

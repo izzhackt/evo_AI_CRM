@@ -10,13 +10,14 @@ import {
   type TeamChatChannelKey, type TeamChatFailure, type TeamChatMessage, type TeamChatPage,
   type TeamChatQuery, type TeamChatSnapshot,
 } from "@/lib/platform-team-chat";
-import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import type { SupabasePublicConfig } from "@/lib/supabase/config";
 import { TeamChatComposer } from "./TeamChatComposer";
 import { TeamChatMessageRow } from "./TeamChatMessageRow";
 import styles from "./team-chat.module.css";
 
-export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, initialMessageId = null, showChannelsInitially = false, renderMessageAction }: {
+export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, realtimeConfig, initialMessageId = null, showChannelsInitially = false, renderMessageAction }: {
   initial: TeamChatSnapshot; channel: TeamChatChannelKey; organizationId: string;
+  realtimeConfig: SupabasePublicConfig;
   membershipId: string; canModerate: boolean; initialMessageId?: string | null;
   showChannelsInitially?: boolean; renderMessageAction?: (message: TeamChatMessage) => ReactNode;
 }) {
@@ -113,8 +114,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     async function connect() {
       try {
         setTransport("connecting");
-        const config = getSupabasePublicConfig();
-        client = createBrowserClient(config.url, config.publishableKey);
+        client = createBrowserClient(realtimeConfig.url, realtimeConfig.publishableKey);
         const { data, error: authError } = await client.auth.getSession();
         if (cancelled) return;
         if (authError || !data.session) { reportFailure("forbidden"); return; }
@@ -143,7 +143,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       window.removeEventListener("online", requestRefresh);
       if (subscription && client) void client.removeChannel(subscription);
     };
-  }, [channel, organizationId, connectionAttempt, refresh, reportFailure, forbidden]);
+  }, [channel, organizationId, connectionAttempt, refresh, reportFailure, forbidden, realtimeConfig.url, realtimeConfig.publishableKey]);
 
   async function load(queryInput: TeamChatQuery, apply: (snapshot: TeamChatSnapshot) => void) {
     const request = ++contextRequest.current;

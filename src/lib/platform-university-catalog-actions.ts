@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { parseUniversityContent, universityUuid, type UniversityActionState } from "./platform-university-catalog";
 import { exactActionStringFields } from "./server/action-form-fields";
@@ -31,6 +32,7 @@ export async function mutateUniversityCatalogAction(previous: UniversityActionSt
     rpc = "review_university_catalog_publication";
     args = { p_draft_id: draftId, p_decision: operation };
   } else return result("invalid");
+  let receipt: UniversityActionState;
   try {
     const client = await createSupabaseServerClient();
     const { data, error } = await client.schema("platform").rpc(rpc, { ...args, p_organization_id: actor.organizationId, p_request_id: requestId });
@@ -38,15 +40,18 @@ export async function mutateUniversityCatalogAction(previous: UniversityActionSt
     const expected = operation === "stage" ? "saved" : operation === "publish" ? "published" : "rejected";
     if (!data || typeof data !== "object" || Array.isArray(data) || Object.keys(data).sort().join() !== "draftId,institutionId,requestId,status" || data.requestId !== requestId || data.status !== expected || !universityUuid(data.draftId) || !(data.institutionId === null || universityUuid(data.institutionId)) || (draftId && data.draftId !== draftId) || (targetId && data.institutionId !== targetId) || (expected === "published" && !data.institutionId)) return result("unavailable");
     revalidatePath("/v3/universities");
-    // A decision removes this draft from the pending-only reader. Preserve the
-    // current form's confirmed receipt; the dynamic management list reads fresh
-    // when the operator follows its link.
+    // A decision removes this draft from the pending-only reader. Any cache
+    // invalidation can rerender that route, so navigate after a validated receipt.
     if (operation === "stage") revalidatePath("/v3/universities/manage");
     revalidatePath("/portal/universities");
     if (data.institutionId) {
       revalidatePath(`/v3/universities/${data.institutionId}`);
       revalidatePath(`/portal/universities/${data.institutionId}`);
     }
-    return result(expected, data.draftId, data.institutionId);
+    receipt = result(expected, data.draftId, data.institutionId);
   } catch { return result("unavailable"); }
+  // Next uses an exception for navigation; never translate it into an uncertain save.
+  if (receipt.status === "published") redirect(`/v3/universities/${receipt.institutionId}`);
+  if (receipt.status === "rejected") redirect("/v3/universities/manage");
+  return receipt;
 }

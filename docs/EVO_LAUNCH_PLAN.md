@@ -12,7 +12,8 @@ those higher-level authorities.
 Last recorded accepted application: `76c62b902d9a2e094be8fcd65259a4962ad597b1`,
 version `r29.1-76c62b90`, after full CI `34391182045` passed all five jobs and
 release `34391907814` succeeded, including `Accept exact V3 candidate`.
-Production ledger001–138 is exact after manual apply `34389465309` and readback.
+That application was accepted with ledger001–138. Current schema progress is
+recorded in the active continuation below.
 Accepted pointer: `v3-r34391907814-a1-76c62b90`; app/ClamAV are healthy with zero
 restarts, public HTTPS health200 and `pending-current.json` absent. A fresh API
 readback confirms release arm=false, `updated_at=2026-09-09T19:00:06Z`.
@@ -33,12 +34,19 @@ The current contract is [business operations and universities](design/v3/busines
 It builds on merged PR #710; it does not repeat R1–R4 or earlier
 Student/CN/MY work. O1/O2 Sales/Finance, O3 Admissions and O5 catalogue run in
 parallel; coordinator owns O4 task links/results and shared integration/release.
-O0 is complete in issue #711 / PR #712. O1–O5 are implemented in
-`izzhackt/business-operations-universities`; independent component reviews and
-local type/lint/build checks passed, release integration is in progress.
-Read-only ledger run `34418530574` confirms production still at138; code139–148
-is not yet production-applied at this checkpoint. Do not report these new
-features as live until O6 records exact acceptance.
+O0–O5 merged in PR #712, main `cb8e932f7c4cc5cee04c0767519ae6e83ba1df33`.
+Exact-head independent review and all six fast checks `34421255285` passed.
+Managed schema apply `34421758765` succeeded with dry-run and exact readback
+001–148; do not repeat those migrations. The old accepted app remains running.
+Full release CI `34421761988` stopped at stale task-picker text and browser
+selectors for newly nested disclosures. The following media test lacked the
+proof file because the first browser flow stopped before writing it; do not
+fabricate or skip that proof. Release `34422198926` was guarded/skipped. Arm is
+false and no new app acceptance is claimed. Test-only alignment is in
+`izzhackt/operations-release-test-alignment` (PR #713); the complete Node suite now passes
+1283/1283 across137 files. Review/merge the correction and prove its exact new
+main before releasing.
+Do not report these new features as live until O6 records exact acceptance.
 The standing no-new-backup instruction is recorded explicitly in the new plan;
 do not ask it again or fabricate restore evidence. Keep all other release gates,
 the existing persistent Supabase project, Auth and deferred WAHA boundary.

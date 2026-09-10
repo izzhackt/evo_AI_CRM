@@ -22,6 +22,8 @@ const repositorySource = read("src/lib/platform-admissions-workspace.ts");
 const taskContractSource = read("src/lib/platform-admissions-task-contract.ts");
 const calendarSource = read("src/components/v3/calendar/Calendar.tsx");
 const controlsSource = read("src/components/v3/calendar/TaskControls.tsx");
+const casePickerSource = read("src/components/v3/tasks/TaskCasePicker.tsx");
+const caseSearchSource = read("src/lib/v3/task-case-actions.ts");
 const adapterSource = read("src/lib/v3/calendar-source.ts");
 const curatorTaskMigration = read("supabase/migrations/129_platform_curator_own_task_controls.sql");
 
@@ -237,7 +239,11 @@ test("task reads expose exact versions and bounded case choices", () => {
   assert.match(adapterSource, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapterSource, /const CASE_PAGE_SIZE = 100/);
   assert.match(adapterSource, /casesHaveMore:\s*cases\.hasNext/);
-  assert.match(controlsSource, /Показаны первые 100 активных дел/);
+  assert.match(controlsSource, /<TaskCasePicker initialCases=\{cases\} initialHasMore=\{casesHaveMore\} selectedCase=\{selectedCase\}/);
+  assert.match(casePickerSource, /searchTaskCasesAction\(query, more \? cursor : null\)/);
+  assert.match(casePickerSource, /setHasMore\(result\.nextCursor !== null\)/);
+  assert.match(casePickerSource, /\{hasMore \? <button[^>]*onClick=\{\(\) => search\(true\)\}/);
+  assert.match(caseSearchSource, /listPlatformStudentCases\(actor, \{ query: query\.trim\(\), state: "active", pageSize: 20, cursor \}\)/);
   assert.doesNotMatch(
     `${repositorySource}\n${adapterSource}`,
     /canonical-admissions|canonical-crm-repository|drizzle|sqlite|fallback/i,

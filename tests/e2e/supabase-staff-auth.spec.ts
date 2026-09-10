@@ -1631,19 +1631,24 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await signIn(page, "admissions");
   await page.goto("/v3/calendar?view=day&date=2099-09-12");
   await page
-    .locator("details")
-    .filter({ hasText: "Создать задачу" })
     .locator("summary")
+    .filter({ hasText: /^Создать задачу$/ })
     .click();
   const createTask = page.getByTestId("v3-calendar-task-create-form");
+  await expect(createTask).toBeVisible();
   await createTask
-    .locator('select[name="student_case_id"]')
+    .getByRole("combobox", { name: "Студент", exact: true })
     .selectOption(studentCaseId);
+  await expect(createTask.locator('[name="student_case_id"]')).toHaveValue(studentCaseId);
   await createTask
     .locator('input[name="title"]')
     .fill("P4 isolated Admissions task proof");
   await createTask.locator('select[name="deadline_kind"]').selectOption("all_day");
   await createTask.locator('input[name="due_on"]').fill("2099-09-12");
+  await createTask
+    .locator("summary")
+    .filter({ hasText: /^Дополнительные настройки$/ })
+    .click();
   await createTask.locator('select[name="priority"]').selectOption("high");
   await createTask
     .locator('select[name="student_visible"]')
@@ -1705,9 +1710,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const timedChangeForm = page.getByTestId("v3-calendar-task-change-form");
   await page
     .getByTestId("v3-calendar-task-controls")
-    .locator("details")
-    .filter({ hasText: "Изменить задачу" })
     .locator("summary")
+    .filter({ hasText: /^Изменить задачу$/ })
     .click();
   const timedDeadlineInput = timedChangeForm.getByTestId(
     "v3-calendar-timed-deadline-input",
@@ -1724,9 +1728,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await timedTask.click();
   await page
     .getByTestId("v3-calendar-task-controls")
-    .locator("details")
-    .filter({ hasText: "Изменить задачу" })
     .locator("summary")
+    .filter({ hasText: /^Изменить задачу$/ })
     .click();
   await expect(timedDeadlineInput).toHaveValue("2099-09-12T18:45");
   await timedChangeForm.locator('select[name="priority"]').selectOption("urgent");

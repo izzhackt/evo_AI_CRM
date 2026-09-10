@@ -11,6 +11,19 @@ those higher-level authorities.
 
 Last recorded accepted application: `32693abb3fac3bcdb345d0851363d57c474016ef`
 
+## Current implementation: compact Student Portal
+
+The owner selected concept 03 «Собранный» on September 10 and requested its
+implementation. Follow [the compact portal contract](design/v3/student-portal-compact-plan.md).
+This task owns the Student /portal and Admin /preview/student presentation,
+its private overview read model, and portal-scoped styles only. A separate
+worktree may develop staff Admissions/Universities independently; shared
+university components, staff routes, auth, RPCs and migrations are outside this
+redesign. The existing real Student data and actions remain the execution path.
+The compact UI is implemented and locally validated against the real Admin
+preview/catalogue on port 3001. Private Student-case acceptance and release
+remain separate; see the linked evidence.
+
 ## Current follow-up: Admin Student Portal preview
 
 The owner approved [a bounded Admin-only Student UI preview](design/v3/student-portal-admin-preview-plan.md)

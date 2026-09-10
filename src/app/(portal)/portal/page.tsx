@@ -18,10 +18,10 @@ export default async function StudentPortalOverviewPage() {
   return (
     <PortalPage
       title="Моё поступление"
-      description="Текущий этап, действия с вашей стороны и работа команды EVO."
+      description="Ваш следующий шаг и работа команды — под рукой."
     >
       <OverviewView overview={overview} />
-      <CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student />
+      <div className="mt-8"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </PortalPage>
   );
 }

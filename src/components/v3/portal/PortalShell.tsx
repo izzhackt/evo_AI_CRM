@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRef, useState } from "react";
 
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
+
+import styles from "./PortalShell.module.css";
 
 const SECTIONS = [
   { href: "/portal", label: "Поступление" },
@@ -27,92 +30,125 @@ export function PortalShell({
 }) {
   const pathname = usePathname();
   const base = preview ? "/preview/student" : "/portal";
+  const [expandedForPath, setExpandedForPath] = useState<string | null>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const navigationOpen = expandedForPath === pathname;
 
   return (
-    <div className="v3-world min-h-dvh" data-testid="student-portal-shell">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex min-h-20 max-w-[1180px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+    <div className={`v3-world ${styles.shell}`} data-testid="student-portal-shell">
+      <a
+        href="#portal-content"
+        className={styles.skipLink}
+        onClick={() => setExpandedForPath(null)}
+      >
+        Перейти к содержимому
+      </a>
+
+      <aside
+        className={styles.sidebar}
+        aria-label="Кабинет студента"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && navigationOpen) {
+            setExpandedForPath(null);
+            menuButton.current?.focus();
+          }
+        }}
+      >
+        <header className={styles.brandRow}>
           <Link
             href={base}
-            className="inline-flex shrink-0 items-center rounded-nav focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
+            className={styles.brand}
             aria-label="EVO Admissions — кабинет студента"
+            onClick={() => setExpandedForPath(null)}
           >
             <EvoLogo width={116} />
           </Link>
-          <div className="flex min-w-0 items-center gap-2">
-            <p className="hidden max-w-48 truncate text-sm font-medium text-fg-2 sm:block">
-              {displayName}
-            </p>
+          <button
+            ref={menuButton}
+            type="button"
+            className={styles.menuButton}
+            aria-expanded={navigationOpen}
+            aria-controls="portal-navigation-panel"
+            onClick={() => setExpandedForPath(navigationOpen ? null : pathname)}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path
+                d={navigationOpen ? "m5 5 8 8M13 5l-8 8" : "M3 5h12M3 9h12M3 13h12"}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+            {navigationOpen ? "Закрыть" : "Меню"}
+          </button>
+        </header>
+
+        <div
+          id="portal-navigation-panel"
+          className={styles.navigationPanel}
+          data-open={navigationOpen}
+        >
+          <nav aria-label="Разделы кабинета" className={styles.navigation}>
+            <ul aria-label="Навигация по разделам кабинета" className={styles.navigationList}>
+              {SECTIONS.map((section) => {
+                const href = `${base}${section.href.slice("/portal".length)}`;
+                const active = pathname === href || (section.href !== "/portal" && pathname.startsWith(`${href}/`));
+                return (
+                  <li key={section.href}>
+                    <Link
+                      href={href}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setExpandedForPath(null)}
+                      className={styles.navigationLink}
+                    >
+                      {section.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          <div className={styles.account}>
+            <p className={styles.accountLabel}>{preview ? "Предпросмотр" : "Ваш аккаунт"}</p>
+            <p className={styles.displayName}>{displayName}</p>
             {preview ? (
-              <Link
-                href="/"
-                className="inline-flex min-h-11 items-center rounded-nav border border-control-edge px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-              >
+              <Link href="/" className={styles.accountAction}>
                 Вернуться в CRM
               </Link>
-            ) : <form action={logoutStudentPortalAction}>
-              <button
-                type="submit"
-                className="inline-flex min-h-11 items-center rounded-nav border border-control-edge px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg"
-              >
-                Выйти
-              </button>
-            </form>}
+            ) : (
+              <form action={logoutStudentPortalAction}>
+                <button type="submit" className={styles.accountAction}>
+                  Выйти
+                </button>
+              </form>
+            )}
           </div>
         </div>
-      </header>
+      </aside>
 
-      {preview ? (
-        <aside aria-label="Режим предпросмотра" className="border-b border-border bg-surface-2" data-testid="student-portal-preview-banner">
-          <div className="mx-auto max-w-[1180px] px-4 py-3 sm:px-6">
-            <p className="text-sm font-semibold text-fg">Предпросмотр кабинета студента</p>
-            <p className="mt-1 max-w-[850px] text-sm leading-6 text-fg-2">
-              Вы остаётесь в аккаунте Admin. Личные дела и ответы студентов не загружаются.
-              Разделы поступления показаны без данных; каталог университетов — действующий.
-              В тестах можно посмотреть вопросы без сохранения и оценки.
-            </p>
-          </div>
-        </aside>
-      ) : null}
+      <div className={styles.workspace}>
+        {preview ? (
+          <aside
+            aria-label="Режим предпросмотра"
+            className={styles.previewBanner}
+            data-testid="student-portal-preview-banner"
+          >
+            <div className={styles.previewContent}>
+              <p className={styles.previewTitle}>Предпросмотр кабинета студента</p>
+              <p className={styles.previewDescription}>
+                Вы остаётесь в аккаунте Admin. Личные дела и ответы студентов не загружаются.
+                Разделы поступления показаны без данных; каталог университетов — действующий.
+                В тестах можно посмотреть вопросы без сохранения и оценки.
+              </p>
+            </div>
+          </aside>
+        ) : null}
 
-      <nav
-        aria-label="Разделы кабинета"
-        className="sticky top-0 z-20 border-b border-border bg-surface"
-      >
-        <ul
-          aria-label="Навигация по разделам кабинета"
-          tabIndex={0}
-          className="mx-auto flex w-full max-w-[1180px] gap-1 overflow-x-auto px-3 py-2 sm:px-5"
-        >
-          {SECTIONS.map((section) => {
-            const href = `${base}${section.href.slice("/portal".length)}`;
-            const active = pathname === href || ((section.href === "/portal/tests" || section.href === "/portal/universities") && pathname.startsWith(`${href}/`));
-            return (
-              <li key={section.href} className="shrink-0">
-                <Link
-                  href={href}
-                  aria-current={active ? "page" : undefined}
-                  onFocus={(event) =>
-                    event.currentTarget.scrollIntoView({
-                      block: "nearest",
-                      inline: "nearest",
-                    })
-                  }
-                  className={`inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-                    active
-                      ? "bg-accent-weak text-accent"
-                      : "text-fg-2 hover:bg-surface-2 hover:text-fg"
-                  }`}
-                >
-                  {section.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {children}
+        <div id="portal-content" tabIndex={-1} className={styles.content}>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

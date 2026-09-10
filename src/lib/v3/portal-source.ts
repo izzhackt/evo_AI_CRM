@@ -83,6 +83,7 @@ export type StudentPortalOverview = Readonly<{
   /** Canonical raw value; UI must map it through the single V3 wording module. */
   operationalStage: string;
   studentAction: StudentPortalAction | null;
+  studentActions: readonly StudentPortalAction[];
   evoAction: StudentPortalEvoAction | null;
   curatorDisplayName: string | null;
 }>;
@@ -457,6 +458,7 @@ export function normalizeStudentPortalOverview(
   return Object.freeze({
     operationalStage: requiredText(row.operational_stage, 300),
     studentAction,
+    studentActions: Object.freeze(studentAction ? [studentAction] : []),
     evoAction,
     curatorDisplayName: optionalText(row.curator_display_name, 200),
   });
@@ -776,16 +778,24 @@ export async function readStudentPortalOverview(
     }
     if (response.data.length === 0) return null;
     const overview = normalizeStudentPortalOverview(response.data[0]);
-    const choices: StudentPortalAction[] = overview.studentAction ? [overview.studentAction] : [];
+    const choices: StudentPortalAction[] = [...overview.studentActions];
     for (const payment of payments) {
       if (payment.outstandingMinor > 0 && !["cancelled", "waived"].includes(payment.status)) {
-        choices.push({ kind: "payment", label: payment.label, dueAt: payment.dueAt,
-          amountMinor: payment.outstandingMinor, currency: payment.currency });
+        choices.push(Object.freeze({ kind: "payment", label: payment.label, dueAt: payment.dueAt,
+          amountMinor: payment.outstandingMinor, currency: payment.currency }));
       }
     }
     // Oldest due first: overdue before future, undated documents after dated actions.
-    choices.sort((left, right) => (left.dueAt ? Date.parse(left.dueAt) : Infinity) - (right.dueAt ? Date.parse(right.dueAt) : Infinity));
-    return { ...overview, studentAction: choices[0] ?? null };
+    choices.sort((left, right) => {
+      const leftDue = left.dueAt ? Date.parse(left.dueAt) : Infinity;
+      const rightDue = right.dueAt ? Date.parse(right.dueAt) : Infinity;
+      if (leftDue !== rightDue) return leftDue < rightDue ? -1 : 1;
+      // Stable ties preserve the document-first choice and the finance RPC's
+      // due_at/id order, including distinct obligations with identical labels.
+      return 0;
+    });
+    const studentActions = Object.freeze(choices);
+    return Object.freeze({ ...overview, studentAction: studentActions[0] ?? null, studentActions });
   } catch (error) {
     return failClosed(error);
   }

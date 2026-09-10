@@ -22889,3 +22889,16 @@ activation, new database or backup. Real-browser proof and normal exact-head
 review/PR/full-CI/release gates remain required before claiming deployment.
 Next16.3.4 official authentication and server/client guides, linked in the plan,
 confirm per-read server authorization and minimal client data serialization.
+
+
+## 2026-09-10 — Selected compact Student Portal design
+
+Owner approved concept 03 «Собранный» after reviewing three directions and two
+variations of the selected light/burgundy design. Implement the sidebar, compact
+action workspace, expanded highest-priority action, remaining real actions,
+and visible EVO/support column in Student UI plus truthful Admin preview.
+Use a fresh worktree from origin/main. Staff Admissions/Universities can proceed
+in a separate worktree without edits to shared contracts from this task.
+No migrations, fake cases, provider actions, staff redesign or production
+mutation are part of implementation. See
+[the bounded contract](design/v3/student-portal-compact-plan.md).

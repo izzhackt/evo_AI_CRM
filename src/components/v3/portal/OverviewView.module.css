@@ -1,0 +1,59 @@
+.workspace { display:grid; grid-template-columns:minmax(0,1.9fr) minmax(235px,1fr); gap:26px; color:#302b28; }
+.workspace :is(a,summary):focus-visible { outline:3px solid #892c3c; outline-offset:4px; }
+.sheet { overflow:hidden; border:1px solid #e5dbd3; border-radius:14px; background:#fff; }
+.band { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px 20px; padding:18px 24px; background:#892c3c; color:#fff; }
+.band h2 { font-size:14px; font-weight:650; margin:0; }
+.band>span { font-size:11px; color:#f0d5dc; }
+.expanded { padding:26px 24px; }
+.actionHeading { display:flex; gap:14px; align-items:flex-start; }
+.actionHeading h3 { margin:1px 0 0; font-size:24px; line-height:1.3; font-weight:650; letter-spacing:-.025em; overflow-wrap:anywhere; }
+.actionIcon { display:grid; place-items:center; flex:none; width:32px; height:32px; border-radius:9px; background:#f6e9ec; color:#892c3c; font-size:19px; }
+.explanation { margin:14px 0 0; font-size:13px; line-height:1.7; color:#74665b; max-width:540px; }
+.metadata { display:flex; flex-wrap:wrap; gap:18px 32px; margin:23px 0 0; border-top:1px solid #eee7e0; padding-top:16px; }
+.metadata>div { min-width:0; flex:1 1 165px; }
+.metadata dt { color:#796c60; font-size:11px; margin-bottom:6px; }
+.metadata dd { margin:0; font-size:13px; color:#4b3f36; overflow-wrap:anywhere; }
+.primaryAction { display:inline-flex; align-items:center; justify-content:center; gap:16px; margin-top:22px; padding:11px 16px; border-radius:8px; background:#892c3c; color:#fff; text-decoration:none; font-size:13px; font-weight:600; transition:background .15s; }
+.primaryAction:hover { background:#722132; }
+.queueTitle { display:flex; align-items:center; justify-content:space-between; padding:13px 24px; margin:0; font-size:11px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:#77695c; border-block:1px solid #eae2d8; background:#fbf9f6; }
+.queueTitle>span { font-size:11px; font-variant-numeric:tabular-nums; }
+.queueItem { border-bottom:1px solid #eee6dd; }
+.queueItem summary { display:flex; min-height:60px; list-style:none; align-items:center; gap:13px; padding:16px 24px; cursor:pointer; font-size:13px; line-height:1.5; }
+.queueItem summary::-webkit-details-marker,.teamTask summary::-webkit-details-marker { display:none; }
+.queueItem summary>span:nth-child(2) { overflow-wrap:anywhere; min-width:0; }
+.queueItem summary:hover { background:#fcf8f7; }
+.rowMarker { flex:none; width:15px; height:15px; border:1px solid #c9bbb0; border-radius:5px; }
+.expandIcon { margin-left:auto; color:#816759; font-size:18px; flex:none; transition:transform .15s; }
+[open]>.expandIcon,[open]>summary>.expandIcon { transform:rotate(45deg); }
+.queueDetails { padding:0 24px 24px; }
+.queueDetails .explanation { margin-top:0; }
+.sheetLinks { display:flex; flex-wrap:wrap; gap:4px 20px; padding:9px 24px; background:#fdfbf9; }
+.sheetLinks a { display:inline-flex; align-items:center; gap:8px; min-height:44px; color:#7c3040; text-decoration:none; font-size:12px; }
+.sheetLinks a:hover { text-decoration:underline; text-underline-offset:4px; }
+.queueHint { margin:13px 0 0; color:#7a6e62; font-size:11px; line-height:1.6; }
+.team { padding-top:4px; min-width:0; }
+.team h2 { margin:0 0 10px; font-size:16px; font-weight:650; letter-spacing:-.015em; }
+.stage { padding-bottom:22px; margin-bottom:22px; border-bottom:1px solid #e0d6cc; }
+.stage>p,.curator>p { font-size:11px; color:#796c60; margin:0 0 9px; }
+.teamTask { margin-top:15px; scroll-margin-top:24px; }
+.teamTask summary { display:flex; list-style:none; gap:14px; align-items:start; cursor:pointer; min-height:44px; padding-block:8px; font-weight:550; font-size:14px; overflow-wrap:anywhere; }
+.teamTaskBody { padding-left:14px; border-left:2px solid #dfc4ca; margin-top:8px; }
+.teamTaskBody p { margin:10px 0 0; font-size:12px; line-height:1.6; color:#74675c; }
+.teamEmpty { font-size:13px; line-height:1.7; color:#7b6e62; margin:0; }
+.curator { margin-top:25px; padding-top:21px; border-top:1px solid #e0d6cc; }
+.curator strong { font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.curator>span { display:block; font-size:12px; line-height:1.7; color:#7b6e62; }
+.helpCard { border:1px solid #e4dcd3; border-radius:12px; background:#fff; padding:20px; margin-top:25px; }
+.helpCard h3 { font-weight:650; color:#892c3c; font-size:14px; margin:0 0 10px; }
+.helpCard p { font-size:12px; line-height:1.7; color:#77695e; margin:0; }
+.helpCard a { display:flex; gap:14px; align-items:center; margin-top:10px; color:#892c3c; text-decoration:none; font-size:12px; font-weight:600; }
+.helpCard a:hover { text-decoration:underline; text-underline-offset:4px; }
+.previewLabel { display:block; margin-top:14px; border-top:1px solid #eee7df; padding-top:12px; font-size:11px; line-height:1.6; color:#827164; }
+.empty { padding:30px 24px 33px; }
+.emptyIcon { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:#f6eef0; color:#892c3c; font-size:19px; margin-bottom:20px; }
+.empty h3 { font-size:23px; font-weight:600; line-height:1.3; letter-spacing:-.02em; max-width:420px; margin:0 0 13px; }
+.empty p { max-width:480px; color:#77695e; font-size:13px; line-height:1.8; margin:0; }
+@media(max-width:1150px) { .workspace { grid-template-columns:minmax(0,1.65fr) minmax(215px,1fr); gap:20px; } .actionHeading h3 { font-size:22px; } .expanded { padding:23px 20px; } .band,.queueTitle { padding-inline:20px; } }
+@media(max-width:850px) { .workspace { grid-template-columns:minmax(0,1fr); gap:30px; } .team { border-top:1px solid #e1d7cd; padding-top:24px; } .stage { padding-bottom:18px; margin-bottom:18px; } }
+@media(max-width:480px) { .band { padding:16px 18px; } .band>span { font-size:10px; } .expanded,.empty { padding:24px 18px; } .actionHeading h3 { font-size:21px; } .actionHeading { gap:11px; } .actionIcon { width:28px; height:28px; } .metadata { gap:15px 20px; } .metadata>div { flex-basis:125px; } .queueItem summary,.queueDetails { padding-inline:18px; } .sheetLinks { padding-inline:18px; gap:0 14px; } .sheetLinks a { font-size:11px; } .empty h3 { font-size:22px; } }
+@media(prefers-reduced-motion:reduce) { .primaryAction,.expandIcon { transition:none; } }

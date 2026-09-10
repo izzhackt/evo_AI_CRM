@@ -1,7 +1,11 @@
 # Полный университетский каталог — run 2026-09-10
 
-Статус: IMPLEMENTED / RELEASE PENDING, 11 сентября 2026. Это контракт работы,
-не заявление о публикации.
+Статус: APPLICATION ACCEPTED / 143 PUBLISHED / TWO PHOTO FIXES PENDING,
+11 сентября 2026. Приложение `88d0354f` принято; 143 карточки опубликованы.
+Полное чтение пяти страниц подтвердило 143 уникальных ID и 251 программу,
+все 16 прежних ID сохранены. Загрузились 141/143 фото; корректировка двух
+внешних источников проходит отдельный выпуск без повторной публикации данных.
+Доказательства: [production acceptance ledger](references/2026-09-11-university-catalog-production-acceptance.md).
 Tracking: [issue725](https://github.com/izzhackt/evo_AI_CRM/issues/725).
 Владелец просит заполнить университеты из всей доступной институциональной базы
 ЭВО и сырого бизнес-архива, дополнить официальными источниками и реальными фото,
@@ -10,10 +14,12 @@ Tracking: [issue725](https://github.com/izzhackt/evo_AI_CRM/issues/725).
 ## Холодное продолжение
 
 1. Читать AGENTS.md, CONTEXT.md, DESIGN.md, этот план и свежую запись PLAN_CHANGES.
-2. GitHub main — общая истина; рабочая ветка `izzhackt/university-catalog-completion`
-   от `2c4bce39`. Не трогать другую грязную рабочую копию/ветку Inbox.
-3. На старте принята app `32693abb`, schema001–150; проверить живые SHA/ledger/arm,
-   а не повторять старую публикацию или migration150. Текущий каталог:16 вузов.
+2. GitHub main — общая истина. Первичная ветка `izzhackt/university-catalog-completion`
+   объединена PR726 в `88d0354f`; текущая корректировка двух фото и proof-документ —
+   ветка `izzhackt/university-catalog-live-proof` от `88d0354f`.
+   Не трогать другую грязную рабочую копию/ветку Inbox.
+3. Текущий принятый app `88d0354f`, schema001–151, каталог143; проверить живые
+   SHA/ledger/arm. Не повторять уже применённые миграции или публикацию пакета.
 4. Прочитать source-roster и country/photo research в `references/`; статус
    candidate не равен approved. Независимое ревью точного HEAD обязательно.
 5. Одна интеграция → PR checks → exact-current-main full CI → проверенный
@@ -53,10 +59,10 @@ Tracking: [issue725](https://github.com/izzhackt/evo_AI_CRM/issues/725).
 | U2 | Malaysia13: official facts + reviewed JSON | Done: 13 /39 programmes |
 | U3 | China + raw additions: official facts + reviewed JSON | Done: 47 /94, including27 language |
 | U4 | Europe/Turkey/UAE/other: official facts + reviewed JSON | Done: 83 institutions |
-| U5 | Фото всего итогового roster, license/identity/availability | Done: 143/143 referenced; live loading pending |
+| U5 | Фото всего итогового roster, license/identity/availability | 141/143 live loaded; two verified replacement hosts pending release |
 | U6 | Интеграция existing catalogue и быстрая Admin batch review | Implemented; ordinary Admin RPCs |
-| U7 | Проверки, независимое ревью, PR/CI/schema/release/publication | Local checks passed; exact-head/release pending |
-| U8 | Full live readback, tunnel, честные remaining gaps | Pending accepted release and publication |
+| U7 | Проверки, независимое ревью, PR/CI/schema/release/publication | PR726, full CI, schema151, release88d and 136 mutations accepted; seven already current |
+| U8 | Full live readback, tunnel, честные remaining gaps | 143/251/16 legacy IDs verified through tunnel; final photo check pending |
 
 ## Итоговый подготовленный пакет
 

@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { requirePlatformSalesActor } from "./platform-guards";
 import {
@@ -13,9 +14,11 @@ import {
   type PlatformLeadAdmissionsGateAction,
   type PlatformLeadAdmissionsGateMutationInput,
   type PlatformLeadAdmissionsHandoffInput,
+  type PlatformLeadAdmissionsHandoffReceipt,
   type PlatformStudentHandoffMode,
 } from "./platform-student-handoff";
 import { exactActionStringFields } from "./server/action-form-fields";
+import { refreshConfirmedSelfHandoffSession } from "./server/self-handoff-session";
 
 const REQUEST_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -372,25 +375,37 @@ export async function handoffPlatformLeadToAdmissionsAction(
   const input = parseHandoffInput(form);
   if (!input) return handoffFailureState(form, "invalid");
 
+  let receipt: PlatformLeadAdmissionsHandoffReceipt;
   try {
-    const receipt = await handoffPlatformLeadToAdmissions(actor, input);
-    revalidatePath("/v3/pipeline");
-    revalidatePath(`/v3/profile?id=${receipt.leadId}`);
-    if (receipt.caseId) {
-      revalidatePath(`/v3/profile?case=${receipt.caseId}`);
-    }
-    return Object.freeze({
-      status: "saved" as const,
-      requestId: randomUUID(),
-      leadId: receipt.leadId,
-      gateVersion: receipt.gateVersion,
-      studentCaseId: receipt.caseId,
-      changedAt: receipt.changedAt,
-    });
+    receipt = await handoffPlatformLeadToAdmissions(actor, input);
   } catch (error) {
     if (error instanceof PlatformStudentHandoffRepositoryError) {
       return handoffFailureState(form, error.reason, input);
     }
     return handoffFailureState(form, "unavailable", input);
   }
+
+  // The receipt is committed. Self-assignment bumps this Admin's access version;
+  // session recovery must never become a retryable handoff failure.
+  if (
+    actor.authorityRole === "admin" &&
+    receipt.admissionsOwnerMembershipId === actor.membershipId &&
+    !(await refreshConfirmedSelfHandoffSession(actor))
+  ) {
+    redirect("/login?error=session_invalid");
+  }
+
+  revalidatePath("/v3/pipeline");
+  revalidatePath(`/v3/profile?id=${receipt.leadId}`);
+  if (receipt.caseId) {
+    revalidatePath(`/v3/profile?case=${receipt.caseId}`);
+  }
+  return Object.freeze({
+    status: "saved" as const,
+    requestId: randomUUID(),
+    leadId: receipt.leadId,
+    gateVersion: receipt.gateVersion,
+    studentCaseId: receipt.caseId,
+    changedAt: receipt.changedAt,
+  });
 }

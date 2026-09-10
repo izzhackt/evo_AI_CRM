@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 import {
   getPlatformLeadAdmissionsGate,
@@ -495,6 +496,48 @@ test("source boundary uses the server cookie client and contains no service, Dri
   );
 });
 
+test("confirmed Admin self-handoff renews the same authority outside the mutation catch", () => {
+  const source = readFileSync(
+    new URL("../src/lib/platform-student-handoff-actions.ts", import.meta.url),
+    "utf8",
+  );
+  const parsed = ts.createSourceFile("handoff-actions.ts", source, ts.ScriptTarget.Latest, true);
+  const action = parsed.statements.find((statement) =>
+    ts.isFunctionDeclaration(statement) &&
+    statement.name?.text === "handoffPlatformLeadToAdmissionsAction"
+  );
+  assert.ok(action?.body);
+  const statements = [...action.body.statements];
+  const mutationIndex = statements.findIndex((statement) => ts.isTryStatement(statement));
+  const refreshIndex = statements.findIndex((statement) =>
+    ts.isIfStatement(statement) &&
+    statement.expression.getText(parsed).includes("refreshConfirmedSelfHandoffSession(actor)")
+  );
+  assert.ok(refreshIndex > mutationIndex, "post-commit recovery must be outside the mutation catch");
+  const refresh = statements[refreshIndex].getText(parsed);
+  assert.match(refresh, /actor\.authorityRole === "admin"/);
+  assert.match(refresh, /receipt\.admissionsOwnerMembershipId === actor\.membershipId/);
+  assert.match(refresh, /!\(await refreshConfirmedSelfHandoffSession\(actor\)\)/);
+  assert.match(refresh, /redirect\("\/login\?error=session_invalid"\)/);
+  const postCommit = statements.slice(mutationIndex + 1).map((statement) => statement.getText(parsed)).join("\n");
+  assert.doesNotMatch(postCommit, /handoffFailureState|handoffPlatformLeadToAdmissions\(/);
+  assert.ok(statements.findIndex((statement) => statement.getText(parsed).startsWith("revalidatePath(")) > refreshIndex);
+  assert.match(postCommit, /status: "saved"/);
+
+  const session = readFileSync(
+    new URL("../src/lib/server/self-handoff-session.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(session, /import "server-only"/);
+  assert.match(session, /actor\.authorityRole !== "admin"/);
+  assert.match(session, /await client\.auth\.refreshSession\(\)[\s\S]*await client\.auth\.getClaims\(\)[\s\S]*await readVerifiedPlatformAuthority\(client, data\.claims\)/);
+  for (const identity of ["authUserId", "profileId", "membershipId", "organizationId"]) {
+    assert.ok(session.includes(`authority.${identity} === actor.${identity}`));
+  }
+  assert.match(session, /authority\.databaseRole === "admin"/);
+  assert.doesNotMatch(session, /getSession\(|service[_-]?role|SUPABASE_SERVICE|redirect\(/i);
+});
+
 test("server actions enforce exact fields, staff guard and success-only revalidation", () => {
   const source = readFileSync(
     new URL("../src/lib/platform-student-handoff-actions.ts", import.meta.url),
@@ -512,7 +555,7 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   );
   assert.match(
     source,
-    /const receipt = await handoffPlatformLeadToAdmissions\(actor, input\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\);[\s\S]*if \(receipt\.caseId\) \{[\s\S]*revalidatePath\(`\/v3\/profile\?case=\$\{receipt\.caseId\}`\)/,
+    /receipt = await handoffPlatformLeadToAdmissions\(actor, input\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\);[\s\S]*if \(receipt\.caseId\) \{[\s\S]*revalidatePath\(`\/v3\/profile\?case=\$\{receipt\.caseId\}`\)/,
   );
   assert.doesNotMatch(source, /revalidatePath\("\/(?:sales|clients)"\)/);
   assert.doesNotMatch(

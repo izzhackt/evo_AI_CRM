@@ -156,6 +156,7 @@ async function localSupabaseAccessToken(role: TestRole) {
 
 async function directPlatformRpc(
   functionName:
+    | "current_actor_authority"
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"
     | "staff_sales_stage_entry_cohort"
@@ -1218,6 +1219,20 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     localSupabaseAccessToken("admissions"),
     localSupabaseAccessToken("admin"),
   ]);
+  // Bind the handoff to this exact Admissions identity. Admin is also an
+  // eligible curator, so the first alphabetic option is not a role contract.
+  const admissionsAuthority = await directPlatformRpc(
+    "current_actor_authority",
+    {},
+    admissionsToken,
+  );
+  expect(admissionsAuthority.status).toBe(200);
+  expect(admissionsAuthority.payload).toHaveLength(1);
+  const admissionsAuthorityRow = expectObject(
+    (admissionsAuthority.payload as unknown[])[0],
+  );
+  expect(admissionsAuthorityRow.platform_role).toBe("curator");
+  const admissionsOwnerId = requireUuidValue(admissionsAuthorityRow.membership_id);
 
   assertDeniedRpc(
     await directPlatformRpc("staff_lead_admissions_gate", {
@@ -1288,12 +1303,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const ownerSelect = handoffForm.locator(
     'select[name="admissions_owner_membership_id"]',
   );
-  const admissionsOwnerId = await ownerSelect
-    .locator("option:not([disabled])")
-    .first()
-    .getAttribute("value");
-  expect(admissionsOwnerId).toBeTruthy();
-  await ownerSelect.selectOption(admissionsOwnerId!);
+  await expect(
+    ownerSelect.locator(`option[value="${admissionsOwnerId}"]:not([disabled])`),
+  ).toHaveCount(1);
+  await ownerSelect.selectOption(admissionsOwnerId);
+  await expect(ownerSelect).toHaveValue(admissionsOwnerId);
   await expect(
     handoffForm.locator('input[name="handoff_mode"]'),
   ).toHaveValue("normal");
@@ -1315,8 +1329,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   );
   expect(handoffSnapshot.status).toBe(200);
   expect(handoffSnapshot.payload).toHaveLength(1);
+  const handoffRow = expectObject((handoffSnapshot.payload as unknown[])[0]);
+  expect(handoffRow.admissions_owner_membership_id).toBe(admissionsOwnerId);
   const studentCaseId = requireUuidValue(
-    expectObject((handoffSnapshot.payload as unknown[])[0]).case_id,
+    handoffRow.case_id,
   );
 
   await page.context().clearCookies();
@@ -1491,6 +1507,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       case_state: "active",
       handoff_mode: "normal",
       handoff_state: "completed",
+      admissions_owner_membership_id: admissionsOwnerId,
     });
     organizationId ??= requireUuidValue(contextRow.organization_id);
   }

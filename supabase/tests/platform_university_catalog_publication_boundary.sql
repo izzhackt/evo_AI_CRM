@@ -7,12 +7,30 @@ CREATE FUNCTION pg_temp.u148_assert(ok BOOLEAN,message TEXT) RETURNS VOID LANGUA
 CREATE FUNCTION pg_temp.u148_error(statement TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$ BEGIN EXECUTE statement; RETURN 'ok'; EXCEPTION WHEN OTHERS THEN RETURN SQLSTATE; END $$;
 GRANT EXECUTE ON FUNCTION pg_temp.u148_id(INTEGER),pg_temp.u148_assert(BOOLEAN,TEXT),pg_temp.u148_error(TEXT) TO authenticated,anon,service_role;
 CREATE TEMP TABLE u148_actors(n INT,org UUID,role platform.business_role,claims TEXT);
-INSERT INTO u148_actors SELECT n,pg_temp.u148_id(CASE WHEN n IN(6,7) THEN 2 ELSE 1 END),role::platform.business_role,NULL FROM (VALUES(1,'admin'),(2,'sales'),(3,'curator'),(4,'student'),(5,'finance'),(6,'admin'),(7,'student')) actors(n,role);
+-- Earlier stateful suites may leave a deliberately restricted, higher-version
+-- Sales bundle. A role title or highest version is not a fixed-role contract.
+-- Reproduce that condition here too, so this proof also runs independently.
+INSERT INTO platform.role_bundle_versions(id,role,version,status,label)
+ SELECT pg_temp.u148_id(999),'sales',COALESCE(max(version),0)+1,'draft','U148 restricted Sales regression'
+ FROM platform.role_bundle_versions WHERE role='sales';
+INSERT INTO platform.role_bundle_permissions(bundle_id,bundle_role,permission_key)
+ VALUES(pg_temp.u148_id(999),'sales','organization.read');
+UPDATE platform.role_bundle_versions SET status='published',published_at=clock_timestamp() WHERE id=pg_temp.u148_id(999);
+INSERT INTO u148_actors SELECT n,pg_temp.u148_id(CASE WHEN n IN(6,7) THEN 2 ELSE 1 END),role::platform.business_role,NULL FROM (VALUES(1,'admin'),(2,'sales'),(3,'curator'),(4,'student'),(5,'finance'),(6,'admin'),(7,'student'),(8,'sales')) actors(n,role);
 INSERT INTO platform.organizations(id,name) VALUES(pg_temp.u148_id(1),'U148 isolated A'),(pg_temp.u148_id(2),'U148 isolated B');
 INSERT INTO auth.users(id,email,raw_user_meta_data) SELECT pg_temp.u148_id(100+n),'u148-'||n||'@example.invalid','{}'::JSONB FROM u148_actors;
 INSERT INTO platform.profiles(id,auth_user_id,display_name,status,access_version) SELECT pg_temp.u148_id(200+n),pg_temp.u148_id(100+n),'U148 actor '||n,'active',1 FROM u148_actors;
 INSERT INTO platform.organization_memberships(id,organization_id,profile_id,status,"current_role",current_bundle_id)
- SELECT pg_temp.u148_id(300+n),a.org,pg_temp.u148_id(200+n),'active',a.role,(SELECT id FROM platform.role_bundle_versions WHERE role=a.role AND status='published' ORDER BY version DESC LIMIT 1) FROM u148_actors a;
+ SELECT pg_temp.u148_id(300+n),a.org,pg_temp.u148_id(200+n),'active',a.role,
+ CASE WHEN n=8 THEN pg_temp.u148_id(999) ELSE
+  (SELECT id FROM platform.role_bundle_versions WHERE role=a.role AND status='published' AND version=13
+   AND id=CASE a.role
+    WHEN 'admin' THEN '00000000-0000-4000-8000-000000001301'::UUID
+    WHEN 'sales' THEN '00000000-0000-4000-8000-000000001302'::UUID
+    WHEN 'curator' THEN '00000000-0000-4000-8000-000000001303'::UUID
+    WHEN 'finance' THEN '00000000-0000-4000-8000-000000001304'::UUID
+    WHEN 'student' THEN '00000000-0000-4000-8000-000000001305'::UUID END)
+ END FROM u148_actors a;
 INSERT INTO platform.record_scopes(id,organization_id,scope_kind,scope_key,scope_version) VALUES(pg_temp.u148_id(401),pg_temp.u148_id(1),'organization',pg_temp.u148_id(1),1),(pg_temp.u148_id(402),pg_temp.u148_id(2),'organization',pg_temp.u148_id(2),1);
 INSERT INTO platform.membership_scope_assignments(organization_id,membership_id,scope_id,scope_version,assignment_version,granted,actor_kind,reason,request_id)
  SELECT org,pg_temp.u148_id(300+n),pg_temp.u148_id(CASE WHEN org=pg_temp.u148_id(1) THEN 401 ELSE 402 END),1,1,TRUE,'system','U148 synthetic scope',pg_temp.u148_id(600+n) FROM u148_actors;
@@ -80,6 +98,10 @@ SELECT claims AS u148_claims FROM u148_actors WHERE n=2 \gset
 SET LOCAL request.jwt.claims TO :'u148_claims'; SET LOCAL ROLE authenticated;
 SELECT pg_temp.u148_assert(jsonb_array_length(platform.staff_university_catalog(pg_temp.u148_id(1))->'items')=1,'Sales can read approved catalogue');
 SELECT pg_temp.u148_assert(pg_temp.u148_error(format('SELECT platform.admin_university_catalog_drafts(%L)',pg_temp.u148_id(1)))='42501','Sales cannot see private drafts');
+RESET ROLE;
+SELECT claims AS u148_claims FROM u148_actors WHERE n=8 \gset
+SET LOCAL request.jwt.claims TO :'u148_claims'; SET LOCAL ROLE authenticated;
+SELECT pg_temp.u148_assert(pg_temp.u148_error(format('SELECT platform.staff_university_catalog(%L)',pg_temp.u148_id(1)))='42501','higher-version restricted Sales bundle remains denied');
 RESET ROLE;
 SELECT claims AS u148_claims FROM u148_actors WHERE n=3 \gset
 SET LOCAL request.jwt.claims TO :'u148_claims'; SET LOCAL ROLE authenticated;

@@ -9,17 +9,22 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `a52cca376ff05db8dcc220d4b043720fe98a6f6c`
+Last recorded accepted application: `32693abb3fac3bcdb345d0851363d57c474016ef`
 
 ## Current follow-up: Admin Student Portal preview
 
 The owner approved [a bounded Admin-only Student UI preview](design/v3/student-portal-admin-preview-plan.md)
 after the real browser reproduced the existing Admin `/portal` → staff-home redirect.
-Implement an explicitly marked, read-only preview using the existing Portal UI,
+Delivered an explicitly marked, read-only preview using the existing Portal UI,
 genuine published university catalogue and version-pinned questionnaire content.
 No Student identity, case or private attempt is loaded or created; answers remain
 unsaved in-memory UI selections. Preserve the ordinary Student/private boundaries.
-This new block is implementation in progress, not a claim of a deployed preview.
+PR #722 is merged; exact-main CI `34482883741` and guarded release `34483764042`
+passed. The accepted pointer and healthy app identify `32693abb`; pending state
+is absent and release arm is verified `false`. Real Admin Chrome through the
+existing localhost tunnel opened the preview and both authored questionnaires.
+Use `/preview/student` (or `/preview/student/tests`), not the Student-only `/portal`.
+See the linked plan for proof limits; this is not Student account/persistence proof.
 
 ## Current bounded continuation: Admin, chat and university expansion
 

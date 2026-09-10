@@ -2,7 +2,7 @@
 
 Задача: [#721](https://github.com/izzhackt/evo_AI_CRM/issues/721).
 
-Дата: 10 сентября 2026. Статус: реализован, проверка и выпуск ещё не завершены.
+Дата: 10 сентября 2026. Статус: реализован, опубликован, Admin preview проверен.
 База: main `722d547c`; принятый production `a52cca37`. Последний проход
 Admin/chat/universities завершён, его публикации и миграции не повторять.
 
@@ -66,7 +66,7 @@ Admin/chat/universities завершён, его публикации и миг�
 не подменять их случайными данными или выключенным Auth. При передаче записать
 PR/SHA/проверки/ссылку и отдельно оставшиеся настоящие Student-сценарии.
 
-## Текущая передача
+## Текущая передача: выполнено
 
 - Реализованы точные preview routes, проверка настоящего Admin для каждой страницы
   и чтения вопросов, общий shell с пометкой режима, возврат в CRM, пустые личные
@@ -76,9 +76,44 @@ PR/SHA/проверки/ссылку и отдельно оставшиеся н
 - Build/TypeScript и scoped ESLint прошли; маршрутный контракт 13/13,
   безопасная проекция настоящего содержания 4/4. В существующие browser suites
   добавлены Admin-переходы/refresh/no-POST и отказ остальным ролям.
-- Далее: независимый review точного commit, PR checks, merge, один full CI
-  на замороженном main, guarded release; затем arm=false и живая проверка Chrome.
-  До этих шагов production остаётся `a52cca37`; предпросмотр ещё не опубликован.
+- Независимый review `0abce5b6ddd5590879e57493d11a243b725b5172`: замечаний нет.
+  [PR #722](https://github.com/izzhackt/evo_AI_CRM/pull/722) прошёл fast checks
+  `34482588261`; merged tree совпадает с проверенным commit.
+- Единственный [full CI 34482883741](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34482883741)
+  на main `32693abb3fac3bcdb345d0851363d57c474016ef` прошёл все пять jobs.
+  Новый реальный Admin browser test: PASS, 13.6 s; переходы по разделам, оба
+  вопросника, назад/вперёд, refresh и отсутствие app POST. Sales/Admissions
+  denial test также PASS. Production business records этим тестом не создавались.
+- [Release 34483764042](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34483764042)
+  успешно принят как `v3-r34483764042-a1-32693abb`; VPS accepted pointer содержит
+  точный SHA выше, pending отсутствует, контейнер healthy. Image:
+  `sha256:9cc169dd7b2e753e621b118de18509184f670ce53c3740415b79aecdd4311c85`.
+  Acceptance-record hash:
+  `394446c215debbd3ca3a98ef4cf739029f685a2c6cedbbdebc0715083e324329`.
+- `EVO_PRODUCTION_RELEASE_ARMED=false` записан и прочитан обратно после успеха.
+  HTTPS health с VPS: 200, localhost health: 200. На Mac curl отверг публичную
+  TLS-цепочку (`unable to get local issuer certificate`); проверку сертификата
+  не отключали. Это не мешает проверенному HTTP localhost-туннелю.
+- Живой Chrome, существующий Admin: кнопка → `/preview/student` → English36
+  и ORVIS92. Выбор, переход вперёд/назад и возврат в CRM подтверждены; refresh
+  English очищает выбор. Каталог показал все 16 опубликованных университетов.
+  Вкладка `/preview/student/tests` оставлена пользователю открытой.
+- Desktop screenshot и узкая раскладка проверены; при запрошенных 393 px Chrome
+  сообщил фактические 524 CSS px из-за текущего масштаба, ширина содержимого также
+  524 px (без общего горизонтального переполнения). Override снят. Пустого экрана
+  и framework overlay нет; сообщения React130 относятся к `chrome-extension://…/toolbar`,
+  не к EVO. Не заявляем проверку точного 393-CSS-px breakpoint.
+
+## Границы результата
+
+Предпросмотр готов; настоящие Student ответы/результаты не проверялись и не
+изменялись. Новый Student denial assertion добавлен в отдельный существующий
+`student-portal.spec.ts`, но эта suite не запускалась текущей full-CI lane:
+не выдавать его наличие за живое Student-доказательство. Обычная `/portal`
+авторизация не менялась. Если нужен следующий Student end-to-end прогон, начать
+с настоящей разрешённой Student-сессии и её дела, без выключения Auth и создания
+новых аккаунтов по умолчанию. SQL, WAHA, amoCRM и новые резервные копии не нужны
+для повторного открытия Admin preview.
 
 ## Проверенные технические источники
 

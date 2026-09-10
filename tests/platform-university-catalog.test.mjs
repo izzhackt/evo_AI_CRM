@@ -5,8 +5,8 @@ import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, 
 const bundle = JSON.parse(readFileSync(new URL("../src/lib/server/university-catalog-reviewed-content.json", import.meta.url), "utf8"));
 const clone = () => structuredClone(bundle[0].content);
 const id = "59948000-0000-4000-8000-000000000001";
-test("all five real editorial templates parse, have sources and no implied partnerships", () => {
-  assert.deepEqual(bundle.map((entry) => entry.key), ["apu", "sunway", "mmu", "xjtlu", "unnc"]);
+test("all sixteen real editorial templates parse, have sources and no implied partnerships", () => {
+  assert.deepEqual(bundle.map((entry) => entry.key), ["apu", "sunway", "mmu", "xjtlu", "unnc", "taylors", "inti", "ucsi", "city-malaysia", "xiamen-malaysia", "monash-malaysia", "scut", "zjut", "gdut", "upc-east-china", "ecust"]);
   for (const { content } of bundle) {
     assert.deepEqual(parseUniversityContent(content), content);
     assert.equal(content.verifiedOn, "2026-09-10");

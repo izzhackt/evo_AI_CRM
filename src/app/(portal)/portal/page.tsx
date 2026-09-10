@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { OverviewView } from "@/components/v3/portal/OverviewView";
 import { PortalPage } from "@/components/v3/portal/PortalPage";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
+import { requireStudentPortalActor } from "@/lib/student-portal-guards";
+import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function StudentPortalOverviewPage() {
-  const overview = await readStudentPortalOverview();
+  const [overview, actor] = await Promise.all([readStudentPortalOverview(), requireStudentPortalActor()]);
 
   return (
     <PortalPage
@@ -19,6 +21,7 @@ export default async function StudentPortalOverviewPage() {
       description="Текущий этап, действия с вашей стороны и работа команды EVO."
     >
       <OverviewView overview={overview} />
+      <CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student />
     </PortalPage>
   );
 }

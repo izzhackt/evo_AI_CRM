@@ -6,6 +6,7 @@ import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time
 import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
 import { TeamChatComposer } from "./TeamChatComposer";
 import styles from "./team-chat.module.css";
+import { plainTextLinks } from "@/lib/plain-text-links";
 
 type DeletionAttempt = { message: TeamChatMessage; requestId: string; isOwn: boolean };
 
@@ -29,7 +30,9 @@ export function TeamChatMessageRow({ message, ownMembershipId, canModerate, part
         <time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}</time>
         {message.editedAt && !message.deletedAt ? <span className={styles.muted}>изменено</span> : null}
       </div>
-      {message.deletedAt ? <p className={styles.muted}>Сообщение удалено</p> : <p className={styles.body}>{message.body}</p>}
+      {message.deletedAt ? <p className={styles.muted}>Сообщение удалено</p> : <p className={styles.body}>{plainTextLinks(message.body).map((part, index) => part.href
+        ? <a key={index} href={part.href} target="_blank" rel="noopener noreferrer" className="text-accent-text underline underline-offset-2">{part.text}</a>
+        : part.text)}</p>}
       {mentionedNames.length ? <p className={styles.mentionNames}>Упоминания: {mentionedNames.join(", ")}</p> : null}
       <div className={styles.messageActions}>
         <button type="button" className={styles.textButton} onClick={() => onReply(message)}>

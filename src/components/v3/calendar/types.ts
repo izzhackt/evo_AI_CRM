@@ -54,12 +54,13 @@ export type CalendarAssigneeOption = Readonly<{
  */
 export type CalendarApplicationDeadline = Readonly<{
   kind: "application_deadline";
+  deadlineKind: import("@/lib/platform-admissions-deadline-contract").AdmissionsDeadlineKind;
   id: string;
   studentCaseId: string;
   studentDisplayName: string;
   universityName: string;
   programName: string;
-  status: "preparation" | "ready" | "submitted" | "under_review" | "offer";
+  status: "preparation" | "ready" | "submitted" | "under_review" | "offer" | null;
   day: Day;
 }>;
 

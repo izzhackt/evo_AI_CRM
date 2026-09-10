@@ -27,6 +27,7 @@ export const FIXED_ROLE_ROUTES = [
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",
+  "/v3/universities",
   "/v3/knowledge",
   "/v3/settings",
 ] as const;
@@ -68,6 +69,7 @@ const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/calendar": ["admissions.read"],
   "/v3/tasks": ["team.read"],
   "/v3/team-chat": ["team.read"],
+  "/v3/universities": ["sales.read", "admissions.read"],
   "/v3/knowledge": ["documents.read", "messaging.read"],
   "/v3/settings": ["admin.preview"],
 } as const satisfies Record<FixedRoleRoute, RouteCapabilityRequirement>;

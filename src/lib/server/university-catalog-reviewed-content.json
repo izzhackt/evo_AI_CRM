@@ -1,0 +1,209 @@
+[
+  {
+    "key": "apu",
+    "content": {
+      "name": "Asia Pacific University of Technology & Innovation",
+      "country": "MY",
+      "city": "Kuala Lumpur",
+      "overview": "Частный университет в Малайзии. В этой карточке представлен проверенный пример программы по компьютерным наукам; это не полный перечень направлений.",
+      "websiteUrl": "https://www.apu.edu.my",
+      "sourceUrl": "https://www.apu.edu.my/course/bsc-hons-in-computer-science",
+      "verifiedOn": "2026-09-10",
+      "notes": "Дата начала набора не является сроком подачи. Срок приёма документов, стоимость и доступность места нужно уточнить. Старые даты из базы знаний EVO не перенесены: текущий официальный календарь отличается.",
+      "photoKey": null,
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Science (Honours) in Computer Science",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Бакалаврская программа по компьютерным наукам. Состав модулей и требования к поступлению приведены на официальной странице программы.",
+          "sourceUrl": "https://www.apu.edu.my/course/bsc-hons-in-computer-science",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026",
+              "startDate": "2026-09-28",
+              "startMonth": "2026-09",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликована дата начала; дедлайн подачи и доступность места не подтверждены.",
+              "sourceUrl": "https://www.apu.edu.my/course/bsc-hons-in-computer-science",
+              "verifiedOn": "2026-09-10"
+            },
+            {
+              "label": "Ноябрь 2026",
+              "startDate": "2026-11-24",
+              "startMonth": "2026-11",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликована дата начала; дедлайн подачи и доступность места не подтверждены.",
+              "sourceUrl": "https://www.apu.edu.my/course/bsc-hons-in-computer-science",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "sunway",
+    "content": {
+      "name": "Sunway University",
+      "country": "MY",
+      "city": null,
+      "overview": "Университет в Малайзии. Ниже — пример бакалаврской программы по компьютерным наукам из официального каталога университета.",
+      "websiteUrl": "https://sunwayuniversity.edu.my",
+      "sourceUrl": "https://sunwayuniversity.edu.my/faculty-of-engineering-and-technology/courses/bachelor-of-science-honours-computer-science",
+      "verifiedOn": "2026-09-10",
+      "notes": "Страница программы перечисляет месяцы наборов, а не подтверждённые даты следующего приёма. Наличие карточки не означает партнёрство университета с EVO.",
+      "photoKey": "sunway",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Science (Honours) in Computer Science",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Программа по компьютерным наукам: программирование, системы и работа с данными. Точный учебный план и условия поступления нужно сверить на странице программы.",
+          "sourceUrl": "https://sunwayuniversity.edu.my/faculty-of-engineering-and-technology/courses/bachelor-of-science-honours-computer-science",
+          "intakes": [
+            {
+              "label": "Январь / апрель / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "Точные даты и доступность набора нужно подтвердить у университета.",
+              "sourceUrl": "https://sunwayuniversity.edu.my/faculty-of-engineering-and-technology/courses/bachelor-of-science-honours-computer-science",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "mmu",
+    "content": {
+      "name": "Multimedia University",
+      "country": "MY",
+      "city": "Cyberjaya",
+      "overview": "Университет в Малайзии. Приведённая программа относится к Faculty of Computing and Informatics в кампусе Cyberjaya.",
+      "websiteUrl": "https://www.mmu.edu.my",
+      "sourceUrl": "https://www.mmu.edu.my/programmes-by-faculty-all/programmes-by-faculty-fci/bachelor-of-computer-science-hons/",
+      "verifiedOn": "2026-09-10",
+      "notes": "На странице приёма указан старт 10 ноября 2026, но день недели рядом не совпадает с календарём. Поэтому точная дата старта не опубликована в карточке до подтверждения. Срок подачи 23 сентября опубликован для иностранных абитуриентов Foundation, Diploma и Degree.",
+      "photoKey": "mmu",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Computer Science (Honours)",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "После общей базы программа предлагает направления Software Engineering, Game Development, Data Science и Cybersecurity. Текущие условия выбора направления нужно уточнить у университета.",
+          "sourceUrl": "https://www.mmu.edu.my/programmes-by-faculty-all/programmes-by-faculty-fci/bachelor-of-computer-science-hons/",
+          "intakes": [
+            {
+              "label": "October / November 2026 — International",
+              "startDate": null,
+              "startMonth": "2026-11",
+              "applicationDeadline": "2026-09-23",
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованный срок подачи — 23 сентября. Час закрытия и часовой пояс не указаны. Точная дата начала требует подтверждения из-за несоответствия дня недели в источнике.",
+              "sourceUrl": "https://www.mmu.edu.my/apply-now/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "xjtlu",
+    "content": {
+      "name": "Xi’an Jiaotong-Liverpool University",
+      "country": "CN",
+      "city": "Suzhou",
+      "overview": "Университет в Сучжоу, Китай. Карточка показывает одну проверенную инженерную бакалаврскую программу, а не все доступные направления.",
+      "websiteUrl": "https://www.xjtlu.edu.cn",
+      "sourceUrl": "https://www.xjtlu.edu.cn/en/study/undergraduate/computer-science-and-technology",
+      "verifiedOn": "2026-09-10",
+      "notes": "На странице программы указан сентябрь 2027. Дедлайн бакалавриата для этого набора не подтверждён. Сроки магистратуры и истёкший срок бакалавриата 2026 не применяются к нему.",
+      "photoKey": "xjtlu",
+      "programs": [
+        {
+          "id": "computer-science-and-technology",
+          "title": "BEng (Hons) Computer Science and Technology",
+          "level": "bachelor",
+          "duration": "4 года, очно",
+          "language": null,
+          "summary": "Инженерная программа объединяет компьютерные науки с основами электротехники и электроники. Возможности обучения по маршруту 2+2 нужно отдельно сверить с условиями программы.",
+          "sourceUrl": "https://www.xjtlu.edu.cn/en/study/undergraduate/computer-science-and-technology",
+          "intakes": [
+            {
+              "label": "Сентябрь 2027",
+              "startDate": null,
+              "startMonth": "2027-09",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликован месяц начала. Дедлайн подачи для этого бакалаврского набора пока не подтверждён.",
+              "sourceUrl": "https://www.xjtlu.edu.cn/en/study/undergraduate/computer-science-and-technology",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "unnc",
+    "content": {
+      "name": "University of Nottingham Ningbo China",
+      "country": "CN",
+      "city": "Ningbo",
+      "overview": "Кампус University of Nottingham в Нинбо, Китай. В карточке представлен пример программы по компьютерным наукам.",
+      "websiteUrl": "https://www.nottingham.edu.cn",
+      "sourceUrl": "https://www.nottingham.edu.cn/en/study-with-us/undergraduate/courses/prospectus.aspx?id=9270dd66-3c75-45de-bebe-bafe5d78c7c1",
+      "verifiedOn": "2026-09-10",
+      "notes": "Новый дедлайн бакалавриата не подтверждён. Страница приёма содержит старый заголовок 30 июня 2026 и более точное обновление о закрытии обычного приёма 21 июня 2026; эти прошедшие даты не показаны как действующий набор.",
+      "photoKey": "unnc",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "BSc (Hons) Computer Science",
+          "level": "bachelor",
+          "duration": "3 или 4 года в зависимости от уровня поступления",
+          "language": null,
+          "summary": "Программа по компьютерным наукам с вариантами обучения 4+0 и 2+2. Условия перевода и конкретный маршрут согласуются отдельно; они не гарантируются этой карточкой.",
+          "sourceUrl": "https://www.nottingham.edu.cn/en/study-with-us/undergraduate/courses/prospectus.aspx?id=9270dd66-3c75-45de-bebe-bafe5d78c7c1",
+          "intakes": [
+            {
+              "label": "Следующий сентябрьский набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "unknown",
+              "note": "Дата начала и срок подачи следующего набора ещё не подтверждены. Прошедший приём 2026 не считается открытым.",
+              "sourceUrl": "https://www.nottingham.edu.cn/en/study-with-us/undergraduate/how-to-apply.aspx",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

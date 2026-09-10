@@ -26,6 +26,13 @@ required; this exception changes no workflow/controller behavior.
 
 ## 1. Release invariant
 
+The September 10 owner-authorized continuation retains the standing instruction
+not to create a new backup until requested. Its explicit scope is recorded in
+[business operations O6](../docs/design/v3/business-operations-universities-run-plan.md#проверки-и-выпуск)
+and the September 10 entry in `docs/PLAN_CHANGES.md`. Report deferred fresh
+recovery proof honestly; all exact-head/schema/scanner/Auth/acceptance and disarm
+requirements below remain unchanged.
+
 One release candidate contains:
 
 - one clean checkout at the exact current `origin/main` commit;

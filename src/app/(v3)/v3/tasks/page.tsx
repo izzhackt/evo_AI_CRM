@@ -13,7 +13,7 @@ import { readStaffTaskWorkspace, type WorkspaceTask } from "@/lib/v3/staff-task-
 import { taskStatus } from "@/lib/v3/wording";
 import { isTeamChatChannel, teamChatRoleCanAccess, type TeamChatMessage } from "@/lib/platform-team-chat";
 import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
-import { readStaffTaskChatSource } from "@/lib/server/platform-staff-task-repository";
+import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext, readLeadTaskLinks, type StaffTaskContext } from "@/lib/server/platform-staff-task-repository";
 
 export const dynamic = "force-dynamic";
 type Params = Record<string, string | string[] | undefined>;
@@ -36,10 +36,22 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const taskId = optionalUuid(params, "task");
   const selectedCaseId = optionalUuid(params, "case");
   const sourceMessageId = optionalUuid(params, "message");
+  const sourceLeadId = optionalUuid(params, "lead");
   const sourceChannel = single(params, "channel");
   const openIntent = optionalUuid(params, "open");
   if (sourceMessageId && (!isTeamChatChannel(sourceChannel) || taskId || selectedCaseId
-    || domain !== "staff" || single(params, "create") !== "staff")) notFound();
+    || sourceLeadId || domain !== "staff" || single(params, "create") !== "staff")) notFound();
+  if (sourceLeadId && (taskId || selectedCaseId || domain !== "staff")) notFound();
+  let sourceLead: Awaited<ReturnType<typeof readStaffTaskLeadContext>> | null = null;
+  let leadTasks: Awaited<ReturnType<typeof readLeadTaskLinks>> | null = null;
+  if (sourceLeadId) {
+    try {
+      [sourceLead, leadTasks] = await Promise.all([readStaffTaskLeadContext(actor, sourceLeadId), readLeadTaskLinks(actor, sourceLeadId)]);
+    } catch {
+      return <PartShell title="Задачи"><p role="alert" className="text-sm text-danger">Не удалось проверить доступ к лиду и связанным задачам. Обновите страницу.</p></PartShell>;
+    }
+    if (!sourceLead) notFound();
+  }
   let sourceMessage: TeamChatMessage | undefined;
   if (sourceMessageId && isTeamChatChannel(sourceChannel)) {
     if (!teamChatRoleCanAccess(actor.presentationRole, sourceChannel)) notFound();
@@ -68,6 +80,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   if (taskId && !workspace.selectedTask) notFound();
   if (selectedCaseId && !workspace.selectedCase) notFound();
   const selected = workspace.selectedTask;
+  let taskContext: StaffTaskContext | null = null;
+  let contextUnavailable = false;
+  if (selected) {
+    try { taskContext = await readStaffTaskContext(actor, selected.id); }
+    catch { contextUnavailable = true; }
+  }
   let selectedSourceHref: string | null = null;
   let sourceUnavailable = false;
   if (selected?.sourceMessageId) {
@@ -79,6 +97,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     <Link href="/v3/tasks" className="inline-flex min-h-11 items-center text-sm text-fg-2 underline">← К задачам</Link>
     <section className="space-y-5 border-t border-border py-5">
       <h2 className="break-words text-xl font-semibold">{selected.title}</h2>
+      {taskContext?.leadId ? <Link href={`/v3/tasks?lead=${taskContext.leadId}`} className="inline-flex min-h-11 items-center text-sm underline">Открыть связанного лида и его задачи</Link> : null}
+      {contextUnavailable ? <p role="alert" className="text-sm text-danger">Не удалось загрузить связь с лидом и результаты. Обновите страницу.</p> : null}
       {selectedSourceHref ? <Link href={selectedSourceHref} className="inline-flex min-h-11 items-center text-sm underline">Открыть исходное обсуждение</Link> : null}
       {selected.sourceMessageId && !selectedSourceHref ? <p className="text-sm text-fg-3">{sourceUnavailable ? "Не удалось проверить исходное обсуждение. Обновите страницу." : "Исходное обсуждение недоступно для вашей роли."}</p> : null}
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -87,6 +107,14 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <div><dt className="text-fg-2">Срок · Бишкек</dt><dd><Deadline dueOn={selected.dueOn} dueAt={selected.dueAt} status={selected.status} now={now} /></dd></div>
       </dl>
       {selected.description ? <p className="whitespace-pre-wrap break-words text-sm leading-6">{selected.description}</p> : null}
+      {taskContext?.outcomes.length ? <section aria-label="Результаты выполнения" className="space-y-3 border-t border-border pt-4">
+        <h3 className="text-sm font-semibold">Результаты выполнения</h3>
+        {taskContext.outcomes.map((outcome) => <article key={outcome.requestId} className="border-l-2 border-border pl-3">
+          <p className="whitespace-pre-wrap break-words text-sm">{outcome.note}</p>
+          <p className="mt-1 text-xs text-fg-2">{outcome.author} · <time dateTime={outcome.createdAt}>{new Date(outcome.createdAt).toLocaleDateString("ru-RU", { timeZone: "Asia/Bishkek" })}</time></p>
+        </article>)}
+        {taskContext.truncated ? <p className="text-sm text-fg-2">Показаны последние 30 результатов; полная история сохранена.</p> : null}
+      </section> : null}
       <StaffTaskStatusForm key={`status:${selected.id}`} task={selected} requestId={randomUUID()} />
     </section>
     {actor.authorityRole === "admin" || selected.creatorMembershipId === actor.membershipId ? <details className="border-t border-border py-3">
@@ -97,17 +125,27 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const nextHref = domain === "staff" && workspace.nextCursor ? href({ before_at: workspace.nextCursor.updatedAt, before_id: workspace.nextCursor.id })
     : domain === "case" && workspace.caseNextCursor ? href({ case_after_at: workspace.caseNextCursor.sortAt, case_after_id: workspace.caseNextCursor.caseTaskId }) : null;
   return <PartShell title="Задачи">
+    {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
+      <h2 className="text-lg font-semibold">{sourceLead.clientDisplayName ?? "Имя клиента не указано"}</h2>
+      <p className="text-sm text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
+      {sourceLead.canOpenPipeline ? <Link href={sourceLead.clientDisplayName === "Имя клиента не указано" ? "/v3/pipeline" : `/v3/pipeline?q=${encodeURIComponent(sourceLead.clientDisplayName)}`} className="inline-flex min-h-11 items-center text-sm underline">Открыть в воронке</Link> : null}
+      <h3 className="text-sm font-semibold">Связанные рабочие задачи</h3>
+      {leadTasks?.rows.length ? <ul className="divide-y divide-border">{leadTasks.rows.map((task) => <li key={task.id}><Link href={`/v3/tasks?task=${task.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="break-words underline">{task.title}</span><span className="text-fg-2">{taskStatus(task.status)}</span></Link></li>)}</ul> : <p className="text-sm text-fg-2">Нет доступных связанных задач. Можно создать первую ниже.</p>}
+      {leadTasks?.truncated ? <p className="text-sm text-fg-2">Показаны последние 50 задач. Остальные доступны в общем списке.</p> : null}
+    </section> : null}
     {sourceMessage ? <section className="mb-4 rounded-card border border-border bg-surface p-4" aria-label="Исходное сообщение">
       <p className="text-sm font-semibold">Задача из сообщения · {sourceMessage.authorName}</p>
       <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{sourceMessage.body}</p>
       <p className="mt-2 text-sm text-fg-3">Проверьте название и исполнителя перед сохранением. Доступ к закрытому каналу не расширяется.</p>
       <Link href={`/v3/team-chat?channel=${sourceMessage.channelKey}&message=${sourceMessage.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm underline">Вернуться к сообщению</Link>
     </section> : null}
-    <TaskComposer key={sourceMessage?.id ?? "standalone"} participants={sourceMessage ? workspace.assignees.filter((person) => teamChatRoleCanAccess(person.role, sourceMessage.channelKey)) : workspace.assignees} actorMembershipId={actor.membershipId} presentationRole={actor.presentationRole}
+    <TaskComposer key={sourceMessage?.id ?? sourceLead?.leadId ?? "standalone"} participants={sourceMessage ? workspace.assignees.filter((person) => teamChatRoleCanAccess(person.role, sourceMessage.channelKey)) : workspace.assignees} actorMembershipId={actor.membershipId} presentationRole={actor.presentationRole}
       canCreateCase={workspace.canReadCases} selectedCase={workspace.selectedCase} day={day} requestId={randomUUID()} caseRequestId={randomUUID()}
-      initialTitle={sourceMessage?.body.slice(0, 180)} sourceMessageId={sourceMessage?.id} sourceMessageVersion={sourceMessage?.version}
+      initialTitle={sourceMessage?.body.slice(0, 180) ?? sourceLead?.nextActionText ?? undefined} sourceMessageId={sourceMessage?.id} sourceMessageVersion={sourceMessage?.version}
+      sourceLeadId={sourceLead?.leadId} sourceLeadVersion={sourceLead?.workflowVersion}
       openIntent={openIntent ?? single(params, "create") ?? null}
       initiallyOpen={single(params, "create") !== undefined} initialKind={single(params, "create") === "case" ? "case" : "staff"} />
+    {sourceLead ? <Link href="/v3/tasks" className="inline-flex min-h-11 items-center text-sm underline">Все мои задачи →</Link> : <>
     <nav aria-label="Тип задач" className="mb-4 flex flex-wrap gap-2 border-b border-border">
       <Link href={href({ type: "staff" })} aria-current={domain === "staff" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "staff" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>Рабочие</Link>
       {workspace.canReadCases ? <Link href={href({ type: "case" })} aria-current={domain === "case" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "case" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>По студентам</Link> : null}
@@ -132,5 +170,6 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       {cursor || caseCursor ? <Link href={href({})} className="inline-flex min-h-11 items-center text-sm underline">К началу списка</Link> : null}
       {nextHref ? <Link href={nextHref} className="inline-flex min-h-11 items-center text-sm text-accent-text underline">Следующие задачи →</Link> : null}
     </nav>
+    </>}
   </PartShell>;
 }

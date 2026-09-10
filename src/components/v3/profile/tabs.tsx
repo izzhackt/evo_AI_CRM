@@ -12,6 +12,8 @@ import {
 } from "@/lib/v3/wording";
 
 import { Card } from "./Card";
+import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
+import { LeadInterestSummary } from "./LeadInterestSummary";
 import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
@@ -222,6 +224,7 @@ export function Anketa({ profile, draft }: { profile: PersonProfile; draft: Prof
       </Card>
 
       <Card title="Учёба и планы">
+        {profile.leadId ? <LeadInterestSummary leadId={profile.leadId} /> : null}
         <FactList facts={draft.study} />
       </Card>
 
@@ -315,6 +318,7 @@ export function Money({
       </Card>
 
       <ProfileFinanceControls actorRole={actorRole} workspace={draft.admissions} />
+      {draft.admissions && actorRole !== "sales" ? <FinanceEntryWorkspace caseId={draft.admissions.studentCaseId} /> : null}
 
       <Card title="Договор">
         <FactList

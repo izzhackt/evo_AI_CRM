@@ -30,10 +30,15 @@ does not deploy a new app revision or require repeating this accepted release.
 The owner approves the audited operational gaps, explicitly adds university
 pages with pictures/details/deadlines, and requests production plus localhost.
 The current contract is [business operations and universities](design/v3/business-operations-universities-run-plan.md).
-It builds on the existing PR #710 candidate; it does not repeat R1–R4 or earlier
+It builds on merged PR #710; it does not repeat R1–R4 or earlier
 Student/CN/MY work. O1/O2 Sales/Finance, O3 Admissions and O5 catalogue run in
 parallel; coordinator owns O4 task links/results and shared integration/release.
-Initial O0 is in progress; no new code or deployment is claimed by this entry.
+O0 is complete in issue #711 / PR #712. O1–O5 are implemented in
+`izzhackt/business-operations-universities`; independent component reviews and
+local type/lint/build checks passed, release integration is in progress.
+Read-only ledger run `34418530574` confirms production still at138; code139–148
+is not yet production-applied at this checkpoint. Do not report these new
+features as live until O6 records exact acceptance.
 The standing no-new-backup instruction is recorded explicitly in the new plan;
 do not ask it again or fabricate restore evidence. Keep all other release gates,
 the existing persistent Supabase project, Auth and deferred WAHA boundary.

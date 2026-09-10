@@ -32,6 +32,7 @@ const LINK_ICONS = {
   "sales-report": "bar-chart",
   "admissions-worklist": "users",
   "admissions-summary": "plane",
+  universities: "folder",
   inbox: "message-square",
   calendar: "calendar",
   tasks: "check-square",

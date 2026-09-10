@@ -58,7 +58,7 @@ export function overviewStage(
 }
 
 export function studentActionDueLabel(
-  action: StudentPortalDocumentAction,
+  action: Pick<StudentPortalDocumentAction, "dueAt">,
 ): string | null {
   return formatPortalTimestamp(action.dueAt);
 }

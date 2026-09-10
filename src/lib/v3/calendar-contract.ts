@@ -5,6 +5,7 @@ import {
 } from "../platform-admissions-workspace.ts";
 import type { PlatformActor } from "../platform-auth.ts";
 import { platformTaskDeadlineSortTime } from "../platform-task-deadline.ts";
+import { ADMISSIONS_DEADLINE_LABELS, type AdmissionsDeadlineKind } from "../platform-admissions-deadline-contract.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,19 +28,26 @@ export type CalendarApplicationStatus =
   (typeof CALENDAR_APPLICATION_STATUSES)[number];
 
 export type CalendarApplicationDeadlineRow = Readonly<{
+  sourceKey: string;
+  deadlineKind: AdmissionsDeadlineKind;
   applicationId: string;
   studentCaseId: string;
   studentDisplayName: string;
   universityName: string;
   programName: string;
-  status: CalendarApplicationStatus;
+  status: CalendarApplicationStatus | null;
   deadline: string;
 }>;
 
 export type CalendarApplicationDeadlineCursor = Readonly<{
   deadline: string;
-  applicationId: string;
+  sourceKey: string;
 }>;
+
+function requiredDeadlineKey(value: unknown): string {
+  if (typeof value !== "string" || value.length > 100 || !/^(application|visa):[0-9a-f-]{36}:[a-z_]+$/.test(value)) return invalidShape();
+  return value;
+}
 
 export type CalendarUndatedTaskCursor = Readonly<{
   sortAt: string;
@@ -226,6 +234,7 @@ export function normalizeCalendarApplicationDeadlineRow(
   value: unknown,
 ): CalendarApplicationDeadlineRow {
   const row = exactRecord(value, [
+    "source_key", "deadline_kind",
     "application_id",
     "student_case_id",
     "student_display_name",
@@ -235,12 +244,15 @@ export function normalizeCalendarApplicationDeadlineRow(
     "deadline",
   ]);
   return Object.freeze({
+    sourceKey: requiredDeadlineKey(row.source_key),
+    deadlineKind: typeof row.deadline_kind === "string" && Object.hasOwn(ADMISSIONS_DEADLINE_LABELS, row.deadline_kind)
+      ? row.deadline_kind as AdmissionsDeadlineKind : invalidShape(),
     applicationId: requiredUuid(row.application_id),
     studentCaseId: requiredUuid(row.student_case_id),
     studentDisplayName: requiredText(row.student_display_name, 200),
     universityName: requiredText(row.university_name, 500),
-    programName: requiredText(row.program_name, 500),
-    status: normalizeApplicationStatus(row.application_status),
+    programName: row.program_name === "" ? "" : requiredText(row.program_name, 500),
+    status: row.application_status === null ? null : normalizeApplicationStatus(row.application_status),
     deadline: requiredDate(row.deadline),
   });
 }
@@ -346,12 +358,12 @@ export async function listCalendarApplicationDeadlinePage(
     const cursor = options.cursor
       ? Object.freeze({
           deadline: requiredDate(options.cursor.deadline),
-          applicationId: requiredUuid(options.cursor.applicationId),
+          sourceKey: requiredDeadlineKey(options.cursor.sourceKey),
         })
       : null;
     const client = dependencies.client ?? await getCalendarClient();
     const response = await client.schema("platform").rpc(
-      "staff_application_deadline_page",
+      "admissions_deadline_page_v1",
       {
         p_limit: requestedLimit,
         p_due_from: from,
@@ -359,7 +371,7 @@ export async function listCalendarApplicationDeadlinePage(
         ...(cursor
           ? {
               p_after_deadline: cursor.deadline,
-              p_after_application_id: cursor.applicationId,
+              p_after_source_key: cursor.sourceKey,
             }
           : {}),
       },
@@ -374,27 +386,27 @@ export async function listCalendarApplicationDeadlinePage(
     }
     const seen = new Set<string>();
     let previousDeadline = cursor?.deadline ?? null;
-    let previousApplicationId = cursor?.applicationId ?? null;
+    let previousSourceKey = cursor?.sourceKey ?? null;
     const rows = response.data.map((value) => {
       const row = normalizeCalendarApplicationDeadlineRow(value);
       const afterPrevious = previousDeadline === null ||
         row.deadline > previousDeadline ||
         (
           row.deadline === previousDeadline &&
-          previousApplicationId !== null &&
-          row.applicationId > previousApplicationId
+          previousSourceKey !== null &&
+          row.sourceKey > previousSourceKey
         );
       if (
         row.deadline < from ||
         row.deadline > to ||
         !afterPrevious ||
-        seen.has(row.applicationId)
+        seen.has(row.sourceKey)
       ) {
         return invalidShape();
       }
-      seen.add(row.applicationId);
+      seen.add(row.sourceKey);
       previousDeadline = row.deadline;
-      previousApplicationId = row.applicationId;
+      previousSourceKey = row.sourceKey;
       return row;
     });
     const hasNext = rows.length > normalizedPageSize;
@@ -405,7 +417,7 @@ export async function listCalendarApplicationDeadlinePage(
       nextCursor: hasNext && last
         ? Object.freeze({
             deadline: last.deadline,
-            applicationId: last.applicationId,
+            sourceKey: last.sourceKey,
           })
         : null,
     });
@@ -422,8 +434,8 @@ export async function readNearestCalendarApplicationDeadline(
     requireCalendarActor(actor);
     const client = dependencies.client ?? await getCalendarClient();
     const response = await client.schema("platform").rpc(
-      "staff_nearest_application_deadline",
-      {},
+      "admissions_deadline_page_v1",
+      { p_limit: 1 },
       { get: true },
     );
     if (

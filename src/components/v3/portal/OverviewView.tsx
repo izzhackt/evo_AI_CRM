@@ -53,7 +53,8 @@ export function OverviewView({
               {overview.studentAction ? (
                 <span className="block">
                   <span className="block">
-                    {overview.studentAction.kind === "upload_document"
+                    {overview.studentAction.kind === "payment" ? "Оплата"
+                      : overview.studentAction.kind === "upload_document"
                       ? "Загрузите документ"
                       : "Замените документ"}: {overview.studentAction.label}
                   </span>
@@ -63,15 +64,15 @@ export function OverviewView({
                     </span>
                   ) : null}
                   <Link
-                    href={`/portal/documents#document-${overview.studentAction.documentSlotId}`}
+                    href={overview.studentAction.kind === "payment" ? "/portal/payments" : `/portal/documents#document-${overview.studentAction.documentSlotId}`}
                     className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-accent underline decoration-accent/40 underline-offset-4 hover:decoration-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
-                    Открыть документ
+                    {overview.studentAction.kind === "payment" ? "Посмотреть обязательство" : "Открыть документ"}
                   </Link>
                 </span>
               ) : (
                 <span className="font-normal text-fg-3">
-                  Нет документов, которые сейчас нужно загрузить или заменить.
+                  Сейчас нет документов на исправление или неоплаченных обязательств.
                 </span>
               )}
             </PortalDefinition>

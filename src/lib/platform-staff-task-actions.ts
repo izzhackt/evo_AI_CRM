@@ -17,7 +17,8 @@ export async function mutateStaffTaskAction(previous: StaffTaskActionState, form
   requestId = command.p_request_id;
   try {
     const client = await createSupabaseServerClient();
-    const { p_source_message_id: sourceMessageId, p_source_message_version: sourceMessageVersion, ...plainCommand } = command;
+    const { p_source_message_id: sourceMessageId, p_source_message_version: sourceMessageVersion,
+      p_source_lead_id: sourceLeadId, p_source_lead_version: sourceLeadVersion, p_completion_note: completionNote, ...plainCommand } = command;
     const response = sourceMessageId && command.p_operation === "create"
       ? await client.schema("platform").rpc("create_staff_task_from_chat", {
         p_organization_id: actor.organizationId, p_request_id: command.p_request_id,
@@ -26,7 +27,19 @@ export async function mutateStaffTaskAction(previous: StaffTaskActionState, form
         p_description: command.p_description, p_priority: command.p_priority,
         p_due_on: command.p_due_on, p_due_at: command.p_due_at,
       })
-      : await client.schema("platform").rpc("mutate_staff_task", { p_organization_id: actor.organizationId, ...plainCommand });
+      : sourceLeadId && command.p_operation === "create"
+        ? await client.schema("platform").rpc("create_staff_task_from_lead", {
+          p_organization_id: actor.organizationId, p_request_id: command.p_request_id,
+          p_lead_id: sourceLeadId, p_lead_version: sourceLeadVersion, p_title: command.p_title,
+          p_assignee_membership_id: command.p_assignee_membership_id, p_description: command.p_description,
+          p_priority: command.p_priority, p_due_on: command.p_due_on, p_due_at: command.p_due_at,
+        })
+        : completionNote && command.p_operation === "status" && command.p_status === "done"
+          ? await client.schema("platform").rpc("complete_staff_task_with_result", {
+            p_organization_id: actor.organizationId, p_request_id: command.p_request_id,
+            p_staff_task_id: command.p_staff_task_id, p_expected_version: command.p_expected_version, p_note: completionNote,
+          })
+          : await client.schema("platform").rpc("mutate_staff_task", { p_organization_id: actor.organizationId, ...plainCommand });
     const { data, error } = response;
     if (error) {
       if (error.code === "42501") return failed("forbidden");
@@ -40,6 +53,7 @@ export async function mutateStaffTaskAction(previous: StaffTaskActionState, form
     if (!taskId || !version || data?.request_id !== requestId || !staffTaskTimestamp(data?.changed_at)
       || (command.p_staff_task_id !== null && command.p_staff_task_id !== taskId)) return failed("unavailable");
     revalidatePath("/v3/tasks");
+    revalidatePath("/v3/pipeline");
     if (sourceMessageId) revalidatePath("/v3/team-chat");
     return { status: "saved", requestId, taskId, version };
   } catch {

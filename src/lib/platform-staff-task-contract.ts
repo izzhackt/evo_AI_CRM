@@ -95,11 +95,12 @@ export function parseStaffParticipant(value: unknown): StaffParticipant {
   return Object.freeze({ membershipId: required(staffTaskUuid(row.membership_id)), displayName: required(text(row.display_name, 1000)), role });
 }
 
-export const STAFF_TASK_FORM_FIELDS = ["operation", "request_id", "expected_version", "task_id", "title", "assignee_membership_id", "description", "status", "priority", "deadline_kind", "due_on", "due_at", "source_message_id", "source_message_version"] as const;
+export const STAFF_TASK_FORM_FIELDS = ["operation", "request_id", "expected_version", "task_id", "title", "assignee_membership_id", "description", "status", "priority", "deadline_kind", "due_on", "due_at", "source_message_id", "source_message_version", "source_lead_id", "source_lead_version", "completion_note"] as const;
 export type StaffTaskCommand = Readonly<{
   p_operation: "create" | "edit" | "status"; p_request_id: string; p_expected_version: string;
   p_staff_task_id: string | null; p_status: PlatformCaseTaskStatus;
   p_source_message_id: string | null; p_source_message_version: string | null;
+  p_source_lead_id: string | null; p_source_lead_version: string | null; p_completion_note: string | null;
   p_title: string | null; p_description: string | null; p_assignee_membership_id: string | null;
   p_priority: PlatformCaseTaskPriority | null; p_due_on: string | null; p_due_at: string | null;
 }>;
@@ -115,7 +116,13 @@ export function parseStaffTaskCommand(fields: ReadonlyMap<string, string>): Staf
   const sourceMessageId = staffTaskUuid(get("source_message_id"));
   const sourceMessageVersion = staffTaskVersion(get("source_message_version"));
   if ((get("source_message_id") !== "" || get("source_message_version") !== "") && (operation !== "create" || !sourceMessageId || !sourceMessageVersion)) return null;
+  const sourceLeadId = staffTaskUuid(get("source_lead_id"));
+  const sourceLeadVersion = staffTaskVersion(get("source_lead_version"));
+  if ((get("source_lead_id") !== "" || get("source_lead_version") !== "") && (operation !== "create" || !sourceLeadId || !sourceLeadVersion || sourceMessageId)) return null;
+  const completionNote = get("completion_note");
+  if (completionNote && (operation !== "status" || status !== "done" || !text(completionNote, 4000))) return null;
   const base: StaffTaskCommand = { p_operation: operation, p_request_id: requestId, p_expected_version: version, p_staff_task_id: taskId, p_status: status, p_source_message_id: sourceMessageId, p_source_message_version: sourceMessageVersion,
+    p_source_lead_id: sourceLeadId, p_source_lead_version: sourceLeadVersion, p_completion_note: completionNote || null,
     p_title: null, p_description: null, p_assignee_membership_id: null, p_priority: null, p_due_on: null, p_due_at: null };
   if (operation === "status") {
     if (["title", "assignee_membership_id", "description", "priority", "deadline_kind", "due_on", "due_at"].some((name) => get(name) !== "")) return null;

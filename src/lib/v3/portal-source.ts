@@ -66,6 +66,10 @@ export type StudentPortalDocumentAction = Readonly<{
   dueAt: string | null;
   documentSlotId: string;
 }>;
+export type StudentPortalPaymentAction = Readonly<{
+  kind: "payment"; label: string; dueAt: string; amountMinor: number; currency: string;
+}>;
+export type StudentPortalAction = StudentPortalDocumentAction | StudentPortalPaymentAction;
 
 export type StudentPortalEvoAction = Readonly<{
   taskId: string;
@@ -78,7 +82,7 @@ export type StudentPortalEvoAction = Readonly<{
 export type StudentPortalOverview = Readonly<{
   /** Canonical raw value; UI must map it through the single V3 wording module. */
   operationalStage: string;
-  studentAction: StudentPortalDocumentAction | null;
+  studentAction: StudentPortalAction | null;
   evoAction: StudentPortalEvoAction | null;
   curatorDisplayName: string | null;
 }>;
@@ -758,11 +762,11 @@ export async function readStudentPortalOverview(
 ): Promise<StudentPortalOverview | null> {
   try {
     const client = await clientFor(dependencies);
-    const response = await client.schema("platform").rpc(
+    const [response, payments] = await Promise.all([client.schema("platform").rpc(
       "student_portal_overview_v2",
       {},
       { get: true },
-    );
+    ), readStudentPortalPayments({ ...dependencies, client })]);
     if (
       response.error ||
       !Array.isArray(response.data) ||
@@ -770,9 +774,18 @@ export async function readStudentPortalOverview(
     ) {
       return invalidShape();
     }
-    return response.data.length === 0
-      ? null
-      : normalizeStudentPortalOverview(response.data[0]);
+    if (response.data.length === 0) return null;
+    const overview = normalizeStudentPortalOverview(response.data[0]);
+    const choices: StudentPortalAction[] = overview.studentAction ? [overview.studentAction] : [];
+    for (const payment of payments) {
+      if (payment.outstandingMinor > 0 && !["cancelled", "waived"].includes(payment.status)) {
+        choices.push({ kind: "payment", label: payment.label, dueAt: payment.dueAt,
+          amountMinor: payment.outstandingMinor, currency: payment.currency });
+      }
+    }
+    // Oldest due first: overdue before future, undated documents after dated actions.
+    choices.sort((left, right) => (left.dueAt ? Date.parse(left.dueAt) : Infinity) - (right.dueAt ? Date.parse(right.dueAt) : Infinity));
+    return { ...overview, studentAction: choices[0] ?? null };
   } catch (error) {
     return failClosed(error);
   }

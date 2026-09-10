@@ -27,7 +27,7 @@ function filesUnder(path) {
     .sort();
 }
 
-test("the Student workspace preserves five portal pages and adds three private test pages", () => {
+test("the Student workspace preserves five portal pages, private tests and published universities", () => {
   const pageFiles = filesUnder("src/app/(portal)/portal/")
     .filter((path) => path.endsWith("/page.tsx") || path.endsWith("portal/page.tsx"));
 
@@ -40,6 +40,8 @@ test("the Student workspace preserves five portal pages and adds three private t
     "src/app/(portal)/portal/tests/career/page.tsx",
     "src/app/(portal)/portal/tests/english/page.tsx",
     "src/app/(portal)/portal/tests/page.tsx",
+    "src/app/(portal)/portal/universities/[id]/page.tsx",
+    "src/app/(portal)/portal/universities/page.tsx",
   ]);
 
   const shell = source("src/components/v3/portal/PortalShell.tsx");
@@ -49,6 +51,7 @@ test("the Student workspace preserves five portal pages and adds three private t
       "/portal",
       "/portal/documents",
       "/portal/applications",
+      "/portal/universities",
       "/portal/payments",
       "/portal/notifications",
       "/portal/tests",
@@ -84,7 +87,12 @@ test("every page passes the direct strict E2 result to its view", () => {
       page,
       new RegExp(`import \\{ ${reader} \\} from "@/lib/v3/portal-source"`, "u"),
     );
-    assert.match(page, new RegExp(`const ${resultName} = await ${reader}\\(\\)`, "u"));
+    if (resultName === "overview") {
+      assert.match(page, /const \[overview, actor\] = await Promise\.all\(\[readStudentPortalOverview\(\), requireStudentPortalActor\(\)\]\)/u);
+      assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student/u);
+    } else {
+      assert.match(page, new RegExp(`const ${resultName} = await ${reader}\\(\\)`, "u"));
+    }
     assert.match(
       page,
       new RegExp(`<${component}[\\s\\S]*${resultName}=\\{${resultName}\\}`, "u"),
@@ -110,7 +118,7 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /id=\{`evo-task-\$\{overview\.evoAction\.taskId\}`\}/u);
   assert.match(
     overview,
-    /Нет документов, которые сейчас нужно загрузить или заменить/u,
+    /Сейчас нет документов на исправление или неоплаченных обязательств/u,
   );
   assert.match(overview, /Нет опубликованной задачи команды EVO/u);
   assert.match(overview, /min-h-11/u);

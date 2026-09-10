@@ -7,14 +7,15 @@ import { CalendarCreateTaskForm } from "../calendar/TaskControls";
 import type { CalendarCaseOption } from "../calendar/types";
 import { StaffTaskForm } from "./StaffTaskForm";
 
-export function TaskComposer({ participants, actorMembershipId, presentationRole, canCreateCase, selectedCase, day, requestId, caseRequestId, initiallyOpen = false, initialKind = "staff", initialTitle, sourceMessageId, sourceMessageVersion, openIntent = null }: Readonly<{
+export function TaskComposer({ participants, actorMembershipId, presentationRole, canCreateCase, selectedCase, day, requestId, caseRequestId, initiallyOpen = false, initialKind = "staff", initialTitle, sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, openIntent = null }: Readonly<{
   participants: readonly StaffParticipant[]; actorMembershipId: string; presentationRole: FixedRole;
   canCreateCase: boolean; selectedCase: CalendarCaseOption | null; day: string; requestId: string; caseRequestId: string;
   initiallyOpen?: boolean; initialKind?: "staff" | "case";
   initialTitle?: string; sourceMessageId?: string; sourceMessageVersion?: string;
+  sourceLeadId?: string; sourceLeadVersion?: string;
   openIntent?: string | null;
 }>) {
-  const caseAllowed = canCreateCase && !sourceMessageId;
+  const caseAllowed = canCreateCase && !sourceMessageId && !sourceLeadId;
   const [open, setOpen] = useState(initiallyOpen);
   const [kind, setKind] = useState<"staff" | "case">(caseAllowed ? initialKind : "staff");
   const [seenIntent, setSeenIntent] = useState(openIntent);
@@ -41,7 +42,8 @@ export function TaskComposer({ participants, actorMembershipId, presentationRole
         <label className="flex min-h-11 items-center gap-2 text-sm"><input type="radio" checked={kind === "case"} onChange={() => setKind("case")} name="task-composer-kind" />По студенту</label>
       </fieldset> : null}
       <div hidden={kind !== "staff"}><StaffTaskForm participants={participants} actorMembershipId={actorMembershipId} day={day} requestId={requestId}
-        initialTitle={initialTitle} sourceMessageId={sourceMessageId} sourceMessageVersion={sourceMessageVersion} /></div>
+        initialTitle={initialTitle} sourceMessageId={sourceMessageId} sourceMessageVersion={sourceMessageVersion}
+        sourceLeadId={sourceLeadId} sourceLeadVersion={sourceLeadVersion} /></div>
       {caseAllowed ? <div hidden={kind !== "case"}><CalendarCreateTaskForm key={caseRequestId} cases={selectedCase ? [selectedCase] : []} casesHaveMore={false}
         assignees={caseAssignees} actorMembershipId={actorMembershipId} presentationRole={presentationRole} day={day} requestId={caseRequestId}
         selectedCase={selectedCase ?? undefined} expanded /></div> : null}

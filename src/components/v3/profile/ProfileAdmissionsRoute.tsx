@@ -5,6 +5,8 @@ import { AdmissionsRoutePanel } from "./AdmissionsRoutePanel";
 import { ProfileAdmissionsWorkspacePanel } from "./ProfileAdmissionsWorkspace";
 import { ProfileHandoffAcknowledgement } from "./ProfileSalesTransition";
 import type { ProfileDraft } from "./types";
+import { PartnerPacketsPanel } from "./PartnerPacketsPanel";
+import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
 
 export async function ProfileAdmissionsRoute({ actor, draft, studentName }: { actor: ActivePlatformActor; draft: ProfileDraft; studentName: string }) {
   const caseId = draft.admissions?.studentCaseId;
@@ -22,5 +24,7 @@ export async function ProfileAdmissionsRoute({ actor, draft, studentName }: { ac
         <ProfileAdmissionsWorkspacePanel actorRole={actor.presentationRole} workspace={draft.admissions} />
       </details>
       </AdmissionsRoutePanel>
+      <PartnerPacketsPanel actor={actor} caseId={caseId} active={workspace.case.state === "active"} applications={workspace.applications.map(application => ({ id: application.id, name: `${application.institutionName} · ${application.programName}` }))} />
+      <CaseHelpWorkspace actor={actor} caseId={caseId} />
     </div>;
 }

@@ -148,6 +148,9 @@ function LeadCard({
         </div>
       ) : null}
 
+      {actorRole === "admin" || lead.workflow.currentOwnerMembershipId === actorMembershipId
+        ? <Link href={`/v3/tasks?lead=${lead.workflow.leadId}&create=staff`} className="mt-2 inline-flex min-h-11 items-center text-xs text-accent-text underline underline-offset-2">Задачи по лиду</Link>
+        : <p className="mt-2 text-xs text-fg-2">Для связанных задач сначала назначьте ответственного.</p>}
       {!terminal ? (
         <PipelineDecisionForm
           key={`${lead.workflow.leadId}:${lead.workflow.workflowVersion}`}

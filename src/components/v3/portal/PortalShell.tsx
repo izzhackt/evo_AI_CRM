@@ -10,6 +10,7 @@ const SECTIONS = [
   { href: "/portal", label: "Поступление" },
   { href: "/portal/documents", label: "Документы" },
   { href: "/portal/applications", label: "Заявки" },
+  { href: "/portal/universities", label: "Университеты" },
   { href: "/portal/payments", label: "Оплата" },
   { href: "/portal/notifications", label: "Уведомления" },
   { href: "/portal/tests", label: "Тесты" },
@@ -61,7 +62,7 @@ export function PortalShell({
           className="mx-auto flex w-full max-w-[1180px] gap-1 overflow-x-auto px-3 py-2 sm:px-5"
         >
           {SECTIONS.map((section) => {
-            const active = pathname === section.href || (section.href === "/portal/tests" && pathname.startsWith("/portal/tests/"));
+            const active = pathname === section.href || ((section.href === "/portal/tests" || section.href === "/portal/universities") && pathname.startsWith(`${section.href}/`));
             return (
               <li key={section.href} className="shrink-0">
                 <Link

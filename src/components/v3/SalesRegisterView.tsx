@@ -4,12 +4,15 @@ import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace } from "@/lib/platform-sales-register-contract";
 import { readSalesRegisterWorkspace } from "@/lib/v3/sales-register-source";
+import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
+import { financeMoney, type MonthlyPaymentTotal } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesReportNavigation } from "./SalesReportNavigation";
 import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./SalesRegisterForms";
 
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
+  manager?: string; direction?: string; review?: string;
 }>;
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
@@ -24,15 +27,25 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   const valid = Number.isInteger(year) && year >= 1900 && year <= 2100
     && (query.year === undefined || /^\d{4}$/.test(query.year))
     && (month === undefined || (Number.isInteger(month) && month >= 1 && month <= 12))
-    && Number.isInteger(offset) && offset >= 0 && offset <= 1_000_000;
-  const isAdmin = actor.authorityRole === "admin";
+    && Number.isInteger(offset) && offset >= 0 && offset <= 1_000_000
+    && (query.manager === undefined || (typeof query.manager === "string" && query.manager.length <= 300))
+    && (query.direction === undefined || (typeof query.direction === "string" && query.direction.length <= 500))
+    && (query.review === undefined || ["", "true", "false"].includes(query.review));
+  const isAdmin = actor.authorityRole === "admin" && actor.presentationRole === "admin";
   let workspace: SalesRegisterWorkspace | null = null;
+  let cash: readonly MonthlyPaymentTotal[] | null = null;
   if (valid) {
-    try { workspace = await readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record, archived: query.archived === "true" }); }
-    catch { /* A failed real read stays visibly unavailable; no sample rows. */ }
+    [workspace, cash] = await Promise.all([
+      readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record, archived: query.archived === "true",
+        manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null }).catch(() => null),
+      isAdmin && month ? readMonthlyPaymentSummary(actor, year, month).catch(() => null) : Promise.resolve(null),
+    ]);
   }
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
   if (query.archived === "true") params.set("archived", "true");
+  if (query.manager) params.set("manager", query.manager);
+  if (query.direction) params.set("direction", query.direction);
+  if (query.review) params.set("review", query.review);
   const href = (extra: Record<string, string> = {}) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(extra)) next.set(key, value);
@@ -67,6 +80,9 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         <label className="min-w-0 @2xl:w-40"><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
+        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Менеджер</span><select name="manager" defaultValue={query.manager ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option>{workspace?.managerLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
+        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Направление</span><input name="direction" defaultValue={query.direction ?? ""} maxLength={500} placeholder="Как в записи" className={`${inputCls} min-h-11`} /></label>
+        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Уточнения</span><select name="review" defaultValue={query.review ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option><option value="true">Нужно уточнить</option><option value="false">Сверенные</option></select></label>
         <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`} type="submit">Показать</button>
       </form>
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
@@ -93,6 +109,15 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           </div>
           {workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0 ? <p className="mt-5 border-s-2 border-border ps-3 text-sm leading-relaxed text-fg-2">В денежные итоги не включены неуточнённые значения: стоимость — {workspace.unresolvedCostCount}, оплата — {workspace.unresolvedPaidCount}.</p> : null}
         </section>
+        {isAdmin && month ? <section aria-labelledby="sales-cash-totals" className="border-b border-border py-6">
+          <h2 id="sales-cash-totals" className="text-base font-semibold text-fg">Поступления и возвраты за месяц</h2>
+          <p className="mt-2 text-xs leading-relaxed text-fg-2">Подтверждённые финансовые события всей организации по дате операции, время Бишкека. Фильтры строк продаж на этот блок не влияют. Расходы третьих сторон не являются выручкой EVO.</p>
+          {cash === null ? <p role="alert" className="mt-4 text-sm text-fg-2">Финансовая сводка недоступна. Отчётные суммы не использованы вместо неё.</p> : cash.length === 0 ? <p className="mt-4 text-sm text-fg-2">В этом месяце подтверждённых финансовых событий нет.</p> : <div className="mt-4 grid gap-4 md:grid-cols-2">{cash.map(total => <dl key={total.currency} className="space-y-2 rounded-card border border-border p-4 text-sm">
+            <div className="flex flex-wrap justify-between gap-3"><dt>Получено · {total.currency}</dt><dd className="font-mono">{financeMoney(total.paymentsMinor, total.currency)}</dd></div>
+            <div className="flex flex-wrap justify-between gap-3"><dt>Возвращено</dt><dd className="font-mono">{financeMoney(total.refundsMinor, total.currency)}</dd></div>
+            <div className="flex flex-wrap justify-between gap-3 font-semibold"><dt>Итого</dt><dd className="font-mono">{financeMoney(total.netMinor, total.currency)}</dd></div>
+          </dl>)}</div>}
+        </section> : null}
 
         {workspace.rows.length === 0 ? <div className="space-y-2 py-12 text-center">
           <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : "В выбранном периоде записей нет."}</p>

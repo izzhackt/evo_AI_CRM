@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
 import { applicationStatus } from "@/lib/v3/wording";
+import { ADMISSIONS_DEADLINE_LABELS } from "@/lib/platform-admissions-deadline-contract";
 
 import {
   type CalendarApplicationDeadline,
@@ -11,21 +12,21 @@ import {
 } from "./types";
 
 function applicationHref(deadline: CalendarApplicationDeadline): string {
-  return `/v3/profile?case=${encodeURIComponent(deadline.studentCaseId)}&tab=overview#applications`;
+  return `/v3/profile?case=${encodeURIComponent(deadline.studentCaseId)}&tab=route#${deadline.status === null ? "admissions-visa" : "admissions-applications"}`;
 }
 
 export function ApplicationDeadlineChip({
   deadline,
 }: Readonly<{ deadline: CalendarApplicationDeadline }>) {
-  const status = applicationStatus(deadline.status);
+  const status = deadline.status === null ? null : applicationStatus(deadline.status);
   return (
     <Link
       href={applicationHref(deadline)}
       className="flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border border-accent/40 bg-accent/5 px-1.5 py-1 text-start hover:border-accent hover:bg-accent/10"
-      aria-label={`Дедлайн заявки: ${deadline.universityName}, ${deadline.programName}, ${deadline.studentDisplayName}`}
+      aria-label={`${ADMISSIONS_DEADLINE_LABELS[deadline.deadlineKind]}: ${deadline.universityName}, ${deadline.programName}, ${deadline.studentDisplayName}`}
     >
       <span className="line-clamp-2 w-full break-words text-xs font-semibold text-fg">
-        {deadline.universityName} · {deadline.programName}
+        {ADMISSIONS_DEADLINE_LABELS[deadline.deadlineKind]} · {deadline.universityName}{deadline.programName ? ` · ${deadline.programName}` : ""}
       </span>
       <span className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 text-2xs text-fg-3">
         <span>{deadline.studentDisplayName}</span>
@@ -51,7 +52,7 @@ export function NearestApplicationDeadline({
 }>) {
   return (
     <section
-      aria-label="Ближайший дедлайн заявки"
+      aria-label="Ближайший срок поступления"
       className="rounded-card border border-border bg-surface p-4"
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-fg-3">
@@ -64,7 +65,7 @@ export function NearestApplicationDeadline({
               {nearestDeadlineLabel(today, deadline.day)}
             </p>
             <p className="mt-1 text-sm text-fg-2">
-              {dayLabel(deadline.day)} · {deadline.universityName} · {deadline.programName}
+              {dayLabel(deadline.day)} · {ADMISSIONS_DEADLINE_LABELS[deadline.deadlineKind]} · {deadline.universityName}{deadline.programName ? ` · ${deadline.programName}` : ""}
             </p>
             <p className="mt-1 text-xs text-fg-3">{deadline.studentDisplayName}</p>
           </div>
@@ -72,7 +73,7 @@ export function NearestApplicationDeadline({
             href={applicationHref(deadline)}
             className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium text-accent hover:bg-surface-2 hover:underline"
           >
-            Открыть заявку
+            Открыть подтверждения
           </Link>
         </div>
       ) : (

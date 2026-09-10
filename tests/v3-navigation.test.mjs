@@ -22,9 +22,9 @@ function links(model) {
 }
 
 const expectedRoleLinks = {
-  admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
-  sales: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "tasks", "team-chat", "knowledge"],
-  admissions: ["admissions-worklist", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
+  admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  sales: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
+  admissions: ["admissions-worklist", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -53,9 +53,9 @@ test("the two disclosure groups use the approved destinations and worklist remai
   assert.equal(model.home?.label, "Главная");
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
     ["Продажи", [["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"], ["Клиентские сообщения", "/v3/inbox"]]],
-    ["Поступление", [["Рабочий список", "/v3/profile"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
+    ["Поступление", [["Рабочий список", "/v3/profile"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
   ]);
-  assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist"]);
+  assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
   assert.equal(model.settings?.href, "/v3/settings");
 });
@@ -104,6 +104,14 @@ test("forbidden and unknown paths never mark an unrelated link current", () => {
   }
   for (const role of ["admin", "sales", "admissions"]) {
     assert.equal(navigation(role, "/v3/unknown").activeId, null);
+  }
+});
+
+test("university details keep the catalogue and Admissions section active", () => {
+  for (const role of ["admin", "sales", "admissions"]) {
+    const model = navigation(role, "/v3/universities/57ce9b97-43fb-4563-9c61-b8c6cf901a7b");
+    assert.equal(model.activeId, "universities");
+    assert.equal(model.groups.find((group) => group.id === "admissions").active, true);
   }
 });
 

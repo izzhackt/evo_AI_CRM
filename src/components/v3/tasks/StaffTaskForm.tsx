@@ -89,13 +89,13 @@ function TaskRecovery({ mutation, task, sourceTitle }: Readonly<{
 
 type StaffTaskFormProps = Readonly<{
   task?: StaffTask; participants: readonly StaffParticipant[]; actorMembershipId: string; day: string; requestId: string; initialTitle?: string;
-  sourceMessageId?: string; sourceMessageVersion?: string;
+  sourceMessageId?: string; sourceMessageVersion?: string; sourceLeadId?: string; sourceLeadVersion?: string;
 }>;
 export function StaffTaskForm(props: StaffTaskFormProps) {
   const [requestId, setRequestId] = useState(props.requestId);
   return <StaffTaskEditor key={requestId} {...props} requestId={requestId} refreshId={props.requestId} onAnother={() => setRequestId(crypto.randomUUID())} />;
 }
-function StaffTaskEditor({ task, participants, actorMembershipId, day, requestId, refreshId, initialTitle = "", sourceMessageId, sourceMessageVersion, onAnother }: StaffTaskFormProps & { refreshId: string; onAnother: () => void }) {
+function StaffTaskEditor({ task, participants, actorMembershipId, day, requestId, refreshId, initialTitle = "", sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, onAnother }: StaffTaskFormProps & { refreshId: string; onAnother: () => void }) {
   const mutation = useStaffTaskMutation(requestId, refreshId);
   const { state, action, pending } = mutation;
   const [title, setTitle] = useState(task?.title ?? initialTitle);
@@ -112,6 +112,9 @@ function StaffTaskEditor({ task, participants, actorMembershipId, day, requestId
     <input type="hidden" name="status" value={task?.status ?? "open"} />
     <input type="hidden" name="source_message_id" value={task ? "" : sourceMessageId ?? ""} />
     <input type="hidden" name="source_message_version" value={task ? "" : sourceMessageVersion ?? ""} />
+    <input type="hidden" name="source_lead_id" value={task ? "" : sourceLeadId ?? ""} />
+    <input type="hidden" name="source_lead_version" value={task ? "" : sourceLeadVersion ?? ""} />
+    <input type="hidden" name="completion_note" value="" />
     <fieldset disabled={locked} className="grid min-w-0 gap-4 md:grid-cols-2">
       <legend className="sr-only">{task ? "Изменить рабочую задачу" : "Новая рабочая задача"}</legend>
       <label className="text-sm font-medium md:col-span-2">Название
@@ -140,10 +143,11 @@ function StaffTaskEditor({ task, participants, actorMembershipId, day, requestId
       <div className="md:col-span-2"><button type="submit" disabled={locked || participants.length === 0} className={PRIMARY}>{pending ? "Сохраняем…" : task ? "Сохранить изменения" : "Создать задачу"}</button></div>
     </fieldset>
     <p className="text-sm text-fg-2">Задачу видят создатель, исполнитель и администратор.</p>
+    {sourceLeadId ? <p className="text-sm text-fg-2">Задача связана с лидом. Её выполнение не меняет стадию и следующее действие воронки автоматически.</p> : null}
     <Feedback state={state} />
     {state.status === "saved" && state.taskId ? <Link href={`/v3/tasks?task=${state.taskId}`} className="inline-flex min-h-11 items-center text-sm text-accent-text underline">Открыть задачу</Link> : null}
     {state.status === "saved" && !task && !sourceMessageId ? <button type="button" onClick={onAnother} className="ml-4 min-h-11 text-sm text-accent-text underline">Создать ещё</button> : null}
-    <TaskRecovery mutation={mutation} task={task} sourceTitle={sourceMessageId ? initialTitle : undefined} />
+    <TaskRecovery mutation={mutation} task={task} sourceTitle={sourceMessageId || sourceLeadId ? initialTitle : undefined} />
   </form>;
 }
 
@@ -151,13 +155,15 @@ export function StaffTaskStatusForm({ task, requestId }: Readonly<{ task: StaffT
   const mutation = useStaffTaskMutation(requestId, requestId);
   const { state, action, pending } = mutation;
   const [status, setStatus] = useState<PlatformCaseTaskStatus>(task.status);
+  const [completionNote, setCompletionNote] = useState("");
   const locked = pending || ["saved", "stale", "request_conflict", "unavailable"].includes(state.status);
   return <form action={action} className="space-y-3" data-testid="v3-staff-task-status-form">
     <input type="hidden" name="operation" value="status" />
     <input type="hidden" name="request_id" value={state.requestId} />
     <input type="hidden" name="expected_version" value={task.version} />
     <input type="hidden" name="task_id" value={task.id} />
-    {["title", "assignee_membership_id", "description", "priority", "deadline_kind", "due_on", "due_at", "source_message_id", "source_message_version"].map((name) => <input key={name} type="hidden" name={name} value="" />)}
+    {["title", "assignee_membership_id", "description", "priority", "deadline_kind", "due_on", "due_at", "source_message_id", "source_message_version", "source_lead_id", "source_lead_version"].map((name) => <input key={name} type="hidden" name={name} value="" />)}
+    <input type="hidden" name="completion_note" value={status === "done" ? completionNote : ""} />
     <fieldset disabled={locked} className="flex flex-wrap items-end gap-3">
       <legend className="sr-only">Статус задачи</legend>
       <label className="min-w-0 flex-1 text-sm font-medium">Статус
@@ -165,6 +171,9 @@ export function StaffTaskStatusForm({ task, requestId }: Readonly<{ task: StaffT
           {PLATFORM_CASE_TASK_STATUSES.map((value) => <option key={value} value={value}>{taskStatus(value)}</option>)}
         </select>
       </label>
+      {status === "done" ? <label className="w-full text-sm font-medium">Результат работы <span className="font-normal text-fg-2">· необязательно</span>
+        <textarea maxLength={4000} rows={3} value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} className={CONTROL} placeholder="Что сделано и какой следующий шаг?" />
+      </label> : null}
       <button type="submit" disabled={locked || status === task.status} className={PRIMARY}>{pending ? "Сохраняем…" : "Изменить статус"}</button>
     </fieldset>
     <Feedback state={state} />

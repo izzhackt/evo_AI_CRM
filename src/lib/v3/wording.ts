@@ -211,6 +211,9 @@ const SOURCE: Record<string, string> = {
   whatsapp: "WhatsApp",
   website: "сайт",
   referral: "по рекомендации",
+  office: "встреча в офисе",
+  phone_call: "звонок",
+  other: "другой источник",
 };
 
 /**
@@ -380,6 +383,7 @@ export const contractStatus = (v: string | null | undefined) =>
  * и попадает в счёт «без названия» внизу списка.
  */
 const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
+  "lead.manual.create": "Лид добавлен вручную",
   "ai.control.set": "Управление ИИ изменено",
   "ai.draft.generate": "Черновик ответа ИИ создан",
   "ai.draft.language.resolve": "Определён язык черновика ИИ",
@@ -493,7 +497,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
 } satisfies Readonly<Record<PlatformAuditAction |
   "case.handoff.acknowledge" | "case.handoff.clarification" |
   "case.coverage.start" | "case.coverage.return" |
-  "lead.admissions.handoff.completed", string>>;
+  "lead.admissions.handoff.completed" | "lead.manual.create", string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_draft: "Черновик ИИ",

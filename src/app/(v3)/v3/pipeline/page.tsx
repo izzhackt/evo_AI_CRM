@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Pipeline } from "@/components/v3/Pipeline";
+import { ManualLeadForm } from "@/components/v3/ManualLeadForm";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   PLATFORM_SALES_STAGES,
@@ -112,6 +113,10 @@ export default async function PipelinePart({
       href: boardHref({ ...query, due: "today" }),
       active: query.due === "today",
     },
+    {
+      key: "unscheduled", title: "Без следующего действия",
+      href: boardHref({ ...query, due: "unscheduled" }), active: query.due === "unscheduled",
+    },
   ];
   const assignmentChoices: readonly FilterChoice[] = [
     allChoice(
@@ -148,6 +153,8 @@ export default async function PipelinePart({
       <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
         Воронка продаж
       </h1>
+      {actor.presentationRole === actor.authorityRole ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
+        owners={ownerOptions.rows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
 
       {/* Поиск — форма методом GET, как период на главной: запрос живёт в
           адресе, экран можно переслать целиком. Фильтры, выбранные ссылками
@@ -343,7 +350,7 @@ function parseBoardQuery(params: SearchParams): BoardQuery {
   return Object.freeze({
     q: parseSearchText(params.q),
     stage: parseStage(params.stage),
-    due: parseOneOf(params.due, ["overdue", "today"] as const),
+    due: parseOneOf(params.due, ["overdue", "today", "unscheduled"] as const),
     assignment: parseOneOf(
       params.assignment,
       ["unassigned", "mine"] as const,

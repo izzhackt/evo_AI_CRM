@@ -1,6 +1,6 @@
 export type StaffNotification = Readonly<{
   id: string;
-  kind: "task_assigned" | "task_updated" | "chat_mention";
+  kind: "task_assigned" | "task_updated" | "chat_mention" | "case_help";
   createdAt: string;
   readAt: string | null;
   href: string;
@@ -44,6 +44,9 @@ export function decodeStaffNotifications(value: unknown): StaffNotificationPage 
     } else if (row.kind === "task_assigned" || row.kind === "task_updated") {
       if (!isStaffNotificationId(row.staff_task_id)) return fail();
       href = `/v3/tasks?task=${row.staff_task_id}`;
+    } else if (row.kind === "case_help") {
+      if (!isStaffNotificationId(row.student_case_id) || !isStaffNotificationId(row.help_request_id)) return fail();
+      href = `/v3/profile?case=${row.student_case_id}&tab=route#case-help`;
     } else return fail();
     return { id: row.id, kind: row.kind, createdAt: row.created_at, readAt: row.read_at, href };
   });

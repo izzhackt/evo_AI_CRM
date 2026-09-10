@@ -25,7 +25,25 @@ image remain rollback evidence, not a new recovery point. Earlier `4e6057f0`
 evidence in closed #552/#553 is first-release history. A documentation change
 does not deploy a new app revision or require repeating this accepted release.
 
-## Active implementation: team workspace (2026-09-10)
+## Active continuation: business operations and universities (2026-09-10)
+
+The owner approves the audited operational gaps, explicitly adds university
+pages with pictures/details/deadlines, and requests production plus localhost.
+The current contract is [business operations and universities](design/v3/business-operations-universities-run-plan.md).
+It builds on merged PR #710; it does not repeat R1–R4 or earlier
+Student/CN/MY work. O1/O2 Sales/Finance, O3 Admissions and O5 catalogue run in
+parallel; coordinator owns O4 task links/results and shared integration/release.
+O0 is complete in issue #711 / PR #712. O1–O5 are implemented in
+`izzhackt/business-operations-universities`; independent component reviews and
+local type/lint/build checks passed, release integration is in progress.
+Read-only ledger run `34418530574` confirms production still at138; code139–148
+is not yet production-applied at this checkpoint. Do not report these new
+features as live until O6 records exact acceptance.
+The standing no-new-backup instruction is recorded explicitly in the new plan;
+do not ask it again or fabricate restore evidence. Keep all other release gates,
+the existing persistent Supabase project, Auth and deferred WAHA boundary.
+
+## Previous implementation checkpoint: team workspace (2026-09-10)
 
 After planning PR #709, the owner approved implementation of issue #708 and
 explicitly deferred WAHA confirmation because employee WhatsApp numbers are

@@ -5,7 +5,7 @@ import { Icon } from "@/components/icons";
 import { loadStaffNotificationsAction, markStaffNotificationReadAction } from "@/lib/v3/staff-notification-actions";
 import type { StaffNotification, StaffNotificationCursor, StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 
-const TITLES = { task_assigned: "Вам назначили задачу", task_updated: "Изменилась ваша задача", chat_mention: "Вас упомянули в чате" };
+const TITLES = { task_assigned: "Вам назначили задачу", task_updated: "Изменилась ваша задача", chat_mention: "Вас упомянули в чате", case_help: "Новое обращение по делу студента" };
 const TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
 const CONTROL = "min-h-11 rounded-ctl border border-control-edge px-3 text-sm text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 

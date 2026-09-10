@@ -28,6 +28,11 @@ restarts WAHA, or writes amoCRM/WhatsApp/customer data.
 
 ## Trigger and trust boundary
 
+The September 10 continuation follows the same recorded standing no-new-backup
+instruction, scoped by [business operations O6](../docs/design/v3/business-operations-universities-run-plan.md#проверки-и-выпуск)
+and `docs/PLAN_CHANGES.md`. This changes no workflow/controller behavior or
+exact-head/schema/scanner/Auth/acceptance/disarm gate.
+
 An operator manually starts `EVO platform CI` with `workflow_dispatch` for the
 frozen exact-current-`main` candidate. A successful completion then starts
 `EVO fast app release` automatically through `workflow_run`; the release

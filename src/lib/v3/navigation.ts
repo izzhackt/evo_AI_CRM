@@ -12,6 +12,7 @@ export type V3NavigationLinkId =
   | "sales-report"
   | "admissions-worklist"
   | "admissions-summary"
+  | "universities"
   | "inbox"
   | "calendar"
   | "tasks"
@@ -57,6 +58,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     label: "Поступление",
     links: [
       { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Рабочий список" },
+      { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
       {
         id: "admissions-summary",
         href: "/v3/profile?section=summary#admissions-summary",
@@ -115,6 +117,8 @@ export function buildV3Navigation(
       && fixedRoleCan(presentationRole, "admissions.read")
       ? "admissions-summary"
       : "admissions-worklist";
+  } else if (pathname.startsWith("/v3/universities/")) {
+    candidate = "universities";
   } else {
     candidate = links.find((link) => link.route === pathname)?.id;
   }

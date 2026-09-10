@@ -35,7 +35,7 @@ export type PipelineBoardFilters = Readonly<{
    * фильтр по ней применяется после чтения, а не в RPC.
    */
   stage: PlatformSalesStage | "handed_off" | "all";
-  due: "overdue" | "today" | "all";
+  due: "overdue" | "today" | "unscheduled" | "all";
   assignment: "unassigned" | "mine" | "all";
   ownerMembershipId: string | null;
 }>;
@@ -55,6 +55,7 @@ const RPC_DUE_FILTER: Record<
   all: "all",
   overdue: "overdue",
   today: "due_today",
+  unscheduled: "unscheduled",
 });
 
 function requiredStageTitle(key: string): string {

@@ -70,6 +70,8 @@ function taskIdAt(index) {
 
 function applicationRow(id = APPLICATION_ID, deadline = "2026-09-10") {
   return {
+    source_key: `application:${id}:application`,
+    deadline_kind: "application",
     application_id: id,
     student_case_id: CASE_ID,
     student_display_name: "Алия Садыкова",
@@ -177,7 +179,7 @@ test("D2 undated sentinel equality preserves PostgreSQL microseconds", async () 
   );
 });
 
-test("D2 deadline projection sends range and (deadline, application_id) cursor", async () => {
+test("D2 deadline projection sends range and (deadline, source_key) cursor", async () => {
   let call;
   const page = await listCalendarApplicationDeadlinePage(
     actor,
@@ -185,7 +187,7 @@ test("D2 deadline projection sends range and (deadline, application_id) cursor",
       pageSize: 1,
       from: "2026-09-01",
       to: "2026-09-30",
-      cursor: { deadline: "2026-09-09", applicationId: APPLICATION_ID },
+      cursor: { deadline: "2026-09-09", sourceKey: `application:${APPLICATION_ID}:application` },
     },
     {
       client: rpcClient((name, args) => {
@@ -202,24 +204,26 @@ test("D2 deadline projection sends range and (deadline, application_id) cursor",
   );
 
   assert.deepEqual(call, {
-    name: "staff_application_deadline_page",
+    name: "admissions_deadline_page_v1",
     args: {
       p_limit: 2,
       p_due_from: "2026-09-01",
       p_due_to: "2026-09-30",
       p_after_deadline: "2026-09-09",
-      p_after_application_id: APPLICATION_ID,
+      p_after_source_key: `application:${APPLICATION_ID}:application`,
     },
   });
   assert.deepEqual(page.rows.map((row) => row.applicationId), [APPLICATION_ID]);
   assert.deepEqual(page.nextCursor, {
     deadline: "2026-09-10",
-    applicationId: APPLICATION_ID,
+    sourceKey: `application:${APPLICATION_ID}:application`,
   });
 });
 
 test("D2 application row is an exact discriminated read contract", () => {
   assert.deepEqual(normalizeCalendarApplicationDeadlineRow(applicationRow()), {
+    sourceKey: `application:${APPLICATION_ID}:application`,
+    deadlineKind: "application",
     applicationId: APPLICATION_ID,
     studentCaseId: CASE_ID,
     studentDisplayName: "Алия Садыкова",
@@ -279,7 +283,7 @@ test("D2 global nearest deadline is a separate one-row projection", async () => 
       return { data: [applicationRow()], error: null };
     }),
   });
-  assert.deepEqual(call, { name: "staff_nearest_application_deadline", args: {} });
+  assert.deepEqual(call, { name: "admissions_deadline_page_v1", args: { p_limit: 1 } });
   assert.equal(deadline?.applicationId, APPLICATION_ID);
 });
 
@@ -339,7 +343,9 @@ test("application deadlines are read-only calendar items linked to exact Admissi
   const component = source("src/components/v3/calendar/ApplicationDeadline.tsx");
   const calendar = source("src/components/v3/calendar/Calendar.tsx");
   assert.match(component, /kind: "application_deadline"|CalendarApplicationDeadline/u);
-  assert.match(component, /\/v3\/profile\?case=.*&tab=overview#applications/u);
+  assert.match(component, /\/v3\/profile\?case=.*&tab=route#/u);
+  assert.match(component, /admissions-visa/u);
+  assert.match(component, /admissions-applications/u);
   assert.doesNotMatch(component, /TaskControls|complete|cancel|changePlatform/u);
   assert.match(calendar, /NearestApplicationDeadline/u);
   assert.match(calendar, /Без срока/u);

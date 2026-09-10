@@ -16,12 +16,15 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",
+  "/v3/universities",
+  "/v3/universities/manage",
 ]);
 
 const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal",
   "/portal/documents",
   "/portal/applications",
+  "/portal/universities",
   "/portal/payments",
   "/portal/notifications",
   "/portal/tests",
@@ -34,6 +37,9 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   "/auth/set-password",
   "/auth/account-pending",
 ]);
+
+const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const STUDENT_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/portal\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions$/i;
@@ -100,14 +106,15 @@ export function isRetiredPlatformRoute(path: string): boolean {
 export function isConnectedPlatformPage(path: string): boolean {
   return (
     PLATFORM_STAFF_PAGE_ALLOWLIST.has(path) ||
+    STAFF_UNIVERSITY_DETAIL_PATH.test(path) ||
     isConnectedStudentPortalPage(path) ||
     isConnectedStudentAuthPage(path)
   );
 }
 
-/** Exactly the five Student Portal pages frozen in Stage E0. */
+/** Only implemented Student pages and bounded university detail paths. */
 export function isConnectedStudentPortalPage(path: string): boolean {
-  return STUDENT_PORTAL_PAGE_ALLOWLIST.has(path);
+  return STUDENT_PORTAL_PAGE_ALLOWLIST.has(path) || STUDENT_UNIVERSITY_DETAIL_PATH.test(path);
 }
 
 /** Auth-only invite surfaces; none grants Student or staff product authority. */

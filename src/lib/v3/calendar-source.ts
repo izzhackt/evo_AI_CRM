@@ -156,7 +156,8 @@ function calendarDeadlineFromRow(
 ): CalendarApplicationDeadline {
   return Object.freeze({
     kind: "application_deadline",
-    id: row.applicationId,
+    id: row.sourceKey,
+    deadlineKind: row.deadlineKind,
     studentCaseId: row.studentCaseId,
     studentDisplayName: row.studentDisplayName,
     universityName: row.universityName,
@@ -182,10 +183,10 @@ async function readCalendarApplicationDeadlines(
       to,
     });
     for (const row of page.rows) {
-      if (seenApplicationIds.has(row.applicationId)) {
+      if (seenApplicationIds.has(row.sourceKey)) {
         throw new Error("V3 calendar received a duplicate application deadline.");
       }
-      seenApplicationIds.add(row.applicationId);
+      seenApplicationIds.add(row.sourceKey);
       deadlines.push(calendarDeadlineFromRow(row));
     }
     cursor = page.nextCursor;

@@ -22,6 +22,9 @@ export async function respondToHandoffAction(
   previous: HandoffResponseActionState, form: FormData,
 ): Promise<HandoffResponseActionState> {
   const actor = await requirePlatformStaffActor();
+  if (actor.presentationRole !== actor.authorityRole) {
+    return { status: "forbidden", requestId: previous.requestId, acknowledgementId: null, submittedContext: null };
+  }
   const fields = exactActionStringFields(form, FIELDS);
   const input = fields ? parseHandoffResponseInput({
     studentCaseId: fields.get("student_case_id"), assignmentEventId: fields.get("assignment_event_id"),

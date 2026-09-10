@@ -10,7 +10,7 @@ export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: str
   return <details className="mt-5 rounded-card border border-border bg-surface p-4">
     <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-accent-text">Добавить лида</summary>
     {props.owners.length ? <ManualLeadEditor key={requestId} {...props} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
-      : <p role="status" className="mt-3 text-sm text-fg-2">Нет доступного менеджера продаж. Попросите Admin добавить активного сотрудника Sales в настройках команды — после этого можно назначить ему нового лида.</p>}
+      : <p role="status" className="mt-3 text-sm text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
   </details>;
 }
 function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void }>) {

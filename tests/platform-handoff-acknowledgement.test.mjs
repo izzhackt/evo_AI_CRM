@@ -93,8 +93,9 @@ test("form keeps controlled input on errors and uses real authority not role pre
   assert.match(form, /pending \|\| needsRefresh \|\| unchanged/);
   assert.match(form, /submittedContext === currentContext/);
   assert.doesNotMatch(form.slice(form.indexOf("export function ProfileHandoffAcknowledgement")), /setClarification\(""\)|setContactDate\(""\)/);
-  assert.match(repository, /actor\.authorityRole !== "admissions"/);
+  assert.match(repository, /actor\.authorityRole !== "admissions" && actor\.authorityRole !== "admin"/);
   assert.doesNotMatch(repository, /presentationRole/);
   assert.match(actions, /exactActionStringFields\(form, FIELDS\)/);
+  assert.match(actions, /actor\.presentationRole !== actor\.authorityRole/);
   assert.match(actions, /await respondToHandoff\(actor, input\)/);
 });

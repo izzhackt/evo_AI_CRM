@@ -567,7 +567,11 @@ function fullCaseDetails(
     ...money,
     admissions: admissionsWorkspace(data),
     contract,
-    handoffAcknowledgement: { ...data.handoffAcknowledgement, requestId: randomUUID() },
+    handoffAcknowledgement: {
+      ...data.handoffAcknowledgement,
+      canRespond: actor.presentationRole === actor.authorityRole && data.handoffAcknowledgement.canRespond,
+      requestId: randomUUID(),
+    },
     salesHandoffAcknowledgement: null,
     contractSignedAt,
   };

@@ -22830,3 +22830,17 @@ both TypeScript and the applied migration148. Reserve forward migration150 for
 the additional licensed-photo keys, coordinated with the same manifest/types.
 Migration149 remains Admin-only. Neither existing validator nor media restrictions
 are removed; existing five reviewed templates/publications stay unchanged.
+
+### 2026-09-10 — deterministic handoff proof identity after Admin parity
+
+Full CI34462582012 stopped at the stale Admissions-token denial assertion in
+`supabase-staff-auth.spec.ts:1465`; guarded release34463081296 skipped and release
+arm was set false with readback. The handoff proof selected the first eligible
+owner, while149 intentionally adds Admin to the alphabetic owner list. The handoff
+invalidates the selected owner's access version, not an unrelated curator's token.
+The proof must explicitly select its actual Admissions identity instead of relying
+on list position. Preserve every denial/fresh-token assertion, real RPC execution
+and subsequent receipt dependency. This is a bounded harness correction under the
+approved Admin parity work, not weaker product authorization or skipped gates.
+Do not modify already-applied149/150 or reapply them. Fresh exact-head review,
+PR checks and exact-current-main full CI remain required before releasing the app.

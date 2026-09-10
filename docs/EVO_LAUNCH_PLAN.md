@@ -9,18 +9,34 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `f5d0157a92b8929d0f9271e76a99f02b876517de`
+Last recorded accepted application: `a52cca376ff05db8dcc220d4b043720fe98a6f6c`
 
 ## Current bounded continuation: Admin, chat and university expansion
 
-The September10 screenshots/request start
+The September10 screenshots/request are implemented in
 [the Admin/realtime/university expansion run](design/v3/admin-realtime-university-expansion-run-plan.md).
-Implement Admin as the functional staff-role superset in both assignment readers
-and commands; clarify existing automatic chat updates and prove the real path;
-expand reviewed institutional content with real licensed photos. Preserve Auth,
-private Student assessments, business transition conditions and provider boundaries.
-This new run does not reopen the accepted O1–O6 release or authorize synthetic
-production records. Its plan owns current progress and remaining acceptance.
+PRs #717–#719 extend Admin responsibility eligibility across Sales/Admissions,
+clarify the existing automatic private chat and add reviewed university content.
+Auth, private Student assessments, business transition conditions and provider
+boundaries remain intact. Genuine Admin lead-form eligibility/private connection
+were verified; no lead or chat message was created to claim business acceptance.
+
+Full CI `34466066204` passed all five jobs on exact `a52cca37`; guarded release
+`34466804312` accepted that revision. Readback at10:40 UTC confirmed pointer
+`v3-r34466804312-a1-a52cca37`, healthy app/restarts0, no pending release, public
+HTTPS and localhost health200, and release arm=false. Managed ledger001–150:
+149/150 were applied once by `34462429988`, not repeated by later releases.
+The live catalogue has16 distinct institutions (CN7/MY9),14 photo-backed;11 new
+institutions were published through the real Admin approval flow with all10 new
+photos loaded. No duplicate records or pending drafts remain. City/APU photos,
+OUC source confirmation and further institutional expansion remain explicit gaps.
+The localhost SSH tunnel serves the same Hermes application, not a second app/DB.
+See [exact release/publication evidence and remaining acceptance](design/v3/references/2026-09-10-admin-catalogue-release.md).
+Do not repeat these schema changes, publications or the prior sales import.
+
+## Previous accepted release (historical)
+
+The previous business-operations correction accepted `f5d0157a92b8929d0f9271e76a99f02b876517de`
 (PR #714), version `r32.1-f5d0157a`, after full CI `34424853227` passed all five
 jobs and release `34425391638` succeeded, including `Accept exact V3 candidate`.
 The permanent Supabase source `iosckaqtovbbnssqcpde` has ledger001–148; the
@@ -37,13 +53,13 @@ not a new import or evidence of student cases. Two-employee business acceptance
 and live Student proof remain separate. No new backup/rehearsal was performed
 under the standing owner instruction; retained backups and the previous
 accepted `8b70332f` image remain rollback evidence, not a new recovery point.
-That image is the immediate predecessor of the current release; `76c62b90`
+That image was the immediate predecessor of the f5d0157a release; `76c62b90`
 remains earlier acceptance history.
 The [September9 acceptance](design/v3/references/2026-09-09-student-admissions-production.md)
 and earlier #552/#553 records remain history. Documentation alone does not
 deploy a new revision or require repeating this accepted release or schema tail.
 
-## Active continuation: business operations and universities (2026-09-10)
+## Previous implementation: business operations and universities (2026-09-10)
 
 The owner approves the audited operational gaps, explicitly adds university
 pages with pictures/details/deadlines, and requests production plus localhost.
@@ -62,7 +78,7 @@ genuine Admin UI and confirmed by canonical catalogue readbacks; four photos
 loaded in the browser. The coordinator owns the detailed browser/publication record
 in the linked production evidence. This does not prove a private Student visit.
 
-The narrow post-release corrections shipped in PR #714 and the current accepted
+The narrow post-release corrections shipped in PR #714 and the then-accepted
 `f5d0157a` release. Independent review covered `c39ff6af`, fast CI `34424624216`
 passed its selected checks, and the whole local Node suite passed1289/1289 with
 no skips before the exact-main full CI/release above. No SQL or schema changed.
@@ -98,7 +114,7 @@ the existing persistent Supabase project, Auth and deferred WAHA boundary.
 ## Previous implementation checkpoint: team workspace (2026-09-10)
 
 Completion notice: R1–R4 first shipped in accepted `8b70332f` and remain included
-in current `f5d0157a`; R5 technical release and same-server tunnel are complete.
+in the later `f5d0157a`; R5 technical release and same-server tunnel are complete.
 The current Admin private-chat subscription is verified, but real two-employee invitation/chat/task and
 access-revocation acceptance remains pending. The candidate/R0 wording below
 is retained as history, superseded by the current checkpoint and

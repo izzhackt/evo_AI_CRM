@@ -36,16 +36,21 @@ authority.
 Resume the current September10 continuation from
 [`admin-realtime-university-expansion-run-plan.md`](docs/design/v3/admin-realtime-university-expansion-run-plan.md):
 Admin assignment parity, clear automatic staff chat and additional source-backed
-university cards/photos. The preceding
+university cards/photos are deployed in accepted `a52cca37`. The live catalogue
+contains16 institutions,14 with photos;11 institutions were added in this run.
+See the [release and real-browser record](docs/design/v3/references/2026-09-10-admin-catalogue-release.md)
+for exact CI/runtime evidence and remaining genuine business/chat acceptance.
+The preceding
 [`business operations run`](docs/design/v3/business-operations-universities-run-plan.md)
 is shipped in accepted `f5d0157a`; real multi-user/business acceptance remains
-separate. Do not repeat that release or import. Current work is not yet deployed.
+separate. Do not repeat those releases, migrations001–150 or completed imports.
 
 The September 9 implementation baseline is recorded in
 [`student-admissions-run-plan.md`](docs/design/v3/student-admissions-run-plan.md):
 Student Portal, native English/career-interest tests, China/Malaysia Admissions,
-and the shared [`DESIGN.md`](DESIGN.md) contract. This is authorized implementation
-scope, not a claim that these additions are already deployed.
+and the shared [`DESIGN.md`](DESIGN.md) contract. Their earlier implementation and
+release history is retained there; live Student/business acceptance is separate
+from the current accepted application revision.
 The preceding follow-up scope and acceptance history remain in
 [`docs/design/v3/curator-ux-run-plan.md`](docs/design/v3/curator-ux-run-plan.md).
 The earlier `run-plan.md` first-launch checklist is retained as history; do not

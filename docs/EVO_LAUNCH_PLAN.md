@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `1a7f870bb350ef5ab6dd4cd67596d321e3e71cbc`
+Last recorded accepted application: `4dc5ead9f0db80885b30c0097b8856f1fbcbef78`
 
 ## Current run: complete university catalogue
 
@@ -20,14 +20,17 @@ photo attribution and publication controls. Transfer confirmed facts from mixed
 notes to existing summaries/labels and normally publish only affected cards;
 no schema or new facts. Normal reviewed release remains required.
 
-Follow-up application is accepted at `1a7f870bb350ef5ab6dd4cd67596d321e3e71cbc`
+Initial follow-up application was accepted at `1a7f870bb350ef5ab6dd4cd67596d321e3e71cbc`
 (PR730; CI34567818877; release34568354768; arm=false). All82 changed cards were
 published through the real Admin batch; fresh reload confirms143 current,
 0 conflicts and0 remaining. Staff ECUST/APU/EMA and Admin Student EMA readback
-confirmed the shared-reader cleanup. The Student page wrapper still contains one
-old clarification instruction: correct both real/preview wrapper descriptions,
-then normal reviewed release and repeat the bounded UI check. No migration or
-content republication. See the [release record](design/v3/references/2026-09-11-university-clean-reader-release.md).
+confirmed the shared-reader cleanup. Corrective PR731 removed the remaining
+instruction from both Student/preview page wrappers. Full CI34573219849 and
+release34573853260 accepted `4dc5ead9`; fresh live preview shows the neutral
+heading and preserved facts/photo. Batch remains143 current /0 conflicts /
+0 remaining; healthy/restarts0, no pending candidate, acceptance hash verified,
+release arm=false. Follow-up #729 is complete; no repeat migration/publication.
+See the [release record](design/v3/references/2026-09-11-university-clean-reader-release.md).
 
 The owner authorizes the [full university-catalogue completion run](design/v3/university-catalog-completion-run-plan.md):
 inventory all eligible institutional KB/raw files, deduplicate and verify official

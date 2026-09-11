@@ -32,7 +32,7 @@ async function UniversityPreview({ actor, id, params }: { actor: ActivePlatformA
   const base = "/preview/student/universities";
   if (universityId !== null) {
     const university = page.items[0] ?? notFound();
-    return <PortalPage title={university.content.name} description="Проверьте программу, ближайший набор и сведения, которые ещё нужно уточнить."><UniversityDetail university={university} base={base} now={new Date()} /></PortalPage>;
+    return <PortalPage title={university.content.name} description="Программы, условия поступления и даты наборов."><UniversityDetail university={university} base={base} now={new Date()} /></PortalPage>;
   }
   return <PortalPage title="Университеты" description="Действующий опубликованный каталог. Здесь те же карточки, которые доступны студентам вашей организации."><UniversityList page={page} filters={filters} base={base} /></PortalPage>;
 }

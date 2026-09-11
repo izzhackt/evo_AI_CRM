@@ -22959,3 +22959,14 @@ annotation. This requires
 normal Admin publication of only changed real cards, superseding the initial
 no-republication estimate above; no new schema, parallel registry or fact is
 introduced. Remaining research gaps stay in source notes and the owner chat.
+
+### 2026-09-11 — finish the Student university page heading copy
+
+Real post-release Admin preview found the old instruction to clarify missing
+information in the PortalPage description, outside the shared UniversityDetail.
+The shared reader and all82 content updates are accepted; fresh Admin batch shows
+143 current /0 conflicts /0 remaining. Correct only that description on the real
+Student university detail route and its read-only Admin preview. Preserve access,
+content, dates, photo attribution and the explicitly marked preview boundary.
+Add a bounded regression for both route wrappers, independent exact-head review
+and normal exact-main CI/release. No content republication or migration is needed.

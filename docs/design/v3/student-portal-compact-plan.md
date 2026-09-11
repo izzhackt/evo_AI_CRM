@@ -142,8 +142,10 @@ https://developer.mozilla.org/en-US/docs/Web/CSS/:has
 
 ## Integrated candidate validation — 2026-09-11
 
-Current main `4dc5ead9` was merged into the compact branch, retaining the current
-catalogue copy and detail metadata. Bounded mobile fixes close the disclosure
+Main `4dc5ead9` was merged into the compact branch, retaining the current
+catalogue copy and detail metadata. The subsequent docs-only main `06aba151`
+(PR #732 release acceptance) was also integrated after browser validation;
+its diff changes no product code or runtime assets, so that evidence remains valid. Bounded mobile fixes close the disclosure
 on focus exit, outside pointer input and any pathname change; Escape restores
 trigger focus. Main action/support targets are at least 44 px. The portal alone
 removes the inherited body minimum responsible for narrow scrollbar overflow.

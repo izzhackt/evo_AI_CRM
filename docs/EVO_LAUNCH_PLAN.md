@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `268bbdbca7aeb2cc2ba0acaece0a3838e98a6f51`
+Last recorded accepted application: `4e35b896e16449a63bd11bffd457ddf4acac6c62`
 
 ## Active follow-up: complete Portal document review and reply notifications
 
@@ -22,6 +22,12 @@ Keep the remaining real Student/staff acceptance checklist explicit; Admin
 preview, static checks and historical fixture suites do not prove those journeys.
 The owner has explicitly approved isolated technical fixtures for required
 publication checks. Keep real Student acceptance separate; do not seed production.
+
+Implementation and isolated verification are complete in PRs #736 and #738.
+Managed migration153, full CI34591103747 and guarded release34591693323 passed.
+Independent server and post-release browser checks confirm accepted `4e35b896`;
+release arm is `false`. See the [workflow release record](design/v3/references/2026-09-11-student-portal-workflow-release.md).
+Only the explicitly listed real Student business acceptance remains open.
 
 ## Active continuation: accepted portal retirement and real working checks
 

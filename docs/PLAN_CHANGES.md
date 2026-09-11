@@ -23029,3 +23029,27 @@ Playwright role/scoping guidance is linked in the release record.
 After failure the coordinator set and read back release arm `false`; independent
 preflight confirmed accepted `4dc5ead9` and no pending candidate. The correction
 preserves the guarded release path; no production update is claimed.
+
+
+## 2026-09-11 — Resume guarded portal release after reviewed smoke correction
+
+PR #733 merged as `6ac8007fe5f0a323ec1f23e7af23b9443810574e`, with the exact
+reviewed `697999aa` tree. Correction PR checks 34576714164 passed; corrected
+full-main CI 34576885307 passed all five jobs. Guarded release 34577575858 is
+complete and accepted exact `6ac8007f`; independent protected-pointer/hash,
+app-health, public-HTTPS, pending-candidate and final release-arm checks passed.
+Preserve the first failed/skipped attempt as history and update the accepted
+application pointer only to this verified revision. No additional implementation or acceptance waiver.
+
+Actual post-release Portal CUA completed after a fresh Chrome tab recovered the
+existing Admin session: desktop 2016 px, mobile 393 px and all seven routes at
+320 px passed without horizontal overflow; 44 px navigation targets, Escape
+focus restoration and the authored English first question were checked. No
+answers or business data were written. Live localhost health and anonymous
+preview-to-login redirect passed. Native screenshots and the live desktop tab
+are available to the owner. The owned candidate server on port 3001 stopped;
+the production SSH tunnel on port 3000 was preserved.
+
+Keep the earlier candidate-only interaction checks and private Student acceptance
+limitations explicitly separate. This closeout records the verified release and
+actual live UI; it adds no product scope, migration or provider action.

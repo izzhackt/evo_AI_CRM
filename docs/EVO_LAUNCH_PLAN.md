@@ -9,29 +9,29 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `4dc5ead9f0db80885b30c0097b8856f1fbcbef78`
+Last recorded accepted application: `6ac8007fe5f0a323ec1f23e7af23b9443810574e`
 
-## Current implementation: compact Student Portal
+## Current accepted release: compact Student Portal
 
-The owner selected concept 03 «Собранный» on September 10 and requested its
-implementation. Follow [the compact portal contract](design/v3/student-portal-compact-plan.md).
-This task owns the Student /portal and Admin /preview/student presentation,
-its private overview read model, and portal-scoped styles only. A separate
-worktree may develop staff Admissions/Universities independently; shared
-university components, staff routes, auth, RPCs and migrations are outside this
-redesign. The existing real Student data and actions remain the execution path.
-The compact UI and mobile corrections were independently reviewed and merged in
-PR #724 as `f9133a0488add0f6afefa3e5cdc3163952db4cd6`; its tree matches the
-reviewed `19dc2464`. The owner explicitly authorized publication and mobile
-readiness on September 11. Actual Admin preview/catalogue and 320/393 px plus
-desktop candidate checks passed. Exact-main CI 34575893217 failed because its
-broad navigation selector matched both the sidebar and a valid overview shortcut;
-release 34576407176 was skipped. Scope the E2E test to the existing named sidebar
-landmark without weakening assertions, then repeat the normal CI/release gates.
-Production acceptance remains pending in the [release record](design/v3/references/2026-09-11-student-portal-compact-release.md).
-Private Student-case acceptance remains unproved without a real Student session.
-The previously accepted application pointer above remains unchanged until the
-coordinator verifies the protected release and actual live interface.
+The owner-selected compact desktop/mobile design is published. Follow the
+[compact portal contract](design/v3/student-portal-compact-plan.md) and
+[release evidence](design/v3/references/2026-09-11-student-portal-compact-release.md).
+PR #724 implemented the sidebar, burgundy action workspace and EVO/curator
+column; PR #733 corrected an ambiguous E2E selector without weakening assertions.
+The first failed CI/skipped release remains recorded in that ledger.
+
+Exact-main CI 34576885307 passed all five jobs. Guarded release 34577575858
+accepted `6ac8007fe5f0a323ec1f23e7af23b9443810574e`; independent readback
+confirmed matching accepted revision/hash, healthy app/zero restarts, no pending
+candidate, public HTTPS live and final release arm=false. Actual post-release
+Admin preview through localhost:3000 passed desktop and 320/393 CSS px checks,
+all seven navigation routes and the authored English question preview. The
+live desktop tab is available to the owner; the isolated port 3001 server stopped.
+
+This preserves the reviewed catalogue, existing real Student read/action paths,
+auth and private-assessment boundaries. Admin preview does not prove populated
+Student actions, uploads, payments or private test persistence; no such data was
+created or accessed for this release acceptance.
 
 ## Previous accepted run: complete university catalogue
 

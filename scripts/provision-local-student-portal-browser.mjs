@@ -423,6 +423,8 @@ async function main() {
         `;
         // Authorized synthetic metadata for the negative-review UI only. There
         // are no Storage bytes or ClamAV attestations: approval must stay disabled.
+        // Model the retained pre-116 reservation shape explicitly; current upload
+        // commands still require ingress scanning and are never called or bypassed.
         // Separate slots prevent the two mobile projects sharing a mutable version.
         for (const width of [320, 393]) {
           const requirementId = randomUUID();
@@ -458,10 +460,10 @@ async function main() {
             INSERT INTO platform_private.document_upload_reservations
               (id, request_id, organization_id, student_case_id, document_slot_id, document_version_id,
                uploader_profile_id, uploader_membership_id, uploader_auth_user_id, object_name,
-               declared_mime_type, byte_size, sha256_hex, expires_at)
+               declared_mime_type, byte_size, sha256_hex, expires_at, ingress_scan_required)
             VALUES (${reservationId}, ${randomUUID()}, ${ids.organization}, ${ids.case}, ${slotId}, ${versionId},
               ${ids.studentProfile}, ${ids.studentMembership}, ${authUserIds.student}, ${objectName},
-              'application/pdf', 2048, ${"b".repeat(64)}, statement_timestamp() + interval '5 minutes')
+              'application/pdf', 2048, ${"b".repeat(64)}, statement_timestamp() + interval '5 minutes', FALSE)
           `;
           await tx`
             INSERT INTO platform.audit_events

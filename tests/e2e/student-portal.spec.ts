@@ -570,17 +570,19 @@ test("mobile document review and curator replies persist through real Auth and d
     await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();
     await expect(item.getByText(canonicalReason, { exact: true })).toBeVisible();
     await expect(item.getByText("Проверить документ", { exact: true })).toHaveCount(0);
-    const [reviewProof] = await sql<{ decision: string; reason: string; reviews: string; projections: string; scan_count: string }[]>`
+    const [reviewProof] = await sql<{ decision: string; reason: string; reviews: string; projections: string; scan_count: string; legacy_unscanned: boolean }[]>`
       SELECT slot.status::TEXT AS decision, review.reason,
         (SELECT count(*)::TEXT FROM platform.document_reviews r WHERE r.document_slot_id = slot.id) AS reviews,
         (SELECT count(*)::TEXT FROM platform.student_portal_notification_projection_v1 n WHERE n.document_slot_id = slot.id) AS projections,
-        (SELECT count(*)::TEXT FROM platform_private.document_malware_scan_attestations a WHERE a.document_version_id = slot.current_version_id) AS scan_count
+        (SELECT count(*)::TEXT FROM platform_private.document_malware_scan_attestations a WHERE a.document_version_id = slot.current_version_id) AS scan_count,
+        (SELECT NOT r.ingress_scan_required AND r.ingress_scan_result IS NULL AND r.ingress_scanner_engine IS NULL
+          FROM platform_private.document_upload_reservations r WHERE r.document_version_id = slot.current_version_id) AS legacy_unscanned
       FROM platform.document_slots slot
       JOIN platform.document_requirements requirement ON requirement.id = slot.requirement_id
       JOIN platform.document_reviews review ON review.document_version_id = slot.current_version_id
       WHERE slot.student_case_id = ${caseId}::UUID AND requirement.label = ${label}
     `;
-    expect(reviewProof).toEqual({ decision, reason: canonicalReason, reviews: "1", projections: "1", scan_count: "0" });
+    expect(reviewProof).toEqual({ decision, reason: canonicalReason, reviews: "1", projections: "1", scan_count: "0", legacy_unscanned: true });
     await page.bringToFront();
     // No manual reload: the visible-tab updater must expose the committed decision.
     await expect(page.getByText(canonicalReason, { exact: true })).toBeVisible({ timeout: 45_000 });

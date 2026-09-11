@@ -20,7 +20,22 @@ Email editing and forgotten-password recovery are explicitly excluded by the
 owner. Do not add retrievable passwords to application records or change Auth.
 Keep the remaining real Student/staff acceptance checklist explicit; Admin
 preview, static checks and historical fixture suites do not prove those journeys.
-Use genuine existing identities/data only, with no synthetic acceptance records.
+The owner has explicitly approved isolated technical fixtures for required
+publication checks. Keep real Student acceptance separate; do not seed production.
+
+## Active continuation: accepted portal retirement and real working checks
+
+On 2026-09-11 the owner explicitly accepted the new Student Portal, requested
+removal of the old portal and authorized full verification wherever existing
+real access/data permit, with missing owner inputs supplied later. Execute
+[the bounded continuation](design/v3/portal-retirement-real-acceptance-plan.md).
+Retire only the obsolete portal RPC with a reviewed forward migration; preserve
+all business records and historical migrations. The separate Admin task-reason
+exception in #687 is not implied by acceptance of the portal.
+
+Keep the last accepted revision above until a new guarded release is verified.
+Actual working journeys and blocked paths must remain separate from structural
+checks, Admin previews and previously completed isolated proofs.
 
 ## Current accepted release: compact Student Portal
 

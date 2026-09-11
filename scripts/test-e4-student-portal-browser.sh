@@ -90,7 +90,9 @@ provision_log="$tmp_dir/provision.log"
 provision_result="$tmp_dir/provision-result.json"
 second_provision_log="$tmp_dir/second-provision.log"
 second_provision_result="$tmp_dir/second-provision-result.json"
-app_log="$tmp_dir/app.log"
+# Keep build/server diagnostics after owned scratch cleanup, including early
+# failures. The evidence directory is private (0700) and this log stays 0600.
+app_log="$evidence_root/app.log"
 browser_log="$evidence_root/browser.log"
 mkdir -p "$project_root/supabase" "$app_root/tests/e2e" "$evidence_root/screenshots"
 chmod 700 "$tmp_dir" "$project_root" "$project_root/supabase" "$app_root" "$evidence_root" "$evidence_root/screenshots"
@@ -103,6 +105,8 @@ chmod 600 "$supabase_log" "$provision_log" "$second_provision_log" "$app_log" "$
 
 # Never share .next or load a checkout's .env files while another preview runs.
 cp -R "$repo_root/src" "$repo_root/public" "$app_root/"
+mkdir -p "$app_root/supabase"
+cp -R "$repo_root/supabase/assessment-content" "$app_root/supabase/"
 for config_file in package.json package-lock.json tsconfig.json next.config.ts postcss.config.mjs; do
   cp "$repo_root/$config_file" "$app_root/$config_file"
 done

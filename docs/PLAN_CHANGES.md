@@ -23054,6 +23054,37 @@ Keep the earlier candidate-only interaction checks and private Student acceptanc
 limitations explicitly separate. This closeout records the verified release and
 actual live UI; it adds no product scope, migration or provider action.
 
+## 2026-09-11 — Complete the approved Portal workflow checklist
+
+The owner now authorizes implementing the audited checklist but explicitly
+excludes editing existing Student email and forgotten-password recovery. Scope
+is the missing staff document review controls plus Student notifications for
+curator replies, including safe navigation and refreshing an already open view.
+The contract is `docs/design/v3/student-portal-workflow-completion-plan.md`.
+Reuse the current document review command and existing notification/read-receipt
+authority; forward SQL changes may extend the help-reply event shape. Keep
+Student ownership, private assessments, staff permissions, idempotent retries,
+document-version concurrency and the compact mobile UI intact.
+
+The owner will collect email and manage delivery of Student access separately.
+This does not authorize plaintext/retrievable passwords in CRM or replacing
+Supabase Auth. Real execution remains required: do not extend historical
+fictional-QA permissions or invent business events to close acceptance boxes.
+Available code/build/real-service evidence and any missing real Student/case
+inputs must be recorded separately. Existing review/release gates remain.
+
+## 2026-09-11 — Authorize isolated Portal publication checks
+
+The owner explicitly answered "approved" to the request for isolated test data
+needed for publication. Run the required migration-boundary and full release
+CI against real PostgreSQL/Auth/application runtimes with synthetic technical
+identities and records in isolated test environments. This supersedes the prior
+fixture restriction for these checks; it does not authorize production seeding
+or treating technical fixtures as real Student business acceptance. Complete
+exact-head review, PR checks, merge, forward schema update and guarded release
+without bypassing existing gates. Integrate current main's migration152 Portal
+v1 retirement and move the new help-reply notification migration to153.
+
 ## 2026-09-11 — Owner accepts portal; retire v1 and start real working checks
 
 The owner explicitly accepted the new Student Portal and requested removal of

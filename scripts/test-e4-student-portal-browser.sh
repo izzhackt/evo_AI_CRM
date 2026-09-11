@@ -14,6 +14,7 @@ tmp_dir=""
 project_root=""
 project_id=""
 app_pid=""
+tls_proxy_pid=""
 app_root=""
 evidence_root=""
 stack_owned=0
@@ -28,6 +29,20 @@ cleanup() {
     kill "$app_pid" >/dev/null 2>&1
     wait "$app_pid" >/dev/null 2>&1
     app_pid=""
+  fi
+  if [[ -n "$tls_proxy_pid" && "$tls_proxy_pid" =~ ^[0-9]+$ ]]; then
+    kill "$tls_proxy_pid" >/dev/null 2>&1
+    wait "$tls_proxy_pid" >/dev/null 2>&1
+    tls_proxy_pid=""
+  fi
+
+  # Failure traces may contain synthetic Auth session data. Retain them only in
+  # this run's private evidence directory, never stdout or published artifacts.
+  if [[ "$original_status" != "0" && -n "$evidence_root" && -d "$evidence_root" \
+    && -n "$app_root" && -d "$app_root/output/playwright-student-portal/test-results" ]]; then
+    cp -R "$app_root/output/playwright-student-portal/test-results" \
+      "$evidence_root/playwright-test-results" || cleanup_status=1
+    chmod -R go-rwx "$evidence_root/playwright-test-results" || cleanup_status=1
   fi
 
   if [[ "$stack_owned" == "1" && -n "$project_id" && -n "$project_root" ]]; then
@@ -90,19 +105,27 @@ provision_log="$tmp_dir/provision.log"
 provision_result="$tmp_dir/provision-result.json"
 second_provision_log="$tmp_dir/second-provision.log"
 second_provision_result="$tmp_dir/second-provision-result.json"
-app_log="$tmp_dir/app.log"
+# Keep build/server diagnostics after owned scratch cleanup, including early
+# failures. The evidence directory is private (0700) and this log stays 0600.
+app_log="$evidence_root/app.log"
+tls_proxy_log="$evidence_root/tls-proxy.log"
+tls_key="$tmp_dir/supabase-local.key"
+tls_cert="$tmp_dir/supabase-local.crt"
 browser_log="$evidence_root/browser.log"
 mkdir -p "$project_root/supabase" "$app_root/tests/e2e" "$evidence_root/screenshots"
 chmod 700 "$tmp_dir" "$project_root" "$project_root/supabase" "$app_root" "$evidence_root" "$evidence_root/screenshots"
 : >"$supabase_log"
 : >"$provision_log"
 : >"$app_log"
+: >"$tls_proxy_log"
 : >"$second_provision_log"
 : >"$browser_log"
-chmod 600 "$supabase_log" "$provision_log" "$second_provision_log" "$app_log" "$browser_log"
+chmod 600 "$supabase_log" "$provision_log" "$second_provision_log" "$app_log" "$tls_proxy_log" "$browser_log"
 
 # Never share .next or load a checkout's .env files while another preview runs.
 cp -R "$repo_root/src" "$repo_root/public" "$app_root/"
+mkdir -p "$app_root/supabase"
+cp -R "$repo_root/supabase/assessment-content" "$app_root/supabase/"
 for config_file in package.json package-lock.json tsconfig.json next.config.ts postcss.config.mjs; do
   cp "$repo_root/$config_file" "$app_root/$config_file"
 done
@@ -121,13 +144,13 @@ project_id="evo-e4-$RANDOM-$$-$(openssl rand -hex 4)"
   || fail "Unable to create a safe isolated Supabase project id"
 
 read -r api_port db_port shadow_port studio_port mailpit_port smtp_port \
-  pop3_port inspector_port analytics_port pooler_port app_port <<<"$(
+  pop3_port inspector_port analytics_port pooler_port app_port tls_port <<<"$(
   "$node_bin" --input-type=module <<'EOF'
 import { createServer } from "node:net";
 
 const servers = [];
 const ports = [];
-for (let index = 0; index < 11; index += 1) {
+for (let index = 0; index < 12; index += 1) {
   const server = createServer();
   servers.push(server);
   await new Promise((resolve, reject) => {
@@ -147,7 +170,7 @@ EOF
 
 for port in "$api_port" "$db_port" "$shadow_port" "$studio_port" \
   "$mailpit_port" "$smtp_port" "$pop3_port" "$inspector_port" \
-  "$analytics_port" "$pooler_port" "$app_port"; do
+  "$analytics_port" "$pooler_port" "$app_port" "$tls_port"; do
   [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1024 && "$port" -le 65535 ]] \
     || fail "Unable to reserve an isolated loopback port"
 done
@@ -252,8 +275,8 @@ const expectedVersions = (await readdir(migrationsDirectory))
   .map((name) => /^(\d+)_.*\.sql$/u.exec(name)?.[1] ?? null)
   .filter((version) => version !== null)
   .sort();
-if (expectedVersions.length === 0 || !expectedVersions.includes("136")) {
-  throw new Error("repository migration inventory omits the assessment content");
+if (expectedVersions.length === 0 || !["136", "152", "153"].every(version => expectedVersions.includes(version))) {
+  throw new Error("repository migration inventory omits current Portal prerequisites");
 }
 
 const sql = postgres(databaseUrl, { max: 1, prepare: false });
@@ -272,7 +295,7 @@ try {
 }
 EOF
 then
-  fail "The isolated E4 database did not apply the exact repository migration ledger including 136"
+  fail "The isolated E4 database did not apply the exact repository migration ledger including 153"
 fi
 
 if ! API_URL="$supabase_api_url" SERVICE_ROLE_KEY="$supabase_service_role_key" \
@@ -300,6 +323,7 @@ second_admin_password="$(openssl rand -hex 24)"
 second_student_password="$(openssl rand -hex 24)"
 
 if ! EVO_E4_SUPABASE_URL="$supabase_api_url" \
+  EVO_E4_REVIEW_UI_FIXTURE=1 \
   EVO_E4_SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
   EVO_E4_SUPABASE_DB_URL="$supabase_database_url" \
   EVO_E4_ADMIN_EMAIL="$admin_email" \
@@ -317,7 +341,8 @@ provision_marker="$(grep -m 1 -E '^LOCAL_STUDENT_PORTAL_BROWSER_PROVISIONED [0-9
 [[ -n "$provision_marker" ]] \
   || fail "The E4 Student Portal provisioner returned no success marker"
 read -r _ organization_id student_membership_id notification_id <<<"$provision_marker"
-for value in "$organization_id" "$student_membership_id" "$notification_id"; do
+student_case_id="$("$node_bin" --input-type=module -e 'import { readFile } from "node:fs/promises"; const value = JSON.parse(await readFile(process.argv[1], "utf8")).caseId; if (typeof value !== "string") process.exit(1); process.stdout.write(value);' "$provision_result")"
+for value in "$organization_id" "$student_membership_id" "$notification_id" "$student_case_id"; do
   [[ "$value" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
     || fail "The E4 Student Portal provisioner returned an invalid UUID"
 done
@@ -349,17 +374,59 @@ for sensitive_value in "$supabase_service_role_key" "$supabase_database_url" \
   fi
 done
 
-(
-cd "$app_root"
-exec env -u EVO_PLATFORM_GEMINI_API_KEY \
-  NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
-  EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
-  SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
-  EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS=3600 \
-  "$node_bin" node_modules/next/dist/bin/next dev \
-    --hostname 127.0.0.1 --port "$app_port"
-) >"$app_log" 2>&1 &
+# Keep the product's production HTTPS requirement. Trust only this run's
+# disposable certificate in new Node processes; do not change machine trust.
+if ! openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+  -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' \
+  -addext 'basicConstraints=critical,CA:TRUE' \
+  -addext 'keyUsage=critical,digitalSignature,keyCertSign,keyEncipherment' \
+  -addext 'extendedKeyUsage=serverAuth' \
+  -keyout "$tls_key" -out "$tls_cert" >>"$tls_proxy_log" 2>&1; then
+  fail "The isolated E4 TLS certificate could not be created"
+fi
+chmod 600 "$tls_key" "$tls_cert"
+supabase_tls_url="https://127.0.0.1:${tls_port}"
+"$node_bin" "$repo_root/scripts/support/e4-loopback-tls-proxy.mjs" \
+  "$supabase_api_url" "$tls_port" "$tls_key" "$tls_cert" >>"$tls_proxy_log" 2>&1 &
+tls_proxy_pid=$!
+tls_deadline=$((SECONDS + 30))
+while (( SECONDS < tls_deadline )); do
+  kill -0 "$tls_proxy_pid" >/dev/null 2>&1 \
+    || fail "The isolated E4 TLS proxy exited before readiness"
+  tls_health_code="$(curl --silent --max-time 2 --cacert "$tls_cert" \
+    --output /dev/null --write-out '%{http_code}' "$supabase_tls_url/auth/v1/health" || true)"
+  [[ "$tls_health_code" == "200" ]] && break
+  sleep 1
+done
+[[ "${tls_health_code:-}" == "200" ]] \
+  || fail "The isolated E4 Supabase HTTPS endpoint did not become reachable"
+
+# The background call must exec Node in the PID that cleanup tracks. Keep the
+# synchronous build in an explicit subshell so exec cannot replace this harness.
+run_isolated_app() {
+  cd "$app_root"
+  exec env -u EVO_PLATFORM_GEMINI_API_KEY \
+    NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NODE_EXTRA_CA_CERTS="$tls_cert" \
+    NEXT_PUBLIC_SUPABASE_URL="$supabase_tls_url" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+    SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
+    EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS=3600 \
+    HOSTNAME=127.0.0.1 PORT="$app_port" \
+    "$node_bin" "$@"
+}
+
+# Match the deployed standalone server. A development overlay can intercept
+# real controls and change mobile geometry, so it is not an acceptance target.
+if ! (run_isolated_app node_modules/next/dist/bin/next build) >"$app_log" 2>&1; then
+  fail "The isolated E4 production build failed; inspect the private application log"
+fi
+cp -R "$app_root/public" "$app_root/.next/standalone/public"
+cp -R "$app_root/.next/static" "$app_root/.next/standalone/.next/static"
+echo "E4_STUDENT_PORTAL_PRODUCTION_BUILD_VERIFIED"
+run_isolated_app .next/standalone/server.js >>"$app_log" 2>&1 &
 app_pid=$!
 
 app_deadline=$((SECONDS + 180))
@@ -389,6 +456,7 @@ EVO_STUDENT_PORTAL_STUDENT_PASSWORD="$student_password" \
 EVO_STUDENT_PORTAL_STUDENT_SECOND_EMAIL="$second_student_email" \
 EVO_STUDENT_PORTAL_STUDENT_SECOND_PASSWORD="$second_student_password" \
 EVO_STUDENT_PORTAL_NOTIFICATION_ID="$notification_id" \
+EVO_STUDENT_PORTAL_CASE_ID="$student_case_id" \
 EVO_STUDENT_PORTAL_DB_URL="$supabase_database_url" \
 EVO_STUDENT_PORTAL_SUPABASE_URL="$supabase_api_url" \
 EVO_STUDENT_PORTAL_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
@@ -406,6 +474,6 @@ done
 cat "$browser_log"
 [[ "$browser_status" == "0" ]] || exit "$browser_status"
 
-echo "E4_STUDENT_PORTAL_MIGRATION_LEDGER_VERIFIED_THROUGH 136" | tee -a "$browser_log"
+echo "E4_STUDENT_PORTAL_MIGRATION_LEDGER_VERIFIED_EXACT_REPOSITORY_INCLUDING_153" | tee -a "$browser_log"
 echo "E4_STUDENT_PORTAL_FIXTURE_MODE preactivated_synthetic_real_auth_db_two_organizations_not_invite_proof" | tee -a "$browser_log"
 echo "E4_STUDENT_PORTAL_BROWSER_VERIFIED" | tee -a "$browser_log"

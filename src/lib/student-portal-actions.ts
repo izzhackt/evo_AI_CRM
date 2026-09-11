@@ -32,4 +32,5 @@ export async function markStudentPortalNotificationReadAction(
     requestId: studentPortalNotificationReadRequestId(actor, notificationId),
   });
   revalidatePath("/portal/notifications");
+  revalidatePath(`/portal/notifications/${notificationId}`);
 }

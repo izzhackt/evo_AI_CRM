@@ -11,6 +11,18 @@ those higher-level authorities.
 
 Last recorded accepted application: `268bbdbca7aeb2cc2ba0acaece0a3838e98a6f51`
 
+## Active follow-up: complete Portal document review and reply notifications
+
+The owner's 2026-09-11 checklist instruction approves closing the staff document
+review flow and notifying Students about curator replies. Follow
+[the bounded workflow completion plan](design/v3/student-portal-workflow-completion-plan.md).
+Email editing and forgotten-password recovery are explicitly excluded by the
+owner. Do not add retrievable passwords to application records or change Auth.
+Keep the remaining real Student/staff acceptance checklist explicit; Admin
+preview, static checks and historical fixture suites do not prove those journeys.
+The owner has explicitly approved isolated technical fixtures for required
+publication checks. Keep real Student acceptance separate; do not seed production.
+
 ## Active continuation: accepted portal retirement and real working checks
 
 On 2026-09-11 the owner explicitly accepted the new Student Portal, requested

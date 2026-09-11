@@ -38,7 +38,7 @@ test("V3 profile documents use the canonical private Storage routes", () => {
   assert.match(client, /item\.currentVersionNumber/u);
 });
 
-test("V3 profile exposes only the two approved document presence labels", () => {
+test("V3 profile keeps document presence separate from the canonical review decision", () => {
   const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
   const activeChecklist = client.slice(client.indexOf("export function ProfileDocumentsClient"));
   const wording = source("src/lib/v3/wording.ts");
@@ -47,8 +47,12 @@ test("V3 profile exposes only the two approved document presence labels", () => 
   assert.match(wording, /absent: "нет"/u);
   assert.match(wording, /present: "есть"/u);
   assert.match(client, /documentPresence\(item\.presence\)/u);
-  assert.doesNotMatch(activeChecklist, /submittedBy|uploadedBy|createdAt|updatedAt|reviewedAt/u);
-  assert.doesNotMatch(activeChecklist, /correction_required|rejected|approved/u);
+  assert.doesNotMatch(activeChecklist, /submittedBy|uploadedBy|createdAt|updatedAt/u);
+  assert.match(activeChecklist, /documentSlotStatus\(item\.status\)/u);
+  assert.match(activeChecklist, /documentReviewDecision\(item\.latestReview\.decision\)/u);
+  assert.match(activeChecklist, /item\.latestReview\.reason/u);
+  assert.match(activeChecklist, /historyDate\(item\.latestReview\.reviewedAt\)/u);
+  assert.doesNotMatch(activeChecklist, />\s*\{item\.status\}|>\s*\{item\.latestReview\.decision\}/u);
 });
 
 test("V3 profile document upload fails closed and explains every failure class", () => {
@@ -104,7 +108,7 @@ test("V3 profile links documents to canonical applications or visa cases", () =>
   );
   assert.match(
     profileSource,
-    /profileDocuments\(\s*data\.documents,\s*canUpload,\s*data\.applications,\s*data\.visa,\s*\)/u,
+    /profileDocuments\(\s*data\.documents,\s*canUpload,\s*data\.applications,\s*data\.visa,\s*canUpload && actor\.presentationRole === actor\.authorityRole,\s*\)/u,
   );
 
   assert.match(client, /data-testid="v3-document-case-links"/u);

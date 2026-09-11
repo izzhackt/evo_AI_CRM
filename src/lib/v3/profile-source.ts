@@ -306,6 +306,7 @@ function profileDocuments(
   allowUpload: boolean,
   applications: readonly PlatformApplicationQueueRow[],
   visa: PlatformCaseVisa | null,
+  allowReview: boolean,
 ): readonly DocumentGroup[] {
   if (workspace.slots.length === 0 && workspace.removedSlots.length === 0) return [];
 
@@ -323,6 +324,7 @@ function profileDocuments(
       groupLabel: slot.groupLabel,
       intentKind: slot.intentKind,
       version: slot.version,
+      status: slot.status,
       uploadRequestId,
       metadataRequestId,
       removalRequestId,
@@ -355,6 +357,9 @@ function profileDocuments(
         currentVersionId: currentVersion.documentVersionId,
         currentVersionNumber: currentVersion.versionNumber,
         currentFilename: currentVersion.originalFilename,
+        latestReview: currentVersion.latestReview,
+        reviewRequestId: allowReview && slot.status === "submitted" && currentVersion.storageFinalized
+          ? randomUUID() : null,
         downloadReady: currentVersion.downloadReady,
       };
     }
@@ -562,6 +567,7 @@ function fullCaseDetails(
       canUpload,
       data.applications,
       data.visa,
+      canUpload && actor.presentationRole === actor.authorityRole,
     ),
     otherFiles: [],
     ...money,

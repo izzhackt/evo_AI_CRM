@@ -29,7 +29,7 @@ Data and v2/task contracts are unchanged. Native available checks passed;
 real Student/client and multi-employee paths remain open. Keep actual working
 journeys separate from structural checks, Admin previews and isolated proofs.
 
-## Current accepted release: compact Student Portal
+## Previous accepted release: compact Student Portal
 
 The owner-selected compact desktop/mobile design is published. Follow the
 [compact portal contract](design/v3/student-portal-compact-plan.md) and

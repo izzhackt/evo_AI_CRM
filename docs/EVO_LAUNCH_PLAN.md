@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `6ac8007fe5f0a323ec1f23e7af23b9443810574e`
+Last recorded accepted application: `268bbdbca7aeb2cc2ba0acaece0a3838e98a6f51`
 
 ## Active follow-up: complete Portal document review and reply notifications
 
@@ -33,11 +33,15 @@ Retire only the obsolete portal RPC with a reviewed forward migration; preserve
 all business records and historical migrations. The separate Admin task-reason
 exception in #687 is not implied by acceptance of the portal.
 
-Keep the last accepted revision above until a new guarded release is verified.
-Actual working journeys and blocked paths must remain separate from structural
-checks, Admin previews and previously completed isolated proofs.
+PR #735 and managed migration 152 retired only the obsolete v1 portal API.
+Exact-main CI 34585205187 and guarded release 34585916884 attempt 2 passed;
+independent managed/server/browser readbacks verified accepted `268bbdbc` and
+final release arm=false. See the [real verification record](design/v3/references/2026-09-11-portal-retirement-real-checks.md).
+Data and v2/task contracts are unchanged. Native available checks passed;
+real Student/client and multi-employee paths remain open. Keep actual working
+journeys separate from structural checks, Admin previews and isolated proofs.
 
-## Current accepted release: compact Student Portal
+## Previous accepted release: compact Student Portal
 
 The owner-selected compact desktop/mobile design is published. Follow the
 [compact portal contract](design/v3/student-portal-compact-plan.md) and

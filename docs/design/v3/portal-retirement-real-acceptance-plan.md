@@ -1,7 +1,8 @@
 # Accepted portal retirement and real working checks
 
 Date: 2026-09-11 (Asia/Dubai)
-Status: executing; no new deployment or complete business acceptance claimed
+Status: portal retirement deployed and verified; real business/Student
+acceptance remains partial pending genuine identities/data/connections
 Baseline: main `4c090ca03ab76fc9d0e72782025749200a0c23dd`, accepted app `6ac8007f`
 Related issues: #687 (portal retirement only), #693, #708
 
@@ -25,47 +26,64 @@ and remains separately tracked.
 - [x] Read current source/callers and live PostgreSQL catalog before editing.
 - [x] Add immutable forward migration 152 dropping the exact zero-argument v1
   function with RESTRICT, without CASCADE, table changes or a fallback.
-- [ ] Retain v2, Student authority, private assessment isolation and all task
+- [x] Retain v2, Student authority, private assessment isolation and all task
   function definitions/signatures/permissions unchanged.
-- [ ] Add scoped regression assertions and run real migration/schema checks;
+- [x] Add scoped regression assertions and run real migration/schema checks;
   distinguish structural checks from real Student end-to-end acceptance.
   An owned ephemeral schema-only OrbStack database may use the existing real
   local Supabase foundation and actual forward migrations, without copied Auth
   or customer rows, fake bootstrap or source reset. Remove only that owned
   database after checks; this is not a second permanent product database or a
   managed backup/restore proof.
-- [ ] Independent exact-head review, protected PR checks, merge; one manual
-  full release gate per frozen main SHA and the existing guarded deployment.
-- [ ] Verify managed migration ledger, old function absence, current function
+- [x] Independent exact-head review, protected PR checks, merge and one manual
+  full release gate on frozen main `268bbdbc`: PR #735 and CI 34585205187 passed.
+- [x] Existing guarded deployment: release 34585916884 attempt 2 accepted
+  `268bbdbc` after managed migration 152 passed in schema run 34585949969.
+- [x] Verify managed migration ledger, old function absence, current function
   presence, accepted release/health, real UI and final disarmed release state.
 
 ## R1 — Existing native platform paths
 
-- [ ] Inspect real current staff/session and data availability without exporting
+- [x] Inspect real current staff/session and data availability without exporting
   customer contents. Check Sales/report, Admissions, tasks, chat, universities,
   settings and Admin portal preview through normal routes.
-- [ ] Exercise valid non-consequential controls, read views and genuine work
+- [x] Exercise valid non-consequential controls, read views and genuine work
   where inputs exist. Do not move customers, confirm money/contracts/arrival,
   grant access or manufacture records merely to make a checklist pass.
-- [ ] Verify native chat/task journeys with genuine identities/authorized work
+- [x] Verify available native chat/task journeys with genuine identities/work
   when available; otherwise name the exact missing identity/input. Connected
-  realtime alone is not message delivery, unread or revocation proof.
+  realtime alone is not message delivery, unread or revocation proof. Actual
+  one-Admin/two-tab delivery and persisted message-to-task completion passed;
+  distinct-employee/unread/revocation acceptance remains open.
 - [ ] Verify Student login/documents/help and test save/resume only through an
   authorized real Student session and genuine Student actions. Admin preview
   is not impersonation or evidence of private result persistence.
-- [ ] Fix concrete in-scope defects with proportionate proof and review; record
-  any scope change before coding, not after a speculative implementation.
+- [x] Record concrete observed defects and their exact scope. Two UI wording/
+  monitoring issues and historical manager-label aliases remain follow-ups,
+  without unrequested business-rule or provider changes in the retirement PR.
 
 ## R2 — Integrations and handoff
 
-- [ ] Read existing service/configuration health without printing credentials,
+- [x] Read existing service/configuration health without printing credentials,
   sending provider messages, pairing/restarting WAHA or changing webhooks.
-- [ ] Keep WhatsApp/lead-agent/amoCRM provider activation, outgoing messages and
+- [x] Keep WhatsApp/lead-agent/amoCRM provider activation, outgoing messages and
   missing owner connections separate from native platform acceptance.
-- [ ] Update GitHub/run records with completed checks, genuine defects and one
+- [x] Update GitHub/run records with completed checks, genuine defects and one
   consolidated remaining-input list; do not mark #693/#708 complete prematurely.
 
 ## Resume and evidence discipline
+
+Detailed [real verification record](references/2026-09-11-portal-retirement-real-checks.md)
+contains exact revisions/runs, actual completed checks, proof limits and the
+minimal remaining inputs. Read it before repeating any check or migration.
+
+Retirement R0 is complete. Do not reapply 152 or restore v1. Resume R1 only for
+genuine inputs that become available; do not recreate the already completed
+verification message/task. UI wording/monitoring corrections and any historical
+manager-label alias consolidation require a separate bounded change. The Mac
+public-HTTPS certificate is intercepted by Fortinet on its network path;
+the server certificate validates and the existing SSH tunnel works. The exact
+local interception component is not identified; do not bypass TLS checks.
 
 Read this file, the latest `docs/PLAN_CHANGES.md` entry and the top of
 `docs/EVO_LAUNCH_PLAN.md`; refresh origin/main, open PRs and deployed revision.

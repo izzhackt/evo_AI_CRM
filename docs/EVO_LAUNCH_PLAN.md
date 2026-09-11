@@ -21,8 +21,12 @@ worktree may develop staff Admissions/Universities independently; shared
 university components, staff routes, auth, RPCs and migrations are outside this
 redesign. The existing real Student data and actions remain the execution path.
 The compact UI is implemented and locally validated against the real Admin
-preview/catalogue on port 3001. Private Student-case acceptance and release
-remain separate; see the linked evidence.
+preview/catalogue on port 3001. On September 11 the owner explicitly authorized
+publishing PR #724 and required the mobile version to be ready. Integrate current
+main without losing the reviewed catalogue improvements, validate responsive
+layout and complete mobile navigation against the real application, then use the
+normal exact-head review/CI and guarded release gates. Private Student-case
+acceptance remains unproved without a real Student session; see the linked evidence.
 
 ## Current follow-up: Admin Student Portal preview
 

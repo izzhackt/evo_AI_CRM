@@ -87,3 +87,32 @@ Official Next.js documentation was read directly for this implementation.
   Production's localhost:3000 tunnel and server runtime remain the existing
   accepted release. This document is local implementation evidence, not release
   or populated-Student acceptance evidence.
+
+
+## Authorized integration and mobile release — 2026-09-11
+
+The owner explicitly requested publishing the compact design in PR #724 and
+making the mobile version ready after seeing the old horizontal navigation.
+Integrate the current shared main, preserving its reviewed university catalogue
+copy and detail metadata. No new database, migration, identity, Student data,
+private assessment access or provider action is needed.
+
+Acceptance before release: complete seven-section navigation at 320/393 px and
+desktop; no page-level horizontal overflow; readable cards/forms; 44 px menu
+controls; keyboard tab order, Escape dismissal and trigger focus restoration;
+close navigation on route selection or leaving its region. Verify actual
+Admin preview routes and genuine published catalogue in the browser. Capture
+only UI evidence without private Student data. The Admin preview cannot prove
+populated Student-case actions or Student assessment persistence.
+
+Run Node 22.23.1 lint, typecheck, optimized build and focused real-file contracts;
+obtain independent review, exact-head CI, exact-main CI and normal guarded release
+evidence before claiming publication. Root coordinator owns live browser/release
+checks and the existing localhost:3000 tunnel.
+
+The W3C APG disclosure-navigation guidance was checked live on September 11:
+https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/examples/disclosure-navigation/
+It supports semantic navigation with a real toggle button, aria-expanded and
+aria-controls, normal Tab navigation, Escape with trigger focus restoration and
+dismissal when focus leaves the region. Use these interaction requirements in
+the existing real portal, not the illustrative site's sample content.

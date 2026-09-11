@@ -11,6 +11,20 @@ those higher-level authorities.
 
 Last recorded accepted application: `6ac8007fe5f0a323ec1f23e7af23b9443810574e`
 
+## Active continuation: accepted portal retirement and real working checks
+
+On 2026-09-11 the owner explicitly accepted the new Student Portal, requested
+removal of the old portal and authorized full verification wherever existing
+real access/data permit, with missing owner inputs supplied later. Execute
+[the bounded continuation](design/v3/portal-retirement-real-acceptance-plan.md).
+Retire only the obsolete portal RPC with a reviewed forward migration; preserve
+all business records and historical migrations. The separate Admin task-reason
+exception in #687 is not implied by acceptance of the portal.
+
+Keep the last accepted revision above until a new guarded release is verified.
+Actual working journeys and blocked paths must remain separate from structural
+checks, Admin previews and previously completed isolated proofs.
+
 ## Current accepted release: compact Student Portal
 
 The owner-selected compact desktop/mobile design is published. Follow the

@@ -23053,3 +23053,31 @@ the production SSH tunnel on port 3000 was preserved.
 Keep the earlier candidate-only interaction checks and private Student acceptance
 limitations explicitly separate. This closeout records the verified release and
 actual live UI; it adds no product scope, migration or provider action.
+
+## 2026-09-11 — Owner accepts portal; retire v1 and start real working checks
+
+The owner explicitly accepted the new Student Portal and requested removal of
+the old portal, then full real checks wherever existing access/data permit,
+with missing connections supplied later. The execution contract is
+[portal retirement and real acceptance](design/v3/portal-retirement-real-acceptance-plan.md).
+
+Authorize a reviewed forward migration removing only
+`platform.student_portal_overview_v1()` with dependency-restricting DROP. Keep
+the current v2 API, all student/business records and applied migration history.
+The independent Admin task deadline/priority reason exception in #687 is not
+part of this portal-only acceptance and remains open. No provider activation,
+WAHA pairing, Auth bypass, invented working records, new permanent identities,
+private Student impersonation or database reset is introduced. Preserve the
+existing no-new-backup decision and all other release gates.
+
+Validate against actual services and normal identities, distinguishing browser
+reads/structural checks from real customer/Student mutations. Report unavailable
+inputs once, continue independent checks, and only claim deployment after
+managed ledger and accepted-release readback. Current official PostgreSQL and
+Supabase references are linked in the contract; Context7 quota was exhausted.
+
+Schema validation may reuse the prior proven schema-only OrbStack compilation
+method: one owned ephemeral database from the actual existing local Supabase
+foundation plus real forward migrations, without mock bootstrap, Auth/customer
+rows or reset to the source. Drop only the owned compile database afterward.
+This is not a new persistent product source or managed backup/restore proof.

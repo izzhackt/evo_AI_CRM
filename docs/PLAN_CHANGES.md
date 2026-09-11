@@ -23112,3 +23112,23 @@ method: one owned ephemeral database from the actual existing local Supabase
 foundation plus real forward migrations, without mock bootstrap, Auth/customer
 rows or reset to the source. Drop only the owned compile database afterward.
 This is not a new persistent product source or managed backup/restore proof.
+
+## 2026-09-11 — Close Portal workflow implementation and accepted release
+
+The authorized document-review and curator-reply notification scope is complete
+in PRs #736/#738, preserving compact desktop/mobile UI and owner exclusions.
+Isolated E4 passed16 cases (28 intentional profile skips); full exact-main
+CI34591103747 passed all5 jobs after a narrow existing checklist locator fix.
+The first failed CI34590084096/skipped release remains recorded in the
+[workflow release record](design/v3/references/2026-09-11-student-portal-workflow-release.md).
+
+Managed migration153 succeeded in schema run34589939376. Guarded release
+34591693323 accepted `4e35b896e16449a63bd11bffd457ddf4acac6c62`;
+independent acceptance/image/hash/Auth/health checks and actual post-release
+Admin preview at desktop/320 CSS px passed. Final release arm=false, no pending
+candidate, existing private services preserved. No production fixtures created.
+
+Implementation and publication are closed; the bounded real Student business
+acceptance checklist remains open for an actual chosen case, scanned file,
+application/visa/payment events and question/reply journey. Do not treat the
+synthetic technical proof or Admin preview as that business acceptance.

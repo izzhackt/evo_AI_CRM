@@ -23072,3 +23072,15 @@ Supabase Auth. Real execution remains required: do not extend historical
 fictional-QA permissions or invent business events to close acceptance boxes.
 Available code/build/real-service evidence and any missing real Student/case
 inputs must be recorded separately. Existing review/release gates remain.
+
+## 2026-09-11 — Authorize isolated Portal publication checks
+
+The owner explicitly answered "approved" to the request for isolated test data
+needed for publication. Run the required migration-boundary and full release
+CI against real PostgreSQL/Auth/application runtimes with synthetic technical
+identities and records in isolated test environments. This supersedes the prior
+fixture restriction for these checks; it does not authorize production seeding
+or treating technical fixtures as real Student business acceptance. Complete
+exact-head review, PR checks, merge, forward schema update and guarded release
+without bypassing existing gates. Integrate current main's migration152 Portal
+v1 retirement and move the new help-reply notification migration to153.

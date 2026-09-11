@@ -2246,7 +2246,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .getAttribute("href");
   requireUuidValue(customVersionHref?.split("/")[4]);
 
-  await customDocumentItem.locator("summary").click();
+  await customDocumentItem.getByText("Изменить пункт", { exact: true }).click();
   const editChecklistItem = customDocumentItem.getByTestId("v3-document-checklist-edit");
   await editChecklistItem.locator('input[name="label"]').fill("P4 renamed bank statement");
   await editChecklistItem.locator('input[name="group_label"]').fill("P4 renamed group");
@@ -2257,12 +2257,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(renamedDocumentItem).toBeVisible();
   await expect(page.getByText("P4 renamed group", { exact: true })).toBeVisible();
 
-  const renamedDocumentControls = renamedDocumentItem.locator("details");
+  const renamedDocumentControls = renamedDocumentItem
+    .locator("details")
+    .filter({ has: page.getByTestId("v3-document-checklist-edit") });
   const openRenamedDocumentControls = async () => {
     if (!await renamedDocumentControls.evaluate(
       (element) => (element as HTMLDetailsElement).open,
     )) {
-      await renamedDocumentControls.locator("summary").click();
+      await renamedDocumentControls.getByText("Изменить пункт", { exact: true }).click();
     }
   };
   await openRenamedDocumentControls();

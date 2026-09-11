@@ -23000,3 +23000,32 @@ Make bounded mobile interaction fixes where needed, without new RPCs, schema,
 Student identities, private assessment access, provider activation or fake data.
 W3C APG disclosure-navigation guidance was checked live and linked in the plan.
 Student-session evidence and production deployment remain separate claims.
+
+
+## 2026-09-11 — Compact Student Portal release closeout
+
+PR #724 is merged at `f9133a0488add0f6afefa3e5cdc3163952db4cd6` with the
+reviewed tree unchanged. Preserve the accepted catalogue history and compact
+portal contract; record exact-main CI, guarded release and live readback in
+[one scoped release ledger](design/v3/references/2026-09-11-student-portal-compact-release.md).
+Until those gates are confirmed, local desktop/mobile preview evidence is not
+production acceptance. No new schema, records, provider lane or Student-private
+acceptance is introduced by this documentation closeout.
+
+
+## 2026-09-11 — Disambiguate the real-auth portal navigation smoke
+
+Full main CI 34575893217 failed at the Admin preview section-loop click because
+`nav a[href="/preview/student/documents"]` matches both the primary sidebar and
+legitimate overview shortcut. Sixteen other browser tests passed; two expected
+skips remained. Guarded release 34576407176 skipped, so production was unchanged.
+
+Extend the current bounded contract to scope that section-loop and Tests link
+to the existing Разделы кабинета navigation landmark. Preserve all assertions,
+real configured-auth execution and release gates. No `.first()`, skipped check,
+product markup change, migration or new data is authorized or needed. Current
+Playwright role/scoping guidance is linked in the release record.
+
+After failure the coordinator set and read back release arm `false`; independent
+preflight confirmed accepted `4dc5ead9` and no pending candidate. The correction
+preserves the guarded release path; no production update is claimed.

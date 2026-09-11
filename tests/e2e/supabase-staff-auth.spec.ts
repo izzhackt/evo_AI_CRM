@@ -740,12 +740,13 @@ test("Admin previews Student screens and authored questions without saving an at
       writes.push(`${request.method()} ${new URL(request.url()).pathname}`);
     }
   });
+  const portalNavigation = page.getByRole("navigation", { name: "Разделы кабинета", exact: true });
   for (const section of ["documents", "applications", "payments", "notifications", "universities"]) {
-    await page.locator(`nav a[href="/preview/student/${section}"]`).click();
+    await portalNavigation.locator(`a[href="/preview/student/${section}"]`).click();
     await expect(page).toHaveURL(new RegExp(`/preview/student/${section}$`));
     await expect(page.locator("main h1")).toBeVisible();
   }
-  await page.locator('nav a[href="/preview/student/tests"]').click();
+  await portalNavigation.locator('a[href="/preview/student/tests"]').click();
   await expect(page.getByRole("heading", { name: "Тесты", exact: true })).toBeVisible();
   for (const [title, firstPage, secondPage] of [
     ["Английский", "Задание 1 из 36", "Задание 2 из 36"],

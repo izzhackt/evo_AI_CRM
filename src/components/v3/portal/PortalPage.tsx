@@ -1,3 +1,5 @@
+import styles from "./PortalShell.module.css";
+
 export function PortalPage({
   title,
   description,
@@ -8,17 +10,17 @@ export function PortalPage({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6 sm:py-10">
-      <header className="max-w-[720px]">
-        <p className="text-xs font-medium uppercase tracking-[0.12em] text-fg-3">
+    <main className={styles.page}>
+      <header className={styles.pageHeader}>
+        <p className={styles.pageEyebrow}>
           Кабинет студента
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg sm:text-3xl">
+        <h1 className={styles.pageTitle}>
           {title}
         </h1>
-        <p className="mt-2 text-sm leading-6 text-fg-2">{description}</p>
+        <p className={styles.pageDescription}>{description}</p>
       </header>
-      <div className="mt-7">{children}</div>
+      <div className={styles.pageBody}>{children}</div>
     </main>
   );
 }

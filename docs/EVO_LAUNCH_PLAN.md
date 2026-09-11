@@ -11,7 +11,24 @@ those higher-level authorities.
 
 Last recorded accepted application: `4dc5ead9f0db80885b30c0097b8856f1fbcbef78`
 
-## Current run: complete university catalogue
+## Current implementation: compact Student Portal
+
+The owner selected concept 03 «Собранный» on September 10 and requested its
+implementation. Follow [the compact portal contract](design/v3/student-portal-compact-plan.md).
+This task owns the Student /portal and Admin /preview/student presentation,
+its private overview read model, and portal-scoped styles only. A separate
+worktree may develop staff Admissions/Universities independently; shared
+university components, staff routes, auth, RPCs and migrations are outside this
+redesign. The existing real Student data and actions remain the execution path.
+The compact UI is implemented and locally validated against the real Admin
+preview/catalogue on port 3001. On September 11 the owner explicitly authorized
+publishing PR #724 and required the mobile version to be ready. Integrate current
+main without losing the reviewed catalogue improvements, validate responsive
+layout and complete mobile navigation against the real application, then use the
+normal exact-head review/CI and guarded release gates. Private Student-case
+acceptance remains unproved without a real Student session; see the linked evidence.
+
+## Previous accepted run: complete university catalogue
 
 Owner follow-up #729 (2026-09-11): remove editorial uncertainty notices from
 university reading views, omit missing fields/unconfirmed intakes and report

@@ -105,17 +105,17 @@ test("overview names each actor from the canonical projection and links exact it
   const overview = source("src/components/v3/portal/OverviewView.tsx");
   const documents = source("src/components/v3/portal/DocumentsView.tsx");
 
-  assert.match(overview, /overview\.studentAction/u);
-  assert.match(overview, /overview\.evoAction/u);
+  assert.match(overview, /overview\?\.studentAction/u);
+  assert.match(overview, /overview\?\.evoAction/u);
   assert.doesNotMatch(overview, /overview\.nextAction/u);
   assert.match(overview, /Что требуется от вас/u);
   assert.match(overview, /Что делает EVO/u);
   assert.match(
     overview,
-    /\/portal\/documents#document-\$\{overview\.studentAction\.documentSlotId\}/u,
+    /\/portal\/documents#document-\$\{action\.documentSlotId\}/u,
   );
   assert.match(overview, /<details/u);
-  assert.match(overview, /id=\{`evo-task-\$\{overview\.evoAction\.taskId\}`\}/u);
+  assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
   assert.match(
     overview,
     /Сейчас нет документов на исправление или неоплаченных обязательств/u,
@@ -437,13 +437,16 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
     .map(source)
     .join("\n");
 
-  assert.match(shell, /overflow-x-auto/u);
-  assert.match(shell, /flex w-full max-w-\[1180px\]/u);
-  assert.match(shell, /scrollIntoView\(\{/u);
-  assert.match(shell, /inline: "nearest"/u);
+  const styles = source("src/components/v3/portal/PortalShell.module.css");
+  assert.match(shell, /aria-expanded=\{navigationOpen\}/u);
+  assert.match(shell, /aria-controls="portal-navigation-panel"/u);
+  assert.match(shell, /href="#portal-content"/u);
+  assert.match(shell, /event\.key === "Escape"/u);
+  assert.match(styles, /@media/iu);
+  assert.match(styles, /min-height: 44px/u);
   assert.match(shell, /aria-label="Навигация по разделам кабинета"/u);
-  assert.match(shell, /tabIndex=\{0\}/u);
-  assert.match(shell, /min-h-11/u);
+  assert.match(shell, /tabIndex=\{-1\}/u);
+  assert.match(shell, /menuButton/u);
   assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);
   assert.match(shell, /aria-label="Разделы кабинета"/u);
   assert.match(components, /sm:grid-cols-2|sm:grid-cols-3/u);

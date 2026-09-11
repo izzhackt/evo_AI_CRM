@@ -22970,3 +22970,33 @@ Student university detail route and its read-only Admin preview. Preserve access
 content, dates, photo attribution and the explicitly marked preview boundary.
 Add a bounded regression for both route wrappers, independent exact-head review
 and normal exact-main CI/release. No content republication or migration is needed.
+
+
+## 2026-09-10 — Selected compact Student Portal design
+
+Owner approved concept 03 «Собранный» after reviewing three directions and two
+variations of the selected light/burgundy design. Implement the sidebar, compact
+action workspace, expanded highest-priority action, remaining real actions,
+and visible EVO/support column in Student UI plus truthful Admin preview.
+Use a fresh worktree from origin/main. Staff Admissions/Universities can proceed
+in a separate worktree without edits to shared contracts from this task.
+No migrations, fake cases, provider actions, staff redesign or production
+mutation are part of implementation. See
+[the bounded contract](design/v3/student-portal-compact-plan.md).
+
+
+## 2026-09-11 — Publish compact Student Portal and verify mobile
+
+The owner explicitly authorizes publishing PR #724 and adds mobile readiness to
+the requested delivery. This supersedes the compact implementation-only release
+boundary from September 10, while preserving the normal review, CI and guarded
+production release controls. Follow the September 11 acceptance in
+[the compact portal contract](design/v3/student-portal-compact-plan.md).
+
+Integrate current main and keep its reviewed real university catalogue copy and
+detail metadata. Verify 320/393 px and desktop layout, complete disclosure
+navigation, route/keyboard/focus dismissal, and real Admin preview/catalogue.
+Make bounded mobile interaction fixes where needed, without new RPCs, schema,
+Student identities, private assessment access, provider activation or fake data.
+W3C APG disclosure-navigation guidance was checked live and linked in the plan.
+Student-session evidence and production deployment remain separate claims.

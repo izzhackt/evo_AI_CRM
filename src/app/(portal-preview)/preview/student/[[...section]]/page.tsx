@@ -50,7 +50,7 @@ export default async function StudentPortalPreviewPage({ params, searchParams }:
   let content;
   switch (section[0]) {
     case undefined:
-      content = <PortalPage title="Моё поступление" description="Текущий этап, действия с вашей стороны и работа команды EVO."><OverviewView overview={null} /></PortalPage>;
+      content = <PortalPage title="Моё поступление" description="Ваш следующий шаг и работа команды — под рукой."><OverviewView overview={null} preview /></PortalPage>;
       break;
     case "documents":
       content = <PortalPage title="Документы" description="Требования, загруженные файлы и результаты проверки."><DocumentsView documents={[]} /></PortalPage>;

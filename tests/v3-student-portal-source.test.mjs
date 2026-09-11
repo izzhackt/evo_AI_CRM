@@ -139,6 +139,7 @@ test("overview decoder preserves nullable facts and rejects invented or internal
   const normalized = normalizeStudentPortalOverview(OVERVIEW_ROW);
   assert.deepEqual(normalized, {
     operationalStage: "Подготовка документов",
+    studentActions: [normalized.studentAction],
     studentAction: {
       kind: "replace_document",
       label: "Паспорт",
@@ -197,6 +198,7 @@ test("overview decoder preserves nullable facts and rejects invented or internal
   }), {
     operationalStage: "Подготовка документов",
     studentAction: null,
+    studentActions: [],
     evoAction: null,
     curatorDisplayName: "Айжан К.",
   });

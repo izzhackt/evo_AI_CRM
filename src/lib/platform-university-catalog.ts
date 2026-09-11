@@ -86,7 +86,7 @@ export function universityIntakeLabel(intake: UniversityIntake, now = new Date()
   if (intake.status === "closed" || (intake.applicationDeadline && (intake.applicationDeadline < day || (intake.applicationDeadline === day && intake.deadlineTime && intake.deadlineTime < `${at("hour")}:${at("minute")}`)))) return "Приём по опубликованному сроку закрыт";
   if (intake.status === "needs_reconfirmation") return "Дату нужно подтвердить";
   if (intake.status === "open") return "Приём открыт по данным источника";
-  if (intake.status === "announced") return "Набор объявлен; доступность уточняется";
+  if (intake.status === "announced") return "Набор объявлен";
   return "Условия набора требуют уточнения";
 }
 export function parseUniversityFilters(params: Record<string, string | string[] | undefined>): UniversityFilters | null {

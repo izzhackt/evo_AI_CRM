@@ -13,6 +13,13 @@ Last recorded accepted application: `892558b2f51ad8df1ec59ee0fabfe139572e342a`
 
 ## Current run: complete university catalogue
 
+Owner follow-up #729 (2026-09-11): remove editorial uncertainty notices from
+university reading views, omit missing fields/unconfirmed intakes and report
+research gaps in conversation. Preserve stored content, real conditions/sources,
+photo attribution and publication controls. Transfer confirmed facts from mixed
+notes to existing summaries/labels and normally publish only affected cards;
+no schema or new facts. Normal reviewed release remains required.
+
 The owner authorizes the [full university-catalogue completion run](design/v3/university-catalog-completion-run-plan.md):
 inventory all eligible institutional KB/raw files, deduplicate and verify official
 facts, include correctly attributed real campus photos, publish through existing

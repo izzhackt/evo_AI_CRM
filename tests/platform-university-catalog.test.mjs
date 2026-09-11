@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { build } from "esbuild";
 import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, parseUniversityPage, universityPublicUrl, universityIntakeLabel, UNIVERSITY_PHOTOS } from "../src/lib/platform-university-catalog.ts";
 import { universityBatchRequestId, universityContentHash, universityBatchRows } from "../src/lib/server/university-catalog-batch.ts";
 const acceptedIdentities = JSON.parse(readFileSync(new URL("fixtures/university-catalog-accepted-identities.json", import.meta.url), "utf8"));
@@ -126,4 +129,98 @@ test("published and draft DTOs reject raw registry/provenance extras and malform
   const draft = { id, institutionId: null, baseVersion: 0, createdAt: "2026-09-10T00:00:00Z", status: "draft", content: clone(), reason: "Review source" };
   assert.deepEqual(parseUniversityDrafts([draft]), [draft]);
   assert.equal(parseUniversityDrafts([{ ...draft, email: "private@example.invalid" }]), null);
+});
+test("real catalogue content renders known facts without missing-field or uncertain-intake UI", async () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  // Compile the actual shared reader and photo component. React, ReactDOM and
+  // Next remain real package imports; the child uses their ordinary SSR exports
+  // rather than inheriting this suite's react-server condition.
+  const compiled = await build({
+    stdin: {
+      contents: `
+        import { readFileSync } from "node:fs";
+        import { createElement } from "react";
+        import { renderToStaticMarkup } from "react-dom/server";
+        import { UniversityContentView } from "./src/components/v3/universities/UniversityCatalogue";
+        const entries = ${JSON.stringify(currentBundles)}.flatMap((name) =>
+          JSON.parse(readFileSync("src/lib/server/" + name, "utf8")));
+        process.stdout.write(JSON.stringify(entries.map(({ key, content }) => ({
+          key,
+          html: renderToStaticMarkup(createElement(UniversityContentView, { content, now: new Date() }))
+        }))));
+      `,
+      resolveDir: root,
+      sourcefile: "university-reader-render-check.tsx",
+      loader: "tsx",
+    },
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "cjs",
+    target: "node22",
+    packages: "external",
+    jsx: "automatic",
+    logLevel: "silent",
+  });
+  const execution = spawnSync(process.execPath, ["--input-type=commonjs"], {
+    cwd: root,
+    input: compiled.outputFiles[0].text,
+    encoding: "utf8",
+    env: { ...process.env, NODE_OPTIONS: "" },
+    maxBuffer: 16 * 1024 * 1024,
+    timeout: 30_000,
+  });
+  assert.ifError(execution.error);
+  assert.equal(execution.status, 0, execution.stderr);
+  const rendered = JSON.parse(execution.stdout);
+  assert.equal(rendered.length, current.length);
+  const escape = (value) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#x27;" })[char]);
+  for (const { key, content } of current) {
+    const html = rendered.find((row) => row.key === key)?.html;
+    assert.ok(html, key);
+    assert.doesNotMatch(html, />Нужно уточнить<|Сроки набора в этой карточке не подтверждены|Что важно уточнить|точное время не указано|Опубликованная версия/, key);
+    assert.doesNotMatch(html, /<h3\b[^>]*>[^<]*требуется подтверждение/i, `${key}: no editorial notices in programme headings`);
+    assert.doesNotMatch(html, /<dl\b[^>]*>\s*<\/dl>/, key);
+    assert.ok(html.includes(escape(content.overview)), `${key}: authored overview retained`);
+    assert.ok(html.includes(`href="${escape(content.websiteUrl)}"`), `${key}: official website`);
+    assert.ok(html.includes(`href="${escape(content.sourceUrl)}"`), `${key}: institutional source`);
+    assert.ok(html.includes(`src="${escape(UNIVERSITY_PHOTOS[content.photoKey].path)}"`), `${key}: real photo markup`);
+    assert.ok(html.includes(`href="${escape(UNIVERSITY_PHOTOS[content.photoKey].licenseUrl)}"`), `${key}: photo attribution`);
+    const articles = [...html.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/g)].map((match) => match[1]);
+    assert.equal(articles.length, content.programs.length, `${key}: authored programmes retained`);
+    for (const [index, program] of content.programs.entries()) {
+      const article = articles[index];
+      assert.ok(article.includes(escape(program.title)), `${key}/${program.id}: title`);
+      assert.ok(article.includes(escape(program.summary)), `${key}/${program.id}: authored requirements retained`);
+      assert.ok(article.includes(`href="${escape(program.sourceUrl)}"`), `${key}/${program.id}: official programme source`);
+      assert.equal(/<dt\b[^>]*>Длительность<\/dt>/.test(article), program.duration !== null, `${key}/${program.id}: duration row`);
+      assert.equal(/<dt\b[^>]*>Язык обучения<\/dt>/.test(article), program.language !== null, `${key}/${program.id}: language row`);
+      if (program.duration) assert.ok(article.includes(escape(program.duration)), `${key}/${program.id}: duration value`);
+      if (program.language) assert.ok(article.includes(escape(program.language)), `${key}/${program.id}: language value`);
+      const shown = [...article.matchAll(/<h4\b[^>]*>([\s\S]*?)<\/h4>/g)].map((match) => match[1]);
+      const known = program.intakes.filter((intake) => ["announced", "open", "closed"].includes(intake.status));
+      assert.deepEqual(shown, known.map((intake) => escape(intake.label)), `${key}/${program.id}: only known intakes`);
+      assert.equal([...article.matchAll(/<dt\b[^>]*>Начало обучения<\/dt>/g)].length, known.filter((intake) => intake.startDate || intake.startMonth).length, `${key}/${program.id}: start rows`);
+      assert.equal([...article.matchAll(/<dt\b[^>]*>Срок подачи<\/dt>/g)].length, known.filter((intake) => intake.applicationDeadline).length, `${key}/${program.id}: deadline rows`);
+    }
+  }
+  const apu = rendered.find((row) => row.key === "apu").html;
+  assert.doesNotMatch(apu, /Ноябрь 2026 — уточнить день/);
+  assert.match(apu, /28 сентября 2026/);
+  const utm = rendered.find((row) => row.key === "utm").html;
+  assert.match(utm, /17 июля 2026/);
+  assert.match(utm, /Приём[^<]*закрыт/);
+  const ecust = rendered.find((row) => row.key === "ecust").html;
+  assert.match(ecust, /10 июля 2026/);
+  assert.match(ecust, /self-sponsored/);
+  assert.match(ecust, /30 апреля/);
+  const macerata = rendered.find((row) => row.key === "university-of-macerata").html;
+  assert.match(macerata, /12 лет/);
+  assert.match(macerata, /английский B2/);
+  assert.match(macerata, /Duolingo и EF SET не принимаются/);
+  const ema = rendered.find((row) => row.key === "ecole-de-management-applique").html;
+  assert.doesNotMatch(ema, /Язык обучения|язык группы уточнить/);
+  const xisu = rendered.find((row) => row.key === "xi-an-international-studies-university").html;
+  assert.match(xisu, /31 марта 2026/);
+  assert.match(xisu, /Срок подачи относится к стипендиальному маршруту набора 2026/);
 });

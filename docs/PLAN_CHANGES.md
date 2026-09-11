@@ -22930,3 +22930,32 @@ Do not proxy restricted media, disable browser/TLS protections, download images,
 change photo keys/schema, or republish unchanged university content. Preserve the
 successful release as evidence, then verify the two embeds on the corrective
 release. All ordinary exact-head/CI/release gates remain in place.
+
+### 2026-09-11 — owner requests clean university reading without editorial notices
+
+Issue #729: the owner does not want missing-data/reconfirmation commentary in
+the staff or Student university browsing UI; report remaining research gaps in
+the working conversation and retain the source records. Omit absent field rows,
+missing-intake paragraphs and the editorial notes panel. Do not render an
+unknown/needs_reconfirmation intake as an apparently confirmed date. Preserve
+actual closed-intake status, substantive programme descriptions, official links,
+photo attribution/history, genuine errors and Admin editing/publication controls.
+This supersedes earlier DESIGN/run-plan instructions to display uncertainty
+notices in reading views; it is not authority to fabricate data or remove facts
+from stored publications. One shared reader, no schema change/data republication.
+Validate real catalogue rendering, then normal reviewed PR/full CI/guarded release
+and same-server tunnel. Use existing React conditional rendering, not CSS hiding
+or client effects: https://react.dev/learn/conditional-rendering (checked today).
+
+Independent review found that the existing notes mix editorial uncertainty with
+confirmed business facts. Before hiding them, transfer applicable established
+requirements/deadline scope into the existing programme summaries/intake labels.
+Clean four editorial programme headings; retain the three historical offers as
+archival programmes, never as newly confirmed current intakes. Original notes,
+identities, source links, existing nulls and statuses remain unchanged. EMA's
+conflicting teaching-language string becomes null rather than asserting English;
+ZISU keeps the established Chinese language without an unknown explanation-language
+annotation. This requires
+normal Admin publication of only changed real cards, superseding the initial
+no-republication estimate above; no new schema, parallel registry or fact is
+introduced. Remaining research gaps stay in source notes and the owner chat.

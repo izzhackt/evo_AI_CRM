@@ -158,6 +158,15 @@ student cases. Historical imported sales are a separate existing register.
    Exact-label import aggregation explains separate options, not duplicate
    employee accounts. Confirm any alias mapping before consolidating history.
 
+GitHub's existing dependency-alert inventory was also read, without running a
+new security scan or changing dependencies: six open alerts (#5–10), all for
+`agent-lead2-inbox/package-lock.json` (two critical Next.js, two high sharp/
+js-yaml and two medium Vitest/mocker alerts). This is the separate Inbox
+companion boundary, not a failure of the current main-CRM dependency gate.
+Exploitability and the companion's deployed revision were not established by
+this check. Track its dependency updates separately; do not describe the whole
+repository as vulnerability-free because main-CRM CI passed.
+
 ## Integrations and remaining real inputs
 
 Read-only VPS/private-service checks found app and ClamAV healthy, with zero

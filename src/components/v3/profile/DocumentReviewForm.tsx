@@ -83,13 +83,13 @@ export function DocumentReviewForm({ item, studentCaseId }: Readonly<{
           </select>
         </label>
         {decision !== "approved" ? (
-          <label htmlFor={reasonId}>
-            <span className={labelCls}>Что нужно исправить</span>
+          <div>
+            <label htmlFor={reasonId} className={labelCls}>Что нужно исправить</label>
             <textarea id={reasonId} className={`${inputCls} min-h-24 resize-y`} value={reason}
               required maxLength={2000} disabled={locked} aria-describedby={`${reasonId}-help`}
               onChange={event => setReason(event.target.value)} />
             <span id={`${reasonId}-help`} className="mt-1 block text-xs text-fg-3">Причина будет видна студенту. До 2000 символов.</span>
-          </label>
+          </div>
         ) : null}
         <div className="flex flex-wrap gap-2">
           <button type="submit" className={`${btnCls} min-h-11 max-w-full whitespace-normal`}

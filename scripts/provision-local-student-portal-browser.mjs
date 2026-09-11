@@ -417,6 +417,41 @@ async function main() {
       `;
 
       if (process.env.EVO_E4_REVIEW_UI_FIXTURE === "1") {
+        // The staff document route reads its historical Sales handoff and three
+        // starter tasks as well as documents. These are explicit synthetic
+        // upstream snapshots, not proof of a Sales handoff, contract or payment.
+        const clientId = randomUUID();
+        const leadId = randomUUID();
+        await tx`
+          INSERT INTO platform.clients (id, organization_id, display_name, normalized_name)
+          VALUES (${clientId}, ${ids.organization}, 'E4 Browser Student', platform_private.normalize_person_name('E4 Browser Student'))
+        `;
+        await tx`
+          INSERT INTO platform.leads (id, organization_id, client_id, current_owner_membership_id, stage_key, source_key)
+          VALUES (${leadId}, ${ids.organization}, ${clientId}, ${ids.salesMembership}, 'qualified', 'e4-browser.synthetic')
+        `;
+        await tx`
+          INSERT INTO platform.sales_admissions_handoffs
+            (organization_id, lead_id, client_id, student_case_id, source_key, handoff_mode, reason,
+             actor_membership_id, actor_profile_id, admissions_owner_membership_id,
+             gate_version, gate_state, workflow_version, sales_context, client_context, provenance, conversation_links)
+          VALUES (${ids.organization}, ${leadId}, ${clientId}, ${ids.case}, ${`canonical-lead:${leadId}`}, 'normal',
+            'Synthetic historical context for the document-review browser fixture; not business evidence',
+            ${ids.salesMembership}, ${ids.salesProfile}, ${ids.curatorMembership}, 1, 'satisfied', 1,
+            ${tx.json({ lead_id: leadId, stage_key: "qualified", source_key: "e4-browser.synthetic",
+              current_owner_membership_id: ids.salesMembership, next_action_text: null,
+              next_action_due_date: null, workflow_version: "1" })},
+            ${tx.json({ client_id: clientId, display_name: "E4 Browser Student" })}, '[]', '[]')
+        `;
+        for (const sourceKey of ["u6.sales-context-review", "u6.study-route-confirmation", "u6.document-request-plan"]) {
+          await tx`
+            INSERT INTO platform.case_tasks
+              (organization_id, student_case_id, task_type, title, assignee_membership_id,
+               student_visible, created_by_membership_id, source_key)
+            VALUES (${ids.organization}, ${ids.case}, 'handoff', ${`Synthetic E4 starter: ${sourceKey}`},
+              ${ids.curatorMembership}, FALSE, ${ids.salesMembership}, ${sourceKey})
+          `;
+        }
         await tx`
           INSERT INTO platform_private.student_portal_notification_runtime_controls
             (organization_id, enabled) VALUES (${ids.organization}, TRUE)

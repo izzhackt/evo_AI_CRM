@@ -351,17 +351,29 @@ for sensitive_value in "$supabase_service_role_key" "$supabase_database_url" \
   fi
 done
 
-(
-cd "$app_root"
-exec env -u EVO_PLATFORM_GEMINI_API_KEY \
-  NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
-  EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
-  SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
-  EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS=3600 \
-  "$node_bin" node_modules/next/dist/bin/next dev \
-    --hostname 127.0.0.1 --port "$app_port"
-) >"$app_log" 2>&1 &
+run_isolated_app() (
+  cd "$app_root"
+  exec env -u EVO_PLATFORM_GEMINI_API_KEY \
+    NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+    SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
+    EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS=3600 \
+    HOSTNAME=127.0.0.1 PORT="$app_port" \
+    "$node_bin" "$@"
+)
+
+# Match the deployed standalone server. A development overlay can intercept
+# real controls and change mobile geometry, so it is not an acceptance target.
+if ! run_isolated_app node_modules/next/dist/bin/next build >"$app_log" 2>&1; then
+  fail "The isolated E4 production build failed; inspect the private application log"
+fi
+cp -R "$app_root/public" "$app_root/.next/standalone/public"
+cp -R "$app_root/.next/static" "$app_root/.next/standalone/.next/static"
+echo "E4_STUDENT_PORTAL_PRODUCTION_BUILD_VERIFIED"
+run_isolated_app .next/standalone/server.js >>"$app_log" 2>&1 &
 app_pid=$!
 
 app_deadline=$((SECONDS + 180))

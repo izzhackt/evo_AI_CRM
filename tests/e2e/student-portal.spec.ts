@@ -264,6 +264,20 @@ async function expectPortalGeometry(page: Page, context: string) {
     }
 
     return {
+      viewportWidth: window.innerWidth,
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      overflowElements: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .flatMap(element => {
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          if (rect.width === 0 || rect.height === 0 || style.display === "none" || style.visibility === "hidden") return [];
+          if (rect.right <= document.documentElement.clientWidth + 1 && rect.left >= -1
+            && element.scrollWidth <= element.clientWidth + 1) return [];
+          return [{ tag: element.tagName, id: element.id, className: String(element.className),
+            label: element.getAttribute("aria-label"), left: rect.left, right: rect.right,
+            width: rect.width, clientWidth: element.clientWidth, scrollWidth: element.scrollWidth }];
+        }).slice(0, 30),
       documentOverflow:
         document.documentElement.scrollWidth >
         document.documentElement.clientWidth + 1,
@@ -275,7 +289,7 @@ async function expectPortalGeometry(page: Page, context: string) {
   });
 
   expect(geometry.headingCount, `${context}: expected exactly one h1`).toBe(1);
-  expect(geometry.documentOverflow, `${context}: document has horizontal overflow`).toBe(
+  expect(geometry.documentOverflow, `${context}: document has horizontal overflow: ${JSON.stringify(geometry)}`).toBe(
     false,
   );
   expect(geometry.pageScrolled, `${context}: the page itself scrolls horizontally`).toBe(
@@ -526,6 +540,8 @@ test("mobile document review and curator replies persist through real Auth and d
   const sql = postgres(localDatabaseUrl(), { max: 1, prepare: false });
   const adminContext = await browser.newContext({ viewport: { width, height: 852 }, locale: "ru-RU" });
   const adminPage = await adminContext.newPage();
+  page.setDefaultTimeout(15_000);
+  adminPage.setDefaultTimeout(15_000);
   const appErrors: string[] = [];
   page.on("pageerror", error => appErrors.push(error.message));
   adminPage.on("pageerror", error => appErrors.push(error.message));
@@ -551,8 +567,10 @@ test("mobile document review and curator replies persist through real Auth and d
     await page.goto("/portal/documents");
 
     await submitLogin(adminPage, "admin");
-    await adminPage.goto(`/v3/profile?case=${caseId}&tab=documents`);
+    const profileResponse = await adminPage.goto(`/v3/profile?case=${caseId}&tab=documents`);
+    expect(profileResponse?.status(), "The complete synthetic handoff must render the real staff document route").toBe(200);
     const item = adminPage.getByTestId("v3-document-item").filter({ hasText: label });
+    await expect(item).toBeVisible();
     await item.getByText("Проверить документ", { exact: true }).click();
     const review = item.locator("form").filter({ has: adminPage.getByLabel("Решение", { exact: true }) });
     await expect(review.getByRole("option", { name: "Принять", exact: true })).toBeDisabled();

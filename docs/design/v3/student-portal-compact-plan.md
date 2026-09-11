@@ -1,6 +1,6 @@
 # Compact Student Portal — selected concept 03
 
-Date: 2026-09-11. Status: integrated and locally validated on desktop/mobile; awaiting exact-head review/CI and guarded release.
+Date: 2026-09-11. Status: PR #724 merged; exact-main CI failed on an ambiguous preview-test locator, release skipped; narrow E2E correction in progress.
 Branch: `izzhackt/student-portal-compact`, based on `2c4bce39`.
 
 ## User outcome
@@ -198,3 +198,31 @@ Local command logs are `/tmp/evo-portal-compact-sep11-lint.log`,
 `/tmp/evo-portal-compact-sep11-build.log`,
 `/tmp/evo-portal-compact-sep11-contracts.log` and
 `/tmp/evo-portal-compact-sep11-catalogue-contract.log`.
+
+
+## Release closeout — 2026-09-11
+
+PR #724 merged as `f9133a0488add0f6afefa3e5cdc3163952db4cd6`, with the same
+tree as reviewed head `19dc2464`. Full CI 34575893217 failed on an ambiguous
+preview navigation locator and release 34576407176 was skipped. Guarded release
+and post-release browser acceptance are not yet confirmed;
+follow the [release evidence record](references/2026-09-11-student-portal-compact-release.md).
+The local candidate proof above remains separate from those production gates.
+
+
+## Narrow CI correction — 2026-09-11
+
+The real configured-auth Admin preview test failed because its broad `nav a`
+selector now resolves both the primary sidebar link and a valid overview
+shortcut. Scope only its section-loop and Tests link to the existing named
+Разделы кабинета navigation landmark. Keep every URL, question-navigation,
+zero-write and denied-role assertion intact. This is test disambiguation, not
+a new product behavior, data model or acceptance waiver. Current official
+Playwright locator guidance is linked in the release record. Run focused lint,
+typecheck/discovery and the real browser path; exact-main CI and guarded release
+remain mandatory. No production update occurred through the skipped release.
+
+Scoped ESLint, Node 22.23.1 typecheck and Playwright single-test discovery passed
+for the locator correction; the assertions and product code are unchanged.
+The corrected real-auth E2E still awaits CI execution. A fresh CUA selector check
+was unavailable after Mac lock/debugger detachment, so it is not claimed.

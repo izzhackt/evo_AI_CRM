@@ -20,13 +20,18 @@ its private overview read model, and portal-scoped styles only. A separate
 worktree may develop staff Admissions/Universities independently; shared
 university components, staff routes, auth, RPCs and migrations are outside this
 redesign. The existing real Student data and actions remain the execution path.
-The compact UI is implemented and locally validated against the real Admin
-preview/catalogue on port 3001. On September 11 the owner explicitly authorized
-publishing PR #724 and required the mobile version to be ready. Integrate current
-main without losing the reviewed catalogue improvements, validate responsive
-layout and complete mobile navigation against the real application, then use the
-normal exact-head review/CI and guarded release gates. Private Student-case
-acceptance remains unproved without a real Student session; see the linked evidence.
+The compact UI and mobile corrections were independently reviewed and merged in
+PR #724 as `f9133a0488add0f6afefa3e5cdc3163952db4cd6`; its tree matches the
+reviewed `19dc2464`. The owner explicitly authorized publication and mobile
+readiness on September 11. Actual Admin preview/catalogue and 320/393 px plus
+desktop candidate checks passed. Exact-main CI 34575893217 failed because its
+broad navigation selector matched both the sidebar and a valid overview shortcut;
+release 34576407176 was skipped. Scope the E2E test to the existing named sidebar
+landmark without weakening assertions, then repeat the normal CI/release gates.
+Production acceptance remains pending in the [release record](design/v3/references/2026-09-11-student-portal-compact-release.md).
+Private Student-case acceptance remains unproved without a real Student session.
+The previously accepted application pointer above remains unchanged until the
+coordinator verifies the protected release and actual live interface.
 
 ## Previous accepted run: complete university catalogue
 

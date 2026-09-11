@@ -409,6 +409,8 @@ test("the compact mobile Portal menu supports keyboard navigation and dismissal"
   await expect(page).toHaveURL(/\/portal\/notifications$/);
   await expect(page.getByTestId("student-portal-shell")).toBeVisible();
   await expect(menu).toHaveAttribute("aria-expanded", "false");
+  // The persistent shell and URL can update before the streamed page arrives.
+  await expect(page.getByRole("heading", { level: 1, name: "Уведомления", exact: true })).toBeVisible();
   await expectPortalGeometry(page, testInfo.project.name);
 });
 

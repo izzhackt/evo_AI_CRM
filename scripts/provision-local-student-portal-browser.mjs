@@ -312,6 +312,9 @@ async function main() {
           '2026-09-02T11:00:00Z'
         )
       `;
+      // Staff finance requires paid totals to agree with payment events. The
+      // review fixture has no payment confirmations, so its obligation is unpaid.
+      // Preserve the existing Student-only snapshot when review is not enabled.
       await tx`
         INSERT INTO platform.payment_obligations (
           id, organization_id, student_case_id, label, category, amount_minor,
@@ -321,7 +324,8 @@ async function main() {
         VALUES (
           ${ids.obligation}, ${ids.organization}, ${ids.case},
           'Сервисный сбор EVO', 'evo_service_fee', 100000, 'USD',
-          '2027-01-20T08:00:00Z', 'Оплатить остаток', 40000, 0,
+          '2027-01-20T08:00:00Z', 'Оплатить остаток',
+          ${process.env.EVO_E4_REVIEW_UI_FIXTURE === "1" ? 0 : 40000}, 0,
           ${ids.curatorMembership}
         )
       `;

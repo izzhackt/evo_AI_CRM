@@ -14,6 +14,7 @@ tmp_dir=""
 project_root=""
 project_id=""
 app_pid=""
+tls_proxy_pid=""
 app_root=""
 evidence_root=""
 stack_owned=0
@@ -28,6 +29,20 @@ cleanup() {
     kill "$app_pid" >/dev/null 2>&1
     wait "$app_pid" >/dev/null 2>&1
     app_pid=""
+  fi
+  if [[ -n "$tls_proxy_pid" && "$tls_proxy_pid" =~ ^[0-9]+$ ]]; then
+    kill "$tls_proxy_pid" >/dev/null 2>&1
+    wait "$tls_proxy_pid" >/dev/null 2>&1
+    tls_proxy_pid=""
+  fi
+
+  # Failure traces may contain synthetic Auth session data. Retain them only in
+  # this run's private evidence directory, never stdout or published artifacts.
+  if [[ "$original_status" != "0" && -n "$evidence_root" && -d "$evidence_root" \
+    && -n "$app_root" && -d "$app_root/output/playwright-student-portal/test-results" ]]; then
+    cp -R "$app_root/output/playwright-student-portal/test-results" \
+      "$evidence_root/playwright-test-results" || cleanup_status=1
+    chmod -R go-rwx "$evidence_root/playwright-test-results" || cleanup_status=1
   fi
 
   if [[ "$stack_owned" == "1" && -n "$project_id" && -n "$project_root" ]]; then
@@ -93,15 +108,19 @@ second_provision_result="$tmp_dir/second-provision-result.json"
 # Keep build/server diagnostics after owned scratch cleanup, including early
 # failures. The evidence directory is private (0700) and this log stays 0600.
 app_log="$evidence_root/app.log"
+tls_proxy_log="$evidence_root/tls-proxy.log"
+tls_key="$tmp_dir/supabase-local.key"
+tls_cert="$tmp_dir/supabase-local.crt"
 browser_log="$evidence_root/browser.log"
 mkdir -p "$project_root/supabase" "$app_root/tests/e2e" "$evidence_root/screenshots"
 chmod 700 "$tmp_dir" "$project_root" "$project_root/supabase" "$app_root" "$evidence_root" "$evidence_root/screenshots"
 : >"$supabase_log"
 : >"$provision_log"
 : >"$app_log"
+: >"$tls_proxy_log"
 : >"$second_provision_log"
 : >"$browser_log"
-chmod 600 "$supabase_log" "$provision_log" "$second_provision_log" "$app_log" "$browser_log"
+chmod 600 "$supabase_log" "$provision_log" "$second_provision_log" "$app_log" "$tls_proxy_log" "$browser_log"
 
 # Never share .next or load a checkout's .env files while another preview runs.
 cp -R "$repo_root/src" "$repo_root/public" "$app_root/"
@@ -125,13 +144,13 @@ project_id="evo-e4-$RANDOM-$$-$(openssl rand -hex 4)"
   || fail "Unable to create a safe isolated Supabase project id"
 
 read -r api_port db_port shadow_port studio_port mailpit_port smtp_port \
-  pop3_port inspector_port analytics_port pooler_port app_port <<<"$(
+  pop3_port inspector_port analytics_port pooler_port app_port tls_port <<<"$(
   "$node_bin" --input-type=module <<'EOF'
 import { createServer } from "node:net";
 
 const servers = [];
 const ports = [];
-for (let index = 0; index < 11; index += 1) {
+for (let index = 0; index < 12; index += 1) {
   const server = createServer();
   servers.push(server);
   await new Promise((resolve, reject) => {
@@ -151,7 +170,7 @@ EOF
 
 for port in "$api_port" "$db_port" "$shadow_port" "$studio_port" \
   "$mailpit_port" "$smtp_port" "$pop3_port" "$inspector_port" \
-  "$analytics_port" "$pooler_port" "$app_port"; do
+  "$analytics_port" "$pooler_port" "$app_port" "$tls_port"; do
   [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1024 && "$port" -le 65535 ]] \
     || fail "Unable to reserve an isolated loopback port"
 done
@@ -355,12 +374,40 @@ for sensitive_value in "$supabase_service_role_key" "$supabase_database_url" \
   fi
 done
 
+# Keep the product's production HTTPS requirement. Trust only this run's
+# disposable certificate in new Node processes; do not change machine trust.
+if ! openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+  -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' \
+  -addext 'basicConstraints=critical,CA:TRUE' \
+  -addext 'keyUsage=critical,digitalSignature,keyCertSign,keyEncipherment' \
+  -addext 'extendedKeyUsage=serverAuth' \
+  -keyout "$tls_key" -out "$tls_cert" >>"$tls_proxy_log" 2>&1; then
+  fail "The isolated E4 TLS certificate could not be created"
+fi
+chmod 600 "$tls_key" "$tls_cert"
+supabase_tls_url="https://127.0.0.1:${tls_port}"
+"$node_bin" "$repo_root/scripts/support/e4-loopback-tls-proxy.mjs" \
+  "$supabase_api_url" "$tls_port" "$tls_key" "$tls_cert" >>"$tls_proxy_log" 2>&1 &
+tls_proxy_pid=$!
+tls_deadline=$((SECONDS + 30))
+while (( SECONDS < tls_deadline )); do
+  kill -0 "$tls_proxy_pid" >/dev/null 2>&1 \
+    || fail "The isolated E4 TLS proxy exited before readiness"
+  tls_health_code="$(curl --silent --max-time 2 --cacert "$tls_cert" \
+    --output /dev/null --write-out '%{http_code}' "$supabase_tls_url/auth/v1/health" || true)"
+  [[ "$tls_health_code" == "200" ]] && break
+  sleep 1
+done
+[[ "${tls_health_code:-}" == "200" ]] \
+  || fail "The isolated E4 Supabase HTTPS endpoint did not become reachable"
+
 run_isolated_app() (
   cd "$app_root"
   exec env -u EVO_PLATFORM_GEMINI_API_KEY \
     NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+    NODE_EXTRA_CA_CERTS="$tls_cert" \
+    NEXT_PUBLIC_SUPABASE_URL="$supabase_tls_url" \
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
     EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
     SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \

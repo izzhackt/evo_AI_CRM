@@ -557,8 +557,8 @@ test("mobile document review and curator replies persist through real Auth and d
   try {
     await submitLogin(page, "student");
     await page.getByText("Нужна помощь", { exact: true }).click();
-    await page.getByLabel("Тема", { exact: true }).fill(subject);
-    await page.getByLabel("Что нужно уточнить", { exact: true }).fill(question);
+    await page.getByRole("textbox", { name: "Тема", exact: true }).fill(subject);
+    await page.getByRole("textbox", { name: "Что нужно уточнить", exact: true }).fill(question);
     await page.getByRole("button", { name: "Передать вопрос команде", exact: true }).click();
     await expect(page.getByRole("button", { name: "Новое обращение", exact: true })).toBeVisible();
     const [help] = await sql<{ id: string; version: string }[]>`
@@ -585,7 +585,7 @@ test("mobile document review and curator replies persist through real Auth and d
     await adminPage.keyboard.press("ArrowUp");
     await expect(decisionInput).toHaveValue("correction_required");
     await decisionInput.selectOption(decision);
-    const reasonInput = review.getByLabel("Что нужно исправить", { exact: true });
+    const reasonInput = review.getByRole("textbox", { name: "Что нужно исправить", exact: true });
     await expect(reasonInput).toHaveAttribute("required", "");
     await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();
     expect(await reasonInput.evaluate(element => (element as HTMLTextAreaElement).validity.valueMissing)).toBe(true);
@@ -618,8 +618,8 @@ test("mobile document review and curator replies persist through real Auth and d
 
     await page.goto("/portal");
     await page.getByText("Нужна помощь", { exact: true }).click();
-    await page.getByLabel("Тема", { exact: true }).fill("Несохранённый черновик");
-    await page.getByLabel("Что нужно уточнить", { exact: true }).fill("Этот ввод должен сохраниться при обновлении ответа.");
+    await page.getByRole("textbox", { name: "Тема", exact: true }).fill("Несохранённый черновик");
+    await page.getByRole("textbox", { name: "Что нужно уточнить", exact: true }).fill("Этот ввод должен сохраниться при обновлении ответа.");
     const config = localSupabaseApiConfig();
     const staffClient = createClient(config.url, config.publishableKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -633,8 +633,8 @@ test("mobile document review and curator replies persist through real Auth and d
     expect(replay.error).toBeNull();
     expect(replay.data).toEqual(response.data);
     await expect(page.locator("#case-help")).toContainText(answer, { timeout: 45_000 });
-    await expect(page.getByLabel("Тема", { exact: true })).toHaveValue("Несохранённый черновик");
-    await expect(page.getByLabel("Что нужно уточнить", { exact: true })).toHaveValue("Этот ввод должен сохраниться при обновлении ответа.");
+    await expect(page.getByRole("textbox", { name: "Тема", exact: true })).toHaveValue("Несохранённый черновик");
+    await expect(page.getByRole("textbox", { name: "Что нужно уточнить", exact: true })).toHaveValue("Этот ввод должен сохраниться при обновлении ответа.");
     await expectPortalGeometry(page, `${width}px help reply preserves draft`);
 
     const notificationRows = await sql<{ id: string }[]>`

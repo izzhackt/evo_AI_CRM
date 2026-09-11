@@ -1,0 +1,191 @@
+[
+  {
+    "key": "gbs-he-malta",
+    "content": {
+      "name": "GBS HE Malta",
+      "country": "MT",
+      "city": "Сент-Джулианс",
+      "overview": "Мальтийское высшее учебное заведение с очными программами в области бизнеса и управления. Кампус расположен на Triq Gort в Сент-Джулиансе. Это отдельная карточка от GBS Dubai: страны, программы и организация, выдающая квалификацию, различаются.",
+      "websiteUrl": "https://gbs.edu.mt/",
+      "sourceUrl": "https://gbs.edu.mt/courses/bsc-hons-business-management/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Текущий каталог: https://gbs.edu.mt/courses/ . Старые программы Computer Science, Health/Social Care и старые скидки из архивной презентации не считаются доступными сейчас без подтверждения. В строке наборов только февраль явно помечен 2027 годом; год для May/October и последний день подачи нужно уточнить. Наличие карточки не подтверждает партнёрство с EVO.",
+      "photoKey": "gbs-he-malta",
+      "programs": [
+        {
+          "id": "business-management",
+          "title": "BSc (Hons) Business Management",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": "Английский",
+          "summary": "Управление, маркетинг, финансы, экономика, работа с данными, цифровая трансформация и выпускной исследовательский проект. Объём — 60 ECTS в год; квалификацию присуждает GBS HE Malta.",
+          "sourceUrl": "https://gbs.edu.mt/courses/bsc-hons-business-management/",
+          "intakes": [
+            {
+              "label": "Объявленный февральский набор 2027",
+              "startDate": null,
+              "startMonth": "2027-02",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Официальная таблица содержит February’27/May/October. Здесь указан только месяц с явно опубликованным годом; доступность мест и срок подачи не подтверждены.",
+              "sourceUrl": "https://gbs.edu.mt/courses/bsc-hons-business-management/",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "ecole-de-management-applique",
+    "content": {
+      "name": "École de Management Appliqué (EMA)",
+      "country": "FR",
+      "city": "Париж",
+      "overview": "Частное высшее учебное заведение прикладного менеджмента в Париже. В карточке приведена текущая программа с акцентом на управление и экономику; названия направлений из старого агентского буклета не перенесены автоматически.",
+      "websiteUrl": "https://ema.education/",
+      "sourceUrl": "https://ema.education/en/programmes/bachelor-applied-management-and-economics/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Архивные Bachelor en Management Appliqué и треки Business Law/Creative Industries относятся к старой версии буклета. Текущая страница использует Bachelor Applied Management and Economics. Основное описание называет обучение на английском, а FAQ — английский и французский: язык конкретной группы нужно подтвердить. Школьный диплом или эквивалент и ориентир английского B2 проверяются при рассмотрении заявки. Признание квалификации в нужной стране следует проверить отдельно.",
+      "photoKey": "ecole-de-management-applique",
+      "programs": [
+        {
+          "id": "applied-management-economics",
+          "title": "Bachelor Applied Management and Economics",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Программа на 180 ECTS развивает навыки управления и экономического анализа в международной среде. Стажировки — 8 недель: по 4 недели на первом и втором курсе. При рассмотрении заявки оцениваются школьный диплом или эквивалент и английский с ориентиром B2. Занятия французским как иностранным не означают получение диплома Сорбонны.",
+          "sourceUrl": "https://ema.education/en/programmes/bachelor-applied-management-and-economics/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "icn-business-school",
+    "content": {
+      "name": "ICN Business School",
+      "country": "FR",
+      "city": "Нанси / Париж",
+      "overview": "Французская бизнес-школа с программами менеджмента и подходом Art–Technology–Management. Бакалавриат из текущей карточки проводится в Nancy–ARTEM и Paris La Défense. Кампус и языковой трек выбираются при поступлении.",
+      "websiteUrl": "https://www.icn-artem.com/",
+      "sourceUrl": "https://www.icn-artem.com/en/formation/bachelor-in-management/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Официальный каталог и условия: https://www.icn-artem.com/en/ . В архивной презентации встречаются другие кампусы, программы, цены и возрастные ограничения; их нельзя автоматически применять к этому набору. Англоязычный Bachelor подтверждён для Парижа и Нанси. Обмен, двойной диплом и обучение по alternance имеют отдельный отбор и условия; они не гарантируются каждому студенту.",
+      "photoKey": "icn-business-school",
+      "programs": [
+        {
+          "id": "bachelor-management",
+          "title": "Bachelor in Management",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": "Английский или французский, по выбранному треку",
+          "summary": "Программа после средней школы: экономика, маркетинг, финансы, коммуникации и управление проектами, с практикой и возможностями международного обучения. На официальной странице указан французский grade de licence, уровень 6. Маршрут alternance со второго года отличается от обычного очного обучения и требует отдельного согласования.",
+          "sourceUrl": "https://www.icn-artem.com/en/formation/bachelor-in-management/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "mla-college",
+    "content": {
+      "name": "MLA College",
+      "country": "GB",
+      "city": "Плимут; дистанционное обучение",
+      "overview": "Британский колледж морской отрасли и устойчивого развития. Программы проходят дистанционно и ориентированы прежде всего на работающих специалистов; степени присуждает University of Plymouth. Признание предыдущего обучения рассматривается индивидуально; в отдельных случаях требуется восьминедельный access course.",
+      "websiteUrl": "https://www.mla.ac.uk/",
+      "sourceUrl": "https://www.mla.ac.uk/programmes/degrees/bsc-hons-sustainable-maritime-operations/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог: https://www.mla.ac.uk/programmes/ . Это не стандартный трёхлетний бакалавриат сразу после школы: требуются подходящие предыдущие квалификации и/или профессиональный опыт. Возможность признания предыдущего обучения рассматривается индивидуально; иногда нужен восьминедельный access course. Ближайший старт не означает подтверждённый приём или визовый маршрут. Архивные цены не перенесены.",
+      "photoKey": "mla-college",
+      "programs": [
+        {
+          "id": "sustainable-maritime-bsc",
+          "title": "BSc (Hons) Sustainable Maritime Operations",
+          "level": "bachelor",
+          "duration": "18 месяцев, дистанционно",
+          "language": "Английский",
+          "summary": "Морские операции, управление, метеоокеанографические процессы и регулирование; шестимесячный Honours Project. Степень присуждает University of Plymouth. Типичные входные основания — профильный HND/Foundation Degree либо морская квалификация с соответствующим опытом; это маршрут продолжения образования для специалистов.",
+          "sourceUrl": "https://www.mla.ac.uk/programmes/degrees/bsc-hons-sustainable-maritime-operations/",
+          "intakes": [
+            {
+              "label": "Опубликованный ближайший старт",
+              "startDate": "2026-09-28",
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Официальная страница указывает 28 сентября 2026 года. Последний день подачи и наличие мест нужно уточнить; обучение дистанционное.",
+              "sourceUrl": "https://www.mla.ac.uk/programmes/degrees/bsc-hons-sustainable-maritime-operations/",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        },
+        {
+          "id": "sustainable-maritime-msc",
+          "title": "MSc Sustainable Maritime Operations",
+          "level": "master",
+          "duration": "32 месяца, дистанционно",
+          "language": "Английский",
+          "summary": "Программа для перехода от технической или операционной работы к управлению: морская наука, проекты и данные, декарбонизация, морская политика и самостоятельное исследование. University of Plymouth — awarding body. Подходящий диплом, профессиональные квалификации и опыт оцениваются индивидуально.",
+          "sourceUrl": "https://www.mla.ac.uk/programmes/degrees/msc-sustainable-maritime-operations/",
+          "intakes": [
+            {
+              "label": "Опубликованный ближайший старт",
+              "startDate": "2026-09-28",
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Старт 28 сентября 2026 года указан на странице программы; точный дедлайн приёма не опубликован в проверенных сведениях.",
+              "sourceUrl": "https://www.mla.ac.uk/programmes/degrees/msc-sustainable-maritime-operations/",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "australian-performing-arts-conservatory",
+    "content": {
+      "name": "Australian Performing Arts Conservatory (APAC)",
+      "country": "AU",
+      "city": "Брисбен",
+      "overview": "Австралийское учебное заведение исполнительских искусств в центре Брисбена. В текущем каталоге — актёрское мастерство, экранное производство и музыкальный театр. Практические занятия и творческий отбор являются важной частью обучения.",
+      "websiteUrl": "https://apac.edu.au/",
+      "sourceUrl": "https://apac.edu.au/courses/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Текущий каталог: https://apac.edu.au/courses/ . Для Acting иностранным кандидатам нужны подходящий документ об образовании, творческое прослушивание, возраст от 18 лет к началу обучения и английский IELTS Academic 6.0, ни один раздел ниже 5.5, либо признанный эквивалент. Конкретный формат отбора и актуальные требования: https://apac.edu.au/admissions/ . Не обещаем зачисление, работу или визу; старые даты и стоимость из портфолио не применены.",
+      "photoKey": "australian-performing-arts-conservatory",
+      "programs": [
+        {
+          "id": "screen-stage-acting",
+          "title": "Bachelor of Screen & Stage (Acting)",
+          "level": "bachelor",
+          "duration": "2 года, очно",
+          "language": "Английский",
+          "summary": "Практическая подготовка для сцены и экрана. Для иностранных поступающих нужны подходящий документ об образовании, возраст от 18 лет к началу обучения и IELTS Academic 6.0, каждый раздел не ниже 5.5, либо признанный эквивалент. Творческий отбор включает прослушивание с двумя контрастными монологами на английском.",
+          "sourceUrl": "https://apac.edu.au/courses/bachelor-of-screen-and-stage-acting/",
+          "intakes": []
+        },
+        {
+          "id": "screen-stage-production",
+          "title": "Bachelor of Screen & Stage (Screen Production)",
+          "level": "bachelor",
+          "duration": "2 года, очно",
+          "language": "Английский",
+          "summary": "Разработка экранной истории, подготовка, съёмка, постпродакшн и распространение. Проектная работа знакомит с режиссурой, операторским мастерством, звуком, монтажом и командным производством. Для Screen Production действует отдельный творческий отбор.",
+          "sourceUrl": "https://apac.edu.au/courses/",
+          "intakes": []
+        }
+      ]
+    }
+  }
+]

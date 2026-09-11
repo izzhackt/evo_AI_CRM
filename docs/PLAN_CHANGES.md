@@ -22890,6 +22890,87 @@ review/PR/full-CI/release gates remain required before claiming deployment.
 Next16.3.4 official authentication and server/client guides, linked in the plan,
 confirm per-read server authorization and minimal client data serialization.
 
+### 2026-09-10 — complete the source-backed university catalogue
+
+Owner explicitly requests all institutional KB/raw university materials, official
+web enrichment and mandatory photographs, production deployment and same-server
+localhost tunnel. Contract: `docs/design/v3/university-catalog-completion-run-plan.md`.
+Inventory is larger than the existing16 publications:94 primary Notion university
+notes plus distinct raw business additions. Exclude applicant/credential/trash/
+correspondence content; historical transfer destinations are not direct EVO offers.
+Correct stale copied geography against official sources; keep unknown deadlines,
+unverified fees and partnership claims out of current factual promises.
+
+Reuse existing publication DTO, canonical institution identity and Admin RPCs.
+For efficient controlled publication, add a bounded explicit Admin batch-review
+UI using frozen reviewed templates, exact versions, validated receipts and stable
+request IDs. Do not write directly to SQL, bypass review or use service-role.
+Reserve additive151 only for coordinated reviewed photo-key extension; preserve
+all other content validation/ACL and already-applied148/150 unchanged. Any broader
+schema/identity change requires another documented decision before implementation.
+Keep DESIGN.md, one persistent database, enabled Auth, independent exact-head
+review and release gates. Standing no-new-backup decision remains unchanged.
+
+Research refinement before implementation: raw China institutional materials
+contain genuine non-degree Chinese-language programmes, which are not foundation
+or diploma awards. Extend the coordinated151/DTO/filter label with `language`
+(«Языковая программа»), preserving all existing levels and access/receipt checks.
+Do not misclassify language study as a degree or promise degree progression.
+Multiple campuses of one canonical institution belong in its programmes/notes,
+not duplicate university identities. This is an additive content-model extension
+required by the owner's all-university-materials scope, not an admissions workflow.
+
+### 2026-09-11 — correct two photo hosts after real catalogue readback
+
+Release `88d0354f` and 143 published institutions are accepted; full browser
+readback found 141/143 images loaded. GBS serves its image with CORP same-origin;
+Huashang's original host has DNS errors. Replace only those two registry records
+with independently verified official related-school photographs and attribution.
+Do not proxy restricted media, disable browser/TLS protections, download images,
+change photo keys/schema, or republish unchanged university content. Preserve the
+successful release as evidence, then verify the two embeds on the corrective
+release. All ordinary exact-head/CI/release gates remain in place.
+
+### 2026-09-11 — owner requests clean university reading without editorial notices
+
+Issue #729: the owner does not want missing-data/reconfirmation commentary in
+the staff or Student university browsing UI; report remaining research gaps in
+the working conversation and retain the source records. Omit absent field rows,
+missing-intake paragraphs and the editorial notes panel. Do not render an
+unknown/needs_reconfirmation intake as an apparently confirmed date. Preserve
+actual closed-intake status, substantive programme descriptions, official links,
+photo attribution/history, genuine errors and Admin editing/publication controls.
+This supersedes earlier DESIGN/run-plan instructions to display uncertainty
+notices in reading views; it is not authority to fabricate data or remove facts
+from stored publications. One shared reader, no schema change/data republication.
+Validate real catalogue rendering, then normal reviewed PR/full CI/guarded release
+and same-server tunnel. Use existing React conditional rendering, not CSS hiding
+or client effects: https://react.dev/learn/conditional-rendering (checked today).
+
+Independent review found that the existing notes mix editorial uncertainty with
+confirmed business facts. Before hiding them, transfer applicable established
+requirements/deadline scope into the existing programme summaries/intake labels.
+Clean four editorial programme headings; retain the three historical offers as
+archival programmes, never as newly confirmed current intakes. Original notes,
+identities, source links, existing nulls and statuses remain unchanged. EMA's
+conflicting teaching-language string becomes null rather than asserting English;
+ZISU keeps the established Chinese language without an unknown explanation-language
+annotation. This requires
+normal Admin publication of only changed real cards, superseding the initial
+no-republication estimate above; no new schema, parallel registry or fact is
+introduced. Remaining research gaps stay in source notes and the owner chat.
+
+### 2026-09-11 — finish the Student university page heading copy
+
+Real post-release Admin preview found the old instruction to clarify missing
+information in the PortalPage description, outside the shared UniversityDetail.
+The shared reader and all82 content updates are accepted; fresh Admin batch shows
+143 current /0 conflicts /0 remaining. Correct only that description on the real
+Student university detail route and its read-only Admin preview. Preserve access,
+content, dates, photo attribution and the explicitly marked preview boundary.
+Add a bounded regression for both route wrappers, independent exact-head review
+and normal exact-main CI/release. No content republication or migration is needed.
+
 
 ## 2026-09-10 — Selected compact Student Portal design
 

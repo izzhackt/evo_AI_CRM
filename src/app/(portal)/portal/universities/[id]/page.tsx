@@ -11,5 +11,5 @@ export default async function UniversityPage({ params }: { params: Promise<{ id:
   let page;
   try { page = await readStudentUniversities(actor, undefined, id); } catch { return <PortalPage title="Университет" description="Публичная карточка университета."><UniversityUnavailable /></PortalPage>; }
   const university = page.items[0] ?? notFound();
-  return <PortalPage title={university.content.name} description="Проверьте программу, ближайший набор и сведения, которые ещё нужно уточнить."><UniversityDetail university={university} base="/portal/universities" now={new Date()} /></PortalPage>;
+  return <PortalPage title={university.content.name} description="Программы, условия поступления и даты наборов."><UniversityDetail university={university} base="/portal/universities" now={new Date()} /></PortalPage>;
 }

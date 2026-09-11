@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { UNIVERSITY_COUNTRIES, UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, universityIntakeLabel, type PublishedUniversity, type UniversityContent, type UniversityFilters, type UniversityPage } from "@/lib/platform-university-catalog";
+import { UNIVERSITY_COUNTRIES, UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, universityIntakeLabel, type PublishedUniversity, type UniversityContent, type UniversityFilters, type UniversityPage, type UniversityProgram } from "@/lib/platform-university-catalog";
 import { UniversityPhoto as Photo } from "./UniversityPhoto";
 
 const input = "mt-1 min-h-11 w-full rounded-ctl border border-border bg-surface px-3 text-sm text-fg";
 const link = "inline-flex min-h-11 items-center justify-center rounded-ctl border border-border px-4 py-2 text-sm font-medium text-fg hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 export function universityCountry(code: string) { return ({ CN: "Китай", MY: "Малайзия", AE: "ОАЭ", TR: "Турция" } as Record<string, string>)[code] ?? new Intl.DisplayNames(["ru"], { type: "region" }).of(code) ?? code; }
-function date(value: string | null) { return value ? new Intl.DateTimeFormat("ru", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)) : "Не опубликован"; }
+function date(value: string) { return new Intl.DateTimeFormat("ru", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)); }
 function Source({ href, children }: { href: string; children: React.ReactNode }) { return <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm font-medium text-accent-text underline underline-offset-4">{children}<span className="sr-only"> (в новой вкладке)</span></a>; }
 export function UniversityList({ page, filters, base, canManage = false }: { page: UniversityPage; filters: UniversityFilters; base: "/v3/universities" | "/portal/universities" | "/preview/student/universities"; canManage?: boolean }) {
   const next = new URLSearchParams({ ...(filters.query ? { q: filters.query } : {}), ...(filters.country ? { country: filters.country } : {}), ...(filters.level ? { level: filters.level } : {}), offset: String(page.nextOffset) });
   return <div className="space-y-6">
-    <div className="flex flex-wrap items-start justify-between gap-3"><p className="max-w-2xl text-sm leading-6 text-fg-2">Университеты, программы и сроки из проверенных источников. Карточка не означает партнёрство с EVO и не гарантирует поступление.</p>{canManage ? <Link className={link} href="/v3/universities/manage">Управлять каталогом</Link> : null}</div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><p className="max-w-2xl text-sm leading-6 text-fg-2">Университеты, программы и сроки поступления.</p>{canManage ? <Link className={link} href="/v3/universities/manage">Управлять каталогом</Link> : null}</div>
     <form action={base} className="grid gap-3 rounded-card border border-border bg-surface p-4 sm:grid-cols-[2fr_1fr_1fr_auto]">
       <label className="text-xs font-medium text-fg-2">Название<input name="q" type="search" defaultValue={filters.query} maxLength={100} className={input} placeholder="Найти университет" /></label>
       <label className="text-xs font-medium text-fg-2">Страна<select name="country" defaultValue={filters.country} className={input}><option value="">Все страны</option><option value="CN">Китай</option><option value="MY">Малайзия</option>{UNIVERSITY_COUNTRIES.filter((code) => !["CN", "MY"].includes(code)).map((code) => ({ code, label: universityCountry(code) })).sort((a, b) => a.label.localeCompare(b.label, "ru")).map(({ code, label }) => <option key={code} value={code}>{label}</option>)}</select></label>
@@ -22,26 +22,44 @@ export function UniversityList({ page, filters, base, canManage = false }: { pag
       <Photo content={item.content} />
       <p className="mt-4 text-xs font-medium uppercase tracking-wide text-fg-3">{universityCountry(item.content.country)}{item.content.city ? ` · ${item.content.city}` : ""}</p>
       <h2 className="mt-2 break-words text-lg font-semibold leading-6 text-fg"><Link href={`${base}/${item.id}`} className="underline-offset-4 hover:underline">{item.content.name}</Link></h2>
-      <p className="mt-3 text-sm leading-6 text-fg-2">{item.content.overview}</p>
-      <p className="mt-3 text-xs text-fg-3">Программ в карточке: {item.content.programs.length} · Проверено {date(item.content.verifiedOn)}</p>
+      <p className="mt-3 line-clamp-3 text-sm leading-6 text-fg-2">{item.content.overview}</p>
+      <p className="mt-3 text-xs text-fg-3">Программ в карточке: {item.content.programs.length}</p>
       <Link className={`${link} mt-4 w-full`} href={`${base}/${item.id}`}>Программы и сроки<span className="sr-only"> — {item.content.name}</span></Link>
     </li>)}</ul>}
     {page.nextOffset !== null ? <Link className={link} href={`${base}?${next}`}>Следующая страница</Link> : null}
-    <p className="text-xs leading-5 text-fg-3">В карточках показаны только программы, которые уже проверили, а не полный каталог университета. Если дата не опубликована или источники расходятся, это отмечено отдельно.</p>
   </div>;
+}
+function Program({ program, now }: { program: UniversityProgram; now: Date }) {
+  const intakes = program.intakes.filter((intake) => intake.status !== "unknown" && intake.status !== "needs_reconfirmation");
+  return <article className="rounded-card border border-border bg-surface p-4 sm:p-5">
+    <p className="text-xs font-medium text-fg-3">{UNIVERSITY_LEVEL_LABELS[program.level]}</p>
+    <h3 className="mt-1 text-lg font-semibold text-fg">{program.title}</h3>
+    {program.duration || program.language ? <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+      {program.duration ? <div><dt className="text-fg-3">Длительность</dt><dd className="mt-1 text-fg">{program.duration}</dd></div> : null}
+      {program.language ? <div><dt className="text-fg-3">Язык обучения</dt><dd className="mt-1 text-fg">{program.language}</dd></div> : null}
+    </dl> : null}
+    <p className="mt-4 text-sm leading-6 text-fg-2">{program.summary}</p>
+    <Source href={program.sourceUrl}>Официальная страница программы</Source>
+    {intakes.length ? <ul className="mt-3 space-y-3">{intakes.map((intake, index) => <li key={index} className="rounded-ctl border border-border bg-surface-2 p-4">
+      <h4 className="font-medium text-fg">{intake.label}</h4>
+      <p className="mt-1 text-sm font-medium text-fg-2">{universityIntakeLabel(intake, now)}</p>
+      {intake.startDate || intake.startMonth || intake.applicationDeadline ? <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        {intake.startDate || intake.startMonth ? <div><dt className="text-fg-3">Начало обучения</dt><dd className="mt-1 text-fg">{intake.startDate ? date(intake.startDate) : new Intl.DateTimeFormat("ru", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${intake.startMonth}-01T12:00:00Z`))}</dd></div> : null}
+        {intake.applicationDeadline ? <div><dt className="text-fg-3">Срок подачи</dt><dd className="mt-1 text-fg">{date(intake.applicationDeadline)}{intake.deadlineTime ? `, ${intake.deadlineTime} (${intake.timezone})` : ""}</dd></div> : null}
+      </dl> : null}
+      <Source href={intake.sourceUrl}>Источник срока</Source>
+    </li>)}</ul> : null}
+  </article>;
 }
 export function UniversityContentView({ content, now }: { content: UniversityContent; now: Date }) {
   return <div className="space-y-6">
     <Photo content={content} large />
-    <div><p className="text-sm font-medium text-fg-2">{universityCountry(content.country)}{content.city ? ` · ${content.city}` : ""}</p><p className="mt-3 max-w-3xl text-base leading-7 text-fg">{content.overview}</p><Source href={content.websiteUrl}>Сайт университета</Source></div>
-    <section aria-labelledby="university-programs"><h2 id="university-programs" className="text-xl font-semibold text-fg">Программы и наборы</h2><div className="mt-4 space-y-4">{content.programs.map((program) => <article key={program.id} className="rounded-card border border-border bg-surface p-4 sm:p-5">
-      <p className="text-xs font-medium text-fg-3">{UNIVERSITY_LEVEL_LABELS[program.level]}</p><h3 className="mt-1 text-lg font-semibold text-fg">{program.title}</h3><dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"><div><dt className="text-fg-3">Длительность</dt><dd className="mt-1 text-fg">{program.duration ?? "Нужно уточнить"}</dd></div><div><dt className="text-fg-3">Язык обучения</dt><dd className="mt-1 text-fg">{program.language ?? "Нужно уточнить"}</dd></div></dl><p className="mt-4 text-sm leading-6 text-fg-2">{program.summary}</p><Source href={program.sourceUrl}>Официальная страница программы</Source>
-      {program.intakes.length ? <ul className="mt-3 space-y-3">{program.intakes.map((intake, index) => <li key={index} className="rounded-ctl border border-border bg-surface-2 p-4"><h4 className="font-medium text-fg">{intake.label}</h4><p className="mt-1 text-sm font-medium text-fg-2">{universityIntakeLabel(intake, now)}</p><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-fg-3">Начало обучения</dt><dd className="mt-1 text-fg">{intake.startDate ? date(intake.startDate) : intake.startMonth ? new Intl.DateTimeFormat("ru", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${intake.startMonth}-01T12:00:00Z`)) : "Нужно уточнить"}</dd></div><div><dt className="text-fg-3">Срок подачи</dt><dd className="mt-1 text-fg">{date(intake.applicationDeadline)}{intake.deadlineTime ? `, ${intake.deadlineTime} (${intake.timezone})` : intake.applicationDeadline ? "; точное время не указано" : ""}</dd></div></dl>{intake.note ? <p className="mt-3 text-sm leading-6 text-fg-2">{intake.note}</p> : null}<p className="mt-2 text-xs text-fg-3">Проверено {date(intake.verifiedOn)}</p><Source href={intake.sourceUrl}>Источник срока</Source></li>)}</ul> : <p className="mt-2 text-sm text-fg-3">Сведения о наборе пока не опубликованы.</p>}
-    </article>)}</div></section>
-    <section className="rounded-card border border-border bg-surface p-5"><h2 className="text-base font-semibold text-fg">Что важно уточнить</h2><p className="mt-2 text-sm leading-6 text-fg-2">{content.notes || "Перед подачей сверяйте текущие требования и наличие мест с университетом."}</p><p className="mt-3 text-xs text-fg-3">Проверка источника: {date(content.verifiedOn)}. Карточка не является обещанием поступления, цены или партнёрства с EVO.</p><Source href={content.sourceUrl}>Основной источник карточки</Source></section>
+    <div><p className="text-sm font-medium text-fg-2">{universityCountry(content.country)}{content.city ? ` · ${content.city}` : ""}</p><p className="mt-3 max-w-3xl text-base leading-7 text-fg">{content.overview}</p><Source href={content.websiteUrl}>Сайт учебного заведения</Source></div>
+    <section aria-labelledby="university-programs"><h2 id="university-programs" className="text-xl font-semibold text-fg">Программы и наборы</h2><div className="mt-4 space-y-4">{content.programs.map((program) => <Program key={program.id} program={program} now={now} />)}</div></section>
+    <Source href={content.sourceUrl}>Основной источник карточки</Source>
   </div>;
 }
 export function UniversityDetail({ university, base, canManage = false, now }: { university: PublishedUniversity; base: string; canManage?: boolean; now: Date }) {
-  return <div className="space-y-6"><div className="flex flex-wrap justify-between gap-3"><Link href={base} className={link}>← Все университеты</Link>{canManage ? <Link className={link} href={`/v3/universities/manage?edit=${university.id}`}>Предложить обновление</Link> : null}</div><UniversityContentView content={university.content} now={now} /><p className="text-xs text-fg-3">Опубликованная версия {university.version}. Изменения проходят отдельную проверку.</p></div>;
+  return <div className="space-y-6"><div className="flex flex-wrap justify-between gap-3"><Link href={base} className={link}>← Все университеты</Link>{canManage ? <Link className={link} href={`/v3/universities/manage?edit=${university.id}`}>Предложить обновление</Link> : null}</div><UniversityContentView content={university.content} now={now} /></div>;
 }
 export function UniversityUnavailable() { return <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm text-danger">Не удалось загрузить каталог. Обновите страницу. Это не означает, что опубликованных университетов нет.</p>; }

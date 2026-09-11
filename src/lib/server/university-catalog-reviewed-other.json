@@ -1,0 +1,476 @@
+[
+  {
+    "key": "cyprus-university-of-technology",
+    "content": {
+      "name": "Cyprus University of Technology",
+      "country": "CY",
+      "city": "Лимассол",
+      "overview": "Государственный технологический университет в Лимассоле. В подборке — бакалавриат на стыке компьютерной инженерии и информатики; полный выбор направлений шире.",
+      "websiteUrl": "https://www.cut.ac.cy/?languageId=1",
+      "sourceUrl": "https://www.cut.ac.cy/faculties/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Факультеты и программы: https://www.cut.ac.cy/faculties/. Язык выбранного бакалавриата в проверенной странице явно не указан: его нужно подтвердить до подбора. Старые общие условия IELTS 6.0, весенний дедлайн и суммы оплаты из архива не используются как действующее предложение.",
+      "photoKey": "cyprus-university-of-technology",
+      "programs": [
+        {
+          "id": "computer-engineering-informatics",
+          "title": "BSc in Computer Engineering and Informatics",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": null,
+          "summary": "Компьютерные системы, программирование, базы данных, сети, искусственный интеллект и архитектура компьютеров. На четвёртом году выполняется индивидуальная выпускная работа.",
+          "sourceUrl": "https://www.cut.ac.cy/faculties/fet/eecei/degrees/undergraduate/computer-engineering-and-informatics-degree/?languageId=1",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "eastern-mediterranean-university",
+    "content": {
+      "name": "Eastern Mediterranean University",
+      "country": "CY",
+      "city": "Фамагуста",
+      "overview": "Университет в Фамагусте, в северной части Кипра. Подборка включает два англоязычных инженерных бакалавриата. Этот кампус нужно рассматривать отдельно от университетов в южной части острова.",
+      "websiteUrl": "https://www.emu.edu.tr/en",
+    "sourceUrl": "https://www.emu.edu.tr/en/programs/695",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог: https://www.emu.edu.tr/en/programs/695. Кафедра отдельно перечисляет англоязычные Computer Engineering и Software Engineering и турецкую версию Computer Engineering. Требования к въезду, признанию квалификации и дальнейшему переезду проверяются для выбранного маршрута; общие обещания по ЕС не добавлены.",
+      "photoKey": "eastern-mediterranean-university",
+      "programs": [
+        {
+          "id": "computer-engineering",
+          "title": "Computer Engineering (B.S.)",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Программное и аппаратное обеспечение, сети, математика и физика. Лабораторная работа и выпускной проект помогают связать теорию с разработкой компьютерных систем.",
+          "sourceUrl": "https://www.emu.edu.tr/en/programs/computer-engineering-undergraduate-program/907",
+          "intakes": []
+        },
+        {
+          "id": "software-engineering",
+          "title": "Software Engineering (B.S.)",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Проектирование, производство, тестирование и сопровождение сложных программных систем. Учебный план включает технические дисциплины и выпускной проект.",
+          "sourceUrl": "https://www.emu.edu.tr/en/programs/software-engineering-undergraduate-program/896",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "european-university-cyprus",
+    "content": {
+      "name": "European University Cyprus",
+      "country": "CY",
+      "city": "Никосия",
+      "overview": "Университет в Никосии с программами бизнеса, технологий, гуманитарных и медицинских направлений. В этой проверенной подборке представлен англоязычный Computer Science; программы и кампус Frankfurt рассматриваются отдельно.",
+      "websiteUrl": "https://euc.ac.cy/en/",
+      "sourceUrl": "https://euc.ac.cy/en/bachelor-degrees/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог бакалавриатов: https://euc.ac.cy/en/bachelor-degrees/. На странице Computer Science указан кампус Nicosia и начало в октябре 2026 года. Точный день старта, срок подачи, доступность мест и индивидуальная стоимость не подтверждены.",
+      "photoKey": "european-university-cyprus",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "BSc Computer Science",
+          "level": "bachelor",
+          "duration": "4 года / 240 ECTS",
+          "language": "Английский",
+          "summary": "Программирование и образовательная робототехника, программная инженерия, искусственный интеллект, облачные технологии, сети и безопасность. Очная программа в Никосии.",
+          "sourceUrl": "https://euc.ac.cy/en/programs/bachelor-computer-science/",
+          "intakes": [
+            {
+              "label": "Октябрь 2026",
+              "startDate": null,
+              "startMonth": "2026-10",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Университет указал следующий набор в октябре 2026 года. Точный день и крайний срок международной подачи не опубликованы в проверенном фрагменте.",
+              "sourceUrl": "https://euc.ac.cy/en/programs/bachelor-computer-science/",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "frederick-university",
+    "content": {
+      "name": "Frederick University",
+      "country": "CY",
+      "city": "Никосия",
+      "overview": "Университет с кампусами в Никосии и Лимассоле. Для сравнения представлены англоязычные Computer Science и Computer Engineering; их официальные страницы указывают оба кампуса.",
+      "websiteUrl": "https://www.frederick.ac.cy/",
+      "sourceUrl": "https://www.frederick.ac.cy/en/study-with-us/academic-professional-programs/undergraduate-programs",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог бакалавриатов: https://www.frederick.ac.cy/en/study-with-us/academic-professional-programs/undergraduate-programs. Четыре года — срок очного обучения. До зачисления на выбранные программы предусмотрены проверочные задания по математике и английскому; возможные подготовительные курсы определяются по результату. Доступность программы в нужном кампусе уточняется отдельно.",
+      "photoKey": "frederick-university",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "BSc in Computer Science",
+          "level": "bachelor",
+          "duration": "4 года, очно",
+          "language": "Английский",
+          "summary": "Теория вычислений и практическая разработка программных систем, включая сети, базы данных и операционные системы. Программа допускает очный или частичный темп обучения; указанный срок относится к очному. До зачисления предусмотрены задания по математике и английскому; по результатам могут назначаться подготовительные курсы.",
+          "sourceUrl": "https://www.frederick.ac.cy/en/bsc-in-computer-science",
+          "intakes": []
+        },
+        {
+          "id": "computer-engineering",
+          "title": "BSc in Computer Engineering",
+          "level": "bachelor",
+          "duration": "4 года, очно",
+          "language": "Английский",
+          "summary": "Аппаратное и программное обеспечение, цифровые устройства, встроенные системы и безопасные компьютерные сети. Практика сочетается с теоретической инженерной подготовкой. До зачисления предусмотрены задания по математике и английскому; по результатам могут назначаться подготовительные курсы.",
+          "sourceUrl": "https://www.frederick.ac.cy/en/bsc-in-computer-engineering",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "near-east-university",
+    "content": {
+      "name": "Near East University",
+      "country": "CY",
+      "city": "Никосия",
+      "overview": "Университет в северной части Никосии, на севере Кипра. Выбран англоязычный бакалавриат компьютерной инженерии; турецкая версия той же программы не объединяется с ним.",
+      "websiteUrl": "https://neu.edu.tr/?lang=en",
+      "sourceUrl": "https://aif.neu.edu.tr/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Официальный список программ, языков и сроков: https://aday.neu.edu.tr/2025-2026-academic-year-program-fees/?lang=en. Он относится к 2025/26, поэтому используется для идентификации программы, а не как текущая цена или подтверждение открытого набора 2026/27. Свежие правила приёма, кампусные условия и признание диплома для нужной страны требуют подтверждения.",
+      "photoKey": "near-east-university",
+      "programs": [
+        {
+          "id": "computer-engineering-english",
+          "title": "BSc Computer Engineering (English)",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Бакалавриат по компьютерным системам и программированию. Английский язык и четырёхлетний срок указаны в официальном списке 2025/26.",
+          "sourceUrl": "https://aday.neu.edu.tr/2025-2026-academic-year-program-fees/?lang=en",
+          "intakes": [
+            {
+              "label": "Следующий международный набор",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Набор и крайний срок подачи нужно подтвердить у приёмной комиссии.",
+              "sourceUrl": "https://aday.neu.edu.tr/2025-2026-academic-year-program-fees/?lang=en",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "uclan-cyprus",
+    "content": {
+      "name": "UCLan Cyprus",
+      "country": "CY",
+      "city": "Ларнака",
+      "overview": "Университетский кампус в Пиле, в районе Ларнаки. Представлен англоязычный Computing с вариантами выбора дисциплин по разработке ПО и компьютерным играм; это не исчерпывающий каталог.",
+      "websiteUrl": "https://www.uclancyprus.ac.cy/",
+      "sourceUrl": "https://apply.uclancyprus.ac.cy/undergraduate-programmes/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Каталог бакалавриатов: https://apply.uclancyprus.ac.cy/undergraduate-programmes/. Официальное название выбранной программы — Computing, не Computer Science. Страница указывает 240 ECTS, очный или частичный темп и возможности январского/сентябрьского начала без подтверждённого будущего дедлайна. Точную продолжительность выбранного формата нужно уточнить.",
+      "photoKey": "uclan-cyprus",
+      "programs": [
+        {
+          "id": "computing",
+          "title": "BSc (Hons) Computing",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Разработка программных решений, базы данных, облачные технологии и безопасность. Среди выборных направлений — Software Engineering и Computer Games Development. Объём программы — 240 ECTS; точный срок зависит от выбранного учебного режима.",
+          "sourceUrl": "https://www.uclancyprus.ac.cy/undergraduate-course/bsc-hons-computing/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-cyprus",
+    "content": {
+      "name": "University of Cyprus",
+      "country": "CY",
+      "city": "Никосия",
+      "overview": "Государственный университет в Никосии. В подборке — бакалавриат Computer Science с обучением на греческом. Англоязычные магистратуры и бакалавриат нельзя считать одним языковым маршрутом.",
+      "websiteUrl": "https://www.ucy.ac.cy/en/",
+      "sourceUrl": "https://www.cs.ucy.ac.cy/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Официальный каталог: https://applications2.ucy.ac.cy/pub_programs/P_ALPHABET_CATALOGUE?P_DEGREE_ID=1&p_language=2. Каталог помечен 2023/24, а кафедра продолжает публиковать информацию о программе; текущий план и условия иностранного приёма нужно сверить отдельно. Общий IELTS 6.0 из архива не заменяет требования к греческому на выбранном бакалавриате.",
+      "photoKey": "university-of-cyprus",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Computer Science",
+          "level": "bachelor",
+          "duration": "8 семестров / 240 ECTS",
+          "language": "Греческий",
+          "summary": "Теоретические основы информатики, математическая подготовка и практические вычислительные методы. Официальная запись квалификации подтверждает бакалаврский уровень, восемь семестров и греческий язык обучения.",
+          "sourceUrl": "https://applications2.ucy.ac.cy/pub_programs/CATALOGUE_PCK_backup.display_programme_of_study?p_catal_id=784",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-nicosia",
+    "content": {
+      "name": "University of Nicosia",
+      "country": "CY",
+      "city": "Никосия",
+      "overview": "Университет в Никосии с широким выбором направлений. Подборка показывает бакалавриат и магистратуру по компьютерным наукам; очные, дистанционные и программы других кампусов рассматриваются отдельно.",
+      "websiteUrl": "https://www.unic.ac.cy/",
+      "sourceUrl": "https://www.unic.ac.cy/all-academic-programmes/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог: https://www.unic.ac.cy/all-academic-programmes/. У MSc существуют отдельные очный и дистанционный варианты; язык и формат конкретного предложения нужно подтвердить. Программы UNIC Athens и медицинские совместные маршруты не переносились в эту карточку автоматически.",
+      "photoKey": "university-of-nicosia",
+      "programs": [
+        {
+          "id": "computer-science-bachelor",
+          "title": "BSc Computer Science",
+          "level": "bachelor",
+          "duration": "4 года / 240 ECTS",
+          "language": "Английский",
+          "summary": "Программирование, алгоритмическое мышление, анализ и проектирование систем. План включает современные направления — AI, машинное обучение, большие данные, облачные технологии, IoT и кибербезопасность.",
+          "sourceUrl": "https://www.unic.ac.cy/computer-science-bsc-4-years/",
+          "intakes": []
+        },
+        {
+          "id": "computer-science-master",
+          "title": "MSc Computer Science",
+          "level": "master",
+          "duration": "1,5 года / 3 семестра",
+          "language": null,
+          "summary": "Магистратура со специализациями Cyber Security, Mobile Systems и Blockchain Technologies. Кафедра предлагает отдельные очный и дистанционный варианты.",
+          "sourceUrl": "https://www.unic.ac.cy/school-of-sciences-and-engineering/department-of-computer-science/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "university-of-vienna-universitat-wien",
+    "content": {
+      "name": "University of Vienna (Universität Wien)",
+      "country": "AT",
+      "city": "Вена",
+      "overview": "Государственный университет в Вене. В подборке — Computer Science и Business Administration: оба бакалавриата требуют немецкого и отдельной вступительной процедуры. Английская версия информационного сайта не меняет язык обучения.",
+      "websiteUrl": "https://www.univie.ac.at/en/",
+      "sourceUrl": "https://studieren.univie.ac.at/en/degree-programmes/bachelordiploma-programmes/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог: https://studieren.univie.ac.at/en/degree-programmes/bachelordiploma-programmes/. Для начала бакалавриата требуется подтверждение немецкого C1. Регистрация на процедуру 2026/27 закончилась 4 мая 2026 года; это не будущий открытый приём. Оплата зависит от гражданства и статуса, поэтому старые суммы и обещания освобождения не перенесены.",
+      "photoKey": "university-of-vienna-universitat-wien",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "BSc Computer Science",
+          "level": "bachelor",
+          "duration": "6 семестров / 180 ECTS",
+          "language": "Немецкий",
+          "summary": "Программирование, алгоритмы, базы данных и искусственный интеллект. Можно углубляться в Data Science, Media Informatics, Medical Informatics или Scientific Computing. Требуются отдельная вступительная процедура и подтверждение немецкого C1.",
+          "sourceUrl": "https://aufnahmeverfahren.univie.ac.at/en/computer-science",
+          "intakes": [
+            {
+              "label": "Вступительная процедура 2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-04",
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "closed",
+              "note": "Регистрация на вступительную процедуру проходила со 2 марта по 4 мая 2026 года и уже завершена. Следующий цикл не подтверждён.",
+              "sourceUrl": "https://aufnahmeverfahren.univie.ac.at/en/computer-science",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        },
+        {
+          "id": "business-administration",
+          "title": "BSc Business Administration",
+          "level": "bachelor",
+          "duration": "6 семестров / 180 ECTS",
+          "language": "Немецкий",
+          "summary": "Управление, маркетинг, бухгалтерский учёт, финансы, экономика, статистика и IT. На зимний семестр 2026/27 запланировано изменение учебного плана; используется план года зачисления. Для начала обучения требуется подтверждение немецкого C1.",
+          "sourceUrl": "https://aufnahmeverfahren.univie.ac.at/en/business-administration",
+          "intakes": [
+            {
+              "label": "Вступительная процедура 2026/27",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": "2026-05-04",
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "closed",
+              "note": "Регистрация на вступительную процедуру проходила со 2 марта по 4 мая 2026 года и уже завершена. Следующий цикл не подтверждён.",
+              "sourceUrl": "https://aufnahmeverfahren.univie.ac.at/en/business-administration",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "gbs-global-banking-school-dubai-campus",
+    "content": {
+      "name": "GBS (Global Banking School) — Dubai Campus",
+      "country": "AE",
+      "city": "Дубай",
+      "overview": "GBS Dubai (Global Business Studies) — образовательный провайдер в Дубае, а не самостоятельный университетский бакалавриат в этой подборке. Представлен практический Higher National Diploma, выдаваемый Pearson.",
+      "websiteUrl": "https://gbs.ac.ae/",
+      "sourceUrl": "https://gbs.ac.ae/courses/hnd-international-in-business/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Актуальные программы GBS Dubai: https://gbs.ac.ae/. Выбранный HND — диплом, не степень бакалавра. Продолжение через top-up требует отдельного решения принимающего университета и не гарантируется. Опубликованы месяцы наборов январь, март, июнь и сентябрь, но точные даты и доступность нового набора не подтверждены. Британский сайт из архива заменён сайтом Dubai.",
+      "photoKey": "gbs-global-banking-school-dubai-campus",
+      "programs": [
+        {
+          "id": "hnd-international-business",
+          "title": "HND International in Business",
+          "level": "diploma",
+          "duration": "2 года",
+          "language": "Английский",
+          "summary": "Прикладное обучение бизнесу, маркетингу, финансам, управлению людьми и проектами. Awarding institution — Pearson. Оценивание включает задания, презентации и проекты. HND — диплом, не степень бакалавра; продолжение через top-up требует отдельного решения принимающего университета.",
+          "sourceUrl": "https://gbs.ac.ae/courses/hnd-international-in-business/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "tongmyong-university",
+    "content": {
+      "name": "Tongmyong University",
+      "country": "KR",
+      "city": "Пусан",
+      "overview": "Университет в Пусане, Республика Корея. В подборке — программы Busan International College для иностранных студентов: Global Business и AI & Computer Engineering. Их нужно отличать от корейскоязычных программ других подразделений.",
+      "websiteUrl": "https://www.tu.ac.kr/english/",
+      "sourceUrl": "https://www.tu.ac.kr/ic/sub02_09.do",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог International College: https://www.tu.ac.kr/ic/sub02_09.do. Правила подачи: https://www.tu.ac.kr/ic/sub03_04.do. Центральная страница с руководством 2025 года и страница колледжа расходятся в порогах TOEFL/TEPS; универсальный балл не указан. Точные сроки, стоимость, стипендия и продолжительность подтверждаются в предложении выбранного набора.",
+      "photoKey": "tongmyong-university",
+      "programs": [
+        {
+          "id": "global-business",
+          "title": "BA in Global Business",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Международный бизнес с акцентом на управление персоналом, финансы, бухгалтерский учёт и управленческие информационные системы. Программа International College рассматривает взаимодействие корейских и зарубежных компаний.",
+          "sourceUrl": "https://www.tu.ac.kr/ic/sub02_09.do",
+          "intakes": []
+        },
+        {
+          "id": "ai-computer-engineering",
+          "title": "BS in AI & Computer Engineering",
+          "level": "bachelor",
+          "duration": null,
+          "language": "Английский",
+          "summary": "Компьютерные системы, анализ больших данных и искусственный интеллект. В программе описаны машинное обучение, компьютерное зрение, обработка естественного языка, лабораторные и проектные занятия.",
+          "sourceUrl": "https://www.tu.ac.kr/ic/sub02_09.do",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "schiller-international-university",
+    "content": {
+      "name": "Schiller International University",
+      "country": "US",
+      "city": "Тампа / Гейдельберг / Мадрид / Париж",
+      "overview": "Американский университет с кампусами в Тампе, Гейдельберге, Мадриде и Париже. В подборке — два англоязычных бакалавриата.",
+      "websiteUrl": "https://www.schiller.edu/",
+      "sourceUrl": "https://www.schiller.edu/programs/",
+      "verifiedOn": "2026-09-11",
+      "notes": "Полный каталог: https://www.schiller.edu/programs/. В фильтре страны карточка относится к США; реальные кампусы также находятся в Германии, Испании и Франции. Кампус выбирается отдельно. Актуальные страницы и каталог 2024/25 расходятся по некоторым форматам и dual degree; двойной диплом, перевод между кампусами, стипендия и право на работу не гарантируются этой карточкой.",
+      "photoKey": "schiller-international-university",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Science in Computer Science",
+          "level": "bachelor",
+          "duration": "4 года, очно",
+          "language": "Английский",
+          "summary": "Программирование, алгоритмы, анализ данных, машинное обучение, AI и кибербезопасность. В описании программы перечислены кампусы Madrid, Paris, Heidelberg и Tampa.",
+          "sourceUrl": "https://www.schiller.edu/programs/bachelor-of-science-in-computer-science/",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026",
+              "startDate": "2026-09-21",
+              "startMonth": "2026-09",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликована дата начала обучения. Наличие мест, срок подачи и применимость к конкретному кампусу нужно подтвердить.",
+              "sourceUrl": "https://www.schiller.edu/programs/bachelor-of-science-in-computer-science/",
+              "verifiedOn": "2026-09-11"
+            },
+            {
+              "label": "Февраль 2027",
+              "startDate": "2027-02-01",
+              "startMonth": "2027-02",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликована дата начала обучения. Это не крайний срок подачи; условия выбранного кампуса нужно подтвердить.",
+              "sourceUrl": "https://www.schiller.edu/programs/bachelor-of-science-in-computer-science/",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        },
+        {
+          "id": "international-business",
+          "title": "Bachelor of Science in International Business",
+          "level": "bachelor",
+          "duration": "4 года, очно",
+          "language": "Английский",
+          "summary": "Международная бизнес-стратегия, лидерство, предпринимательство, работа с данными и устойчивое развитие. Очное обучение на английском.",
+          "sourceUrl": "https://www.schiller.edu/programs/bachelor-of-science-in-international-business/",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026",
+              "startDate": "2026-09-21",
+              "startMonth": "2026-09",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликована дата начала обучения. Наличие мест, срок подачи и применимость к конкретному кампусу нужно подтвердить.",
+              "sourceUrl": "https://www.schiller.edu/programs/bachelor-of-science-in-international-business/",
+              "verifiedOn": "2026-09-11"
+            },
+            {
+              "label": "Февраль 2027",
+              "startDate": "2027-02-01",
+              "startMonth": "2027-02",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Опубликована дата начала обучения. Это не крайний срок подачи; условия выбранного кампуса нужно подтвердить.",
+              "sourceUrl": "https://www.schiller.edu/programs/bachelor-of-science-in-international-business/",
+              "verifiedOn": "2026-09-11"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

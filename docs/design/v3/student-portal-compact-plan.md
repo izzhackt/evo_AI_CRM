@@ -116,3 +116,9 @@ It supports semantic navigation with a real toggle button, aria-expanded and
 aria-controls, normal Tab navigation, Escape with trigger focus restoration and
 dismissal when focus leaves the region. Use these interaction requirements in
 the existing real portal, not the illustrative site's sample content.
+
+The W3C WCAG 2.2 Reflow explanation was also checked on September 11:
+https://www.w3.org/WAI/WCAG22/Understanding/reflow.html
+Its 320 CSS px/no loss of information or function requirement informs the narrow
+viewport check. Context7 Next.js resolution was retried by the coordinator; the
+service still reports monthly quota exceeded, so current official docs are used.

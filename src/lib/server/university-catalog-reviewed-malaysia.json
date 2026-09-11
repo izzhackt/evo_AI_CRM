@@ -1,0 +1,949 @@
+[
+  {
+    "key": "apu",
+    "content": {
+      "name": "Asia Pacific University of Technology & Innovation",
+      "country": "MY",
+      "city": "Kuala Lumpur",
+      "overview": "Университет в Куала-Лумпуре с программами в области вычислительных технологий, инженерии, бизнеса и дизайна. Для сравнения собраны подготовительный курс, бакалавриат и магистратура; это проверенная подборка, а не весь каталог.",
+      "websiteUrl": "https://www.apu.edu.my",
+      "sourceUrl": "https://apu.edu.my/study",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог: https://apu.edu.my/study. Требования различаются по программе и школьной квалификации. Старые суммы в MYR/USD и скидка из таблицы 2025 года не используются как текущая цена. У foundation официальный поиск и страница программы расходятся по ноябрьскому дню; его нужно подтвердить.",
+      "photoKey": "apu",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Science (Honours) in Computer Science",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Программирование, алгоритмы, вычислительные системы и разработка ПО. Для международных поступающих опубликован IELTS 5.0 или эквивалент; академические условия и математика проверяются отдельно.",
+          "sourceUrl": "https://www.apu.edu.my/course/bsc-hons-in-computer-science",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026",
+              "startDate": "2026-09-28",
+              "startMonth": "2026-09",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Университет опубликовал дату начала. Крайний срок подачи и наличие места отдельно не подтверждены.",
+              "sourceUrl": "https://www.apu.edu.my/course/bsc-hons-in-computer-science",
+              "verifiedOn": "2026-09-10"
+            },
+            {
+              "label": "Ноябрь 2026",
+              "startDate": "2026-11-24",
+              "startMonth": "2026-11",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Университет опубликовал дату начала. Крайний срок подачи и наличие места отдельно не подтверждены.",
+              "sourceUrl": "https://www.apu.edu.my/course/bsc-hons-in-computer-science",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "foundation-computing",
+          "title": "Foundation Programme (Computing & Technology Route)",
+          "level": "foundation",
+          "duration": "1 год, очно",
+          "language": null,
+          "summary": "Подготовка к IT-бакалавриату: математика, программирование, сети, основы AI и кибербезопасности. Для IGCSE/O-Level: пять зачётов уровня C и выше, включая математику, либо признанный эквивалент; IELTS 4.0 или эквивалент.",
+          "sourceUrl": "https://www.apu.edu.my/course/foundation-programme-comp-tech",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026",
+              "startDate": "2026-09-24",
+              "startMonth": "2026-09",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Университет опубликовал дату начала. Крайний срок подачи и наличие места отдельно не подтверждены.",
+              "sourceUrl": "https://www.apu.edu.my/course/foundation-programme-comp-tech",
+              "verifiedOn": "2026-09-10"
+            },
+            {
+              "label": "Ноябрь 2026 — уточнить день",
+              "startDate": null,
+              "startMonth": "2026-11",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "В официальном поиске встречается 19 ноября, на странице программы — 20 ноября. До подтверждения точный день и дедлайн не указаны.",
+              "sourceUrl": "https://www.apu.edu.my/course/foundation-programme-comp-tech",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "artificial-intelligence-msc",
+          "title": "Master of Science in Artificial Intelligence",
+          "level": "master",
+          "duration": "От 1 года, очно",
+          "language": null,
+          "summary": "Машинное обучение, компьютерное зрение, обработка языка и AI-системы; учебные модули дополняются итоговым проектом. Для поступления проверяют предыдущий диплом и профиль подготовки.",
+          "sourceUrl": "https://www.apu.edu.my/course/msc-in-artificial-intelligence",
+          "intakes": [
+            {
+              "label": "Ноябрь 2026",
+              "startDate": "2026-11-30",
+              "startMonth": "2026-11",
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "announced",
+              "note": "Университет опубликовал дату начала. Крайний срок подачи и наличие места отдельно не подтверждены.",
+              "sourceUrl": "https://www.apu.edu.my/course/msc-in-artificial-intelligence",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "sunway",
+    "content": {
+      "name": "Sunway University",
+      "country": "MY",
+      "city": null,
+      "overview": "Университет в Bandar Sunway, Selangor. Подборка охватывает компьютерные науки, бизнес-аналитику и исследовательскую магистратуру. Программы Sunway College не смешаны с программами Sunway University.",
+      "websiteUrl": "https://sunwayuniversity.edu.my",
+      "sourceUrl": "https://sunwayuniversity.edu.my/courses",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог: https://sunwayuniversity.edu.my/courses. Это подборка трёх программ, не полный перечень. У бакалавриата разные месяцы набора, у исследовательской магистратуры — rolling intake. Подготовительные курсы и Monash University Foundation Year из старой таблицы могут относиться к Sunway College; сюда автоматически не перенесены.",
+      "photoKey": "sunway",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Science (Honours) in Computer Science",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Программирование, системы и работа с данными. Для английского опубликован IELTS 6.0 или эквивалент. Страница указывает двойную степень Sunway/Lancaster; условия завершения — в программе.",
+          "sourceUrl": "https://sunwayuniversity.edu.my/faculty-of-engineering-and-technology/courses/bachelor-of-science-honours-computer-science",
+          "intakes": [
+            {
+              "label": "Январь / апрель / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://sunwayuniversity.edu.my/faculty-of-engineering-and-technology/courses/bachelor-of-science-honours-computer-science",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "business-analytics",
+          "title": "Bachelor of Business Analytics (Honours)",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Бизнес-аналитика, базы данных, визуализация и принятие решений; есть стажировка, консалтинговый проект или стартап-модуль. Требуются математика и IELTS 6.0 либо эквивалент. Опубликована двойная степень Sunway/Lancaster.",
+          "sourceUrl": "https://sunwayuniversity.edu.my/sunway-business-school/courses/bachelor-of-business-analytics-honours",
+          "intakes": [
+            {
+              "label": "Февраль / апрель / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://sunwayuniversity.edu.my/sunway-business-school/courses/bachelor-of-business-analytics-honours",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-science-msc",
+          "title": "Master of Science in Computer Science",
+          "level": "master",
+          "duration": "2 года очно; 3 года заочно",
+          "language": null,
+          "summary": "Исследовательская магистратура: методология, обзор литературы и диссертация. Требуется предыдущий диплом; IELTS 6.0 или предусмотренное освобождение. Приём зависит от проекта и доступного научного руководителя.",
+          "sourceUrl": "https://sunwayuniversity.edu.my/faculty-of-engineering-and-technology/courses/master-of-science-computer-science",
+          "intakes": [
+            {
+              "label": "Rolling intake — индивидуальное начало",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Заявки рассматриваются по мере поступления. Старт согласовывается после полного комплекта документов и подбора руководителя; единого дедлайна на странице нет.",
+              "sourceUrl": "https://sunwayuniversity.edu.my/faculty-of-engineering-and-technology/courses/master-of-science-computer-science",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "mmu",
+    "content": {
+      "name": "Multimedia University",
+      "country": "MY",
+      "city": "Cyberjaya",
+      "overview": "Университет с кампусами Cyberjaya и Melaka и направлениями IT, инженерии, мультимедиа и бизнеса. В подборке — компьютерные науки и две магистратуры.",
+      "websiteUrl": "https://www.mmu.edu.my",
+      "sourceUrl": "https://www.mmu.edu.my/fee-structure-international/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный перечень программ и длительностей для международных студентов: https://www.mmu.edu.my/fee-structure-international/. Это подборка, не весь каталог. Даты регистрации и начала занятий на общей странице intake не приравниваются к дедлайнам отдельных программ. К стоимости обучения отдельно относятся регистрация, виза и другие сборы.",
+      "photoKey": "mmu",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Computer Science (Honours)",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Кампус Cyberjaya. После общей основы предлагаются специализации Software Engineering, Game Development, Data Science и Cybersecurity. Это специализации одной степени, а не четыре независимых бакалавриата.",
+          "sourceUrl": "https://www.mmu.edu.my/programmes-by-faculty-all/programmes-by-faculty-fci/bachelor-of-computer-science-hons/",
+          "intakes": []
+        },
+        {
+          "id": "computer-science-master",
+          "title": "Master of Computer Science",
+          "level": "master",
+          "duration": "1–3 года, очно",
+          "language": null,
+          "summary": "Магистратура по компьютерным наукам из международного каталога университета.",
+          "sourceUrl": "https://www.mmu.edu.my/fee-structure-international/",
+          "intakes": [
+            {
+              "label": "Март–апрель / октябрь–ноябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.mmu.edu.my/fee-structure-international/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "business-administration-master",
+          "title": "Master in Business Administration (By Coursework)",
+          "level": "master",
+          "duration": "1–3 года, очно",
+          "language": null,
+          "summary": "Учебная магистратура по управлению бизнесом от Faculty of Business. Точный график, кампус и требования к предыдущему образованию указаны в актуальной программе; не смешивать с онлайн-MBA.",
+          "sourceUrl": "https://www.mmu.edu.my/programmes-by-faculty-all/programmes-by-faculty-fob/master-of-business-administration-m-b-a-by-coursework-2/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "taylors",
+    "content": {
+      "name": "Taylor’s University",
+      "country": "MY",
+      "city": "Subang Jaya",
+      "overview": "Университет в Subang Jaya. Проверенная подборка объединяет гостиничный менеджмент, компьютерные науки и бизнес. В каждом направлении есть собственные специализации и академические требования.",
+      "websiteUrl": "https://university.taylors.edu.my",
+      "sourceUrl": "https://university.taylors.edu.my/en/study/explore-all-programmes.html?level-of-study=undergraduate",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог: https://university.taylors.edu.my/en/study/explore-all-programmes.html?level-of-study=undergraduate. Ниже три программы, не весь перечень. Суммы для local и international на сайте различаются; архивные цены, скидки и гарантии не перенесены. Foundation Taylor’s College нельзя автоматически считать программой Taylor’s University.",
+      "photoKey": "taylors",
+      "programs": [
+        {
+          "id": "int-hospitality",
+          "title": "Bachelor of International Hospitality Management (Honours)",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Гостиничные операции, сервис и управление в сфере гостеприимства. Официально предусмотрена совместная образовательная траектория с University of Toulouse Jean Jaurès; детали награждения и практики нужно смотреть в программе.",
+          "sourceUrl": "https://university.taylors.edu.my/en/study/explore-all-programmes/hospitality-tourism-and-events/undergraduate/bachelor-of-international-hospitality-management.html",
+          "intakes": [
+            {
+              "label": "Февраль / апрель / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://university.taylors.edu.my/en/study/explore-all-programmes/hospitality-tourism-and-events/undergraduate/bachelor-of-international-hospitality-management.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Computer Science (Honours)",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Специализации: Data Science, Cyber Security, Mobile Computing или Artificial Intelligence. Международное требование английского — IELTS 5.5 либо указанный вузом эквивалент. Условия по математике зависят от предыдущей квалификации.",
+          "sourceUrl": "https://university.taylors.edu.my/en/study/explore-all-programmes/computer-science/undergraduate/bachelor-of-computer-science.html",
+          "intakes": [
+            {
+              "label": "Февраль / апрель / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://university.taylors.edu.my/en/study/explore-all-programmes/computer-science/undergraduate/bachelor-of-computer-science.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "business",
+          "title": "Bachelor of Business (Honours)",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Менеджмент, маркетинг, финансы и предпринимательство. Специализации включают цифровой бизнес, маркетинговую аналитику и управление цепями поставок; предусмотрены практика или погружение в индустрию.",
+          "sourceUrl": "https://university.taylors.edu.my/en/study/explore-all-programmes/business/undergraduate/bachelor-of-business.html",
+          "intakes": [
+            {
+              "label": "Февраль / апрель / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://university.taylors.edu.my/en/study/explore-all-programmes/business/undergraduate/bachelor-of-business.html",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "inti",
+    "content": {
+      "name": "INTI International University",
+      "country": "MY",
+      "city": "Nilai",
+      "overview": "Университет INTI в Nilai. Карточка отделена от INTI International College Subang, Penang и Sabah: совпадающие названия программ не означают одинаковый кампус, стоимость или выдаваемый диплом.",
+      "websiteUrl": "https://newinti.edu.my",
+      "sourceUrl": "https://newinti.edu.my/campuses/inti-international-university/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог кампуса: https://newinti.edu.my/campuses/inti-international-university/. Представлены три проверенные программы. INTI и ИНТИ в архиве — один вуз. Список зарубежных transfer destinations из AUP не является списком отдельных прямых партнёров EVO. Двойной диплом и перевод за рубеж проверяются по конкретной программе, не по старому имени URL.",
+      "photoKey": "inti",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Computer Science (Hons)",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Компьютерные науки в INTI International University, Nilai. Программа развивает навыки программирования, анализа и разработки вычислительных решений. Не смешивать с отдельными программами 3+0 Coventry в колледжах INTI.",
+          "sourceUrl": "https://newinti.edu.my/programme/bachelor-of-computer-science-hons-coventry-uk/",
+          "intakes": [
+            {
+              "label": "Январь / май / август — Nilai",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://newinti.edu.my/programme/bachelor-of-computer-science-hons-coventry-uk/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "foundation-information-technology",
+          "title": "Foundation in Information Technology",
+          "level": "foundation",
+          "duration": "1 год",
+          "language": null,
+          "summary": "Подготовка к IT-степени: вычислительные дисциплины и математика. Для O-Level опубликованы пять зачётов, включая математику, либо эквивалент. Данная карточка относится к варианту в Nilai; другие кампусы указаны на сайте отдельно.",
+          "sourceUrl": "https://newinti.edu.my/programme/foundation-in-information-technology/",
+          "intakes": []
+        },
+        {
+          "id": "foundation-business",
+          "title": "Foundation in Business",
+          "level": "foundation",
+          "duration": "1 год",
+          "language": null,
+          "summary": "Подготовка к бизнес-бакалавриату: основы менеджмента, экономики, учёта и статистики. O-Level/SPM — пять зачётов либо признанный эквивалент; набор предметов зависит от будущей степени. Вариант в Nilai.",
+          "sourceUrl": "https://newinti.edu.my/programme/foundationinbusiness2/",
+          "intakes": [
+            {
+              "label": "Январь / май / август — Nilai",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://newinti.edu.my/programme/foundationinbusiness2/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "ucsi",
+    "content": {
+      "name": "UCSI University",
+      "country": "MY",
+      "city": "Kuala Lumpur",
+      "overview": "Университет с несколькими кампусами. В подборке бизнес-бакалавриат и MBA в Kuala Lumpur, а Foundation in Arts — в Bandar Springhill. Место обучения показано в описании каждой программы.",
+      "websiteUrl": "https://www.ucsiuniversity.edu.my",
+      "sourceUrl": "https://www.ucsiuniversity.edu.my/programmes/kuala-lumpur/jquery",
+      "verifiedOn": "2026-09-10",
+      "notes": "Каталог Kuala Lumpur: https://www.ucsiuniversity.edu.my/programmes/kuala-lumpur/jquery. Три программы — подборка, не весь вуз. Учебная плата и сборы для international: https://www.ucsiuniversity.edu.my/sites/default/files/ucsi_international_fee_structures.pdf. Foundation и MBA разных кампусов/форматов не объединены в одну программу; прежние цены из XLSX не используются.",
+      "photoKey": "ucsi",
+      "programs": [
+        {
+          "id": "business-administration-kl",
+          "title": "Bachelor of Arts (Hons) in Business Administration",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Kuala Lumpur: управление бизнесом, организациями и коммерческими процессами. Академические и языковые требования нужно сверить именно в колонке international для выбранной квалификации.",
+          "sourceUrl": "https://www.ucsiuniversity.edu.my/programmes/bachelor-arts-hons-business-administration",
+          "intakes": [
+            {
+              "label": "Январь / май / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.ucsiuniversity.edu.my/programmes/bachelor-arts-hons-business-administration",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "foundation-arts-springhill",
+          "title": "Foundation in Arts",
+          "level": "foundation",
+          "duration": "1 год, очно",
+          "language": null,
+          "summary": "Подготовительная программа в Bandar Springhill, не в Kuala Lumpur. Маршрут к дальнейшему обучению в гуманитарных и бизнес-направлениях; право перехода определяется требованиями выбранного бакалавриата.",
+          "sourceUrl": "https://www.ucsiuniversity.edu.my/programmes/foundation-in-arts",
+          "intakes": [
+            {
+              "label": "Январь / май / сентябрь — Springhill",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.ucsiuniversity.edu.my/programmes/foundation-in-arts",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "business-administration-mba",
+          "title": "Master of Business Administration (MBA)",
+          "level": "master",
+          "duration": "Минимум 1 год, очно",
+          "language": null,
+          "summary": "Kuala Lumpur: управленческие дисциплины, кейсы и практические проекты. Для поступающих без двух лет релевантного опыта предусмотрена обязательная cooperative placement. Не путать с двухлетним ODL или MBA другого кампуса.",
+          "sourceUrl": "https://www.ucsiuniversity.edu.my/node/187",
+          "intakes": [
+            {
+              "label": "Январь / май / сентябрь — Kuala Lumpur",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.ucsiuniversity.edu.my/node/187",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "city-malaysia",
+    "content": {
+      "name": "City University Malaysia",
+      "country": "MY",
+      "city": "Petaling Jaya / Cyberjaya",
+      "overview": "Малайзийский университет с программами в области IT, бизнеса, инженерии и других дисциплин. Для сравнения включены foundation, diploma и bachelor — это разные уровни образования.",
+      "websiteUrl": "https://city.edu.my",
+      "sourceUrl": "https://city.edu.my/programmes/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог: https://city.edu.my/programmes/. Ниже три программы, не весь список. Архивный файл с названием BACHELOR PROGRAMMES фактически содержит дипломы; уровни исправлены по официальному каталогу. Утверждение FULL SCHOLARSHIP из старой таблицы не подтверждено и не используется. Кампус и язык конкретного предложения нужно подтвердить.",
+      "photoKey": "city-malaysia",
+      "programs": [
+        {
+          "id": "information-technology",
+          "title": "Bachelor of Information Technology (Honours)",
+          "level": "bachelor",
+          "duration": "36 месяцев, очно",
+          "language": null,
+          "summary": "Бакалавриат по информационным технологиям: программирование, базы данных и применение IT в организациях.",
+          "sourceUrl": "https://city.edu.my/bachelor-of-information-technology-hons/",
+          "intakes": [
+            {
+              "label": "Январь–февраль / май–июнь / сентябрь–октябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://city.edu.my/bachelor-of-information-technology-hons/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "foundation-business",
+          "title": "Foundation in Business",
+          "level": "foundation",
+          "duration": "12 месяцев, очно",
+          "language": null,
+          "summary": "Подготовительный курс перед бакалавриатом по бизнес-направлениям. Foundation не является дипломом бакалавра и не гарантирует автоматический переход без выполнения условий последующей программы.",
+          "sourceUrl": "https://city.edu.my/foundation-in-business/",
+          "intakes": [
+            {
+              "label": "Январь / май / сентябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://city.edu.my/foundation-in-business/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "management-diploma",
+          "title": "Diploma in Management",
+          "level": "diploma",
+          "duration": "36 месяцев, очно",
+          "language": null,
+          "summary": "Дипломная программа по управлению: практическая подготовка в бизнес-процессах и менеджменте. Это уровень diploma, а не bachelor, несмотря на название старого архивного файла.",
+          "sourceUrl": "https://city.edu.my/diploma-in-management/",
+          "intakes": [
+            {
+              "label": "Январь–февраль / май–июнь / сентябрь–октябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://city.edu.my/diploma-in-management/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "xiamen-malaysia",
+    "content": {
+      "name": "Xiamen University Malaysia",
+      "country": "MY",
+      "city": "Sepang",
+      "overview": "Малайзийский кампус Xiamen University в Sepang. Карточка относится именно к Malaysia, не к материковому Китаю. Подборка включает компьютерные науки, международный бизнес и естественно-научный foundation.",
+      "websiteUrl": "https://www.xmu.edu.my",
+      "sourceUrl": "https://www.xmu.edu.my/admissions/tuition-fees",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный перечень программ, длительностей и тарифов 2026: https://www.xmu.edu.my/admissions/tuition-fees. Это подборка трёх программ. Международная стоимость отделена от local; административные сборы и SST указаны отдельно на сайте. Дедлайны набора не установлены по датам аккредитации. Они не являются сроками подачи.",
+      "photoKey": "xiamen-malaysia",
+      "programs": [
+        {
+          "id": "computer-science-technology",
+          "title": "Bachelor of Engineering in Computer Science and Technology (Honours)",
+          "level": "bachelor",
+          "duration": "4 года",
+          "language": "Английский",
+          "summary": "Компьютерные науки и технологии, обучение на английском. Вуз отдельно предупреждает: эта программа не относится к инженерным дисциплинам, признаваемым Board of Engineers Malaysia; название Engineering не означает соответствующую профессиональную регистрацию.",
+          "sourceUrl": "https://www.xmu.edu.my/index.php/courses/bachelor-engineering-computer-science-and-technology-honours",
+          "intakes": []
+        },
+        {
+          "id": "foundation-science",
+          "title": "Foundation in Science",
+          "level": "foundation",
+          "duration": "1 год, очно",
+          "language": null,
+          "summary": "Подготовка к естественно-научным и техническим направлениям. Официальная таблица 2026 подтверждает отдельный foundation; требования перехода нужно сверить для будущей степени.",
+          "sourceUrl": "https://www.xmu.edu.my/admissions/tuition-fees",
+          "intakes": []
+        },
+        {
+          "id": "international-business",
+          "title": "Bachelor of Management in International Business (Honours)",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "Бакалавриат по международному бизнесу из официального перечня 2026.",
+          "sourceUrl": "https://www.xmu.edu.my/admissions/tuition-fees",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "monash-malaysia",
+    "content": {
+      "name": "Monash University Malaysia",
+      "country": "MY",
+      "city": "Bandar Sunway",
+      "overview": "Малайзийский кампус Monash University в Bandar Sunway. Подборка объединяет компьютерные науки, бизнес и инженерное образование; поступление относится к кампусу Malaysia, а не автоматически к Австралии.",
+      "websiteUrl": "https://www.monash.edu.my",
+      "sourceUrl": "https://www.monash.edu.my/study/undergraduate",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог бакалавриата: https://www.monash.edu.my/study/undergraduate. Ниже три программы, не весь список. Bachelor of Computer Science и дополнительный Bachelor of Computer Science (Honours) — разные программы. Тарифы international 2026 и дополнительные сборы: https://www.monash.edu.my/study/undergraduate/fees. Общие месяцы набора не подтверждают наличие места.",
+      "photoKey": "monash-malaysia",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor of Computer Science",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Вычислительные системы, программирование и разработка ПО. Базовая степень без отдельного дополнительного года Honours; академические и языковые условия зависят от предыдущей квалификации.",
+          "sourceUrl": "https://www.monash.edu.my/study/undergraduate/information-technology/bachelor-computer-science",
+          "intakes": [
+            {
+              "label": "Февраль / июль / октябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.monash.edu.my/study/undergraduate/information-technology/bachelor-computer-science",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "business-commerce",
+          "title": "Bachelor of Business and Commerce",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Бизнес и коммерция с выбором специализации: учёт, финансы, аналитика, маркетинг, менеджмент и другие. В учебной структуре можно сочетать major, minor и дисциплины по выбору.",
+          "sourceUrl": "https://www.monash.edu.my/study/undergraduate/business/bachelor-business-commerce",
+          "intakes": [
+            {
+              "label": "Февраль / июль / октябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.monash.edu.my/study/undergraduate/business/bachelor-business-commerce",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "mechanical-engineering",
+          "title": "Bachelor of Mechanical Engineering (Honours)",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Инженерная программа по механике. Общая база инженерии дополняется профильными дисциплинами и практической подготовкой.",
+          "sourceUrl": "https://www.monash.edu.my/study/undergraduate/engineering/bachelor-of-engineering-honours-in-mechanical-engineering",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "msu",
+    "content": {
+      "name": "Management and Science University",
+      "country": "MY",
+      "city": "Shah Alam",
+      "overview": "Университет в Shah Alam, Selangor. В подборке представлены компьютерные науки, информационные технологии и промышленный менеджмент. Международным поступающим университет предлагает подать документы минимум за два месяца до предполагаемого старта.",
+      "websiteUrl": "https://www.msu.edu.my",
+      "sourceUrl": "https://www.msu.edu.my/programme",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог: https://www.msu.edu.my/programme. Три программы — проверенная подборка. На страницах IT опубликованы цены только для Malaysians/local students: не выдавать их за стоимость для клиентов EVO. Международная подача: https://www.msu.edu.my/international-students/admissions — вуз просит документы минимум за два месяца до предполагаемого старта; это не подтверждённая календарная дата.",
+      "photoKey": "msu",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor in Computer Science (Hons)",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Программирование, базы данных, AI, сети и кибербезопасность. Международное языковое условие: MUET Band 3.5 или эквивалент CEFR High B1; математика и признание предыдущей квалификации проверяются отдельно.",
+          "sourceUrl": "https://www.msu.edu.my/faculty-information-sciences-engineering/bachelor-computer-science.php",
+          "intakes": []
+        },
+        {
+          "id": "information-technology",
+          "title": "Bachelor in Information Technology (Honours)",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Системный анализ, сети, базы данных, веб-программирование, интерфейсы и производственная практика. MUET Band 3.5 либо эквивалент CEFR High B1; возможны дополнительные требования по математике.",
+          "sourceUrl": "https://www.msu.edu.my/faculty-information-sciences-engineering/bachelor-information-technology",
+          "intakes": []
+        },
+        {
+          "id": "industrial-management",
+          "title": "Bachelor in Industrial Management (Hons)",
+          "level": "bachelor",
+          "duration": "3 года",
+          "language": null,
+          "summary": "Управление производством, логистика, охрана труда, закупки и цепи поставок. Программа для интересующихся операционным управлением.",
+          "sourceUrl": "https://www.msu.edu.my/faculty-business-management-professional-studies/bachelor-industrial-management.php",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "unikl",
+    "content": {
+      "name": "Universiti Kuala Lumpur",
+      "country": "MY",
+      "city": "Kuala Lumpur",
+      "overview": "Университет с сетью специализированных институтов. В этой подборке — три IT-программы UniKL MIIT в Kuala Lumpur: разработка ПО, искусственный интеллект и кибербезопасность.",
+      "websiteUrl": "https://www.unikl.edu.my",
+      "sourceUrl": "https://www.unikl.edu.my/apply/bachelor/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный каталог бакалавриата: https://www.unikl.edu.my/apply/bachelor/. Подборка не исчерпывающая; институт и кампус выбираются по программе. Веб-страницы содержат посторонние шаблонные блоки про communications и BMI: они исключены. Названия обновлены по текущим заголовкам, хотя URL сохраняют старые названия IT. Стоимость, сборы и доступность international intake подтверждаются до подачи.",
+      "photoKey": "unikl",
+      "programs": [
+        {
+          "id": "software-engineering",
+          "title": "Bachelor of Software Engineering with Honours",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "UniKL MIIT: разработка и сопровождение программных систем. Для international опубликован IELTS 5.0 либо эквивалент, с оговорёнными исключениями. Старое название в URL не используется как название степени.",
+          "sourceUrl": "https://www.unikl.edu.my/programme/bachelor-of-information-technology-hons-in-software-engineering/",
+          "intakes": [
+            {
+              "label": "Март / октябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.unikl.edu.my/programme/bachelor-of-information-technology-hons-in-software-engineering/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "artificial-intelligence-technology",
+          "title": "Bachelor of Artificial Intelligence Technology with Honours",
+          "level": "bachelor",
+          "duration": "3 года, очно",
+          "language": null,
+          "summary": "UniKL MIIT: машинное обучение, нейросети, компьютерное зрение, обработка языка, проекты и производственная практика. На сайте указана provisional accreditation; международный английский — IELTS 5.0 либо эквивалент.",
+          "sourceUrl": "https://www.unikl.edu.my/programme/bachelor-of-artificial-intelligence-technology-with-honours/",
+          "intakes": [
+            {
+              "label": "Март / октябрь",
+              "startDate": null,
+              "startMonth": null,
+              "applicationDeadline": null,
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "needs_reconfirmation",
+              "note": "Опубликованы месяцы набора, не дедлайн подачи. Дату ближайшего старта и возможность оформления студенческой визы нужно подтвердить.",
+              "sourceUrl": "https://www.unikl.edu.my/programme/bachelor-of-artificial-intelligence-technology-with-honours/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "cybersecurity-technology",
+          "title": "Bachelor of Cybersecurity Technology with Honours",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "UniKL MIIT: специализированная программа по технологиям кибербезопасности. Прежнее название — Information Technology in Computer System Security.",
+          "sourceUrl": "https://www.unikl.edu.my/programme/bachelor-of-information-technology-hons-in-computer-system-security/",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "upm",
+    "content": {
+      "name": "Universiti Putra Malaysia",
+      "country": "MY",
+      "city": "Serdang",
+      "overview": "Университет в Serdang, Selangor. Для первого сравнения выбраны три бакалаврских направления факультета компьютерных наук; общий университетский каталог значительно шире этой подборки.",
+      "websiteUrl": "https://www.upm.edu.my",
+      "sourceUrl": "https://akademik.upm.edu.my/international_student_admission-3955",
+      "verifiedOn": "2026-09-10",
+      "notes": "Международный каталог и правила подачи: https://akademik.upm.edu.my/international_student_admission-3955. Ниже подборка, не весь перечень. Страницы факультета и центрального приёма различаются по обозначению осеннего intake; конкретный цикл и дедлайн пока не подтверждены. Связанный тарифный PDF датирован 2025 годом, поэтому не представлен как цена 2026. Условия по национальному школьному аттестату и языку проверяются отдельно.",
+      "photoKey": "upm",
+      "programs": [
+        {
+          "id": "computer-science",
+          "title": "Bachelor in Computer Science with Honours",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Бакалавриат по компьютерным наукам факультета FSKTM.",
+          "sourceUrl": "https://fsktm.upm.edu.my/?L=en",
+          "intakes": []
+        },
+        {
+          "id": "software-engineering",
+          "title": "Bachelor in Software Engineering with Honours",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Отдельная степень по программной инженерии в FSKTM, а не специализация внутри другого названия. Международный приём и точные условия относятся к выбранному циклу и квалификации абитуриента.",
+          "sourceUrl": "https://fsktm.upm.edu.my/?L=en",
+          "intakes": []
+        },
+        {
+          "id": "computer-network",
+          "title": "Bachelor in Computer Science (Computer Network) with Honours",
+          "level": "bachelor",
+          "duration": null,
+          "language": null,
+          "summary": "Бакалавриат с фокусом на компьютерные сети, факультет FSKTM.",
+          "sourceUrl": "https://fsktm.upm.edu.my/?L=en",
+          "intakes": []
+        }
+      ]
+    }
+  },
+  {
+    "key": "utm",
+    "content": {
+      "name": "Universiti Teknologi Malaysia",
+      "country": "MY",
+      "city": "Johor Bahru",
+      "overview": "Университет с инженерными и технологическими направлениями. В подборке представлены три программы Faculty of Computing в Johor Bahru, включённые в официальный международный список.",
+      "websiteUrl": "https://www.utm.my",
+      "sourceUrl": "https://admission.utm.my/offered-allcourses-international/",
+      "verifiedOn": "2026-09-10",
+      "notes": "Полный перечень доступных международным студентам программ: https://admission.utm.my/offered-allcourses-international/. Это подборка трёх IT-программ. Подача на сентябрь 2026 завершилась 17 июля 2026; следующая не объявлена в проверенных данных. Не все программы каталога открыты иностранцам каждый семестр: закрытые Management, Accounting, Digital Marketing и Mechanical–Manufacturing не представлены как доступные.",
+      "photoKey": "utm",
+      "programs": [
+        {
+          "id": "software-engineering",
+          "title": "Bachelor in Software Engineering with Honours",
+          "level": "bachelor",
+          "duration": "4 года — минимум 8 семестров",
+          "language": null,
+          "summary": "Программная инженерия: проектирование и разработка программных систем. Faculty of Computing, Johor Bahru. Программа присутствует в списке международного сентябрьского приёма; это не означает, что подача ещё открыта.",
+          "sourceUrl": "https://comp.utm.my/undergraduate/",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026 — подача завершена",
+              "startDate": null,
+              "startMonth": "2026-09",
+              "applicationDeadline": "2026-07-17",
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "closed",
+              "note": "Международный бакалавриат: второй этап подачи завершился 17 июля 2026. Это дедлайн подачи, не дата регистрации. Следующий цикл ещё не подтверждён.",
+              "sourceUrl": "https://admission.utm.my/apply-now/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "computer-networks-security",
+          "title": "Bachelor of Computer Science (Computer Networks and Security) with Honours",
+          "level": "bachelor",
+          "duration": "4 года — минимум 8 семестров",
+          "language": null,
+          "summary": "Компьютерные сети и информационная безопасность. Отдельная программа факультета Computing в Johor Bahru; для международной подачи опубликован сентябрьский intake.",
+          "sourceUrl": "https://comp.utm.my/undergraduate/",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026 — подача завершена",
+              "startDate": null,
+              "startMonth": "2026-09",
+              "applicationDeadline": "2026-07-17",
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "closed",
+              "note": "Международный бакалавриат: второй этап подачи завершился 17 июля 2026. Это дедлайн подачи, не дата регистрации. Следующий цикл ещё не подтверждён.",
+              "sourceUrl": "https://admission.utm.my/apply-now/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "graphics-multimedia",
+          "title": "Bachelor of Computer Science (Graphics and Multimedia Software) with Honours",
+          "level": "bachelor",
+          "duration": "4 года — минимум 8 семестров",
+          "language": null,
+          "summary": "Компьютерная графика и мультимедийное ПО. Программа факультета Computing в Johor Bahru включена в международный сентябрьский список; требования аттестата проверяются по стране.",
+          "sourceUrl": "https://comp.utm.my/undergraduate/",
+          "intakes": [
+            {
+              "label": "Сентябрь 2026 — подача завершена",
+              "startDate": null,
+              "startMonth": "2026-09",
+              "applicationDeadline": "2026-07-17",
+              "deadlineTime": null,
+              "timezone": null,
+              "status": "closed",
+              "note": "Международный бакалавриат: второй этап подачи завершился 17 июля 2026. Это дедлайн подачи, не дата регистрации. Следующий цикл ещё не подтверждён.",
+              "sourceUrl": "https://admission.utm.my/apply-now/",
+              "verifiedOn": "2026-09-10"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

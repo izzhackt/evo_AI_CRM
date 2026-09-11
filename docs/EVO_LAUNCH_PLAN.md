@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-10 (Asia/Dubai)
+Date: 2026-09-11 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `32693abb3fac3bcdb345d0851363d57c474016ef`
+Last recorded accepted application: `1a7f870bb350ef5ab6dd4cd67596d321e3e71cbc`
 
 ## Current implementation: compact Student Portal
 
@@ -28,7 +28,46 @@ layout and complete mobile navigation against the real application, then use the
 normal exact-head review/CI and guarded release gates. Private Student-case
 acceptance remains unproved without a real Student session; see the linked evidence.
 
-## Current follow-up: Admin Student Portal preview
+## Current run: complete university catalogue
+
+Owner follow-up #729 (2026-09-11): remove editorial uncertainty notices from
+university reading views, omit missing fields/unconfirmed intakes and report
+research gaps in conversation. Preserve stored content, real conditions/sources,
+photo attribution and publication controls. Transfer confirmed facts from mixed
+notes to existing summaries/labels and normally publish only affected cards;
+no schema or new facts. Normal reviewed release remains required.
+
+Follow-up application is accepted at `1a7f870bb350ef5ab6dd4cd67596d321e3e71cbc`
+(PR730; CI34567818877; release34568354768; arm=false). All82 changed cards were
+published through the real Admin batch; fresh reload confirms143 current,
+0 conflicts and0 remaining. Staff ECUST/APU/EMA and Admin Student EMA readback
+confirmed the shared-reader cleanup. The Student page wrapper still contains one
+old clarification instruction: correct both real/preview wrapper descriptions,
+then normal reviewed release and repeat the bounded UI check. No migration or
+content republication. See the [release record](design/v3/references/2026-09-11-university-clean-reader-release.md).
+
+The owner authorizes the [full university-catalogue completion run](design/v3/university-catalog-completion-run-plan.md):
+inventory all eligible institutional KB/raw files, deduplicate and verify official
+facts, include correctly attributed real campus photos, publish through existing
+Admin authority, deploy and show the same server through the localhost tunnel.
+Original catalogue acceptance (historical): PR726, full CI34526967052, managed151
+and release34527806723 attempt2 passed.
+Real Admin publication and complete five-page readback confirm143 institutions /
+251 programmes, all16 original IDs retained. There were136 published changes
+and seven already-current records. The tunnel serves this accepted server.
+Corrective PR727, exact-main full CI34530087316 and release34530968045 attempt1
+accepted `892558b2`. All143 images loaded in the fresh five-page Chrome readback;
+both replaced images also loaded in the read-only Admin Student preview.
+That batch readback was143 current /0 conflicts /0 remaining, with no repeat
+publication or schema apply. Healthy/restarts0, no pending release, public HTTPS200,
+acceptance hash verified and release arm=false. This institutional inventory scope
+is complete; unknown programme language/duration/intake fields remain explicitly
+unconfirmed, not invented. Documentation closeout does not redeploy the app.
+See the [production evidence ledger](design/v3/references/2026-09-11-university-catalog-production-acceptance.md).
+Preserve raw/privacy
+boundaries, source authority, immutable canonical identity and normal release gates.
+
+## Previous follow-up: Admin Student Portal preview
 
 The owner approved [a bounded Admin-only Student UI preview](design/v3/student-portal-admin-preview-plan.md)
 after the real browser reproduced the existing Admin `/portal` → staff-home redirect.
@@ -43,7 +82,7 @@ existing localhost tunnel opened the preview and both authored questionnaires.
 Use `/preview/student` (or `/preview/student/tests`), not the Student-only `/portal`.
 See the linked plan for proof limits; this is not Student account/persistence proof.
 
-## Current bounded continuation: Admin, chat and university expansion
+## Historical bounded continuation: Admin, chat and university expansion
 
 The September10 screenshots/request are implemented in
 [the Admin/realtime/university expansion run](design/v3/admin-realtime-university-expansion-run-plan.md).
@@ -58,10 +97,11 @@ Full CI `34466066204` passed all five jobs on exact `a52cca37`; guarded release
 `v3-r34466804312-a1-a52cca37`, healthy app/restarts0, no pending release, public
 HTTPS and localhost health200, and release arm=false. Managed ledger001–150:
 149/150 were applied once by `34462429988`, not repeated by later releases.
-The live catalogue has16 distinct institutions (CN7/MY9),14 photo-backed;11 new
+At that acceptance the catalogue had16 distinct institutions (CN7/MY9),14 photo-backed;11 new
 institutions were published through the real Admin approval flow with all10 new
 photos loaded. No duplicate records or pending drafts remain. City/APU photos,
-OUC source confirmation and further institutional expansion remain explicit gaps.
+OUC source confirmation and further institutional expansion were explicit gaps,
+superseded by the current catalogue run above.
 The localhost SSH tunnel serves the same Hermes application, not a second app/DB.
 See [exact release/publication evidence and remaining acceptance](design/v3/references/2026-09-10-admin-catalogue-release.md).
 Do not repeat these schema changes, publications or the prior sales import.

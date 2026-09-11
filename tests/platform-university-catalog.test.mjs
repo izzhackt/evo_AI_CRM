@@ -220,4 +220,7 @@ test("real catalogue content renders known facts without missing-field or uncert
   assert.match(macerata, /Duolingo и EF SET не принимаются/);
   const ema = rendered.find((row) => row.key === "ecole-de-management-applique").html;
   assert.doesNotMatch(ema, /Язык обучения|язык группы уточнить/);
+  const xisu = rendered.find((row) => row.key === "xi-an-international-studies-university").html;
+  assert.match(xisu, /31 марта 2026/);
+  assert.match(xisu, /Срок подачи относится к стипендиальному маршруту набора 2026/);
 });

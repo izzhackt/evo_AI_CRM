@@ -574,9 +574,10 @@ test("mobile document review and curator replies persist through real Auth and d
     const item = adminPage.getByTestId("v3-document-item").filter({ hasText: label });
     await expect(item).toBeVisible();
     await item.getByText("Проверить документ", { exact: true }).click();
-    const review = item.locator("form").filter({ has: adminPage.getByLabel("Решение", { exact: true }) });
+    const review = item.locator("form").filter({ has: adminPage.getByRole("combobox", { name: "Решение", exact: true }) });
+    await expect(review.getByRole("combobox", { name: "Решение", exact: true })).toBeVisible();
     await expect(review.getByRole("option", { name: "Принять", exact: true })).toBeDisabled();
-    await review.getByLabel("Решение", { exact: true }).selectOption(decision);
+    await review.getByRole("combobox", { name: "Решение", exact: true }).selectOption(decision);
     const reasonInput = review.getByLabel("Что нужно исправить", { exact: true });
     await expect(reasonInput).toHaveAttribute("required", "");
     await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();

@@ -32,10 +32,23 @@ export function PortalShell({
   const base = preview ? "/preview/student" : "/portal";
   const [expandedForPath, setExpandedForPath] = useState<string | null>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
   const navigationOpen = expandedForPath === pathname;
 
+  if (expandedForPath !== null && expandedForPath !== pathname) {
+    setExpandedForPath(null);
+  }
+
   return (
-    <div className={`v3-world ${styles.shell}`} data-testid="student-portal-shell">
+    <div
+      className={`v3-world ${styles.shell}`}
+      data-testid="student-portal-shell"
+      onPointerDown={(event) => {
+        if (navigationOpen && !sidebar.current?.contains(event.target as Node)) {
+          setExpandedForPath(null);
+        }
+      }}
+    >
       <a
         href="#portal-content"
         className={styles.skipLink}
@@ -45,8 +58,14 @@ export function PortalShell({
       </a>
 
       <aside
+        ref={sidebar}
         className={styles.sidebar}
         aria-label="Кабинет студента"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setExpandedForPath(null);
+          }
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape" && navigationOpen) {
             setExpandedForPath(null);

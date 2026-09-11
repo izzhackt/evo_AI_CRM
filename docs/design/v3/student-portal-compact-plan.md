@@ -1,6 +1,6 @@
 # Compact Student Portal — selected concept 03
 
-Date: 2026-09-10. Status: implemented and locally validated; awaiting review/release.
+Date: 2026-09-11. Status: integrated and locally validated on desktop/mobile; awaiting exact-head review/CI and guarded release.
 Branch: `izzhackt/student-portal-compact`, based on `2c4bce39`.
 
 ## User outcome
@@ -122,3 +122,77 @@ https://www.w3.org/WAI/WCAG22/Understanding/reflow.html
 Its 320 CSS px/no loss of information or function requirement informs the narrow
 viewport check. Context7 Next.js resolution was retried by the coordinator; the
 service still reports monthly quota exceeded, so current official docs are used.
+
+Mobile route review found that retaining the previously expanded pathname could
+reopen navigation after browser Back then Forward. Discard expansion as soon as
+the pathname changes; do not remount the application or clear Student forms.
+React's official state-adjustment guidance was checked on September 11:
+https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+Use a guarded reset of this component's menu state during rendering, avoiding
+an effect-driven second commit or resetting unrelated child state.
+
+The real September 11 browser pass measured 320 CSS px innerWidth but only
+310 px document clientWidth with its classic scrollbar. The inherited global
+body minimum of 320 px caused 10 px page overflow. Remove that minimum only
+when the compact portal shell is present, using the scoped CSS module selector
+`body:has(.shell)`; retain ordinary content wrapping and do not hide overflow.
+MDN's current :has() reference was checked for the ancestor-selector behavior:
+https://developer.mozilla.org/en-US/docs/Web/CSS/:has
+
+
+## Integrated candidate validation — 2026-09-11
+
+Current main `4dc5ead9` was merged into the compact branch, retaining the current
+catalogue copy and detail metadata. Bounded mobile fixes close the disclosure
+on focus exit, outside pointer input and any pathname change; Escape restores
+trigger focus. Main action/support targets are at least 44 px. The portal alone
+removes the inherited body minimum responsible for narrow scrollbar overflow.
+
+Local execution used Node 22.23.1 and the optimized actual Next.js application
+on localhost:3001, with only the existing public Supabase URL/publishable key.
+No service-role credentials or new persistent source were introduced. Passed:
+
+- `npm run lint`; `npm run typecheck`; `npm run build`; `git diff --check`.
+- Five existing real-file portal UI contracts: complete route inventory, Student
+  guard, strict page wiring, exact actor/action links and responsive semantics.
+- Existing real-file catalogue contract for neutral Student/Admin-preview
+  university detail descriptions. Six selected contracts passed; fixture/mock
+  decoder suites were not used as acceptance evidence.
+- Anonymous real HTTP `/portal` returned 307 to `/login` after the final build.
+
+Coordinator's real Chrome Admin CUA inspection of the final optimized candidate:
+
+- All seven preview sections rendered at actual 320 and 393 CSS px. Chrome's
+  saved 75% zoom was measured, not assumed: the capability width was adjusted
+  to obtain actual `innerWidth` 320/393. At 320, `scrollWidth == clientWidth`
+  (310 with the classic scrollbar, otherwise 320); at 393 the corresponding
+  widths were 383/393. No page-level horizontal overflow remained.
+- All seven mobile links were reachable and at least 44 px high. Selection
+  closes navigation; Escape restores trigger focus; clicking the page heading
+  outside it closes it; nine Tab presses leave/close it; browser Back to Tests
+  and Forward to Universities keep it closed.
+- The real published UMPRUM detail loaded and wrapped. English question preview
+  supported Start, select, Next and Back with its documented in-memory choice;
+  reload cleared selections and returned to Start. Career preview rendered its
+  first four questions, selections and Next into part 2 of 23 at 320 px, with
+  scroll/client width 310 and radio label heights at least 49.33 px.
+- Desktop at actual width 2016 had scroll width 2016; the sidebar, burgundy
+  action panel and EVO/curator column were visually inspected. Native CUA
+  screenshots are in the coordinating Codex task's tool evidence, not invented
+  file paths. No blank screen or framework error overlay appeared.
+- Browser console contained extension/ad-block messages (toolbar React130,
+  useCache and a receiving-end connection message at the ad-block timestamp),
+  without an EVO stack. This is not a claim of an entirely empty console.
+
+This proves the actual Admin preview, published catalogue, authored question
+preview and responsive presentation. It does not prove populated Student-case
+actions, uploads, payments, private attempts/results or persisted assessments.
+No Student identity, private case, message or business write was created for
+acceptance. Production is unchanged by this local validation; root coordinator
+continues exact-head review/CI and the authorized guarded release separately.
+
+Local command logs are `/tmp/evo-portal-compact-sep11-lint.log`,
+`/tmp/evo-portal-compact-sep11-typecheck.log`,
+`/tmp/evo-portal-compact-sep11-build.log`,
+`/tmp/evo-portal-compact-sep11-contracts.log` and
+`/tmp/evo-portal-compact-sep11-catalogue-contract.log`.

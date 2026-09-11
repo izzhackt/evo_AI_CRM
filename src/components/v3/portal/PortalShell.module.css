@@ -1,3 +1,7 @@
+:global(body):has(.shell) {
+  min-width: 0;
+}
+
 .shell {
   --portal-canvas: #f8f6f3;
   --portal-ink: #272522;
@@ -6,6 +10,7 @@
   --portal-accent: #892c3c;
   display: grid;
   grid-template-columns: 208px minmax(0, 1fr);
+  min-width: 0;
   min-height: 100dvh;
   background: var(--portal-canvas);
   color: var(--portal-ink);

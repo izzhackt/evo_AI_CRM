@@ -401,7 +401,9 @@ done
 [[ "${tls_health_code:-}" == "200" ]] \
   || fail "The isolated E4 Supabase HTTPS endpoint did not become reachable"
 
-run_isolated_app() (
+# The background call must exec Node in the PID that cleanup tracks. Keep the
+# synchronous build in an explicit subshell so exec cannot replace this harness.
+run_isolated_app() {
   cd "$app_root"
   exec env -u EVO_PLATFORM_GEMINI_API_KEY \
     NODE_ENV=production \
@@ -414,11 +416,11 @@ run_isolated_app() (
     EVO_STUDENT_INVITE_OTP_EXPIRY_SECONDS=3600 \
     HOSTNAME=127.0.0.1 PORT="$app_port" \
     "$node_bin" "$@"
-)
+}
 
 # Match the deployed standalone server. A development overlay can intercept
 # real controls and change mobile geometry, so it is not an acceptance target.
-if ! run_isolated_app node_modules/next/dist/bin/next build >"$app_log" 2>&1; then
+if ! (run_isolated_app node_modules/next/dist/bin/next build) >"$app_log" 2>&1; then
   fail "The isolated E4 production build failed; inspect the private application log"
 fi
 cp -R "$app_root/public" "$app_root/.next/standalone/public"

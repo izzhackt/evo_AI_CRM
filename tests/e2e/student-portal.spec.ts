@@ -575,9 +575,16 @@ test("mobile document review and curator replies persist through real Auth and d
     await expect(item).toBeVisible();
     await item.getByText("Проверить документ", { exact: true }).click();
     const review = item.locator("form").filter({ has: adminPage.getByRole("combobox", { name: "Решение", exact: true }) });
-    await expect(review.getByRole("combobox", { name: "Решение", exact: true })).toBeVisible();
-    await expect(review.getByRole("option", { name: "Принять", exact: true })).toBeDisabled();
-    await review.getByRole("combobox", { name: "Решение", exact: true }).selectOption(decision);
+    const decisionInput = review.getByRole("combobox", { name: "Решение", exact: true });
+    await expect(decisionInput).toBeVisible();
+    // Playwright retargets option disabled-state checks to its enabled select.
+    // Assert the native option flag and that keyboard selection skips approval.
+    await expect(review.getByRole("option", { name: "Принять", exact: true })).toHaveJSProperty("disabled", true);
+    await decisionInput.focus();
+    await adminPage.keyboard.press("Home");
+    await adminPage.keyboard.press("ArrowUp");
+    await expect(decisionInput).toHaveValue("correction_required");
+    await decisionInput.selectOption(decision);
     const reasonInput = review.getByLabel("Что нужно исправить", { exact: true });
     await expect(reasonInput).toHaveAttribute("required", "");
     await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();

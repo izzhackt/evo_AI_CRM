@@ -1,4 +1,5 @@
 "use server";
+import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { requireStudentPortalActor } from "./student-portal-guards";
 import { caseOperationsRpc, readCaseHelp } from "./v3/case-operations-source";
@@ -61,9 +62,11 @@ export async function answerCaseHelpAction(input: unknown): Promise<CaseOperatio
     const row = fields(input, ["caseId", "id", "answer", "version", "requestId"]);
     if (!row || !caseOperationUuid(row.caseId) || !caseOperationUuid(row.id) || !caseOperationUuid(row.requestId)
       || !caseOperationText(row.answer, 4000) || !caseOperationVersion(row.version)) return failure("invalid");
-    return helpReceipt(await caseOperationsRpc("answer_case_help_request_v1", { p_case_id: row.caseId, p_help_id: row.id,
+    const result = helpReceipt(await caseOperationsRpc("answer_case_help_request_v1", { p_case_id: row.caseId, p_help_id: row.id,
       p_answer: row.answer.trim(), p_expected_version: row.version, p_request_id: row.requestId,
     }), row.requestId, row.caseId);
+    if (result.ok) revalidatePath("/portal", "layout");
+    return result;
   } catch (error) { return errorResult(error); }
 }
 export async function loadCaseHelpAction(caseId: string, cursor: HelpCursor | null, student: boolean) {

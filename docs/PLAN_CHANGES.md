@@ -23053,3 +23053,22 @@ the production SSH tunnel on port 3000 was preserved.
 Keep the earlier candidate-only interaction checks and private Student acceptance
 limitations explicitly separate. This closeout records the verified release and
 actual live UI; it adds no product scope, migration or provider action.
+
+## 2026-09-11 — Complete the approved Portal workflow checklist
+
+The owner now authorizes implementing the audited checklist but explicitly
+excludes editing existing Student email and forgotten-password recovery. Scope
+is the missing staff document review controls plus Student notifications for
+curator replies, including safe navigation and refreshing an already open view.
+The contract is `docs/design/v3/student-portal-workflow-completion-plan.md`.
+Reuse the current document review command and existing notification/read-receipt
+authority; forward SQL changes may extend the help-reply event shape. Keep
+Student ownership, private assessments, staff permissions, idempotent retries,
+document-version concurrency and the compact mobile UI intact.
+
+The owner will collect email and manage delivery of Student access separately.
+This does not authorize plaintext/retrievable passwords in CRM or replacing
+Supabase Auth. Real execution remains required: do not extend historical
+fictional-QA permissions or invent business events to close acceptance boxes.
+Available code/build/real-service evidence and any missing real Student/case
+inputs must be recorded separately. Existing review/release gates remain.

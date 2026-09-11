@@ -54,7 +54,7 @@ export function PortalSection({
   return (
     <section className="rounded-card border border-border bg-surface">
       <header className="border-b border-border px-4 py-4 sm:px-5">
-        <h2 className="text-md font-semibold text-fg">{title}</h2>
+        <h2 className="break-words text-md font-semibold text-fg">{title}</h2>
         {description ? (
           <p className="mt-1 text-sm leading-5 text-fg-3">{description}</p>
         ) : null}

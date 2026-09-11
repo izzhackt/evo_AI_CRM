@@ -13,7 +13,8 @@ import {
   type PlatformDocumentCaseLinkActionState,
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
-import { documentPresence } from "@/lib/v3/wording";
+import { documentPresence, documentReviewDecision, documentSlotStatus } from "@/lib/v3/wording";
+import { DocumentReviewForm } from "./DocumentReviewForm";
 
 import type {
   ActiveDocumentGroup,
@@ -631,7 +632,7 @@ export function ProfileDocumentsClient({
               <ul>
                 {group.items.map((item) => {
                   const state = uploadState(uploads, item.id);
-                  const canUpload = uploadAccess === "allowed" && item.uploadRequestId !== null;
+                  const canUpload = uploadAccess === "allowed" && item.uploadRequestId !== null && item.status !== "approved";
                   return (
                     <li
                       key={item.id}
@@ -650,8 +651,9 @@ export function ProfileDocumentsClient({
                             </p>
                           ) : null}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Pill tone={statusTone(item)}>{documentPresence(item.presence)}</Pill>
+                          {item.presence === "present" ? <Pill tone={item.status === "approved" ? "ok" : "neutral"}>{documentSlotStatus(item.status)}</Pill> : null}
                           {item.presence === "present" && item.downloadReady ? (
                             <a
                               href={`/api/v2/document-versions/${item.currentVersionId}/download`}
@@ -700,6 +702,8 @@ export function ProfileDocumentsClient({
                             {state.outcome === "sending" ? "Загрузка…" : "Сохранить"}
                           </button>
                         </form>
+                      ) : uploadAccess === "allowed" && item.status === "approved" ? (
+                        <p className="mt-2 text-xs text-fg-3">Принятый файл доступен для скачивания.</p>
                       ) : uploadAccess === "allowed" ? (
                         <p className="mt-2 text-xs text-danger" role="status">
                           Загрузка недоступна: сервер не выдал безопасный идентификатор команды.
@@ -721,6 +725,16 @@ export function ProfileDocumentsClient({
                         >
                           {state.message}
                         </p>
+                      ) : null}
+
+                      {item.presence === "present" && item.latestReview ? (
+                        <div className="mt-2 space-y-1 text-xs text-fg-2">
+                          <p>Документ {documentReviewDecision(item.latestReview.decision)} · {historyDate(item.latestReview.reviewedAt)}</p>
+                          {item.latestReview.reason ? <p className="break-words">{item.latestReview.reason}</p> : null}
+                        </div>
+                      ) : null}
+                      {uploadAccess === "allowed" && studentCaseId && item.presence === "present" && item.reviewRequestId ? (
+                        <DocumentReviewForm key={`${item.id}:${item.currentVersionId}`} item={item} studentCaseId={studentCaseId} />
                       ) : null}
 
                       {uploadAccess === "allowed" && studentCaseId

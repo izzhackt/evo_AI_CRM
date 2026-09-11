@@ -1,4 +1,5 @@
 import type { DocumentPresence } from "@/lib/v3/wording";
+import type { PlatformDocumentReview, PlatformDocumentSlotStatus } from "@/lib/platform-private-documents";
 
 export type DocumentCaseLinkTargetKind = "university_application" | "visa_case";
 
@@ -22,6 +23,7 @@ type DocumentItemBase = Readonly<{
   groupLabel: string;
   intentKind: "baseline" | "custom";
   version: number;
+  status: PlatformDocumentSlotStatus;
   caseLinkTargets: readonly DocumentCaseLinkTarget[];
 }>;
 
@@ -37,6 +39,9 @@ export type PresentDocumentItem = DocumentItemBase & Readonly<{
   currentVersionId: string;
   currentVersionNumber: number;
   currentFilename: string;
+  latestReview: PlatformDocumentReview | null;
+  /** A new review is allowed only for the current submitted version. */
+  reviewRequestId: string | null;
   /** True only after the server confirms private-Storage download readiness. */
   downloadReady: boolean;
 }>;

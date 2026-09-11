@@ -20,3 +20,19 @@ export async function readCaseHelp(actor: ActivePlatformActor | ActiveStudentPor
     p_case_id: caseId, p_before_at: cursor?.at ?? null, p_before_id: cursor?.id ?? null,
   }), caseId);
 }
+
+export async function readStudentHelpReply(actor: ActiveStudentPortalActor, notificationId: string) {
+  if (!caseOperationUuid(notificationId)) throw new Error("case_operations_forbidden");
+  const response = await caseOperationsRpc("student_portal_help_reply_v1", {
+    p_notification_id: notificationId,
+  });
+  const page = decodeCaseHelpPage(response, actor.studentCaseId);
+  const readAt = response && typeof response === "object" && "readAt" in response ? response.readAt : undefined;
+  if (page.items.length !== 1 || page.items[0].status !== "answered") {
+    throw new Error("case_operations_response_invalid");
+  }
+  if (readAt !== null && (typeof readAt !== "string" || !Number.isFinite(Date.parse(readAt)))) {
+    throw new Error("case_operations_response_invalid");
+  }
+  return { request: page.items[0], readAt };
+}

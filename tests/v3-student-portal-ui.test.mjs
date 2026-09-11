@@ -34,6 +34,7 @@ test("the Student workspace preserves five portal pages, private tests and publi
   assert.deepEqual(pageFiles, [
     "src/app/(portal)/portal/applications/page.tsx",
     "src/app/(portal)/portal/documents/page.tsx",
+    "src/app/(portal)/portal/notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/notifications/page.tsx",
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal/payments/page.tsx",

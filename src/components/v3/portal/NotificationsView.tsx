@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { StudentPortalNotification } from "@/lib/v3/portal-source";
 
 import { PortalEmptyState, PortalSection } from "./PortalPage";
@@ -53,7 +54,7 @@ export function NotificationsView({
                     ) : null}
                   </div>
                   {notification.detail ? (
-                    <p className="mt-1 max-w-[760px] text-sm leading-6 text-fg-2">
+                    <p className="mt-1 max-w-[760px] break-words text-sm leading-6 text-fg-2">
                       {notification.detail}
                     </p>
                   ) : null}
@@ -73,6 +74,12 @@ export function NotificationsView({
                         </>
                       ) : null}
                     </p>
+                  ) : null}
+                  {notification.eventCode === "case_help_answer" ? (
+                    <Link href={`/portal/notifications/${notification.notificationId}`}
+                      className="mt-2 inline-flex min-h-11 items-center font-medium text-accent-text underline">
+                      Прочитать ответ куратора
+                    </Link>
                   ) : null}
                 </div>
 

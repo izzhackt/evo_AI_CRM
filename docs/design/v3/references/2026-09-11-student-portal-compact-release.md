@@ -3,9 +3,11 @@
 Contract: [compact portal run](../student-portal-compact-plan.md).
 Owner authorized publication and mobile readiness on September 11. Times are UTC.
 
-Status: implementation merged; full CI failed on an ambiguous E2E locator and
-the guarded release was skipped. Production acceptance remains pending; the last
-recorded accepted application is unchanged.
+Status: compact implementation and the narrow smoke-test correction are merged.
+The first full CI attempt failed and skipped release; the corrected exact-main
+CI passed all five jobs. Guarded release accepted `6ac8007f`; independent
+server/health and actual post-release Portal CUA passed. The compact desktop
+and mobile interface is published on the accepted application.
 
 ## Reviewed and merged revision
 
@@ -39,36 +41,118 @@ Current official Playwright guidance was checked on September 11:
 https://playwright.dev/docs/locators#locate-by-role
 It recommends role plus accessible name and scoped locators to resolve the
 intended control. The existing overview navigation keeps its distinct name
-Документы и обязательства. Full real-auth CI must pass again before release.
+Документы и обязательства. The corrected exact-main real-auth CI must pass
+before release.
 
 The narrow correction passed scoped ESLint and `npm run typecheck` on Node
 22.23.1. Playwright discovery with the real suite configuration lists exactly
 one matching Admin-preview test; discovery is not execution. A fresh interactive
 selector check was unavailable after the Mac locked/detached its browser debugger.
 The previously recorded actual UI checks remain valid because product code is
-unchanged. Exact configured-auth CI rerun remains the runtime verification gate.
+unchanged. The configured-auth CI rerun below supplied the runtime verification.
 Local logs: `/tmp/evo-portal-preview-navigation-lint.log`,
 `/tmp/evo-portal-preview-navigation-typecheck.log` and
 `/tmp/evo-portal-preview-navigation-discovery.log`.
 
+## Reviewed correction and second full-CI attempt
+
+- [PR #733](https://github.com/izzhackt/evo_AI_CRM/pull/733) merged at
+  2026-09-11 07:58:00 as `6ac8007fe5f0a323ec1f23e7af23b9443810574e`.
+  Its tree is identical to reviewed correction head
+  `697999aa5431dd05c0efa18f48832a003ac99461`.
+- [Correction PR checks 34576714164](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34576714164)
+  passed on that exact reviewed head.
+- [Full main CI 34576885307](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34576885307)
+  passed all five jobs on exact merged `6ac8007f`, including the database
+  and browser gate (8m 6s). The configured-auth suite passed 17 tests with two
+  expected skips. The corrected “Admin previews Student screens and authored
+  questions without saving an attempt” test passed in 14.6s at 08:02:27.
+  Coordinator read the actual job log, retained locally at
+  `/tmp/evo-portal-ci34576885307-browser.log`. This proves the configured
+  CI browser path, not private production Student journeys.
+
+This correction changes only the two E2E navigation selections and their
+documentation. Product runtime and the prior measured mobile/desktop evidence
+are unchanged; none of the existing test assertions was removed or weakened.
+
 ## Guarded production acceptance
 
-After the failed gate, the coordinator set `EVO_PRODUCTION_RELEASE_ARMED=false`
-and read back `false` successfully at approximately 07:52. Independent release
-preflight confirmed the previous accepted revision remains `4dc5ead9` and no
-pending candidate exists. The skipped release introduced no production change.
+[Guarded release 34577575858, attempt 1](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34577575858)
+succeeded in both jobs after corrected full CI, completing at 08:11:21. The coordinator verified the
+named **Authenticated read-only V3 browser smoke** and **Accept exact V3
+candidate** steps succeeded, then set the release arm to `false` and read it back.
 
-New compact-portal acceptance still requires successful exact-main CI and a
-guarded release, protected accepted pointer/revision/image, acceptance-file hash,
-healthy application, no pending candidate and final release-arm readback. Do not
-infer publication from the merged code or local screenshots.
+Independent preflight and coordinator server readback confirmed:
+
+| Evidence | Value |
+| --- | --- |
+| Accepted release | `v3-r34577575858-a1-6ac8007f` |
+| Revision | `6ac8007fe5f0a323ec1f23e7af23b9443810574e` |
+| Image tag | `evo-crm:6ac8007fe5f0a323ec1f23e7af23b9443810574e` |
+| Image ID | `sha256:1bac0d399296519ef7b95aed05afd3be192a800fbda64eb17b512028d8e5aa07` |
+| Acceptance-record SHA-256 | `7aa8e3952d35067bf9b705e1e54fb73996c7ca74e0bc6f6cf16c62ecabeb53e8` |
+| Pending candidate | Absent |
+| App | Healthy, zero restarts |
+| Release arm | `false`, set and read back after success |
+
+The active app container is
+`816fbb73d2836f4dfe3acaaa49093ba4326398211f9281fcfc168b473ca0961e`,
+private IP `172.16.8.4`. Public HTTPS health returned
+`ok:true,status:live,service:evo-crm`. WAHA and ClamAV retained their baseline
+container IDs, healthy with zero restarts. No provider activation was needed.
+
+Literal generated rollback command, not executed:
+
+```sh
+sudo -- /opt/evo-crm/release-evidence/v3-r34577575858-a1-6ac8007f/rollback-command.sh
+```
+
+For the earlier failed gate, the coordinator set `EVO_PRODUCTION_RELEASE_ARMED=false`
+and read back `false` successfully at approximately 07:52. Independent release
+preflight confirmed the previous accepted revision remained `4dc5ead9` and no
+pending candidate existed. The skipped release introduced no production change.
+
+The later successful release above replaces that earlier accepted application.
+The protected release and independent live readback, not the earlier local
+screenshots, establish the current deployment.
 
 ## Live interface readback
 
-Pending actual post-release browser and health checks through the existing
-localhost:3000 tunnel and public CRM surface. This remains the same Hermes
-application and managed Supabase project; localhost:3001 is only the isolated
-pre-release validation server.
+The coordinator recovered CUA through a fresh tab in the same Chrome profile
+and existing authenticated Admin session at
+`http://localhost:3000/preview/student`. The earlier tab's detached debugger was
+stale tooling; a new live tab rendered the application. No login bypass or new
+identity was used. This is the actual accepted Hermes application through the
+existing localhost tunnel, separate from the earlier candidate on port 3001.
+
+Actual post-release checks passed:
+
+- Desktop: `innerWidth == clientWidth == scrollWidth == 2016`. The native CUA
+  screenshot shows the new sidebar, burgundy action panel and EVO/curator column.
+- Mobile 393 CSS px: client and scroll widths were both 383 with the classic
+  scrollbar. The home screenshot shows the compact mobile layout. All seven
+  navigation links were 44 px high; Escape closed the menu and restored focus
+  to Меню with `aria-expanded=false`.
+- At actual 320 CSS px, all seven routes (home, documents, applications,
+  universities, payments, notifications and tests) passed URL, heading and
+  menu-dismissal checks. Client and scroll widths matched: 310 with the classic
+  scrollbar or 320 without it. No horizontal overflow was present.
+- The actual authored English first-question preview rendered at 320 CSS px
+  with client and scroll widths both 310. No answer was selected and no
+  business write was performed in this production inspection.
+- localhost:3000 health returned live; anonymous Admin-preview access returned
+  307 to login. The authenticated live tab was returned to home and restored
+  to desktop size for the owner.
+
+The fresh live Chrome console contained two React130 errors from an extension
+toolbar at 08:13:25, with no EVO stack; it was not an entirely empty console.
+Native post-release desktop/mobile CUA screenshots are recorded in the
+coordinating task's tool evidence. Earlier candidate checks additionally covered
+outside/Tab/history dismissal, the real UMPRUM detail and transient English/career
+question selection/navigation; those remain separately labelled candidate
+results, not additional production actions. The isolated owned port 3001
+validation server was stopped after successful live inspection; the production
+port 3000 SSH tunnel remains in place.
 
 ## Scope and remaining proof limits
 

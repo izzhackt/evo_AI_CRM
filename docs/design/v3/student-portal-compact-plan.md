@@ -1,6 +1,6 @@
 # Compact Student Portal — selected concept 03
 
-Date: 2026-09-11. Status: PR #724 merged; exact-main CI failed on an ambiguous preview-test locator, release skipped; narrow E2E correction in progress.
+Date: 2026-09-11. Status: published; PR #724/#733, exact-main CI, guarded release and live desktop/mobile Admin-preview acceptance completed.
 Branch: `izzhackt/student-portal-compact`, based on `2c4bce39`.
 
 ## User outcome
@@ -200,13 +200,13 @@ Local command logs are `/tmp/evo-portal-compact-sep11-lint.log`,
 `/tmp/evo-portal-compact-sep11-catalogue-contract.log`.
 
 
-## Release closeout — 2026-09-11
+## Initial release gate — 2026-09-11
 
 PR #724 merged as `f9133a0488add0f6afefa3e5cdc3163952db4cd6`, with the same
 tree as reviewed head `19dc2464`. Full CI 34575893217 failed on an ambiguous
-preview navigation locator and release 34576407176 was skipped. Guarded release
-and post-release browser acceptance are not yet confirmed;
-follow the [release evidence record](references/2026-09-11-student-portal-compact-release.md).
+preview navigation locator and release 34576407176 was skipped. That first
+attempt did not update production; the later successful correction/release is
+recorded in the [release evidence record](references/2026-09-11-student-portal-compact-release.md).
 The local candidate proof above remains separate from those production gates.
 
 
@@ -224,5 +224,38 @@ remain mandatory. No production update occurred through the skipped release.
 
 Scoped ESLint, Node 22.23.1 typecheck and Playwright single-test discovery passed
 for the locator correction; the assertions and product code are unchanged.
-The corrected real-auth E2E still awaits CI execution. A fresh CUA selector check
-was unavailable after Mac lock/debugger detachment, so it is not claimed.
+Corrective PR #733 merged as `6ac8007f` with the reviewed `697999aa` tree;
+PR checks 34576714164 and all five jobs of full main CI 34576885307 passed.
+Its configured-auth suite passed 17 tests with two expected skips; the corrected
+Admin preview test passed in 14.6s at 08:02:27 UTC. This is actual CI browser
+execution, not private production Student acceptance. Guarded release 34577575858
+accepted exact `6ac8007f`; matching protected pointer/hash, healthy app, public
+HTTPS live, no pending candidate and final release arm=false were verified.
+Interactive CUA was temporarily unavailable after Mac lock/debugger detachment;
+subsequent live interface acceptance below used a recovered fresh Chrome tab.
+
+
+## Production acceptance — 2026-09-11
+
+The first failed CI/skipped release and reviewed correction remain in the
+[release ledger](references/2026-09-11-student-portal-compact-release.md).
+Corrected exact-main CI passed; guarded release 34577575858 accepted
+`6ac8007fe5f0a323ec1f23e7af23b9443810574e`. Independent readback verified the
+matching accepted revision/image/acceptance hash, healthy app with zero restarts,
+public HTTPS live, no pending candidate and final release arm=false. The release's
+authenticated read-only V3 browser smoke passed. WAHA and ClamAV were unchanged.
+
+Actual post-release CUA then passed in the existing Admin session through
+localhost:3000: desktop 2016 px, mobile 393 px, and all seven routes at 320 px
+with matching client/scroll widths and correct route/heading/menu state. The
+seven navigation links were 44 px high; Escape closed/restored trigger focus.
+The actual authored English first question rendered at 320 px without selecting
+answers or writing business data. Native desktop/mobile screenshots were emitted
+in the coordinating task, and its live tab was returned to desktop home.
+localhost health was live and anonymous preview access redirected to login.
+
+Candidate-only question selection/history/detail checks above remain separately
+identified. Private Student journeys are outside this Admin-preview acceptance.
+The owned isolated port 3001 server was stopped; the live port 3000 tunnel remains.
+See the release ledger for exact measurements, protected deployment facts and
+the unexecuted generated rollback command.

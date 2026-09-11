@@ -18,7 +18,7 @@
           "level": "bachelor",
           "duration": "4 года, очно",
           "language": null,
-          "summary": "Инженерная программа объединяет компьютерные науки с основами электротехники и электроники. Возможности обучения по маршруту 2+2 нужно отдельно сверить с условиями программы.",
+          "summary": "Инженерная программа объединяет компьютерные науки с основами электротехники и электроники.",
           "sourceUrl": "https://www.xjtlu.edu.cn/en/study/undergraduate/computer-science-and-technology",
           "intakes": [
             {
@@ -96,7 +96,7 @@
           "level": "foundation",
           "duration": null,
           "language": "Китайский или английский — по маршруту",
-          "summary": "Подготовка по математике, физике и языку. Англоязычный маршрут также включает введение в компьютерные науки.",
+          "summary": "Подготовка по математике, физике и языку. Англоязычный маршрут также включает введение в компьютерные науки. Для перехода на академическую программу необходимо выполнить требования университета.",
           "sourceUrl": "https://www.scut.edu.cn/en/2025/1202/c607a58742/page.htm",
           "intakes": [
             {
@@ -135,7 +135,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Английский",
-          "summary": "Бакалаврская программа College of Chemical Engineering. Для поступления важна подготовка по математике и химии.",
+          "summary": "Бакалаврская программа College of Chemical Engineering. Для поступления важна подготовка по математике и химии. Для англоязычного потока предусмотрены минимальный размер группы и второй выбор программы.",
           "sourceUrl": "https://www.gjxy.zjut.edu.cn/ueditor/upload/file/20251125/1764050265176062.pdf",
           "intakes": [
             {
@@ -264,11 +264,11 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Китайский",
-          "summary": "Бакалавриат School of Chemical Engineering. В международном каталоге для этой программы указаны предметы CSCA по китайскому, математике, физике и химии.",
+          "summary": "Бакалавриат School of Chemical Engineering. В международном каталоге для этой программы указаны предметы CSCA по китайскому, математике, физике и химии. В наборе 2026 стипендиальные заявки принимались до 30 апреля; у подачи на платное обучение был отдельный срок.",
           "sourceUrl": "https://cie.ecust.edu.cn/notices/518.html",
           "intakes": [
             {
-              "label": "Приём 2026 — опубликованный срок",
+              "label": "Приём 2026 — подача на платное обучение (self-sponsored)",
               "startDate": null,
               "startMonth": null,
               "applicationDeadline": "2026-07-10",
@@ -315,7 +315,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Английский",
-          "summary": "Искусственный интеллект, кампус Zhuhai. Программа прямо указана в международном каталоге BIT 2026.",
+          "summary": "Искусственный интеллект, кампус Zhuhai. Программа прямо указана в международном каталоге BIT 2026. Для подачи нужны школьные документы, языковое подтверждение и предметы CSCA по программе.",
           "sourceUrl": "https://isc.bit.edu.cn/aboutbit/faq/70fe36ccf5f64defb9ecda409efd2b71.htm",
           "intakes": [
             {
@@ -377,7 +377,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Китайский",
-          "summary": "Китайский язык для международных студентов; в правилах 2026 указан HSK 4 не ниже 180.",
+          "summary": "Китайский язык для международных студентов; в правилах 2026 указан HSK 4 не ниже 180. После подачи проходят проверку документов и собеседование.",
           "sourceUrl": "https://international.bnu.edu.cn/user/sysNews/detail/22",
           "intakes": [
             {
@@ -400,7 +400,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Китайский",
-          "summary": "Международное преподавание китайского языка; требования к языку и оцениванию приведены в правилах набора.",
+          "summary": "Международное преподавание китайского языка; требования к языку и оцениванию приведены в правилах набора. После подачи проходят проверку документов и собеседование.",
           "sourceUrl": "https://international.bnu.edu.cn/user/sysNews/detail/22",
           "intakes": [
             {
@@ -439,7 +439,7 @@
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Программа китайского языка ICES. Официальное объявление относится к осени 2026; ближайший доступный набор и длительность нужно подтвердить.",
+          "summary": "Программа китайского языка ICES по официальному объявлению осени 2026. Обычный курс и стипендиальный маршрут имеют отдельные заявки.",
           "sourceUrl": "https://ices.fudan.edu.cn/_t326/69/08/c6658a485640/page.htm",
           "intakes": [
             {
@@ -462,7 +462,7 @@
           "level": "language",
           "duration": "До 5 месяцев",
           "language": "Китайский",
-          "summary": "Отдельный конкурсный маршрут: HSK 3 от 180 и результат HSKK по объявлению 2026. Стипендия не гарантирована.",
+          "summary": "Отдельный стипендиальный маршрут: HSK 3 от 180 и результат HSKK по объявлению 2026. Для участия требуются рекомендация и конкурсное рассмотрение.",
           "sourceUrl": "https://www.ci.fudan.edu.cn/_upload/article/files/62/1e/9dc7f7cd44089734840e95e5f44d/558f0afc-4472-4a44-9c33-31c24e92f6aa.pdf",
           "intakes": [
             {
@@ -756,7 +756,7 @@
           "level": "bachelor",
           "duration": null,
           "language": "Китайский; требуется английский",
-          "summary": "Программа английского языка; международный порядок отдельно требует подтверждение английского уровня.",
+          "summary": "Программа английского языка; при международной подаче требуется сертификат, подтверждающий уровень английского.",
           "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
           "intakes": [
             {
@@ -779,7 +779,7 @@
           "level": "bachelor",
           "duration": null,
           "language": "Китайский",
-          "summary": "Архитектура; при подаче требуются подтверждения профессиональных навыков или архитектурные работы.",
+          "summary": "Архитектура; при подаче требуется подтверждение профильной подготовки или архитектурные работы.",
           "sourceUrl": "https://hwxy.nju.edu.cn/English/StudyatNJU/Admissions/BachelorsPrograms/index.html",
           "intakes": [
             {
@@ -818,7 +818,7 @@
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Долгосрочный курс китайского языка по официальному объявлению 2026. Точный срок обучения, ближайший набор и стоимость нужно подтвердить.",
+          "summary": "Долгосрочный курс китайского языка по официальному объявлению 2026.",
           "sourceUrl": "https://sie.ouc.edu.cn/english/2025/1212/c18028a513107/page.htm",
           "intakes": [
             {
@@ -857,7 +857,7 @@
           "level": "foundation",
           "duration": "1–2 года — по учебному плану",
           "language": "Китайский",
-          "summary": "Китайский язык и академическая подготовка; траектория математики зависит от исходного уровня и выбранного направления бакалавриата.",
+          "summary": "Китайский язык и академическая подготовка; траектория математики зависит от исходного уровня и выбранного направления бакалавриата. Переход на степень требует выполнения критериев университета и отдельной заявки.",
           "sourceUrl": "https://isd.pku.edu.cn/en/detail.php?id=772",
           "intakes": [
             {
@@ -945,7 +945,7 @@
       "name": "Tsinghua University",
       "country": "CN",
       "city": "Пекин",
-      "overview": "Университет в Пекине. Zijing College предлагает англоязычный маршрут городского развития и проектирования; художественные направления имеют отдельные творческие требования.",
+      "overview": "Университет в Пекине. Zijing College предлагает англоязычный маршрут городского развития и проектирования; художественные направления имеют отдельные творческие требования. По правилам набора 2026 экзамен CSCA не обязателен.",
       "websiteUrl": "https://www.tsinghua.edu.cn/en",
       "sourceUrl": "https://international.join-tsinghua.edu.cn/info/1082/1152.htm",
       "verifiedOn": "2026-09-10",
@@ -1089,7 +1089,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Английский или китайский — по потоку",
-          "summary": "Бакалаврская программа подтверждена официальной англоязычной брошюрой 2025. Доступность и условия следующего набора требуют повторного подтверждения.",
+          "summary": "Бакалаврская программа по компьютерным наукам и технологиям из официальной англоязычной брошюры 2025.",
           "sourceUrl": "https://en.uestc.edu.cn/UESTC_Admission_Brochure-EN.pdf",
           "intakes": [
             {
@@ -1174,7 +1174,7 @@
           "level": "bachelor",
           "duration": null,
           "language": null,
-          "summary": "Искусственный интеллект; индивидуальные требования к следующему набору уточняются.",
+          "summary": "Бакалаврская программа по искусственному интеллекту.",
           "sourceUrl": "https://isa.ustc.edu.cn/xs/info/bachelor.asp",
           "intakes": [
             {
@@ -1259,7 +1259,7 @@
           "level": "master",
           "duration": null,
           "language": null,
-          "summary": "Магистерский маршрут международного права с тематикой международной торговли и WTO. Формат и язык нужно подтвердить по текущему предложению.",
+          "summary": "Магистерский маршрут международного права с тематикой международной торговли и WTO.",
           "sourceUrl": "https://en.whu.edu.cn/Admissions.htm",
           "intakes": [
             {
@@ -1285,7 +1285,7 @@
       "name": "Zhejiang University",
       "country": "CN",
       "city": "Ханчжоу",
-      "overview": "Университет с основными кампусами в Ханчжоу и международным кампусом в Хайнине. Город программы важно проверять отдельно: англоязычный Global Communication and Management относится к Haining.",
+      "overview": "Университет с основными кампусами в Ханчжоу и международным кампусом в Хайнине. Англоязычный Global Communication and Management относится к международному кампусу Haining.",
       "websiteUrl": "https://www.zju.edu.cn/english",
       "sourceUrl": "https://iczu.zju.edu.cn/admissionsen/2024/1030/c68988a2981659/page.htm",
       "verifiedOn": "2026-09-10",
@@ -1324,7 +1324,7 @@
       "name": "Beijing Language and Culture University",
       "country": "CN",
       "city": "Пекин",
-      "overview": "Языковой университет: китайский язык, международная коммуникация и отдельные англоязычные бизнес-программы. В старом материале EVO сокращённое Beijing Language University нормализовано до официального названия BLCU.",
+      "overview": "Языковой университет: китайский язык, международная коммуникация и отдельные англоязычные бизнес-программы. Для части иностранных стипендиатов набора 2026 первые два года организованы на кампусе Hainan.",
       "websiteUrl": "https://english.blcu.edu.cn",
       "sourceUrl": "https://admission.blcu.edu.cn/en/384/list.htm",
       "verifiedOn": "2026-09-10",
@@ -1480,11 +1480,11 @@
       "programs": [
         {
           "id": "chinese-language",
-          "title": "Chinese Language Course — требуется подтверждение",
+          "title": "Chinese Language Course — архивная программа",
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Исторический языковой маршрут из материалов EVO, не академическая степень. До подтверждения нового объявления нельзя считать курс доступным для подачи.",
+          "summary": "Исторический языковой курс из материалов EVO, без присвоения академической степени.",
           "sourceUrl": "https://health.gzhsvc.edu.cn/info/1006/4765.htm",
           "intakes": [
             {
@@ -1585,7 +1585,7 @@
           "level": "language",
           "duration": "1 год",
           "language": "Китайский",
-          "summary": "Годовая языковая подготовка; расписание и кампус уточняются по выбранному набору.",
+          "summary": "Годовая программа интенсивной подготовки по китайскому языку.",
           "sourceUrl": "https://apply.shu.edu.cn/application/index?language=en&type=apply_here",
           "intakes": [
             {
@@ -1670,7 +1670,7 @@
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Краткосрочная языковая программа; продолжительность и формат согласовываются по текущему объявлению.",
+          "summary": "Краткосрочная программа китайского языка через International College of Chinese Studies.",
           "sourceUrl": "https://iccs.shnu.edu.cn/en/",
           "intakes": [
             {
@@ -1709,7 +1709,7 @@
           "level": "language",
           "duration": "1 год",
           "language": "Китайский",
-          "summary": "Интенсивная языковая подготовка, кампус Hongkou. Ближайший свободный набор требует подтверждения.",
+          "summary": "Интенсивная подготовка по китайскому языку на кампусе Hongkou.",
           "sourceUrl": "https://www.oisa.shisu.edu.cn/index.php/en/index/lxxm/cid/136.html",
           "intakes": [
             {
@@ -1794,7 +1794,7 @@
           "level": "language",
           "duration": "1 семестр или год — по маршруту",
           "language": "Китайский",
-          "summary": "Китайский язык и культурная подготовка. FAQ указывает обычные сезонные окна; конкретный будущий год и доступность места ещё нужно подтвердить.",
+          "summary": "Китайский язык и культурная подготовка перед отдельной заявкой на китайскоязычную академическую программу.",
           "sourceUrl": "https://isoe.usst.edu.cn/2025/1128/c9774a352906/page.htm",
           "intakes": [
             {
@@ -1856,7 +1856,7 @@
           "level": "foundation",
           "duration": null,
           "language": null,
-          "summary": "Подготовительная программа, отдельно указанная международным отделом. Учебный план и доступность следующего набора нужно подтвердить.",
+          "summary": "Подготовительная программа международного отдела перед академическим обучением.",
           "sourceUrl": "https://study.tongji.edu.cn/en/ADMISSION/Application_Information_Updates.htm",
           "intakes": [
             {
@@ -1979,8 +1979,8 @@
           "title": "HSK Training",
           "level": "language",
           "duration": "4 недели — по описанию курса",
-          "language": "Китайский; язык пояснений уточняется",
-          "summary": "Подготовка к HSK по уровням; программа указана в официальном разделе non-degree. Актуальность формата и расписание требуют подтверждения.",
+          "language": "Китайский",
+          "summary": "Подготовка к HSK по уровням; программа без присвоения академической степени.",
           "sourceUrl": "https://cie.zisu.edu.cn/Study_Programs/Non_degree_Education.htm",
           "intakes": [
             {
@@ -2002,8 +2002,8 @@
           "title": "Short-term Chinese Language Course",
           "level": "language",
           "duration": null,
-          "language": "Китайский; язык пояснений уточняется",
-          "summary": "Китайский язык и культура с практикой устной речи. Новый набор и срок обучения нужно согласовать.",
+          "language": "Китайский",
+          "summary": "Китайский язык и культура с практикой устной речи.",
           "sourceUrl": "https://cie.zisu.edu.cn/Study_Programs/Non_degree_Education.htm",
           "intakes": [
             {
@@ -2077,11 +2077,11 @@
       "programs": [
         {
           "id": "chinese-language",
-          "title": "Chinese Language Programme — требуется подтверждение",
+          "title": "Chinese Language Programme — архивная программа",
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Исторический языковой маршрут из материалов EVO. Наличие университета и брошюры 2026 подтверждено, но доступность конкретного нового языкового набора не установлена.",
+          "summary": "Исторический языковой маршрут из материалов EVO.",
           "sourceUrl": "https://gjc.hbuas.edu.cn/info/1311/2927.htm",
           "intakes": [
             {
@@ -2143,7 +2143,7 @@
           "level": "bachelor",
           "duration": null,
           "language": null,
-          "summary": "Компьютерные науки и технологии; язык и срок обучения проверяются по текущему набору.",
+          "summary": "Компьютерные науки и технологии из официального международного перечня.",
           "sourceUrl": "https://www.yibinu.edu.cn/en/International_Student_Education.htm",
           "intakes": [
             {
@@ -2228,7 +2228,7 @@
           "level": "bachelor",
           "duration": null,
           "language": null,
-          "summary": "Бакалаврское направление, представленное в официальном каталоге международного приёма; язык и условия нового набора уточняются.",
+          "summary": "Бакалаврское направление по науке о чае из официального каталога международного приёма.",
           "sourceUrl": "https://admissions.swu.edu.cn/",
           "intakes": [
             {
@@ -2251,7 +2251,7 @@
           "level": "bachelor",
           "duration": null,
           "language": null,
-          "summary": "Качество и безопасность пищевой продукции; конкретные требования проверяются по текущему каталогу.",
+          "summary": "Бакалаврская программа по качеству и безопасности пищевой продукции.",
           "sourceUrl": "https://admissions.swu.edu.cn/",
           "intakes": [
             {
@@ -2286,11 +2286,11 @@
       "programs": [
         {
           "id": "chinese-language",
-          "title": "Chinese Language Programme — требуется подтверждение",
+          "title": "Chinese Language Programme — архивная программа",
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Исторический языковой маршрут EVO. Продолжительность, возрастной допуск, стоимость и ближайший набор нужно подтвердить; академическая степень не заявляется.",
+          "summary": "Исторический языковой маршрут из материалов EVO, без присвоения академической степени.",
           "sourceUrl": "https://sie.cjlu.edu.cn/Admission/Brochure.htm",
           "intakes": [
             {
@@ -2407,7 +2407,7 @@
           "level": "master",
           "duration": null,
           "language": null,
-          "summary": "Перевод и устный перевод; специализация и рабочие языки выбираются по официальному перечню. Требования 2026 включают высокий уровень китайского.",
+          "summary": "Перевод и устный перевод; специализация и рабочие языки выбираются по официальному перечню. Для поступления требуется предыдущее высшее образование; требования 2026 включают высокий уровень китайского.",
           "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/info/1077/4591.htm",
           "intakes": [
             {
@@ -2426,11 +2426,11 @@
         },
         {
           "id": "chinese-language",
-          "title": "Chinese Language Programme — требуется подтверждение набора",
+          "title": "Chinese Language Programme",
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Языковой маршрут представлен в материалах EVO и международном направлении вуза. Календарь, продолжительность и стоимость следующего курса нужно подтвердить.",
+          "summary": "Программа китайского языка международного направления университета.",
           "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/",
           "intakes": [
             {
@@ -2469,7 +2469,7 @@
           "level": "bachelor",
           "duration": null,
           "language": null,
-          "summary": "Бакалаврский маршрут School of Foreign Languages, прямо обозначенный для иностранных студентов. Язык, длительность и условия поступления уточняются.",
+          "summary": "Бакалаврский маршрут School of Foreign Languages для иностранных студентов.",
           "sourceUrl": "https://en.xidian.edu.cn/info/1003/2040.htm",
           "intakes": [
             {
@@ -2531,7 +2531,7 @@
           "level": "master",
           "duration": null,
           "language": null,
-          "summary": "Магистерский маршрут, включённый в официальное объявление Silk Road 2026.",
+          "summary": "Магистерский маршрут по китайскому языку и литературе в рамках стипендиального конкурса Silk Road 2026.",
           "sourceUrl": "https://iec.ncu.edu.cn/info/1691/21306.htm",
           "intakes": [
             {
@@ -2593,7 +2593,7 @@
           "level": "language",
           "duration": null,
           "language": "Китайский",
-          "summary": "Языковая подготовка: брошюра 2026 не требует исходного уровня китайского. Продолжительность и следующий набор уточняются.",
+          "summary": "Языковая подготовка: брошюра 2026 не требует исходного уровня китайского.",
           "sourceUrl": "https://admission.zstu.edu.cn/upfile/file/2026ZSTUAdmissionBrochure.pdf",
           "intakes": [
             {
@@ -2786,7 +2786,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Английский",
-          "summary": "Авиационно-космическое направление в School of Aeronautics. CSCA: математика и физика.",
+          "summary": "Авиационно-космическое направление в School of Aeronautics. CSCA: математика и физика. Инженерная степень не является лицензией пилота.",
           "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
           "intakes": [
             {
@@ -2809,7 +2809,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": "Английский",
-          "summary": "Отдельный маршрут School of Astronautics. При выборе заявления важно указать нужную школу.",
+          "summary": "Отдельный маршрут School of Astronautics. При выборе заявления важно указать нужную школу. Инженерная степень не является лицензией пилота.",
           "sourceUrl": "https://studyat.nwpu.edu.cn/info/1089/2124.htm",
           "intakes": [
             {
@@ -2871,7 +2871,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": null,
-          "summary": "Авиационная инженерия из официального списка международного бакалавриата.",
+          "summary": "Авиационная инженерия из официального списка международного бакалавриата. Академическая степень не является лицензией пилота или авиационного специалиста.",
           "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
           "intakes": [
             {
@@ -2894,7 +2894,7 @@
           "level": "bachelor",
           "duration": "4 года",
           "language": null,
-          "summary": "Техническое обслуживание воздушных судов. Профессиональную сертификацию следует уточнять отдельно.",
+          "summary": "Техническое обслуживание воздушных судов. Академическая степень не является лицензией авиационного специалиста.",
           "sourceUrl": "https://en.sau.edu.cn/Admission/Programs/Undergraduate_Programs.htm",
           "intakes": [
             {

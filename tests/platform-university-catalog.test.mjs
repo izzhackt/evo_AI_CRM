@@ -179,6 +179,7 @@ test("real catalogue content renders known facts without missing-field or uncert
     const html = rendered.find((row) => row.key === key)?.html;
     assert.ok(html, key);
     assert.doesNotMatch(html, />Нужно уточнить<|Сроки набора в этой карточке не подтверждены|Что важно уточнить|точное время не указано|Опубликованная версия/, key);
+    assert.doesNotMatch(html, /<h3\b[^>]*>[^<]*требуется подтверждение/i, `${key}: no editorial notices in programme headings`);
     assert.doesNotMatch(html, /<dl\b[^>]*>\s*<\/dl>/, key);
     assert.ok(html.includes(escape(content.overview)), `${key}: authored overview retained`);
     assert.ok(html.includes(`href="${escape(content.websiteUrl)}"`), `${key}: official website`);
@@ -209,4 +210,14 @@ test("real catalogue content renders known facts without missing-field or uncert
   const utm = rendered.find((row) => row.key === "utm").html;
   assert.match(utm, /17 июля 2026/);
   assert.match(utm, /Приём[^<]*закрыт/);
+  const ecust = rendered.find((row) => row.key === "ecust").html;
+  assert.match(ecust, /10 июля 2026/);
+  assert.match(ecust, /self-sponsored/);
+  assert.match(ecust, /30 апреля/);
+  const macerata = rendered.find((row) => row.key === "university-of-macerata").html;
+  assert.match(macerata, /12 лет/);
+  assert.match(macerata, /английский B2/);
+  assert.match(macerata, /Duolingo и EF SET не принимаются/);
+  const ema = rendered.find((row) => row.key === "ecole-de-management-applique").html;
+  assert.doesNotMatch(ema, /Язык обучения|язык группы уточнить/);
 });

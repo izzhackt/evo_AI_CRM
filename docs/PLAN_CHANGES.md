@@ -22946,3 +22946,16 @@ from stored publications. One shared reader, no schema change/data republication
 Validate real catalogue rendering, then normal reviewed PR/full CI/guarded release
 and same-server tunnel. Use existing React conditional rendering, not CSS hiding
 or client effects: https://react.dev/learn/conditional-rendering (checked today).
+
+Independent review found that the existing notes mix editorial uncertainty with
+confirmed business facts. Before hiding them, transfer applicable established
+requirements/deadline scope into the existing programme summaries/intake labels.
+Clean four editorial programme headings; retain the three historical offers as
+archival programmes, never as newly confirmed current intakes. Original notes,
+identities, source links, existing nulls and statuses remain unchanged. EMA's
+conflicting teaching-language string becomes null rather than asserting English;
+ZISU keeps the established Chinese language without an unknown explanation-language
+annotation. This requires
+normal Admin publication of only changed real cards, superseding the initial
+no-republication estimate above; no new schema, parallel registry or fact is
+introduced. Remaining research gaps stay in source notes and the owner chat.

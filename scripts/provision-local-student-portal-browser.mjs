@@ -415,6 +415,76 @@ async function main() {
           ${ids.requirement}, 'rejected', 'Паспорт', '2026-09-03T09:00:00Z'
         )
       `;
+
+      if (process.env.EVO_E4_REVIEW_UI_FIXTURE === "1") {
+        await tx`
+          INSERT INTO platform_private.student_portal_notification_runtime_controls
+            (organization_id, enabled) VALUES (${ids.organization}, TRUE)
+        `;
+        // Authorized synthetic metadata for the negative-review UI only. There
+        // are no Storage bytes or ClamAV attestations: approval must stay disabled.
+        // Separate slots prevent the two mobile projects sharing a mutable version.
+        for (const width of [320, 393]) {
+          const requirementId = randomUUID();
+          const slotId = randomUUID();
+          const versionId = randomUUID();
+          const reservationId = randomUUID();
+          const auditId = randomUUID();
+          const objectHash = `${randomUUID()}${randomUUID()}`.replaceAll("-", "");
+          const objectName = `${objectHash.slice(0, 2)}/${objectHash.slice(2)}`;
+          await tx`
+            INSERT INTO platform.document_requirements
+              (id, organization_id, requirement_key, label, target_country, target_degree,
+               program_direction, checklist_version, instructions, created_by_membership_id)
+            VALUES (${requirementId}, ${ids.organization}, ${`e4_review_${width}`},
+              ${`Проверка интерфейса ${width}`}, 'United Kingdom', 'Bachelor',
+              'Computer Science', 1, 'Synthetic finalized metadata; no Storage bytes or scanner proof.', ${ids.adminMembership})
+          `;
+          await tx`
+            INSERT INTO platform.document_slots
+              (id, organization_id, student_case_id, requirement_id, status, created_by_membership_id)
+            VALUES (${slotId}, ${ids.organization}, ${ids.case}, ${requirementId}, 'required', ${ids.adminMembership})
+          `;
+          await tx`
+            INSERT INTO platform.document_versions
+              (id, organization_id, student_case_id, document_slot_id, version_no,
+               original_filename, declared_mime_type, byte_size, sha256_hex,
+               ingest_evidence_ref, submitted_by_membership_id, integrity_status, malware_status)
+            VALUES (${versionId}, ${ids.organization}, ${ids.case}, ${slotId}, 1,
+              ${`synthetic-e4-unscanned-${width}.pdf`}, 'application/pdf', 2048, ${"b".repeat(64)},
+              'synthetic:e4:finalized-unscanned-metadata-only', ${ids.studentMembership}, 'verified', 'pending')
+          `;
+          await tx`
+            INSERT INTO platform_private.document_upload_reservations
+              (id, request_id, organization_id, student_case_id, document_slot_id, document_version_id,
+               uploader_profile_id, uploader_membership_id, uploader_auth_user_id, object_name,
+               declared_mime_type, byte_size, sha256_hex, expires_at)
+            VALUES (${reservationId}, ${randomUUID()}, ${ids.organization}, ${ids.case}, ${slotId}, ${versionId},
+              ${ids.studentProfile}, ${ids.studentMembership}, ${authUserIds.student}, ${objectName},
+              'application/pdf', 2048, ${"b".repeat(64)}, statement_timestamp() + interval '5 minutes')
+          `;
+          await tx`
+            INSERT INTO platform.audit_events
+              (id, organization_id, actor_kind, actor_principal, action, resource_type, resource_id,
+               after_state, reason, request_id)
+            VALUES (${auditId}, ${ids.organization}, 'system', 'synthetic:e4:browser-fixture',
+              'document.version.finalize', 'document_version', ${versionId},
+              '{"synthetic_metadata_only":true,"storage_bytes":false,"scanner_proof":false}'::jsonb,
+              'Synthetic finalized metadata for negative-review UI; no actual uploaded or scanned bytes', ${randomUUID()})
+          `;
+          await tx`
+            INSERT INTO platform_private.document_upload_finalizations
+              (id, request_id, organization_id, upload_reservation_id, student_case_id, document_version_id,
+               document_slot_id, finalization_audit_event_id, bucket_id, object_name, published_version_no, object_created_at)
+            VALUES (${randomUUID()}, ${randomUUID()}, ${ids.organization}, ${reservationId}, ${ids.case}, ${versionId},
+              ${slotId}, ${auditId}, 'platform-documents', ${objectName}, 1, statement_timestamp())
+          `;
+          await tx`
+            UPDATE platform.document_slots SET status = 'submitted', current_version_id = ${versionId}, current_version_no = 1
+            WHERE id = ${slotId}
+          `;
+        }
+      }
     });
 
     const [shape] = await sql`
@@ -441,6 +511,7 @@ async function main() {
     resultPath,
     `${JSON.stringify({
       organizationId: ids.organization,
+      ...(process.env.EVO_E4_REVIEW_UI_FIXTURE === "1" ? { caseId: ids.case } : {}),
       studentMembershipId: ids.studentMembership,
       notificationId: ids.notification,
     })}\n`,

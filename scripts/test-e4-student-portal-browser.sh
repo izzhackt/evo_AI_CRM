@@ -252,8 +252,8 @@ const expectedVersions = (await readdir(migrationsDirectory))
   .map((name) => /^(\d+)_.*\.sql$/u.exec(name)?.[1] ?? null)
   .filter((version) => version !== null)
   .sort();
-if (expectedVersions.length === 0 || !expectedVersions.includes("136")) {
-  throw new Error("repository migration inventory omits the assessment content");
+if (expectedVersions.length === 0 || !["136", "152", "153"].every(version => expectedVersions.includes(version))) {
+  throw new Error("repository migration inventory omits current Portal prerequisites");
 }
 
 const sql = postgres(databaseUrl, { max: 1, prepare: false });
@@ -272,7 +272,7 @@ try {
 }
 EOF
 then
-  fail "The isolated E4 database did not apply the exact repository migration ledger including 136"
+  fail "The isolated E4 database did not apply the exact repository migration ledger including 153"
 fi
 
 if ! API_URL="$supabase_api_url" SERVICE_ROLE_KEY="$supabase_service_role_key" \
@@ -300,6 +300,7 @@ second_admin_password="$(openssl rand -hex 24)"
 second_student_password="$(openssl rand -hex 24)"
 
 if ! EVO_E4_SUPABASE_URL="$supabase_api_url" \
+  EVO_E4_REVIEW_UI_FIXTURE=1 \
   EVO_E4_SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
   EVO_E4_SUPABASE_DB_URL="$supabase_database_url" \
   EVO_E4_ADMIN_EMAIL="$admin_email" \
@@ -317,7 +318,8 @@ provision_marker="$(grep -m 1 -E '^LOCAL_STUDENT_PORTAL_BROWSER_PROVISIONED [0-9
 [[ -n "$provision_marker" ]] \
   || fail "The E4 Student Portal provisioner returned no success marker"
 read -r _ organization_id student_membership_id notification_id <<<"$provision_marker"
-for value in "$organization_id" "$student_membership_id" "$notification_id"; do
+student_case_id="$("$node_bin" --input-type=module -e 'import { readFile } from "node:fs/promises"; const value = JSON.parse(await readFile(process.argv[1], "utf8")).caseId; if (typeof value !== "string") process.exit(1); process.stdout.write(value);' "$provision_result")"
+for value in "$organization_id" "$student_membership_id" "$notification_id" "$student_case_id"; do
   [[ "$value" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
     || fail "The E4 Student Portal provisioner returned an invalid UUID"
 done
@@ -389,6 +391,7 @@ EVO_STUDENT_PORTAL_STUDENT_PASSWORD="$student_password" \
 EVO_STUDENT_PORTAL_STUDENT_SECOND_EMAIL="$second_student_email" \
 EVO_STUDENT_PORTAL_STUDENT_SECOND_PASSWORD="$second_student_password" \
 EVO_STUDENT_PORTAL_NOTIFICATION_ID="$notification_id" \
+EVO_STUDENT_PORTAL_CASE_ID="$student_case_id" \
 EVO_STUDENT_PORTAL_DB_URL="$supabase_database_url" \
 EVO_STUDENT_PORTAL_SUPABASE_URL="$supabase_api_url" \
 EVO_STUDENT_PORTAL_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
@@ -406,6 +409,6 @@ done
 cat "$browser_log"
 [[ "$browser_status" == "0" ]] || exit "$browser_status"
 
-echo "E4_STUDENT_PORTAL_MIGRATION_LEDGER_VERIFIED_THROUGH 136" | tee -a "$browser_log"
+echo "E4_STUDENT_PORTAL_MIGRATION_LEDGER_VERIFIED_EXACT_REPOSITORY_INCLUDING_153" | tee -a "$browser_log"
 echo "E4_STUDENT_PORTAL_FIXTURE_MODE preactivated_synthetic_real_auth_db_two_organizations_not_invite_proof" | tee -a "$browser_log"
 echo "E4_STUDENT_PORTAL_BROWSER_VERIFIED" | tee -a "$browser_log"

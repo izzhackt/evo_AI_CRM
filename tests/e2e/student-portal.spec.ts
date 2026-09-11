@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import postgres from "postgres";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 
 const WCAG_TAGS = [
   "wcag2a",
@@ -362,36 +363,39 @@ test("anonymous, staff and Student routes stay mutually isolated", async ({ page
   await expect(page.getByTestId("v3-shell")).toHaveCount(0);
 });
 
-test("the 393px Portal navigation reaches its off-screen final tab by keyboard", async ({
+test("the compact mobile Portal menu supports keyboard navigation and dismissal", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-393-chromium", "393px profile only");
+  test.skip(!testInfo.project.name.startsWith("mobile-"), "mobile profiles only");
 
   await submitLogin(page, "student");
-  const scroller = page.locator('nav[aria-label="Разделы кабинета"] ul');
-  const notifications = scroller.locator('a[href="/portal/notifications"]');
-  await expect(scroller).toHaveAttribute("tabindex", "0");
-  expect((await scroller.getAttribute("aria-label"))?.trim().length ?? 0).toBeGreaterThan(0);
-  expect(
-    await notifications.evaluate((element) => {
-      const link = element.getBoundingClientRect();
-      const container = element.parentElement?.parentElement?.getBoundingClientRect();
-      return Boolean(container && link.right > container.right + 1);
-    }),
-    "the final Portal tab must begin outside the visible 393px scroll region",
-  ).toBe(true);
-
-  await scroller.focus();
-  await expect(scroller).toBeFocused();
-  for (let press = 0; press < 6; press += 1) {
+  const menu = page.getByRole("button", { name: "Меню", exact: true });
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.focus();
+  await page.keyboard.press("Enter");
+  const close = page.getByRole("button", { name: "Закрыть", exact: true });
+  await expect(close).toHaveAttribute("aria-expanded", "true");
+  const navigation = page.getByRole("navigation", { name: "Разделы кабинета" });
+  await expect(navigation.getByRole("link")).toHaveCount(7);
+  const notifications = navigation.locator('a[href="/portal/notifications"]');
+  for (let press = 0; press < 8; press += 1) {
     await page.keyboard.press("Tab");
     if (await notifications.evaluate((element) => element === document.activeElement)) break;
   }
   await expect(notifications).toBeFocused();
-  expect(await scroller.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  for (const link of await navigation.getByRole("link").all()) {
+    expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  }
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeFocused();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await page.keyboard.press("Enter");
+  await notifications.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/portal\/notifications$/);
   await expect(page.getByTestId("student-portal-shell")).toBeVisible();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expectPortalGeometry(page, testInfo.project.name);
 });
 
 test("the Student can persist one own notification read through the UI", async ({
@@ -480,7 +484,7 @@ test("the Student can persist one own notification read through the UI", async (
 
     await page.reload({ waitUntil: "networkidle" });
     await expect(
-      page.getByRole("button", { name: "Отметить прочитанным" }),
+      notification.getByRole("button", { name: "Отметить прочитанным" }),
     ).toHaveCount(0);
 
     const [afterReload] = await sql<
@@ -501,6 +505,148 @@ test("the Student can persist one own notification read through the UI", async (
     expect(afterReload?.read_at).toBe(firstReadAt);
     expect(afterReload?.audit_count).toBe("1");
   } finally {
+    await sql.end({ timeout: 5 });
+  }
+});
+
+test("mobile document review and curator replies persist through real Auth and database", async ({
+  page, browser,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile-"), "one isolated document per mobile width");
+  test.setTimeout(180_000);
+  const width = page.viewportSize()!.width;
+  const caseId = requiredEnvironment("EVO_STUDENT_PORTAL_CASE_ID");
+  const label = `Проверка интерфейса ${width}`;
+  const subject = `${"В".repeat(150)}${width}`;
+  const question = `Изолированная техническая проверка обращения ${width}.`;
+  const answer = `Ответ для проверки интерфейса ${width}; не клиентская переписка.`;
+  const reason = `Техническая проверка ${width}\nНужна читаемая копия.`;
+  const canonicalReason = reason.replace(/\n/g, " ");
+  const decision = width === 320 ? "correction_required" : "rejected";
+  const sql = postgres(localDatabaseUrl(), { max: 1, prepare: false });
+  const adminContext = await browser.newContext({ viewport: { width, height: 852 }, locale: "ru-RU" });
+  const adminPage = await adminContext.newPage();
+  const appErrors: string[] = [];
+  page.on("pageerror", error => appErrors.push(error.message));
+  adminPage.on("pageerror", error => appErrors.push(error.message));
+  const screenshot = async (target: Page, name: string) => {
+    const directory = process.env.EVO_STUDENT_PORTAL_SCREENSHOT_DIR;
+    if (!directory) return;
+    const path = join(directory, `${testInfo.project.name}-${name}.png`);
+    await target.screenshot({ path, fullPage: true, animations: "disabled" });
+    await chmod(path, 0o600);
+  };
+  try {
+    await submitLogin(page, "student");
+    await page.getByText("Нужна помощь", { exact: true }).click();
+    await page.getByLabel("Тема", { exact: true }).fill(subject);
+    await page.getByLabel("Что нужно уточнить", { exact: true }).fill(question);
+    await page.getByRole("button", { name: "Передать вопрос команде", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Новое обращение", exact: true })).toBeVisible();
+    const [help] = await sql<{ id: string; version: string }[]>`
+      SELECT id::TEXT, version::TEXT FROM platform.case_help_requests
+      WHERE student_case_id = ${caseId}::UUID AND subject = ${subject}
+    `;
+    expect(help).toBeTruthy();
+    await page.goto("/portal/documents");
+
+    await submitLogin(adminPage, "admin");
+    await adminPage.goto(`/v3/profile?case=${caseId}&tab=documents`);
+    const item = adminPage.getByTestId("v3-document-item").filter({ hasText: label });
+    await item.getByText("Проверить документ", { exact: true }).click();
+    const review = item.locator("form").filter({ has: adminPage.getByLabel("Решение", { exact: true }) });
+    await expect(review.getByRole("option", { name: "Принять", exact: true })).toBeDisabled();
+    await review.getByLabel("Решение", { exact: true }).selectOption(decision);
+    const reasonInput = review.getByLabel("Что нужно исправить", { exact: true });
+    await expect(reasonInput).toHaveAttribute("required", "");
+    await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();
+    expect(await reasonInput.evaluate(element => (element as HTMLTextAreaElement).validity.valueMissing)).toBe(true);
+    await reasonInput.fill(reason);
+    expect(await adminPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    for (const control of await review.locator("select,textarea,button").all()) {
+      expect((await control.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    }
+    await screenshot(adminPage, "document-review");
+    await review.getByRole("button", { name: "Сохранить решение", exact: true }).click();
+    await expect(item.getByText(canonicalReason, { exact: true })).toBeVisible();
+    await expect(item.getByText("Проверить документ", { exact: true })).toHaveCount(0);
+    const [reviewProof] = await sql<{ decision: string; reason: string; reviews: string; projections: string; scan_count: string }[]>`
+      SELECT slot.status::TEXT AS decision, review.reason,
+        (SELECT count(*)::TEXT FROM platform.document_reviews r WHERE r.document_slot_id = slot.id) AS reviews,
+        (SELECT count(*)::TEXT FROM platform.student_portal_notification_projection_v1 n WHERE n.document_slot_id = slot.id) AS projections,
+        (SELECT count(*)::TEXT FROM platform_private.document_malware_scan_attestations a WHERE a.document_version_id = slot.current_version_id) AS scan_count
+      FROM platform.document_slots slot
+      JOIN platform.document_requirements requirement ON requirement.id = slot.requirement_id
+      JOIN platform.document_reviews review ON review.document_version_id = slot.current_version_id
+      WHERE slot.student_case_id = ${caseId}::UUID AND requirement.label = ${label}
+    `;
+    expect(reviewProof).toEqual({ decision, reason: canonicalReason, reviews: "1", projections: "1", scan_count: "0" });
+    await page.bringToFront();
+    // No manual reload: the visible-tab updater must expose the committed decision.
+    await expect(page.getByText(canonicalReason, { exact: true })).toBeVisible({ timeout: 45_000 });
+    await expectPortalGeometry(page, `${width}px reviewed Student document`);
+
+    await page.goto("/portal");
+    await page.getByText("Нужна помощь", { exact: true }).click();
+    await page.getByLabel("Тема", { exact: true }).fill("Несохранённый черновик");
+    await page.getByLabel("Что нужно уточнить", { exact: true }).fill("Этот ввод должен сохраниться при обновлении ответа.");
+    const config = localSupabaseApiConfig();
+    const staffClient = createClient(config.url, config.publishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${await browserSupabaseAccessToken(adminPage)}` } },
+    });
+    const command = { p_case_id: caseId, p_help_id: help.id, p_answer: answer,
+      p_expected_version: help.version, p_request_id: randomUUID() };
+    const response = await staffClient.schema("platform").rpc("answer_case_help_request_v1", command);
+    expect(response.error).toBeNull();
+    const replay = await staffClient.schema("platform").rpc("answer_case_help_request_v1", command);
+    expect(replay.error).toBeNull();
+    expect(replay.data).toEqual(response.data);
+    await expect(page.locator("#case-help")).toContainText(answer, { timeout: 45_000 });
+    await expect(page.getByLabel("Тема", { exact: true })).toHaveValue("Несохранённый черновик");
+    await expect(page.getByLabel("Что нужно уточнить", { exact: true })).toHaveValue("Этот ввод должен сохраниться при обновлении ответа.");
+    await expectPortalGeometry(page, `${width}px help reply preserves draft`);
+
+    const notificationRows = await sql<{ id: string }[]>`
+      SELECT id::TEXT FROM platform.notifications WHERE category = 'case_help.answer'
+        AND student_case_id = ${caseId}::UUID AND dedupe_key = ${`case_help_answer:${command.p_request_id}`}
+    `;
+    expect(notificationRows).toHaveLength(1);
+    const notificationId = notificationRows[0].id;
+    await page.goto("/portal/notifications");
+    const detailHref = `/portal/notifications/${notificationId}`;
+    await page.locator(`a[href="${detailHref}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`${detailHref}$`));
+    await expect(page.getByRole("heading", { name: subject, exact: true })).toBeVisible();
+    await expect(page.getByText(answer, { exact: true })).toBeVisible();
+    await expectPortalGeometry(page, `${width}px exact reply detail`);
+    await expectNoAutomatedWcagViolations(page, `${width}px exact reply detail`);
+    const markRead = page.getByRole("button", { name: "Отметить прочитанным", exact: true });
+    expect((await markRead.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    await screenshot(page, "help-reply-detail");
+    await markRead.click();
+    await expect(markRead).toHaveCount(0);
+    await page.reload();
+    await expect(markRead).toHaveCount(0);
+    const [readProof] = await sql<{ read: boolean; events: string; audits: string }[]>`
+      SELECT read_at IS NOT NULL AS read,
+        (SELECT count(*)::TEXT FROM platform.notification_events e WHERE e.notification_id = n.id AND e.event_type = 'read') AS events,
+        (SELECT count(*)::TEXT FROM platform.audit_events a WHERE a.resource_id = n.id AND a.action = 'notification.read') AS audits
+      FROM platform.notifications n WHERE id = ${notificationId}::UUID
+    `;
+    expect(readProof).toEqual({ read: true, events: "1", audits: "1" });
+    const foreignClient = createClient(config.url, config.publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const foreignAuth = await foreignClient.auth.signInWithPassword({
+      email: requiredEnvironment("EVO_STUDENT_PORTAL_STUDENT_SECOND_EMAIL"),
+      password: requiredEnvironment("EVO_STUDENT_PORTAL_STUDENT_SECOND_PASSWORD"),
+    });
+    expect(foreignAuth.error).toBeNull();
+    const foreignReply = await foreignClient.schema("platform").rpc("student_portal_help_reply_v1", { p_notification_id: notificationId });
+    expect(foreignReply.error?.code).toBe("42501");
+    expect(foreignReply.data).toBeNull();
+    expect(appErrors).toEqual([]);
+  } finally {
+    await adminContext.close();
     await sql.end({ timeout: 5 });
   }
 });

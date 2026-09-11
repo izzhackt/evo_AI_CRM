@@ -55,7 +55,8 @@ export function DocumentReviewForm({ item, studentCaseId }: Readonly<{
     try {
       const result = await reviewPlatformDocumentAction(form);
       setOutcome(result);
-      if (result === "unavailable") setUncertain(true);
+      setUncertain(result === "unavailable");
+      if (result !== "unavailable") setAttempt(null);
       if (result === "saved") router.refresh();
     } catch {
       setOutcome("unavailable");

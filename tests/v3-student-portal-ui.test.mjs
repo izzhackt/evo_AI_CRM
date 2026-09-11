@@ -321,8 +321,15 @@ test("existing case portal views stay presentation-only and never render raw sta
   );
   assert.doesNotMatch(
     components,
-    /createClient|supabase|sqlite|drizzle|Realtime|useEffect|Fixture|Legacy|Connected/u,
+    /createClient|supabase|sqlite|drizzle|Realtime|Fixture|Legacy|Connected/u,
   );
+  const presentationViews = componentFiles
+    .filter(path => !path.endsWith("/PortalNotificationUpdates.tsx"))
+    .map(source).join("\n");
+  assert.doesNotMatch(presentationViews, /useEffect/u);
+  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  assert.match(updates, /loadStudentPortalNotificationState/u);
+  assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);
   assert.match(components, /<PortalStatus[\s\S]*label=/u);
   assert.match(components, /Что нужно исправить/u);
   assert.match(components, /История статусов/u);

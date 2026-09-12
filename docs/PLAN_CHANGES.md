@@ -23132,3 +23132,30 @@ Implementation and publication are closed; the bounded real Student business
 acceptance checklist remains open for an actual chosen case, scanned file,
 application/visa/payment events and question/reply journey. Do not treat the
 synthetic technical proof or Admin preview as that business acceptance.
+
+## 2026-09-13 — Plan dynamic employee roles and personal Gmail accounts
+
+The owner requests configurable roles, employee accounts and a compact management
+UI, using the supplied staff list, and asks for a short but substantial plan.
+The contract is [employee roles and accounts](design/v3/employee-roles-accounts-run-plan.md).
+Browser inspection found 12 staff, 8 departments and 4 vacancies; the underlying
+source is dated September 2. Keep personal contacts/source exports outside Git,
+reconcile existing Auth identities before provisioning, and never create vacancy
+accounts. This delivery is documentation only, not an invitation or access grant.
+
+Extend the current Supabase membership/bundle/scope/access-version mechanism with
+editable organization roles and departments and multiple scoped assignments.
+Replace fixed-role authority across actor/JWT/RLS/RPC, adapters, UI and assignee
+eligibility in one proven transition; no second RBAC engine or indefinite fallback.
+Bind permissions to the scope of each assignment, preserve last-Admin protection,
+Admin staff responsibilities, Student-private assessments and sensitive individual
+grants. Job titles do not automatically grant elevated rights.
+
+Reuse staff invitation/recovery/audit paths, adding explicit lifecycle states,
+conflict resolution and offboarding reassignment. Check actual SMTP configuration
+early; request success is not delivery or first-login proof. Publishing this plan
+does not create users, send email, reset passwords, change providers or deploy.
+The accepted application remains `4e35b896`; prior real Student acceptance remains
+open independently. UI follows existing DESIGN.md with Employees/Roles/Departments
+inside Settings, not a broad redesign. Official Supabase references and parallel
+ownership, verification and execution boundaries are recorded in the plan.

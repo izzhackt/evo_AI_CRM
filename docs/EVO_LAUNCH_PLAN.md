@@ -1,7 +1,7 @@
 # EVO Launch Plan
 
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-11 (Asia/Dubai)
+Date: 2026-09-13 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -10,6 +10,20 @@ root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
 Last recorded accepted application: `4e35b896e16449a63bd11bffd457ddf4acac6c62`
+
+## Planned next run: dynamic employee roles and personal accounts
+
+The owner requests editable staff roles, departments and personal Gmail-based
+accounts, with a compact EVO management interface. Follow the
+[employee roles and accounts plan](design/v3/employee-roles-accounts-run-plan.md).
+Extend the existing canonical Supabase identity/permission system; do not build
+a second role engine. Keep each permission bound to its assignment scope,
+Admin's staff functional superset and Student-private boundaries.
+
+This delivery is planning only: no accounts, invitations, grants or runtime
+changes. The roster was read; personal contacts stay outside Git. Implementation
+and real invitation delivery remain pending. The accepted application above
+and the remaining real Portal acceptance below are unchanged.
 
 ## Active follow-up: complete Portal document review and reply notifications
 

@@ -15,6 +15,7 @@ import {
 } from "@/lib/platform-document-checklist-actions";
 import { documentPresence, documentReviewDecision, documentSlotStatus } from "@/lib/v3/wording";
 import { DocumentReviewForm } from "./DocumentReviewForm";
+import { DocumentPreviewButton } from "./DocumentPreviewButton";
 
 import type {
   ActiveDocumentGroup,
@@ -163,13 +164,16 @@ function RemovedDocumentHistory({
                             </p>
                           </div>
                           {version.downloadReady ? (
-                            <a
-                              href={`/api/v2/document-versions/${version.id}/download`}
-                              className={btnGhostCls}
-                              data-testid="v3-removed-document-download"
-                            >
-                              Скачать
-                            </a>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <DocumentPreviewButton key={version.id} versionId={version.id} filename={version.filename} versionNumber={version.versionNumber} />
+                              <a
+                                href={`/api/v2/document-versions/${version.id}/download`}
+                                className={btnGhostCls}
+                                data-testid="v3-removed-document-download"
+                              >
+                                Скачать
+                              </a>
+                            </div>
                           ) : (
                             <span className="text-2xs text-fg-3">
                               Скачивание недоступно
@@ -655,13 +659,16 @@ export function ProfileDocumentsClient({
                           <Pill tone={statusTone(item)}>{documentPresence(item.presence)}</Pill>
                           {item.presence === "present" ? <Pill tone={item.status === "approved" ? "ok" : "neutral"}>{documentSlotStatus(item.status)}</Pill> : null}
                           {item.presence === "present" && item.downloadReady ? (
-                            <a
-                              href={`/api/v2/document-versions/${item.currentVersionId}/download`}
-                              className={btnGhostCls}
-                              data-testid="v3-document-download"
-                            >
-                              Скачать
-                            </a>
+                            <>
+                              <DocumentPreviewButton key={item.currentVersionId} versionId={item.currentVersionId} filename={item.currentFilename} versionNumber={item.currentVersionNumber} />
+                              <a
+                                href={`/api/v2/document-versions/${item.currentVersionId}/download`}
+                                className={btnGhostCls}
+                                data-testid="v3-document-download"
+                              >
+                                Скачать
+                              </a>
+                            </>
                           ) : null}
                         </div>
                       </div>

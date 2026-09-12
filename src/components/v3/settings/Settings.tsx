@@ -47,6 +47,8 @@ export function Settings({
   gates,
   platform,
   staff,
+  staffView,
+  selectedStaffMemberId,
 }: {
   section: SectionKey;
   isAdmin: boolean;
@@ -66,6 +68,8 @@ export function Settings({
   gates: GateFacts;
   platform: string;
   staff?: StaffWorkspaceData;
+  staffView: "people" | "departments";
+  selectedStaffMemberId?: string;
 }) {
   const visible = SECTIONS.filter((s) => isAdmin || !s.admin);
   const current = visible.find((s) => s.key === section) ?? visible[0];
@@ -116,7 +120,7 @@ export function Settings({
           {current?.admin ? <Pill>виден только администратору</Pill> : null}
         </h2>
 
-        {current?.key === "staff" && staff ? <StaffSection data={staff} /> : null}
+        {current?.key === "staff" && staff ? <StaffSection data={staff} view={staffView} selectedMemberId={selectedStaffMemberId} /> : null}
         {current?.key === "state" ? <StateSection health={health} /> : null}
         {current?.key === "integrations" ? (
           <IntegrationsSection health={health} integrations={integrations} />

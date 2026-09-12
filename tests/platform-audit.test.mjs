@@ -46,6 +46,10 @@ const V3_F_DOCUMENT_LINKS_MIGRATION_SOURCE = readFileSync(
   new URL("../supabase/migrations/113_platform_document_case_links.sql", import.meta.url),
   "utf8",
 );
+const STAFF_ORGANIZATION_MIGRATION_SOURCE = readFileSync(
+  new URL("../supabase/migrations/154_platform_staff_organization_directory.sql", import.meta.url),
+  "utf8",
+);
 
 const SAFE_ROW = {
   audit_event_id: EVENT_ID,
@@ -83,6 +87,21 @@ function sqlTextArray(functionName) {
   );
 }
 
+function staffOrganizationSqlExtension(functionName) {
+  const startMarker = `CREATE FUNCTION platform_private.${functionName}()`;
+  const start = STAFF_ORGANIZATION_MIGRATION_SOURCE.indexOf(startMarker);
+  assert.notEqual(start, -1, `${functionName} must exist in migration 154`);
+
+  const bodyEnd = STAFF_ORGANIZATION_MIGRATION_SOURCE.indexOf("$$;", start);
+  assert.notEqual(bodyEnd, -1, `${functionName} must have a complete SQL body`);
+  const functionBody = STAFF_ORGANIZATION_MIGRATION_SOURCE.slice(start, bodyEnd);
+  const extension = functionBody.match(new RegExp(
+    `platform_private\\.${functionName}_pre_staff_organization\\(\\)\\s*\\|\\|\\s*ARRAY\\[([\\s\\S]*?)\\]::TEXT\\[\\]`,
+  ));
+  assert.ok(extension, `${functionName} must append its bounded array to the prior SQL authority`);
+  return [...extension[1].matchAll(/'([^']+)'/g)].map(([, value]) => value);
+}
+
 test("browser-safe allowlists match the SQL authority plus bounded extensions", () => {
   assert.match(U1_MIGRATION_SOURCE, /'membership\.permission\.change'/);
   const v3FDocumentActions = [
@@ -106,6 +125,16 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     );
   }
   assert.match(V3_F_APPLICATION_MIGRATION_SOURCE, /'application\.details\.update'/);
+  const staffOrganizationActions = staffOrganizationSqlExtension("p7a_safe_audit_actions");
+  const staffOrganizationResources = staffOrganizationSqlExtension("p7a_safe_audit_resource_types");
+  assert.deepEqual([...staffOrganizationActions].sort(), [
+    "staff.department.archive",
+    "staff.department.create",
+    "staff.department.restore",
+    "staff.department.update",
+    "staff.organization.details.change",
+  ]);
+  assert.deepEqual(staffOrganizationResources, ["staff_department", "staff_organizational_details"]);
   assert.deepEqual(
     PLATFORM_AUDIT_ACTIONS,
     [
@@ -114,11 +143,12 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
       ...v3FDocumentActions,
       ...v3FDocumentLinkActions,
       "application.details.update",
+      ...staffOrganizationActions,
     ].sort(),
   );
   assert.deepEqual(
     PLATFORM_AUDIT_RESOURCE_TYPES,
-    sqlTextArray("p7a_safe_audit_resource_types"),
+    [...sqlTextArray("p7a_safe_audit_resource_types"), ...staffOrganizationResources].sort(),
   );
 });
 

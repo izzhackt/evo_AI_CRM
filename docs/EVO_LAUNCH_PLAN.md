@@ -11,7 +11,7 @@ those higher-level authorities.
 
 Last recorded accepted application: `4e35b896e16449a63bd11bffd457ddf4acac6c62`
 
-## Planned next run: dynamic employee roles and personal accounts
+## Active run: dynamic employee roles and unified document automation
 
 The owner requests editable staff roles, departments and personal Gmail-based
 accounts, with a compact EVO management interface. Follow the
@@ -20,10 +20,14 @@ Extend the existing canonical Supabase identity/permission system; do not build
 a second role engine. Keep each permission bound to its assignment scope,
 Admin's staff functional superset and Student-private boundaries.
 
-This delivery is planning only: no accounts, invitations, grants or runtime
-changes. The roster was read; personal contacts stay outside Git. Implementation
-and real invitation delivery remain pending. The accepted application above
-and the remaining real Portal acceptance below are unchanged.
+The owner approved implementation on 2026-09-13. Begin the documented S1 staff
+directory/department slice; dynamic authority and real onboarding remain pending.
+Personal contacts stay outside Git; no automatic bulk invitations or role grants.
+The owner also requests [EVO Docs integration and retirement](design/v3/evo-docs-unification-run-plan.md).
+[ADR0028](adr/0028-unify-document-automation-inside-evo-platform.md) supersedes
+ADR0017's separate-product decision: one Platform/Auth/data authority, with exact
+legacy retirement only after real transfer and integrated workflow acceptance.
+The accepted application above and prior real Portal acceptance are unchanged.
 
 ## Active follow-up: complete Portal document review and reply notifications
 

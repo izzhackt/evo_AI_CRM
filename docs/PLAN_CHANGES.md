@@ -23159,3 +23159,26 @@ The accepted application remains `4e35b896`; prior real Student acceptance remai
 open independently. UI follows existing DESIGN.md with Employees/Roles/Departments
 inside Settings, not a broad redesign. Official Supabase references and parallel
 ownership, verification and execution boundaries are recorded in the plan.
+
+## 2026-09-13 — Start staff implementation and unify EVO Docs into Platform
+
+The owner approved actual execution and explicitly requested adding EVO Docs to
+one EVO Platform, then removing the separate app. ADR0028 supersedes ADR0017's
+separate-product ownership; preserve prior history, canonical Supabase Auth,
+Postgres, private Storage, RLS, document/case identity and human review.
+The linked EVO Docs plan inventories porting, real-data transfer and exact
+retirement gates; do not copy its independent SQLite/Auth/runtime migration plan.
+Local Docs contains records while server Docs remains an older empty runtime;
+do not delete either source from a historical empty-database assumption.
+
+First staff implementation slice S1 is organizational metadata and UI around
+existing memberships: DB-driven departments, editable job title and descriptive
+Admissions directions, independent metadata version, audit/idempotency and
+Admin-only RPCs. This deliberately does not alter current access_version, JWT,
+role bundles, Student boundaries or assignee permissions. Real dynamic-authority
+cutover and not-yet-linked staff preparation/invitation remain explicit next work,
+not claimed delivered by a metadata editor. No fake roster, seed or invitation.
+
+Root owns DTO/source/actions/page and docs; SQL and UI agents have disjoint files.
+Use real checks and independent exact-head review; technical structure, release
+and actual employee/provider/business acceptance remain separate evidence.

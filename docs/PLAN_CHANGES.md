@@ -25910,3 +25910,47 @@ URLs, and explicit archive/review/publication. DOCX layout/visible CJK, generate
 forms/packages, real-case acceptance and final deployment remain required; a
 component check is not proof of these workflows. Use focused UI/contract checks
 and one integrated actual Auth/Storage/browser proof, not repeated full gates.
+
+## 2026-09-14 — Before D4 private template ingress and receipt writer
+
+Root assigns an isolated tree from exact e0e2f971 and exclusively reserves166.
+Integrate only reviewed registry355a4c5c and native05f83e76 dependencies, preserving
+current D3/export tests and both historical journals;165 is immutable. Follow the
+[bounded ingress proposal](design/v3/evo-docs-template-ingress-contract.md): live
+session preparation, server claim fencing, actual ClamAV/native proofs on frozen
+bytes, create-only private Storage and exact readback before a trusted receipt.
+Cancellation, unknown/replay and source reads remain explicit, not success flags.
+Forward166 may separate human PDF rectangles from actual slots=[]/pageSizes;
+DOCX inspected-slot matching stays mandatory. No UI/import/provider/deployment.
+
+New authority question is deliberately unresolved before code:165 requires an
+inspector image SHA, while the app receives only release revision/version. The
+existing release controller verifies image/config digests; root is deciding how
+to bind that exact identity into the server. No synthetic digest or browser proof,
+and no binding/166 implementation before that decision. No managed apply or real
+document access is authorized. Later synthetic proof must exercise actual native
+inspection, scanner and Storage; unit adapters do not replace it.
+
+PR768 merged at2026-09-13T22:40:53Z to main c2ddd12d29334480182659a9614ce0d1c1b7fd90.
+Its exact tree equals reviewed e0e2f971: d348c8d6df193bb02923c2d3db6c833d44755cec.
+The dependency-only integration passed50/50 scoped registry/native-adapter/CI
+manifest/classifier tests (`01a09cee825b72c09200b838b34571fa`); inventory is now
+CI326 occurrences/187 unique/139 duplicates, unit224/182/42. This is not a full
+CI, new native build or ingress proof. No earlier product gate was repeated.
+
+Root then approved the image authority: controller-generated EVO_RUNTIME_IMAGE_ID
+in the existing hash-sealed per-generation candidate-app.env, bound to the actual
+verified Docker engine .Image ID and revision. It is not imageConfigDigest and is
+never supplied by browser/mutable operator env. The release agent owns delivery
+and runtime uniqueness/readback checks; this slice owns the fail-closed server
+reader and receipt binding. Root now authorizes166 and ingress implementation.
+Add only justified forward manager-list/inspection-metadata RPCs for cold resume
+and mapping UI;165 stays unchanged. Freeze typed session exports and raw-source
+HTTP/status/cancel/reconcile contract for root-owned catalogue UI integration.
+
+First public adapter checkpoint is limited to strict DTOs and typed session RPC
+wrappers, not implemented166/HTTP ingress. Actual32 parser/transport-contract tests
+passed (`01a09cfa5edc7a92958a53880256e3b3`); synthetic response fixtures prove only
+validation/fail-closed adapters, not a successful database write or inspection.
+Manager listing preserves unpublished records, inspection metadata rejects text/
+private keys and fabricated PDF slots, unknown remains distinct from verified.

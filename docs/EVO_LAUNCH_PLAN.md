@@ -35,12 +35,13 @@ execution, clean up owned validation resources, and keep real business acceptanc
 and production/Docs retirement separate. See the latest PLAN_CHANGES entry.
 
 The current continuation explicitly requests completion of the whole employee
-and Docs plans, not only S1/D1. Resume from merged `6ff4c017` and managed schema154:
-the local gateway correction is merged via #743. Exact-main CI34738787284 passed
-18 browser tests (two skipped), then failed final SQL acceptance because the
-verifier still expects the second upload's old PDF filename while the browser
-now uploads PNG. Correct this exact fixture-contract mismatch without weakening
-version, hash or scan assertions; full release remains unproved and disarmed.
+and Docs plans, not only S1/D1. Resume from merged `d45d9747` and managed schema154:
+the local gateway correction is merged via #743 and the final PNG filename
+correction via #744. Exact-main CI34739779810 stopped before browser execution
+at the local gateway's image-reference/version gate. Align that gate with the
+pinned CLI's three official Kong2.8.1 references and verify the real binary version
+and immutable image identity; preserve document, ownership and transport checks.
+Full release remains unproved and disarmed; release34739920730 was skipped.
 Then prove and release the S1/D1
 candidate, then deliver scoped role authority/employee onboarding and D2–D6.
 Keep the recipient/effective-rights confirmation, real employee first-login,

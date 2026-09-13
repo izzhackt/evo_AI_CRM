@@ -177,6 +177,40 @@ No version/ID/hash/scan/finalization assertion or runtime file handling changed.
 This regression detects metadata drift; it does not replace real database/browser
 acceptance. No focused Storage failure trigger was rerun.
 
+## Full CI after #744 — pinned local image identity correction
+
+PR744 merged as d45d97474badbd687cfc57ff4747f3e51bd32849. Full CI34739779810
+failed before browser tests with `local_gateway_version_not_verified`.
+Release34739920730 skipped; arm=false. The failed runner did not retain its
+selected image reference, so its exact registry is unknown.
+
+The pinned CLI's official image manifest and registry resolver admit
+`public.ecr.aws/supabase/kong:2.8.1`, `ghcr.io/supabase/kong:2.8.1`, and
+`library/kong:2.8.1`. The original ECR-only predicate rejected the supported
+GHCR input with the same error in the new pure regression. After the correction,
+both reference and wrong-version/identity checks pass. The helper also checks
+the actual `kong version` and includes Docker's immutable image ID in its existing
+stable before/after identity readback. No arbitrary mirror or version is accepted.
+
+Actual benign validation on OrbStack:
+
+- The complete helper passed against the root-owned isolated schema154 project
+  `evo-s2-schema-g8shc2`, preserving routing/template hashes, health and identity,
+  with effective keepalive pool0 and binary version2.8.1. No migration/data changed.
+- A real GHCR image pull and isolated `kong version` command passed the same
+  exported reference/runtime checks. Its image ID equals the local ECR image ID:
+  `sha256:1b53405d8680a09d6f44494b7990bf7da2ea43f84a258c59717d4539abf09f6d`.
+  The one-shot command had no network, mounts, ports, customer data or credentials.
+  Initial read-only execution could not create OpenResty's temporary file;
+  adding a bounded16MiB `/tmp` tmpfs allowed it to run. Both temporary containers
+  were auto-removed and absence was checked; shared cached images were preserved.
+- Node22 syntax, scoped ESLint and `git diff --check` passed.
+  `npm run test:fast-release`:150/150 passed in75.6s, including the two added tests.
+
+These are local identity/configuration checks, not full document, managed-service,
+employee or release acceptance. No focused Storage failure trigger was repeated.
+The next reviewed exact-main candidate still needs its ordinary full CI.
+
 ## Pending completion evidence
 
 Record full CI outcome, release run, immutable acceptance/image/browser identities,

@@ -24,7 +24,7 @@ function DepartmentForm({ department, operation, onClose, onArchived, onLockedCh
     return result;
   });
   const firstField = useRef<HTMLInputElement>(null);
-  const reasonField = useRef<HTMLTextAreaElement>(null);
+  const reasonField = useRef<HTMLInputElement>(null);
   const editsDetails = operation === "create" || operation === "update";
   const saved = state.status === "success";
   const unknown = state.metadataOutcome === "unknown";
@@ -57,7 +57,7 @@ function DepartmentForm({ department, operation, onClose, onArchived, onLockedCh
           : "Отдел снова станет доступен для назначения сотрудникам."}</p>
       </>}
       <label className="grid gap-1.5 text-sm">Причина изменения
-        <textarea ref={reasonField} className={`${inputCls} h-auto py-2`} name="reason" rows={2} required maxLength={500}
+        <input ref={reasonField} type="text" className={inputCls} name="reason" required maxLength={500}
           value={reason} onChange={(event) => setReason(event.target.value)} />
       </label>
     </fieldset>

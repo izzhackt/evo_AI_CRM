@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
@@ -157,6 +157,7 @@ async function localSupabaseAccessToken(role: TestRole) {
 async function directPlatformRpc(
   functionName:
     | "current_actor_authority"
+    | "staff_workspace_directory"
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"
     | "staff_sales_stage_entry_cohort"
@@ -245,6 +246,33 @@ async function readDownload(download: Download): Promise<Buffer> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+async function expectPrivatePreview(
+  page: Page,
+  trigger: Locator,
+  expectedBytes: Buffer,
+  kind: "pdf" | "image",
+) {
+  await trigger.click();
+  const dialog = page.getByTestId("v3-document-preview-dialog");
+  await expect(dialog).toBeVisible();
+  const viewer = dialog.locator(kind === "pdf" ? "iframe" : "img");
+  await expect(viewer).toBeVisible();
+  await expect(viewer).toHaveAttribute("src", /^blob:/);
+  const digest = await viewer.evaluate(async (element) => {
+    const response = await fetch((element as HTMLImageElement | HTMLIFrameElement).src);
+    if (!response.ok) throw new Error("Preview Blob is unavailable");
+    const hash = await crypto.subtle.digest("SHA-256", await response.arrayBuffer());
+    return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  });
+  expect(digest).toBe(createHash("sha256").update(expectedBytes).digest("hex"));
+  if (kind === "image") {
+    await expect.poll(() => viewer.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  }
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 }
 
 async function submitDocumentUpload(page: Page, within?: Locator) {
@@ -895,6 +923,94 @@ test("Admin downloads the canonical audit CSV while Sales is denied", async ({
     maxRedirects: 0,
   });
   expect(denial.status()).toBe(403);
+});
+
+test("S1 Admin manages departments and staff metadata without changing access", async ({ page }) => {
+  test.skip(authMode !== "configured");
+  test.setTimeout(120_000);
+  const token = await localSupabaseAccessToken("admin");
+  const initialAuthority = await directPlatformRpc("current_actor_authority", {}, token);
+  expect(initialAuthority.status).toBe(200);
+  const actor = expectObject((initialAuthority.payload as unknown[])[0]);
+  const organizationId = requireUuidValue(actor.organization_id);
+  const membershipId = requireUuidValue(actor.membership_id);
+  const readDirectory = async () => {
+    const result = await directPlatformRpc("staff_workspace_directory", { p_organization_id: organizationId }, token);
+    expect(result.status).toBe(200);
+    return expectObject(result.payload);
+  };
+  const original = await readDirectory();
+  const originalMember = (original.members as Record<string, unknown>[]).find((entry) => entry.membership_id === membershipId)!;
+  const name = `S1 isolated department ${randomUUID().slice(0, 8)}`;
+  const updatedName = `${name} revised`;
+  await signIn(page, "admin");
+  await page.goto("/v3/settings?section=staff&view=departments");
+  await page.getByRole("button", { name: "Добавить отдел", exact: true }).click();
+  const create = page.getByRole("form", { name: "Создать отдел", exact: true });
+  await create.getByLabel("Название отдела").fill(name);
+  await create.getByLabel("Описание").fill("Isolated technical verification, not an actual EVO department");
+  await expect(create.getByLabel("Причина изменения")).toHaveAttribute("type", "text");
+  await create.getByLabel("Причина изменения").fill("Owner-approved isolated S1 verification\n — pasted second line");
+  await expect(create.getByLabel("Причина изменения")).not.toHaveValue(/[\r\n]/);
+  await create.getByRole("button", { name: "Создать отдел", exact: true }).click();
+  await expect(create.getByRole("status")).toHaveText("Отдел сохранён.");
+  await create.getByRole("button", { name: "Готово", exact: true }).click();
+  const departmentRow = (departmentName: string) => page.getByRole("listitem").filter({
+    has: page.getByRole("heading", { name: departmentName, exact: true }),
+  });
+  await departmentRow(name).getByRole("button", { name: "Редактировать", exact: true }).click();
+  const edit = page.getByRole("form", { name: `Сохранить отдел: ${name}`, exact: true });
+  await edit.getByLabel("Название отдела").fill(updatedName);
+  await edit.getByLabel("Причина изменения").fill("Verify real versioned department update");
+  await edit.getByRole("button", { name: "Сохранить отдел", exact: true }).click();
+  await expect(edit.getByRole("status")).toHaveText("Отдел сохранён.");
+  await edit.getByRole("button", { name: "Готово", exact: true }).click();
+  await departmentRow(updatedName).getByRole("button", { name: "В архив", exact: true }).click();
+  const archive = page.getByRole("form", { name: `Перенести в архив: ${updatedName}`, exact: true });
+  await archive.getByLabel("Причина изменения").fill("Verify archive preserves department identity");
+  await archive.getByRole("button", { name: "Перенести в архив", exact: true }).click();
+  await expect(archive.getByRole("status")).toHaveText("Отдел сохранён.");
+  await archive.getByRole("button", { name: "Готово", exact: true }).click();
+  await expect(departmentRow(updatedName).getByRole("button", { name: "Редактировать", exact: true })).toHaveCount(0);
+  await departmentRow(updatedName).getByRole("button", { name: "Восстановить", exact: true }).click();
+  const restore = page.getByRole("form", { name: `Восстановить отдел: ${updatedName}`, exact: true });
+  await restore.getByLabel("Причина изменения").fill("Verify department restoration");
+  await restore.getByRole("button", { name: "Восстановить отдел", exact: true }).click();
+  await expect(restore.getByRole("status")).toHaveText("Отдел сохранён.");
+  await restore.getByRole("button", { name: "Готово", exact: true }).click();
+  const directory = await readDirectory();
+  const department = (directory.departments as Record<string, unknown>[]).find((entry) => entry.name === updatedName)!;
+  expect(department).toMatchObject({ status: "active", version: 4 });
+  const departmentId = requireUuidValue(department.id);
+
+  await page.goto(`/v3/settings?section=staff&view=people&member=${membershipId}`);
+  const details = page.getByRole("article", { name: `Сотрудник: ${actor.display_name}`, exact: true });
+  await details.getByRole("button", { name: "Редактировать", exact: true }).click();
+  const metadata = details.getByRole("form", { name: `Рабочие сведения: ${actor.display_name}`, exact: true });
+  await metadata.getByLabel("Должность", { exact: true }).fill("Isolated S1 verification owner");
+  await metadata.getByRole("combobox", { name: "Отдел", exact: true }).selectOption(departmentId);
+  await metadata.locator('input[name="direction_codes"][value="CN"]').check();
+  await expect(metadata.getByLabel("Причина изменения")).toHaveAttribute("type", "text");
+  await metadata.getByLabel("Причина изменения").fill("Verify organization metadata\n never grants access");
+  await expect(metadata.getByLabel("Причина изменения")).not.toHaveValue(/[\r\n]/);
+  await metadata.getByRole("button", { name: "Сохранить сведения", exact: true }).click();
+  await expect(metadata.getByRole("status")).toHaveText("Рабочие сведения сохранены. Права доступа не изменены.");
+  await metadata.getByRole("button", { name: "Готово", exact: true }).click();
+  await page.reload();
+  await expect(details).toContainText(updatedName);
+  await expect(details).toContainText("Isolated S1 verification owner");
+  const persisted = await readDirectory();
+  const member = (persisted.members as Record<string, unknown>[]).find((entry) => entry.membership_id === membershipId)!;
+  expect(member).toMatchObject({ department_id: departmentId, job_title: "Isolated S1 verification owner",
+    access_version: originalMember.access_version, platform_role: originalMember.platform_role,
+    organizational_version: Number(originalMember.organizational_version) + 1 });
+  expect(member.direction_codes).toContain("CN");
+  const afterAuthority = await directPlatformRpc("current_actor_authority", {}, token);
+  expect(afterAuthority.payload).toEqual(initialAuthority.payload);
+  for (const role of ["sales", "admissions"] as const) {
+    const roleToken = await localSupabaseAccessToken(role);
+    assertDeniedRpc(await directPlatformRpc("staff_workspace_directory", { p_organization_id: organizationId }, roleToken));
+  }
 });
 
 test("disabled canonical audit hides export and rejects the route", async ({
@@ -2140,14 +2256,9 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       .locator('form:has(input[name="stop_factor_id"])'),
   ).toHaveCount(0);
 
-  const firstPdf = Buffer.from(
-    "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n",
-    "utf8",
-  );
-  const secondPdf = Buffer.from(
-    "%PDF-1.4\n1 0 obj<</Type/Catalog/Version/1.7>>endobj\n%%EOF\n",
-    "utf8",
-  );
+  // Existing non-personal brand assets exercise real rendering and Storage bytes.
+  const firstPdf = readFileSync("docs/company/brand/evo-admissions-logobook.pdf");
+  const secondImage = readFileSync("public/brand/evo-logo.png");
   const unreservedObject = `unreserved/${randomUUID()}.pdf`;
   expectStorageDenied(
     (
@@ -2199,15 +2310,16 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const firstDownloadPromise = page.waitForEvent("download");
   await documentItem.getByTestId("v3-document-download").click();
   expect(await readDownload(await firstDownloadPromise)).toEqual(firstPdf);
+  await expectPrivatePreview(page, documentItem.getByTestId("v3-document-preview"), firstPdf, "pdf");
 
   const secondUpload = documentItem.getByTestId("v3-document-upload-form");
   await secondUpload.locator('input[name="file"]').setInputFiles({
-    name: "p4-isolated-proof-v2.pdf",
-    mimeType: "application/pdf",
-    buffer: secondPdf,
+    name: "p4-isolated-proof-v2.png",
+    mimeType: "image/png",
+    buffer: secondImage,
   });
   await submitDocumentUpload(page);
-  await expect(documentItem).toContainText("p4-isolated-proof-v2.pdf");
+  await expect(documentItem).toContainText("p4-isolated-proof-v2.png");
   await expect(documentItem).toContainText("версия 2");
   const secondVersionHref = await documentItem
     .getByTestId("v3-document-download")
@@ -2218,7 +2330,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(secondDocumentVersionId).not.toBe(firstDocumentVersionId);
   const secondDownloadPromise = page.waitForEvent("download");
   await documentItem.getByTestId("v3-document-download").click();
-  expect(await readDownload(await secondDownloadPromise)).toEqual(secondPdf);
+  expect(await readDownload(await secondDownloadPromise)).toEqual(secondImage);
+  await expectPrivatePreview(page, documentItem.getByTestId("v3-document-preview"), secondImage, "image");
   const immutableFirstDownload = await page.request.get(firstVersionHref!);
   expect(immutableFirstDownload.status()).toBe(200);
   expect(await immutableFirstDownload.body()).toEqual(firstPdf);
@@ -2354,6 +2467,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const removedDownloadPromise = page.waitForEvent("download");
   await removedVersionDownload.click();
   expect(await readDownload(await removedDownloadPromise)).toEqual(firstPdf);
+  await expectPrivatePreview(page, removedDocumentItem.getByTestId("v3-document-preview"), firstPdf, "pdf");
 
   await page.context().clearCookies();
   await signIn(page, "sales");

@@ -94,7 +94,7 @@ function OrganizationalDetailsForm({ member, departments, onClose }: {
         </div>
       </fieldset>
       <label className="grid gap-1.5 text-sm">Причина изменения
-        <textarea className={`${inputCls} h-auto py-2`} name="reason" rows={2} required maxLength={500}
+        <input type="text" className={inputCls} name="reason" required maxLength={500}
           value={reason} onChange={(event) => setReason(event.target.value)} />
       </label>
     </fieldset>

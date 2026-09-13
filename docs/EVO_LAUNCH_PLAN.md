@@ -1,5 +1,11 @@
 # EVO Launch Plan
 
+D4 user-facing continuation: [university template workspace](design/v3/evo-docs-template-ui-contract.md)
+extends the existing university detail and reviewed registry/native inputs.
+PR768 is merged as `c2ddd12d` (exact reviewed tree `d348c8d6df193bb02923c2d3db6c833d44755cec`);
+its six protected checks passed. Private ingress166 and release image identity
+are parallel dependencies, not completed capabilities or production acceptance.
+
 D4 next implementation slice: [hard-isolated DOCX/PDF template inspection](design/v3/evo-docs-template-native-contract.md)
 from exact `ef279986`, alongside separately reviewed registry PR770. Native proof
 is required before private ingress/receipt writer; it is not full forms readiness.

@@ -25886,3 +25886,27 @@ adapter strict TypeScript/lint passed (`01a09ce55ad478b3b147b6b494202bf7`).
 No Next build, managed schema/provider/real document or production action ran.
 These narrow target proofs do not replace eventual combined image and full D4
 business acceptance. Freeze this source for independent review before publishing.
+
+## 2026-09-14 — Before university template workspace implementation
+
+PR768 merged to `c2ddd12d29334480182659a9614ce0d1c1b7fd90`; independent readback
+proved exact equality with reviewed `e0e2f971` tree, all six protected checks PASS.
+Superseded source PRs756/758/760/763/765/766/767 were closed without branch,
+runtime or data deletion. The production revision remains05585020.
+
+Root owns the [template UI contract](design/v3/evo-docs-template-ui-contract.md)
+in an isolated tree based on reviewed dependency integration7723146e. Extend
+the existing university page with a real URL-based staff workspace; no second
+catalogue, raw slot IDs/hash/status codes in ordinary UI, or student template editor.
+Session actions use the registry165 command contract and current live permissions.
+Parallel ingress166 supplies manager draft listing, inspected slot/page metadata,
+bounded file upload and source access; the release lane supplies exact native
+runtime identity. UI does not manufacture either proof or mark pending as saved.
+
+First implement reusable create/version/mapping controls and their typed action
+boundary, then wire the real reader/actions/routes after reviewed dependencies.
+Keep entered data on errors, exact request IDs on ambiguous retries, versions in
+URLs, and explicit archive/review/publication. DOCX layout/visible CJK, generated
+forms/packages, real-case acceptance and final deployment remain required; a
+component check is not proof of these workflows. Use focused UI/contract checks
+and one integrated actual Auth/Storage/browser proof, not repeated full gates.

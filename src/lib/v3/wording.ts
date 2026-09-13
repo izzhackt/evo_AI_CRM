@@ -774,3 +774,36 @@ export function documentRecognitionError(value: string): string | null {
   };
   return labels[value] ?? null;
 }
+export const universityFormWorkspace = {
+  title: "Бланки университета",
+  back: "Вернуться к университету",
+  add: "Добавить бланк",
+  createTitle: "Новый бланк",
+  name: "Название бланка",
+  nameExample: "Например, заявление на поступление",
+  createExplanation: "Сначала назовите бланк. На следующем шаге загрузите файл университета.",
+  create: "Создать бланк",
+  upload: "Загрузить файл",
+  creating: "Создаём бланк…",
+  cancel: "Отмена",
+  saved: "Изменения сохранены.",
+  createReason: "Добавление бланка университета",
+  checkSaved: "Проверить список бланков",
+  checkingExplanation: "Ответ сервера не получен. Бланк мог сохраниться — сначала проверьте список или повторите тот же запрос.",
+  retry: "Повторить тот же запрос",
+} as const;
+
+export function universityFormActionMessage(value: string): string | null {
+  const messages: Record<string, string> = {
+    forbidden: "У вас нет доступа к изменению бланков этого университета.",
+    invalid_request: "Проверьте название и заполнение формы.",
+    stale_revision: "Бланк уже изменён. Обновите страницу перед следующим действием.",
+    request_conflict: "Этот запрос уже использован для другого изменения. Проверьте сохранённый бланк.",
+    source_changed: "Сведения об университете изменились. Сначала проверьте актуальную версию.",
+    archived: "Бланк в архиве. Его история сохранена, но новые изменения недоступны.",
+    not_inspected: "Проверка файла ещё не завершена. Дождитесь результата.",
+    not_ready: "Бланк пока не готов к этому действию. Проверьте файл и настройку полей.",
+    unavailable: universityFormWorkspace.checkingExplanation,
+  };
+  return Object.hasOwn(messages, value) ? messages[value] : null;
+}

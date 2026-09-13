@@ -134,6 +134,12 @@ Its integration refresh merges main `85a1efdf` after PR762 without runtime-sourc
 changes. This still does not prove native AMD64, combined D3 workflow or provider
 acceptance; the refreshed exact head requires separate independent delta review.
 
+PR766's first actual Next build (34774354642) rejected the adapter's empty
+environment against Next's required NODE_ENV type. The bounded correction is
+an explicit production-only launcher environment, without inherited secrets,
+casts or weaker type checks; native isolation bytes remain unchanged. Actual
+build and independent delta review are required before updating that draft PR.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance

@@ -27,7 +27,7 @@ export async function inspectDocumentSource(input: {
   running = true;
   try {
     return await new Promise<DocumentSourceInspection>((resolve) => {
-      const child = spawn(LAUNCHER, [], { cwd: "/", env: {}, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
+      const child = spawn(LAUNCHER, [], { cwd: "/", env: { NODE_ENV: "production" }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
       const chunks: Buffer[] = []; let length = 0, stopped = false, settled = false;
       const stop = () => { stopped = true; child.kill("SIGKILL"); };
       const timer = setTimeout(stop, 16_000);

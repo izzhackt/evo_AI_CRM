@@ -25113,3 +25113,29 @@ journal tails preserved, and actual CI309/170/139 plus unit207/165/42 inventorie
 with the calendar, two package files and source-preflight file each executed once
 (`01a09bfa6e6e7b30aa8fe857765e925e`). The native ARM64 image was not rebuilt or
 rerun; the new frozen integration head still awaits root's independent review.
+
+## 2026-09-13 — Correct source-runtime adapter build environment
+
+PR766 head49a370ba failed the actual Next production build in34774354642:
+`spawn(..., {env:{}})` conflicts with Next16.3.4's required `ProcessEnv.NODE_ENV`.
+All later `never` child-process diagnostics follow that overload failure.
+Before changing code: pass only the fixed literal `{NODE_ENV:"production"}` to
+the fixed absolute launcher, with no inherited application environment or type
+assertion. The unchanged native launcher clears that environment and supplies
+its own explicit parser environment. No secret, configurable executable, parser
+option, runtime isolation policy, dependency or migration is added.
+
+Basis: local `node_modules/next/types/global.d.ts` and the bundled Next TypeScript
+build guide; [Node22 spawn environment](https://nodejs.org/download/release/v22.23.1/docs/api/child_process.html#child_processspawncommand-args-options)
+defines the explicit child environment. Keep Next's type checking enabled.
+Run the actual production build plus focused public-seam checks/lint, then
+independently review the delta before push. Prior native bootstrap/OS evidence
+applies to unchanged native assets only, not an executed new TS adapter; native
+AMD64 and the combined D3 workflow remain open. No production action is included.
+
+Correction proof: actual `npm run build` (Next16.3.4 production build with its
+TypeScript authority and the existing importer bundle) PASS
+`01a09c08103f74f2beab6de987669f2b`; three public-seam boundary checks PASS
+`01a09c07d8f3791288ff2199b46b2496`; scoped lint PASS
+`01a09c07e5d776b1bf63bef8b1bf8808`. The boundary checks do not spawn the Linux
+runtime. Independent delta review and the new GitHub check remain required.

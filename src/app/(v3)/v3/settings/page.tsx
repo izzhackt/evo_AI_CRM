@@ -27,6 +27,8 @@ export default async function SettingsPart({
 }: {
   searchParams: Promise<{
     section?: string;
+    view?: string;
+    member?: string;
     object?: string;
     snapshot?: string;
     snapshotId?: string;
@@ -119,6 +121,8 @@ export default async function SettingsPart({
         gates={gates}
         platform={platform}
         staff={staff}
+        staffView={params.view === "departments" ? "departments" : "people"}
+        selectedStaffMemberId={params.member}
       />
     </PartShell>
   );

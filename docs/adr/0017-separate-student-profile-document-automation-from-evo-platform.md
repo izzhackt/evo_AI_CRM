@@ -1,6 +1,6 @@
 # ADR 0017: Separate Student Profile document automation from EVO Platform
 
-- Status: accepted
+- Status: superseded for product ownership by ADR0028 (2026-09-13); historical evidence retained
 - Date: 2026-08-05
 - Refines: ADR 0014, ADR 0015 and ADR 0016
 - Supersedes as current authority: PR #119 and the BW8 Student Profile

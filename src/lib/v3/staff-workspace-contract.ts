@@ -5,6 +5,14 @@ export const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
 };
 export type StaffWorkspaceMember = Readonly<{
   membershipId: string; displayName: string; role: StaffRole; status: string; version: number;
+  metadata: Readonly<{
+    version: number; departmentId: string | null; jobTitle: string | null;
+    directions: readonly AdmissionsDirection[];
+  }>;
+}>;
+export type StaffDepartment = Readonly<{
+  id: string; name: string; description: string | null;
+  status: "active" | "archived"; version: number; memberCount: number;
 }>;
 export type StaffAuthRequest = Readonly<{
   requestId: string; operation: "invite" | "recovery"; displayName: string;
@@ -13,10 +21,12 @@ export type StaffAuthRequest = Readonly<{
 }>;
 export type StaffWorkspaceData = Readonly<{
   members: readonly StaffWorkspaceMember[]; requests: readonly StaffAuthRequest[]; available: boolean;
+  departments: readonly StaffDepartment[];
 }>;
 export type StaffWorkspaceActionState = Readonly<{
   status: "idle" | "success" | "error"; message: string;
   retryAllowed?: boolean;
+  metadataOutcome?: "unknown";
 }>;
 export const STAFF_WORKSPACE_INITIAL_STATE: StaffWorkspaceActionState = { status: "idle", message: "" };
 export const STAFF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,3 +42,4 @@ export function staffAuthRejectionMessage(code: string | null | undefined): stri
   if (code === "not_admin" || code === "bad_jwt" || code === "no_authorization") return "Сервис входа отклонил серверные полномочия. Администратору нужно проверить настройку доступа к Auth.";
   return "Сервис входа отклонил запрос. Администратору нужно проверить настройки Auth перед новым запросом.";
 }
+import type { AdmissionsDirection } from "../platform-admissions-playbook-contract";

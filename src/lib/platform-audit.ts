@@ -101,6 +101,11 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "post.contract.report.generate",
   "post.contract.report.review",
   "rbac.bundle.upgrade",
+  "staff.department.archive",
+  "staff.department.create",
+  "staff.department.restore",
+  "staff.department.update",
+  "staff.organization.details.change",
   "student.profile.upsert",
   "task.change",
   "task.create",
@@ -155,6 +160,8 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "post_contract_report",
   "provider_reconciliation_event",
   "source_registry",
+  "staff_department",
+  "staff_organizational_details",
   "stop_factor",
   "student_case",
   "student_case_contract_draft",
@@ -631,6 +638,8 @@ function sameStringList(
 function expectedChangedFieldCodes(
   action: PlatformAuditAction,
 ): readonly PlatformAuditChangedFieldCode[] {
+  if (action.startsWith("staff.department.")) return ["record_status"];
+  if (action === "staff.organization.details.change") return ["assignment"];
   if (action === "audit.export") {
     return ["export_filters", "export_row_count", "export_row_set_sha256"];
   }

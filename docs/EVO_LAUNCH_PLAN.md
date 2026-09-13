@@ -53,7 +53,8 @@ No invitation, customer-file disclosure or standalone retirement is implied by
 technical CI. The latest release checkpoint is
 [the S1/D1 evidence](design/v3/references/2026-09-13-staff-docs-release.md).
 
-S2 remains active and unreleased in [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
+S2 is merged in [PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) as
+`0f80ced1`, but the application release remains pending.
 Migrations155–157, editable roles/scoped assignments and prepared invitations are
 implemented; the full expanded local onboarding/business proof passed on `451944cd`.
 
@@ -62,11 +63,20 @@ implemented; the full expanded local onboarding/business proof passed on `451944
   department/direction/combined case reads and assigned-role archive completed
   with exit0 and all five required markers. Owned local resources were removed.
   The prior intermittent failures did not recur; their cause is not established.
-- **Current CI blocker:** CI34753640952 on `375e58ef` passed the updated actor
-  assertions, then found no existing organization-compatible fixture role at
-  actor test line525. The test-owned role creation/publication correction is now
-  independently source-reviewed with focused10/10, ESLint and diff checks passed.
-  Product SQL and protections remain; the next required CI must pass.
+- **Current release blocker:** all six fast checks passed in CI34754199878 on
+  reviewed746cbd7f; independent whole-S2 approval preceded the merge. Managed
+  schema155–157 was applied by34754696541 and check34754823366 proved157=157
+  with no missing/extra versions. Full exact-main CI34754654192 failed at
+  `DEPARTMENT_READ_CARD_URL_BROWSER_CONSOLE_OTHER`, after successful authority,
+  case/member readback and URL checks. Investigate the console failure without
+  suppressing it; the earlier fixture/DDL gates are closed. Release arm remains
+  false, no app replacement occurred, accepted app77cde9ba is unchanged.
+  A bounded local rerun identified `REACT_LIST_KEY`; actual TrendChart execution
+  reproduces duplicate grid keys at zero/one leads. The one-line grid correction
+  and actual-component regression pass42 focused checks and scoped ESLint;
+  new browser/full-release proof is still required.
+
+The following checkpoints are historical, not additional current blockers.
 
 - **Earlier local proof (`02497173`):** actual Auth/Mailpit/password/login, full unused-role catalogue
   lifecycle and two same-card member-assignment saves with live V+1/V+2 and exact
@@ -90,7 +100,7 @@ implemented; the full expanded local onboarding/business proof passed on `451944
   backfill with guards and constraints preserved; populated upgrade still needs CI.
 - **Archive correction:** compact impact preview/confirmation and fingerprint
   binding are implemented and independently source-reviewed in `40dc3498`.
-  The assigned-role runtime scenario remains pending.
+  The assigned-role runtime scenario subsequently passed on451944cd.
 - **Previous CI:** CI34752745887 passed the previous migration155 ALTER point,
   then failed the historical current-actor aggregate. Align that test with the
   accepted live staff identity/scoped-permission contract; preserve identity,
@@ -105,9 +115,10 @@ implemented; the full expanded local onboarding/business proof passed on `451944
   be inferred. Owned resources were removed. Invitation readback and sticky
   browser-error checks are now separated with fixed private diagnostic labels;
   36/36 helper tests pass, but the next actual workflow is still needed.
-- **Next:** prove an ordinary Sales→Admissions handoff and department-only,
-  direction-only and combined scope matches; finish populated upgrade,
-  independent whole-S2 review, the exact-main release gate and deployment.
+- **Next:** verify the corrected chart in the unchanged browser workflow, then
+  finish the exact-main release gate, accepted deployment and localhost check.
+  The ordinary handoff, separate scoped reads, populated migration and whole-S2
+  source approval have passed; do not reopen them without new contrary evidence.
 - **Separate human gates:** confirmed employee recipients/rights and real first
   login, document/provider acceptance and Docs data transfer. No live activation
   or employee email is implied by local checks.

@@ -21,6 +21,7 @@ const assignment = { roleId, roleVersion: 2, scope: { kind: "own", key: null, re
 test("local browser diagnostics return fixed categories without carrying source text", () => {
   assert.equal(localBrowserErrorCategory("Failed to load resource: example"), "RESOURCE_LOAD");
   assert.equal(localBrowserErrorCategory("A tree hydrated with different attributes"), "HYDRATION");
+  assert.equal(localBrowserErrorCategory("Each child in a list should have a unique \"key\" prop. private-example"), "REACT_LIST_KEY");
   for (const value of [null, undefined, {}, "private unrelated example"]) assert.equal(localBrowserErrorCategory(value), "OTHER");
 });
 const apiUrl = "http://127.0.0.1:45421";

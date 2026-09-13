@@ -31,6 +31,7 @@ export function localBrowserErrorCategory(text) {
   if (typeof text !== "string") return "OTHER";
   if (/hydration|hydrated/i.test(text)) return "HYDRATION";
   if (/^Failed to load resource(?::|$)/.test(text)) return "RESOURCE_LOAD";
+  if (/unique ["']key["']|same key/i.test(text)) return "REACT_LIST_KEY";
   return "OTHER";
 }
 function strictParse(parser, code = "LOCAL_STAFF_CONTRACT_INVALID") {

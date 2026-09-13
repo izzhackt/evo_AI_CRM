@@ -23866,3 +23866,47 @@ including department/direction/combined business reads and assigned-role archiva
 The earlier intermittent invitation/read failures did not recur; their cause is
 still unestablished. This is local workflow evidence, not managed release or real
 employee delivery. The current CI fixture correction does not change that helper.
+
+## 2026-09-13 — S2 identify the browser-console release failure
+
+PR747 was independently approved and merged as0f80ced1 after all six fast checks
+passed. Managed schema155–157 was applied by run34754696541; check34754823366
+confirmed157 local=157 managed, with no missing or extra versions. Exact-main
+CI34754654192 then failed at
+LOCAL_BUSINESS_SCOPES_DEPARTMENT_READ_CARD_URL_BROWSER_CONSOLE_OTHER_FAILED.
+The preceding authority, case read, member readback and card URL checks completed;
+the sticky browser-console error is the remaining failing observation. The
+server diagnostic had no classified application errors and only HTTP200 main
+requests. This does not establish whether the browser failure is in product code,
+navigation or the proof itself. The release was never armed; no app replacement
+occurred. The previously accepted77cde9ba app remains the release baseline.
+
+Extend only the private diagnostic classifier with fixed React/form, navigation,
+network and socket categories, then run the existing bounded local positive
+onboarding path. No raw console text, URLs, identities or credentials may be
+retained or emitted. Preserve the console-error failure, all workflow assertions
+and cleanup; do not retry until green, suppress errors or change permissions.
+The observation determines the next minimal fix and is not itself a product fix.
+
+The real bounded local rerun reproduced the same checkpoint with category
+`REACT_LIST_KEY` (owned project evo-local-d4f14152da23d60a; cleanup verified).
+Independent source tracing and actual-component execution found that TrendChart
+renders grid keys `[0,1,1]` at a maximum of zero or one. Admin's initial main
+screen renders this chart before the staff card; its console error remains in
+the proof's sticky error flag. Correct only duplicate grid ticks, retaining
+value-based keys and the console gate. Add an actual-component regression for
+empty/zero/one and ordinary-count series before the one-line correction, then
+repeat the unchanged positive workflow. No permissions or user data change.
+The older unclassified intermittent failures are not retroactively declared
+diagnosed. [React's list-key guidance](https://react.dev/learn/rendering-lists),
+checked2026-09-13, requires stable keys unique among siblings; index keys would
+hide the duplicate identity but leave the overlapping chart labels.
+Only the observed list-key category is retained in the committed diagnostic
+change; the other temporary diagnostic categories are removed after diagnosis.
+
+The actual-component regression reproduced the duplicate keys before the fix;
+the correction now passes all42 focused chart/helper checks and scoped ESLint.
+Register the chart regression in the existing frontend script so the canonical
+CI manifest includes it once, using ordinary React rather than the server-only
+condition required by the neighboring source-contract tests. The unchanged
+positive browser workflow and new exact-main release are still pending.

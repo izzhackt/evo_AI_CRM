@@ -23211,3 +23211,56 @@ print response bodies, private identifiers, files or credentials.
 Release arm is false and prior accepted4e35b896 remains
 running. No schema rollback, fixture seeding, provider change or Docs retirement.
 This is a bounded test/proof correction, not a product-scope change.
+
+## 2026-09-13 — Resume the complete employee and Docs objective
+
+The owner now explicitly requests completing the entire outstanding checklist:
+release S1/D1, dynamic editable roles and multiple scoped assignments throughout
+the product, recipient reconciliation/confirmation and real onboarding, then
+human-reviewed document fields, Student Profile, Gemini processing, university
+forms/packages, verified data transfer and exact standalone retirement.
+The linked employee and Docs plans remain the acceptance contracts; neither a
+metadata editor nor a private preview completes that larger objective.
+
+Current source is merged aa2e2346; managed migration154 is already applied.
+Full CI34730840474 failed and release34731141578 skipped. Production remains the
+accepted4e35b896 with release arm=false. The existing isolated investigation
+localizes the file-path failure to Storage HTTP connection lifecycle; it does
+not prove a production outage or the earlier independent company-upload503 cause.
+Use retained evidence rather than rerunning a failing trigger. Research a bounded
+defensive transport correction, retain authorization/file-integrity checks and
+record its actual scope and limitations before implementation. Do not raise
+timeouts, shrink proof inputs, bypass Auth/RLS or claim a provider fix from local
+configuration. Ordinary release proof remains required on a new frozen main SHA.
+
+Parallel read-only owners map the next unified role-authority and document-field
+contracts while root closes the release lane. No competing migration numbers or
+unreviewed parallel authorization engines. Real employee addresses/rights still
+require confirmation before mail, and real document/provider acceptance requires
+an approved case and transfer mapping. Preserve original Docs data until verified
+transfer; no repeated backup question, production seeding or unrelated integration
+activation is authorized by this continuation.
+
+### Local release-gateway transport correction
+
+Use Kong2.8.1's supported `upstream_keepalive_pool_size=0` only in the disposable
+local Supabase foundation harness. Apply it after CLI start/reset on every run,
+before provisioning/browser traffic, via the official reload command while
+preserving the CLI custom Nginx template. Guard the exact project/container/network
+and local Docker endpoint; verify effective configuration, container identity,
+declarative/template hashes and health. A failure stops the harness.
+
+This disables pooling for that local gateway's upstreams, trading extra local
+connections for isolation between requests. It is a defensive local transport
+mitigation, not an upstream Storage source patch or a managed-provider change.
+Do not change payloads, expected statuses, timeouts, retries, SQL/RLS, production
+Compose or application Storage clients. Retain the existing release checks;
+benign configuration/Auth/file-path validation alone does not prove full release
+or business acceptance. Do not rerun the focused failure-triggering diagnostic.
+
+Primary sources checked2026-09-13:
+[Kong2.8.1 configuration](https://github.com/Kong/kong/blob/2.8.1/kong.conf.default#L710-L718),
+[reload](https://github.com/Kong/kong/blob/2.8.1/kong/cmd/reload.lua),
+[CLI2.116.0 Kong service](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/commands/start/services/kong.service.ts).
+The helper and its foundation-harness invocation are the only runtime code scope.
+Record actual checks and limitations in the release evidence before merge.

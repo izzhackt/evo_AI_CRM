@@ -345,6 +345,9 @@ if ! (
 ) >>"$supabase_log" 2>&1; then
   fail "The disposable local Supabase database did not reset to repository migrations"
 fi
+if ! "$node_bin" "$repo_root/scripts/configure-local-supabase-gateway.mjs" "$repo_root"; then
+  fail "The disposable local Supabase gateway transport configuration was not verified"
+fi
 if ! (
   cd "$repo_root"
   npx --no-install supabase status -o env

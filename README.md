@@ -34,10 +34,13 @@ reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
 The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
-keeps document work inside Platform. D2 reviewed profile fields and Student Profile
-DOCX are implemented with [isolated local proof](docs/design/v3/references/2026-09-13-student-profile-fields-local-proof.md),
-not deployed or accepted on a real client case. Recognition, packages, data migration
-and standalone retirement remain open.
+keeps document work inside Platform. S2 staff roles/onboarding and D2 reviewed
+profile fields/Student Profile DOCX are deployed in accepted `05585020`
+(`r59.1-05585020`): full CI `34770582933` and release `34771170873` passed.
+See the [release and post-release evidence](docs/design/v3/references/2026-09-13-staff-docs-s2-d2-release.md)
+and [Admin guide](docs/design/v3/staff-admin-guide.md). Real employee invite delivery,
+first login and real-client document acceptance remain open. Recognition, packages,
+data migration and standalone retirement remain open.
 
 The September11 [university completion run](docs/design/v3/university-catalog-completion-run-plan.md)
 is accepted in `892558b2`: **143 institutions across15 countries, 251 selected

@@ -9,7 +9,62 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `77cde9ba8abdd8140db462dfe0203c0356944849`
+Last recorded accepted application: `05585020a411111939a72c4121c66369839a066b`
+
+Current release checkpoint (2026-09-13): S2 dynamic staff authority and D2
+reviewed profile fields/Student Profile DOCX are released. Full exact-main
+CI34770582933 and automatic release34771170873 passed on05585020. Independent
+Hermes readback at17:25:50UTC matched revision/image/acceptance/browser hashes:
+healthy zero-restart app, no pending release, unchanged private WAHA/ClamAV.
+Release arm=false was explicitly read back. Existing localhost3000 tunnel
+targets the same new app; actual Admin staff → roles → editor → permission
+search → cancel passed without persisted writes. See
+[the combined release evidence](design/v3/references/2026-09-13-staff-docs-s2-d2-release.md).
+Do not repeat this completed full gate/release for status-only documentation.
+Real employee mail/first-login, real client document/provider acceptance and
+D3–D6 remain open. Managed001–161 is current;162/163 are unapplied draft work.
+
+### Historical release diagnostics before accepted05585020
+
+These checkpoints retain their original evidence and then-next actions. They
+are not current blockers or instructions to repeat completed migrations/releases.
+
+Previous release checkpoint (2026-09-13, after PR757): full CI34767766251 on
+`bc0cde68` passed the corrected scoped Admissions calendar controls, then stopped
+when the same Admissions identity reopened `/v3/profile` at test line1998.
+No failure artifacts were retained by Actions. The bounded real reproduction
+traced it to optional Sales handoff enrichment denied to the assigned Admissions
+actor. The candidate preserves the canonical full case without that optional
+section. Its next real run passed reopen and document operations, then exposed
+the Sales summary branch throwing instead of returning the existing unavailable
+profile state. Both scoped-authority transitions must pass the original scenario;
+the missing downstream P4 receipt does not establish another Storage failure.
+Automatic release34768123391 was skipped, arm=false, and production remains
+the accepted77cde9ba. The isolated --admissions-workflow-only command retains
+the actual workflow and final Storage receipt. Require its positive result,
+independent exact-head review and one new exact-main gate before release.
+D3/D4 continue independently without production enablement.
+
+Local result: both existing real Auth/DB/Storage/scanner/browser scenarios now
+pass, including the complete P4 database receipt and the company-file prerequisite
+(01a09bb4700a7c23adfe675ed1b044d3, 2 passed in40.7s,
+LOCAL_ADMISSIONS_WORKFLOW_VERIFIED, exit0). The case and Sales summary regressions
+are retained in the ordinary full scenario; no assertions or grants were relaxed.
+65 related Node checks and actual test:frontend183+23 pass, scoped lint and
+bash/diff checks pass. This is a local release correction, not a new production
+version, real employee invitation, provider call or client acceptance.
+
+Previous release checkpoint (2026-09-13): managed001–161 applied/verified via
+34765867429/34765967956, but full CI34766012215 on c6669ff1 failed at the
+scoped Admissions calendar visibility selector. Automatic release34766594252
+was skipped and arm=false verified; no new application release is claimed.
+The product intentionally submits hidden student_visible=false without the
+separate task.visibility.manage permission. The candidate corrects only that
+proved stale expectation; actual-component SSR and frontend/module checks pass.
+The end-of-scenario P4 writer and business gates remain intact. Independently
+review before a root-directed exact-main retry. The later
+missing P4 fixture is downstream of this timeout, not evidence of a media defect.
+This checkpoint supersedes earlier release-pending diagnostics below.
 
 ## Active run: dynamic employee roles and unified document automation
 
@@ -21,7 +76,11 @@ a second role engine. Keep each permission bound to its assignment scope,
 Admin's staff functional superset and Student-private boundaries.
 
 The owner approved implementation on 2026-09-13. The documented S1 staff
-directory/department slice is released; S2 release and real employee onboarding remain pending.
+directory/department slice and S2 scoped roles are released; real employee
+onboarding remains pending. Custom SMTP was read as disabled in the existing
+Dashboard session; the supported ConfirmationURL template is not a proved defect.
+Follow the [activation runbook](runbooks/team-workspace-activation.md) for the
+exact missing mail configuration and recipient/first-login sequence.
 Personal contacts stay outside Git; no automatic bulk invitations or role grants.
 The owner also requests [EVO Docs integration and retirement](design/v3/evo-docs-unification-run-plan.md).
 [ADR0028](adr/0028-unify-document-automation-inside-evo-platform.md) supersedes
@@ -34,7 +93,7 @@ an explicit partial canonical profile, human-confirmed field review and the orig
 Student Profile DOCX. Migrations159–161 and the application path are merged
 in main as `fd5b6a08`. Historical local proof used the original158–160 numbering;
 the renamed SQL sequence now passes with the actual S2 migration158 from561aa920.
-The final current-main Auth/DB/browser proof remains required.
+The final current-main Auth/DB/browser proof passed as34770582933 on05585020.
 The bounded real Auth/DB/browser workflow passed locally on that earlier candidate:
 initialize one absent profile, confirm fields, preserve a stale editor's draft,
 and download draft/final DOCX files whose hashes match the export audit.
@@ -42,14 +101,19 @@ Both actual files rendered correctly on all two pages. See the
 [local D2 proof](design/v3/references/2026-09-13-student-profile-fields-local-proof.md).
 D2/PR752 merged as `fd5b6a085ae97e8cb120f9998dc3418b0e6b580c` at15:24:30 UTC,
 tree-identical to reviewed `daf5b5ac`; all six fast checks34765172099 passed.
-This is not a D2 release or real client acceptance. Managed schema158–161,
-final current-main verification, D3–D6 and real employee/document acceptance
-remain required. Freeze main for the final combined proof after preparation PR754 merges.
+D2 is now released in05585020, but real client acceptance remains open.
+Managed schema001–161 is applied and verified through34765867429/34765967956.
+D3–D6 and real employee/document acceptance remain required; the scoped profile
+failures above were corrected in reviewed PR761 before the successful full gate.
 
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and
 [D4 university forms/packages contract](design/v3/evo-docs-university-packages-contract.md).
-They do not claim implementation or provider/client acceptance. With D2 merged,
+These are the execution contracts, not provider/client acceptance. Draft
+transport/queue PR758/760 and forms/package PR759/762 now contain implementation
+slices; [D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
+is independently reviewed but remains draft pending the real runtime/acceptance.
+The isolated parser runtime continues separately. With D2 released,
 the two lanes may proceed in parallel because D4 accepts manually confirmed
 profile values. Preserve the D5 data reconciliation and D6 real acceptance/
 standalone-retirement gates; allocate forward migrations against current main.
@@ -64,13 +128,22 @@ native TSYNC sealing before document parser loading; both real regressions and
 production bootstrap proof are required before integration. Earlier ARM64 proof
 does not establish these missing invariants or native AMD64 readiness.
 
+The correction at `0584d2d` passed independent review with actual native ARM64
+12/12 proof, including both reproduced P1 regressions and required native bootstrap.
+Its integration refresh merges main `85a1efdf` after PR762 without runtime-source
+changes. This still does not prove native AMD64, combined D3 workflow or provider
+acceptance; the refreshed exact head requires separate independent delta review.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance
 and production/Docs retirement separate. See the latest PLAN_CHANGES entry.
 
-The current continuation explicitly requests completion of the whole employee
-and Docs plans, not only S1/D1. S1/D1 is now accepted at `77cde9ba` on managed
+### Historical staff and Docs checkpoints
+
+The current continuation requires the whole employee and Docs plans, not only
+S1/D1. The records below are historical evidence and then-next actions; current
+acceptance is05585020 above. S1/D1 was accepted at `77cde9ba` on managed
 schema154: local gateway corrections #743/#745 and PNG verifier correction #744
 are merged; exact-main CI34740753764 and automatic release34741107458 passed.
 Independent Hermes readback matched the exact image and acceptance/browser
@@ -85,7 +158,7 @@ completed release or interpret it as delivery of those remaining features.
 Keep the recipient/effective-rights confirmation, real employee first-login,
 approved source-to-case mapping and real document/provider acceptance gates.
 No invitation, customer-file disclosure or standalone retirement is implied by
-technical CI. The latest release checkpoint is
+technical CI. That historical release checkpoint is
 [the S1/D1 evidence](design/v3/references/2026-09-13-staff-docs-release.md).
 
 S2 is merged in [PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) as

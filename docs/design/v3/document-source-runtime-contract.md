@@ -1,7 +1,11 @@
 # Isolated source inspection — document-source-v1
 
 Date: 2026-09-13. Implementation contract, not production proof.
-Root-approved sibling from exact D4 `ae52a3165c142c5f87bebd80e97b18a15e84877e`.
+Original root-approved sibling base: exact D4 `ae52a3165c142c5f87bebd80e97b18a15e84877e`.
+Integration refresh merges main `85a1efdff8945ec2100d26b83de5288892471231` after PR762
+into independently reviewed runtime `0584d2d09a917148bd13b85e3d275a7b36930925`.
+Runtime code and assets remain unchanged; only shared history/manifest integration
+and contract status are refreshed. Native AMD64 and combined D3 acceptance remain open.
 Extends [D3](evo-docs-recognition-contract.md); does not implement its provider,
 Storage, authorization, queue, HTTP or UI adapters. Root owns their integration.
 

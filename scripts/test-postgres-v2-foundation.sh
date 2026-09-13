@@ -69,6 +69,9 @@ supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
 staff_provision_log="$tmp_dir/staff-provision.log"
 student_profile_fields_log="$tmp_dir/student-profile-fields.log"
+student_profile_evidence_dir=""
+student_profile_project_id=""
+student_profile_proof_ready=0
 platform_communications_provision_log="$tmp_dir/platform-communications-provision.log"
 sales_proof_provision_log="$tmp_dir/sales-proof-provision.log"
 waha_log="$tmp_dir/waha.log"
@@ -237,7 +240,108 @@ await waitForLocalSupabaseAuthAdmin({
 EOF
 }
 
+student_profile_cleanup() {
+  local failed=0 names networks volumes
+  # This bounded mode starts only its own Next process and disposable Supabase.
+  # Unexpected unrelated services are not permission to remove them.
+  [[ -z "$waha_pid" && -z "$clamav_container_name" && -z "$clamav_signature_volume" ]] || failed=1
+  if [[ -n "$app_pid" ]]; then
+    if [[ "$app_pid" =~ ^[0-9]+$ ]]; then
+      if kill -0 "$app_pid" >/dev/null 2>&1; then
+        kill "$app_pid" >/dev/null 2>&1 || failed=1
+        wait "$app_pid" >/dev/null 2>&1 || true
+        if kill -0 "$app_pid" >/dev/null 2>&1; then failed=1; fi
+      fi
+      # Next dev may own a child server: parent exit alone does not prove that
+      # the exact run's loopback listener has gone. Never terminate other PIDs.
+      if ! "$node_bin" --input-type=module - "$app_port" <<'EOF'
+import { createConnection } from "node:net";
+const port = Number(process.argv[2]);
+if (!Number.isInteger(port) || port < 1024 || port > 65535) process.exit(1);
+const socket = createConnection({ host: "127.0.0.1", port });
+socket.once("connect", () => { socket.destroy(); process.exitCode = 1; });
+socket.once("error", error => { process.exitCode = error.code === "ECONNREFUSED" ? 0 : 1; });
+socket.setTimeout(1500, () => { socket.destroy(); process.exitCode = 1; });
+EOF
+      then failed=1; fi
+    else failed=1; fi
+  fi
+  if [[ "$supabase_started" == "1" ]]; then
+    if [[ "$student_profile_project_id" =~ ^evo-local-[0-9a-f]{16}$ ]]; then
+      (cd "$repo_root" && npx --no-install supabase --workdir "$supabase_workdir" stop --no-backup) >/dev/null 2>&1 || failed=1
+    else failed=1; fi
+    # Every listing must succeed; stop's exit code is not an absence receipt.
+    names="$(docker ps -a --format '{{.Names}}' 2>/dev/null)" || failed=1
+    networks="$(docker network ls --format '{{.Name}}' 2>/dev/null)" || failed=1
+    volumes="$(docker volume ls --format '{{.Name}}' 2>/dev/null)" || failed=1
+    if [[ "$student_profile_project_id" =~ ^evo-local-[0-9a-f]{16}$ ]] \
+      && grep -Eq "(^|_)${student_profile_project_id}$" <<<"$names"$'\n'"$networks"$'\n'"$volumes"; then failed=1; fi
+  fi
+  [[ "$failed" == "0" ]] || return 1
+  if [[ -d "$tmp_dir" && ! -L "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-database-foundation."* ]]; then
+    rm -R -- "$tmp_dir" || return 1
+    [[ ! -e "$tmp_dir" ]] || return 1
+  else return 1; fi
+  if [[ "${supabase_lock_acquired:-0}" == "1" ]]; then
+    rm -f -- "$supabase_lock_pid_file" || return 1
+    rmdir "$supabase_lock_dir" || return 1
+    [[ ! -e "$supabase_lock_dir" ]] || return 1
+    supabase_lock_acquired=0
+  fi
+  if [[ "$runtime_inventory_cleanup" == "1" && -d "$runtime_inventory_evidence_dir" && "$runtime_inventory_evidence_dir" == "$runtime_inventory_expected_root/foundation-"* ]]; then
+    rm -R -- "$runtime_inventory_evidence_dir" || return 1
+    [[ ! -e "$runtime_inventory_evidence_dir" ]] || return 1
+  fi
+}
+
+student_profile_finalize_acceptance() {
+  "$node_bin" --input-type=module - "$student_profile_evidence_dir" "$student_profile_project_id" <<'EOF'
+import { linkSync, lstatSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+const directory = process.argv[2], projectId = process.argv[3];
+const pending = resolve(directory, "acceptance.pending.json");
+const staging = resolve(directory, "acceptance.finalizing.json"), final = resolve(directory, "acceptance.json");
+let published = false, staged = false;
+try {
+  const info = lstatSync(pending);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 64 * 1024) throw new Error();
+  const receipt = JSON.parse(readFileSync(pending, "utf8"));
+  if (receipt.schema !== "evo-student-profile-browser-proof/v2" || receipt.synthetic !== true
+    || receipt.businessAcceptance !== false || receipt.localProjectId !== projectId || receipt.cleanupVerified !== false
+    || receipt.realAdminAuth !== true || receipt.persistentArtifacts !== 2
+    || !["generationSeparateFromDownload", "exactRequestReplayWithoutDuplicate", "coldHistorySameBytes",
+      "historicalDraftDownload", "downloadsCreateNoArtifacts"].every(key => receipt[key] === true)) throw new Error();
+  writeFileSync(staging, JSON.stringify({ ...receipt, cleanupVerified: true }, null, 2), { mode: 0o600, flag: "wx" });
+  staged = true;
+  linkSync(staging, final); published = true; // Atomic publication, never replace an existing receipt.
+  unlinkSync(staging); staged = false;
+} catch {
+  if (published) try { unlinkSync(final); } catch { /* No success marker on any finalization error. */ }
+  if (staged) try { unlinkSync(staging); } catch { /* Keep bounded private pending evidence. */ }
+  process.stderr.write("STUDENT_PROFILE_FIELDS_RECEIPT_FINALIZATION_FAILED\n"); process.exitCode = 1;
+}
+EOF
+}
+
 cleanup() {
+  local original_status=$?
+  if [[ "$student_profile_fields_only" == "1" ]]; then
+    trap - EXIT
+    if ! student_profile_cleanup; then
+      echo 'STUDENT_PROFILE_FIELDS_CLEANUP_FAILED' >&2
+      [[ -z "$student_profile_evidence_dir" ]] || echo "Pending profile evidence (not accepted): $student_profile_evidence_dir" >&2
+      exit 1
+    fi
+    if [[ "$original_status" == "0" && "$student_profile_proof_ready" == "1" ]]; then
+      student_profile_finalize_acceptance || exit 1
+      echo 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED'
+      echo "Synthetic Student Profile evidence: $student_profile_evidence_dir"
+    elif [[ "$original_status" == "0" ]]; then
+      exit 1
+    fi
+    exit "$original_status"
+  fi
+  # Existing full/staff/admissions cleanup remains unchanged below.
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
     wait "$app_pid" >/dev/null 2>&1 || true
@@ -355,6 +459,20 @@ staff_mailpit_origin="$("$node_bin" scripts/lib/local-staff-supabase-workdir.mjs
   || fail "Could not prepare the isolated local Auth callback and mail configuration"
 # macOS /var aliases /private/var; CLI ownership and its verifier must receive one exact path.
 supabase_workdir="$(cd -- "$supabase_workdir" && pwd -P)"
+
+if [[ "$student_profile_fields_only" == "1" ]]; then
+  student_profile_project_id="$("$node_bin" --input-type=module - "$supabase_workdir" <<'EOF'
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parse } from "smol-toml";
+try {
+  const id = parse(readFileSync(resolve(process.argv[2], "supabase/config.toml"), "utf8")).project_id;
+  if (typeof id !== "string" || !/^evo-local-[0-9a-f]{16}$/.test(id)) throw new Error();
+  process.stdout.write(id);
+} catch { process.exitCode = 1; }
+EOF
+  )" || fail "The profile proof could not bind its owned Supabase project"
+fi
 
 supabase_started=1
 if ! (
@@ -1362,13 +1480,16 @@ student_profile_fields_browser_assert() {
   local evidence_dir="$repo_root/output/student-profile-fields/${runtime_inventory_sha}/foundation-${RANDOM}-$$"
   mkdir -p "$evidence_dir"
   chmod 700 "$evidence_dir"
+  if [[ "$student_profile_fields_only" == "1" ]]; then student_profile_evidence_dir="$evidence_dir"; fi
   if ! EVO_D2_APP_ORIGIN="http://127.0.0.1:$app_port" \
+    EVO_D2_DEFER_ACCEPTANCE="$student_profile_fields_only" \
     EVO_D2_SUPABASE_WORKDIR="$supabase_workdir" \
     EVO_D2_EVIDENCE_DIR="$evidence_dir" \
     EVO_D2_ORGANIZATION_ID="$platform_organization_id" \
     NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
     SUPABASE_DB_URL="$supabase_database_url" \
+    EVO_D2_STORAGE_SERVICE_KEY="$supabase_service_role_key" \
     EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
     EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
     "$node_bin" --experimental-strip-types scripts/lib/student-profile-fields-browser-proof.mjs \
@@ -1387,10 +1508,16 @@ student_profile_fields_browser_assert() {
       fail "The Student Profile proof exposed a credential in its output"
     fi
   done
-  grep -Fx 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED' "$student_profile_fields_log" >/dev/null \
-    || fail "The Student Profile proof returned no verification marker"
-  echo 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED'
-  echo "Synthetic Student Profile evidence: $evidence_dir"
+  if [[ "$student_profile_fields_only" == "1" ]]; then
+    grep -Fx 'STUDENT_PROFILE_FIELDS_BROWSER_RECORDED' "$student_profile_fields_log" >/dev/null \
+      || fail "The Student Profile proof returned no pending evidence marker"
+    student_profile_proof_ready=1
+  else
+    grep -Fx 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED' "$student_profile_fields_log" >/dev/null \
+      || fail "The Student Profile proof returned no verification marker"
+    echo 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED'
+    echo "Synthetic Student Profile evidence: $evidence_dir"
+  fi
 }
 
 cd "$repo_root"

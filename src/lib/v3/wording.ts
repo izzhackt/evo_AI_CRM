@@ -90,6 +90,50 @@ export function studentProfileExportIssue(value: string): string | null {
   return Object.hasOwn(labels, value) ? labels[value] : null;
 }
 
+export const studentProfileFiles = {
+  title: "Файлы анкеты", ready: "Анкета готова к финальному файлу", notReady: "Финальная анкета пока не готова",
+  createFinal: "Сформировать финальную анкету", createDraft: "Сформировать черновик",
+  explanation: "Формирование сохраняет отдельный файл. Затем его можно скачивать повторно без пересоздания.",
+  draftExplanation: "В черновик попадут только подтверждённые поля с отметкой «Черновик».",
+  refresh: "Обновить историю", refreshProfile: "Обновить анкету и историю", retry: "Повторить тот же запрос",
+  reconcile: "Проверить сохранение", retryReconcile: "Повторить проверку", download: "Скачать файл",
+  history: "Сохранённые файлы", older: "Более ранние файлы", empty: "Сохранённых файлов пока нет.",
+  historical: "Предыдущая версия анкеты", current: "Текущая версия анкеты", draft: "Черновик", final: "Финальная анкета",
+  review: "Что проверить перед формированием", noDownload: "Скачивание этого файла сейчас недоступно.",
+} as const;
+
+export function studentProfileFileState(value: string): string | null {
+  const labels: Record<string, string> = {
+    pending: "Формирование не завершено", stored_unverified: "Файл ожидает проверки сохранения",
+    ready: "Сохранён", unknown: "Сохранение пока не подтверждено", failed: "Файл не сформирован",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export function studentProfileFileMessage(value: string): string | null {
+  const labels: Record<string, string> = {
+    loading: "Загружаем историю файлов…", creating: "Формируем и сохраняем файл… Не закрывайте страницу.",
+    reconciling: "Проверяем сохранённый файл…", downloading: "Получаем сохранённый файл…",
+    downloaded: "Скачивание сохранённого файла начато.", ready: "Файл сохранён. Теперь его можно скачать.",
+    pending: "Запрос сохранён, но файл ещё не готов. Проверьте сохранение кнопкой в истории. Автоматического повтора не будет.",
+    unknown: "Ответ не подтверждён. Повторите тот же запрос: EVO проверит исходную попытку, не создавая новую.",
+    unresolved: "В истории есть незавершённое формирование. Проверьте его сохранение; новый файл создаётся только отдельной командой.",
+    workspace_changed: "Анкета изменилась. Обновите анкету и историю перед формированием. Правки на экране останутся.",
+    source_changed: "Данные изменились. Обновите анкету и историю, затем проверьте поля.",
+    source_unavailable: "Один из источников сейчас недоступен. Проверьте документы дела.",
+    request_conflict: "Запрос не совпал с исходной попыткой. Обновите историю перед новым формированием.",
+    export_unavailable: "Не удалось подтвердить результат. Проверьте подключение и используйте предложенную проверку.",
+    artifact_pending: "Файл ещё не готов. Проверьте исходную попытку, не создавая новую.",
+    template_unavailable: "Шаблон временно недоступен. Файл не сформирован.",
+    integrity_failed: "Проверка файла не пройдена. Скачивание остановлено; проверьте сохранение.",
+    export_failed: "Файл не сформирован. Проверьте анкету перед новой попыткой.",
+    storage_unavailable: "Хранилище временно недоступно. Сохранение файла пока не подтверждено.",
+    invalid_request: "Не удалось принять запрос. Обновите анкету и историю.",
+    profile_not_ready: "Проверьте поля анкеты перед формированием файла.",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : studentProfileExportMessage(value);
+}
+
 /** Coverage conflicts are operational instructions, never raw database keys. */
 export function coverageConflictLabel(value: string): string | null {
   const labels: Record<string, string> = {

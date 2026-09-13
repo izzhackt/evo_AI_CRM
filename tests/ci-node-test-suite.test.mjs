@@ -34,11 +34,12 @@ test("CI Node suite runs the former security and unit surface once", () => {
     "test:unit:core",
     "test:student-profile-fields",
     "test:university-forms",
+    "test:document-export-artifacts",
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 306);
-  assert.equal(plan.uniqueFileCount, 167);
+  assert.equal(plan.occurrenceCount, 309);
+  assert.equal(plan.uniqueFileCount, 170);
   assert.equal(plan.duplicateCount, 139);
   assert.equal(new Set(plan.files).size, plan.files.length);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
@@ -74,13 +75,14 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 138);
+  assert.equal(bounded.files.length, 140);
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
     "tests/staff-role-controls.test.mjs", "tests/staff-disclosure.test.mjs",
     "tests/staff-metadata-feedback.test.mjs", "tests/v3-handoff-navigation.test.mjs",
-    "tests/v3-calendar-visibility-proof.test.mjs", "tests/v3-student-profile-fields.test.mjs"]);
+    "tests/v3-calendar-visibility-proof.test.mjs", "tests/v3-student-profile-fields.test.mjs",
+    "tests/document-export-client.test.mjs"]);
   assert.equal(plain.concurrency, 1);
 });
 
@@ -91,8 +93,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 204);
-  assert.equal(plan.uniqueFileCount, 162);
+  assert.equal(plan.occurrenceCount, 207);
+  assert.equal(plan.uniqueFileCount, 165);
   assert.equal(plan.duplicateCount, 42);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
 });
@@ -132,6 +134,24 @@ test("focused D1 command validates every required test before execution", () => 
     "tests/platform-reply-snippets.test.mjs",
     "tests/platform-message-media-case-attach.test.mjs",
   ]);
+});
+
+test("saved export and bucket configuration tests run once in actual focused, CI and unit plans", () => {
+  const files = ["tests/document-export-artifacts.test.mjs", "tests/configure-document-export-storage.test.mjs"];
+  for (const entryScripts of [["test:document-export-artifacts"], DEFAULT_ENTRY_SCRIPTS, UNIT_ENTRY_SCRIPTS]) {
+    const plan = resolveNodeTestPlan({ packageJson, repositoryRoot, entryScripts });
+    for (const file of files) {
+      assert.equal(plan.files.filter(value => value === file).length, 1);
+      const groups = plan.groups.filter(group => group.files.includes(file));
+      assert.equal(groups.length, 1);
+      assert.deepEqual(groups[0].nodeArgs, ["--conditions=react-server", "--experimental-strip-types"]);
+    }
+    const clientFile = "tests/document-export-client.test.mjs";
+    assert.equal(plan.files.filter(value => value === clientFile).length, 1);
+    const clientGroups = plan.groups.filter(group => group.files.includes(clientFile));
+    assert.equal(clientGroups.length, 1);
+    assert.deepEqual(clientGroups[0].nodeArgs, []);
+  }
 });
 
 test("CI Node suite retains every test that requires serial shared-state execution", () => {

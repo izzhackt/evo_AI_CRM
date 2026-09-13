@@ -24872,3 +24872,58 @@ Combined-source checks: actual52 forms PASS
 The three renderer/mapping modules, their three focused tests and exact fonts
 are byte-identical to reviewed9811b3c. Reuse its visual receipts; these checks
 do not claim isolated rendering, Storage, a public export or client acceptance.
+
+## 2026-09-13 — Persist Student Profile as the first shared D4 artifact producer
+
+Before coding, adopt the [persistent export contract](design/v3/evo-docs-export-artifacts-contract.md).
+The current migration161 records generation attempts but retains no file bytes.
+Add session-authenticated atomic input preparation before service orchestration;
+freeze confirmed values under the actual employee session, never service-read
+profile values. Seal output identity before private upload, verify exact readback,
+recheck live permissions/revisions, then commit an immutable ready receipt.
+History/replay/download must not regenerate; ambiguous operations reconcile only
+the known sealed object. Preserve legacy attempts without inventing stored files.
+
+Use a dedicated private platform-document-exports bucket, initially DOCX≤5MiB.
+The current platform-documents bucket is only PDF/JPEG/PNG≤25MiB and its registry
+represents uploaded originals. Do not broaden that ingress or impersonate a
+document slot for generated output. Add narrow managed bucket check/apply with
+sanitized readback because SQL deployment does not apply local Storage config.
+Future20MiB forms/65MiB packages require explicit capacity verification, not a
+silent limit reduction or paid upgrade. This is an implementation step toward
+the approved platform, not a new parallel product or completion of all D4.
+
+Reserve migration164 after D3 162–163; do not deploy a gapped sequence. Existing
+canonical persistent database, source files, no-new-backup decision, provider
+permissions and real-client gates stay unchanged. Root owns shared docs and
+integration; SQL/session-authority and HTTP/UI may be implemented in parallel.
+
+## 2026-09-13 — D4 acceptance boundary and source-authority coverage
+
+The first D4 SQL behavior proof passed on isolated001–161+164 with manual fields
+and synthetic System Admin identities. This does not prove the source-backed or
+scoped-employee paths. Before final review, extend the same rollback-only fixture
+with actual nonempty source-version evidence and current scoped access, revoked
+access, unhealthy/removed source and lease expiry cases. Use actual SQL commands;
+trusted byte observations in SQL remain explicit synthetic parameters, not a
+claim of Storage or provider acceptance. Do not weaken historical-source support
+in migration160 or change schemas only to satisfy a test.
+
+The existing D2 browser marker is written before outer cleanup, whose legacy
+stop failure only warns. The replacement D4 acceptance must publish a pending
+receipt first and promote it to acceptance.json/VERIFIED only after the owned
+local app and Supabase cleanup succeeds and exact owned resources are absent.
+Failure stays nonzero with no final success receipt; retain bounded private
+pending evidence and unresolved owned state. Scope this change to the profile
+proof mode; other foundation modes remain unchanged. No managed/prod/provider
+operations or new business identities are authorized by this proof.
+
+Implementation checkpoint: integrated history UI and strict session/Storage API
+now compile in the actual Next production build with TypeScript enabled:
+`01a09c0b35bf7261833961994cfec7ca`. Add narrow tracing for the new create route's
+fixed Student Profile DOCX (bundled Next output-file-tracing guide); old route
+tracing stays only until the already-required proven retirement. The client test
+is included once in normal React runtime rather than react-server: manifest8/8
+PASS `01a09c08d7db72708a89dab48a5f5fb3`. Root removed an undocumented100-row
+history truncation; client11/11 PASS `01a09c0a381a73a3a29b0f67886464d9`.
+These are bounded build/unit receipts, not live Storage or whole-D4 acceptance.

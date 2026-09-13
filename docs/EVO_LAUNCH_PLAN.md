@@ -109,14 +109,33 @@ failures above were corrected in reviewed PR761 before the successful full gate.
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and
 [D4 university forms/packages contract](design/v3/evo-docs-university-packages-contract.md).
-These are the execution contracts, not provider/client acceptance. Draft
-transport/queue PR758/760 and forms/package PR759/762 now contain implementation
-slices; [D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
+These are the execution contracts, not provider/client acceptance. Transport/queue
+PR758/760 remain draft. Forms PR759 merged7da50fa8 and package PR762 merged85a1efd;
+the latter main refresh is still pending in this D4 worktree.
+[D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
 is independently reviewed but remains draft pending the real runtime/acceptance.
 The isolated parser runtime continues separately. With D2 released,
 the two lanes may proceed in parallel because D4 accepts manually confirmed
 profile values. Preserve the D5 data reconciliation and D6 real acceptance/
 standalone-retirement gates; allocate forward migrations against current main.
+
+The next D4 vertical slice is [persistent profile exports](design/v3/evo-docs-export-artifacts-contract.md):
+freeze confirmed inputs under the actual staff session, store immutable generated
+bytes, and expose history/download without regeneration. Student Profile is the
+first producer of this shared artifact lifecycle, not completion of university
+forms/packages. A separate private export bucket preserves the existing student
+upload/scan boundary. Migration164 is reserved behind the unmerged D3 162–163;
+do not apply an incomplete forward migration sequence to production.
+
+The persistence/API/history candidate now builds successfully with all three new
+routes and the exact template in standalone output. Independent initial SQL,
+HTTP/Storage and UI slice reviews passed; final combined review remains open.
+Expanded source/scoped SQL checks passed in isolated001–161+164, including real
+scoped-role commands, healthy historical sources, revocation and expiry. This
+uses synthetic scanner/Storage metadata, not actual file-store acceptance.
+Next: one actual local history/Storage browser proof with verified owned cleanup,
+then retire the old transient producer
+in the same replacement slice. No new managed bucket or deployment is claimed.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

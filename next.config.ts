@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingIncludes: {
     "/api/v3/student-cases/*/profile-exports": ["./assets/templates/student-profile.docx"],
+    "/api/v3/student-cases/*/document-exports": ["./assets/templates/student-profile.docx"],
   },
   skipTrailingSlashRedirect: true,
   // Invitation/recovery links carry one-use credentials, including in local dev.

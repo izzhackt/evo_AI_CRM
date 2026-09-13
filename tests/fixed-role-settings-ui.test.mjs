@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
-import { fixedRoleCanAccessRoute } from "../src/lib/fixed-role-policy.ts";
+import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
+import { staffDirectoryAccessSummary } from "../src/lib/v3/wording.ts";
 
 const actionSource = readFileSync(
   new URL("../src/lib/staff-auth-actions.ts", import.meta.url),
@@ -41,39 +42,52 @@ const foundationHarnessSource = readFileSync(
   "utf8",
 );
 
-test("V3 settings is visible only in the Admin presentation interface", () => {
+test("V3 settings uses live staff authority and denies non-Admin routes", () => {
   assert.match(
     v3SettingsPageSource,
     /requireV3PageActor\("\/v3\/settings"\)/,
   );
   assert.match(
     guardSource,
-    /fixedRoleCanAccessRoute\(actor\.presentationRole, route\)/,
+    /staffCanAccessRoute\(actor, route\)/,
   );
   assert.doesNotMatch(v3SettingsPageSource, /LegacySettings|isUiContractFixtureMode/);
 });
 
 test("only authority Admin can set the presentation-only preview cookie", () => {
   assert.match(actionSource, /resolvePlatformActor\(\)/);
-  assert.match(actionSource, /result\.actor\.authorityRole/);
+  assert.match(actionSource, /result\.actor\.systemRole/);
   assert.match(actionSource, /canAdminSelectEffectiveRole/);
   assert.match(actionSource, /ADMIN_ROLE_PREVIEW_COOKIE/);
   assert.doesNotMatch(actionSource, /updateUser|change_pilot_staff_role/);
 });
 
-test("the V3 shell renders presentation navigation and an authority-Admin controller", () => {
+test("the V3 shell renders assigned permissions and a protected Admin preview", () => {
   assert.match(shellSource, /data-testid="v3-shell"/);
-  assert.match(shellSource, /data-authority-role=\{authorityRole\}/);
-  assert.match(shellSource, /data-presentation-role=\{presentationRole\}/);
-  assert.match(shellSource, /buildV3Navigation\(presentationRole,/);
-  for (const role of ["admin", "sales", "admissions"]) {
-    const navigation = buildV3Navigation(role, "/v3/profile", new URLSearchParams());
+  assert.match(shellSource, /data-system-role=\{actor\.systemRole\}/);
+  assert.match(shellSource, /data-presentation-role=\{actor\.presentationRole \?\? "actual"\}/);
+  assert.match(shellSource, /buildV3Navigation\(actor,/);
+  const examples = [
+    { systemRole: "admin", permissionKeys: [], presentationRole: null, settings: true, summary: true },
+    { systemRole: "admin", permissionKeys: [], presentationRole: "sales", settings: false, summary: false },
+    { systemRole: "admin", permissionKeys: [], presentationRole: "admissions", settings: false, summary: true },
+    { systemRole: "staff", permissionKeys: ["lead.read"], presentationRole: null, settings: false, summary: false },
+    { systemRole: "staff", permissionKeys: ["case.read.full"], presentationRole: null, settings: false, summary: true },
+    { systemRole: "staff", permissionKeys: ["lead.read", "case.read.full"], presentationRole: null, settings: false, summary: true },
+    { systemRole: "staff", permissionKeys: ["catalog.read"], presentationRole: null, settings: false, summary: false },
+    { systemRole: "staff", permissionKeys: [], presentationRole: null, settings: false, summary: false },
+  ];
+  for (const example of examples) {
+    const actor = { ...example, platformAccessVersion: 1 };
+    const navigation = buildV3Navigation(actor, "/v3/profile", new URLSearchParams());
     const links = [navigation.home, ...navigation.groups.flatMap((group) => group.links), ...navigation.common, navigation.settings].filter(Boolean);
-    for (const link of links) assert.ok(fixedRoleCanAccessRoute(role, link.route), `${role}: ${link.href}`);
-    assert.equal(Boolean(navigation.settings), role === "admin");
-    assert.equal(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-summary")), role !== "sales");
+    for (const link of links) assert.ok(staffCanAccessRoute(actor, link.route), `${actor.systemRole}: ${link.href}`);
+    assert.equal(Boolean(navigation.settings), example.settings);
+    assert.equal(navigation.groups.some((group) => group.links.some((link) => link.id === "admissions-summary")), example.summary);
+    if (actor.systemRole === "staff" && actor.permissionKeys.length === 0) assert.deepEqual(links, []);
+    if (actor.permissionKeys[0] === "catalog.read") assert.deepEqual(links.map((link) => link.route), ["/v3/universities"]);
   }
-  assert.match(shellSource, /authorityRole === "admin"/);
+  assert.match(shellSource, /systemRole === "admin"/);
   assert.match(shellSource, /data-testid="staff-role-preview"/);
   assert.match(shellSource, /selectStaffRolePreviewAction/);
   assert.match(shellSource, /logoutStaffAction/);
@@ -81,10 +95,22 @@ test("the V3 shell renders presentation navigation and an authority-Admin contro
   assert.doesNotMatch(shellSource, /Legacy|Connected|isUiContractFixtureMode/);
 });
 
+test("directory labels use assigned roles and reject mismatched access snapshots", () => {
+  const member = { membershipId: "member-a", version: 3 };
+  const access = { membershipId: "member-a", accessVersion: 3, systemRole: "staff",
+    assignments: [{ label: "Куратор Китая" }, { label: "Продажи" }, { label: "Куратор Китая" }] };
+  assert.equal(staffDirectoryAccessSummary(member, access), "Куратор Китая, Продажи");
+  assert.equal(staffDirectoryAccessSummary(member, { ...access, systemRole: "admin" }), "Администратор");
+  assert.equal(staffDirectoryAccessSummary(member, { ...access, assignments: [] }), "Роли не назначены");
+  for (const unavailable of [undefined, { ...access, accessVersion: 2 }, { ...access, membershipId: "member-b" }]) {
+    assert.match(staffDirectoryAccessSummary(member, unavailable), /Обновите страницу/);
+  }
+});
+
 test("V3 exposes the canonical audit export only on the Admin journal surface", () => {
   assert.match(
     v3SettingsPageSource,
-    /const isAdmin = actor\.presentationRole === "admin"/,
+    /const isAdmin = actor\.systemRole === "admin" && actor\.presentationRole === null/,
   );
   assert.match(
     v3SettingsTypesSource,
@@ -100,7 +126,7 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
   assert.match(v3SettingsSectionsSource, /\{exportEnabled \? \(\s*<Card title="Экспорт журнала">/);
   assert.match(v3SettingsSource, /return isPlatformP7AAuditEnabled\(environment\)/);
   assert.match(v3SettingsSectionsSource, /action="\/api\/platform-audit\/export"/);
-  assert.match(auditExportRouteSource, /actor\.actor\.platformRole !== "admin"/);
+  assert.match(auditExportRouteSource, /actor\.actor\.systemRole !== "admin"/);
   assert.match(auditExportRouteSource, /isPlatformP7AAuditEnabled\(dependencies\.env\)/);
   assert.match(
     foundationHarnessSource,

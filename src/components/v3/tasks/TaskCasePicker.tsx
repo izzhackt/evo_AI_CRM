@@ -6,8 +6,9 @@ import { searchTaskCasesAction } from "@/lib/v3/task-case-actions";
 import type { CalendarCaseOption } from "../calendar/types";
 
 const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm focus:ring-2 focus:ring-accent/20";
-export function TaskCasePicker({ initialCases, initialHasMore, selectedCase }: Readonly<{
+export function TaskCasePicker({ initialCases, initialHasMore, selectedCase, onCaseChange }: Readonly<{
   initialCases: readonly CalendarCaseOption[]; initialHasMore: boolean; selectedCase?: CalendarCaseOption;
+  onCaseChange?: (caseId: string) => void;
 }>) {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -30,7 +31,11 @@ export function TaskCasePicker({ initialCases, initialHasMore, selectedCase }: R
         setRows(next);
         setCursor(result.nextCursor);
         setHasMore(result.nextCursor !== null);
-        if (!next.some((row) => row.id === selected)) setSelected(next[0]?.id ?? "");
+        if (!next.some((row) => row.id === selected)) {
+          const nextCaseId = next[0]?.id ?? "";
+          setSelected(nextCaseId);
+          onCaseChange?.(nextCaseId);
+        }
       } catch { if (sequence.current === current) setStatus("unavailable"); }
     });
   }
@@ -51,7 +56,7 @@ export function TaskCasePicker({ initialCases, initialHasMore, selectedCase }: R
       <button type="button" disabled={pending} onClick={() => search()} className="min-h-11 rounded-ctl border border-control-edge px-3 text-sm">{pending ? "Ищем…" : "Найти"}</button>
     </div>
     <label htmlFor={`${id}-case`} className="text-sm font-medium text-fg-2">Студент</label>
-    <select id={`${id}-case`} name="student_case_id" required value={selected} onChange={(event) => setSelected(event.target.value)} className={CONTROL}>
+    <select id={`${id}-case`} name="student_case_id" required value={selected} onChange={(event) => { setSelected(event.target.value); onCaseChange?.(event.target.value); }} className={CONTROL}>
       <option value="" disabled>Выберите дело</option>
       {rows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
     </select>

@@ -1,9 +1,10 @@
+import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 import type { PlatformAdmissionsTaskQueueRow } from "../platform-admissions-task-contract.ts";
 import {
   normalizePlatformAdmissionsTaskQueueRow,
   parsePlatformAdmissionsTaskQueueCursor,
 } from "../platform-admissions-workspace.ts";
-import type { PlatformActor } from "../platform-auth.ts";
+import type { ActivePlatformActor, PlatformActor } from "../platform-auth.ts";
 import { platformTaskDeadlineSortTime } from "../platform-task-deadline.ts";
 import { ADMISSIONS_DEADLINE_LABELS, type AdmissionsDeadlineKind } from "../platform-admissions-deadline-contract.ts";
 
@@ -69,6 +70,33 @@ export type CalendarRpcClient = Readonly<{
 export type CalendarContractDependencies = Readonly<{
   client?: CalendarRpcClient;
 }>;
+
+export type CalendarReadAccess = Readonly<{ tasks: boolean; applicationDeadlines: boolean }>;
+
+/** Section hints only; every permitted reader still enforces canonical object scope. */
+export async function readCalendarWorkspaceBranches<TTasks, TDeadlines, TNearest, TCases>(
+  actor: ActivePlatformActor,
+  readers: Readonly<{
+    tasks: (actor: ActivePlatformActor) => Promise<TTasks>;
+    deadlines: (actor: ActivePlatformActor) => Promise<TDeadlines>;
+    nearest: (actor: ActivePlatformActor) => Promise<TNearest>;
+    cases: (actor: ActivePlatformActor) => Promise<TCases>;
+  }>,
+) {
+  const canReadCases = staffPresentationCan(actor, "admissions.read");
+  const access: CalendarReadAccess = Object.freeze({
+    tasks: staffHasPermission(actor, "task.manage") && (!isStaffPreview(actor) || canReadCases),
+    applicationDeadlines: canReadCases && staffHasPermission(actor, "application.manage"),
+  });
+  // Do not invoke a forbidden branch or disguise a failed authorized read as empty.
+  const [tasks, deadlines, nearest, cases] = await Promise.all([
+    access.tasks ? readers.tasks(actor) : null,
+    access.applicationDeadlines ? readers.deadlines(actor) : null,
+    access.applicationDeadlines ? readers.nearest(actor) : null,
+    canReadCases ? readers.cases(actor) : null,
+  ]);
+  return Object.freeze({ access, tasks, deadlines, nearest, cases });
+}
 
 export class CalendarContractError extends Error {
   constructor() {
@@ -177,10 +205,16 @@ function isUndatedSentinel(value: string): boolean {
 }
 
 function requireCalendarActor(actor: PlatformActor): string {
-  if (actor.platformRole !== "admin" && actor.platformRole !== "admissions") {
+  if (!staffCan(actor, "admissions.read")) {
     return invalidShape();
   }
   return requiredUuid(actor.organizationId);
+}
+
+function requireCalendarPermission(actor: PlatformActor, permission: "task.manage" | "application.manage"): string {
+  const organizationId = permission === "task.manage" ? requiredUuid(actor.organizationId) : requireCalendarActor(actor);
+  if (!staffHasPermission(actor, permission)) return invalidShape();
+  return organizationId;
 }
 
 function normalizeApplicationStatus(value: unknown): CalendarApplicationStatus {
@@ -274,7 +308,7 @@ export async function listCalendarUndatedTaskPage(
   nextCursor: CalendarUndatedTaskCursor | null;
 }>> {
   try {
-    const organizationId = requireCalendarActor(actor);
+    const organizationId = requireCalendarPermission(actor, "task.manage");
     const normalizedPageSize = pageSize(options.pageSize);
     const requestedLimit = normalizedPageSize + 1;
     const cursor = options.cursor
@@ -349,7 +383,7 @@ export async function listCalendarApplicationDeadlinePage(
   nextCursor: CalendarApplicationDeadlineCursor | null;
 }>> {
   try {
-    requireCalendarActor(actor);
+    requireCalendarPermission(actor, "application.manage");
     const normalizedPageSize = pageSize(options.pageSize);
     const requestedLimit = normalizedPageSize + 1;
     const from = requiredDate(options.from);
@@ -431,7 +465,7 @@ export async function readNearestCalendarApplicationDeadline(
   dependencies: CalendarContractDependencies = {},
 ): Promise<CalendarApplicationDeadlineRow | null> {
   try {
-    requireCalendarActor(actor);
+    requireCalendarPermission(actor, "application.manage");
     const client = dependencies.client ?? await getCalendarClient();
     const response = await client.schema("platform").rpc(
       "admissions_deadline_page_v1",

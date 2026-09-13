@@ -112,10 +112,8 @@ function assertAuthority(row) {
     !UUID_PATTERN.test(row.profile_id) ||
     !UUID_PATTERN.test(row.organization_id) ||
     !UUID_PATTERN.test(row.membership_id) ||
-    !UUID_PATTERN.test(row.bundle_id) ||
     !/^[1-9][0-9]*$/.test(row.platform_access_version) ||
-    !/^[1-9][0-9]*$/.test(row.bundle_version) ||
-    row.current_role !== "sales" ||
+    row.system_role !== "staff" || row.can_read_lead !== true || row.can_manage_workflow !== true ||
     row.membership_status !== "active" ||
     row.profile_status !== "active"
   ) {
@@ -182,9 +180,9 @@ async function main() {
         profile.access_version::TEXT AS platform_access_version,
         membership.organization_id,
         membership.id AS membership_id,
-        membership.current_bundle_id AS bundle_id,
-        bundle.version::TEXT AS bundle_version,
-        membership."current_role"::TEXT AS current_role,
+        identity.system_role,
+        platform_private.staff_has_permission(membership.organization_id, membership.id, 'lead.read') AS can_read_lead,
+        platform_private.staff_has_permission(membership.organization_id, membership.id, 'lead.sales.workflow.manage') AS can_manage_workflow,
         membership.status::TEXT AS membership_status,
         profile.status::TEXT AS profile_status
       FROM auth.users AS auth_user
@@ -192,8 +190,7 @@ async function main() {
         ON profile.auth_user_id = auth_user.id
       JOIN platform.organization_memberships AS membership
         ON membership.profile_id = profile.id
-      JOIN platform.role_bundle_versions AS bundle
-        ON bundle.id = membership.current_bundle_id
+      JOIN LATERAL platform_private.staff_membership_identity(membership.organization_id, membership.id) AS identity ON TRUE
       WHERE lower(auth_user.email) = ${salesEmail()}
       ORDER BY membership.created_at DESC, membership.id DESC
       LIMIT 1
@@ -881,12 +878,9 @@ async function main() {
       const claims = JSON.stringify({
         sub: authority.auth_user_id,
         role: "authenticated",
-        platform_role: authority.current_role,
         platform_access_version: authority.platform_access_version,
         platform_organization_id: authority.organization_id,
         platform_membership_id: authority.membership_id,
-        platform_bundle_id: authority.bundle_id,
-        platform_bundle_version: authority.bundle_version,
       });
       await transaction`
         SELECT pg_catalog.set_config('request.jwt.claims', ${claims}, TRUE)

@@ -1,3 +1,4 @@
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 
 const UUID_PATTERN =
@@ -674,7 +675,7 @@ export function normalizePlatformDocumentQueueRow(
 }
 
 function requireDocumentReader(actor: PlatformActor): string {
-  if (actor.platformRole !== "admin" && actor.platformRole !== "admissions") {
+  if (!staffCan(actor, "documents.read")) {
     return invalidShape();
   }
   return requiredUuid(actor.organizationId);

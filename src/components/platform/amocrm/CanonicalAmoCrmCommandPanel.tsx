@@ -338,6 +338,7 @@ function ResultState({
 
 export function CanonicalAmoCrmCommandPanel({
   availability,
+  canMutate,
   blockingAttempt = null,
   leadId,
   locale,
@@ -346,6 +347,7 @@ export function CanonicalAmoCrmCommandPanel({
   studentCaseId = null,
 }: Readonly<{
   availability: CanonicalAmoCrmCommandAvailability;
+  canMutate: boolean;
   blockingAttempt?: CanonicalAmoCrmBlockingAttempt | null;
   leadId: string;
   locale: Locale;
@@ -458,6 +460,7 @@ export function CanonicalAmoCrmCommandPanel({
         <p className="max-w-[56ch] text-sm leading-5 text-fg-3">
           {copy.description}
         </p>
+        {!canMutate ? <p role="status" className="text-sm text-fg-2">{locale === "en" ? "Read-only access. Sending commands is unavailable." : locale === "ky" ? "Көрүү гана. Команда жөнөтүү жеткиликсиз." : "Только просмотр. Отправка команд недоступна."}</p> : null}
         <div
           className={cn(
             "border-l px-3 py-2 text-xs font-medium",
@@ -500,7 +503,7 @@ export function CanonicalAmoCrmCommandPanel({
               rows={3}
               maxLength={1000}
               required
-              disabled={!ready || syncing || flowBlocked}
+              disabled={!canMutate || !ready || syncing || flowBlocked}
               placeholder={copy.notePlaceholder}
               className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="canonical-amocrm-note-text"
@@ -518,7 +521,7 @@ export function CanonicalAmoCrmCommandPanel({
               rows={3}
               maxLength={1000}
               required
-              disabled={!ready || syncing || flowBlocked}
+              disabled={!canMutate || !ready || syncing || flowBlocked}
               placeholder={copy.taskPlaceholder}
               className="mt-1.5 min-h-24 w-full resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="canonical-amocrm-task-text"
@@ -536,7 +539,7 @@ export function CanonicalAmoCrmCommandPanel({
               value={taskDeadlineLocal}
               max={AMOCRM_TASK_DEADLINE_LOCAL_SAFE_MAX}
               required
-              disabled={!ready || syncing || flowBlocked}
+              disabled={!canMutate || !ready || syncing || flowBlocked}
               onChange={(event) => setTaskDeadlineLocal(event.currentTarget.value)}
               className="mt-1.5 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
               data-testid="canonical-amocrm-task-deadline"
@@ -553,7 +556,7 @@ export function CanonicalAmoCrmCommandPanel({
           <button
             type="submit"
             className={btnCls}
-            disabled={!ready || syncing || flowBlocked}
+            disabled={!canMutate || !ready || syncing || flowBlocked}
             data-testid="canonical-amocrm-sync"
           >
             {syncing ? copy.submitting : copy.submit}
@@ -587,7 +590,7 @@ export function CanonicalAmoCrmCommandPanel({
             <button
               type="submit"
               className={btnGhostCls}
-              disabled={releasing}
+              disabled={!canMutate || releasing}
               data-testid="canonical-amocrm-release-prepared"
             >
               {releasing ? copy.releasingPrepared : copy.releasePrepared}
@@ -622,7 +625,7 @@ export function CanonicalAmoCrmCommandPanel({
             <button
               type="submit"
               className={btnGhostCls}
-              disabled={!ready || reconciling}
+              disabled={!canMutate || !ready || reconciling}
               data-testid="canonical-amocrm-reconcile"
             >
               {reconciling ? copy.reconciling : copy.reconcile}

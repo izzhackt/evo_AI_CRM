@@ -9,10 +9,12 @@ const source = readFileSync(
 
 test("local communications provisioning resolves one Admin organization, Sales intake owner and Vault runtime", () => {
   assert.match(source, /signInWithPassword/);
-  assert.match(source, /rpc\("current_actor_authority"\)/);
-  assert.match(source, /authority\.platform_role !== "admin"/);
-  assert.match(source, /salesAuthority\.platform_role !== "sales"/);
-  assert.match(source, /salesAuthority\.membership_id/);
+  assert.match(source, /rpc\("staff_access_snapshot"\)/);
+  assert.match(source, /authority\.systemRole !== "admin"/);
+  assert.match(source, /salesAuthority\.systemRole !== "staff"/);
+  assert.match(source, /salesAuthority\.permissions\.includes\("lead.read"\)/);
+  assert.match(source, /salesAuthority\.membershipId/);
+  assert.doesNotMatch(source, /platform_role|current_actor_authority/);
   assert.match(source, /rpc\("provision_manual_send_waha_runtime"/);
   assert.match(source, /waha_session_name !== "crm_primary"/);
   assert.match(source, /base_url !== "http:\/\/evo-crm-waha:3000"/);

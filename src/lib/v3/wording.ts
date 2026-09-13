@@ -585,3 +585,35 @@ export function handoffAcknowledgementLabel(value: string): string | null {
   };
   return Object.hasOwn(labels, value) ? labels[value] : null;
 }
+
+export function staffScopeLabel(value: string): string | null {
+  return lookup({ own: "Свои записи", organization: "Вся организация", department: "Отдел", direction: "Направление", record: "Отдельная запись" }, value);
+}
+
+export function staffAuthConflictMessage(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const messages: Record<string, string> = {
+    legacy_access_review_required: "Приглашение создано до обновления ролей. Проверьте и сохраните согласованные права в этом запросе.",
+    prepared_access_invalid: "Подготовленные права больше не подходят. Выберите действующие роли и области доступа.",
+    role_version_changed: "Роль изменилась после подготовки приглашения. Проверьте её текущие действия и заново подтвердите права.",
+    scope_changed: "Область доступа изменилась. Проверьте выбранный отдел или направление.",
+    identity_already_linked: "Этот аккаунт уже связан с профилем. Сначала проверьте его принадлежность; смена ролей в приглашении этот конфликт не устранит.",
+    recovery_target_unavailable: "Аккаунт сотрудника изменился или недоступен. Проверьте его карточку перед новым запросом восстановления.",
+  };
+  return Object.hasOwn(messages, value) ? messages[value] : "Настройки запроса требуют проверки администратора.";
+}
+
+export function staffAccessSummary(member: Readonly<{ systemRole: "admin" | "staff"; assignments: readonly Readonly<{ label: string }>[] }>): string {
+  return member.systemRole === "admin" ? "Администратор" : [...new Set(member.assignments.map((assignment) => assignment.label))].join(", ") || "Роли не назначены";
+}
+
+export function staffDirectoryAccessSummary(
+  member: Readonly<{ membershipId: string; version: number }>,
+  access: Readonly<{ membershipId: string; accessVersion: number; systemRole: "admin" | "staff";
+    assignments: readonly Readonly<{ label: string }>[] }> | undefined,
+): string {
+  if (!access || member.membershipId !== access.membershipId || member.version !== access.accessVersion) {
+    return "Права изменились или недоступны. Обновите страницу.";
+  }
+  return staffAccessSummary(access);
+}

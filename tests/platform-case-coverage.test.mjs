@@ -128,12 +128,12 @@ test("coverage replay binds actor and full command; inner operations get indepen
   assert.match(sql, /action_key,'student_case',p_student_case_id/);
 });
 
-test("coverage surfaces are Admin guarded and never grant provider or service access", () => {
+test("coverage mutations are permission guarded and never grant provider or service access", () => {
   assert.match(sql, /PERFORM platform_private.require_admin_actor\(p_organization_id,'case.curator.assign'\)/);
   assert.match(sql, /FORCE ROW LEVEL SECURITY/);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION private.read_curator_coverage_workspace[\s\S]*?TO authenticated/);
   assert.doesNotMatch(sql, /GRANT[^;]*TO (?:service_role|anon|PUBLIC)/);
-  assert.match(action, /actor.authorityRole !== "admin"/);
+  assert.match(action, /!staffHasPermission\(actor, "case\.curator\.assign"\) \|\| isStaffPreview\(actor\)/);
   assert.match(action, /exactActionStringFields/);
   assert.match(action, /rpc\("manage_case_coverage"/);
   assert.doesNotMatch(action, /service.?role|createClient\(|revalidatePath\(/i);

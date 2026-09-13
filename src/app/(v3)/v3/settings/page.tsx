@@ -6,17 +6,15 @@ import { redirect } from "next/navigation";
 
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
 import { readStaffWorkspace } from "@/lib/v3/staff-workspace-source";
+import { readStaffRoles } from "@/lib/server/staff-roles-service";
 import {
   readAuditExportEnabled,
-  readCapabilityNames,
   readGateFacts,
   readHealth,
   readIntegrations,
   readJournal,
   readJournalFacets,
   readPlatformFact,
-  readRoles,
-  readRouteNames,
 } from "@/lib/v3/settings-source";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +27,7 @@ export default async function SettingsPart({
     section?: string;
     view?: string;
     member?: string;
+    role?: string;
     object?: string;
     snapshot?: string;
     snapshotId?: string;
@@ -37,14 +36,15 @@ export default async function SettingsPart({
   }>;
 }) {
   const params = await searchParams;
+  if (params.section === "access") redirect("/v3/settings?section=staff&view=roles");
   const section = isSectionKey(params.section) ? params.section : "state";
   const journalFilters = normalizeJournalFilters({
     objectType: params.object,
   });
   const actor = await requireV3PageActor("/v3/settings");
-  const isAdmin = actor.presentationRole === "admin";
+  const isAdmin = actor.systemRole === "admin" && actor.presentationRole === null;
 
-  const [health, integrations, journalRead, journalFacets, gates, platform, staff] = await Promise.all([
+  const [health, integrations, journalRead, journalFacets, gates, platform, staff, staffRoles] = await Promise.all([
     readHealth(actor),
     readIntegrations(actor),
     isAdmin
@@ -61,6 +61,7 @@ export default async function SettingsPart({
     readGateFacts(actor),
     readPlatformFact(),
     isAdmin && section === "staff" ? readStaffWorkspace(actor) : Promise.resolve(undefined),
+    isAdmin && section === "staff" ? readStaffRoles(actor) : Promise.resolve(undefined),
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -115,13 +116,13 @@ export default async function SettingsPart({
             cursorId: next.cursorId,
           })
         }
-        roles={readRoles()}
-        capabilityNames={readCapabilityNames()}
-        routeNames={readRouteNames()}
         gates={gates}
         platform={platform}
         staff={staff}
-        staffView={params.view === "departments" ? "departments" : "people"}
+        staffView={params.view === "departments" ? "departments" : params.view === "roles" ? "roles" : "people"}
+        staffRoles={staffRoles}
+        staffOrganizationId={actor.organizationId}
+        selectedStaffRoleId={params.role}
         selectedStaffMemberId={params.member}
       />
     </PartShell>

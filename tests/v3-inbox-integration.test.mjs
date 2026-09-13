@@ -188,7 +188,7 @@ test("V3 Inbox loads exact-audience reply snippets only for a selected send-capa
 
   assert.match(
     page,
-    /if \(view\.selected\)[\s\S]*fixedRoleCan\([\s\S]*actor\.presentationRole,[\s\S]*"messaging\.send",[\s\S]*\)[\s\S]*readV3ReplySnippets\(actor\)/u,
+    /if \(view\.selected\)[\s\S]*staffPresentationCan\(actor, "messaging\.send"\)[\s\S]*readV3ReplySnippets\(actor\)/u,
   );
   assert.match(
     page,

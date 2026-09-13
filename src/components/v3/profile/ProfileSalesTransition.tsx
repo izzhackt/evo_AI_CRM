@@ -1,5 +1,9 @@
 "use client";
 
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview } from "@/lib/platform-access";
+
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
@@ -25,7 +29,6 @@ import type { HandoffAcknowledgement, HandoffDecision, SalesHandoffAcknowledgeme
 import { respondToHandoffAction, type HandoffResponseActionState } from "@/lib/platform-handoff-acknowledgement-actions";
 import { handoffAcknowledgementLabel } from "@/lib/v3/wording";
 import type {
-  ProfileSalesActorRole,
   ProfileSalesRequestIds,
 } from "./types";
 
@@ -242,11 +245,11 @@ function Evidence({ value }: { value: string | null }) {
 }
 
 function GateCard({
-  actorRole,
+  actor,
   gate,
   requestIds,
 }: {
-  actorRole: ProfileSalesActorRole;
+  actor: ActivePlatformActor;
   gate: PlatformLeadAdmissionsGateSnapshot;
   requestIds: ProfileSalesRequestIds;
 }) {
@@ -257,7 +260,7 @@ function GateCard({
         ? { label: "исключение разрешено", tone: "warn" }
         : { label: "ожидает условий", tone: "danger" };
   const canOverride =
-    actorRole === "admin" && gate.canOverrideGate && !gate.normalHandoffAllowed;
+    !isStaffPreview(actor) && gate.canOverrideGate && !gate.normalHandoffAllowed;
 
   return (
     <Card
@@ -283,7 +286,7 @@ function GateCard({
             </dl>
           ) : null}
           <Evidence value={gate.contractEvidenceReference} />
-          {!gate.contractConfirmed && gate.canConfirmContract ? (
+          {!isStaffPreview(actor) && !gate.contractConfirmed && gate.canConfirmContract ? (
             <GateActionForm
               key={`contract:${gate.gateVersion}`}
               actionName="confirm_contract"
@@ -308,7 +311,7 @@ function GateCard({
           <Evidence value={gate.firstPaymentEvidenceReference} />
           {gate.contractConfirmed &&
           !gate.firstPaymentReceivedDate &&
-          gate.canConfirmFirstPayment ? (
+          !isStaffPreview(actor) && gate.canConfirmFirstPayment ? (
             <GateActionForm
               key={`payment:${gate.gateVersion}`}
               actionName="confirm_first_payment"
@@ -349,11 +352,11 @@ function handoffInitialState(
 }
 
 function HandoffCard({
-  actorRole,
+  actor,
   handoff,
   requestId,
 }: {
-  actorRole: ProfileSalesActorRole;
+  actor: ActivePlatformActor;
   handoff: PlatformLeadAdmissionsHandoffSnapshot;
   requestId: string;
 }) {
@@ -362,9 +365,9 @@ function HandoffCard({
     handoffPlatformLeadToAdmissionsAction,
     handoffInitialState(requestId, handoff),
   );
-  const normalAvailable = handoff.canSubmitNormal;
+  const normalAvailable = !isStaffPreview(actor) && handoff.canSubmitNormal;
   const exceptionalAvailable =
-    actorRole === "admin" && handoff.canSubmitExceptional;
+    !isStaffPreview(actor) && handoff.canSubmitExceptional;
   const firstMode: PlatformStudentHandoffMode = normalAvailable
     ? "normal"
     : "exceptional_override";
@@ -404,7 +407,7 @@ function HandoffCard({
           ) : (
             <p className="text-sm text-fg-2">Передача подтверждена. Обновляем дело.</p>
           )}
-          {actorRole === "admin" ? (
+          {exceptionalAvailable ? (
             <Link
               href={`/v3/profile?case=${caseId}&tab=overview`}
               className={btnGhostCls}
@@ -536,22 +539,22 @@ function HandoffCard({
 }
 
 export function ProfileSalesTransition({
-  actorRole,
+  actor,
   gate,
   handoff,
   requestIds,
 }: {
-  actorRole: ProfileSalesActorRole;
+  actor: ActivePlatformActor;
   gate: PlatformLeadAdmissionsGateSnapshot;
   handoff: PlatformLeadAdmissionsHandoffSnapshot;
   requestIds: ProfileSalesRequestIds;
 }) {
   return (
     <div className="flex flex-col gap-4" data-testid="v3-sales-transition">
-      <GateCard actorRole={actorRole} gate={gate} requestIds={requestIds} />
+      <GateCard actor={actor} gate={gate} requestIds={requestIds} />
       <HandoffCard
         key={`${handoff.gateVersion}:${handoff.caseId ?? "pending"}`}
-        actorRole={actorRole}
+        actor={actor}
         handoff={handoff}
         requestId={requestIds.handoff}
       />

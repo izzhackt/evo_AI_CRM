@@ -154,7 +154,7 @@ export type PlatformAdmissionsTaskQueueOptions = Readonly<{
 export type PlatformAdmissionsTaskAssignee = Readonly<{
   membershipId: string;
   displayName: string;
-  role: FixedRole;
+  role: FixedRole | null;
 }>;
 
 export type PlatformAdmissionsTaskWorkspace = Readonly<{

@@ -1,4 +1,6 @@
 import type { FixedRole } from "./fixed-role-policy.ts";
+import type { ActivePlatformActor } from "./platform-auth.ts";
+import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
 
 export const TEAM_CHAT_CHANNELS = ["general", "sales", "admissions"] as const;
 export type TeamChatChannelKey = (typeof TEAM_CHAT_CHANNELS)[number];
@@ -8,7 +10,7 @@ export const TEAM_CHAT_LABELS: Record<TeamChatChannelKey, string> = {
 export const TEAM_CHAT_BODY_LIMIT = 8000;
 export const TEAM_CHAT_PAGE_MODES = ["latest", "before", "changes", "thread", "search", "message"] as const;
 export type TeamChatPageMode = (typeof TEAM_CHAT_PAGE_MODES)[number];
-export type TeamChatParticipant = Readonly<{ membershipId: string; displayName: string; role: FixedRole }>;
+export type TeamChatParticipant = Readonly<{ membershipId: string; displayName: string; role: FixedRole | null }>;
 export type TeamChatChannel = Readonly<{
   key: TeamChatChannelKey; muted: boolean; preferenceVersion: string;
   readSequence: string; unreadCount: number; firstUnreadId: string | null;
@@ -50,6 +52,10 @@ export function isTeamChatChannel(value: unknown): value is TeamChatChannelKey {
 }
 export function teamChatRoleCanAccess(role: FixedRole, channel: TeamChatChannelKey): boolean {
   return role === "admin" || channel === "general" || role === channel;
+}
+export function staffCanAccessChatChannel(actor: ActivePlatformActor, channel: TeamChatChannelKey): boolean {
+  if (isStaffPreview(actor) && actor.presentationRole !== null) return teamChatRoleCanAccess(actor.presentationRole, channel);
+  return staffHasPermission(actor, `team.chat.${channel}`);
 }
 export function teamChatUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);

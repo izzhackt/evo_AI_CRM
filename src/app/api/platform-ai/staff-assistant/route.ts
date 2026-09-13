@@ -19,10 +19,9 @@ type ActorResult =
       actor: Readonly<{
         authUserId: string;
         organizationId: string;
-        platformRole:
-          | "admin"
-          | "sales"
-          | "admissions";
+        systemRole: "admin" | "staff";
+        permissionKeys: readonly string[];
+        presentationRole: "admin" | "sales" | "admissions" | null;
       }>;
     }>;
 
@@ -172,7 +171,7 @@ export function createPlatformStaffAssistantHandler(loadDependencies: Dependenci
     if (actor.status === "anonymous") return errorResponse(401, "auth_required");
     if (actor.status !== "authenticated") return errorResponse(403, "forbidden");
     if (actor.actor.organizationId !== dependencies.config.organizationId) return errorResponse(403, "forbidden");
-    if (!["admin", "sales", "admissions"].includes(actor.actor.platformRole)) {
+    if (actor.actor.presentationRole !== null || (actor.actor.systemRole !== "admin" && !actor.actor.permissionKeys.includes("staff.assistant.use"))) {
       return errorResponse(403, "forbidden");
     }
 

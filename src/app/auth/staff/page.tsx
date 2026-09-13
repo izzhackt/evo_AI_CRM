@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default async function StaffAccountPage() {
   const result = await resolvePlatformActor();
-  const initial = result.status === "authenticated" && ["admin", "sales", "admissions"].includes(result.actor.authorityRole)
+  const initial = result.status === "authenticated"
     ? { ready: true, email: result.actor.email, error: "" } : undefined;
   return <main className="grid min-h-dvh place-items-center bg-bg px-4 py-10">
     <section aria-labelledby="staff-account-title" className="w-full max-w-[440px] rounded-[20px] bg-surface p-6 shadow-evo-lg">

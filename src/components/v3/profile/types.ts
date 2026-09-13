@@ -130,7 +130,7 @@ export type ProfileAdmissionsWorkspace = Readonly<{
   caseState: "pending" | "active" | "closed";
   applications: readonly PlatformApplicationQueueRow[];
   visa: PlatformCaseVisa | null;
-  finance: PlatformCaseFinanceControl;
+  finance: PlatformCaseFinanceControl | null;
   requestIds: ProfileAdmissionsRequestIds;
 }>;
 
@@ -167,6 +167,7 @@ export type Fact = Readonly<{ label: string; value: string | null }>;
 
 /** Дополнительные реальные проекции профиля; отсутствующие данные пусты. */
 export type ProfileDraft = Readonly<{
+  access: Readonly<{ documents: boolean; finance: boolean; studentProfile: boolean; contract: boolean }>;
   routeTarget: ProfileRouteTarget;
   /** Отображаемое имя ответственного сотрудника, если проекция его возвращает. */
   responsible: string | null;
@@ -237,12 +238,15 @@ export function buildV3ProfileHref(
  */
 export function tabsFor(
   student: boolean,
-  actorRole: ProfileActorRole,
+  access: ProfileDraft["access"],
+  hasAdmissions: boolean,
 ): readonly (typeof TABS)[number][] {
   return TABS.filter((tab) => {
-    if (tab.key === "documents" || tab.key === "contract" || tab.key === "route") {
-      return student && actorRole !== "sales";
-    }
+    if (tab.key === "documents") return student && access.documents;
+    if (tab.key === "contract") return student && access.contract;
+    if (tab.key === "anketa") return !student || access.studentProfile;
+    if (tab.key === "money") return !student || access.finance;
+    if (tab.key === "route") return student && hasAdmissions;
     return true;
   });
 }
@@ -254,8 +258,9 @@ export function tabsFor(
 export function resolveTab(
   value: unknown,
   student: boolean,
-  actorRole: ProfileActorRole,
+  access: ProfileDraft["access"],
+  hasAdmissions: boolean,
 ): TabKey {
-  const found = tabsFor(student, actorRole).find((tab) => tab.key === value);
+  const found = tabsFor(student, access, hasAdmissions).find((tab) => tab.key === value);
   return found ? found.key : "overview";
 }

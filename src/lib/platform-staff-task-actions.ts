@@ -1,5 +1,6 @@
 "use server";
 
+import { staffCan, isStaffPreview } from "./platform-access.ts";
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { STAFF_TASK_FORM_FIELDS, parseStaffTaskCommand, staffTaskTimestamp, staffTaskUuid, staffTaskVersion, type StaffTaskActionState } from "./platform-staff-task-contract";
@@ -10,7 +11,7 @@ export async function mutateStaffTaskAction(previous: StaffTaskActionState, form
   const actor = await requirePlatformStaffActor();
   let requestId = staffTaskUuid(form.get("request_id")) ?? previous.requestId;
   const failed = (status: StaffTaskActionState["status"]): StaffTaskActionState => ({ status, requestId, taskId: null, version: null });
-  if (!["admin", "sales", "admissions"].includes(actor.authorityRole)) return failed("forbidden");
+  if (!staffCan(actor, "tasks.write") || isStaffPreview(actor)) return failed("forbidden");
   const fields = exactActionStringFields(form, STAFF_TASK_FORM_FIELDS);
   const command = fields ? parseStaffTaskCommand(fields) : null;
   if (!command) return failed("invalid");

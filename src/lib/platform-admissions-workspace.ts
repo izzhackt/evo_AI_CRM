@@ -1,3 +1,4 @@
+import { staffCan, staffHasPermission } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 import { parsePlatformAdmissionsUuid } from "./platform-admissions.ts";
 import {
@@ -17,11 +18,6 @@ import {
   PLATFORM_VISA_STATUSES,
   type PlatformVisaStatus,
 } from "./platform-case-operations-contract.ts";
-import {
-  DATABASE_STAFF_ROLES,
-  databaseRoleToInterfaceRole,
-  type DatabaseStaffRole,
-} from "./supabase/platform-authority.ts";
 import { platformTaskDeadlineSortTime } from "./platform-task-deadline.ts";
 
 const SAFE_REPOSITORY_ERROR_MESSAGE =
@@ -183,12 +179,8 @@ function oneOf<const T extends readonly string[]>(
   return value as T[number];
 }
 
-function databaseRole(value: unknown): DatabaseStaffRole {
-  return oneOf(value, DATABASE_STAFF_ROLES);
-}
-
 function requireAdmissionsActor(actor: PlatformActor): string {
-  if (actor.platformRole !== "admin" && actor.platformRole !== "admissions") {
+  if (!staffCan(actor, "admissions.read")) {
     return invalidShape();
   }
   return requiredUuid(actor.organizationId);
@@ -382,7 +374,8 @@ function normalizeAssignee(value: unknown): PlatformAdmissionsTaskAssignee {
   return Object.freeze({
     membershipId: requiredUuid(row.membership_id),
     displayName: requiredText(row.display_name, 200),
-    role: databaseRoleToInterfaceRole(databaseRole(row.role)),
+    // Existing RPC display label; eligibility itself is selected by live SQL.
+    role: row.role === null ? null : row.role === "curator" ? "admissions" : oneOf(row.role, ["admin", "sales"] as const),
   });
 }
 
@@ -431,6 +424,69 @@ export function normalizePlatformAdmissionsTaskWorkspace(
     tasks: Object.freeze(tasks),
     assignees: Object.freeze(assignees),
   });
+}
+
+export type PlatformAdmissionsTaskTarget = Readonly<{
+  organizationId: string;
+  studentCaseId: string;
+  task: PlatformAdmissionsTaskQueueRow;
+  assignees: readonly PlatformAdmissionsTaskAssignee[];
+  capabilities: Readonly<{ canAssign: boolean; canChangeVisibility: boolean; canReadCase: boolean }>;
+}>;
+
+export function normalizePlatformAdmissionsTaskTarget(
+  value: unknown,
+  expectedOrganizationId: string,
+  expectedStudentCaseId: string,
+  expectedCaseTaskId: string,
+): PlatformAdmissionsTaskTarget {
+  const row = exactRecord(value, ["schemaVersion", "organizationId", "studentCaseId", "task", "assignees", "capabilities"]);
+  const organizationId = requiredUuid(row.organizationId);
+  const studentCaseId = requiredUuid(row.studentCaseId);
+  if (row.schemaVersion !== 1 || organizationId !== requiredUuid(expectedOrganizationId)
+    || studentCaseId !== requiredUuid(expectedStudentCaseId)
+    || !Array.isArray(row.assignees) || row.assignees.length > MAX_ASSIGNEES) return invalidShape();
+  const task = normalizePlatformAdmissionsTaskQueueRow(row.task, organizationId);
+  if (task.studentCaseId !== studentCaseId || task.caseTaskId !== requiredUuid(expectedCaseTaskId)) return invalidShape();
+  const flags = exactRecord(row.capabilities, ["canAssign", "canChangeVisibility", "canReadCase"]);
+  if (typeof flags.canAssign !== "boolean" || typeof flags.canChangeVisibility !== "boolean"
+    || typeof flags.canReadCase !== "boolean") return invalidShape();
+  const assigneeIds = new Set<string>();
+  const assignees = row.assignees.map((item) => {
+    const assignee = normalizeAssignee(item);
+    if (assigneeIds.has(assignee.membershipId)) return invalidShape();
+    assigneeIds.add(assignee.membershipId);
+    return assignee;
+  });
+  if (!flags.canAssign && (assignees.length !== 1
+    || assignees[0].membershipId !== task.assigneeMembershipId)) return invalidShape();
+  return Object.freeze({ organizationId, studentCaseId, task,
+    assignees: Object.freeze(assignees), capabilities: Object.freeze({
+      canAssign: flags.canAssign, canChangeVisibility: flags.canChangeVisibility, canReadCase: flags.canReadCase,
+    }) });
+}
+
+/** Reads one authorized task, without expanding access to its full case workspace. */
+export async function getPlatformAdmissionsTaskTarget(
+  actor: PlatformActor,
+  studentCaseId: string,
+  caseTaskId: string,
+  dependencies: PlatformAdmissionsWorkspaceDependencies = {},
+): Promise<PlatformAdmissionsTaskTarget> {
+  try {
+    if (!staffHasPermission(actor, "task.manage")) return invalidShape();
+    const organizationId = requiredUuid(actor.organizationId);
+    const normalizedCaseId = requiredUuid(studentCaseId);
+    const normalizedTaskId = requiredUuid(caseTaskId);
+    const client = dependencies.client ?? await getPlatformClient();
+    const response = await client.schema("platform").rpc("staff_case_task_target", {
+      p_organization_id: organizationId, p_student_case_id: normalizedCaseId, p_case_task_id: normalizedTaskId,
+    }, { get: true });
+    if (response.error) return invalidShape();
+    return normalizePlatformAdmissionsTaskTarget(response.data, organizationId, normalizedCaseId, normalizedTaskId);
+  } catch (error) {
+    return failClosed(error);
+  }
 }
 
 export function normalizePlatformAdmissionsVisaQueueRow(
@@ -512,7 +568,8 @@ export async function listPlatformAdmissionsTaskQueue(
   dependencies: PlatformAdmissionsWorkspaceDependencies = {},
 ): Promise<PlatformAdmissionsTaskQueue> {
   try {
-    const organizationId = requireAdmissionsActor(actor);
+    if (!staffHasPermission(actor, "task.manage")) return invalidShape();
+    const organizationId = requiredUuid(actor.organizationId);
     const pageSize = normalizedPageSize(options.pageSize);
     const requestedLimit = pageSize + 1;
     const cursor = normalizeTaskQueueCursor(options.cursor);

@@ -1,4 +1,5 @@
 import "server-only";
+import { isStaffPreview, staffCan, staffHasPermission } from "../platform-access.ts";
 
 import type {
   InboxConversation,
@@ -76,6 +77,7 @@ export type InboxAmoCrmCommand =
       leadId: string;
       studentCaseId: string | null;
       availability: CanonicalAmoCrmCommandAvailability;
+      canMutate: boolean;
       blockingAttempt: InboxAmoCrmBlockingAttempt | null;
     }>
   | Readonly<{
@@ -172,7 +174,7 @@ export async function readInbox(
   options: InboxReadOptions,
 ): Promise<InboxReadModel> {
   const presentationQueue =
-    actor.presentationRole === "admin" ? undefined : actor.presentationRole;
+    actor.presentationRole === null || actor.presentationRole === "admin" ? undefined : actor.presentationRole;
   const filters = Object.freeze({
     query: options.query,
     waitingOnly: options.waitingOnly,
@@ -332,10 +334,7 @@ async function readInboxAmoCrmCommand(
     });
   }
 
-  const roleMatches =
-    actor.authorityRole === "admin" ||
-    (queue === "sales" && actor.authorityRole === "sales") ||
-    (queue === "admissions" && actor.authorityRole === "admissions");
+  const roleMatches = staffCan(actor, queue === "sales" ? "sales.read" : "admissions.read");
   if (!roleMatches) {
     return Object.freeze({
       status: "blocked" as const,
@@ -350,7 +349,7 @@ async function readInboxAmoCrmCommand(
       readPlatformBlockingAmoCrmCommand(staffClient, {
         organizationId: actor.organizationId,
         authorization: {
-          actorRole: actor.authorityRole,
+          actorRole: actor.systemRole === "admin" ? "admin" : scope,
           workflowScope:
             scope === "sales"
               ? "sales_pre_handoff"
@@ -375,6 +374,7 @@ async function readInboxAmoCrmCommand(
       leadId,
       studentCaseId: scope === "sales" ? null : studentCaseId,
       availability,
+      canMutate: !isStaffPreview(actor) && staffHasPermission(actor, "amocrm.command.manage"),
       blockingAttempt:
         blockingAttempt === null
           ? null

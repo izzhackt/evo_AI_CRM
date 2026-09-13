@@ -8,6 +8,7 @@ function dataModule(source) {
 
 const harness = {
   actorRole: "sales",
+  canUseCommands: true,
   guardCalls: [],
   serviceCalls: [],
   revalidated: [],
@@ -48,7 +49,7 @@ registerHooks({
           function actor(kind) {
             const harness = globalThis.__canonicalAmoCrmCommandActionHarness;
             harness.guardCalls.push(kind);
-            return { platformRole: harness.actorRole };
+            return { systemRole: harness.actorRole === "admin" ? "admin" : "staff", presentationRole: null, permissionKeys: harness.canUseCommands ? ["amocrm.command.manage"] : [], assignments: [] };
           }
           export async function requirePlatformSalesActor() {
             return actor("sales");
@@ -168,6 +169,7 @@ const INITIAL_STATE = Object.freeze({
 
 function resetHarness() {
   harness.actorRole = "sales";
+  harness.canUseCommands = true;
   harness.guardCalls.length = 0;
   harness.serviceCalls.length = 0;
   harness.revalidated.length = 0;
@@ -198,6 +200,18 @@ function form(entries) {
   return value;
 }
 
+test("staff without the named amoCRM command permission never reaches command execution", async () => {
+  resetHarness();
+  harness.canUseCommands = false;
+  const result = await syncCanonicalAmoCrmSalesAction(INITIAL_STATE, form({
+    lead_id: IDS.lead, request_id: IDS.request, note_text: "A bounded operator note",
+    task_text: "Review application", task_complete_till: "1790000000",
+  }));
+  assert.deepEqual(result, { status: "blocked", reason: "permission_denied", attemptId: null, steps: [] });
+  assert.deepEqual(harness.serviceCalls, []);
+  assert.deepEqual(harness.revalidated, []);
+});
+
 test("Sales sync accepts only exact fields and passes a trimmed bounded human note", async () => {
   resetHarness();
   const result = await syncCanonicalAmoCrmSalesAction(
@@ -216,7 +230,7 @@ test("Sales sync accepts only exact fields and passes a trimmed bounded human no
     {
       kind: "sales",
       input: {
-        actor: { platformRole: "sales" },
+        actor: { systemRole: "staff", presentationRole: null, permissionKeys: ["amocrm.command.manage"], assignments: [] },
         actorRole: "sales",
         leadId: IDS.lead,
         baseRequestId: IDS.request,
@@ -252,7 +266,7 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
   assert.deepEqual(harness.serviceCalls[0], {
     kind: "admissions",
     input: {
-      actor: { platformRole: "admin" },
+      actor: { systemRole: "admin", presentationRole: null, permissionKeys: ["amocrm.command.manage"], assignments: [] },
       actorRole: "admin",
       studentCaseId: IDS.studentCase,
       baseRequestId: IDS.request,
@@ -402,7 +416,7 @@ test("read-only reconciliation selects the workflow guard and exact path without
     {
       kind: "reconcile",
       input: {
-        actor: { platformRole: "admissions" },
+        actor: { systemRole: "staff", presentationRole: null, permissionKeys: ["amocrm.command.manage"], assignments: [] },
         actorRole: "admissions",
         workflowScope: "admissions_post_handoff",
         leadId: IDS.lead,
@@ -442,7 +456,7 @@ test("prepared-attempt release uses the workflow guard and never enters the prov
     {
       kind: "release",
       input: {
-        actor: { platformRole: "sales" },
+        actor: { systemRole: "staff", presentationRole: null, permissionKeys: ["amocrm.command.manage"], assignments: [] },
         actorRole: "sales",
         workflowScope: "sales_pre_handoff",
         leadId: IDS.lead,

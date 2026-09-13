@@ -1,3 +1,4 @@
+import { staffPresentationCan } from "../platform-access.ts";
 import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
 import {
@@ -107,7 +108,7 @@ export async function admissionsRpc(name: string, args: Record<string, unknown> 
   return data;
 }
 function staff(actor: ActivePlatformActor): void {
-  if (actor.authorityRole === "sales" || actor.presentationRole === "sales") throw new AdmissionsSourceError("denied");
+  if (!staffPresentationCan(actor, "admissions.read")) throw new AdmissionsSourceError("denied");
 }
 export async function readAdmissionsPlaybooks(actor: ActivePlatformActor): Promise<AdmissionsPlaybook[]> {
   staff(actor); return list(record(await admissionsRpc("admissions_playbook_catalog_v1")).playbooks, 30).map(normalizeAdmissionsPlaybook);

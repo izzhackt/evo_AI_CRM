@@ -10,11 +10,14 @@ import {
   normalizeCalendarApplicationDeadlineRow,
   parseCalendarUndatedTaskCursor,
   readNearestCalendarApplicationDeadline,
+  readCalendarWorkspaceBranches,
 } from "../src/lib/v3/calendar-contract.ts";
 import {
   calendarUndatedContinuationHref,
   calendarUndatedPageNotice,
   hasCalendarAllDayRow,
+  calendarAccessNotice,
+  calendarEmptyPeriodLabel,
 } from "../src/components/v3/calendar/types.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -34,11 +37,96 @@ const actor = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "D2 Admissions",
   email: "d2@example.invalid",
-  platformRole: "admissions",
-  authorityRole: "admissions",
+  systemRole: "staff",
+  presentationRole: null,
+  assignments: [],
+  permissionKeys: ["case.read.full", "task.manage", "application.manage"],
   platformAccessVersion: 1,
   platformBundleId: "12400000-0000-4000-8000-000000000041",
   platformBundleVersion: 1,
+});
+
+test("calendar undated tasks require task.manage before making any RPC", async () => {
+  const calls = [];
+  const createOnly = { ...actor, permissionKeys: ["case.read.full", "profile.read.full", "task.create"] };
+  await assert.rejects(listCalendarUndatedTaskPage(createOnly, {}, {
+    client: { schema: () => ({ rpc: async (...args) => { calls.push(args); return { data: [], error: null }; } }) },
+  }), CalendarContractError);
+  assert.deepEqual(calls, []);
+});
+
+test("calendar deadlines and nearest deadline each require application.manage before RPC", async () => {
+  const calls = [];
+  const taskManager = { ...actor, permissionKeys: ["case.read.full", "task.manage"] };
+  const dependencies = { client: { schema: () => ({ rpc: async (...args) => { calls.push(args); return { data: [], error: null }; } }) } };
+  await assert.rejects(listCalendarApplicationDeadlinePage(taskManager, { from: "2026-09-01", to: "2026-09-30" }, dependencies), CalendarContractError);
+  await assert.rejects(readNearestCalendarApplicationDeadline(taskManager, dependencies), CalendarContractError);
+  assert.deepEqual(calls, []);
+});
+
+test("task-only staff reads the actual bounded undated RPC without a case read grant", async () => {
+  const calls = [];
+  const result = await listCalendarUndatedTaskPage({ ...actor, permissionKeys: ["task.manage"] }, {}, {
+    client: { schema: () => ({ rpc: async (...args) => { calls.push(args); return { data: [], error: null }; } }) },
+  });
+  assert.deepEqual(result, { rows: [], nextCursor: null });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "staff_case_task_undated_page");
+});
+
+const branchValues = {
+  tasks: { tasks: [{ id: TASK_ID }], undatedNextCursor: null },
+  deadlines: [{ sourceKey: `application:${APPLICATION_ID}:application` }],
+  nearest: { sourceKey: `application:${APPLICATION_ID}:application` },
+  cases: { rows: [{ id: CASE_ID, name: "Test case" }], hasNext: false },
+};
+
+for (const [name, changes, expected] of [
+  ["create-only", { permissionKeys: ["case.read.full", "profile.read.full", "task.create"] }, ["cases"]],
+  ["task-manager", { permissionKeys: ["case.read.full", "task.manage"] }, ["cases", "tasks"]],
+  ["deadline-reader", { permissionKeys: ["case.read.full", "application.manage"] }, ["cases", "deadlines", "nearest"]],
+  ["both queues", {}, ["cases", "deadlines", "nearest", "tasks"]],
+  ["task-only", { permissionKeys: ["task.manage"] }, ["tasks"]],
+  ["no case access", { permissionKeys: ["task.manage", "application.manage"] }, ["tasks"]],
+  ["Admin", { systemRole: "admin", permissionKeys: [] }, ["cases", "deadlines", "nearest", "tasks"]],
+  ["Admin Admissions preview", { systemRole: "admin", presentationRole: "admissions", permissionKeys: [] }, ["cases", "deadlines", "nearest", "tasks"]],
+  ["Admin Sales preview", { systemRole: "admin", presentationRole: "sales", permissionKeys: [] }, []],
+]) {
+  test(`calendar coordinator keeps ${name} permission branches independent`, async () => {
+    const current = { ...actor, ...changes };
+    const calls = [];
+    const readers = Object.fromEntries(Object.entries(branchValues).map(([key, value]) => [key, async (received) => {
+      assert.equal(received, current);
+      calls.push(key);
+      return value;
+    }]));
+    const result = await readCalendarWorkspaceBranches(current, readers);
+    assert.deepEqual(calls.sort(), expected);
+    assert.deepEqual(result.access, { tasks: expected.includes("tasks"), applicationDeadlines: expected.includes("deadlines") });
+    for (const [key, value] of Object.entries(branchValues)) assert.equal(result[key], expected.includes(key) ? value : null);
+  });
+}
+
+test("calendar coordinator propagates every authorized reader failure, never an empty branch", async () => {
+  for (const failedBranch of Object.keys(branchValues)) {
+    const failure = new Error(`Unavailable ${failedBranch}`);
+    const readers = Object.fromEntries(Object.entries(branchValues).map(([key, value]) => [key, async () => {
+      if (key === failedBranch) throw failure;
+      return value;
+    }]));
+    await assert.rejects(readCalendarWorkspaceBranches(actor, readers), (error) => error === failure);
+  }
+});
+
+test("calendar permissions are unavailable states, not empty tasks or a missing nearest deadline", () => {
+  assert.equal(calendarAccessNotice({ tasks: false, applicationDeadlines: false }), "Нет доступа к общему списку задач и срокам поступления.");
+  assert.equal(calendarEmptyPeriodLabel({ tasks: false, applicationDeadlines: false }), null);
+  assert.equal(calendarAccessNotice({ tasks: false, applicationDeadlines: true }, true), "Нет доступа к общему списку задач. Открыта задача выбранного студента.");
+  assert.equal(calendarEmptyPeriodLabel({ tasks: false, applicationDeadlines: true }), "На этот период сроков поступления нет.");
+  assert.equal(calendarAccessNotice({ tasks: true, applicationDeadlines: false }), "Нет доступа к срокам поступления.");
+  assert.equal(calendarEmptyPeriodLabel({ tasks: true, applicationDeadlines: false }), "На этот период задач нет.");
+  assert.equal(calendarAccessNotice({ tasks: true, applicationDeadlines: true }), null);
+  assert.equal(calendarEmptyPeriodLabel({ tasks: true, applicationDeadlines: true }), "На этот период событий нет.");
 });
 
 function undatedRow(id) {
@@ -326,7 +414,7 @@ test("D2 undated continuation is URL-backed and never silently claims completene
   );
   assert.match(page, /undatedCursorFromParams[\s\S]*parseCalendarUndatedTaskCursor/u);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
-  assert.match(page, /undatedContinuationPage=\{undatedCursor !== null\}/u);
+  assert.match(page, /undatedContinuationPage=\{workspace\.access\.tasks && undatedCursor !== null\}/u);
   assert.equal(calendarUndatedPageNotice(false, false, 12), null);
   assert.match(calendarUndatedPageNotice(false, true, 100) ?? "", /не все/u);
   assert.match(calendarUndatedPageNotice(true, true, 100) ?? "", /предыдущие и следующие/u);

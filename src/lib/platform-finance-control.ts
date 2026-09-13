@@ -1,3 +1,4 @@
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 
 const SAFE_REPOSITORY_ERROR_MESSAGE =
@@ -12,7 +13,6 @@ const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const POSTGRES_BIGINT_MAX = "9223372036854775807";
 
-const PLATFORM_FINANCE_CONTROL_ROLES = ["admin", "sales", "admissions"] as const;
 const PLATFORM_OBLIGATION_CATEGORIES = [
   "evo_service_fee",
   "third_party_cost",
@@ -319,7 +319,7 @@ function unwrapSingleObject(value: unknown): Record<string, unknown> {
 }
 
 function requireActorOrganization(actor: PlatformActor): string {
-  oneOf(actor.platformRole, PLATFORM_FINANCE_CONTROL_ROLES);
+  if (!staffCan(actor, "finance.read")) return invalidShape();
   return requiredUuid(actor.organizationId);
 }
 

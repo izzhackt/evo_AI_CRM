@@ -1,13 +1,9 @@
-import {
-  fixedRoleCan,
-  type FixedRole,
-} from "../fixed-role-policy.ts";
+import { staffCan, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
+import type { ActivePlatformActor } from "../platform-auth.ts";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
 import { projectPlatformTaskDeadline } from "../platform-task-deadline.ts";
 
-type DashboardActor = Readonly<{
-  presentationRole: FixedRole;
-}>;
+type DashboardActor = ActivePlatformActor;
 
 type DashboardPage<T> = Readonly<{
   rows: readonly T[];
@@ -152,20 +148,19 @@ export async function readPlatformDashboardSnapshot<
   // Admin keeps its server authority while previewing exactly the selected
   // role's product surface. Every reader still receives the authoritative
   // actor and enforces database scope at its own boundary.
-  const visibleRole = actor.presentationRole;
-  const canReadSales = fixedRoleCan(visibleRole, "sales.read");
-  const canReadAdmissions = fixedRoleCan(visibleRole, "admissions.read");
-  const canReadMessaging = fixedRoleCan(visibleRole, "messaging.read");
+  const canReadSales = staffPresentationCan(actor, "sales.read");
+  const canReadAdmissions = staffPresentationCan(actor, "admissions.read");
+  const canReadMessaging = staffPresentationCan(actor, "messaging.read");
   const readers = options.readers;
 
   const [salesPage, casesPage, taskQueue, financeQueue, conversations] =
     await Promise.all([
       canReadSales ? readers.listSalesLeads(actor, { pageSize: 50 }) : null,
       canReadAdmissions ? readers.listStudentCases(actor, { pageSize: 50 }) : null,
-      canReadAdmissions
+      canReadAdmissions && staffHasPermission(actor, "task.manage")
         ? readers.listAdmissionsTasks(actor, { pageSize: 50 })
         : null,
-      canReadAdmissions ? readers.listFinanceCases(actor) : null,
+      staffCan(actor, "finance.read") && actor.presentationRole !== "sales" ? readers.listFinanceCases(actor) : null,
       canReadMessaging
         ? readers.listConversations(actor, { pageSize: 50 })
         : null,

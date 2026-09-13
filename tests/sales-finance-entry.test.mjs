@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { decimalToMinor, financeDateTime, financeMoney } from "../src/lib/platform-finance-entry-contract.ts";
+import { decimalToMinor, financeDateTime, financeMoney, readAuthorizedMonthlyPaymentSummary } from "../src/lib/platform-finance-entry-contract.ts";
 
 test("money parser uses integer minor units and rejects ambiguous amounts", () => {
   assert.equal(decimalToMinor("1,01"), "101");
@@ -44,4 +44,70 @@ test("entry adapter writes through original ledger commands, never report paid",
     assert.match(form, /result\.status !== "unavailable"/);
     assert.match(form, /currentRequestId === state\.requestId/);
   }
+});
+
+const organizationId = "00000000-0000-4000-8000-000000000001";
+const allowed = { schemaVersion: 1, organizationId, canReadSummary: true };
+const summary = { organization_id: organizationId, year: 2026, month: 9,
+  totals: [{ currency: "USD", payments_minor: "50000", refunds_minor: "10000", net_minor: "40000", event_count: "2" }] };
+
+test("monthly cash coordinator reads totals only after live organization access", async () => {
+  const calls = [];
+  const result = await readAuthorizedMonthlyPaymentSummary(organizationId, 2026, 9, {
+    readAccess: async () => { calls.push("access"); return allowed; },
+    readTotals: async () => { calls.push("totals"); return summary; },
+  });
+  assert.deepEqual(calls, ["access", "totals"]);
+  assert.deepEqual(result, { status: "ready", totals: [{ currency: "USD", paymentsMinor: "50000", refundsMinor: "10000", netMinor: "40000", eventCount: "2" }] });
+});
+
+test("scoped finance without organization access is not an empty monthly report", async () => {
+  let totalReads = 0;
+  const result = await readAuthorizedMonthlyPaymentSummary(organizationId, 2026, 9, {
+    readAccess: async () => ({ ...allowed, canReadSummary: false }),
+    readTotals: async () => { totalReads += 1; return summary; },
+  });
+  assert.deepEqual(result, { status: "not_allowed" });
+  assert.equal(totalReads, 0);
+});
+
+test("monthly cash coordinator rejects mismatched access and does not mask allowed read errors", async () => {
+  let totalReads = 0;
+  for (const access of [null, { ...allowed, schemaVersion: 2 }, { ...allowed, organizationId: "00000000-0000-4000-8000-000000000002" },
+    { ...allowed, canReadSummary: "true" }, { ...allowed, extra: true }]) {
+    await assert.rejects(readAuthorizedMonthlyPaymentSummary(organizationId, 2026, 9, {
+      readAccess: async () => access,
+      readTotals: async () => { totalReads += 1; return summary; },
+    }), /Finance entry is unavailable/);
+  }
+  assert.equal(totalReads, 0);
+  for (const failed of ["access", "totals"]) {
+    const error = new Error("reader unavailable");
+    await assert.rejects(readAuthorizedMonthlyPaymentSummary(organizationId, 2026, 9, {
+      readAccess: async () => { if (failed === "access") throw error; return allowed; },
+      readTotals: async () => { throw error; },
+    }), value => value === error);
+  }
+});
+
+test("monthly cash validates the period before invoking readers and accepts true empty totals", async () => {
+  let reads = 0;
+  for (const [year, month] of [[2026, 0], [2026, 13], [1899, 1], [2026.5, 1]]) {
+    await assert.rejects(readAuthorizedMonthlyPaymentSummary(organizationId, year, month, {
+      readAccess: async () => { reads += 1; return allowed; }, readTotals: async () => summary,
+    }));
+  }
+  assert.equal(reads, 0);
+  assert.deepEqual(await readAuthorizedMonthlyPaymentSummary(organizationId, 2026, 9, {
+    readAccess: async () => allowed, readTotals: async () => ({ ...summary, totals: [] }),
+  }), { status: "ready", totals: [] });
+});
+
+test("sales record totals and plan remain independent of monthly cash availability", () => {
+  const view = readFileSync(new URL("../src/components/v3/SalesRegisterView.tsx", import.meta.url), "utf8");
+  assert.match(view, /checkFinanceAccess && month && query\.archived !== "true"/);
+  assert.match(view, /workspace\.totals\.length > 0/);
+  assert.match(view, /cash && cash\.status !== "not_allowed" && month/);
+  assert.match(view, /cash\.status === "unavailable"/);
+  assert.doesNotMatch(view, /canReadFinance = cash/);
 });

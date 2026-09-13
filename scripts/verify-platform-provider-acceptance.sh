@@ -10,6 +10,7 @@ remote_acceptance_ref="${EVO_PLATFORM_ACCEPTANCE_REMOTE_REF:-}"
 ssh_host="hermes-vps"
 supabase_lock_dir="${TMPDIR:-/tmp}/evo-platform-provider-acceptance.lock"
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/evo-platform-provider-acceptance.XXXXXX")"
+supabase_workdir="$tmp_dir/local-supabase"
 provider_bundle_file="$tmp_dir/provider.bundle"
 provider_source_file="$tmp_dir/provider-source.json"
 supabase_env_file="$tmp_dir/supabase.env"
@@ -77,6 +78,7 @@ EOF
 
 cleanup() {
   local exit_status=$?
+  local keep_supabase_workdir=0
 
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
@@ -89,15 +91,17 @@ cleanup() {
   if (( supabase_started == 1 )); then
     (
       cd "$repo_root"
-      npx --no-install supabase stop --no-backup
-    ) >/dev/null 2>&1 || true
+      npx --no-install supabase --workdir "$supabase_workdir" stop --no-backup
+    ) >/dev/null 2>&1 || keep_supabase_workdir=1
   fi
   if (( supabase_lock_acquired == 1 )); then
     rmdir "$supabase_lock_dir" >/dev/null 2>&1 || true
   fi
 
   unset waha_api_key gemini_api_key waha_container_ip
-  if [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-platform-provider-acceptance."* ]]; then
+  if [[ "$keep_supabase_workdir" == "1" ]]; then
+    echo "Local Supabase cleanup failed; retained owned workdir: $supabase_workdir" >&2
+  elif [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-platform-provider-acceptance."* ]]; then
     rm -R -- "$tmp_dir"
   fi
   return "$exit_status"
@@ -221,8 +225,13 @@ if ! mkdir "$supabase_lock_dir" 2>/dev/null; then
   fail "Another EVO local Supabase harness is already running"
 fi
 supabase_lock_acquired=1
-if npx --no-install supabase status >/dev/null 2>&1; then
-  fail "A local Supabase stack is already running; this acceptance refuses to replace its state"
+app_port="$(free_port)"
+staff_mailpit_origin="$("$node_bin" scripts/lib/local-staff-supabase-workdir.mjs "$repo_root" "$supabase_workdir" "http://127.0.0.1:$app_port")" \
+  || fail "Could not prepare isolated local Auth callback and mail configuration"
+# Use the physical path for the CLI label and the unchanged strict gateway guard.
+supabase_workdir="$(cd -- "$supabase_workdir" && pwd -P)"
+if npx --no-install supabase --workdir "$supabase_workdir" status >/dev/null 2>&1; then
+  fail "The generated Supabase project already exists; refusing to replace its state"
 fi
 
 chmod 700 "$tmp_dir"
@@ -314,7 +323,6 @@ then
 fi
 
 tunnel_port="$(free_port)"
-app_port="$(free_port)"
 waha_base_url="http://127.0.0.1:${tunnel_port}"
 ssh -NT \
   -o BatchMode=yes \
@@ -393,18 +401,22 @@ then
 fi
 chmod 600 "$provider_source_file"
 
+supabase_started=1
 if ! (
-  npx --no-install supabase start --yes
+  npx --no-install supabase --workdir "$supabase_workdir" start --yes
 ) >"$supabase_log" 2>&1; then
   fail "The disposable local Supabase stack did not start"
 fi
 supabase_started=1
 if ! (
-  npx --no-install supabase db reset --local --no-seed --yes
+  npx --no-install supabase --workdir "$supabase_workdir" db reset --local --no-seed --yes
 ) >>"$supabase_log" 2>&1; then
   fail "The disposable local Supabase database did not reset to repository migrations"
 fi
-if ! npx --no-install supabase status -o env \
+if ! "$node_bin" scripts/configure-local-supabase-gateway.mjs "$supabase_workdir"; then
+  fail "The disposable local Supabase gateway transport configuration was not verified"
+fi
+if ! npx --no-install supabase --workdir "$supabase_workdir" status -o env \
   >"$supabase_env_file" 2>>"$supabase_log"; then
   fail "The disposable local Supabase stack did not expose its configuration"
 fi
@@ -443,7 +455,7 @@ staff_admissions_email="admissions-${staff_suffix}@evo.local.test"
 staff_admissions_password="$(openssl rand -hex 24)"
 webhook_secret="$(openssl rand -hex 32)"
 
-if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+if ! EVO_LOCAL_STAFF_PHASE=bootstrap NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
   EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
@@ -456,10 +468,25 @@ if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   >"$staff_log" 2>&1; then
   fail "Local Supabase staff identity provisioning failed"
 fi
-grep -Fx "LOCAL_SUPABASE_STAFF_PROVISIONED" "$staff_log" >/dev/null \
-  || fail "Local Supabase staff provisioning returned no success marker"
+admin_marker="$(grep -m 1 -E '^LOCAL_SUPABASE_ADMIN_BOOTSTRAPPED [0-9a-f-]{36}$' "$staff_log" || true)"
+[[ -n "$admin_marker" ]] || fail "Local system Admin bootstrap returned no identity marker"
+read -r _ platform_organization_id <<<"$admin_marker"
+platform_intake_sales_membership_id=""
 chmod 600 "$staff_log"
 
+provision_acceptance_staff_and_communications() {
+if ! EVO_LOCAL_STAFF_PHASE=onboard \
+  EVO_STAFF_AUTH_APP_ORIGIN="http://127.0.0.1:$app_port" EVO_STAFF_AUTH_MAILPIT_ORIGIN="$staff_mailpit_origin" \
+  NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+  SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+  EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
+  "$node_bin" scripts/provision-local-supabase-staff.mjs >>"$staff_log" 2>&1; then
+  fail "Real local staff invitation, callback and password login failed"
+fi
+grep -Fx "LOCAL_SUPABASE_STAFF_PROVISIONED" "$staff_log" >/dev/null \
+  || fail "Local Supabase staff provisioning returned no success marker"
 if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
@@ -481,13 +508,16 @@ read -r _ platform_organization_id platform_intake_sales_membership_id <<<"$comm
 [[ "$platform_intake_sales_membership_id" =~ ^[0-9a-f-]{36}$ ]] \
   || fail "Local Platform communications provisioning returned an invalid Sales membership"
 chmod 600 "$communications_log"
+}
 
+start_acceptance_app() {
 assert_next_dev_lock_available
 env \
   NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
   EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
+  EVO_STUDENT_INVITE_LOCAL_ORIGIN="http://127.0.0.1:$app_port" \
   EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID="$platform_intake_sales_membership_id" \
   EVO_PLATFORM_GEMINI_API_KEY="$gemini_api_key" \
   EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$webhook_secret" \
@@ -504,6 +534,13 @@ env \
 app_pid=$!
 chmod 600 "$app_log"
 wait_for_http "http://127.0.0.1:${app_port}/login" "$app_pid"
+}
+start_acceptance_app
+provision_acceptance_staff_and_communications
+kill "$app_pid" >/dev/null 2>&1
+wait "$app_pid" >/dev/null 2>&1 || true
+app_pid=""
+start_acceptance_app
 
 EVIDENCE_RUN_MARKER="$run_marker" EVIDENCE_HEAD_SHA="$head_sha" \
   "$node_bin" --input-type=module <<'EOF'

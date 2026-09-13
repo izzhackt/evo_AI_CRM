@@ -1,4 +1,5 @@
 import "server-only";
+import { staffPresentationCan } from "../platform-access.ts";
 
 import type { ProfileEvent } from "@/components/v3/profile/types";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
@@ -34,7 +35,7 @@ export async function readProfileActivity(
   studentCaseId: string,
   cursor: ProfileActivityCursor | null,
 ): Promise<Readonly<{ events: readonly ProfileEvent[]; nextCursor: ProfileActivityCursor | null }>> {
-  if (actor.presentationRole !== "admin" && actor.presentationRole !== "admissions") return fail();
+  if (!staffPresentationCan(actor, "admissions.read")) return fail();
   const client = await createSupabaseServerClient();
   const response = await client.schema("platform").rpc("staff_student_case_activity", {
     p_student_case_id: uuid(studentCaseId), p_limit: 50,

@@ -7,7 +7,7 @@ import postgres from "postgres";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SHA40_PATTERN = /^[0-9a-f]{40}$/u;
-const AUTHORITY_ROLE_PATTERN = /^(admin|sales|admissions)$/u;
+const SYSTEM_ROLE_PATTERN = /^(admin|staff)$/u;
 
 type TestRole = "admin" | "sales";
 
@@ -54,7 +54,7 @@ type SanitizedSnapshot = Omit<
 
 type PageProof = Readonly<{
   route: string;
-  authorityRole: string;
+  systemRole: string;
   checks: Readonly<Record<string, boolean>>;
   statuses: Readonly<Record<string, string>>;
 }>;
@@ -179,19 +179,19 @@ async function signInAs(page: Page, role: TestRole) {
   await expect(page).toHaveURL(new RegExp(`${ROLE_HOME[role]}$`));
   await expect(page.getByTestId("v3-shell")).toBeVisible();
   const activeRole = page.getByTestId("active-role");
-  await expect(activeRole).toHaveAttribute("data-role", role);
+  await expect(activeRole).toHaveAttribute("data-role", role === "admin" ? "admin" : "staff");
   await expect(activeRole).toHaveAttribute(
-    "data-authority-role",
-    role,
+    "data-system-role",
+    role === "admin" ? "admin" : "staff",
   );
 }
 
 async function activeRole(page: Page) {
   const value = await page
     .getByTestId("v3-shell")
-    .getAttribute("data-authority-role");
+    .getAttribute("data-system-role");
   ensure(
-    typeof value === "string" && AUTHORITY_ROLE_PATTERN.test(value),
+    typeof value === "string" && SYSTEM_ROLE_PATTERN.test(value),
     "The active role marker is invalid",
   );
   return value;
@@ -586,7 +586,7 @@ async function captureSalesWhatsAppPage(
   ).toBeVisible();
   await expect(page.getByTestId("v3-inbox-send")).toBeVisible();
 
-  const authorityRole = await activeRole(page);
+  const systemRole = await activeRole(page);
   const sendDisabled = await page
     .getByTestId("v3-inbox-send")
     .isDisabled();
@@ -597,7 +597,7 @@ async function captureSalesWhatsAppPage(
 
   return Object.freeze({
     route: "/v3/inbox?conversation=:conversationId",
-    authorityRole,
+    systemRole,
     checks: Object.freeze({
       pageVisible: true,
       threadVisible: true,
@@ -632,7 +632,7 @@ async function captureAdminAmoCrmPage(
   await expect(page.getByTestId("canonical-amocrm-task-deadline")).toBeVisible();
   await expect(page.getByTestId("canonical-amocrm-sync")).toBeVisible();
 
-  const authorityRole = await activeRole(page);
+  const systemRole = await activeRole(page);
   const availabilityStatus = await availability.getAttribute("data-status");
   const syncDisabled = await page.getByTestId("canonical-amocrm-sync").isDisabled();
   ensure(
@@ -645,7 +645,7 @@ async function captureAdminAmoCrmPage(
       scope === "sales"
         ? "/v3/inbox?conversation=:conversationId"
         : "/v3/profile?case=:studentCaseId&tab=contract",
-    authorityRole,
+    systemRole,
     checks: Object.freeze({
       workspaceVisible: true,
       panelVisible: true,
@@ -721,7 +721,7 @@ test("read-only browser inventory preserves exact provider and event counts", as
   );
 
   await writePrivateJson(browserEvidencePath, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "evo-v3-provider-browser-readonly",
     status: "passed",
     gitSha,

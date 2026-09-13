@@ -1633,6 +1633,8 @@ async function resolveAuthorizedAttemptWorkflowContext(
   input: ReconcilePlatformAmoCrmSyncAttemptInput,
   dependencies: ResolvedDependencies,
 ): Promise<WorkflowContext> {
+  // actorRole is the immutable operation-view descriptor, not the employee's
+  // business role. The readers and RPCs below recheck live paired authority.
   const leadId = requiredUuid(input.leadId);
   const context =
     input.workflowScope === "sales_pre_handoff"

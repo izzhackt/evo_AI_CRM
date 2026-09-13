@@ -1,4 +1,5 @@
 "use server";
+import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { universityUuid, type UniversityActionState } from "./platform-university-catalog";
@@ -9,7 +10,7 @@ import { reviewedUniversityTemplates } from "./v3/university-source";
 /** One explicitly confirmed, frozen template; existing Admin RPCs own all writes. */
 export async function publishReviewedUniversityAction(input: unknown): Promise<UniversityActionState["status"]> {
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole !== "admin" || actor.presentationRole !== "admin") return "forbidden";
+  if (!staffHasPermission(actor, "catalog.import.manage") || isStaffPreview(actor)) return "forbidden";
   if (!input || typeof input !== "object" || Array.isArray(input)) return "invalid";
   const row = input as Record<string, unknown>;
   if (Object.keys(row).sort().join() !== "baseVersion,confirmed,hash,institutionId,key"

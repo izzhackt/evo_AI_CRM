@@ -38,11 +38,9 @@ function actor(authorityRole = "admin") {
     organizationId: ORGANIZATION_ID,
     displayName: "EVO Staff",
     email: "staff@example.test",
-    platformRole: authorityRole,
-    authorityRole,
+    systemRole: authorityRole === "admin" ? "admin" : "staff",
+    assignments: [], permissionKeys: authorityRole === "admissions" ? ["case.read.full"] : ["lead.read", "lead.sales.workflow.manage"],
     platformAccessVersion: 1,
-    platformBundleId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-    platformBundleVersion: 1,
   });
 }
 
@@ -515,7 +513,7 @@ test("confirmed Admin self-handoff renews the same authority outside the mutatio
   );
   assert.ok(refreshIndex > mutationIndex, "post-commit recovery must be outside the mutation catch");
   const refresh = statements[refreshIndex].getText(parsed);
-  assert.match(refresh, /actor\.authorityRole === "admin"/);
+  assert.match(refresh, /actor\.systemRole === "admin"/);
   assert.match(refresh, /receipt\.admissionsOwnerMembershipId === actor\.membershipId/);
   assert.match(refresh, /!\(await refreshConfirmedSelfHandoffSession\(actor\)\)/);
   assert.match(refresh, /redirect\("\/login\?error=session_invalid"\)/);
@@ -529,12 +527,12 @@ test("confirmed Admin self-handoff renews the same authority outside the mutatio
     "utf8",
   );
   assert.match(session, /import "server-only"/);
-  assert.match(session, /actor\.authorityRole !== "admin"/);
+  assert.match(session, /actor\.systemRole !== "admin"/);
   assert.match(session, /await client\.auth\.refreshSession\(\)[\s\S]*await client\.auth\.getClaims\(\)[\s\S]*await readVerifiedPlatformAuthority\(client, data\.claims\)/);
   for (const identity of ["authUserId", "profileId", "membershipId", "organizationId"]) {
     assert.ok(session.includes(`authority.${identity} === actor.${identity}`));
   }
-  assert.match(session, /authority\.databaseRole === "admin"/);
+  assert.match(session, /authority\.systemRole === "admin"/);
   assert.doesNotMatch(session, /getSession\(|service[_-]?role|SUPABASE_SERVICE|redirect\(/i);
 });
 
@@ -546,7 +544,7 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   assert.match(source, /exactActionStringFields\(form, GATE_FORM_FIELDS\)/);
   assert.match(source, /exactActionStringFields\(form, HANDOFF_FORM_FIELDS\)/);
   assert.equal(
-    source.match(/const actor = await requirePlatformSalesActor\(\);/g)?.length,
+    source.match(/const actor = await requirePlatformMutationCapability\("sales\.read", "\/v3\/pipeline"\);/g)?.length,
     2,
   );
   assert.match(
@@ -642,10 +640,10 @@ test("V3 profile exposes gate and handoff through the reviewed server-action con
     assert.match(source, new RegExp(`name="${field}"`));
   }
 
-  assert.match(source, /normalAvailable = handoff\.canSubmitNormal/);
+  assert.match(source, /normalAvailable = !isStaffPreview\(actor\) && handoff\.canSubmitNormal/);
   assert.match(
     source,
-    /actorRole === "admin" && handoff\.canSubmitExceptional/,
+    /!isStaffPreview\(actor\) && handoff\.canSubmitExceptional/,
   );
   assert.match(source, /"normal"/);
   assert.match(source, /"exceptional_override"/);

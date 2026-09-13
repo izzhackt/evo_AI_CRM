@@ -7,6 +7,10 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   output: "standalone",
   skipTrailingSlashRedirect: true,
+  // Invitation/recovery links carry one-use credentials, including in local dev.
+  logging: {
+    incomingRequests: { ignore: [/^\/auth\/(?:staff|callback)(?:[/?]|$)/] },
+  },
   turbopack: {
     root: projectRoot,
   },

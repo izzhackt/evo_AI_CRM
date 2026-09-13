@@ -94,7 +94,7 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
     /blockingAttempt\?\.status === "prepared"[\s\S]*blockingAttempt\.providerDispatchedAt === null/,
   );
   assert.match(panel, /<form action=\{releaseAction\}>/);
-  assert.match(panel, /disabled=\{releasing\}/);
+  assert.match(panel, /disabled=\{!canMutate \|\| releasing\}/);
   assert.match(panel, /operator_released_before_dispatch/);
   assert.match(panel, /name="note_text"/);
   assert.match(panel, /name="task_text"/);
@@ -104,7 +104,7 @@ test("the panel exposes exact inputs, honest states, per-step evidence, and expl
   assert.match(panel, /unix > AMOCRM_TASK_COMPLETE_TILL_MAX/);
   assert.match(panel, /maxLength=\{1000\}/);
   assert.match(panel, /required/);
-  assert.match(panel, /disabled=\{!ready \|\| syncing \|\| flowBlocked\}/);
+  assert.match(panel, /disabled=\{!canMutate \|\| !ready \|\| syncing \|\| flowBlocked\}/);
 
   for (const status of [
     "accepted",

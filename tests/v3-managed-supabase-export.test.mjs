@@ -404,6 +404,8 @@ test("output root must be an existing private directory outside the repository",
     expectCode(() => validateOutputRoot(repoRoot, repoRoot), "output_root_forbidden");
     const openRoot = join(root, "open");
     mkdirSync(openRoot, { mode: 0o755 });
+    chmodSync(openRoot, 0o755);
+    assert.equal(statSync(openRoot).mode & 0o777, 0o755);
     expectCode(() => validateOutputRoot(openRoot, repoRoot), "output_root_invalid");
   } finally {
     rmSync(root, { recursive: true, force: true });

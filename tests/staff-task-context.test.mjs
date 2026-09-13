@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { plainTextLinks } from "../src/lib/plain-text-links.ts";
-import { parseStaffTaskCommand, STAFF_TASK_FORM_FIELDS } from "../src/lib/platform-staff-task-contract.ts";
+import { parseStaffParticipant, parseStaffTaskCommand, STAFF_TASK_FORM_FIELDS } from "../src/lib/platform-staff-task-contract.ts";
+
+test("custom staff participant has a nullable historical label, never a fabricated Sales role", () => {
+  const membershipId = "00000000-0000-4000-8000-000000000001";
+  assert.deepEqual(parseStaffParticipant({ membership_id: membershipId, display_name: "Custom staff", platform_role: null }), {
+    membershipId, displayName: "Custom staff", role: null,
+  });
+  assert.throws(() => parseStaffParticipant({ membership_id: membershipId, display_name: "Custom staff" }));
+});
 
 test("chat link tokenizer preserves every character and only anchors explicit safe web URLs", () => {
   const body = 'Ссылка (https://example.org/a(b)). Потом https://example.org/x?q=1&v=2! <script>x</script> javascript:alert(1)';
@@ -58,5 +66,5 @@ test("linked lead context uses canonical authority without requiring Sales-only 
   assert.match(page, /readStaffTaskLeadContext\(actor, sourceLeadId\)/);
   assert.doesNotMatch(page, /getPlatformSalesLead/);
   assert.match(page, /sourceLead\.canOpenPipeline/);
-  assert.match(pipeline, /actorRole === "admin" \|\| lead\.workflow\.currentOwnerMembershipId === actorMembershipId/);
+  assert.match(pipeline, /!isStaffPreview\(actor\) && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/);
 });

@@ -162,13 +162,13 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
 });
 
 test("root and V3 entry share the exact role-home policy", () => {
-  assert.equal(platformHomeRoute("admin"), "/v3/main");
-  assert.equal(platformHomeRoute("sales"), "/v3/main");
-  assert.equal(platformHomeRoute("admissions"), "/v3/calendar");
+  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admin" === "admin" ? null : "admin", permissionKeys: [] }), "/v3/main");
+  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "sales" === "admin" ? null : "sales", permissionKeys: [] }), "/v3/main");
+  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admissions" === "admin" ? null : "admissions", permissionKeys: [] }), "/v3/calendar");
 
   for (const path of ["src/app/page.tsx", "src/app/(v3)/v3/page.tsx"]) {
     const entry = source(path);
-    assert.match(entry, /fixedRoleHomeRoute\(actor\.presentationRole\)/, path);
+    assert.match(entry, /staffHomeRoute\(actor\)/, path);
     assert.doesNotMatch(entry, /\/sales|\/clients/, path);
   }
 });
@@ -193,22 +193,22 @@ test("V3 pages guard presentation access before loading their workspace", () => 
   }
 
   const pipeline = source("src/app/(v3)/v3/pipeline/page.tsx");
-  assert.match(pipeline, /actorRole=\{actor\.presentationRole\}/);
+  assert.match(pipeline, /actor=\{actor\}/);
   assert.doesNotMatch(pipeline, /actorRole=\{actor\.authorityRole\}/);
 
   const guards = source("src/lib/platform-guards.ts");
   assert.match(
     guards,
-    /fixedRoleCanAccessRoute\(actor\.presentationRole, route\)/,
+    /staffCanAccessRoute\(actor, route\)/,
   );
-  assert.match(guards, /fixedRoleCan\(actor\.authorityRole, capability\)/);
+  assert.match(guards, /staffCan\(actor, capability\)/);
 });
 
 test("access denial is a V3 surface and recovers only through active routes", () => {
   const denied = source("src/app/(v3)/access-denied/page.tsx");
   assert.match(denied, /requirePlatformStaffActor\(\)/);
-  assert.match(denied, /fixedRoleCanAccessRoute\(actor\.presentationRole/);
-  assert.match(denied, /fixedRoleHomeRoute\(actor\.presentationRole\)/);
+  assert.match(denied, /staffCanAccessRoute\(actor/);
+  assert.match(denied, /staffHomeRoute\(actor\)/);
   assert.doesNotMatch(denied, /@\/lib\/auth|@\/lib\/domain|ROLE_HOME_ROUTE/);
 });
 

@@ -1,11 +1,14 @@
 "use client";
 
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+
+
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import { btnCls, btnGhostCls, cn, inputCls, labelCls } from "@/components/ui";
-import type { FixedRole } from "@/lib/fixed-role-policy";
 import {
   changePlatformUniversityApplicationAction,
   createPlatformUniversityApplicationAction,
@@ -489,14 +492,16 @@ function FinanceStopResolveForm({
 }
 
 export function ProfileAdmissionsWorkspacePanel({
-  actorRole,
+  actor,
   workspace,
 }: Readonly<{
-  actorRole: FixedRole;
+  actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
 }>) {
   if (!workspace) return null;
-  const canWrite = workspace.caseState === "active" && actorRole !== "sales";
+  const canWrite = workspace.caseState === "active" && !isStaffPreview(actor);
+  const canWriteApplications = canWrite && staffHasPermission(actor, "application.manage");
+  const canWriteVisa = canWrite && staffHasPermission(actor, "visa.manage");
 
   return (
     <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
@@ -543,7 +548,7 @@ export function ProfileAdmissionsWorkspacePanel({
                     {application.latestEvidenceReference}
                   </p>
                 ) : null}
-                {canWrite ? (
+                {canWriteApplications ? (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-accent">
                       Изменить статус
@@ -555,7 +560,7 @@ export function ProfileAdmissionsWorkspacePanel({
                     />
                   </details>
                 ) : null}
-                {canWrite ? (
+                {canWriteApplications ? (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-accent">
                       Изменить параметры заявки
@@ -571,7 +576,7 @@ export function ProfileAdmissionsWorkspacePanel({
             ))}
           </div>
         )}
-        {canWrite ? (
+        {canWriteApplications ? (
           <details className="border-t border-border px-4 py-3">
             <summary className="cursor-pointer text-sm font-medium text-accent">
               Новая заявка
@@ -596,7 +601,7 @@ export function ProfileAdmissionsWorkspacePanel({
         {workspace.visa?.note ? (
           <p className="px-4 pt-3 text-sm text-fg-3">{workspace.visa.note}</p>
         ) : null}
-        {canWrite ? <div className="px-4 py-3"><VisaForm
+        {canWriteVisa ? <div className="px-4 py-3"><VisaForm
           key={`visa-${workspace.studentCaseId}-${workspace.visa?.visaCaseId ?? "new"}-${workspace.visa?.version ?? 0}`}
           workspace={workspace}
         /></div> : null}
@@ -606,15 +611,15 @@ export function ProfileAdmissionsWorkspacePanel({
 }
 
 export function ProfileFinanceControls({
-  actorRole,
+  actor,
   workspace,
 }: Readonly<{
-  actorRole: FixedRole;
+  actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
 }>) {
-  if (!workspace) return null;
-  const canCreate = workspace.caseState === "active" && actorRole !== "sales";
-  const canRelease = workspace.caseState === "active" && actorRole === "admin";
+  if (!workspace?.finance) return null;
+  const canCreate = workspace.caseState === "active" && !isStaffPreview(actor) && staffHasPermission(actor, "finance.stop.create");
+  const canRelease = workspace.caseState === "active" && !isStaffPreview(actor) && staffHasPermission(actor, "finance.stop.manage");
 
   return (
     <Card title="Управление стопами">

@@ -1,3 +1,4 @@
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
@@ -5,7 +6,7 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace } from "@/lib/platform-sales-register-contract";
 import { readSalesRegisterWorkspace } from "@/lib/v3/sales-register-source";
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
-import { financeMoney, type MonthlyPaymentTotal } from "@/lib/platform-finance-entry-contract";
+import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesReportNavigation } from "./SalesReportNavigation";
 import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./SalesRegisterForms";
@@ -31,14 +32,18 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     && (query.manager === undefined || (typeof query.manager === "string" && query.manager.length <= 300))
     && (query.direction === undefined || (typeof query.direction === "string" && query.direction.length <= 500))
     && (query.review === undefined || ["", "true", "false"].includes(query.review));
-  const isAdmin = actor.authorityRole === "admin" && actor.presentationRole === "admin";
+  const canManage = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.manage");
+  const canTarget = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage");
+  const canImport = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.import");
+  const checkFinanceAccess = staffHasPermission(actor, "finance.read.full") && !isStaffPreview(actor);
   let workspace: SalesRegisterWorkspace | null = null;
-  let cash: readonly MonthlyPaymentTotal[] | null = null;
+  let cash: MonthlyPaymentSummaryRead | Readonly<{ status: "unavailable" }> | null = null;
   if (valid) {
     [workspace, cash] = await Promise.all([
       readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record, archived: query.archived === "true",
         manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null }).catch(() => null),
-      isAdmin && month ? readMonthlyPaymentSummary(actor, year, month).catch(() => null) : Promise.resolve(null),
+      checkFinanceAccess && month ? readMonthlyPaymentSummary(actor, year, month)
+        .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
     ]);
   }
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
@@ -62,13 +67,13 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Отчёт продаж</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-2">Продажи за выбранный период. Откройте запись, чтобы посмотреть детали или внести изменения.</p>
       </div>
-      {!editing && workspace ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
+      {!editing && workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </header>
 
-    {editing ? <div className="mt-6 max-w-[860px]">
+    {editing && canManage ? <div className="mt-6 max-w-[860px]">
       <SalesRegisterForm key={query.record ?? "new"} record={workspace?.selected ?? null}
         recordId={query.record ?? null} reportMonth={reportMonth} ownerOptions={workspace?.ownerOptions ?? []}
-        isAdmin={isAdmin} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={href()} readUnavailable={!workspace}
+        canChooseOwner={canManage} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={href()} readUnavailable={!workspace}
         ownMembershipId={actor.membershipId} ownLabel={actor.displayName} />
     </div> : <>
       <form method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-end gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
@@ -94,7 +99,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           <div className="mt-4 grid min-w-0 gap-6 @3xl:grid-cols-[minmax(180px,0.7fr)_minmax(0,1.3fr)]">
             <dl className="flex flex-wrap content-start gap-x-10 gap-y-4">
               <div><dt className="text-sm text-fg-2">{query.archived === "true" ? "Записей в архиве" : "Записей продаж"}</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{workspace.totalCount}</dd></div>
-              {isAdmin && month && query.archived !== "true" ? <div><dt className="text-sm text-fg-2">План месяца</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</dd></div> : null}
+              {checkFinanceAccess && month && query.archived !== "true" ? <div><dt className="text-sm text-fg-2">План месяца</dt><dd className="mt-1 font-mono text-3xl tabular-nums text-fg">{target ? target.targetCount : "Не задан"}</dd></div> : null}
             </dl>
             {workspace.totals.length > 0 ? <div className="min-w-0">
               <div role="region" aria-label="Денежные итоги по валютам" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
@@ -109,10 +114,10 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           </div>
           {workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0 ? <p className="mt-5 border-s-2 border-border ps-3 text-sm leading-relaxed text-fg-2">В денежные итоги не включены неуточнённые значения: стоимость — {workspace.unresolvedCostCount}, оплата — {workspace.unresolvedPaidCount}.</p> : null}
         </section>
-        {isAdmin && month ? <section aria-labelledby="sales-cash-totals" className="border-b border-border py-6">
+        {cash && cash.status !== "not_allowed" && month ? <section aria-labelledby="sales-cash-totals" className="border-b border-border py-6">
           <h2 id="sales-cash-totals" className="text-base font-semibold text-fg">Поступления и возвраты за месяц</h2>
           <p className="mt-2 text-xs leading-relaxed text-fg-2">Подтверждённые финансовые события всей организации по дате операции, время Бишкека. Фильтры строк продаж на этот блок не влияют. Расходы третьих сторон не являются выручкой EVO.</p>
-          {cash === null ? <p role="alert" className="mt-4 text-sm text-fg-2">Финансовая сводка недоступна. Отчётные суммы не использованы вместо неё.</p> : cash.length === 0 ? <p className="mt-4 text-sm text-fg-2">В этом месяце подтверждённых финансовых событий нет.</p> : <div className="mt-4 grid gap-4 md:grid-cols-2">{cash.map(total => <dl key={total.currency} className="space-y-2 rounded-card border border-border p-4 text-sm">
+          {cash.status === "unavailable" ? <p role="alert" className="mt-4 text-sm text-fg-2">Не удалось загрузить финансовую сводку. Обновите страницу, чтобы повторить.</p> : cash.totals.length === 0 ? <p className="mt-4 text-sm text-fg-2">В этом месяце подтверждённых финансовых событий нет.</p> : <div className="mt-4 grid gap-4 md:grid-cols-2">{cash.totals.map(total => <dl key={total.currency} className="space-y-2 rounded-card border border-border p-4 text-sm">
             <div className="flex flex-wrap justify-between gap-3"><dt>Получено · {total.currency}</dt><dd className="font-mono">{financeMoney(total.paymentsMinor, total.currency)}</dd></div>
             <div className="flex flex-wrap justify-between gap-3"><dt>Возвращено</dt><dd className="font-mono">{financeMoney(total.refundsMinor, total.currency)}</dd></div>
             <div className="flex flex-wrap justify-between gap-3 font-semibold"><dt>Итого</dt><dd className="font-mono">{financeMoney(total.netMinor, total.currency)}</dd></div>
@@ -145,9 +150,9 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           {workspace.hasMore ? <Link href={href({ offset: String(offset + 50) })} className={`${btnGhostCls} min-h-11`}>Далее</Link> : <span />}
         </nav>
       </>}
-      {isAdmin ? <div className="mt-8 space-y-5 border-t border-border pt-5">
-        {month && query.archived !== "true" ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Изменить план месяца</summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace} /></details> : null}
-        <details><summary className="cursor-pointer py-3 text-sm font-medium">Начальный перенос данных</summary><SalesRegisterImport requestId={randomUUID()} /></details>
+      {canTarget || canImport ? <div className="mt-8 space-y-5 border-t border-border pt-5">
+        {canTarget && month && query.archived !== "true" ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Изменить план месяца</summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace} /></details> : null}
+        {canImport ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Начальный перенос данных</summary><SalesRegisterImport requestId={randomUUID()} /></details> : null}
       </div> : null}
     </>}
   </main>;

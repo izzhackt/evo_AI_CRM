@@ -99,14 +99,86 @@ function actor(presentationRole) {
     organizationId: "10000000-0000-4000-8000-000000000004",
     displayName: "P6B Admin",
     email: "p6b-admin@example.test",
-    platformRole: "admin",
-    authorityRole: "admin",
-    presentationRole,
+    systemRole: "admin", assignments: [], permissionKeys: [],
+    presentationRole: presentationRole === "admin" ? null : presentationRole,
     platformAccessVersion: 1,
-    platformBundleId: "10000000-0000-4000-8000-000000000005",
-    platformBundleVersion: 1,
   };
 }
+
+test("P6B Sales dashboard reads leads only for lead.read, never for workflow or pipeline hints", async () => {
+  for (const permissionKeys of [["lead.read"], ["lead.sales.workflow.manage"], ["pipeline.read"]]) {
+    const staff = { ...actor("admin"), systemRole: "staff", permissionKeys };
+    const calls = [];
+    const forbidden = async () => { assert.fail("Unrelated dashboard reader must not run"); };
+    const snapshot = await readPlatformDashboardSnapshot(staff, {
+      readers: {
+        listSalesLeads: async (current) => {
+          assert.equal(current, staff);
+          calls.push("sales");
+          return { rows: [], hasNext: false };
+        },
+        listStudentCases: forbidden,
+        listAdmissionsTasks: forbidden,
+        listFinanceCases: forbidden,
+        listConversations: forbidden,
+      },
+    });
+    const expected = permissionKeys.includes("lead.read") ? ["sales"] : [];
+    assert.deepEqual(calls, expected);
+    assert.deepEqual(snapshot.cards.map(card => card.key), expected);
+  }
+});
+
+test("P6B scoped staff retains permitted cases without reading the task queue from task.create", async () => {
+  const staff = { ...actor("admin"), systemRole: "staff", displayName: "Scoped staff",
+    permissionKeys: ["case.read.full", "profile.read.full", "task.create"] };
+  const forbidden = async () => assert.fail("A reader without its own permission must not run");
+  const snapshot = await readPlatformDashboardSnapshot(staff, {
+    now: Date.parse("2026-09-03T12:00:00.000Z"),
+    readers: {
+      listSalesLeads: forbidden,
+      listStudentCases: async () => ({ rows: [{ access: "full", studentCase: {
+        overdueTaskCount: 1, overdueObligationCount: 0, rejectedDocumentCount: 0,
+      } }] }),
+      listAdmissionsTasks: forbidden,
+      listFinanceCases: forbidden,
+      listConversations: forbidden,
+    },
+  });
+  assert.deepEqual(snapshot.cards, [
+    { key: "clients", href: "/v3/profile", loadedCount: 1, hasMore: false, attentionCount: 1 },
+  ]);
+  assert.deepEqual(snapshot.attentionItems.map(({ key, value }) => ({ key, value })), [
+    { key: "student_attention", value: 1 },
+  ]);
+});
+
+test("P6B scoped staff with task.manage still reads the admissions task queue", async () => {
+  const staff = { ...actor("admin"), systemRole: "staff", displayName: "Scoped staff",
+    permissionKeys: ["case.read.full", "profile.read.full", "task.create", "task.manage"] };
+  const forbidden = async () => assert.fail("An unrelated reader must not run");
+  const snapshot = await readPlatformDashboardSnapshot(staff, {
+    now: Date.parse("2026-09-03T12:00:00.000Z"),
+    readers: {
+      listSalesLeads: forbidden,
+      listStudentCases: async () => ({ rows: [] }),
+      listAdmissionsTasks: async (receivedActor, options) => {
+        assert.equal(receivedActor, staff);
+        assert.deepEqual(options, { pageSize: 50 });
+        return { rows: [{ status: "open", dueOn: "2026-09-02", dueAt: null }] };
+      },
+      listFinanceCases: forbidden,
+      listConversations: forbidden,
+    },
+  });
+  assert.deepEqual(snapshot.cards, [
+    { key: "clients", href: "/v3/profile", loadedCount: 0, hasMore: false, attentionCount: 0 },
+    { key: "tasks", href: "/v3/calendar", loadedCount: 1, hasMore: false, overdueCount: 1 },
+  ]);
+  assert.deepEqual(snapshot.attentionItems.map(({ key, value }) => ({ key, value })), [
+    { key: "admissions_overdue", value: 1 },
+  ]);
+});
 
 test("P6B Admin Sales preview reads only Sales and messaging outcomes", async () => {
   const calls = [];

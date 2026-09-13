@@ -1,9 +1,8 @@
+import { staffHomeRoute, staffCanAccessRoute } from "@/lib/platform-access";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
-  fixedRoleCanAccessRoute,
-  fixedRoleHomeRoute,
   isFixedRoleRoute,
   type FixedRoleRoute,
 } from "@/lib/fixed-role-policy";
@@ -39,12 +38,12 @@ export default async function AccessDeniedPage({
 
   if (
     isFixedRoleRoute(requestedPath) &&
-    fixedRoleCanAccessRoute(actor.presentationRole, requestedPath)
+    staffCanAccessRoute(actor, requestedPath)
   ) {
     redirect(requestedPath);
   }
 
-  const home = fixedRoleHomeRoute(actor.presentationRole);
+  const home = staffHomeRoute(actor);
   const requestedLabel = isFixedRoleRoute(requestedPath)
     ? ROUTE_LABELS[requestedPath]
     : "Защищённый раздел";
@@ -59,7 +58,7 @@ export default async function AccessDeniedPage({
           Нет доступа к разделу
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-fg-3">
-          Раздел «{requestedLabel}» не входит в интерфейс выбранной роли.
+          Раздел «{requestedLabel}» пока не открыт для вашей учётной записи.
         </p>
         <dl className="mt-8 grid gap-5 border-y border-border py-5 sm:grid-cols-2">
           <div>
@@ -67,9 +66,9 @@ export default async function AccessDeniedPage({
             <dd className="mt-1 font-medium text-fg">{requestedLabel}</dd>
           </div>
           <div>
-            <dt className="text-xs text-fg-3">Выбранная роль</dt>
+            <dt className="text-xs text-fg-3">Ваш доступ</dt>
             <dd className="mt-1 font-medium text-fg">
-              {roleTitle(actor.presentationRole)}
+              {actor.presentationRole ? roleTitle(actor.presentationRole) : actor.systemRole === "admin" ? "Admin" : actor.assignments.map(item => item.label).join(" · ") || "Права ещё не назначены"}
             </dd>
           </div>
         </dl>

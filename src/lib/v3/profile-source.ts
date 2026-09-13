@@ -1,6 +1,9 @@
+import { staffPresentationCan, staffHasPermission, isStaffPreview } from "../platform-access.ts";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { createSupabaseServerClient } from "../supabase/server";
+import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
@@ -52,7 +55,6 @@ import {
   type PlatformDocumentSlot,
 } from "@/lib/platform-private-documents";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { fixedRoleCan } from "@/lib/fixed-role-policy";
 import { getPlatformSalesLead } from "@/lib/platform-sales";
 import {
   getPlatformLeadAdmissionsGate,
@@ -130,13 +132,14 @@ export type V3ProfileCaseDirectory = Readonly<{
 }>;
 
 type FullCaseData = Readonly<{
+  access: CaseSectionAccess;
   studentCase: PlatformStudentCaseSnapshot;
   applications: readonly PlatformApplicationQueueRow[];
   visa: PlatformCaseVisa | null;
-  finance: PlatformCaseFinanceControl;
+  finance: PlatformCaseFinanceControl | null;
   studentProfile: PlatformStudentProfileSnapshot | null;
-  documents: PlatformCaseDocumentWorkspace;
-  contract: PlatformCaseContractWorkspace;
+  documents: PlatformCaseDocumentWorkspace | null;
+  contract: PlatformCaseContractWorkspace | null;
   handoff: PlatformStudentCaseHandoffContext;
   handoffAcknowledgement: HandoffAcknowledgement;
 }>;
@@ -460,13 +463,13 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
       ),
       visa: randomUUID(),
       createStops: Object.fromEntries(
-        data.finance.obligations.map((obligation) => [
+        (data.finance?.obligations ?? []).map((obligation) => [
           obligation.paymentObligationId,
           randomUUID(),
         ]),
       ),
       resolveStops: Object.fromEntries(
-        data.finance.obligations.flatMap((obligation) =>
+        (data.finance?.obligations ?? []).flatMap((obligation) =>
           obligation.activeStopFactors.map((stop) => [stop.stopFactorId, randomUUID()]),
         ),
       ),
@@ -479,35 +482,41 @@ async function loadFullCase(
   studentCase: PlatformStudentCaseSnapshot,
 ): Promise<FullCaseData> {
   const studentCaseId = studentCase.studentCaseId;
+  const client = await createSupabaseServerClient();
+  const sectionResponse = await client.schema("platform").rpc("staff_case_access_snapshot", {
+    p_organization_id: actor.organizationId, p_student_case_id: studentCaseId,
+  });
+  if (sectionResponse.error) throw new Error("case_access_unavailable");
+  const access = parseCaseSectionAccess(sectionResponse.data, actor.organizationId, studentCaseId);
   const [
     applicationsPage,
     visa,
-    finance,
-    studentProfile,
-    documents,
-    contract,
+    sections,
     handoff,
     handoffAcknowledgement,
   ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCaseId, { pageSize: 100 }),
     getPlatformCaseVisa(actor, studentCaseId),
-    getPlatformCaseFinanceControl(actor, studentCaseId),
-    getPlatformStudentProfile(actor, studentCaseId),
-    getPlatformCaseDocumentWorkspace(actor, studentCaseId),
-    getPlatformCaseContractWorkspace(actor, studentCaseId),
+    readCaseProfileSections(access, {
+      finance: () => getPlatformCaseFinanceControl(actor, studentCaseId),
+      studentProfile: () => getPlatformStudentProfile(actor, studentCaseId),
+      documents: () => getPlatformCaseDocumentWorkspace(actor, studentCaseId),
+      contract: () => getPlatformCaseContractWorkspace(actor, studentCaseId),
+    }),
     getPlatformStudentCaseHandoffContext(actor, studentCaseId),
     getHandoffAcknowledgement(actor, studentCaseId),
   ]);
+  const { documents, contract } = sections;
   if (applicationsPage.hasNext) {
     throw new Error("V3 profile application list exceeds its canonical read window.");
   }
-  if (documents.studentCaseId !== studentCaseId || documents.caseState !== studentCase.state) {
+  if (documents && (documents.studentCaseId !== studentCaseId || documents.caseState !== studentCase.state)) {
     throw new Error("V3 profile document workspace does not match the requested case.");
   }
   if (
-    !contract ||
+    access.contract && (!contract ||
     contract.studentCaseId !== studentCaseId ||
-    contract.organizationId !== actor.organizationId
+    contract.organizationId !== actor.organizationId)
   ) {
     throw new Error("V3 profile contract workspace does not match the requested case.");
   }
@@ -518,13 +527,10 @@ async function loadFullCase(
     throw new Error("V3 profile handoff context does not match the requested case.");
   }
   return {
+    ...sections,
     studentCase,
     applications: applicationsPage.rows,
     visa,
-    finance,
-    studentProfile,
-    documents,
-    contract,
     handoff,
     handoffAcknowledgement,
   };
@@ -545,37 +551,41 @@ function fullCaseDetails(
   const facts = profileFacts(data.studentCase, data.studentProfile);
   const money = financeSummary(data.finance);
   const canUpload = data.studentCase.state === "active"
-    && (actor.presentationRole === "admin" || actor.presentationRole === "admissions");
-  const contractWorkspace = actor.presentationRole === "admissions" && data.contract.actorRole === "admin"
+    && !isStaffPreview(actor) && staffHasPermission(actor, "document.upload");
+  const contractWorkspace = isStaffPreview(actor) && data.contract
     ? Object.freeze({
         ...data.contract,
-        actorRole: "admissions" as const,
         canManageTemplates: false,
+        canGenerateContract: false,
+        canReviewContract: false,
+        canManagePostContract: false,
+        canReviewReport: false,
       })
     : data.contract;
-  const contract: ProfileContractSnapshot = Object.freeze({
+  const contract: ProfileContractSnapshot | null = contractWorkspace ? Object.freeze({
     workspace: contractWorkspace,
     handoff: data.handoff,
-  });
+  }) : null;
   return {
+    access: data.access,
     routeTarget,
     responsible,
     provider: null,
     ...facts,
-    documents: profileDocuments(
+    documents: data.documents ? profileDocuments(
       data.documents,
       canUpload,
       data.applications,
       data.visa,
-      canUpload && actor.presentationRole === actor.authorityRole,
-    ),
+      canUpload && !isStaffPreview(actor),
+    ) : [],
     otherFiles: [],
     ...money,
     admissions: admissionsWorkspace(data),
     contract,
     handoffAcknowledgement: {
       ...data.handoffAcknowledgement,
-      canRespond: actor.presentationRole === actor.authorityRole && data.handoffAcknowledgement.canRespond,
+      canRespond: !isStaffPreview(actor) && data.handoffAcknowledgement.canRespond,
       requestId: randomUUID(),
     },
     salesHandoffAcknowledgement: null,
@@ -598,7 +608,7 @@ async function readCaseProfile(
   actor: ActivePlatformActor,
   studentCaseId: string,
 ): Promise<V3ProfileCoreView | null> {
-  if (actor.presentationRole !== "admin" && actor.presentationRole !== "admissions") {
+  if (!staffPresentationCan(actor, "admissions.read")) {
     return null;
   }
   const view = await getPlatformStudentCaseView(actor, studentCaseId);
@@ -611,7 +621,7 @@ async function readCaseProfile(
   const links = await listPlatformStudentCaseLeadLinks(actor, [canonicalCaseId]);
   const link = links.find((item) => item.studentCaseId === canonicalCaseId) ?? null;
 
-  if (actor.presentationRole === "admin" && link) {
+  if (staffPresentationCan(actor, "sales.read") && link) {
     const leadProfile = await readLeadProfile(
       actor,
       link.leadId,
@@ -665,7 +675,7 @@ async function readLeadProfile(
   routeTarget: ProfileRouteTarget,
   expectedStudentCaseId: string | null = null,
 ): Promise<V3ProfileCoreView | null> {
-  if (actor.presentationRole === "admissions") return null;
+  if (!staffPresentationCan(actor, "sales.read")) return null;
   const lead = await getPlatformSalesLead(actor, leadId);
   if (lead === null) return null;
 
@@ -678,7 +688,7 @@ async function readLeadProfile(
   const caseView = caseId ? await getPlatformStudentCaseView(actor, caseId) : null;
   const studentCase = caseView?.access === "full" ? caseView.studentCase : null;
   const salesCase = caseView?.access === "sales_summary" ? caseView.studentCase : null;
-  const fullCase = actor.presentationRole === "admin" && studentCase
+  const fullCase = staffPresentationCan(actor, "admissions.read") && studentCase
     ? await loadFullCase(actor, studentCase)
     : null;
   const salesHandoffAcknowledgement = !fullCase && caseId && handoff.handedOffAt
@@ -727,6 +737,7 @@ async function readLeadProfile(
         gate.contractConfirmedAt ? formatDate(gate.contractConfirmedAt, true) : null,
       )
     : {
+        access: { documents: false, finance: false, studentProfile: false, contract: false },
         routeTarget,
         responsible: lead.currentOwnerDisplayName,
         provider: null,
@@ -921,7 +932,7 @@ export async function readV3ProfileCaseDirectory(
     curatorMembershipId: params.curatorMembershipId,
     attention: params.attention,
   });
-  const canReadSales = fixedRoleCan(actor.presentationRole, "sales.read");
+  const canReadSales = staffPresentationCan(actor, "sales.read");
   const links = canReadSales && page.rows.length > 0
     ? await listPlatformStudentCaseLeadLinks(
         actor,
@@ -968,7 +979,7 @@ export async function readProfileTarget(
   const caseId = core.details.admissions?.studentCaseId;
   const [page, history] = await Promise.all([
     readCaseNotes(actor, subject, { limit: 50, cursor: noteCursor }),
-    activity && caseId && actor.presentationRole !== "sales"
+    activity && caseId && staffPresentationCan(actor, "admissions.read")
       ? readProfileActivity(actor, caseId, activity.cursor) : null,
   ]);
   const historyHref = (cursor: ProfileActivityCursor | null) => {

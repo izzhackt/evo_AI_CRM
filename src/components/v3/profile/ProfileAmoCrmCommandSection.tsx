@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 
 import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
-import type { FixedRole } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
 import {
@@ -21,11 +21,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  */
 export async function ProfileAmoCrmCommandSection({
   organizationId,
-  authorityRole,
+  actor,
   handoff,
 }: Readonly<{
   organizationId: string;
-  authorityRole: FixedRole;
+  actor: import("@/lib/platform-auth").ActivePlatformActor;
   handoff: PlatformStudentCaseHandoffContext;
 }>) {
   if (
@@ -55,7 +55,9 @@ export async function ProfileAmoCrmCommandSection({
         ? readPlatformBlockingAmoCrmCommand(staffClient!, {
             organizationId,
             authorization: {
-              actorRole: authorityRole,
+              // Compatibility descriptor of the operation view; SQL checks
+              // live paired case authority independently.
+              actorRole: actor.systemRole === "admin" ? "admin" : "admissions",
               workflowScope: "admissions_post_handoff",
               workflowLeadId: handoff.leadId,
               studentCaseId: handoff.studentCaseId,
@@ -89,6 +91,7 @@ export async function ProfileAmoCrmCommandSection({
       data-status="available"
     >
       <CanonicalAmoCrmCommandPanel
+        canMutate={!isStaffPreview(actor) && staffHasPermission(actor, "amocrm.command.manage")}
         availability={availability}
         blockingAttempt={
           blockingAttempt === null

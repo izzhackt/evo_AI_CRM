@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `4e35b896e16449a63bd11bffd457ddf4acac6c62`
+Last recorded accepted application: `77cde9ba8abdd8140db462dfe0203c0356944849`
 
 ## Active run: dynamic employee roles and unified document automation
 
@@ -20,14 +20,14 @@ Extend the existing canonical Supabase identity/permission system; do not build
 a second role engine. Keep each permission bound to its assignment scope,
 Admin's staff functional superset and Student-private boundaries.
 
-The owner approved implementation on 2026-09-13. Begin the documented S1 staff
-directory/department slice; dynamic authority and real onboarding remain pending.
+The owner approved implementation on 2026-09-13. The documented S1 staff
+directory/department slice is released; S2 release and real employee onboarding remain pending.
 Personal contacts stay outside Git; no automatic bulk invitations or role grants.
 The owner also requests [EVO Docs integration and retirement](design/v3/evo-docs-unification-run-plan.md).
 [ADR0028](adr/0028-unify-document-automation-inside-evo-platform.md) supersedes
 ADR0017's separate-product decision: one Platform/Auth/data authority, with exact
 legacy retirement only after real transfer and integrated workflow acceptance.
-The accepted application above and prior real Portal acceptance are unchanged.
+This release does not close the prior Portal's remaining real Student acceptance.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
@@ -35,14 +35,44 @@ execution, clean up owned validation resources, and keep real business acceptanc
 and production/Docs retirement separate. See the latest PLAN_CHANGES entry.
 
 The current continuation explicitly requests completion of the whole employee
-and Docs plans, not only S1/D1. Resume from merged `aa2e2346` and managed schema154:
-first repair the isolated Storage release blocker, prove and release the S1/D1
-candidate, then deliver scoped role authority/employee onboarding and D2–D6.
+and Docs plans, not only S1/D1. S1/D1 is now accepted at `77cde9ba` on managed
+schema154: local gateway corrections #743/#745 and PNG verifier correction #744
+are merged; exact-main CI34740753764 and automatic release34741107458 passed.
+Independent Hermes readback matched the exact image and acceptance/browser
+hashes, healthy zero-restart app, unchanged private WAHA/ClamAV and no pending
+release. Arm=false was explicitly read back. Chrome through the existing
+localhost3000 SSH tunnel opened staff list, member details and departments
+under the existing Admin session without mutations. Local HTTPS curl had a CA
+verification failure; Hermes HTTPS on the active sslip hostname and the release's authenticated browser proof
+passed. Do not treat that local failure as a completed network diagnosis.
+Continue scoped role authority/employee onboarding and D2–D6; do not repeat this
+completed release or interpret it as delivery of those remaining features.
 Keep the recipient/effective-rights confirmation, real employee first-login,
 approved source-to-case mapping and real document/provider acceptance gates.
 No invitation, customer-file disclosure or standalone retirement is implied by
 technical CI. The latest release checkpoint is
 [the S1/D1 evidence](design/v3/references/2026-09-13-staff-docs-release.md).
+
+S2 remains active, uncommitted and unreleased under the
+[scoped-authority contract](design/v3/staff-scoped-authority-contract.md), with
+155–157 reserved for one coordinated authority/onboarding transition. Shared
+SQL, live staff snapshots, role/assignment UI and prepared invitations are
+implemented locally. The fresh CLI stack passed the bounded ordinary onboarding
+check: protected first Admin, four published roles, two synthetic Mailpit
+invitations, explicit callback/password UI, fresh browser sign-in and live scoped
+snapshots; owned containers were cleaned up. The same checkpoint passed 1342 unit
+checks and the application build. See [S2 local evidence and limits](design/v3/staff-scoped-authority-contract.md#локальная-проверка-2026-09-13).
+Calendar/task and Sales/Finance source branches are aligned; all six source
+findings are closed, including independent 21/21 approval of the post-contract
+and case-help fixes. This is not whole-slice approval. Role-editor run 47064
+failed at restore fields; run 74115 then failed at creation. No complete workflow
+pass or confirming screenshots exist. Safe UI diagnostics were added; the fresh
+full unit run passed all 1426 checks across144 unique files, and the production
+build including TypeScript passed. No PR has been created.
+Remaining work includes full S2 runtime/browser
+verification, whole-slice review, commit, the full release gate and deployment.
+This local proof is not real employee first-login, provider or Storage acceptance; no
+production activation or employee invitation is implied.
 
 ## Active follow-up: complete Portal document review and reply notifications
 

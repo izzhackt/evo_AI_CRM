@@ -1,3 +1,4 @@
+import { staffHasPermission } from "../platform-access.ts";
 import "server-only";
 import type { PlatformActor } from "../platform-auth";
 import { LEAD_DIRECTIONS, type ManualLeadInput, type ManualLeadState } from "../platform-manual-lead-contract";
@@ -18,7 +19,7 @@ export async function readLeadInterest(actor: PlatformActor, leadId: string): Pr
 
 export async function createManualLead(actor: PlatformActor, input: ManualLeadInput): Promise<ManualLeadState> {
   const result = (status: ManualLeadState["status"], leadId: string | null = null): ManualLeadState => ({ status, leadId, requestId: input.requestId });
-  if (actor.authorityRole !== "admin" && actor.authorityRole !== "sales") return result("forbidden");
+  if (!staffHasPermission(actor, "lead.sales.workflow.manage")) return result("forbidden");
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("create_manual_sales_lead", {
     p_organization_id: actor.organizationId, p_request_id: input.requestId, p_display_name: input.name,

@@ -1,8 +1,8 @@
+import { staffCan, staffPresentationCan } from "../platform-access.ts";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { fixedRoleCan } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import type { PlatformMessageMedia } from "../platform-communications.ts";
 import {
@@ -196,10 +196,10 @@ export function toV3InboxMessageMedia(
 }
 
 function attachmentRoleAllowed(actor: ActivePlatformActor): boolean {
-  return fixedRoleCan(actor.presentationRole, "documents.write")
-    && fixedRoleCan(actor.presentationRole, "messaging.read")
-    && fixedRoleCan(actor.authorityRole, "documents.write")
-    && fixedRoleCan(actor.authorityRole, "messaging.read");
+  return staffPresentationCan(actor, "documents.write")
+    && staffPresentationCan(actor, "messaging.read")
+    && staffCan(actor, "documents.write")
+    && staffCan(actor, "messaging.read");
 }
 
 /**

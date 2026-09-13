@@ -1,4 +1,5 @@
 "use server";
+import { isStaffPreview, staffCan } from "./platform-access.ts";
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { decimalToMinor, financeDateTime, type FinanceEntryState } from "./platform-finance-entry-contract";
@@ -12,7 +13,7 @@ export async function saveFinanceEntryAction(previous: FinanceEntryState, form: 
   const requestId = fields && parseSalesUuid(fields.get("request_id"));
   const fail = (status: FinanceEntryState["status"]): FinanceEntryState => ({ status, requestId: requestId ?? previous.requestId, resourceId: null });
   if (!fields || !requestId) return fail("invalid");
-  if (actor.presentationRole !== actor.authorityRole || actor.authorityRole === "sales") return fail("forbidden");
+  if (isStaffPreview(actor) || !staffCan(actor, "finance.write")) return fail("forbidden");
   const text = (key: string) => fields.get(key)!.trim();
   const operation = text("operation"), caseId = parseSalesUuid(text("case_id")), amount = decimalToMinor(text("amount")), at = financeDateTime(text("at"));
   const reason = text("reason"), currency = text("currency").toUpperCase();

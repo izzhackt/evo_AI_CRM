@@ -1,4 +1,4 @@
-import { fixedRoleCan } from "./fixed-role-policy.ts";
+import { staffHasPermission } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth.ts";
 
 const UUID_PATTERN =
@@ -312,7 +312,7 @@ export function normalizePlatformCompanyFileWorkspace(
 }
 
 function requireCompanyFileReader(actor: PlatformActor): string {
-  if (!fixedRoleCan(actor.authorityRole, "documents.read")) {
+  if (!staffHasPermission(actor, "company.file.read")) {
     return invalidShape();
   }
   return requiredUuid(actor.organizationId);

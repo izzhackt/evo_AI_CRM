@@ -1,3 +1,4 @@
+import { isStaffPreview } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { financeMoney, type FinanceEntryWorkspace as Workspace } from "@/lib/platform-finance-entry-contract";
@@ -7,7 +8,7 @@ import { Card } from "./Card";
 
 export async function FinanceEntryWorkspace({ caseId }: Readonly<{ caseId: string }>) {
   const actor = await requirePlatformStaffActor();
-  if (actor.presentationRole !== actor.authorityRole || actor.authorityRole === "sales") return null;
+  if (isStaffPreview(actor)) return null;
   let workspace: Workspace;
   try { workspace = await readFinanceEntryWorkspace(actor, caseId); }
   catch { return <Card title="Оплаты и возвраты"><p role="alert" className="px-4 py-3 text-sm text-fg-2">Финансовая история сейчас недоступна. Обновите страницу; новые операции пока остановлены.</p></Card>; }

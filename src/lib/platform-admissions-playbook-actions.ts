@@ -1,5 +1,6 @@
 "use server";
 
+import { staffCan, isStaffPreview } from "./platform-access.ts";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { admissionsCommandRpc, parseAdmissionsCommand, type AdmissionsCommandResult } from "./platform-admissions-playbook-command";
 import { admissionsRpc, AdmissionsSourceError, normalizeAdmissionsReceipt } from "./v3/admissions-source";
@@ -17,7 +18,7 @@ function failure(code: Extract<AdmissionsCommandResult, { ok: false }>["code"]):
 
 export async function executeAdmissionsCommandAction(input: unknown): Promise<AdmissionsCommandResult> {
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole === "sales" || actor.presentationRole === "sales") return failure("denied");
+  if (!staffCan(actor, "admissions.write") || isStaffPreview(actor)) return failure("denied");
   const command = parseAdmissionsCommand(input);
   if (!command) return failure("invalid");
   try {

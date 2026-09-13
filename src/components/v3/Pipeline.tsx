@@ -1,8 +1,9 @@
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
 import { PipelineDecisionForm } from "@/components/v3/PipelineDecisionForm";
-import type { FixedRole } from "@/lib/fixed-role-policy";
 import type {
   PlatformSalesOwnerOption,
   PlatformSalesStage,
@@ -74,7 +75,7 @@ function LeadCard({
   workflowStages,
   ownerOptions,
   ownerOptionsHaveMore,
-  actorRole,
+  actor,
   actorMembershipId,
   requestId,
 }: {
@@ -86,7 +87,7 @@ function LeadCard({
   }>[];
   ownerOptions: readonly PlatformSalesOwnerOption[];
   ownerOptionsHaveMore: boolean;
-  actorRole: Extract<FixedRole, "admin" | "sales">;
+  actor: ActivePlatformActor;
   actorMembershipId: string;
   requestId: string;
 }) {
@@ -148,17 +149,17 @@ function LeadCard({
         </div>
       ) : null}
 
-      {actorRole === "admin" || lead.workflow.currentOwnerMembershipId === actorMembershipId
+      {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read")
         ? <Link href={`/v3/tasks?lead=${lead.workflow.leadId}&create=staff`} className="mt-2 inline-flex min-h-11 items-center text-xs text-accent-text underline underline-offset-2">Задачи по лиду</Link>
         : <p className="mt-2 text-xs text-fg-2">Для связанных задач сначала назначьте ответственного.</p>}
-      {!terminal ? (
+      {!terminal && !isStaffPreview(actor) && staffHasPermission(actor, "lead.sales.workflow.manage") ? (
         <PipelineDecisionForm
           key={`${lead.workflow.leadId}:${lead.workflow.workflowVersion}`}
           lead={lead.workflow}
           stages={workflowStages}
           ownerOptions={ownerOptions}
           ownerOptionsHaveMore={ownerOptionsHaveMore}
-          actorRole={actorRole}
+          actor={actor}
           actorMembershipId={actorMembershipId}
           requestId={requestId}
         />
@@ -172,7 +173,7 @@ export function Pipeline({
   leads,
   ownerOptions,
   ownerOptionsHaveMore,
-  actorRole,
+  actor,
   actorMembershipId,
   requestIds,
   handedExpanded,
@@ -183,7 +184,7 @@ export function Pipeline({
   leads: readonly PipelineLead[];
   ownerOptions: readonly PlatformSalesOwnerOption[];
   ownerOptionsHaveMore: boolean;
-  actorRole: Extract<FixedRole, "admin" | "sales">;
+  actor: ActivePlatformActor;
   actorMembershipId: string;
   requestIds: Readonly<Record<string, string>>;
   handedExpanded: boolean;
@@ -248,7 +249,7 @@ export function Pipeline({
                           workflowStages={workflowStages}
                           ownerOptions={ownerOptions}
                           ownerOptionsHaveMore={ownerOptionsHaveMore}
-                          actorRole={actorRole}
+                          actor={actor}
                           actorMembershipId={actorMembershipId}
                           requestId={requestId}
                         />

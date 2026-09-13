@@ -99,11 +99,11 @@ async function signInAsStaff(page: Page, role: FixedRole) {
   await expect(page.getByTestId("v3-shell")).toBeVisible();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-role",
-    role,
+    role === "admin" ? "admin" : "staff",
   );
   await expect(page.getByTestId("active-role")).toHaveAttribute(
-    "data-authority-role",
-    role,
+    "data-system-role",
+    role === "admin" ? "admin" : "staff",
   );
 }
 

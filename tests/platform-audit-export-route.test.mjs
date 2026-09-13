@@ -76,7 +76,7 @@ function dependencies(overrides = {}) {
     value: {
       env: { EVO_PLATFORM_P7A_AUDIT_ENABLED: "1" },
       async loadActor() {
-        return { status: "authenticated", actor: { platformRole: "admin" } };
+        return { status: "authenticated", actor: { systemRole: "admin", assignments: [], permissionKeys: [] } };
       },
       async exportAudit(input) {
         exports += 1;
@@ -164,7 +164,7 @@ test("cross-origin and missing-origin POSTs fail before auth or RPC", async () =
   const deps = dependencies({
     async loadActor() {
       actorLoads += 1;
-      return { status: "authenticated", actor: { platformRole: "admin" } };
+      return { status: "authenticated", actor: { systemRole: "admin", assignments: [], permissionKeys: [] } };
     },
   });
   const handler = createPlatformAuditExportHandler(async () => deps.value);
@@ -238,7 +238,7 @@ test("chunked bodies are bounded by bytes and invalid UTF-8 is rejected before R
 test("anonymous, non-Admin and disabled export fail closed without RPC", async () => {
   for (const overrides of [
     { async loadActor() { return { status: "anonymous", actor: null }; } },
-    { async loadActor() { return { status: "authenticated", actor: { platformRole: "sales" } }; } },
+    { async loadActor() { return { status: "authenticated", actor: { systemRole: "staff", assignments: [], permissionKeys: [] } }; } },
     { env: {} },
   ]) {
     const deps = dependencies(overrides);

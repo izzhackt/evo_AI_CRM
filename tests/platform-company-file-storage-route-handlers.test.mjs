@@ -173,9 +173,10 @@ const ACTOR = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "Admissions",
   email: "admissions@example.test",
-  platformRole: "admissions",
-  authorityRole: "admissions",
-  presentationRole: "admissions",
+  systemRole: "staff",
+  presentationRole: null,
+  assignments: [],
+  permissionKeys: ["company.file.upload", "company.file.download"],
   platformAccessVersion: 1,
   platformBundleId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   platformBundleVersion: 1,
@@ -388,7 +389,7 @@ test("authorized company upload service-writes, reads back and finalizes exact b
       sha256Hex: SHA256,
     },
   });
-  assert.deepEqual(calls[0], ["authorize", "documents.write"]);
+  assert.deepEqual(calls[0], ["authorize", "company.file.upload"]);
   const preflightCall = calls.find(([, name]) => name === "preflight_company_file_upload");
   const reserveCall = calls.find(([, name]) =>
     name === "reserve_company_file_upload_after_ingress_scan"
@@ -660,7 +661,7 @@ test("company upload authorizes before parsing and rejects spoofed signatures", 
     { params: Promise.resolve({ companyFileId: FILE_ID }) },
   );
   assert.equal(response.status, 403);
-  assert.deepEqual(result.calls, [["authorize", "documents.write"]]);
+  assert.deepEqual(result.calls, [["authorize", "company.file.upload"]]);
 
   result = uploadDependencies();
   response = await createPlatformCompanyFileUploadHandler(result.dependencies)(
@@ -678,7 +679,7 @@ test("company upload authorizes before parsing and rejects spoofed signatures", 
   );
   assert.equal(response.status, 400);
   assert.deepEqual(await response.json(), { error: "invalid_company_file" });
-  assert.deepEqual(result.calls, [["authorize", "documents.write"]]);
+  assert.deepEqual(result.calls, [["authorize", "company.file.upload"]]);
 });
 
 test("company upload accepts bounded, structurally valid DOCX, XLSX and PPTX packages", async () => {
@@ -898,7 +899,7 @@ test("company download consumes one grant and emits only a short private signed 
     /^http:\/\/127\.0\.0\.1:54321\/storage\/v1\/object\/sign\/platform-company-files\//,
   );
   assert.deepEqual(calls.map(([kind, name]) => [kind, name]), [
-    ["authorize", "documents.read"],
+    ["authorize", "company.file.download"],
     ["user-rpc", "grant_company_file_download"],
     ["service-rpc", "consume_company_file_download_grant"],
     ["sign", "platform-company-files"],

@@ -95,7 +95,7 @@ test("smoke signs in, proves V3 admin operations and exact release metadata", as
   let currentUrl = "https://evo-crm.72.62.119.112.sslip.io/login";
   const role = {
     async getAttribute(name) {
-      return name === "data-role" || name === "data-authority-role" ? "admin" : null;
+      return name === "data-role" || name === "data-system-role" ? "admin" : null;
     },
   };
   const visible = { async waitFor(options) { calls.push(["visible", options.state]); } };

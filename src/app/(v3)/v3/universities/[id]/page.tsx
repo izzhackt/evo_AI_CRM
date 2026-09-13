@@ -1,3 +1,4 @@
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { notFound } from "next/navigation";
 import { PartShell } from "@/components/v3/PartShell";
 import { UniversityDetail, UniversityUnavailable } from "@/components/v3/universities/UniversityCatalogue";
@@ -11,5 +12,5 @@ export default async function UniversityPage({ params }: { params: Promise<{ id:
   let page;
   try { page = await readStaffUniversities(actor, undefined, id); } catch { return <PartShell title="Университет"><UniversityUnavailable /></PartShell>; }
   const university = page.items[0] ?? notFound();
-  return <PartShell title={university.content.name}><UniversityDetail university={university} base="/v3/universities" canManage={actor.authorityRole === "admin" && actor.presentationRole === "admin"} now={new Date()} /></PartShell>;
+  return <PartShell title={university.content.name}><UniversityDetail university={university} base="/v3/universities" canManage={!isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage")} now={new Date()} /></PartShell>;
 }

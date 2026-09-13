@@ -6,8 +6,10 @@ import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
 import { DIRECTION_LABELS } from "@/components/v3/profile/admissions-view";
 import { ADMISSIONS_DIRECTIONS, type AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import { staffOrganizationalDetailsAction } from "@/lib/staff-workspace-actions";
-import { STAFF_ROLE_LABELS, STAFF_WORKSPACE_INITIAL_STATE, type StaffDepartment,
+import { STAFF_WORKSPACE_INITIAL_STATE, type StaffDepartment,
   type StaffWorkspaceActionState, type StaffWorkspaceMember } from "@/lib/v3/staff-workspace-contract";
+import type { StaffRoleMember } from "@/lib/v3/staff-roles-contract";
+import { staffDirectoryAccessSummary } from "@/lib/v3/wording";
 
 type StaffMutationAction = (previous: StaffWorkspaceActionState, form: FormData) => Promise<StaffWorkspaceActionState>;
 
@@ -109,8 +111,9 @@ function OrganizationalDetailsForm({ member, departments, onClose }: {
   </form>;
 }
 
-export function StaffMemberDetails({ member, departments, children }: {
+export function StaffMemberDetails({ member, access, departments, children }: {
   member: StaffWorkspaceMember; departments: readonly StaffDepartment[]; children: ReactNode;
+  access: StaffRoleMember | undefined;
 }) {
   const [editing, setEditing] = useState(false);
   const editButton = useRef<HTMLButtonElement>(null);
@@ -125,7 +128,7 @@ export function StaffMemberDetails({ member, departments, children }: {
     <Link href="/v3/settings?section=staff&view=people" className={`${btnGhostCls} @4xl:hidden`}>К сотрудникам</Link>
     <header className="space-y-2 border-b border-border pb-4">
       <h3 ref={heading} tabIndex={-1} className="break-words text-xl font-semibold">{member.displayName}</h3>
-      <p className="text-sm leading-6 text-fg-2">{STAFF_ROLE_LABELS[member.role]} · {member.status === "active" ? "Доступ активен" : "Доступ заблокирован"}</p>
+      <p className="text-sm leading-6 text-fg-2">{staffDirectoryAccessSummary(member, access)} · {member.status === "active" ? "Доступ активен" : "Доступ заблокирован"}</p>
     </header>
     <section className="space-y-4" aria-label="Рабочие сведения">
       <div className="flex flex-wrap items-center justify-between gap-2">

@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   dayDelta,
   taskDeadlineInputDefaults,
+  calendarCapabilitiesForTask,
 } from "../src/components/v3/calendar/types.ts";
 
 function source(path) {
@@ -57,7 +58,7 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(page, /readCalendarWorkspace/);
   assert.match(adapter, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapter, /listPlatformStudentCases/);
-  assert.match(adapter, /getPlatformAdmissionsTaskWorkspace/);
+  assert.match(adapter, /getPlatformAdmissionsTaskTarget/);
   assert.match(adapter, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapter, /const CASE_PAGE_SIZE = 100/);
   assert.match(adapter, /dueFrom: from,[\s\S]*dueTo: to/u);
@@ -70,22 +71,52 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(adapter, /casesHaveMore:\s*cases\.hasNext/);
   assert.match(page, /casesHaveMore=\{workspace\.casesHaveMore\}/);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
-  assert.match(page, /undatedContinuationPage=\{undatedCursor !== null\}/u);
+  assert.match(page, /undatedContinuationPage=\{workspace\.access\.tasks && undatedCursor !== null\}/u);
   assert.match(controls, /TaskCasePicker/);
   assert.match(source("src/components/v3/tasks/TaskCasePicker.tsx"), /searchTaskCasesAction/);
   assert.match(source("src/lib/v3/task-case-actions.ts"), /cursor/);
   assert.equal(
-    [...adapter.matchAll(/await getPlatformAdmissionsTaskWorkspace\(/g)].length,
-    2,
-    "one normal workspace read plus one case-bound deep-link read",
+    [...adapter.matchAll(/await getPlatformAdmissionsTaskTarget\(/g)].length,
+    1,
+    "only the exact edit target is read on the server; creation resolves its own case",
   );
-  assert.equal([...adapter.matchAll(/await listPlatformStudentCases\(/g)].length, 2);
-  assert.match(adapter, /const workspace = !target && cases\.rows\[0\]/);
+  assert.equal([...adapter.matchAll(/await listPlatformStudentCases\(/g)].length, 1);
+  assert.match(adapter, /const assignees = target\?\.assignees \?\? \[\]/);
   assert.doesNotMatch(
     adapter,
     /better-sqlite3|drizzle|@\/lib\/server\/database|\bevo_[a-z0-9_]+\b/i,
   );
   assert.doesNotMatch(adapter, /PlatformAdmissionsCursor|for \(;;\)|TASK_STATE/);
+});
+
+test("calendar production adapter uses the tested permission coordinator and keeps creation separate", () => {
+  assert.match(adapter, /await readCalendarWorkspaceBranches\(actor, \{/);
+  assert.match(adapter, /tasks: \(current\) => readCalendarTasks\(current, from, to, undatedCursor\)/);
+  assert.match(adapter, /deadlines: \(current\) => readCalendarApplicationDeadlines\(current, from, to\)/);
+  assert.match(adapter, /nearest: readNearestCalendarApplicationDeadline/);
+  assert.match(adapter, /cases: readActiveCases/);
+  assert.match(adapter, /access: branches\.access/);
+  assert.match(page, /readAccess=\{workspace\.access\}/);
+  assert.match(calendar, /readAccess\.applicationDeadlines \? <NearestApplicationDeadline/);
+  assert.match(calendar, /calendarAccessNotice\(readAccess, open !== null\)/);
+  assert.match(calendar, /calendarEmptyPeriodLabel\(readAccess\)/);
+  assert.match(calendar, /readAccess\.tasks \|\| readAccess\.applicationDeadlines \|\| tasks\.length > 0/);
+  assert.match(calendar, /<CalendarCreateTaskForm/);
+  assert.match(controls, /isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "task\.create"\)/);
+  assert.match(adapter, /tasks: target[\s\S]*\[target\.task, \.\.\.read\.tasks\.filter/);
+});
+
+test("case task candidates follow exact selection and block submission until checked", () => {
+  const picker = source("src/components/v3/tasks/TaskCasePicker.tsx");
+  const action = source("src/lib/v3/task-case-actions.ts");
+  assert.match(picker, /onCaseChange\?\.\(nextCaseId\)/);
+  assert.match(picker, /onCaseChange\?\.\(event\.target\.value\)/);
+  assert.match(action, /getPlatformAdmissionsTaskWorkspace\(actor, caseId\)/);
+  assert.match(action, /status: "unavailable"/);
+  assert.match(controls, /candidateState\.caseId === activeCaseId/);
+  assert.match(controls, /if \(!cancelled\) setCandidateState/);
+  assert.match(controls, /locked \|\| !candidateReady \|\| !eligibleAssignee/);
+  assert.match(controls, /staffHasPermission\(actor, "task\.create"\)/);
 });
 
 test("V3 calendar create, change, complete and cancel use versioned server actions", () => {
@@ -138,18 +169,31 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
 test("calendar links resolve a real case-bound task and preselect it without page duplication", () => {
   assert.match(page, /hasTarget && \(!caseId \|\| !taskId\)\) notFound\(\)/);
   assert.match(page, /await readCalendarTaskTarget\(actor, caseId, taskId\)/);
-  assert.match(page, /hasTarget && !target\) notFound\(\)/);
   assert.match(page, /const day = target\?\.task\.day \?\?/);
   assert.match(page, /initialTaskId=\{target\?\.task\.id \?\? null\}/);
-  assert.match(adapter, /entry\.access !== "full"/);
-  assert.match(adapter, /entry\.studentCase\.studentCaseId !== studentCaseId/);
-  assert.match(adapter, /getPlatformAdmissionsTaskWorkspace\(actor, studentCaseId\)/);
-  assert.match(adapter, /workspace\.tasks\.find\(\(row\) => row\.caseTaskId === caseTaskId\)/);
-  assert.match(adapter, /if \(!task\) return null/);
+  assert.match(adapter, /getPlatformAdmissionsTaskTarget\(actor, studentCaseId, caseTaskId\)/);
+  const targetRead = adapter.slice(adapter.indexOf("export async function readCalendarTaskTarget"), adapter.indexOf("export async function readCalendarWorkspace"));
+  assert.doesNotMatch(targetRead, /listPlatformStudentCases|getPlatformAdmissionsTaskWorkspace|\.find\(|catch|return null/);
+  assert.match(page, /taskCapabilities=\{target\?\.capabilities \?\? null\}/);
   assert.match(adapter, /read\.tasks\.filter\(\(task\) => task\.id !== target\.task\.id\)/);
   assert.match(calendar, /tasks\.find\(\(task\) => task\.id === initialTaskId\)/);
   assert.match(calendar, /params\.set\("case", target\.studentCaseId\)/);
   assert.match(calendar, /params\.set\("task", target\.id\)/);
+});
+
+test("selected task controls and case navigation use only matching scoped target capabilities", () => {
+  const task = { id: "task-a", studentCaseId: "case-a" };
+  const permissions = { taskId: "task-a", studentCaseId: "case-a", canAssign: false, canChangeVisibility: false, canReadCase: false };
+  assert.equal(calendarCapabilitiesForTask(task, permissions), permissions);
+  for (const invalid of [null, { ...permissions, taskId: "task-b" }, { ...permissions, studentCaseId: "case-b" }])
+    assert.equal(calendarCapabilitiesForTask(task, invalid), null);
+  const changeForm = controls.slice(controls.indexOf("function CalendarChangeTaskForm"), controls.indexOf("export function CalendarTaskControls"));
+  assert.match(changeForm, /!isStaffPreview\(actor\) && capabilities\.canAssign/);
+  assert.match(changeForm, /!isStaffPreview\(actor\) && capabilities\.canChangeVisibility/);
+  assert.doesNotMatch(changeForm, /staffHasPermission\(actor, "task\.(assign|visibility\.manage)"\)/);
+  assert.match(calendar, /openCapabilities\?\.canReadCase \? <Link/);
+  assert.match(calendar, /openCapabilities && taskRequestIds\[open\.id\]/);
+  assert.match(calendar, /staffPresentationCan\(actor, "admissions\.read"\) \? <CalendarCreateTaskForm/);
 });
 
 test("V3 calendar resolves the page actor before reading Admissions data", () => {
@@ -163,16 +207,17 @@ test("V3 calendar resolves the page actor before reading Admissions data", () =>
   );
 });
 
-test("V3 calendar writes are role-scoped and remain keyboard-operable", () => {
+test("V3 calendar writes use live permission hints and remain keyboard-operable", () => {
   assert.match(
     calendar,
-    /presentationRole === "admin"[\s\S]*presentationRole === "admissions"/,
+    /!isStaffPreview\(actor\) && staffHasPermission\(actor, "task\.manage"\)/,
   );
-  assert.match(calendar, /open\.assigneeMembershipId === actorMembershipId/);
   assert.match(calendar, /CalendarTaskControls/);
-  assert.match(controls, /presentationRole !== "admin" && presentationRole !== "admissions"/);
+  assert.match(controls, /isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "task\.create"\)/);
   assert.match(controls, /assignee\.membershipId === actorMembershipId/);
-  assert.match(adapter, /filter\(\(assignee\) => assignee\.role !== "sales"\)/);
+  assert.doesNotMatch(adapter, /assignee\.role !== "sales"/);
+  assert.match(controls, /staffHasPermission\(actor, "task\.assign"\)/);
+  assert.match(controls, /staffHasPermission\(actor, "task\.visibility\.manage"\)/);
   assert.match(controls, /state\.status === "saved" \|\| state\.status === "stale"/);
   assert.match(grids, /<button[\s\S]*id=\{`task-\$\{task\.id\}`\}/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);

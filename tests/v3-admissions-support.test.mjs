@@ -66,13 +66,13 @@ test("uncertain command retries preserve the original payload and do not silentl
   const actions = source("src/lib/platform-admissions-support-actions.ts");
   assert.match(actions, /await requirePlatformStaffActor\(\)/u);
   assert.match(actions, /await requireStudentPortalActor\(\)/u);
-  assert.match(actions, /actor\.presentationRole !== actor\.authorityRole/u);
+  assert.match(actions, /isStaffPreview\(actor\)/u);
 });
 
 test("case navigation remounts scoped drafts without resetting same-case retries", () => {
   const page = source("src/app/(v3)/v3/profile/page.tsx");
   const key = page.slice(page.indexOf("<Profile\n"), page.indexOf("profile={view.profile}"));
-  for (const identity of ["actor.organizationId", "actor.authUserId", "actor.authorityRole", "actor.presentationRole", "routeTarget.studentCaseId", "routeTarget.leadId"]) assert.ok(key.includes(identity));
+  for (const identity of ["actor.organizationId", "actor.authUserId", "actor.systemRole", "actor.presentationRole", "routeTarget.studentCaseId", "routeTarget.leadId"]) assert.ok(key.includes(identity));
   assert.doesNotMatch(key, /randomUUID|requestId/u);
   assert.match(source("src/components/v3/profile/CaseHelpWorkspace.tsx"), /<CaseHelpPanel key=/u);
 });

@@ -11,6 +11,7 @@ import {
   ProcessSupervisor,
   RecoveryInterruptionGuard,
   RecoveryFailure,
+  recoveryBrowserRoleMarkers,
   assessRepresentativeCohort,
   apiRequest,
   browserCompanyFileUpload,
@@ -516,25 +517,26 @@ function exactAdminRolePreviewProof() {
   return {
     status: "passed",
     evidenceScope: "real_admin_authority_role_preview_no_synthetic_sales_admissions_identity",
-    authorityRole: "admin",
+    schemaVersion: 2,
+    systemRole: "admin",
     presentations: {
       sales: {
         role: "sales",
-        authorityRole: "admin",
+        systemRole: "admin",
         landingRoute: "/v3/main",
         allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/knowledge"],
         deniedRoutes: ["/v3/calendar", "/v3/settings"],
       },
       admissions: {
         role: "admissions",
-        authorityRole: "admin",
+        systemRole: "admin",
         landingRoute: "/v3/calendar",
         allowedRoutes: ["/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge"],
         deniedRoutes: ["/v3/main", "/v3/pipeline", "/v3/settings"],
       },
       admin: {
         role: "admin",
-        authorityRole: "admin",
+        systemRole: "admin",
         landingRoute: "/v3/main",
         allowedRoutes: ["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge", "/v3/settings"],
         deniedRoutes: [],
@@ -598,17 +600,19 @@ test("signed empty managed Storage source accepts only real Admin shell and role
   assert.equal(missingPreview.complete, false);
   assert.deepEqual(missingPreview.blockers, ["admin_role_preview_proof_missing"]);
   for (const tamperedAdminRolePreview of [
-    { ...exactAdminRolePreview, authorityRole: "sales" },
+    { ...exactAdminRolePreview, systemRole: "staff" },
+    { ...exactAdminRolePreview, schemaVersion: 1 },
+    { ...exactAdminRolePreview, schemaVersion: undefined, systemRole: undefined, authorityRole: "admin" },
     {
       status: "passed",
-      authorityRole: "admin",
+      systemRole: "admin",
       presentations: exactAdminRolePreview.presentations,
     },
     {
       ...exactAdminRolePreview,
       presentations: {
         ...exactAdminRolePreview.presentations,
-        sales: { ...exactAdminRolePreview.presentations.sales, authorityRole: "sales" },
+        sales: { ...exactAdminRolePreview.presentations.sales, systemRole: "staff" },
       },
     },
   ]) {
@@ -2453,6 +2457,17 @@ test("browser operations map native failures to a named step without leaking dia
   assert.match(source, /click\(\{ noWaitAfter: true, timeout: 45_000 \}\)/u);
 });
 
+test("recovery browser markers separate restored staff scenarios from protected Admin preview", () => {
+  assert.deepEqual(recoveryBrowserRoleMarkers("admin", "admin"), { systemRole: "admin", previewRole: "actual", displayRole: "admin" });
+  for (const role of ["sales", "admissions"]) {
+    assert.deepEqual(recoveryBrowserRoleMarkers(role, role), { systemRole: "staff", previewRole: "actual", displayRole: "staff" });
+    assert.deepEqual(recoveryBrowserRoleMarkers(role, "admin"), { systemRole: "admin", previewRole: role, displayRole: role });
+  }
+  for (const pair of [["admin", "sales"], ["sales", "admissions"], ["staff", "staff"], [null, "admin"]]) {
+    assert.throws(() => recoveryBrowserRoleMarkers(...pair), TypeError);
+  }
+});
+
 test("Admin role preview waits for the new server-rendered role before reading it", () => {
   const start = source.indexOf("async function assertBrowserActiveRole");
   const end = source.indexOf("function assertBrowserUrlPath", start);
@@ -2462,12 +2477,14 @@ test("Admin role preview waits for the new server-rendered role before reading i
 
   assert.match(
     roleProof,
-    /\[data-testid="v3-shell"\]\[data-authority-role="\$\{authorityRole\}"\]\[data-presentation-role="\$\{presentationRole\}"\]/u,
+    /\[data-testid="v3-shell"\]\[data-system-role="\$\{systemRole\}"\]\[data-presentation-role="\$\{previewRole\}"\]/u,
   );
   assert.match(
     roleProof,
-    /\[data-testid="active-role"\]\[data-authority-role="\$\{authorityRole\}"\]\[data-role="\$\{presentationRole\}"\]/u,
+    /\[data-testid="active-role"\]\[data-system-role="\$\{systemRole\}"\]\[data-role="\$\{displayRole\}"\]/u,
   );
+  assert.match(roleProof, /recoveryBrowserRoleMarkers\(presentationRole, scenarioRole\)/u);
+  assert.doesNotMatch(roleProof, /data-authority-role/u);
   assert.match(roleProof, /matchingShell\.waitFor\(\{ state: "visible", timeout: 45_000 \}\)/u);
   assert.match(roleProof, /matchingActiveRole\.waitFor\(\{ state: "visible", timeout: 45_000 \}\)/u);
 });

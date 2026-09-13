@@ -1,3 +1,4 @@
+import { staffHasPermission, isStaffPreview } from "../platform-access.ts";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -5,10 +6,6 @@ import { inflateRawSync } from "node:zlib";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  fixedRoleCan,
-  type FixedRoleCapability,
-} from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import {
   PLATFORM_COMPANY_FILE_MIME_TYPES,
@@ -64,17 +61,14 @@ function baseMediaType(value: string): string {
   return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 
-type DocumentCapability = Extract<
-  FixedRoleCapability,
-  "documents.read" | "documents.write"
->;
+type CompanyFileCapability = "company.file.upload" | "company.file.download";
 
 type CompanyFileAuthorization =
   | Readonly<{ status: "authorized"; actor: ActivePlatformActor }>
   | Readonly<{ status: "anonymous" | "forbidden" | "unavailable"; actor: null }>;
 
 export type PlatformCompanyFileStorageRouteDependencies = Readonly<{
-  authorize(capability: DocumentCapability): Promise<CompanyFileAuthorization>;
+  authorize(capability: CompanyFileCapability): Promise<CompanyFileAuthorization>;
   createUserClient(): Promise<SupabaseClient>;
   createServiceClient(): SupabaseClient;
   scanFile(bytes: Uint8Array): Promise<ClamdMalwareScanProof>;
@@ -835,13 +829,13 @@ function normalizeDownloadConsumption(
 }
 
 async function defaultAuthorize(
-  capability: DocumentCapability,
+  capability: CompanyFileCapability,
 ): Promise<CompanyFileAuthorization> {
   const { resolvePlatformActor } = await import("../platform-auth.ts");
   const result = await resolvePlatformActor();
   if (result.status === "anonymous") return { status: "anonymous", actor: null };
   if (result.status === "invalid") return { status: "unavailable", actor: null };
-  if (!fixedRoleCan(result.actor.authorityRole, capability)) {
+  if (!staffHasPermission(result.actor, capability) || (capability === "company.file.upload" && isStaffPreview(result.actor))) {
     return { status: "forbidden", actor: null };
   }
   return { status: "authorized", actor: result.actor };
@@ -984,7 +978,7 @@ export function createPlatformCompanyFileUploadHandler(
     request: Request,
     context: RouteContext<{ companyFileId: string }>,
   ): Promise<Response> {
-    const authorization = await dependencies.authorize("documents.write");
+    const authorization = await dependencies.authorize("company.file.upload");
     if (authorization.status !== "authorized") {
       return authorizationResponse(authorization.status);
     }
@@ -1178,7 +1172,7 @@ export function createPlatformCompanyFileDownloadHandler(
     _request: Request,
     context: RouteContext<{ versionId: string }>,
   ): Promise<Response> {
-    const authorization = await dependencies.authorize("documents.read");
+    const authorization = await dependencies.authorize("company.file.download");
     if (authorization.status !== "authorized") {
       return authorizationResponse(authorization.status);
     }

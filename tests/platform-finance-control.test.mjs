@@ -23,10 +23,8 @@ const actor = Object.freeze({
   membershipId: "80000000-0000-4000-8000-000000000001",
   organizationId: ORGANIZATION_ID,
   displayName: "Admissions Admin",
-  platformRole: "admissions",
+  systemRole: "staff", assignments: [], permissionKeys: ["finance.read.full"],
   platformAccessVersion: 1,
-  platformBundleId: "90000000-0000-4000-8000-000000000001",
-  platformBundleVersion: 1,
   role: "admin",
 });
 
@@ -321,7 +319,7 @@ test("U8 queue loader rejects duplicate cases, unbounded limits, and unauthorize
   );
   await assert.rejects(
     listPlatformFinanceControlQueue(
-      { ...actor, platformRole: "student" },
+      { ...actor, systemRole: "staff", assignments: [], permissionKeys: [] },
       { limit: 10, studentCaseIds: [STUDENT_CASE_ID] },
       { client: duplicateClient },
     ),

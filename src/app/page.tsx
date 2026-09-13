@@ -1,6 +1,6 @@
+import { staffHomeRoute } from "@/lib/platform-access";
 import { redirect } from "next/navigation";
 
-import { fixedRoleHomeRoute } from "@/lib/fixed-role-policy";
 import { resolvePlatformActor } from "@/lib/platform-auth";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
 import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-session";
@@ -10,7 +10,7 @@ async function resolveEvoHomeRoute(): Promise<string> {
   const staff = await resolvePlatformActor();
   if (staff.status === "authenticated") {
     const actor = staff.actor;
-    return fixedRoleHomeRoute(actor.presentationRole);
+    return staffHomeRoute(actor);
   }
   if (
     staff.status === "invalid" &&

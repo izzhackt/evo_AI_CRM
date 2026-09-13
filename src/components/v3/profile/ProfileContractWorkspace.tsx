@@ -24,7 +24,6 @@ import {
 } from "./ContractDraftReportWorkspace";
 import { ProfileAmoCrmCommandSection } from "./ProfileAmoCrmCommandSection";
 import type {
-  ProfileActorRole,
   ProfileContractRetry,
   ProfileContractSnapshot,
 } from "./types";
@@ -177,20 +176,18 @@ function HandoffContext({ handoff }: Readonly<{
 
 export function ProfileContractWorkspace({
   snapshot,
-  presentationRole,
-  authorityRole,
+  actor,
   organizationId,
   result,
   retry,
 }: Readonly<{
   snapshot: ProfileContractSnapshot;
-  presentationRole: ProfileActorRole;
-  authorityRole: ProfileActorRole;
+  actor: import("@/lib/platform-auth").ActivePlatformActor;
   organizationId: string;
   result?: PlatformContractMutationOutcome;
   retry?: ProfileContractRetry;
 }>) {
-  if (presentationRole === "sales") return null;
+  if (actor.presentationRole === "sales") return null;
   if (
     snapshot.workspace.organizationId !== organizationId ||
     snapshot.handoff.organizationId !== organizationId ||
@@ -215,7 +212,7 @@ export function ProfileContractWorkspace({
       />
       <ProfileAmoCrmCommandSection
         organizationId={organizationId}
-        authorityRole={authorityRole}
+        actor={actor}
         handoff={snapshot.handoff}
       />
     </div>

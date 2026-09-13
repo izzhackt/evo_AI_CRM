@@ -2,14 +2,6 @@ import "server-only";
 
 import { cache } from "react";
 
-import {
-  FIXED_ROLE_CAPABILITIES,
-  FIXED_ROLE_ROUTES,
-  fixedRoleCan,
-  fixedRoleCanAccessRoute,
-  fixedRoleHomeRoute,
-  type FixedRole,
-} from "@/lib/fixed-role-policy";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { PlatformAuditSafeRow } from "@/lib/platform-audit";
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
@@ -36,13 +28,6 @@ import {
 
 export type { JournalFilters } from "@/lib/v3/settings-journal-contract";
 
-export type RoleRow = Readonly<{
-  role: string;
-  home: string;
-  capabilities: readonly Readonly<{ name: string; allowed: boolean }>[];
-  routes: readonly string[];
-}>;
-
 export type Integration = Readonly<{
   name: string;
   state: string;
@@ -50,7 +35,6 @@ export type Integration = Readonly<{
   detail: string;
 }>;
 
-const ROLES: readonly FixedRole[] = ["admin", "sales", "admissions"];
 const AUDIT_PAGE_SIZE = 100;
 const JOURNAL_PAGE_SIZE = 60;
 
@@ -61,29 +45,9 @@ export function readAuditExportEnabled(
 }
 
 function assertAdminAuthority(actor: ActivePlatformActor): void {
-  if (actor.authorityRole !== "admin") {
+  if (actor.systemRole !== "admin") {
     throw new Error("V3 settings are unavailable.");
   }
-}
-
-export function readRoles(): readonly RoleRow[] {
-  return ROLES.map((role) => ({
-    role,
-    home: fixedRoleHomeRoute(role),
-    capabilities: FIXED_ROLE_CAPABILITIES.map((capability) => ({
-      name: capability,
-      allowed: fixedRoleCan(role, capability),
-    })),
-    routes: FIXED_ROLE_ROUTES.filter((route) => fixedRoleCanAccessRoute(role, route)),
-  }));
-}
-
-export function readCapabilityNames(): readonly string[] {
-  return FIXED_ROLE_CAPABILITIES;
-}
-
-export function readRouteNames(): readonly string[] {
-  return FIXED_ROLE_ROUTES;
 }
 
 type ProviderFacts = Readonly<{

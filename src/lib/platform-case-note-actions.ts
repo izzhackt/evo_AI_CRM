@@ -1,4 +1,5 @@
 "use server";
+import { isStaffPreview } from "./platform-access.ts";
 
 import { randomUUID } from "node:crypto";
 
@@ -100,6 +101,7 @@ export async function createCaseNoteAction(
   form: FormData,
 ): Promise<PlatformCaseNoteActionState> {
   const actor = await requirePlatformStaffActor();
+  if (isStaffPreview(actor)) return failureState(form, "forbidden");
   const input = parseInput(form);
   if (!input) return failureState(form, "invalid");
 

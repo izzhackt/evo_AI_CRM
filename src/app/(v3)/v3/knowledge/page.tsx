@@ -18,7 +18,7 @@ import {
 import {
   readV3ReplySnippets,
   v3CanMutateReplySnippet,
-  v3ReplySnippetAudiencesForRole,
+  v3ReplySnippetAudiences,
 } from "@/lib/v3/reply-snippets-source";
 
 export const dynamic = "force-dynamic";
@@ -49,16 +49,16 @@ export default async function KnowledgePart({
   };
 
   const folders: KnowledgeFolder[] = [
-    {
+    ...(surface.canReadCompanyFiles ? [{
       id: COMPANY_ROOT_ID,
       name: "Компания",
       parentId: null,
-      kind: "company-root",
+      kind: "company-root" as const,
       version: null,
       renameRequestId: null,
       moveRequestId: null,
       archiveRequestId: null,
-    },
+    }] : []),
     ...company.folders.map((folder) => ({
       id: folder.id,
       name: folder.name,
@@ -69,16 +69,16 @@ export default async function KnowledgePart({
       moveRequestId: randomUUID(),
       archiveRequestId: randomUUID(),
     })),
-    {
+    ...(surface.canReadDocuments ? [{
       id: STUDENTS_ROOT,
       name: "Студенты",
       parentId: null,
-      kind: "students",
+      kind: "students" as const,
       version: null,
       renameRequestId: null,
       moveRequestId: null,
       archiveRequestId: null,
-    },
+    }] : []),
     ...students.map((student) => ({
       id: `student-${student.id}`,
       name: student.name,
@@ -101,7 +101,7 @@ export default async function KnowledgePart({
       kind: "company" as const,
       version: file.version,
       currentVersionId: file.currentVersionId,
-      downloadHref: file.currentVersionId
+      downloadHref: surface.canDownloadCompanyFiles && file.currentVersionId
         ? `/api/v3/company-file-versions/${file.currentVersionId}/download`
         : null,
       renameRequestId: randomUUID(),
@@ -151,7 +151,8 @@ export default async function KnowledgePart({
               <FileManager
                 folders={folders}
                 files={files}
-                canManage={surface.canManageDocuments}
+                canManage={surface.canManageCompanyFiles}
+                canUpload={surface.canUploadCompanyFiles}
                 createFolderRequestId={randomUUID()}
                 createFileRequestId={randomUUID()}
               />
@@ -166,7 +167,7 @@ export default async function KnowledgePart({
                 archiveRequestId: randomUUID(),
               }))}
               canManage={surface.canManageSnippets}
-              availableAudiences={v3ReplySnippetAudiencesForRole(actor.presentationRole)}
+              availableAudiences={v3ReplySnippetAudiences(actor)}
               createRequestId={randomUUID()}
             />
           ) : null}

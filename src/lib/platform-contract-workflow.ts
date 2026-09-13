@@ -37,6 +37,12 @@ const PLATFORM_CONTRACT_DATABASE_ACTOR_ROLES = [
   "sales",
   "curator",
 ] as const;
+const PLATFORM_POST_CONTRACT_OWNER_ROLES = [
+  "admin",
+  "sales",
+  "admissions",
+  "finance",
+] as const;
 export const PLATFORM_CONTRACT_TEMPLATE_STATUSES = [
   "draft",
   "approved",
@@ -111,6 +117,8 @@ export type PlatformContractReviewDecision =
   (typeof PLATFORM_CONTRACT_REVIEW_DECISIONS)[number];
 export type PlatformPostContractItemStatus =
   (typeof PLATFORM_POST_CONTRACT_ITEM_STATUSES)[number];
+export type PlatformPostContractOwnerRole =
+  (typeof PLATFORM_POST_CONTRACT_OWNER_ROLES)[number] | null;
 export type PlatformContractManifestValueType =
   (typeof PLATFORM_CONTRACT_MANIFEST_VALUE_TYPES)[number];
 export type PlatformContractManifestSourcePath =
@@ -204,7 +212,7 @@ export type PlatformPostContractItem = Readonly<{
   itemKey: string;
   label: string;
   status: PlatformPostContractItemStatus;
-  ownerRole: "admin" | "admissions";
+  ownerRole: PlatformPostContractOwnerRole;
   ownerMembershipId: string;
   nextAction: string | null;
   evidenceRef: string | null;
@@ -220,7 +228,7 @@ export type PlatformPostContractReportItemSnapshot = Readonly<{
   itemKey: string;
   label: string;
   status: PlatformPostContractItemStatus;
-  ownerRole: "admin" | "admissions";
+  ownerRole: PlatformPostContractOwnerRole;
   ownerMembershipId: string;
   nextAction: string | null;
   evidenceRef: string | null;
@@ -251,7 +259,7 @@ export type PlatformPostContractReport = Readonly<{
 export type PlatformCaseContractWorkspace = Readonly<{
   organizationId: string;
   studentCaseId: string;
-  actorRole: PlatformContractActorRole;
+  actorRole: PlatformContractActorRole | null;
   canManageTemplates: boolean;
   canGenerateContract: boolean;
   canReviewContract: boolean;
@@ -312,6 +320,13 @@ function oneOf<const T extends readonly string[]>(
 ): T[number] {
   if (typeof value !== "string" || !allowed.includes(value)) return invalidShape();
   return value as T[number];
+}
+
+/** Historical staff descriptions do not grant post-contract authority. */
+function normalizePostContractOwnerRole(value: unknown): PlatformPostContractOwnerRole {
+  if (value === null) return null;
+  if (value === "curator") return "admissions";
+  return oneOf(value, PLATFORM_POST_CONTRACT_OWNER_ROLES);
 }
 
 function requiredUuid(value: unknown): string {
@@ -924,7 +939,7 @@ function normalizeItemCore(
     itemKey,
     label: safeSingleLine(value.label, 1, 240),
     status,
-    ownerRole: oneOf(value.owner_role, ["admin", "admissions"] as const),
+    ownerRole: normalizePostContractOwnerRole(value.owner_role),
     ownerMembershipId: requiredUuid(value.owner_membership_id),
     nextAction,
     evidenceRef,
@@ -1121,11 +1136,11 @@ export function normalizePlatformCaseContractWorkspace(
   ]);
   const organizationId = requiredUuid(value.organization_id);
   const studentCaseId = requiredUuid(value.student_case_id);
-  const databaseActorRole = oneOf(
+  const databaseActorRole = value.actor_role === null ? null : oneOf(
     value.actor_role,
     PLATFORM_CONTRACT_DATABASE_ACTOR_ROLES,
   );
-  const actorRole: PlatformContractActorRole =
+  const actorRole: PlatformContractActorRole | null =
     databaseActorRole === "curator" ? "admissions" : databaseActorRole;
   if (
     (expected?.organizationId && organizationId !== expected.organizationId) ||
@@ -1177,13 +1192,6 @@ export function normalizePlatformCaseContractWorkspace(
   const canReviewContract = booleanValue(value.can_review_contract);
   const canManagePostContract = booleanValue(value.can_manage_post_contract);
   const canReviewReport = booleanValue(value.can_review_report);
-  if (
-    (canManageTemplates && actorRole !== "admin") ||
-    (canManagePostContract && actorRole === "sales") ||
-    (canReviewReport && actorRole === "sales")
-  ) {
-    return invalidShape();
-  }
   return {
     organizationId,
     studentCaseId,
@@ -1203,14 +1211,9 @@ export function normalizePlatformCaseContractWorkspace(
 
 function requireWorkspaceActor(actor: PlatformActor): Readonly<{
   organizationId: string;
-  actorRole: PlatformContractActorRole;
 }> {
-  if (!PLATFORM_CONTRACT_ACTOR_ROLES.includes(actor.platformRole as PlatformContractActorRole)) {
-    return invalidShape();
-  }
   return {
     organizationId: requiredUuid(actor.organizationId),
-    actorRole: actor.platformRole as PlatformContractActorRole,
   };
 }
 
@@ -1240,7 +1243,6 @@ export async function getPlatformCaseContractWorkspace(
     return normalizePlatformCaseContractWorkspace(response.data, {
       organizationId: authority.organizationId,
       studentCaseId: parsedStudentCaseId,
-      actorRole: authority.actorRole,
     });
   } catch (error) {
     return failClosed(error);
@@ -1682,6 +1684,7 @@ export function requirePlatformContractMutationResponse(
 }
 
 export const platformContractResponseValidators = {
+  ownerRole: normalizePostContractOwnerRole,
   requiredUuid,
   positiveInteger,
   nonNegativeInteger,

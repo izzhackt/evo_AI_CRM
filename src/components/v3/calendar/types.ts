@@ -16,6 +16,23 @@
  * часов летом и зимой на арифметику не влияет: сутки всегда 86 400 000 мс.
  */
 
+import type { CalendarReadAccess } from "../../../lib/v3/calendar-contract.ts";
+
+export function calendarAccessNotice(access: CalendarReadAccess, hasSelectedTask = false): string | null {
+  if (access.tasks && access.applicationDeadlines) return null;
+  const unavailable = !access.tasks && !access.applicationDeadlines
+    ? "Нет доступа к общему списку задач и срокам поступления."
+    : !access.tasks ? "Нет доступа к общему списку задач." : "Нет доступа к срокам поступления.";
+  return !access.tasks && hasSelectedTask ? `${unavailable} Открыта задача выбранного студента.` : unavailable;
+}
+
+export function calendarEmptyPeriodLabel(access: CalendarReadAccess): string | null {
+  if (access.tasks && access.applicationDeadlines) return "На этот период событий нет.";
+  if (access.tasks) return "На этот период задач нет.";
+  if (access.applicationDeadlines) return "На этот период сроков поступления нет.";
+  return null;
+}
+
 export type CalendarView = "day" | "week" | "month";
 
 /** Дата без времени, «2026-09-03». */
@@ -46,6 +63,23 @@ export type CalendarAssigneeOption = Readonly<{
   membershipId: string;
   displayName: string;
 }>;
+
+/** Exact target capabilities, never inferred from the actor's union of grants. */
+export type CalendarTaskCapabilities = Readonly<{
+  taskId: string;
+  studentCaseId: string;
+  canAssign: boolean;
+  canChangeVisibility: boolean;
+  canReadCase: boolean;
+}>;
+
+export function calendarCapabilitiesForTask(
+  task: Pick<CalendarTask, "id" | "studentCaseId">,
+  capabilities: CalendarTaskCapabilities | null,
+): CalendarTaskCapabilities | null {
+  return capabilities?.taskId === task.id && capabilities.studentCaseId === task.studentCaseId
+    ? capabilities : null;
+}
 
 /**
  * An explicit all-day deadline from one canonical university application.

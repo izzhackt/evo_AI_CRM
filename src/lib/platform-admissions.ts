@@ -1,3 +1,4 @@
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "./platform-admissions-playbook-contract.ts";
 import {
@@ -431,9 +432,7 @@ function boundedTextArray(value: unknown): readonly string[] {
 
 function requireAdmissionsOrganization(actor: PlatformActor): string {
   if (
-    actor.platformRole !== "admin" &&
-    actor.platformRole !== "sales" &&
-    actor.platformRole !== "admissions"
+    !staffCan(actor, "dashboard.read")
   ) {
     return invalidShape();
   }
@@ -674,7 +673,7 @@ export async function getPlatformOpWorkflowContract(
 ): Promise<PlatformOpWorkflowContract | null> {
   try {
     const organizationId = requireAdmissionsOrganization(actor);
-    if (actor.platformRole !== "admin" && actor.platformRole !== "sales") {
+    if (!staffCan(actor, "sales.read")) {
       return invalidShape();
     }
     const client = await getPlatformClient();

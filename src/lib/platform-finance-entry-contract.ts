@@ -5,6 +5,12 @@ export type FinanceObligation = Readonly<{ id: string; label: string; currency: 
 export type FinancePayment = Readonly<{ id: string; obligationId: string; type: "payment" | "refund"; amountMinor: string; currency: string; occurredAt: string; refundableMinor: string }>;
 export type FinanceEntryWorkspace = Readonly<{ caseId: string; obligations: readonly FinanceObligation[]; events: readonly FinancePayment[]; canCreate: boolean; canRecord: boolean; canReadEvents: boolean }>;
 export type MonthlyPaymentTotal = Readonly<{ currency: string; paymentsMinor: string; refundsMinor: string; netMinor: string; eventCount: string }>;
+export type MonthlyPaymentSummaryRead = Readonly<{ status: "not_allowed" }>
+  | Readonly<{ status: "ready"; totals: readonly MonthlyPaymentTotal[] }>;
+export type MonthlyPaymentSummaryReaders = Readonly<{
+  readAccess: () => Promise<unknown>;
+  readTotals: () => Promise<unknown>;
+}>;
 export function decimalToMinor(value: string): string | null {
   if (!/^\d{1,14}([.,]\d{1,2})?$/.test(value)) return null;
   const [whole, fraction = ""] = value.replace(",", ".").split(".");
@@ -53,4 +59,20 @@ export function parseMonthlyPaymentSummary(value: unknown, organizationId: strin
   });
   if (new Set(totals.map(t => t.currency)).size !== totals.length) fail();
   return totals;
+}
+
+/** Only the live paired organization predicate can enable company-wide totals. */
+export async function readAuthorizedMonthlyPaymentSummary(
+  organizationId: string,
+  year: number,
+  month: number,
+  readers: MonthlyPaymentSummaryReaders,
+): Promise<MonthlyPaymentSummaryRead> {
+  if (!parseSalesUuid(organizationId) || !Number.isInteger(year) || year < 1900 || year > 2100
+    || !Number.isInteger(month) || month < 1 || month > 12) fail();
+  const access = record(await readers.readAccess());
+  if (Object.keys(access).length !== 3 || access.schemaVersion !== 1
+    || access.organizationId !== organizationId || typeof access.canReadSummary !== "boolean") fail();
+  if (!access.canReadSummary) return { status: "not_allowed" };
+  return { status: "ready", totals: parseMonthlyPaymentSummary(await readers.readTotals(), organizationId, year, month) };
 }

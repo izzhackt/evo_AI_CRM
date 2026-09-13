@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   PLATFORM_SALES_DUE_FILTERS,
@@ -15,13 +16,13 @@ import {
   parsePlatformSalesDueFilter,
   parsePlatformSalesStage,
   parsePlatformSalesUuid,
+  readPlatformSalesPipeline,
 } from "../src/lib/platform-sales.ts";
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
 const AUTH_USER_ID = "10000000-0000-4000-8000-000000000002";
 const PROFILE_ID = "10000000-0000-4000-8000-000000000003";
 const MEMBERSHIP_ID = "10000000-0000-4000-8000-000000000004";
-const BUNDLE_ID = "10000000-0000-4000-8000-000000000005";
 const LEAD_ID = "20000000-0000-4000-8000-000000000001";
 const SECOND_LEAD_ID = "20000000-0000-4000-8000-000000000002";
 const THIRD_LEAD_ID = "20000000-0000-4000-8000-000000000003";
@@ -38,12 +39,11 @@ const actor = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "Sales User",
   email: "sales@example.test",
-  platformRole: "sales",
-  authorityRole: "sales",
-  presentationRole: "sales",
+  systemRole: "staff",
+  assignments: [],
+  permissionKeys: ["lead.read", "lead.sales.workflow.manage"],
+  presentationRole: null,
   platformAccessVersion: 1,
-  platformBundleId: BUNDLE_ID,
-  platformBundleVersion: 1,
 });
 
 function validQueueRow(overrides = {}) {
@@ -126,6 +126,96 @@ function recordingClient(responseFor) {
 function staticClient(data, error = null) {
   return recordingClient(() => ({ data, error }));
 }
+
+test("Sales readers require the permission of each exact RPC before making a request", async () => {
+  for (const permissionKeys of [[], ["pipeline.read"], ["lead.sales.workflow.manage"]]) {
+    const current = { ...actor, permissionKeys };
+    const unused = staticClient([]);
+    await assert.rejects(listPlatformSalesLeads(current, {}, { client: unused.client }), PlatformSalesRepositoryError);
+    await assert.rejects(getPlatformSalesLead(current, LEAD_ID, { client: unused.client }), PlatformSalesRepositoryError);
+    await assert.rejects(isPlatformLeadConversationLinked(current, LEAD_ID, CONVERSATION_ID,
+      { client: unused.client }), PlatformSalesRepositoryError);
+    assert.deepEqual(unused.calls, []);
+  }
+  const readOnly = { ...actor, permissionKeys: ["lead.read"] };
+  const unused = staticClient([]);
+  await assert.rejects(listPlatformSalesOwnerOptions(readOnly, {}, { client: unused.client }), PlatformSalesRepositoryError);
+  await assert.rejects(mutatePlatformSalesLeadWorkflow(readOnly, validWorkflowMutation(), { client: unused.client }),
+    (error) => error instanceof PlatformSalesWorkflowMutationError && error.reason === "forbidden");
+  assert.deepEqual(unused.calls, []);
+});
+
+test("Pipeline coordinator separates readable leads from optional workflow owners and creation", async () => {
+  const board = { leads: [{ id: LEAD_ID }], truncated: false };
+  const owners = { rows: [], hasNext: false, nextCursor: null };
+  for (const [name, current, expectedCalls, canCreateLead] of [
+    ["read-only", { ...actor, permissionKeys: ["lead.read"] }, ["board"], false],
+    ["read and workflow", actor, ["board", "owners"], true],
+    ["system Admin", { ...actor, systemRole: "admin", permissionKeys: [] }, ["board", "owners"], true],
+    ["Admin Sales preview", { ...actor, systemRole: "admin", presentationRole: "sales", permissionKeys: [] }, ["board", "owners"], false],
+  ]) {
+    const calls = [];
+    const result = await readPlatformSalesPipeline(current, {
+      board: async actual => { assert.equal(actual, current); calls.push("board"); return board; },
+      owners: async actual => { assert.equal(actual, current); calls.push("owners"); return owners; },
+    });
+    assert.deepEqual(calls, expectedCalls, name);
+    assert.equal(result.board, board, name);
+    assert.equal(result.ownerOptions, expectedCalls.includes("owners") ? owners : null, name);
+    assert.equal(result.canCreateLead, canCreateLead, name);
+  }
+});
+
+test("Pipeline coordinator does not read queues for workflow-only, pipeline-only or Admissions preview", async () => {
+  for (const current of [
+    { ...actor, permissionKeys: ["lead.sales.workflow.manage"] },
+    { ...actor, permissionKeys: ["pipeline.read"] },
+    { ...actor, permissionKeys: [] },
+    { ...actor, systemRole: "admin", presentationRole: "admissions" },
+  ]) {
+    const unused = async () => { assert.fail("No pipeline RPC is permitted for this view"); };
+    await assert.rejects(readPlatformSalesPipeline(current, { board: unused, owners: unused }), PlatformSalesRepositoryError);
+  }
+});
+
+test("Pipeline coordinator propagates authorized read failures instead of returning empty data", async () => {
+  for (const branch of ["board", "owners"]) {
+    const failure = new Error(`synthetic ${branch} read failure`);
+    const readers = { board: async () => [], owners: async () => [] };
+    readers[branch] = async () => { throw failure; };
+    await assert.rejects(readPlatformSalesPipeline(actor, readers), error => error === failure);
+  }
+});
+
+test("Workflow-only permission can read owner options without granting lead-read or creation scope", async () => {
+  const recorded = staticClient([]);
+  const page = await listPlatformSalesOwnerOptions({ ...actor, permissionKeys: ["lead.sales.workflow.manage"] },
+    {}, { client: recorded.client });
+  assert.deepEqual(page.rows, []);
+  assert.deepEqual(recorded.calls.map(call => call.kind), ["schema", "rpc"]);
+  assert.equal(recorded.calls[1].functionName, "staff_sales_owner_options");
+});
+
+test("Pipeline page uses the tested coordinator and manual creation keeps the actual SQL action permission", () => {
+  const source = (file) => readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  const page = source("src/app/(v3)/v3/pipeline/page.tsx");
+  const adapter = source("src/lib/v3/pipeline-source.ts");
+  assert.match(page, /readPipelineWorkspace\(actor, filters\)/);
+  assert.match(adapter, /readPlatformSalesPipeline\(actor, \{/);
+  assert.match(adapter, /board: \(current\) => readPipelineLeads\(current, filters\)/);
+  assert.match(adapter, /owners: readPipelineOwnerOptions/);
+  assert.match(page, /canCreateLead \? <ManualLeadForm/);
+  assert.match(page, /!ownerSelectShown && query\.owner !== null/);
+  assert.match(page, /name="owner" value=\{query\.owner\}/);
+  const action = source("src/lib/platform-manual-lead-actions.ts");
+  const manual = source("src/lib/v3/manual-lead-source.ts");
+  assert.match(action, /isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/);
+  assert.match(manual, /!staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/);
+  assert.doesNotMatch(action + manual, /"lead\.manual\.create"/);
+  const sql = source("supabase/migrations/156_platform_scoped_staff_consumers.sql");
+  assert.match(sql, /staff_can_create_for_owner\(a\.organization_id,a\.membership_id,\s*'lead\.sales\.workflow\.manage','lead',p_owner_membership_id\)/);
+  assert.match(sql, /staff_can_receive_assignment\(p_organization_id,p_owner_membership_id,\s*'lead\.read','lead',NULL\)/);
+});
 
 test("Sales read constants and public parsers accept only the reviewed contract", () => {
   assert.deepEqual(PLATFORM_SALES_STAGES, [

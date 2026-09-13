@@ -1,4 +1,5 @@
 import type { PlatformActor } from "./platform-auth";
+import { staffCan } from "./platform-access.ts";
 import {
   PLATFORM_SALES_STAGES,
   type PlatformSalesStage,
@@ -571,13 +572,13 @@ function requestUuid(value: unknown): string {
 
 function requireActor(
   actor: PlatformActor,
-  roles: readonly ("admin" | "sales" | "admissions")[],
+  capability: "sales.read" | "admissions.read",
 ): string {
   const organizationId = inputUuid(actor.organizationId);
   inputUuid(actor.membershipId);
   inputUuid(actor.profileId);
   inputUuid(actor.authUserId);
-  if (!roles.includes(actor.authorityRole)) return failure("forbidden");
+  if (!staffCan(actor, capability)) return failure("forbidden");
   return organizationId;
 }
 
@@ -1204,7 +1205,7 @@ export async function getPlatformLeadAdmissionsGate(
   dependencies: PlatformStudentHandoffDependencies = {},
 ): Promise<PlatformLeadAdmissionsGateSnapshot> {
   try {
-    const organizationId = requireActor(actor, ["admin", "sales"]);
+    const organizationId = requireActor(actor, "sales.read");
     const normalizedLeadId = inputUuid(leadId);
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
@@ -1229,7 +1230,7 @@ export async function mutatePlatformLeadAdmissionsGate(
   dependencies: PlatformStudentHandoffDependencies = {},
 ): Promise<PlatformLeadAdmissionsGateMutationReceipt> {
   try {
-    const organizationId = requireActor(actor, ["admin", "sales"]);
+    const organizationId = requireActor(actor, "sales.read");
     const normalizedInput = normalizeGateMutationInput(input);
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
@@ -1282,7 +1283,7 @@ export async function getPlatformLeadAdmissionsHandoff(
   dependencies: PlatformStudentHandoffDependencies = {},
 ): Promise<PlatformLeadAdmissionsHandoffSnapshot> {
   try {
-    const organizationId = requireActor(actor, ["admin", "sales"]);
+    const organizationId = requireActor(actor, "sales.read");
     const normalizedLeadId = inputUuid(leadId);
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
@@ -1307,7 +1308,7 @@ export async function handoffPlatformLeadToAdmissions(
   dependencies: PlatformStudentHandoffDependencies = {},
 ): Promise<PlatformLeadAdmissionsHandoffReceipt> {
   try {
-    const organizationId = requireActor(actor, ["admin", "sales"]);
+    const organizationId = requireActor(actor, "sales.read");
     const normalizedInput = normalizeHandoffMutationInput(input);
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
@@ -1368,7 +1369,7 @@ export async function getPlatformStudentCaseHandoffContext(
   dependencies: PlatformStudentHandoffDependencies = {},
 ): Promise<PlatformStudentCaseHandoffContext> {
   try {
-    const organizationId = requireActor(actor, ["admin", "admissions"]);
+    const organizationId = requireActor(actor, "admissions.read");
     const normalizedStudentCaseId = inputUuid(studentCaseId);
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(

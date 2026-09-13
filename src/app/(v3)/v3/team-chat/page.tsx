@@ -1,3 +1,4 @@
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { notFound } from "next/navigation";
 import { PartShell } from "@/components/v3/PartShell";
 import { TeamChat } from "@/components/v3/team-chat/TeamChat";
@@ -34,6 +35,6 @@ export default async function TeamChatPage({ searchParams }: {
   return <PartShell title="Командный чат"><TeamChat key={`${actor.membershipId}:${channel}:${messageId ?? "latest"}`}
     initial={initial} channel={channel} organizationId={actor.organizationId} membershipId={actor.membershipId}
     realtimeConfig={realtimeConfig}
-    canModerate={actor.presentationRole === "admin"} initialMessageId={messageId} showChannelsInitially={params.channel === undefined} />
+    canModerate={!isStaffPreview(actor) && staffHasPermission(actor, "team.chat.moderate")} initialMessageId={messageId} showChannelsInitially={params.channel === undefined} />
   </PartShell>;
 }

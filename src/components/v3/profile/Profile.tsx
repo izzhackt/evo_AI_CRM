@@ -1,3 +1,5 @@
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
@@ -13,7 +15,6 @@ import { Anketa, History, Money, Overview } from "./tabs";
 import {
   tabsFor,
   type PersonProfile,
-  type ProfileActorRole,
   type ProfileDraft,
   type ProfileNotesSnapshot,
   type ProfileContractRetry,
@@ -50,8 +51,7 @@ export function Profile({
   profile,
   draft,
   sales,
-  actorRole,
-  authorityRole,
+  actor,
   organizationId,
   studentPortalCurators,
   studentPortalCuratorsAvailable,
@@ -71,8 +71,7 @@ export function Profile({
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
-  actorRole: ProfileActorRole;
-  authorityRole: ProfileActorRole;
+  actor: ActivePlatformActor;
   organizationId: string;
   studentPortalCurators: readonly Readonly<{
     membershipId: string;
@@ -89,7 +88,7 @@ export function Profile({
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
-  const tabs = tabsFor(profile.student, actorRole);
+  const tabs = tabsFor(profile.student, draft.access, draft.admissions !== null);
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
   if (current === "contract" && draft.contract === null) {
     throw new Error("V3 contract tab has no canonical contract workspace.");
@@ -102,7 +101,7 @@ export function Profile({
   });
   const uploadAccess = draft.admissions?.caseState !== "active"
     ? "closed" as const
-    : actorRole === "admin" || actorRole === "admissions"
+    : !isStaffPreview(actor) && staffHasPermission(actor, "document.upload")
       ? "allowed" as const
       : "forbidden" as const;
 
@@ -120,7 +119,7 @@ export function Profile({
         {profile.financeStop ? (
           <Pill tone="danger">финансовый стоп</Pill>
         ) : null}
-        {uploadAccess === "allowed" && draft.admissions ? (
+        {!isStaffPreview(actor) && staffHasPermission(actor, "task.manage") && draft.admissions ? (
           <Link
             href={`/v3/tasks?create=case&case=${encodeURIComponent(draft.admissions.studentCaseId)}`}
             className="ms-auto inline-flex min-h-11 items-center rounded-control border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
@@ -166,11 +165,11 @@ export function Profile({
             profile={profile}
             draft={draft}
             sales={sales}
-            actorRole={actorRole}
+            actor={actor}
             requestIds={requestIds}
             tabHref={hrefFor}
           />
-          {actorRole === "admin" && profile.student && draft.admissions ? (
+          {actor.systemRole === "admin" && !isStaffPreview(actor) && profile.student && draft.admissions ? (
             <StudentPortalAccessCard
               organizationId={organizationId}
               studentCaseId={draft.admissions.studentCaseId}
@@ -203,13 +202,12 @@ export function Profile({
         />
       ) : null}
       {current === "money" ? (
-        <Money profile={profile} draft={draft} actorRole={actorRole} />
+        <Money profile={profile} draft={draft} actor={actor} />
       ) : null}
       {current === "contract" && draft.contract ? (
         <ProfileContractWorkspace
           snapshot={draft.contract}
-          presentationRole={actorRole}
-          authorityRole={authorityRole}
+          actor={actor}
           organizationId={organizationId}
           result={contractResult}
           retry={contractRetry}

@@ -14,6 +14,11 @@ fail() {
 
 trap report_error ERR
 
+[[ "$#" -eq 0 || ( "$#" -eq 1 && "$1" == "--staff-onboarding-only" ) ]] \
+  || fail "Usage: $0 [--staff-onboarding-only]"
+staff_onboarding_only=0
+[[ "${1:-}" != "--staff-onboarding-only" ]] || staff_onboarding_only=1
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly clamav_image="clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9"
 node_bin="${EVO_NODE_BIN:-}"
@@ -53,6 +58,8 @@ printf '%s\n' "$$" >"$supabase_lock_pid_file"
 chmod 600 "$supabase_lock_pid_file"
 supabase_lock_acquired=1
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/evo-database-foundation.XXXXXX")"
+supabase_workdir="$tmp_dir/local-supabase"
+supabase_started=0
 app_log="$tmp_dir/app.log"
 supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
@@ -242,7 +249,14 @@ cleanup() {
     docker volume rm -- "$clamav_signature_volume" >/dev/null 2>&1 || true
     clamav_signature_volume=""
   fi
-  if [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-database-foundation."* ]]; then
+  local keep_supabase_workdir=0
+  if [[ "$supabase_started" == "1" ]]; then
+    (cd "$repo_root" && npx --no-install supabase --workdir "$supabase_workdir" stop --no-backup) >/dev/null 2>&1 \
+      || keep_supabase_workdir=1
+  fi
+  if [[ "$keep_supabase_workdir" == "1" ]]; then
+    echo "Local Supabase cleanup failed; retained owned workdir: $supabase_workdir" >&2
+  elif [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-database-foundation."* ]]; then
     rm -R -- "$tmp_dir"
   fi
   if [[ "${supabase_lock_acquired:-0}" == "1" ]]; then
@@ -332,25 +346,30 @@ waha_port="${EVO_DATABASE_WAHA_PORT:-$(free_port)}"
 waha_base_url="http://127.0.0.1:${waha_port}"
 amocrm_token_probe="$(openssl rand -hex 24)"
 amocrm_token_file="$tmp_dir/amocrm-token.json"
+staff_mailpit_origin="$("$node_bin" scripts/lib/local-staff-supabase-workdir.mjs "$repo_root" "$supabase_workdir" "http://127.0.0.1:$app_port")" \
+  || fail "Could not prepare the isolated local Auth callback and mail configuration"
+# macOS /var aliases /private/var; CLI ownership and its verifier must receive one exact path.
+supabase_workdir="$(cd -- "$supabase_workdir" && pwd -P)"
 
+supabase_started=1
 if ! (
   cd "$repo_root"
-  npx --no-install supabase start --yes
+  npx --no-install supabase --workdir "$supabase_workdir" start --yes
 ) >"$supabase_log" 2>&1; then
   fail "The disposable local Supabase stack did not start; inspect its private harness log"
 fi
 if ! (
   cd "$repo_root"
-  npx --no-install supabase db reset --local --no-seed --yes
+  npx --no-install supabase --workdir "$supabase_workdir" db reset --local --no-seed --yes
 ) >>"$supabase_log" 2>&1; then
   fail "The disposable local Supabase database did not reset to repository migrations"
 fi
-if ! "$node_bin" "$repo_root/scripts/configure-local-supabase-gateway.mjs" "$repo_root"; then
+if ! "$node_bin" "$repo_root/scripts/configure-local-supabase-gateway.mjs" "$supabase_workdir"; then
   fail "The disposable local Supabase gateway transport configuration was not verified"
 fi
 if ! (
   cd "$repo_root"
-  npx --no-install supabase status -o env
+  npx --no-install supabase --workdir "$supabase_workdir" status -o env
 ) >"$supabase_env_file" 2>>"$supabase_log"; then
   fail "The disposable local Supabase stack did not expose its local runtime configuration"
 fi
@@ -371,7 +390,29 @@ if ! wait_for_local_supabase_auth_admin "$supabase_api_url" "$supabase_service_r
   fail "The local Supabase Auth Admin API did not become ready"
 fi
 
-if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+if ! EVO_LOCAL_STAFF_PHASE=bootstrap \
+  NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+  SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
+  EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+  EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+  EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
+  EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
+  EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
+  EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
+  "$node_bin" scripts/provision-local-supabase-staff.mjs >"$staff_provision_log" 2>&1; then
+  fail "Fresh local system Admin bootstrap failed"
+fi
+admin_marker="$(grep -m 1 -E '^LOCAL_SUPABASE_ADMIN_BOOTSTRAPPED [0-9a-f-]{36}$' "$staff_provision_log" || true)"
+[[ -n "$admin_marker" ]] || fail "Fresh local system Admin bootstrap returned no identity marker"
+read -r _ platform_organization_id <<<"$admin_marker"
+
+provision_local_staff() {
+local staff_phase="${1:-onboard}"
+if ! EVO_LOCAL_STAFF_PHASE="$staff_phase" \
+  EVO_STAFF_AUTH_APP_ORIGIN="http://127.0.0.1:$app_port" \
+  EVO_STAFF_AUTH_MAILPIT_ORIGIN="$staff_mailpit_origin" \
+  NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   SUPABASE_SERVICE_ROLE_KEY="$supabase_service_role_key" \
   EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
@@ -384,10 +425,27 @@ if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
     >"$staff_provision_log" 2>&1; then
   provision_failure="$(grep -m 1 -E '^LOCAL_SUPABASE_STAFF_ERROR:[A-Z0-9_]+$' "$staff_provision_log" || true)"
   [[ -z "$provision_failure" ]] || echo "$provision_failure" >&2
+  "$node_bin" - "$app_log" <<'NODE'
+const { readFileSync } = require("node:fs");
+let log;
+try { log = readFileSync(process.argv[2], "utf8"); } catch { process.exit(0); }
+// Emit categories/timing only. Never echo application errors, requests or bodies.
+const errorClasses = ["PlatformSalesRepositoryError", "PlatformSalesStageEntryError",
+  "PlatformAdmissionsWorkspaceRepositoryError", "TypeError", "ReferenceError", "SyntaxError", "RangeError"]
+  .filter((name) => log.includes(name));
+const mainRequests = [...log.matchAll(/\bGET \/v3\/main (\d{3}) in ([\d.]+)(ms|s)\b/g)]
+  .map((match) => ({ status: Number(match[1]), durationMs: Number(match[2]) * (match[3] === "s" ? 1000 : 1) }));
+console.error(`LOCAL_SUPABASE_APP_DIAGNOSTIC:${JSON.stringify({ errorClasses, mainRequests })}`);
+NODE
   fail "Local Supabase staff identity and RLS provisioning failed"
 fi
-grep -Fx "LOCAL_SUPABASE_STAFF_PROVISIONED" "$staff_provision_log" >/dev/null \
+local success_marker="LOCAL_SUPABASE_STAFF_PROVISIONED"
+[[ "$staff_phase" != "onboarding-proof" ]] || success_marker="LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED"
+grep -Fx "$success_marker" "$staff_provision_log" >/dev/null \
   || fail "Local Supabase staff provisioning did not return its success marker"
+grep -Fx "LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED" "$staff_provision_log" >/dev/null \
+  || fail "Local staff role editor did not return its separate verification marker"
+echo "LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED"
 for sensitive_value in \
   "$supabase_service_role_key" \
   "$staff_admin_email" \
@@ -400,7 +458,10 @@ for sensitive_value in \
     fail "Local Supabase staff provisioning exposed a credential in its output"
   fi
 done
+}
 
+provision_local_staff_and_fixtures() {
+provision_local_staff
 if ! NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
   EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
@@ -450,9 +511,10 @@ grep -Fx "LOCAL_SUPABASE_SALES_PROOF ${supabase_sales_lead_id} ${supabase_sales_
   || fail "Local Supabase Sales read proof did not return its success marker"
 for sensitive_value in "$supabase_database_url" "$staff_sales_email"; do
   if grep -F "$sensitive_value" "$sales_proof_provision_log" >/dev/null; then
-    fail "Local Supabase Sales read proof exposed a credential in its output"
+  fail "Local Supabase Sales read proof exposed a credential in its output"
   fi
 done
+}
 
 start_isolated_waha_service() {
   [[ -z "$waha_pid" ]] || fail "The isolated WAHA-shaped service is already running"
@@ -682,6 +744,7 @@ start_app() {
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
       EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
+      EVO_STUDENT_INVITE_LOCAL_ORIGIN="http://127.0.0.1:$app_port" \
       EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID="$platform_intake_sales_membership_id" \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
@@ -1274,8 +1337,20 @@ assert_no_secret_or_payload_logs() {
 cd "$repo_root"
 echo "Validating the active Supabase-only foundation without the retired Drizzle toolchain."
 
+if [[ "$staff_onboarding_only" == "1" ]]; then
+  start_app configured unavailable blocked provider-not-authorized disabled
+  provision_local_staff onboarding-proof
+  assert_no_secret_or_payload_logs
+  echo "LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED"
+  exit 0
+fi
+
 start_clamav_scanner
 start_isolated_waha_service
+start_app configured configured local-service
+provision_local_staff_and_fixtures
+# Provider owner configuration becomes available only after the real staff invitation.
+stop_app
 start_app configured configured local-service
 supabase_staff_auth_browser_assert configured
 v3_browser_gate

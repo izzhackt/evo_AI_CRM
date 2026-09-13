@@ -193,7 +193,7 @@ test("P6C database and provider harnesses use only the canonical Supabase databa
   const nodeRuntimeCheck = source("scripts/check-node-runtime.mjs");
 
   assert.match(foundationHarness, /SUPABASE_DB_URL/u);
-  assert.match(foundationHarness, /supabase db reset --local/u);
+  assert.match(foundationHarness, /supabase --workdir "\$supabase_workdir" db reset --local/u);
   assert.match(foundationHarness, /rm -f -- "\$supabase_lock_pid_file"/u);
   assert.doesNotMatch(
     foundationHarness,

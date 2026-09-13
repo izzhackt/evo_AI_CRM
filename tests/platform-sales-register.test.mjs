@@ -44,8 +44,9 @@ test("source and actions use cookie authority with no provider or elevated clien
   const source = readFileSync(new URL("../src/lib/v3/sales-register-source.ts", import.meta.url), "utf8");
   const actions = readFileSync(new URL("../src/lib/platform-sales-register-actions.ts", import.meta.url), "utf8");
   assert.match(source, /createSupabaseServerClient\(\)/);
-  assert.match(source, /row\.ownerMembershipId !== actor\.membershipId/);
-  assert.match(source, /result\.targets\.length !== 0 \|\| result\.ownerOptions\.some\(owner => owner\.id !== actor\.membershipId\)/);
+  assert.match(source, /rpc\("read_sales_register_v1"/);
+  assert.match(source, /p_organization_id: actor\.organizationId/);
+  assert.doesNotMatch(source, /row\.ownerMembershipId !== actor\.membershipId|actor\.authorityRole/);
   assert.match(actions, /p_expected_version: version/);
   assert.match(actions, /data\.request_id !== requestId/);
   assert.doesNotMatch(source + actions, /createSupabaseAdmin|SERVICE_ROLE|SECRET_KEY|\.from\(/);

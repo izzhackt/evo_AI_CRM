@@ -87,7 +87,7 @@ test("Admissions task commands are exact, versioned Supabase actions", () => {
   ]) {
     assert.match(actionSource, new RegExp(`"${field}"`), field);
   }
-  assert.match(actionSource, /fixedRoleCan\(actor\.authorityRole, "admissions\.write"\)/);
+  assert.match(actionSource, /staffHasPermission\(actor, "task\.manage"\)/);
   assert.match(actionSource, /\.schema\("platform"\)\.rpc\("create_case_task"/);
   assert.match(actionSource, /\.schema\("platform"\)\.rpc\("change_case_task"/);
   assert.match(actionSource, /p_case_task_id:\s*caseTaskId/);
@@ -235,7 +235,8 @@ test("task reads expose exact versions and bounded case choices", () => {
   assert.match(taskContractSource, /version: string/);
   assert.match(adapterSource, /listPlatformAdmissionsTaskQueue/);
   assert.match(adapterSource, /listPlatformStudentCases/);
-  assert.match(adapterSource, /getPlatformAdmissionsTaskWorkspace/);
+  assert.match(adapterSource, /getPlatformAdmissionsTaskTarget/);
+  assert.doesNotMatch(adapterSource, /getPlatformAdmissionsTaskWorkspace/);
   assert.match(adapterSource, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapterSource, /const CASE_PAGE_SIZE = 100/);
   assert.match(adapterSource, /casesHaveMore:\s*cases\.hasNext/);

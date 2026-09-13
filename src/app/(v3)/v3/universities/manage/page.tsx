@@ -1,3 +1,4 @@
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -14,7 +15,7 @@ const link = "inline-flex min-h-11 items-center rounded-ctl border border-border
 type Params = Record<string, string | string[] | undefined>;
 export default async function UniversityManagePage({ searchParams }: { searchParams: Promise<Params> }) {
   const [actor, params] = await Promise.all([requireV3PageActor("/v3/universities"), searchParams]);
-  if (actor.authorityRole !== "admin" || actor.presentationRole !== "admin") redirect("/access-denied?from=%2Fv3%2Funiversities");
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "catalog.import.manage")) redirect("/access-denied?from=%2Fv3%2Funiversities");
   if (Object.keys(params).length > 1 || Object.entries(params).some(([key, value]) => !["draft", "edit", "template", "new", "batch"].includes(key) || typeof value !== "string")) notFound();
   const draftId = params.draft === undefined ? null : universityUuid(params.draft) ?? notFound();
   const editId = params.edit === undefined ? null : universityUuid(params.edit) ?? notFound();

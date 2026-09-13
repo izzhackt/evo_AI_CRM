@@ -23264,3 +23264,283 @@ Primary sources checked2026-09-13:
 [CLI2.116.0 Kong service](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/commands/start/services/kong.service.ts).
 The helper and its foundation-harness invocation are the only runtime code scope.
 Record actual checks and limitations in the release evidence before merge.
+
+## 2026-09-13 — S2 scoped staff authority implementation contract
+
+After merged gateway correction PR743, implement the already approved employee
+roles objective in a separate worktree while exact-main CI34738787284 proves
+6ff4c017. Do not merge into or change that frozen candidate during release.
+The concrete contract is `docs/design/v3/staff-scoped-authority-contract.md`.
+
+Reserve155–156 for the coordinated role/assignment foundation and complete
+runtime consumer transition. Extend existing immutable bundles/permission catalog,
+not a second ACL. Bind each permission and scope to the same assignment; separate
+staff login baseline from business org scope. Own uses canonical domain owners;
+department follows their live active department, with visible transfer impact;
+direction uses canonical case admissions_direction and does not match unknown
+direction. Unsupported resource/scope combinations fail rather than inventing
+ownership. Preserve system Admin, Student-private and personal sensitive grants.
+
+Live access is rechecked at file-intent finalization and in Storage/Realtime,
+not only at Data API entry or from JWT. Preserve current effective access during
+backfill, including legacy owner restrictions; ambiguous mappings stop safely.
+Keep current_actor_authority return shape for its Student/SQL consumers while
+its staff branch shares the new authority foundation. Old coarse role fields
+may describe immutable history/system boundaries, never a parallel runtime
+business policy. New assignments are not enabled before all consumers switch.
+
+The linked contract records official Supabase sources, API seam, parallel ownership
+and actual acceptance requirements. Real employee recipients/rights, first login,
+customer/provider document use and Docs retirement remain their existing gates.
+
+## 2026-09-13 — S2 explicit write permissions and atomic staff onboarding
+
+Consumer inspection found two old role-gated mutations whose read permissions
+alone must not authorize custom-role writes. Add `amocrm.command.manage` for
+lead/case commands and `finance.stop.create` for creating a case finance blocker;
+retain `finance.stop.manage` for resolution. Backfill only the former effective
+Sales/Curator ownership and handoff combinations, retaining current read and
+business prerequisites; do not grant write authority to new read-only roles.
+No provider activation or call is implied.
+
+Reserve157 for the existing staff invitation/status/recovery path's coordinated
+transition. Validate and pin role versions and paired scopes before Auth dispatch;
+reconcile membership, assignments, access version and audit atomically. Never
+declare completion with accidentally missing assignments. An intentionally empty
+access set requires explicit confirmation. Keep original request-id reconciliation,
+delivery-versus-login distinctions and owner recipient/effective-rights approval.
+Existing pending requests must retain their original access meaning or stop for
+Admin resolution. The concrete requirements are in the S2 authority contract;
+155–157 and their application consumers must be verified and released together.
+
+The pending-invitation resolution is an explicit Admin command, not a resend or
+silent grant replacement: `staff_workspace_prepare_pending_access` binds the
+original invitation ID, expected preparation version, approved versioned
+assignments (or explicit no-access), reason and a distinct idempotent command ID.
+It cannot change the recipient or permit Auth dispatch. After a separately
+authorized preparation, the existing reconcile path can finish the original
+request. Preserve the original request and prior preparation in audit history.
+
+## 2026-09-13 — S2 protected Admin receipt compatibility
+
+Inspection of migration126 found that required legacy authorizing-bundle
+metadata would exclude a valid protected system Admin without a legacy role.
+In157, make only that metadata pair nullable, preserve historical values, and
+bind new receipts to the live authorizing identity/access version. Finalization
+must recheck active system Admin and every required permission. Student-side
+identity, bundle, receipt and privacy checks remain unchanged. Coordinate the
+existing participant locks with155's organization/profile/membership order;
+overdue processing uses the same live Admin foundation. Include custom staff
+in the directory without inventing a coarse business role. This is part of the
+approved unified authority transition, not permission to issue Student accounts
+or execute provider operations during development.
+
+## 2026-09-13 — S2 fresh Admin and real local onboarding proof
+
+The mandatory foundation provisioner still calls revoked pilot staff/status RPCs
+and expects fixed-role JWTs. The original one-shot Admin bootstrap also omits
+the protected `is_system_admin` flag added by155, so a fresh installation would
+not have a functional first Admin. In157, extend only that existing guarded
+bootstrap INSERT to set the flag; retain its actual Auth identity, one-shot
+checks, signature, locks, audit and replay. Do not add a general role bypass.
+
+Cut the local provisioner and its callers over to the same published role,
+prepared invitation, reconcile and live snapshot contracts as the product.
+Local Sales/Admissions fixtures must receive mail through the isolated mail
+service, follow the real staff callback, set a password and sign in. Use exact
+loopback callback origins for the allocated app port, keep token/link/password
+values process-only, and reject external SMTP. Fixture names are scenario labels,
+not authority. Preserve separate sensitive grants and Student provisioning.
+This is a required fresh-install and ordinary onboarding check, not permission
+to send employee mail, create production identities or activate providers.
+
+The UI review also requires coordinated preparation/reconcile controls and a
+fresh status command after a confirmed successful change. Preserve original
+payloads for unresolved writes. Only a proved database rejection may release
+that pending local command; do not conflate it with an uncertain Auth dispatch.
+
+Local proof uses a generated config/migrations/templates workdir with a unique
+owned project ID and allocated ports; every CLI operation targets that workdir.
+It does not copy secrets or reuse/reset the existing repo and schema-check stacks.
+Cleanup stops only that generated project and preserves the workdir if stop fails.
+An observed reconcile response requesting access review may open the preparation
+editor while still prohibiting any repeat Auth dispatch; an unobserved transport
+outcome does not release that interlock.
+
+Development request logging excludes only `/auth/staff` and `/auth/callback`
+URLs, including their query strings, so real local invitation links are not
+written to the Next request log. Ordinary application request/error logging is
+unchanged. This uses the documented development-only
+[Next incomingRequests ignore option](https://nextjs.org/docs/app/api-reference/config/next-config-js/logging),
+checked2026-09-13 against the installed request logger; it does not change
+production audit records, Auth processing or callback validation.
+
+For the first real check, the foundation entrypoint may expose the explicit
+`--staff-onboarding-only` subset: generated local stack, protected bootstrap,
+ordinary email/callback/password/login and owned cleanup. Its distinct
+`LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED` marker is not the full foundation gate.
+Return before unrelated provider, scanner, communications/sales fixtures and
+Storage suites; the normal full-mode release gate remains required separately.
+
+## 2026-09-13 — S2 local onboarding passed; align remaining permission branches
+
+The generated fresh CLI stack with migrations 155–157 passed
+`LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED`: protected first Admin, four published
+roles and two synthetic local invitations through Mailpit, explicit callback,
+password setup, fresh browser sign-in and live scoped snapshots. Owned containers
+were cleaned up. Current unit checks passed 1342/1342 and the application build
+passed. See the bounded evidence in the [S2 contract](design/v3/staff-scoped-authority-contract.md#локальная-проверка-2026-09-13).
+This is not S2 release, real employee mail, provider or Storage acceptance;
+accepted S1/D1 remains `77cde9ba`.
+
+Before the remaining calendar/task UI corrections, pin each reader to its exact
+existing contract: case-task queues require `task.manage`; application deadline
+queues require `application.manage`. Case/profile read rights and `task.create`
+must not imply either queue permission. Keep the create-only `task.create`
+composer available when its command is permitted, without requiring a task-list
+grant. Skip only unpermitted branches; failures of permitted reads remain
+explicitly unavailable, never a fabricated empty result. Retain object/scope
+checks, Student/Admin boundaries and existing SQL/grants; do not widen authority
+to make a page load. Calendar/task branch fixes, role-editor browser proof and
+the full release gate remain pending at this checkpoint.
+
+## 2026-09-13 — S2 align Sales and finance consumers with scoped authority
+
+Read-only follow-up found four remaining contract mismatches: Sales section hints
+admit workflow-only access before lead.read-only queues; the read-only pipeline
+unconditionally requests workflow-only owner options; historical finance-control
+and finance-queue readers do not yet accept the scoped full-read pair advertised
+by the new case snapshot; and monthly cash totals accept any-scope full-read in
+TypeScript although their SQL requires organization scope.
+
+Before implementation, decision 11 in the staff authority contract requires
+exact reader preflights and independently optional controls. Extend unreleased
+migration156 to align selected-case finance consumers with the canonical scoped
+full/summary case predicates, preserving the existing case-read requirement,
+projection detail, system Admin and Student-private boundaries. Do not alter
+historical migrations, grant organization access or join a permission from one
+assignment with the scope of another. Monthly organization totals remain
+organization-only. Allowed-reader errors must be visible, not represented as
+empty or silently omitted data. Validate production coordinator branches and
+ordinary authorized local database reads; this is not a new provider or employee
+invitation authorization. The full S2 release remains pending.
+
+The existing staff snapshot intentionally carries a permission union and separate
+assignments, not per-assignment permission lists. Do not infer organization access
+by combining them. Add one narrow read-only
+`staff_monthly_payment_summary_access(p_organization_id)` RPC returning
+`{schemaVersion:1, organizationId, canReadSummary}` from live staff identity and
+the canonical paired organization predicate. The monthly totals RPC still
+rechecks its own authority. Preserve the existing staff snapshot wire version;
+this adds no finance data or write authority to the preflight response.
+
+Clarification of the preserved finance branch shape: a paired full-read on the
+selected case is sufficient for the existing full branch; the summary branch
+continues to require paired case.read.full and finance.read.summary on that same
+case. Do not introduce a new case-read prerequisite for the historical full
+branch. Task workspace reading is likewise independent of staff.task.create:
+the staff queue requires staff.task.read while its create-only composer remains.
+
+Manual lead creation already uses lead.sales.workflow.manage and canonical
+new-lead/owner checks in SQL156. The TypeScript lead.manual.create preflight
+names no existing permission definition; align that UI/action hint with the
+existing workflow permission, without adding a new grant or relaxing owner scope.
+
+The next ordinary isolated onboarding check also exercises the actual Admin role
+editor: normal password login, create/edit draft, inspect publication impact,
+publish, copy, archive and restore. Only two new unused test roles may change;
+all pre-existing roles, memberships, assignments and access versions must remain
+unchanged. Verify rendered state and live role-workspace readback after each
+step. Its separate LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED marker does not replace
+ordinary onboarding proof or claim production/employee acceptance. Screenshots
+are off by default and may be saved only on clean settings pages after login,
+when an explicit existing private evidence directory outside the repository is
+supplied through EVO_LOCAL_STAFF_ROLE_EDITOR_EVIDENCE_DIR. No browser token
+injection, direct mutation RPC or production accounts are involved.
+
+## 2026-09-13 — S2 make permitted task-only work functional
+
+The Tasks queue correctly admits task.manage on a task without case.read.full,
+but its calendar destination still requires the full case workspace. The current
+change command also checks task.manage on the whole case before its exact-task
+check, and requires case-read eligibility even for an unchanged task assignee.
+Neither hiding the action nor granting case access completes flexible task roles.
+
+Before implementation, decision12 requires one narrow selected-task RPC in156:
+staff_case_task_target(p_organization_id,p_student_case_id,p_case_task_id) returns
+schemaVersion1, organizationId, studentCaseId, the existing 18-field queue row,
+minimal assignees and canAssign/canChangeVisibility/canReadCase capabilities. It
+checks live identity, the exact org/case/task relationship and task.manage on the
+task. Use the existing queue/assignee normalizers. Do not read a full case or every
+case task to locate one permitted item. Without exact task.assign on the case,
+return only the current assignee. Visibility and full-case navigation similarly
+require their own exact case predicates, not permission/scope union inference.
+
+Align only the existing coverage_change_task_body target-actor/assignee seams:
+check task.manage on the selected task; use a dedicated recipient helper allowing
+existing case eligibility OR the canonical prospective task-assignment predicate.
+Keep locks, optimistic versions, replay, audit, status/deadline/reason rules and
+coverage restrictions. No change to create_case_task, the full-case workspace,
+the shared require_case_operator, role grants or Student authority. Controls use
+the new scoped flags while the mutation independently rechecks all pairs. The
+calendar task branch may render for task-only staff without reading full cases;
+case creation and application branches keep their separate prerequisites.
+This is an authorization-consumer correction within S2, not release acceptance.
+
+## 2026-09-13 — S2 expose permitted case finance and verify successive edits
+
+Independent review found that staff_case_access_snapshot still hides the Finance
+section from a case-readable employee with scoped finance.read.summary, although
+the finance reader correctly admits that exact pair. Align only this case-section
+hint with full OR summary on the same case; its existing case.read.full entrance
+gate remains. The profile must invoke the permitted reader and render its section;
+organization-wide totals keep their separate organization-only predicate.
+
+The first actual local role-editor run passed login and draft creation/readback
+but stopped during editing. Treat it as incomplete proof. Narrow fixed-category
+diagnostics must distinguish opening the editor, choosing permissions and saving,
+without printing form values, tokens or raw browser errors. Also verify successive
+member-card changes: a confirmed command may reopen against the latest access
+version, while a pending or unknown result must preserve its original request and
+must not be silently reset by incoming props. This is completion of the existing
+editable-role workflow, not permission to reset or invite production employees.
+
+## 2026-09-13 — S2 bind confirmation to the reviewed access change
+
+Independent review identified two stale-input gaps: role publication can affect
+assignments added after the impact screen without changing the role version, and
+an existing-member assignment can select a role whose published permissions have
+changed since the form was opened. An optimistic member version alone cannot
+detect the latter when that role was not previously assigned to the member.
+
+Before implementation, require publication to carry a canonical impact
+fingerprint of the reviewed role/version, permissions and affected assignments.
+Recompute and compare it under the existing serialized command locks before any
+write; a changed impact requires a new review, never an automatic retry with a
+new fingerprint. Bind each prepared existing-member assignment to the selected
+role version and published bundle identity/version, as the existing invitation
+preparation already does. Validate those references before replacing assignments.
+Keep the original replay payload after an unknown result and preserve immutable
+bundle/audit history. Extend only the unreleased155 contract and its active
+TypeScript/UI/local callers; do not introduce fallback to unversioned requests or
+modify historical released schemas. These are normal stale-form corrections;
+no production grants, employee messages or adversarial runtime workflows are
+authorized by this change.
+
+## 2026-09-13 — S2 finish nullable staff descriptors in active consumers
+
+The independent inventory of the installed local schema157 found two active
+consumers that still treat historical role labels as mandatory staff identity.
+The post-contract update now permits an owner with exact post.contract.manage,
+but its TypeScript receipt rejects null or a reconfigured Sales owner after the
+database has saved the change. Decode the nullable descriptive owner consistently
+in command receipts, items and report snapshots; map curator to admissions only
+for display. Keep the template responsibility-role domain unchanged and never
+derive permission from this descriptor.
+
+The installed case_help_workspace_v1 Student filter uses SQL <> against a
+nullable staff role, hiding Student requests from otherwise permitted custom
+staff. Change only that Student distinction to IS DISTINCT FROM, behind the
+unchanged exact case-read entrance check. Record this in unreleased156; no
+historical migration or broader grant changes. Validate ordinary authorized
+workflow behavior and source contracts, not offensive or provider workflows.

@@ -1,3 +1,4 @@
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 
 const CONTROL_CHARACTER_PATTERN =
@@ -259,9 +260,7 @@ function profileFields(value: unknown): PlatformStudentProfileField[] {
 
 function requireProfileReader(actor: PlatformActor): void {
   if (
-    actor.platformRole !== "admin" &&
-    actor.platformRole !== "sales" &&
-    actor.platformRole !== "admissions"
+    !staffCan(actor, "dashboard.read")
   ) {
     return invalidShape();
   }

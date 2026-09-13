@@ -1,10 +1,10 @@
 "use server";
 
+import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { fixedRoleCan } from "./fixed-role-policy";
 import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-actions";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { exactActionStringFields } from "./server/action-form-fields";
@@ -295,7 +295,7 @@ function verifiedFileResult(
 
 async function writableActor(form: FormData) {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "documents.write")) {
+  if (!staffHasPermission(actor, "company.file.manage") || isStaffPreview(actor)) {
     return { actor: null, failure: failureState(form, "forbidden") } as const;
   }
   return { actor, failure: null } as const;

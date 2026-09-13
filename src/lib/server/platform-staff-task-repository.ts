@@ -3,7 +3,7 @@ import "server-only";
 import type { ActivePlatformActor, PlatformActor } from "../platform-auth";
 import { parseStaffParticipant, parseStaffTask, type StaffTaskCursor, type StaffTaskFilter, type StaffTaskView } from "../platform-staff-task-contract";
 import { createSupabaseServerClient } from "../supabase/server";
-import { isTeamChatChannel, teamChatRoleCanAccess } from "../platform-team-chat";
+import { isTeamChatChannel, staffCanAccessChatChannel } from "../platform-team-chat";
 import { staffTaskUuid } from "../platform-staff-task-contract";
 import { staffTaskTimestamp, staffTaskVersion } from "../platform-staff-task-contract";
 
@@ -55,7 +55,7 @@ export async function readLeadTaskLinks(actor: ActivePlatformActor, leadId: stri
 }
 
 function assertStaff(actor: PlatformActor) {
-  if (!["admin", "sales", "admissions"].includes(actor.authorityRole)) throw new Error("Staff workspace is unavailable.");
+  if (!["admin", "staff"].includes(actor.systemRole)) throw new Error("Staff workspace is unavailable.");
 }
 export async function readStaffTaskChatSource(actor: ActivePlatformActor, taskId: string) {
   assertStaff(actor);
@@ -68,7 +68,7 @@ export async function readStaffTaskChatSource(actor: ActivePlatformActor, taskId
   if (!data || typeof data !== "object" || !staffTaskUuid(data.message_id) || !isTeamChatChannel(data.channel_key)) {
     throw new Error("Task source is unavailable.");
   }
-  if (!teamChatRoleCanAccess(actor.presentationRole, data.channel_key)) return null;
+  if (!staffCanAccessChatChannel(actor, data.channel_key)) return null;
   return `/v3/team-chat?${new URLSearchParams({ channel: data.channel_key, message: data.message_id })}`;
 }
 export async function listStaffParticipants(actor: PlatformActor) {
@@ -78,6 +78,15 @@ export async function listStaffParticipants(actor: PlatformActor) {
   if (error || !Array.isArray(data)) throw new Error("Staff participants are unavailable.");
   const participants = data.map(parseStaffParticipant);
   if (new Set(participants.map((person) => person.membershipId)).size !== participants.length) throw new Error("Staff participants are unavailable.");
+  return participants;
+}
+export async function listStaffTaskAssignees(actor: PlatformActor, taskId: string | null = null) {
+  assertStaff(actor);
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_task_assignees", { p_organization_id: actor.organizationId, p_staff_task_id: taskId });
+  if (error || !Array.isArray(data)) throw new Error("Staff assignees are unavailable.");
+  const participants = data.map(parseStaffParticipant);
+  if (new Set(participants.map((person) => person.membershipId)).size !== participants.length) throw new Error("Staff assignees are unavailable.");
   return participants;
 }
 export async function listStaffTasks(actor: PlatformActor, options: Readonly<{
@@ -93,8 +102,7 @@ export async function listStaffTasks(actor: PlatformActor, options: Readonly<{
   if (error || !Array.isArray(data) || data.length > (options.taskId ? 1 : 51)) throw new Error("Staff tasks are unavailable.");
   const rows = data.map((row) => parseStaffTask(row, actor.organizationId));
   if (new Set(rows.map((row) => row.id)).size !== rows.length) throw new Error("Staff tasks are unavailable.");
-  if (rows.some((row) => (options.taskId && row.id !== options.taskId)
-    || (actor.authorityRole !== "admin" && actor.membershipId !== row.creatorMembershipId && actor.membershipId !== row.assigneeMembershipId))) throw new Error("Staff tasks are unavailable.");
+  if (rows.some((row) => options.taskId && row.id !== options.taskId)) throw new Error("Staff tasks are unavailable.");
   const page = rows.slice(0, 50);
   const last = page.at(-1);
   return Object.freeze({ rows: page, nextCursor: rows.length > 50 && last ? { updatedAt: last.updatedAt, id: last.id } : null });

@@ -99,7 +99,7 @@ async function requireAdminOrganization(
     return "unavailable";
   }
   return actor.status === "authenticated" &&
-    actor.actor.authorityRole === "admin" &&
+    actor.actor.systemRole === "admin" &&
     actor.actor.organizationId === organizationId
     ? "ok"
     : "forbidden";

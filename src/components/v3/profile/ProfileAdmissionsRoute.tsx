@@ -21,7 +21,7 @@ export async function ProfileAdmissionsRoute({ actor, draft, studentName }: { ac
       <details className="rounded-card border border-border bg-surface p-4 sm:p-5">
         <summary className="min-h-11 cursor-pointer font-semibold text-fg">Заявки, статусы и визовое дело</summary>
         <p className="my-3 text-sm leading-6 text-fg-2">Создайте заявку или визовое дело здесь. Подтверждения партнёра и страны заполняются в маршруте выше. Загруженные документы сами по себе не подтверждают подачу.</p>
-        <ProfileAdmissionsWorkspacePanel actorRole={actor.presentationRole} workspace={draft.admissions} />
+        <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
       </details>
       </AdmissionsRoutePanel>
       <PartnerPacketsPanel actor={actor} caseId={caseId} active={workspace.case.state === "active"} applications={workspace.applications.map(application => ({ id: application.id, name: `${application.institutionName} · ${application.programName}` }))} />

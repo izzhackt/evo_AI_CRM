@@ -12,7 +12,7 @@ import { createSupabaseServerClient } from "../supabase/server.ts";
 export async function refreshConfirmedSelfHandoffSession(
   actor: PlatformActor,
 ): Promise<boolean> {
-  if (actor.authorityRole !== "admin") return false;
+  if (actor.systemRole !== "admin") return false;
 
   try {
     const client = await createSupabaseServerClient();
@@ -31,7 +31,7 @@ export async function refreshConfirmedSelfHandoffSession(
       authority.profileId === actor.profileId &&
       authority.membershipId === actor.membershipId &&
       authority.organizationId === actor.organizationId &&
-      authority.databaseRole === "admin"
+      authority.systemRole === "admin"
     );
   } catch {
     return false;

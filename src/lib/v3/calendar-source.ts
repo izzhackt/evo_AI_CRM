@@ -5,6 +5,7 @@ import type {
   CalendarAssigneeOption,
   CalendarCaseOption,
   CalendarTask,
+  CalendarTaskCapabilities,
   Day,
 } from "@/components/v3/calendar/types";
 import { listPlatformStudentCases } from "@/lib/platform-admissions";
@@ -13,7 +14,7 @@ import type {
   PlatformAdmissionsTaskQueueRow,
 } from "@/lib/platform-admissions-task-contract";
 import {
-  getPlatformAdmissionsTaskWorkspace,
+  getPlatformAdmissionsTaskTarget,
   listPlatformAdmissionsTaskQueue,
 } from "@/lib/platform-admissions-workspace";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
@@ -27,6 +28,8 @@ import {
   listCalendarApplicationDeadlinePage,
   listCalendarUndatedTaskPage,
   readNearestCalendarApplicationDeadline,
+  readCalendarWorkspaceBranches,
+  type CalendarReadAccess,
   type CalendarApplicationDeadlineCursor,
   type CalendarApplicationDeadlineRow,
   type CalendarUndatedTaskCursor,
@@ -228,6 +231,7 @@ async function readActiveCases(
 }
 
 export type CalendarWorkspace = Readonly<{
+  access: CalendarReadAccess;
   tasks: readonly CalendarTask[];
   undatedNextCursor: CalendarUndatedTaskCursor | null;
   applicationDeadlines: readonly CalendarApplicationDeadline[];
@@ -240,32 +244,23 @@ export type CalendarWorkspace = Readonly<{
 export type CalendarTaskTarget = Readonly<{
   task: CalendarTask;
   assignees: readonly CalendarAssigneeOption[];
+  capabilities: CalendarTaskCapabilities;
 }>;
 
-/** A case-bound link reads the real guarded workspace, never a paged task guess. */
+/** A deep link reads one exact task, never the full case or a paged task guess. */
 export async function readCalendarTaskTarget(
   actor: ActivePlatformActor,
   studentCaseId: string,
   caseTaskId: string,
-): Promise<CalendarTaskTarget | null> {
-  const page = await listPlatformStudentCases(actor, { studentCaseId, pageSize: 1 });
-  const entry = page.rows[0];
-  if (!entry || entry.access !== "full" ||
-    entry.studentCase.studentCaseId !== studentCaseId ||
-    entry.studentCase.state === "pending") return null;
-  const workspace = await getPlatformAdmissionsTaskWorkspace(actor, studentCaseId);
-  const task = workspace.tasks.find((row) => row.caseTaskId === caseTaskId);
-  if (!task) return null;
+): Promise<CalendarTaskTarget> {
+  const target = await getPlatformAdmissionsTaskTarget(actor, studentCaseId, caseTaskId);
   return Object.freeze({
-    task: calendarTaskFromRow({
-      ...task,
-      studentDisplayName: entry.studentCase.studentDisplayName,
-      caseState: entry.studentCase.state,
-    }, new Date()),
-    assignees: workspace.assignees.filter((row) => row.role !== "sales").map((row) => ({
+    task: calendarTaskFromRow(target.task, new Date()),
+    assignees: target.assignees.map((row) => ({
       membershipId: row.membershipId,
       displayName: row.displayName,
     })),
+    capabilities: Object.freeze({ taskId: target.task.caseTaskId, studentCaseId: target.studentCaseId, ...target.capabilities }),
   });
 }
 
@@ -281,23 +276,22 @@ export async function readCalendarWorkspace(
   undatedCursor: CalendarUndatedTaskCursor | null = null,
   target: CalendarTaskTarget | null = null,
 ): Promise<CalendarWorkspace> {
-  const [read, applicationDeadlines, nearestDeadline, cases] = await Promise.all([
-    readCalendarTasks(actor, from, to, undatedCursor),
-    readCalendarApplicationDeadlines(actor, from, to),
-    readNearestCalendarApplicationDeadline(actor),
-    readActiveCases(actor),
-  ]);
-  const workspace = !target && cases.rows[0]
-    ? await getPlatformAdmissionsTaskWorkspace(actor, cases.rows[0].id)
-    : null;
-  const assignees = target?.assignees ?? workspace?.assignees
-    .filter((assignee) => assignee.role !== "sales")
-    .map((assignee) => ({
-      membershipId: assignee.membershipId,
-      displayName: assignee.displayName,
-    } satisfies CalendarAssigneeOption)) ?? [];
+  const branches = await readCalendarWorkspaceBranches(actor, {
+    tasks: (current) => readCalendarTasks(current, from, to, undatedCursor),
+    deadlines: (current) => readCalendarApplicationDeadlines(current, from, to),
+    nearest: readNearestCalendarApplicationDeadline,
+    cases: readActiveCases,
+  });
+  const read = branches.tasks ?? { tasks: [], undatedNextCursor: null };
+  const applicationDeadlines = branches.deadlines ?? [];
+  const nearestDeadline = branches.nearest;
+  const cases = branches.cases ?? { rows: [], hasNext: false };
+  // Editing uses the exact target's candidates. Creation resolves candidates
+  // after the user selects its case; the first list row is not its authority.
+  const assignees = target?.assignees ?? [];
 
   return Object.freeze({
+    access: branches.access,
     tasks: target
       ? Object.freeze([target.task, ...read.tasks.filter((task) => task.id !== target.task.id)])
       : read.tasks,

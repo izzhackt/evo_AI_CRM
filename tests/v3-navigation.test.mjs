@@ -9,7 +9,7 @@ import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
 
 function navigation(role, href = "/v3/main") {
   const url = new URL(href, "https://navigation.test");
-  return buildV3Navigation(role, url.pathname, url.searchParams);
+  return buildV3Navigation({ systemRole: "admin", presentationRole: role === "admin" ? null : role, platformAccessVersion: 1, assignments: [], permissionKeys: [] }, url.pathname, url.searchParams);
 }
 
 function links(model) {
@@ -28,7 +28,7 @@ const expectedRoleLinks = {
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
-  test(`${role} sees exactly the navigation destinations permitted by the fixed-role policy`, () => {
+  test(`${role} preview sees its presentation destinations`, () => {
     const model = navigation(role);
     assert.deepEqual(links(model).map((link) => link.id), expectedRoleLinks[role]);
     assert.ok(links(model).every((link) => fixedRoleCanAccessRoute(role, link.route)));

@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requirePlatformSalesActor } from "./platform-guards";
+import { requirePlatformMutationCapability } from "./platform-guards";
 import {
   handoffPlatformLeadToAdmissions,
   mutatePlatformLeadAdmissionsGate,
@@ -344,7 +344,9 @@ export async function mutatePlatformLeadAdmissionsGateAction(
   _previous: PlatformLeadAdmissionsGateActionState,
   form: FormData,
 ): Promise<PlatformLeadAdmissionsGateActionState> {
-  const actor = await requirePlatformSalesActor();
+  // This is only the workspace entry hint; the RPC independently checks the
+  // selected gate command's exact permission/scope. Preview remains read-only.
+  const actor = await requirePlatformMutationCapability("sales.read", "/v3/pipeline");
   const input = parseGateInput(form);
   if (!input) return gateFailureState(form, "invalid");
 
@@ -371,7 +373,9 @@ export async function handoffPlatformLeadToAdmissionsAction(
   _previous: PlatformLeadAdmissionsHandoffActionState,
   form: FormData,
 ): Promise<PlatformLeadAdmissionsHandoffActionState> {
-  const actor = await requirePlatformSalesActor();
+  // Reading Sales never grants a handoff write: the canonical RPC checks its
+  // exact handoff permission, scope, current gate and business-state flags.
+  const actor = await requirePlatformMutationCapability("sales.read", "/v3/pipeline");
   const input = parseHandoffInput(form);
   if (!input) return handoffFailureState(form, "invalid");
 
@@ -388,7 +392,7 @@ export async function handoffPlatformLeadToAdmissionsAction(
   // The receipt is committed. Self-assignment bumps this Admin's access version;
   // session recovery must never become a retryable handoff failure.
   if (
-    actor.authorityRole === "admin" &&
+    actor.systemRole === "admin" &&
     receipt.admissionsOwnerMembershipId === actor.membershipId &&
     !(await refreshConfirmedSelfHandoffSession(actor))
   ) {

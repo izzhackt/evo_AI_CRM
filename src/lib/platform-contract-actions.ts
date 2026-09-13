@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { requirePlatformCapability } from "./platform-guards";
+import { requirePlatformMutationCapability } from "./platform-guards";
 import {
   PLATFORM_CONTRACT_REVIEW_DECISIONS,
   PLATFORM_CONTRACT_TEMPLATE_STATUSES,
@@ -34,9 +34,9 @@ type RetryMetadata = Readonly<{
   subjectId?: string;
 }>;
 
-/** Mutations authorize the immutable Supabase staff role, never a preview role. */
+/** Mutations use live staff identity and object RPC authority; preview is read-only. */
 function requirePlatformContractActor() {
-  return requirePlatformCapability("admissions.read", "/v3/profile");
+  return requirePlatformMutationCapability("admissions.read", "/v3/profile");
 }
 
 function strictFormString(form: FormData, key: string): string | undefined {
@@ -643,9 +643,7 @@ export async function updatePlatformPostContractItemAction(
     ) {
       throw new Error("Invalid BW6 item response");
     }
-    if (row.owner_role !== "admin" && row.owner_role !== "admissions") {
-      throw new Error("Invalid BW6 item owner");
-    }
+    platformContractResponseValidators.ownerRole(row.owner_role);
     if (row.next_action !== input.nextAction || row.evidence_ref !== input.evidenceRef) {
       throw new Error("Invalid BW6 item content");
     }

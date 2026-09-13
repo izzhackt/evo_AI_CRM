@@ -1,4 +1,5 @@
 import "server-only";
+import { staffHasPermission } from "../platform-access.ts";
 import type { PlatformActor } from "../platform-auth";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseSalesInteger, parseSalesUuid, parseSalesRegisterWorkspace, type SalesRegisterWorkspace } from "../platform-sales-register-contract";
@@ -8,7 +9,7 @@ export async function readSalesRegisterWorkspace(actor: PlatformActor, selection
   manager?: string | null; direction?: string | null; needsReview?: boolean | null;
 }>): Promise<SalesRegisterWorkspace> {
   const unavailable = () => new Error("Sales register is unavailable.");
-  if (actor.authorityRole !== "admin" && actor.authorityRole !== "sales") throw unavailable();
+  if (!staffHasPermission(actor, "sales.register.read")) throw unavailable();
   const year = parseSalesInteger(selection.year, 2100);
   const month = selection.month == null ? null : parseSalesInteger(selection.month, 12);
   const offset = parseSalesInteger(selection.offset ?? 0, 1000000);
@@ -28,10 +29,7 @@ export async function readSalesRegisterWorkspace(actor: PlatformActor, selection
   if (result.year !== year || result.month !== month || result.offset !== offset || (result.selected?.id ?? null) !== recordId
     || result.rows.some(row => row.archived !== (selection.archived ?? false)
       || !row.reportMonth.startsWith(`${year}-`) || (month !== null && Number(row.reportMonth.slice(5, 7)) !== month)
-      || (actor.authorityRole === "sales" && row.ownerMembershipId !== actor.membershipId)
       || (manager !== null && row.managerLabel !== manager) || (direction !== null && row.direction !== direction)
-      || (selection.needsReview != null && row.needsReview !== selection.needsReview))
-    || (actor.authorityRole === "sales" && result.selected && result.selected.ownerMembershipId !== actor.membershipId)
-    || (actor.authorityRole === "sales" && (result.targets.length !== 0 || result.ownerOptions.some(owner => owner.id !== actor.membershipId)))) throw unavailable();
+      || (selection.needsReview != null && row.needsReview !== selection.needsReview))) throw unavailable();
   return result;
 }

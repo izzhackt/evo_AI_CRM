@@ -141,7 +141,7 @@ test("route fails closed before actor, repository, or provider when disabled", a
   assert.deepEqual(calls, []);
 });
 
-test("route admits only same-organization admin, sales, or curator", async () => {
+test("route rejects staff without the explicit assistant permission", async () => {
   const calls = [];
   const handler = createPlatformStaffAssistantHandler(async () => ({
     config: loadPlatformStaffAssistantConfig(enabledEnvironment()),
@@ -150,7 +150,7 @@ test("route admits only same-organization admin, sales, or curator", async () =>
       actor: {
         authUserId: ACTOR_ID,
         organizationId: ORGANIZATION_ID,
-        platformRole: "finance",
+        systemRole: "staff", assignments: [], permissionKeys: [], presentationRole: null,
       },
     }),
     createDraft: async () => {
@@ -174,7 +174,7 @@ test("route returns only the closed draft result after successful audit", async 
       actor: {
         authUserId: ACTOR_ID,
         organizationId: ORGANIZATION_ID,
-        platformRole: "sales",
+        systemRole: "staff", assignments: [], permissionKeys: ["staff.assistant.use"], presentationRole: null,
       },
     }),
     createDraft: async (input) => {

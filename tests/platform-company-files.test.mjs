@@ -22,12 +22,9 @@ const ACTOR = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "Admissions",
   email: "admissions@example.test",
-  platformRole: "admissions",
-  authorityRole: "admissions",
-  presentationRole: "admissions",
+  systemRole: "staff", assignments: [], permissionKeys: ["company.file.read"],
+  presentationRole: null,
   platformAccessVersion: 1,
-  platformBundleId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-  platformBundleVersion: 1,
 });
 
 function row(overrides = {}) {
@@ -165,9 +162,8 @@ test("company-file reads fail closed for sales, RPC errors and malformed rows", 
   await assert.rejects(
     getPlatformCompanyFileWorkspace({
       ...ACTOR,
-      platformRole: "sales",
-      authorityRole: "sales",
-      presentationRole: "sales",
+      systemRole: "staff", assignments: [], permissionKeys: ["company.file.read"],
+      presentationRole: null,
     }, { client: { schema() { throw new Error("must not run"); } } }),
     PlatformCompanyFilesRepositoryError,
   );

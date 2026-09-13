@@ -1,3 +1,4 @@
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 
 export type HandoffDecision = "accepted" | "clarification_requested";
@@ -133,12 +134,12 @@ async function client() {
 }
 export async function getHandoffAcknowledgement(actor: PlatformActor, studentCaseId: string): Promise<HandoffAcknowledgement> {
   if (!handoffUuid(studentCaseId) || !handoffUuid(actor.organizationId)) return fail("invalid");
-  if (actor.authorityRole !== "admin" && actor.authorityRole !== "admissions") return fail("forbidden");
+  if (!staffCan(actor, "admissions.read")) return fail("forbidden");
   const result = await (await client()).schema("platform").rpc("staff_student_case_handoff_acknowledgement",
     { p_student_case_id: studentCaseId });
   if (result.error) return rpcFailure(result.error);
   const snapshot = normalizeHandoffAcknowledgement(result.data, actor.organizationId, studentCaseId);
-  if (snapshot.canRespond && actor.authorityRole !== "admissions" && actor.authorityRole !== "admin") return fail();
+  if (snapshot.canRespond && !staffCan(actor, "admissions.read")) return fail();
   return snapshot;
 }
 export function normalizeSalesHandoffAcknowledgement(
@@ -154,7 +155,7 @@ export async function getSalesHandoffAcknowledgement(
   actor: PlatformActor, leadId: string, studentCaseId: string,
 ): Promise<SalesHandoffAcknowledgement> {
   if (!handoffUuid(leadId) || !handoffUuid(studentCaseId) || !handoffUuid(actor.organizationId)) return fail("invalid");
-  if (actor.authorityRole !== "admin" && actor.authorityRole !== "sales") return fail("forbidden");
+  if (!staffCan(actor, "sales.read")) return fail("forbidden");
   const result = await (await client()).schema("platform").rpc("staff_lead_handoff_acknowledgement", { p_lead_id: leadId });
   if (result.error) return rpcFailure(result.error);
   return normalizeSalesHandoffAcknowledgement(result.data, actor.organizationId, leadId, studentCaseId);
@@ -164,7 +165,7 @@ export async function respondToHandoff(actor: PlatformActor, input: HandoffRespo
   if (!parsed || !handoffUuid(actor.organizationId)) return fail("invalid");
   // Actual Admin may be the assigned curator without changing identity. The RPC
   // rechecks current ownership and the exact assignment event, never a preview role.
-  if (actor.authorityRole !== "admissions" && actor.authorityRole !== "admin") return fail("forbidden");
+  if (!staffCan(actor, "admissions.read")) return fail("forbidden");
   const result = await (await client()).schema("platform").rpc("respond_student_case_handoff", {
     p_organization_id: actor.organizationId, p_student_case_id: parsed.studentCaseId,
     p_assignment_event_id: parsed.assignmentEventId,

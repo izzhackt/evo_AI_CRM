@@ -1,6 +1,6 @@
+import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 import "server-only";
 
-import { fixedRoleCan } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import type { PlatformReplySnippet } from "../platform-reply-snippets.ts";
 import type {
@@ -10,9 +10,9 @@ import type {
 } from "./knowledge-source.ts";
 
 export type V3KnowledgeDocumentSurface = Readonly<{
-  company: KnowledgeCompanyWorkspace;
+  company: KnowledgeCompanyWorkspace | null;
   students: readonly KnowledgeStudent[];
-  studentDocuments: KnowledgeDocumentWorkspace;
+  studentDocuments: KnowledgeDocumentWorkspace | null;
 }>;
 
 export type V3KnowledgeSurface = Readonly<{
@@ -22,6 +22,10 @@ export type V3KnowledgeSurface = Readonly<{
   canReadSnippets: boolean;
   canManageDocuments: boolean;
   canManageSnippets: boolean;
+  canReadCompanyFiles: boolean;
+  canManageCompanyFiles: boolean;
+  canUploadCompanyFiles: boolean;
+  canDownloadCompanyFiles: boolean;
 }>;
 
 export type V3KnowledgeSurfaceReaders = Readonly<{
@@ -35,15 +39,17 @@ export async function loadV3KnowledgeSurface(
   actor: ActivePlatformActor,
   readers: V3KnowledgeSurfaceReaders,
 ): Promise<V3KnowledgeSurface> {
-  const canReadDocuments = fixedRoleCan(actor.presentationRole, "documents.read");
-  const canReadSnippets = fixedRoleCan(actor.presentationRole, "messaging.read");
+  const previewAllowsDocuments = !isStaffPreview(actor) || staffPresentationCan(actor, "documents.read");
+  const canReadDocuments = staffHasPermission(actor, "document.read.full") && previewAllowsDocuments;
+  const canReadCompanyFiles = staffHasPermission(actor, "company.file.read") && previewAllowsDocuments;
+  const canReadSnippets = staffCan(actor, "snippets.read");
 
   const [documents, snippets] = await Promise.all([
-    canReadDocuments
+    canReadDocuments || canReadCompanyFiles
       ? Promise.all([
-          readers.readCompany(actor),
-          readers.readStudents(actor),
-          readers.readDocuments(actor),
+          canReadCompanyFiles ? readers.readCompany(actor) : null,
+          canReadDocuments && staffPresentationCan(actor, "admissions.read") ? readers.readStudents(actor) : [],
+          canReadDocuments ? readers.readDocuments(actor) : null,
         ]).then(([company, students, studentDocuments]) => ({
           company,
           students,
@@ -58,7 +64,11 @@ export async function loadV3KnowledgeSurface(
     snippets,
     canReadDocuments,
     canReadSnippets,
-    canManageDocuments: fixedRoleCan(actor.presentationRole, "documents.write"),
-    canManageSnippets: fixedRoleCan(actor.presentationRole, "messaging.send"),
+    canReadCompanyFiles,
+    canManageCompanyFiles: !isStaffPreview(actor) && staffHasPermission(actor, "company.file.manage"),
+    canUploadCompanyFiles: !isStaffPreview(actor) && staffHasPermission(actor, "company.file.upload"),
+    canDownloadCompanyFiles: staffHasPermission(actor, "company.file.download") && previewAllowsDocuments,
+    canManageDocuments: !isStaffPreview(actor) && staffPresentationCan(actor, "documents.write"),
+    canManageSnippets: !isStaffPreview(actor) && staffHasPermission(actor, "reply.snippet.manage"),
   };
 }

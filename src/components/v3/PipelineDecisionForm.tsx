@@ -1,9 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { staffHasPermission } from "@/lib/platform-access";
+
+
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import type { FixedRole } from "@/lib/fixed-role-policy";
 import {
   updatePlatformSalesWorkflowAction,
   type PlatformSalesWorkflowActionState,
@@ -39,15 +42,14 @@ export function PipelineDecisionForm({
   stages,
   ownerOptions,
   ownerOptionsHaveMore,
-  actorRole,
-  actorMembershipId,
+  actor,
   requestId,
 }: Readonly<{
   lead: PlatformSalesWorkflowLead;
   stages: readonly WorkflowStageOption[];
   ownerOptions: readonly PlatformSalesOwnerOption[];
   ownerOptionsHaveMore: boolean;
-  actorRole: Extract<FixedRole, "admin" | "sales">;
+  actor: ActivePlatformActor;
   actorMembershipId: string;
   requestId: string;
 }>) {
@@ -65,8 +67,7 @@ export function PipelineDecisionForm({
   const [open, setOpen] = useState(false);
   const [stageKey, setStageKey] = useState<PlatformSalesStage>(lead.stageKey);
   const [ownerMembershipId, setOwnerMembershipId] = useState(
-    lead.currentOwnerMembershipId ??
-      (actorRole === "sales" ? actorMembershipId : ""),
+    lead.currentOwnerMembershipId ?? "",
   );
   const [clearNextAction, setClearNextAction] = useState(
     lead.nextActionText === null,
@@ -83,22 +84,15 @@ export function PipelineDecisionForm({
     if (result.status === "saved") router.refresh();
   }, [result.changedAt, result.status, router]);
 
-  const visibleOwnerOptions = useMemo(() => {
-    if (actorRole === "admin") return ownerOptions;
-    const self = ownerOptions.find(
-      (option) => option.membershipId === actorMembershipId,
-    );
-    return [
-      self ?? { membershipId: actorMembershipId, displayLabel: "Вы" },
-    ];
-  }, [actorMembershipId, actorRole, ownerOptions]);
+  const canAssignOwner = staffHasPermission(actor, "lead.sales.owner.assign");
+  const visibleOwnerOptions = canAssignOwner ? ownerOptions : [];
   const currentOwnerIsListed = visibleOwnerOptions.some(
     (option) => option.membershipId === lead.currentOwnerMembershipId,
   );
   const ownerChanged =
     ownerMembershipId !== (lead.currentOwnerMembershipId ?? "");
   const reasonRequired =
-    (actorRole === "admin" &&
+    (staffHasPermission(actor, "lead.sales.owner.assign") &&
       lead.currentOwnerMembershipId !== null &&
       ownerChanged) ||
     (lead.nextActionText !== null && clearNextAction);
@@ -161,8 +155,10 @@ export function PipelineDecisionForm({
 
           <label className="block text-2xs font-medium text-fg-2">
             Ответственный
+            {!canAssignOwner ? <input type="hidden" name="current_owner_membership_id" value={lead.currentOwnerMembershipId ?? ""} /> : null}
             <select
-              name="current_owner_membership_id"
+              name={canAssignOwner ? "current_owner_membership_id" : undefined}
+              disabled={!canAssignOwner}
               value={ownerMembershipId}
               onChange={(event) => {
                 setOwnerMembershipId(event.target.value);
@@ -170,7 +166,7 @@ export function PipelineDecisionForm({
               className={CONTROL_CLASS}
               data-testid="v3-pipeline-owner"
             >
-              {actorRole === "admin" ? (
+              {canAssignOwner || lead.currentOwnerMembershipId === null ? (
                 <option value="">Не назначен</option>
               ) : null}
               {lead.currentOwnerMembershipId !== null &&
@@ -187,7 +183,7 @@ export function PipelineDecisionForm({
             </select>
           </label>
 
-          {ownerOptionsHaveMore && actorRole === "admin" ? (
+          {ownerOptionsHaveMore && staffHasPermission(actor, "lead.sales.owner.assign") ? (
             <p className="text-2xs leading-4 text-fg-3">
               Показаны первые 100 сотрудников.
             </p>

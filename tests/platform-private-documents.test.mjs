@@ -31,11 +31,8 @@ const ACTOR = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "Admissions",
   email: "admissions@example.test",
-  platformRole: "admissions",
-  authorityRole: "admissions",
+  systemRole: "staff", assignments: [], permissionKeys: ["document.read.full"],
   platformAccessVersion: 1,
-  platformBundleId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-  platformBundleVersion: 1,
 });
 
 function version({
@@ -454,7 +451,7 @@ test("Sales is rejected before any Admissions document RPC", async () => {
   };
   await assert.rejects(
     () => getPlatformCaseDocumentWorkspace(
-      { ...ACTOR, platformRole: "sales", authorityRole: "sales" },
+      { ...ACTOR, systemRole: "staff", assignments: [], permissionKeys: [] },
       CASE_ID,
       { client },
     ),

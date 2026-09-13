@@ -10,6 +10,7 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   const page = source("src/app/(v3)/v3/profile/page.tsx");
   const types = source("src/components/v3/profile/types.ts");
   const adapter = source("src/lib/v3/profile-source.ts");
+  const sections = source("src/lib/v3/case-access-contract.ts");
   const workspace = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
 
   assert.match(page, /requireV3PageActor\("\/v3\/profile"\)/u);
@@ -20,20 +21,20 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
     /readTarget: \(target\) => readProfileTarget\(actor, target, noteCursor,/u,
   );
   assert.doesNotMatch(page, /readProfilePicks/u);
-  assert.match(page, /actorRole=\{actor\.presentationRole\}/u);
+  assert.match(page, /actor=\{actor\}/u);
   assert.match(types, /query\.set\("id", target\.leadId\)/u);
   assert.match(types, /query\.set\("case", target\.studentCaseId\)/u);
-  assert.match(types, /student && actorRole !== "sales"/u);
-  assert.match(page, /actor\.presentationRole,[\s\S]*\);/u);
-  assert.doesNotMatch(page + types + adapter, /case_id/u);
-
-  assert.match(adapter, /actor\.presentationRole === "admissions"/u);
-  assert.match(
-    adapter,
-    /actor\.presentationRole !== "admin" && actor\.presentationRole !== "admissions"/u,
-  );
-  assert.match(adapter, /if \(actor\.presentationRole === "admissions"\) return null/u);
-  assert.match(adapter, /actor\.presentationRole === "admin" && studentCase/u);
+  assert.match(types, /student && access.documents/u);
+  assert.match(page, /view\?\.details\.access/u);
+  assert.doesNotMatch(types, /query\.set\("case_id"/u);
+  assert.match(adapter, /rpc\("staff_case_access_snapshot"/u);
+  assert.match(adapter, /if \(sectionResponse\.error\) throw/u);
+  assert.match(adapter, /staffPresentationCan\(actor, "admissions.read"\) && studentCase/u);
+  assert.match(adapter, /readCaseProfileSections\(access,/u);
+  assert.match(adapter, /documents: \(\) => getPlatformCaseDocumentWorkspace\(actor, studentCaseId\)/u);
+  assert.match(adapter, /finance: \(\) => getPlatformCaseFinanceControl\(actor, studentCaseId\)/u);
+  assert.match(sections, /access\.documents \? readers\.documents\(\) : null/u);
+  assert.match(sections, /access\.finance \? readers\.finance\(\) : null/u);
   assert.match(adapter, /links\.find\(\(item\) => item\.studentCaseId === canonicalCaseId\)/u);
   assert.match(adapter, /if \(leadProfile\) return leadProfile/u);
   assert.match(adapter, /leadId: link\?\.leadId \?\? null/u);

@@ -101,7 +101,7 @@ test("V3 page reads provider state through the authenticated canonical source", 
   assert.match(page, /<InboxProviderWorkflowControls/);
   assert.match(
     page,
-    /if \(view\.selected\)[\s\S]*fixedRoleCan\([\s\S]*actor\.presentationRole,[\s\S]*"messaging\.send",[\s\S]*\)[\s\S]*readV3ReplySnippets\(actor\)/u,
+    /if \(view\.selected\)[\s\S]*staffPresentationCan\(actor, "messaging\.send"\)[\s\S]*readV3ReplySnippets\(actor\)/u,
   );
   assert.match(
     page,

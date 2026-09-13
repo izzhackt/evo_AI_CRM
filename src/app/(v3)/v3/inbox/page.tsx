@@ -12,7 +12,6 @@ import {
   parsePlatformRouteUuid,
   type PlatformConversationCursor,
 } from "@/lib/platform-communications";
-import { fixedRoleCan } from "@/lib/fixed-role-policy";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   readInbox,
@@ -88,10 +87,7 @@ export default async function InboxPart({
     const selected = view.selected;
     const provider = model.providerWorkflow;
     const [replySnippets, resolvedMediaAttachmentContext] = await Promise.all([
-      fixedRoleCan(
-        actor.presentationRole,
-        "messaging.send",
-      )
+      staffPresentationCan(actor, "messaging.send")
         ? readV3ReplySnippets(actor).then((snippets) =>
             snippets.map(
               ({ replySnippetId, title, body }) => ({ replySnippetId, title, body }),
@@ -129,8 +125,7 @@ export default async function InboxPart({
       />
     );
     amoCrmControls = renderAmoCrmControls(model.amoCrmCommand, locale);
-    profileHref = v3InboxProfileHref(
-      actor.presentationRole,
+    profileHref = v3InboxProfileHref(actor,
       selected.canonicalContext,
     );
   }
@@ -169,6 +164,7 @@ function renderAmoCrmControls(
     <div data-testid="v3-inbox-amocrm" data-status="available">
       <CanonicalAmoCrmCommandPanel
         availability={command.availability}
+        canMutate={command.canMutate}
         blockingAttempt={command.blockingAttempt}
         scope={command.scope}
         leadId={command.leadId}
@@ -235,3 +231,4 @@ function singleValue(
   if (Array.isArray(value)) notFound();
   return value;
 }
+import { staffPresentationCan } from "@/lib/platform-access";

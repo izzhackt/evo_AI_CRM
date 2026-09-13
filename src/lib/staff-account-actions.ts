@@ -31,7 +31,7 @@ export async function acceptStaffAccountAction(_previous: StaffAccountState, for
     }
     if (error) return { ready: false, email: "", error: "Ссылка недействительна, уже использована или истекла. Обратитесь к администратору EVO." };
     const result = await resolvePlatformActor();
-    if (result.status !== "authenticated" || !["admin", "sales", "admissions"].includes(result.actor.authorityRole)) {
+    if (result.status !== "authenticated") {
       await client.auth.signOut({ scope: "local" });
       return { ready: false, email: "", error: "Вход подтверждён, но доступ сотрудника ещё не активен. Администратору нужно проверить приглашение в журнале." };
     }
@@ -43,7 +43,7 @@ export async function acceptStaffAccountAction(_previous: StaffAccountState, for
 
 export async function setStaffPasswordAction(_previous: StaffAccountState, form: FormData): Promise<StaffAccountState> {
   const result = await resolvePlatformActor();
-  if (result.status !== "authenticated" || !["admin", "sales", "admissions"].includes(result.actor.authorityRole)) {
+  if (result.status !== "authenticated") {
     return { ready: false, email: "", error: "Доступ сотрудника не подтверждён. Откройте письмо заново или обратитесь к администратору." };
   }
   const password = String(form.get("password") ?? "");

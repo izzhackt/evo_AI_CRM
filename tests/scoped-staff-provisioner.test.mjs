@@ -32,7 +32,7 @@ const identity = { email: "sales-proof@evo.local.test", displayName: "Local Sale
 const orgKeys = ["staff.task.create", "staff.assistant.use", "team.chat.general", "team.chat.sales", "team.chat.admissions",
   "workflow.contract.read", "reply.snippet.all", "reply.snippet.manage", "reply.snippet.sales", "reply.snippet.admissions",
   "company.file.read", "company.file.download", "company.file.upload", "company.file.manage"];
-const ownKeys = ["staff.task.read", "staff.task.edit", "staff.task.complete", "lead.read", "case.read.full", "task.manage", "task.create",
+const ownKeys = ["staff.task.read", "staff.task.edit", "staff.task.complete", "lead.read", "case.read.full", "profile.read.full", "task.manage", "task.create",
   "document.download", "document.upload", "communication.manual.send", "finance.read.summary", "case.workflow.read",
   "amocrm.command.manage", "finance.stop.create", "sales.register.read", "sales.register.manage"];
 const permissions = [...orgKeys.map((key) => ({ key, allowedScopes: ["organization"] })),
@@ -40,7 +40,7 @@ const permissions = [...orgKeys.map((key) => ({ key, allowedScopes: ["organizati
   { key: "contract.evidence.confirm", allowedScopes: ["organization"], sensitive: true },
   { key: "membership.provision", allowedScopes: ["organization"], systemOnly: true }]
   .map((entry) => ({ label: entry.key, group: "test", resourceKinds: ["organization"], sensitive: false, systemOnly: false, ...entry }));
-const baseline = { sales: ["lead.read", "task.manage", "workflow.contract.read", "communication.manual.send", "contract.evidence.confirm", "membership.provision"],
+const baseline = { sales: ["lead.read", "case.read.full", "profile.read.full", "finance.read.summary", "task.manage", "workflow.contract.read", "communication.manual.send", "contract.evidence.confirm", "membership.provision"],
   admissions: ["lead.read", "case.read.full", "task.manage", "workflow.contract.read", "document.download", "document.upload", "communication.manual.send", "finance.read.summary"] };
 const adminSnapshot = { schemaVersion: 1, authUserId: userId, profileId, membershipId: member, organizationId: org,
   displayName: "Local Admin", systemRole: "admin", accessVersion: 1, assignments: [], permissions: ["membership.provision"] };
@@ -103,6 +103,7 @@ test("fixture roles reproduce155 own/organization split without sensitive or cro
   assert.equal(rows.length, 4);
   const own = rows.find((row) => row.scenario === "sales" && row.kind === "own").permissionKeys;
   assert.ok(own.includes("task.create") && !own.includes("task.manage"));
+  for (const key of ["lead.read", "case.read.full", "profile.read.full", "finance.read.summary"]) assert.ok(own.includes(key));
   assert.ok(own.includes("amocrm.command.manage") && own.includes("case.workflow.read"));
   assert.ok(own.includes("sales.register.read") && own.includes("sales.register.manage"));
   const admissionsOwn = rows.find((row) => row.scenario === "admissions" && row.kind === "own").permissionKeys;

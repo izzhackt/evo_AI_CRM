@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
 import { DIRECTION_LABELS } from "@/components/v3/profile/admissions-view";
 import { ADMISSIONS_DIRECTIONS, type AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
@@ -53,13 +53,26 @@ function OrganizationalDetailsForm({ member, departments, onClose }: {
   const [reason, setReason] = useState("");
   const [state, action, pending] = useStaffMetadataForm(staffOrganizationalDetailsAction);
   const firstField = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => { firstField.current?.focus(); }, []);
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    // React's action reset runs during commit, when delegated onReset is inactive.
+    // Keep the controlled draft until the user explicitly closes this editor.
+    const preserveDraft = (event: Event) => event.preventDefault();
+    form.addEventListener("reset", preserveDraft);
+    return () => form.removeEventListener("reset", preserveDraft);
+  }, []);
   const selectedDepartment = departments.find((department) => department.id === departmentId);
   const archivedNewSelection = selectedDepartment?.status === "archived" && departmentId !== initial.departmentId;
   const saved = state.status === "success";
   const unknown = state.metadataOutcome === "unknown";
+  const departmentChanged = departmentId !== (initial.departmentId ?? "") && !saved;
+  const departmentWarningId = useId();
 
-  return <form action={action} aria-label={`Рабочие сведения: ${member.displayName}`} aria-busy={pending} className="space-y-4">
+  return <form ref={formRef} action={action}
+    aria-label={`Рабочие сведения: ${member.displayName}`} aria-busy={pending} className="space-y-4">
     <input type="hidden" name="membership_id" value={member.membershipId} />
     <input type="hidden" name="expected_version" value={initial.version} />
     <fieldset disabled={pending || saved || unknown} className="space-y-4">
@@ -69,6 +82,7 @@ function OrganizationalDetailsForm({ member, departments, onClose }: {
       </label>
       <label className="grid gap-1.5 text-sm">Отдел
         <select className={inputCls} name="department_id" value={departmentId} aria-invalid={archivedNewSelection || undefined}
+          aria-describedby={departmentChanged ? departmentWarningId : undefined}
           onChange={(event) => setDepartmentId(event.target.value)}>
           <option value="">Без отдела</option>
           {departments.filter((department) => department.status === "active" || department.id === initial.departmentId || department.id === departmentId)
@@ -77,6 +91,9 @@ function OrganizationalDetailsForm({ member, departments, onClose }: {
             </option>)}
         </select>
       </label>
+      {departmentChanged ? <p id={departmentWarningId} role="note" aria-live="polite" className="text-sm leading-6 text-fg-2">
+        После сохранения доступные записи будут пересчитаны с учётом нового отдела. Назначенные роли не изменятся.
+      </p> : null}
       {selectedDepartment?.status === "archived" ? <p role={archivedNewSelection ? "alert" : undefined} className="text-sm leading-6 text-fg-3">
         {archivedNewSelection ? "Выбранный отдел перенесён в архив. Выберите действующий отдел или вариант «Без отдела»."
           : "Отдел в архиве. Можно сохранить текущую связь или выбрать действующий отдел."}
@@ -135,7 +152,7 @@ export function StaffMemberDetails({ member, access, departments, children }: {
         <h4 className="text-md font-semibold">Рабочие сведения</h4>
         {!editing ? <button ref={editButton} type="button" className={btnGhostCls} onClick={() => setEditing(true)}>Редактировать</button> : null}
       </div>
-      <p className="text-sm leading-6 text-fg-3">Должность, отдел и направления помогают распределять работу. Права задаются в разделе «Доступ».</p>
+      <p className="text-sm leading-6 text-fg-3">Должность не даёт прав доступа. Назначения ролей меняются в разделе «Доступ».</p>
       {editing ? <OrganizationalDetailsForm member={member} departments={departments} onClose={closeEditor} />
         : <dl className="grid gap-4 text-sm">
           <div><dt className="text-fg-3">Должность</dt><dd className="mt-1 break-words leading-6">{member.metadata.jobTitle || "Не указана"}</dd></div>

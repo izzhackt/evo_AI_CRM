@@ -1358,7 +1358,9 @@ echo "Validating the active Supabase-only foundation without the retired Drizzle
 if [[ "$staff_onboarding_only" == "1" ]]; then
   start_app configured unavailable blocked provider-not-authorized disabled
   provision_local_staff onboarding-proof
+  supabase_staff_auth_browser_assert configured 'all three real identities|Admin department changes'
   assert_no_secret_or_payload_logs
+  echo "LOCAL_SCOPED_STAFF_BASELINE_VERIFIED"
   echo "LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED"
   exit 0
 fi

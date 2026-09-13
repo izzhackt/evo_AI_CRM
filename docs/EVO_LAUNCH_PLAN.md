@@ -55,6 +55,17 @@ technical CI. The latest release checkpoint is
 
 S2 is merged in [PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) as
 `0f80ced1`, but the application release remains pending.
+PR748 is also merged as ce404b87. Its full CI34757193916 passed the scoped-staff
+invitation/editor/business proof, then failed old staff baseline expectations.
+The follow-up reconciles those assertions with the published scoped permissions
+and adds the missing department-transfer warning; it does not widen access.
+Automatic release34757536480 was skipped and arm=false was read back. No app
+replacement occurred. This checkpoint supersedes the older diagnostics below;
+the exact full proof, release, tunnel check and real employee onboarding remain open.
+The follow-up bounded local run passed all four scoped-staff markers and the two
+real login/dashboard + department/title-only browser tests (9.5s browser phase;
+receipt01a09ad834dd73328cab5a736792edc0). Focused checks passed46+9. This closes
+the local baseline mismatch, not the full release gate or real employee acceptance.
 Migrations155–157, editable roles/scoped assignments and prepared invitations are
 implemented; the full expanded local onboarding/business proof passed on `451944cd`.
 

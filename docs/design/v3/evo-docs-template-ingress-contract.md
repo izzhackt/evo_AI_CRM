@@ -117,3 +117,71 @@ helper retries implicitly), [service-key RLS bypass](https://supabase.com/docs/g
 [PostgreSQL lock order/deadlocks](https://www.postgresql.org/docs/current/explicit-locking.html),
 [OCI ImageID/config digest](https://github.com/opencontainers/image-spec/blob/main/config.md#imageid).
 These references explain the contract, not proof of a running ingress.
+
+## Implemented server checkpoint — actual combined proof pending
+
+The handler captures at most20MiB/4096 chunks and permits one byte-processing
+operation per process, with no internal queue. Overall upload lifetime is100s;
+body25s, Storage upload20s/readback15s and each RPC10s have tighter limits.
+Native/ClamAV retain their own existing bounds. Abort races terminate the caller
+even if an external operation ignores cancellation; no next phase starts after
+abort. Claim120s and single-use source grant60s are independently DB-fenced.
+Status/cancel do not occupy the byte slot or require inspector configuration.
+GET read and explicit reconcile reuse existing sealed proof, never re-inspect or
+upload. A lost completion response requires status/reconciliation, not a second
+automatic write. Cancelled/failed orphan objects stay private and are not deleted
+by these request handlers; any future cleanup requires its own authorized scope.
+
+The source catalog revision is a bounded revision label, not a SHA. The SQL
+`p_inspector_revision`/165 field is the fixed native policy version; the separate
+`p_runtime_revision` is the verified40-hex release revision. Docker image identity
+retains the exact prefixed engine ID. No caller-supplied proof reaches the seal.
+
+`npm run configure:university-template-storage` prints an offline plan without
+reading credentials; `-- --check` performs only a fixed-project bucket read.
+`-- --apply` is an independently authorized one-shot create of an absent private
+PDF/DOCX20MiB bucket, never an update/policy/object mutation. No managed check or
+apply ran here. New opaque secret keys use only `apikey`, while legacy service
+JWTs also use Authorization ([official key behavior](https://supabase.com/docs/guides/getting-started/api-keys)).
+Only object-specific NoSuchKey indicates missing bytes; generic404/bucket/access
+failures remain unavailable ([Storage errors](https://supabase.com/docs/guides/storage/debugging/error-codes)).
+
+Actual scoped parser/transport/method/manifest tests100/100 and strict server
+TypeScript/lint passed (`01a09d0ddbe777e3953f19eb5cf1cf78`). HTTP success envelopes in
+tests are explicitly transport fixtures, not service/native evidence. Corrected
+DOCX SQL regression went RED (`01a09d0cf04379a1975c7671268bbfec`) then contiguous
+001–166 GREEN (`01a09d0ddc877af0aa8831ae73769755`), with owned container cleanup.
+Inventory: CI332 occurrences/193 unique/139 duplicates; unit230/188/42. These
+checks do not prove actual ingress, full D4, provider, UI or production readiness.
+## Bounded integrated acceptance transport (pre-execution)
+
+Independent HTTP review corrected cancellation accounting: an aborted response
+does not release the single byte-operation lease while a started ClamAV/native
+promise remains unsettled. The actual deferred-negative-scanner regression was
+RED (`01a09d15ae3e74d1a39782abf5734434`) then21/21 route checks GREEN with lint
+(`01a09d15f3c779528b7914c12e118718`); it makes no successful inspection claim.
+
+`--university-template-ingress-only` reuses the foundation harness's one local
+Supabase/Auth/ClamAV stack. The browser talks only to the exact production image
+published at `127.0.0.1:<owned-port>`; it does not execute ingress on host Next dev.
+The application container joins the already inspected run-owned Supabase bridge.
+A bounded, acceptance-only Node bootstrap forwards its loopback port8000 to the
+exact run-owned Kong container port8000, with no caller-selected destination.
+The existing scanner joins that same bridge and is addressed by its validated
+owned name/3310. Production Supabase URL validation remains unchanged: the app
+receives `http://127.0.0.1:8000`, never an arbitrary insecure network hostname.
+
+Image identity comes only from actual Docker inspection of the frozen production
+image; native architecture, OCI revision, acceptance-parent/runtime equivalence,
+actual application `.Image`, exact revision/image environment uniqueness and
+loopback port binding are mandatory readbacks. Only non-secret identity may be
+placed in Docker configuration; local credentials enter once over bounded stdin
+and remain in process memory. No provider credentials are allowed. The immutable
+production filesystem stays untouched; only bounded `/tmp` and Next cache mounts
+are writable. The common cleanup owns only the exact app/scanner/local-project
+resources and verifies absence before publishing the receipt. Preparing this
+harness is not execution or fullD4/business acceptance.
+
+Primary transport references: [Docker bridge DNS and network isolation](https://docs.docker.com/engine/network/drivers/bridge/),
+[explicit loopback port publishing](https://docs.docker.com/engine/network/port-publishing/),
+and [Node TCP servers and clients](https://nodejs.org/docs/latest-v22.x/api/net.html).

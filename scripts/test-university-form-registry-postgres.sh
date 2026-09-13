@@ -11,7 +11,9 @@ preflight() {
  fi
 }
 preflight
-postgres_image="$(bash scripts/resolve-postgres-test-image.sh)"
+docker_safe() { preflight; command docker "$@"; }
+export -f preflight docker_safe
+postgres_image="$(DOCKER_BIN=docker_safe bash scripts/resolve-postgres-test-image.sh)"
 container_name="evo-form-registry-proof-${RANDOM}-$$"
 container_created=false
 stage='owned isolated database'
@@ -60,17 +62,18 @@ while IFS= read -r migration; do
  filename="${migration##*/}"
  number="${filename%%_*}"
  [[ "$number" =~ ^[0-9]{3}$ ]] || { echo 'Unexpected migration filename' >&2; exit 1; }
- # Deliberately scoped001–161+164+165. Root owns contiguous162/163 integration.
- if (( 10#$number > 161 )); then continue; fi
+ # The integrated ingress proof requires the complete current baseline.
+ if (( 10#$number > 165 )); then continue; fi
+ [[ $((10#$number)) -eq $((last+1)) ]] || { echo 'Noncontiguous migration baseline' >&2; exit 1; }
  stage="$migration"
  psql_proof -f "/workspace/$migration" >/dev/null
  last=$((10#$number))
 done < <(rg --files supabase/migrations | LC_ALL=C sort)
-[[ "$last" -eq 161 ]] || { echo 'Missing161 baseline' >&2; exit 1; }
-stage='migration164 immutable artifact prerequisite'
-psql_proof -f /workspace/supabase/migrations/164_platform_document_export_artifacts.sql >/dev/null
-stage='migration165 registry'
-psql_proof -f /workspace/supabase/migrations/165_platform_university_form_registry.sql >/dev/null
+[[ "$last" -eq 165 ]] || { echo 'Missing165 baseline' >&2; exit 1; }
 stage='synthetic registry command behavior'
 psql_proof -f /workspace/supabase/tests/university_form_registry.sql
-echo 'UNIVERSITY_FORM_REGISTRY_SQL_VERIFIED_GAPPED_001_161_164_165'
+stage='migration166 ingress and passive PDF semantics'
+psql_proof -f /workspace/supabase/migrations/166_platform_university_form_ingress.sql >/dev/null
+stage='synthetic ingress command behavior'
+psql_proof -f /workspace/supabase/tests/university_form_ingress.sql
+echo 'UNIVERSITY_FORM_INGRESS_SQL_VERIFIED_CONTIGUOUS_001_166'

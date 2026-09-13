@@ -24573,3 +24573,89 @@ The canonical synthetic fingerprint vector is pinned in the test at
 This is module evidence only: no Auth/DB/provider/browser execution, migration,
 runtime change, recognition workflow completion or release is claimed. Independent
 review and later full D3 hooks/gates remain required; main stays frozen.
+
+## 2026-09-13 — D3 provider transport after the failed combined release
+
+Full CI34766012215 on c6669ff1 ended in the calendar visibility-control timeout;
+release34766594252 was skipped and the release arm is verified false. This is
+not the earlier504. A separate branch fixes the obsolete browser expectation
+without widening staff permissions. Production remains77cde9ba; schema001–161
+is already applied and reconciled. The first D3 pure contract is pushed in
+draft PR756 at05b6a036, not merged or exposed as a completed workflow.
+
+Continue on isolated izzhackt/evo-docs-gemini, based on that exact pure contract.
+Implement the actual server-only Gemini adapter and strict explicit configuration
+in src/lib/server/gemini-document-recognition.ts plus focused boundary tests.
+No default model/project/budget/paid eligibility: a missing approved configuration
+must remain unavailable. This code does not enable a provider, change current
+reply behavior, read client files, issue network calls at import, or claim that
+the durable queue/UI or real acceptance exists.
+
+Use the pinned SDK2.16.0 Files API with the exact caller-persisted attempt name
+and attempts1. Generation uses fixed-origin REST with store:false and
+generationConfig.responseFormat.text JSON schema. One dispatch only; transport
+loss is unknown, never an automatic paid retry. Validate exact provider file
+name/hash/bytes/MIME/state before use; a GET404 is a factual not-found observation,
+not authority to declare cleanup complete after ambiguous upload. Bounded output,
+fixed errors and no raw provider/credential text in public errors or logs.
+
+The future SQL/worker owns durable dispatch intent, live case permissions,
+atomic reservations, leases, retry identity and confirmed cleanup. Transport
+requires a caller-bound configuration and exact source descriptor; it cannot
+substitute for those gates. Ordinary synthetic boundary/unit checks may exercise
+actual serialization and parsing without paid provider calls; these are not
+provider acceptance. Current official Files, generateContent and terms pages
+were re-read2026-09-13; their links remain in the D3 contract.
+
+Before extending transport: bind a countTokens preflight to the exact serialized
+generation request (model/body hash), reject counts above the configured input
+ceiling and require that receipt at generate. Worker persists this preflight
+before its generation intent; no in-memory permit or hidden second generation.
+Count failures do not authorize dispatch. Token estimates are not a promise of
+exact billing: retain conservative model/pricing ceilings and actual usage in the
+durable budget ledger. Official request supports generateContentRequest including
+system instructions: https://ai.google.dev/api/tokens (re-read2026-09-13).
+
+Transport continuation, before implementation: countTokens uses the same fixed
+REST origin with only `generateContentRequest: {model, ...generationBody}`;
+pinned SDK2.16.0's Developer API converter rejects systemInstruction and
+generationConfig, so its contents-only count is not the required full preflight.
+The serializable receipt is exactly `{model,request_sha256,config_sha256,input_tokens}`.
+Request SHA-256 binds UTF-8 `models/<model>\n<exact generation JSON>`; config SHA-256
+binds the validated flat config with sorted keys. Generate rebuilds both hashes,
+validates the receipt and ceiling, and dispatches once only with a matching
+receipt. Unknown/malformed count, provider rejection and input-limit excess do
+not produce a receipt. This is durable-ledger input, not a one-use memory permit
+or evidence of paid eligibility/reserved funds. The future worker must store it
+before its generation intent and own replay/lease enforcement.
+
+Wire the two D3 module tests into the existing `test:student-profile-fields`
+entry, which the actual unit/CI Node manifest already expands; no dependency,
+runner or unrelated manifest changes. Boundary injection remains synthetic
+unit evidence, never real Gemini or customer-document acceptance.
+
+CI wiring follow-through, before its test edit: the existing
+`tests/ci-node-test-suite.test.mjs` pins occurrence/unique/group counts. Adding
+the two D3 files increases only those counts by two. Update those exact expected
+counts and explicitly assert both paths in unit and CI resolution; preserve the
+runner's duplicate, flags, concurrency and missing-file guards unchanged.
+
+Transport slice outcome: the server-only adapter now supports exact bound Files
+upload/GET/DELETE observations, explicit configuration/cost ceilings, full-request
+REST countTokens and one receipt-bound REST generation. It does not run at import
+or enable D3. Initial focused RED preserved11 existing tests and failed the two
+new count/receipt requirements (01a09b881bee72b19a288492d5d9e9ef). The completed
+pure+transport suite passes28 tests (01a09b89722275c083d3da00b951942f).
+Actual `npm run test:student-profile-fields` passes91+12 tests with zero skips,
+and the real CI manifest contains both D3 paths exactly once
+(01a09b8adf397fa197ea572ee3cac361). Manifest regression passes6 tests after its
+expected +2 update (01a09b8a7b307301818ba6a95ce02ef4); scoped TypeScript
+(01a09b89a4e57e409dc2429c41647c7e), ESLint and diff-check pass.
+
+These are ordinary synthetic module/serialization checks using an injected
+transport boundary, not live provider/Auth/DB/browser/customer acceptance.
+Independent review is still required before integrating this candidate. The
+SQL queue/reservations, worker/leases, exact Storage/PDF preflight, routes/UI,
+paid-project eligibility and authorized real-file generation/cleanup are still
+mandatory remaining work. No provider, migration, production, release-arm or
+real-user state was changed by this isolated slice.

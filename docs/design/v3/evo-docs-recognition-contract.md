@@ -174,3 +174,34 @@ identity и версией контракта; UUID/hash lowercase, числа s
 registry/readiness tests —27 PASS, scoped TypeScript/ESLint PASS на Node22.23.1.
 Перед merge требуется независимое review. Очередь, SQL, файлы, Gemini, UI и
 реальные gates по-прежнему не реализованы/не пройдены этим модульным результатом.
+
+## Следующий срез исполнения: транспорт
+
+Первый модуль сохранён в draft PR756. Отдельная ветка `izzhackt/evo-docs-gemini`
+добавляет server-only adapter и явную конфигурацию без активации провайдера.
+Generation — один fixed-origin REST запрос; Files — pinned SDK с attempts1,
+точным заранее сохранённым resource name и проверкой metadata. Сбой ответа не
+повторяет платный вызов. GET404 возвращается как наблюдение, не как готовый cleanup.
+Для реального запуска всё ещё нужны SQL/worker с живыми правами, резервированием
+бюджета, durable intent/lease и подтверждённым paid project, затем отдельная
+приёмка разрешённого файла. Сам транспорт эти условия не подтверждает.
+Перед generation считать input через [countTokens](https://ai.google.dev/api/tokens)
+с полным generateContentRequest, связать receipt с hash модели/body и сохранить
+его в worker ledger. Превышение input ceiling или неизвестный count блокируют
+generation. Это оценка входа, не обещание точного финального списания.
+Receipt: ровно `{model,request_sha256,config_sha256,input_tokens}`; request hash —
+SHA-256 UTF-8 `models/<model>\n<точный JSON generation body>`, config hash — SHA-256
+JSON проверенных настроек с отсортированными ключами. Generate заново сверяет оба
+hash и потолок; receipt переносится через JSON/ledger, не является in-memory permit.
+Count REST получает только `generateContentRequest:{model,...body}`: pinned SDK2.16.0
+не поддерживает эти Developer API steering fields. Неизвестный/невалидный count,
+отказ и превышение лимита не выдают receipt. Будущий worker сохраняет результат
+до durable generation intent; транспорт не заменяет lease/budget/paid-project gates.
+
+Результат транспортного среза: [adapter](../../../src/lib/server/gemini-document-recognition.ts)
+и [17 boundary tests](../../../tests/gemini-document-recognition.test.mjs) реализованы;
+с первым pure-модулем28 PASS, обычный `test:student-profile-fields` —91+12 PASS,
+manifest regression6 PASS, scoped TypeScript/ESLint PASS. Оба D3 test-файла входят
+в настоящий Node CI manifest. Ответы в этих проверках синтетические: реальный Gemini
+не вызывался, платный проект/доставка/очистка не подтверждены. Далее обязательны
+независимое review, queue/worker/Storage/PDF/HTTP/UI и отдельная реальная приёмка.

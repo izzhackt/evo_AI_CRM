@@ -1,7 +1,7 @@
 # D4 — университетские формы и пакеты документов
 
 Дата: 2026-09-13. Контракт D4, не готовность всего блока; номера миграций выделяет root.
-На отдельной ветке локально реализованы mapping/DOCX/PDF-модули ниже; формы, пакеты и их
+На отдельных ветках локально реализованы mapping/DOCX/PDF и pure package-модули ниже; формы, пакеты и их
 production/клиентская приёмка пока не готовы.
 База ответвления: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS.
 Этот локальный срез не подтверждает итоговый выпуск и не меняет frozen release candidate.
@@ -229,9 +229,52 @@ draft на обеих страницах, ручные разделы неизм
 outlines. Точные receipts — [PLAN_CHANGES](../../PLAN_CHANGES.md).
 
 Публичный export не подключён. DOCX CJK/layout gate **не исправлен** новым PDF-шрифтом.
-Изоляция, полная проверка исходных шаблонов/layout, package engine, immutable history/
+Изоляция, полная проверка исходных шаблонов/layout, интеграция package engine, immutable history/
 Storage/reconciliation, schema/UI и разрешённая реальная приёмка остаются открыты.
 API/лицензии: [pdf-lib1.17.1 MIT](https://github.com/Hopding/pdf-lib/blob/v1.17.1/LICENSE.md),
 [fontkit1.1.1 MIT](https://github.com/Hopding/fontkit),
 [registerFontkit](https://pdf-lib.js.org/docs/api/classes/pdfdocument#registerfontkit),
 [LoadOptions](https://pdf-lib.js.org/docs/api/interfaces/loadoptions).
+
+## Третий локальный срез: чистый package engine
+
+Sibling `izzhackt/evo-docs-package-engine` от exact9811b3c; PDF-кандидат не меняется.
+`resolveDocumentPackage(snapshot, expectedRevision)` проверяет immutable selection/
+rules/reviews/current pointers; `contentReady` не является live authorization.
+`buildDocumentPackageZip(resolution, sourceBuffers, {mode})` возвращает ZIP/manifest/
+hashes, без I/O, регенерации форм, Auth/SQL/Storage. D2 transient export attempt ещё
+не заменяет будущий persisted artifact с ready receipt.
+
+Максимум40 assets +2 metadata entries; document_version≤25MiB,
+university_form_export/student_profile_export≤20MiB, источники суммарно≤64MiB,
+manifest≤64KiB UTF-8, ZIP≤65MiB. STORE сохраняет каждый оригинал byte-exact,
+не распаковывает DOCX/вложенные архивы. Пути только по neutral IDs, фиксированные
+даты/права/порядок; без исходных личных имён файлов и значений анкеты.
+Exact source/parent document/version/SHA, rules version/hash и review tuple обязательны;
+review хранит полный nullable parent tuple, receipt — exact exportId/artifactSha256.
+Изменившийся source/parent pointer инвалидирует проверку даже при одинаковом SHA.
+Сгенерированный файл связывается с receipt/input SHA, profile/field-review digest,
+template и (для формы) mapping/review/catalog IDs; текущий input digest должен совпасть.
+Все выбранные файлы и обязательные slots должны пройти проверку для final.
+Draft исключает unsafe/stale/unreviewed/unavailable bytes с точными omission codes;
+metadata-only draft явно остаётся contentReady=false. Draft-артефакт входит только
+в draft ZIP. Mode/order/renderer version входят в input hash.
+Проверка — реальные синтетические ZIP/оригиналы, изменённые версии/правила/parent,
+неполный draft, точные manifest/bytes/hash и детерминизм; не mock persistence.
+Изоляция, Storage/history/reconciliation, live per-asset права, UI и реальная приёмка
+остаются обязательными последующими слоями, не объявляются существующими здесь.
+
+Локально реализованы [правила](../../../src/lib/document-package.ts) и
+[ZIP builder](../../../src/lib/server/document-package.ts). 22 package +52 renderer
+checks PASS,22 CI/classifier checks PASS, scoped lint/strict TypeScript PASS.
+`test:document-packages` входит в реальные CI/UNIT entrypoints; validate-only
+CI168/UNIT163 — не исполнение полного CI. Проверены byte-exact PDF/вложенный DOCX,
+draft omissions, parent/export binding, лимиты и одинаковый ZIP в3 timezone.
+На40 сложных records manifest может достичь своего независимого64KiB лимита раньше
+лимита количества. Snapshot/receipt provenance, scanner/layout и live authorization
+проверяет будущий внешний слой; `available`/`ready` здесь не создают таких доказательств.
+Primary API: [PizZip file data](https://open-xml-templating.github.io/pizzip/documentation/api_pizzip/file_data.html)
+(входной buffer сохраняется по ссылке — builder копирует его),
+[generate](https://open-xml-templating.github.io/pizzip/documentation/api_pizzip/generate.html)
+(STORE/platform); существующая зависимость PizZip3.2.0, без новых packages.
+Точные scoped receipts — [PLAN_CHANGES](../../PLAN_CHANGES.md).

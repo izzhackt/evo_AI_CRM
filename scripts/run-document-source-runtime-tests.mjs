@@ -7,13 +7,17 @@ function command(file, args, capture = false) {
   if (result.error || result.status !== 0) throw new Error(`Source runtime check failed: ${file}`);
   return result.stdout?.trim();
 }
-if (process.platform === "darwin") {
-  if (command("orb", ["status"], true) !== "Running" || command("docker", ["context", "show"], true) !== "orbstack") {
-    throw new Error("OrbStack Running/orbstack is required; no alternative engine is permitted");
+function preflight() {
+  if (process.platform === "darwin") {
+    if (command("orb", ["status"], true) !== "Running" || command("docker", ["context", "show"], true) !== "orbstack") {
+      throw new Error("OrbStack Running/orbstack is required; no alternative engine is permitted");
+    }
   }
 }
 const image = "evo-document-source-runtime:isolated-proof";
+preflight();
 command("docker", ["build", "--target", "document-source-runtime-test", "-t", image, "."]);
+preflight();
 command("docker", ["run", "--rm", "--init", "--network", "none", "--read-only", "--cap-drop", "ALL",
   "--security-opt", "no-new-privileges", "--pids-limit", "128", "--memory", "3g",
   "--tmpfs", "/tmp:rw,noexec,nosuid,size=256m,mode=1777", image]);

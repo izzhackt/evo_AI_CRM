@@ -14,9 +14,11 @@ FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca440
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev linux-libc-dev \
   && rm -rf /var/lib/apt/lists/*
 COPY scripts/document-source/launcher.c /build/launcher.c
+COPY scripts/document-source/seal.c scripts/document-source/seal-policy.h /build/
 RUN mkdir -p /out/runtime /out/proof \
+  && gcc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -shared -I/usr/local/include/node -Wl,-z,relro,-z,now /build/seal.c -o /out/runtime/seal.node \
   && gcc -std=c11 -O2 -Wall -Wextra -Werror -Wl,-z,relro,-z,now /build/launcher.c -o /out/runtime/launcher \
-  && gcc -std=c11 -O2 -Wall -Wextra -Werror -DEVO_DOCUMENT_TEST -Wl,-z,relro,-z,now /build/launcher.c -o /out/proof/launcher.test
+  && gcc -std=c11 -O2 -Wall -Wextra -Werror -pthread -DEVO_DOCUMENT_TEST -Wl,-z,relro,-z,now /build/launcher.c -o /out/proof/launcher.test
 
 FROM deps AS document-source-assets
 COPY scripts/document-source ./scripts/document-source
@@ -25,7 +27,7 @@ RUN node scripts/document-source/build.mjs /out
 
 # Narrow real-runtime test target; no Next build, app configuration or credentials.
 FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS document-source-runtime
-COPY --from=document-source-native --chown=0:0 --chmod=0555 /out/runtime/launcher /opt/evo-document-runtime/launcher
+COPY --from=document-source-native --chown=0:0 --chmod=0555 /out/runtime/ /opt/evo-document-runtime/
 COPY --from=document-source-assets --chown=0:0 /out/runtime/ /opt/evo-document-runtime/
 USER 1001:1001
 CMD ["/opt/evo-document-runtime/launcher"]

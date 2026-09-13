@@ -58,6 +58,11 @@ Root approves the bounded [isolated source runtime](design/v3/document-source-ru
 from reviewed D4 `ae52a316`: fixed Linux source inspector, `document-source-v1`,
 real OS isolation/resource bounds and synthetic Linux proof only. It does not
 activate recognition, grant file access or complete D3/provider acceptance.
+Independent runtime review found signal-ownership and worker-thread re-exec gaps.
+The source-runtime contract now requires command-limited `fcntl` and mandatory
+native TSYNC sealing before document parser loading; both real regressions and
+production bootstrap proof are required before integration. Earlier ARM64 proof
+does not establish these missing invariants or native AMD64 readiness.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

@@ -102,6 +102,14 @@ static void syscall_policy(void) {
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_clone3, 0, 1),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | ENOSYS),
+    /* Bootstrap may only add a synchronized filter; it can never relax this one. */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_seccomp, 0, 6),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SECCOMP_SET_MODE_FILTER, 0, 3),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[1])),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SECCOMP_FILTER_FLAG_TSYNC, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_clone, 0, 8),
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
     BPF_STMT(BPF_ALU | BPF_AND | BPF_K, ~thread_flags),
@@ -109,6 +117,25 @@ static void syscall_policy(void) {
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
     BPF_STMT(BPF_ALU | BPF_AND | BPF_K, CLONE_VM | CLONE_THREAD),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, CLONE_VM | CLONE_THREAD, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+    /* fcntl ownership/notification operations signal other same-UID processes.
+     * Permit only libuv's descriptor operations and bounded safe status flags. */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_fcntl, 0, 16),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[1])),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, F_GETFD, 12, 0),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, F_GETFL, 11, 0),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, F_DUPFD_CLOEXEC, 10, 0),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, F_SETFD, 0, 4),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[2])),
+    BPF_STMT(BPF_ALU | BPF_AND | BPF_K, ~FD_CLOEXEC),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 6, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, F_SETFL, 0, 5),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[2])),
+    BPF_STMT(BPF_ALU | BPF_AND | BPF_K, ~(O_ACCMODE | O_NONBLOCK | O_APPEND | O_LARGEFILE)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_prctl, 0, 4),
@@ -139,7 +166,7 @@ static void syscall_policy(void) {
     ALLOW(sched_yield), ALLOW(sched_getaffinity), ALLOW(getcpu),
     ALLOW(clock_gettime), ALLOW(gettimeofday), ALLOW(times), ALLOW(nanosleep), ALLOW(clock_nanosleep),
     ALLOW(epoll_create1), ALLOW(epoll_ctl), ALLOW(epoll_pwait), ALLOW(eventfd2), ALLOW(pipe2),
-    ALLOW(getrandom), ALLOW(fcntl), ALLOW(dup), ALLOW(dup3),
+    ALLOW(getrandom), ALLOW(dup), ALLOW(dup3),
     ALLOW(openat), ALLOW(faccessat), ALLOW(faccessat2), ALLOW(readlinkat), ALLOW(getcwd),
     ALLOW(getdents64), ALLOW(uname), ALLOW(getpid), ALLOW(getppid), ALLOW(gettid),
     ALLOW(getuid), ALLOW(geteuid), ALLOW(getgid), ALLOW(getegid), ALLOW(getgroups),
@@ -158,7 +185,60 @@ static void syscall_policy(void) {
 /* Compiled only into the separately named diagnostic binary in the test image. */
 #include <sys/socket.h>
 #include <sys/mman.h>
+#include <pthread.h>
+#include "seal-policy.h"
+static volatile sig_atomic_t received_signals;
+static void received_signal(int signal) { (void)signal; received_signals++; }
+static void deny_seal_installation(void) {
+  // Real kernel denial makes the actual production addon initialization fail.
+  // This negative control exists only in launcher.test, never the production app.
+  struct sock_filter filter[] = {
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_seccomp, 0, 1),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+  };
+  const struct sock_fprog program = {.len = sizeof(filter) / sizeof(filter[0]), .filter = filter};
+  if (syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, &program)) stop_child();
+}
+static void *thread_reexec(void *unused) {
+  (void)unused;
+  char *const arguments[] = {"/usr/local/bin/node", "--max-old-space-size=256", "--disable-wasm-trap-handler",
+    "--v8-pool-size=1", "-e", "process.title='evo-reexec';setInterval(()=>{},1000)", NULL};
+  char *const environment[] = {"UV_THREADPOOL_SIZE=1", "MALLOC_ARENA_MAX=2", NULL};
+  execve(arguments[0], arguments, environment);
+  if (errno != EPERM) stop_child();
+  return NULL;
+}
 static void diagnostic(const char *name) {
+  if (!strcmp(name, "async-signals")) {
+    int pipes[2];
+    if (pipe2(pipes, O_NONBLOCK | O_CLOEXEC)) stop_child();
+    int owner = fcntl(pipes[0], F_SETOWN, getppid());
+    int signal = fcntl(pipes[0], F_SETSIG, SIGUSR1);
+    int async = fcntl(pipes[0], F_SETFL, O_NONBLOCK | O_ASYNC);
+    struct f_owner_ex owner_arg = {.type = F_OWNER_PID, .pid = getppid()};
+    if (fcntl(pipes[0], F_SETOWN_EX, &owner_arg) != -1 || errno != EPERM
+        || fcntl(pipes[0], F_NOTIFY, DN_ACCESS) != -1 || errno != EPERM
+        || fcntl(pipes[0], F_SETFD, ~FD_CLOEXEC) != -1 || errno != EPERM) stop_child();
+    if (fcntl(pipes[0], F_GETFD) < 0 || fcntl(pipes[0], F_SETFD, FD_CLOEXEC) < 0
+        || fcntl(pipes[0], F_GETFL) < 0 || fcntl(pipes[0], F_SETFL, O_NONBLOCK) < 0) stop_child();
+    int duplicate = fcntl(pipes[0], F_DUPFD_CLOEXEC, 3);
+    if (duplicate < 0) stop_child();
+    close(duplicate);
+    if (write(pipes[1], "x", 1) != 1) stop_child();
+    struct timespec delay = {.tv_nsec = 100000000}; nanosleep(&delay, NULL);
+    char report[160];
+    int size = snprintf(report, sizeof(report), "{\"ownerDenied\":%s,\"signalDenied\":%s,\"asyncDenied\":%s}",
+      owner == -1 ? "true" : "false", signal == -1 ? "true" : "false", async == -1 ? "true" : "false");
+    write(1, report, size); _exit(0);
+  }
+  if (!strcmp(name, "thread-reexec")) {
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_reexec, NULL) || pthread_join(thread, NULL)) stop_child();
+    if (prctl(PR_SET_NAME, "evo-exec-denied", 0, 0, 0)) stop_child();
+    struct timespec delay = {.tv_sec = 60}; for (;;) nanosleep(&delay, NULL);
+  }
   if (!strcmp(name, "policy")) {
     int network = socket(AF_INET, SOCK_STREAM, 0);
     int unix_network = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -200,12 +280,17 @@ static void child(int output_fd, pid_t supervisor, const char *test_mode) {
   limit(RLIMIT_AS, AS_LIMIT); limit(RLIMIT_CPU, 10); limit(RLIMIT_CORE, 0); limit(RLIMIT_NOFILE, 64);
   filesystem_policy(); syscall_policy();
 #ifdef EVO_DOCUMENT_TEST
-  if (test_mode) diagnostic(test_mode);
+  if (test_mode && !strcmp(test_mode, "seal-unavailable")) deny_seal_installation();
+  else if (test_mode && strcmp(test_mode, "missing-addon")) { seal_execution(); diagnostic(test_mode); }
 #else
   (void)test_mode;
 #endif
+  const char *entry = RUNTIME "/bootstrap.mjs";
+#ifdef EVO_DOCUMENT_TEST
+  if (test_mode && !strcmp(test_mode, "missing-addon")) entry = RUNTIME "/missing-addon/bootstrap.mjs";
+#endif
   char *const argv[] = {"/usr/local/bin/node", "--max-old-space-size=256", "--disable-wasm-trap-handler",
-    "--v8-pool-size=1", RUNTIME "/inspect.mjs", NULL};
+    "--v8-pool-size=1", (char *)entry, NULL};
   char *const env[] = {"LANG=C.UTF-8", "TZ=UTC", "UV_THREADPOOL_SIZE=1", "MALLOC_ARENA_MAX=2", NULL};
   execve(argv[0], argv, env);
   stop_child();
@@ -216,6 +301,7 @@ int main(int argc, char **argv) {
 #ifdef EVO_DOCUMENT_TEST
   if (argc == 2) test_mode = argv[1];
   else if (argc != 1) return 64;
+  if (test_mode && !strcmp(test_mode, "async-signals")) signal(SIGUSR1, received_signal);
   /* A high pre-opened descriptor demonstrates that child cleanup is real. */
   int inherited = open("/tmp/evo-document-outside", O_RDONLY);
   if (inherited >= 0) { if (dup2(inherited, 63) < 0) return 71; close(inherited); }
@@ -254,6 +340,11 @@ int main(int argc, char **argv) {
   if (!done) { kill(pid, SIGKILL); while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {} }
   close(descriptors[0]);
 #ifdef EVO_DOCUMENT_TEST
+  if (test_mode && !strcmp(test_mode, "async-signals") && WIFEXITED(status) && !WEXITSTATUS(status)) {
+    char report[MAX_OUTPUT + 80];
+    int size = snprintf(report, sizeof(report), "{\"probe\":%.*s,\"receivedSignals\":%d}\n", (int)count, output, received_signals);
+    return write(1, report, size) < 0 ? 74 : 0;
+  }
   if (test_mode && (!strcmp(test_mode, "cpu") || !strcmp(test_mode, "wall"))) {
     struct rusage usage;
     if (getrusage(RUSAGE_CHILDREN, &usage)) return 71;

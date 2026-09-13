@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawn, execFileSync } from "node:child_process";
-import { readFile, writeFile, mkdtemp, rm, access, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp, rm, access, stat, readdir } from "node:fs/promises";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { inspectDocumentSource } from "./adapter.mjs";
@@ -29,9 +29,49 @@ async function run(binary, args = [], input = null, env = {}) {
 function wire(bytes, mimeType) { return Buffer.concat([Buffer.from(`${JSON.stringify({ byteLength: bytes.length, expectedSha256: sha(bytes), mimeType })}\n`), bytes]); }
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+test("fcntl async pipe cannot deliver signals to its same-UID supervisor", async () => {
+  const result = await run(diagnostic, ["async-signals"]);
+  assert.equal(result.code, 0);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    probe: { ownerDenied: true, signalDenied: true, asyncDenied: true }, receivedSignals: 0,
+  });
+});
+
+test("worker-thread re-exec is denied and supervisor death leaves no inspector", async () => {
+  const supervisor = spawn(diagnostic, ["thread-reexec"], { env: {}, stdio: ["pipe", "ignore", "ignore"] });
+  const closed = new Promise(resolve => supervisor.once("close", resolve));
+  let inspector = "", phase = "";
+  try {
+    for (let count = 0; count < 200; count++) {
+      if (!inspector) {
+        try { inspector = (await readFile(`/proc/${supervisor.pid}/task/${supervisor.pid}/children`, "utf8")).trim(); } catch {}
+      }
+      if (/^\d+$/.test(inspector)) {
+        try { phase = (await readFile(`/proc/${inspector}/comm`, "utf8")).trim(); } catch {}
+      }
+      if (phase === "evo-exec-denied" || phase === "evo-reexec") break;
+      await wait(10);
+    }
+    assert.match(inspector, /^\d+$/);
+    supervisor.kill("SIGKILL"); await closed;
+    let gone = false;
+    for (let count = 0; count < 100; count++) {
+      try { await access(`/proc/${inspector}`); } catch { gone = true; break; }
+      await wait(10);
+    }
+    assert.deepEqual({ phase, gone }, { phase: "evo-exec-denied", gone: true });
+  } finally {
+    supervisor.kill("SIGKILL"); await closed;
+    // Only the recorded child of this owned synthetic supervisor may need cleanup
+    // when demonstrating the vulnerable baseline. Never target another process.
+    if (/^\d+$/.test(inspector)) { try { process.kill(Number(inspector), "SIGKILL"); } catch {} }
+  }
+});
+
 test("real image context, fixed production entrypoint and actual Landlock/seccomp/limits", async () => {
   assert.equal(process.platform, "linux"); assert.equal(process.version, "v22.23.1"); assert.equal(process.getuid(), 1001);
-  for (const path of [launcher, "/opt/evo-document-runtime/inspect.mjs", "/opt/evo-document-runtime/node_modules/sharp/package.json"]) {
+  for (const path of [launcher, "/opt/evo-document-runtime/bootstrap.mjs", "/opt/evo-document-runtime/seal.node",
+    "/opt/evo-document-runtime/inspect.mjs", "/opt/evo-document-runtime/node_modules/sharp/package.json"]) {
     const info = await stat(path); assert.equal(info.uid, 0); assert.equal(info.mode & 0o022, 0);
   }
   await writeFile("/tmp/evo-document-outside", "synthetic-outside-sentinel", { mode: 0o644 });
@@ -39,6 +79,50 @@ test("real image context, fixed production entrypoint and actual Landlock/seccom
   assert.equal(result.code, 0); assert.equal(result.stderr, "");
   assert.deepEqual(JSON.parse(result.stdout), { policy: "enforced", memory: 2147483648, cpu: 10, fd: 64 });
   assert.equal((await run(launcher, ["policy"])).code, 64);
+});
+
+test("actual production bootstrap synchronizes its seal across Node threads before input", async () => {
+  const supervisor = spawn(launcher, [], { env: {}, stdio: ["pipe", "pipe", "ignore"] });
+  const closed = new Promise(resolve => supervisor.once("close", resolve));
+  supervisor.stdin.on("error", () => {});
+  let inspector = "", sealed = false;
+  const filters = status => Number(status.match(/^Seccomp_filters:\s*(\d+)/m)?.[1]);
+  try {
+    const supervisorFilters = filters(await readFile(`/proc/${supervisor.pid}/status`, "utf8"));
+    assert.ok(supervisorFilters >= 1);
+    for (let count = 0; count < 200 && !sealed; count++) {
+      try {
+        inspector = (await readFile(`/proc/${supervisor.pid}/task/${supervisor.pid}/children`, "utf8")).trim();
+        if (/^\d+$/.test(inspector)) {
+          const cmdline = await readFile(`/proc/${inspector}/cmdline`, "utf8");
+          const maps = await readFile(`/proc/${inspector}/maps`, "utf8");
+          const threads = await readdir(`/proc/${inspector}/task`);
+          const status = await Promise.all(threads.map(tid => readFile(`/proc/${inspector}/task/${tid}/status`, "utf8")));
+          sealed = cmdline.includes("/bootstrap.mjs") && maps.includes("/seal.node") && threads.length > 1
+            && status.every(value => filters(value) === supervisorFilters + 2);
+        }
+      } catch {}
+      if (!sealed) await wait(10);
+    }
+    assert.equal(sealed, true, "actual required addon seal applies to every Node thread before document input");
+  } finally { supervisor.kill("SIGKILL"); await closed; }
+});
+
+test("required bootstrap fails closed before input on absent addon or actual sealing failure", async () => {
+  assert.deepEqual(await readFile("/opt/evo-document-runtime/bootstrap.mjs"),
+    await readFile("/opt/evo-document-runtime/missing-addon/bootstrap.mjs"));
+  for (const mode of ["missing-addon", "seal-unavailable"]) {
+    const supervisor = spawn(diagnostic, [mode], { env: {}, stdio: ["pipe", "pipe", "ignore"] });
+    supervisor.stdin.on("error", () => {});
+    let output = "";
+    supervisor.stdout.on("data", chunk => { output += chunk; });
+    const closed = new Promise(resolve => supervisor.once("close", resolve));
+    const timer = setTimeout(() => supervisor.kill("SIGKILL"), 3000);
+    try {
+      assert.equal(await closed, 0, mode);
+      assert.deepEqual(JSON.parse(output), rejected("source_unavailable"), mode);
+    } finally { clearTimeout(timer); supervisor.kill("SIGKILL"); await closed; }
+  }
 });
 
 test("actual production inspector verifies complete synthetic PDF/JPEG/PNG with exact receipt", async () => {

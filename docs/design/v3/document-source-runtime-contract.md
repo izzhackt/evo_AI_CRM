@@ -46,6 +46,33 @@ execute permission; other system libraries are read-only, not executable files.
 Policy changes require review; future D4 may reuse this launcher only through a
 new fixed operation/limits contract, not an arbitrary-command interface.
 
+### Review correction: signal ownership and post-startup execution
+
+The initial proof did not cover two rejected invariants: unrestricted `fcntl`
+could signal the same-UID supervisor using an asynchronous pipe, and a worker
+thread could re-exec Node without retaining the leader's parent-death setting.
+The approved correction preserves those invariants, rather than weakening them:
+
+- Allow only descriptor get/set flags and close-on-exec duplication. Restrict
+  mutable flags to the required safe set; deny signal ownership, signal selection,
+  async notification, directory notification and all other `fcntl` commands.
+- The launcher's sole production entry is fixed root-owned `bootstrap.mjs`.
+  It must load `seal.node`, a native addon built against the pinned Node headers,
+  before dynamically importing any document parser or reading input. Initialization
+  synchronizes an irreversible no-exec filter across every current thread using
+  `SECCOMP_FILTER_FLAG_TSYNC`; any nonzero result terminates startup. Subsequent
+  threads inherit it. Missing/unloadable addon is fatal; there is no optional
+  preload, bypass, direct-inspector launch or application-process fallback.
+- The original syscall allowlist permits only filter installation with TSYNC;
+  stacking cannot relax existing restrictions. The second filter denies both
+  `execve` and `execveat`. Thread support and parent-death cleanup remain required.
+- Before acceptance, reproduce both findings against the old implementation in
+  an owned synthetic container; prove denied signal delivery to its supervisor,
+  worker-thread re-exec denial, then no surviving inspector on supervisor death.
+  Exercise actual production bootstrap and fail-closed addon loading, not only
+  a separately compiled diagnostic sealing function. No application process,
+  production process, provider or real document is a test target.
+
 Pinned existing libraries: Node 22.23.1 in the existing digest-pinned bookworm
 image, pdf-lib 1.17.1, sharp 0.35.4 and lockfile-resolved dependencies. No new parser
 framework. Native launcher is compiled from reviewed source in a build-only stage.
@@ -87,3 +114,7 @@ Linux architecture and kernel before that runtime is enabled there.
   exact ABI 3 `TRUNCATE` constant, needed with Bookworm's older build headers.
 - [Node 22.23.1 libuv I/O](https://raw.githubusercontent.com/nodejs/node/v22.23.1/deps/uv/src/unix/core.c):
   fixed `FIONBIO` request used for nonblocking owned descriptors.
+- [Linux seccomp TSYNC](https://man7.org/linux/man-pages/man2/seccomp.2.html):
+  synchronization failure is nonzero, possibly a thread ID; filters cannot be removed.
+- [Linux asynchronous file signals](https://man7.org/linux/man-pages/man2/F_SETOWN.2const.html):
+  `F_SETOWN`/`F_SETSIG` with `O_ASYNC` are a signaling path independent of `kill`.

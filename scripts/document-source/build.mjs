@@ -8,6 +8,11 @@ const output = process.argv[2];
 if (!output || process.argv.length !== 3) throw new Error("Usage: build.mjs <output-directory>");
 const runtime = join(output, "runtime"), proof = join(output, "proof");
 await mkdir(runtime, { recursive: true }); await mkdir(proof, { recursive: true });
+await cp("scripts/document-source/bootstrap.mjs", join(runtime, "bootstrap.mjs"));
+// The byte-identical production bootstrap with a genuinely absent addon proves
+// load failure exits before any parser/input. This directory ships only in tests.
+await mkdir(join(proof, "missing-addon"), { recursive: true });
+await cp("scripts/document-source/bootstrap.mjs", join(proof, "missing-addon", "bootstrap.mjs"));
 const options = { bundle: true, platform: "node", format: "esm", target: "node22", conditions: ["react-server"], external: ["sharp"] };
 await build({ ...options, entryPoints: ["scripts/document-source/inspect.mjs"], outfile: join(runtime, "inspect.mjs") });
 await build({ ...options, entryPoints: ["src/lib/server/document-source-preflight.ts"], outfile: join(proof, "adapter.mjs") });

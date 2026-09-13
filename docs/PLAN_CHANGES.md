@@ -24824,3 +24824,43 @@ Native amd64 execution remains mandatory on its intended kernel before enablemen
 arm64 proof does not establish it. Root still owns independent immutable-head
 review, combined D3 image, real isolated Storage/Auth workflow and later provider
 acceptance. No production image, route, worker dispatch or managed DB was changed.
+
+## 2026-09-13 — repair source-runtime isolation findings before integration
+
+Independent review rejects `7ed5315a` for two concrete gaps absent from the earlier
+8/8 ARM64 proof: async pipe ownership can deliver signals outside the inspector,
+and a worker-thread exec can lose the leader's parent-death setting. Root approves
+the bounded correction before code: command/flag-limited `fcntl`, then a fixed
+required native addon installing irreversible TSYNC no-exec policy before dynamic
+parser import or document input. Missing or failed addon startup is fatal; no
+optional ELF preload or generic command interface. The original lifetime and
+isolation acceptance criteria remain unchanged.
+
+The amended [source runtime contract](design/v3/document-source-runtime-contract.md)
+requires actual synthetic red/green signal and thread-exec probes, surviving-child
+inspection, real production bootstrap and missing-addon failure proof. No app,
+production, provider, managed database or real student files are probe targets.
+Native AMD64 remains a separate actual execution gate. Only this runtime worktree
+is owned by the implementing agent; independent exact-head re-review is required.
+
+### Scoped red/green evidence before immutable review
+
+The added real Linux regressions first fail on the old runtime at
+`01a09be7dccf7550adeca6b2af285085`: two async pipe signals reach the synthetic
+supervisor, and a worker-thread re-exec survives supervisor death. The owned
+surviving child is explicitly cleaned up; no application process is targeted.
+
+With the correction, all 12 runtime groups pass on native ARM64 OrbStack at
+`01a09beb3db47df0a7e0025c3c02b4fa` (about 27 seconds). This includes actual
+production bootstrap/native addon and every live Node thread's additional filters,
+missing-addon and actual kernel-denied seal initialization before input, safe
+descriptor operations, denied async ownership/notification, worker-thread exec
+denial and no surviving inspector. The original real source/resource/abort groups
+still pass. Native C is compiled with `-Wall -Wextra -Werror`; the existing pinned
+Node headers supply the addon ABI without adding a package dependency.
+
+Focused input/CI manifest checks pass 12/12 at
+`01a09bea3bb17c10a2d13bc85ae03ac0`; scoped JS lint and diff checks pass at
+`01a09beb11a97e32b5770d713e65ef0b`. These are scoped local checks, not full CI,
+native AMD64, combined D3 workflow, provider or production evidence. Root retains
+the independent immutable review and later enablement gates.

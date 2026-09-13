@@ -13,14 +13,15 @@ fi
 postgres_image="$(bash scripts/resolve-postgres-test-image.sh)"
 container_name="evo-profile-fields-proof-${RANDOM}-$$"
 container_id=''
+container_created=false
 stage='start isolated PostgreSQL'
 cleanup() {
   local result=$?
-  if [[ -n "$container_id" ]]; then
-    if docker rm --force --volumes "$container_id" >/dev/null; then
-      printf 'Removed owned proof container: %s\n' "$container_id"
+  if [[ "$container_created" == true ]]; then
+    if docker rm --force --volumes "$container_name" >/dev/null; then
+      printf 'Removed owned proof container: %s\n' "$container_name"
     else
-      echo "Failed to remove owned proof container: $container_id" >&2
+      echo "Failed to remove owned proof container: $container_name" >&2
       result=1
     fi
   fi
@@ -29,6 +30,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if docker container inspect "$container_name" >/dev/null 2>&1; then
+  echo 'Refusing an existing proof container name' >&2
+  exit 1
+fi
+# A lost daemon reply must not skip cleanup of this exact owned target.
+container_created=true
 container_id="$(docker run --detach --name "$container_name" --network none \
   --env POSTGRES_PASSWORD=postgres \
   --mount "type=bind,source=$repo_root/supabase,target=/workspace/supabase,readonly" \
@@ -62,19 +69,19 @@ while IFS= read -r migration; do
   filename="${migration##*/}"
   number="${filename%%_*}"
   [[ "$number" =~ ^[0-9]{3}$ ]] || { echo "Unexpected migration filename: $filename" >&2; exit 1; }
-  if (( 10#$number > 157 )); then continue; fi
+  if (( 10#$number > 158 )); then continue; fi
   stage="$migration"
   psql_proof -f "/workspace/$migration" >/dev/null
   last_migration=$((10#$number))
 done < <(rg --files supabase/migrations | LC_ALL=C sort)
-[[ "$last_migration" -eq 157 ]] || { echo 'Expected migration157 baseline is missing' >&2; exit 1; }
-echo 'STUDENT_PROFILE_FIELDS_BASELINE_157_APPLIED'
+[[ "$last_migration" -eq 158 ]] || { echo 'Expected migration158 baseline is missing' >&2; exit 1; }
+echo 'STUDENT_PROFILE_FIELDS_BASELINE_158_APPLIED'
 
 # The positive SQL fixture captures a real pre-migration row, applies only
-# 158/159, then exercises the intended authenticated staff command/read seam.
-stage='positive Student Profile migration158/159 command proof'
+# 159/160, then exercises the intended authenticated staff command/read seam.
+stage='positive Student Profile migration159/160 command proof'
 psql_proof -f /workspace/supabase/tests/student_profile_fields_positive.sql
-stage='positive Student Profile export migration160 and audit proof'
-psql_proof -f /workspace/supabase/migrations/160_platform_student_profile_exports.sql
+stage='positive Student Profile export migration161 and audit proof'
+psql_proof -f /workspace/supabase/migrations/161_platform_student_profile_exports.sql
 psql_proof -f /workspace/supabase/tests/student_profile_exports_positive.sql
 echo 'STUDENT_PROFILE_FIELDS_POSTGRES_VERIFIED'

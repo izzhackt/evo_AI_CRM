@@ -24366,3 +24366,146 @@ Both contracts preserve D5's explicit source-to-case reconciliation and D6's
 real integrated acceptance before standalone retirement. No original data,
 provider configuration, production runtime or employee account is changed by
 this preparatory documentation slice.
+
+## 2026-09-13 — Reserve158 for the S2 fix and shift unapplied D2 migrations
+
+Before the mechanical change, root reserves the next forward migration158 for
+the S2 correction. The unapplied D2 foundation/review/export migrations move from
+158/159/160 to159/160/161 with byte-identical SQL bodies. Update only their active
+paths, source-test labels, the focused SQL proof baseline and current contracts.
+The focused proof must apply the real S2 baseline through158 before constructing
+its pre-D2 fixture and applying159/160, followed by export161.
+
+Preserve the earlier append-only decisions, local proof158–160 receipts, artifact
+hashes/output directories and synthetic UUIDs exactly as recorded. They prove the
+earlier candidate, not this newly composed migration sequence. No product rights,
+RPCs, profile data model, runtime source, dependencies or assets change here.
+Until root integrates the actual S2 migration158, run only source/regression checks;
+do not claim a coherent database/browser pass or publish this intermediate tree.
+Root owns subsequent integration, exact-head review and release validation.
+
+The mechanical rename preserved all three pre-change SHA256 digests; shell syntax,
+append-only history and the unchanged historical local-proof file were checked
+(01a09b4539e67972ba948534f9950ef0). The three affected source/module test files
+passed24/24 (01a09b453ed674529b3142b5a3d40fc5); scoped ESLint and the obsolete active
+path/marker scan passed (01a09b45885375d1b2ac7066e4d3ce33). Node emitted the existing
+MODULE_TYPELESS_PACKAGE_JSON warnings. S2 migration158 was still absent; no database,
+container, browser, provider or production proof was run for the new sequence.
+
+## 2026-09-13 — Restore the System Admin document-requirement configuration boundary
+
+Full CI34763194546 on b1ebeddf passed Node/static, dependency audit, all four
+scoped-staff markers and the repaired same-session handoff context. The browser
+then stopped at supabase-staff-auth.spec.ts:1795: create_document_requirement
+returned403, "Organization action is unavailable". Its downstream media test
+again lacked the acceptance file written only after this scenario completes.
+Release34763572090 was skipped; the release arm was explicitly disabled/read back.
+
+This is a product regression, not a fixture expectation to relax. Migration156
+made require_p2e_admin_actor delegate every permission to an organization-resource
+matcher. Its four active calls are the pre/post-lock checks in create/retire
+document_requirement, passing document.manage; migration155 deliberately defines
+that permission on case/document resources, not organization. The resource-kind
+check therefore rejects even System Admin before reaching its protected branch.
+
+Before code, reserve forward migration158 for the narrow correction. Preserve
+require_domain_actor's organization/profile/membership locking, then require
+the existing live System Admin predicate for this document.manage configuration
+path and preserve the helper's four actor fields. Other helper permissions keep
+the current organization operator path. Do not weaken the paired evaluator,
+add organization to document.manage's resource catalogue, change case-local
+document actions, grant roles, or edit already-applied migrations001–157.
+Delegating global requirement configuration to a custom role is not introduced
+incidentally by this repair. System Admin's existing functional superset is restored.
+
+Validate the actual create/replay/retire/replay operations in an isolated real
+database, with unchanged catalogue/assignments and no client/provider data.
+Inspect the remaining handoff/Storage calls for the same authority mismatch.
+Keep the existing full Auth/DB/browser scenario and its normal failure gate;
+no fabricated receipt, skipped assertion, role-name shortcut or fixture grant.
+After independent review and fast PR checks, merge, apply/check schema158 using
+the managed ledger workflow, then run one exact-main full release cycle.
+
+D2/PR752 migrations are not applied remotely. Shift its active158–160 files and
+references to159–161 after integration, preserving historical local-proof numbers
+and receipts. D3/D4 contracts remain preparation only; real employees, data
+transfer, provider acceptance and standalone retirement remain open.
+
+## 2026-09-13 — One final frozen-main release for the reviewed staff fix and D2
+
+The previous main proof34763194546 is terminal failed, its release34763572090
+is terminal skipped, and arm=false was read back (01a09b3dbc987752936560f016e844ec).
+There is no active proof whose source is being changed. To avoid duplicate full
+release cycles, supersede the preceding entry's schema158-then-S2-only-cycle
+sequence, not its validation or authority contract.
+
+1. Finish actual isolated positive158 proof, independent exact-head review and
+   selected fast PR checks; merge the narrow correction.
+2. Integrate that158 into D2, whose unapplied migrations are now159–161. Require
+   coherent SQL validation, independent exact-head review and fresh fast checks;
+   merge only the reviewed combined D2 tree.
+3. Reconcile the preparation-only D3/D4 documentation PR754 with current main,
+   independently review the resulting exact diff and merge after its gates.
+4. Freeze the resulting final main SHA. With fresh production preflight and
+   actor/arm checks, apply/check managed schema001–161 through the ledger workflow;
+   run the unchanged full Auth/DB/browser suite including D2's actual browser
+   workflow on precisely that SHA. Its failure still blocks publication.
+5. Accept only that successful SHA's automatic release, immutable runtime/readback
+   and browser evidence; check the same-server localhost tunnel and disarm/read back.
+
+Independent read-only workflow/runbook review found no required S2-only release
+between these merges: admission and release bind to the final current main,
+not an intermediate feature branch. Fast PR checks and historical D2 proof do
+not replace final runtime acceptance. No provider activation, client data,
+employee invitations or standalone retirement is added to this release bundle.
+
+The focused real PostgreSQL run reached the original create failure on157
+(01a09b47fe1378a1a9cbf1baf5244da8), then passed the same public RPC sequence on158
+(01a09b4897b37b808fe6dcee54613d1c): canonical bootstrap, current actor, create/replay,
+retire/replay, exact audit and unchanged permission catalogue/role assignments.
+It rolled back synthetic data; both owned network-none containers were removed
+(01a09b49193c7541a77265906c899c15). All157 historical migrations remained byte-identical.
+Related module checks passed62/62 (01a09b48977e7221bd194c801481db3c); shell syntax and
+whitespace passed. This SQL/RPC proof is not real Auth/browser or production acceptance.
+
+Independent review also tightened the disposable runner: register cleanup
+responsibility after the existing-name precheck but before docker run, because
+the daemon can create the owned container before a timeout loses its response.
+The exact target, failure propagation and product SQL are unchanged; shell syntax
+and whitespace were rechecked. No new provider or production operation is involved.
+
+## 2026-09-13 — Integrate D2 with merged158 and preserve owned SQL-runner cleanup
+
+PR755 merged as561aa920. Compose its actual158 with D2's byte-identical159–161
+before the new SQL proof and exact-head review. Keep both append-only decision
+histories when resolving the documentation merge; no runtime source is changed.
+Apply the same reviewed disposable-runner correction to the active D2 proof:
+register cleanup of its collision-checked random container name before dispatch,
+so an ambiguous docker-run reply cannot skip cleanup. No shared Docker resource
+or provider is touched. Historical local receipts retain their original numbering.
+
+The coherent isolated PostgreSQL run passed (01a09b53c9287942a6a3c43f787bb564):
+baseline158, migrated existing profile through159/160, partial/review/replay,
+canonical revision invalidation, then161 export command outcomes and audit.
+The runner removed its exact owned network-none container; a fresh docker listing
+confirmed it absent (01a09b54415875e19749e093a8754715). Runtime source/dependencies/
+assets/Next configuration remain unchanged from reviewed6df0a328. This proves
+the new SQL composition, not the final Auth/browser, provider or production path.
+
+## 2026-09-13 — Reconcile preparation contracts with the reviewed S2/D2 integration
+
+Before updating active checkpoints, merge reviewed D2 head
+daf5b5ac6ad4842c82ee2111b8f0be408d7df7df into preparation-only PR754. Preserve
+both decision histories, the actual S2 migration158 from merged PR755/561aa920,
+D2's active159–161 references and its coherent SQL proof. This is a normal local
+merge, not a D2 main merge, deployment or new application implementation.
+
+Extend this documentation slice only to the employee plan's active checkpoint:
+its older CI34754199878-era blocker is historical. The latest full CI34763194546
+failed on the document.manage configuration boundary (42501); the narrow fix is
+merged, D2's coherent SQL proof and independent review are complete, and fresh
+fast checks34765172099 are pending. Align the launch/employee checkpoints with
+that sequence while retaining every earlier receipt and diagnosis as history.
+After reviewed D2 and these six preparation/status documents merge, one final
+frozen-main Auth/DB/browser run including D2 and automatic release remains
+required. No code, migration, provider, client data or invitation is changed here.

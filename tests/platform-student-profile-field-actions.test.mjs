@@ -69,7 +69,7 @@ test("commands require one coherent decision and an exact set of form fields", (
   assert.equal(parsePlatformReviewStudentProfileFieldCommand(scoped), null);
 });
 
-test("actual migration158 and159 receipts return only profile identity and revision", () => {
+test("actual migration159 and160 receipts return only profile identity and revision", () => {
   const start = parsePlatformStartStudentProfileCommand(form({ student_case_id: CASE, expected_profile_revision: "0", reason: "Start profile", request_id: REQUEST }));
   const startReceipt = {
     id: PROFILE, student_profile_id: PROFILE, organization_id: ORG, student_case_id: CASE,

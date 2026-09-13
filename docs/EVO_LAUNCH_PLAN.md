@@ -55,7 +55,24 @@ technical CI. The latest release checkpoint is
 
 S2 is merged in [PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) as
 `0f80ced1`, but the application release remains pending.
-Latest: PR749 merged as `c02c9ad0`; read-only schema34759018265 confirmed157=157.
+Latest: PR750 merged as `abe8109d`; schema34760275283 confirmed157=157.
+Full CI34760328421 passed Node/static, dependency audit and all four scoped-staff
+onboarding markers. The broad browser path then reported15 passed/3 failed/2 skipped.
+Two source-grounded UI defects remain: known record-read denial becomes a generic
+profile exception, and the completed handoff link incorrectly depends on a submit
+permission that is false after handoff. The third missing P4 evidence file is a
+downstream effect: its writer is after the failed handoff assertion in the same test.
+Fix only those two transitions, retain authorization/assertions, and verify the
+actual affected path in the next exact-main release gate. Release34760696579
+was skipped; arm=false was read back. No new application was released.
+This checkpoint supersedes the historical PR749 diagnostics below.
+
+The follow-up has65 passing related module checks and3 actual React SSR/projection
+checks, plus scoped lint. These prove the two local corrections, not real browser
+acceptance. The existing full main-only CI will exercise the unchanged Auth/DB/
+browser assertions once; do not duplicate that full suite on a routine PR.
+
+Previous: PR749 merged as `c02c9ad0`; read-only schema34759018265 confirmed157=157.
 Full CI34759082235 found one stale Node harness assertion (1303/1304 passed):
 its broad `browser_assert` prohibition also rejects PR749's intended two-test
 staff-only browser call. The narrow follow-up must require that exact call while

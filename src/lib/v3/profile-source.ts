@@ -20,6 +20,7 @@ import type {
   ProfileRouteTarget,
   ProfileSalesSnapshot,
 } from "@/components/v3/profile/types";
+import { profileSalesHandoffSnapshot } from "@/components/v3/profile/types";
 import {
   getPlatformStudentCaseView,
   listPlatformApplicationsForStudentCase,
@@ -758,7 +759,7 @@ async function readLeadProfile(
   return {
     profile,
     details,
-    sales: { lead, gate, handoff },
+    sales: { lead, gate, handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)) },
   };
 }
 

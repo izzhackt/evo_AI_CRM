@@ -116,7 +116,12 @@ test("failure evidence separates login from profile rendering and never emits ra
   assert.match(runner, /await writeFailureEvidence/u);
   assert.match(runner, /mask: \[page\.locator\("input, textarea"\)\]/u);
   assert.match(runner, /!snapshot\.passwordControlPresent/u);
-  assert.doesNotMatch(runner, /(?:error|message)\.(?:stack|message)|page\.content\(|storageState\(/u);
+  const classifier = proofExceptionCategory.toString();
+  assert.equal(runner.split(classifier).length, 2);
+  // Only this pure fixed-enum classifier may inspect a message. Raw diagnostic
+  // capture remains forbidden everywhere else, including the snapshot writer.
+  assert.doesNotMatch(classifier, /writeFile|console\.|stdout|stderr|spawn|fetch\(/u);
+  assert.doesNotMatch(runner.replace(classifier, ""), /(?:error|message)\.(?:stack|message)|page\.content\(|storageState\(/u);
 });
 
 test("safe diagnostic classes discard query strings, credentials, exception text and stack", () => {

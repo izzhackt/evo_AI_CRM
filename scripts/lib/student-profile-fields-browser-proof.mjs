@@ -58,6 +58,12 @@ export function proofPathClass(raw, appOrigin) {
 
 export function proofExceptionCategory(error) {
   if (error instanceof ProofError) return "PROOF_ASSERTION";
+  // Classify only known Playwright failure shapes. Never retain its raw message,
+  // which can include request URLs, selectors or private page values.
+  const message = typeof error?.message === "string" ? error.message : "";
+  if (message.includes("net::ERR_ABORTED")) return "NAVIGATION_ABORTED";
+  if (message.includes("strict mode violation")) return "LOCATOR_AMBIGUOUS";
+  if (message.includes("toHaveAttribute")) return "ATTRIBUTE_EXPECTATION";
   const categories = { TimeoutError: "TIMEOUT", AssertionError: "ASSERTION", TypeError: "TYPE_ERROR", Error: "ERROR" };
   return Object.hasOwn(categories, error?.name) ? categories[error.name] : "OTHER_ERROR";
 }

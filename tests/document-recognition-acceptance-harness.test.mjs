@@ -6,7 +6,20 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { PRODUCTION_MODULES, validateImageEvidence, normalizePredispatchReceipt } from "../scripts/lib/document-recognition-acceptance-image.mjs";
 import { TECHNICAL_CONFIG } from "../scripts/lib/document-recognition-browser-proof.mjs";
-import { proofScope } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { proofScope, proofExceptionCategory } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+
+test("cold history diagnostics distinguish steps without retaining private error text", () => {
+  const privateText = "PRIVATE_URL_TOKEN_DOCUMENT_VALUE";
+  for (const [message, category] of [
+    ["page.reload: net::ERR_ABORTED", "NAVIGATION_ABORTED"],
+    ["locator.click: strict mode violation", "LOCATOR_AMBIGUOUS"],
+    ["expect(locator).toHaveAttribute(expected)", "ATTRIBUTE_EXPECTATION"],
+    ["unknown", "ERROR"],
+  ]) assert.equal(proofExceptionCategory(new Error(`${message} ${privateText}`)), category);
+  for (const stage of ["COLD_HISTORY_RELOAD", "COLD_HISTORY_TOGGLE", "COLD_HISTORY_EXPANDED", "COLD_HISTORY_QUEUED_ROW"])
+    assert.ok(runner.includes(`stage = "${stage}"`));
+  assert.match(runner, /expect\(historyToggle\)\.toHaveAttribute\("aria-expanded", "true"\)/u);
+});
 import { parseDocumentRecognitionProviderConfig, maximumDocumentRecognitionCostMicros } from "../src/lib/server/gemini-document-recognition.ts";
 import { resolveNodeTestPlan } from "../scripts/run-node-test-suite.mjs";
 import { classifyChangedEntries } from "../scripts/classify-pr-changes.mjs";

@@ -25559,3 +25559,21 @@ Removing GET only on this nullable history RPC makes the same wire checks pass;
 all30 related adapter/route/client checks pass (01a09ca8479a7721b47ee4b21e319aec),
 with scoped lint/diff checks clean. The original browser flow still needs its
 reviewed exact-image repeat; this is not a completed D3 acceptance claim.
+
+## 2026-09-14 — Preserve the next real cold-history failure before changing behavior
+
+The reviewed history correction1b699587 passed real UI enqueue and exact-session
+replay in the original isolated scenario; the run then failed at COLD_HISTORY
+(01a09cb162eb7ae08ab7a0f90afd77f1, exit1). It had no console/page errors or framework
+overlay, and its retained screenshot shows the source-history section collapsed.
+This confirms progress past the former nullable request failure, not full D3
+acceptance. The owned temporary containers were removed and absence verified.
+
+Before another behavior change, distinguish reload, toggle, expanded-state and
+queued-row assertions as separate stages. Retain only fixed Playwright error
+categories (navigation aborted, ambiguous locator, attribute expectation, other),
+never raw errors/URLs/locators/payloads. Add the missing explicit expanded-state
+assertion without retries, sleeps, changed permissions or skipped history checks.
+Ranked causes are early pre-hydration click, interrupted navigation, then history
+response/state. Repeat the same real source/image-bound scenario after independent
+review; do not label the preceding failure as passed or call Gemini.

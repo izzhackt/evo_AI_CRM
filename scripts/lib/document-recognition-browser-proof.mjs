@@ -139,9 +139,14 @@ async function main() {
     requireProof(replayResponse.status() === 202, "REPLAY_NOT_ACCEPTED");
     const replay = normalizeDocumentRecognitionReceipt(await replayResponse.json());
     requireProof(replay.job_id === receipt.job_id && replay.state === "queued" && replay.replayed, "REPLAY_CREATED_ANOTHER_JOB");
-    stage = "COLD_HISTORY";
+    stage = "COLD_HISTORY_RELOAD";
     await page.reload({ waitUntil: "domcontentloaded" });
-    await panel().getByRole("button", { name: "Извлечение полей", exact: true }).click();
+    stage = "COLD_HISTORY_TOGGLE";
+    const historyToggle = panel().getByRole("button", { name: "Извлечение полей", exact: true });
+    await historyToggle.click();
+    stage = "COLD_HISTORY_EXPANDED";
+    await expect(historyToggle).toHaveAttribute("aria-expanded", "true");
+    stage = "COLD_HISTORY_QUEUED_ROW";
     await expect(panel().getByTestId("document-recognition-job")).toHaveAttribute("data-state", "queued");
     const [queue] = await sql`SELECT count(*)::integer AS count FROM platform_private.document_recognition_jobs`;
     requireProof(queue.count === 1, "READ_OR_REPLAY_CREATED_JOB");

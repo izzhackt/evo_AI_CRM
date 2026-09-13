@@ -166,6 +166,11 @@ browser run failed at recognition history before enqueue (01a09ca56eee76309a0ded
 Keep D3 unaccepted while investigating nullable history RPC transport; preserve
 all current authority and repeat the same real scenario after a reviewed fix.
 
+The reviewed fix1b699587 passed actual UI enqueue and same-session replay on
+repeat, then failed at cold-history reopen with zero console/page errors
+(01a09cb162eb7ae08ab7a0f90afd77f1). Preserve this failure and split its diagnostic
+stages before changing product behavior; provider and D3 acceptance remain open.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance

@@ -21,6 +21,8 @@ const assignment = { roleId, roleVersion: 2, scope: { kind: "own", key: null, re
 test("local browser diagnostics return fixed categories without carrying source text", () => {
   assert.equal(localBrowserErrorCategory("Failed to load resource: example"), "RESOURCE_LOAD");
   assert.equal(localBrowserErrorCategory("A tree hydrated with different attributes"), "HYDRATION");
+  assert.equal(localBrowserErrorCategory('A tree hydrated with different attributes\n<details className="private">\n- open=""'), "HYDRATION_DETAILS_OPEN");
+  assert.equal(localBrowserErrorCategory('hydration <details> private open=""'), "HYDRATION");
   assert.equal(localBrowserErrorCategory("Each child in a list should have a unique \"key\" prop. private-example"), "REACT_LIST_KEY");
   for (const value of [null, undefined, {}, "private unrelated example"]) assert.equal(localBrowserErrorCategory(value), "OTHER");
 });
@@ -209,9 +211,9 @@ function invitationUiBoundary() {
   const locator = (name = "", index) => ({
     getByRole: (_role, options = {}) => locator(options.name ?? "", /^Роль [12]$/.test(options.name ?? "") ? Number(options.name.slice(-1)) - 1 : index),
     locator: (selector) => locator(selector, index),
-    filter({ has, hasText }) {
-      if (name === "form") assert.equal(has.name, "Пригласить сотрудника");
-      else assert.equal(String(hasText), "/^Пригласить сотрудника$/");
+    filter({ has }) {
+      assert.equal(name, "form");
+      assert.equal(has.name, "Пригласить сотрудника");
       return locator(name, index);
     },
     name,

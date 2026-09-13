@@ -81,6 +81,16 @@ implemented; the full expanded local onboarding/business proof passed on `451944
   its real SSR regression passed after failing before the gate. The original
   positive browser workflow remains required. The earlier disposable reset
   failure is not diagnosed or silently counted as PASS.
+  Latest47f0687e local proof completed invitation and onboarding, but stopped at
+  `DEPARTMENT_READ_CARD_URL_BROWSER_CONSOLE_HYDRATION`. Its disposable project
+  was removed; there is no browser PASS or release permission from this result.
+  Diagnose the mismatch at the first affected component before another fix;
+  distinguish native disclosure interaction from server/client render differences.
+  The diagnostic-only repeat confirmed `HYDRATION_DETAILS_OPEN` in staff invite.
+  PR748 now replaces the three staff disclosures with hydration-ready buttons
+  and mounted hidden content. Actual component browser checks pass at1440/393px
+  (early click blocked, Space/Enter, draft retention, no console errors);46 focused
+  checks and scoped lint pass. The full positive workflow is still pending.
 
 The following checkpoints are historical, not additional current blockers.
 

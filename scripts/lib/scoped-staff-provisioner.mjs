@@ -29,7 +29,10 @@ function pair(row) { return JSON.stringify([row.roleId, row.scope.kind, row.scop
 /** Diagnostic enum only; browser text never leaves this classifier. */
 export function localBrowserErrorCategory(text) {
   if (typeof text !== "string") return "OTHER";
-  if (/hydration|hydrated/i.test(text)) return "HYDRATION";
+  if (/hydration|hydrated/i.test(text)) {
+    if (/<details(?:\s|>)/.test(text) && /^\s*[-+]\s+open=/m.test(text)) return "HYDRATION_DETAILS_OPEN";
+    return "HYDRATION";
+  }
   if (/^Failed to load resource(?::|$)/.test(text)) return "RESOURCE_LOAD";
   if (/unique ["']key["']|same key/i.test(text)) return "REACT_LIST_KEY";
   return "OTHER";
@@ -221,7 +224,7 @@ export async function prepareScopedStaffInvitations({ browser, adminClient, apiU
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_STAFF_INVITATION_ADMIN_UI_REQUIRED");
     stage = "FORM";
     await page.goto(`${appOrigin}/v3/settings?section=staff&view=people`, { waitUntil: "domcontentloaded" });
-    await page.locator("summary").filter({ hasText: /^Пригласить сотрудника$/ }).click();
+    await page.getByRole("button", { name: "Пригласить сотрудника", exact: true }).click();
     const form = () => page.locator("form").filter({ has: page.getByRole("heading", { name: "Пригласить сотрудника", exact: true }) });
     const next = () => form().getByRole("button", { name: "Пригласить следующего сотрудника", exact: true });
     const invitations = [];
@@ -781,7 +784,7 @@ export async function verifyScopedStaffMemberEditor({ browser, adminClient, apiU
     const memberUrl = `${appOrigin}/v3/settings?section=staff&view=people&member=${original.membershipId}`;
     await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
     const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
-    await card.getByText("Доступ", { exact: true }).click();
+    await card.getByRole("button", { name: "Доступ", exact: true }).click();
     const form = () => card.getByRole("form", { name: `Назначения: ${original.displayName}`, exact: true });
     const row = (index) => form().getByRole("group", { name: `Назначение ${index + 1}`, exact: true });
     const fields = async (version, assignments) => {
@@ -1085,7 +1088,7 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     const memberUrl = `${appOrigin}/v3/settings?section=staff&view=people&member=${original.membershipId}`;
     await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
     const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
-    await card.getByText("Доступ", { exact: true }).click();
+    await card.getByRole("button", { name: "Доступ", exact: true }).click();
     const form = () => card.getByRole("form", { name: `Назначения: ${original.displayName}`, exact: true });
     const row = (index) => form().getByRole("group", { name: `Назначение ${index + 1}`, exact: true });
     const fields = async (version, assignments) => {

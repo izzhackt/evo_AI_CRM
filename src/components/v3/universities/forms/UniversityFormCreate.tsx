@@ -65,8 +65,8 @@ export function UniversityFormCreate({ catalogId, templateId, requestId, action 
           className={`${button} bg-accent text-on-accent`}>
           {pending ? words.creating : uncertain ? words.retry : words.create}
         </button> : null}
-        {saved && state.receipt ? <Link href={`${listUrl}?template=${state.receipt.template_id}`} className={`${button} bg-accent text-on-accent`}>{words.upload}</Link> : null}
-        <Link href={listUrl} className={`${button} text-fg-2`}>{uncertain || blocked ? words.checkSaved : words.cancel}</Link>
+        {saved && state.receipt ? <Link prefetch={false} href={`${listUrl}?template=${state.receipt.template_id}`} className={`${button} bg-accent text-on-accent`}>{words.upload}</Link> : null}
+        <Link prefetch={false} href={listUrl} className={`${button} text-fg-2`}>{uncertain || blocked ? words.checkSaved : words.cancel}</Link>
       </div>
     </form>
   </section>;

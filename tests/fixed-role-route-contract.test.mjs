@@ -76,6 +76,18 @@ test("only the exact V3 pages enter the active staff page contract", () => {
   }
 });
 
+test("university template workspace is an exact staff page, never Student or preview", () => {
+  const id = "b6214cbe-6d08-4a33-86b4-cdf5cc6ca5e2";
+  assert.equal(isConnectedPlatformPage(`/v3/universities/${id}/forms`), true);
+  assert.equal(isConnectedStudentPortalPage(`/v3/universities/${id}/forms`), false);
+  for (const path of [`/v3/universities/${id}/forms/`, `/v3/universities/${id}/forms/edit`,
+    "/v3/universities/invalid/forms", `/portal/universities/${id}/forms`, `/preview/student/universities/${id}/forms`]) {
+    assert.equal(isConnectedPlatformPage(path), false, path);
+    assert.equal(isConnectedStudentPortalPage(path), false, path);
+    assert.equal(isConnectedStudentPortalPreviewPage(path), false, path);
+  }
+});
+
 test("the active V3 route policy exposes each exact presentation interface", () => {
   for (const role of ["admin", "sales", "admissions"]) {
     assert.equal(fixedRoleCanAccessRoute(role, "/v3/inbox"), true, role);

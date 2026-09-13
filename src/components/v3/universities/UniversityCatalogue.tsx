@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { UNIVERSITY_COUNTRIES, UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, universityIntakeLabel, type PublishedUniversity, type UniversityContent, type UniversityFilters, type UniversityPage, type UniversityProgram } from "@/lib/platform-university-catalog";
 import { UniversityPhoto as Photo } from "./UniversityPhoto";
+import { universityFormWorkspace } from "@/lib/v3/wording";
 
 const input = "mt-1 min-h-11 w-full rounded-ctl border border-border bg-surface px-3 text-sm text-fg";
 const link = "inline-flex min-h-11 items-center justify-center rounded-ctl border border-border px-4 py-2 text-sm font-medium text-fg hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
@@ -59,7 +60,7 @@ export function UniversityContentView({ content, now }: { content: UniversityCon
     <Source href={content.sourceUrl}>Основной источник карточки</Source>
   </div>;
 }
-export function UniversityDetail({ university, base, canManage = false, now }: { university: PublishedUniversity; base: string; canManage?: boolean; now: Date }) {
-  return <div className="space-y-6"><div className="flex flex-wrap justify-between gap-3"><Link href={base} className={link}>← Все университеты</Link>{canManage ? <Link className={link} href={`/v3/universities/manage?edit=${university.id}`}>Предложить обновление</Link> : null}</div><UniversityContentView content={university.content} now={now} /></div>;
+export function UniversityDetail({ university, base, canManage = false, now, formsHref }: { university: PublishedUniversity; base: string; canManage?: boolean; now: Date; formsHref?: string }) {
+  return <div className="space-y-6"><div className="flex flex-wrap justify-between gap-3"><Link href={base} className={link}>← Все университеты</Link>{canManage ? <div className="flex flex-wrap gap-3">{formsHref ? <Link className={link} href={formsHref}>{universityFormWorkspace.title}</Link> : null}<Link className={link} href={`/v3/universities/manage?edit=${university.id}`}>Предложить обновление</Link></div> : null}</div><UniversityContentView content={university.content} now={now} /></div>;
 }
 export function UniversityUnavailable() { return <p role="alert" className="rounded-card border border-border bg-surface p-5 text-sm text-danger">Не удалось загрузить каталог. Обновите страницу. Это не означает, что опубликованных университетов нет.</p>; }

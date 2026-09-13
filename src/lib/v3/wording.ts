@@ -791,7 +791,70 @@ export const universityFormWorkspace = {
   checkSaved: "Проверить список бланков",
   checkingExplanation: "Ответ сервера не получен. Бланк мог сохраниться — сначала проверьте список или повторите тот же запрос.",
   retry: "Повторить тот же запрос",
+  empty: "Бланков пока нет",
+  emptyExplanation: "Добавьте файл университета, чтобы настроить заполнение из анкеты студента.",
+  choose: "Выберите бланк",
+  chooseExplanation: "Откройте сохранённый бланк или добавьте новый.",
+  draft: "Черновик",
+  published: "Доступен для заполнения",
+  archived: "В архиве",
+  sourceChanged: "Сведения об университете изменились. Нужна новая версия бланка.",
+  more: "Следующие бланки",
+  first: "В начало списка",
+  versions: "Версии файла",
+  olderVersions: "Предыдущие версии",
+  currentVersion: "Последняя версия",
+  version: "Версия",
+  newVersion: "Загрузить новую версию",
+  file: "Файл университета",
+  fileHint: "PDF или DOCX, не более 20 МБ.",
+  selectedFile: "Выбран файл:",
+  source: "Откуда получен бланк",
+  sourceHint: "Ссылка на сайт университета или описание письма партнёра.",
+  sourceDate: "Дата получения",
+  sourceReason: "Добавление версии университетского бланка",
+  uploading: "Загружаем и проверяем файл…",
+  reserving: "Сохраняем сведения о версии…",
+  inspectPending: "Ожидает загрузки или проверки",
+  verified: "Файл проверен",
+  openSource: "Открыть исходный файл",
+  pendingExplanation: "Статус обновится автоматически. Можно вернуться к бланку позже.",
+  unknownExplanation: "Не удалось подтвердить результат. Проверьте статус перед следующим действием.",
+  fileInvalid: "Выберите PDF или DOCX размером до 20 МБ.",
+  fileMismatch: "Это другой файл. Выберите исходный файл этой версии или создайте новую версию.",
+  statusUnavailable: "Статус сейчас недоступен. Файл повторно не отправляется.",
+  refreshStatus: "Проверить статус",
+  reconcile: "Проверить завершение загрузки",
+  cancelUpload: "Отменить загрузку",
+  cancelConfirm: "Подтверждаю отмену загрузки этой версии",
+  reconcileReason: "Проверка завершения загрузки университетского бланка",
+  cancelReason: "Отмена загрузки университетского бланка",
+  checking: "Проверяем…",
+  reload: "Обновить страницу",
+  readUnavailable: "Бланки сейчас недоступны. Попробуйте обновить страницу.",
 } as const;
+
+export function universityTemplateUploadState(value: string): string | null {
+  const labels: Record<string, string> = {
+    prepared: "Загрузка подготовлена", processing: "Проверяем файл", sealed: "Завершаем сохранение",
+    verified: "Файл проверен", unknown: "Результат загрузки требует проверки",
+    failed: "Загрузка не завершена", cancelled: "Загрузка отменена",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export function universityTemplateUploadFailure(value: string): string | null {
+  const labels: Record<string, string> = {
+    source_mismatch: "Файл не совпадает с выбранной версией.", malware_detected: "Файл отклонён проверкой безопасности.",
+    scanner_unavailable: "Проверка безопасности временно недоступна.", template_not_eligible: "Этот файл нельзя использовать как бланк.",
+    template_runtime_unavailable: "Проверка бланков временно недоступна.", storage_unavailable: "Хранилище временно недоступно.",
+    storage_missing: "Сохранённый файл не найден.", access_changed: "Права доступа изменились.",
+    source_changed: universityFormWorkspace.sourceChanged, archived: "Бланк перемещён в архив.",
+    stale_revision: "Бланк изменился. Обновите страницу.", expired: "Время обработки истекло.",
+    cancelled: "Загрузка отменена.", integrity_failed: "Проверка целостности файла не пройдена.",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
 
 export function universityFormActionMessage(value: string): string | null {
   const messages: Record<string, string> = {

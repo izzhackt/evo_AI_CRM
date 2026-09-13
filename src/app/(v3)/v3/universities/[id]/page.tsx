@@ -12,5 +12,5 @@ export default async function UniversityPage({ params }: { params: Promise<{ id:
   let page;
   try { page = await readStaffUniversities(actor, undefined, id); } catch { return <PartShell title="Университет"><UniversityUnavailable /></PartShell>; }
   const university = page.items[0] ?? notFound();
-  return <PartShell title={university.content.name}><UniversityDetail university={university} base="/v3/universities" canManage={!isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage")} now={new Date()} /></PartShell>;
+  return <PartShell title={university.content.name}><UniversityDetail university={university} base="/v3/universities" formsHref={`/v3/universities/${id}/forms`} canManage={!isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage")} now={new Date()} /></PartShell>;
 }

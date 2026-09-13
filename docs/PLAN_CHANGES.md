@@ -24965,3 +24965,34 @@ also separately approved before final commit. Route/manifest23 PASS and scoped
 lint passed. Production template hash stayed2fdbacc3; old route absent from the
 actual final app manifest. Browser proof remains bound to0cc1f5c7; no second
 browser run or managed/contiguous release proof is implied by these delta checks.
+
+## 2026-09-14 — D4 persistent template registry, before implementation
+
+Root allocates165 on c49707ef for the independent registry slice;162/163D3 and
+164artifacts are untouched. Follow the new exact
+[registry contract](design/v3/evo-docs-template-registry-contract.md): org-scoped
+catalog permissions, exact immutable catalogue/version/hash binding, bounded
+resolver-compatible mappings, explicit append-only review/publication/archive,
+expected revision + request replay and source-safe DTOs. PostgreSQL locks and
+SECURITY DEFINER grants were checked in current official docs linked there.
+
+No existing trusted D4template ingress/inspector exists. Keep the inspection
+receipt table unwritable by runtime roles in this slice, and publish fail-closed
+without that proof. This is explicitly unfinished follow-up work, not a new
+success definition or permanent feature flag. D3 PDF/image inspection is not
+reused as DOCX/form proof. Synthetic SQL-owner metadata can exercise constraints,
+not pretend actual scanning/rendering occurred. No managed/prod/provider calls,
+real private files, student-ingress expansion or retirement is authorized here.
+
+Registry candidate now implements the contracted slice. Actual isolated SQL
+exit0 `01a09cd05d9b7853a6067ab3ea48446d` includes real existing catalogue/S2 role
+commands, manager vs published-only reader, revocation, tenant isolation,
+replay/stale/history/22-version pagination and PDF geometry/manual guards.
+Synthetic owner-only inspection metadata tests relational publication invariants;
+it does not prove a scan/file upload. The owned network-none container was removed.
+Canonical mapping hashes match the existing Node resolver for DOCX and decimal
+PDF coordinates. Runtime source/mapping types plus72 focused tests/lint passed
+`01a09cce6f367a32a6ec01bba1da2f0f`; one actual Next/TypeScript production build
+passed `01a09ccd8e7d7c9398ee8413e0482a2e`. Manifest8/8 passed; validate-only
+CI170/unit165 is inventory, not a full gate. Independent review/integration and
+all full D4 upload/inspection/render/form/package/UI/acceptance work remain open.

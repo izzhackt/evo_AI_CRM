@@ -127,6 +127,12 @@ forms/packages. A separate private export bucket preserves the existing student
 upload/scan boundary. Migration164 is reserved behind the unmerged D3 162–163;
 do not apply an incomplete forward migration sequence to production.
 
+Parallel D4 registry slice: [template/version/mapping contract](design/v3/evo-docs-template-registry-contract.md),
+migration165, exact approved catalogue IDs and live S2 permissions. It installs
+immutable source/mapping/review history and fail-closed publication, not template
+ingress or a fabricated inspection writer. Full forms/package UI, real upload/
+inspection/render, exports and acceptance remain required after this slice.
+
 The persistence/API/history candidate now builds successfully with all three new
 routes and the exact template in standalone output. Independent initial SQL,
 HTTP/Storage and UI slice reviews passed; final combined review remains open.

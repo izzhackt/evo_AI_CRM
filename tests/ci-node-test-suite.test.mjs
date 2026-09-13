@@ -59,8 +59,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 326);
-  assert.equal(plan.uniqueFileCount, 187);
+  assert.equal(plan.occurrenceCount, 328);
+  assert.equal(plan.uniqueFileCount, 189);
   assert.equal(plan.duplicateCount, 139);
   assert.equal(new Set(plan.files).size, plan.files.length);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
@@ -107,7 +107,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 156);
+  assert.equal(bounded.files.length, 158);
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
@@ -126,8 +126,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 224);
-  assert.equal(plan.uniqueFileCount, 182);
+  assert.equal(plan.occurrenceCount, 226);
+  assert.equal(plan.uniqueFileCount, 184);
   assert.equal(plan.duplicateCount, 42);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
 });
@@ -139,6 +139,8 @@ test("D4 university form tests run once with the server TypeScript runtime in fo
     "tests/university-form-pdf.test.mjs",
     "tests/university-form-registry.test.mjs",
     "tests/university-template-preflight.test.mjs",
+    "tests/university-template-ingress.test.mjs",
+    "tests/platform-university-forms.test.mjs",
   ];
   for (const entryScripts of [DEFAULT_ENTRY_SCRIPTS, UNIT_ENTRY_SCRIPTS, ["test:university-forms"]]) {
     const plan = resolveNodeTestPlan({ packageJson, repositoryRoot, entryScripts });

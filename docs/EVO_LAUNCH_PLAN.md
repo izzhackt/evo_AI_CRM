@@ -29,6 +29,11 @@ ADR0017's separate-product decision: one Platform/Auth/data authority, with exac
 legacy retirement only after real transfer and integrated workflow acceptance.
 The accepted application above and prior real Portal acceptance are unchanged.
 
+The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
+technical identities/data and required CI. Use actual Supabase/scanner/browser
+execution, clean up owned validation resources, and keep real business acceptance
+and production/Docs retirement separate. See the latest PLAN_CHANGES entry.
+
 ## Active follow-up: complete Portal document review and reply notifications
 
 The owner's 2026-09-11 checklist instruction approves closing the staff document

@@ -23182,3 +23182,16 @@ not claimed delivered by a metadata editor. No fake roster, seed or invitation.
 Root owns DTO/source/actions/page and docs; SQL and UI agents have disjoint files.
 Use real checks and independent exact-head review; technical structure, release
 and actual employee/provider/business acceptance remain separate evidence.
+
+## 2026-09-13 — Authorize isolated S1/D1 technical verification
+
+After the explicit request for temporary test accounts in an isolated validation
+database, the owner replied “okay do it”. This permits bounded disposable
+identities/data for S1/D1 technical checks and the existing isolated required CI;
+it does not permit seeding production, inviting actual employees, reading client
+documents or submitting documents to Gemini. Exercise actual Supabase Auth,
+Postgres, Storage, scanner and browser paths; do not substitute mocked responses.
+Use an existing non-personal document/image for file-path verification and report
+technical proof separately from real employee/Student business acceptance.
+Remove only owned validation resources afterwards. Production and Docs retirement
+still require their recorded exact-head/release/transfer gates.

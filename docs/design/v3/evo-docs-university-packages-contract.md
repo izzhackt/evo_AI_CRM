@@ -3,8 +3,10 @@
 Дата: 2026-09-13. Контракт D4, не готовность всего блока; номера миграций выделяет root.
 На отдельной ветке локально реализованы mapping/DOCX/PDF-модули ниже; формы, пакеты и их
 production/клиентская приёмка пока не готовы.
-База ответвления: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS.
-Этот локальный срез не подтверждает итоговый выпуск и не меняет frozen release candidate.
+Исходная база ответвления: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`.
+Для объединения library-среза PR759 добавлен текущий main `db2a121`, который
+содержит принятый S2/D2 выпуск `05585020`. D4 этим выпуском не включён;
+его HTTP/Storage/UI и реальная приёмка остаются открыты.
 Основания: [общий план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md), [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
 D4 можно выполнять параллельно D3: вручную подтверждённых полей достаточно,

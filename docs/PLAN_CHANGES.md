@@ -24672,3 +24672,203 @@ byte-identical PDFs to the inspected set; no visual claim relies on stale output
 Local link/font-license/hash/diff check: `01a09b9548807193ad072daaa4dd947f`
 (13 links; OFL identical to source). These receipts remain local scoped evidence,
 not a full build, isolated parser runtime, release or real applicant acceptance.
+## 2026-09-13 — Align the calendar proof with the preserved scoped Admissions contract
+
+Full CI34766012215 on c6669ff1 failed at supabase-staff-auth.spec.ts1877:
+the real scoped Admissions browser waited for select[name="student_visible"].
+Current TaskControls renders that select only with task.visibility.manage;
+otherwise the actual form contains one hidden student_visible=false input.
+Migration155's preserved curator baseline and scoped-staff-provisioner add
+task.create from the old task.manage grant, not task.visibility.manage.
+Do not grant visibility authority or change the product to satisfy a stale test.
+
+Before coding, scope the fix to the existing real snapshot assertion and exact
+form-control expectation: prove task.create is present and task.visibility.manage
+absent, then require hidden false and no select before the unchanged task submit,
+readback, completion and all later business assertions. No fallback locator,
+skipping, timeout increase, global helper change, SQL or permission change.
+Use the existing actual-component React SSR seam for a narrow markup regression:
+real CalendarCreateTaskForm/TaskCasePicker/access helper, synthetic props and
+nonexecuted server-action sentinels that throw if called. Assert zero action calls;
+this is not Auth, browser, database or successful business acceptance evidence.
+
+The following D2-media ENOENT is causally downstream: the sole P4 writer at2586
+is after the failed1877; the next test reads that file at321 before its fixture DB
+connection at332. Keep the writer at the successful scenario end and preserve
+all gates. Read-only scan the rest of the same scenario for equivalent obsolete
+permission-conditional controls; change only separately demonstrated mismatches.
+
+Managed001–161 applied through34765867429 and verified through34765967956;
+this does not release the application. Automatic release34766594252 was skipped,
+arm=false read back (01a09b74ab477ec3a9263c776e0451bc). Production remains the
+accepted77cde9ba; no new release dispatch is authorized by this diagnosis.
+Work in isolated izzhackt/evo-calendar-visibility-proof from c6669ff1; require
+narrow RED/GREEN and independent exact-head review before root-directed publish.
+
+Before the manifest edit, include the new SSR regression in the existing second
+Node command of package.json test:frontend, alongside the other actual-component
+SSR tests. That command deliberately has no react-server condition. Append only
+the test path; no dependency, lockfile, version or unrelated script changes.
+
+Outcome before independent review: the refined narrow loop had3 actual SSR
+markup checks PASS and the existing E2E-control contract RED
+(01a09b7b751f7dc28f3ef99be05bf13f). The exact E2E fix adds6/removes3 lines:
+two actual snapshot permission assertions and hidden-false/no-select assertions;
+all four regression checks then pass (01a09b7bccbf70309e16f2297b3eb789).
+No server-action sentinel ran.92 related calendar/task/scoped-role checks pass
+(01a09b7c99cc7931ae84bbaf9d6e5eae). Actual npm run test:frontend, including
+the new SSR regression through the committed script, passes178+23 tests with
+no skips (01a09b7d12c27783b0b28eb603a2e8c9); scoped lint/diff-check pass.
+
+Independent read-only scan of the remaining same-scenario UI controls found no
+additional concrete mismatch: calendar completion/Admin edits, applications,
+visa, separate finance-stop create/manage, document upload/checklist/history and
+completed-handoff navigation match current permission gates. This is source
+consistency, not a runtime pass. Product source, all migrations and lockfile are
+unchanged. Full real Auth/DB/browser CI and application release have not been
+rerun; their previous failed/skipped outcomes remain the current release status.
+
+## 2026-09-13 — Isolate the post-calendar Student 360 reopen failure
+
+PR757 merged as bc0cde68; full CI34767766251 passed its corrected calendar
+expectation, then failed at supabase-staff-auth.spec.ts1998 because v3-profile
+was absent after a fresh Admissions sign-in. Node/static and four scoped-staff
+markers passed. Actions retained zero artifacts; the cause is unproved.
+Release34768123391 skipped and EVO_PRODUCTION_RELEASE_ARMED is false. The
+accepted production image and localhost health remain unchanged.
+
+Before a product fix, add --admissions-workflow-only to the existing isolated
+foundation harness. It must use the same real local Supabase migrations/Auth,
+staff provisioning, scanner and application setup, and select exactly the
+existing contract/payment/handoff scenario, including its final P4 receipt
+verification. Keep the ordinary full gate unchanged. On failure emit only the
+existing allowlisted Student Profile server-error summary, never raw app logs,
+credentials or document payloads. This bounded diagnostic is not a full-gate
+pass or business/provider acceptance. Minimize from its actual failure evidence;
+no guessed permission grants, fallback profile, relaxed assertions or repeated
+full CI on unchanged main. Work branch: izzhackt/profile-reopen-release-fix.
+
+The bounded command reproduced the exact line1998 failure in30.0s; its diagnostic
+helper exposed stale local dependencies, corrected with Node22 npm ci
+--ignore-scripts. With the lockfile-installed dependencies, the same browser
+failure recurred in28.8s (01a09b9f2ee176e18a03c82532394d9f). The allowlisted
+server frames bind it to readCaseProfile → readLeadProfile → Student handoff
+repository, not a file-upload request. A narrowed assertion now opens the
+assigned Admissions case immediately after handoff, before calendar mutations.
+
+Root cause under investigation: lead.read enables a Sales presentation hint,
+but the linked Sales handoff RPC separately requires exact lead.sales.workflow.manage.
+Admissions case access must not depend on that optional Sales workflow. The
+planned correction treats only its typed forbidden response as an absent
+optional Sales section on a case route, then uses the already-authorized
+canonical case workspace. Primary case reads, explicit lead routes, malformed
+responses and unavailable services must still fail closed; Admin/authorized
+Sales enrichment must remain. This is neither a permission grant nor a second
+data/UI path. Extract this narrow orchestration seam for fast failure/pass
+checks, and prove the original full business scenario afterward. No SQL or
+runtime/provider configuration changes are planned for this correction.
+
+The corrected optional Sales enrichment passed the original reopen and all
+document create/upload/preview/history/link operations in the next real run.
+That run then failed at2520 (01a09ba87b6070909d5d9d6668ed3acd): the Sales actor's
+direct case URL threw at readCaseProfile636 instead of displaying the existing
+unavailable-profile message. The repository legitimately returns sales_summary
+for this actor; case.read is a presentation hint, not full access to that case.
+Before changing this branch, minimize the same real assertion immediately after
+handoff and prove the RPC returns sales_summary. Then return null for that
+known restricted view, preserving the canonical full-view path, explicit lead
+summary, service failures and all downstream Storage denial checks. No role
+grant, SQL change or weakened expected browser outcome. Keep this assertion in
+the real workflow as the regression; an artificial unit seam for a single
+discriminant check is not needed.
+
+The narrowed real Sales read reproduced the exact summary-only exception at1559
+in18.7s after the RPC independently proved access_mode=sales_summary
+(01a09bae27ce77b1984c48282adff5fe). Returning null for this validated restricted
+view then passed the entire original browser scenario in34.0s, including all
+document and access checks (01a09bb10d367ba2a1ad8a98042367c2). Its final database
+receipt check exposed an omission in the new bounded selector, not another
+product defect: COMPANY_SCANNER_PROOF_INVALID requires the separate existing
+company-file browser scenario. Include that exact second scenario in this
+bounded command. Keep the shared acceptance verifier intact and do not fabricate
+company scan rows, remove its assertion, or claim a full-gate pass.
+
+Final bounded result before independent review: both unchanged business scenarios
+PASS in40.7s with LOCAL_ADMISSIONS_WORKFLOW_VERIFIED and exit0, including P4
+database verification and no-secret log check (01a09bb4700a7c23adfe675ed1b044d3).
+The isolated technical environment was cleaned by the owning harness. Related
+Node command65/65 PASS (01a09bb2068f7c829ee1e2a83ca3ee63); actual
+npm run test:frontend183+23 PASS (01a09baf24a272e28f58e53e8d0138d5), no skips;
+scoped lint/bash syntax/diff checks PASS. The narrow regression stays in the
+existing full browser scenario; bounded-mode wiring has its own contract check.
+No new SQL, package/dependency, provider settings, permissions or public UI path.
+Independent exact-head review and a new frozen-main full CI/release remain open.
+
+PR761 fast CI34770252001 compiled product code, then TypeScript rejected the
+new real-test call because directPlatformRpc's narrow literal union omitted
+staff_student_case_read_snapshot. The runtime call already passed in the real
+scenario. Add only that exact RPC name to the test helper union, no type cast,
+broad string acceptance, product change or altered assertion. Recheck actual
+build and obtain renewed exact-head approval before merge. The first fast build
+failure is not a production or database incident.
+Actual npm run build then passed, including Next TypeScript and the bundled
+knowledge-import command (01a09bb8c1d47ac0acdfdaf1767da774). No standalone
+typecheck or duplicate Auth/DB/browser run was needed for the erased union change.
+
+## 2026-09-13 — Accept the combined S2/D2 release and continue the remaining run
+
+PR761 merged as05585020a411111939a72c4121c66369839a066b. Full exact-main
+CI34770582933 and automatic release34771170873 passed. At17:25:50UTC, independent
+Hermes readback matched the accepted revision, immutable image, snapshot and
+browser-receipt hashes; app healthy with zero restarts, no pending release,
+and unchanged private WAHA/ClamAV containers, images and volumes. Release arm
+was explicitly set/read back false. The existing loopback tunnel still targets
+172.16.8.4:3000; local health and Hermes public HTTPS health return200.
+
+Post-release Chrome used the existing Admin session through localhost:3000:
+staff list → roles → new-role editor → permission search → cancel. The editor
+rendered and filtered the actual permission catalogue without a persisted change.
+No production invitation, role publication/assignment or account mutation occurred.
+The old auth_unavailable observation no longer reproduces on this bounded flow;
+this does not establish its original cause. Retain real recipient/SMTP/first-login
+acceptance. Custom SMTP was read as disabled in the existing Dashboard session;
+the standard ConfirmationURL template is supported, not a proved callback defect.
+
+Update the existing plans, README, Admin guide and activation runbook to point to
+[the combined release evidence](design/v3/references/2026-09-13-staff-docs-s2-d2-release.md).
+This is a documentation-only checkpoint, not another release or scope change.
+D3/D4 implementation continues in reviewed draft slices; runtime/provider proof,
+real document acceptance, D5 reconciliation and D6 standalone retirement remain
+open. Preserve the single persistent database, source originals and the owner's
+no-new-backup decision. Do not replay the completed full gate for these prose edits.
+
+## 2026-09-13 — Integrate reviewed D4 form libraries with the accepted S2/D2 base
+
+The combined S2/D2 application is accepted as05585020 and its durable status is
+on main db2a121. PR759's independently reviewed form-library head9811b3c is now
+combined with that exact main without rewriting its reviewed history. Resolve
+only the append-only journal conflict by retaining both histories; preserve the
+current-main permission fixes, release evidence and all ordinary checks.
+
+This is the off-path mapping/DOCX/PDF library slice, not a public forms release.
+No HTTP, Storage, schema or UI export path is enabled. The existing D4 contract
+still requires isolated rendering, exact template/layout approval, immutable
+Storage/export receipts, package integration and real workflow acceptance.
+Run focused library and CI-manifest/classifier checks, independently review the
+combined head, then use the short PR gate. Do not repeat a production release or
+the full application gate for this library merge.
+
+The combined manifest check exposed a stale exact inventory: main added
+v3-calendar-visibility-proof.test.mjs to test:frontend, but the D4 count/list
+assertions still described the pre-calendar base (305/166 CI and203/161 unit).
+Retain that real test and assert its one plain-runtime occurrence; update only
+the resulting inventories to306/167 and204/162. Duplicate counts and all
+execution groups remain checked; no test is removed or skipped.
+
+Combined-source checks: actual52 forms PASS
+`01a09be69af47a60b66170c7e17cc367`; focused lint PASS
+`01a09be69e3873e3a91b19186e903b38`; manifest/classifier21 PASS
+`01a09be75adb7cf1b63b612904bbabc5` after the inventory correction.
+The three renderer/mapping modules, their three focused tests and exact fonts
+are byte-identical to reviewed9811b3c. Reuse its visual receipts; these checks
+do not claim isolated rendering, Storage, a public export or client acceptance.

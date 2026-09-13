@@ -4,6 +4,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
+import { loadProfileSalesContext } from "./profile-route-load";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
@@ -630,10 +631,7 @@ async function readCaseProfile(
     return null;
   }
   const view = await getPlatformStudentCaseView(actor, studentCaseId);
-  if (view === null) return null;
-  if (view.access !== "full") {
-    throw new Error("V3 Admissions profile received a summary-only case.");
-  }
+  if (view === null || view.access !== "full") return null;
 
   const canonicalCaseId = view.studentCase.studentCaseId;
   const links = await listPlatformStudentCaseLeadLinks(actor, [canonicalCaseId]);
@@ -697,10 +695,15 @@ async function readLeadProfile(
   const lead = await getPlatformSalesLead(actor, leadId);
   if (lead === null) return null;
 
-  const [gate, handoff] = await Promise.all([
-    getPlatformLeadAdmissionsGate(actor, leadId),
-    getPlatformLeadAdmissionsHandoff(actor, leadId),
-  ]);
+  const salesContext = await loadProfileSalesContext(
+    expectedStudentCaseId === null ? "lead" : "case",
+    {
+      readGate: () => getPlatformLeadAdmissionsGate(actor, leadId),
+      readHandoff: () => getPlatformLeadAdmissionsHandoff(actor, leadId),
+    },
+  );
+  if (salesContext === null) return null;
+  const { gate, handoff } = salesContext;
   const caseId = handoff.caseId;
   if (expectedStudentCaseId !== null && caseId !== expectedStudentCaseId) return null;
   const caseView = caseId ? await getPlatformStudentCaseView(actor, caseId) : null;

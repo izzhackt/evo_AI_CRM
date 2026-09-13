@@ -13,10 +13,13 @@ import {
 
 export class PlatformDocumentRecognitionError extends Error {
   readonly code: DocumentRecognitionRequestErrorCode;
-  constructor(code: DocumentRecognitionRequestErrorCode = "unavailable") {
+  /** Non-public transport distinction: unknown enqueue must retain its request. */
+  readonly uncertain: boolean;
+  constructor(code: DocumentRecognitionRequestErrorCode = "unavailable", uncertain = false) {
     super("Document recognition is unavailable");
     this.name = "PlatformDocumentRecognitionError";
     this.code = code;
+    this.uncertain = uncertain;
   }
 }
 
@@ -31,7 +34,7 @@ function rpcErrorCode(error: unknown): DocumentRecognitionRequestErrorCode {
   return "unavailable";
 }
 
-type RecognitionRpcName = "enqueue_document_recognition" | "staff_document_recognition_job";
+type RecognitionRpcName = "enqueue_document_recognition" | "staff_document_recognition_job" | "staff_document_recognition_jobs";
 type RecognitionActor = PlatformActor & Partial<Pick<ActivePlatformActor, "presentationRole">>;
 type RecognitionSessionClient = Readonly<{
   schema(name: "platform"): Readonly<{
@@ -93,11 +96,16 @@ export async function enqueuePlatformDocumentRecognition(
       p_request_id: request.request_id,
       p_retry_of_job_id: request.retry_of_job_id,
     });
-    if (response.error !== null) throw new PlatformDocumentRecognitionError(rpcErrorCode(response.error));
+    if (response.error !== null) {
+      const code = rpcErrorCode(response.error);
+      const denied = typeof response.error === "object" && response.error !== null && "code" in response.error
+        && response.error.code === "42501";
+      throw new PlatformDocumentRecognitionError(code, code === "unavailable" && !denied);
+    }
     return normalizeDocumentRecognitionReceipt(response.data);
   } catch (error) {
     if (error instanceof PlatformDocumentRecognitionError) throw error;
-    throw new PlatformDocumentRecognitionError();
+    throw new PlatformDocumentRecognitionError("unavailable", true);
   }
 }
 
@@ -121,6 +129,67 @@ export async function getPlatformDocumentRecognitionJob(
     const job = normalizeDocumentRecognitionJob(response.data);
     if (job.job_id !== expectedJobId) throw new PlatformDocumentRecognitionError();
     return job;
+  } catch (error) {
+    if (error instanceof PlatformDocumentRecognitionError) throw error;
+    throw new PlatformDocumentRecognitionError();
+  }
+}
+
+export type DocumentRecognitionHistory = Readonly<{
+  jobs: readonly DocumentRecognitionJob[];
+  next_cursor: string | null;
+}>;
+
+/** Exact opaque SQL keyset cursor: microsecond UTC timestamp and lowercase ID. */
+export function isDocumentRecognitionCursor(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{6}Z\|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value)) return false;
+  const date = new Date(value.slice(0, 27));
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value.slice(0, 10);
+}
+
+/** Cold reopening and pagination are session reads, never a retry command. */
+export async function getPlatformDocumentRecognitionHistory(
+  actor: RecognitionActor,
+  studentCaseId: string,
+  sourceVersionId: string,
+  cursor: string | null = null,
+  dependencies: PlatformDocumentRecognitionDependencies = session,
+): Promise<DocumentRecognitionHistory> {
+  return readHistory(actor, studentCaseId, uuid(sourceVersionId), cursor, dependencies);
+}
+
+/** Explicit case history also retains replaced-source jobs and cleanup outcomes. */
+export async function getPlatformDocumentRecognitionCaseHistory(
+  actor: RecognitionActor,
+  studentCaseId: string,
+  cursor: string | null = null,
+  dependencies: PlatformDocumentRecognitionDependencies = session,
+): Promise<DocumentRecognitionHistory> {
+  return readHistory(actor, studentCaseId, null, cursor, dependencies);
+}
+
+async function readHistory(actor: RecognitionActor, studentCaseId: string, sourceId: string | null,
+  cursor: string | null, dependencies: PlatformDocumentRecognitionDependencies): Promise<DocumentRecognitionHistory> {
+  try {
+    organizationFor(actor, false);
+    const caseId = uuid(studentCaseId);
+    if (cursor !== null && !isDocumentRecognitionCursor(cursor)) throw new PlatformDocumentRecognitionError("invalid_request");
+    const client = await dependencies.createSessionClient();
+    const response = await client.schema("platform").rpc("staff_document_recognition_jobs", {
+      p_student_case_id: caseId, p_source_version_id: sourceId, p_cursor: cursor,
+    }, { get: true });
+    if (response.error !== null) throw new PlatformDocumentRecognitionError(rpcErrorCode(response.error));
+    const data = response.data;
+    if (!data || typeof data !== "object" || Array.isArray(data)
+      || Object.keys(data).sort().join(",") !== "jobs,next_cursor") throw new PlatformDocumentRecognitionError();
+    const page = data as Record<string, unknown>;
+    if (!Array.isArray(page.jobs) || page.jobs.length > 10
+      || (page.next_cursor !== null && !isDocumentRecognitionCursor(page.next_cursor))) throw new PlatformDocumentRecognitionError();
+    const jobs = page.jobs.map(normalizeDocumentRecognitionJob);
+    if ((sourceId !== null && jobs.some(job => job.source_version_id !== sourceId)) || new Set(jobs.map(job => job.job_id)).size !== jobs.length
+      || (page.next_cursor !== null && (jobs.length !== 10 || page.next_cursor === cursor
+        || page.next_cursor.slice(28) !== jobs.at(-1)?.job_id))) throw new PlatformDocumentRecognitionError();
+    return Object.freeze({ jobs: Object.freeze(jobs), next_cursor: page.next_cursor });
   } catch (error) {
     if (error instanceof PlatformDocumentRecognitionError) throw error;
     throw new PlatformDocumentRecognitionError();

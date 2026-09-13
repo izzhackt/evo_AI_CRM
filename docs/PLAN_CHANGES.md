@@ -24680,3 +24680,131 @@ allowlist additions, the same full isolated PostgreSQL001–162 proof passed:
 correct fixed code; pre-upload reservation release and post-upload reservation
 retention/cleanup claim are asserted. Synthetic worker-reported outcomes are
 not evidence of real paid-budget exhaustion or provider cleanup.
+
+### D3 integration boundary — exact private source and cold job reopening
+
+Root approved163 after162 on isolated integration branch from823ecb02; neither
+migration is applied to managed production. Add service-only source-read RPC,
+bound to the current attempt/fence and saved live actor, all six permissions,
+exact active case/slot/version/hash/size/MIME and clean scan provenance. Every
+actual read revalidates; one idempotent document_access_events row records the
+attempt's source access with purpose document_recognition before bytes leave
+private Storage. Return exact private binding only to the service, never the UI.
+Stream only from the validated configured Supabase origin; no redirects, client
+path/URL, signed URL to Gemini, decompression or buffering an unbounded Blob.
+Deadline15s including grant/fetch/read, exact size <=25MiB, SHA and magic required.
+
+Shared parser runtime is root-owned at server/document-source-preflight.ts:
+inspectDocumentSource({bytes,mimeType,expectedSha256},{signal}) returns verified
+{sha256,byteLength,mimeType,pageCount,policyVersion} or fixed rejection.
+Policy document-source-v1: PDF <=20 pages, reject encrypted/unreadable; JPEG/PNG
+one page, width/height <=20000 and total <=40,000,000 pixels. Hard OS process
+isolation, no credentials/network, bounded memory/CPU/time/output and abort kill
+are mandatory before any untrusted file parsing or provider dispatch. A typed
+dependency seam is allowed; no pass stub or provider worker is shipped until the
+real implementation is wired/proven. This is not a second worker framework.
+
+For cold reopen,163 also adds current-session exact-source history read: latest10
+safe job DTOs, stable created_at/id cursor and explicit Load older when needed.
+The existing GET path accepts exactly job_id OR source_version_id; only history
+allows bounded cursor. No browser-storage authority, auto-enqueue or silent paid
+retry. POST remains the original four-field command. Small per-document UI shows
+existing job/result/cleanup state, explicit extraction/retry and human-review link.
+Actual authenticated routes, typed session adapter, bounded source bytes and SQL
+workflow checks precede local browser acceptance; provider/file/paid-project,
+root parser/runtime integration and production release remain separate gates.
+
+Official Supabase API-key documentation confirms backend secret keys bypass RLS;
+therefore the service RPC must perform live saved-actor authorization, not infer
+case access from key presence: https://supabase.com/docs/guides/getting-started/api-keys
+Storage wire path/headers are checked against installed storage-js source before
+implementation; no secret values, source files or paid calls are inspected here.
+
+Root approved continued worker orchestration against the real shared preflight
+interface, while the final runtime/CLI activation stays closed pending proof.
+Import only the exact reviewed PR758 transport module/test bytes from6feefd40:
+blobs c504e64bdc5efd3645007a587f0be9413ba18108 and
+8cba93db39dcdd6f2088a74907106ff1bae67913 (verified01a09bbc545e7931a8fe4c815966ae9f).
+Keep captured config and enqueue/processing fingerprint checks; this worker
+implements registry evo-profile-61-v1, schema1, prompt extract-v1 and parser
+document-source-v1 only. Unknown version fails before dispatch rather than
+using current code under another policy label. RPC and provider requests are
+separate; persist each upload/generation/delete intent, reconcile uncertain
+results with bounded reads and never repeat a generation request. Heartbeat15s,
+fenced lease90s, bounded tick240s; cleanup separately bounded within its90s lease.
+Real positive SQL and synthetic transport-boundary checks are complementary,
+not a substitute for the eventual real Auth/Storage/parser/provider acceptance.
+
+Root reviewed and approved four precise forward163 integration seams before code:
+persist-once source_preflight_policy_version=document-source-v1 beside verified
+pages (existing v1 processing fingerprint remains unchanged); explicit case-wide
+safe history to discover jobs after a source version is replaced; actual sealed
+source_pages in cleanup receipt (never invent page1); and truthful general finish
+codes document_not_eligible/provider_not_configured after upload. Preserve all
+live permission checks, generation-unknown coercion, reservation and cleanup rules.
+The old seven-argument seal command is removed rather than retained as an unpinned
+parallel entrypoint. The new command takes explicit p_preflight_policy_version;
+upload/generation require the sealed known policy. No history backfill fabricates
+past parser proof. GET scope=case is exclusive with job_id/source_version_id and
+uses the same stable10+cursor safe DTO. Current API/private data boundaries stay.
+
+Two necessary integration distinctions surfaced in actual call-site inspection:
+the private claim receipt must expose its persisted provider_file_state and
+observation_count, so a restart after the fifth confirmed ACTIVE observation
+uses that exact stored proof instead of attempting a forbidden sixth observation.
+The existing source/hash/MIME and deterministic owned resource URI remain bound;
+no new provider read or public metadata is added. Unknown uploads still use GET.
+Separately, session enqueue's typed error carries a non-public uncertain flag:
+actual42501 maps403, while lost/malformed RPC outcome maps503 and retains the
+original UI request ID/payload. No new public error strings, SQL grants or retry.
+
+The actual Node CI manifest must include every D3 integration boundary test:
+transport, private source, processing worker, independent cleanup, session route,
+history adapter and client reducer under the existing react-server Node group;
+the real component SSR contract uses the existing ordinary React group. Append
+these files only to test:student-profile-fields and update the manifest's exact
+counts/required-file assertions. Do not add dependencies, a parallel runner or
+full-CI skips. Tests with injected provider/RPC replies remain unit-boundary proof;
+the actual isolated PostgreSQL001–163 proof is separate and passed
+01a09bc51f5c7d309b46cbfc5a261667, including persisted fifth ACTIVE recovery,
+sealed parser policy, actual cleanup pages and source/case cursor history.
+
+Actual repository-tsconfig checking (target ES2017, not an overridden target)
+reported two unsupported bigint literals in the reviewed transport cost helper
+and one implicit return diagnostic in the source loader catch. Replace only
+999_999n/1_000_000n with equivalent BigInt(number) constructors and make the
+source's throwing return explicit. Preserve integer arithmetic, pricing limits,
+request bytes and configuration hashes; no target/dependency relaxation. This
+is the sole intentional transport delta from the initially byte-identical import
+and must be included in integration review. Initial diagnostics:
+01a09bc9cf8a79c3ba68ef3d3ad00b0d (three diagnostics).
+Whole-program checking additionally loads Next's ProcessEnv augmentation, which
+requires NODE_ENV in the source validator's explicit environment projection;
+include the current mode (production if absent) without copying other secrets.
+The validator still reads only URL/key and keeps identical URL rules. Generate
+the ignored Next route/image declarations via installed next typegen before
+whole-project checking; a clean worktree's missing declarations are not a logo
+product regression. No generated declaration or config change is committed.
+
+### D3 integration163 — bounded implemented candidate, not release acceptance
+
+Implemented session POST/read history, exact-case/source paged UI with manual
+paid-action consent and same-command unknown reconciliation, real private-source
+HTTP loader, processing worker and independently fenced cleanup worker. The
+worker requires a supplied real inspector; no CLI or always-verified fallback
+is present. Parent owns the isolated runtime and final wiring/activation.
+
+Actual PostgreSQL001–163 PASS01a09bc51f5c7d309b46cbfc5a261667; exact owned container
+evo-document-recognition-proof-6840-68589 absent01a09bcd57d97ca180f6130e2373a218.
+Actual npm test:student-profile-fields152+18PASS01a09bcc160f73e2a5f2182c02b4182d;
+manifest6PASS01a09bcc13e075308704e104c8c15278. Whole-repo typegen/tsc under unchanged
+ES2017 target PASS01a09bccc76978c18ca43875f3ecc259. Source HTTP includes real
+loopback streamed-read abort/grant expiry; it is not actual private Storage.
+Injected provider/RPC/inspector results prove ordering/recovery boundaries only.
+Processing never redispatches a persisted generation intent; result save must
+return the same job/result_saved before publication. Cleanup uses stored pages,
+verifies the exact owned name before DELETE, records acknowledgement separately
+and requires GET absence; early404 after unknown upload remains DB-pending.
+Independent integration review, real local Auth/Storage/browser proof, isolated
+parser proof, CLI wiring and explicit allowed-file/paid-project provider
+acceptance remain open. No main/schema/provider/production mutation in this slice.

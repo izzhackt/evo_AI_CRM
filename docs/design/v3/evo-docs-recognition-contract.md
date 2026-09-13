@@ -1,11 +1,13 @@
 # D3 — распознавание документов с проверкой человеком
 
 Дата: 2026-09-13. Статус: D3 в реализации в отдельных ветках; не выпущен.
-База: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS, итоговый выпуск ещё не подтверждён.
+База D2 объединена в main; актуальное доказательство выпуска ведёт root в едином плане, не эта D3-ветка.
 Исполнитель читает [единый план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md) и [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
-Pure DTO/transport подготовлены в PR756/758; очередь162 и session adapter проверены локально, ждут независимого ревью.
-Worker/HTTP/private byte preflight/UI и настоящая provider-приёмка ещё не готовы.
+Pure DTO/transport подготовлены в PR756/758; очередь162/PR760 reviewed APPROVED на `823ecb02`, не merged.
+Интеграция163: HTTP/UI, fenced private-source loader и processing/cleanup orchestration реализованы и локально проверены.
+Изолированный parser/runtime, итоговый CLI и реальные Auth/Storage/browser/provider gates ещё не закрыты; dispatch не включён.
+Новый срез ждёт независимого ревью; статус и результаты ниже не означают выпуск или реальную paid-приёмку.
 Номера forward-миграций выделяет root после проверки актуального main; не резервировать самостоятельно.
 
 ## Результат и неизменные границы
@@ -88,6 +90,12 @@ RPC/read adapter и локальная настоящая PostgreSQL-прове�
   Фиксированные ошибки: `400 invalid_request`, `401/403 unavailable`, `409 profile_changed|request_conflict|equivalent_job_active`,
   `422 document_not_eligible|profile_not_started`, `429 budget_exhausted`, `503 provider_not_configured`.
   Неизвестный исход enqueue сверяется тем же request_id; новый ID автоматически не генерируется.
+- Для холодного открытия GET принимает вместо job_id ровно source_version_id и необязательный cursor:
+  `{jobs:[safe job DTO],next_cursor:string|null}`, по10, порядок created_at/id; UI «Загрузить более ранние».
+  История проверяет те же live read-права; read/reopen/poll не запускает платное действие.
+- GET `scope=case` (+cursor) вместо job_id/source_version_id показывает ту же safe историю по всем
+  версиям данного дела; это сохраняет доступ к неизвестному исходу/cleanup после замены версии.
+  Выбор строго взаимоисключающий, права прежние, никаких путей/байтов/новых private полей.
 
 ## Постоянные данные и RPC
 
@@ -158,6 +166,16 @@ lease 90 s, heartbeat 15 s. Истёкшая lease разрешает reconcile,
 
 Стартовые верхние границы D3: PDF/JPEG/PNG ≤25 MiB, PDF ≤20 страниц, без скрытой обрезки;
 число страниц определяет ограниченный серверный разбор, encrypted/unreadable PDF отклоняется.
+Shared `inspectDocumentSource` (root-owned `server/document-source-preflight.ts`) принимает только
+bytes/MIME/expectedSha256 + AbortSignal; policyVersion `document-source-v1`, JPEG/PNG ≤20000 по каждой
+стороне и ≤40MP. Credential-free/network-isolated процесс с жёсткими RAM/CPU/time/output bounds;
+до его реального доказательства нет provider dispatch. Загрузка exact private binding после live
+fenced source RPC: ≤15s, streamed ≤25MiB, exact length/SHA/magic; без redirects/decompression/путей от клиента.
+Forward163 сохраняет `source_preflight_policy_version` один раз рядом с pages; seal принимает явный
+`p_preflight_policy_version`, старый unpinned signature удалён. Upload/generate проверяют policy;
+v1 fingerprint/golden не меняется. Cleanup получает фактические sealed source_pages, не подставную1.
+Приватный claim также возвращает сохранённые provider_file_state/provider_observation_count:
+после пятого ACTIVE worker использует точное прежнее подтверждение, не выполняет шестой observe.
 ≤61 кандидат, только registry keys, value по лимиту поля, snippet ≤240 code points,
 page ∈1..фактическое число страниц либо NULL, confidence ∈0..1 либо NULL;
 ≤16 коротких warnings по 240 символов, validated JSON ≤256 KiB, output ≤6000 tokens.
@@ -191,3 +209,15 @@ Unpaid API запрещает sensitive/personal/confidential inputs; `store:fal
 - [Files retention](https://ai.google.dev/gemini-api/docs/files); [abort не отменяет service](https://googleapis.github.io/js-genai/release_docs/interfaces/types.GenerateContentConfig.html#abortSignal); [retry defaults](https://googleapis.github.io/js-genai/release_docs/interfaces/types.HttpRetryOptions.html).
 - [REST store/responseFormat](https://ai.google.dev/api/generate-content); [structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output); [model migration](https://ai.google.dev/gemini-api/docs/latest-model).
 - [Paid/unpaid и использование данных](https://ai.google.dev/gemini-api/terms); [logging отдельно от retention](https://ai.google.dev/gemini-api/docs/logs-datasets). Проверено 2026-09-13; повторно сверить перед provider acceptance.
+
+## Локальное доказательство интеграции163
+
+Реальная isolated PostgreSQL001–163: PASS `01a09bc51f5c7d309b46cbfc5a261667`; source access/replay,
+пятый ACTIVE→lease restart, sealed policy/pages, truthful post-upload failure и case/source history.
+Owned container удалён, absence `01a09bcd57d97ca180f6130e2373a218`; managed DB не изменялась.
+Actual `npm run test:student-profile-fields`: 152 server/pure +18 component SSR PASS
+`01a09bcc160f73e2a5f2182c02b4182d`; CI manifest6 PASS `01a09bcc13e075308704e104c8c15278`.
+`next typegen` + whole-repo `tsc --noEmit --incremental false`: PASS `01a09bccc76978c18ca43875f3ecc259`.
+Real loopback HTTP проверяет capped streaming/abort/expiry, но не настоящий Supabase Storage.
+Injected Files/REST/RPC/inspector ответы — только unit-boundary proof, не real provider/parser evidence.
+CLI не содержит mock/pass инспектора и ещё не добавлен: root-owned hard runtime обязателен до wiring/dispatch.

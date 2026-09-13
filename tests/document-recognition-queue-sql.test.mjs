@@ -4,6 +4,7 @@ import test from 'node:test';
 import { classifyNameStatus } from '../scripts/classify-pr-changes.mjs';
 
 const sql = readFileSync(new URL('../supabase/migrations/162_platform_document_recognition_queue.sql', import.meta.url), 'utf8');
+const sourceSql = readFileSync(new URL('../supabase/migrations/163_platform_document_recognition_source_access.sql', import.meta.url), 'utf8');
 const runner = readFileSync(new URL('../scripts/test-document-recognition-postgres.sh', import.meta.url), 'utf8');
 const positive = readFileSync(new URL('../supabase/tests/document_recognition_queue_positive.sql', import.meta.url), 'utf8');
 
@@ -55,4 +56,29 @@ test('new proof script is already a known code path, without unknown-range relax
   const result = classifyNameStatus(Buffer.from('A\0scripts/test-document-recognition-postgres.sh\0'));
   assert.equal(result.unknown, false);
   assert.equal(result.code, true);
+});
+
+test('forward source access seals the actual policy and retains exact claim ownership', () => {
+  assert.match(sourceSql, /CREATE FUNCTION platform\.grant_document_recognition_source/);
+  assert.match(sourceSql, /document_recognition_lock_claim/);
+  assert.match(sourceSql, /document_recognition_require_actor/);
+  assert.match(sourceSql, /document_recognition_require_source/);
+  assert.match(sourceSql, /INSERT INTO platform\.document_access_events/);
+  assert.match(sourceSql, /DROP FUNCTION platform\.seal_document_recognition_preflight\(UUID,UUID,TEXT,BIGINT,TEXT,INTEGER,TEXT\)/);
+  assert.match(sourceSql, /source_preflight_policy_version='document-source-v1'/);
+  assert.match(sourceSql, /'source_pages',job\.source_pages/);
+  assert.match(sourceSql, /'provider_file_state'/);
+  assert.match(sourceSql, /'provider_observation_count'/);
+  assert.doesNotMatch(sourceSql, /UPDATE platform\.student_profile_fields/);
+});
+
+test('bounded source and case histories preserve live scope and stable pagination', () => {
+  assert.match(sourceSql, /staff_document_recognition_jobs/);
+  assert.match(sourceSql, /p_source_version_id IS NULL/);
+  assert.match(sourceSql, /LIMIT 11/);
+  assert.match(sourceSql, /next_cursor/);
+  assert.match(positive, /synthetic-active-restart/);
+  assert.match(positive, /provider_observation_count/);
+  assert.match(positive, /source_preflight_policy_version/);
+  assert.match(positive, /staff_document_recognition_jobs/);
 });

@@ -16,12 +16,14 @@ import {
 import { documentPresence, documentReviewDecision, documentSlotStatus } from "@/lib/v3/wording";
 import { DocumentReviewForm } from "./DocumentReviewForm";
 import { DocumentPreviewButton } from "./DocumentPreviewButton";
+import { DocumentRecognitionJobs } from "./DocumentRecognitionJobs";
 
 import type {
   ActiveDocumentGroup,
   DocumentCaseLinkTarget,
   DocumentItem,
   DocumentUploadAccess,
+  DocumentRecognitionAccess,
   RemovedDocumentGroup,
 } from "./document-types";
 
@@ -543,12 +545,14 @@ export function ProfileDocumentsClient({
   uploadAccess,
   studentCaseId,
   createRequestId,
+  recognition = null,
 }: Readonly<{
   groups: readonly ActiveDocumentGroup[];
   historyGroups: readonly RemovedDocumentGroup[];
   uploadAccess: DocumentUploadAccess;
   studentCaseId: string | null;
   createRequestId: string | null;
+  recognition?: DocumentRecognitionAccess | null;
 }>) {
   const router = useRouter();
   const [uploads, setUploads] = useState<Readonly<Record<string, UploadState>>>({});
@@ -605,6 +609,9 @@ export function ProfileDocumentsClient({
           {ACCESS_MESSAGE[uploadAccess]}
         </p>
       ) : null}
+
+      {recognition ? <div className="px-4"><DocumentRecognitionJobs key={recognition.studentCaseId}
+        access={recognition} sourceVersionId={null} sourceReady={false} /></div> : null}
 
       {uploadAccess === "allowed" && studentCaseId && createRequestId ? (
         <CreateChecklistItem
@@ -739,6 +746,10 @@ export function ProfileDocumentsClient({
                           <p>Документ {documentReviewDecision(item.latestReview.decision)} · {historyDate(item.latestReview.reviewedAt)}</p>
                           {item.latestReview.reason ? <p className="break-words">{item.latestReview.reason}</p> : null}
                         </div>
+                      ) : null}
+                      {recognition && item.presence === "present" ? (
+                        <DocumentRecognitionJobs key={item.currentVersionId} access={recognition}
+                          sourceVersionId={item.currentVersionId} sourceReady={item.downloadReady} />
                       ) : null}
                       {uploadAccess === "allowed" && studentCaseId && item.presence === "present" && item.reviewRequestId ? (
                         <DocumentReviewForm key={`${item.id}:${item.currentVersionId}`} item={item} studentCaseId={studentCaseId} />

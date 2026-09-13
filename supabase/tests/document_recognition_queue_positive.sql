@@ -107,18 +107,34 @@ RESET ROLE;
 SELECT pg_temp.d3_assert((SELECT body->>'attempt_id'=(SELECT body->>'attempt_id' FROM d3_receipts WHERE key='claim')
   AND body->>'claim_token'<>(SELECT body->>'claim_token' FROM d3_receipts WHERE key='claim')
   FROM d3_receipts WHERE key='recovered'), 'recovery keeps attempt and rotates fence');
+SET LOCAL ROLE service_role;
+INSERT INTO d3_receipts SELECT 'source-access',platform.grant_document_recognition_source(
+  (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID) FROM d3_receipts WHERE key='recovered';
+INSERT INTO d3_receipts SELECT 'source-access-replay',platform.grant_document_recognition_source(
+  (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID) FROM d3_receipts WHERE key='recovered';
+RESET ROLE;
+SELECT pg_temp.d3_assert((SELECT body->>'access_event_id'=(SELECT body->>'access_event_id' FROM d3_receipts WHERE key='source-access')
+  AND body->>'bucket_id'='platform-documents' AND body->>'object_name'=(SELECT upload->>'object_name' FROM d3_fixture)
+  AND body->>'source_sha256'=repeat('a',64) AND body->>'source_bytes'='128'
+  AND (body->>'expires_at')::TIMESTAMPTZ>(body->>'granted_at')::TIMESTAMPTZ
+  FROM d3_receipts WHERE key='source-access-replay'), 'fresh live exact-source read returns the same access event and private binding');
+SELECT pg_temp.d3_assert((SELECT count(*)=1 FROM platform.document_access_events WHERE access_purpose='document_recognition')
+  AND NOT has_function_privilege('authenticated','platform.grant_document_recognition_source(uuid,uuid)','EXECUTE'),
+  'source access is audited once and service-only');
 INSERT INTO d3_receipts SELECT 'fingerprint',to_jsonb(platform_private.document_recognition_sha(request_identity ||
   jsonb_build_object('fingerprint_version','evo-document-recognition-request-v1','source_pages',2)))
   FROM platform_private.document_recognition_jobs;
 SET LOCAL ROLE service_role;
 INSERT INTO d3_receipts SELECT 'sealed',platform.seal_document_recognition_preflight(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,repeat('a',64),128,'application/pdf',2,
-  (SELECT body #>> '{}' FROM d3_receipts WHERE key='fingerprint')) FROM d3_receipts WHERE key='recovered';
+  (SELECT body #>> '{}' FROM d3_receipts WHERE key='fingerprint'),'document-source-v1') FROM d3_receipts WHERE key='recovered';
 INSERT INTO d3_receipts SELECT 'seal-replayed',platform.seal_document_recognition_preflight(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,repeat('a',64),128,'application/pdf',2,
-  (SELECT body #>> '{}' FROM d3_receipts WHERE key='fingerprint')) FROM d3_receipts WHERE key='recovered';
+  (SELECT body #>> '{}' FROM d3_receipts WHERE key='fingerprint'),'document-source-v1') FROM d3_receipts WHERE key='recovered';
 SELECT pg_temp.d3_assert((SELECT body=(SELECT body FROM d3_receipts WHERE key='sealed')
   FROM d3_receipts WHERE key='seal-replayed'), 'sealed source replay is identical');
+SELECT pg_temp.d3_assert((SELECT body->>'source_preflight_policy_version'='document-source-v1'
+  FROM d3_receipts WHERE key='seal-replayed'), 'actual parser policy is captured alongside the unchanged processing fingerprint');
 RESET ROLE;
 SELECT pg_temp.d3_assert((SELECT count(*)=1 FROM platform_private.document_recognition_attempts), 'one attempt after recovery');
 SELECT pg_temp.d3_assert((SELECT count(*)=1 AND min(revision)=2 FROM platform.student_profiles), 'queue does not edit human profile');
@@ -166,6 +182,19 @@ INSERT INTO d3_receipts SELECT 'file-active',platform.observe_document_recogniti
   FROM d3_receipts WHERE key='recovered';
 SELECT pg_temp.d3_assert((SELECT body->>'state'='file_processing' FROM d3_receipts WHERE key='file-active'),
   'exact synthetic ACTIVE observation advances the owned file');
+INSERT INTO d3_receipts SELECT 'active-observation-'||number,platform.observe_document_recognition_file(
+  (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,jsonb_build_object(
+    'outcome','present','resource_name',(SELECT body->>'resource_name' FROM d3_receipts WHERE key='upload-intent'),
+    'state','ACTIVE','sha256',repeat('a',64),'bytes',128,'mime_type','application/pdf'))
+  FROM d3_receipts CROSS JOIN generate_series(2,5) number WHERE key='recovered';
+RESET ROLE;
+UPDATE platform_private.document_recognition_attempts SET lease_until=statement_timestamp()-INTERVAL '1 second';
+SET LOCAL ROLE service_role;
+INSERT INTO d3_receipts SELECT 'active-restarted',platform.claim_document_recognition('synthetic-active-restart');
+UPDATE d3_receipts SET body=(SELECT body FROM d3_receipts WHERE key='active-restarted') WHERE key='recovered';
+SELECT pg_temp.d3_assert((SELECT body->>'provider_file_state'='ACTIVE' AND body->>'provider_observation_count'='5'
+  AND body->>'source_preflight_policy_version'='document-source-v1' AND body->>'source_pages'='2'
+  FROM d3_receipts WHERE key='active-restarted'), 'restart exposes the fifth exact ACTIVE observation and sealed parser proof without a sixth observe');
 RESET ROLE;
 
 SELECT pg_temp.d3_assert((SELECT reservation_day=(statement_timestamp() AT TIME ZONE 'UTC')::DATE
@@ -214,6 +243,17 @@ SELECT pg_temp.d3_assert((SELECT body->>'attempt_id'=(SELECT body->>'attempt_id'
   FROM d3_receipts WHERE key='budget-cleanup-claim'), 'uploaded budget failure remains claimable for exact owned-file cleanup');
 ROLLBACK TO SAVEPOINT post_upload_budget_outcome;
 RELEASE SAVEPOINT post_upload_budget_outcome;
+SELECT format($commands$
+SAVEPOINT post_upload_terminal_outcome;
+INSERT INTO d3_receipts SELECT 'terminal-%1$s',platform.finish_document_recognition(
+  (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,'%1$s') FROM d3_receipts WHERE key='recovered';
+RESET ROLE;
+SELECT pg_temp.d3_assert((SELECT state='failed' AND failure_code='%1$s' AND reservation_released_at IS NULL
+  AND cleanup_state='pending' AND generate_started_at IS NULL FROM platform_private.document_recognition_jobs),
+  'post-upload fixed terminal outcome retains reservation and cleanup');
+ROLLBACK TO SAVEPOINT post_upload_terminal_outcome;
+RELEASE SAVEPOINT post_upload_terminal_outcome;
+$commands$,code) FROM unnest(ARRAY['document_not_eligible','provider_not_configured']) code \gexec
 INSERT INTO d3_receipts SELECT 'generation-intent',platform.begin_document_recognition_generation(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,
   (SELECT body FROM d3_receipts WHERE key='count-receipt')) FROM d3_receipts WHERE key='recovered';
@@ -291,6 +331,8 @@ RESET ROLE;
 SET LOCAL request.jwt.claims = '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
 INSERT INTO d3_receipts SELECT 'cleanup-claim',platform.claim_document_recognition_cleanup('synthetic-cleanup-one');
+SELECT pg_temp.d3_assert((SELECT body->>'source_pages'='2' FROM d3_receipts WHERE key='cleanup-claim'),
+  'cleanup receives actual sealed pages rather than a guessed page count');
 INSERT INTO d3_receipts SELECT 'cleanup-present',platform.record_document_recognition_cleanup(
   (body->>'attempt_id')::UUID,(body->>'cleanup_token')::UUID,jsonb_build_object('outcome','present',
     'resource_name',body->>'resource_name','state','ACTIVE','sha256',repeat('a',64),'bytes',128,'mime_type','application/pdf'))
@@ -334,7 +376,7 @@ SET LOCAL ROLE service_role;
 INSERT INTO d3_receipts SELECT 'unknown-upload-claim',platform.claim_document_recognition('synthetic-upload-unknown');
 INSERT INTO d3_receipts SELECT 'unknown-upload-seal',platform.seal_document_recognition_preflight(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,repeat('a',64),128,'application/pdf',2,
-  (SELECT body #>> '{}' FROM d3_receipts WHERE key='unknown-upload-fingerprint')) FROM d3_receipts WHERE key='unknown-upload-claim';
+  (SELECT body #>> '{}' FROM d3_receipts WHERE key='unknown-upload-fingerprint'),'document-source-v1') FROM d3_receipts WHERE key='unknown-upload-claim';
 INSERT INTO d3_receipts SELECT 'unknown-upload-intent',platform.begin_document_recognition_upload(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID) FROM d3_receipts WHERE key='unknown-upload-claim';
 DO $$ DECLARE claim JSONB; file_name TEXT; observation JSONB; n INTEGER;
@@ -378,7 +420,7 @@ SET LOCAL ROLE service_role;
 INSERT INTO d3_receipts SELECT 'unknown-generation-claim',platform.claim_document_recognition('synthetic-generation-unknown');
 INSERT INTO d3_receipts SELECT 'unknown-generation-seal',platform.seal_document_recognition_preflight(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,repeat('a',64),128,'application/pdf',2,
-  (SELECT body #>> '{}' FROM d3_receipts WHERE key='unknown-generation-fingerprint')) FROM d3_receipts WHERE key='unknown-generation-claim';
+  (SELECT body #>> '{}' FROM d3_receipts WHERE key='unknown-generation-fingerprint'),'document-source-v1') FROM d3_receipts WHERE key='unknown-generation-claim';
 INSERT INTO d3_receipts SELECT 'unknown-generation-upload',platform.begin_document_recognition_upload(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID) FROM d3_receipts WHERE key='unknown-generation-claim';
 INSERT INTO d3_receipts SELECT 'unknown-generation-active',platform.observe_document_recognition_file(
@@ -443,5 +485,36 @@ SELECT pg_temp.d3_assert(platform_private.document_recognition_sha('{
   "expected_profile_revision":1,"retry_of_job_id":null
 }'::JSONB)='a4d3c643ef7e3349cdc9d662517cb30ead6d56f5fa3ab3ae59644412b493552b',
   'SQL canonical fingerprint matches unchanged JS v1 golden vector');
+
+-- Ordinary explicit local cancellations create history through the real
+-- authenticated enqueue + service finish commands, without provider intent.
+SELECT format($commands$
+SET LOCAL ROLE authenticated;
+DO $claims$ BEGIN PERFORM set_config('request.jwt.claims',(SELECT claims::TEXT FROM d3_fixture),TRUE); END $claims$;
+INSERT INTO d3_receipts SELECT 'history-job-%1$s',platform.enqueue_document_recognition(
+  (bootstrap->>'organization_id')::UUID,case_id,(upload->>'document_version_id')::UUID,3,gen_random_uuid(),
+  (SELECT (body->>'job_id')::UUID FROM d3_receipts WHERE key='unknown-generation-job')) FROM d3_fixture;
+SET LOCAL ROLE service_role;
+SET LOCAL request.jwt.claims='{"role":"service_role"}';
+INSERT INTO d3_receipts SELECT 'history-claim-%1$s',platform.claim_document_recognition('synthetic-history');
+INSERT INTO d3_receipts SELECT 'history-finished-%1$s',platform.finish_document_recognition_preflight(
+  (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,'cancelled') FROM d3_receipts WHERE key='history-claim-%1$s';
+RESET ROLE;
+$commands$,number) FROM generate_series(1,12) number \gexec
+SET LOCAL request.jwt.claims TO :'staff_claims';
+SET LOCAL ROLE authenticated;
+INSERT INTO d3_receipts SELECT 'history-first',platform.staff_document_recognition_jobs(case_id,(upload->>'document_version_id')::UUID,NULL) FROM d3_fixture;
+INSERT INTO d3_receipts SELECT 'history-second',platform.staff_document_recognition_jobs(case_id,(upload->>'document_version_id')::UUID,
+  (SELECT body->>'next_cursor' FROM d3_receipts WHERE key='history-first')) FROM d3_fixture;
+SELECT pg_temp.d3_assert((SELECT jsonb_array_length(body->'jobs')=10 AND body->>'next_cursor' IS NOT NULL
+  FROM d3_receipts WHERE key='history-first') AND (SELECT jsonb_array_length(body->'jobs')=5 AND body->>'next_cursor' IS NULL
+  FROM d3_receipts WHERE key='history-second'), 'cold history has ten per page and explicit access to the earlier five jobs');
+SELECT pg_temp.d3_assert((SELECT count(*)=15 AND count(DISTINCT item->>'job_id')=15
+  FROM d3_receipts CROSS JOIN LATERAL jsonb_array_elements(body->'jobs') item WHERE key IN ('history-first','history-second')),
+  'stable history cursor has no duplicates or missing existing jobs');
+INSERT INTO d3_receipts SELECT 'case-history',platform.staff_document_recognition_jobs(case_id,NULL,NULL) FROM d3_fixture;
+SELECT pg_temp.d3_assert((SELECT body=(SELECT body FROM d3_receipts WHERE key='history-first')
+  FROM d3_receipts WHERE key='case-history'), 'case-wide recovery preserves the same safe bounded cursor contract');
+RESET ROLE;
 ROLLBACK;
 \echo DOCUMENT_RECOGNITION_QUEUE_POSITIVE_VERIFIED

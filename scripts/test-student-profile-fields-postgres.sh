@@ -13,14 +13,15 @@ fi
 postgres_image="$(bash scripts/resolve-postgres-test-image.sh)"
 container_name="evo-profile-fields-proof-${RANDOM}-$$"
 container_id=''
+container_created=false
 stage='start isolated PostgreSQL'
 cleanup() {
   local result=$?
-  if [[ -n "$container_id" ]]; then
-    if docker rm --force --volumes "$container_id" >/dev/null; then
-      printf 'Removed owned proof container: %s\n' "$container_id"
+  if [[ "$container_created" == true ]]; then
+    if docker rm --force --volumes "$container_name" >/dev/null; then
+      printf 'Removed owned proof container: %s\n' "$container_name"
     else
-      echo "Failed to remove owned proof container: $container_id" >&2
+      echo "Failed to remove owned proof container: $container_name" >&2
       result=1
     fi
   fi
@@ -29,6 +30,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if docker container inspect "$container_name" >/dev/null 2>&1; then
+  echo 'Refusing an existing proof container name' >&2
+  exit 1
+fi
+# A lost daemon reply must not skip cleanup of this exact owned target.
+container_created=true
 container_id="$(docker run --detach --name "$container_name" --network none \
   --env POSTGRES_PASSWORD=postgres \
   --mount "type=bind,source=$repo_root/supabase,target=/workspace/supabase,readonly" \

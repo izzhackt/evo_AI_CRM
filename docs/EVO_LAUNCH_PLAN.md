@@ -33,13 +33,14 @@ D2 implementation now follows the [profile fields contract](design/v3/evo-docs-p
 an explicit partial canonical profile, human-confirmed field review and the original
 Student Profile DOCX. Migrations159–161 and the application path are implemented
 on the D2 branch. Historical local proof used the original158–160 numbering;
-the renamed sequence still needs the actual S2 migration158 and integration validation.
+the renamed SQL sequence now passes with the actual S2 migration158 from561aa920.
+The final current-main Auth/DB/browser proof remains required.
 The bounded real Auth/DB/browser workflow passed locally on that earlier candidate:
 initialize one absent profile, confirm fields, preserve a stale editor's draft,
 and download draft/final DOCX files whose hashes match the export audit.
 Both actual files rendered correctly on all two pages. See the
 [local D2 proof](design/v3/references/2026-09-13-student-profile-fields-local-proof.md).
-This is not a D2 release or real client acceptance; current-main integration,
+This is not a D2 release or real client acceptance; final current-main verification,
 independent review, D3–D6 and real employee/document acceptance remain required.
 Do not move main during the S2 release proof.
 
@@ -69,7 +70,21 @@ technical CI. The latest release checkpoint is
 
 S2 is merged in [PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) as
 `0f80ced1`, but the application release remains pending.
-Latest: PR750 merged as `abe8109d`; schema34760275283 confirmed157=157.
+Latest: PR753 merged as `b1ebeddf`; schema34763124585 confirmed157=157.
+Full CI34763194546 passed Node/static and the scoped-staff proofs, then stopped
+at creation of a document requirement: the organization-resource matcher rejects
+the case-scoped permission even for System Admin. Forward158 restores only the
+existing protected requirement-configuration path; applied migrations, role grants
+and case-local authority remain unchanged. Preserve the full browser/Storage
+acceptance gate. Release34763572090 was skipped; arm=false was read back.
+S2 is not released. D2/PR752 must shift its unapplied migrations to159–161.
+After158 and D2 each pass independent review/fast gates, merge them and the
+reviewed preparation-only PR754 before freezing one final main release candidate.
+Apply/check001–161 and run the full Auth/DB/browser plus D2 proof on that exact
+final SHA. No intermediate S2-only full cycle is required; all acceptance,
+runtime/tunnel and explicit disarm gates remain. See the sequence amendment.
+
+Historical PR750 checkpoint: `abe8109d`; schema34760275283 confirmed157=157.
 Full CI34760328421 passed Node/static, dependency audit and all four scoped-staff
 onboarding markers. The broad browser path then reported15 passed/3 failed/2 skipped.
 Two source-grounded UI defects remain: known record-read denial becomes a generic

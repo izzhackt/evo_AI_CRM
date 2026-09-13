@@ -24,6 +24,20 @@ test("membership schema changes precede the populated Admin backfill and its def
   assert.match(sql.slice(backfill, sql.indexOf(";", backfill)), /current_role" = 'admin'[\s\S]*b\.status='published'[\s\S]*membership_has_active_scope/);
 });
 
+test("role-table DDL and enforced RLS precede the backfill's deferred bundle foreign key events", () => {
+  const backfill = sql.indexOf("DO $backfill$");
+  assert.ok(backfill > 0);
+  const tables = ["platform.staff_role_definitions", "platform.staff_role_bundle_bindings",
+    "platform.staff_role_assignments", "platform_private.staff_role_command_receipts"];
+  for (const table of tables) {
+    const changes = [...sql.matchAll(new RegExp(`ALTER TABLE ${table.replaceAll(".", "\\.")}[^;]+;`, "g"))];
+    assert.equal(changes.length, table === tables[0] ? 3 : 2);
+    for (const change of changes) assert.ok(change.index < backfill, `Complete ${table} DDL before backfill writes`);
+    for (const operation of ["ENABLE", "FORCE"]) assert.ok(sql.includes(`ALTER TABLE ${table} ${operation} ROW LEVEL SECURITY;`));
+  }
+  assert.match(sql, /CONSTRAINT staff_role_current_bundle_fk[^;]+DEFERRABLE INITIALLY DEFERRED;/);
+});
+
 test("owner backfill stop exposes only independent count categories without changing the stop", () => {
   const body = sql.slice(sql.indexOf("DO $backfill$"), sql.indexOf("END $backfill$;"));
   const detail = body.slice(body.indexOf("WITH selected_owners AS ("), body.indexOf("RAISE EXCEPTION 'staff_backfill_owner_scope_requires_review'"));

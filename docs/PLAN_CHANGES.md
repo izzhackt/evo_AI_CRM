@@ -23716,3 +23716,42 @@ Diagnostic review clarification: name the navigation counter
 invoking Playwright's click, includes any actionability wait, and ends at the
 failure observation; it does not prove navigation happened after the physical
 click. This corrects the earlier wording without adding instrumentation or retries.
+
+## 2026-09-13 — S2 prove department and direction on one ordinary handoff
+
+The frozen6ae41a2a ordinary local run passed actual Admin invitation, Auth/password
+onboarding, role catalogue and consecutive member edits. The prior intermittent
+CREATE_ID failure has not been causally explained; do not call it fixed.
+Next extend the same isolated positive workflow, not a second fixture identity
+system: reuse its accepted Sales/Admissions staff and capture fresh workspace
+versions after the earlier member proof. Through actual Admin commands create
+one temporary department, place the Admissions employee there, create a local
+Sales-owned lead, confirm its explicitly fictional contract/payment evidence,
+hand off normally and configure the active case's canonical China direction.
+Create two distinct roles containing only case.read.full before opening the
+Sales member card. Preserve original assignments; prove target-matching access
+from department alone, direction alone, then both with three explicit same-card
+saves and fresh staff case reads. Assert baseline assignments cannot themselves
+grant full access to that target. A fourth save restores the original role/scope
+tuples at V0+4; do not restore historical version numbers. Restore changed
+organizational details/personal grants, archive unused temporary roles/department,
+and retain existing exact-owned-project cleanup for the fictional business data.
+This adds ordinary Sales-to-Admissions and independent scope-match evidence only;
+no real employee email, applicant document, provider call, production mutation,
+negative authorization search or whole-product acceptance is implied.
+
+## 2026-09-13 — S2 finish role-table DDL before the preserved-role backfill
+
+Required CI34751346856 on6ae41a2a passed the previous owner-scope guard, then failed
+at migration155 line1297: ALTER TABLE staff_role_definitions has pending trigger
+events. Its current-bundle foreign key is intentionally deferred; the backfill
+already populated role/bundle rows before the late ENABLE/FORCE ROW LEVEL SECURITY
+statements. Move those eight unchanged statements for the four new role/receipt
+tables immediately after their creation, before any backfill writes. Keep the
+deferred FK, transaction, all guards, table ACLs and final enforced RLS unchanged;
+do not flush/disable deferred constraints to work around the ordering defect.
+Add a source-order regression covering every ALTER on these four tables. Required
+CI on the next frozen candidate, not that source check, proves the populated
+upgrade. Local6ae41a2a onboarding PASS remains separate from this upgrade failure.
+Official behavior: [PostgreSQL row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
+and [deferred constraints](https://www.postgresql.org/docs/current/sql-set-constraints.html).

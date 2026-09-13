@@ -269,6 +269,16 @@ CREATE TABLE platform_private.staff_role_command_receipts (
 CREATE INDEX staff_role_receipts_actor_idx ON platform_private.staff_role_command_receipts(actor_profile_id);
 CREATE INDEX staff_role_receipts_org_idx ON platform_private.staff_role_command_receipts(organization_id);
 
+-- Finish table DDL before the backfill queues deferred current-bundle FK checks.
+ALTER TABLE platform.staff_role_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform.staff_role_definitions FORCE ROW LEVEL SECURITY;
+ALTER TABLE platform.staff_role_bundle_bindings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform.staff_role_bundle_bindings FORCE ROW LEVEL SECURITY;
+ALTER TABLE platform.staff_role_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform.staff_role_assignments FORCE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.staff_role_command_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.staff_role_command_receipts FORCE ROW LEVEL SECURITY;
+
 -- Preserve the Student branch exactly. Copies are callable only by the explicit
 -- Student dispatcher below; existing public/private function OIDs stay in place.
 DO $copy_student$
@@ -1294,14 +1304,6 @@ BEGIN
   'membership."current_role" IS DISTINCT FROM ''student''');
 END $organization_details$;
 
-ALTER TABLE platform.staff_role_definitions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE platform.staff_role_definitions FORCE ROW LEVEL SECURITY;
-ALTER TABLE platform.staff_role_bundle_bindings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE platform.staff_role_bundle_bindings FORCE ROW LEVEL SECURITY;
-ALTER TABLE platform.staff_role_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE platform.staff_role_assignments FORCE ROW LEVEL SECURITY;
-ALTER TABLE platform_private.staff_role_command_receipts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE platform_private.staff_role_command_receipts FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE platform.staff_role_definitions,platform.staff_role_bundle_bindings,
  platform.staff_role_assignments,platform_private.staff_role_command_receipts
  FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;

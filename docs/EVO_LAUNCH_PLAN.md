@@ -5,6 +5,11 @@ from exact `ef279986`, alongside separately reviewed registry PR770. Native proo
 is required before private ingress/receipt writer; it is not full forms readiness.
 PDF editable rectangles remain human-reviewed mapping, never invented source proof.
 
+D4 approved readable mapping context: [bounded native source preview](design/v3/evo-docs-template-preview-contract.md).
+Keep the minimal inspection/165 receipt unchanged; a separate read-only operation
+inside the same isolated runtime returns exact-source-bound DOCX text excerpts.
+Root approved the exact protocol before implementation; UI/ingress remain separately owned.
+
 Status: active V3-on-managed-Supabase production-successor contract
 Date: 2026-09-13 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and

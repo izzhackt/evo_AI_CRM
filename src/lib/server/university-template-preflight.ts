@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import { parseUniversityTemplateSourcePreview, type UniversityTemplateSourcePreview } from "../university-template-preview.ts";
 
 export type UniversityTemplateMime = "application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export type UniversityTemplateManifest = Readonly<{
@@ -8,17 +9,19 @@ export type UniversityTemplateManifest = Readonly<{
   slots: readonly Readonly<{ id: string; editable: boolean }>[];
   pageSizes: readonly Readonly<{ width: number; height: number }>[];
 }>;
+export type UniversityTemplateRejection = Readonly<{ status: "rejected"; code: "template_not_eligible" | "source_unavailable" }>;
 export type UniversityTemplateInspection = Readonly<{
   status: "verified"; sha256: string; byteLength: number; mimeType: UniversityTemplateMime;
   policyVersion: "evo-university-template-v1"; manifest: UniversityTemplateManifest;
-}> | Readonly<{ status: "rejected"; code: "template_not_eligible" | "source_unavailable" }>;
+}> | UniversityTemplateRejection;
+export type UniversityTemplateSourcePreviewResult = UniversityTemplateSourcePreview | UniversityTemplateRejection;
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_OUTPUT = 128 * 1024;
 const LAUNCHER = "/opt/evo-university-template-runtime/launcher";
-const unavailable = (): UniversityTemplateInspection => ({ status: "rejected", code: "source_unavailable" });
-const ineligible = (): UniversityTemplateInspection => ({ status: "rejected", code: "template_not_eligible" });
+const unavailable = (): UniversityTemplateRejection => ({ status: "rejected", code: "source_unavailable" });
+const ineligible = (): UniversityTemplateRejection => ({ status: "rejected", code: "template_not_eligible" });
 let running = false;
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -50,6 +53,36 @@ function manifest(value: unknown, mime: UniversityTemplateMime): UniversityTempl
 export async function inspectUniversityTemplate(input: {
   bytes: Uint8Array; mimeType: UniversityTemplateMime; expectedSha256: string;
 }, options: { signal: AbortSignal }): Promise<UniversityTemplateInspection> {
+  return runUniversityTemplate(input, options, {}, (value, bytes, mimeType, expectedSha256) => {
+    if (!record(value) || !keys(value, "byteLength,manifest,mimeType,policyVersion,sha256,status") || value.status !== "verified"
+      || value.sha256 !== expectedSha256 || value.byteLength !== bytes.length || value.mimeType !== mimeType
+      || value.policyVersion !== "evo-university-template-v1") return null;
+    const safeManifest = manifest(value.manifest, mimeType);
+    return safeManifest ? Object.freeze({ status: "verified", sha256: expectedSha256, byteLength: bytes.length, mimeType,
+      policyVersion: "evo-university-template-v1", manifest: safeManifest }) : null;
+  });
+}
+
+/** Call only after live manager authorization and verified private source retrieval; recheck access before delivery. */
+export async function previewUniversityTemplateSource(input: {
+  bytes: Uint8Array; mimeType: UniversityTemplateMime; expectedSha256: string;
+  expectedManifest: UniversityTemplateManifest; offset: number;
+}, options: { signal: AbortSignal }): Promise<UniversityTemplateSourcePreviewResult> {
+  if (!input || input.mimeType !== DOCX || !Number.isInteger(input.offset) || input.offset < 0 || input.offset > 2999) return ineligible();
+  // Capture a normalized copy before dispatch so caller mutations cannot change the binding.
+  const expectedManifest = manifest(input.expectedManifest, DOCX), offset = input.offset;
+  if (!expectedManifest || offset >= expectedManifest.slots.length) return ineligible();
+  const manifestDigest = createHash("sha256").update(JSON.stringify(expectedManifest)).digest("hex");
+  return runUniversityTemplate(input, options, { operation: "source-preview", offset }, (value, bytes, _mime, expectedSha256) =>
+    parseUniversityTemplateSourcePreview(value, { sha256: expectedSha256, byteLength: bytes.length, manifestDigest,
+      offset, slots: expectedManifest.slots }));
+}
+
+/** Both operations share one fixed supervisor, admission lock and bounded pipe. */
+async function runUniversityTemplate<T>(input: {
+  bytes: Uint8Array; mimeType: UniversityTemplateMime; expectedSha256: string;
+}, options: { signal: AbortSignal }, operation: Record<string, string | number>,
+validate: (value: unknown, bytes: Buffer, mimeType: UniversityTemplateMime, expectedSha256: string) => T | null): Promise<T | UniversityTemplateRejection> {
   if (!input || !(input.bytes instanceof Uint8Array) || input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_BYTES
     || ![DOCX, "application/pdf"].includes(input.mimeType) || !/^[a-f0-9]{64}$/.test(input.expectedSha256)) return ineligible();
   const bytes = Buffer.from(input.bytes), mimeType = input.mimeType, expectedSha256 = input.expectedSha256;
@@ -58,12 +91,12 @@ export async function inspectUniversityTemplate(input: {
   if (!(signal instanceof AbortSignal) || signal.aborted || process.platform !== "linux" || running) return unavailable();
   running = true;
   try {
-    return await new Promise<UniversityTemplateInspection>((resolve) => {
+    return await new Promise<T | UniversityTemplateRejection>((resolve) => {
       const child = spawn(LAUNCHER, [], { cwd: "/", env: { NODE_ENV: "production" }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
       const chunks: Buffer[] = []; let length = 0, stopped = false, settled = false;
       const stop = () => { stopped = true; child.kill("SIGKILL"); };
       const timer = setTimeout(stop, 16_000);
-      const finish = (result: UniversityTemplateInspection) => {
+      const finish = (result: T | UniversityTemplateRejection) => {
         if (settled) return;
         settled = true; clearTimeout(timer); signal.removeEventListener("abort", stop); resolve(result);
       };
@@ -85,16 +118,10 @@ export async function inspectUniversityTemplate(input: {
             && ["template_not_eligible", "source_unavailable"].includes(String(value.code))) {
             return finish(value.code === "template_not_eligible" ? ineligible() : unavailable());
           }
-          if (!keys(value, "byteLength,manifest,mimeType,policyVersion,sha256,status") || value.status !== "verified"
-            || value.sha256 !== expectedSha256 || value.byteLength !== bytes.length || value.mimeType !== mimeType
-            || value.policyVersion !== "evo-university-template-v1") return finish(unavailable());
-          const safeManifest = manifest(value.manifest, mimeType);
-          if (!safeManifest) return finish(unavailable());
-          finish(Object.freeze({ status: "verified", sha256: expectedSha256, byteLength: bytes.length, mimeType,
-            policyVersion: "evo-university-template-v1", manifest: safeManifest }));
+          finish(validate(value, bytes, mimeType, expectedSha256) ?? unavailable());
         } catch { finish(unavailable()); }
       });
-      child.stdin.write(`${JSON.stringify({ byteLength: bytes.length, expectedSha256, mimeType })}\n`);
+      child.stdin.write(`${JSON.stringify({ byteLength: bytes.length, expectedSha256, mimeType, ...operation })}\n`);
       child.stdin.end(bytes);
     });
   } catch { return unavailable(); }

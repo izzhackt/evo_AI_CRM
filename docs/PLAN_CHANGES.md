@@ -25930,3 +25930,32 @@ passed (`01a09cfa5edc7a92958a53880256e3b3`); synthetic response fixtures prove o
 validation/fail-closed adapters, not a successful database write or inspection.
 Manager listing preserves unpublished records, inspection metadata rejects text/
 private keys and fabricated PDF slots, unknown remains distinct from verified.
+
+## 2026-09-14 — Before D4 readable mapping source preview
+
+The existing minimal source manifest cannot tell staff what `p-N` refers to.
+Propose the [bounded preview contract](design/v3/evo-docs-template-preview-contract.md)
+before protocol implementation: one read-only DOCX operation in the existing
+hard-isolated runtime, ten bounded text/context rows per request, exact frozen
+source binding and a transient normalized-manifest digest checked against live
+trusted metadata. Existing inspection output,128KiB limit and165 receipt semantics
+remain unchanged. No source text enters DB receipts or Student projections.
+PDF uses actual page geometry and guarded original bytes; no invented slots.
+Root approval is pending for this new protocol. This lane owns runtime/adapter/
+DTO/focused tests only; ingress owns166/source authorization, root owns UI/routes.
+No production/full build/provider/private-file access is part of this proposal.
+
+Root subsequently read and approved the exact preview protocol when execution
+resumed, including clipped text/label/nearby metadata, full-manifest binding and
+the separate transient digest. Implement only this native/adapter/DTO slice;
+HTTP/UI and166 stay separately owned. The independent protocol check confirmed
+the worst-case ten-row response remains within128KiB. Implementation/native proof
+are still required; this approval is not a runtime or product acceptance claim.
+
+The bounded implementation then passed18 scoped DOCX/preview Node checks, lint
+and strict adapter TypeScript, followed by17 actual Linux native checks on
+`sha256:cc5bd0ded17a48df396f44ee1fbbf0ab589e016a5a8011b7c1609e4879c4ccbd`
+(`01a09d14db9a75a1a2924bfeac777eb4`). Owned-container absence was verified.
+Shared C/seal/bootstrap and inspection/receipt semantics remain unchanged.
+This is synthetic native proof only; review, staff HTTP/UI and root's combined
+Auth/Storage/browser proof remain open. No full app image or production release.

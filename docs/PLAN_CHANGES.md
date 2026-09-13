@@ -23984,3 +23984,77 @@ and does not claim whole-product acceptance.46 focused tests and scoped ESLint
 passed (01a09ab2367e70009dd0cf267bf2d267). The complete positive local workflow
 and production release remain required. Diagnostic project33a3ef9f58a2d52e was
 fully removed; no production state was changed.
+
+## 2026-09-13 — S2 release acceptance follows the migrated scoped roles
+
+Full exact-main CI34757193916 on ce404b873cf378ff252b9499149b1300efed39bc
+passed all four scoped-staff invitation/editor/business markers, then failed
+the pre-existing staff browser suite. Automatic release34757536480 was skipped;
+release arm was explicitly reset and read back as false. The accepted app remains
+77cde9ba. This is not a new Storage504 finding: the missing media-context artifact
+is written later in the handoff test, after its first failed assertion.
+
+The independent source review identifies stale fixed-role expectations. The
+published Sales baseline already includes case/profile full read and summary
+finance read; migration155 preserves them with own scope. Curator similarly
+retains own lead.read. Section visibility and home follow those actual permissions,
+while every object read remains scope-bound. Update the exact fixture expectations,
+not the production grants: Sales cards are sales/clients/finance/whatsapp;
+Admissions also has sales, and both staff identities start at main. Actual role
+captions come from their assigned role labels. Admin fixed-role preview is separate
+and must retain its existing restrictions.
+
+Department archive, restore and employee transfer intentionally advance access
+versions three times. Keep exact version, identity and assignment assertions;
+separately prove job-title-only edits do not change authority. Replace the misleading
+metadata success message and warn before saving a changed department, as required
+by S2 contract item3. Keep the pre-handoff exact lead gate denied when the current
+staff member has no scope for that lead; permitted queues must prove their exact
+row scope rather than asserting a blanket Admissions denial.
+
+No permissions, SQL grants, handoff/payment conditions, error gates or Student
+boundaries are relaxed. Verify the ordinary positive contract locally, obtain
+independent exact-head review, merge normally, and run the full release proof once
+on the changed exact-main SHA. Real employee invitations and real applicant-file
+processing still require the named recipients/rights and approved case/file.
+
+The separate local HTTPS diagnosis found a Fortinet-issued certificate on the
+Mac path and the valid Let's Encrypt origin certificate on Hermes. DNS matched.
+The interception location is not established. Do not modify origin TLS, trust
+stores or skip certificate verification; use the existing same-server SSH tunnel.
+See [Fortinet deep inspection](https://docs.fortinet.com/document/fortigate/latest/administration-guide/122078/deep-inspection).
+
+The bounded actual-component browser check also exposed an existing draft reset:
+after a known server-action failure, the uncontrolled department select resets
+while the controlled title/reason remain. Keep department selection controlled by
+the same editor draft used by the transfer warning. Prove that a failed save keeps
+the chosen department and that a subsequent explicit save submits that same value;
+do not automatically retry or change the existing request/version rules.
+
+The Admin-preview CI failure was narrowed to a read helper requiring the mutation
+form, after the preview switch had succeeded. Separate exact lead/profile read
+assertions from write controls and explicitly require no mutation form in preview.
+The same real staff baseline home must be used in accessibility and provider-disabled
+browser suites. This does not alter fixed-role Admin preview or authorize provider calls.
+
+Focused proof: the actual navigation/dashboard model reproduced both stale baseline
+failures (01a09acfea827cd18b6956f491521128), then passed3 checks with the corrected
+shared fixture expectations (01a09ad2303271d0932ec174d448603d). The same expectations
+are consumed by the real browser suite; database scope proof remains independent.
+For metadata, department selection was already controlled: the actual failure is
+React's commit-time native form reset while delegated events are disabled. A
+scoped native reset listener with cleanup preserves the existing draft. Actual
+component Chromium proof passed at1440/393/320, including error/retry and title-only
+save (01a09ad681cc7e309c682a073abba295); saves there are a controlled unit boundary,
+not live database acceptance. The bounded Supabase onboarding path now additionally
+executes the real login/dashboard and department/title-only tests before emitting
+LOCAL_SCOPED_STAFF_BASELINE_VERIFIED. This path does not replace the full release CI.
+
+The bounded run completed successfully on OrbStack projectevo-local-7d289aff8a05004e:
+all four scoped-staff proof markers, then both actual browser tests (2/2,9.5s),
+baseline/onboarding terminal markers and exit0 (01a09ad834dd73328cab5a736792edc0).
+The three identities' real snapshots matched the expected role labels/permissions,
+home and dashboard cards. Real department archive/restore/transfer advanced access
+versions by3, and a subsequent title-only update left the complete access snapshot
+unchanged.46 focused module checks plus9 ordinary React checks passed. The full
+main-only release proof, production replacement and tunnel acceptance remain open.

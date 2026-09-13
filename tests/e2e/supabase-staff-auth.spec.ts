@@ -3,43 +3,29 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
 import postgres from "postgres";
+import { STAFF_BASELINE_CARDS as ROLE_DASHBOARD_CARD_KEYS, STAFF_BASELINE_HOME as ROLE_HOME } from "./staff-baseline";
 
 const authMode = process.env.EVO_EXPECT_STAFF_AUTH_MODE ?? "configured";
 
 const PROFILES = [
   {
     role: "admin",
-    label: "Администратор",
     email: process.env.EVO_STAFF_AUTH_ADMIN_EMAIL,
     password: process.env.EVO_STAFF_AUTH_ADMIN_PASSWORD,
   },
   {
     role: "sales",
-    label: "Продажи",
     email: process.env.EVO_STAFF_AUTH_SALES_EMAIL,
     password: process.env.EVO_STAFF_AUTH_SALES_PASSWORD,
   },
   {
     role: "admissions",
-    label: "Приёмная",
     email: process.env.EVO_STAFF_AUTH_ADMISSIONS_EMAIL,
     password: process.env.EVO_STAFF_AUTH_ADMISSIONS_PASSWORD,
   },
 ] as const;
 
 type TestRole = (typeof PROFILES)[number]["role"];
-
-const ROLE_HOME = {
-  admin: "/v3/main",
-  sales: "/v3/main",
-  admissions: "/v3/calendar",
-} as const satisfies Readonly<Record<TestRole, string>>;
-
-const ROLE_DASHBOARD_CARD_KEYS = {
-  admin: ["sales", "clients", "tasks", "finance", "whatsapp"],
-  sales: ["sales", "whatsapp"],
-  admissions: ["clients", "tasks", "finance", "whatsapp"],
-} as const satisfies Readonly<Record<TestRole, readonly string[]>>;
 
 const ORGANIZATION_DATE = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Bishkek",
@@ -644,6 +630,7 @@ async function expectKnowledgeDocumentsAndSnippets(page: Page) {
 async function expectExactSupabaseSalesRead(
   page: Page,
   leadId: string,
+  readOnly = false,
 ) {
   await page.goto("/v3/pipeline");
   await expect(
@@ -653,13 +640,17 @@ async function expectExactSupabaseSalesRead(
   const workflowPanel = page.locator(
     `[data-testid="v3-pipeline-decision"][data-lead-id="${leadId}"]`,
   );
-  await expect(workflowPanel).toBeVisible();
-  await workflowPanel.locator("summary").click();
-  await expect(
-    workflowPanel.locator('input[name="expected_version"]'),
-  ).toHaveValue("7");
-
-  const exactLead = workflowPanel.locator("xpath=ancestor::article");
+  const exactLead = page.getByRole("article").filter({
+    has: page.locator(`a[href="/v3/profile?id=${leadId}"]`),
+  });
+  await expect(exactLead).toHaveCount(1);
+  if (readOnly) {
+    await expect(workflowPanel).toHaveCount(0);
+  } else {
+    await expect(workflowPanel).toBeVisible();
+    await workflowPanel.locator("summary").click();
+    await expect(workflowPanel.locator('input[name="expected_version"]')).toHaveValue("7");
+  }
   await expect(exactLead).toContainText(
     "Verify authenticated Supabase Sales read path",
   );
@@ -730,10 +721,28 @@ test("all three real identities persist, enforce role routes, and log out", asyn
   test.skip(authMode !== "configured");
 
   for (const candidate of PROFILES) {
+    const token = await localSupabaseAccessToken(candidate.role);
+    const authority = await directPlatformRpc("staff_access_snapshot", {}, token);
+    expect(authority.status).toBe(200);
+    const snapshot = expectObject(authority.payload);
+    expect(snapshot.systemRole).toBe(candidate.role === "admin" ? "admin" : "staff");
+    let label = "Администратор";
+    if (candidate.role !== "admin") {
+      const assignments = snapshot.assignments as Record<string, unknown>[];
+      expect(assignments.map((assignment) => assignment.label).sort()).toEqual([
+        `Local ${candidate.role} — organization`, `Local ${candidate.role} — own`,
+      ]);
+      expect(snapshot.permissions).toEqual(expect.arrayContaining([
+        "lead.read", "case.read.full", "profile.read.full", "finance.read.summary", "communication.read.full",
+      ]));
+      if (candidate.role === "sales") expect(snapshot.permissions).not.toContain("task.manage");
+      else expect(snapshot.permissions).toContain("task.manage");
+      label = assignments.map((assignment) => assignment.label).join(", ");
+    }
     await signIn(page, candidate.role);
     await expectActiveRole(page, candidate.role);
     await expectOperationalDashboardCards(page, candidate.role);
-    await expect(page.getByTestId("active-role")).toHaveText(candidate.label);
+    await expect(page.getByTestId("active-role")).toHaveText(label);
     await expect
       .poll(async () =>
         (await page.context().cookies()).some(
@@ -855,11 +864,10 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await signIn(page, "sales");
   await expectActiveRole(page, "sales");
   await expect(page).toHaveURL(/\/v3\/main$/);
-  for (const path of ["/v3/calendar", "/v3/settings"] as const) {
-    await expectDirectRouteDenied(page, path);
-  }
+  await expectDirectRouteDenied(page, "/v3/settings");
   for (const path of [
     "/v3/main",
+    "/v3/calendar",
     "/v3/pipeline",
     "/v3/inbox",
     "/v3/knowledge",
@@ -877,9 +885,9 @@ test("Sales and Admissions are denied outside their server-authorized interfaces
   await page.context().clearCookies();
   await signIn(page, "admissions");
   await expectActiveRole(page, "admissions");
-  await expect(page).toHaveURL(/\/v3\/calendar$/);
-  await expectDirectRouteDenied(page, "/v3/main");
-  await expectDirectRouteDenied(page, "/v3/pipeline");
+  await expect(page).toHaveURL(/\/v3\/main$/);
+  await expectDirectRouteAllowed(page, "/v3/main");
+  await expectDirectRouteAllowed(page, "/v3/pipeline");
   await expectDirectRouteDenied(page, "/v3/settings");
   await expectDirectRouteAllowed(page, "/v3/calendar");
   await expectDirectRouteAllowed(page, "/v3/knowledge");
@@ -926,7 +934,7 @@ test("Admin downloads the canonical audit CSV while Sales is denied", async ({
   expect(denial.status()).toBe(403);
 });
 
-test("S1 Admin manages departments and staff metadata without changing access", async ({ page }) => {
+test("Admin department changes recalculate access while job-title-only edits preserve it", async ({ page }) => {
   test.skip(authMode !== "configured");
   test.setTimeout(120_000);
   const token = await localSupabaseAccessToken("admin");
@@ -941,6 +949,8 @@ test("S1 Admin manages departments and staff metadata without changing access", 
     return expectObject(result.payload);
   };
   const original = await readDirectory();
+  const originalAccess = await directPlatformRpc("staff_access_snapshot", {}, token);
+  expect(originalAccess.status).toBe(200);
   const originalMember = (original.members as Record<string, unknown>[]).find((entry) => entry.membership_id === membershipId)!;
   const name = `S1 isolated department ${randomUUID().slice(0, 8)}`;
   const updatedName = `${name} revised`;
@@ -992,10 +1002,10 @@ test("S1 Admin manages departments and staff metadata without changing access", 
   await metadata.getByRole("combobox", { name: "Отдел", exact: true }).selectOption(departmentId);
   await metadata.locator('input[name="direction_codes"][value="CN"]').check();
   await expect(metadata.getByLabel("Причина изменения")).toHaveAttribute("type", "text");
-  await metadata.getByLabel("Причина изменения").fill("Verify organization metadata\n never grants access");
+  await metadata.getByLabel("Причина изменения").fill("Verify department transfer\n preserves assigned roles");
   await expect(metadata.getByLabel("Причина изменения")).not.toHaveValue(/[\r\n]/);
   await metadata.getByRole("button", { name: "Сохранить сведения", exact: true }).click();
-  await expect(metadata.getByRole("status")).toHaveText("Рабочие сведения сохранены. Права доступа не изменены.");
+  await expect(metadata.getByRole("status")).toHaveText("Рабочие сведения сохранены.");
   await metadata.getByRole("button", { name: "Готово", exact: true }).click();
   await page.reload();
   await expect(details).toContainText(updatedName);
@@ -1003,11 +1013,34 @@ test("S1 Admin manages departments and staff metadata without changing access", 
   const persisted = await readDirectory();
   const member = (persisted.members as Record<string, unknown>[]).find((entry) => entry.membership_id === membershipId)!;
   expect(member).toMatchObject({ department_id: departmentId, job_title: "Isolated S1 verification owner",
-    access_version: originalMember.access_version, platform_role: originalMember.platform_role,
+    access_version: Number(originalMember.access_version) + 3, platform_role: originalMember.platform_role,
     organizational_version: Number(originalMember.organizational_version) + 1 });
   expect(member.direction_codes).toContain("CN");
   const afterAuthority = await directPlatformRpc("current_actor_authority", {}, token);
-  expect(afterAuthority.payload).toEqual(initialAuthority.payload);
+  expect(afterAuthority.status).toBe(200);
+  expect(afterAuthority.payload).toEqual([{ ...actor, platform_access_version: Number(actor.platform_access_version) + 3 }]);
+  const afterAccess = await directPlatformRpc("staff_access_snapshot", {}, token);
+  expect(afterAccess.status).toBe(200);
+  expect(afterAccess.payload).toEqual({ ...expectObject(originalAccess.payload),
+    accessVersion: Number(expectObject(originalAccess.payload).accessVersion) + 3 });
+
+  // Job title is editable metadata, not an access grant or scope assignment.
+  await details.getByRole("button", { name: "Редактировать", exact: true }).click();
+  await metadata.getByLabel("Должность", { exact: true }).fill("Isolated S2 title-only verification");
+  await metadata.getByLabel("Причина изменения").fill("Verify title alone does not change authority");
+  await metadata.getByRole("button", { name: "Сохранить сведения", exact: true }).click();
+  await expect(metadata.getByRole("status")).toHaveText("Рабочие сведения сохранены.");
+  await metadata.getByRole("button", { name: "Готово", exact: true }).click();
+  await page.reload();
+  await expect(details).toContainText("Isolated S2 title-only verification");
+  const titleDirectory = await readDirectory();
+  const titleMember = (titleDirectory.members as Record<string, unknown>[]).find((entry) => entry.membership_id === membershipId)!;
+  expect(titleMember).toMatchObject({ department_id: departmentId, job_title: "Isolated S2 title-only verification",
+    access_version: member.access_version, platform_role: member.platform_role,
+    organizational_version: Number(member.organizational_version) + 1 });
+  const titleAccess = await directPlatformRpc("staff_access_snapshot", {}, token);
+  expect(titleAccess.status).toBe(200);
+  expect(titleAccess.payload).toEqual(afterAccess.payload);
   for (const role of ["sales", "admissions"] as const) {
     const roleToken = await localSupabaseAccessToken(role);
     assertDeniedRpc(await directPlatformRpc("staff_workspace_directory", { p_organization_id: organizationId }, roleToken));
@@ -1088,7 +1121,7 @@ test("Sales inbox renders the exact verified conversation with canonical amoCRM 
   ).toHaveCount(0);
 });
 
-test("Sales RPCs deny anonymous and Admissions callers at the real API boundary", async () => {
+test("Sales reads remain exact and Admissions queues exclude an unassigned lead", async () => {
   test.skip(authMode !== "configured");
   const leadId = requireUuid("EVO_SUPABASE_SALES_PROOF_LEAD_ID");
   const salesToken = await localSupabaseAccessToken("sales");
@@ -1130,6 +1163,9 @@ test("Sales RPCs deny anonymous and Admissions callers at the real API boundary"
   expect(salesDetail.status).toBe(200);
   expect(salesStageEntries.status).toBe(200);
   expect(Array.isArray(salesStageEntries.payload)).toBe(true);
+  expect(salesStageEntries.payload).toEqual(expect.arrayContaining([
+    expect.objectContaining({ lead_id: leadId, stage_key: "contacting" }),
+  ]));
   expect(
     Array.isArray(salesPage.payload) &&
       salesPage.payload.length === 1 &&
@@ -1141,25 +1177,18 @@ test("Sales RPCs deny anonymous and Admissions callers at the real API boundary"
       (salesDetail.payload[0] as { lead_id?: unknown }).lead_id === leadId,
   ).toBe(true);
 
-  for (const accessToken of [undefined, admissionsToken]) {
-    assertDeniedRpc(
-      await directPlatformRpc("staff_sales_lead_page", pageBody, accessToken),
-    );
-    assertDeniedRpc(
-      await directPlatformRpc(
-        "staff_sales_lead_detail",
-        detailBody,
-        accessToken,
-      ),
-    );
-    assertDeniedRpc(
-      await directPlatformRpc(
-        "staff_sales_stage_entry_cohort",
-        stageEntryBody,
-        accessToken,
-      ),
-    );
-  }
+  assertDeniedRpc(await directPlatformRpc("staff_sales_lead_page", pageBody));
+  assertDeniedRpc(await directPlatformRpc("staff_sales_lead_detail", detailBody));
+  assertDeniedRpc(await directPlatformRpc("staff_sales_stage_entry_cohort", stageEntryBody));
+
+  const admissionsPage = await directPlatformRpc("staff_sales_lead_page", pageBody, admissionsToken);
+  expect(admissionsPage.status).toBe(200);
+  expect(admissionsPage.payload).toEqual([]);
+  assertDeniedRpc(await directPlatformRpc("staff_sales_lead_detail", detailBody, admissionsToken));
+  const admissionsStages = await directPlatformRpc("staff_sales_stage_entry_cohort", stageEntryBody, admissionsToken);
+  expect(admissionsStages.status).toBe(200);
+  expect(Array.isArray(admissionsStages.payload)).toBe(true);
+  expect((admissionsStages.payload as Record<string, unknown>[]).some((row) => row.lead_id === leadId)).toBe(false);
 });
 
 test("Sales and Admin mutate one canonical workflow while anonymous and Admissions stay denied", async ({
@@ -1431,8 +1460,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     { p_lead_id: leadId },
     admissionsToken,
   );
-  expect(admissionsGate.status).toBe(200);
-  expect(admissionsGate.payload).toEqual([]);
+  assertDeniedRpc(admissionsGate);
 
   assertDeniedRpc(
     await directPlatformRpc(
@@ -2871,7 +2899,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectActiveRole(page, "sales", "admin");
   await expect(page).toHaveURL(/\/v3\/main$/);
   await expect(page.getByTestId("preview-active")).toBeVisible();
-  await expectExactSupabaseSalesRead(page, leadId);
+  await expectExactSupabaseSalesRead(page, leadId, true);
   await expectDirectRouteAllowed(page, "/v3/pipeline");
   await expectDirectRouteDenied(page, "/v3/calendar");
   await expectDirectRouteAllowed(page, "/v3/knowledge");

@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { STAFF_BASELINE_HOME as ROLE_HOME } from "./staff-baseline";
 
 /**
  * Successor staff accessibility gate.
@@ -7,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
  * It runs against the active application on the real local Supabase/PostgreSQL
  * contract. It never uses EVO_UI_CONTRACT_FIXTURES, a demo seed, a mock
  * provider or a fallback repository, and it performs no provider side effect:
- * it only reads the surfaces the three fixed roles can already reach.
+ * it only reads the surfaces the three isolated staff identities can reach.
  */
 
 const WCAG_TAGS = [
@@ -35,9 +36,12 @@ const ROLE_ROUTES: Readonly<Record<FixedRole, readonly string[]>> = {
     "/v3/pipeline",
     "/v3/inbox",
     "/v3/profile",
+    "/v3/calendar",
     "/v3/knowledge",
   ],
   admissions: [
+    "/v3/main",
+    "/v3/pipeline",
     "/v3/inbox",
     "/v3/profile",
     "/v3/calendar",
@@ -48,14 +52,8 @@ const ROLE_ROUTES: Readonly<Record<FixedRole, readonly string[]>> = {
 /** A denied route for each role, so the access-denied surface is covered too. */
 const ROLE_DENIED_ROUTE: Readonly<Record<FixedRole, string | null>> = {
   admin: null,
-  sales: "/v3/calendar",
-  admissions: "/v3/pipeline",
-};
-
-const ROLE_HOME: Readonly<Record<FixedRole, string>> = {
-  admin: "/v3/main",
-  sales: "/v3/main",
-  admissions: "/v3/calendar",
+  sales: "/v3/settings",
+  admissions: "/v3/settings",
 };
 
 const RETIRED_UI_ROUTES = [

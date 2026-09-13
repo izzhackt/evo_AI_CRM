@@ -1,11 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { STAFF_BASELINE_HOME as ROLE_HOME } from "./staff-baseline";
 
 type TestRole = "admin" | "sales" | "admissions";
-const ROLE_HOME = {
-  admin: "/v3/main",
-  sales: "/v3/main",
-  admissions: "/v3/calendar",
-} as const satisfies Readonly<Record<TestRole, string>>;
 
 type ProofMode =
   | "provider-not-authorized"

@@ -108,7 +108,7 @@ export async function staffOrganizationalDetailsAction(_previous: StaffWorkspace
     await saveStaffOrganizationalDetails(form);
     confirmed = true;
     revalidatePath("/v3/settings");
-    return { status: "success", message: "Рабочие сведения сохранены. Права доступа не изменены." };
+    return { status: "success", message: "Рабочие сведения сохранены." };
   } catch (error) {
     if (_previous.metadataOutcome === "unknown" || confirmed || error instanceof StaffMetadataOutcomeUnknownError) return {
       status: "error", metadataOutcome: "unknown",

@@ -76,9 +76,9 @@ RESET ROLE;
 COMMIT;
 \echo STUDENT_PROFILE_FIELDS_SYNTHETIC_BASELINE_READY
 
-\ir ../migrations/158_platform_partial_student_profiles.sql
-\ir ../migrations/159_platform_student_profile_field_reviews.sql
-\echo STUDENT_PROFILE_FIELDS_MIGRATIONS_158_159_APPLIED
+\ir ../migrations/159_platform_partial_student_profiles.sql
+\ir ../migrations/160_platform_student_profile_field_reviews.sql
+\echo STUDENT_PROFILE_FIELDS_MIGRATIONS_159_160_APPLIED
 
 BEGIN;
 SELECT pg_temp.d2_assert((SELECT to_jsonb(profile) = (SELECT body FROM d2_receipts WHERE key = 'existing-row')

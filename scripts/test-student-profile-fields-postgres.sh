@@ -62,19 +62,19 @@ while IFS= read -r migration; do
   filename="${migration##*/}"
   number="${filename%%_*}"
   [[ "$number" =~ ^[0-9]{3}$ ]] || { echo "Unexpected migration filename: $filename" >&2; exit 1; }
-  if (( 10#$number > 157 )); then continue; fi
+  if (( 10#$number > 158 )); then continue; fi
   stage="$migration"
   psql_proof -f "/workspace/$migration" >/dev/null
   last_migration=$((10#$number))
 done < <(rg --files supabase/migrations | LC_ALL=C sort)
-[[ "$last_migration" -eq 157 ]] || { echo 'Expected migration157 baseline is missing' >&2; exit 1; }
-echo 'STUDENT_PROFILE_FIELDS_BASELINE_157_APPLIED'
+[[ "$last_migration" -eq 158 ]] || { echo 'Expected migration158 baseline is missing' >&2; exit 1; }
+echo 'STUDENT_PROFILE_FIELDS_BASELINE_158_APPLIED'
 
 # The positive SQL fixture captures a real pre-migration row, applies only
-# 158/159, then exercises the intended authenticated staff command/read seam.
-stage='positive Student Profile migration158/159 command proof'
+# 159/160, then exercises the intended authenticated staff command/read seam.
+stage='positive Student Profile migration159/160 command proof'
 psql_proof -f /workspace/supabase/tests/student_profile_fields_positive.sql
-stage='positive Student Profile export migration160 and audit proof'
-psql_proof -f /workspace/supabase/migrations/160_platform_student_profile_exports.sql
+stage='positive Student Profile export migration161 and audit proof'
+psql_proof -f /workspace/supabase/migrations/161_platform_student_profile_exports.sql
 psql_proof -f /workspace/supabase/tests/student_profile_exports_positive.sql
 echo 'STUDENT_PROFILE_FIELDS_POSTGRES_VERIFIED'

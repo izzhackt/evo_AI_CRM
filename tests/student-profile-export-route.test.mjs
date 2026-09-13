@@ -230,8 +230,8 @@ test("trusted proxy protocol follows the existing Host/Origin export convention"
   assert.equal((await f.handler(proxied, context)).status, 200);
 });
 
-test("migration160 keeps success behind service-only RPCs and has no profile-value projection", () => {
-  const sql = readFileSync(new URL("../supabase/migrations/160_platform_student_profile_exports.sql", import.meta.url), "utf8");
+test("migration161 keeps success behind service-only RPCs and has no profile-value projection", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/161_platform_student_profile_exports.sql", import.meta.url), "utf8");
   assert.equal((sql.match(/auth\.jwt\(\) ->> 'role'/g) ?? []).length, 2);
   assert.match(sql, /FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin/);
   assert.match(sql, /platform\.complete_student_profile_export\(UUID, TEXT, TEXT, INTEGER, TEXT\) TO service_role/);
@@ -242,8 +242,8 @@ test("migration160 keeps success behind service-only RPCs and has no profile-val
   assert.match(sql, /RETURN jsonb_build_object\('attempt_id', attempt\.id, 'status', attempt\.status, 'failure_code', attempt\.failure_code\);/);
 });
 
-test("migration160 serializes organization before request, membership and profile locks", () => {
-  const sql = readFileSync(new URL("../supabase/migrations/160_platform_student_profile_exports.sql", import.meta.url), "utf8");
+test("migration161 serializes organization before request, membership and profile locks", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/161_platform_student_profile_exports.sql", import.meta.url), "utf8");
   for (const name of ["begin", "complete"]) {
     const body = sql.split(`CREATE FUNCTION platform.${name}_student_profile_export(`)[1]?.split("\n$$;")[0];
     assert.ok(body, `${name}: function body exists`);

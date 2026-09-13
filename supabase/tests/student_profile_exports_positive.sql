@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Run after migration160 in an isolated synthetic database only. This proves
+-- Run after migration161 in an isolated synthetic database only. This proves
 -- database command/audit outcomes, not Auth, DOCX rendering or delivery.
 BEGIN;
 CREATE FUNCTION pg_temp.d2c_id(n INTEGER) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$

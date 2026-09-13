@@ -11,7 +11,7 @@ import {
 // migration. Root's real database/application workflow validates the commands.
 test("database field keys, order, limits and canonical mappings match the UI registry", () => {
   const sql = readFileSync(new URL(
-    "../supabase/migrations/159_platform_student_profile_field_reviews.sql",
+    "../supabase/migrations/160_platform_student_profile_field_reviews.sql",
     import.meta.url,
   ), "utf8");
   const registry = sql.slice(

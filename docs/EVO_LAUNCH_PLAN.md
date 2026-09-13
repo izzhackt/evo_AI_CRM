@@ -31,8 +31,10 @@ This release does not close the prior Portal's remaining real Student acceptance
 
 D2 implementation now follows the [profile fields contract](design/v3/evo-docs-profile-fields-contract.md):
 an explicit partial canonical profile, human-confirmed field review and the original
-Student Profile DOCX. Migrations158–160 and the application path are implemented
-on the D2 branch. The bounded real Auth/DB/browser workflow passed locally:
+Student Profile DOCX. Migrations159–161 and the application path are implemented
+on the D2 branch. Historical local proof used the original158–160 numbering;
+the renamed sequence still needs the actual S2 migration158 and integration validation.
+The bounded real Auth/DB/browser workflow passed locally on that earlier candidate:
 initialize one absent profile, confirm fields, preserve a stale editor's draft,
 and download draft/final DOCX files whose hashes match the export audit.
 Both actual files rendered correctly on all two pages. See the

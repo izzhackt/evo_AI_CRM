@@ -24332,3 +24332,28 @@ All 59 related module/harness checks passed on Node22.23.1
 (01a09b2cdbc673c3a1efe5edc02c7f5e); scoped ESLint passed
 (01a09b2d7ecc79c280ba1dd4ba490f6c). These are source/module checks, not execution
 of the deferred full Auth/DB/browser acceptance.
+
+## 2026-09-13 — Reserve158 for the S2 fix and shift unapplied D2 migrations
+
+Before the mechanical change, root reserves the next forward migration158 for
+the S2 correction. The unapplied D2 foundation/review/export migrations move from
+158/159/160 to159/160/161 with byte-identical SQL bodies. Update only their active
+paths, source-test labels, the focused SQL proof baseline and current contracts.
+The focused proof must apply the real S2 baseline through158 before constructing
+its pre-D2 fixture and applying159/160, followed by export161.
+
+Preserve the earlier append-only decisions, local proof158–160 receipts, artifact
+hashes/output directories and synthetic UUIDs exactly as recorded. They prove the
+earlier candidate, not this newly composed migration sequence. No product rights,
+RPCs, profile data model, runtime source, dependencies or assets change here.
+Until root integrates the actual S2 migration158, run only source/regression checks;
+do not claim a coherent database/browser pass or publish this intermediate tree.
+Root owns subsequent integration, exact-head review and release validation.
+
+The mechanical rename preserved all three pre-change SHA256 digests; shell syntax,
+append-only history and the unchanged historical local-proof file were checked
+(01a09b4539e67972ba948534f9950ef0). The three affected source/module test files
+passed24/24 (01a09b453ed674529b3142b5a3d40fc5); scoped ESLint and the obsolete active
+path/marker scan passed (01a09b45885375d1b2ac7066e4d3ce33). Node emitted the existing
+MODULE_TYPELESS_PACKAGE_JSON warnings. S2 migration158 was still absent; no database,
+container, browser, provider or production proof was run for the new sequence.

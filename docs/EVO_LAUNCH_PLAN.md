@@ -11,6 +11,18 @@ those higher-level authorities.
 
 Last recorded accepted application: `77cde9ba8abdd8140db462dfe0203c0356944849`
 
+Current release checkpoint (2026-09-13): managed001–161 applied/verified via
+34765867429/34765967956, but full CI34766012215 on c6669ff1 failed at the
+scoped Admissions calendar visibility selector. Automatic release34766594252
+was skipped and arm=false verified; no new application release is claimed.
+The product intentionally submits hidden student_visible=false without the
+separate task.visibility.manage permission. The candidate corrects only that
+proved stale expectation; actual-component SSR and frontend/module checks pass.
+The end-of-scenario P4 writer and business gates remain intact. Independently
+review before a root-directed exact-main retry. The later
+missing P4 fixture is downstream of this timeout, not evidence of a media defect.
+This checkpoint supersedes earlier release-pending diagnostics below.
+
 ## Active run: dynamic employee roles and unified document automation
 
 The owner requests editable staff roles, departments and personal Gmail-based

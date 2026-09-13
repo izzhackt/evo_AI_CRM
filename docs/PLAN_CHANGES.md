@@ -24523,3 +24523,59 @@ independent review. Managed application of158–161, full exact-final-main
 Auth/DB/browser including D2, automatic release and runtime/tunnel/disarm proof
 remain pending. No new implementation, provider or real employee/client action
 is authorized or claimed by this documentation reconciliation.
+
+## 2026-09-13 — Align the calendar proof with the preserved scoped Admissions contract
+
+Full CI34766012215 on c6669ff1 failed at supabase-staff-auth.spec.ts1877:
+the real scoped Admissions browser waited for select[name="student_visible"].
+Current TaskControls renders that select only with task.visibility.manage;
+otherwise the actual form contains one hidden student_visible=false input.
+Migration155's preserved curator baseline and scoped-staff-provisioner add
+task.create from the old task.manage grant, not task.visibility.manage.
+Do not grant visibility authority or change the product to satisfy a stale test.
+
+Before coding, scope the fix to the existing real snapshot assertion and exact
+form-control expectation: prove task.create is present and task.visibility.manage
+absent, then require hidden false and no select before the unchanged task submit,
+readback, completion and all later business assertions. No fallback locator,
+skipping, timeout increase, global helper change, SQL or permission change.
+Use the existing actual-component React SSR seam for a narrow markup regression:
+real CalendarCreateTaskForm/TaskCasePicker/access helper, synthetic props and
+nonexecuted server-action sentinels that throw if called. Assert zero action calls;
+this is not Auth, browser, database or successful business acceptance evidence.
+
+The following D2-media ENOENT is causally downstream: the sole P4 writer at2586
+is after the failed1877; the next test reads that file at321 before its fixture DB
+connection at332. Keep the writer at the successful scenario end and preserve
+all gates. Read-only scan the rest of the same scenario for equivalent obsolete
+permission-conditional controls; change only separately demonstrated mismatches.
+
+Managed001–161 applied through34765867429 and verified through34765967956;
+this does not release the application. Automatic release34766594252 was skipped,
+arm=false read back (01a09b74ab477ec3a9263c776e0451bc). Production remains the
+accepted77cde9ba; no new release dispatch is authorized by this diagnosis.
+Work in isolated izzhackt/evo-calendar-visibility-proof from c6669ff1; require
+narrow RED/GREEN and independent exact-head review before root-directed publish.
+
+Before the manifest edit, include the new SSR regression in the existing second
+Node command of package.json test:frontend, alongside the other actual-component
+SSR tests. That command deliberately has no react-server condition. Append only
+the test path; no dependency, lockfile, version or unrelated script changes.
+
+Outcome before independent review: the refined narrow loop had3 actual SSR
+markup checks PASS and the existing E2E-control contract RED
+(01a09b7b751f7dc28f3ef99be05bf13f). The exact E2E fix adds6/removes3 lines:
+two actual snapshot permission assertions and hidden-false/no-select assertions;
+all four regression checks then pass (01a09b7bccbf70309e16f2297b3eb789).
+No server-action sentinel ran.92 related calendar/task/scoped-role checks pass
+(01a09b7c99cc7931ae84bbaf9d6e5eae). Actual npm run test:frontend, including
+the new SSR regression through the committed script, passes178+23 tests with
+no skips (01a09b7d12c27783b0b28eb603a2e8c9); scoped lint/diff-check pass.
+
+Independent read-only scan of the remaining same-scenario UI controls found no
+additional concrete mismatch: calendar completion/Admin edits, applications,
+visa, separate finance-stop create/manage, document upload/checklist/history and
+completed-handoff navigation match current permission gates. This is source
+consistency, not a runtime pass. Product source, all migrations and lockfile are
+unchanged. Full real Auth/DB/browser CI and application release have not been
+rerun; their previous failed/skipped outcomes remain the current release status.

@@ -1442,6 +1442,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(admissionsAuthorityRow.schemaVersion).toBe(1);
   expect(admissionsAuthorityRow.systemRole).toBe("staff");
   expect(admissionsAuthorityRow.permissions).toContain("case.read.full");
+  expect(admissionsAuthorityRow.permissions).toContain("task.create");
+  expect(admissionsAuthorityRow.permissions).not.toContain("task.visibility.manage");
   const admissionsOwnerId = requireUuidValue(admissionsAuthorityRow.membershipId);
 
   assertDeniedRpc(
@@ -1872,9 +1874,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .filter({ hasText: /^Дополнительные настройки$/ })
     .click();
   await createTask.locator('select[name="priority"]').selectOption("high");
-  await createTask
-    .locator('select[name="student_visible"]')
-    .selectOption("false");
+  // The preserved scoped Admissions baseline creates hidden tasks without the
+  // separate visibility-management grant. Assert the real control, not a select.
+  await expect(createTask.locator('input[type="hidden"][name="student_visible"]')).toHaveValue("false");
+  await expect(createTask.locator('select[name="student_visible"]')).toHaveCount(0);
   await createTask.locator('button[type="submit"]').click();
 
   const createdTask = page

@@ -25159,3 +25159,14 @@ Independently review the Docker-only implementation delta before repeating the
 same bounded native AMD64 target/harness against the corrected frozen commit.
 Keep old11/12 evidence as a failure, not native acceptance. No deployment,
 production configuration, managed database or provider call is part of this fix.
+
+## 2026-09-14 — Record native corrected-runtime proof without overstating SSH exit
+
+Independently reviewed10f1a08 built on native Hermes AMD64 and produced complete
+12/12 PASS TAP; all runtime assets are root-owned/read-only. The original SSH
+transport returned255, so its docker-run exit was not observed; recovering the
+terminal TAP after reconnect is not a claimed exit0 or a reason to silently rerun.
+All9 retained artifact hashes matched; exact owned resources were removed and
+production identity/health stayed unchanged. A separate evidence review accepted
+these narrow claims. [Evidence](design/v3/references/2026-09-14-document-source-native-amd64-proof.md).
+No runtime bytes changed for this record; combined D3/provider gates stay open.

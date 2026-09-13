@@ -7,7 +7,10 @@ into independently reviewed runtime `0584d2d09a917148bd13b85e3d275a7b36930925`.
 The initial refresh preserved runtime code/assets. PR766's subsequent Next build
 failure requires a fixed adapter-only `NODE_ENV=production` child environment;
 the native launcher clears it before starting the parser. Native assets and
-isolation policy stay unchanged. Native AMD64 and combined D3 acceptance remain open.
+isolation policy stay unchanged. Native AMD64 checks passed on10f1a08; the original
+docker-run exit was not observed after an SSH transport interruption. See the
+[exact retained proof](references/2026-09-14-document-source-native-amd64-proof.md).
+Combined D3 and provider acceptance remain open.
 Extends [D3](evo-docs-recognition-contract.md); does not implement its provider,
 Storage, authorization, queue, HTTP or UI adapters. Root owns their integration.
 

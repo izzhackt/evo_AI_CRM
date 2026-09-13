@@ -142,9 +142,12 @@ build and independent delta review are required before updating that draft PR.
 
 That adapter fix passed short CI34774934032 at32e7255. Native AMD64 then passed
 11/12 checks but correctly rejected bootstrap.mjs group-write permission0664.
-Normalize asset COPY modes explicitly without changing source/isolation tests;
-repeat the same bounded native proof after independent review. Production stayed
-on accepted05585020; the failed native run is not enablement approval.
+Asset COPY modes were normalized without changing source/isolation tests.
+The reviewed correction10f1a08 then passed all12 native checks, confirmed from
+complete terminal TAP after SSH reconnect; original docker-run exit unobserved.
+The permission audit found187 files/32 directories root-owned and read-only.
+See [native evidence](design/v3/references/2026-09-14-document-source-native-amd64-proof.md).
+Production stayed on accepted05585020; combined D3 acceptance remains open.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

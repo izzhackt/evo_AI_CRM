@@ -1,6 +1,8 @@
 # D4 — университетские формы и пакеты документов
 
-Дата: 2026-09-13. Контракт для исполнителей после D2, не реализация/приёмка; номера миграций выделяет root.
+Дата: 2026-09-13. Контракт D4, не готовность всего блока; номера миграций выделяет root.
+На отдельной ветке локально реализован только mapping/DOCX-срез ниже; формы, пакеты и их
+production/клиентская приёмка пока не готовы.
 База: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS, итоговый выпуск ещё не подтверждён.
 Основания: [общий план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md), [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
@@ -148,3 +150,36 @@ reconcile известного объекта → доказанный hash; в�
 Официальные основания проверены 2026-09-13: [Storage RLS/service key](https://supabase.com/docs/guides/storage/security/access-control)
 и [новые object paths вместо overwrite](https://supabase.com/docs/guides/storage/uploads/standard-uploads).
 Это обоснование boundary, не доказательство её реализации.
+
+## Первый срез исполнения: mapping и DOCX
+
+Ветка `izzhackt/evo-docs-university-packages` не меняет frozen main c6669ff1.
+Реализованы нейтральный [mapping resolver](../../../src/lib/university-form-fields.ts) и server-only
+[DOCX inspect/fill](../../../src/lib/server/university-form-docx.ts) с synthetic tests. Используются имеющиеся
+PizZip3.2.0/xmldom0.9.12 и D2 registry; не переносить mutable standalone service.
+Confirmed-empty, конфликт, неверное/неподтверждённое значение и ручное поле должны
+оставаться различимыми. Согласовать весь mapping до заполнения; bytes не означают ready.
+DOCX limits зафиксированы в PLAN_CHANGES. Проверить обычные таблицы, label runs,
+merged cells, headers и Unicode; визуально просмотреть все полученные страницы.
+Универсальная проверка layout не объявляется существующей по одному roundtrip.
+Public export остаётся закрытым до реализации всех live-authority, template/layout,
+immutable persistence и begin/complete/reconcile условий основного контракта.
+PDF, package engine, schema/Storage/UI и реальная приёмка остаются в полном объёме.
+
+`resolveUniversityFormMappings` принимает exact template/mapping IDs+SHA256,
+immutable approved/rejected review snapshot и D2 fields + фиксированный `today`.
+Canonical mapping hash пересчитывается; mismatch останавливает работу.
+Результат `fieldsReady` означает только готовность mapping/полей, не право на export.
+`getUniversityFormAssignments` исключает пустые/неразрешённые значения; final
+блокируют required missing/empty и любой mapped conflict/unconfirmed/invalid/manual.
+`inspectUniversityDocx`/`fillUniversityDocx` не выполняют сеть, Auth или Storage.
+Пример исполнения и проверки — [focused tests](../../../tests/university-form-docx.test.mjs).
+
+Локально:26 focused checks, scoped lint/strict TypeScript PASS; root просмотрел
+все5 synthetic одностраничных файлов. Китайские глифы визуально НЕ прошли:
+DOCX сохранил символы, но fallback LinuxLibertineG в PDF имел пустые outlines.
+Извлекаемый PDF-текст не доказывает видимые глифы. Полный font/layout gate остаётся
+обязательным; universal Unicode support и готовность публичного final не заявлены.
+Точные receipts — в [журнале решений](../../PLAN_CHANGES.md).
+API порта сверены с [xmldom 0.9.12 onError](https://github.com/xmldom/xmldom/blob/0.9.12/index.d.ts)
+и [Node22 zlib](https://nodejs.org/download/release/v22.23.1/docs/api/zlib.html).

@@ -24523,3 +24523,68 @@ independent review. Managed application of158–161, full exact-final-main
 Auth/DB/browser including D2, automatic release and runtime/tunnel/disarm proof
 remain pending. No new implementation, provider or real employee/client action
 is authorized or claimed by this documentation reconciliation.
+
+## 2026-09-13 — Start the D4 renderer lane without coupling it to Gemini or the frozen release
+
+Keep current-main c6669ff1 unchanged during CI34766012215 and automatic release.
+Use izzhackt/evo-docs-university-packages for the first D4 mapping/DOCX slice,
+based on the clean standalone6e7cf741 source and the approved package contract.
+Do not read runtime/client files, import presets as approved forms, expose an
+export endpoint, apply schema or change production in this slice.
+
+Reuse existing Platform PizZip3.2.0/xmldom0.9.12/61-field registry rather than the
+standalone dependency versions. Implement a confirmed-value resolver that retains
+confirmed-empty/conflict/invalid states; optional mapped conflicts still block
+final readiness. Manual/signature/photo/consent fields remain explicit. Port the
+bounded DOCX inspect/fill code using onError, fixed sanitized errors, validated
+supported relationships and deterministic ZIP metadata, not the SQLite service.
+
+Initial DOCX bounds:20MiB input/output,512 entries,50MiB expanded,20MiB per entry,
+5MiB per XML part,20MiB aggregate XML,3000 paragraphs. Reject unsupported packages,
+never silently strip/truncate applicant values. Structural roundtrip or byte
+determinism does not prove visual overflow/pagination correctness: visually inspect
+all synthetic output pages and retain the full contract's layout/template approval
+gate before any real or public final export. Do not weaken that gate to justify a port.
+
+PDF/font integration, whole-mapping geometry checks, immutable template versions,
+Storage, package/form first-class items, ZIP bounds, export history and UI remain
+mandatory next parts of D4. Root owns dependency pinning, build tracing and manifests;
+no migration number is reserved during the frozen release. Keep real template/case
+approval, D5 reconciliation and D6 acceptance/retirement gates unchanged.
+
+The first pure mapping seam consumes exact template/mapping versions and hashes,
+an immutable review snapshot (approved/rejected), and D2 fields with an explicit
+validation day. Recompute the canonical mapping-content SHA256 with Web Crypto;
+an ID/hash mismatch fails, not a mappingApproved boolean. Return fieldsReady,
+never overall export authority. Confirmed-empty is omitted from assignments but
+retained in resolved state; required missing/empty and every mapped unconfirmed,
+conflicting, invalid or manual field prevent final assignments. Draft excludes unresolved values visibly in
+the resolution; no source or profile snapshot is mutated.
+
+The initial DOCX relationship allowlist covers the ordinary officeDocument,
+properties, styles, numbering, settings, webSettings, fontTable, theme, headers,
+footers, footnotes, endnotes, comments and image parts. Every internal target must
+resolve to an existing package part; only HTTP(S)/mailto hyperlinks may remain
+external, without fetching them. Other relationships fail explicitly. Normalize
+ZIP entry order/date/permissions/comments to fixed metadata for deterministic
+output; preserve untouched part bytes. XML validity is not layout approval.
+
+The ordinary synthetic signature-table check exposed a source-port seam:
+underscore-only cells must count as blank before neighboring-label inference,
+otherwise the applicant-only signature/consent label is hidden. Correct that
+classification, retain explicit line/tab elements for multiline assignments,
+and check post-fill package bounds as well as the original input bounds.
+
+First-slice local evidence:26 focused mapping/DOCX tests passed on Node22.23.1
+(01a09b7b81c97742b93167f5573ab61c), including actual cross-timezone byte equality;
+scoped lint passed (01a09b7b8be674709833d0c7f5143561) and strict module TypeScript
+passed (01a09b798aea71029fc4c2f852a073aa). Synthetic artifacts were generated
+without changing their source bytes (01a09b7976f1752181f794c09aae642b); the root
+rendered/viewed all5 one-page files. Tables, styled labels, expanding long rows,
+draft headers and untouched applicant-only fields were visible. Chinese visual
+coverage did NOT pass: DOCX retained U+4E2D/U+6587 (01a09b7c73147b02b6600cff6bd73dc0),
+but the PDF's selected LinuxLibertineG subset had three empty glyph outlines
+(01a09b7d52407ec3acbe9ac9b95b538f), despite extractable Unicode text. Keep an
+explicit font/glyph/layout gate; do not replace/drop characters or claim universal
+Unicode/visual readiness. No PDF/font dependencies, public export, Storage, SQL,
+provider or real-template/client acceptance is implemented by this slice.

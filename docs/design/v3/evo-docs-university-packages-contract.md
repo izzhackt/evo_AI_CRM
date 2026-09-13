@@ -1,7 +1,7 @@
 # D4 — университетские формы и пакеты документов
 
 Дата: 2026-09-13. Контракт для исполнителей после D2, не реализация/приёмка; номера миграций выделяет root.
-Согласован с reviewed D2 `daf5b5ac`; объединение D2 и итоговый выпуск ещё не подтверждены.
+База: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS, итоговый выпуск ещё не подтверждён.
 Основания: [общий план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md), [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
 D4 можно выполнять параллельно D3: вручную подтверждённых полей достаточно,

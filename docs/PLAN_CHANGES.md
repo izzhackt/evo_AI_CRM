@@ -24509,3 +24509,17 @@ that sequence while retaining every earlier receipt and diagnosis as history.
 After reviewed D2 and these six preparation/status documents merge, one final
 frozen-main Auth/DB/browser run including D2 and automatic release remains
 required. No code, migration, provider, client data or invitation is changed here.
+
+## 2026-09-13 — Record merged D2 before final preparation review
+
+D2/PR752 merged at15:24:30 UTC as
+fd5b6a085ae97e8cb120f9998dc3418b0e6b580c after all six fast checks34765172099
+passed. The fetched main and reviewed daf5b5ac share tree
+92d7be307552c9c19324c452be129e33bbd8f822 (01a09b5f390d79009794b131258c8d14).
+Before changing active checkpoints, normally merge that main into PR754 and
+retain the preceding pending-status entry as history. Update only the same six
+preparation/status documents to the factual merged state, then obtain incremental
+independent review. Managed application of158–161, full exact-final-main
+Auth/DB/browser including D2, automatic release and runtime/tunnel/disarm proof
+remain pending. No new implementation, provider or real employee/client action
+is authorized or claimed by this documentation reconciliation.

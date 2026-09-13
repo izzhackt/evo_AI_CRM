@@ -1,7 +1,7 @@
 # D3 — распознавание документов с проверкой человеком
 
 Дата: 2026-09-13. Статус: подготовленный контракт, реализация D3 не начата.
-База согласования: reviewed D2 `daf5b5ac`; D2/PR752 ещё не merged и не объявляется выпущенным.
+База: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS, итоговый выпуск ещё не подтверждён.
 Исполнитель читает [единый план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md) и [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
 Все новые пути, RPC, таблицы и лимиты ниже — проектируемый интерфейс D3.

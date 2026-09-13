@@ -24993,3 +24993,67 @@ PASS `01a09bee0778737190f02e28ea05f90f`; scoped lint/diff PASS
 `01a09bef202075819e2e348d5bb5a2c4`. The two package modules and their tests
 are byte-identical to independently reviewedae52a316. No changed renderer bytes
 require repeating the prior52 renderer checks or visual generation.
+
+## 2026-09-14 — D5 metadata-only import planning, not transfer authority
+
+Author: Codex. Base: verified origin/main85a1efdff8945ec2100d26b83de5288892471231.
+Affected plan: ADR0028 / EVO Docs D5; D3/D4 and D6 remain separate open gates.
+Reason: the standalone source has twelve domains, while no Platform importer or
+approved source-student/canonical-case map exists. Existing D2 human review and
+D4 render libraries cannot honestly impersonate historical import receipts.
+
+Decision before code: add one pure JSON metadata parser/validator and deterministic
+reconciliation planner, described in `design/v3/evo-docs-import-manifest-contract.md`.
+It accepts no SQLite connection, file paths, source contents, field values, event
+messages, credentials, free-text labels or provider configuration. All twelve
+domains must be present, including explicit empty arrays. Source identities,
+record digests, byte descriptors, exact typed references, approved case mappings
+and previous ledger descriptors are inputs, not externally verified evidence.
+Reject malformed/private-shaped input with fixed errors; report missing mappings,
+referential/identity/digest conflicts, unsupported MIME and unavailable target
+persistence without dropping rows. Legacy assertions remain unattributed historical
+assertions, never fabricated staff confirmations. No action executes; output always
+states that bytes, live authority, transfer and D5 completion are unverified/false.
+
+Stable source instance/domain/primary-key identity is independent of snapshot SHA.
+Replay requires equal canonical row fingerprints and target binding; changed
+inputs require reconciliation. Identical file hashes never merge version identities.
+This slice has no exporter, CLI reading real input, DB/schema, API/UI, Storage,
+provider, deployment or standalone retirement changes and no new dependencies.
+Own only the module/tests, canonical test manifests, lean contract and plan entries.
+
+Validation: real Node tests with explicitly synthetic metadata across all twelve
+domains, strict-input/privacy failures, missing/duplicate/unapproved mappings,
+cross-case/dangling references, same-hash distinct versions, replay/drift and input
+immutability. Scoped lint/typecheck and canonical-manifest tests; no full DB/browser
+gate or service-success substitutes. Independent root-arranged review must approve
+the frozen diff before commit; do not push or create a PR in this delegated slice.
+
+Implementation evidence: actual synthetic-metadata planner50 plus canonical
+manifest9 tests PASS (`01a09cc282017ff2a8bcf40e57be3179`, 59 total).
+Scoped strict TypeScript PASS (`01a09cc28bbe70f38f1c0af5919cb903`) and ESLint PASS
+(`01a09cc292c07ce294d0571fc2b7104e`). CI inventory becomes309/170/139,
+unit207/165/42; this adds one file, preserves all existing tests and deduplication.
+No source payload, DB, Storage, provider or deployment was exercised. The module
+does not offer an apply command; every execution/acceptance flag remains false.
+Frozen diff awaits independent review; no commit or D5-complete claim yet.
+
+### D5 independent-review correction: target identity collisions
+
+The independent reviewer reproduced two different source document versions,
+including identical file bytes, resolving to the same asserted ledger target ID.
+Source-key replay alone missed this collision. Before the fix, retain a RED
+regression and the different-target control. Enforce the existing preserve-version
+identity contract: within the current source instance and one domain, different
+source PKs cannot share a target ID. Every affected source row must report fixed
+`ledger_target_collision`, require reconciliation and prevent metadataConsistent.
+Do not merge rows or reinterpret hashes as identity. This corrects the planner,
+not import authority; no executor, real data or service operation is introduced.
+
+Correction proof: RED `01a09cca3b057283ad4b3128228e4960` (same-target case failed
+with true!==false; different-target control passed). GREEN
+`01a09ccaac1473f097566f83110e9569` passed52 planner+9 manifest tests; strict scoped
+TypeScript `01a09ccab4227f8185625abd198343bf` and ESLint
+`01a09ccabb7777e0a9b4fc1fb3737bde` passed. Target-collision checks are scoped to
+the current source instance and domain; foreign-instance and other-domain controls
+do not create false collision findings. Corrected frozen diff requires exact review.

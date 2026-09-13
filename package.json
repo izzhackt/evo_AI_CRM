@@ -36,6 +36,7 @@
     "test:student-profile-fields": "node --conditions=react-server --experimental-strip-types --test tests/student-profile-fields.test.mjs tests/platform-student-profile-fields.test.mjs tests/platform-student-profile-field-actions.test.mjs tests/student-profile-field-sql.test.mjs tests/student-profile-template.test.mjs tests/student-profile-export-route.test.mjs tests/student-profile-fields-browser-harness.test.mjs && node --test tests/v3-student-profile-fields.test.mjs",
     "test:university-forms": "node --conditions=react-server --experimental-strip-types --test tests/university-form-fields.test.mjs tests/university-form-docx.test.mjs tests/university-form-pdf.test.mjs",
     "test:document-packages": "node --conditions=react-server --experimental-strip-types --test tests/document-package.test.mjs tests/document-package-zip.test.mjs",
+    "test:document-import-manifest": "node --conditions=react-server --experimental-strip-types --test tests/document-import-manifest.test.mjs",
     "test:brand-ui": "node --test tests/v3-brand-design.test.mjs",
     "test:a11y": "playwright test --config=playwright.accessibility.config.ts",
     "test:e2e": "playwright test",

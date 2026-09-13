@@ -129,7 +129,7 @@ Worker: одна активная генерация/org, две/project; genera
 `latest` alias и молчаливый default запрещены. Текущий SDK `2.16.0` не типизирует новые generateContent
 `store/responseFormat`; узкий REST adapter проверяет реальное wire body, не делает type-cast обход.
 REST: `POST /v1beta/models/{model}:generateContent`, top-level `store:false`,
-`generationConfig.responseFormat.text={mimeType:"application/json",schema}`; сервер повторно валидирует JSON.
+`generationConfig.responseFormat.text={mimeType:"APPLICATION_JSON",schema}`; сервер повторно валидирует JSON.
 Files SDK допускается с `config.name`; HTTP retries для upload/generate выключены (`attempts:1`).
 Не копировать unsupported candidateCount/sampling-настройки в новую модель. Prompt считает документ данными,
 не инструкциями; без tools/search/URL fetch, выдуманных фактов и автоматического подтверждения confidence.

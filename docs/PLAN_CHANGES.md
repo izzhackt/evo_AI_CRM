@@ -24659,3 +24659,21 @@ SQL queue/reservations, worker/leases, exact Storage/PDF preflight, routes/UI,
 paid-project eligibility and authorized real-file generation/cleanup are still
 mandatory remaining work. No provider, migration, production, release-arm or
 real-user state was changed by this isolated slice.
+
+Independent review of03a8c4c requested a protocol correction before integration:
+the new REST `responseFormat.text.mimeType` is an enum, `APPLICATION_JSON`, not
+the legacy `responseMimeType` string `application/json`. Both generation and its
+full countTokens request share this body; the synthetic boundary tests repeated
+the same wrong expectation. Re-read the official TextResponseFormat/MimeType
+definition2026-09-13 at https://ai.google.dev/api/generate-content#TextResponseFormat.
+Before changing code, correct the contract and add independent enum assertions
+in both serialized requests, then run RED/GREEN, scoped checks and re-review.
+Keep HTTP Content-Type as application/json; no provider request was made.
+
+Correction evidence: before the serializer edit, the independent documented-enum
+checks failed3 times (builder, serialized generation and serialized full count),
+while14 other transport tests passed (01a09b8f9b1876809829e5b790e062ca).
+After the one-value wire fix, the actual npm entry again passes91+12 with zero
+skips, and scoped TypeScript/ESLint/diff-check pass
+(01a09b8faf2e71f3996b17e0972c7d30). Re-review is required on the new commit;
+these checks still do not establish live provider acceptance.

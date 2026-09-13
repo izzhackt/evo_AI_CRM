@@ -117,7 +117,7 @@ export function buildDocumentRecognitionGenerationRequest(binding: DocumentRecog
     systemInstruction: { parts: [{ text: PROMPT }] },
     contents: [{ role: "user", parts: [{ fileData: { mimeType: binding.mime_type, fileUri: `${ORIGIN}/v1beta/${binding.name}` } }] }],
     generationConfig: { maxOutputTokens: checked.outputTokenCeiling,
-      responseFormat: { text: { mimeType: "application/json", schema: DOCUMENT_RECOGNITION_RESULT_SCHEMA } } },
+      responseFormat: { text: { mimeType: "APPLICATION_JSON", schema: DOCUMENT_RECOGNITION_RESULT_SCHEMA } } },
   });
 }
 

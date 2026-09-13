@@ -72,7 +72,7 @@ test("wire generation uses exact source and model-specific schema without tools 
   const body = buildDocumentRecognitionGenerationRequest(BINDING, CONFIG);
   assert.equal(body.store, false);
   assert.equal(body.generationConfig.maxOutputTokens, 6000);
-  assert.equal(body.generationConfig.responseFormat.text.mimeType, "application/json");
+  assert.equal(body.generationConfig.responseFormat.text.mimeType, "APPLICATION_JSON");
   assert.equal(body.generationConfig.responseFormat.text.schema.properties.candidates.items.properties.key.enum.length, 61);
   assert.deepEqual(body.contents[0].parts, [{ fileData: { mimeType: BINDING.mime_type, fileUri: FILE.uri } }]);
   for (const key of ["tools", "cachedContent", "temperature", "candidateCount"]) assert.equal(key in body, false);
@@ -142,6 +142,7 @@ test("serialized REST boundary sends one generation after count with no redirect
     assert.equal(options.redirect, "error");
     assert.ok(options.signal instanceof AbortSignal);
     assert.equal(options.headers["x-goog-api-key"], "technical-test-key-not-a-secret");
+    assert.equal(JSON.parse(options.body).generationConfig.responseFormat.text.mimeType, "APPLICATION_JSON");
     assert.deepEqual(JSON.parse(options.body), buildDocumentRecognitionGenerationRequest(BINDING, CONFIG));
     return Response.json(RESPONSE);
   } });
@@ -201,6 +202,7 @@ test("full-request count produces a serializable exact-model/body receipt", asyn
   assert.equal(requests[0].options.redirect, "error");
   assert.ok(requests[0].options.signal instanceof AbortSignal);
   assert.equal(requests[0].options.headers["x-goog-api-key"], "technical-test-key-not-a-secret");
+  assert.equal(JSON.parse(requests[0].options.body).generateContentRequest.generationConfig.responseFormat.text.mimeType, "APPLICATION_JSON");
   const body = buildDocumentRecognitionGenerationRequest(BINDING, CONFIG);
   assert.deepEqual(JSON.parse(requests[0].options.body), { generateContentRequest: { model: `models/${CONFIG.model}`, ...body } });
   assert.deepEqual(JSON.parse(JSON.stringify(counted.receipt)), {

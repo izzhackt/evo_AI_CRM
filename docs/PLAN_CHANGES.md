@@ -24257,3 +24257,9 @@ It rolled back synthetic data; both owned network-none containers were removed
 (01a09b49193c7541a77265906c899c15). All157 historical migrations remained byte-identical.
 Related module checks passed62/62 (01a09b48977e7221bd194c801481db3c); shell syntax and
 whitespace passed. This SQL/RPC proof is not real Auth/browser or production acceptance.
+
+Independent review also tightened the disposable runner: register cleanup
+responsibility after the existing-name precheck but before docker run, because
+the daemon can create the owned container before a timeout loses its response.
+The exact target, failure propagation and product SQL are unchanged; shell syntax
+and whitespace were rechecked. No new provider or production operation is involved.

@@ -36,10 +36,12 @@ trap cleanup EXIT
 if docker container inspect "$container_name" >/dev/null 2>&1; then
   echo 'Refusing an existing proof container name' >&2; exit 1
 fi
+# The daemon may create the owned container before a timeout loses its reply.
+# Cleanup responsibility starts before dispatch, not after a successful reply.
+container_created=1
 "$node_bin" "$deadline_runner" 120000 docker run --detach --name "$container_name" \
   --network none --env POSTGRES_PASSWORD=postgres \
   --mount "type=bind,source=$repo_root,target=/workspace,readonly" "$postgres_image" >/dev/null
-container_created=1
 echo "DOCUMENT_REQUIREMENT_PROOF_CONTAINER $container_name"
 ready=0
 for attempt in {1..120}; do

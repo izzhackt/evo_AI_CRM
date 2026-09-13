@@ -24,6 +24,19 @@ test("membership schema changes precede the populated Admin backfill and its def
   assert.match(sql.slice(backfill, sql.indexOf(";", backfill)), /current_role" = 'admin'[\s\S]*b\.status='published'[\s\S]*membership_has_active_scope/);
 });
 
+test("owner backfill stop exposes only independent count categories without changing the stop", () => {
+  const body = sql.slice(sql.indexOf("DO $backfill$"), sql.indexOf("END $backfill$;"));
+  const detail = body.slice(body.indexOf("WITH selected_owners AS ("), body.indexOf("RAISE EXCEPTION 'staff_backfill_owner_scope_requires_review'"));
+  assert.ok(detail.length > 0);
+  for (const key of ["pending_owner_role_mismatch", "active_closed_owner_role_mismatch",
+    "selected_owner_missing_case_scope", "curator_owned_lead"]) {
+    assert.ok(detail.includes(`'${key}'`));
+  }
+  assert.equal((detail.match(/SELECT count\(\*\)/g) ?? []).length, 4);
+  assert.doesNotMatch(detail, /jsonb_agg|row_to_json|jsonb_build_array|string_agg|email|display_name/);
+  assert.match(body, /RAISE EXCEPTION 'staff_backfill_owner_scope_requires_review' USING ERRCODE='23514', DETAIL=guard_detail::TEXT/);
+});
+
 test("publication impact uses one canonical role and live scoped assignment fingerprint", () => {
   const fingerprint = definition("platform_private.staff_role_impact_fingerprint");
   for (const field of ["schemaVersion", "organizationId", "roleId", "roleVersion", "status", "bundleId", "bundleVersion",

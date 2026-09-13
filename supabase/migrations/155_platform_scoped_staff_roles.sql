@@ -381,7 +381,7 @@ END $$;
 -- scope. Org-only actions and owner actions get different immutable bundles.
 -- Current owner/scope inconsistencies need an explicit decision, not widening.
 DO $backfill$
-DECLARE legacy RECORD; segment TEXT; keys TEXT[]; new_role UUID; new_bundle UUID; title TEXT;
+DECLARE legacy RECORD; segment TEXT; keys TEXT[]; new_role UUID; new_bundle UUID; title TEXT; guard_detail JSONB;
 BEGIN
  IF EXISTS(SELECT 1 FROM platform.student_cases c
  JOIN platform.organization_memberships m ON m.organization_id=c.organization_id AND
@@ -395,7 +395,27 @@ BEGIN
  ON m.organization_id=l.organization_id AND m.id=l.current_owner_membership_id
  WHERE NOT m.is_system_admin AND m."current_role"='curator'
  AND platform_private.membership_has_active_scope(m.organization_id,m.id,'organization',m.organization_id)) THEN
-  RAISE EXCEPTION 'staff_backfill_owner_scope_requires_review' USING ERRCODE='23514';
+  -- Independent aggregate counts only; categories may overlap. Keep row data private.
+  WITH selected_owners AS (
+   SELECT c.state,c.id AS case_id,m.organization_id,m.id AS membership_id,m."current_role" AS owner_role
+   FROM platform.student_cases c JOIN platform.organization_memberships m
+    ON m.organization_id=c.organization_id AND
+    ((c.state='pending' AND m.id=c.responsible_sales_membership_id)
+     OR (c.state IN ('active','closed') AND m.id=c.current_curator_membership_id))
+   WHERE NOT m.is_system_admin AND m."current_role" IN ('sales','curator')
+    AND platform_private.membership_has_active_scope(m.organization_id,m.id,'organization',m.organization_id)
+  )
+  SELECT jsonb_build_object(
+   'pending_owner_role_mismatch',(SELECT count(*) FROM selected_owners WHERE state='pending' AND owner_role<>'sales'),
+   'active_closed_owner_role_mismatch',(SELECT count(*) FROM selected_owners WHERE state IN ('active','closed') AND owner_role<>'curator'),
+   'selected_owner_missing_case_scope',(SELECT count(*) FROM selected_owners
+    WHERE NOT platform_private.membership_has_active_scope(organization_id,membership_id,'student_case',case_id)),
+   'curator_owned_lead',(SELECT count(*) FROM platform.leads l JOIN platform.organization_memberships m
+    ON m.organization_id=l.organization_id AND m.id=l.current_owner_membership_id
+    WHERE NOT m.is_system_admin AND m."current_role"='curator'
+     AND platform_private.membership_has_active_scope(m.organization_id,m.id,'organization',m.organization_id))
+  ) INTO guard_detail;
+  RAISE EXCEPTION 'staff_backfill_owner_scope_requires_review' USING ERRCODE='23514', DETAIL=guard_detail::TEXT;
  END IF;
  FOR legacy IN SELECT DISTINCT m.organization_id,m."current_role" AS role,m.current_bundle_id
  FROM platform.organization_memberships m JOIN platform.role_bundle_versions b ON b.id=m.current_bundle_id AND b.status='published'

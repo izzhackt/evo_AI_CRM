@@ -135,3 +135,34 @@ test("runtime verifies claims and reads a live snapshot without JWT business fal
   assert.match(actions, /signOut\(\{ scope: "local" \}\)/);
   assert.match(shell, /selectStaffRolePreviewAction/);
 });
+
+test("current-actor SQL contract separates live staff identity from scoped grant and removal", async () => {
+  // Source coverage only: required CI executes this transactional SQL contract.
+  const sql = await readFile(new URL("../supabase/tests/platform_current_actor_authority.sql", import.meta.url), "utf8");
+  for (const denial of ["wrong_subject", "missing_authority", "blocked_profile", "inactive_membership", "suspended_organization"]) {
+    assert.match(sql, new RegExp(`:'p3a_${denial}_rows' = '0'`));
+  }
+  for (const state of ["wrong_role", "stale_version", "malformed_version", "revoked_scope"]) {
+    const assertion = sql.slice(sql.indexOf(`AS p3a_${state}_live_contract_ok`) - 300,
+      sql.indexOf(`AS p3a_${state}_live_contract_ok`));
+    assert.match(assertion, /jsonb_agg\(to_jsonb\(actor\)\)/);
+    assert.match(assertion, /= :'p3a_expected_actor'::JSONB/);
+    assert.match(assertion, /staff_access_snapshot\(\) = :'p3a_expected_empty_snapshot'::JSONB/);
+    assert.match(sql, new RegExp(`:'p3a_${state}_live_contract_ok'::BOOLEAN`));
+  }
+  assert.match(sql, /'systemRole', 'staff',[\s\S]*'accessVersion', 1,[\s\S]*'assignments', '\[\]'::JSONB,[\s\S]*'permissions', '\[\]'::JSONB/);
+  assert.match(sql, /membership\.is_system_admin/);
+  assert.match(sql, /bundle\.status = 'published'/);
+  assert.match(sql, /bool_and\('organization' = ANY\(definition\.staff_scope_kinds\)/);
+  assert.equal((sql.match(/SELECT platform\.staff_role_assignments_save\(/g) ?? []).length, 2);
+  assert.match(sql, /:'p3a_actor_membership_id', 1,\s*:'p3a_scoped_assignments'::JSONB, :'p3a_scoped_role_bindings'::JSONB/);
+  assert.match(sql, /:'p3a_actor_membership_id', 2, '\[\]', '\[\]'/);
+  for (const version of [2, 3]) assert.match(sql, new RegExp(`'\\{0,platform_access_version\\}', '${version}'`));
+  assert.match(sql, /jsonb_array_length\(body->'assignments'\) = 1/);
+  assert.match(sql, /'permissions', :'p3a_expected_permissions'::JSONB/);
+  assert.match(sql, /jsonb_set\(:'p3a_expected_empty_snapshot'::JSONB, '\{accessVersion\}', '3'\)/);
+  assert.doesNotMatch(sql, /SET current_bundle_id|p3a_published_without_permission_bundle_id|p3a_draft_bundle_id|DISABLE TRIGGER|session_replication_role/);
+  assert.match(sql, /has_function_privilege\('anon', routine_oid, 'EXECUTE'\)/);
+  assert.match(sql, /actual_columns IS DISTINCT FROM expected_columns/);
+  assert.match(sql, /ROLLBACK;\s*$/);
+});

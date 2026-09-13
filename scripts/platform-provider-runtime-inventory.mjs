@@ -287,7 +287,7 @@ export function validateBrowserEvidence(value, expectedSha) {
     ],
     "browser evidence",
   );
-  if (value.schemaVersion !== 1) fail("browser evidence schemaVersion drifted");
+  if (value.schemaVersion !== 2) fail("browser evidence schemaVersion drifted");
   if (value.kind !== "evo-v3-provider-browser-readonly") {
     fail("browser evidence kind drifted");
   }
@@ -304,9 +304,9 @@ export function validateBrowserEvidence(value, expectedSha) {
   );
 
   const assertPageProof = (page, expected) => {
-    exactKeys(page, ["route", "authorityRole", "checks", "statuses"], expected.label);
+    exactKeys(page, ["route", "systemRole", "checks", "statuses"], expected.label);
     if (page.route !== expected.route) fail(`${expected.label}.route drifted`);
-    if (page.authorityRole !== expected.role) fail(`${expected.label}.authorityRole drifted`);
+    if (page.systemRole !== expected.role) fail(`${expected.label}.systemRole drifted`);
     exactKeys(page.checks, expected.checkKeys, `${expected.label}.checks`);
     for (const required of expected.requiredChecks) {
       if (page.checks[required] !== true) fail(`${expected.label}.${required} must be true`);
@@ -320,7 +320,7 @@ export function validateBrowserEvidence(value, expectedSha) {
   assertPageProof(value.routes.salesWhatsApp, {
     label: "browser evidence sales WhatsApp",
     route: "/v3/inbox?conversation=:conversationId",
-    role: "sales",
+    role: "staff",
     checkKeys: [
       "pageVisible",
       "threadVisible",

@@ -1,3 +1,4 @@
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 import {
   PLATFORM_OBLIGATION_CATEGORIES,
@@ -165,9 +166,7 @@ function positiveBigint(value: unknown): string {
 
 function requireStaffCaseActor(actor: PlatformActor): void {
   if (
-    actor.platformRole !== "admin"
-    && actor.platformRole !== "sales"
-    && actor.platformRole !== "admissions"
+    !staffCan(actor, "dashboard.read")
   ) {
     return invalidShape();
   }

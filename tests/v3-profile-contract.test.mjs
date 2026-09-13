@@ -17,7 +17,7 @@ test("V3 Student 360 owns the complete canonical BW6 workspace", () => {
   assert.match(types, /\{ key: "contract", title: "Договор" \}/u);
   assert.match(
     types,
-    /tab\.key === "documents" \|\| tab\.key === "contract"[\s\S]*student && actorRole !== "sales"/u,
+    /tab\.key === "contract"\) return student && access.contract/u,
   );
   assert.match(profile, /current === "contract" && draft\.contract/u);
   assert.match(profile, /<ProfileContractWorkspace/u);
@@ -70,12 +70,12 @@ test("V3 contract context preserves handoff override and fail-closed amoCRM stat
   assert.match(bridge, /handoff\.handoffMode === "exceptional_override"/u);
   assert.match(bridge, /handoff\.starterTasks\.map/u);
   assert.match(bridge, /snapshot\.workspace\.studentCaseId !== snapshot\.handoff\.studentCaseId/u);
-  assert.match(bridge, /if \(presentationRole === "sales"\) return null/u);
+  assert.match(bridge, /if \(actor\.presentationRole === "sales"\) return null/u);
 
   assert.match(amocrm, /readCanonicalAmoCrmCommandAvailability/u);
   assert.match(amocrm, /readPlatformBlockingAmoCrmCommand/u);
   assert.match(amocrm, /workflowScope: "admissions_post_handoff"/u);
-  assert.match(amocrm, /actorRole: authorityRole/u);
+  assert.match(amocrm, /actorRole: actor\.systemRole === "admin" \? "admin" : "admissions"/u);
   assert.match(amocrm, /status: blockingAttempt\.status as "prepared" \| "unknown"/u);
   assert.match(amocrm, /PlatformAmoCrmCommandRpcError/u);
   assert.match(amocrm, /старый или запасной путь/u);

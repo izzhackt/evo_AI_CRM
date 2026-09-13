@@ -1,4 +1,5 @@
 "use server";
+import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
 
 import { randomUUID } from "node:crypto";
 import { requirePlatformStaffActor } from "./platform-guards";
@@ -31,7 +32,7 @@ export async function manageCaseCoverageAction(
   form: FormData,
 ): Promise<CaseCoverageActionState> {
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole !== "admin") return outcome(form, "forbidden");
+  if (!staffHasPermission(actor, "case.curator.assign") || isStaffPreview(actor)) return outcome(form, "forbidden");
   const snapshot = parseCoverageTaskSnapshot(candidateField(form, "task_snapshot"));
   if (!snapshot) return outcome(form, "invalid");
   const fields = exactActionStringFields(form, [

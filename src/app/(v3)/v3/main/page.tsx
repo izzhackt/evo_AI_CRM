@@ -24,7 +24,16 @@ export default async function MainPart({
 }) {
   const actor = await requireV3PageActor("/v3/main");
   const query = await searchParams;
-  if (query.view === "sales") return <SalesRegisterView actor={actor} query={query} />;
+  const canReadSales = staffPresentationCan(actor, "sales.read");
+  const canReadReport = isStaffPreview(actor) ? canReadSales : staffCan(actor, "sales.report.read");
+  if (query.view === "sales" || (!canReadSales && canReadReport)) {
+    if (!canReadReport) redirect("/access-denied?from=%2Fv3%2Fmain");
+    return <SalesRegisterView actor={actor} query={query} />;
+  }
+  if (!canReadSales) {
+    const operations = await readV3OperationalDashboard(actor);
+    return <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6"><h1 className="mb-5 text-2xl font-semibold">Рабочий обзор</h1><OperationsOverview snapshot={operations} /></main>;
+  }
   const period = resolvePeriod(query);
   const [{ figures, trend }, operations] = await Promise.all([
     readPeriodDashboard(actor, period),
@@ -48,7 +57,7 @@ export default async function MainPart({
 
   return (
     <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
-      <SalesReportNavigation sales={false} />
+      {canReadReport ? <SalesReportNavigation sales={false} /> : null}
       {/*
         Приветствия по имени здесь пока нет.
         Раньше страница здоровалась «С возвращением, Айгерим» и рисовала чип
@@ -166,3 +175,5 @@ export default async function MainPart({
     </main>
   );
 }
+import { isStaffPreview, staffCan, staffPresentationCan } from "@/lib/platform-access";
+import { redirect } from "next/navigation";

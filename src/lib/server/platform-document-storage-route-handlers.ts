@@ -1,12 +1,11 @@
+import { isStaffPreview, staffCan } from "../platform-access.ts";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  fixedRoleCan,
-  type FixedRoleCapability,
+import { type FixedRoleCapability,
 } from "../fixed-role-policy.ts";
 import type { PlatformActorResult } from "../platform-auth.ts";
 import {
@@ -811,7 +810,7 @@ export function createStaffDocumentAuthorizationFactory(
     const capability: DocumentCapability = operation === "read"
       ? "documents.read"
       : "documents.write";
-    if (!fixedRoleCan(result.actor.authorityRole, capability)) {
+    if (!staffCan(result.actor, capability) || (operation !== "read" && isStaffPreview(result.actor))) {
       return { status: "forbidden", actor: null };
     }
     return {

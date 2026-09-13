@@ -1,3 +1,4 @@
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { notFound } from "next/navigation";
 import { PartShell } from "@/components/v3/PartShell";
 import { UniversityList, UniversityUnavailable } from "@/components/v3/universities/UniversityCatalogue";
@@ -10,5 +11,5 @@ export default async function UniversitiesPage({ searchParams }: { searchParams:
   const filters = parseUniversityFilters(params) ?? notFound();
   let page;
   try { page = await readStaffUniversities(actor, filters); } catch { return <PartShell title="Университеты"><UniversityUnavailable /></PartShell>; }
-  return <PartShell title="Университеты"><UniversityList page={page} filters={filters} base="/v3/universities" canManage={actor.authorityRole === "admin" && actor.presentationRole === "admin"} /></PartShell>;
+  return <PartShell title="Университеты"><UniversityList page={page} filters={filters} base="/v3/universities" canManage={!isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage")} /></PartShell>;
 }

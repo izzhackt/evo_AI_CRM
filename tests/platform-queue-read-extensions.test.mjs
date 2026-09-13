@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   PlatformAdmissionsWorkspaceRepositoryError,
   listPlatformAdmissionsTaskQueue,
+  getPlatformAdmissionsTaskTarget,
+  normalizePlatformAdmissionsTaskTarget,
   normalizePlatformAdmissionsTaskQueueRow,
   parsePlatformAdmissionsTaskQueueCursor,
 } from "../src/lib/platform-admissions-workspace.ts";
@@ -22,7 +24,6 @@ const ORGANIZATION_ID = "61000000-0000-4000-8000-000000000001";
 const AUTH_USER_ID = "61000000-0000-4000-8000-000000000002";
 const PROFILE_ID = "61000000-0000-4000-8000-000000000003";
 const MEMBERSHIP_ID = "61000000-0000-4000-8000-000000000004";
-const BUNDLE_ID = "61000000-0000-4000-8000-000000000005";
 const LEAD_ID = "62000000-0000-4000-8000-000000000001";
 const CLIENT_ID = "62000000-0000-4000-8000-000000000002";
 const CONVERSATION_ID = "62000000-0000-4000-8000-000000000003";
@@ -39,21 +40,17 @@ const salesActor = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "Sales User",
   email: "sales@example.test",
-  platformRole: "sales",
-  authorityRole: "sales",
-  presentationRole: "sales",
+  systemRole: "staff", assignments: [], permissionKeys: ["communication.read.full","lead.read","case.read.full","task.manage"],
+  presentationRole: null,
   platformAccessVersion: 1,
-  platformBundleId: BUNDLE_ID,
-  platformBundleVersion: 1,
 });
 
 const admissionsActor = Object.freeze({
   ...salesActor,
   displayName: "Admissions User",
   email: "admissions@example.test",
-  platformRole: "admissions",
-  authorityRole: "admissions",
-  presentationRole: "admissions",
+  systemRole: "staff", assignments: [], permissionKeys: ["communication.read.full","lead.read","case.read.full","task.manage"],
+  presentationRole: null,
 });
 
 function recordingClient(data, error = null) {
@@ -183,6 +180,70 @@ function validTaskQueueRow(overrides = {}) {
     ...overrides,
   };
 }
+
+function validTaskTarget(overrides = {}) {
+  return { schemaVersion: 1, organizationId: ORGANIZATION_ID, studentCaseId: STUDENT_CASE_ID,
+    task: validTaskQueueRow(),
+    assignees: [{ membership_id: MEMBERSHIP_ID, display_name: "Admissions User", role: null }],
+    capabilities: { canAssign: false, canChangeVisibility: false, canReadCase: false }, ...overrides };
+}
+
+test("selected task reader uses one exact RPC for task-only staff, retaining scoped flags", async () => {
+  const current = { ...admissionsActor, permissionKeys: ["task.manage"] };
+  const recorded = recordingClient(validTaskTarget());
+  const target = await getPlatformAdmissionsTaskTarget(current, STUDENT_CASE_ID, CASE_TASK_ID, { client: recorded.client });
+  assert.deepEqual(recorded.calls, [
+    { kind: "schema", schema: "platform" },
+    { kind: "rpc", functionName: "staff_case_task_target", args: {
+      p_organization_id: ORGANIZATION_ID, p_student_case_id: STUDENT_CASE_ID, p_case_task_id: CASE_TASK_ID,
+    }, options: { get: true } },
+  ]);
+  assert.equal(target.task.caseTaskId, CASE_TASK_ID);
+  assert.equal(target.task.version, "3");
+  assert.equal(target.assignees[0].role, null);
+  assert.deepEqual(target.capabilities, { canAssign: false, canChangeVisibility: false, canReadCase: false });
+  const permitted = normalizePlatformAdmissionsTaskTarget(validTaskTarget({ assignees: [],
+    capabilities: { canAssign: true, canChangeVisibility: true, canReadCase: true } }),
+  ORGANIZATION_ID, STUDENT_CASE_ID, CASE_TASK_ID);
+  assert.deepEqual(permitted.capabilities, { canAssign: true, canChangeVisibility: true, canReadCase: true });
+  assert.deepEqual(permitted.assignees, []);
+});
+
+test("selected task parser rejects unknown schemas, wrong targets and inconsistent candidates", () => {
+  const valid = validTaskTarget();
+  for (const value of [null, [], { ...valid, schemaVersion: 2 }, { ...valid, extra: true },
+    { ...valid, organizationId: LEAD_ID }, { ...valid, studentCaseId: LEAD_ID },
+    { ...valid, task: validTaskQueueRow({ student_case_id: LEAD_ID }) },
+    { ...valid, task: validTaskQueueRow({ case_task_id: LEAD_ID }) },
+    { ...valid, task: validTaskQueueRow({ version: "not-a-version" }) },
+    { ...valid, task: validTaskQueueRow({ extra: true }) },
+    { ...valid, capabilities: { ...valid.capabilities, canAssign: "false" } },
+    { ...valid, capabilities: { ...valid.capabilities, extra: false } },
+    { ...valid, assignees: [] }, { ...valid, assignees: [valid.assignees[0], valid.assignees[0]] },
+    { ...valid, assignees: [{ ...valid.assignees[0], membership_id: LEAD_ID }] },
+    { ...valid, assignees: [{ ...valid.assignees[0], role: "custom-authority" }] },
+  ]) assert.throws(() => normalizePlatformAdmissionsTaskTarget(value, ORGANIZATION_ID, STUDENT_CASE_ID, CASE_TASK_ID),
+    PlatformAdmissionsWorkspaceRepositoryError);
+});
+
+test("selected task failures never become an empty target or a case-workspace fallback", async () => {
+  const taskOnly = { ...admissionsActor, permissionKeys: ["task.manage"] };
+  const unused = recordingClient(validTaskTarget());
+  await assert.rejects(getPlatformAdmissionsTaskTarget({ ...taskOnly, permissionKeys: ["task.create", "case.read.full"] },
+    STUDENT_CASE_ID, CASE_TASK_ID, { client: unused.client }), PlatformAdmissionsWorkspaceRepositoryError);
+  await assert.rejects(getPlatformAdmissionsTaskTarget(taskOnly, "invalid", CASE_TASK_ID,
+    { client: unused.client }), PlatformAdmissionsWorkspaceRepositoryError);
+  assert.deepEqual(unused.calls, []);
+  for (const [data, error] of [[null, null], [null, { code: "42501" }], [null, { code: "54000" }], [null, { code: "XX000" }]]) {
+    const recorded = recordingClient(data, error);
+    await assert.rejects(getPlatformAdmissionsTaskTarget(taskOnly, STUDENT_CASE_ID, CASE_TASK_ID,
+      { client: recorded.client }), PlatformAdmissionsWorkspaceRepositoryError);
+    assert.equal(recorded.calls.filter(call => call.kind === "rpc").length, 1);
+  }
+  await assert.rejects(getPlatformAdmissionsTaskTarget(taskOnly, STUDENT_CASE_ID, CASE_TASK_ID, {
+    client: { schema: () => ({ rpc: async () => { throw new Error("synthetic transport failure"); } }) },
+  }), PlatformAdmissionsWorkspaceRepositoryError);
+});
 
 test("122 communication summaries require the exact waiting projection", () => {
   const summary = normalizePlatformConversationSummary(validConversationRow());
@@ -330,6 +391,26 @@ test("119 Sales queue requires stage_entered_at without changing detail", async 
     }),
     PlatformSalesRepositoryError,
   );
+});
+
+test("case task creation and case read permissions do not read the task queue", async () => {
+  const recorded = recordingClient([]);
+  await assert.rejects(
+    listPlatformAdmissionsTaskQueue({ ...admissionsActor,
+      permissionKeys: ["case.read.full", "profile.read.full", "task.create"],
+    }, {}, { client: recorded.client }),
+    PlatformAdmissionsWorkspaceRepositoryError,
+  );
+  assert.deepEqual(recorded.calls, []);
+});
+
+test("task.manage alone satisfies the case task queue preflight", async () => {
+  const recorded = recordingClient([]);
+  const page = await listPlatformAdmissionsTaskQueue({ ...admissionsActor,
+    permissionKeys: ["task.manage"],
+  }, {}, { client: recorded.client });
+  assert.deepEqual(page.rows, []);
+  assert.equal(recorded.calls.find(({ kind }) => kind === "rpc")?.functionName, "staff_case_task_queue");
 });
 
 test("119 Admissions task queue passes cursor and due bounds and returns the included-row cursor", async () => {

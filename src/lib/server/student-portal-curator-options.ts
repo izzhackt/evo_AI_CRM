@@ -99,7 +99,7 @@ export async function listStudentPortalActiveCurators(
   options: StudentPortalCuratorOptionsRepositoryOptions = {},
 ): Promise<readonly StudentPortalCuratorOption[]> {
   const organizationId = requiredUuid(actor.organizationId);
-  if (actor.authorityRole !== "admin") return invalidShape();
+  if (actor.systemRole !== "admin") return invalidShape();
 
   try {
     const client = options.client ?? await getPlatformClient();

@@ -555,7 +555,7 @@ test("search action fails closed for disabled or non-Admin actors before reposit
   const dependencies = {
     env: { EVO_PLATFORM_P7A_AUDIT_ENABLED: "1" },
     async requireActor() {
-      return { platformRole: "sales" };
+      return { systemRole: "staff", assignments: [], permissionKeys: [] };
     },
     async createRepository() {
       repositoryCalls += 1;
@@ -583,7 +583,7 @@ test("search action uses the authenticated Admin repository and returns no actor
       env: { EVO_PLATFORM_P7A_AUDIT_ENABLED: "1" },
       async requireActor() {
         return {
-          platformRole: "admin",
+          systemRole: "admin", assignments: [], permissionKeys: [],
           organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         };

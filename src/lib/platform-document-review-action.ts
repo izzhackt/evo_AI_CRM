@@ -1,8 +1,8 @@
 "use server";
 
+import { staffCan, isStaffPreview } from "./platform-access.ts";
 import { revalidatePath } from "next/cache";
 
-import { fixedRoleCan } from "./fixed-role-policy";
 import { parsePlatformAdmissionsUuid } from "./platform-admissions";
 import { requirePlatformStaffActor } from "./platform-guards";
 import {
@@ -42,8 +42,8 @@ function errorOutcome(error: unknown): DocumentReviewOutcome {
 
 export async function reviewPlatformDocumentAction(form: FormData): Promise<DocumentReviewOutcome> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "documents.write")
-    || actor.presentationRole !== actor.authorityRole) return "forbidden";
+  if (!staffCan(actor, "documents.write")
+    || isStaffPreview(actor)) return "forbidden";
 
   const fields = exactActionStringFields(form, [
     "student_case_id", "document_slot_id", "document_version_id", "decision", "reason", "request_id",

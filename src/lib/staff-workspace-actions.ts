@@ -1,33 +1,87 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { changeStaffDepartment, changeStaffMember, requestStaffAuth, saveStaffOrganizationalDetails, StaffMetadataOutcomeUnknownError, staffWorkspaceError } from "./server/staff-workspace-service";
-import { staffAuthRejectionMessage, type StaffWorkspaceActionState } from "./v3/staff-workspace-contract";
+import { changeStaffDepartment, changeStaffMember, requestStaffAuth, readStaffAuthPreparation, prepareStaffPendingAccess,
+  saveStaffOrganizationalDetails, StaffAuthOutcomeUnknownError, StaffCommandVersionRejectedError, StaffMetadataOutcomeUnknownError, staffWorkspaceError } from "./server/staff-workspace-service";
+import { STAFF_UUID, staffAuthRejectionMessage, type StaffWorkspaceActionState } from "./v3/staff-workspace-contract";
+
+function requestIdFrom(form: FormData): string | undefined {
+  const value = form.get("request_id");
+  return typeof value === "string" && STAFF_UUID.test(value) ? value.toLowerCase() : undefined;
+}
+function unknownAuthOutcome(requestId?: string): StaffWorkspaceActionState {
+  return { status: "error", outcome: "unknown", requestId,
+    message: "Результат требует сверки. Откройте этот запрос в журнале и нажмите «Проверить». Повторное письмо не отправляется." };
+}
 
 export async function staffAuthAction(_previous: StaffWorkspaceActionState, form: FormData): Promise<StaffWorkspaceActionState> {
+  let confirmedRequestId: string | undefined;
   try {
     const result = await requestStaffAuth(form);
+    confirmedRequestId = result.requestId;
     revalidatePath("/v3/settings");
     if (result.status === "rejected") return {
-      status: "error", retryAllowed: true,
-      message: `${staffAuthRejectionMessage(result.rejection_code)} Отправка не подтверждена, изменений в Auth не обнаружено. После устранения причины можно явно отправить новый запрос.`,
+      status: "error", retryAllowed: true, requestId: result.requestId,
+      message: `${staffAuthRejectionMessage(result.rejectionCode)} Отправка не подтверждена, изменений в Auth не обнаружено. После устранения причины можно явно отправить новый запрос.`,
     };
     return result.status === "completed"
-      ? { status: "success", message: result.operation === "invite"
-        ? "Приглашение зарегистрировано в сервисе входа, доступ сотрудника создан. Доставка письма и первый вход пока не подтверждены."
+      ? { status: "success", requestId: result.requestId, message: result.operation === "invite"
+        ? "Приглашение зарегистрировано в сервисе входа, аккаунт подключён с подтверждёнными настройками доступа. Доставка письма и первый вход пока не подтверждены."
         : "Запрос восстановления зарегистрирован в сервисе входа. Доставка письма пока не подтверждена." }
-      : { status: "error", message: "Результат требует сверки. Откройте журнал запросов и нажмите «Проверить». Повторное письмо не отправляется." };
+      : { ...unknownAuthOutcome(result.requestId), ...(result.conflictCode ? { conflictCode: result.conflictCode } : {}) };
   } catch (error) {
-    revalidatePath("/v3/settings");
+    if (error instanceof StaffAuthOutcomeUnknownError || confirmedRequestId || _previous.outcome === "unknown") {
+      return unknownAuthOutcome(error instanceof StaffAuthOutcomeUnknownError ? error.requestId : confirmedRequestId ?? _previous.requestId ?? requestIdFrom(form));
+    }
     return { status: "error", message: staffWorkspaceError(error) };
   }
 }
 
-export async function staffMemberAction(_previous: StaffWorkspaceActionState, form: FormData): Promise<StaffWorkspaceActionState> {
+export async function staffAuthPreparationAction(_previous: StaffWorkspaceActionState, form: FormData): Promise<StaffWorkspaceActionState> {
   try {
-    await changeStaffMember(form);
-    revalidatePath("/v3/settings");
-    return { status: "success", message: "Изменение сохранено. Прежние права сотрудника отозваны; для продолжения ему может потребоваться повторный вход." };
+    const preparation = await readStaffAuthPreparation(form);
+    return { status: "success", message: "Сохранённые настройки запроса загружены.", preparation,
+      requestId: preparation.requestId, ...(preparation.conflictCode ? { conflictCode: preparation.conflictCode } : {}) };
   } catch (error) {
+    return { status: "error", message: staffWorkspaceError(error), requestId: requestIdFrom(form) };
+  }
+}
+
+export async function staffPreparePendingAccessAction(_previous: StaffWorkspaceActionState, form: FormData): Promise<StaffWorkspaceActionState> {
+  let confirmedRequestId: string | undefined;
+  try {
+    const result = await prepareStaffPendingAccess(form);
+    confirmedRequestId = result.requestId;
+    const preparation = await readStaffAuthPreparation(form);
+    revalidatePath("/v3/settings");
+    return { status: "success", requestId: result.requestId, preparation,
+      message: "Настройки запроса сохранены. Нажмите «Проверить», чтобы сверить приглашение. Повторное письмо не отправлялось." };
+  } catch (error) {
+    if (error instanceof StaffCommandVersionRejectedError && !confirmedRequestId) {
+      return { status: "error", message: staffWorkspaceError(error), requestId: requestIdFrom(form) };
+    }
+    if (error instanceof StaffAuthOutcomeUnknownError || confirmedRequestId || _previous.outcome === "unknown") {
+      return unknownAuthOutcome(error instanceof StaffAuthOutcomeUnknownError ? error.requestId : confirmedRequestId ?? _previous.requestId ?? requestIdFrom(form));
+    }
+    return { status: "error", message: staffWorkspaceError(error), requestId: requestIdFrom(form) };
+  }
+}
+
+export async function staffMemberAction(_previous: StaffWorkspaceActionState, form: FormData): Promise<StaffWorkspaceActionState> {
+  let confirmedRequestId: string | undefined;
+  try {
+    const result = await changeStaffMember(form);
+    confirmedRequestId = result.requestId;
+    revalidatePath("/v3/settings");
+    return { status: "success", requestId: result.requestId, message: "Статус сотрудника сохранён. Изменение доступа действует сразу." };
+  } catch (error) {
+    if (error instanceof StaffCommandVersionRejectedError && !confirmedRequestId) {
+      return { status: "error", message: staffWorkspaceError(error), requestId: requestIdFrom(form) };
+    }
+    if (error instanceof StaffAuthOutcomeUnknownError || confirmedRequestId || _previous.outcome === "unknown") return {
+      status: "error", outcome: "unknown",
+      requestId: error instanceof StaffAuthOutcomeUnknownError ? error.requestId : confirmedRequestId ?? _previous.requestId ?? requestIdFrom(form),
+      message: "Состояние сотрудника требует проверки. Сохраните этот запрос и обновите сведения; не создавайте повторное изменение вслепую.",
+    };
     return { status: "error", message: staffWorkspaceError(error) };
   }
 }

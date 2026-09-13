@@ -85,10 +85,10 @@ test("P5D local foundation mounts the dedicated read-only Chromium proof", () =>
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_MAIN_SHA/u);
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_BROWSER_EVIDENCE_FILE/u);
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_DATABASE_EVIDENCE_FILE/u);
-  assert.match(v3Layout, /authorityRole=\{actor\.authorityRole\}/u);
+  assert.match(v3Layout, /actor=\{actor\}/u);
   assert.match(v3AppShell, /data-testid="v3-shell"/u);
-  assert.match(v3AppShell, /data-authority-role=\{authorityRole\}/u);
-  assert.match(v3AppShell, /data-presentation-role=\{presentationRole\}/u);
+  assert.match(v3AppShell, /data-system-role=\{actor\.systemRole\}/u);
+  assert.match(v3AppShell, /data-presentation-role=\{actor\.presentationRole \?\? "actual"\}/u);
   assert.match(inventorySpec, /getByTestId\("v3-shell"\)/u);
   assert.doesNotMatch(inventorySpec, /staff-shell/u);
   assert.match(packageManifest, /platform-provider-runtime-inventory-helper\.test\.mjs/u);

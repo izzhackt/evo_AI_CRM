@@ -112,10 +112,10 @@ async function signInAs(page: Page, role: TestRole) {
   await expect(page).toHaveURL(new RegExp(`${ROLE_HOME[role]}$`));
   await expect(page.getByTestId("v3-shell")).toBeVisible();
   const activeRole = page.getByTestId("active-role");
-  await expect(activeRole).toHaveAttribute("data-role", role);
+  await expect(activeRole).toHaveAttribute("data-role", role === "admin" ? "admin" : "staff");
   await expect(activeRole).toHaveAttribute(
-    "data-authority-role",
-    role,
+    "data-system-role",
+    role === "admin" ? "admin" : "staff",
   );
 }
 
@@ -221,8 +221,8 @@ test("Sales and Admin see the canonical Sales amoCRM command in the selected V3 
   for (const role of ["sales", "admin"] as const) {
     await signInAs(page, role);
     await expect(page.getByTestId("active-role")).toHaveAttribute(
-      "data-authority-role",
-      role,
+      "data-system-role",
+      role === "admin" ? "admin" : "staff",
     );
     await expectBlockedPanel(page, {
       route: `/v3/inbox?conversation=${conversationId}`,
@@ -246,8 +246,8 @@ test("Admissions and Admin see the Admissions command only at canonical Student 
   for (const role of ["admissions", "admin"] as const) {
     await signInAs(page, role);
     await expect(page.getByTestId("active-role")).toHaveAttribute(
-      "data-authority-role",
-      role,
+      "data-system-role",
+      role === "admin" ? "admin" : "staff",
     );
     await expectBlockedPanel(page, {
       route: `/v3/profile?case=${studentCaseId}&tab=contract`,

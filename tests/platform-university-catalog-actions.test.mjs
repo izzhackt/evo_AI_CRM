@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const { getURLFromRedirectError } = require("next/dist/client/components/redirect.js");
 const root = new URL("../src/lib/", import.meta.url);
 const moduleUrl = (source) => `data:text/javascript,${encodeURIComponent(source)}`;
-const harness = { actor: { authorityRole: "admin", presentationRole: "admin", organizationId: "59948000-0000-4000-8000-000000000001" }, calls: [], revalidated: [], response: null, fail: false };
+const harness = { actor: { systemRole: "admin", permissionKeys: [], assignments: [], presentationRole: null, organizationId: "59948000-0000-4000-8000-000000000001" }, calls: [], revalidated: [], response: null, fail: false };
 globalThis.__universityActionHarness = harness;
 registerHooks({ resolve(specifier, context, next) {
   if (!context.parentURL?.endsWith("/platform-university-catalog-actions.ts")) return next(specifier, context);
@@ -25,7 +25,7 @@ const catalog = await import("../src/lib/platform-university-catalog.ts");
 const requestId = "59948000-0000-4000-8000-000000000801", draftId = "59948000-0000-4000-8000-000000000802", institutionId = "59948000-0000-4000-8000-000000000803";
 const previous = { status: "idle", requestId, draftId: null, institutionId: null };
 const content = JSON.parse(readFileSync(new URL("../src/lib/server/university-catalog-reviewed-malaysia.json", import.meta.url), "utf8")).find((entry) => entry.key === "apu").content;
-function reset() { harness.actor.authorityRole = "admin"; harness.actor.presentationRole = "admin"; harness.calls = []; harness.revalidated = []; harness.fail = false; harness.response = { data: { requestId, draftId, institutionId: null, status: "saved" }, error: null }; }
+function reset() { harness.actor.systemRole = "admin"; harness.actor.presentationRole = null; harness.actor.permissionKeys = []; harness.calls = []; harness.revalidated = []; harness.fail = false; harness.response = { data: { requestId, draftId, institutionId: null, status: "saved" }, error: null }; }
 function form(overrides = {}) { const data = new FormData(); for (const [key, value] of Object.entries({ operation: "stage", request_id: requestId, institution_id: "", base_version: "0", content: JSON.stringify(content), reason: "Source reviewed", draft_id: "", confirmed: "", ...overrides })) data.set(key, value); return data; }
 test("real action binds organization to actor and invokes only reviewed stage RPC", async () => {
   reset(); const outcome = await mutateUniversityCatalogAction(previous, form());
@@ -34,9 +34,9 @@ test("real action binds organization to actor and invokes only reviewed stage RP
   assert.equal(harness.calls[0].args.p_organization_id, harness.actor.organizationId); assert.deepEqual(harness.calls[0].args.p_content, content);
   assert.deepEqual(harness.revalidated, [["/v3/universities"], ["/v3/universities/manage"], ["/portal/universities"]]);
 });
-test("non-Admin and Admin role preview cannot mutate even when form is forged", async () => {
-  for (const [authority, presentation] of [["sales", "admin"], ["admissions", "admissions"], ["finance", "finance"], ["admin", "sales"]]) {
-    reset(); harness.actor.authorityRole = authority; harness.actor.presentationRole = presentation;
+test("staff without catalog permission and Admin preview cannot mutate a forged form", async () => {
+  for (const [authority, presentation] of [["staff", null], ["admin", "sales"]]) {
+    reset(); harness.actor.systemRole = authority; harness.actor.presentationRole = presentation;
     assert.equal((await mutateUniversityCatalogAction(previous, form())).status, "forbidden"); assert.equal(harness.calls.length, 0);
   }
 });

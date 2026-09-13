@@ -1,10 +1,10 @@
 "use server";
 
+import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 import { PLATFORM_VISA_STATUSES } from "./platform-case-operations-contract.ts";
-import { fixedRoleCan } from "./fixed-role-policy";
 import { requirePlatformStaffActor } from "./platform-guards";
 import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-actions";
 import { exactActionStringFields } from "./server/action-form-fields";
@@ -218,7 +218,7 @@ export async function upsertPlatformCaseVisaAction(
   form: FormData,
 ): Promise<PlatformCaseVisaActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "visa.manage")) {
     return visaFailureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, VISA_FIELDS);
@@ -312,7 +312,7 @@ export async function createPlatformFinanceStopFactorAction(
   form: FormData,
 ): Promise<PlatformFinanceStopFactorActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "finance.stop.create")) {
     return stopFailureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, CREATE_STOP_FIELDS);
@@ -388,8 +388,6 @@ export async function createPlatformFinanceStopFactorAction(
       || data.student_case_id !== studentCaseId
       || data.payment_obligation_id !== paymentObligationId
       || !uuid(String(data.owner_membership_id ?? ""))
-      || (actor.authorityRole === "admissions"
-        && data.owner_membership_id !== actor.membershipId)
       || !stopFactorId || data.reason !== reason
       || data.blocked_action !== blockedAction
       || data.next_action !== nextAction
@@ -418,7 +416,7 @@ export async function resolvePlatformFinanceStopFactorAction(
   form: FormData,
 ): Promise<PlatformFinanceStopFactorActionState> {
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole !== "admin") {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "finance.stop.manage")) {
     return stopFailureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, RESOLVE_STOP_FIELDS);

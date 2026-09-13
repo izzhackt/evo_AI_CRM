@@ -188,7 +188,7 @@ export function createPlatformAuditExportHandler(
     } catch {
       return response(503);
     }
-    if (actor.status !== "authenticated" || actor.actor.platformRole !== "admin") {
+    if (actor.status !== "authenticated" || actor.actor.systemRole !== "admin") {
       return response(403);
     }
 

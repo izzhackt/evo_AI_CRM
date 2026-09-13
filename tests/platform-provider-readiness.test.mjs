@@ -35,12 +35,11 @@ const commandContextActor = Object.freeze({
   organizationId: COMMAND_CONTEXT_IDS.organization,
   displayName: "Sales User",
   email: "sales@example.test",
-  platformRole: "sales",
-  authorityRole: "sales",
-  presentationRole: "sales",
+  systemRole: "staff",
+  assignments: [],
+  permissionKeys: ["communication.read.full"],
+  presentationRole: null,
   platformAccessVersion: 1,
-  platformBundleId: COMMAND_CONTEXT_IDS.bundle,
-  platformBundleVersion: 1,
 });
 
 function commandContextClient(data, error = null) {
@@ -308,9 +307,6 @@ test("Admissions queue filters use the exact curator database enum", async () =>
       ...commandContextActor,
       displayName: "Admissions User",
       email: "admissions@example.test",
-      platformRole: "admissions",
-      authorityRole: "admissions",
-      presentationRole: "admissions",
     },
     { queue: "admissions", pageSize: 50 },
     { client: recorded.client },

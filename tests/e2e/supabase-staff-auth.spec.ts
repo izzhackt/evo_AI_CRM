@@ -157,6 +157,7 @@ async function localSupabaseAccessToken(role: TestRole) {
 async function directPlatformRpc(
   functionName:
     | "current_actor_authority"
+    | "staff_access_snapshot"
     | "staff_workspace_directory"
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"
@@ -565,11 +566,11 @@ async function expectActiveRole(
 ) {
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-role",
-    role,
+    authorityRole === "admin" ? role : "staff",
   );
   await expect(page.getByTestId("active-role")).toHaveAttribute(
-    "data-authority-role",
-    authorityRole,
+    "data-system-role",
+    authorityRole === "admin" ? "admin" : "staff",
   );
 }
 
@@ -1403,17 +1404,16 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   // Bind the handoff to this exact Admissions identity. Admin is also an
   // eligible curator, so the first alphabetic option is not a role contract.
   const admissionsAuthority = await directPlatformRpc(
-    "current_actor_authority",
+    "staff_access_snapshot",
     {},
     admissionsToken,
   );
   expect(admissionsAuthority.status).toBe(200);
-  expect(admissionsAuthority.payload).toHaveLength(1);
-  const admissionsAuthorityRow = expectObject(
-    (admissionsAuthority.payload as unknown[])[0],
-  );
-  expect(admissionsAuthorityRow.platform_role).toBe("curator");
-  const admissionsOwnerId = requireUuidValue(admissionsAuthorityRow.membership_id);
+  const admissionsAuthorityRow = expectObject(admissionsAuthority.payload);
+  expect(admissionsAuthorityRow.schemaVersion).toBe(1);
+  expect(admissionsAuthorityRow.systemRole).toBe("staff");
+  expect(admissionsAuthorityRow.permissions).toContain("case.read.full");
+  const admissionsOwnerId = requireUuidValue(admissionsAuthorityRow.membershipId);
 
   assertDeniedRpc(
     await directPlatformRpc("staff_lead_admissions_gate", {

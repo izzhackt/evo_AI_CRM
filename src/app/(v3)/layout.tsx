@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { isStaffPreview } from "@/lib/platform-access";
 
 import { AppShell } from "@/components/v3/AppShell";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
@@ -19,16 +20,14 @@ import "./v3.css";
  */
 export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
-  const notifications = actor.authorityRole === actor.presentationRole
+  const notifications = !isStaffPreview(actor)
     ? await readStaffNotificationsForActor(actor).catch(() => null)
     : null;
 
   return (
     <div className="v3-world">
       <AppShell
-        displayName={actor.displayName}
-        authorityRole={actor.authorityRole}
-        presentationRole={actor.presentationRole}
+        actor={actor}
         initialNotifications={notifications}
       >
         {children}

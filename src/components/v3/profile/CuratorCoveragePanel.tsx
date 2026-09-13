@@ -1,3 +1,4 @@
+import { staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 
 import Link from "next/link";
@@ -18,7 +19,7 @@ function href(curatorId: string, caseId?: string, afterCaseId?: string): string 
 }
 
 export async function CuratorCoveragePanel({ actor, params }: Readonly<{ actor: PlatformActor; params: Query }>) {
-  if (actor.authorityRole !== "admin") return null;
+  if (!staffHasPermission(actor, "case.curator.assign")) return null;
   const requested = [params.coverage_curator, params.coverage_case, params.coverage_after];
   const parsed = requested.map((value) => value === undefined ? undefined : parseCoverageUuid(value));
   const [curatorId, caseId, afterCaseId] = parsed;

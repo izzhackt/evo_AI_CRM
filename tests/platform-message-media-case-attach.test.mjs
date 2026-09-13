@@ -81,8 +81,7 @@ function dataModule(source) {
 
 const actionHarness = {
   actor: Object.freeze({
-    ...ACTOR,
-    authorityRole: "admin",
+    ...ACTOR, systemRole: "admin", assignments: [], permissionKeys: [], presentationRole: null,
   }),
   capabilityAllowed: true,
   conversationResponse: { data: { id: IDS.conversation }, error: null },
@@ -588,11 +587,11 @@ test("the browser action and server boundary derive authority instead of accepti
   assert.match(actionSource, /const actor = await requirePlatformStaffActor\(\)/);
   assert.match(
     actionSource,
-    /fixedRoleCan\(actor\.authorityRole, "documents\.write"\)/,
+    /staffCan\(actor, "documents\.write"\)/,
   );
   assert.match(
     actionSource,
-    /fixedRoleCan\(actor\.authorityRole, "messaging\.read"\)/,
+    /staffCan\(actor, "messaging\.read"\)/,
   );
   assert.match(
     actionSource,

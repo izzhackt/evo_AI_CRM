@@ -8,7 +8,7 @@ import { requirePlatformActor } from "../platform-guards";
 /** Checks live authority on every preview page/read, independently of role preview. */
 export async function requireStudentPortalPreviewAuthority(): Promise<ActivePlatformActor> {
   const actor = await requirePlatformActor();
-  if (actor.authorityRole !== "admin") {
+  if (actor.systemRole !== "admin") {
     redirect("/access-denied?from=%2Fpreview%2Fstudent");
   }
   return actor;

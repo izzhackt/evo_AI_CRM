@@ -15,6 +15,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "admissions-source.ts",
     "calendar-contract.ts",
     "calendar-source.ts",
+    "case-access-contract.ts",
     "case-operations-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",
@@ -37,8 +38,10 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "sales-register-source.ts",
     "settings-journal-contract.ts",
     "settings-source.ts",
+    "staff-invitation-access.ts",
     "staff-notification-actions.ts",
     "staff-notification-source.ts",
+    "staff-roles-contract.ts",
     "staff-task-source.ts",
     "staff-workspace-contract.ts",
     "staff-workspace-source.ts",
@@ -139,8 +142,9 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
     pipeline,
     /key=\{`\$\{lead\.workflow\.leadId\}:\$\{lead\.workflow\.workflowVersion\}`\}/,
   );
-  assert.match(pipelinePage, /readPipelineOwnerOptions\(actor\)/);
-  assert.match(pipelinePage, /ownerOptions=\{ownerOptions\.rows\}/);
+  assert.match(pipelinePage, /readPipelineWorkspace\(actor, filters\)/);
+  assert.match(source("src/lib/v3/pipeline-source.ts"), /readPlatformSalesPipeline/);
+  assert.match(pipelinePage, /ownerOptions=\{ownerRows\}/);
   assert.match(decision, /updatePlatformSalesWorkflowAction/);
   for (const field of [
     "lead_id",
@@ -169,7 +173,7 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   }
 
   assert.match(profilePage, /sales=\{view\.sales\}/);
-  assert.match(profilePage, /actorRole=\{actor\.presentationRole\}/);
+  assert.match(profilePage, /actor=\{actor\}/);
   assert.match(profilePage, /requestIds=\{requestIds\}/);
   assert.match(profile, /<Overview[\s\S]*sales=\{sales\}/);
   assert.match(tabs, /<ProfileSalesTransition/);

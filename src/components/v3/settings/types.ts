@@ -3,7 +3,6 @@ export type {
   Health,
   Integration,
   JournalEntry,
-  RoleRow,
 } from "@/lib/v3/settings-source";
 
 /**
@@ -18,7 +17,6 @@ export const SECTIONS = [
   { key: "state", title: "Состояние", admin: false },
   { key: "integrations", title: "Интеграции", admin: false },
   { key: "journal", title: "Журнал действий", admin: true },
-  { key: "access", title: "Роли и доступ", admin: false },
   { key: "documents", title: "Документы и гейты", admin: false },
   { key: "platform", title: "Платформа", admin: true },
 ] as const;

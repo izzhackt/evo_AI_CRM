@@ -21,7 +21,7 @@ a second role engine. Keep each permission bound to its assignment scope,
 Admin's staff functional superset and Student-private boundaries.
 
 The owner approved implementation on 2026-09-13. The documented S1 staff
-directory/department slice is released; dynamic authority and real onboarding remain pending.
+directory/department slice is released; S2 release and real employee onboarding remain pending.
 Personal contacts stay outside Git; no automatic bulk invitations or role grants.
 The owner also requests [EVO Docs integration and retirement](design/v3/evo-docs-unification-run-plan.md).
 [ADR0028](adr/0028-unify-document-automation-inside-evo-platform.md) supersedes
@@ -52,6 +52,68 @@ approved source-to-case mapping and real document/provider acceptance gates.
 No invitation, customer-file disclosure or standalone retirement is implied by
 technical CI. The latest release checkpoint is
 [the S1/D1 evidence](design/v3/references/2026-09-13-staff-docs-release.md).
+
+S2 remains active and unreleased in [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
+Migrations155–157, editable roles/scoped assignments and prepared invitations are
+implemented; the full expanded local onboarding/business proof passed on `451944cd`.
+
+- **Current local PASS (`451944cd`):** actual Admin invitation form, Auth/Mailpit/
+  password/login, role catalogue, consecutive member edits, independent
+  department/direction/combined case reads and assigned-role archive completed
+  with exit0 and all five required markers. Owned local resources were removed.
+  The prior intermittent failures did not recur; their cause is not established.
+- **Current CI blocker:** CI34753640952 on `375e58ef` passed the updated actor
+  assertions, then found no existing organization-compatible fixture role at
+  actor test line525. The test-owned role creation/publication correction is now
+  independently source-reviewed with focused10/10, ESLint and diff checks passed.
+  Product SQL and protections remain; the next required CI must pass.
+
+- **Earlier local proof (`02497173`):** actual Auth/Mailpit/password/login, full unused-role catalogue
+  lifecycle and two same-card member-assignment saves with live V+1/V+2 and exact
+  restoration. Owned test resources were removed; screenshots cover the final
+  catalogue draft only. Earlier source findings are closed, not whole-S2 approval.
+- **Previous local check (`21cc76cb`):** whole onboarding stopped at role-editor
+  `CREATE_ID`. Individual invitation/acceptance markers were not retained in the
+  failed output. The cause is not established; no product fix is claimed.
+- **Previous CI:** CI34750378975 on `21cc76cb` stopped at
+  `staff_backfill_owner_scope_requires_review`: DETAIL reports
+  `selected_owner_missing_case_scope: 3`; the other three categories are zero.
+  Source tracing found three incomplete P135 synthetic handoff snapshots; their
+  fixture-only correction is independently reviewed. The product guard is unchanged.
+- **Previous complete local proof (`6ae41a2a`):** `--staff-onboarding-only` exited 0 with
+  invitation UI, role editor, member editor and onboarding verified. Owned local
+  project cleanup was checked; desktop/mobile screenshots show the final role
+  catalogue only.
+- **Previous CI blocker:** CI34751346856 passed the earlier owner-scope guard, then
+  failed at migration155:1297: `cannot ALTER TABLE staff_role_definitions because
+  it has pending trigger events`. The RLS ALTER statements are now moved before
+  backfill with guards and constraints preserved; populated upgrade still needs CI.
+- **Archive correction:** compact impact preview/confirmation and fingerprint
+  binding are implemented and independently source-reviewed in `40dc3498`.
+  The assigned-role runtime scenario remains pending.
+- **Previous CI:** CI34752745887 passed the previous migration155 ALTER point,
+  then failed the historical current-actor aggregate. Align that test with the
+  accepted live staff identity/scoped-permission contract; preserve identity,
+  status and ACL guards. Populated upgrade still needs a successful required CI.
+- **Previous local check (`d82a3fc0`):** qualification and handoff progressed, but
+  the expanded proof stopped at `DEPARTMENT_READ`; the exact subcheck is not yet
+  known. Owned resources were cleaned. Fixed private diagnostic substages are
+  source-reviewed and focused tests passed34/34; the next runtime is pending.
+- **Previous candidate (`375e58ef`):** actor-contract alignment is independently
+  source-reviewed; focused tests10/10 and ESLint pass. CI result is recorded above.
+  Its local proof instead stopped earlier at SALES_READBACK; no scope result can
+  be inferred. Owned resources were removed. Invitation readback and sticky
+  browser-error checks are now separated with fixed private diagnostic labels;
+  36/36 helper tests pass, but the next actual workflow is still needed.
+- **Next:** prove an ordinary Sales→Admissions handoff and department-only,
+  direction-only and combined scope matches; finish populated upgrade,
+  independent whole-S2 review, the exact-main release gate and deployment.
+- **Separate human gates:** confirmed employee recipients/rights and real first
+  login, document/provider acceptance and Docs data transfer. No live activation
+  or employee email is implied by local checks.
+
+Detailed source/build/runtime evidence and historical limits remain in the
+[S2 contract](design/v3/staff-scoped-authority-contract.md#локальная-проверка-2026-09-13).
 
 ## Active follow-up: complete Portal document review and reply notifications
 

@@ -1,10 +1,10 @@
 "use server";
 
+import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { fixedRoleCan } from "./fixed-role-policy";
 import { parsePlatformAdmissionsUuid } from "./platform-admissions";
 import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-actions";
 import { requirePlatformStaffActor } from "./platform-guards";
@@ -228,7 +228,7 @@ export async function createPlatformCustomDocumentSlotAction(
   form: FormData,
 ): Promise<PlatformDocumentChecklistActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "documents.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "document.manage")) {
     return failureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, CREATE_SLOT_FIELDS);
@@ -296,7 +296,7 @@ export async function changePlatformDocumentSlotMetadataAction(
   form: FormData,
 ): Promise<PlatformDocumentChecklistActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "documents.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "document.manage")) {
     return failureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, CHANGE_SLOT_FIELDS);
@@ -380,7 +380,7 @@ export async function setPlatformDocumentCaseLinkAction(
   form: FormData,
 ): Promise<PlatformDocumentCaseLinkActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "documents.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "document.manage")) {
     return caseLinkFailureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, SET_SLOT_CASE_LINK_FIELDS);
@@ -502,7 +502,7 @@ export async function removePlatformDocumentSlotAction(
   form: FormData,
 ): Promise<PlatformDocumentChecklistActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "documents.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "document.manage")) {
     return failureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, REMOVE_SLOT_FIELDS);

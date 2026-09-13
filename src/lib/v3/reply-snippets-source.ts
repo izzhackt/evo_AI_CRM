@@ -1,6 +1,7 @@
+import { isStaffPreview, staffCan, staffHasPermission } from "../platform-access.ts";
 import "server-only";
 
-import { fixedRoleCan, type FixedRole } from "../fixed-role-policy.ts";
+import { type FixedRole } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import {
   getPlatformReplySnippets,
@@ -20,9 +21,14 @@ export type V3ReplySnippetReader = (
 ) => Promise<readonly PlatformReplySnippet[]>;
 
 export function v3ReplySnippetAudiencesForRole(
-  role: FixedRole,
+  role: FixedRole | null,
 ): readonly PlatformReplySnippetAudience[] {
-  return ROLE_AUDIENCES[role];
+  return role === null ? ROLE_AUDIENCES.admin : ROLE_AUDIENCES[role];
+}
+
+export function v3ReplySnippetAudiences(actor: ActivePlatformActor): readonly PlatformReplySnippetAudience[] {
+  const candidates = isStaffPreview(actor) ? v3ReplySnippetAudiencesForRole(actor.presentationRole) : ROLE_AUDIENCES.admin;
+  return candidates.filter(audience => staffHasPermission(actor, `reply.snippet.${audience}`));
 }
 
 export function v3CanMutateReplySnippet(
@@ -30,8 +36,8 @@ export function v3CanMutateReplySnippet(
   snippet: Pick<PlatformReplySnippet, "createdByMembershipId">,
 ): boolean {
   return (
-    actor.presentationRole === "admin" ||
-    snippet.createdByMembershipId === actor.membershipId
+    !isStaffPreview(actor) && staffHasPermission(actor,
+      snippet.createdByMembershipId === actor.membershipId ? "reply.snippet.manage" : "reply.snippet.moderate")
   );
 }
 
@@ -39,9 +45,10 @@ export async function readV3ReplySnippets(
   actor: ActivePlatformActor,
   reader: V3ReplySnippetReader = getPlatformReplySnippets,
 ): Promise<readonly PlatformReplySnippet[]> {
-  if (!fixedRoleCan(actor.presentationRole, "messaging.read")) return [];
+  if (!staffCan(actor, "snippets.read")) return [];
 
-  const allowed = new Set(v3ReplySnippetAudiencesForRole(actor.presentationRole));
   const snippets = await reader(actor, null);
+  if (!isStaffPreview(actor) || actor.presentationRole === null) return snippets;
+  const allowed = new Set(v3ReplySnippetAudiences(actor));
   return snippets.filter((snippet) => allowed.has(snippet.audience));
 }

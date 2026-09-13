@@ -1,10 +1,10 @@
 "use server";
 
+import { isStaffPreview, staffCan } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { fixedRoleCan } from "./fixed-role-policy";
 import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-actions";
 import { requirePlatformStaffActor } from "./platform-guards";
 import {
@@ -266,7 +266,7 @@ function verifiedSnippetResult(
 
 async function writableActor(form: FormData) {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "messaging.send")) {
+  if (isStaffPreview(actor) || !staffCan(actor, "snippets.write")) {
     return { actor: null, failure: failureState(form, "forbidden") } as const;
   }
   return { actor, failure: null } as const;

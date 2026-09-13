@@ -38,7 +38,7 @@ test("company-file metadata exposes all versioned folder and file operations", (
   );
 });
 
-test("company-file actions use exact forms, fixed-role authorization and fail-closed output checks", () => {
+test("company-file actions use exact forms, live permission authorization and fail-closed output checks", () => {
   for (const fieldsName of [
     "CREATE_FOLDER_FIELDS",
     "RENAME_FOLDER_FIELDS",
@@ -51,7 +51,7 @@ test("company-file actions use exact forms, fixed-role authorization and fail-cl
   ]) {
     assert.match(source, new RegExp(`exactActionStringFields\\(form, ${fieldsName}\\)`));
   }
-  assert.match(source, /fixedRoleCan\(actor\.authorityRole, "documents\.write"\)/);
+  assert.match(source, /staffHasPermission\(actor, "company\.file\.manage"\)/);
   assert.match(source, /hasExactKeys\(value, FOLDER_RESULT_KEYS\)/);
   assert.match(source, /hasExactKeys\(value, FILE_RESULT_KEYS\)/);
   assert.match(

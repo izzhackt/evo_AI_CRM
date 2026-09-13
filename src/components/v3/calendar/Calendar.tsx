@@ -6,7 +6,9 @@ import { useId, useTransition } from "react";
 
 import { Icon } from "@/components/icons";
 import { Pill } from "@/components/v3/Pill";
-import type { FixedRole } from "@/lib/fixed-role-policy";
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import type { CalendarReadAccess } from "@/lib/v3/calendar-contract";
+import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 
 import { NearestApplicationDeadline } from "./ApplicationDeadline";
 import { MonthGrid, TaskChip, TimeGrid, statePill, taskStateKey } from "./grids";
@@ -19,11 +21,15 @@ import {
   type CalendarAssigneeOption,
   type CalendarCaseOption,
   type CalendarTask,
+  type CalendarTaskCapabilities,
   type CalendarTaskRequestIds,
   type CalendarView,
   type Day,
   VIEW_TITLES,
   calendarUndatedPageNotice,
+  calendarAccessNotice,
+  calendarEmptyPeriodLabel,
+  calendarCapabilitiesForTask,
   dayLabel,
   periodLabel,
   stepDay,
@@ -41,12 +47,14 @@ const GHOST =
 
 export function Calendar({
   initialTaskId = null,
+  taskCapabilities,
   view,
   day,
   today,
   nowMinutes,
   days,
   tasks,
+  readAccess,
   undatedContinuationPage,
   undatedNextHref,
   applicationDeadlines,
@@ -55,13 +63,13 @@ export function Calendar({
   casesHaveMore,
   assignees,
   actorMembershipId,
-  authorityRole,
-  presentationRole,
+    actor,
   createRequestId,
   taskRequestIds,
   basePath,
 }: {
   initialTaskId?: string | null;
+  taskCapabilities: CalendarTaskCapabilities | null;
   view: CalendarView;
   day: Day;
   today: Day;
@@ -69,6 +77,7 @@ export function Calendar({
   nowMinutes: number;
   days: readonly Day[];
   tasks: readonly CalendarTask[];
+  readAccess: CalendarReadAccess;
   undatedContinuationPage: boolean;
   undatedNextHref: string | null;
   applicationDeadlines: readonly CalendarApplicationDeadline[];
@@ -77,8 +86,7 @@ export function Calendar({
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
   actorMembershipId: string;
-  authorityRole: FixedRole;
-  presentationRole: FixedRole;
+  actor: ActivePlatformActor;
   createRequestId: string;
   taskRequestIds: Readonly<Record<string, CalendarTaskRequestIds>>;
   basePath: string;
@@ -87,6 +95,7 @@ export function Calendar({
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
   const open = tasks.find((task) => task.id === initialTaskId) ?? null;
+  const openCapabilities = open ? calendarCapabilitiesForTask(open, taskCapabilities) : null;
   const selectTask = (id: string | null) => {
     const target = tasks.find((task) => task.id === id);
     const params = new URLSearchParams({ view, date: day });
@@ -122,17 +131,19 @@ export function Calendar({
     onSelect: (id: string) => selectTask(initialTaskId === id ? null : id),
   };
   const unscheduled = tasks.filter((task) => task.day === null);
-  const undatedNotice = calendarUndatedPageNotice(
+  const undatedNotice = readAccess.tasks ? calendarUndatedPageNotice(
     undatedContinuationPage,
     undatedNextHref !== null,
     unscheduled.length,
-  );
+  ) : null;
+  const accessNotice = calendarAccessNotice(readAccess, open !== null);
+  const emptyPeriodLabel = calendarEmptyPeriodLabel(readAccess);
 
   return (
     <div
       className="flex flex-col gap-4"
-      data-authority-role={authorityRole}
-      data-presentation-role={presentationRole}
+      data-system-role={actor.systemRole}
+      data-presentation-role={actor.presentationRole ?? "actual"}
       aria-busy={navigating}
     >
       {navigating ? <p role="status" className="text-sm text-fg-2">Обновляем календарь…</p> : null}
@@ -179,21 +190,23 @@ export function Calendar({
         </nav>
       </div>
 
-      <CalendarCreateTaskForm
+      {staffPresentationCan(actor, "admissions.read") ? <CalendarCreateTaskForm
         key={createRequestId}
         cases={cases}
         casesHaveMore={casesHaveMore}
         assignees={assignees}
         actorMembershipId={actorMembershipId}
-        presentationRole={presentationRole}
+        actor={actor}
         requestId={createRequestId}
         day={day}
-      />
+      /> : null}
 
-      <NearestApplicationDeadline
+      {accessNotice ? <p className="text-sm text-fg-2" data-testid="v3-calendar-read-access">{accessNotice}</p> : null}
+
+      {readAccess.applicationDeadlines ? <NearestApplicationDeadline
         today={today}
         deadline={nearestApplicationDeadline}
-      />
+      /> : null}
 
       {open ? (
         <aside
@@ -223,29 +236,28 @@ export function Calendar({
               <p className="mt-1 text-xs text-fg-3">
                 Ответственный: <span className="text-fg-2">{open.assigneeDisplayName}</span>
               </p>
-              <Link
+              {openCapabilities?.canReadCase ? <Link
                 href={`/v3/profile?case=${encodeURIComponent(open.studentCaseId)}`}
                 className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline"
               >
                 Открыть раздел «Студенты»
-              </Link>
+              </Link> : null}
               {open.details ? <p className="mt-3 text-sm leading-6 text-fg">{open.details}</p> : null}
               {open.cancelReason ? (
                 <p className="mt-2 text-sm text-fg-2">Причина: {open.cancelReason}</p>
               ) : null}
-              {taskRequestIds[open.id] &&
+              {openCapabilities && taskRequestIds[open.id] &&
               open.caseState === "active" &&
               open.state !== "done" &&
               open.state !== "cancelled" &&
-              (presentationRole === "admin" ||
-                (presentationRole === "admissions" &&
-                  open.assigneeMembershipId === actorMembershipId)) ? (
+              (!isStaffPreview(actor) && staffHasPermission(actor, "task.manage")) ? (
                 <CalendarTaskControls
                   key={open.id}
                   task={open}
                   day={day}
                   assignees={assignees}
-                  presentationRole={presentationRole}
+                  actor={actor}
+                  capabilities={openCapabilities}
                   requestIds={taskRequestIds[open.id]}
                 />
               ) : null}
@@ -268,8 +280,8 @@ export function Calendar({
 
       {tasks.length === 0 &&
       applicationDeadlines.length === 0 &&
-      !undatedContinuationPage ? (
-        <p className="px-1 text-sm text-fg-3">На этот период событий нет.</p>
+      !undatedContinuationPage && emptyPeriodLabel ? (
+        <p className="px-1 text-sm text-fg-3">{emptyPeriodLabel}</p>
       ) : null}
 
       {unscheduled.length > 0 || undatedNotice ? (
@@ -312,7 +324,7 @@ export function Calendar({
         </section>
       ) : null}
 
-      <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface">
+      {readAccess.tasks || readAccess.applicationDeadlines || tasks.length > 0 ? <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface">
         {view === "month" ? (
           <MonthGrid
             days={days}
@@ -335,7 +347,7 @@ export function Calendar({
             chip={chip}
           />
         )}
-      </section>
+      </section> : null}
     </div>
   );
 }

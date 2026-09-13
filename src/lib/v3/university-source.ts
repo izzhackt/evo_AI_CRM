@@ -1,3 +1,4 @@
+import { staffHasPermission, isStaffPreview } from "../platform-access.ts";
 import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
@@ -13,7 +14,7 @@ import otherContent from "../server/university-catalog-reviewed-other.json";
 export const EMPTY_UNIVERSITY_FILTERS: UniversityFilters = { query: "", country: "", level: "", offset: 0 };
 const args = (filters: UniversityFilters, id: string | null) => ({ p_query: filters.query || null, p_country: filters.country || null, p_level: filters.level || null, p_offset: filters.offset, p_institution_id: id });
 export async function readStaffUniversities(actor: ActivePlatformActor, filters = EMPTY_UNIVERSITY_FILTERS, id: string | null = null) {
-  if (!["admin", "sales", "admissions"].includes(actor.authorityRole) || (id !== null && !universityUuid(id))) throw new Error("Catalogue unavailable");
+  if (!staffHasPermission(actor, "catalog.read") || (id !== null && !universityUuid(id))) throw new Error("Catalogue unavailable");
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("staff_university_catalog", { p_organization_id: actor.organizationId, ...args(filters, id) });
   const page = !error && parseUniversityPage(data);
@@ -31,7 +32,7 @@ export async function readStudentUniversities(_actor: ActiveStudentPortalActor, 
 }
 /** Bounded complete snapshot for explicit Admin review, never a partial fallback. */
 export async function readUniversityBatchSnapshot(actor: ActivePlatformActor): Promise<PublishedUniversity[]> {
-  if (actor.authorityRole !== "admin" || actor.presentationRole !== "admin") throw new Error("Catalogue unavailable");
+  if (!staffHasPermission(actor, "catalog.import.manage") || isStaffPreview(actor)) throw new Error("Catalogue unavailable");
   const items: PublishedUniversity[] = [], seen = new Set<string>();
   let offset = 0;
   for (let pageNumber = 0; pageNumber < 100; pageNumber++) {
@@ -47,7 +48,7 @@ export async function readUniversityBatchSnapshot(actor: ActivePlatformActor): P
   throw new Error("Catalogue exceeds batch review limit");
 }
 export async function readUniversityDrafts(actor: ActivePlatformActor, id: string | null = null) {
-  if (actor.authorityRole !== "admin" || (id !== null && !universityUuid(id))) throw new Error("Drafts unavailable");
+  if (!staffHasPermission(actor, "catalog.import.manage") || (id !== null && !universityUuid(id))) throw new Error("Drafts unavailable");
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("admin_university_catalog_drafts", { p_organization_id: actor.organizationId, p_draft_id: id });
   const drafts = !error && parseUniversityDrafts(data);

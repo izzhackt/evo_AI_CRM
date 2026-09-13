@@ -14,7 +14,7 @@ const REQUEST_ID = "30000000-0000-4000-8000-000000000001";
 
 const ACTOR = Object.freeze({
   organizationId: ORGANIZATION_ID,
-  platformRole: "admin",
+  systemRole: "admin", assignments: [], permissionKeys: ["lead.read"],
 });
 
 function row(overrides = {}) {
@@ -44,6 +44,21 @@ function rpcClient(data, error = null) {
     },
   };
 }
+
+test("stage-entry cohort reads require lead.read rather than workflow or pipeline permissions", async () => {
+  const options = { from: "2026-09-01", to: "2026-09-03" };
+  for (const permissionKeys of [[], ["pipeline.read"], ["lead.sales.workflow.manage"]]) {
+    const client = rpcClient([]);
+    await assert.rejects(listPlatformSalesStageEntries({ ...ACTOR, systemRole: "staff", permissionKeys },
+      options, { client }), PlatformSalesStageEntryError);
+    assert.deepEqual(client.calls, []);
+  }
+  const client = rpcClient([]);
+  const result = await listPlatformSalesStageEntries({ ...ACTOR, systemRole: "staff", permissionKeys: ["lead.read"] },
+    options, { client });
+  assert.deepEqual(result.rows, []);
+  assert.equal(client.calls[0][0], "staff_sales_stage_entry_cohort");
+});
 
 test("normalizes one exact tenant-bound stage-entry proof", () => {
   assert.deepEqual(normalizePlatformSalesStageEntry(row(), ORGANIZATION_ID.toUpperCase()), {
@@ -174,7 +189,7 @@ test("passes an explicit cursor and rejects duplicate lead-stage facts inside on
 test("rejects invalid actor shape, role, range, page size, cursor, and RPC failures", async () => {
   for (const [actor, options] of [
     [null, { from: "2026-09-01", to: "2026-09-04" }],
-    [{ organizationId: ORGANIZATION_ID, platformRole: "admissions" }, { from: "2026-09-01", to: "2026-09-04" }],
+    [{ organizationId: ORGANIZATION_ID, systemRole: "staff", assignments: [], permissionKeys: [] }, { from: "2026-09-01", to: "2026-09-04" }],
     [ACTOR, { from: "bad", to: "2026-09-04" }],
     [ACTOR, { from: "2026-09-01", to: "bad" }],
     [ACTOR, { from: "2026-09-05", to: "2026-09-04" }],

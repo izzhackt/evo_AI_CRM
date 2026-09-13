@@ -3,16 +3,16 @@ import Link from "next/link";
 import { Pill } from "@/components/v3/Pill";
 import { StaffSection } from "./StaffSection";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
+import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 
 import {
-  AccessSection,
   DocumentsSection,
   IntegrationsSection,
   JournalSection,
   PlatformSection,
   StateSection,
 } from "./sections";
-import { SECTIONS, type GateFacts, type Health, type Integration, type JournalEntry, type RoleRow, type SectionKey } from "./types";
+import { SECTIONS, type GateFacts, type Health, type Integration, type JournalEntry, type SectionKey } from "./types";
 
 /**
  * Настройки: рельс разделов слева, раздел справа.
@@ -41,14 +41,14 @@ export function Settings({
   journalFacets,
   journalFilters,
   journalHrefFor,
-  roles,
-  capabilityNames,
-  routeNames,
   gates,
   platform,
   staff,
   staffView,
   selectedStaffMemberId,
+  staffRoles,
+  staffOrganizationId,
+  selectedStaffRoleId,
 }: {
   section: SectionKey;
   isAdmin: boolean;
@@ -62,14 +62,14 @@ export function Settings({
   }>;
   journalFilters: Readonly<{ objectType?: string; role?: string }>;
   journalHrefFor: (next: Readonly<{ objectType?: string; role?: string }>) => string;
-  roles: readonly RoleRow[];
-  capabilityNames: readonly string[];
-  routeNames: readonly string[];
   gates: GateFacts;
   platform: string;
   staff?: StaffWorkspaceData;
-  staffView: "people" | "departments";
+  staffView: "people" | "departments" | "roles";
   selectedStaffMemberId?: string;
+  staffRoles?: StaffRoleWorkspace;
+  staffOrganizationId: string;
+  selectedStaffRoleId?: string;
 }) {
   const visible = SECTIONS.filter((s) => isAdmin || !s.admin);
   const current = visible.find((s) => s.key === section) ?? visible[0];
@@ -120,7 +120,8 @@ export function Settings({
           {current?.admin ? <Pill>виден только администратору</Pill> : null}
         </h2>
 
-        {current?.key === "staff" && staff ? <StaffSection data={staff} view={staffView} selectedMemberId={selectedStaffMemberId} /> : null}
+        {current?.key === "staff" && staff && staffRoles ? <StaffSection data={staff} roles={staffRoles} organizationId={staffOrganizationId}
+          view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} /> : null}
         {current?.key === "state" ? <StateSection health={health} /> : null}
         {current?.key === "integrations" ? (
           <IntegrationsSection health={health} integrations={integrations} />
@@ -132,13 +133,6 @@ export function Settings({
             facets={journalFacets}
             active={journalFilters}
             hrefFor={journalHrefFor}
-          />
-        ) : null}
-        {current?.key === "access" ? (
-          <AccessSection
-            roles={roles}
-            capabilityNames={capabilityNames}
-            routeNames={routeNames}
           />
         ) : null}
         {current?.key === "documents" ? <DocumentsSection gates={gates} /> : null}

@@ -89,7 +89,7 @@ test("document checklist actions reject unknown fields and invalid bounded input
   assert.match(actionSource, /normalized > POSTGRES_BIGINT_MAX/);
 });
 
-test("all mutations are staff-bound and fixed-role authorization fails closed", () => {
+test("all mutations are staff-bound and permission authorization fails closed", () => {
   assert.equal(
     actionSource.match(/const actor = await requirePlatformStaffActor\(\);/g)
       ?.length,
@@ -97,13 +97,13 @@ test("all mutations are staff-bound and fixed-role authorization fails closed", 
   );
   assert.equal(
     actionSource.match(
-      /if \(!fixedRoleCan\(actor\.authorityRole, "documents\.write"\)\) \{\s*return failureState\(form, "forbidden"\);\s*\}/g,
+      /if \(isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "document\.manage"\)\) \{\s*return failureState\(form, "forbidden"\);\s*\}/g,
     )?.length,
     3,
   );
   assert.equal(
     actionSource.match(
-      /if \(!fixedRoleCan\(actor\.authorityRole, "documents\.write"\)\) \{\s*return caseLinkFailureState\(form, "forbidden"\);\s*\}/g,
+      /if \(isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "document\.manage"\)\) \{\s*return caseLinkFailureState\(form, "forbidden"\);\s*\}/g,
     )?.length,
     1,
   );

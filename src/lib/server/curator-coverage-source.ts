@@ -1,4 +1,5 @@
 import "server-only";
+import { staffHasPermission } from "../platform-access.ts";
 
 import type { PlatformActor } from "../platform-auth";
 import { parseCoverageUuid, parseCoverageWorkspace, type CoverageWorkspace } from "../platform-case-coverage-contract";
@@ -9,7 +10,7 @@ export async function readCuratorCoverageWorkspace(
   selection: Readonly<{ curatorId?: string; caseId?: string; afterCaseId?: string }>,
 ): Promise<CoverageWorkspace> {
   const unavailable = () => new Error("Curator coverage is unavailable.");
-  if (actor.authorityRole !== "admin") throw unavailable();
+  if (!staffHasPermission(actor, "case.curator.assign")) throw unavailable();
   const organizationId = parseCoverageUuid(actor.organizationId);
   const curatorId = selection.curatorId === undefined ? null : parseCoverageUuid(selection.curatorId);
   const caseId = selection.caseId === undefined ? null : parseCoverageUuid(selection.caseId);

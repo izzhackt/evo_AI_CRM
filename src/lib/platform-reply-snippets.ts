@@ -1,4 +1,4 @@
-import { fixedRoleCan } from "./fixed-role-policy.ts";
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth.ts";
 
 const UUID_PATTERN =
@@ -232,7 +232,7 @@ export function normalizePlatformReplySnippets(
 }
 
 function requireReplySnippetReader(actor: PlatformActor): string {
-  if (!fixedRoleCan(actor.authorityRole, "messaging.read")) {
+  if (!staffCan(actor, "snippets.read")) {
     return invalidShape();
   }
   return requiredUuid(actor.organizationId);

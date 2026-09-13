@@ -11,7 +11,7 @@ import {
 } from "./platform-audit-repository.ts";
 
 type PlatformAuditActionActor = Readonly<{
-  platformRole: string;
+  systemRole: string;
 }>;
 
 export type PlatformAuditActionDependencies = Readonly<{
@@ -63,7 +63,7 @@ export async function searchPlatformAudit(
     throw new PlatformAuditActionError("unavailable");
   }
   const actor = await dependencies.requireActor();
-  if (actor.platformRole !== "admin") {
+  if (actor.systemRole !== "admin") {
     throw new PlatformAuditActionError("unauthorized");
   }
 

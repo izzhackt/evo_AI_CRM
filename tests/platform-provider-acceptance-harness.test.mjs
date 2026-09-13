@@ -34,7 +34,7 @@ test("Platform provider acceptance is exact-SHA, private, single-run and fail-cl
   assert.match(shell, /orb status/u);
   assert.match(shell, /docker context show/u);
   assert.match(shell, /orbstack/u);
-  assert.match(shell, /supabase db reset --local --no-seed --yes/u);
+  assert.match(shell, /supabase --workdir "\$supabase_workdir" db reset --local --no-seed --yes/u);
   assert.match(
     shell,
     /LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED \[0-9a-f-\]\{36\} \[0-9a-f-\]\{36\}/u,

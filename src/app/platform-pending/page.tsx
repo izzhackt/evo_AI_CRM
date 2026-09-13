@@ -1,3 +1,4 @@
+import { staffPresentationCan } from "@/lib/platform-access";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -5,7 +6,6 @@ import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { btnCls } from "@/components/ui";
 import { logoutStaffAction } from "@/lib/staff-auth-actions";
-import { fixedRoleCan, isFixedRole } from "@/lib/fixed-role-policy";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { requirePlatformActor } from "@/lib/platform-guards";
@@ -57,8 +57,7 @@ export default async function PlatformPendingPage() {
   const { t, locale } = await getT();
   const copy = COPY[locale];
   const canOpenInbox =
-    isFixedRole(actor.presentationRole) &&
-    fixedRoleCan(actor.presentationRole, "messaging.read");
+    staffPresentationCan(actor, "messaging.read");
 
   return (
     <main className="relative grid min-h-dvh place-items-center bg-bg px-4 py-10">
@@ -92,10 +91,10 @@ export default async function PlatformPendingPage() {
             <dd
               className="font-semibold text-fg"
               data-testid="pending-role"
-              data-role={actor.presentationRole}
-              data-authority-role={actor.authorityRole}
+              data-role={actor.presentationRole ?? actor.systemRole}
+              data-system-role={actor.systemRole}
             >
-              {t(`role.${actor.presentationRole}`)}
+              {actor.presentationRole ? t(`role.${actor.presentationRole}`) : actor.systemRole === "admin" ? "Admin" : actor.assignments.map(item => item.label).join(" · ") || "Права ещё не назначены"}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4">

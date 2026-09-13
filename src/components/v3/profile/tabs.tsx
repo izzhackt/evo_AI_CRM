@@ -1,3 +1,5 @@
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
@@ -22,7 +24,6 @@ import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, Prof
 import type {
   Fact,
   PersonProfile,
-  ProfileActorRole,
   ProfileDraft,
   ProfileSalesRequestIds,
   ProfileSalesSnapshot,
@@ -71,14 +72,14 @@ export function Overview({
   profile,
   draft,
   sales,
-  actorRole,
+  actor,
   requestIds,
   tabHref,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
-  actorRole: ProfileActorRole;
+  actor: ActivePlatformActor;
   requestIds: ProfileSalesRequestIds;
   tabHref: (tab: string) => string;
 }) {
@@ -101,7 +102,7 @@ export function Overview({
 
   return (
     <div className="flex flex-col gap-4">
-      {sales && actorRole !== "admissions" ? (
+      {sales && staffPresentationCan(actor, "sales.read") ? (
         <>
           <Card
             title="Sales"
@@ -123,7 +124,7 @@ export function Overview({
           </Card>
 
           <ProfileSalesTransition
-            actorRole={actorRole}
+            actor={actor}
             gate={sales.gate}
             handoff={sales.handoff}
             requestIds={requestIds}
@@ -137,7 +138,7 @@ export function Overview({
         <ProfileSalesHandoffAcknowledgement snapshot={draft.salesHandoffAcknowledgement} />
       ) : null}
 
-      <a
+      {(!profile.student || draft.access.finance) ? <a
         href={tabHref("money")}
         className={`flex flex-col gap-0.5 rounded-card border bg-surface px-4 py-3 hover:border-control-edge ${
           blocked ? "v3-edge-danger border-border border-s-2" : "border-border"
@@ -157,10 +158,10 @@ export function Overview({
               ? `остаток ${draft.remaining}`
               : "плана платежей нет"}
         </span>
-      </a>
+      </a> : null}
 
       {draft.admissions ? (
-        <ProfileAdmissionsWorkspacePanel actorRole={actorRole} workspace={draft.admissions} />
+        <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
       ) : (
         <Card title="Заявка">
           {application ? (
@@ -246,11 +247,11 @@ const PAY_TONE: Record<string, PillTone> = { paid: "ok", due: "warn", overdue: "
 export function Money({
   profile,
   draft,
-  actorRole,
+  actor,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
-  actorRole: ProfileActorRole;
+  actor: ActivePlatformActor;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -317,8 +318,8 @@ export function Money({
         </ul>
       </Card>
 
-      <ProfileFinanceControls actorRole={actorRole} workspace={draft.admissions} />
-      {draft.admissions && actorRole !== "sales" ? <FinanceEntryWorkspace caseId={draft.admissions.studentCaseId} /> : null}
+      <ProfileFinanceControls actor={actor} workspace={draft.admissions} />
+      {draft.admissions && staffPresentationCan(actor, "admissions.read") ? <FinanceEntryWorkspace caseId={draft.admissions.studentCaseId} /> : null}
 
       <Card title="Договор">
         <FactList

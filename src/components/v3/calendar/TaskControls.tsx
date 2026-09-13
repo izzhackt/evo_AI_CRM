@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState } from "react";
 
-import type { FixedRole } from "@/lib/fixed-role-policy";
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import {
   changePlatformAdmissionsTaskAction,
   createPlatformAdmissionsTaskAction,
@@ -16,12 +17,14 @@ import {
   type PlatformCaseTaskStatus,
 } from "@/lib/platform-admissions-task-contract";
 import { taskStatus } from "@/lib/v3/wording";
+import { readTaskCaseAssigneesAction } from "@/lib/v3/task-case-actions";
 import { TaskCasePicker } from "../tasks/TaskCasePicker";
 
 import type {
   CalendarAssigneeOption,
   CalendarCaseOption,
   CalendarTask,
+  CalendarTaskCapabilities,
   CalendarTaskRequestIds,
   Day,
 } from "./types";
@@ -189,7 +192,7 @@ export function CalendarCreateTaskForm({
   casesHaveMore,
   assignees,
   actorMembershipId,
-  presentationRole,
+  actor,
   day,
   requestId,
   selectedCase,
@@ -199,7 +202,7 @@ export function CalendarCreateTaskForm({
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
   actorMembershipId: string;
-  presentationRole: FixedRole;
+  actor: ActivePlatformActor;
   day: Day;
   requestId: string;
   selectedCase?: CalendarCaseOption;
@@ -214,27 +217,36 @@ export function CalendarCreateTaskForm({
   const [selectedAssignee, setSelectedAssignee] = useState(actorMembershipId);
   const [priority, setPriority] = useState("normal");
   const [visible, setVisible] = useState("false");
+  const [activeCaseId, setActiveCaseId] = useState(selectedCase?.id ?? cases[0]?.id ?? "");
+  const [candidateState, setCandidateState] = useState<Readonly<{
+    caseId: string; status: "loading" | "ready" | "unavailable"; assignees: readonly CalendarAssigneeOption[];
+  }>>(selectedCase ? { caseId: selectedCase.id, status: "ready", assignees } : { caseId: "", status: "loading", assignees: [] });
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeCaseId || selectedCase?.id === activeCaseId) return;
+    void readTaskCaseAssigneesAction(activeCaseId).then(result => {
+      if (!cancelled) setCandidateState({ caseId: activeCaseId, status: result.status === "ready" ? "ready" : "unavailable", assignees: result.assignees });
+    }).catch(() => {
+      if (!cancelled) setCandidateState({ caseId: activeCaseId, status: "unavailable", assignees: [] });
+    });
+    return () => { cancelled = true; };
+  }, [activeCaseId, selectedCase?.id]);
 
   useEffect(() => {
     if (state.status === "saved" || state.status === "stale") router.refresh();
   }, [router, state.status, state.version]);
 
-  if (presentationRole !== "admin" && presentationRole !== "admissions") {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "task.create")) {
     return null;
   }
 
-  const availableAssignees = presentationRole === "admin"
-    ? assignees
-    : assignees.filter((assignee) => assignee.membershipId === actorMembershipId);
+  const candidateReady = candidateState.caseId === activeCaseId && candidateState.status === "ready";
+  const candidates = candidateReady ? candidateState.assignees : [];
+  const availableAssignees = staffHasPermission(actor, "task.assign")
+    ? candidates
+    : candidates.filter((assignee) => assignee.membershipId === actorMembershipId);
   const locked = pending || state.status === "saved" || state.status === "stale";
-
-  if (availableAssignees.length === 0) {
-    return (
-      <p className="text-sm text-danger" role="alert">
-        Нет доступного сотрудника приёмной. Задача не создана.
-      </p>
-    );
-  }
+  const eligibleAssignee = availableAssignees.some(person => person.membershipId === selectedAssignee);
 
   return (
     <details open={expanded || undefined} className="rounded-card border border-border bg-surface px-4 py-2">
@@ -258,11 +270,12 @@ export function CalendarCreateTaskForm({
             <input name="title" value={title} onChange={(event) => setTitle(event.target.value)} required
               minLength={1} maxLength={1_000} autoComplete="off" className={CONTROL} />
           </label>
-          <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} />
+          <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} onCaseChange={setActiveCaseId} />
 
           <label className="text-xs font-medium text-fg-2">
             Ответственный
-            <select name="assignee_membership_id" required value={selectedAssignee} onChange={(event) => setSelectedAssignee(event.target.value)} className={CONTROL}>
+            <select name="assignee_membership_id" required disabled={!candidateReady} value={selectedAssignee} onChange={(event) => setSelectedAssignee(event.target.value)} className={CONTROL}>
+              {!eligibleAssignee ? <option value={selectedAssignee} disabled>Выберите доступного исполнителя</option> : null}
               {availableAssignees.map((assignee) => (
                 <option key={assignee.membershipId} value={assignee.membershipId}>
                   {assignee.displayName}
@@ -270,6 +283,7 @@ export function CalendarCreateTaskForm({
               ))}
             </select>
           </label>
+          {!candidateReady ? <p role="status" className="text-sm text-fg-2">{!activeCaseId ? "Выберите дело студента." : candidateState.caseId === activeCaseId && candidateState.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу; черновик не отправлен." : "Проверяем исполнителей выбранного дела…"}</p> : availableAssignees.length === 0 ? <p role="alert" className="text-sm text-danger">Нет доступного исполнителя для этого дела.</p> : null}
 
           <DeadlineFields day={day} />
 
@@ -291,18 +305,18 @@ export function CalendarCreateTaskForm({
             </select>
           </label>
 
-          <label className="text-sm font-medium text-fg-2">
+          {staffHasPermission(actor, "task.visibility.manage") ? <label className="text-sm font-medium text-fg-2">
             Видимость студенту
             <select name="student_visible" value={visible} onChange={(event) => setVisible(event.target.value)} className={CONTROL}>
               <option value="false">Скрыта</option>
               <option value="true">Видна</option>
             </select>
-          </label>
+          </label> : <input type="hidden" name="student_visible" value="false" />}
             </div>
           </details>
 
           <div className="flex items-end">
-            <button type="submit" disabled={locked} className={`${PRIMARY} w-full`}>
+            <button type="submit" disabled={locked || !candidateReady || !eligibleAssignee} className={`${PRIMARY} w-full`}>
               {pending ? "Создаём…" : "Создать задачу"}
             </button>
           </div>
@@ -392,13 +406,15 @@ function CalendarChangeTaskForm({
   task,
   day,
   assignees,
-  presentationRole,
+  actor,
+  capabilities,
   requestId,
 }: Readonly<{
   task: CalendarTask;
   day: Day;
   assignees: readonly CalendarAssigneeOption[];
-  presentationRole: FixedRole;
+  actor: ActivePlatformActor;
+  capabilities: CalendarTaskCapabilities;
   requestId: string;
 }>) {
   const router = useRouter();
@@ -427,7 +443,8 @@ function CalendarChangeTaskForm({
   const locked = pending ||
     (state.status === "saved" && task.version !== state.version) ||
     (state.status === "stale" && !staleAcknowledged);
-  const adminView = presentationRole === "admin";
+  const canAssign = !isStaffPreview(actor) && capabilities.canAssign;
+  const canChangeVisibility = !isStaffPreview(actor) && capabilities.canChangeVisibility;
   const canonicalAssignees = assignees.some(
     (assignee) => assignee.membershipId === task.assigneeMembershipId,
   )
@@ -472,7 +489,7 @@ function CalendarChangeTaskForm({
           </select>
         </label>
 
-        {adminView ? (
+        {canAssign ? (
           <label className="text-xs font-medium text-fg-2">
             Ответственный
             <select
@@ -509,7 +526,7 @@ function CalendarChangeTaskForm({
           </select>
         </label>
         <DeadlineFields day={task.day ?? day} task={task} />
-        {adminView ? (
+        {canChangeVisibility ? (
             <label className="text-xs font-medium text-fg-2">
               Видимость студенту
               <select
@@ -573,13 +590,15 @@ export function CalendarTaskControls({
   task,
   day,
   assignees,
-  presentationRole,
+  actor,
+  capabilities,
   requestIds,
 }: Readonly<{
   task: CalendarTask;
   day: Day;
   assignees: readonly CalendarAssigneeOption[];
-  presentationRole: FixedRole;
+  actor: ActivePlatformActor;
+  capabilities: CalendarTaskCapabilities;
   requestIds: CalendarTaskRequestIds;
 }>) {
   return (
@@ -602,7 +621,8 @@ export function CalendarTaskControls({
         task={task}
         day={day}
         assignees={assignees}
-        presentationRole={presentationRole}
+        actor={actor}
+        capabilities={capabilities}
         requestId={requestIds.change}
       />
     </div>

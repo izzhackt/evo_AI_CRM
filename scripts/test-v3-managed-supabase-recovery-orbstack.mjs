@@ -7136,10 +7136,24 @@ async function proveBrowserAdmissionsReadback(page, appUrl, admissionsProof, rol
   }
 }
 
-async function assertBrowserActiveRole(page, presentationRole, authorityRole, browserStep, operationPrefix) {
+export function recoveryBrowserRoleMarkers(presentationRole, scenarioRole) {
+  const roles = ["admin", "sales", "admissions"];
+  if (!roles.includes(presentationRole) || !roles.includes(scenarioRole) ||
+      (scenarioRole !== "admin" && presentationRole !== scenarioRole)) {
+    throw new TypeError("Invalid recovery browser role scenario");
+  }
+  // Scenario names identify the restored test actors, not live business authority.
+  const systemRole = scenarioRole === "admin" ? "admin" : "staff";
+  const previewRole = scenarioRole === "admin" && presentationRole !== "admin" ? presentationRole : "actual";
+  const displayRole = previewRole === "actual" ? systemRole : previewRole;
+  return Object.freeze({ systemRole, previewRole, displayRole });
+}
+
+async function assertBrowserActiveRole(page, presentationRole, scenarioRole, browserStep, operationPrefix) {
+  const { systemRole, previewRole, displayRole } = recoveryBrowserRoleMarkers(presentationRole, scenarioRole);
   const matchingShell = await browserStep(
     async () => page.locator(
-      `[data-testid="v3-shell"][data-authority-role="${authorityRole}"][data-presentation-role="${presentationRole}"]`,
+      `[data-testid="v3-shell"][data-system-role="${systemRole}"][data-presentation-role="${previewRole}"]`,
     ),
     { operationCode: `${operationPrefix}_shell_role_locator_failed` },
   );
@@ -7149,7 +7163,7 @@ async function assertBrowserActiveRole(page, presentationRole, authorityRole, br
   );
   const matchingActiveRole = await browserStep(
     async () => page.locator(
-      `[data-testid="active-role"][data-authority-role="${authorityRole}"][data-role="${presentationRole}"]`,
+      `[data-testid="active-role"][data-system-role="${systemRole}"][data-role="${displayRole}"]`,
     ),
     { operationCode: `${operationPrefix}_active_role_match_locator_failed` },
   );
@@ -7166,16 +7180,16 @@ async function assertBrowserActiveRole(page, presentationRole, authorityRole, br
     { operationCode: `${operationPrefix}_active_role_wait_failed` },
   );
   const observed = await browserStep(async () => Object.freeze({
-    presentationRole: await activeRole.getAttribute("data-role"),
-    authorityRole: await activeRole.getAttribute("data-authority-role"),
-    shellAuthorityRole: await page.getByTestId("v3-shell").getAttribute("data-authority-role"),
+    displayRole: await activeRole.getAttribute("data-role"),
+    systemRole: await activeRole.getAttribute("data-system-role"),
+    shellSystemRole: await page.getByTestId("v3-shell").getAttribute("data-system-role"),
     shellPresentationRole: await page.getByTestId("v3-shell").getAttribute("data-presentation-role"),
   }), { operationCode: `${operationPrefix}_role_attributes_failed` });
   if (
-    observed.presentationRole !== presentationRole ||
-    observed.shellPresentationRole !== presentationRole ||
-    observed.authorityRole !== authorityRole ||
-    observed.shellAuthorityRole !== authorityRole
+    observed.displayRole !== displayRole ||
+    observed.shellPresentationRole !== previewRole ||
+    observed.systemRole !== systemRole ||
+    observed.shellSystemRole !== systemRole
   ) {
     fail(`${operationPrefix}_role_mismatch`, "browser_proof");
   }
@@ -7384,7 +7398,8 @@ async function proveAdminRolePreview(page, appUrl, browserStep) {
   return Object.freeze({
     status: "passed",
     evidenceScope: ADMIN_ROLE_PREVIEW_EVIDENCE_SCOPE,
-    authorityRole: "admin",
+    schemaVersion: 2,
+    systemRole: "admin",
     presentations: ADMIN_ROLE_PREVIEW_PRESENTATIONS,
   });
 }
@@ -7523,7 +7538,7 @@ async function proveBrowser(app, readiness, status, scanner, roleServerProof, st
         async () => await shell.waitFor({ state: "visible", timeout: 45_000 }),
         { operationCode: `browser_${role}_login_shell_failed` },
       );
-      if (await browserStep(async () => await shell.getAttribute("data-authority-role")) !== role) {
+      if (await browserStep(async () => await shell.getAttribute("data-system-role")) !== recoveryBrowserRoleMarkers(role, role).systemRole) {
         fail("browser_role_mismatch", "browser_proof", { role });
       }
       browserPhase = `${role}_route`;
@@ -8748,21 +8763,21 @@ function uniqueFrozenStrings(values) {
 const ADMIN_ROLE_PREVIEW_PRESENTATIONS = Object.freeze({
   sales: Object.freeze({
     role: "sales",
-    authorityRole: "admin",
+    systemRole: "admin",
     landingRoute: "/v3/main",
     allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/knowledge"]),
     deniedRoutes: Object.freeze(["/v3/calendar", "/v3/settings"]),
   }),
   admissions: Object.freeze({
     role: "admissions",
-    authorityRole: "admin",
+    systemRole: "admin",
     landingRoute: "/v3/calendar",
     allowedRoutes: Object.freeze(["/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge"]),
     deniedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/settings"]),
   }),
   admin: Object.freeze({
     role: "admin",
-    authorityRole: "admin",
+    systemRole: "admin",
     landingRoute: "/v3/main",
     allowedRoutes: Object.freeze(["/v3/main", "/v3/pipeline", "/v3/inbox", "/v3/profile", "/v3/calendar", "/v3/knowledge", "/v3/settings"]),
     deniedRoutes: Object.freeze([]),
@@ -8772,7 +8787,8 @@ const ADMIN_ROLE_PREVIEW_PRESENTATIONS = Object.freeze({
 function adminRolePreviewPassed(adminRolePreview) {
   return isRecord(adminRolePreview) &&
     adminRolePreview.status === "passed" &&
-    adminRolePreview.authorityRole === "admin" &&
+    adminRolePreview.schemaVersion === 2 &&
+    adminRolePreview.systemRole === "admin" &&
     adminRolePreview.evidenceScope === ADMIN_ROLE_PREVIEW_EVIDENCE_SCOPE &&
     sameJson(adminRolePreview.presentations, ADMIN_ROLE_PREVIEW_PRESENTATIONS);
 }

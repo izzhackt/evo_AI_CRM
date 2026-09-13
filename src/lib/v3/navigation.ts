@@ -1,10 +1,9 @@
 import {
-  fixedRoleCan,
-  fixedRoleCanAccessRoute,
-  type FixedRole,
   type FixedRoleCapability,
   type FixedRoleRoute,
 } from "../fixed-role-policy.ts";
+import type { ActivePlatformActor } from "../platform-auth.ts";
+import { isStaffPreview, staffCan, staffCanAccessRoute, staffPresentationCan } from "../platform-access.ts";
 
 export type V3NavigationLinkId =
   | "home"
@@ -84,17 +83,18 @@ function isSingleValue(query: NavigationQuery, name: string, value: string) {
 
 /** Presentation-only navigation. Server route guards remain the authority. */
 export function buildV3Navigation(
-  presentationRole: FixedRole,
+  actor: ActivePlatformActor,
   pathname: string,
   query: NavigationQuery,
 ) {
   const allowed = (link: V3NavigationLink) =>
-    fixedRoleCanAccessRoute(presentationRole, link.route)
-    && (!link.capability || fixedRoleCan(presentationRole, link.capability));
+    staffCanAccessRoute(actor, link.route)
+    && (link.id !== "sales-report" || isStaffPreview(actor) || staffCan(actor, "sales.report.read"))
+    && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
   const common = COMMON.filter((link) => allowed(link)
-    && (link.id !== "inbox" || !fixedRoleCan(presentationRole, "sales.read")));
+    && (link.id !== "inbox" || !staffPresentationCan(actor, "sales.read")));
   const visibleGroups = GROUPS.map((group) => ({
     ...group,
     links: group.links.filter(allowed),
@@ -114,7 +114,7 @@ export function buildV3Navigation(
     // its error state, never the directory summary. Match the page contract.
     candidate = isSingleValue(query, "section", "summary")
       && !query.has("case") && !query.has("id")
-      && fixedRoleCan(presentationRole, "admissions.read")
+      && staffPresentationCan(actor, "admissions.read")
       ? "admissions-summary"
       : "admissions-worklist";
   } else if (pathname.startsWith("/v3/universities/")) {
@@ -136,7 +136,7 @@ export function buildV3Navigation(
     activeId,
     // Used as a React key: new destinations open their active section, while
     // collapsing a disclosure on the current destination stays user-controlled.
-    destinationKey: `${presentationRole}:${pathname}?${query.toString()}`,
+    destinationKey: `${actor.presentationRole ?? "actual"}:${actor.platformAccessVersion}:${pathname}?${query.toString()}`,
   };
 }
 

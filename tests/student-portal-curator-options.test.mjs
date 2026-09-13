@@ -19,11 +19,9 @@ function actor(platformRole = "admin") {
     organizationId: ORGANIZATION_ID,
     displayName: "Admin",
     email: "admin@example.com",
-    platformRole,
-    authorityRole: platformRole,
+    systemRole: platformRole === "admin" ? "admin" : "staff",
+    assignments: [], permissionKeys: [],
     platformAccessVersion: 1,
-    platformBundleId: "70000000-0000-4000-8000-000000000001",
-    platformBundleVersion: 1,
   };
 }
 

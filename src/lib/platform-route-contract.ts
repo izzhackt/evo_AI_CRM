@@ -1,4 +1,5 @@
-import { fixedRoleHomeRoute, type FixedRole } from "./fixed-role-policy.ts";
+import { staffHomeRoute } from "./platform-access.ts";
+import type { ActivePlatformActor } from "./platform-auth.ts";
 
 const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/",
@@ -97,9 +98,9 @@ const RETIRED_PLATFORM_ROUTE_ROOTS = [
 ] as const;
 
 export function platformHomeRoute(
-  role: FixedRole,
-): "/v3/main" | "/v3/calendar" {
-  return fixedRoleHomeRoute(role);
+  actor: ActivePlatformActor,
+): ReturnType<typeof staffHomeRoute> {
+  return staffHomeRoute(actor);
 }
 
 /**

@@ -1,3 +1,4 @@
+import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import { Suspense } from "react";
 
@@ -175,7 +176,8 @@ export default async function ProfilePart({
   const tab = resolveTab(
     singleSearchParam(params.tab),
     Boolean(view?.profile.student),
-    actor.presentationRole,
+    view?.details.access ?? { documents: false, finance: false, studentProfile: false, contract: false },
+    Boolean(view?.details.admissions),
   );
   const hrefFor = (next: string) => view
     ? buildV3ProfileHref(view.details.routeTarget, next)
@@ -197,7 +199,7 @@ export default async function ProfilePart({
   let studentPortalCurators: readonly StudentPortalCuratorOption[] = [];
   let studentPortalCuratorsAvailable = true;
   if (
-    actor.presentationRole === "admin" &&
+    actor.systemRole === "admin" && !isStaffPreview(actor) &&
     (directory || view?.details.admissions?.caseState === "pending")
   ) {
     try {
@@ -210,7 +212,7 @@ export default async function ProfilePart({
   return (
     <PartShell title={view ? "Профиль" : "Поступление"}>
       <div className="space-y-6">
-        {directory && actor.presentationRole !== "sales" ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
+        {directory && staffPresentationCan(actor, "admissions.read") ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
           <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} expanded={singleSearchParam(params.section) === "summary"} />
         </Suspense> : null}
         {directory ? (
@@ -219,10 +221,10 @@ export default async function ProfilePart({
             initiallyOpen={directoryParams.active || !view}
             params={directoryParams}
             curators={studentPortalCurators}
-            allowAdmissionsFilters={actor.presentationRole !== "sales"}
+            allowAdmissionsFilters={staffPresentationCan(actor, "admissions.read")}
           />
         ) : null}
-        {directory && actor.authorityRole === "admin" && actor.presentationRole === "admin" ? (
+        {directory && staffHasPermission(actor, "case.curator.assign") && !isStaffPreview(actor) ? (
           <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем нагрузку кураторов…</p>}>
             <CuratorCoveragePanel actor={actor} params={params} />
           </Suspense>
@@ -236,14 +238,13 @@ export default async function ProfilePart({
               К списку поступления
             </Link>
             <Profile
-              key={[actor.organizationId, actor.authUserId, actor.authorityRole, actor.presentationRole,
+              key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
                 view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
               profile={view.profile}
               admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person} /> : undefined}
               draft={view.details}
               sales={view.sales}
-              actorRole={actor.presentationRole}
-              authorityRole={actor.authorityRole}
+              actor={actor}
               organizationId={actor.organizationId}
               studentPortalCurators={studentPortalCurators}
               studentPortalCuratorsAvailable={studentPortalCuratorsAvailable}

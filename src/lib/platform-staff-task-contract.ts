@@ -34,7 +34,7 @@ export type StaffTask = Readonly<{
 export type StaffParticipant = Readonly<{
   membershipId: string;
   displayName: string;
-  role: "admin" | "sales" | "admissions";
+  role: "admin" | "sales" | "admissions" | null;
 }>;
 export type StaffTaskActionState = Readonly<{
   status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable";
@@ -91,7 +91,7 @@ export function parseStaffTask(value: unknown, organizationId: string): StaffTas
 export function parseStaffParticipant(value: unknown): StaffParticipant {
   const row = record(value);
   const role = row.platform_role === "curator" ? "admissions" : row.platform_role;
-  if (role !== "admin" && role !== "sales" && role !== "admissions") throw new Error("Staff participant data is unavailable.");
+  if (role !== null && role !== "admin" && role !== "sales" && role !== "admissions") throw new Error("Staff participant data is unavailable.");
   return Object.freeze({ membershipId: required(staffTaskUuid(row.membership_id)), displayName: required(text(row.display_name, 1000)), role });
 }
 

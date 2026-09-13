@@ -1,26 +1,36 @@
+import { staffCan, staffHasPermission } from "../platform-access.ts";
 import "server-only";
 import type { PlatformActor } from "../platform-auth";
-import { parseFinanceEntryWorkspace, parseMonthlyPaymentSummary, type FinanceEntryState } from "../platform-finance-entry-contract";
+import { parseFinanceEntryWorkspace, readAuthorizedMonthlyPaymentSummary, type FinanceEntryState, type MonthlyPaymentSummaryRead } from "../platform-finance-entry-contract";
 import { parseSalesUuid } from "../platform-sales-register-contract";
 import { createSupabaseServerClient } from "../supabase/server";
 
 export async function readFinanceEntryWorkspace(actor: PlatformActor, caseId: string) {
-  if (!parseSalesUuid(caseId) || actor.authorityRole === "sales") throw new Error("Finance entry is unavailable.");
+  if (!parseSalesUuid(caseId) || !staffCan(actor, "finance.read")) throw new Error("Finance entry is unavailable.");
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("staff_finance_entry_workspace", { p_student_case_id: caseId });
   if (error) throw new Error("Finance entry is unavailable.");
   return parseFinanceEntryWorkspace(data, actor.organizationId, caseId);
 }
-export async function readMonthlyPaymentSummary(actor: PlatformActor, year: number, month: number) {
-  if (actor.authorityRole !== "admin" || !Number.isInteger(year) || year < 1900 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) throw new Error("Finance summary is unavailable.");
+export async function readMonthlyPaymentSummary(actor: PlatformActor, year: number, month: number): Promise<MonthlyPaymentSummaryRead> {
+  if (!staffHasPermission(actor, "finance.read.full")) return { status: "not_allowed" };
   const client = await createSupabaseServerClient();
-  const { data, error } = await client.schema("platform").rpc("staff_monthly_payment_summary", { p_organization_id: actor.organizationId, p_year: year, p_month: month });
-  if (error) throw new Error("Finance summary is unavailable.");
-  return parseMonthlyPaymentSummary(data, actor.organizationId, year, month);
+  return readAuthorizedMonthlyPaymentSummary(actor.organizationId, year, month, {
+    readAccess: async () => {
+      const { data, error } = await client.schema("platform").rpc("staff_monthly_payment_summary_access", { p_organization_id: actor.organizationId });
+      if (error) throw new Error("Finance summary is unavailable.");
+      return data;
+    },
+    readTotals: async () => {
+      const { data, error } = await client.schema("platform").rpc("staff_monthly_payment_summary", { p_organization_id: actor.organizationId, p_year: year, p_month: month });
+      if (error) throw new Error("Finance summary is unavailable.");
+      return data;
+    },
+  });
 }
 export async function saveFinanceEntry(actor: PlatformActor, operation: "obligation" | "payment" | "refund", caseId: string, requestId: string, args: Record<string, unknown>): Promise<FinanceEntryState> {
   const outcome = (status: FinanceEntryState["status"], resourceId: string | null = null): FinanceEntryState => ({ status, resourceId, requestId });
-  if (actor.authorityRole === "sales") return outcome("forbidden");
+  if (!staffCan(actor, "finance.read")) return outcome("forbidden");
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc(operation === "obligation" ? "create_payment_obligation" : "record_payment_event", {
     ...args, p_organization_id: actor.organizationId, p_request_id: requestId,

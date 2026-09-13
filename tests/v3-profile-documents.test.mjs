@@ -108,7 +108,7 @@ test("V3 profile links documents to canonical applications or visa cases", () =>
   );
   assert.match(
     profileSource,
-    /profileDocuments\(\s*data\.documents,\s*canUpload,\s*data\.applications,\s*data\.visa,\s*canUpload && actor\.presentationRole === actor\.authorityRole,\s*\)/u,
+    /profileDocuments\(\s*data\.documents,\s*canUpload,\s*data\.applications,\s*data\.visa,\s*canUpload && !isStaffPreview\(actor\),\s*\)/u,
   );
 
   assert.match(client, /data-testid="v3-document-case-links"/u);

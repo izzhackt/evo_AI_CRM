@@ -1,4 +1,5 @@
 "use server";
+import { isStaffPreview } from "./platform-access.ts";
 
 import { resolvePlatformActor } from "./platform-auth";
 import {
@@ -60,7 +61,7 @@ export async function teamChatCommandAction(_previous: TeamChatActionState, form
     if (operation === "mute" && typeof value.muted !== "boolean") return fail("invalid", requestId);
     if (operation === "moderate" && (typeof value.reason !== "string" || value.reason.trim().length < 3 || value.reason.length > 500)) return fail("invalid", requestId);
     const authorization = await resolvePlatformActor();
-    if (authorization.status !== "authenticated") return fail("forbidden", requestId);
+    if (authorization.status !== "authenticated" || isStaffPreview(authorization.actor)) return fail("forbidden", requestId);
     const client = await createSupabaseServerClient();
     const { data, error } = await client.schema("platform").rpc("team_chat_command", {
       p_organization_id: authorization.actor.organizationId, p_channel_key: channel, p_request_id: requestId, p_input: value,

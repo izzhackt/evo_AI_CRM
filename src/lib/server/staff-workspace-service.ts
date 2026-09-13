@@ -4,15 +4,32 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { studentInviteCallbackUrl } from "@/lib/student-invite-callback-contract";
 import { getPlatformSupabaseBackendConfig, PlatformSupabaseBackendConfigurationError } from "./platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client";
-import { isStaffRole, STAFF_UUID } from "@/lib/v3/staff-workspace-contract";
+import { STAFF_UUID, parseStaffAuthInput, parseStaffAuthClaim, parseStaffAuthResult, parseStaffAuthPreparation,
+  parseStaffPendingAccessInput, parseStaffPendingAccessReceipt, parseStaffStatusInput, parseStaffStatusReceipt,
+  staffAuthRequestId, isStaffCommandVersionRejection } from "@/lib/v3/staff-workspace-contract";
 import { definiteStaffAuthRejection } from "./staff-auth-failure";
 import { ADMISSIONS_DIRECTIONS } from "@/lib/platform-admissions-playbook-contract";
 
-type StaffAuthResult = { status: string; operation: string; rejection_code?: string | null };
+export class StaffAuthOutcomeUnknownError extends Error {
+  readonly requestId: string;
+  constructor(requestId: string) {
+    super("staff_workspace_auth_outcome_unknown");
+    this.requestId = requestId;
+  }
+}
+
+export class StaffCommandVersionRejectedError extends Error {}
+
+function authRpcFailure(error: { code?: string; message: string }, requestId: string): never {
+  // Explicit PostgreSQL rejection rolls back the transaction. An absent or
+  // transport error code cannot prove that a mutation did not commit.
+  if (["22023", "23505", "23514", "42501", "40001", "55000"].includes(error.code ?? "")) throw new Error(error.message);
+  throw new StaffAuthOutcomeUnknownError(requestId);
+}
 
 export async function staffAdminContext() {
   const result = await resolvePlatformActor();
-  if (result.status !== "authenticated" || result.actor.authorityRole !== "admin") {
+  if (result.status !== "authenticated" || result.actor.systemRole !== "admin" || result.actor.presentationRole !== null) {
     throw new Error("staff_workspace_forbidden");
   }
   return { actor: result.actor, client: (await createSupabaseServerClient()).schema("platform") };
@@ -27,39 +44,46 @@ export function staffAuthCallbackUrl(): string {
 
 export async function requestStaffAuth(form: FormData) {
   const { actor, client } = await staffAdminContext();
-  const requestId = String(form.get("request_id") ?? "");
-  const operation = String(form.get("operation") ?? "");
-  if (!STAFF_UUID.test(requestId) || !["invite", "recovery", "reconcile"].includes(operation)) {
-    throw new Error("staff_workspace_invalid_input");
-  }
-  if (operation === "reconcile") {
-    const result = await client.rpc("staff_workspace_reconcile_auth", {
+  const input = parseStaffAuthInput(form, actor.organizationId);
+  const { requestId, operation } = input;
+  let claimObserved = false;
+  const reconcile = async () => {
+    let result;
+    try { result = await client.rpc("staff_workspace_reconcile_auth", {
       p_organization_id: actor.organizationId, p_request_id: requestId,
-    });
-    if (result.error) throw new Error(result.error.message);
-    return result.data as StaffAuthResult;
-  }
-  if (form.get("recipient_confirmed") !== "yes") throw new Error("staff_workspace_recipient_required");
-  const email = String(form.get("email") ?? "").trim().toLowerCase();
-  const displayName = String(form.get("display_name") ?? "").trim();
-  const role = form.get("role");
-  const membershipId = String(form.get("membership_id") ?? "");
-  if (operation === "invite" && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 320
-    || !displayName || displayName.length > 160 || !isStaffRole(role))) throw new Error("staff_workspace_invalid_input");
-  if (operation === "recovery" && !STAFF_UUID.test(membershipId)) throw new Error("staff_workspace_invalid_input");
+    }); } catch { throw new StaffAuthOutcomeUnknownError(requestId); }
+    if (result.error) {
+      if (claimObserved) throw new StaffAuthOutcomeUnknownError(requestId);
+      authRpcFailure(result.error, requestId);
+    }
+    try { return { ...parseStaffAuthResult(result.data, operation === "reconcile" ? undefined : operation), requestId }; }
+    catch { throw new StaffAuthOutcomeUnknownError(requestId); }
+  };
+  // Reconciliation never constructs a service client or sends another message.
+  if (operation === "reconcile") return reconcile();
 
   // Configuration is checked before persisting a dispatch claim.
   const redirectTo = staffAuthCallbackUrl();
   const authClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
-  const claim = await client.rpc("staff_workspace_claim_auth", {
+  const params = {
     p_organization_id: actor.organizationId, p_request_id: requestId, p_operation: operation,
-    p_email: operation === "invite" ? email : null,
-    p_display_name: operation === "invite" ? displayName : null,
-    p_role: operation === "invite" ? role : null,
-    p_membership_id: operation === "recovery" ? membershipId : null,
-  });
-  if (claim.error) throw new Error(claim.error.message);
-  if (claim.data?.dispatch === true) {
+    p_email: input.operation === "invite" ? input.email : null,
+    p_display_name: input.operation === "invite" ? input.displayName : null,
+    p_membership_id: input.operation === "recovery" ? input.membershipId : null,
+    p_assignments: input.operation === "invite" ? input.assignments : null,
+    p_no_access: input.operation === "invite" ? input.noAccess : false,
+    p_reason: input.reason,
+    p_expected_access_version: input.operation === "recovery" ? input.expectedAccessVersion : null,
+  };
+  let claim;
+  try { claim = await client.rpc("staff_workspace_claim_auth", params); }
+  catch { throw new StaffAuthOutcomeUnknownError(requestId); }
+  if (claim.error) authRpcFailure(claim.error, requestId);
+  let receipt;
+  try { receipt = parseStaffAuthClaim(claim.data, requestId, input.operation === "invite" ? input.email : undefined); }
+  catch { throw new StaffAuthOutcomeUnknownError(requestId); }
+  claimObserved = true;
+  if (receipt.dispatch) {
     let providerError: unknown = null;
     try {
       // The privileged client is used for Auth and the narrow rejection receipt,
@@ -69,12 +93,12 @@ export async function requestStaffAuth(form: FormData) {
       // https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail
       // https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
       if (operation === "invite") {
-        const result = await authClient.auth.admin.inviteUserByEmail(claim.data.email, {
+        const result = await authClient.auth.admin.inviteUserByEmail(receipt.email, {
           redirectTo, data: { evo_staff_invitation_request_id: requestId },
         });
         providerError = result.error;
       } else {
-        const result = await authClient.auth.resetPasswordForEmail(claim.data.email, { redirectTo });
+        const result = await authClient.auth.resetPasswordForEmail(receipt.email, { redirectTo });
         providerError = result.error;
       }
     } catch (error) {
@@ -85,37 +109,64 @@ export async function requestStaffAuth(form: FormData) {
     if (rejection) {
       // The receipt RPC independently reads Auth before unlocking the recipient.
       // A failed receipt write leaves the request pending; no blind retry.
-      await authClient.schema("platform").rpc("staff_workspace_record_auth_rejection", {
-        p_organization_id: actor.organizationId, p_request_id: requestId,
-        p_code: rejection.code, p_http_status: rejection.httpStatus,
-      });
+      try {
+        const recorded = await authClient.schema("platform").rpc("staff_workspace_record_auth_rejection", {
+          p_organization_id: actor.organizationId, p_request_id: requestId,
+          p_code: rejection.code, p_http_status: rejection.httpStatus,
+        });
+        if (recorded.error) throw new StaffAuthOutcomeUnknownError(requestId);
+        parseStaffAuthResult(recorded.data, operation);
+      } catch { throw new StaffAuthOutcomeUnknownError(requestId); }
     }
   }
-  const result = await client.rpc("staff_workspace_reconcile_auth", {
+  return reconcile();
+}
+
+export async function readStaffAuthPreparation(form: FormData) {
+  const { actor, client } = await staffAdminContext();
+  const requestId = staffAuthRequestId(form);
+  const result = await client.rpc("staff_workspace_auth_preparation", {
     p_organization_id: actor.organizationId, p_request_id: requestId,
   });
-  if (result.error) throw new Error("staff_workspace_reconciliation_required");
-  return result.data as StaffAuthResult;
+  if (result.error) throw new Error("staff_workspace_preparation_unavailable");
+  return parseStaffAuthPreparation(result.data, { requestId, organizationId: actor.organizationId });
+}
+
+export async function prepareStaffPendingAccess(form: FormData) {
+  const { actor, client } = await staffAdminContext();
+  const input = parseStaffPendingAccessInput(form, actor.organizationId);
+  let result;
+  try { result = await client.rpc("staff_workspace_prepare_pending_access", {
+    p_organization_id: actor.organizationId, p_request_id: input.requestId,
+    p_expected_preparation_version: input.expectedPreparationVersion,
+    p_assignments: input.assignments, p_no_access: input.noAccess, p_reason: input.reason,
+    p_command_request_id: input.commandRequestId,
+  }); } catch { throw new StaffAuthOutcomeUnknownError(input.requestId); }
+  if (result.error) {
+    if (isStaffCommandVersionRejection("preparation", result.error)) throw new StaffCommandVersionRejectedError(result.error.message);
+    authRpcFailure(result.error, input.requestId);
+  }
+  try { parseStaffPendingAccessReceipt(result.data, input.requestId, input.expectedPreparationVersion); }
+  catch { throw new StaffAuthOutcomeUnknownError(input.requestId); }
+  // Preparation only changes the recorded proposal; never claim or call Auth.
+  return { requestId: input.requestId };
 }
 
 export async function changeStaffMember(form: FormData) {
   const { actor, client } = await staffAdminContext();
-  const membershipId = String(form.get("membership_id") ?? "");
-  const requestId = String(form.get("request_id") ?? "");
-  const version = Number(form.get("expected_version"));
-  const reason = String(form.get("reason") ?? "").trim();
-  const operation = String(form.get("operation") ?? "");
-  const value = String(form.get("value") ?? "");
-  if (!STAFF_UUID.test(membershipId) || !STAFF_UUID.test(requestId) || !Number.isSafeInteger(version)
-    || version < 1 || !reason || reason.length > 500
-    || !(operation === "role" ? isStaffRole(value) : operation === "status" && ["active", "suspended"].includes(value))) {
-    throw new Error("staff_workspace_invalid_input");
+  const input = parseStaffStatusInput(form);
+  let result;
+  try { result = await client.rpc("staff_workspace_change_member", {
+    p_organization_id: actor.organizationId, p_membership_id: input.membershipId, p_expected_version: input.expectedVersion,
+    p_operation: "status", p_value: input.status, p_reason: input.reason, p_request_id: input.requestId,
+  }); } catch { throw new StaffAuthOutcomeUnknownError(input.requestId); }
+  if (result.error) {
+    if (isStaffCommandVersionRejection("status", result.error)) throw new StaffCommandVersionRejectedError(result.error.message);
+    authRpcFailure(result.error, input.requestId);
   }
-  const result = await client.rpc("staff_workspace_change_member", {
-    p_organization_id: actor.organizationId, p_membership_id: membershipId, p_expected_version: version,
-    p_operation: operation, p_value: value, p_reason: reason, p_request_id: requestId,
-  });
-  if (result.error) throw new Error(result.error.message);
+  try { parseStaffStatusReceipt(result.data, { ...input, organizationId: actor.organizationId }); }
+  catch { throw new StaffAuthOutcomeUnknownError(input.requestId); }
+  return { requestId: input.requestId };
 }
 
 function staffText(form: FormData, key: string, maximum: number, required = false): string {
@@ -219,6 +270,8 @@ export function staffWorkspaceError(error: unknown): string {
   if (message.includes("recipient_required")) return "Подтвердите, что адресат согласован и письмо можно отправить.";
   if (message.includes("reconciliation_required")) return "Результат отправки требует проверки в журнале. Не отправляйте письмо повторно.";
   if (message.includes("forbidden")) return "Действие доступно только активному администратору. Проверьте сеанс входа.";
-  if (message.includes("invalid_input")) return "Проверьте имя, email, роль и обязательные поля.";
+  if (message.includes("rights_required")) return "Проверьте и подтвердите выбранные права сотрудника.";
+  if (message.includes("explicit_access") || message.includes("prepared_access")) return "Выберите права либо явно подтвердите создание аккаунта без рабочего доступа.";
+  if (message.includes("invalid_input") || message.includes("invalid_assignments")) return "Проверьте имя, email, назначения и обязательные поля.";
   return "Операция недоступна. Данные не подтверждены; обновите страницу и проверьте журнал запросов.";
 }

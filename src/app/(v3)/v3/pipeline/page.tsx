@@ -11,8 +11,7 @@ import {
   type PlatformSalesStage,
 } from "@/lib/platform-sales-contract";
 import {
-  readPipelineLeads,
-  readPipelineOwnerOptions,
+  readPipelineWorkspace,
   readPipelineStages,
   type PipelineBoardFilters,
 } from "@/lib/v3/pipeline-source";
@@ -65,12 +64,6 @@ export default async function PipelinePart({
     searchParams,
     requireV3PageActor("/v3/pipeline"),
   ]);
-  if (
-    actor.presentationRole !== "admin" &&
-    actor.presentationRole !== "sales"
-  ) {
-    throw new Error("Sales route resolved a non-Sales staff role.");
-  }
   const query = parseBoardQuery(params);
 
   const stages = readPipelineStages();
@@ -81,10 +74,8 @@ export default async function PipelinePart({
     assignment: query.assignment,
     ownerMembershipId: query.owner,
   });
-  const [board, ownerOptions] = await Promise.all([
-    readPipelineLeads(actor, filters),
-    readPipelineOwnerOptions(actor),
-  ]);
+  const { board, ownerOptions, canCreateLead } = await readPipelineWorkspace(actor, filters);
+  const ownerRows = ownerOptions?.rows ?? [];
   const leads = board.leads;
   const requestIds = Object.fromEntries(
     leads.map((lead) => [lead.id, randomUUID()]),
@@ -143,18 +134,18 @@ export default async function PipelinePart({
     query.due !== "all" ||
     query.assignment !== "all" ||
     query.owner !== null;
-  const ownerSelectShown = actor.presentationRole === "admin";
+  const ownerSelectShown = ownerRows.length > 0;
   const ownerListed =
     query.owner === null ||
-    ownerOptions.rows.some((row) => row.membershipId === query.owner);
+    ownerRows.some((row) => row.membershipId === query.owner);
 
   return (
     <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
       <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
         Воронка продаж
       </h1>
-      {actor.presentationRole === actor.authorityRole ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
-        owners={ownerOptions.rows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
+      {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
+        owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
 
       {/* Поиск — форма методом GET, как период на главной: запрос живёт в
           адресе, экран можно переслать целиком. Фильтры, выбранные ссылками
@@ -204,7 +195,7 @@ export default async function PipelinePart({
               {!ownerListed && query.owner !== null ? (
                 <option value={query.owner}>Выбранный сотрудник</option>
               ) : null}
-              {ownerOptions.rows.map((option) => (
+              {ownerRows.map((option) => (
                 <option key={option.membershipId} value={option.membershipId}>
                   {option.displayLabel}
                 </option>
@@ -238,7 +229,7 @@ export default async function PipelinePart({
         ) : null}
       </form>
 
-      {ownerSelectShown && ownerOptions.hasNext ? (
+      {ownerSelectShown && ownerOptions?.hasNext ? (
         <p className="mt-1 text-2xs leading-4 text-fg-3">
           Показаны первые 100 сотрудников.
         </p>
@@ -272,9 +263,9 @@ export default async function PipelinePart({
         <Pipeline
           stages={stages}
           leads={leads}
-          ownerOptions={ownerOptions.rows}
-          ownerOptionsHaveMore={ownerOptions.hasNext}
-          actorRole={actor.presentationRole}
+          ownerOptions={ownerRows}
+          ownerOptionsHaveMore={ownerOptions?.hasNext ?? false}
+          actor={actor}
           actorMembershipId={actor.membershipId}
           requestIds={requestIds}
           handedExpanded={query.handed === "all"}

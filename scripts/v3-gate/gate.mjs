@@ -52,7 +52,7 @@ try {
       assert.equal(new URL(page.url()).pathname, "/v3/main");
       const activeRole = page.getByTestId("active-role");
       assert.equal(await activeRole.getAttribute("data-role"), "admin");
-      assert.equal(await activeRole.getAttribute("data-authority-role"), "admin");
+      assert.equal(await activeRole.getAttribute("data-system-role"), "admin");
 
       for (const route of routes) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle" });

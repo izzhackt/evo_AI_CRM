@@ -7,31 +7,19 @@ import {
 } from "./fixed-role-policy.ts";
 import { createSupabaseServerClient } from "./supabase/server.ts";
 import {
-  databaseRoleToInterfaceRole,
   readVerifiedPlatformAuthority,
+  type VerifiedPlatformAuthority,
 } from "./supabase/platform-authority.ts";
 
 export const ACTIVE_PLATFORM_ROLES = FIXED_ROLES;
 export const ADMIN_ROLE_PREVIEW_COOKIE = "evo_admin_role_preview";
 
-export type PlatformActor = Readonly<{
-  authUserId: string;
-  profileId: string;
-  membershipId: string;
-  organizationId: string;
-  displayName: string;
-  email: string;
-  platformRole: FixedRole;
-  authorityRole: FixedRole;
-  platformAccessVersion: number;
-  platformBundleId: string;
-  platformBundleVersion: number;
-}>;
+export type PlatformActor = VerifiedPlatformAuthority;
 
 export type ActivePlatformActor = PlatformActor &
   Readonly<{
     /** Admin-only presentation choice; never a server authorization source. */
-    presentationRole: FixedRole;
+    presentationRole: FixedRole | null;
   }>;
 
 export type PlatformActorInvalidReason =
@@ -48,10 +36,10 @@ export type PlatformActorResult =
     }>
   | Readonly<{ status: "authenticated"; actor: ActivePlatformActor }>;
 
-async function adminPreviewRole(authorityRole: FixedRole): Promise<FixedRole> {
-  if (authorityRole !== "admin") return authorityRole;
+async function adminPreviewRole(systemRole: PlatformActor["systemRole"]): Promise<FixedRole | null> {
+  if (systemRole !== "admin") return null;
   const requestedRole = (await cookies()).get(ADMIN_ROLE_PREVIEW_COOKIE)?.value;
-  return isFixedRole(requestedRole) ? requestedRole : authorityRole;
+  return isFixedRole(requestedRole) && requestedRole !== "admin" ? requestedRole : null;
 }
 
 export async function resolvePlatformActor(): Promise<PlatformActorResult> {
@@ -95,23 +83,12 @@ export async function resolvePlatformActor(): Promise<PlatformActorResult> {
   }
 
   const authority = authorityResult.authority;
-  const authorityRole = databaseRoleToInterfaceRole(authority.databaseRole);
-  const presentationRole = await adminPreviewRole(authorityRole);
+  const presentationRole = await adminPreviewRole(authority.systemRole);
   return {
     status: "authenticated",
     actor: {
-      authUserId: authority.authUserId,
-      profileId: authority.profileId,
-      membershipId: authority.membershipId,
-      organizationId: authority.organizationId,
-      displayName: authority.displayName,
-      email: authority.email,
-      platformRole: authorityRole,
-      authorityRole,
+      ...authority,
       presentationRole,
-      platformAccessVersion: authority.platformAccessVersion,
-      platformBundleId: authority.platformBundleId,
-      platformBundleVersion: authority.platformBundleVersion,
     },
   };
 }

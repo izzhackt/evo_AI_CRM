@@ -11,8 +11,8 @@ export type SessionUser = Readonly<{
   authUserId: string;
   email: string;
   name: string;
-  role: FixedRole;
-  authorityRole: FixedRole;
+  presentationRole: FixedRole | null;
+  systemRole: "admin" | "staff";
 }>;
 
 function actorToSessionUser(actor: ActivePlatformActor): SessionUser {
@@ -21,8 +21,8 @@ function actorToSessionUser(actor: ActivePlatformActor): SessionUser {
     authUserId: actor.authUserId,
     email: actor.email,
     name: actor.displayName,
-    role: actor.presentationRole,
-    authorityRole: actor.authorityRole,
+    presentationRole: actor.presentationRole,
+    systemRole: actor.systemRole,
   };
 }
 
@@ -47,7 +47,7 @@ export async function requireAdminApi(): Promise<AdminApiAuthorization> {
       ),
     };
   }
-  if (user.authorityRole !== "admin") {
+  if (user.systemRole !== "admin" || user.presentationRole !== null) {
     return {
       response: NextResponse.json(
         { error: "forbidden" },

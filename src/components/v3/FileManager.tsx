@@ -489,9 +489,11 @@ function CompanyFileUploadForm({ file }: Readonly<{ file: KnowledgeFile }>) {
 function FileControls({
   file,
   destinations,
+  canUpload,
 }: Readonly<{
   file: KnowledgeFile;
   destinations: readonly KnowledgeFolder[];
+  canUpload: boolean;
 }>) {
   const renameRequestId = file.renameRequestId ?? "";
   const moveRequestId = file.moveRequestId ?? "";
@@ -525,7 +527,7 @@ function FileControls({
         Действия
       </summary>
       <div className="mt-2 grid min-w-[260px] gap-4 rounded-card border border-border bg-surface-2 p-3">
-        <CompanyFileUploadForm file={file} />
+        {canUpload ? <CompanyFileUploadForm file={file} /> : null}
 
         <form action={renameAction} className="grid gap-2" aria-busy={renaming}>
           <input type="hidden" name="company_file_id" value={file.id} />
@@ -658,12 +660,14 @@ export function FileManager({
   folders,
   files,
   canManage,
+  canUpload,
   createFolderRequestId,
   createFileRequestId,
 }: Readonly<{
   folders: readonly KnowledgeFolder[];
   files: readonly KnowledgeFile[];
   canManage: boolean;
+  canUpload: boolean;
   createFolderRequestId: string;
   createFileRequestId: string;
 }>) {
@@ -891,7 +895,10 @@ export function FileManager({
                           key={`${file.id}:${file.version ?? "unversioned"}`}
                           file={file}
                           destinations={companyDestinations}
+                          canUpload={canUpload}
                         />
+                      ) : canUpload && file.kind === "company" ? (
+                        <CompanyFileUploadForm file={file} />
                       ) : file.downloadHref ? (
                         <a href={file.downloadHref} className={btnGhostCls}>
                           <Icon name="download" size={15} />

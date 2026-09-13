@@ -29,7 +29,7 @@ test("platform Sales workflow action keeps the exact reviewed form boundary", ()
 });
 
 test("platform Sales workflow action is staff-bound and revalidates only verified success", () => {
-  assert.match(actionSource, /await requirePlatformSalesActor\(\)/);
+  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/v3\/pipeline"\)/);
   assert.match(
     actionSource,
     /const receipt = await mutatePlatformSalesLeadWorkflow\(actor, input\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,

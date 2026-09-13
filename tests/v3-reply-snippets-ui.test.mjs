@@ -29,8 +29,10 @@ function actor(presentationRole, authorityRole = presentationRole) {
     organizationId: "10000000-0000-4000-8000-000000000001",
     membershipId: "20000000-0000-4000-8000-000000000002",
     userId: "30000000-0000-4000-8000-000000000003",
-    authorityRole,
-    presentationRole,
+    systemRole: authorityRole === "admin" ? "admin" : "staff",
+    permissionKeys: ["communication.read.full", "communication.manual.send", "reply.snippet.all", "reply.snippet.manage", ...(authorityRole === "admissions" ? ["reply.snippet.admissions", "case.read.full", "document.read.full", "document.manage", "company.file.read"] : ["reply.snippet.sales"])],
+    assignments: [],
+    presentationRole: authorityRole === "admin" && presentationRole !== "admin" ? presentationRole : null,
   };
 }
 
@@ -161,8 +163,8 @@ test("visible mutation controls follow presentation role and authorship", () => 
 
   const matrix = [
     ["Admin", actor("admin"), true, true],
-    ["Admin as Sales", actor("sales", "admin"), true, false],
-    ["Admin as Admissions", actor("admissions", "admin"), true, false],
+    ["Admin as Sales", actor("sales", "admin"), false, false],
+    ["Admin as Admissions", actor("admissions", "admin"), false, false],
     ["Sales", actor("sales"), true, false],
   ];
 

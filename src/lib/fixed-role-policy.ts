@@ -1,3 +1,5 @@
+// These fixed views are only the protected Admin presentation preview.
+// Real staff permissions come from staff_access_snapshot and object RPCs.
 import { STAFF_ROLES, type StaffRole } from "./roles.ts";
 
 export const FIXED_ROLES = STAFF_ROLES;
@@ -111,8 +113,8 @@ export function fixedRoleHomeRoute(
 }
 
 export function canAdminSelectEffectiveRole(
-  authorityRole: FixedRole,
+  systemRole: "admin" | "staff",
   requestedRole: unknown,
 ): requestedRole is FixedRole {
-  return authorityRole === "admin" && isFixedRole(requestedRole);
+  return systemRole === "admin" && isFixedRole(requestedRole);
 }

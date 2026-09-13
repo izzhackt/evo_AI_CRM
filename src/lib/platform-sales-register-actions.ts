@@ -1,4 +1,5 @@
 "use server";
+import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
@@ -24,7 +25,7 @@ function outcome(form: FormData, status: SalesRegisterActionState["status"], rec
 }
 export async function saveSalesRegisterAction(_previous: SalesRegisterActionState, form: FormData): Promise<SalesRegisterActionState> {
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole !== "admin" && actor.authorityRole !== "sales") return outcome(form, "forbidden");
+  if (!staffHasPermission(actor, "sales.register.manage") || isStaffPreview(actor)) return outcome(form, "forbidden");
   const operation = candidate(form, "operation");
   const isEdit = operation === "create" || operation === "update";
   if (!isEdit && operation !== "archive" && operation !== "restore") return outcome(form, "invalid");
@@ -46,8 +47,8 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
     payload.needs_review = payload.needs_review === "true";
     const ownerId = payload.owner_membership_id === "" ? null : parseSalesUuid(payload.owner_membership_id);
     if (payload.owner_membership_id !== "" && !ownerId) return outcome(form, "invalid");
-    if (actor.authorityRole === "sales" && ownerId !== null && ownerId !== actor.membershipId) return outcome(form, "forbidden");
-    payload.owner_membership_id = actor.authorityRole === "sales" ? actor.membershipId : ownerId;
+    // The command validates this candidate against the record/assignment scope.
+    payload.owner_membership_id = ownerId;
     for (const prefix of ["service_cost", "paid"]) {
       const amount = payload[`${prefix}_minor`] === "" ? null : parseSalesInteger(payload[`${prefix}_minor`], 1_000_000_000_000);
       const currency = payload[`${prefix}_currency`] || null;
@@ -80,7 +81,7 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
 
 export async function saveSalesTargetAction(_previous: SalesRegisterActionState, form: FormData): Promise<SalesRegisterActionState> {
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole !== "admin") return outcome(form, "forbidden");
+  if (!staffHasPermission(actor, "sales.register.target.manage") || isStaffPreview(actor)) return outcome(form, "forbidden");
   const fields = exactActionStringFields(form, ["request_id", "record_id", "expected_version", "reason", "report_month", "manager_label", "target_count"]);
   if (!fields) return outcome(form, "invalid");
   const requestId = parseSalesUuid(fields.get("request_id"));
@@ -121,7 +122,7 @@ export type SalesImportActionState = SalesRegisterActionState & Readonly<{
 export async function importSalesRegisterAction(_previous: SalesImportActionState, form: FormData): Promise<SalesImportActionState> {
   const result = (status: SalesRegisterActionState["status"]): SalesImportActionState => ({ ...outcome(form, status), importResult: null });
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole !== "admin") return result("forbidden");
+  if (!staffHasPermission(actor, "sales.register.import") || isStaffPreview(actor)) return result("forbidden");
   const normalized = new FormData();
   let file: File | null = null;
   for (const [key, value] of form.entries()) {

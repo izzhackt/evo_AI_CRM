@@ -1,10 +1,11 @@
 import "server-only";
 
 import type { PipelineLead, PipelineStage } from "@/components/v3/Pipeline";
-import type { PlatformActor } from "@/lib/platform-auth";
+import type { ActivePlatformActor, PlatformActor } from "@/lib/platform-auth";
 import {
   listPlatformSalesOwnerOptions,
   listPlatformSalesLeads,
+  readPlatformSalesPipeline,
   type PlatformSalesCursor,
   type PlatformSalesDueFilter,
   type PlatformSalesLeadRow,
@@ -99,6 +100,16 @@ export async function readPipelineOwnerOptions(
   actor: PlatformActor,
 ): Promise<PlatformSalesOwnerOptionsPage> {
   return listPlatformSalesOwnerOptions(actor, { pageSize: OWNER_PAGE_SIZE });
+}
+
+export function readPipelineWorkspace(
+  actor: ActivePlatformActor,
+  filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
+) {
+  return readPlatformSalesPipeline(actor, {
+    board: (current) => readPipelineLeads(current, filters),
+    owners: readPipelineOwnerOptions,
+  });
 }
 
 function organizationDate(value: Date): string {

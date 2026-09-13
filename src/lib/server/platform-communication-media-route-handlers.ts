@@ -1,10 +1,10 @@
+import { staffCan } from "../platform-access.ts";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { fixedRoleCan } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
@@ -213,7 +213,7 @@ async function defaultAuthorize(): Promise<CommunicationMediaAuthorization> {
   const result = await resolvePlatformActor();
   if (result.status === "anonymous") return { status: "anonymous", actor: null };
   if (result.status === "invalid") return { status: "unavailable", actor: null };
-  if (!fixedRoleCan(result.actor.authorityRole, "messaging.read")) {
+  if (!staffCan(result.actor, "messaging.read")) {
     return { status: "forbidden", actor: null };
   }
   return { status: "authorized", actor: result.actor };

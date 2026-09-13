@@ -205,7 +205,7 @@ export async function runProductionBrowserSmoke({
       await operationalDashboard.waitFor({ state: "visible", timeout: 30_000 });
       if (
         (await activeRole.getAttribute("data-role")) !== "admin" ||
-        (await activeRole.getAttribute("data-authority-role")) !== "admin"
+        (await activeRole.getAttribute("data-system-role")) !== "admin"
       ) {
         throw new Error("admin_authority_invalid");
       }

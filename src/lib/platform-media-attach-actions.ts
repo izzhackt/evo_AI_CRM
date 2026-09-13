@@ -1,10 +1,10 @@
 "use server";
 
+import { isStaffPreview, staffCan } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { fixedRoleCan } from "./fixed-role-policy.ts";
 import { requirePlatformStaffActor } from "./platform-guards.ts";
 import {
   attachPlatformMessageMediaToCase,
@@ -89,8 +89,8 @@ export async function attachPlatformMessageMediaToCaseAction(
 ): Promise<PlatformMediaAttachActionState> {
   const actor = await requirePlatformStaffActor();
   if (
-    !fixedRoleCan(actor.authorityRole, "documents.write")
-    || !fixedRoleCan(actor.authorityRole, "messaging.read")
+    isStaffPreview(actor) || !staffCan(actor, "documents.write")
+    || !staffCan(actor, "messaging.read")
   ) {
     return failureState(form, "forbidden");
   }

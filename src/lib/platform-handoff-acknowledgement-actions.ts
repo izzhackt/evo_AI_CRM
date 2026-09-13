@@ -1,5 +1,6 @@
 "use server";
 
+import { isStaffPreview } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
@@ -22,7 +23,7 @@ export async function respondToHandoffAction(
   previous: HandoffResponseActionState, form: FormData,
 ): Promise<HandoffResponseActionState> {
   const actor = await requirePlatformStaffActor();
-  if (actor.presentationRole !== actor.authorityRole) {
+  if (isStaffPreview(actor)) {
     return { status: "forbidden", requestId: previous.requestId, acknowledgementId: null, submittedContext: null };
   }
   const fields = exactActionStringFields(form, FIELDS);

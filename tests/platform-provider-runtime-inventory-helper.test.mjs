@@ -78,7 +78,7 @@ function validRemoteEvidence() {
 
 function validBrowserEvidence() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "evo-v3-provider-browser-readonly",
     status: "passed",
     gitSha: SHA,
@@ -86,7 +86,7 @@ function validBrowserEvidence() {
     routes: {
       salesWhatsApp: {
         route: "/v3/inbox?conversation=:conversationId",
-        authorityRole: "sales",
+        systemRole: "staff",
         checks: {
           pageVisible: true,
           threadVisible: true,
@@ -98,7 +98,7 @@ function validBrowserEvidence() {
       },
       adminSales: {
         route: "/v3/inbox?conversation=:conversationId",
-        authorityRole: "admin",
+        systemRole: "admin",
         checks: {
           workspaceVisible: true,
           panelVisible: true,
@@ -113,7 +113,7 @@ function validBrowserEvidence() {
       },
       adminAdmissions: {
         route: "/v3/profile?case=:studentCaseId&tab=contract",
-        authorityRole: "admin",
+        systemRole: "admin",
         checks: {
           workspaceVisible: true,
           panelVisible: true,

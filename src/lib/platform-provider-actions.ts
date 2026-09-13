@@ -20,8 +20,7 @@ import {
   type PlatformGeminiReviewDecision,
 } from "./platform-provider-workflows";
 import {
-  requirePlatformMessagingActor,
-  requirePlatformMessagingSendActor,
+  requirePlatformMutationCapability,
 } from "./platform-guards";
 import { createPlatformGeminiProvider } from "./server/platform-gemini-provider";
 import {
@@ -118,7 +117,7 @@ export async function requestPlatformGeminiProposalAction(
   _previous: PlatformGeminiRequestActionState,
   form: FormData,
 ): Promise<PlatformGeminiRequestActionState> {
-  const actor = await requirePlatformMessagingActor();
+  const actor = await requirePlatformMutationCapability("messaging.read", "/v3/inbox");
   const input = parsePlatformGeminiRequestForm(form);
   if (input === null) {
     return Object.freeze({ status: "invalid", failureCode: null });
@@ -189,7 +188,7 @@ export async function reviewPlatformGeminiProposalAction(
   _previous: PlatformGeminiReviewActionState,
   form: FormData,
 ): Promise<PlatformGeminiReviewActionState> {
-  const actor = await requirePlatformMessagingActor();
+  const actor = await requirePlatformMutationCapability("messaging.read", "/v3/inbox");
   const input = parsePlatformGeminiReviewForm(form);
   if (input === null) {
     return Object.freeze({ status: "invalid", decision: null });
@@ -238,7 +237,7 @@ export async function sendPlatformWhatsAppMessageAction(
   _previous: PlatformWhatsAppSendActionState,
   form: FormData,
 ): Promise<PlatformWhatsAppSendActionState> {
-  const actor = await requirePlatformMessagingSendActor();
+  const actor = await requirePlatformMutationCapability("messaging.send", "/v3/inbox");
   const input = parsePlatformWhatsAppSendForm(form);
   if (input === null) return Object.freeze({ status: "invalid" });
 
@@ -287,7 +286,7 @@ export async function reconcilePlatformWhatsAppSendAction(
   _previous: PlatformWhatsAppReconcileActionState,
   form: FormData,
 ): Promise<PlatformWhatsAppReconcileActionState> {
-  const actor = await requirePlatformMessagingSendActor();
+  const actor = await requirePlatformMutationCapability("messaging.send", "/v3/inbox");
   const input = parsePlatformWhatsAppReconcileForm(form);
   if (input === null) return Object.freeze({ status: "invalid" });
 

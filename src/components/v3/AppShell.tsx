@@ -4,10 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useRef, useState } from "react";
 
-import {
-  fixedRoleHomeRoute,
-  type FixedRole,
-} from "@/lib/fixed-role-policy";
+import { type FixedRole } from "@/lib/fixed-role-policy";
+import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview, staffHasPermission, staffHomeRoute } from "@/lib/platform-access";
 import {
   logoutStaffAction,
   selectStaffRolePreviewAction,
@@ -110,20 +109,20 @@ function NavigationGroup({
 }
 
 function Sidebar({
-  displayName,
-  authorityRole,
-  presentationRole,
+  actor,
   navigation,
 }: {
-  displayName: string;
-  authorityRole: FixedRole;
-  presentationRole: FixedRole;
+  actor: ActivePlatformActor;
   navigation: V3Navigation;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const navigationId = useId();
-  const previewing = authorityRole === "admin" && presentationRole !== "admin";
+  const { displayName, systemRole, presentationRole } = actor;
+  const previewing = isStaffPreview(actor);
+  const accessLabel = presentationRole !== null ? roleTitle(presentationRole)
+    : systemRole === "admin" ? "Администратор"
+    : [...new Set(actor.assignments.map((assignment) => assignment.label))].join(", ") || "Права ещё не назначены";
   const closeMobileNavigation = () => setMobileOpen(false);
 
   return (
@@ -143,7 +142,7 @@ function Sidebar({
     >
       <div className="flex items-center justify-between gap-3 px-5 py-3 md:px-6 md:py-5">
         <Link
-          href={fixedRoleHomeRoute(presentationRole)}
+          href={staffHomeRoute(actor)}
           aria-label="EVO Admissions — начало работы"
           onNavigate={closeMobileNavigation}
           className="inline-flex rounded-nav focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring"
@@ -195,7 +194,7 @@ function Sidebar({
               <NavigationLink link={navigation.settings} activeId={navigation.activeId} onNavigate={closeMobileNavigation} />
             </div>
           ) : null}
-          {authorityRole === "admin" ? (
+          {systemRole === "admin" ? (
             <section
               className="border-t border-border px-3 py-2"
               data-testid="staff-role-preview"
@@ -224,7 +223,7 @@ function Sidebar({
                       name="role"
                       value={role}
                       data-testid={`preview-role-${role}`}
-                      aria-pressed={presentationRole === role}
+                      aria-pressed={(presentationRole ?? "admin") === role}
                       className="min-h-11 rounded-nav border border-control-edge px-3 text-sm text-fg-2 transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent-weak aria-pressed:font-medium aria-pressed:text-accent-text"
                     >
                       {roleTitle(role)}
@@ -237,7 +236,7 @@ function Sidebar({
                   className="mt-2 px-2 pb-2 text-sm leading-5 text-accent"
                   data-testid="preview-active"
                 >
-                  Администратор видит интерфейс роли «{roleTitle(presentationRole)}».
+                  Администратор видит интерфейс роли «{accessLabel}».
                 </p>
               ) : null}
             </section>
@@ -249,10 +248,10 @@ function Sidebar({
               <span
                 className="mt-0.5 block text-xs"
                 data-testid="active-role"
-                data-role={presentationRole}
-                data-authority-role={authorityRole}
+                data-role={presentationRole ?? systemRole}
+                data-system-role={systemRole}
               >
-                {roleTitle(presentationRole)}
+                {accessLabel}
               </span>
             </p>
             <form action={logoutStaffAction} className="shrink-0">
@@ -273,47 +272,42 @@ function Sidebar({
 
 export function AppShell({
   children,
-  displayName,
-  authorityRole,
-  presentationRole,
+  actor,
   initialNotifications,
 }: {
   children: React.ReactNode;
-  displayName: string;
-  authorityRole: FixedRole;
-  presentationRole: FixedRole;
+  actor: ActivePlatformActor;
   initialNotifications: StaffNotificationPage | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const query = useSearchParams();
-  const navigation = buildV3Navigation(presentationRole, pathname, query);
+  const navigation = buildV3Navigation(actor, pathname, query);
+  const previewing = isStaffPreview(actor);
 
   return (
     <div
       className="flex min-h-dvh flex-col md:flex-row"
       data-testid="v3-shell"
-      data-authority-role={authorityRole}
-      data-presentation-role={presentationRole}
+      data-system-role={actor.systemRole}
+      data-presentation-role={actor.presentationRole ?? "actual"}
     >
       <Sidebar
         key={navigation.destinationKey}
-        displayName={displayName}
-        authorityRole={authorityRole}
-        presentationRole={presentationRole}
+        actor={actor}
         navigation={navigation}
       />
       {/* Container queries use the width remaining after the 260px sidebar. */}
       <div className="@container min-w-0 flex-1">
         <div className="flex min-h-16 flex-wrap items-center justify-end gap-3 border-b border-border bg-surface px-4 py-2 md:px-6">
-          <Link href="/v3/tasks?create=staff" onClick={(event) => {
+          {!previewing && staffHasPermission(actor, "staff.task.create") ? <Link href="/v3/tasks?create=staff" onClick={(event) => {
             if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
             router.push(`/v3/tasks?create=staff&open=${crypto.randomUUID()}`);
           }} className="inline-flex min-h-11 items-center gap-2 rounded-ctl bg-accent px-3 text-sm font-medium text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             <Icon name="plus" size={18} />Создать задачу
-          </Link>
-          {authorityRole === presentationRole ? <StaffNotifications key={presentationRole} initialPage={initialNotifications} /> : <span className="text-sm text-fg-3">Уведомления скрыты в предпросмотре роли</span>}
+          </Link> : null}
+          {!previewing ? <StaffNotifications initialPage={initialNotifications} /> : <span className="text-sm text-fg-3">Уведомления скрыты в предпросмотре роли</span>}
         </div>
         {children}
       </div>

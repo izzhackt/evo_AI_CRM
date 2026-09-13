@@ -1,4 +1,5 @@
 "use server";
+import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePlatformStaffActor } from "./platform-guards";
@@ -10,7 +11,7 @@ export async function mutateUniversityCatalogAction(previous: UniversityActionSt
   const actor = await requirePlatformStaffActor();
   let requestId = universityUuid(form.get("request_id")) ?? previous.requestId;
   const result = (status: UniversityActionState["status"], draftId: string | null = null, institutionId: string | null = null): UniversityActionState => ({ status, requestId, draftId, institutionId });
-  if (actor.authorityRole !== "admin" || actor.presentationRole !== "admin") return result("forbidden");
+  if (!staffHasPermission(actor, "catalog.import.manage") || isStaffPreview(actor)) return result("forbidden");
   const fields = exactActionStringFields(form, ["operation", "request_id", "institution_id", "base_version", "content", "reason", "draft_id", "confirmed"]);
   if (!fields || !universityUuid(fields.get("request_id"))) return result("invalid");
   requestId = fields.get("request_id")!;

@@ -1,5 +1,6 @@
 "use server";
 
+import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -12,7 +13,6 @@ import {
   type PlatformCaseTaskPriority,
   type PlatformCaseTaskStatus,
 } from "./platform-admissions-task-contract.ts";
-import { fixedRoleCan } from "./fixed-role-policy";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -188,7 +188,7 @@ export async function createPlatformAdmissionsTaskAction(
   form: FormData,
 ): Promise<PlatformAdmissionsTaskActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "task.create")) {
     return failureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, CREATE_TASK_FIELDS);
@@ -287,7 +287,7 @@ export async function changePlatformAdmissionsTaskAction(
   form: FormData,
 ): Promise<PlatformAdmissionsTaskActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "task.manage")) {
     return failureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, CHANGE_TASK_FIELDS);

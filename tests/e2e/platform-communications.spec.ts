@@ -51,11 +51,11 @@ async function signIn(page: Page) {
   await expect(page.getByTestId("v3-shell")).toBeVisible();
   await expect(page.getByTestId("active-role")).toHaveAttribute(
     "data-role",
-    "sales",
+    "staff",
   );
   await expect(page.getByTestId("active-role")).toHaveAttribute(
-    "data-authority-role",
-    "sales",
+    "data-system-role",
+    "staff",
   );
 }
 

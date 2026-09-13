@@ -1,3 +1,4 @@
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,7 +12,7 @@ import { STAFF_TASK_FILTERS, STAFF_TASK_VIEWS, staffTaskTimestamp, staffTaskUuid
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import { readStaffTaskWorkspace, type WorkspaceTask } from "@/lib/v3/staff-task-source";
 import { taskStatus } from "@/lib/v3/wording";
-import { isTeamChatChannel, teamChatRoleCanAccess, type TeamChatMessage } from "@/lib/platform-team-chat";
+import { isTeamChatChannel, staffCanAccessChatChannel, type TeamChatMessage } from "@/lib/platform-team-chat";
 import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext, readLeadTaskLinks, type StaffTaskContext } from "@/lib/server/platform-staff-task-repository";
 
@@ -30,7 +31,8 @@ function Deadline({ dueOn, dueAt, status, now }: { dueOn: string | null; dueAt: 
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   const [params, actor] = await Promise.all([searchParams, requireV3PageActor("/v3/tasks")]);
-  const domain = single(params, "type") === "case" ? "case" : "staff";
+  const canUseStaffTasks = staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create");
+  const domain = single(params, "type") === "case" || !canUseStaffTasks ? "case" : "staff";
   const view = STAFF_TASK_VIEWS.find((value) => value === single(params, "view")) ?? "mine";
   const status = STAFF_TASK_FILTERS.find((value) => value === single(params, "status")) ?? "active";
   const taskId = optionalUuid(params, "task");
@@ -54,7 +56,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   }
   let sourceMessage: TeamChatMessage | undefined;
   if (sourceMessageId && isTeamChatChannel(sourceChannel)) {
-    if (!teamChatRoleCanAccess(actor.presentationRole, sourceChannel)) notFound();
+    if (!staffCanAccessChatChannel(actor, sourceChannel)) notFound();
     try {
       const page = await readTeamChatPage(actor, { channel: sourceChannel, mode: "message", messageId: sourceMessageId });
       sourceMessage = page.messages.find((message) => message.id === sourceMessageId && !message.deletedAt);
@@ -115,15 +117,16 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         </article>)}
         {taskContext.truncated ? <p className="text-sm text-fg-2">Показаны последние 30 результатов; полная история сохранена.</p> : null}
       </section> : null}
-      <StaffTaskStatusForm key={`status:${selected.id}`} task={selected} requestId={randomUUID()} />
+      {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.complete") ? <StaffTaskStatusForm key={`status:${selected.id}`} task={selected} requestId={randomUUID()} /> : null}
     </section>
-    {actor.authorityRole === "admin" || selected.creatorMembershipId === actor.membershipId ? <details className="border-t border-border py-3">
+    {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.edit") ? <details className="border-t border-border py-3">
       <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Изменить содержание и назначение</summary>
       <StaffTaskForm key={`edit:${selected.id}`} task={selected} participants={workspace.assignees} actorMembershipId={actor.membershipId} day={day} requestId={randomUUID()} />
     </details> : null}
   </PartShell>;
   const nextHref = domain === "staff" && workspace.nextCursor ? href({ before_at: workspace.nextCursor.updatedAt, before_id: workspace.nextCursor.id })
     : domain === "case" && workspace.caseNextCursor ? href({ case_after_at: workspace.caseNextCursor.sortAt, case_after_id: workspace.caseNextCursor.caseTaskId }) : null;
+  const canReadTaskQueue = domain === "staff" ? workspace.canReadStaffTasks : workspace.canReadCaseTasks;
   return <PartShell title="Задачи">
     {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
       <h2 className="text-lg font-semibold">{sourceLead.clientDisplayName ?? "Имя клиента не указано"}</h2>
@@ -139,17 +142,21 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       <p className="mt-2 text-sm text-fg-3">Проверьте название и исполнителя перед сохранением. Доступ к закрытому каналу не расширяется.</p>
       <Link href={`/v3/team-chat?channel=${sourceMessage.channelKey}&message=${sourceMessage.id}`} className="mt-2 inline-flex min-h-11 items-center text-sm underline">Вернуться к сообщению</Link>
     </section> : null}
-    <TaskComposer key={sourceMessage?.id ?? sourceLead?.leadId ?? "standalone"} participants={sourceMessage ? workspace.assignees.filter((person) => teamChatRoleCanAccess(person.role, sourceMessage.channelKey)) : workspace.assignees} actorMembershipId={actor.membershipId} presentationRole={actor.presentationRole}
-      canCreateCase={workspace.canReadCases} selectedCase={workspace.selectedCase} day={day} requestId={randomUUID()} caseRequestId={randomUUID()}
+    {!isStaffPreview(actor) && (staffHasPermission(actor, "staff.task.create") || (workspace.canReadCases && staffHasPermission(actor, "task.create") && !sourceMessage && !sourceLead)) ? <TaskComposer key={sourceMessage?.id ?? sourceLead?.leadId ?? "standalone"} participants={workspace.assignees} actorMembershipId={actor.membershipId} actor={actor}
+      caseAssignees={workspace.caseAssignees} canCreateCase={workspace.canReadCases && staffHasPermission(actor, "task.create")} selectedCase={workspace.selectedCase} day={day} requestId={randomUUID()} caseRequestId={randomUUID()}
       initialTitle={sourceMessage?.body.slice(0, 180) ?? sourceLead?.nextActionText ?? undefined} sourceMessageId={sourceMessage?.id} sourceMessageVersion={sourceMessage?.version}
       sourceLeadId={sourceLead?.leadId} sourceLeadVersion={sourceLead?.workflowVersion}
       openIntent={openIntent ?? single(params, "create") ?? null}
-      initiallyOpen={single(params, "create") !== undefined} initialKind={single(params, "create") === "case" ? "case" : "staff"} />
+      initiallyOpen={single(params, "create") !== undefined} initialKind={single(params, "create") === "case" ? "case" : "staff"} /> : null}
     {sourceLead ? <Link href="/v3/tasks" className="inline-flex min-h-11 items-center text-sm underline">Все мои задачи →</Link> : <>
-    <nav aria-label="Тип задач" className="mb-4 flex flex-wrap gap-2 border-b border-border">
-      <Link href={href({ type: "staff" })} aria-current={domain === "staff" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "staff" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>Рабочие</Link>
-      {workspace.canReadCases ? <Link href={href({ type: "case" })} aria-current={domain === "case" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "case" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>По студентам</Link> : null}
-    </nav>
+    {workspace.canReadStaffTasks || workspace.canReadCaseTasks ? <nav aria-label="Тип задач" className="mb-4 flex flex-wrap gap-2 border-b border-border">
+      {workspace.canReadStaffTasks ? <Link href={href({ type: "staff" })} aria-current={domain === "staff" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "staff" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>Рабочие</Link> : null}
+      {workspace.canReadCaseTasks ? <Link href={href({ type: "case" })} aria-current={domain === "case" ? "page" : undefined} className={`min-h-11 px-3 py-3 text-sm ${domain === "case" ? "border-b-2 border-accent font-semibold" : "text-fg-2"}`}>По студентам</Link> : null}
+    </nav> : null}
+    {!canReadTaskQueue ? <p role="status" className="border-y border-border py-8 text-sm text-fg-2">
+      {domain === "case" ? "В вашей роли нет права на просмотр задач по студентам." : "В вашей роли нет права на просмотр рабочих задач."}
+      {!isStaffPreview(actor) && (domain === "case" ? workspace.canReadCases && staffHasPermission(actor, "task.create") : staffHasPermission(actor, "staff.task.create")) ? " Создание задачи доступно выше." : null}
+    </p> : <>
     {domain === "staff" ? <div className="mb-4 flex flex-wrap justify-between gap-2">
       <nav aria-label="Чьи задачи" className="flex flex-wrap gap-2">{([["mine", "Мои"], ["created", "Назначенные мной"], ["all", "Все доступные"]] as const).map(([value, label]) =>
         <Link key={value} href={href({ view: value })} aria-current={view === value ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-ctl px-3 text-sm ${view === value ? "bg-surface-2 font-semibold" : "text-fg-2"}`}>{label}</Link>)}</nav>
@@ -170,6 +177,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       {cursor || caseCursor ? <Link href={href({})} className="inline-flex min-h-11 items-center text-sm underline">К началу списка</Link> : null}
       {nextHref ? <Link href={nextHref} className="inline-flex min-h-11 items-center text-sm text-accent-text underline">Следующие задачи →</Link> : null}
     </nav>
+    </>}
     </>}
   </PartShell>;
 }

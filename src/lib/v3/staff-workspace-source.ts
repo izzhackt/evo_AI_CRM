@@ -2,7 +2,7 @@ import "server-only";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ADMISSIONS_DIRECTIONS, type AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
-import { isStaffRole, STAFF_UUID, type StaffAuthRequest, type StaffDepartment, type StaffWorkspaceData } from "./staff-workspace-contract";
+import { STAFF_UUID, type StaffAuthRequest, type StaffDepartment, type StaffWorkspaceData } from "./staff-workspace-contract";
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid staff directory response.");
@@ -33,7 +33,7 @@ function count(value: unknown, minimum = 0): number {
 const unavailable: StaffWorkspaceData = { available: false, members: [], requests: [], departments: [] };
 
 export async function readStaffWorkspace(actor: ActivePlatformActor): Promise<StaffWorkspaceData> {
-  if (actor.authorityRole !== "admin" || actor.presentationRole !== "admin") {
+  if (actor.systemRole !== "admin" || actor.presentationRole !== null) {
     throw new Error("Staff administration unavailable.");
   }
   try {
@@ -56,7 +56,6 @@ export async function readStaffWorkspace(actor: ActivePlatformActor): Promise<St
       // Auth IDs and email addresses in the Admin RPC never reach client props.
       members: list(workspace.members).map((value) => {
         const row = record(value);
-        if (!isStaffRole(row.platform_role)) throw new Error("Unexpected staff role.");
         const directions = list(row.direction_codes).map((direction) => {
           if (!(ADMISSIONS_DIRECTIONS as readonly unknown[]).includes(direction)) throw new Error("Unexpected staff direction.");
           return direction as AdmissionsDirection;
@@ -65,7 +64,7 @@ export async function readStaffWorkspace(actor: ActivePlatformActor): Promise<St
         const departmentId = row.department_id === null ? null : uuid(row.department_id);
         if (departmentId && !departments.some((department) => department.id === departmentId)) throw new Error("Missing staff department.");
         return { membershipId: uuid(row.membership_id), displayName: text(row.display_name),
-          role: row.platform_role, status: text(row.membership_status), version: count(row.access_version, 1),
+          status: text(row.membership_status), version: count(row.access_version, 1),
           metadata: { version: count(row.organizational_version), departmentId,
             jobTitle: row.job_title === null ? null : text(row.job_title), directions } };
       }),
@@ -74,9 +73,14 @@ export async function readStaffWorkspace(actor: ActivePlatformActor): Promise<St
           || !["dispatching", "reconciliation_required", "completed", "rejected"].includes(String(row.status))) {
           throw new Error("Unexpected staff request state.");
         }
-        return { requestId: String(row.request_id), operation: row.operation,
-          displayName: String(row.display_name), status: row.status as StaffAuthRequest["status"],
-          createdAt: String(row.created_at), rejectionCode: typeof row.rejection_code === "string" ? row.rejection_code : null };
+        const createdAt = text(row.created_at);
+        if (!Number.isFinite(Date.parse(createdAt)) || (row.rejection_code !== null &&
+          (typeof row.rejection_code !== "string" || !/^[a-z][a-z0-9_]{0,99}$/u.test(row.rejection_code)))) {
+          throw new Error("Unexpected staff request receipt.");
+        }
+        return { requestId: uuid(row.request_id), operation: row.operation,
+          displayName: text(row.display_name), status: row.status as StaffAuthRequest["status"],
+          createdAt, rejectionCode: row.rejection_code as string | null };
       }),
     };
   } catch {

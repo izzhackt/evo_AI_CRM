@@ -1,5 +1,6 @@
 "use server";
 
+import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -23,9 +24,6 @@ import {
   parsePlatformApplicationSwitchMetadata,
   type PlatformApplicationStatus,
 } from "./platform-application-contract.ts";
-import {
-  fixedRoleCan,
-} from "./fixed-role-policy";
 import { requirePlatformStaffActor } from "./platform-guards";
 import type {
   PlatformAdmissionsActionStatus,
@@ -247,7 +245,7 @@ export async function createPlatformUniversityApplicationAction(
   form: FormData,
 ): Promise<PlatformUniversityApplicationActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "application.manage")) {
     return applicationFailureState(form, "forbidden");
   }
   const fields = exactApplicationFields(form, CREATE_APPLICATION_FIELDS);
@@ -394,7 +392,7 @@ export async function updatePlatformUniversityApplicationDetailsAction(
   form: FormData,
 ): Promise<PlatformUniversityApplicationActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "application.manage")) {
     return applicationFailureState(form, "forbidden");
   }
   const fields = exactApplicationFields(form, UPDATE_APPLICATION_DETAILS_FIELDS);
@@ -508,7 +506,7 @@ export async function changePlatformUniversityApplicationAction(
   form: FormData,
 ): Promise<PlatformUniversityApplicationActionState> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, "admissions.write")) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "application.manage")) {
     return applicationFailureState(form, "forbidden");
   }
   const fields = exactActionStringFields(form, CHANGE_APPLICATION_FIELDS);

@@ -13,6 +13,7 @@ import {
   parsePlatformReviewContractDraftForm,
   parsePlatformReviewPostContractReportForm,
   parsePlatformUpdatePostContractItemForm,
+  platformContractResponseValidators,
   validatePlatformContractTemplateText,
 } from "../src/lib/platform-contract-workflow.ts";
 
@@ -227,6 +228,68 @@ test("normalizes the exact typed BW6 workspace without provider bodies", () => {
   assert.equal(parsed.reports[0].openItemCount, 1);
   assert.equal(parsed.reports[0].contractTemplateVersionId, TEMPLATE_ID);
   assert.equal(parsed.reports[0].itemSnapshot[0].itemKey, "welcome_pack");
+});
+
+test("custom staff roles preserve nullable historical role labels without losing capabilities", () => {
+  const value = workspace({ actor_role: null, items: [item({ owner_role: null })] });
+  value.reports[0].item_snapshot[0].owner_role = null;
+  const parsed = normalizePlatformCaseContractWorkspace(value, {
+    organizationId: ORGANIZATION_ID, studentCaseId: STUDENT_CASE_ID,
+  });
+  assert.equal(parsed.actorRole, null);
+  assert.equal(parsed.items[0].ownerRole, null);
+  assert.equal(parsed.reports[0].itemSnapshot[0].ownerRole, null);
+  assert.equal(parsed.canGenerateContract, true);
+});
+
+test("post-contract owners retain nullable staff descriptions in receipts, items and reports", () => {
+  for (const [descriptor, displayRole] of [
+    ["sales", "sales"],
+    ["curator", "admissions"],
+    ["finance", "finance"],
+    [null, null],
+    ["admin", "admin"],
+    ["admissions", "admissions"],
+  ]) {
+    const value = workspace({
+      actor_role: null,
+      can_manage_post_contract: false,
+      can_review_report: false,
+      items: [item({ owner_role: descriptor })],
+      reports: [report({ item_snapshot: [reportSnapshotItem({ owner_role: descriptor })] })],
+    });
+    const parsed = normalizePlatformCaseContractWorkspace(value);
+    assert.equal(parsed.items[0].ownerRole, displayRole);
+    assert.equal(parsed.reports[0].itemSnapshot[0].ownerRole, displayRole);
+    assert.equal(platformContractResponseValidators.ownerRole(descriptor), displayRole);
+    assert.equal(parsed.canManagePostContract, false);
+    assert.equal(parsed.canReviewReport, false);
+  }
+});
+
+test("post-contract owner descriptions reject student, unknown and malformed values", () => {
+  for (const descriptor of ["student", "manager", "", " admin", undefined, 0, {}, []]) {
+    assert.throws(
+      () => platformContractResponseValidators.ownerRole(descriptor),
+      PlatformContractRepositoryError,
+    );
+    rejectsWorkspace(workspace({ items: [item({ owner_role: descriptor })] }));
+    rejectsWorkspace(workspace({
+      reports: [report({ item_snapshot: [reportSnapshotItem({ owner_role: descriptor })] })],
+    }));
+  }
+});
+
+test("staff owner descriptions do not expand template responsibility roles", () => {
+  for (const role of ["sales", "curator", "finance", "student", ""]) {
+    assert.equal(
+      parsePlatformPostContractChecklistLines(`welcome_pack|Send welcome pack|${role}|Send it`),
+      null,
+    );
+    const value = workspace();
+    value.templates[0].post_contract_checklist_blueprint[0].owner_role = role;
+    rejectsWorkspace(value);
+  }
 });
 
 test("rejects a report snapshot that mixes checklist template versions", () => {
@@ -608,7 +671,7 @@ test("actions use live guards and RPC-only persistence without legacy/provider i
   assert.match(actions, /requirePlatformContractActor\(\)/);
   assert.match(
     actions,
-    /requirePlatformCapability\("admissions\.read", "\/v3\/profile"\)/,
+    /requirePlatformMutationCapability\("admissions\.read", "\/v3\/profile"\)/,
   );
   assert.match(actions, /getPlatformCaseContractWorkspace/);
   assert.match(actions, /revalidatePath\("\/v3\/profile"\)/);
@@ -643,4 +706,32 @@ test("migration forward-repairs Supabase uuid v5 schema drift", () => {
     migration,
     /REVOKE EXECUTE ON FUNCTION public\.uuid_generate_v5\(UUID, TEXT\)/,
   );
+});
+
+test("scoped case help retains the exact case entrance and Student ownership filter", () => {
+  const originalMigration = readFileSync(
+    new URL("../supabase/migrations/146_platform_partner_packets_student_help.sql", import.meta.url),
+    "utf8",
+  );
+  const consumers = readFileSync(
+    new URL("../supabase/migrations/156_platform_scoped_staff_consumers.sql", import.meta.url),
+    "utf8",
+  );
+  const replacement = consumers.match(
+    /PERFORM pg_temp\.evo_s2_replace\(\s*'platform\.case_help_workspace_v1\(uuid,timestamp with time zone,uuid\)',\s*\$\$([^]*?)\$\$,\s*\$\$([^]*?)\$\$\s*\);/,
+  );
+  assert.ok(replacement, "migration 156 must repair the installed case-help read");
+  assert.equal(replacement[1], "a.platform_role<>'student'");
+  assert.equal(replacement[2], "a.platform_role IS DISTINCT FROM 'student'");
+
+  const original = originalMigration.match(
+    /CREATE FUNCTION platform\.case_help_workspace_v1\([^]*?END \$\$;/,
+  )?.[0];
+  assert.ok(original);
+  assert.equal(original.split(replacement[1]).length - 1, 1);
+  const revised = original.replace(replacement[1], replacement[2]);
+  assert.match(revised, /SELECT \* INTO a FROM platform_private\.require_case_operations_actor\(p_case_id,TRUE\)/);
+  assert.match(revised, /WHERE h\.organization_id=a\.organization_id AND h\.student_case_id=a\.student_case_id/);
+  assert.match(revised, /AND \(a\.platform_role IS DISTINCT FROM 'student' OR h\.student_membership_id=a\.membership_id\)/);
+  assert.match(consumers, /'case\.read\.full', 'student_case', s\.id\)/);
 });

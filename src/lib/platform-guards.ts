@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
 import {
-  fixedRoleCan,
-  fixedRoleCanAccessRoute,
   type FixedRoleCapability,
   type FixedRoleRoute,
 } from "./fixed-role-policy";
+import { isStaffPreview, staffCan, staffCanAccessRoute } from "./platform-access.ts";
 import {
   resolvePlatformActor,
   type ActivePlatformActor,
@@ -31,24 +30,34 @@ export async function requirePlatformCapability(
   from: string,
 ): Promise<ActivePlatformActor> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCan(actor.authorityRole, capability)) {
+  if (!staffCan(actor, capability)) {
     redirect(`/access-denied?from=${encodeURIComponent(from)}`);
   }
+  return actor;
+}
+
+/** UI permission hints cannot replace the object RPC check. Preview never writes. */
+export async function requirePlatformMutationCapability(
+  capability: FixedRoleCapability,
+  from: string,
+): Promise<ActivePlatformActor> {
+  const actor = await requirePlatformCapability(capability, from);
+  if (isStaffPreview(actor)) redirect(`/access-denied?from=${encodeURIComponent(from)}`);
   return actor;
 }
 
 /**
  * V3 page visibility follows the selected presentation role. This guard is
  * deliberately separate from `requirePlatformCapability`: server actions and
- * repositories continue to authorize with the actor's immutable authority
- * role, while an Admin preview cannot open pages hidden from the role being
+ * repositories continue to authorize through live object RPCs, while an Admin
+ * preview cannot open pages hidden from the role being
  * previewed by typing their URL directly.
  */
 export async function requireV3PageActor(
   route: FixedRoleRoute,
 ): Promise<ActivePlatformActor> {
   const actor = await requirePlatformStaffActor();
-  if (!fixedRoleCanAccessRoute(actor.presentationRole, route)) {
+  if (!staffCanAccessRoute(actor, route)) {
     redirect(`/access-denied?from=${encodeURIComponent(route)}`);
   }
   return actor;

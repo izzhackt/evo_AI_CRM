@@ -1,4 +1,5 @@
 "use server";
+import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { LEAD_DIRECTIONS, MANUAL_LEAD_SOURCES, type ManualLeadInput, type ManualLeadState } from "./platform-manual-lead-contract";
@@ -12,7 +13,7 @@ export async function createManualLeadAction(previous: ManualLeadState, form: Fo
   const requestId = fields && parseSalesUuid(fields.get("request_id"));
   const fail = (status: ManualLeadState["status"]): ManualLeadState => ({ status, requestId: requestId ?? previous.requestId, leadId: null });
   if (!fields || !requestId) return fail("invalid");
-  if (actor.presentationRole !== actor.authorityRole || (actor.authorityRole !== "admin" && actor.authorityRole !== "sales")) return fail("forbidden");
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage")) return fail("forbidden");
   const text = (key: string) => fields.get(key)!.trim();
   const name = text("name"), phone = text("phone") || null, email = text("email") || null;
   const source = text("source"), direction = text("direction") || null;

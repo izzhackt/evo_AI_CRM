@@ -27,12 +27,9 @@ const ACTOR = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "Sales",
   email: "sales@example.test",
-  platformRole: "sales",
-  authorityRole: "sales",
-  presentationRole: "sales",
+  systemRole: "staff", assignments: [], permissionKeys: ["reply.snippet.sales","reply.snippet.manage"],
+  presentationRole: null,
   platformAccessVersion: 1,
-  platformBundleId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-  platformBundleVersion: 1,
 });
 
 function dataModule(source) {
@@ -410,7 +407,7 @@ test("reply-snippet actions expose create, versioned update and archive", () => 
   assert.match(actionsSource, /p_expected_version: expectedVersion/);
 });
 
-test("reply-snippet actions use exact forms, fixed roles and fail-closed output checks", () => {
+test("reply-snippet actions use exact forms, live permissions and fail-closed output checks", () => {
   for (const fieldsName of [
     "CREATE_SNIPPET_FIELDS",
     "UPDATE_SNIPPET_FIELDS",
@@ -423,7 +420,7 @@ test("reply-snippet actions use exact forms, fixed roles and fail-closed output 
   }
   assert.match(
     actionsSource,
-    /fixedRoleCan\(actor\.authorityRole, "messaging\.send"\)/,
+    /staffCan\(actor, "snippets\.write"\)/,
   );
   assert.match(actionsSource, /hasExactKeys\(value, keys\)/);
   assert.match(actionsSource, /CREATE_RESULT_KEYS/);

@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import { inputCls } from "@/components/ui";
-import { STAFF_ROLE_LABELS, type StaffDepartment, type StaffWorkspaceMember } from "@/lib/v3/staff-workspace-contract";
+import type { StaffDepartment, StaffWorkspaceMember } from "@/lib/v3/staff-workspace-contract";
+import type { StaffRoleMember } from "@/lib/v3/staff-roles-contract";
+import { staffDirectoryAccessSummary } from "@/lib/v3/wording";
 
-export function StaffDirectoryList({ members, departments, selectedMemberId }: {
+export function StaffDirectoryList({ members, accessMembers, departments, selectedMemberId }: {
   members: readonly StaffWorkspaceMember[];
+  accessMembers: readonly StaffRoleMember[];
   departments: readonly StaffDepartment[];
   selectedMemberId?: string;
 }) {
@@ -15,6 +18,7 @@ export function StaffDirectoryList({ members, departments, selectedMemberId }: {
   const [departmentId, setDepartmentId] = useState("");
   const [status, setStatus] = useState("");
   const departmentNames = new Map(departments.map((department) => [department.id, department.name]));
+  const accessByMember = new Map(accessMembers.map((member) => [member.membershipId, member]));
   const needle = search.trim().toLocaleLowerCase("ru");
   const visible = members.filter((member) => {
     const matchesDepartment = !departmentId || (departmentId === "unassigned"
@@ -65,7 +69,7 @@ export function StaffDirectoryList({ members, departments, selectedMemberId }: {
               {[member.metadata.jobTitle, department].filter(Boolean).join(" · ") || "Рабочие сведения не заполнены"}
             </span>
             <span className="mt-2 block text-sm leading-6 text-fg-3">
-              {STAFF_ROLE_LABELS[member.role]} · {member.status === "active" ? "Доступ активен" : "Доступ заблокирован"}
+              {staffDirectoryAccessSummary(member, accessByMember.get(member.membershipId))} · {member.status === "active" ? "Доступ активен" : "Доступ заблокирован"}
             </span>
           </Link>
         </li>;

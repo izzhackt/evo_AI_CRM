@@ -23265,6 +23265,286 @@ Primary sources checked2026-09-13:
 The helper and its foundation-harness invocation are the only runtime code scope.
 Record actual checks and limitations in the release evidence before merge.
 
+## 2026-09-13 — S2 scoped staff authority implementation contract
+
+After merged gateway correction PR743, implement the already approved employee
+roles objective in a separate worktree while exact-main CI34738787284 proves
+6ff4c017. Do not merge into or change that frozen candidate during release.
+The concrete contract is `docs/design/v3/staff-scoped-authority-contract.md`.
+
+Reserve155–156 for the coordinated role/assignment foundation and complete
+runtime consumer transition. Extend existing immutable bundles/permission catalog,
+not a second ACL. Bind each permission and scope to the same assignment; separate
+staff login baseline from business org scope. Own uses canonical domain owners;
+department follows their live active department, with visible transfer impact;
+direction uses canonical case admissions_direction and does not match unknown
+direction. Unsupported resource/scope combinations fail rather than inventing
+ownership. Preserve system Admin, Student-private and personal sensitive grants.
+
+Live access is rechecked at file-intent finalization and in Storage/Realtime,
+not only at Data API entry or from JWT. Preserve current effective access during
+backfill, including legacy owner restrictions; ambiguous mappings stop safely.
+Keep current_actor_authority return shape for its Student/SQL consumers while
+its staff branch shares the new authority foundation. Old coarse role fields
+may describe immutable history/system boundaries, never a parallel runtime
+business policy. New assignments are not enabled before all consumers switch.
+
+The linked contract records official Supabase sources, API seam, parallel ownership
+and actual acceptance requirements. Real employee recipients/rights, first login,
+customer/provider document use and Docs retirement remain their existing gates.
+
+## 2026-09-13 — S2 explicit write permissions and atomic staff onboarding
+
+Consumer inspection found two old role-gated mutations whose read permissions
+alone must not authorize custom-role writes. Add `amocrm.command.manage` for
+lead/case commands and `finance.stop.create` for creating a case finance blocker;
+retain `finance.stop.manage` for resolution. Backfill only the former effective
+Sales/Curator ownership and handoff combinations, retaining current read and
+business prerequisites; do not grant write authority to new read-only roles.
+No provider activation or call is implied.
+
+Reserve157 for the existing staff invitation/status/recovery path's coordinated
+transition. Validate and pin role versions and paired scopes before Auth dispatch;
+reconcile membership, assignments, access version and audit atomically. Never
+declare completion with accidentally missing assignments. An intentionally empty
+access set requires explicit confirmation. Keep original request-id reconciliation,
+delivery-versus-login distinctions and owner recipient/effective-rights approval.
+Existing pending requests must retain their original access meaning or stop for
+Admin resolution. The concrete requirements are in the S2 authority contract;
+155–157 and their application consumers must be verified and released together.
+
+The pending-invitation resolution is an explicit Admin command, not a resend or
+silent grant replacement: `staff_workspace_prepare_pending_access` binds the
+original invitation ID, expected preparation version, approved versioned
+assignments (or explicit no-access), reason and a distinct idempotent command ID.
+It cannot change the recipient or permit Auth dispatch. After a separately
+authorized preparation, the existing reconcile path can finish the original
+request. Preserve the original request and prior preparation in audit history.
+
+## 2026-09-13 — S2 protected Admin receipt compatibility
+
+Inspection of migration126 found that required legacy authorizing-bundle
+metadata would exclude a valid protected system Admin without a legacy role.
+In157, make only that metadata pair nullable, preserve historical values, and
+bind new receipts to the live authorizing identity/access version. Finalization
+must recheck active system Admin and every required permission. Student-side
+identity, bundle, receipt and privacy checks remain unchanged. Coordinate the
+existing participant locks with155's organization/profile/membership order;
+overdue processing uses the same live Admin foundation. Include custom staff
+in the directory without inventing a coarse business role. This is part of the
+approved unified authority transition, not permission to issue Student accounts
+or execute provider operations during development.
+
+## 2026-09-13 — S2 fresh Admin and real local onboarding proof
+
+The mandatory foundation provisioner still calls revoked pilot staff/status RPCs
+and expects fixed-role JWTs. The original one-shot Admin bootstrap also omits
+the protected `is_system_admin` flag added by155, so a fresh installation would
+not have a functional first Admin. In157, extend only that existing guarded
+bootstrap INSERT to set the flag; retain its actual Auth identity, one-shot
+checks, signature, locks, audit and replay. Do not add a general role bypass.
+
+Cut the local provisioner and its callers over to the same published role,
+prepared invitation, reconcile and live snapshot contracts as the product.
+Local Sales/Admissions fixtures must receive mail through the isolated mail
+service, follow the real staff callback, set a password and sign in. Use exact
+loopback callback origins for the allocated app port, keep token/link/password
+values process-only, and reject external SMTP. Fixture names are scenario labels,
+not authority. Preserve separate sensitive grants and Student provisioning.
+This is a required fresh-install and ordinary onboarding check, not permission
+to send employee mail, create production identities or activate providers.
+
+The UI review also requires coordinated preparation/reconcile controls and a
+fresh status command after a confirmed successful change. Preserve original
+payloads for unresolved writes. Only a proved database rejection may release
+that pending local command; do not conflate it with an uncertain Auth dispatch.
+
+Local proof uses a generated config/migrations/templates workdir with a unique
+owned project ID and allocated ports; every CLI operation targets that workdir.
+It does not copy secrets or reuse/reset the existing repo and schema-check stacks.
+Cleanup stops only that generated project and preserves the workdir if stop fails.
+An observed reconcile response requesting access review may open the preparation
+editor while still prohibiting any repeat Auth dispatch; an unobserved transport
+outcome does not release that interlock.
+
+Development request logging excludes only `/auth/staff` and `/auth/callback`
+URLs, including their query strings, so real local invitation links are not
+written to the Next request log. Ordinary application request/error logging is
+unchanged. This uses the documented development-only
+[Next incomingRequests ignore option](https://nextjs.org/docs/app/api-reference/config/next-config-js/logging),
+checked2026-09-13 against the installed request logger; it does not change
+production audit records, Auth processing or callback validation.
+
+For the first real check, the foundation entrypoint may expose the explicit
+`--staff-onboarding-only` subset: generated local stack, protected bootstrap,
+ordinary email/callback/password/login and owned cleanup. Its distinct
+`LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED` marker is not the full foundation gate.
+Return before unrelated provider, scanner, communications/sales fixtures and
+Storage suites; the normal full-mode release gate remains required separately.
+
+## 2026-09-13 — S2 local onboarding passed; align remaining permission branches
+
+The generated fresh CLI stack with migrations 155–157 passed
+`LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED`: protected first Admin, four published
+roles and two synthetic local invitations through Mailpit, explicit callback,
+password setup, fresh browser sign-in and live scoped snapshots. Owned containers
+were cleaned up. Current unit checks passed 1342/1342 and the application build
+passed. See the bounded evidence in the [S2 contract](design/v3/staff-scoped-authority-contract.md#локальная-проверка-2026-09-13).
+This is not S2 release, real employee mail, provider or Storage acceptance;
+accepted S1/D1 remains `77cde9ba`.
+
+Before the remaining calendar/task UI corrections, pin each reader to its exact
+existing contract: case-task queues require `task.manage`; application deadline
+queues require `application.manage`. Case/profile read rights and `task.create`
+must not imply either queue permission. Keep the create-only `task.create`
+composer available when its command is permitted, without requiring a task-list
+grant. Skip only unpermitted branches; failures of permitted reads remain
+explicitly unavailable, never a fabricated empty result. Retain object/scope
+checks, Student/Admin boundaries and existing SQL/grants; do not widen authority
+to make a page load. Calendar/task branch fixes, role-editor browser proof and
+the full release gate remain pending at this checkpoint.
+
+## 2026-09-13 — S2 align Sales and finance consumers with scoped authority
+
+Read-only follow-up found four remaining contract mismatches: Sales section hints
+admit workflow-only access before lead.read-only queues; the read-only pipeline
+unconditionally requests workflow-only owner options; historical finance-control
+and finance-queue readers do not yet accept the scoped full-read pair advertised
+by the new case snapshot; and monthly cash totals accept any-scope full-read in
+TypeScript although their SQL requires organization scope.
+
+Before implementation, decision 11 in the staff authority contract requires
+exact reader preflights and independently optional controls. Extend unreleased
+migration156 to align selected-case finance consumers with the canonical scoped
+full/summary case predicates, preserving the existing case-read requirement,
+projection detail, system Admin and Student-private boundaries. Do not alter
+historical migrations, grant organization access or join a permission from one
+assignment with the scope of another. Monthly organization totals remain
+organization-only. Allowed-reader errors must be visible, not represented as
+empty or silently omitted data. Validate production coordinator branches and
+ordinary authorized local database reads; this is not a new provider or employee
+invitation authorization. The full S2 release remains pending.
+
+The existing staff snapshot intentionally carries a permission union and separate
+assignments, not per-assignment permission lists. Do not infer organization access
+by combining them. Add one narrow read-only
+`staff_monthly_payment_summary_access(p_organization_id)` RPC returning
+`{schemaVersion:1, organizationId, canReadSummary}` from live staff identity and
+the canonical paired organization predicate. The monthly totals RPC still
+rechecks its own authority. Preserve the existing staff snapshot wire version;
+this adds no finance data or write authority to the preflight response.
+
+Clarification of the preserved finance branch shape: a paired full-read on the
+selected case is sufficient for the existing full branch; the summary branch
+continues to require paired case.read.full and finance.read.summary on that same
+case. Do not introduce a new case-read prerequisite for the historical full
+branch. Task workspace reading is likewise independent of staff.task.create:
+the staff queue requires staff.task.read while its create-only composer remains.
+
+Manual lead creation already uses lead.sales.workflow.manage and canonical
+new-lead/owner checks in SQL156. The TypeScript lead.manual.create preflight
+names no existing permission definition; align that UI/action hint with the
+existing workflow permission, without adding a new grant or relaxing owner scope.
+
+The next ordinary isolated onboarding check also exercises the actual Admin role
+editor: normal password login, create/edit draft, inspect publication impact,
+publish, copy, archive and restore. Only two new unused test roles may change;
+all pre-existing roles, memberships, assignments and access versions must remain
+unchanged. Verify rendered state and live role-workspace readback after each
+step. Its separate LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED marker does not replace
+ordinary onboarding proof or claim production/employee acceptance. Screenshots
+are off by default and may be saved only on clean settings pages after login,
+when an explicit existing private evidence directory outside the repository is
+supplied through EVO_LOCAL_STAFF_ROLE_EDITOR_EVIDENCE_DIR. No browser token
+injection, direct mutation RPC or production accounts are involved.
+
+## 2026-09-13 — S2 make permitted task-only work functional
+
+The Tasks queue correctly admits task.manage on a task without case.read.full,
+but its calendar destination still requires the full case workspace. The current
+change command also checks task.manage on the whole case before its exact-task
+check, and requires case-read eligibility even for an unchanged task assignee.
+Neither hiding the action nor granting case access completes flexible task roles.
+
+Before implementation, decision12 requires one narrow selected-task RPC in156:
+staff_case_task_target(p_organization_id,p_student_case_id,p_case_task_id) returns
+schemaVersion1, organizationId, studentCaseId, the existing 18-field queue row,
+minimal assignees and canAssign/canChangeVisibility/canReadCase capabilities. It
+checks live identity, the exact org/case/task relationship and task.manage on the
+task. Use the existing queue/assignee normalizers. Do not read a full case or every
+case task to locate one permitted item. Without exact task.assign on the case,
+return only the current assignee. Visibility and full-case navigation similarly
+require their own exact case predicates, not permission/scope union inference.
+
+Align only the existing coverage_change_task_body target-actor/assignee seams:
+check task.manage on the selected task; use a dedicated recipient helper allowing
+existing case eligibility OR the canonical prospective task-assignment predicate.
+Keep locks, optimistic versions, replay, audit, status/deadline/reason rules and
+coverage restrictions. No change to create_case_task, the full-case workspace,
+the shared require_case_operator, role grants or Student authority. Controls use
+the new scoped flags while the mutation independently rechecks all pairs. The
+calendar task branch may render for task-only staff without reading full cases;
+case creation and application branches keep their separate prerequisites.
+This is an authorization-consumer correction within S2, not release acceptance.
+
+## 2026-09-13 — S2 expose permitted case finance and verify successive edits
+
+Independent review found that staff_case_access_snapshot still hides the Finance
+section from a case-readable employee with scoped finance.read.summary, although
+the finance reader correctly admits that exact pair. Align only this case-section
+hint with full OR summary on the same case; its existing case.read.full entrance
+gate remains. The profile must invoke the permitted reader and render its section;
+organization-wide totals keep their separate organization-only predicate.
+
+The first actual local role-editor run passed login and draft creation/readback
+but stopped during editing. Treat it as incomplete proof. Narrow fixed-category
+diagnostics must distinguish opening the editor, choosing permissions and saving,
+without printing form values, tokens or raw browser errors. Also verify successive
+member-card changes: a confirmed command may reopen against the latest access
+version, while a pending or unknown result must preserve its original request and
+must not be silently reset by incoming props. This is completion of the existing
+editable-role workflow, not permission to reset or invite production employees.
+
+## 2026-09-13 — S2 bind confirmation to the reviewed access change
+
+Independent review identified two stale-input gaps: role publication can affect
+assignments added after the impact screen without changing the role version, and
+an existing-member assignment can select a role whose published permissions have
+changed since the form was opened. An optimistic member version alone cannot
+detect the latter when that role was not previously assigned to the member.
+
+Before implementation, require publication to carry a canonical impact
+fingerprint of the reviewed role/version, permissions and affected assignments.
+Recompute and compare it under the existing serialized command locks before any
+write; a changed impact requires a new review, never an automatic retry with a
+new fingerprint. Bind each prepared existing-member assignment to the selected
+role version and published bundle identity/version, as the existing invitation
+preparation already does. Validate those references before replacing assignments.
+Keep the original replay payload after an unknown result and preserve immutable
+bundle/audit history. Extend only the unreleased155 contract and its active
+TypeScript/UI/local callers; do not introduce fallback to unversioned requests or
+modify historical released schemas. These are normal stale-form corrections;
+no production grants, employee messages or adversarial runtime workflows are
+authorized by this change.
+
+## 2026-09-13 — S2 finish nullable staff descriptors in active consumers
+
+The independent inventory of the installed local schema157 found two active
+consumers that still treat historical role labels as mandatory staff identity.
+The post-contract update now permits an owner with exact post.contract.manage,
+but its TypeScript receipt rejects null or a reconfigured Sales owner after the
+database has saved the change. Decode the nullable descriptive owner consistently
+in command receipts, items and report snapshots; map curator to admissions only
+for display. Keep the template responsibility-role domain unchanged and never
+derive permission from this descriptor.
+
+The installed case_help_workspace_v1 Student filter uses SQL <> against a
+nullable staff role, hiding Student requests from otherwise permitted custom
+staff. Change only that Student distinction to IS DISTINCT FROM, behind the
+unchanged exact case-read entrance check. Record this in unreleased156; no
+historical migration or broader grant changes. Validate ordinary authorized
+workflow behavior and source contracts, not offensive or provider workflows.
+
 ## 2026-09-13 — Align the final document proof with its actual PNG upload
 
 Exact-main CI34738787284 on6ff4c017 passed the local gateway configuration,
@@ -23310,3 +23590,279 @@ Primary sources checked2026-09-13:
 [CLI image manifest](https://github.com/supabase/cli/blob/v2.116.0/apps/cli-go/pkg/config/templates/Dockerfile),
 [registry candidates](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-registry.ts),
 [resolved-image selection](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-image-resolve.ts).
+
+## 2026-09-13 — S2 preserve bounded role-editor diagnostics at the harness boundary
+
+S2 is committed and pushed in draft PR747 after merging current main77ef3385.
+The role-editor helper records fixed UI counters on failure, but the foundation
+harness forwards only its error code before cleaning the private log. Therefore
+the new observation is currently unavailable to the executor. Forward only the
+exact machine-counter line, with a bounded uppercase stage and numeric counts;
+never echo the log, form values, identities, URLs or raw exceptions. Keep failure
+terminal and preserve every workflow assertion, command and cleanup boundary.
+Prove the exact filter with red-before/green-after tests, then run the unchanged
+ordinary local onboarding/editor flow. This does not fix or accept the UI itself.
+
+## 2026-09-13 — S2 prove consecutive assignment edits in the actual member card
+
+The ordinary isolated run on e1f92405 passed onboarding and the complete role
+catalogue editor, including restore. That helper intentionally preserves all
+existing members, so it cannot prove the separate consecutive-assignment editor.
+Add one bounded positive UI scenario after the catalogue proof, using one of the
+two staff identities already accepted through local Mailpit. Remove one of its
+two assignments, save, then use the same card's explicit next-edit control to
+restore the exact original role/scope. Check live accessVersion V+1 and V+2 and
+the matching form version without reload or navigation between commands.
+Preserve the other member, all roles and the final semantic assignment set.
+Do not create another identity, change system Admin, send external mail, mutate
+production, bypass authority or add offensive/concurrency/failure-trigger tests.
+Require a distinct member-editor success marker before the ordinary local mode
+can finish; no provider or Storage workflow is included in this targeted mode.
+
+## 2026-09-13 — S2 order membership schema changes before the populated backfill
+
+Fast PR CI34748918360 on e1f92405 passed build/lint/release contracts but failed
+the existing populated migration boundary at155 line18: the Admin backfill
+updated14 memberships, then ALTER TABLE failed with pending trigger events.
+Migration041 retains a DEFERRABLE INITIALLY DEFERRED membership constraint
+trigger, so the empty fresh-stack pass did not exercise this upgrade condition.
+Move the unchanged Admin backfill after the membership ALTER TABLE statements;
+retain one transaction, the exact eligible-Admin predicate and all constraint
+triggers. Do not disable checks, use replication mode or split the transaction.
+Add a red-before/green-after source-order regression; the existing real populated
+boundary remains the runtime acceptance gate on the next candidate.
+The [PostgreSQL constraint-trigger documentation](https://www.postgresql.org/docs/17/sql-createtrigger.html)
+and [constraint timing](https://www.postgresql.org/docs/17/sql-set-constraints.html)
+were checked before this change. It is an unreleased155 correction, not a rewrite
+of any migration already applied to production.
+
+## 2026-09-13 — S2 prove the actual Admin invitation form
+
+Frozen02497173 passed ordinary local onboarding, the unused-role catalogue and
+two consecutive member-assignment saves with live versions and exact restoration
+(`cfw01a09a18c6f67b23abc61d4e1b234242`). That onboarding sends through the prepared
+invitation coordinator, not the Admin form, so the form remains unproved.
+Replace only the local harness invitation dispatch with real Admin UI interaction
+for the same two planned loopback/Mailpit recipients. Keep the four published
+baseline roles and original own/organization assignments unchanged; do not add
+identities, broader permissions, generated links or a second invitation backend.
+Prepare baseline roles through the existing authenticated setup commands, fill
+the actual form, explicitly confirm recipient and rights, and submit once.
+Read the new completed request and its prepared assignments through existing
+authenticated history/preparation queries. Reuse the existing actual Mailpit,
+callback, password and fresh-login proof, then the already accepted catalogue
+and consecutive-member scenarios. Require a separate invitation-UI marker.
+Remove the superseded local direct-dispatch path when no active consumers remain;
+keep product coordinator/Auth semantics, uncertainty handling and privacy unchanged.
+This is a bounded positive workflow, not real employee delivery or proof of
+department/direction matching. Those scope and business checks remain open.
+
+## 2026-09-13 — S2 diagnose the legacy owner-scope backfill stop
+
+CI34749513196 on02497173 passed the corrected membership DDL but stopped at the
+existing155 guard `staff_backfill_owner_scope_requires_review`. Read-only source
+review did not establish an exact historical fixture offender; no runtime state
+or production inconsistency is inferred from that uncertainty.
+Keep the guard predicate, exception code and transaction unchanged. Only when it
+already fails, attach four independently counted categories to exception DETAIL:
+pending-owner role mismatch, active/closed-owner role mismatch, missing selected
+owner case scope, and curator-owned lead. Apply the same joins and eligibility
+gates as the original predicate; counts can overlap and are not a partition.
+Expose no record IDs, names, addresses, scope keys, raw rows or secrets. The next
+already-required candidate CI supplies the evidence; do not normalize fixtures,
+weaken migration checks or repeat the broad harness merely to search for a cause.
+This is diagnosis, not a fix or successful populated-upgrade claim.
+
+## 2026-09-13 — S2 distinguish the role-editor opening failure
+
+The ordinary local onboarding run on21cc76cb stopped at `CREATE_ID` after
+clicking “Создать роль”: no editor, one create button and the empty detail pane
+remained (`cfw01a09a2f7d467c319b473c9967b96a0c`). Earlier02497173 passed this
+workflow; neither result proves the cause of the new failure. The new invitation
+and acceptance stages precede this point, but their individual markers were
+discarded by the shell's failure reporting.
+Extend only the existing local proof diagnostics: observe the native click-handler
+presence immediately before the click and on failure, same-page navigation count
+after that click and the existing client-error flag. These are booleans/nulls and
+counts, never DOM text, addresses, URLs, credentials or raw exceptions. Also retain
+fixed completed-stage names when a later stage fails; keep the overall nonzero
+exit and do not relabel partial progress as onboarding/role acceptance.
+This discriminates early interaction, navigation replacement and client failure
+without changing the product, adding retries or delaying the click. Native handler
+presence is an observation, not a general React hydration API. Follow the existing
+single-attempt loop and clean up only the owned local project. The next actual
+run, not a boundary-unit test, must establish the result.
+Official context: [Playwright navigation and hydration](https://playwright.dev/docs/navigations#hydration).
+
+## 2026-09-13 — S2 complete the P135 synthetic handoff snapshots
+
+CI34750378975 reports exactly three selected case owners without current case
+scope and zero role mismatches/curator-owned leads. Independent source tracing
+identified P135's committed setup: its three activated Student cases have active
+Curator owners, but the fixture assigns case scopes only to Students. Its stated
+upstream handoff snapshots omit the owner grants that normal handoff supplies;
+the assessment checks do not intentionally revoke these grants.
+Complete only that fixture with one matching current-case scope grant per declared
+Curator owner, under normal privilege/trigger handling after snapshot insertion.
+Derive organization, owner, scope ID and version from those three created cases;
+assert all three owner-case scope pairs before any assessment operation. Preserve
+the existing Student-private assertions and every product migration/guard. This
+is not normalization of unknown data or a production permission change. The
+corrected candidate's normal required CI must prove the migration proceeds;
+source tests alone do not establish a successful populated upgrade.
+
+Diagnostic review clarification: name the navigation counter
+`mainFrameNavigationsSinceCreateAttempt`. Its interval starts immediately before
+invoking Playwright's click, includes any actionability wait, and ends at the
+failure observation; it does not prove navigation happened after the physical
+click. This corrects the earlier wording without adding instrumentation or retries.
+
+## 2026-09-13 — S2 prove department and direction on one ordinary handoff
+
+The frozen6ae41a2a ordinary local run passed actual Admin invitation, Auth/password
+onboarding, role catalogue and consecutive member edits. The prior intermittent
+CREATE_ID failure has not been causally explained; do not call it fixed.
+Next extend the same isolated positive workflow, not a second fixture identity
+system: reuse its accepted Sales/Admissions staff and capture fresh workspace
+versions after the earlier member proof. Through actual Admin commands create
+one temporary department, place the Admissions employee there, create a local
+Sales-owned lead, confirm its explicitly fictional contract/payment evidence,
+hand off normally and configure the active case's canonical China direction.
+Create two distinct roles containing only case.read.full before opening the
+Sales member card. Preserve original assignments; prove target-matching access
+from department alone, direction alone, then both with three explicit same-card
+saves and fresh staff case reads. Assert baseline assignments cannot themselves
+grant full access to that target. A fourth save restores the original role/scope
+tuples at V0+4; do not restore historical version numbers. Restore changed
+organizational details/personal grants, archive unused temporary roles/department,
+and retain existing exact-owned-project cleanup for the fictional business data.
+This adds ordinary Sales-to-Admissions and independent scope-match evidence only;
+no real employee email, applicant document, provider call, production mutation,
+negative authorization search or whole-product acceptance is implied.
+
+## 2026-09-13 — S2 finish role-table DDL before the preserved-role backfill
+
+Required CI34751346856 on6ae41a2a passed the previous owner-scope guard, then failed
+at migration155 line1297: ALTER TABLE staff_role_definitions has pending trigger
+events. Its current-bundle foreign key is intentionally deferred; the backfill
+already populated role/bundle rows before the late ENABLE/FORCE ROW LEVEL SECURITY
+statements. Move those eight unchanged statements for the four new role/receipt
+tables immediately after their creation, before any backfill writes. Keep the
+deferred FK, transaction, all guards, table ACLs and final enforced RLS unchanged;
+do not flush/disable deferred constraints to work around the ordering defect.
+Add a source-order regression covering every ALTER on these four tables. Required
+CI on the next frozen candidate, not that source check, proves the populated
+upgrade. Local6ae41a2a onboarding PASS remains separate from this upgrade failure.
+Official behavior: [PostgreSQL row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
+and [deferred constraints](https://www.postgresql.org/docs/current/sql-set-constraints.html).
+
+## 2026-09-13 — S2 bind role archival to the reviewed access change
+
+Independent source review found that archive currently confirms only the source
+role version, replacement ID and revoke choice. The contract already requires an
+impact preview: assignments or the replacement's publication may change without
+changing the source role version. Complete that existing contract, not a new
+permission model. Add an Admin-only read preview for the selected archive choice,
+show affected staff and the role-contribution permissions added/removed, and
+require its fingerprint on the archive command. Bind source version/published
+permissions, live assignment identities/scopes, affected member access versions,
+the replacement's published binding and the explicit revoke choice. Recompute
+under the existing organization lock before writes; changed inputs require a
+fresh preview. Keep audit/replay, scope validation and original assignments'
+history. Restoring an archived role remains a separate versioned command.
+
+Use the existing compact two-step publish pattern: choose replacement/removal,
+review impact, explicitly confirm and save. State clearly that other roles remain
+and displayed deltas describe this role's contribution, not an exhaustive claim
+about final effective rights. Strictly parse the preview response and compare its
+identity/version/choice to the request. Update only affected local proof callers
+to obtain the ordinary preview before archiving their own temporary roles.
+Focused source/contract checks and the ordinary local catalogue/business flow
+must verify the correction before release; no exploit reproduction is needed.
+Official basis: [PostgreSQL locks](https://www.postgresql.org/docs/current/explicit-locking.html)
+and [Next.js server-action data security](https://nextjs.org/docs/app/guides/data-security).
+
+The ordinary local business proof also covers an assigned role: after its four
+scope saves and V0+4 readback, add one of its own temporary roles to the same
+Sales identity through the normal assignment command (V0+5). Open that role in
+the Admin UI, preview explicit removal, verify the one affected staff member and
+permission contribution, confirm the exact fingerprint, and archive once. A
+fresh readback must restore the original assignment tuples at V0+6. Existing
+cleanup skips the role already archived and still verifies all original data.
+No new identity, applicant data or production mutation is introduced.
+
+## 2026-09-13 — S2 qualify the ordinary local lead before handoff
+
+Frozen40dc3498's local positive proof exited1 at HANDOFF. Source diagnosis found
+that manual intake creates a `new` lead, but the test confirmed only the financial
+gate and skipped normal sales qualification. The unchanged handoff requires a
+`qualified` lead; `normal_handoff_allowed` on the financial gate alone does not
+prove full handoff readiness. Correct only the helper: read the new lead's live
+workflow version, call `mutate_sales_lead_workflow` to qualify it with its existing
+Sales owner/next action, and verify the same lead/owner and version+1 before the
+existing contract/payment steps. Check the normal handoff workspace readiness
+before sending. Preserve product guards and staff roles; do not widen permissions
+or edit SQL fixtures to bypass the missing business action. Add a focused source
+ordering regression, then rerun the ordinary local proof on the corrected SHA.
+
+## 2026-09-13 — S2 align current-actor checks with live staff authority
+
+CI34752745887 reached the post-migration actor checks and failed the historical
+aggregate at platform_current_actor_authority.sql:339. The S2 contract already
+separates active staff identity from live scoped business rights: legacy token
+role/bundle/access-version and standalone organization scope are not the staff
+business authority. This supersedes the older U1 exact-token-bundle rule in the
+2026-08-24 “Bind U1 staff access to one live Supabase authority” decisions
+(items2/3) for staff only. Student retains
+its separate strict resolver; subject, tenant/membership binding and live
+profile/membership/organization status remain mandatory for everyone.
+
+Align the existing actor fixture, created after backfill with no scoped role
+assignments, to prove exact current identity/version together with empty scoped
+business rights. Preserve identity-binding, blocked/inactive/suspended and
+schema/ACL checks. Replace obsolete staff legacy-scope/bundle assumptions; do not
+disable the legacy-bundle mutation guard or reintroduce legacy authority merely
+to satisfy this old test. Permission-change coverage uses ordinary versioned
+role assignments, not direct legacy bundle rewrites. Review source against the
+accepted S2 contract and retain the normal required CI as runtime evidence.
+
+## 2026-09-13 — S2 identify the failed positive readback without exposing data
+
+Frozen d82a3fc0 completed local qualification and handoff, then stopped at the
+combined `DEPARTMENT_READ` stage. That label covers workspace consistency, a fresh
+Sales session and the actual case read; it does not yet prove a permission defect.
+Split only this helper's fixed diagnostic stages into target/member/catalogue
+readback, fresh login/authority and case read. Keep every existing assertion,
+ordinary workflow and teardown unchanged. Do not emit responses, identities,
+tokens, page text or provider errors. One corrected positive run can then locate
+the actual failure instead of repeatedly guessing or weakening product checks.
+
+## 2026-09-13 — S2 distinguish invitation readback from browser errors
+
+The next frozen375e58ef positive run stopped earlier at SALES_READBACK. Independent
+source tracing found no evidence of a success-before-commit race: the Next button
+requires completed reconciliation. The combined assertion also includes a sticky
+browser-error flag, which the server's empty error-class diagnostic does not cover.
+Split history/preparation RPC, parsing, target, assignments, permissions and browser
+checks into fixed substages. In this helper only, classify browser errors into a
+small fixed allowlist (resource load, hydration, other); never retain/output error
+text, paths, response data or identities. Preserve single submission, all exact
+assertions, failure propagation and cleanup. Do not add retries, sleeps or bypasses.
+
+## 2026-09-13 — S2 own the ordinary actor-test role fixture
+
+CI34753640952 passed the updated identity checks, then stopped at
+platform_current_actor_authority.sql:525: no rows for the assumed existing
+organization-compatible role. Static fixture availability was not runtime proof.
+Make that positive test deterministic: the existing same-organization Admin
+creates and publishes one isolated role through the normal product commands,
+then the existing exact-binding assignment/removal assertions use that role.
+Choose a known nonsensitive organization-scoped permission from the live catalogue;
+preserve all identity/status/ACL assertions and the transaction rollback. Do not
+widen an existing role, change production SQL or relax the selection constraints.
+
+Separately, frozen451944cd completed the full ordinary local proof (exit0),
+including department/direction/combined business reads and assigned-role archival.
+The earlier intermittent invitation/read failures did not recur; their cause is
+still unestablished. This is local workflow evidence, not managed release or real
+employee delivery. The current CI fixture correction does not change that helper.

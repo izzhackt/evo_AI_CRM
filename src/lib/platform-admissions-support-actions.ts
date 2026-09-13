@@ -1,4 +1,5 @@
 "use server";
+import { isStaffPreview } from "./platform-access.ts";
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { requireStudentPortalActor } from "./student-portal-guards";
@@ -32,7 +33,7 @@ function helpReceipt(data: unknown, requestId: string, caseId: string): CaseOper
 export async function preparePartnerPacketAction(input: unknown): Promise<CaseOperationResult> {
   try {
     const actor = await requirePlatformStaffActor();
-    if (actor.presentationRole === "sales" || actor.presentationRole !== actor.authorityRole) return failure("denied");
+    if (actor.presentationRole === "sales" || isStaffPreview(actor)) return failure("denied");
     const row = fields(input, ["caseId", "applicationId", "versionIds", "requestId"]);
     if (!row || !caseOperationUuid(row.caseId) || !caseOperationUuid(row.applicationId) || !caseOperationUuid(row.requestId)
       || !Array.isArray(row.versionIds) || !row.versionIds.length || row.versionIds.length > 50 || !row.versionIds.every(caseOperationUuid)
@@ -58,7 +59,7 @@ export async function createCaseHelpAction(input: unknown): Promise<CaseOperatio
 export async function answerCaseHelpAction(input: unknown): Promise<CaseOperationResult> {
   try {
     const actor = await requirePlatformStaffActor();
-    if (actor.presentationRole === "sales" || actor.presentationRole !== actor.authorityRole) return failure("denied");
+    if (actor.presentationRole === "sales" || isStaffPreview(actor)) return failure("denied");
     const row = fields(input, ["caseId", "id", "answer", "version", "requestId"]);
     if (!row || !caseOperationUuid(row.caseId) || !caseOperationUuid(row.id) || !caseOperationUuid(row.requestId)
       || !caseOperationText(row.answer, 4000) || !caseOperationVersion(row.version)) return failure("invalid");

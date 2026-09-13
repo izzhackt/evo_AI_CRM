@@ -1,3 +1,4 @@
+import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth.ts";
 import {
   PLATFORM_SALES_STAGES,
@@ -224,7 +225,7 @@ export async function listPlatformSalesStageEntries(
     const normalizedCursor = normalizeCursor(options.cursor);
     const days = cohortDays(normalizedFrom, normalizedTo);
     if (
-      (actor.platformRole !== "admin" && actor.platformRole !== "sales")
+      (!staffCan(actor, "sales.read"))
       || days < 1
       || days > MAX_COHORT_DAYS
     ) {

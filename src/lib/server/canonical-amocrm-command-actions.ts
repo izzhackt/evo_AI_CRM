@@ -1,4 +1,5 @@
 "use server";
+import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 
 import { revalidatePath } from "next/cache";
 
@@ -57,6 +58,10 @@ function invalidState(): CanonicalAmoCrmSyncResult {
   });
 }
 
+function deniedState(): CanonicalAmoCrmSyncResult {
+  return Object.freeze({ status: "blocked", reason: "permission_denied", attemptId: null, steps: Object.freeze([]) });
+}
+
 export async function readCanonicalAmoCrmCommandAvailability(): Promise<CanonicalAmoCrmCommandAvailability> {
   const providerAvailability = readCanonicalAmoCrmProviderAvailability();
   if (providerAvailability.status === "blocked") {
@@ -101,12 +106,12 @@ export async function syncCanonicalAmoCrmSalesAction(
     parsed;
 
   const actor = await requirePlatformSalesActor();
-  if (actor.platformRole !== "admin" && actor.platformRole !== "sales") {
-    return invalidState();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "amocrm.command.manage")) {
+    return deniedState();
   }
   const result = await executePlatformAmoCrmSalesSync({
     actor,
-    actorRole: actor.platformRole,
+    actorRole: actor.systemRole === "admin" ? "admin" : "sales",
     leadId,
     baseRequestId,
     noteText,
@@ -133,12 +138,12 @@ export async function syncCanonicalAmoCrmAdmissionsAction(
   } = parsed;
 
   const actor = await requirePlatformAdmissionsActor("/v3/profile");
-  if (actor.platformRole !== "admin" && actor.platformRole !== "admissions") {
-    return invalidState();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "amocrm.command.manage")) {
+    return deniedState();
   }
   const result = await executePlatformAmoCrmAdmissionsSync({
     actor,
-    actorRole: actor.platformRole,
+    actorRole: actor.systemRole === "admin" ? "admin" : "admissions",
     studentCaseId,
     baseRequestId,
     noteText,
@@ -162,17 +167,13 @@ export async function reconcileCanonicalAmoCrmCommandAction(
     workflowScope === "sales_pre_handoff"
       ? await requirePlatformSalesActor()
       : await requirePlatformAdmissionsActor("/v3/profile");
-  if (
-    actor.platformRole !== "admin" &&
-    actor.platformRole !==
-      (workflowScope === "sales_pre_handoff" ? "sales" : "admissions")
-  ) {
-    return invalidState();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "amocrm.command.manage")) {
+    return deniedState();
   }
 
   const result = await reconcilePlatformAmoCrmSyncAttempt({
     actor,
-    actorRole: actor.platformRole,
+    actorRole: actor.systemRole === "admin" ? "admin" : workflowScope === "sales_pre_handoff" ? "sales" : "admissions",
     workflowScope,
     leadId,
     studentCaseId,
@@ -195,17 +196,13 @@ export async function releaseCanonicalAmoCrmPreparedCommandAction(
     workflowScope === "sales_pre_handoff"
       ? await requirePlatformSalesActor()
       : await requirePlatformAdmissionsActor("/v3/profile");
-  if (
-    actor.platformRole !== "admin" &&
-    actor.platformRole !==
-      (workflowScope === "sales_pre_handoff" ? "sales" : "admissions")
-  ) {
-    return invalidState();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "amocrm.command.manage")) {
+    return deniedState();
   }
 
   const result = await releasePlatformAmoCrmPreparedAttempt({
     actor,
-    actorRole: actor.platformRole,
+    actorRole: actor.systemRole === "admin" ? "admin" : workflowScope === "sales_pre_handoff" ? "sales" : "admissions",
     workflowScope,
     leadId,
     studentCaseId,

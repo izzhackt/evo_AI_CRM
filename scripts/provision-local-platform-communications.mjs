@@ -86,15 +86,15 @@ async function main() {
 
   const authorityResponse = await authClient
     .schema("platform")
-    .rpc("current_actor_authority");
+    .rpc("staff_access_snapshot");
   if (authorityResponse.error) {
     throw new ProvisioningError("ADMIN_AUTHORITY_FAILED");
   }
-  const authority = one(authorityResponse.data, "ADMIN_AUTHORITY_INVALID");
+  const authority = authorityResponse.data;
   if (
     !authority ||
-    !UUID_PATTERN.test(authority.organization_id) ||
-    authority.platform_role !== "admin"
+    authority.schemaVersion !== 1 || !UUID_PATTERN.test(authority.organizationId) ||
+    authority.authUserId !== signIn.data.user.id || authority.systemRole !== "admin"
   ) {
     throw new ProvisioningError("ADMIN_AUTHORITY_INVALID");
   }
@@ -109,7 +109,7 @@ async function main() {
   const provisionResponse = await serviceClient
     .schema("platform")
     .rpc("provision_manual_send_waha_runtime", {
-      p_organization_id: authority.organization_id,
+      p_organization_id: authority.organizationId,
       p_waha_api_key: wahaApiKey,
       p_request_id: randomUUID(),
     });
@@ -122,7 +122,7 @@ async function main() {
   );
   if (
     !configuration ||
-    configuration.organization_id !== authority.organization_id ||
+    configuration.organization_id !== authority.organizationId ||
     configuration.ready !== true ||
     configuration.reason_code !== "ready" ||
     configuration.waha_session_name !== "crm_primary" ||
@@ -141,25 +141,24 @@ async function main() {
   }
   const salesAuthorityResponse = await authClient
     .schema("platform")
-    .rpc("current_actor_authority");
+    .rpc("staff_access_snapshot");
   if (salesAuthorityResponse.error) {
     throw new ProvisioningError("SALES_AUTHORITY_FAILED");
   }
-  const salesAuthority = one(
-    salesAuthorityResponse.data,
-    "SALES_AUTHORITY_INVALID",
-  );
+  const salesAuthority = salesAuthorityResponse.data;
   if (
     !salesAuthority ||
-    salesAuthority.organization_id !== authority.organization_id ||
-    !UUID_PATTERN.test(salesAuthority.membership_id) ||
-    salesAuthority.platform_role !== "sales"
+    salesAuthority.schemaVersion !== 1 || salesAuthority.organizationId !== authority.organizationId ||
+    salesAuthority.authUserId !== salesSignIn.data.user.id || !UUID_PATTERN.test(salesAuthority.membershipId) ||
+    salesAuthority.systemRole !== "staff" || !Array.isArray(salesAuthority.permissions) ||
+    !salesAuthority.permissions.includes("lead.read") || !salesAuthority.permissions.includes("communication.manual.send") ||
+    !salesAuthority.assignments?.length
   ) {
     throw new ProvisioningError("SALES_AUTHORITY_INVALID");
   }
 
   process.stdout.write(
-    `LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED ${authority.organization_id} ${salesAuthority.membership_id}\n`,
+    `LOCAL_PLATFORM_COMMUNICATIONS_PROVISIONED ${authority.organizationId} ${salesAuthority.membershipId}\n`,
   );
 }
 

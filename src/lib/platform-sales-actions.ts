@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
-import { requirePlatformSalesActor } from "./platform-guards";
+import { requirePlatformMutationCapability } from "./platform-guards";
 import {
   mutatePlatformSalesLeadWorkflow,
   parsePlatformSalesStage,
@@ -179,7 +179,7 @@ export async function updatePlatformSalesWorkflowAction(
   _previous: PlatformSalesWorkflowActionState,
   form: FormData,
 ): Promise<PlatformSalesWorkflowActionState> {
-  const actor = await requirePlatformSalesActor();
+  const actor = await requirePlatformMutationCapability("sales.write", "/v3/pipeline");
   const input = parseInput(form);
   if (!input) return failureState(form, "invalid");
 

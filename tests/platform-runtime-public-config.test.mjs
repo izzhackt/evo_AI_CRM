@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import * as access from "../src/lib/platform-access.ts";
 
 function loadSource(path, imports = {}, globals = {}) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -11,6 +12,7 @@ function loadSource(path, imports = {}, globals = {}) {
   } }).outputText;
   const exports = {};
   runInNewContext(compiled, { exports, URL, Buffer, atob, ...globals, require(name) {
+    if (name === "./platform-access.ts" || name === "@/lib/platform-access") return access;
     assert.ok(Object.hasOwn(imports, name), `Unexpected module at public config boundary: ${name}`);
     return imports[name];
   } });
@@ -19,7 +21,8 @@ function loadSource(path, imports = {}, globals = {}) {
 
 function chatPage(runtimeEnv, authorize = async () => ({
   organizationId: "00000000-0000-4000-8000-000000000101",
-  membershipId: "00000000-0000-4000-8000-000000000102", presentationRole: "admin",
+  membershipId: "00000000-0000-4000-8000-000000000102", presentationRole: null,
+  systemRole: "admin", permissionKeys: [], assignments: [],
 })) {
   const publicConfig = loadSource("src/lib/supabase/config.ts", {}, { process: { env: runtimeEnv } });
   const jsx = (type, props) => ({ type, props });

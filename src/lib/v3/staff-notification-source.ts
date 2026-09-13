@@ -1,3 +1,4 @@
+import { isStaffPreview } from "../platform-access.ts";
 import "server-only";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
@@ -13,7 +14,7 @@ export async function readStaffNotifications(cursor: StaffNotificationCursor | n
 }
 
 export async function readStaffNotificationsForActor(actor: ActivePlatformActor, cursor: StaffNotificationCursor | null = null) {
-  if (actor.authorityRole !== actor.presentationRole) throw new Error("staff_notifications_preview_unavailable");
+  if (isStaffPreview(actor)) throw new Error("staff_notifications_preview_unavailable");
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.schema("platform").rpc("staff_notifications_page", {
     p_organization_id: actor.organizationId,
@@ -26,7 +27,7 @@ export async function readStaffNotificationsForActor(actor: ActivePlatformActor,
 
 export async function markStaffNotificationRead(id: string) {
   const actor = await requirePlatformStaffActor();
-  if (actor.authorityRole !== actor.presentationRole) throw new Error("staff_notifications_preview_unavailable");
+  if (isStaffPreview(actor)) throw new Error("staff_notifications_preview_unavailable");
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.schema("platform").rpc("mark_staff_notification_read", {
     p_organization_id: actor.organizationId, p_notification_id: id,

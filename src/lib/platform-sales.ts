@@ -1,4 +1,5 @@
-import type { PlatformActor } from "./platform-auth";
+import type { ActivePlatformActor, PlatformActor } from "./platform-auth";
+import { isStaffPreview, staffHasPermission, staffPresentationCan } from "./platform-access.ts";
 import { parsePlatformCaseNoteBody } from "./platform-case-notes.ts";
 import {
   PLATFORM_SALES_STAGES,
@@ -297,6 +298,23 @@ export class PlatformSalesWorkflowMutationError extends Error {
   }
 }
 
+/** Optional controls must not make the lead-read workspace depend on write rights. */
+export async function readPlatformSalesPipeline<TBoard, TOwners>(
+  actor: ActivePlatformActor,
+  readers: Readonly<{
+    board: (actor: ActivePlatformActor) => Promise<TBoard>;
+    owners: (actor: ActivePlatformActor) => Promise<TOwners>;
+  }>,
+): Promise<Readonly<{ board: TBoard; ownerOptions: TOwners | null; canCreateLead: boolean }>> {
+  if (!staffPresentationCan(actor, "sales.read")) throw new PlatformSalesRepositoryError();
+  const canReadOwners = staffHasPermission(actor, "lead.sales.workflow.manage");
+  const [board, ownerOptions] = await Promise.all([
+    readers.board(actor),
+    canReadOwners ? readers.owners(actor) : Promise.resolve(null),
+  ]);
+  return Object.freeze({ board, ownerOptions, canCreateLead: canReadOwners && !isStaffPreview(actor) });
+}
+
 function invalidShape(): never {
   throw new PlatformSalesRepositoryError();
 }
@@ -521,6 +539,11 @@ function requireActorOrganization(actor: PlatformActor): string {
   return requiredUuid(actor.organizationId);
 }
 
+/** Entry hint only; each RPC still verifies the live permission/scope pair. */
+function requireSalesReadPermission(actor: PlatformActor, permission: string): void {
+  if (!staffHasPermission(actor, permission)) return invalidShape();
+}
+
 function normalizeClientProjection(
   clientIdValue: unknown,
   displayNameValue: unknown,
@@ -687,6 +710,7 @@ export async function listPlatformSalesLeads(
 ): Promise<PlatformSalesLeadQueuePage> {
   try {
     const organizationId = requireActorOrganization(actor);
+    requireSalesReadPermission(actor, "lead.read");
     const pageSize = normalizePageSize(options.pageSize);
     const cursor = normalizeCursor(options.cursor);
     const connectionFilter = oneOf(
@@ -781,6 +805,7 @@ export async function listPlatformSalesOwnerOptions(
 ): Promise<PlatformSalesOwnerOptionsPage> {
   try {
     requireActorOrganization(actor);
+    requireSalesReadPermission(actor, "lead.sales.workflow.manage");
     const pageSize = normalizePageSize(options.pageSize);
     const cursor = normalizeOwnerCursor(options.cursor);
     const query = normalizeQuery(options.query);
@@ -844,6 +869,7 @@ export async function getPlatformSalesLead(
 ): Promise<PlatformSalesLeadDetail | null> {
   try {
     const organizationId = requireActorOrganization(actor);
+    requireSalesReadPermission(actor, "lead.read");
     const normalizedLeadId = requiredUuid(leadId);
     const client = dependencies.client ?? await getPlatformClient();
     const response = await client.schema("platform").rpc(
@@ -886,6 +912,7 @@ export async function isPlatformLeadConversationLinked(
 ): Promise<boolean> {
   try {
     const organizationId = requireActorOrganization(actor);
+    requireSalesReadPermission(actor, "lead.read");
     const normalizedLeadId = requiredUuid(leadId);
     const normalizedConversationId = requiredUuid(conversationId);
     const client = dependencies.client ?? await getPlatformClient();
@@ -1061,6 +1088,9 @@ export async function mutatePlatformSalesLeadWorkflow(
   let organizationId: string;
   try {
     organizationId = requireActorOrganization(actor);
+    if (!staffHasPermission(actor, "lead.sales.workflow.manage")) {
+      throw new PlatformSalesWorkflowMutationError("forbidden");
+    }
     normalizedInput = normalizeWorkflowMutationInput(input);
   } catch (error) {
     if (error instanceof PlatformSalesWorkflowMutationError) throw error;

@@ -41,12 +41,9 @@ function actor(overrides = {}) {
     organizationId: IDS.organization,
     displayName: "Admissions User",
     email: "admissions@example.test",
-    platformRole: "admissions",
-    authorityRole: "admissions",
-    presentationRole: "admissions",
+    systemRole: "staff", assignments: [], permissionKeys: ["document.manage","document.read.full","communication.read.full"],
+    presentationRole: null,
     platformAccessVersion: 1,
-    platformBundleId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-    platformBundleVersion: 1,
     ...overrides,
   });
 }
@@ -197,13 +194,11 @@ test("Sales, Admin preview as Sales and a missing exact case never load slots", 
   };
   const media = [toV3InboxMessageMedia(canonicalMedia())];
   const sales = actor({
-    platformRole: "sales",
-    authorityRole: "sales",
-    presentationRole: "sales",
+    systemRole: "staff", assignments: [], permissionKeys: [],
+    presentationRole: null,
   });
   const adminPreviewSales = actor({
-    platformRole: "admin",
-    authorityRole: "admin",
+    systemRole: "admin", assignments: [], permissionKeys: [],
     presentationRole: "sales",
   });
 

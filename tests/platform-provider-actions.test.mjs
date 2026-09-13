@@ -19,8 +19,8 @@ test("provider server actions use the exact staff-intent parsers and actor organ
     assert.match(source, new RegExp(`${parser}\\(form\\)`));
   }
 
-  assert.match(source, /requirePlatformMessagingActor\(\)/g);
-  assert.match(source, /requirePlatformMessagingSendActor\(\)/g);
+  assert.match(source, /requirePlatformMutationCapability\("messaging\.read", "\/v3\/inbox"\)/g);
+  assert.match(source, /requirePlatformMutationCapability\("messaging\.send", "\/v3\/inbox"\)/g);
   assert.match(source, /organizationId:\s*actor\.organizationId/g);
   assert.doesNotMatch(source, /organization_id["']\)|form\.get\(/);
 });

@@ -4,7 +4,7 @@ import type { ActivePlatformActor } from "../platform-auth.ts";
 import {
   isTeamChatChannel, teamChatCursor, teamChatUuid,
   type TeamChatChannel, type TeamChatMessage, type TeamChatPage,
-  type TeamChatParticipant, type TeamChatQuery, type TeamChatFailure,
+  type TeamChatParticipant, type TeamChatQuery, type TeamChatFailure, type TeamChatChannelKey,
 } from "../platform-team-chat.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
 
@@ -59,15 +59,15 @@ export async function readTeamChatChannels(actor: ActivePlatformActor): Promise<
   }
   return data as TeamChatChannel[];
 }
-export async function readTeamChatParticipants(actor: ActivePlatformActor): Promise<readonly TeamChatParticipant[]> {
+export async function readTeamChatParticipants(actor: ActivePlatformActor, channel: TeamChatChannelKey): Promise<readonly TeamChatParticipant[]> {
   const client = await createSupabaseServerClient();
-  const { data, error } = await client.schema("platform").rpc("staff_workspace_participants", { p_organization_id: actor.organizationId });
+  const { data, error } = await client.schema("platform").rpc("team_chat_participants", { p_organization_id: actor.organizationId, p_channel_key: channel });
   if (error) throw new TeamChatReadError(teamChatErrorStatus(error));
   if (!Array.isArray(data)) throw new TeamChatReadError("unavailable");
   return data.map((row: unknown) => {
     if (!record(row) || !teamChatUuid(row.membership_id) || typeof row.display_name !== "string"
-      || !["admin", "sales", "curator"].includes(String(row.platform_role))) throw new TeamChatReadError("unavailable");
+      || (row.platform_role !== null && !["admin", "sales", "curator"].includes(String(row.platform_role)))) throw new TeamChatReadError("unavailable");
     return { membershipId: row.membership_id, displayName: row.display_name,
-      role: row.platform_role === "curator" ? "admissions" : row.platform_role as "admin" | "sales" };
+      role: row.platform_role === "curator" ? "admissions" : row.platform_role as "admin" | "sales" | null };
   });
 }

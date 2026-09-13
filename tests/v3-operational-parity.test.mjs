@@ -108,9 +108,11 @@ test("the student directory stays discoverable from navigation and both inbox qu
   const shell = source("src/components/v3/AppShell.tsx");
   const inbox = source("src/app/(v3)/v3/inbox/page.tsx");
 
-  assert.match(shell, /buildV3Navigation\(presentationRole,/u);
+  assert.match(shell, /buildV3Navigation\(actor,/u);
   for (const role of ["admin", "sales", "admissions"]) {
-    const navigation = buildV3Navigation(role, "/v3/profile", new URLSearchParams());
+    const actor = { systemRole: role === "admin" ? "admin" : "staff", presentationRole: null,
+      permissionKeys: role === "sales" ? ["lead.read", "case.read.summary"] : ["case.read.full"], assignments: [] };
+    const navigation = buildV3Navigation(actor, "/v3/profile", new URLSearchParams());
     const group = navigation.groups.find((item) => item.id === "admissions");
     assert.equal(group?.label, "Поступление");
     assert.equal(group?.active, true);

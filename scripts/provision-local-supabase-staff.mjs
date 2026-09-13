@@ -2,6 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { chromium } from "@playwright/test";
+import { prepareScopedStaffRoles, prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor, verifyScopedStaffMemberEditor, verifyScopedStaffBusinessScopes, ScopedStaffProvisioningError } from "./lib/scoped-staff-provisioner.mjs";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -133,14 +135,8 @@ function assertNoError(result, code) {
   return result.data;
 }
 
-function oneRow(data, code) {
-  if (!Array.isArray(data) || data.length !== 1) fail(code);
-  const row = data[0];
-  if (!row || typeof row !== "object" || Array.isArray(row)) fail(code);
-  return row;
-}
-
-async function createConfirmedUser(adminClient, identity, displayName, code) {
+// Only the first, one-shot system Admin is bootstrapped. Employees use real mail.
+async function createBootstrapAdmin(adminClient, identity, displayName, code) {
   const data = await assertNoErrorWithRetry(
     () =>
       adminClient.auth.admin.createUser({
@@ -176,35 +172,37 @@ async function signIn(url, publishableKey, identity, code) {
 
 async function readAuthority(client, expected, code) {
   const data = assertNoError(
-    await client.schema("platform").rpc("current_actor_authority"),
+    await client.schema("platform").rpc("staff_access_snapshot"),
     `${code}_RPC_FAILED`,
   );
-  const row = oneRow(data, `${code}_ROW_INVALID`);
+  const row = data;
   if (
-    row.auth_user_id !== expected.authUserId ||
-    row.organization_id !== expected.organizationId ||
-    row.platform_role !== expected.role ||
-    typeof row.display_name !== "string" ||
-    row.display_name.trim().length === 0 ||
-    !Number.isSafeInteger(Number(row.platform_access_version)) ||
-    Number(row.platform_access_version) < 1
+    !row || row.schemaVersion !== 1 ||
+    row.authUserId !== expected.authUserId ||
+    (expected.organizationId && row.organizationId !== expected.organizationId) ||
+    row.systemRole !== expected.systemRole ||
+    typeof row.displayName !== "string" || !row.displayName.trim() ||
+    !Number.isSafeInteger(row.accessVersion) || row.accessVersion < 1 ||
+    !Array.isArray(row.assignments) || !Array.isArray(row.permissions) ||
+    (expected.permission && !row.permissions.includes(expected.permission))
   ) {
     fail(`${code}_MISMATCH`);
   }
-  assertUuid(row.profile_id, `${code}_PROFILE_INVALID`);
-  assertUuid(row.membership_id, `${code}_MEMBERSHIP_INVALID`);
+  assertUuid(row.profileId, `${code}_PROFILE_INVALID`);
+  assertUuid(row.membershipId, `${code}_MEMBERSHIP_INVALID`);
+  assertUuid(row.organizationId, `${code}_ORGANIZATION_INVALID`);
   return row;
 }
 
 async function assertNoAuthority(client, code) {
   const { data, error } = await client
     .schema("platform")
-    .rpc("current_actor_authority");
+    .rpc("staff_access_snapshot");
   if (error) {
     if (error.code !== "42501") fail(`${code}_UNEXPECTED_ERROR`);
     return;
   }
-  if (!Array.isArray(data) || data.length !== 0) fail(`${code}_NOT_DENIED`);
+  if (data !== null) fail(`${code}_NOT_DENIED`);
 }
 
 async function assertStaffDirectoryDenied(client, organizationId, code) {
@@ -286,41 +284,21 @@ async function main() {
 
   const adminServiceClient = newClient(url, serverKey);
 
-  const adminUser = await createConfirmedUser(
-    adminServiceClient,
-    identities.admin,
-    "Local Admin",
-    "ADMIN",
-  );
-  const salesUser = await createConfirmedUser(
-    adminServiceClient,
-    identities.sales,
-    "Local Sales Manager",
-    "SALES",
-  );
-  const admissionsUser = await createConfirmedUser(
-    adminServiceClient,
-    identities.admissions,
-    "Local Admissions Manager",
-    "ADMISSIONS",
-  );
-
-  const bootstrap = assertNoError(
-    await adminServiceClient
-      .schema("platform")
-      .rpc("bootstrap_organization_admin", {
-        p_organization_name: "EVO Local Verification",
-        p_admin_auth_user_id: adminUser.id,
-        p_admin_display_name: "Local Admin",
-        p_reason: "Provision isolated local staff verification authority",
-        p_request_id: randomUUID(),
-      }),
-    "ADMIN_BOOTSTRAP_FAILED",
-  );
-  const organizationId = assertUuid(
-    bootstrap?.organization_id,
-    "ORGANIZATION_ID_INVALID",
-  );
+  const phase = process.env.EVO_LOCAL_STAFF_PHASE;
+  if (!["bootstrap", "onboard", "onboarding-proof"].includes(phase)) fail("PHASE_REQUIRED");
+  if (phase === "bootstrap") {
+    const adminUser = await createBootstrapAdmin(adminServiceClient, identities.admin, "Local Admin", "ADMIN");
+    const bootstrap = assertNoError(await adminServiceClient.schema("platform").rpc("bootstrap_organization_admin", {
+      p_organization_name: "EVO Local Verification", p_admin_auth_user_id: adminUser.id,
+      p_admin_display_name: "Local Admin", p_reason: "Bootstrap isolated local system Admin",
+      p_request_id: randomUUID(),
+    }), "ADMIN_BOOTSTRAP_FAILED");
+    const organizationId = assertUuid(bootstrap?.organization_id, "ORGANIZATION_ID_INVALID");
+    const session = await signIn(url, publishableKey, identities.admin, "ADMIN_BOOTSTRAP");
+    await readAuthority(session.client, { authUserId: session.user.id, organizationId, systemRole: "admin" }, "ADMIN_BOOTSTRAP_AUTHORITY");
+    process.stdout.write(`LOCAL_SUPABASE_ADMIN_BOOTSTRAPPED ${organizationId}\n`);
+    return;
+  }
 
   let adminSession = await signIn(
     url,
@@ -330,39 +308,42 @@ async function main() {
   );
   const adminAuthority = await readAuthority(
     adminSession.client,
-    { authUserId: adminUser.id, organizationId, role: "admin" },
+    { authUserId: adminSession.user.id, systemRole: "admin" },
     "ADMIN_AUTHORITY",
   );
-
-  async function provisionMember(user, displayName, role, code) {
-    const provisioned = assertNoError(
-      await adminSession.client
-        .schema("platform")
-        .rpc("provision_pilot_staff_member", {
-          p_organization_id: organizationId,
-          p_member_auth_user_id: user.id,
-          p_member_display_name: displayName,
-          p_role: role,
-          p_reason: `Provision isolated local ${role} verification authority`,
-          p_request_id: randomUUID(),
-        }),
-      `${code}_PROVISION_FAILED`,
-    );
-    return assertUuid(provisioned?.membership_id, `${code}_MEMBERSHIP_INVALID`);
+  const organizationId = adminAuthority.organizationId;
+  const appOrigin = firstConfigured(["EVO_STAFF_AUTH_APP_ORIGIN"], "APP_ORIGIN_REQUIRED");
+  const mailpitOrigin = firstConfigured(["EVO_STAFF_AUTH_MAILPIT_ORIGIN"], "MAILPIT_ORIGIN_REQUIRED");
+  const browser = await chromium.launch({ headless: true });
+  let accepted;
+  try {
+    const rolePreparation = await prepareScopedStaffRoles({ adminClient: adminSession.client, apiUrl: url, organizationId });
+    const prepared = await prepareScopedStaffInvitations({ browser, adminClient: adminSession.client,
+      apiUrl: url, organizationId, appOrigin, identity: identities.admin, rolePreparation,
+      identities: { sales: { email: identities.sales.email, displayName: "Local Sales Manager" },
+        admissions: { email: identities.admissions.email, displayName: "Local Admissions Manager" } } });
+    process.stdout.write("LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED\n");
+    accepted = await acceptScopedStaffInvitations({ browser, adminClient: adminSession.client,
+      authAdminClient: adminServiceClient, apiUrl: url, publishableKey, mailpitOrigin,
+      appOrigin, prepared, identities });
+    if (phase === "onboarding-proof") process.stdout.write("LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED\n");
+    await verifyScopedStaffRoleEditor({ browser, adminClient: adminSession.client, apiUrl: url,
+      appOrigin, organizationId, identity: identities.admin,
+      evidenceDirectory: process.env.EVO_LOCAL_STAFF_ROLE_EDITOR_EVIDENCE_DIR });
+    process.stdout.write("LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED\n");
+    await verifyScopedStaffMemberEditor({ browser, adminClient: adminSession.client, apiUrl: url,
+      appOrigin, organizationId, identity: identities.admin, accepted });
+    process.stdout.write("LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED\n");
+    await verifyScopedStaffBusinessScopes({ browser, adminClient: adminSession.client, apiUrl: url,
+      appOrigin, organizationId, identities, publishableKey, accepted });
+    process.stdout.write("LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED\n");
+  } finally { await browser.close(); }
+  if (phase === "onboarding-proof") {
+    return;
   }
-
-  const salesMembershipId = await provisionMember(
-    salesUser,
-    "Local Sales Manager",
-    "sales",
-    "SALES",
-  );
-  await provisionMember(
-    admissionsUser,
-    "Local Admissions Manager",
-    "curator",
-    "ADMISSIONS",
-  );
+  // Department and personal-grant changes advance the live staff access version.
+  adminSession = await signIn(url, publishableKey, identities.admin, "SCOPED_BUSINESS_ADMIN_REFRESH");
+  const salesMembershipId = assertUuid(accepted.members.find((member) => member.scenario === "sales")?.membershipId, "SALES_MEMBERSHIP_INVALID");
 
   async function grantPermission(targetMembershipId, permissionKey, code) {
     const result = assertNoError(
@@ -388,7 +369,7 @@ async function main() {
       fail(`${code}_GRANT_MISMATCH`);
     }
 
-    if (targetMembershipId === adminAuthority.membership_id) {
+    if (targetMembershipId === adminAuthority.membershipId) {
       adminSession = await signIn(
         url,
         publishableKey,
@@ -409,24 +390,24 @@ async function main() {
     "SALES_PAYMENT_PERMISSION",
   );
   await grantPermission(
-    adminAuthority.membership_id,
+    adminAuthority.membershipId,
     "contract.evidence.confirm",
     "ADMIN_CONTRACT_PERMISSION",
   );
   await grantPermission(
-    adminAuthority.membership_id,
+    adminAuthority.membershipId,
     "finance.first.payment.confirm",
     "ADMIN_PAYMENT_PERMISSION",
   );
   await grantPermission(
-    adminAuthority.membership_id,
+    adminAuthority.membershipId,
     "admissions.handoff.gate.override",
     "ADMIN_OVERRIDE_PERMISSION",
   );
 
   await readAuthority(
     adminSession.client,
-    { authUserId: adminUser.id, organizationId, role: "admin" },
+    { authUserId: adminSession.user.id, organizationId, systemRole: "admin" },
     "ADMIN_REFRESHED_AUTHORITY",
   );
   await assertSensitivePermission(
@@ -454,9 +435,9 @@ async function main() {
     identities.sales,
     "SALES",
   );
-  await readAuthority(
+  const salesAuthority = await readAuthority(
     salesSession.client,
-    { authUserId: salesUser.id, organizationId, role: "sales" },
+    { authUserId: salesSession.user.id, organizationId, systemRole: "staff", permission: "lead.read" },
     "SALES_AUTHORITY",
   );
 
@@ -468,7 +449,7 @@ async function main() {
   );
   await readAuthority(
     admissionsSession.client,
-    { authUserId: admissionsUser.id, organizationId, role: "curator" },
+    { authUserId: admissionsSession.user.id, organizationId, systemRole: "staff", permission: "case.read.full" },
     "ADMISSIONS_AUTHORITY",
   );
   await assertSensitivePermissionDenied(
@@ -499,20 +480,22 @@ async function main() {
       .rpc("staff_directory", { p_organization_id: organizationId }),
     "ADMIN_STAFF_DIRECTORY_FAILED",
   );
-  const directoryRoles = Array.isArray(directory)
-    ? directory.map((row) => row?.platform_role).sort()
+  const directoryMembers = Array.isArray(directory)
+    ? directory.map((row) => row?.membership_id).sort()
     : [];
-  if (JSON.stringify(directoryRoles) !== JSON.stringify(["admin", "curator", "sales"])) {
+  if (JSON.stringify(directoryMembers) !== JSON.stringify([adminAuthority.membershipId,
+    ...accepted.members.map((member) => member.membershipId)].sort())) {
     fail("ADMIN_STAFF_DIRECTORY_MISMATCH");
   }
 
-  assertNoError(
+  const suspended = assertNoError(
     await adminSession.client
       .schema("platform")
-      .rpc("change_pilot_staff_status", {
+      .rpc("staff_workspace_change_member", {
         p_organization_id: organizationId,
         p_membership_id: salesMembershipId,
-        p_new_status: "inactive",
+        p_expected_version: salesAuthority.accessVersion,
+        p_operation: "status", p_value: "suspended",
         p_reason: "Verify immediate invalidation of a live local Sales token",
         p_request_id: randomUUID(),
       }),
@@ -523,16 +506,20 @@ async function main() {
   assertNoError(
     await adminSession.client
       .schema("platform")
-      .rpc("change_pilot_staff_status", {
+      .rpc("staff_workspace_change_member", {
         p_organization_id: organizationId,
         p_membership_id: salesMembershipId,
-        p_new_status: "active",
+        p_expected_version: suspended.access_version,
+        p_operation: "status", p_value: "active",
         p_reason: "Reactivate local Sales after token invalidation proof",
         p_request_id: randomUUID(),
       }),
     "SALES_REACTIVATE_FAILED",
   );
-  await assertNoAuthority(salesSession.client, "SALES_STALE_TOKEN_AFTER_REACTIVATE");
+  // S2 resolves current rights from the live identity, not a stale JWT role/version.
+  await readAuthority(salesSession.client, {
+    authUserId: salesSession.user.id, organizationId, systemRole: "staff", permission: "lead.read",
+  }, "SALES_LIVE_AUTHORITY_AFTER_REACTIVATE");
 
   const refreshedSalesSession = await signIn(
     url,
@@ -542,7 +529,7 @@ async function main() {
   );
   await readAuthority(
     refreshedSalesSession.client,
-    { authUserId: salesUser.id, organizationId, role: "sales" },
+    { authUserId: refreshedSalesSession.user.id, organizationId, systemRole: "staff", permission: "lead.read" },
     "SALES_REACTIVATED_AUTHORITY",
   );
   await assertSensitivePermission(
@@ -565,7 +552,8 @@ try {
   await main();
 } catch (error) {
   const code =
-    error instanceof ProvisioningFailure ? error.code : "UNEXPECTED_FAILURE";
+    (error instanceof ProvisioningFailure || error instanceof ScopedStaffProvisioningError)
+      && /^[A-Z0-9_]+$/u.test(error.code) ? error.code : "UNEXPECTED_FAILURE";
   process.stderr.write(`LOCAL_SUPABASE_STAFF_ERROR:${code}\n`);
   process.exitCode = 1;
 }

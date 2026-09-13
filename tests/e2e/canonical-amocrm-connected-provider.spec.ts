@@ -197,7 +197,7 @@ async function submitAdminGate(page: Page) {
     "admin",
   );
   await expect(page.getByTestId("active-role")).toHaveAttribute(
-    "data-authority-role",
+    "data-system-role",
     "admin",
   );
 }

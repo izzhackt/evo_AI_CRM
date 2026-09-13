@@ -145,7 +145,7 @@ export async function selectStaffRolePreviewAction(
   if (result.status !== "authenticated") redirect("/login");
 
   const requestedRole = form.get("role");
-  if (!canAdminSelectEffectiveRole(result.actor.authorityRole, requestedRole)) {
+  if (!canAdminSelectEffectiveRole(result.actor.systemRole, requestedRole)) {
     redirect("/access-denied?from=%2Fv3%2Fsettings");
   }
 

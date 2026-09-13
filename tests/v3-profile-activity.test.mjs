@@ -45,6 +45,6 @@ test("safe history never serializes audit bodies or document author/time", () =>
 test("history cursor is explicit and never escalates Sales into full-case reads", () => {
   assert.match(page, /invalidActivityCursor/u);
   assert.match(page, /actor\.presentationRole === "sales"/u);
-  assert.match(read("src/lib/v3/profile-source.ts"), /actor\.presentationRole !== "sales"/u);
+  assert.match(read("src/lib/v3/profile-source.ts"), /staffPresentationCan\(actor, "admissions\.read"\)/u);
   assert.match(page, /singleSearchParam\(params\.tab\) === "history" \? \{ cursor: activityCursor \}/u);
 });

@@ -1,4 +1,5 @@
-import type { FixedRole } from "../fixed-role-policy.ts";
+import type { ActivePlatformActor } from "../platform-auth.ts";
+import { staffPresentationCan } from "../platform-access.ts";
 
 export type V3InboxCanonicalContext = Readonly<{
   leadId: string | null;
@@ -6,16 +7,16 @@ export type V3InboxCanonicalContext = Readonly<{
 }>;
 
 export function v3InboxProfileHref(
-  presentationRole: FixedRole,
+  actor: ActivePlatformActor,
   context: V3InboxCanonicalContext,
 ): string | null {
   if (
-    (presentationRole === "admin" || presentationRole === "sales") &&
+    staffPresentationCan(actor, "sales.read") &&
     context.leadId
   ) {
     return `/v3/profile?id=${context.leadId}`;
   }
-  if (presentationRole === "admissions" && context.studentCaseId) {
+  if (staffPresentationCan(actor, "admissions.read") && context.studentCaseId) {
     return `/v3/profile?case=${context.studentCaseId}`;
   }
   return null;

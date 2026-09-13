@@ -49,7 +49,7 @@ function fields(row: SalesRegisterRow | null, reportMonth: string, owner: string
 }
 type FormProps = Readonly<{
   record: SalesRegisterRow | null; recordId: string | null; reportMonth: string;
-  ownerOptions: readonly Readonly<{ id: string; label: string }>[]; isAdmin: boolean;
+  ownerOptions: readonly Readonly<{ id: string; label: string }>[]; canChooseOwner: boolean;
   ownMembershipId: string; ownLabel: string; requestId: string; archiveRequestId: string; backHref: string; readUnavailable: boolean;
 }>;
 
@@ -59,7 +59,7 @@ export function SalesRegisterForm(props: FormProps) {
   if (props.recordId && !lastRead) return <div className="space-y-4"><p role="alert" className="text-sm text-fg-2">Запись недоступна. Возможно, она была переназначена или соединение прервалось.</p><Link href={props.backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link></div>;
   return <SalesDraft {...props} record={lastRead} readUnavailable={props.readUnavailable || Boolean(props.recordId && !props.record)} />;
 }
-function SalesDraft({ record, recordId, reportMonth, ownerOptions, isAdmin, ownMembershipId, ownLabel, requestId, archiveRequestId, backHref, readUnavailable }: FormProps) {
+function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwner, ownMembershipId, ownLabel, requestId, archiveRequestId, backHref, readUnavailable }: FormProps) {
   const router = useRouter();
   const [base, setBase] = useState({ version: record?.version ?? 0, values: fields(record, reportMonth, ownMembershipId, ownLabel) });
   const [draft, setDraft] = useState(base.values);
@@ -116,7 +116,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, isAdmin, ownM
         </div>
         <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми. Это отчётная запись, а не подтверждение платежа.</p>
         <div className="grid gap-4 sm:grid-cols-2">{input("manager_label", "text", false, 300)}
-          {isAdmin ? <label><span className={labelCls}>Ответственный в платформе</span><select value={draft.owner_membership_id} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
+          {canChooseOwner ? <label><span className={labelCls}>Ответственный в платформе</span><select value={draft.owner_membership_id} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Пока не назначен — доступ только Admin</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}
           </select></label> : null}
         </div>

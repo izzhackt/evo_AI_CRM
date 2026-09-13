@@ -25,12 +25,11 @@ const actor = Object.freeze({
   organizationId: ORGANIZATION_ID,
   displayName: "Sales User",
   email: "sales@example.test",
-  platformRole: "sales",
-  authorityRole: "sales",
-  presentationRole: "sales",
+  systemRole: "staff",
+  assignments: [],
+  permissionKeys: ["lead.read"],
+  presentationRole: null,
   platformAccessVersion: 1,
-  platformBundleId: "10000000-0000-4000-8000-000000000005",
-  platformBundleVersion: 1,
 });
 
 function source(path) {

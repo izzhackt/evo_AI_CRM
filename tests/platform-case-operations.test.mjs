@@ -186,7 +186,7 @@ test("V3 finance actions expose only the canonical stop and release commands", (
   assert.doesNotMatch(actionSource, /p_occurred_at|p_amount_minor/);
 });
 
-test("P4 stop-factor assertions are Admissions/Admin case-bound while release stays Admin-only", () => {
+test("P4 stop-factor assertions are permission-scoped and exact-case bound", () => {
   const actionSource = readFileSync(
     new URL("../src/lib/platform-case-operations-actions.ts", import.meta.url),
     "utf8",
@@ -201,16 +201,16 @@ test("P4 stop-factor assertions are Admissions/Admin case-bound while release st
 
   assert.match(
     createSource,
-    /fixedRoleCan\(actor\.authorityRole, "admissions\.write"\)/,
+    /staffHasPermission\(actor, "finance\.stop\.create"\)/,
   );
-  assert.match(resolveSource, /actor\.authorityRole !== "admin"/);
+  assert.match(resolveSource, /staffHasPermission\(actor, "finance\.stop\.manage"\)/);
   assert.match(
     createSource,
     /rpc\(\s*["']assert_case_finance_stop_factor["'][\s\S]*p_student_case_id:\s*studentCaseId/,
   );
   assert.match(
     createSource,
-    /actor\.authorityRole === "admissions"[\s\S]*data\.owner_membership_id !== actor\.membershipId/,
+    /!uuid\(String\(data\.owner_membership_id \?\? ""\)\)/,
   );
   assert.match(
     resolveSource,

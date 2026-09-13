@@ -1,0 +1,490 @@
+# S2 — единые редактируемые права сотрудников
+
+Дата: 2026-09-13. Основа: main `6ff4c017`, migrations001–154.
+Контракт этапов2–5 [плана команды](employee-roles-accounts-run-plan.md).
+S2 не выпущен. Полный локальный onboarding/business proof прошёл на `451944cd`;
+готовность всего среза
+и выкладка пока не подтверждены.
+
+## Результат
+
+Admin создаёт, копирует, меняет и архивирует роли в существующих настройках.
+У сотрудника несколько назначений «роль + область». Живые права одинаково
+определяют меню, чтение, запись, исполнителей, Storage и Realtime. Расширяются
+существующие permission definitions, immutable bundle versions, Supabase identity
+и audit: второго ACL-сервиса, Auth или параллельного механизма авторизации нет.
+
+Миграции155–157 зарезервированы для этого блока. Не включать новые назначения
+на production до согласованного переключения всех потребителей и проверки.
+Исторические миграции/audit сохраняются; замещённые активные бизнес-проверки
+по фиксированным ролям удаляются. Технический путь приглашения входит в единый
+переход; реальные получатели/письма — следующий согласованный этап.
+
+## Решения до кода
+
+1. **Вход не выдаёт бизнес-доступ.** Активные profile/membership/organization и
+   проверенная сессия дают staff identity. Старый organization scope для входа
+   нельзя перенести на все действия bundle. Ноль назначений означает отсутствие
+   бизнес-доступа, не автоматическую Sales-роль.
+2. **Действие и область одного назначения.** Sales/org плюс Admissions/China
+   не открывает Admissions/Malaysia. Проверять пару целиком по живой БД.
+3. **Own/department.** Owner выводится из канонического домена: Sales owner лида,
+   назначенный куратор дела, ответственный задачи. Staff-task автор редактирует,
+   исполнитель выполняет — это разные действия. Department — текущий активный
+   отдел канонического owner. Перевод меняет доступ сразу; показать эффект перед
+   сохранением. Должность не выдаёт прав.
+4. **Direction.** Только `student_cases.admissions_direction`, не target_country,
+   название программы или сведения сотрудника. Для неизвестного направления
+   direction grant не совпадает; доступны прежний owner по own или роль по org.
+   Настройка направления требует отдельного права на само дело.
+5. **Области по смыслу действия.** Каталог задаёт допустимые scope kinds.
+   У company files, общих настроек и общих каналов не выдумывать department или
+   direction owner. Для них доступны лишь реализованные области.
+6. **Защищённые границы.** System Admin отдельно от названий пользовательских
+   ролей, с полным staff-функционалом и защитой последнего активного Admin.
+   Student-вход/приватные тесты и sensitive personal grants087 сохраняются.
+7. **Незавершённые file intents.** На завершении upload/download/media вновь
+   проверять живые identity/access version/действие/объект. После изменения прав
+   устаревшее незавершённое намерение явно прекращается, не продолжается по старому
+   role/bundle snapshot. Принятые файлы и история не меняются.
+8. **Чтение не разрешает запись.** `amocrm.command.manage` отдельно разрешает
+   команды для lead/case, сохраняя текущие условия передачи и владения;
+   `finance.stop.create` отдельно разрешает создание блокера дела. Снятие блокера
+   остаётся `finance.stop.manage`. Backfill сохраняет прежние эффективные права:
+   amoCRM — собственные Sales leads до передачи/Curator cases после передачи;
+   создание финансового блокера — собственные Curator cases при прежних read gates.
+   Admin сохраняет полный staff-функционал. Читающая роль новых write-прав не получает.
+9. **Приглашение с подготовленными правами.** До обращения в Auth сервер проверяет
+   и закрепляет версии ролей и полные пары назначений. Reconcile атомарно создаёт
+   членство, назначения, access version и аудит; завершённый запрос не оставляет
+   сотрудника со случайно пустыми правами. Пустой доступ требует явного выбора.
+   Неизвестный результат сверяется по исходному request-id без повторной отправки.
+   Старые pending-запросы не конвертируются с расширением доступа; конфликт
+   останавливается для разрешения Admin. Статусы/восстановление также работают
+   для custom staff без фиктивного legacy role. Подтверждение адресата и прав
+   остаётся обязательным перед настоящим письмом.
+10. **Каждое чтение требует своего права.** Очереди задач дела требуют
+    `task.manage`, дедлайны заявок — `application.manage`. Чтение дела/анкеты
+    и `task.create` не заменяют эти права. Форма создания с `task.create`
+    остаётся доступной без права на очередь, если разрешена сама команда.
+    Пропускать только недоступные по правам ветки; ошибку разрешённого чтения
+    показывать как недоступность, не пустой результат. Не расширять SQL/grants.
+11. **Продажи и финансы следуют точной паре прав.** Списки лидов требуют
+    `lead.read`; управление воронкой не заменяет чтение. Вспомогательный список
+    владельцев требует `lead.sales.workflow.manage` и не блокирует доступную
+    воронку роли только для чтения. Финансовый контроль выбранного дела и очередь
+    используют те же пары full/summary + область дела, что и живой snapshot;
+    исторические organization-only проверки замещаются в 156 без изменения
+    исторических миграций. Full-чтение проверяется на самом деле; summary
+    сохраняет дополнительное требование `case.read.full` на том же деле.
+    Новое требование case-read для прежней full-ветки не вводится.
+    Итог поступлений всей компании требует именно
+    `finance.read.full` в области текущей организации; full для своих дел не
+    заменяет его. Не расширять назначения и не прятать ошибки разрешённых чтений.
+12. **Разрешённая задача без доступа ко всему делу.** Переход из списка должен
+    открывать выбранную задачу с её действиями. Для `task.manage` на задаче
+    использовать `staff_case_task_target(organizationId, studentCaseId, caseTaskId)`:
+    `{schemaVersion: 1, organizationId, studentCaseId, task, assignees, capabilities}`.
+    Task — текущая 18-полевая строка очереди с версией, именем и состоянием дела;
+    assignees — прежняя минимальная форма кандидата. Не читать остальные задачи,
+    профиль и полный workspace дела. Возможности `canAssign`, `canChangeVisibility`
+    и `canReadCase` вычисляются живыми парами для выбранного дела; без назначения
+    возвращается только текущий исполнитель. Полный workspace дела не ослабляется.
+    Команда изменения существующей задачи проверяет `task.manage` на этой задаче,
+    а не на всём деле. Сохраняются версии, request-id/replay, блокировки, аудит,
+    сроки, статусы и coverage. Выделенная проверка исполнителя допускает прежнюю
+    пригодность по делу либо канонический receiving-assignment `task.manage` для
+    выбранной задачи; она применяется только к чтению/изменению этой задачи.
+    Создание задачи и общая проверка доступа к делу не меняются.
+
+Для итога поступлений использовать узкий живой RPC
+`staff_monthly_payment_summary_access(organizationId)` с
+`{schemaVersion: 1, organizationId, canReadSummary}`. Общий staff snapshot содержит
+список прав и назначений, но не связывает каждое право с назначением; нельзя
+вывести organization-доступ пересечением этих двух списков. Новый read-only RPC
+проверяет текущего staff и пару права/организации; итоговый RPC повторно проверяет
+доступ при чтении суммы. Не менять общий snapshot или принимать бизнес-права из JWT.
+
+SQL157 приглашение принимает `assignments` с `{roleId,roleVersion,scope}` и
+явный `no_access`; системный Admin назначается только отдельной командой155.
+Восстановление проверяет `expected_access_version`, но не меняет назначения.
+Для конфликта уже отправленного приглашения Admin явно переподготавливает права
+через `staff_workspace_prepare_pending_access`: исходный request-id приглашения,
+ожидаемая версия подготовки, новые назначения/явный пустой доступ, причина и
+отдельный command request-id. Операция версионируется и аудируется, не вызывает
+Auth, не разрешает повторное письмо и не меняет адресата. После неё обычный
+reconcile завершает исходный запрос. Детали подготовки читаются только Admin;
+ошибка/conflict не подменяются успешным завершением.
+
+Защищённые Student-provisioning receipts сохраняют проверку действующего
+системного Admin, его identity/access version и всех требуемых разрешений.
+Старые поля authorizing bundle становятся необязательными только парой:
+исторические значения сохраняются, новые receipts не требуют фиктивного legacy
+bundle. Student identity/bundle и приватные границы не меняются. Finalize и
+overdue-пути повторно проверяют действующего Admin; общий порядок блокировок
+organization → profiles → memberships согласуется с изменением прав155.
+Справочник сотрудников включает custom staff, не выдавая им старую роль по умолчанию.
+
+Первый Admin новой установки создаётся прежним защищённым one-shot bootstrap:
+его INSERT membership явно устанавливает `is_system_admin=true`. Все проверки
+реальной Auth identity, отсутствия существующей организации/профиля, блокировки,
+аудит и повторяемость сохраняются; общего обхода назначения прав нет.
+Локальные provisioners переходят с отозванных pilot RPC на опубликованные роли,
+подготовленные приглашения157 и живой snapshot. Проверка нового сотрудника:
+изолированное письмо → реальный `/auth/staff` → установка пароля → обычный вход.
+Разрешён только точный loopback origin выделенного порта и локальный почтовый
+сервис; секреты остаются в памяти процесса. Это не подключение реальной команды.
+
+Редактирование подготовки приглашения и reconcile взаимно блокируются, пока
+результат записи неизвестен. Подтверждённый успех смены статуса позволяет начать
+отдельную следующую команду с новой причиной и актуальной версией. Доказанный
+отказ локальной SQL-команды позволяет исправить ввод; неопределённый сетевой
+ответ сохраняет исходный payload/request-id. Неизвестную Auth-отправку нельзя
+сбросить таким переходом.
+
+## Общий API и модель
+
+### Контракт интерфейса до реализации
+
+Визуальный тезис: белый рабочий экран EVO, свободные отступы, красный акцент
+только для выбранной строки и основного действия. Содержание: вкладки
+«Сотрудники / Роли и права / Отделы», список ролей → редактор сгруппированных
+разрешений → предварительный итог публикации и подтверждение. Взаимодействие:
+короткая подсветка выбора и раскрытие деталей без скачка формы, понятные состояния
+сохранения; reduced motion убирает движение, но не обратную связь.
+
+Новый `staff-roles-contract.ts` строго разбирает schemaVersion1 DTO из155:
+workspace `{permissions,roles,members,departments}`; роли несут опубликованные
+`permissionKeys` и `draftPermissionKeys`, версии, bundle identity и memberCount.
+Assignments всегда пары `{roleId,scope:{kind,key,resourceKind}}`; при сохранении
+заменяется весь список с `expectedAccessVersion`, причиной и request-id.
+Системный Admin меняется отдельной командой, не editable ролью.
+
+Команды: `staff_role_command` (create/copy/save/archive/restore),
+`staff_role_impact` (read-only diff перед публикацией), `staff_role_publish`,
+`staff_role_assignments_save`, `staff_system_admin_command`. Identity и organization
+берутся из проверенного текущего actor; SQL повторно проверяет authority и версии.
+Список затронутых сотрудников выводится по membership IDs и именам из workspace,
+email/Auth IDs в клиентский DTO не добавляются. Неизвестный результат записи
+сохраняет исходный payload/request-id для проверки, а не запускает новую команду.
+Ошибки прав/схемы/сети не превращаются в пустой список или фиктивное «сохранено».
+
+- Internal predicate:
+  `platform_private.staff_can_access(organization_id, membership_id, permission_key, resource_kind, resource_id)`.
+  Выводит canonical owner/direction из БД; проверяет active identity и одно
+  назначение целиком. Явный membership допустим только внутри проверенного
+  server/service workflow, не как произвольный actor публичного RPC.
+- `platform.staff_access_snapshot()` — только собственные identity,
+  `schemaVersion=1`, `systemRole=admin|staff`, `accessVersion`, assignments
+  (id/label/bundleId/bundleVersion/scope) и известные permission keys. Snapshot
+  помогает оболочке, но не доказывает доступ к конкретному делу.
+- Объектные read RPC возвращают свои capabilities. Mutations проверяют их
+  самостоятельно; присланные UI scope/owner/booleans не являются authority.
+- Сохранить RETURNS TABLE `current_actor_authority()` для Student и SQL callers;
+  staff-ветка использует ту же живую foundation. Исторический coarse role не
+  становится вторым источником бизнес-прав. JWT не содержит полный ACL.
+- Admin-preview — явное presentation state; не меняет identity/effective access.
+  Существующий запрет мутаций из preview сохраняется.
+- Каталог ролей расширяет существующие bundles. Publish создаёт новую immutable
+  версию и атомарно обновляет assignments/access version затронутых пользователей.
+  Role/assignment commands: Admin, reason, requestId, expectedVersion, audit/replay.
+  Перед publish/archive показать impact. Archive назначенной роли требует явной
+  замены либо снятия назначений в одной проверенной операции. Archive-preview
+  связывает fingerprint с исходной ролью, назначениями/версиями сотрудников,
+  опубликованной заменой и выбранным способом снятия; сервер проверяет его
+  под существующей блокировкой до записи. UI показывает вклад этой роли в права,
+  не обещает отсутствие доступа через другие назначения.
+- Backfill сохраняет текущий эффективный доступ, включая прежние owner-ограничения.
+  Не переносить независимо широкие scopes и bundle. Неоднозначность останавливает
+  миграцию с безопасным кодом; нельзя молча расширять права.
+
+## Исполнение и проверка
+
+1. SQL155: catalog/assignments, commands, evaluator/snapshot и backfill.
+2. SQL156: текущие predicates/RPC/RLS, Storage/service intents, Realtime и eligibility.
+   Учитывать последние определения, переименования128 и patches137/149.
+3. SQL157: подготовка/сверка приглашений с назначениями, статусы и восстановление
+   сотрудников без проверок по фиксированным бизнес-ролям.
+4. TS authority/guards/server consumers, затем V3 contracts/source и UI.
+   SQL и TS owners сначала фиксируют общий DTO; UI не придумывает API.
+5. Проверить единый переход, пройти независимое ревью и выпустить его целиком.
+   Не публиковать отдельно редактор с неработающими правами.
+
+Приёмка: role create/copy/publish/assign/edit/archive; Sales/org + Admissions/China
+без расширения Malaysia; own/department/direction/org на канонических связях;
+перевод владельца и неизвестное направление; отзыв в открытой сессии/незавершённом
+intent; согласованные UI/direct RPC/assignee lists; backfill без расширения;
+last-Admin, Student-private, stale update и replay; приватные файлы, чат/подписка
+и задачи. Сохраняются business invariants, audit и авторство. Provider-вызовы и
+реальные письма не нужны для реализации; их фактическая приёмка остаётся отдельной.
+
+## Локальная проверка 2026-09-13
+
+Обычный запуск `--staff-onboarding-only` завершился маркером
+`LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED`. В новом CLI-стеке применены 155–157;
+прошли one-shot Admin bootstrap, публикация четырёх ролей и два синтетических
+приглашения `.local.test` через изолированный Mailpit. Для обоих сценариев
+проверены явный callback, установка пароля, вход в новом browser context и
+живые snapshots с назначениями. После очистки контейнеров этого запуска: 0.
+Свидетельство запуска: `cfw01a0999e0aa07a10ab903a8126e03b00`.
+
+Проверенные SHA-256 (префиксы): SQL155 `393f0584`, SQL156 `4b3ea926`,
+SQL157 `8b6c9a80`; onboarding helper `49fb1d082935ce6c`, foundation harness
+`fe32eb7ae2315103`, dashboard model `5995020f6096cca6`.
+Полный локальный unit checkpoint прошёл 1342/1342 (1173 основных +169
+дополнительных, 139 уникальных Node-файлов;
+`cfw01a099a0bc457693b79633fc1a7b66da`), application build также прошёл
+(`cfw01a099a288767272a56c3d0cf2dbd342`). Это результаты конкретного checkpoint,
+не подтверждение будущих изменений.
+
+После этого checkpoint выровнены source-ветки календаря/задач и Sales/Finance,
+включая выбранную задачу без чтения полного дела. Это ещё не полный runtime proof.
+Первое независимое ревью всего среза вернуло changes_requested: case finance summary,
+привязка публикации к показанному impact, версии выбранных назначаемых ролей и
+повторные действия в карточке сотрудника. Эти четыре source-замечания теперь
+закрыты. Finance отдельно одобрен по source/unit
+(`cfw01a099d424e37551acbd9597b232b2fc`, 14/14); последние исправления привязки
+публикации и назначений вместе с receipts одобрены с 16/16 проверками
+(`cfw01a099e0650c72e1a6541b6105158150`, SQL155 SHA-256 `7fab0bf8`).
+Это закрытие конкретных замечаний, не whole-slice approval.
+
+Последующая независимая инвентаризация активной локальной schema157 выявила
+ещё два блокера: post-contract receipt/read не принимают nullable staff-owner
+согласованно с БД; `case_help_workspace_v1` отсекает custom staff из-за сравнения
+nullable роли в Student-фильтре. Оба исправления независимо одобрены по source/unit,
+21/21 (`cfw01a099f070557d30a0be85452e147fe6`, SQL156 SHA-256 `a1f7f7d9`).
+Все шесть source-замечаний закрыты; runtime-проверка этих исправлений и приёмка
+всего S2 остаются открытыми. Новые права и граница Student не расширены.
+
+Два новых обычных локальных запуска применили миграции и прошли создание роли,
+но не весь редактор: сначала `LOCAL_ROLE_EDITOR_EDIT_FAILED`
+(`cfw01a099c93f687f73ac88c5f62a9b85f9`), затем уточнённый
+`LOCAL_ROLE_EDITOR_EDIT_FIELDS_FAILED` (`cfw01a099d0b28d717086da76c69a13bc49`).
+Минимальный DOM probe показал, что exact-label locator теряет предзаполненный
+textarea, а textbox accessible name остаётся стабильным. Исправлен locator;
+его узкая браузерная проверка прошла (`cfw01a099d32ec175a180e0d8a3e11ea2b8`).
+Это диагностика проверки, не доказательство завершённого role-editor workflow.
+Свежий исходный role-editor run завершился ошибкой восстановления роли
+(`cfw01a099e601b37c21afa242cacda7be0f`): создание черновика, изменение, публикация,
+копирование и архивирование с DB-readback прошли, весь workflow — нет.
+Повтор 47064 также завершился: `LOCAL_ROLE_EDITOR_RESTORE_FIELDS_FAILED`
+(`cfw01a099e99da576f09303ee89b3a361fd`). После него source-ревью одобрило ожидание
+реального пустого detail-state после перехода во вкладку ролей перед повторным
+выбором. Следующий запуск 74115 завершился `LOCAL_ROLE_EDITOR_CREATE_FAILED`
+(`cfw01a099f0c50e79a1bf9026b66b5f628d`). Добавлены фиксированные безопасные
+UI-счётчики для диагностики; на том checkpoint полного прохода и подтверждающих
+screenshots ещё не было.
+
+Свежий полный Node-запуск на 142 уникальных файлах остановился на одной старой
+source-проверке календаря: 1234/1235 основных проверок, дополнительные не запускались
+(`cfw01a099c8cfe072f0bbf27fde925d4c43`). Она приведена к новому точному task reader;
+её группа вместе с helper — 30/30 (`cfw01a099ce95327e4288be50c95e60572e`).
+Полный unit-checkpoint до merge прошёл: 144 уникальных Node-файла, 1426 проверок
+(1257 основных и169 дополнительных, 42 повторных вызова исключены;
+`cfw01a099f42a257d63a2d05fc8f6fe9cfa`). Production build с TypeScript и сборкой
+импортера знаний также прошёл (`cfw01a099f4aa467df3baaf5e666295fc24`).
+Полный ESLint после диагностики helper прошёл (`cfw01a099f5d5987b9093867f5ef446941d`).
+
+Слияние с актуальным main завершено и закоммичено в `3897c5db`; обычный push
+выполнен, открыт [черновой PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
+На объединённом checkpoint прошли 66/66 scoped-проверок
+(`cfw01a099ff8dfd770283aa6dc745b606b8`) и полный ESLint с exit0
+(`cfw01a099ffb1f979d3bbeb20c40fd53e89`). На том checkpoint `src/` и `supabase/migrations/` совпадали
+с `5ddbde5a`. Эти результаты не подтверждают весь браузерный workflow;
+PR остаётся черновым; общая приёмка и выпуск ещё не завершены.
+
+Первый завершённый локальный проход onboarding и каталога — `e1f92405`, session72697, exit0
+(`cfw01a09a052e3672e29d1887e43e7a6701`). Получены отдельные
+`LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED` и `LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED`.
+Реальные локальные Auth/Mailpit/SQL/браузер подтвердили приглашение, собственный
+пароль и вход; каталог — создание, изменение, проверку влияния, публикацию,
+копирование, архив и восстановление двух неиспользуемых синтетических ролей
+с live-readback. Существующие назначения
+не менялись, поэтому это ещё не доказательство редактирования прав сотрудника.
+Финальный экран восстановленного черновика на `/v3/settings?section=staff&view=roles`
+проверен в1440×1000 и390×844: содержимое и видимые основные действия отображаются,
+framework overlay не обнаружен. Весь сценарий не зарегистрировал клиентских
+ошибок; screenshots не доказывают мобильное взаимодействие с каждой формой.
+Персональные рабочие данные в проверке не использованы.
+Screenshots вне Git: `/private/tmp/evo-s2-role-editor.FyKpvY/`,
+`role-editor-10f72ace-desktop.png` и `role-editor-10f72ace-mobile.png`.
+Изолированный проект `evo-local-8f0605ebaa243545` после завершения не оставил
+контейнеров, томов или сетей (`cfw01a09a06dd887a609afd47536e673678`).
+Этот PASS не доказывает причину раннего непостоянного CREATE failure и не заменяет
+проверку двух последовательных сохранений назначений, используемых ролей и
+рабочих Sales/Admissions сценариев. Production и реальные приглашения не менялись.
+
+[Fast PR CI34748918360](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34748918360)
+на `e1f92405` остановился в populated-проверке migration155: после обновления14
+memberships последующий DDL получил `pending trigger events`. В `4c7f2eb3`
+неизменённый backfill перенесён после трёх membership-DDL операций;
+source-order regression и независимое source-ревью прошли. Новый populated runtime
+ещё не подтверждён и ожидает следующего push.
+
+Helper двух последовательных сохранений назначений существующего локального
+сотрудника реализован и независимо одобрен с23/23 scoped-проверками;
+на том checkpoint его фактический browser-сценарий ещё не запускался. Совместный focused-checkpoint
+прошёл29/29 (`cfw01a09a13baf67610abed2a822e58ea7d`), полный ESLint — PASS
+(`cfw01a09a13e081740380b7b1cd1aaa1793`). Это source/unit-результаты, не новый runtime PASS.
+
+На чистом `02497173` следующий обычный запуск session77095 завершился exit0
+(`cfw01a09a18c6f67b23abc61d4e1b234242`) со всеми тремя отдельными markers:
+`LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED`, `LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED`,
+`LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED`. Под настоящим локальным Admin в одной
+карточке снято назначение, сохранено V+1, затем через «Изменить назначения» без
+перехода/перезагрузки восстановлен исходный набор и сохранено V+2. Сверены реальные
+данные и поля формы, остальные сотрудники и определения ролей не изменились.
+Root проверил screenshots финального черновика каталога в1440×1000 и390×844:
+`/private/tmp/evo-s2-members.mCkUm2/role-editor-c39dc735-desktop.png` и
+`role-editor-c39dc735-mobile.png`; screenshots самой карточки не снимались.
+Owned проект `evo-local-74b8d08d6012d5cf` очищен: контейнеров/томов/сетей нет
+(`cfw01a09a1965237ee1a6699820a21fcbc7`). Независимое source-ревью подтвердило границы
+member-proof; оно не повторяло runtime. CI34749513196 на том же SHA прошёл
+исправленный DDL, но завершился на migration155:471 с
+`staff_backfill_owner_scope_requires_review`
+(`cfw01a09a1d6eee70628c9d85cbf3ba454c`). Guard сохранён; ещё требуется определить
+источник несовпадения прежних владельцев и областей. Admin-форма приглашения, department/direction, эффективные права в
+рабочих сценариях и весь release gate остаются открытыми. Настоящих писем не было.
+
+На следующем общем checkpoint `21cc76cb` фактическая Admin-форма включена в
+обычный локальный сценарий. Запуск session11489 завершился exit1 на `CREATE_ID`
+редактора роли (`cfw01a09a2f7d467c319b473c9967b96a0c`): после клика осталось0
+редакторов,1 кнопка создания и1 пустая панель. На этом шаге ещё нет сохранения
+роли/RPC. Ранние invitation/onboarding markers не сохранены внешним failure-output,
+поэтому этот запуск не отмечен как отдельный принятый UI-invite PASS. Ни причина
+непостоянного открытия, ни вся новая последовательность пока не подтверждены.
+Согласована узкая диагностика готовности обработчика/переходов/клиентской ошибки
+без повторных кликов и раскрытия данных; см. последнюю запись PLAN_CHANGES.
+Owned проект `evo-local-cc0597c8af290a70` очищен; после проверки OrbStack/context
+его контейнеров, томов и сетей не осталось (`cfw01a09a316a527620bec2d8ffdaa7c12e`).
+
+[CI34750378975](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34750378975)
+на том же `21cc76cb` также завершился failure. Count-only DETAIL существующего
+guard показывает3 `selected_owner_missing_case_scope`, а обе категории неверной
+роли и `curator_owned_lead` равны0 (`cfw01a09a33a1ce76d1ba744dac2b52fd3a`).
+Это сведения о проверочной базе, не о production. Независимая трассировка исходников
+нашла три P135 activated-case fixtures, где назначенным кураторам не выданы case
+scopes. Исправление добавляет только их текущие owner-case grants с обычными
+триггерами и проверкой всех трёх пар; product SQL и прежние assessment assertions
+не изменены. Source regression сначала упал, затем прошёл8/8
+(`cfw01a09a39ba72763392324642320df177`, `cfw01a09a3a3aaf72618548f299c8bf377e`).
+Узкое независимое ревью одобрило исправление fixtures; следующий обязательный CI
+ещё должен подтвердить, что обновление проходит. Диагностика открытия роли прошла
+34/34 helper/workdir-теста и scoped ESLint/bash/diff-проверки
+(`cfw01a09a3880917d23881682bd82e5ab9f`), не новый browser PASS.
+
+Следующий замороженный `6ae41a2a` прошёл обычный локальный сценарий полностью:
+`--staff-onboarding-only`, session37923, exit0, отдельные markers для Admin-формы
+приглашения, Auth/password onboarding, каталога ролей и двух изменений назначений
+(`cfw01a09a451fb37273a6ac3cc17d7f105e`). Непостоянный `CREATE_ID` в этот раз не
+повторился; это не установленная причина или доказанное исправление сбоя.
+Просмотрены desktop1440×1000 и mobile390×844 screenshots финального черновика
+каталога в `/private/tmp/evo-s2-opening-probe.vJSnGQ`; они не изображают все
+предыдущие шаги. После OrbStack-проверки у owned проекта
+`evo-local-3c9b2a865bbe7fa9` не осталось контейнеров, томов и сетей
+(`cfw01a09a459077774294657c252ab70376`).
+
+На том же SHA [CI34751346856](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34751346856)
+прошёл прежний owner-scope guard, но остановился на позднем ALTER TABLE
+`staff_role_definitions` с pending trigger events, migration155:1297
+(`cfw01a09a4a4ec17a9095e98bdb7a45ab6a`). Исправление переносит восемь неизменённых
+ENABLE/FORCE RLS перед backfill; deferred FK, ACL, guards и transaction остаются.
+Source-order regression: сначала8/9, затем9/9; scoped ESLint и diff check прошли
+(`cfw01a09a4bd7c779c3b15698816c0b6406`, `cfw01a09a4c6de87603b3fd55044f8daacb`).
+Успешное обновление заполненной базы ещё не подтверждено. Следующий позитивный
+сценарий отделов/направлений описан в PLAN_CHANGES и реализован в локальном helper:
+обычный handoff, четыре сохранения назначений в одной карточке и три независимых
+чтения дела свежей Sales-сессией. Независимое source review одобрило helper и
+интеграцию; 31/31 узких тестов и scoped ESLint прошли. Реальный сценарий ещё
+не выполнен; source review и тесты не заменяют runtime acceptance.
+
+Следующее независимое review выявило недостающую привязку архивирования к
+просмотренным последствиям. Исправление следует записи PLAN_CHANGES: Admin-only
+preview, строгий DTO и сверка выбора, двухшаговое подтверждение, проверка
+fingerprint перед записью и обычный assigned-role UI сценарий после V0+4.
+TypeScript, scoped ESLint и 6/6 DTO-тестов прошли
+(`cfw01a09a5d67c273f086db3895cdfd9c12`); это не runtime/merge acceptance.
+Завершённое исправление SQL/helper/UI прошло независимое source review; исходное
+замечание закрыто на уровне кода. Общие 50/50 узких тестов, scoped ESLint,
+TypeScript и diff check завершились с exit0
+(`cfw01a09a5f3b1e76f2b6044b3c80075892`). Assigned-role архивирование после
+V0+4 и восстановление на V0+6 включены в следующий обычный локальный прогон;
+результат этого прогона и нового CI ещё не получен.
+
+На frozen `40dc3498` обычный локальный прогон завершился с exit1 на
+`LOCAL_BUSINESS_SCOPES_HANDOFF_FAILED`; отдельные приглашение/onboarding markers
+сохранены (`cfw01a09a62353c74e38ede752864b8853c`). Причина установлена по исходникам:
+ручной лид оставался `new`, тогда как handoff требует `qualified`. Исправление
+helper добавляет обычную квалификацию и readback актуальной workflow version,
+не меняя guards/роли платформы. Source regression31/33→33/33, scoped ESLint/diff
+прошли (`cfw01a09a6585cc7142b76167b7a9e52e7c`,
+`cfw01a09a65e2007ef0aca230542f9b5d0a`); новый runtime ещё нужен.
+Owned проект `evo-local-8a2e83679926b80e` не оставил контейнеров/томов/сетей
+(`cfw01a09a62e1cb74628d7191bf7bc1ce8d`). В `/private/tmp/evo-s2-scopes.QcZ0DM`
+просмотрены desktop/mobile screenshots финального каталога, не бизнес-сценария.
+
+На `d82a3fc0` обычный позитивный сценарий прошёл квалификацию/передачу и завершился
+с exit1 на `LOCAL_BUSINESS_SCOPES_DEPARTMENT_READ_FAILED`
+(`cfw01a09a69f5f87ad09887e83a86744c6c`). Этот этап объединял workspace readback,
+новую Sales-сессию и чтение дела; подтверждённого permission mismatch по коду
+не найдено. Owned `evo-local-420d5e413d71dc5d` полностью очищен
+(`cfw01a09a6ae8d779c099989b2aebd11207`). Добавлены только фиксированные приватные
+подэтапы без вывода runtime-данных/ошибок; все прежние assertions и teardown
+сохранены. Source review одобрило diff; 34/34 tests, scoped ESLint и diff check
+прошли (`cfw01a09a6fdc1d7163b9382f627e617c33`). Следующий runtime ещё нужен.
+
+CI34752745887 на `40dc3498` завершился failure в historical current-actor aggregate,
+не на прежнем ALTER (`cfw01a09a66f8327bc0aad10faf1b9bf205`). Старый тест требует
+от staff identity точного legacy JWT role/version и старого organization scope;
+это не принятый S2 контракт. Его текущая корректировка описана в PLAN_CHANGES;
+личность, live status, ACL и отдельный Student resolver остаются обязательными.
+Нормальный required CI должен подтвердить исправление, source review недостаточно.
+
+Browser-проверка используемых ролей и назначений, повторная проверка исправленных
+потребителей, independent review, release gate
+и выкладка остаются обязательными. Реальные сотрудники, production, provider и
+Storage acceptance новыми запусками не подтверждены. S1/D1 остаётся принят в
+`77cde9ba`; S2 — закоммиченный и отправленный черновик PR747, пока не выпущенный.
+
+Checkpoint375e58ef: actor alignment independently source-reviewed, focused10/10
+and lint passed (`cfw01a09a71cf4a78509e4e7ffae392d249`,
+`cfw01a09a724a3871e280ebba9a047e137c`); pushed to PR747, CI34753640952 running.
+Ordinary local session53541 exited1 at SALES_READBACK before onboarding/scope
+markers (`cfw01a09a74c4737b71a33a0446c6f8272d`). Owned
+`evo-local-2257ca6338666abe` cleanup was checked
+(`cfw01a09a74f3e37053859c797a88c2243b`). No confirmed DTO or success-before-commit
+race was found by source review; this combined stage also checked sticky browser
+errors. The next diagnostic diff separates those checks and uses only fixed
+error categories, no text/identities. Focused36/36 and scoped lint/diff pass
+(`cfw01a09a77b35a70a199b2376f819f5141`); runtime remains pending. Existing d82
+desktop/mobile final-catalogue screenshots were inspected; they prove only the
+shown draft layout, not the failed business workflow or a current runtime.
+
+## Основания
+
+Последний подтверждённый runtime: frozen451944cd, session61839, exit0 — markers
+для Admin invitation UI, catalogue, member editor, business scopes и onboarding
+(`cfw01a09a7b115f7452b390f7c23c5f8bfe`). Business helper завершил обычную
+квалификацию/handoff, department/direction/combined full reads, восстановление
+назначений и assigned-role archive; это следует из обязательной последовательности
+перед его success marker. После OrbStack/context проверки проект
+`evo-local-ef43bcdfd56f8e40` не оставил контейнеров/томов/сетей
+(`cfw01a09a7b618d7fa08e5685b0801e3449`). Диагностический diff independently
+source-reviewed; прежние непостоянные failures не повторились, их причина не
+установлена. Новые screenshots этим запуском не создавались.
+
+CI34753640952 на375e58ef завершился failure: actor test525 не нашёл существующую
+org-compatible роль (`cfw01a09a7a0e1e7140bf1c9052ef59c218`). Исправляется только
+позитивная подготовка роли в тесте. Собственная company.file.read роль создаётся
+и публикуется обычным Admin; exact role2/bundle1 binding/permissions и прежние
+grant/removal1→2→3/identity/status/ACL/rollback сохранены. Независимое source review
+одобрило diff; 10/10, scoped ESLint/diff прошли
+(`cfw01a09a7db16079c0b7de2b8a3c8a3444`). Следующий required CI ещё обязателен.
+Это не production/employee acceptance; S2 пока не выложен.
+
+Проверено2026-09-13: [Supabase RBAC](https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac),
+[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[API security](https://supabase.com/docs/guides/api/securing-your-api).
+JWT может устаревать до refresh; отзыв проверяется живой БД. Data API pre-request
+не заменяет Storage/Realtime. Минимальные grants, FK-индексы и единый порядок locks
+применяются в существующей закрытой platform/private границе.

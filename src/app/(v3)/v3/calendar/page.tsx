@@ -72,7 +72,6 @@ export default async function CalendarPart({
   const taskId = parsePlatformAdmissionsUuid(taskParam);
   if (hasTarget && (!caseId || !taskId)) notFound();
   const target = caseId && taskId ? await readCalendarTaskTarget(actor, caseId, taskId) : null;
-  if (hasTarget && !target) notFound();
   const day = target?.task.day ?? resolveDay(singleValue(params.date), today);
   // Deep links include their authorized task even beyond the first undated page.
   const requestedCursor = undatedCursorFromParams(params);
@@ -99,13 +98,15 @@ export default async function CalendarPart({
         <Calendar
           key={target ? target.task.id : `${view}:${day}`}
           initialTaskId={target?.task.id ?? null}
+          taskCapabilities={target?.capabilities ?? null}
           view={view}
           day={day}
           today={today}
           nowMinutes={nowMinutes}
           days={days}
           tasks={workspace.tasks}
-          undatedContinuationPage={undatedCursor !== null}
+          readAccess={workspace.access}
+          undatedContinuationPage={workspace.access.tasks && undatedCursor !== null}
           undatedNextHref={workspace.undatedNextCursor
             ? calendarUndatedContinuationHref(
                 "/v3/calendar",
@@ -120,8 +121,7 @@ export default async function CalendarPart({
           casesHaveMore={workspace.casesHaveMore}
           assignees={workspace.assignees}
           actorMembershipId={actor.membershipId}
-          authorityRole={actor.authorityRole}
-          presentationRole={actor.presentationRole}
+          actor={actor}
           createRequestId={randomUUID()}
           taskRequestIds={taskRequestIds}
           basePath="/v3/calendar"

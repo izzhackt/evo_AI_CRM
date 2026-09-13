@@ -109,16 +109,14 @@ $current_actor_authority_contract$;
 
 BEGIN;
 
--- Create one disposable actor after all Platform bundle upgrades. The actor is
--- deliberately separate from prior suites so this test cannot inherit a stale
--- JWT, role or scope mutation.
+-- Create one disposable actor after the scoped-role backfill. Its legacy bundle
+-- and organization scope establish no scoped business permissions. Active staff
+-- identity and live business rights are deliberately checked separately.
 \set p3a_actor_user_id 'f0470000-0000-4000-8000-000000000001'
 \set p3a_actor_profile_id 'f0470000-0000-4000-8000-000000000002'
 \set p3a_actor_membership_id 'f0470000-0000-4000-8000-000000000003'
 \set p3a_actor_scope_event_id 'f0470000-0000-4000-8000-000000000004'
 \set p3a_actor_scope_request_id 'f0470000-0000-4000-8000-000000000005'
-\set p3a_published_without_permission_bundle_id 'f0470000-0000-4000-8000-000000000006'
-\set p3a_draft_bundle_id 'f0470000-0000-4000-8000-000000000007'
 
 SELECT
   scope.organization_id AS p3a_actor_organization_id,
@@ -229,6 +227,29 @@ SELECT jsonb_build_object(
 )::TEXT AS p3a_actor_claims
 \gset
 
+SELECT jsonb_build_array(jsonb_build_object(
+  'auth_user_id', :'p3a_actor_user_id',
+  'profile_id', :'p3a_actor_profile_id',
+  'membership_id', :'p3a_actor_membership_id',
+  'organization_id', :'p3a_actor_organization_id',
+  'display_name', 'P3A RPC Actor',
+  'platform_role', 'sales',
+  'platform_access_version', 1
+))::TEXT AS p3a_expected_actor,
+jsonb_build_object(
+  'schemaVersion', 1,
+  'authUserId', :'p3a_actor_user_id',
+  'profileId', :'p3a_actor_profile_id',
+  'membershipId', :'p3a_actor_membership_id',
+  'organizationId', :'p3a_actor_organization_id',
+  'displayName', 'P3A RPC Actor',
+  'systemRole', 'staff',
+  'accessVersion', 1,
+  'assignments', '[]'::JSONB,
+  'permissions', '[]'::JSONB
+)::TEXT AS p3a_expected_empty_snapshot
+\gset
+
 SET request.jwt.claims TO :'p3a_actor_claims';
 SET ROLE authenticated;
 SELECT
@@ -244,6 +265,9 @@ SELECT
   ) AS p3a_positive_matching_rows
 FROM platform.current_actor_authority()
 \gset
+SELECT platform.staff_access_snapshot() = :'p3a_expected_empty_snapshot'::JSONB
+  AS p3a_positive_empty_permissions
+\gset
 RESET ROLE;
 
 \if :{?p3a_positive_rows}
@@ -255,6 +279,7 @@ RESET ROLE;
 SELECT
   :'p3a_positive_rows' = '1'
   AND :'p3a_positive_matching_rows' = '1'
+  AND :'p3a_positive_empty_permissions'::BOOLEAN
   AS p3a_positive_contract_ok
 \gset
 \if :p3a_positive_contract_ok
@@ -263,8 +288,9 @@ SELECT
   SELECT 1 / 0;
 \endif
 
--- Caller identity and every exact JWT authority claim must match the same live
--- row. Derive each mutation from the known-good complete claim set.
+-- Subject and organization/membership routing still bind the caller. These
+-- pre-existing legacy role/version cases must return only the exact LIVE staff
+-- identity and empty scoped rights, never authority from the old JWT fields.
 SELECT (
   :'p3a_actor_claims'::JSONB || jsonb_build_object(
     'sub', 'f0470000-0000-4000-8000-000000000099'
@@ -306,36 +332,45 @@ RESET ROLE;
 
 SET request.jwt.claims TO :'p3a_wrong_role_claims';
 SET ROLE authenticated;
-SELECT count(*) AS p3a_wrong_role_rows
-FROM platform.current_actor_authority()
+SELECT
+  (SELECT jsonb_agg(to_jsonb(actor)) FROM platform.current_actor_authority() actor)
+    = :'p3a_expected_actor'::JSONB
+  AND platform.staff_access_snapshot() = :'p3a_expected_empty_snapshot'::JSONB
+  AS p3a_wrong_role_live_contract_ok
 \gset
 RESET ROLE;
 
 SET request.jwt.claims TO :'p3a_stale_version_claims';
 SET ROLE authenticated;
-SELECT count(*) AS p3a_stale_version_rows
-FROM platform.current_actor_authority()
+SELECT
+  (SELECT jsonb_agg(to_jsonb(actor)) FROM platform.current_actor_authority() actor)
+    = :'p3a_expected_actor'::JSONB
+  AND platform.staff_access_snapshot() = :'p3a_expected_empty_snapshot'::JSONB
+  AS p3a_stale_version_live_contract_ok
 \gset
 RESET ROLE;
 
 SET request.jwt.claims TO :'p3a_malformed_version_claims';
 SET ROLE authenticated;
-SELECT count(*) AS p3a_malformed_version_rows
-FROM platform.current_actor_authority()
+SELECT
+  (SELECT jsonb_agg(to_jsonb(actor)) FROM platform.current_actor_authority() actor)
+    = :'p3a_expected_actor'::JSONB
+  AND platform.staff_access_snapshot() = :'p3a_expected_empty_snapshot'::JSONB
+  AS p3a_malformed_version_live_contract_ok
 \gset
 RESET ROLE;
 
 SELECT
   :'p3a_wrong_subject_rows' = '0'
   AND :'p3a_missing_authority_rows' = '0'
-  AND :'p3a_wrong_role_rows' = '0'
-  AND :'p3a_stale_version_rows' = '0'
-  AND :'p3a_malformed_version_rows' = '0'
-  AS p3a_claim_denials_ok
+  AND :'p3a_wrong_role_live_contract_ok'::BOOLEAN
+  AND :'p3a_stale_version_live_contract_ok'::BOOLEAN
+  AND :'p3a_malformed_version_live_contract_ok'::BOOLEAN
+  AS p3a_claim_contract_ok
 \gset
-\if :p3a_claim_denials_ok
+\if :p3a_claim_contract_ok
 \else
-  \echo 'FAIL: current actor RPC accepted invalid caller/JWT claims'
+  \echo 'FAIL: current actor caller binding or live staff rights changed'
   SELECT 1 / 0;
 \endif
 
@@ -409,82 +444,212 @@ VALUES (
 );
 SET request.jwt.claims TO :'p3a_actor_claims';
 SET ROLE authenticated;
-SELECT count(*) AS p3a_revoked_scope_rows
-FROM platform.current_actor_authority()
+SELECT
+  (SELECT jsonb_agg(to_jsonb(actor)) FROM platform.current_actor_authority() actor)
+    = :'p3a_expected_actor'::JSONB
+  AND platform.staff_access_snapshot() = :'p3a_expected_empty_snapshot'::JSONB
+  AS p3a_revoked_scope_live_contract_ok
 \gset
 RESET ROLE;
 ROLLBACK TO SAVEPOINT p3a_scope_revoked;
 RELEASE SAVEPOINT p3a_scope_revoked;
 
-SAVEPOINT p3a_missing_permission;
-INSERT INTO platform.role_bundle_versions (
-  id,
-  role,
-  version,
-  status,
-  label,
-  published_at
-)
-VALUES (
-  :'p3a_published_without_permission_bundle_id',
-  'sales',
-  999998,
-  'published',
-  'P3A published bundle without organization.read',
-  statement_timestamp()
-);
-UPDATE platform.organization_memberships
-SET current_bundle_id =
-  :'p3a_published_without_permission_bundle_id'
-WHERE id = :'p3a_actor_membership_id';
-SET request.jwt.claims TO :'p3a_actor_claims';
-SET ROLE authenticated;
-SELECT count(*) AS p3a_missing_permission_rows
-FROM platform.current_actor_authority()
-\gset
-RESET ROLE;
-ROLLBACK TO SAVEPOINT p3a_missing_permission;
-RELEASE SAVEPOINT p3a_missing_permission;
-
-SAVEPOINT p3a_unpublished_bundle;
-INSERT INTO platform.role_bundle_versions (
-  id,
-  role,
-  version,
-  status,
-  label
-)
-VALUES (
-  :'p3a_draft_bundle_id',
-  'sales',
-  999999,
-  'draft',
-  'P3A unpublished bundle probe'
-);
-UPDATE platform.organization_memberships
-SET current_bundle_id = :'p3a_draft_bundle_id'
-WHERE id = :'p3a_actor_membership_id';
-SET request.jwt.claims TO :'p3a_actor_claims';
-SET ROLE authenticated;
-SELECT count(*) AS p3a_unpublished_bundle_rows
-FROM platform.current_actor_authority()
-\gset
-RESET ROLE;
-ROLLBACK TO SAVEPOINT p3a_unpublished_bundle;
-RELEASE SAVEPOINT p3a_unpublished_bundle;
-
 SELECT
   :'p3a_blocked_profile_rows' = '0'
   AND :'p3a_inactive_membership_rows' = '0'
   AND :'p3a_suspended_organization_rows' = '0'
-  AND :'p3a_revoked_scope_rows' = '0'
-  AND :'p3a_missing_permission_rows' = '0'
-  AND :'p3a_unpublished_bundle_rows' = '0'
-  AS p3a_live_state_denials_ok
+  AND :'p3a_revoked_scope_live_contract_ok'::BOOLEAN
+  AS p3a_live_state_contract_ok
 \gset
-\if :p3a_live_state_denials_ok
+\if :p3a_live_state_contract_ok
 \else
-  \echo 'FAIL: current actor RPC accepted stale live authority'
+  \echo 'FAIL: current actor live identity/status or legacy scope contract changed'
+  SELECT 1 / 0;
+\endif
+
+-- Legacy bundle rewrites are frozen after S2. Replace those historical probes
+-- with ordinary Admin commands for one test-owned role and its assignments.
+-- The selected organization need not have any backfilled editable role. The
+-- outer rollback removes this role, its bundle and this actor's assignments/audit.
+SELECT jsonb_build_object(
+  'sub', profile.auth_user_id,
+  'role', 'authenticated',
+  'platform_organization_id', membership.organization_id,
+  'platform_membership_id', membership.id
+)::TEXT AS p3a_admin_claims
+FROM platform.organization_memberships membership
+JOIN platform.profiles profile ON profile.id = membership.profile_id
+WHERE membership.organization_id = :'p3a_actor_organization_id'
+  AND membership.is_system_admin
+  AND membership.status = 'active'
+  AND profile.status = 'active'
+ORDER BY membership.id
+LIMIT 1
+\gset
+
+\if :{?p3a_admin_claims}
+\else
+  \echo 'FAIL: current actor ordinary assignment Admin fixture is missing'
+  SELECT 1 / 0;
+\endif
+
+\set p3a_scoped_role_id 'f0470000-0000-4000-8000-000000000012'
+SET request.jwt.claims TO :'p3a_admin_claims';
+SET ROLE authenticated;
+SELECT platform.staff_role_command(
+  :'p3a_actor_organization_id', :'p3a_scoped_role_id', 0, 'create',
+  jsonb_build_object('label', 'P3A current actor company read',
+    'description', 'Transactional current actor scoped permission fixture',
+    'permissionKeys', jsonb_build_array('company.file.read')),
+  'P3A create ordinary scoped role', 'f0470000-0000-4000-8000-000000000013'
+) = jsonb_build_object('status', 'applied', 'roleId', :'p3a_scoped_role_id',
+  'version', 1) AS p3a_role_created
+\gset
+
+WITH impact AS (
+  SELECT platform.staff_role_impact(
+    :'p3a_actor_organization_id', :'p3a_scoped_role_id', 1
+  ) AS body
+)
+SELECT body->>'impactFingerprint' AS p3a_role_impact_fingerprint,
+  body - 'impactFingerprint' = jsonb_build_object(
+    'roleId', :'p3a_scoped_role_id', 'version', 1,
+    'affectedMembershipIds', '[]'::JSONB,
+    'addedPermissionKeys', jsonb_build_array('company.file.read'),
+    'removedPermissionKeys', '[]'::JSONB
+  ) AND (body->>'impactFingerprint') ~ '^[0-9a-f]{64}$' AS p3a_role_impact_ok
+FROM impact
+\gset
+
+SELECT :'p3a_role_created'::BOOLEAN AND :'p3a_role_impact_ok'::BOOLEAN
+  AS p3a_role_reviewed
+\gset
+\if :p3a_role_reviewed
+\else
+  \echo 'FAIL: current actor test-owned role creation or publication impact changed'
+  SELECT 1 / 0;
+\endif
+
+WITH publication AS (
+  SELECT platform.staff_role_publish(
+    :'p3a_actor_organization_id', :'p3a_scoped_role_id', 1,
+    :'p3a_role_impact_fingerprint', 'P3A publish ordinary scoped role',
+    'f0470000-0000-4000-8000-000000000014'
+  ) AS body
+)
+SELECT body->>'bundleId' AS p3a_scoped_bundle_id,
+  body - 'bundleId' = jsonb_build_object(
+    'status', 'applied', 'roleId', :'p3a_scoped_role_id', 'version', 2,
+    'bundleVersion', 1, 'affectedMembershipIds', '[]'::JSONB
+  ) AND (body->>'bundleId')::UUID IS NOT NULL AS p3a_role_published
+FROM publication
+\gset
+RESET ROLE;
+
+\if :p3a_role_published
+\else
+  \echo 'FAIL: current actor test-owned role publication changed'
+  SELECT 1 / 0;
+\endif
+
+-- Publication versions are per role (155), so this new role is version 2 with
+-- bundle version 1. Read back the returned canonical binding and literal rights.
+SELECT role.id AS p3a_scoped_role_id,
+  jsonb_build_array(jsonb_build_object(
+    'roleId', role.id, 'roleVersion', role.version,
+    'bundleId', bundle.id, 'bundleVersion', bundle.version
+  ))::TEXT AS p3a_scoped_role_bindings,
+  jsonb_build_array(jsonb_build_object(
+    'roleId', role.id,
+    'scope', jsonb_build_object('kind', 'organization',
+      'key', :'p3a_actor_organization_id', 'resourceKind', NULL)
+  ))::TEXT AS p3a_scoped_assignments,
+  jsonb_build_object(
+    'roleId', role.id, 'label', role.label,
+    'bundleId', bundle.id, 'bundleVersion', bundle.version,
+    'scope', jsonb_build_object('kind', 'organization',
+      'key', :'p3a_actor_organization_id', 'resourceKind', NULL)
+  )::TEXT AS p3a_expected_assignment,
+  jsonb_build_array('company.file.read')::TEXT AS p3a_expected_permissions
+FROM platform.staff_role_definitions role
+JOIN platform.staff_role_bundle_bindings binding
+  ON binding.organization_id = role.organization_id
+  AND binding.role_id = role.id AND binding.bundle_id = role.current_bundle_id
+JOIN platform.role_bundle_versions bundle
+  ON bundle.id = binding.bundle_id AND bundle.version = binding.bundle_version
+JOIN platform.role_bundle_permissions permission ON permission.bundle_id = bundle.id
+JOIN platform.permission_definitions definition
+  ON definition.permission_key = permission.permission_key
+WHERE role.organization_id = :'p3a_actor_organization_id'
+  AND role.id = :'p3a_scoped_role_id' AND role.version = 2
+  AND role.label = 'P3A current actor company read'
+  AND bundle.id = :'p3a_scoped_bundle_id' AND bundle.version = 1
+  AND role.status = 'active' AND bundle.status = 'published'
+GROUP BY role.id, bundle.id
+HAVING bool_and('organization' = ANY(definition.staff_scope_kinds)
+  AND cardinality(definition.staff_resource_kinds) > 0
+  AND NOT definition.staff_sensitive AND NOT definition.staff_system_only)
+  AND jsonb_agg(permission.permission_key ORDER BY permission.permission_key)
+    = jsonb_build_array('company.file.read')
+\gset
+
+SET request.jwt.claims TO :'p3a_admin_claims';
+SET ROLE authenticated;
+SELECT platform.staff_role_assignments_save(
+  :'p3a_actor_organization_id', :'p3a_actor_membership_id', 1,
+  :'p3a_scoped_assignments'::JSONB, :'p3a_scoped_role_bindings'::JSONB,
+  'P3A ordinary scoped role assignment', 'f0470000-0000-4000-8000-000000000010'
+) = jsonb_build_object('status', 'applied', 'membershipId', :'p3a_actor_membership_id',
+  'accessVersion', 2) AS p3a_assignment_applied
+\gset
+RESET ROLE;
+
+-- Reuse the original staff claims (version 1). Both identity and business rights
+-- must reflect live version 2, including exactly the one published assignment.
+SET request.jwt.claims TO :'p3a_actor_claims';
+SET ROLE authenticated;
+WITH snapshot AS (SELECT platform.staff_access_snapshot() AS body)
+SELECT
+  (SELECT jsonb_agg(to_jsonb(actor)) FROM platform.current_actor_authority() actor)
+    = jsonb_set(:'p3a_expected_actor'::JSONB, '{0,platform_access_version}', '2')
+  AND body - 'assignments' = (:'p3a_expected_empty_snapshot'::JSONB - 'assignments')
+    || jsonb_build_object('accessVersion', 2, 'permissions', :'p3a_expected_permissions'::JSONB)
+  AND jsonb_array_length(body->'assignments') = 1
+  AND (body #> '{assignments,0}') - 'id' = :'p3a_expected_assignment'::JSONB
+  AND (body #>> '{assignments,0,id}')::UUID IS NOT NULL
+  AS p3a_assignment_live_contract_ok
+FROM snapshot
+\gset
+RESET ROLE;
+
+SET request.jwt.claims TO :'p3a_admin_claims';
+SET ROLE authenticated;
+SELECT platform.staff_role_assignments_save(
+  :'p3a_actor_organization_id', :'p3a_actor_membership_id', 2, '[]', '[]',
+  'P3A ordinary scoped role removal', 'f0470000-0000-4000-8000-000000000011'
+) = jsonb_build_object('status', 'applied', 'membershipId', :'p3a_actor_membership_id',
+  'accessVersion', 3) AS p3a_assignment_removed
+\gset
+RESET ROLE;
+
+SET request.jwt.claims TO :'p3a_actor_claims';
+SET ROLE authenticated;
+SELECT
+  (SELECT jsonb_agg(to_jsonb(actor)) FROM platform.current_actor_authority() actor)
+    = jsonb_set(:'p3a_expected_actor'::JSONB, '{0,platform_access_version}', '3')
+  AND platform.staff_access_snapshot()
+    = jsonb_set(:'p3a_expected_empty_snapshot'::JSONB, '{accessVersion}', '3')
+  AS p3a_removal_live_contract_ok
+\gset
+RESET ROLE;
+
+SELECT :'p3a_assignment_applied'::BOOLEAN AND :'p3a_assignment_live_contract_ok'::BOOLEAN
+  AND :'p3a_assignment_removed'::BOOLEAN AND :'p3a_removal_live_contract_ok'::BOOLEAN
+  AS p3a_scoped_assignment_contract_ok
+\gset
+\if :p3a_scoped_assignment_contract_ok
+\else
+  \echo 'FAIL: current actor did not follow ordinary live scoped grant/removal'
   SELECT 1 / 0;
 \endif
 

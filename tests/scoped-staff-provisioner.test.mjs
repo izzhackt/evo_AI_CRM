@@ -21,6 +21,9 @@ const assignment = { roleId, roleVersion: 2, scope: { kind: "own", key: null, re
 test("local browser diagnostics return fixed categories without carrying source text", () => {
   assert.equal(localBrowserErrorCategory("Failed to load resource: example"), "RESOURCE_LOAD");
   assert.equal(localBrowserErrorCategory("A tree hydrated with different attributes"), "HYDRATION");
+  assert.equal(localBrowserErrorCategory('A tree hydrated with different attributes\n<details className="private">\n- open=""'), "HYDRATION_DETAILS_OPEN");
+  assert.equal(localBrowserErrorCategory('hydration <details> private open=""'), "HYDRATION");
+  assert.equal(localBrowserErrorCategory("Each child in a list should have a unique \"key\" prop. private-example"), "REACT_LIST_KEY");
   for (const value of [null, undefined, {}, "private unrelated example"]) assert.equal(localBrowserErrorCategory(value), "OTHER");
 });
 const apiUrl = "http://127.0.0.1:45421";
@@ -208,9 +211,9 @@ function invitationUiBoundary() {
   const locator = (name = "", index) => ({
     getByRole: (_role, options = {}) => locator(options.name ?? "", /^Роль [12]$/.test(options.name ?? "") ? Number(options.name.slice(-1)) - 1 : index),
     locator: (selector) => locator(selector, index),
-    filter({ has, hasText }) {
-      if (name === "form") assert.equal(has.name, "Пригласить сотрудника");
-      else assert.equal(String(hasText), "/^Пригласить сотрудника$/");
+    filter({ has }) {
+      assert.equal(name, "form");
+      assert.equal(has.name, "Пригласить сотрудника");
       return locator(name, index);
     },
     name,
@@ -426,6 +429,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     async click() {
       act(`click:${name}`);
+      if (name === "Роли и права") pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles`;
       if (name === "Создать роль") {
         draft = emptyRole(ids[0]); operation = "create";
         for (let index = 0; index < mainFrameNavigations; index += 1) listeners.get("framenavigated")?.(mainFrame);
@@ -464,6 +468,10 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     mainFrame() { if (observationFailure === "main-frame") throw privateError; return mainFrame; },
     url: () => pageUrl,
+    async waitForURL(expected) {
+      assert.equal(expected, `${appOrigin}/v3/settings?section=staff&view=roles`);
+      assert.equal(pageUrl, expected);
+    },
     getByTestId: () => locator("shell"), async goto(url) { act("goto"); pageUrl = url; },
     async screenshot() { assert.fail("No default screenshots, especially during login"); },
   };

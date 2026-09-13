@@ -15,6 +15,7 @@ import { StaffRoleAssignments } from "./StaffRoleAssignments";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 import { StaffInviteForm } from "./StaffInviteForm";
 import { StaffPendingAccess } from "./StaffPendingAccess";
+import { StaffDisclosure } from "./StaffDisclosure";
 import { useStaffCommandForm, StaffCommandFeedback as Feedback } from "./useStaffCommandForm";
 import { staffReconcileAllowsPreparation } from "@/lib/v3/staff-invitation-access";
 
@@ -130,10 +131,9 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-md font-semibold">Сотрудники · {data.members.length}</h3>
-        <details className="w-full">
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-accent">Пригласить сотрудника</summary>
+        <StaffDisclosure label="Пригласить сотрудника" className="w-full" buttonClassName="font-medium text-accent">
           <div className="pt-3"><StaffInviteForm workspace={roles} organizationId={organizationId} /></div>
-        </details>
+        </StaffDisclosure>
       </div>
       <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
         <div className={selectedMemberId ? "hidden min-w-0 @4xl:block" : "min-w-0"}>
@@ -141,14 +141,13 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
         </div>
         <div className={`${selectedMemberId ? "block" : "hidden @4xl:block"} min-w-0 @4xl:border-l @4xl:border-border @4xl:pl-6`}>
           {selectedMember ? <StaffMemberDetails key={selectedMember.membershipId} member={selectedMember} access={selectedAccess} departments={data.departments}>
-            <details className="border-t border-border pt-2">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">Доступ</summary>
+            <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="font-semibold">
               <div className="space-y-4 pt-2">
                 {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
                   : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
                 <MemberChange member={selectedMember} />
                 {selectedMember.status === "active" ? <RecoveryForm member={selectedMember} /> : null}</div>
-            </details>
+            </StaffDisclosure>
           </StaffMemberDetails> : <div className="space-y-3 py-5">
             <p role={selectedMemberId ? "alert" : undefined} className="text-sm leading-6 text-fg-3">{selectedMemberId
               ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника, чтобы посмотреть рабочие сведения и управление доступом."}</p>
@@ -157,11 +156,10 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
         </div>
       </div>
     </>}
-    <details className="border-t border-border pt-3">
-      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">Журнал приглашений · {data.requests.length}</summary>
+    <StaffDisclosure label={`Журнал приглашений · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="font-semibold">
       <p className="mt-2 text-sm leading-6 text-fg-3">Проверка сверяет результат с сервисом входа. Она не отправляет новое письмо. Если результат не подтверждается, администратору нужно проверить настройки Auth и почты.</p>
       {data.requests.length ? <ul>{data.requests.map((request) => <RequestRow key={request.requestId} request={request} workspace={roles} organizationId={organizationId} />)}</ul>
         : <p className="mt-3 text-sm text-fg-3">Приглашений и запросов восстановления пока нет.</p>}
-    </details>
+    </StaffDisclosure>
   </div>;
 }

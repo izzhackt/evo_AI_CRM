@@ -23866,3 +23866,121 @@ including department/direction/combined business reads and assigned-role archiva
 The earlier intermittent invitation/read failures did not recur; their cause is
 still unestablished. This is local workflow evidence, not managed release or real
 employee delivery. The current CI fixture correction does not change that helper.
+
+## 2026-09-13 — S2 identify the browser-console release failure
+
+PR747 was independently approved and merged as0f80ced1 after all six fast checks
+passed. Managed schema155–157 was applied by run34754696541; check34754823366
+confirmed157 local=157 managed, with no missing or extra versions. Exact-main
+CI34754654192 then failed at
+LOCAL_BUSINESS_SCOPES_DEPARTMENT_READ_CARD_URL_BROWSER_CONSOLE_OTHER_FAILED.
+The preceding authority, case read, member readback and card URL checks completed;
+the sticky browser-console error is the remaining failing observation. The
+server diagnostic had no classified application errors and only HTTP200 main
+requests. This does not establish whether the browser failure is in product code,
+navigation or the proof itself. The release was never armed; no app replacement
+occurred. The previously accepted77cde9ba app remains the release baseline.
+
+Extend only the private diagnostic classifier with fixed React/form, navigation,
+network and socket categories, then run the existing bounded local positive
+onboarding path. No raw console text, URLs, identities or credentials may be
+retained or emitted. Preserve the console-error failure, all workflow assertions
+and cleanup; do not retry until green, suppress errors or change permissions.
+The observation determines the next minimal fix and is not itself a product fix.
+
+The real bounded local rerun reproduced the same checkpoint with category
+`REACT_LIST_KEY` (owned project evo-local-d4f14152da23d60a; cleanup verified).
+Independent source tracing and actual-component execution found that TrendChart
+renders grid keys `[0,1,1]` at a maximum of zero or one. Admin's initial main
+screen renders this chart before the staff card; its console error remains in
+the proof's sticky error flag. Correct only duplicate grid ticks, retaining
+value-based keys and the console gate. Add an actual-component regression for
+empty/zero/one and ordinary-count series before the one-line correction, then
+repeat the unchanged positive workflow. No permissions or user data change.
+The older unclassified intermittent failures are not retroactively declared
+diagnosed. [React's list-key guidance](https://react.dev/learn/rendering-lists),
+checked2026-09-13, requires stable keys unique among siblings; index keys would
+hide the duplicate identity but leave the overlapping chart labels.
+Only the observed list-key category is retained in the committed diagnostic
+change; the other temporary diagnostic categories are removed after diagnosis.
+
+The actual-component regression reproduced the duplicate keys before the fix;
+the correction now passes all42 focused chart/helper checks and scoped ESLint.
+Register the chart regression in the existing frontend script so the canonical
+CI manifest includes it once, using ordinary React rather than the server-only
+condition required by the neighboring source-contract tests. The unchanged
+positive browser workflow and new exact-main release are still pending.
+
+## 2026-09-13 — S2 keep role controls inactive before hydration
+
+Post-chart local run6e353819 stopped before app startup at disposable database
+reset; its cleanup removed the private log, so the cause is not established.
+One diagnostic run of the same head completed reset through157 and actual
+invitation/password/login, then stopped at ROLE_EDITOR_CREATE_ID. It observed
+createClickHandlerBefore=false, handlerAtFailure=true, one main-frame navigation
+and no client error. Owned project evo-local-579f005c0f578377 was removed.
+No post-chart full-browser PASS is claimed, and the reset issue is not declared fixed.
+
+Source tracing found an enabled server-rendered Create control whose only action
+is client state. A visible heading does not prove that handler is ready; the
+navigation count alone cannot identify a remount or prove a reset. Correct the
+observed interaction gap in the product: wrap role catalogue/detail controls in
+a native disabled fieldset until hydration completes, retaining visible content
+and native navigation links. Reuse the existing TeamChatComposer server-false/
+client-true useSyncExternalStore pattern. There is no timer or network wait.
+Add a real React server-render regression for the disabled initial controls.
+The existing positive browser workflow must still prove one click opens the
+editor and completes the unchanged role lifecycle; wait for the exact roles
+destination URL after tab navigation, not React internals. Do not retry clicks,
+suppress errors, broaden permissions or change the required business proof.
+
+Official sources checked2026-09-13:
+[Playwright hydration](https://playwright.dev/docs/navigations#hydration) explains
+lost clicks on enabled controls before listeners exist and recommends disabling
+them until ready; [React server snapshots](https://react.dev/reference/react/useSyncExternalStore#adding-support-for-server-rendering)
+bind the server and initial hydration render to the same snapshot.
+
+## 2026-09-13 — S2 isolate the remaining hydration mismatch
+
+The positive local47f0687e workflow completed invitation/onboarding and reached
+the first scoped case read, but failed its sticky browser-console gate with
+HYDRATION (receipt01a09aa7f6ef78a1a401979ae94bed6b). Project
+evo-local-5dbb13fc17513317 has no remaining containers, volumes or networks.
+Source approval and fast PR checks are not browser approval; PR748 stays draft.
+
+Investigate the first mismatch without suppressHydrationWarning, console
+allowlisting, blind retries or weaker permission checks. The failing path is
+login/main/people/member, not the role-catalogue readiness wrapper. Compare native
+disclosure interaction before hydration, shell navigation, and date formatting;
+the latter matches between Node22 and Chromium for a fixed sample. A bounded
+React/browser reproduction may isolate the rendering mechanism without starting
+the full database again, but it does not replace the real positive workflow.
+
+Current official [React hydration guidance](https://react.dev/reference/react-dom/client/hydrateRoot#caveats)
+requires matching initial output; [Next.js guidance](https://nextjs.org/docs/messages/react-hydration-error)
+identifies invalid nesting and different server/browser renders as causes.
+
+The next unchanged-product local probe, with only the fixed diagnostic enum
+refined, failed at INVITATION_UI_SALES_BROWSER_CONSOLE_HYDRATION_DETAILS_OPEN
+(receipt01a09aafdc407d818b257624a12701eb). A separate real React/Chromium
+reproduction has no warning when closed and reports details/open hydration
+mismatch after an early native summary click (01a09aae0f357403a5cc555020b54066).
+This supports one correction across the three StaffSection disclosures: invite,
+access and invitation history. Use a controlled native button, disabled until
+hydrated, with stable aria-controls/aria-expanded and mounted hidden content.
+Retain drafts and request state across close/reopen; no form or permission changes.
+The [WAI disclosure pattern](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/)
+supports native button Enter/Space behavior. Update helper locators to the visible
+named buttons; keep single clicks, existing readbacks and all error gates.
+
+Implementation proof: three actual component SSR regressions failed with the
+native details implementation (01a09ab111f17fb0acbce252f7bf5a8a), then passed
+with the controlled button (01a09ab1c2d07d338de454c4b240628a). Real component
+SSR/hydration in Chromium at1440 and393px proved the early click is blocked,
+Space/Enter toggle, aria-controls linkage, preservation of the same input node
+and draft across close/reopen, and no console/page errors
+(01a09ab2a18275f09224daa9558c57ee). This component proof uses no Auth or database
+and does not claim whole-product acceptance.46 focused tests and scoped ESLint
+passed (01a09ab2367e70009dd0cf267bf2d267). The complete positive local workflow
+and production release remain required. Diagnostic project33a3ef9f58a2d52e was
+fully removed; no production state was changed.

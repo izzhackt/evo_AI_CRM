@@ -53,7 +53,7 @@ export function TrendChart({
 }) {
   const max = Math.max(1, ...series.flatMap((s) => [...s.values]));
   const primary = series.find((s) => s.emphasis === "primary");
-  const gridValues = [0, Math.round(max / 2), max];
+  const gridValues = [...new Set([0, Math.round(max / 2), max])];
   const spoken = series
     .map((s) => `${s.label}: ${s.values.join(", ")}`)
     .join("; ");

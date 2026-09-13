@@ -69,10 +69,10 @@ const PRIVATE_COMPANY_FILE_VERSION_UPLOAD_PATH =
   /^\/api\/v3\/company-files\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
 const PRIVATE_COMPANY_FILE_DOWNLOAD_PATH =
   /^\/api\/v3\/company-file-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/download$/i;
-const STUDENT_PROFILE_EXPORT_PATH =
-  /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/profile-exports$/i;
 const DOCUMENT_RECOGNITION_JOBS_PATH =
   /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/document-recognition-jobs$/i;
+const DOCUMENT_EXPORT_PATH =
+  /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/document-exports(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:download|reconcile))?$/i;
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
@@ -191,8 +191,8 @@ export function isConnectedPlatformApi(path: string): boolean {
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||
     PRIVATE_COMPANY_FILE_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_COMPANY_FILE_DOWNLOAD_PATH.test(path) ||
-    STUDENT_PROFILE_EXPORT_PATH.test(path) ||
     DOCUMENT_RECOGNITION_JOBS_PATH.test(path) ||
+    DOCUMENT_EXPORT_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

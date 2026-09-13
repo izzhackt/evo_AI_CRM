@@ -14,14 +14,15 @@ import type {
 } from "@/lib/platform-student-profile-fields";
 import {
   PROFILE_FIELDS, PROFILE_GROUPS, PROFILE_GROUP_LABELS,
-  getProfileExportValues, getProfileReadiness, isProfileFieldKey, type ProfileFieldKey, type ProfileIssue,
+  getProfileExportValues, getProfileReadiness, type ProfileFieldKey, type ProfileIssue,
 } from "@/lib/student-profile-fields";
 import {
-  studentProfileExportIssue, studentProfileExportMessage,
+  studentProfileExportIssue, studentProfileFiles,
   studentProfileFieldActionMessage, studentProfileFieldState, studentProfileProposalState,
 } from "@/lib/v3/wording";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
 import { DocumentPreviewButton } from "./DocumentPreviewButton";
+import { StudentProfileExportHistory } from "./StudentProfileExportHistory";
 import type { ProfileFieldSourceVersion } from "./types";
 export type ProfileFieldDraft = Readonly<{
   value: string;
@@ -45,15 +46,12 @@ const BUTTON = "min-h-11 rounded-ctl border border-control-edge px-3 py-2 text-s
 const PRIMARY = "min-h-11 rounded-ctl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed";
 const INPUT = "min-h-11 w-full min-w-0 resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm leading-6 text-fg focus:border-accent";
 const DATE = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeZone: "Asia/Bishkek" });
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 type ExportIssue = Pick<ProfileIssue, "key" | "kind">;
-type ExportResult = Readonly<{ status: string; issues: readonly ExportIssue[] }>;
 type ExportInput = Readonly<{
   snapshot: PlatformStudentProfileFieldsSnapshot; mode: "draft" | "final";
   hasDrafts: boolean; pending: boolean; savedRevision: number | null;
   saveStatus: PlatformStudentProfileFieldActionState["status"];
 }>;
-const EMPTY_EXPORT: ExportResult = { status: "idle", issues: [] };
 
 export function profileExportBlocker(input: ExportInput): string | null {
   if (!input.snapshot.canExport) return "unavailable_access";
@@ -65,58 +63,6 @@ export function profileExportBlocker(input: ExportInput): string | null {
   try { getProfileExportValues(input.snapshot, input.mode); }
   catch { return "profile_not_ready"; }
   return null;
-}
-
-function safeExportIssues(value: unknown): ExportIssue[] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, PROFILE_FIELDS.length * 4).flatMap((item: unknown) => {
-    if (!item || typeof item !== "object") return [];
-    const { key, kind } = item as Record<string, unknown>;
-    if (typeof key !== "string" || !isProfileFieldKey(key) || typeof kind !== "string" || !studentProfileExportIssue(kind)) return [];
-    return [{ key, kind: kind as ProfileIssue["kind"] }];
-  });
-}
-
-/** Explicit-click transport only. No source values, automatic retry or persisted artifact. */
-export async function requestStudentProfileExport(input: ExportInput): Promise<ExportResult> {
-  const blocker = profileExportBlocker(input);
-  if (blocker) return { status: blocker, issues: [] };
-  try {
-    const response = await fetch(`/api/v3/student-cases/${encodeURIComponent(input.snapshot.studentCaseId)}/profile-exports`, {
-      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: input.mode, expected_revision: input.snapshot.profile!.revision, request_id: crypto.randomUUID() }),
-    });
-    if (!response.ok) {
-      const body: unknown = await response.json();
-      const data = body && typeof body === "object" ? body as Record<string, unknown> : {};
-      const allowed: Record<number, readonly string[]> = {
-        400: ["invalid_request"], 401: ["authentication_required"], 403: ["forbidden", "access_changed"],
-        409: ["profile_changed", "request_conflict", "export_request_pending", "export_request_completed"],
-        422: ["profile_not_ready"], 503: ["export_unavailable", "template_unavailable", "render_failed"],
-      };
-      const status = typeof data.error === "string" && allowed[response.status]?.includes(data.error) ? data.error : "export_unavailable";
-      return { status, issues: safeExportIssues(data.issues) };
-    }
-    if (response.headers.get("content-type")?.split(";", 1)[0].trim() !== DOCX_MIME) throw new Error("Unexpected export response");
-    const blob = await response.blob();
-    if (!blob.size) throw new Error("Empty export response");
-    const url = URL.createObjectURL(blob);
-    let link: HTMLAnchorElement | null = null;
-    try {
-      link = document.createElement("a");
-      link.href = url;
-      link.download = input.mode === "draft" ? "EVO-Student-Profile-Draft.docx" : "EVO-Student-Profile.docx";
-      document.body.appendChild(link);
-      link.click();
-    } finally {
-      link?.remove();
-      // Release on the next task, after the browser has consumed the click.
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-    }
-    return { status: "downloaded", issues: [] };
-  } catch {
-    return { status: "export_unavailable", issues: [] };
-  }
 }
 
 function ExportIssues({ issues }: Readonly<{ issues: readonly ExportIssue[] }>) {
@@ -216,8 +162,7 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
   const workspaceRef = useRef<HTMLElement>(null);
   const commandInFlight = useRef(false);
   const [drafts, setDrafts] = useState<Drafts>({});
-  const [exportResult, setExportResult] = useState<ExportResult>(EMPTY_EXPORT);
-  const [failedExportRevision, setFailedExportRevision] = useState<number | null>(null);
+  const [exportPending, setExportPending] = useState(false);
   const [activeField, setActiveField] = useState<ProfileFieldKey | null>(null);
   const [lastField, setLastField] = useState<ProfileFieldKey | null>(null);
   const [state, action, pending] = useActionState(async (previous: PlatformStudentProfileFieldActionState, form: FormData) => {
@@ -251,27 +196,12 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
   const readiness = getProfileReadiness(snapshot);
   const confirmedCount = snapshot.fields.filter(field => field.state === "confirmed").length;
   const byKey = new Map(snapshot.fields.map(field => [field.key, field]));
-  const exportPending = exportResult.status === "pending";
   const busy = pending || exportPending;
   const blocked = busy || !mayReview;
   const exportInput = { snapshot, hasDrafts: Object.keys(drafts).length > 0, pending: busy,
     savedRevision: state.profileRevision, saveStatus: state.status };
-  const needsExportRefresh = failedExportRevision === revision;
   const draftBlocker = profileExportBlocker({ ...exportInput, mode: "draft" });
   const finalBlocker = profileExportBlocker({ ...exportInput, mode: "final" });
-  const exportHint = exportPending ? "pending" : draftBlocker === "profile_not_ready" ? "draft_invalid"
-    : draftBlocker ?? exportResult.status;
-
-  async function download(mode: "draft" | "final") {
-    if (commandInFlight.current || needsExportRefresh || profileExportBlocker({ ...exportInput, mode })) return;
-    commandInFlight.current = true;
-    setExportResult({ status: "pending", issues: [] });
-    try {
-      const result = await requestStudentProfileExport({ ...exportInput, mode });
-      setExportResult(result);
-      setFailedExportRevision(result.status === "profile_changed" ? revision : null);
-    } finally { commandInFlight.current = false; }
-  }
 
   function commandFields(field: PlatformReviewedProfileField, decision: "confirm" | "clear" | "reject_proposal", proposalId = "") {
     return Object.entries(profileFieldCommandValues({ studentCaseId: snapshot.studentCaseId,
@@ -283,7 +213,6 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
     onSubmitCapture={event => {
       if (commandInFlight.current || blocked) { event.preventDefault(); return; }
       commandInFlight.current = true;
-      setExportResult(EMPTY_EXPORT);
     }}>
     <header className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -297,25 +226,13 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
       {state.status === "stale" ? <div className="space-y-2"><ActionMessage state={state} pending={pending} /><button type="button" className={BUTTON} disabled={busy} onClick={() => router.refresh()}>Обновить анкету</button></div> : null}
     </header>
 
-    <div className="space-y-3 border-y border-border py-4" aria-label="Скачивание анкеты">
-      <p className={`text-sm font-semibold ${readiness.ready ? "text-ok" : "text-fg"}`}>
-        {readiness.ready ? "Готова к финальному скачиванию" : "Финальная анкета пока не готова"}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className={`${PRIMARY} disabled:border-border disabled:bg-bg disabled:text-fg-3 disabled:hover:brightness-100`} disabled={Boolean(finalBlocker) || needsExportRefresh}
-          aria-busy={exportPending || undefined} onClick={() => void download("final")}>Скачать финальную анкету</button>
-        <button type="button" className={BUTTON} disabled={Boolean(draftBlocker) || needsExportRefresh}
-          aria-busy={exportPending || undefined} onClick={() => void download("draft")}>Скачать черновик</button>
-      </div>
-      <p className="text-sm leading-6 text-fg-2">Черновик содержит только подтверждённые поля и отметку «Черновик». Непроверенные значения в файл не попадут.</p>
-      <p role="status" aria-live="polite" className="text-sm leading-6 text-fg-2">{studentProfileExportMessage(exportHint)}</p>
-      {needsExportRefresh || draftBlocker === "awaiting_snapshot" || ["invalid_request", "access_changed"].includes(exportResult.status)
-        ? <button type="button" className={BUTTON} disabled={busy} onClick={() => router.refresh()}>Обновить анкету для скачивания</button> : null}
-      {!readiness.ready ? <StaffDisclosure label="Что проверить перед финальным скачиванием" buttonClassName="font-semibold">
+    <StudentProfileExportHistory studentCaseId={snapshot.studentCaseId} profile={profile} canExport={snapshot.canExport}
+      ready={readiness.ready} draftBlocker={draftBlocker} finalBlocker={finalBlocker} busy={busy}
+      commandInFlightRef={commandInFlight} onBusyChange={setExportPending} onRefreshProfile={() => router.refresh()}>
+      {!readiness.ready ? <StaffDisclosure label={studentProfileFiles.review} buttonClassName="font-semibold">
         <ExportIssues issues={readiness.issues} />
       </StaffDisclosure> : null}
-      {exportResult.issues.length > 0 ? <div className="space-y-1"><p className="text-sm font-semibold">Поля, которые нужно проверить</p><ExportIssues issues={exportResult.issues} /></div> : null}
-    </div>
+    </StudentProfileExportHistory>
 
     <div className="divide-y divide-border rounded-card border border-border bg-surface">
       {PROFILE_GROUPS.map(group => {
@@ -331,7 +248,6 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
               const selectedSourceVersionId = draft?.selectedSourceVersionId ?? "";
               const selectedSourcePage = draft?.selectedSourcePage ?? "";
               const changeDraft = (change: Partial<Pick<ProfileFieldDraft, "value" | "selectedSourceVersionId" | "selectedSourcePage">>) => {
-                setExportResult(EMPTY_EXPORT);
                 setDrafts(current => ({ ...current, [field.key]: {
                   ...(current[field.key] ?? {
                     value: field.value ?? "", selectedSourceVersionId: "", selectedSourcePage: "",

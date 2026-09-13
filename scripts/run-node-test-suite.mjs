@@ -21,6 +21,7 @@ export const DEFAULT_ENTRY_SCRIPTS = Object.freeze([
   "test:university-forms",
   "test:document-packages",
   "test:document-source-preflight",
+  "test:document-export-artifacts",
 ]);
 
 export const UNIT_ENTRY_SCRIPTS = Object.freeze([
@@ -40,6 +41,7 @@ export const UNIT_ENTRY_SCRIPTS = Object.freeze([
   "test:university-forms",
   "test:document-packages",
   "test:document-source-preflight",
+  "test:document-export-artifacts",
 ]);
 
 export const D1_ENTRY_SCRIPTS = Object.freeze(["test:d1"]);

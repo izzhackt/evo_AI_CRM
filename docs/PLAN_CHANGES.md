@@ -25662,3 +25662,136 @@ both affected component suites passed10/10 with scoped ESLint and diff-check
 (01a09cbec5f373d1acd87468ddd16f91). No transport/React mock or browser skip was
 added. This is source-level regression proof; the rebuilt original browser flow
 is still required before accepting the cold-history fix.
+## 2026-09-13 — Persist Student Profile as the first shared D4 artifact producer
+
+Before coding, adopt the [persistent export contract](design/v3/evo-docs-export-artifacts-contract.md).
+The current migration161 records generation attempts but retains no file bytes.
+Add session-authenticated atomic input preparation before service orchestration;
+freeze confirmed values under the actual employee session, never service-read
+profile values. Seal output identity before private upload, verify exact readback,
+recheck live permissions/revisions, then commit an immutable ready receipt.
+History/replay/download must not regenerate; ambiguous operations reconcile only
+the known sealed object. Preserve legacy attempts without inventing stored files.
+
+Use a dedicated private platform-document-exports bucket, initially DOCX≤5MiB.
+The current platform-documents bucket is only PDF/JPEG/PNG≤25MiB and its registry
+represents uploaded originals. Do not broaden that ingress or impersonate a
+document slot for generated output. Add narrow managed bucket check/apply with
+sanitized readback because SQL deployment does not apply local Storage config.
+Future20MiB forms/65MiB packages require explicit capacity verification, not a
+silent limit reduction or paid upgrade. This is an implementation step toward
+the approved platform, not a new parallel product or completion of all D4.
+
+Reserve migration164 after D3 162–163; do not deploy a gapped sequence. Existing
+canonical persistent database, source files, no-new-backup decision, provider
+permissions and real-client gates stay unchanged. Root owns shared docs and
+integration; SQL/session-authority and HTTP/UI may be implemented in parallel.
+
+## 2026-09-13 — D4 acceptance boundary and source-authority coverage
+
+The first D4 SQL behavior proof passed on isolated001–161+164 with manual fields
+and synthetic System Admin identities. This does not prove the source-backed or
+scoped-employee paths. Before final review, extend the same rollback-only fixture
+with actual nonempty source-version evidence and current scoped access, revoked
+access, unhealthy/removed source and lease expiry cases. Use actual SQL commands;
+trusted byte observations in SQL remain explicit synthetic parameters, not a
+claim of Storage or provider acceptance. Do not weaken historical-source support
+in migration160 or change schemas only to satisfy a test.
+
+The existing D2 browser marker is written before outer cleanup, whose legacy
+stop failure only warns. The replacement D4 acceptance must publish a pending
+receipt first and promote it to acceptance.json/VERIFIED only after the owned
+local app and Supabase cleanup succeeds and exact owned resources are absent.
+Failure stays nonzero with no final success receipt; retain bounded private
+pending evidence and unresolved owned state. Scope this change to the profile
+proof mode; other foundation modes remain unchanged. No managed/prod/provider
+operations or new business identities are authorized by this proof.
+
+Implementation checkpoint: integrated history UI and strict session/Storage API
+now compile in the actual Next production build with TypeScript enabled:
+`01a09c0b35bf7261833961994cfec7ca`. Add narrow tracing for the new create route's
+fixed Student Profile DOCX (bundled Next output-file-tracing guide); old route
+tracing stays only until the already-required proven retirement. The client test
+is included once in normal React runtime rather than react-server: manifest8/8
+PASS `01a09c08d7db72708a89dab48a5f5fb3`. Root removed an undocumented100-row
+history truncation; client11/11 PASS `01a09c0a381a73a3a29b0f67886464d9`.
+These are bounded build/unit receipts, not live Storage or whole-D4 acceptance.
+
+## 2026-09-14 — Retire transient exports after real persisted-file proof
+
+Frozen0cc1f5c7199c040ac652ae40678da13aec845ef9 passed the actual isolated
+Admin Auth/DB/Storage/Chromium workflow and owned cleanup with exit0
+(`01a09c8201a27093b5a2f9957faec637`). Receipt SHA256:
+837e48f0b92c0b22e031265342b96043befe52fa80ab3e228d74c95abc8ee1dd.
+Two real private DOCX objects were read back and downloaded with matching hashes;
+exact request replay, cold history and historical download created no duplicate.
+No browser errors occurred; one warning was counted without retained text, so a
+warning-free console is not claimed. Desktop1440x1000 only; no lost-reply,
+provider, real-client, managed-bucket or contiguous162–164 release proof.
+
+The planned replacement gate is now satisfied for same-slice source retirement:
+remove the transient route/handler/tracing and old implementation tests, revoke
+legacy producer RPC grants only in forward164, preserve161 and attempt history.
+The new shared renderer, template and persisted history remain unchanged. Validate
+the exact retirement delta and independently review before integration/merge.
+
+Post-retirement Next build passed `01a09c91d4c07350943fe5441b3c45b0`; the final
+route manifest contains only new document-exports routes and the template hash
+is unchanged. Its first attempt correctly rejected stale generated dev types
+referencing the deleted route; only that owned generated types directory was
+moved to a recoverable /tmp location. No tsconfig exclusion or type bypass.
+Matching SQL run confirmed all legacy-role/PUBLIC revocations, then exposed a
+fixture expiry UPDATE using two clock_timestamp() values1 microsecond apart.
+Before correction: use one statement_timestamp() anchor for that timestamp pair,
+preserving exact relative intervals and the production constraint. Production
+defaults already use statement_timestamp(); no migration change is warranted.
+
+Final matching isolated SQL passed exit0 `01a09c966f7a723381b15ba2ca4110e6`,
+including the8 effective-role/PUBLIC legacy denials and all preserved artifact
+behavior. Owned network-none container was removed. Independent retirement
+source review approved e9a07f9d; the single stable-clock fixture correction was
+also separately approved before final commit. Route/manifest23 PASS and scoped
+lint passed. Production template hash stayed2fdbacc3; old route absent from the
+actual final app manifest. Browser proof remains bound to0cc1f5c7; no second
+browser run or managed/contiguous release proof is implied by these delta checks.
+
+## 2026-09-14 — Accept the bounded D3 predispatch flow and compose D4 artifacts
+
+Original real Auth/ClamAV/private Storage/browser/native-inspector flow passed
+on reviewed819268e9 with exit0 (01a09cc401f670b194bceb636acb67f3).
+The same single click now opens cold history, confirming the readiness fix.
+Final receipt SHA256266e6ee21863188121bb7e18a73848ec63f90ff9b8185719aed54a754aeacf83
+records cleanupVerified=true, one job/access event, zero provider intents/files/
+proposals and unchanged confirmed-empty profile value. Browser error count0,
+warning count4 retained without claiming warning-free operation. This is actual
+local synthetic predispatch acceptance, not Gemini/full-worker/business or
+production browser acceptance. Exact image IDs and limits are in the proof note.
+
+Per the existing integration order, compose reviewed persisted-exportc49707ef
+over819268e9, preserving both complete journals, D3 nullable history correction,
+hydration fix, worker and migrations162/163, and the exact D4 migration164.
+Resolve the eight shared-file conflicts without restoring transient exports or
+dropping the package/form test surface. Keep D2 and D3 proof namespaces and
+separate cleanup/finalizers; D2-only storage/deferred-acceptance inputs must not
+become prerequisites for D3. Union the route/CI inventories with no duplicate
+execution. Extend the existing bounded recognition SQL harness with an explicit
+document-export option: verify contiguous001–164, run both rollback-only domain
+fixtures in one owned database. No second schema apply per combined proof.
+Then focused checks, one Next build, independent exact-source review and actual
+combined D3/D4 flows precede a release candidate. Full forms/packages, authorized
+provider/client proofs, real migration and standalone retirement remain required.
+
+Combined-tree resolution checkpoint: actual contiguous001–164 SQL proof passed
+with exit0 `01a09ccd4f207630b777750f7a4fc9f9`: both rollback-only recognition
+and artifact fixtures ran in one owned network-none database. Migration164 kept
+SHA2567e7aef1e3a191c2082f8276ca8fe579209f96c67a1dd5e973e013bafbb9a3f2d.
+The first focused merge check reported52/54: D2's extracted cleanup fixture
+omitted the now-existing D3 mode variable, and its textual branch locator found
+an earlier helper conditional. Aligning that fixture with the real initialized
+mode and selecting the actual entrypoint preserves all behavior assertions.
+The resulting server/route/harness/artifact checks passed87/87
+(`01a09cccd89a7ee1b1de0dffabc16c34`), ordinary React/client checks28/28 and scoped
+lint passed (`01a09ccd234e7211863da6b5198e5559`). CI inventory185 unique files,
+unit180; retired route references remain only in explicit denial assertions.
+Combined image/browser proof and independent merge review remain pending at this
+checkpoint. No managed schema, production app, provider or real data changed.

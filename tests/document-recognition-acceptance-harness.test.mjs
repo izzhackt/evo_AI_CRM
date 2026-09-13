@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { PRODUCTION_MODULES, validateImageEvidence, normalizePredispatchReceipt } from "../scripts/lib/document-recognition-acceptance-image.mjs";
 import { TECHNICAL_CONFIG } from "../scripts/lib/document-recognition-browser-proof.mjs";
-import { proofScope, proofExceptionCategory } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { configuration, proofScope, proofExceptionCategory } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 
 test("cold history diagnostics distinguish steps without retaining private error text", () => {
   const privateText = "PRIVATE_URL_TOKEN_DOCUMENT_VALUE";
@@ -75,6 +75,23 @@ test("new proof scope preserves default D2 environment and evidence boundaries",
   assert.deepEqual(proofScope(), { kind: "student-profile-fields", prefix: "EVO_D2", marker: "STUDENT_PROFILE_FIELDS" });
   assert.deepEqual(proofScope("document-recognition"), { kind: "document-recognition", prefix: "EVO_D3", marker: "DOCUMENT_RECOGNITION" });
   assert.throws(() => proofScope("unrecognized"), { code: "PROOF_SCOPE_INVALID" });
+});
+
+test("D3 configuration does not consume the profile-only acceptance switch", () => {
+  const keys = ["EVO_D2_DEFER_ACCEPTANCE", "EVO_D3_APP_ORIGIN"];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    process.env.EVO_D2_DEFER_ACCEPTANCE = "invalid-profile-only-mode";
+    delete process.env.EVO_D3_APP_ORIGIN;
+    // Both paths stop before filesystem, Docker, database or Auth access.
+    assert.throws(() => configuration(), { code: "ACCEPTANCE_MODE_INVALID" });
+    assert.throws(() => configuration("document-recognition"), { code: "ENVIRONMENT_MISSING" });
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
 });
 
 test("D3 mode fails before the foundation lock when immutable images are absent", () => {

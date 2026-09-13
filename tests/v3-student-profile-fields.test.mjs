@@ -8,6 +8,7 @@ import ts from "typescript";
 
 import * as registry from "../src/lib/student-profile-fields.ts";
 import * as wording from "../src/lib/v3/wording.ts";
+import * as exportClient from "../src/lib/document-export-client.ts";
 import { profileFieldSourceVersions } from "../src/components/v3/profile/types.ts";
 
 const require = createRequire(import.meta.url);
@@ -23,6 +24,12 @@ function compile(path, resolve = require) {
 }
 
 const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+const exportHistory = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
+  if (id === "@/lib/document-export-client") return exportClient;
+  if (id === "@/lib/v3/wording") return wording;
+  if (id === "../settings/StaffDisclosure") return disclosure;
+  return require(id);
+});
 const unavailableCommand = async () => { throw new Error("Component-only check never executes a server command"); };
 // Render the real component/React/disclosure. Network-bound action and preview
 // references are inert and throw if invoked: these are not persistence tests.
@@ -35,6 +42,7 @@ const component = compile("src/components/v3/profile/StudentProfileFields.tsx", 
     reviewPlatformStudentProfileFieldAction: unavailableCommand,
   };
   if (id === "./DocumentPreviewButton") return { DocumentPreviewButton: () => { throw new Error("No original bytes in component checks"); } };
+  if (id === "./StudentProfileExportHistory") return exportHistory;
   return require(id);
 });
 
@@ -197,18 +205,20 @@ test("real export controls distinguish final readiness, draft and separate downl
   const ready = readySnapshot();
   assert.equal(registry.getProfileReadiness(ready).ready, true);
   const html = render(ready);
-  assert.match(html, /Готова к финальному скачиванию/);
-  assert.match(html, /<button[^>]*class="[^"]*bg-accent[^>]*>Скачать финальную анкету<\/button>/);
-  assert.match(html, /Скачать черновик/);
+  assert.match(html, /Файлы анкеты/);
+  assert.match(html, /Сформировать финальную анкету/);
+  assert.match(html, /Сформировать черновик/);
   const incomplete = render(snapshot());
-  assert.match(incomplete, /<button[^>]*disabled=""[^>]*>Скачать финальную анкету<\/button>/);
-  assert.match(incomplete, /Что проверить перед финальным скачиванием/);
+  assert.match(incomplete, /<button[^>]*disabled=""[^>]*>Сформировать финальную анкету<\/button>/);
+  assert.match(incomplete, /Что проверить перед формированием/);
   assert.match(incomplete, /Имя.*заполните обязательное поле/);
   const preview = render({ ...ready, canExport: false }, { readOnly: true });
-  assert.match(preview, /<button[^>]*disabled=""[^>]*>Скачать черновик<\/button>/);
+  assert.match(preview, /<button[^>]*disabled=""[^>]*>Сформировать черновик<\/button>/);
   assert.match(preview, /Скачивание анкеты в этом режиме недоступно/);
-  // No profile.manage does not itself remove the separate download permission.
-  assert.doesNotMatch(render(ready, { readOnly: true }), /<button[^>]*disabled=""[^>]*>Скачать черновик<\/button>/);
+  // SSR cannot know the workspace digest: even read-only editors must load it.
+  assert.match(render(ready, { readOnly: true }), /Загружаем историю файлов/);
+  assert.equal(component.profileExportBlocker({ snapshot: ready, mode: "draft", hasDrafts: false,
+    pending: false, savedRevision: null, saveStatus: "idle" }), null);
 });
 
 test("export gates keep unsaved edits, shared pending work and unconfirmed saves out of the request", async t => {
@@ -224,74 +234,10 @@ test("export gates keep unsaved edits, shared pending work and unconfirmed saves
     [{ snapshot: snapshot() }, "profile_not_ready"],
   ];
   for (const [change, status] of cases) {
-    assert.equal((await component.requestStudentProfileExport({ ...base, ...change })).status, status);
+    assert.equal(component.profileExportBlocker({ ...base, ...change }), status);
   }
   const invalid = readySnapshot();
   invalid.fields.find(field => field.key === "nationality").value = "𠀀".repeat(61);
-  assert.equal((await component.requestStudentProfileExport({ ...base, snapshot: invalid, mode: "draft" })).status, "profile_not_ready");
+  assert.equal(component.profileExportBlocker({ ...base, snapshot: invalid, mode: "draft" }), "profile_not_ready");
   assert.equal(calls, 0);
-});
-
-test("export transport uses only mode, current revision and a fresh request ID; actual blob URL is released", async t => {
-  const ids = [REQUEST, VERSION];
-  t.mock.method(globalThis.crypto, "randomUUID", () => ids.shift());
-  const calls = [];
-  const blobs = [];
-  const revoked = [];
-  let clicks = 0;
-  let removed = 0;
-  const node = { href: "", download: "", click() { clicks++; }, remove() { removed++; } };
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
-  Object.defineProperty(globalThis, "document", { configurable: true, value: {
-    body: { appendChild(anchor) { assert.equal(anchor, node); } },
-    createElement(tag) { assert.equal(tag, "a"); return node; },
-  } });
-  t.after(() => {
-    if (originalDocument) Object.defineProperty(globalThis, "document", originalDocument);
-    else delete globalThis.document;
-  });
-  t.mock.method(URL, "createObjectURL", blob => { blobs.push(blob); return "blob:synthetic-export"; });
-  t.mock.method(URL, "revokeObjectURL", url => revoked.push(url));
-  t.mock.method(globalThis, "setTimeout", callback => { callback(); return 0; });
-  t.mock.method(globalThis, "fetch", async (url, options) => {
-    calls.push({ url, options });
-    return new Response(new Uint8Array([80, 75, 3, 4]), { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } });
-  });
-  const base = { snapshot: readySnapshot(), hasDrafts: false, pending: false, savedRevision: null, saveStatus: "idle" };
-  for (const mode of ["draft", "final"]) assert.equal((await component.requestStudentProfileExport({ ...base, mode })).status, "downloaded");
-  assert.equal(calls.length, 2);
-  for (const [index, call] of calls.entries()) {
-    assert.equal(call.url, `/api/v3/student-cases/${CASE}/profile-exports`);
-    assert.equal(call.options.method, "POST");
-    assert.equal(call.options.credentials, "same-origin");
-    assert.deepEqual(JSON.parse(call.options.body), { mode: index ? "final" : "draft", expected_revision: 1, request_id: index ? VERSION : REQUEST });
-  }
-  assert.equal(blobs.length, 2);
-  assert.equal(blobs[0].size, 4);
-  assert.equal(clicks, 2);
-  assert.equal(removed, 2);
-  assert.deepEqual(revoked, ["blob:synthetic-export", "blob:synthetic-export"]);
-});
-
-test("fixed export failures have safe field labels and never automatically retry or download JSON", async t => {
-  let calls = 0;
-  let downloads = 0;
-  t.mock.method(URL, "createObjectURL", () => { downloads++; return "unused"; });
-  const base = { snapshot: readySnapshot(), mode: "draft", hasDrafts: false, pending: false, savedRevision: null, saveStatus: "idle" };
-  for (const [status, error] of [[400, "invalid_request"], [401, "authentication_required"], [403, "access_changed"], [403, "forbidden"], [409, "profile_changed"], [409, "request_conflict"], [409, "export_request_pending"], [409, "export_request_completed"], [422, "profile_not_ready"], [503, "export_unavailable"], [503, "template_unavailable"], [503, "render_failed"]]) {
-    const before = calls;
-    t.mock.method(globalThis, "fetch", async () => { calls++; return Response.json({ error, issues: [{ key: "student_email", kind: "invalid", value: "MUST_NOT_SURFACE" }, { key: "UNRECOGNIZED", kind: "invalid" }] }, { status }); });
-    const result = await component.requestStudentProfileExport(base);
-    assert.equal(result.status, error);
-    assert.deepEqual(result.issues, [{ key: "student_email", kind: "invalid" }]);
-    assert.equal(calls, before + 1);
-    assert.doesNotMatch(JSON.stringify(result), /MUST_NOT_SURFACE|UNRECOGNIZED/);
-    assert.ok(wording.studentProfileExportMessage(error));
-  }
-  t.mock.method(globalThis, "fetch", async () => Response.json({ error: "PRIVATE_INTERNAL_ERROR" }, { status: 500 }));
-  assert.equal((await component.requestStudentProfileExport(base)).status, "export_unavailable");
-  t.mock.method(globalThis, "fetch", async () => Response.json({ internal: "not a DOCX" }));
-  assert.equal((await component.requestStudentProfileExport(base)).status, "export_unavailable");
-  assert.equal(downloads, 0);
-  assert.equal(wording.studentProfileExportMessage("PRIVATE_INTERNAL_ERROR"), null);
 });

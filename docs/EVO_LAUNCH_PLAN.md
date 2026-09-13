@@ -109,9 +109,10 @@ failures above were corrected in reviewed PR761 before the successful full gate.
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and
 [D4 university forms/packages contract](design/v3/evo-docs-university-packages-contract.md).
-These are the execution contracts, not provider/client acceptance. Draft
-transport/queue PR758/760 and forms/package PR759/762 now contain implementation
-slices; [D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
+These are the execution contracts, not provider/client acceptance. Transport/queue
+PR758/760 remain draft. Forms PR759 merged7da50fa8 and package PR762 merged85a1efd;
+both are preserved in this combined candidate's main85a1efd ancestry.
+[D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
 is independently reviewed but remains draft pending the real runtime/acceptance.
 The isolated parser runtime continues separately. With D2 released,
 the two lanes may proceed in parallel because D4 accepts manually confirmed
@@ -188,6 +189,34 @@ COLD_HISTORY_EXPANDED (01a09cbdaf0a70508bd715ca638ada66), isolating an unchanged
 collapsed disclosure after reload/click. The next bounded correction reuses the
 existing hydration-readiness pattern for that toggle; SSR regression and the
 original real workflow must both pass. No provider call or D3 completion implied.
+The next D4 vertical slice is [persistent profile exports](design/v3/evo-docs-export-artifacts-contract.md):
+freeze confirmed inputs under the actual staff session, store immutable generated
+bytes, and expose history/download without regeneration. Student Profile is the
+first producer of this shared artifact lifecycle, not completion of university
+forms/packages. A separate private export bucket preserves the existing student
+upload/scan boundary. Migration164 is reserved behind the unmerged D3 162–163;
+do not apply an incomplete forward migration sequence to production.
+
+The persistence/API/history candidate now builds successfully with all three new
+routes and the exact template in standalone output. Independent initial SQL,
+HTTP/Storage and UI slice reviews passed; final combined review remains open.
+Expanded source/scoped SQL checks passed in isolated001–161+164, including real
+scoped-role commands, healthy historical sources, revocation and expiry. This
+uses synthetic scanner/Storage metadata, not actual file-store acceptance.
+Frozen0cc1f5c7 passed the actual local Auth/Storage/browser history flow and verified
+owned cleanup (exit0, two persisted DOCX files, exact replay/cold-download hashes).
+See [persistent export proof](design/v3/references/2026-09-14-persisted-profile-export-proof.md).
+The same-slice transient route/RPC retirement passed independent review, focused
+SQL (including legacy grants), route/manifest tests and the production build.
+No managed bucket or deployment is claimed; D3's missing
+162–163 sequence must still be composed before a contiguous release.
+
+Current combined checkpoint: the original D3 predispatch flow passed on reviewed
+819268e9 with verified cleanup, actual cold-history reopen and native source
+inspection. [Proof and boundaries](design/v3/references/2026-09-14-recognition-predispatch-proof.md).
+Integrate reviewed D4c49707ef next, retaining its persisted-profile replacement
+and both independent workflow gates. Verify contiguous162→163→164 in one owned
+SQL proof; D3 provider/full-worker and full D4 forms/packages remain incomplete.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

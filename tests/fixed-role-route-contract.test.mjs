@@ -286,14 +286,27 @@ test("only exact private document and company-file APIs are connected", () => {
   }
 });
 
-test("generated Student Profile export is a staff-session API for one exact case path", () => {
+test("retired transient Student Profile export is not an active API", () => {
   const path = "/api/v3/student-cases/10000000-0000-4000-8000-000000000001/profile-exports";
-  assert.equal(isConnectedPlatformApi(path), true);
+  assert.equal(isConnectedPlatformApi(path), false);
   assert.equal(isConnectedPlatformPrivateApi(path), false);
   assert.equal(isConnectedStudentPortalApi(path, "POST"), false);
   assert.equal(isConnectedPlatformApi(`${path}/`), false);
   assert.equal(isConnectedPlatformApi("/api/v3/student-cases/not-a-uuid/profile-exports"), false);
   assert.equal(isConnectedPlatformApi("/api/v3/student-cases"), false);
+});
+
+test("saved document artifacts use exact staff case and artifact routes, never Student APIs", () => {
+  const root = "/api/v3/student-cases/10000000-0000-4000-8000-000000000001/document-exports";
+  const artifact = "20000000-0000-4000-8000-000000000002";
+  for (const path of [root, `${root}/${artifact}/download`, `${root}/${artifact}/reconcile`]) {
+    assert.equal(isConnectedPlatformApi(path), true, path);
+    assert.equal(isConnectedPlatformPrivateApi(path), false, path);
+    for (const method of ["GET", "POST"]) assert.equal(isConnectedStudentPortalApi(path, method), false, path);
+    assert.equal(isConnectedPlatformApi(`${path}/`), false);
+  }
+  for (const path of [`${root}/all`, `${root}/${artifact}`, `${root}/${artifact}/delete`, `${root}/invalid/download`,
+    "/api/v3/student-cases/invalid/document-exports"]) assert.equal(isConnectedPlatformApi(path), false, path);
 });
 
 test("Student document APIs admit only the exact path and HTTP method", () => {

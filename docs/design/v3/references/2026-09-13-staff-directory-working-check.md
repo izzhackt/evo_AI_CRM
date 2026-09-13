@@ -1,6 +1,9 @@
 # S1/D1 — isolated working verification
 
-Date: 2026-09-13. Product candidate: `1b852ad87a4bb15704c102cbf820e790dc0269f3`.
+Date: 2026-09-13. Initial SQL/build candidate: `1b852ad87a4bb15704c102cbf820e790dc0269f3`.
+Corrected S1/browser code: `0b603058ea5e86d8afb7693ae57dc83fba31b771`.
+Whole code/docs reviewed candidate: `c359011665060bd7c0d1c8273918f603656a8070`;
+D1 actual browser evidence below uses that unchanged product code.
 The owner explicitly approved temporary technical identities/data for this
 verification after the preceding checkpoint requested that permission.
 This is not actual employee/Student acceptance and does not authorize production
@@ -72,11 +75,59 @@ viewport. Cancel returns focus to Edit. Screenshots: `staff-desktop.png`,
 Observed console noise is two errors from an unrelated Chrome extension and
 an existing Next logo-loading warning, not an application error overlay.
 
-## D1 Storage/preview — in progress
+## D1 Storage/preview — scoped PASS
 
 The existing non-personal EVO logobook PDF and logo PNG are selected to exercise
 real upload, scan, exact-version private download and preview. The preview uses
 the same private download route; Supabase's current
 [signed URL API](https://supabase.com/docs/reference/javascript/file-buckets-createsignedurl)
-documents expiry and download behavior. Actual CORS/rendering/keyboard/responsive
-proof is still pending; successful build or iframe presence alone is not that proof.
+documents expiry and download behavior.
+
+Actual Chrome Admin upload saved the logobook PDF as version1 and logo PNG as
+version2 of one technical checklist item. Both have real `verified` integrity,
+`clean` malware status and matching ClamAV1.5.4/signatures28121/`clamd-zinstream-v1`
+attestations. Authorized downloads return307 with `private, no-store`, followed
+by actual private Storage200. Downloaded bytes match both source and scan hashes:
+
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| EVO logobook PDF | 887079 | `144b1f0183e9868816816beacb5a0a5cd0eec3da6fa7eb8f6a35b16d4854e878` |
+| EVO logo PNG | 37344 | `a0cab0e419cefc7df84cfdb1ebee5b554f0794fab579fd098247968af3a8c094` |
+
+- PDF renders in the native viewer with24 pages; this is visual evidence, not
+  merely an iframe assertion. PNG renders at its actual1843×842 dimensions.
+- PDF desktop, PNG393px and historical PDF320px were visually inspected.
+  Close/download controls remain reachable; Escape returns focus to the exact
+  version's Preview button. Temporary viewport/network inspection was reset.
+- Removing the owned checklist item through its normal UI preserves both
+  versions in read-only history. Original PDF still renders after replacement
+  and removal; no original bytes or version identities were overwritten.
+- Independently, ordinary Sales sign-in gets403 for both exact download routes;
+  anonymous gets401. Neither denial returns a signed Location. Ordinary Admin
+  sign-in downloads both versions with matching hashes; no cookie/JWT injection.
+- No customer file, external invitation, AI upload, fake scanner status or
+  direct fabricated document/grant row was used.
+
+Evidence outside Git: `d1-version-readback.json`,
+`preview-pdf-desktop-ready.png`, `preview-png-393.png`,
+`preview-history-pdf-320.png`, under `/tmp/evo-s1d1-0qOF30`.
+
+### Explicit limitations and transient failures
+
+The broader existing contract/payment/handoff browser test stopped before upload
+at an actual Storage list504 (Kong upstream response timeout). Subsequent exact
+Admissions listings returned200 without config, permission or service changes.
+The remaining scoped D1 path was completed through the actual UI above, not by
+claiming the interrupted entire workflow passed. Its exact internal timeout
+cause was not reproduced (`storage-timeout-receipt.md`).
+
+The first PNG preview showed the protected-access error; its exact network
+response was not captured. The normal Retry succeeded with observed Storage200
+and image rendering. Independent fresh-login downloads and denials also passed;
+the original transient cause remains unproven. No access bypass was introduced.
+
+These are isolated technical acceptance results, not actual employee onboarding,
+Student business acceptance, simultaneous race proof or production proof.
+JPEG, Safari/mobile native PDF engines, hostile PDF behavior and every network
+failure mode are not claimed tested. Required exact-head CI, schema-ledger and
+guarded release are separate gates. Standalone EVO Docs and its data remain intact.

@@ -144,6 +144,7 @@ async function directPlatformRpc(
   functionName:
     | "current_actor_authority"
     | "staff_access_snapshot"
+    | "staff_student_case_read_snapshot"
     | "staff_workspace_directory"
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"

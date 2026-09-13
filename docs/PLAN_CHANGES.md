@@ -24655,3 +24655,14 @@ scoped lint/bash syntax/diff checks PASS. The narrow regression stays in the
 existing full browser scenario; bounded-mode wiring has its own contract check.
 No new SQL, package/dependency, provider settings, permissions or public UI path.
 Independent exact-head review and a new frozen-main full CI/release remain open.
+
+PR761 fast CI34770252001 compiled product code, then TypeScript rejected the
+new real-test call because directPlatformRpc's narrow literal union omitted
+staff_student_case_read_snapshot. The runtime call already passed in the real
+scenario. Add only that exact RPC name to the test helper union, no type cast,
+broad string acceptance, product change or altered assertion. Recheck actual
+build and obtain renewed exact-head approval before merge. The first fast build
+failure is not a production or database incident.
+Actual npm run build then passed, including Next TypeScript and the bundled
+knowledge-import command (01a09bb8c1d47ac0acdfdaf1767da774). No standalone
+typecheck or duplicate Auth/DB/browser run was needed for the erased union change.

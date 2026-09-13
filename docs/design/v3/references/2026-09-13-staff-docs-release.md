@@ -260,7 +260,10 @@ introduced for this preview.
 
 Local network limitations are explicit: ordinary and macOS-system curl both
 could not verify the public host's issuer chain; no insecure TLS option was
-used. HTTPS health from Hermes succeeded. Unauthenticated localhost `/api/version`
+used. Plain HTTPS health from Hermes succeeded at
+`https://evo-crm.72.62.119.112.sslip.io/api/health` without `--resolve` or TLS
+bypass; this is the active hostname, not the deferred `crm.evoadmissions.com`.
+Unauthenticated localhost `/api/version`
 returned401 and direct Chrome navigation was blocked by the client, so neither
 is claimed as an independent local version read. Version proof comes from the
 sealed authenticated release browser receipt and independent server identity.

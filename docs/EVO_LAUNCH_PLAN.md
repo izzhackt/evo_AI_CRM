@@ -27,7 +27,7 @@ The owner also requests [EVO Docs integration and retirement](design/v3/evo-docs
 [ADR0028](adr/0028-unify-document-automation-inside-evo-platform.md) supersedes
 ADR0017's separate-product decision: one Platform/Auth/data authority, with exact
 legacy retirement only after real transfer and integrated workflow acceptance.
-The accepted application above and prior real Portal acceptance are unchanged.
+This release does not close the prior Portal's remaining real Student acceptance.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
@@ -43,7 +43,7 @@ hashes, healthy zero-restart app, unchanged private WAHA/ClamAV and no pending
 release. Arm=false was explicitly read back. Chrome through the existing
 localhost3000 SSH tunnel opened staff list, member details and departments
 under the existing Admin session without mutations. Local HTTPS curl had a CA
-verification failure; Hermes HTTPS and the release's authenticated browser proof
+verification failure; Hermes HTTPS on the active sslip hostname and the release's authenticated browser proof
 passed. Do not treat that local failure as a completed network diagnosis.
 Continue scoped role authority/employee onboarding and D2–D6; do not repeat this
 completed release or interpret it as delivery of those remaining features.

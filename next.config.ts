@@ -7,7 +7,6 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingIncludes: {
-    "/api/v3/student-cases/*/profile-exports": ["./assets/templates/student-profile.docx"],
     "/api/v3/student-cases/*/document-exports": ["./assets/templates/student-profile.docx"],
   },
   skipTrailingSlashRedirect: true,

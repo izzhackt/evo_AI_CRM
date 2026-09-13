@@ -54,6 +54,22 @@ SELECT pg_temp.d4_assert(NOT has_function_privilege('authenticated','platform.co
  'staff cannot mark an artifact ready');
 SELECT pg_temp.d4_assert(NOT has_table_privilege('authenticated','platform_private.document_export_artifacts','UPDATE'),
  'staff cannot overwrite publication state');
+-- Historical functions still exist, but no runtime role can use the retired
+-- transient producer after the proved persistent replacement's cutover.
+SELECT pg_temp.d4_assert(NOT has_function_privilege(actor.role_name,legacy.signature,'EXECUTE'),
+ format('retired producer denied to %s: %s',actor.role_name,legacy.signature))
+ FROM (VALUES ('anon'),('authenticated'),('service_role'),('supabase_auth_admin')) AS actor(role_name)
+ CROSS JOIN (VALUES
+  ('platform.begin_student_profile_export(uuid,uuid,uuid,uuid,bigint,text,text,uuid)'),
+  ('platform.complete_student_profile_export(uuid,text,text,integer,text)')) AS legacy(signature);
+SELECT pg_temp.d4_assert(NOT EXISTS (
+ SELECT 1 FROM pg_proc p
+ CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) AS permission
+ WHERE p.oid IN (
+  'platform.begin_student_profile_export(uuid,uuid,uuid,uuid,bigint,text,text,uuid)'::REGPROCEDURE,
+  'platform.complete_student_profile_export(uuid,text,text,integer,text)'::REGPROCEDURE)
+ AND permission.grantee=0 AND permission.privilege_type='EXECUTE'),
+ 'PUBLIC has no retired producer execution grant');
 SET LOCAL ROLE service_role;
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 DO $$BEGIN
@@ -378,7 +394,7 @@ SELECT pg_temp.d4_assert((SELECT body->>'verified'='true' FROM d4_receipts WHERE
  'current scoped employee verifies source-backed bytes with retained healthy source v1');
 RESET ROLE;
 -- Backdate bounded grant fixtures only; never replace the clock or grant ACLs.
-UPDATE platform_private.document_export_download_grants SET created_at=clock_timestamp()-INTERVAL '3 minutes',expires_at=clock_timestamp()-INTERVAL '1 minute'
+UPDATE platform_private.document_export_download_grants SET created_at=statement_timestamp()-INTERVAL '3 minutes',expires_at=statement_timestamp()-INTERVAL '1 minute'
  WHERE request_id IN (pg_temp.d4_id(1211),pg_temp.d4_id(1212));
 SET LOCAL ROLE service_role;
 SELECT pg_temp.d4_assert(pg_temp.d4_error(format('SELECT platform.consume_document_export_download(%L::uuid,%L::uuid,%L::uuid)',

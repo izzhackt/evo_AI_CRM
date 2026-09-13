@@ -286,9 +286,9 @@ test("only exact private document and company-file APIs are connected", () => {
   }
 });
 
-test("generated Student Profile export is a staff-session API for one exact case path", () => {
+test("retired transient Student Profile export is not an active API", () => {
   const path = "/api/v3/student-cases/10000000-0000-4000-8000-000000000001/profile-exports";
-  assert.equal(isConnectedPlatformApi(path), true);
+  assert.equal(isConnectedPlatformApi(path), false);
   assert.equal(isConnectedPlatformPrivateApi(path), false);
   assert.equal(isConnectedStudentPortalApi(path, "POST"), false);
   assert.equal(isConnectedPlatformApi(`${path}/`), false);

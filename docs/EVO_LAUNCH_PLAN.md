@@ -133,9 +133,13 @@ HTTP/Storage and UI slice reviews passed; final combined review remains open.
 Expanded source/scoped SQL checks passed in isolated001–161+164, including real
 scoped-role commands, healthy historical sources, revocation and expiry. This
 uses synthetic scanner/Storage metadata, not actual file-store acceptance.
-Next: one actual local history/Storage browser proof with verified owned cleanup,
-then retire the old transient producer
-in the same replacement slice. No new managed bucket or deployment is claimed.
+Frozen0cc1f5c7 passed the actual local Auth/Storage/browser history flow and verified
+owned cleanup (exit0, two persisted DOCX files, exact replay/cold-download hashes).
+See [persistent export proof](design/v3/references/2026-09-14-persisted-profile-export-proof.md).
+The same-slice transient route/RPC retirement passed independent review, focused
+SQL (including legacy grants), route/manifest tests and the production build.
+No managed bucket or deployment is claimed; D3's missing
+162–163 sequence must still be composed before a contiguous release.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

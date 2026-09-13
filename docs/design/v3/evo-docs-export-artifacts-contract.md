@@ -105,8 +105,10 @@ Native D3 source inspection is not a prerequisite for this manual-profile slice.
 
 The actual Next production build with all three new routes passed
 `01a09c0b35bf7261833961994cfec7ca`. The new create route explicitly traces the
-fixed DOCX into standalone output. The existing transient route is still pending
-same-slice retirement after the replacement's real browser/Storage proof.
+fixed DOCX into standalone output. The replacement subsequently passed the
+[real local browser/Storage proof](references/2026-09-14-persisted-profile-export-proof.md)
+on frozen0cc1f5c7 with verified cleanup. The planned same-slice transient route
+and RPC retirement passed independent review, focused SQL and the production build.
 CI command inventory includes the client/history test once in the ordinary React
 group (not react-server); history updates retain every loaded older artifact.
 Focused checks are not Auth/Storage/browser or managed-bucket acceptance.
@@ -132,5 +134,5 @@ in this SQL proof, not actual uploaded bytes. The owned container was removed.
   and its focused-shell invocation with the persistent artifact outcome proof;
   retain historical documents/receipts instead of executing the retired producer.
 
-Do not remove any of these until the real replacement proof is obtained. Before
-merge, confirm no active route/import/grant falls back to the transient producer.
+The real replacement proof was obtained before these removals. Before merge,
+confirm no active route/import/grant falls back to the transient producer.

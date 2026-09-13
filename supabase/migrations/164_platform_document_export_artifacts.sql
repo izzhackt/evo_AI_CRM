@@ -613,5 +613,11 @@ GRANT EXECUTE ON FUNCTION platform.begin_document_export(UUID,UUID,UUID),platfor
 
 COMMENT ON TABLE platform_private.document_export_input_snapshots IS 'Immutable confirmed values prepared and returned only under the staff Auth session. No service-role value reader.';
 COMMENT ON TABLE platform_private.document_export_artifacts IS 'Versioned stored results; ready requires trusted byte readback plus live authority. Legacy161 generated attempts are not artifacts.';
--- Root retires migration161 producer grants only with the proved HTTP/UI cutover.
+-- The persistent producer's real Auth/DB/Storage/browser replacement is proved.
+-- Retire the transient producer with the HTTP/UI cutover, preserving migration161,
+-- its function definitions and immutable legacy attempt/audit history.
+REVOKE EXECUTE ON FUNCTION
+  platform.begin_student_profile_export(UUID,UUID,UUID,UUID,BIGINT,TEXT,TEXT,UUID),
+  platform.complete_student_profile_export(UUID,TEXT,TEXT,INTEGER,TEXT)
+  FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;
 COMMIT;

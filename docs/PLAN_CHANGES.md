@@ -24927,3 +24927,41 @@ is included once in normal React runtime rather than react-server: manifest8/8
 PASS `01a09c08d7db72708a89dab48a5f5fb3`. Root removed an undocumented100-row
 history truncation; client11/11 PASS `01a09c0a381a73a3a29b0f67886464d9`.
 These are bounded build/unit receipts, not live Storage or whole-D4 acceptance.
+
+## 2026-09-14 — Retire transient exports after real persisted-file proof
+
+Frozen0cc1f5c7199c040ac652ae40678da13aec845ef9 passed the actual isolated
+Admin Auth/DB/Storage/Chromium workflow and owned cleanup with exit0
+(`01a09c8201a27093b5a2f9957faec637`). Receipt SHA256:
+837e48f0b92c0b22e031265342b96043befe52fa80ab3e228d74c95abc8ee1dd.
+Two real private DOCX objects were read back and downloaded with matching hashes;
+exact request replay, cold history and historical download created no duplicate.
+No browser errors occurred; one warning was counted without retained text, so a
+warning-free console is not claimed. Desktop1440x1000 only; no lost-reply,
+provider, real-client, managed-bucket or contiguous162–164 release proof.
+
+The planned replacement gate is now satisfied for same-slice source retirement:
+remove the transient route/handler/tracing and old implementation tests, revoke
+legacy producer RPC grants only in forward164, preserve161 and attempt history.
+The new shared renderer, template and persisted history remain unchanged. Validate
+the exact retirement delta and independently review before integration/merge.
+
+Post-retirement Next build passed `01a09c91d4c07350943fe5441b3c45b0`; the final
+route manifest contains only new document-exports routes and the template hash
+is unchanged. Its first attempt correctly rejected stale generated dev types
+referencing the deleted route; only that owned generated types directory was
+moved to a recoverable /tmp location. No tsconfig exclusion or type bypass.
+Matching SQL run confirmed all legacy-role/PUBLIC revocations, then exposed a
+fixture expiry UPDATE using two clock_timestamp() values1 microsecond apart.
+Before correction: use one statement_timestamp() anchor for that timestamp pair,
+preserving exact relative intervals and the production constraint. Production
+defaults already use statement_timestamp(); no migration change is warranted.
+
+Final matching isolated SQL passed exit0 `01a09c966f7a723381b15ba2ca4110e6`,
+including the8 effective-role/PUBLIC legacy denials and all preserved artifact
+behavior. Owned network-none container was removed. Independent retirement
+source review approved e9a07f9d; the single stable-clock fixture correction was
+also separately approved before final commit. Route/manifest23 PASS and scoped
+lint passed. Production template hash stayed2fdbacc3; old route absent from the
+actual final app manifest. Browser proof remains bound to0cc1f5c7; no second
+browser run or managed/contiguous release proof is implied by these delta checks.

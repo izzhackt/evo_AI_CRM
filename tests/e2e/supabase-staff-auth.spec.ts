@@ -2521,7 +2521,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const adminDocumentItem = page
     .getByTestId("v3-document-item")
     .filter({ hasText: "P4 real private Storage proof" });
-  await expect(adminDocumentItem).toContainText("p4-isolated-proof-v2.pdf");
+  await expect(adminDocumentItem).toContainText("p4-isolated-proof-v2.png");
   await expect(adminDocumentItem).toContainText("версия 2");
 
   await page.goto(`/v3/profile?case=${studentCaseId}&tab=money`);
@@ -2715,10 +2715,15 @@ test("Admissions manages one real private company file through V3", async ({
   );
   await upload.getByRole("button", { name: "Сохранить", exact: true }).click();
   const firstUploadResponse = await firstUploadResponsePromise;
-  expect(firstUploadResponse.status()).toBe(201);
   const firstUploadPayload = await firstUploadResponse.json() as {
+    error?: unknown;
     companyFile?: { companyFileVersionId?: unknown };
   };
+  const firstUploadError = typeof firstUploadPayload.error === "string"
+    && /^[a-z_]{1,64}$/.test(firstUploadPayload.error)
+    ? firstUploadPayload.error
+    : "no_safe_error_code";
+  expect(firstUploadResponse.status(), `company_file_upload: ${firstUploadError}`).toBe(201);
   const firstCompanyFileVersionId = requireUuidValue(
     firstUploadPayload.companyFile?.companyFileVersionId,
   );

@@ -33,11 +33,12 @@ test("CI Node suite runs the former security and unit surface once", () => {
     "test:unit:supplemental",
     "test:unit:core",
     "test:student-profile-fields",
+    "test:university-forms",
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 302);
-  assert.equal(plan.uniqueFileCount, 163);
+  assert.equal(plan.occurrenceCount, 305);
+  assert.equal(plan.uniqueFileCount, 166);
   assert.equal(plan.duplicateCount, 139);
   assert.equal(new Set(plan.files).size, plan.files.length);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
@@ -73,7 +74,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 135);
+  assert.equal(bounded.files.length, 138);
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
@@ -90,10 +91,29 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 200);
-  assert.equal(plan.uniqueFileCount, 158);
+  assert.equal(plan.occurrenceCount, 203);
+  assert.equal(plan.uniqueFileCount, 161);
   assert.equal(plan.duplicateCount, 42);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
+});
+
+test("D4 university form tests run once with the server TypeScript runtime in focused, CI and unit plans", () => {
+  const requiredFiles = [
+    "tests/university-form-fields.test.mjs",
+    "tests/university-form-docx.test.mjs",
+    "tests/university-form-pdf.test.mjs",
+  ];
+  for (const entryScripts of [DEFAULT_ENTRY_SCRIPTS, UNIT_ENTRY_SCRIPTS, ["test:university-forms"]]) {
+    const plan = resolveNodeTestPlan({ packageJson, repositoryRoot, entryScripts });
+    for (const file of requiredFiles) {
+      assert.equal(plan.files.filter(candidate => candidate === file).length, 1, file);
+      const groups = plan.groups.filter(group => group.files.includes(file));
+      assert.equal(groups.length, 1, file);
+      assert.deepEqual(groups[0].nodeArgs, ["--conditions=react-server", "--experimental-strip-types"], file);
+      assert.equal(groups[0].concurrency, 4, file);
+    }
+    if (entryScripts.length === 1) assert.deepEqual(plan.files, requiredFiles);
+  }
 });
 
 test("focused D1 command validates every required test before execution", () => {

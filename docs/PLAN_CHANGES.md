@@ -24588,3 +24588,87 @@ but the PDF's selected LinuxLibertineG subset had three empty glyph outlines
 explicit font/glyph/layout gate; do not replace/drop characters or claim universal
 Unicode/visual readiness. No PDF/font dependencies, public export, Storage, SQL,
 provider or real-template/client acceptance is implemented by this slice.
+
+## 2026-09-13 — Continue D4 with CI wiring and bounded PDF filling
+
+The independently approved first slice4795e5f6 remains isolated from the current
+release. Wire its mapping/DOCX tests and the new PDF tests into the actual Node
+CI manifest/classifier. Port passive PDF inspect/fill, not the standalone mutable
+service. Pin pdf-lib1.17.1 and @pdf-lib/fontkit1.1.1 (MIT metadata verified), retain
+the exact NotoSans-Regular font and its OFL1.1 license; never rely on host fonts.
+
+PDF inspection returns exact source SHA256 and visible CropBox/MediaBox intersection
+sizes. Mapping entries gain reviewed PDF rectangles whose coordinates/character
+cells are included in the canonical mapping hash. Explicit PDF template format
+and page sizes prevent a DOCX resolution from being used as a PDF mapping.
+fillUniversityPdf consumes the immutable resolution, rechecks source SHA/page
+geometry, validates every mapped rectangle (including omitted/manual positions),
+and obtains only confirmed assignments through the existing approved-review seam.
+This remains field/mapping readiness, not live actor/Storage/export authority.
+
+Bounds:20MiB input/output;100 pages;30000 indirect objects and bounded page tree;
+500 positions;1000 Unicode code points per value and50000 aggregate; visible page
+72–3000pt; box at least12pt; at most120 character cells and at least5pt per cell.
+All mapped rectangles must stay in bounds and not overlap. Preserve source text,
+manual signature/photo/consent fields and original content streams. Do not trim,
+rewrite spelling, collapse whitespace, or auto-convert an interactive/signed PDF.
+Use8–11pt text, reject unsupported glyphs/blank outlines and overflow before bytes
+are returned. Check actual glyph coverage with the retained font, including shaped
+runs; unsupported CJK/emoji fail explicitly. No substitute font or Chinese success
+claim follows from the prior extractable-but-invisible DOCX/PDF run. Preserve fixed
+metadata and deterministic drawing order; test actual synthetic PDF rendering.
+
+Parser limits are not a process-isolation proof; public upload/render isolation,
+full DOCX/font/layout approval, exact artifact persistence/reconciliation, Storage,
+schema, UI and real-template/client acceptance remain later D4 work. No migration,
+provider/customer data, production or release changes are part of this slice.
+
+Implementation clarification before the glyph/layout guard: pdf-lib1.17.1's
+custom-font encoder uses shaped glyph IDs and nominal advances, not fontkit's
+position offsets. This slice therefore rejects RTL/vertical/offset-dependent
+shaping with `form_pdf_shaping_unsupported`; it must not silently misplace combining
+marks. Ordinary Latin/Cyrillic kerning is not required for layout correctness;
+the renderer measures the same nominal advances it writes. Invisible non-space
+glyphs and unsupported characters fail, never disappear. The parser runs as a pure
+library here: input/post-parse limits do not bound parse time, RSS or decompression.
+Root owns a shared hard-isolated worker, including captured/discarded library
+diagnostics, before ingress/public export; no ad hoc heap-cap sandbox is added.
+
+Local implementation receipt (working tree based on4795e5f6, not an immutable
+tested commit): PDF inspection/filling and mapping geometry binding implemented;
+`npm run test:university-forms` now participates in the actual CI/UNIT entrypoint.
+Pinned pdf-lib1.17.1/fontkit1.1.1 MIT dependencies and unmodified NotoSans/OFL1.1
+are retained. Font SHA256 is
+`b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5`.
+No public route, process-isolation claim, SQL/Storage or customer data was added.
+
+Actual focused52 PASS: `01a09b9458dc7363b57d49d71d509777` (18 mapping,11 DOCX,23 PDF).
+Scoped lint + strict TypeScript PASS: `01a09b94aae67851bc1aa4ac3328b112`.
+CI manifest/classifier21 PASS: `01a09b91e0417912a9c96c0634142804`.
+CI166/UNIT161 validate-only: `01a09b92eba57841899360f971ee6759` /
+`01a09b92efea72f0bdc0519b8e313fc8`; these are not full CI execution.
+Real red feedback: old PDF API rejected the new reviewed resolution
+`01a09b8d75727233ac517c9c33872330`; invisible/offset-dependent glyph checks failed
+`01a09b8eb54d7e509277f9258693c0a2`, then passed with explicit fixed errors.
+
+Five synthetic PDFs generated at `/tmp/evo-d4-pdf-Vl0uCP`
+(`01a09b91dacd79c1934bb3fcb03d6ccb`): original, standard-filled, standard-draft,
+long-filled, long-draft. Each has2 pages. Poppler `-cropbox` renders:
+`01a09b923c7a71c08916623edeffec35`, `01a09b9244987103815133af66df9016`,
+`01a09b9248ce73e2a1213d0e2d3a1ab9`, `01a09b924d287243bd32caf709330287`,
+`01a09b92516d7ba3bd6b8717e9ad99b0`. Author viewed every page: Latin/Cyrillic/Kyrgyz
+are visible, long text wraps inside its box, manual signature/consent/photo remain
+unchanged, and draft marks appear on both pages. PDF text/font inspection
+`01a09b92e7147253a63d9915f13d0f97` confirms retained manual labels and real subset
+outlines (41/63/36/58 nonempty glyphs respectively), not just extractable Unicode.
+Synthetic files are outside Git. This is local module/layout evidence only;
+independent review, shared hard-isolated runtime and asset tracing, full original
+template/layout approval, immutable persistence/history/reconciliation, package
+engine, schema/UI and real business acceptance remain required. Prior DOCX CJK
+visual failure remains unresolved; unsupported CJK is rejected in the new PDF path.
+
+Final-source regeneration `01a09b95f3697002a1715c5c0d59d920` produced five
+byte-identical PDFs to the inspected set; no visual claim relies on stale output.
+Local link/font-license/hash/diff check: `01a09b9548807193ad072daaa4dd947f`
+(13 links; OFL identical to source). These receipts remain local scoped evidence,
+not a full build, isolated parser runtime, release or real applicant acceptance.

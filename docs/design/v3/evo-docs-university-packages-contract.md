@@ -1,9 +1,10 @@
 # D4 — университетские формы и пакеты документов
 
 Дата: 2026-09-13. Контракт D4, не готовность всего блока; номера миграций выделяет root.
-На отдельной ветке локально реализован только mapping/DOCX-срез ниже; формы, пакеты и их
+На отдельной ветке локально реализованы mapping/DOCX/PDF-модули ниже; формы, пакеты и их
 production/клиентская приёмка пока не готовы.
-База: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS, итоговый выпуск ещё не подтверждён.
+База ответвления: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS.
+Этот локальный срез не подтверждает итоговый выпуск и не меняет frozen release candidate.
 Основания: [общий план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md), [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
 D4 можно выполнять параллельно D3: вручную подтверждённых полей достаточно,
@@ -153,7 +154,8 @@ reconcile известного объекта → доказанный hash; в�
 
 ## Первый срез исполнения: mapping и DOCX
 
-Ветка `izzhackt/evo-docs-university-packages` не меняет frozen main c6669ff1.
+Первый локальный срез `4795e5f6` выполнен в `izzhackt/evo-docs-university-packages`
+от c6669ff1, без изменения main; он независимо проверен. Это история первого среза.
 Реализованы нейтральный [mapping resolver](../../../src/lib/university-form-fields.ts) и server-only
 [DOCX inspect/fill](../../../src/lib/server/university-form-docx.ts) с synthetic tests. Используются имеющиеся
 PizZip3.2.0/xmldom0.9.12 и D2 registry; не переносить mutable standalone service.
@@ -164,7 +166,7 @@ merged cells, headers и Unicode; визуально просмотреть вс
 Универсальная проверка layout не объявляется существующей по одному roundtrip.
 Public export остаётся закрытым до реализации всех live-authority, template/layout,
 immutable persistence и begin/complete/reconcile условий основного контракта.
-PDF, package engine, schema/Storage/UI и реальная приёмка остаются в полном объёме.
+На тот момент PDF, package engine, schema/Storage/UI и реальная приёмка оставались открыты.
 
 `resolveUniversityFormMappings` принимает exact template/mapping IDs+SHA256,
 immutable approved/rejected review snapshot и D2 fields + фиксированный `today`.
@@ -183,3 +185,53 @@ DOCX сохранил символы, но fallback LinuxLibertineG в PDF им�
 Точные receipts — в [журнале решений](../../PLAN_CHANGES.md).
 API порта сверены с [xmldom 0.9.12 onError](https://github.com/xmldom/xmldom/blob/0.9.12/index.d.ts)
 и [Node22 zlib](https://nodejs.org/download/release/v22.23.1/docs/api/zlib.html).
+
+## Второй локальный срез: PDF и фактический CI entrypoint
+
+Реализован server-only [PDF inspect/fill](../../../src/lib/server/university-form-pdf.ts),
+без HTTP, SQL, Auth, Storage и провайдеров. `inspectUniversityPdf(Buffer)` возвращает
+immutable SHA256/pageSizes/warnings; видимая область — CropBox ∩ MediaBox.
+`fillUniversityPdf(Buffer, UniversityFormResolution, {draft})` принимает только
+результат существующего resolver, сверяет exact template SHA и геометрию страниц.
+Snapshot PDF явно содержит `format: "pdf"`, pageSizes и позиции `pdf-N`:
+page (с1), x/y от верхнего левого угла, width/height, optional characterCount.
+Каждая координата и characterCount входят в canonical mapping SHA; исходный DOCX
+hash format не изменён. Проверяются все области, включая пустые/ручные: пересечение
+или выход за страницу блокирует даже draft. Заполняются только confirmed assignments;
+`fieldsReady` по-прежнему не означает разрешение публичного final export.
+
+Встроен неизменённый [NotoSans/OFL](../../../assets/fonts/README.md), без host fallback.
+Проверяются code points, реальные outlines, shaped glyphs и границы чернил.
+Китайский текст/emoji/невидимые неподдерживаемые символы завершаются
+`form_pdf_character_unsupported`; позиционированные combining/RTL runs —
+`form_pdf_shaping_unsupported`, потому что encoder не применяет эти offsets.
+Текст не сокращается и не заменяется; размер8–11pt, переполнение —
+`form_pdf_text_overflow`. Подписи/согласия/фото не заполняются. Интерактивные,
+подписанные, активные, повёрнутые или нестандартные UserUnit PDF не конвертируются
+молча. Исходные content streams сохраняются; одинаковые входы дают одинаковые bytes.
+
+Лимиты:20MiB input/output,100 страниц,30000 indirect objects,500 областей,
+1000 code points/value и50000 суммарно; страницы72–3000pt, область≥12pt,
+до120 character cells шириной≥5pt. **Это не ограничение времени/RSS парсера**:
+pdf-lib сначала загружает структуру. До любого ingress/public export обязателен
+shared hard-isolated runtime с deadline/memory boundary и подавлением библиотечных
+диагностик, а не heap-cap внутри web process. Asset tracing тоже остаётся интеграционным gate.
+
+`npm run test:university-forms` включает3 D4-модуля в реальный
+[CI/UNIT runner](../../../scripts/run-node-test-suite.mjs); классификатор разрешает
+только3 exact font assets и требует build. [Synthetic tests](../../../tests/university-form-pdf.test.mjs)
+проверяют исходные потоки, immutable binding, отказ при неподтверждённых полях,
+геометрию, glyph failures, overflow и воспроизводимость. Локально52 focused checks,
+21 manifest/classifier checks, scoped lint/strict TypeScript PASS; validate-only
+CI166/UNIT161 файлов не означает прогон полного CI. Все10 страниц5 синтетических
+PDF просмотрены: Latin/Cyrillic/Kyrgyz видимы, длинный текст в пределах областей,
+draft на обеих страницах, ручные разделы неизменны. Embedded subsets имеют реальные
+outlines. Точные receipts — [PLAN_CHANGES](../../PLAN_CHANGES.md).
+
+Публичный export не подключён. DOCX CJK/layout gate **не исправлен** новым PDF-шрифтом.
+Изоляция, полная проверка исходных шаблонов/layout, package engine, immutable history/
+Storage/reconciliation, schema/UI и разрешённая реальная приёмка остаются открыты.
+API/лицензии: [pdf-lib1.17.1 MIT](https://github.com/Hopding/pdf-lib/blob/v1.17.1/LICENSE.md),
+[fontkit1.1.1 MIT](https://github.com/Hopding/fontkit),
+[registerFontkit](https://pdf-lib.js.org/docs/api/classes/pdfdocument#registerfontkit),
+[LoadOptions](https://pdf-lib.js.org/docs/api/interfaces/loadoptions).

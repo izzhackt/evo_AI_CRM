@@ -149,3 +149,47 @@ test("resolution captures inputs before async hashing and cannot be edited after
   assert.throws(() => { result.values[0].value = "other@example.test"; }, TypeError);
   assert.throws(() => getUniversityFormAssignments({ ...result }, "final"), { code: "invalid_mapping_resolution" });
 });
+
+async function pdfFixture() {
+  const input = await fixture({ sourceKey: "student_first_name" });
+  input.template = { ...input.template, format: "pdf", pageSizes: [{ width: 612, height: 792 }],
+    slots: [{ ...input.template.slots[0], id: "pdf-1" }] };
+  input.mapping.mappings[0] = { ...input.mapping.mappings[0], slotId: "pdf-1",
+    position: { page: 1, x: 20, y: 30, width: 120, height: 24, characterCount: 12 } };
+  input.mapping.sha256 = await computeUniversityFormMappingHash(input.mapping);
+  input.review.mappingSha256 = input.mapping.sha256;
+  return input;
+}
+
+test("PDF review hash binds every coordinate and character count", async () => {
+  for (const key of ["page", "x", "y", "width", "height", "characterCount"]) {
+    const input = await pdfFixture();
+    input.mapping.mappings[0].position[key] += 1;
+    assert.notEqual(await computeUniversityFormMappingHash(input.mapping), input.mapping.sha256);
+    await assert.rejects(resolveUniversityFormMappings({ ...input, profile: { fields: [] }, today }), { code: "mapping_review_mismatch" });
+  }
+});
+
+test("PDF mapping snapshots retain immutable positions and visible page geometry", async () => {
+  const input = await pdfFixture();
+  const pending = resolveUniversityFormMappings({ ...input, profile: { fields: [{ key: "student_first_name", value: "Synthetic", state: "confirmed" }] }, today });
+  input.mapping.mappings[0].position.x = 42;
+  input.template.pageSizes[0].width = 600;
+  const resolved = await pending;
+  assert.equal(resolved.templateFormat, "pdf");
+  assert.equal(resolved.values[0].position.x, 20);
+  assert.equal(resolved.pageSizes[0].width, 612);
+  assert.throws(() => { resolved.values[0].position.x = 100; }, TypeError);
+  assert.throws(() => { resolved.pageSizes[0].width = 600; }, TypeError);
+});
+
+test("DOCX and PDF mapping representations cannot be mixed or omit positions", async () => {
+  const mixed = await pdfFixture();
+  mixed.template.format = "docx";
+  await assert.rejects(resolveUniversityFormMappings({ ...mixed, profile: { fields: [] }, today }), { code: "invalid_mapping_snapshot" });
+  const absent = await pdfFixture();
+  delete absent.mapping.mappings[0].position;
+  absent.mapping.sha256 = await computeUniversityFormMappingHash(absent.mapping);
+  absent.review.mappingSha256 = absent.mapping.sha256;
+  await assert.rejects(resolveUniversityFormMappings({ ...absent, profile: { fields: [] }, today }), { code: "invalid_mapping_snapshot" });
+});

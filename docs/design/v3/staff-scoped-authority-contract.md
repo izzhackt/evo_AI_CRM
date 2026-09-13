@@ -410,6 +410,18 @@ TypeScript и diff check завершились с exit0
 V0+4 и восстановление на V0+6 включены в следующий обычный локальный прогон;
 результат этого прогона и нового CI ещё не получен.
 
+На frozen `40dc3498` обычный локальный прогон завершился с exit1 на
+`LOCAL_BUSINESS_SCOPES_HANDOFF_FAILED`; отдельные приглашение/onboarding markers
+сохранены (`cfw01a09a62353c74e38ede752864b8853c`). Причина установлена по исходникам:
+ручной лид оставался `new`, тогда как handoff требует `qualified`. Исправление
+helper добавляет обычную квалификацию и readback актуальной workflow version,
+не меняя guards/роли платформы. Source regression31/33→33/33, scoped ESLint/diff
+прошли (`cfw01a09a6585cc7142b76167b7a9e52e7c`,
+`cfw01a09a65e2007ef0aca230542f9b5d0a`); новый runtime ещё нужен.
+Owned проект `evo-local-8a2e83679926b80e` не оставил контейнеров/томов/сетей
+(`cfw01a09a62e1cb74628d7191bf7bc1ce8d`). В `/private/tmp/evo-s2-scopes.QcZ0DM`
+просмотрены desktop/mobile screenshots финального каталога, не бизнес-сценария.
+
 Browser-проверка используемых ролей и назначений, повторная проверка исправленных
 потребителей, independent review, release gate
 и выкладка остаются обязательными. Реальные сотрудники, production, provider и

@@ -23790,3 +23790,17 @@ permission contribution, confirm the exact fingerprint, and archive once. A
 fresh readback must restore the original assignment tuples at V0+6. Existing
 cleanup skips the role already archived and still verifies all original data.
 No new identity, applicant data or production mutation is introduced.
+
+## 2026-09-13 — S2 qualify the ordinary local lead before handoff
+
+Frozen40dc3498's local positive proof exited1 at HANDOFF. Source diagnosis found
+that manual intake creates a `new` lead, but the test confirmed only the financial
+gate and skipped normal sales qualification. The unchanged handoff requires a
+`qualified` lead; `normal_handoff_allowed` on the financial gate alone does not
+prove full handoff readiness. Correct only the helper: read the new lead's live
+workflow version, call `mutate_sales_lead_workflow` to qualify it with its existing
+Sales owner/next action, and verify the same lead/owner and version+1 before the
+existing contract/payment steps. Check the normal handoff workspace readiness
+before sending. Preserve product guards and staff roles; do not widen permissions
+or edit SQL fixtures to bypass the missing business action. Add a focused source
+ordering regression, then rerun the ordinary local proof on the corrected SHA.

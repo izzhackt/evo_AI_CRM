@@ -681,7 +681,7 @@ const businessHelper = () => readFileSync(new URL("../scripts/lib/scoped-staff-p
 
 test("ordinary business proof orders canonical setup before the four same-card scope edits", () => {
   const source = businessHelper();
-  const order = ['stage = "DEPARTMENT"', 'stage = "PERSONAL_PERMISSIONS"', 'stage = "LEAD"', 'stage = "CONTRACT"',
+  const order = ['stage = "DEPARTMENT"', 'stage = "PERSONAL_PERMISSIONS"', 'stage = "LEAD"', 'stage = "QUALIFY"', 'stage = "CONTRACT"',
     'stage = "PAYMENT"', 'stage = "HANDOFF"', 'stage = "DIRECTION"', 'stage = "ROLES"', 'stage = "BASELINE"', 'stage = "CARD"'];
   assert.ok(order.every((needle, index) => source.indexOf(needle) >= 0 && (index === 0 || source.indexOf(needle) > source.indexOf(order[index - 1]))));
   assert.match(source, /const states = \[\[additions\[0\]\], \[additions\[1\]\], additions, \[\]\]/);
@@ -713,6 +713,18 @@ test("ordinary business proof requires independent target matches, full reads an
   assert.match(source, /await freshSales\(target.accessVersion, target.assignments, index < 3\)/);
   assert.match(source, /JSON.stringify\(otherMembers\(current.members\)\) === JSON.stringify\(otherMembers\(baseline.members\)\)/);
   assert.match(source, /input\[name="expected_role_bindings"\]/);
+});
+
+test("ordinary handoff qualifies manual intake using fresh workflow state before financial confirmation", () => {
+  const source = businessHelper();
+  const qualification = source.slice(source.indexOf('stage = "QUALIFY"'), source.indexOf('stage = "CONTRACT"'));
+  assert.match(qualification, /staff_sales_lead_detail/);
+  assert.match(qualification, /mutate_sales_lead_workflow/);
+  assert.match(qualification, /p_expected_workflow_version: intake.workflow_version/);
+  assert.match(qualification, /p_stage_key: "qualified", p_owner_membership_id: sales.membershipId/);
+  assert.match(qualification, /qualified.workflow_version === intake.workflow_version \+ 1/);
+  assert.match(qualification, /qualified.stage_key === "qualified"/);
+  assert.match(source, /handoffReady\[0\].can_submit_normal === true/);
 });
 
 test("business proof cleanup is ordinary, versioned, verified and never upgrades a failed UI result", () => {

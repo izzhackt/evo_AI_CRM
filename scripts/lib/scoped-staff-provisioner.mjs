@@ -919,6 +919,24 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
       p_source_key: "other", p_owner_membership_id: sales.membershipId, p_interest_direction: "CN",
       p_next_action: reason, p_next_action_due_date: day });
     check(lead?.status === "saved"); const leadId = uuid(lead.lead_id);
+    stage = "QUALIFY";
+    const readWorkflow = async () => {
+      const rows = await rpc(adminClient, "staff_sales_lead_detail", { p_lead_id: leadId });
+      check(rows?.length === 1 && rows[0].lead_id === leadId && rows[0].organization_id === organizationId
+        && rows[0].current_owner_membership_id === sales.membershipId && Number.isSafeInteger(rows[0].workflow_version));
+      return rows[0];
+    };
+    const intake = await readWorkflow();
+    check(intake.stage_key === "new" && intake.lifecycle_state === "open");
+    const qualification = await command("mutate_sales_lead_workflow", { p_lead_id: leadId,
+      p_expected_workflow_version: intake.workflow_version, p_stage_key: "qualified", p_owner_membership_id: sales.membershipId,
+      p_next_action_text: reason, p_next_action_due_date: day, p_clear_next_action: false, p_reason: reason });
+    const qualified = await readWorkflow();
+    check(qualification?.lead_id === leadId && qualification.organization_id === organizationId
+      && qualification.current_owner_membership_id === sales.membershipId && qualification.stage_key === "qualified"
+      && qualified.stage_key === "qualified" && qualified.workflow_version === intake.workflow_version + 1
+      && qualification.workflow_version === qualified.workflow_version && qualified.next_action_text === reason
+      && qualified.next_action_due_date === day);
     const readGate = async () => {
       const rows = await rpc(adminClient, "staff_lead_admissions_gate", { p_lead_id: leadId });
       check(rows?.length === 1 && rows[0].organization_id === organizationId && rows[0].lead_id === leadId
@@ -940,6 +958,10 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     check(gate.gate_version === contractGate.gate_version + 1 && gate.gate_state === "satisfied" && gate.normal_handoff_allowed === true
       && gate.first_payment_received_date === day && gate.first_payment_confirmed_by_membership_id === admin.membershipId);
     stage = "HANDOFF";
+    const handoffReady = await rpc(adminClient, "staff_lead_admissions_handoff", { p_lead_id: leadId });
+    check(handoffReady?.length === 1 && handoffReady[0].organization_id === organizationId
+      && handoffReady[0].lead_id === leadId && handoffReady[0].gate_version === gate.gate_version
+      && handoffReady[0].can_submit_normal === true && handoffReady[0].case_id === null);
     const handoff = await command("handoff_lead_to_admissions", { p_lead_id: leadId,
       p_expected_gate_version: gate.gate_version, p_admissions_owner_membership_id: admissions.membershipId,
       p_handoff_mode: "normal", p_reason: reason });

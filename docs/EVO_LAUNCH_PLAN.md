@@ -55,7 +55,21 @@ technical CI. The latest release checkpoint is
 
 S2 is merged in [PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) as
 `0f80ced1`, but the application release remains pending.
-Latest: PR750 merged as `abe8109d`; schema34760275283 confirmed157=157.
+Latest: PR753 merged as `b1ebeddf`; schema34763124585 confirmed157=157.
+Full CI34763194546 passed Node/static and the scoped-staff proofs, then stopped
+at creation of a document requirement: the organization-resource matcher rejects
+the case-scoped permission even for System Admin. Forward158 restores only the
+existing protected requirement-configuration path; applied migrations, role grants
+and case-local authority remain unchanged. Preserve the full browser/Storage
+acceptance gate. Release34763572090 was skipped; arm=false was read back.
+S2 is not released. D2/PR752 must shift its unapplied migrations to159–161.
+After158 and D2 each pass independent review/fast gates, merge them and the
+reviewed preparation-only PR754 before freezing one final main release candidate.
+Apply/check001–161 and run the full Auth/DB/browser plus D2 proof on that exact
+final SHA. No intermediate S2-only full cycle is required; all acceptance,
+runtime/tunnel and explicit disarm gates remain. See the sequence amendment.
+
+Historical PR750 checkpoint: `abe8109d`; schema34760275283 confirmed157=157.
 Full CI34760328421 passed Node/static, dependency audit and all four scoped-staff
 onboarding markers. The broad browser path then reported15 passed/3 failed/2 skipped.
 Two source-grounded UI defects remain: known record-read denial becomes a generic

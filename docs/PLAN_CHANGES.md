@@ -24181,3 +24181,85 @@ All 59 related module/harness checks passed on Node22.23.1
 (01a09b2cdbc673c3a1efe5edc02c7f5e); scoped ESLint passed
 (01a09b2d7ecc79c280ba1dd4ba490f6c). These are source/module checks, not execution
 of the deferred full Auth/DB/browser acceptance.
+
+## 2026-09-13 — Restore the System Admin document-requirement configuration boundary
+
+Full CI34763194546 on b1ebeddf passed Node/static, dependency audit, all four
+scoped-staff markers and the repaired same-session handoff context. The browser
+then stopped at supabase-staff-auth.spec.ts:1795: create_document_requirement
+returned403, "Organization action is unavailable". Its downstream media test
+again lacked the acceptance file written only after this scenario completes.
+Release34763572090 was skipped; the release arm was explicitly disabled/read back.
+
+This is a product regression, not a fixture expectation to relax. Migration156
+made require_p2e_admin_actor delegate every permission to an organization-resource
+matcher. Its four active calls are the pre/post-lock checks in create/retire
+document_requirement, passing document.manage; migration155 deliberately defines
+that permission on case/document resources, not organization. The resource-kind
+check therefore rejects even System Admin before reaching its protected branch.
+
+Before code, reserve forward migration158 for the narrow correction. Preserve
+require_domain_actor's organization/profile/membership locking, then require
+the existing live System Admin predicate for this document.manage configuration
+path and preserve the helper's four actor fields. Other helper permissions keep
+the current organization operator path. Do not weaken the paired evaluator,
+add organization to document.manage's resource catalogue, change case-local
+document actions, grant roles, or edit already-applied migrations001–157.
+Delegating global requirement configuration to a custom role is not introduced
+incidentally by this repair. System Admin's existing functional superset is restored.
+
+Validate the actual create/replay/retire/replay operations in an isolated real
+database, with unchanged catalogue/assignments and no client/provider data.
+Inspect the remaining handoff/Storage calls for the same authority mismatch.
+Keep the existing full Auth/DB/browser scenario and its normal failure gate;
+no fabricated receipt, skipped assertion, role-name shortcut or fixture grant.
+After independent review and fast PR checks, merge, apply/check schema158 using
+the managed ledger workflow, then run one exact-main full release cycle.
+
+D2/PR752 migrations are not applied remotely. Shift its active158–160 files and
+references to159–161 after integration, preserving historical local-proof numbers
+and receipts. D3/D4 contracts remain preparation only; real employees, data
+transfer, provider acceptance and standalone retirement remain open.
+
+## 2026-09-13 — One final frozen-main release for the reviewed staff fix and D2
+
+The previous main proof34763194546 is terminal failed, its release34763572090
+is terminal skipped, and arm=false was read back (01a09b3dbc987752936560f016e844ec).
+There is no active proof whose source is being changed. To avoid duplicate full
+release cycles, supersede the preceding entry's schema158-then-S2-only-cycle
+sequence, not its validation or authority contract.
+
+1. Finish actual isolated positive158 proof, independent exact-head review and
+   selected fast PR checks; merge the narrow correction.
+2. Integrate that158 into D2, whose unapplied migrations are now159–161. Require
+   coherent SQL validation, independent exact-head review and fresh fast checks;
+   merge only the reviewed combined D2 tree.
+3. Reconcile the preparation-only D3/D4 documentation PR754 with current main,
+   independently review the resulting exact diff and merge after its gates.
+4. Freeze the resulting final main SHA. With fresh production preflight and
+   actor/arm checks, apply/check managed schema001–161 through the ledger workflow;
+   run the unchanged full Auth/DB/browser suite including D2's actual browser
+   workflow on precisely that SHA. Its failure still blocks publication.
+5. Accept only that successful SHA's automatic release, immutable runtime/readback
+   and browser evidence; check the same-server localhost tunnel and disarm/read back.
+
+Independent read-only workflow/runbook review found no required S2-only release
+between these merges: admission and release bind to the final current main,
+not an intermediate feature branch. Fast PR checks and historical D2 proof do
+not replace final runtime acceptance. No provider activation, client data,
+employee invitations or standalone retirement is added to this release bundle.
+
+The focused real PostgreSQL run reached the original create failure on157
+(01a09b47fe1378a1a9cbf1baf5244da8), then passed the same public RPC sequence on158
+(01a09b4897b37b808fe6dcee54613d1c): canonical bootstrap, current actor, create/replay,
+retire/replay, exact audit and unchanged permission catalogue/role assignments.
+It rolled back synthetic data; both owned network-none containers were removed
+(01a09b49193c7541a77265906c899c15). All157 historical migrations remained byte-identical.
+Related module checks passed62/62 (01a09b48977e7221bd194c801481db3c); shell syntax and
+whitespace passed. This SQL/RPC proof is not real Auth/browser or production acceptance.
+
+Independent review also tightened the disposable runner: register cleanup
+responsibility after the existing-name precheck but before docker run, because
+the daemon can create the owned container before a timeout loses its response.
+The exact target, failure propagation and product SQL are unchanged; shell syntax
+and whitespace were rechecked. No new provider or production operation is involved.

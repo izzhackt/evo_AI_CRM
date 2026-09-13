@@ -111,6 +111,9 @@ app_pid=""
 waha_pid=""
 clamav_container_name=""
 clamav_signature_volume=""
+document_recognition_project_id=""
+document_recognition_evidence_dir=""
+document_recognition_proof_ready=0
 clamd_host="127.0.0.1"
 clamd_port=""
 clamd_timeout_ms="10000"
@@ -248,7 +251,93 @@ await waitForLocalSupabaseAuthAdmin({
 EOF
 }
 
+document_recognition_cleanup() {
+  local failed=0 pid names networks volumes owned_docker=0
+  for pid in "$app_pid" "$waha_pid"; do
+    [[ -n "$pid" ]] || continue
+    if [[ ! "$pid" =~ ^[0-9]+$ ]]; then failed=1; continue; fi
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      kill "$pid" >/dev/null 2>&1 || failed=1
+      wait "$pid" >/dev/null 2>&1 || true
+      if kill -0 "$pid" >/dev/null 2>&1; then failed=1; fi
+    fi
+  done
+  if [[ -n "$clamav_container_name" ]]; then
+    owned_docker=1
+    if [[ "$clamav_container_name" =~ ^evo-foundation-clamav-[0-9]+-[0-9]+-[0-9a-f]{8}$ ]]; then
+      docker rm --force -- "$clamav_container_name" >/dev/null 2>&1 || failed=1
+    else failed=1; fi
+  fi
+  if [[ -n "$clamav_signature_volume" ]]; then
+    owned_docker=1
+    if [[ "$clamav_signature_volume" =~ ^evo_foundation_clamav_signatures_[0-9]+_[0-9]+_[0-9a-f]{8}$ ]]; then
+      docker volume rm -- "$clamav_signature_volume" >/dev/null 2>&1 || failed=1
+    else failed=1; fi
+  fi
+  if [[ "$supabase_started" == "1" ]]; then
+    owned_docker=1
+    if [[ "$document_recognition_project_id" =~ ^evo-local-[0-9a-f]{16}$ ]]; then
+      (cd "$repo_root" && npx --no-install supabase --workdir "$supabase_workdir" stop --no-backup) >/dev/null 2>&1 || failed=1
+    else failed=1; fi
+  fi
+  if [[ "$owned_docker" == "1" ]]; then
+    # Readback is mandatory: a successful stop/rm alone is not proof of absence.
+    # Exact run names/project suffix only; no unrelated resources are removed.
+    names="$(docker ps -a --format '{{.Names}}' 2>/dev/null)" || failed=1
+    networks="$(docker network ls --format '{{.Name}}' 2>/dev/null)" || failed=1
+    volumes="$(docker volume ls --format '{{.Name}}' 2>/dev/null)" || failed=1
+    if [[ -n "$clamav_container_name" ]] && grep -Fxq -- "$clamav_container_name" <<<"$names"; then failed=1; fi
+    if [[ -n "$clamav_signature_volume" ]] && grep -Fxq -- "$clamav_signature_volume" <<<"$volumes"; then failed=1; fi
+    if [[ "$supabase_started" == "1" && "$document_recognition_project_id" =~ ^evo-local-[0-9a-f]{16}$ ]]; then
+      if grep -Eq "(^|_)${document_recognition_project_id}$" <<<"$names"$'\n'"$networks"$'\n'"$volumes"; then failed=1; fi
+    fi
+  fi
+  [[ "$failed" == "0" ]] || return 1
+  if [[ -d "$tmp_dir" && "$tmp_dir" == "${TMPDIR:-/tmp}/evo-database-foundation."* ]]; then
+    rm -R -- "$tmp_dir" || return 1
+    [[ ! -e "$tmp_dir" ]] || return 1
+  else return 1; fi
+  if [[ "${supabase_lock_acquired:-0}" == "1" ]]; then
+    rm -f -- "$supabase_lock_pid_file" || return 1
+    rmdir "$supabase_lock_dir" || return 1
+    [[ ! -e "$supabase_lock_dir" ]] || return 1
+    supabase_lock_acquired=0
+  fi
+  if [[ "$runtime_inventory_cleanup" == "1" && -d "$runtime_inventory_evidence_dir" && "$runtime_inventory_evidence_dir" == "$runtime_inventory_expected_root/foundation-"* ]]; then
+    rm -R -- "$runtime_inventory_evidence_dir" || return 1
+    [[ ! -e "$runtime_inventory_evidence_dir" ]] || return 1
+  fi
+}
+
 cleanup() {
+  local original_status=$?
+  if [[ "$document_recognition_only" == "1" ]]; then
+    trap - EXIT
+    if ! document_recognition_cleanup; then
+      echo 'DOCUMENT_RECOGNITION_CLEANUP_FAILED' >&2
+      [[ -z "$document_recognition_evidence_dir" ]] || echo "Pending D3 evidence (not accepted): $document_recognition_evidence_dir" >&2
+      exit 1
+    fi
+    if [[ "$original_status" == "0" && "$document_recognition_proof_ready" == "1" ]]; then
+      if ! "$node_bin" --input-type=module - "$document_recognition_evidence_dir" <<'EOF'
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+const directory = process.argv[2];
+try {
+  const receipt = JSON.parse(readFileSync(resolve(directory, "predispatch-pending.json"), "utf8"));
+  if (receipt.schema !== "evo-d3-local-predispatch-acceptance/v1" || receipt.synthetic !== true
+    || receipt.businessAcceptance !== false || receipt.providerAcceptance !== false || receipt.fullWorkerAcceptance !== false) throw new Error();
+  writeFileSync(resolve(directory, "acceptance.json"), JSON.stringify({ ...receipt, cleanupVerified: true }, null, 2), { mode: 0o600, flag: "wx" });
+} catch { process.stderr.write("DOCUMENT_RECOGNITION_RECEIPT_FINALIZATION_FAILED\n"); process.exitCode = 1; }
+EOF
+      then exit 1; fi
+      echo 'DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED'
+      echo "Synthetic D3 predispatch evidence: $document_recognition_evidence_dir"
+    elif [[ "$original_status" == "0" ]]; then
+      exit 1
+    fi
+    exit "$original_status"
+  fi
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
     wait "$app_pid" >/dev/null 2>&1 || true
@@ -366,6 +455,16 @@ staff_mailpit_origin="$("$node_bin" scripts/lib/local-staff-supabase-workdir.mjs
   || fail "Could not prepare the isolated local Auth callback and mail configuration"
 # macOS /var aliases /private/var; CLI ownership and its verifier must receive one exact path.
 supabase_workdir="$(cd -- "$supabase_workdir" && pwd -P)"
+if [[ "$document_recognition_only" == "1" ]]; then
+  document_recognition_project_id="$("$node_bin" --input-type=module - "$supabase_workdir/supabase/config.toml" <<'EOF'
+import { readFileSync } from "node:fs";
+import { parse } from "smol-toml";
+const project = parse(readFileSync(process.argv[2], "utf8")).project_id;
+if (!/^evo-local-[a-f0-9]{16}$/u.test(project)) process.exit(1);
+process.stdout.write(project);
+EOF
+  )" || fail "D3 disposable project identity is unavailable"
+fi
 
 supabase_started=1
 if ! (
@@ -1407,6 +1506,7 @@ student_profile_fields_browser_assert() {
 document_recognition_browser_assert() {
   assert_app_reachable
   local evidence_dir="$repo_root/output/document-recognition/${runtime_inventory_sha}/foundation-${RANDOM}-$$"
+  document_recognition_evidence_dir="$evidence_dir"
   mkdir -p "$evidence_dir"
   chmod 700 "$evidence_dir"
   if ! EVO_D3_APP_ORIGIN="http://127.0.0.1:$app_port" \
@@ -1435,10 +1535,9 @@ document_recognition_browser_assert() {
       fail "D3 predispatch proof exposed a credential in its output"
     fi
   done
-  grep -Fx 'DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED' "$document_recognition_log" >/dev/null \
-    || fail "D3 predispatch proof returned no verification marker"
-  echo 'DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED'
-  echo "Synthetic D3 predispatch evidence: $evidence_dir"
+  grep -Fx 'DOCUMENT_RECOGNITION_PREDISPATCH_RECORDED' "$document_recognition_log" >/dev/null \
+    || fail "D3 predispatch proof returned no preliminary marker"
+  document_recognition_proof_ready=1
 }
 
 cd "$repo_root"

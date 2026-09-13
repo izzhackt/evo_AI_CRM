@@ -24865,3 +24865,27 @@ No Docker/stack/image build, DB mutation, real user or provider was exercised.
 Runtime7ed531 is changes_requested pending two P1 fixes and independent review.
 Actual combined-image gate and the one local predispatch scenario remain open;
 full worker/provider generation/review/cleanup and production CLI remain separate.
+
+### 2026-09-13 — D3 acceptance cleanup completion (review P2, before code)
+
+The browser proof currently writes acceptance before the EXIT resource cleanup.
+Change only the D3 mode to keep a preliminary receipt until the owned app process,
+ClamAV container/volume and disposable Supabase project have confirmed cleanup.
+Any stop/removal/readback failure keeps this gate open, returns nonzero and leaves
+no final acceptance.json or VERIFIED marker. Preserve the preliminary private
+evidence and failed owned workdir for diagnosis; do not silently retry cleanup.
+Existing D2/staff/full foundation cleanup semantics remain unchanged. Verify the
+actual cleanup control flow with bounded injected command outcomes only; no
+Docker, database, image build or provider execution is authorized in this fix.
+
+Outcome: browser now records pending evidence only. The D3 EXIT path captures
+the original status, performs scoped cleanup once, verifies process/resource
+absence, and only then writes cleanupVerified acceptance and the final marker.
+Regression RED10/1 `01a09befffea748299ca4f1b81c1c068` → focused28 PASS
+`01a09bf264277560bdec90da9315a4c3`; actual npm entrypoint163+18 PASS
+`01a09bf1e7d079538d2c30bbfa59620a`. The regression executes the real shell
+functions with twelve bounded command-outcome cases, not real Docker or DB.
+ESLint/bash/diff PASS `01a09bf1eccc75d3883090afd54dee3c`; legacy D2/full cleanup
+body is byte-identical to bf618e1 (`01a09bf216c67a22b039943d034fec95`).
+This closes only the source-level receipt-ordering defect; actual combined-image
+and local Auth/Storage/runtime acceptance remain unrun and open.

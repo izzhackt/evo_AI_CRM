@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { PRODUCTION_MODULES, validateImageEvidence, normalizePredispatchReceipt } from "../scripts/lib/document-recognition-acceptance-image.mjs";
@@ -117,6 +119,79 @@ test("D3 failure diagnostics precede cleanup without raw application logs", () =
   assert.ok(block.indexOf("--summarize-owned-app-log") < block.indexOf('fail "D3 actual local'));
   assert.match(block, /EVO_D3_APP_LOG="\$app_log"/u); assert.match(block, /EVO_D3_RUNTIME_DIR="\$tmp_dir"/u);
   assert.doesNotMatch(block, /(?:cat|tail|sed).*\$app_log/u);
+});
+
+test("D3 EXIT cleanup gates final acceptance on confirmed scoped removal", () => {
+  const start = harness.indexOf("document_recognition_cleanup() {");
+  assert.ok(start >= 0, "D3 must own a fail-closed cleanup path");
+  const functions = harness.slice(start, harness.indexOf("\ntrap cleanup EXIT", start));
+  assert.match(runner, /"predispatch-pending\.json"/u);
+  assert.doesNotMatch(runner, /"acceptance\.json"|DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED/u);
+  for (const failure of ["", "container-rm", "volume-rm", "supabase-stop", "container-read", "network-read", "volume-read",
+    "remaining-container", "remaining-network", "remaining-volume", "original-exit", "proof-not-ready"]) {
+    const root = mkdtempSync(join(tmpdir(), "evo-d3-cleanup-test-"));
+    try {
+      const evidence = join(root, "evidence"); mkdirSync(evidence);
+      const ownedTmp = join(root, "evo-database-foundation.synthetic"); mkdirSync(ownedTmp);
+      const lock = join(root, "lock"); mkdirSync(lock); writeFileSync(join(lock, "pid"), "123\n");
+      writeFileSync(join(evidence, "predispatch-pending.json"), JSON.stringify({
+        schema: "evo-d3-local-predispatch-acceptance/v1", synthetic: true,
+        businessAcceptance: false, providerAcceptance: false, fullWorkerAcceptance: false,
+      }));
+      // Actual harness functions; process-local command boundaries only. No Docker/DB is called.
+      const result = spawnSync("bash", ["-c", `set -Eeuo pipefail
+${functions}
+docker() {
+  case "$1 $2" in
+    'rm --force') [[ "$FAILURE" != container-rm ]];;
+    'volume rm') [[ "$FAILURE" != volume-rm ]];;
+    'ps -a')
+      [[ "$FAILURE" != container-read ]] || return 1
+      [[ "$FAILURE" != remaining-container ]] || echo evo-foundation-clamav-123-456-01234567;;
+    'network ls')
+      [[ "$FAILURE" != network-read ]] || return 1
+      [[ "$FAILURE" != remaining-network ]] || echo "supabase_network_evo-local-0123456789abcdef";;
+    'volume ls')
+      [[ "$FAILURE" != volume-read ]] || return 1
+      [[ "$FAILURE" != remaining-volume ]] || echo "supabase_db_evo-local-0123456789abcdef";;
+    *) return 91;;
+  esac
+}
+npx() { [[ "$FAILURE" != supabase-stop ]]; }
+document_recognition_only=1
+document_recognition_project_id=evo-local-0123456789abcdef
+document_recognition_evidence_dir="$EVIDENCE"
+document_recognition_proof_ready=1
+[[ "$FAILURE" != proof-not-ready ]] || document_recognition_proof_ready=0
+supabase_started=1; supabase_workdir="$OWNED_TMP/local-supabase"
+app_pid=""; waha_pid=""
+clamav_container_name=evo-foundation-clamav-123-456-01234567
+clamav_signature_volume=evo_foundation_clamav_signatures_123_456_01234567
+tmp_dir="$OWNED_TMP"; repo_root="$ROOT"; node_bin="$NODE"
+supabase_lock_acquired=1; supabase_lock_dir="$LOCK"; supabase_lock_pid_file="$LOCK/pid"
+runtime_inventory_cleanup=0
+trap cleanup EXIT
+[[ "$FAILURE" != original-exit ]] || exit 1
+exit 0
+`], { encoding: "utf8", timeout: 5000, env: { ...process.env, FAILURE: failure, EVIDENCE: evidence,
+        OWNED_TMP: ownedTmp, ROOT: root, NODE: process.execPath, LOCK: lock, TMPDIR: root } });
+      assert.equal(result.status, failure ? 1 : 0, `${failure || "success"}: ${result.stderr}`);
+      assert.equal(result.stdout.includes("DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED"), !failure, failure);
+      assert.equal(existsSync(join(evidence, "acceptance.json")), !failure, failure);
+      if (failure && !["original-exit", "proof-not-ready"].includes(failure)) {
+        assert.ok(existsSync(join(evidence, "predispatch-pending.json")), failure);
+        assert.ok(existsSync(ownedTmp), failure);
+        assert.match(result.stderr, /DOCUMENT_RECOGNITION_CLEANUP_FAILED/u);
+      } else if (!failure) {
+        assert.equal(JSON.parse(readFileSync(join(evidence, "acceptance.json"), "utf8")).cleanupVerified, true);
+        assert.equal(existsSync(ownedTmp), false);
+        assert.equal(existsSync(lock), false);
+      } else {
+        assert.equal(existsSync(ownedTmp), false, "failed proof still cleans its owned resources");
+        assert.doesNotMatch(result.stderr, /DOCUMENT_RECOGNITION_CLEANUP_FAILED/u);
+      }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
 });
 
 test("ordinary CI manifest includes acceptance contract checks once, not the real stack", () => {

@@ -265,8 +265,15 @@ parser, диагностическая подмена, mock inspector и fake ve
    из clean Git commit и фактические launcher/inspect/dependency-tree/Node hashes
    обоих образов. TS-модули исполняются только в acceptance target: это **не**
    проверка отсутствующего production CLI bundle. Production image не получает test entrypoint.
-4. Единственный полный marker — `DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED`;
-   закрытый receipt/screenshot сохраняется в `output/document-recognition/<SHA>/foundation-*`.
+4. Браузер сохраняет только `predispatch-pending.json` и предварительный marker
+   `DOCUMENT_RECOGNITION_PREDISPATCH_RECORDED`. После успешного сценария D3 EXIT
+   подтверждает удаление собственных процессов, ClamAV container/volume и Supabase
+   project (containers/networks/volumes), затем пишет `acceptance.json` с
+   `cleanupVerified: true` и единственный полный marker
+   `DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED`. Закрытый receipt/screenshot находится
+   в `output/document-recognition/<SHA>/foundation-*`. Любой stop/rm/readback failure
+   возвращает nonzero без final receipt/marker; pending evidence и оставшийся
+   owned workdir сохраняются. D2 и остальные режимы не меняются.
    Нет marker или неудачна очистка — gate не закрыт. Внутри read/replay не создают
    второго задания; terminal cancelled, released reservation и отсутствие
    upload/generation/provider files/proposals читаются из реальной локальной БД.

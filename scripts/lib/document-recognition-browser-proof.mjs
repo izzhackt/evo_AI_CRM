@@ -171,14 +171,14 @@ async function main() {
     await expect(page.locator("[data-nextjs-dialog-overlay], [data-nextjs-error-dialog]")).toHaveCount(0);
     requireProof(browserErrors.size === 0, "BROWSER_RUNTIME_ERRORS");
     await page.screenshot({ path: resolve(config.evidenceDir, "recognition-predispatch.png"), fullPage: true });
-    writeFileSync(resolve(config.evidenceDir, "acceptance.json"), JSON.stringify({ schema: "evo-d3-local-predispatch-acceptance/v1",
+    writeFileSync(resolve(config.evidenceDir, "predispatch-pending.json"), JSON.stringify({ schema: "evo-d3-local-predispatch-acceptance/v1",
       synthetic: true, businessAcceptance: false, providerAcceptance: false, fullWorkerAcceptance: false,
       realAdminAuth: true, realUiEnqueue: true, sameSessionReplay: true, coldHistory: true,
       actualClamAV: true, privateStorageDownloadEqual: true, realLinuxSourcePreflight: true,
       confirmedEmptyUnchanged: true, cancelledBeforeProvider: true, reservationReleased: true,
       sourceAccessEvents: 1, jobs: 1, providerIntents: 0, providerFiles: 0, proposals: 0,
       browserErrorCount: 0, browserWarningCount, images, preflight }, null, 2), { mode: 0o600, flag: "wx" });
-    process.stdout.write("DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED\n");
+    process.stdout.write("DOCUMENT_RECOGNITION_PREDISPATCH_RECORDED\n");
   } catch (error) {
     try { await writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts }); }
     catch { process.stderr.write("DOCUMENT_RECOGNITION_BROWSER_DIAGNOSTIC:UNAVAILABLE\n"); }

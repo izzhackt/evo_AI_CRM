@@ -468,9 +468,9 @@ SELECT
 \endif
 
 -- Legacy bundle rewrites are frozen after S2. Replace those historical probes
--- with the ordinary Admin assignment command, using an existing published role
--- whose complete permission set supports organization scope. No role definition
--- or other member is changed; rollback removes this actor's assignments/audit.
+-- with ordinary Admin commands for one test-owned role and its assignments.
+-- The selected organization need not have any backfilled editable role. The
+-- outer rollback removes this role, its bundle and this actor's assignments/audit.
 SELECT jsonb_build_object(
   'sub', profile.auth_user_id,
   'role', 'authenticated',
@@ -487,6 +487,73 @@ ORDER BY membership.id
 LIMIT 1
 \gset
 
+\if :{?p3a_admin_claims}
+\else
+  \echo 'FAIL: current actor ordinary assignment Admin fixture is missing'
+  SELECT 1 / 0;
+\endif
+
+\set p3a_scoped_role_id 'f0470000-0000-4000-8000-000000000012'
+SET request.jwt.claims TO :'p3a_admin_claims';
+SET ROLE authenticated;
+SELECT platform.staff_role_command(
+  :'p3a_actor_organization_id', :'p3a_scoped_role_id', 0, 'create',
+  jsonb_build_object('label', 'P3A current actor company read',
+    'description', 'Transactional current actor scoped permission fixture',
+    'permissionKeys', jsonb_build_array('company.file.read')),
+  'P3A create ordinary scoped role', 'f0470000-0000-4000-8000-000000000013'
+) = jsonb_build_object('status', 'applied', 'roleId', :'p3a_scoped_role_id',
+  'version', 1) AS p3a_role_created
+\gset
+
+WITH impact AS (
+  SELECT platform.staff_role_impact(
+    :'p3a_actor_organization_id', :'p3a_scoped_role_id', 1
+  ) AS body
+)
+SELECT body->>'impactFingerprint' AS p3a_role_impact_fingerprint,
+  body - 'impactFingerprint' = jsonb_build_object(
+    'roleId', :'p3a_scoped_role_id', 'version', 1,
+    'affectedMembershipIds', '[]'::JSONB,
+    'addedPermissionKeys', jsonb_build_array('company.file.read'),
+    'removedPermissionKeys', '[]'::JSONB
+  ) AND (body->>'impactFingerprint') ~ '^[0-9a-f]{64}$' AS p3a_role_impact_ok
+FROM impact
+\gset
+
+SELECT :'p3a_role_created'::BOOLEAN AND :'p3a_role_impact_ok'::BOOLEAN
+  AS p3a_role_reviewed
+\gset
+\if :p3a_role_reviewed
+\else
+  \echo 'FAIL: current actor test-owned role creation or publication impact changed'
+  SELECT 1 / 0;
+\endif
+
+WITH publication AS (
+  SELECT platform.staff_role_publish(
+    :'p3a_actor_organization_id', :'p3a_scoped_role_id', 1,
+    :'p3a_role_impact_fingerprint', 'P3A publish ordinary scoped role',
+    'f0470000-0000-4000-8000-000000000014'
+  ) AS body
+)
+SELECT body->>'bundleId' AS p3a_scoped_bundle_id,
+  body - 'bundleId' = jsonb_build_object(
+    'status', 'applied', 'roleId', :'p3a_scoped_role_id', 'version', 2,
+    'bundleVersion', 1, 'affectedMembershipIds', '[]'::JSONB
+  ) AND (body->>'bundleId')::UUID IS NOT NULL AS p3a_role_published
+FROM publication
+\gset
+RESET ROLE;
+
+\if :p3a_role_published
+\else
+  \echo 'FAIL: current actor test-owned role publication changed'
+  SELECT 1 / 0;
+\endif
+
+-- Publication versions are per role (155), so this new role is version 2 with
+-- bundle version 1. Read back the returned canonical binding and literal rights.
 SELECT role.id AS p3a_scoped_role_id,
   jsonb_build_array(jsonb_build_object(
     'roleId', role.id, 'roleVersion', role.version,
@@ -503,8 +570,7 @@ SELECT role.id AS p3a_scoped_role_id,
     'scope', jsonb_build_object('kind', 'organization',
       'key', :'p3a_actor_organization_id', 'resourceKind', NULL)
   )::TEXT AS p3a_expected_assignment,
-  jsonb_agg(permission.permission_key ORDER BY permission.permission_key)::TEXT
-    AS p3a_expected_permissions
+  jsonb_build_array('company.file.read')::TEXT AS p3a_expected_permissions
 FROM platform.staff_role_definitions role
 JOIN platform.staff_role_bundle_bindings binding
   ON binding.organization_id = role.organization_id
@@ -515,25 +581,17 @@ JOIN platform.role_bundle_permissions permission ON permission.bundle_id = bundl
 JOIN platform.permission_definitions definition
   ON definition.permission_key = permission.permission_key
 WHERE role.organization_id = :'p3a_actor_organization_id'
+  AND role.id = :'p3a_scoped_role_id' AND role.version = 2
+  AND role.label = 'P3A current actor company read'
+  AND bundle.id = :'p3a_scoped_bundle_id' AND bundle.version = 1
   AND role.status = 'active' AND bundle.status = 'published'
 GROUP BY role.id, bundle.id
 HAVING bool_and('organization' = ANY(definition.staff_scope_kinds)
   AND cardinality(definition.staff_resource_kinds) > 0
   AND NOT definition.staff_sensitive AND NOT definition.staff_system_only)
-ORDER BY role.id
-LIMIT 1
+  AND jsonb_agg(permission.permission_key ORDER BY permission.permission_key)
+    = jsonb_build_array('company.file.read')
 \gset
-
-\if :{?p3a_admin_claims}
-\else
-  \echo 'FAIL: current actor ordinary assignment Admin fixture is missing'
-  SELECT 1 / 0;
-\endif
-\if :{?p3a_scoped_role_id}
-\else
-  \echo 'FAIL: current actor published organization-role fixture is missing'
-  SELECT 1 / 0;
-\endif
 
 SET request.jwt.claims TO :'p3a_admin_claims';
 SET ROLE authenticated;

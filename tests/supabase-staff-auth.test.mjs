@@ -152,6 +152,18 @@ test("current-actor SQL contract separates live staff identity from scoped grant
   }
   assert.match(sql, /'systemRole', 'staff',[\s\S]*'accessVersion', 1,[\s\S]*'assignments', '\[\]'::JSONB,[\s\S]*'permissions', '\[\]'::JSONB/);
   assert.match(sql, /membership\.is_system_admin/);
+  const orderedCommands = ["platform.staff_role_command(", "platform.staff_role_impact(",
+    "platform.staff_role_publish(", "SELECT role.id AS p3a_scoped_role_id", "platform.staff_role_assignments_save("];
+  const positions = orderedCommands.map(command => sql.indexOf(command));
+  assert.ok(positions.every((position, index) => position >= 0 && (index === 0 || position > positions[index - 1])));
+  assert.match(sql, /:'p3a_scoped_role_id', 0, 'create'/);
+  assert.match(sql, /'permissionKeys', jsonb_build_array\('company\.file\.read'\)/);
+  assert.match(sql, /'addedPermissionKeys', jsonb_build_array\('company\.file\.read'\)/);
+  assert.match(sql, /:'p3a_role_impact_fingerprint', 'P3A publish ordinary scoped role'/);
+  assert.match(sql, /AND role\.id = :'p3a_scoped_role_id' AND role\.version = 2/);
+  assert.match(sql, /AND bundle\.id = :'p3a_scoped_bundle_id' AND bundle\.version = 1/);
+  assert.match(sql, /jsonb_build_array\('company\.file\.read'\)::TEXT AS p3a_expected_permissions/);
+  assert.doesNotMatch(sql, /ORDER BY role\.id/);
   assert.match(sql, /bundle\.status = 'published'/);
   assert.match(sql, /bool_and\('organization' = ANY\(definition\.staff_scope_kinds\)/);
   assert.equal((sql.match(/SELECT platform\.staff_role_assignments_save\(/g) ?? []).length, 2);

@@ -2,7 +2,8 @@
 
 Дата: 2026-09-13. Основа: main `6ff4c017`, migrations001–154.
 Контракт этапов2–5 [плана команды](employee-roles-accounts-run-plan.md).
-S2 не выпущен. Обычный локальный onboarding подтверждён; готовность всего среза
+S2 не выпущен. Полный локальный onboarding/business proof прошёл на `451944cd`;
+готовность всего среза
 и выкладка пока не подтверждены.
 
 ## Результат
@@ -460,6 +461,26 @@ desktop/mobile final-catalogue screenshots were inspected; they prove only the
 shown draft layout, not the failed business workflow or a current runtime.
 
 ## Основания
+
+Последний подтверждённый runtime: frozen451944cd, session61839, exit0 — markers
+для Admin invitation UI, catalogue, member editor, business scopes и onboarding
+(`cfw01a09a7b115f7452b390f7c23c5f8bfe`). Business helper завершил обычную
+квалификацию/handoff, department/direction/combined full reads, восстановление
+назначений и assigned-role archive; это следует из обязательной последовательности
+перед его success marker. После OrbStack/context проверки проект
+`evo-local-ef43bcdfd56f8e40` не оставил контейнеров/томов/сетей
+(`cfw01a09a7b618d7fa08e5685b0801e3449`). Диагностический diff independently
+source-reviewed; прежние непостоянные failures не повторились, их причина не
+установлена. Новые screenshots этим запуском не создавались.
+
+CI34753640952 на375e58ef завершился failure: actor test525 не нашёл существующую
+org-compatible роль (`cfw01a09a7a0e1e7140bf1c9052ef59c218`). Исправляется только
+позитивная подготовка роли в тесте. Собственная company.file.read роль создаётся
+и публикуется обычным Admin; exact role2/bundle1 binding/permissions и прежние
+grant/removal1→2→3/identity/status/ACL/rollback сохранены. Независимое source review
+одобрило diff; 10/10, scoped ESLint/diff прошли
+(`cfw01a09a7db16079c0b7de2b8a3c8a3444`). Следующий required CI ещё обязателен.
+Это не production/employee acceptance; S2 пока не выложен.
 
 Проверено2026-09-13: [Supabase RBAC](https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac),
 [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),

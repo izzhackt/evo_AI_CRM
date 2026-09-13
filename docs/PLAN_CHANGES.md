@@ -23848,3 +23848,21 @@ checks into fixed substages. In this helper only, classify browser errors into a
 small fixed allowlist (resource load, hydration, other); never retain/output error
 text, paths, response data or identities. Preserve single submission, all exact
 assertions, failure propagation and cleanup. Do not add retries, sleeps or bypasses.
+
+## 2026-09-13 — S2 own the ordinary actor-test role fixture
+
+CI34753640952 passed the updated identity checks, then stopped at
+platform_current_actor_authority.sql:525: no rows for the assumed existing
+organization-compatible role. Static fixture availability was not runtime proof.
+Make that positive test deterministic: the existing same-organization Admin
+creates and publishes one isolated role through the normal product commands,
+then the existing exact-binding assignment/removal assertions use that role.
+Choose a known nonsensitive organization-scoped permission from the live catalogue;
+preserve all identity/status/ACL assertions and the transaction rollback. Do not
+widen an existing role, change production SQL or relax the selection constraints.
+
+Separately, frozen451944cd completed the full ordinary local proof (exit0),
+including department/direction/combined business reads and assigned-role archival.
+The earlier intermittent invitation/read failures did not recur; their cause is
+still unestablished. This is local workflow evidence, not managed release or real
+employee delivery. The current CI fixture correction does not change that helper.

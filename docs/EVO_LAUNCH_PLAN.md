@@ -55,7 +55,18 @@ technical CI. The latest release checkpoint is
 
 S2 remains active and unreleased in [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
 Migrations155–157, editable roles/scoped assignments and prepared invitations are
-implemented; the last complete local onboarding before scope-proof expansion is `6ae41a2a`.
+implemented; the full expanded local onboarding/business proof passed on `451944cd`.
+
+- **Current local PASS (`451944cd`):** actual Admin invitation form, Auth/Mailpit/
+  password/login, role catalogue, consecutive member edits, independent
+  department/direction/combined case reads and assigned-role archive completed
+  with exit0 and all five required markers. Owned local resources were removed.
+  The prior intermittent failures did not recur; their cause is not established.
+- **Current CI blocker:** CI34753640952 on `375e58ef` passed the updated actor
+  assertions, then found no existing organization-compatible fixture role at
+  actor test line525. The test-owned role creation/publication correction is now
+  independently source-reviewed with focused10/10, ESLint and diff checks passed.
+  Product SQL and protections remain; the next required CI must pass.
 
 - **Earlier local proof (`02497173`):** actual Auth/Mailpit/password/login, full unused-role catalogue
   lifecycle and two same-card member-assignment saves with live V+1/V+2 and exact
@@ -88,8 +99,8 @@ implemented; the last complete local onboarding before scope-proof expansion is 
   the expanded proof stopped at `DEPARTMENT_READ`; the exact subcheck is not yet
   known. Owned resources were cleaned. Fixed private diagnostic substages are
   source-reviewed and focused tests passed34/34; the next runtime is pending.
-- **Latest candidate (`375e58ef`):** actor-contract alignment is independently
-  source-reviewed; focused tests10/10 and ESLint pass. CI34753640952 is running.
+- **Previous candidate (`375e58ef`):** actor-contract alignment is independently
+  source-reviewed; focused tests10/10 and ESLint pass. CI result is recorded above.
   Its local proof instead stopped earlier at SALES_READBACK; no scope result can
   be inferred. Owned resources were removed. Invitation readback and sticky
   browser-error checks are now separated with fixed private diagnostic labels;

@@ -149,6 +149,13 @@ The permission audit found187 files/32 directories root-owned and read-only.
 See [native evidence](design/v3/references/2026-09-14-document-source-native-amd64-proof.md).
 Production stayed on accepted05585020; combined D3 acceptance remains open.
 
+Next integration candidate composes runtime32c6403 with reviewed D3 acceptance
+d4423d8d (including queue/integration ancestry), preserving the current main
+package/Admissions gates. It does not add duplicate DTO/transport implementations.
+After independent combined review, run one real predispatch proof; only then
+integrate the proved D4 persisted-export slice with contiguous162→163→164.
+Production worker composition, provider and real-client gates remain open.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance

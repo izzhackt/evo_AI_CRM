@@ -25170,3 +25170,25 @@ All9 retained artifact hashes matched; exact owned resources were removed and
 production identity/health stayed unchanged. A separate evidence review accepted
 these narrow claims. [Evidence](design/v3/references/2026-09-14-document-source-native-amd64-proof.md).
 No runtime bytes changed for this record; combined D3/provider gates stay open.
+
+## 2026-09-14 — Compose reviewed D3 and native runtime before one integration proof
+
+Before integration: current main85a1efd plus reviewed runtime/code10f1a08 and
+proof-docs32c6403 is the base. Integrate reviewed acceptance d4423d8d, including
+its queue823ecb02 and integration26dd7b78 ancestry, into one candidate. Queue
+already contains the pure DTO; integration already contains the corrected
+transport. Do not duplicate756/758 or overwrite the BigInt compatibility fix.
+
+Preserve both complete decision histories, current university/package suites,
+Admissions-only foundation mode, actual D3 cleanup finalizer and runtime hashes.
+Reconcile test manifests as a union; production uses the ordinary runner stage,
+never test-only qpdf/launcher/harness stages. Independent combined review and one
+actual Auth/UI/Storage/scanner/preflight proof remain required before enablement.
+
+The independently proved D4 persistent-export candidate remains a separate lane
+until its same-slice retirement review closes. Then compose it with this tree
+using contiguous162→163→164; keep D2-only Storage credentials/deferred receipt
+settings scoped to its profile proof rather than requiring them in D3 config.
+Production worker CLI/composition remains implementation work; provider dispatch
+still requires the already-documented authorized case/file/project/budget inputs.
+No paid request, managed migration, deployment or old Docs retirement is implied.

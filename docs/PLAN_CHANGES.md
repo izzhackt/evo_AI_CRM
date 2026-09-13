@@ -25930,3 +25930,52 @@ passed (`01a09cfa5edc7a92958a53880256e3b3`); synthetic response fixtures prove o
 validation/fail-closed adapters, not a successful database write or inspection.
 Manager listing preserves unpublished records, inspection metadata rejects text/
 private keys and fabricated PDF slots, unknown remains distinct from verified.
+
+Independent166 review found a contract mismatch before integration: SQL accepted
+empty or nonsequential DOCX slots, although the reviewed native inspector and
+public DTO require nonempty ordered p-1…p-N. Tighten only the forward166 helper;
+keep165 immutable. Add real rolled-back SQL regressions for empty/gap/reorder/
+p-9999 manifests and prove rejected seals create no inspection receipt. The first
+contiguous001–166 synthetic command proof passed (`01a09d060b4c7643882f73aa86ef1bbe`),
+but that pre-correction receipt does not certify the corrected helper.
+
+Root chooses one later combined UI+ingress image/browser proof, including the
+reviewed controller identity binding now on main06d43b29. This slice may add only
+the bounded foundation-harness mode and acceptance helper; defer image execution
+until root supplies the integrated frozen SHA. Do not repeat Next/image builds,
+bootstrap a parallel stack or claim full mapping/output acceptance from ingress.
+
+The bounded server/API/storage checkpoint now has actual100/100 scoped checks and
+strict TypeScript/lint (`01a09d0ddbe777e3953f19eb5cf1cf78`), offline bucket plan only,
+CI332/193/139 and unit230/188/42. Corrected DOCX SQL constraint was actually RED
+(`01a09d0cf04379a1975c7671268bbfec`) then contiguous001–166 GREEN with cleanup
+(`01a09d0ddc877af0aa8831ae73769755`). No actual combined image/Storage/native/browser
+claim follows: root coordinates one integrated proof after exact source review.
+
+The bounded ingress acceptance mode must run the HTTP application in the exact
+Linux production image, not macOS Next dev. Reuse the existing foundation-owned
+Supabase/Auth/ClamAV bootstrap. Attach only the owned application and scanner to
+the already verified `supabase_network_evo-local-<16hex>` network. An in-process
+acceptance bootstrap forwards application-local `127.0.0.1:8000` exclusively to
+that run's `supabase_kong_evo-local-<16hex>:8000`; scanner traffic targets only
+the exact already-owned scanner name on3310. These are fixed local transports,
+not a production URL-validator exception or a configurable arbitrary HTTP host.
+Publish only `127.0.0.1:<owned-free-port>:3000` for the browser. Read actual image
+ID/revision/native architecture before startup, inject the verified runtime
+identity, and read back actual container image/config/bindings before acceptance.
+Keep credentials on stdin/process memory, never Docker env/argv or evidence.
+The existing cleanup must remove/check the additional exact app container before
+removing the one existing stack; publish no accepted receipt before all owned
+resources are absent. Prepare/test selection and negative contracts only now;
+root owns the single later integrated image/browser execution. Docker bridge DNS
+and loopback publishing follow official Docker documentation linked in the
+ingress contract. No new database, provider call, managed bucket or build gate.
+
+Whole-ingress independent review identified a boundedness defect: request abort
+could release the byte-operation slot while the actual ClamAV promise still owned
+its socket and byte buffers. Keep the same one-operation admission policy, but
+retain its lease until any started scanner/native promise actually settles.
+Returning an aborted HTTP response is not evidence that external work stopped.
+Add a deferred negative scanner regression proving a second upload is refused
+until settlement, then admitted; no synthetic successful inspection is needed.
+SQL166 and its already approved immutable-receipt constraint remain unchanged.

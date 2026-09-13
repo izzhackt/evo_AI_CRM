@@ -75,6 +75,8 @@ const DOCUMENT_EXPORT_PATH =
   /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/document-exports(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:download|reconcile))?$/i;
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
+const UNIVERSITY_TEMPLATE_SOURCE_PATH =
+  /^\/api\/v3\/university-forms\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/source(?:\/(?:status|cancel|reconcile))?$/i;
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
@@ -193,6 +195,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     PRIVATE_COMPANY_FILE_DOWNLOAD_PATH.test(path) ||
     DOCUMENT_RECOGNITION_JOBS_PATH.test(path) ||
     DOCUMENT_EXPORT_PATH.test(path) ||
+    UNIVERSITY_TEMPLATE_SOURCE_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

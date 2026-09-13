@@ -3,6 +3,13 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+document_exports=false
+if [[ "${1:-}" == --document-exports && $# -eq 1 ]]; then
+  document_exports=true
+elif [[ $# -ne 0 ]]; then
+  echo 'Usage: test-student-profile-fields-postgres.sh [--document-exports]' >&2
+  exit 1
+fi
 if [[ "$(uname -s)" == Darwin ]]; then
   [[ "$(orb status)" == Running && "$(docker context show)" == orbstack ]] || {
     echo 'Student Profile SQL proof requires running OrbStack context' >&2
@@ -81,7 +88,17 @@ echo 'STUDENT_PROFILE_FIELDS_BASELINE_158_APPLIED'
 # 159/160, then exercises the intended authenticated staff command/read seam.
 stage='positive Student Profile migration159/160 command proof'
 psql_proof -f /workspace/supabase/tests/student_profile_fields_positive.sql
-stage='positive Student Profile export migration161 and audit proof'
+# Preserve the historical schema as a baseline, without exercising the retired
+# transient export producer. Default mode proves the 159/160 profile commands;
+# persistent artifact behavior and legacy grant retirement require the flag.
+stage='historical Student Profile export migration161 schema application'
 psql_proof -f /workspace/supabase/migrations/161_platform_student_profile_exports.sql
-psql_proof -f /workspace/supabase/tests/student_profile_exports_positive.sql
+if [[ "$document_exports" == true ]]; then
+  # D4 behavioral proof on the known 001–161 baseline, not a claim that the
+  # unmerged D3 162–163 sequence has been applied or validated for release.
+  stage='D4 migration164 isolated artifact behavior'
+  psql_proof -f /workspace/supabase/migrations/164_platform_document_export_artifacts.sql
+  psql_proof -f /workspace/supabase/tests/platform_document_export_artifacts.sql
+  echo 'DOCUMENT_EXPORT_ARTIFACTS_SQL_BEHAVIOR_VERIFIED'
+fi
 echo 'STUDENT_PROFILE_FIELDS_POSTGRES_VERIFIED'

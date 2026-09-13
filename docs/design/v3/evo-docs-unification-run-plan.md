@@ -12,7 +12,16 @@ D3/D4 разрабатываются; D3–D6, перенос данных и в
 Контракт: `docs/EVO_LAUNCH_PLAN.md` → ADR0028 → этот план → `DESIGN.md`.
 Параллельный run: [сотрудники и роли](employee-roles-accounts-run-plan.md).
 
-Текущий checkpoint: full CI34770582933 и release34771170873 SUCCESS на
+Checkpoint разработки, 2026-09-14: PR768, exact `ef279986`, объединяет D3 и
+сохранённые анкеты D4. Независимое review объединения, production/native build,
+contiguous001–164 SQL и оба реальных локальных Auth/Storage/browser сценария
+пройдены: [распознавание до Gemini](references/2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986)
+и [история анкет](references/2026-09-14-persisted-profile-export-proof.md#combined-checkpoint-ef279986).
+Это не выпуск: следующий шаг — итоговый main-readiness review и сохранение
+проверенного изменения в main; дальнейшие D4 формы/пакеты, D5/D6, настоящие
+приглашения и разрешённая Gemini/client приёмка остаются обязательными.
+
+Текущий production checkpoint: full CI34770582933 и release34771170873 SUCCESS на
 `05585020a411111939a72c4121c66369839a066b`. Independent server readback совпал
 с accepted image/revision/receipts; healthy/0 restarts, pending отсутствует,
 arm=false. Localhost-туннель ведёт к этой же версии. Это технический выпуск,

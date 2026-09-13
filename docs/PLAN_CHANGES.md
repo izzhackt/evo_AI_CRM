@@ -24771,6 +24771,100 @@ authorized snapshots/scanner/layout and per-asset rights, immutable Storage,
 history/reconciliation and UI. A D2 transient export attempt is not retroactively
 treated as a persisted artifact. Independent review is required before merge;
 D4 and real business acceptance remain incomplete.
+
+## 2026-09-13 — fixed isolated source inspection runtime before D3 integration
+
+Root explicitly approves new sibling `izzhackt/document-source-runtime` from
+reviewed D4 `ae52a3165c142c5f87bebd80e97b18a15e84877e`. Before code, pin the
+[runtime contract](design/v3/document-source-runtime-contract.md): exact D3
+`inspectDocumentSource` status-discriminated interface and `document-source-v1`.
+Scope is one C supervisor/launcher, one bundled Node source inspector, server-only
+adapter, narrow image packaging and bounded actual Linux tests. No provider,
+Storage, SQL, UI, broad CI, production changes or alternate data authority.
+
+Use existing Node22.23.1/pdf-lib1.17.1/sharp0.35.4; root-owned minimal runtime,
+Landlock>=3, architecture-aware seccomp, clean environment/descriptors, no network,
+no arbitrary commands or app Docker socket. OS address-space2 GiB/CPU10s/core0/FD64,
+supervisor wall15s, output4 KiB, one job at a time. Address space is not RSS proof.
+Abort/parent death terminate inspector; unsupported isolation is unavailable,
+never fallback. PDF/JPEG/PNG25 MiB, PDF20pages/no encryption, images20k/40MP.
+No raw metadata/text output or original rewriting; scanning remains independent.
+Official kernel, Node, Sharp and pdf-lib sources are linked in the contract.
+
+Only an isolated OrbStack execution after Running/orbstack may establish runtime
+proof; synthetic ordinary fixtures and fixed test-only diagnostics cover file/
+network denial and actual memory/CPU/wall/abort enforcement. No fuzzing. Test-only
+diagnostics must not ship in the production launcher. Parent/root continue their
+separate frozen release and D3 integration work. Independent exact-head review
+is required; no implementation, Linux isolation or provider success claimed yet.
+
+### Bounded implementation evidence — source runtime only
+
+Actual `npm run test:document-source-runtime` builds the narrow Linux target and
+passes 8 grouped tests in 26.8 seconds on native arm64 OrbStack, Node 22.23.1,
+UID 1001 (`01a09bd998127e00957d051917558310`). This includes actual production
+inspector PDF/JPEG/PNG reads, exact 25 MiB positive/oversize negative, 20-page
+positive/21-page negative, password-encrypted PDF rejection, 40 MP full decode,
+dimension/truncation/hash rejection, root-owned assets, Landlock/socket/env/FD
+denial, real AS allocation failure, separate CPU and wall kills, output cap,
+parent-death cleanup and actual adapter cancellation. Temporary parser-error
+diagnostics were removed before this run; production has no diagnostic mode.
+The OS AS bound is 2 GiB of virtual address space, not RSS or a per-job cgroup.
+
+Actual focused input boundary entry: 3 PASS (`01a09bd8bc527d32a10f1bad9f581fe8`).
+CI/UNIT registration: 9 manifest checks PASS (`01a09bd8ea2a7e92a1be19513be1eaad`),
+not a full CI execution or Linux isolation claim. Scoped TypeScript
+(`01a09bd8e1e87b5285d0af8babf94449`), lint
+(`01a09bd8ea1e7e52a3b0d1da78163ce9`) and diff checks pass. The initial positive
+Linux run failed before fixing the exact ELF-loader permission, required
+`FIONBIO` ioctl and fixed-fd stdin reading; the full policy remained enabled.
+The existing production Compose app already uses `init: true` for orphan reaping.
+
+Native amd64 execution remains mandatory on its intended kernel before enablement;
+arm64 proof does not establish it. Root still owns independent immutable-head
+review, combined D3 image, real isolated Storage/Auth workflow and later provider
+acceptance. No production image, route, worker dispatch or managed DB was changed.
+
+## 2026-09-13 — repair source-runtime isolation findings before integration
+
+Independent review rejects `7ed5315a` for two concrete gaps absent from the earlier
+8/8 ARM64 proof: async pipe ownership can deliver signals outside the inspector,
+and a worker-thread exec can lose the leader's parent-death setting. Root approves
+the bounded correction before code: command/flag-limited `fcntl`, then a fixed
+required native addon installing irreversible TSYNC no-exec policy before dynamic
+parser import or document input. Missing or failed addon startup is fatal; no
+optional ELF preload or generic command interface. The original lifetime and
+isolation acceptance criteria remain unchanged.
+
+The amended [source runtime contract](design/v3/document-source-runtime-contract.md)
+requires actual synthetic red/green signal and thread-exec probes, surviving-child
+inspection, real production bootstrap and missing-addon failure proof. No app,
+production, provider, managed database or real student files are probe targets.
+Native AMD64 remains a separate actual execution gate. Only this runtime worktree
+is owned by the implementing agent; independent exact-head re-review is required.
+
+### Scoped red/green evidence before immutable review
+
+The added real Linux regressions first fail on the old runtime at
+`01a09be7dccf7550adeca6b2af285085`: two async pipe signals reach the synthetic
+supervisor, and a worker-thread re-exec survives supervisor death. The owned
+surviving child is explicitly cleaned up; no application process is targeted.
+
+With the correction, all 12 runtime groups pass on native ARM64 OrbStack at
+`01a09beb3db47df0a7e0025c3c02b4fa` (about 27 seconds). This includes actual
+production bootstrap/native addon and every live Node thread's additional filters,
+missing-addon and actual kernel-denied seal initialization before input, safe
+descriptor operations, denied async ownership/notification, worker-thread exec
+denial and no surviving inspector. The original real source/resource/abort groups
+still pass. Native C is compiled with `-Wall -Wextra -Werror`; the existing pinned
+Node headers supply the addon ABI without adding a package dependency.
+
+Focused input/CI manifest checks pass 12/12 at
+`01a09bea3bb17c10a2d13bc85ae03ac0`; scoped JS lint and diff checks pass at
+`01a09beb11a97e32b5770d713e65ef0b`. These are scoped local checks, not full CI,
+native AMD64, combined D3 workflow, provider or production evidence. Root retains
+the independent immutable review and later enablement gates.
+
 ## 2026-09-13 — Align the calendar proof with the preserved scoped Admissions contract
 
 Full CI34766012215 on c6669ff1 failed at supabase-staff-auth.spec.ts1877:
@@ -24993,3 +25087,731 @@ PASS `01a09bee0778737190f02e28ea05f90f`; scoped lint/diff PASS
 `01a09bef202075819e2e348d5bb5a2c4`. The two package modules and their tests
 are byte-identical to independently reviewedae52a316. No changed renderer bytes
 require repeating the prior52 renderer checks or visual generation.
+
+## 2026-09-13 — Refresh the reviewed source runtime after PR762
+
+Root requests a merge of current main85a1efdff8945ec2100d26b83de5288892471231
+(merged PR762) into independently reviewed runtime0584d2d09a917148bd13b85e3d275a7b36930925.
+Preserve both append-only histories and every exact runtime/adapter/build/native
+seal/launcher/inspector/test asset. Only merge integration, plan freshness and the
+test-manifest union are owned here; no D4 implementation or runtime-source edits.
+Keep the main calendar proof, package entries and source-preflight entry exactly
+once in execution. Expected inventories are CI309/170/139 and unit207/165/42.
+
+Validate only changed manifests/classifier, scoped lint and diff; prove unchanged
+runtime bytes against0584. Do not rebuild or repeat the unchanged ARM64 container
+proof. Freeze the combined head for root's independent delta review before push
+or PR. Prior12/12 native ARM64 proof and the repaired P1 findings remain recorded
+above; they do not prove native AMD64, the combined D3 Auth/Storage/runtime workflow,
+provider acceptance, production readiness or real business acceptance.
+
+Combined-source validation:23 manifest/classifier checks PASS
+`01a09bfa95fc75e39f1933b109b46d2a`; scoped ESLint/diff PASS
+`01a09bfa9ad97f82856940ecc3fafff9`. Read-only Git object comparisons confirm all
+12 runtime/build/test/lockfile paths unchanged from0584, both complete append-only
+journal tails preserved, and actual CI309/170/139 plus unit207/165/42 inventories
+with the calendar, two package files and source-preflight file each executed once
+(`01a09bfa6e6e7b30aa8fe857765e925e`). The native ARM64 image was not rebuilt or
+rerun; the new frozen integration head still awaits root's independent review.
+
+## 2026-09-13 — Correct source-runtime adapter build environment
+
+PR766 head49a370ba failed the actual Next production build in34774354642:
+`spawn(..., {env:{}})` conflicts with Next16.3.4's required `ProcessEnv.NODE_ENV`.
+All later `never` child-process diagnostics follow that overload failure.
+Before changing code: pass only the fixed literal `{NODE_ENV:"production"}` to
+the fixed absolute launcher, with no inherited application environment or type
+assertion. The unchanged native launcher clears that environment and supplies
+its own explicit parser environment. No secret, configurable executable, parser
+option, runtime isolation policy, dependency or migration is added.
+
+Basis: local `node_modules/next/types/global.d.ts` and the bundled Next TypeScript
+build guide; [Node22 spawn environment](https://nodejs.org/download/release/v22.23.1/docs/api/child_process.html#child_processspawncommand-args-options)
+defines the explicit child environment. Keep Next's type checking enabled.
+Run the actual production build plus focused public-seam checks/lint, then
+independently review the delta before push. Prior native bootstrap/OS evidence
+applies to unchanged native assets only, not an executed new TS adapter; native
+AMD64 and the combined D3 workflow remain open. No production action is included.
+
+Correction proof: actual `npm run build` (Next16.3.4 production build with its
+TypeScript authority and the existing importer bundle) PASS
+`01a09c08103f74f2beab6de987669f2b`; three public-seam boundary checks PASS
+`01a09c07d8f3791288ff2199b46b2496`; scoped lint PASS
+`01a09c07e5d776b1bf63bef8b1bf8808`. The boundary checks do not spawn the Linux
+runtime. Independent delta review and the new GitHub check remain required.
+
+## 2026-09-13 — Normalize immutable runtime asset permissions after native AMD64 proof
+
+Corrected32e7255 passed the complete short GitHub gate34774934032. Its first
+actual native AMD64 target build then ran all12 existing tests on Hermes in an
+owned network-none, read-only, nonroot temporary container. Eleven passed; the
+root-owned-asset invariant correctly failed because bootstrap.mjs had mode0664
+after archive extraction and cp, while other checked runtime assets were safe.
+Neither tracked100644 nor root ownership proves non-writable group permissions.
+The working production container/image stayed unchanged and healthy.
+
+Before code: normalize copied production runtime assets and test-only proof
+assets to root-owned0555 at their existing Docker COPY boundaries. This retains
+the established immutable asset requirement across checkout/archive umasks; do
+not relax the test, native isolation policy, resource limits or source bytes.
+Basis: [Docker COPY permissions](https://docs.docker.com/reference/dockerfile/#copy---chmod).
+Independently review the Docker-only implementation delta before repeating the
+same bounded native AMD64 target/harness against the corrected frozen commit.
+Keep old11/12 evidence as a failure, not native acceptance. No deployment,
+production configuration, managed database or provider call is part of this fix.
+
+## 2026-09-14 — Record native corrected-runtime proof without overstating SSH exit
+
+Independently reviewed10f1a08 built on native Hermes AMD64 and produced complete
+12/12 PASS TAP; all runtime assets are root-owned/read-only. The original SSH
+transport returned255, so its docker-run exit was not observed; recovering the
+terminal TAP after reconnect is not a claimed exit0 or a reason to silently rerun.
+All9 retained artifact hashes matched; exact owned resources were removed and
+production identity/health stayed unchanged. A separate evidence review accepted
+these narrow claims. [Evidence](design/v3/references/2026-09-14-document-source-native-amd64-proof.md).
+No runtime bytes changed for this record; combined D3/provider gates stay open.
+
+## 2026-09-14 — Compose reviewed D3 and native runtime before one integration proof
+
+Before integration: current main85a1efd plus reviewed runtime/code10f1a08 and
+proof-docs32c6403 is the base. Integrate reviewed acceptance d4423d8d, including
+its queue823ecb02 and integration26dd7b78 ancestry, into one candidate. Queue
+already contains the pure DTO; integration already contains the corrected
+transport. Do not duplicate756/758 or overwrite the BigInt compatibility fix.
+
+Preserve both complete decision histories, current university/package suites,
+Admissions-only foundation mode, actual D3 cleanup finalizer and runtime hashes.
+Reconcile test manifests as a union; production uses the ordinary runner stage,
+never test-only qpdf/launcher/harness stages. Independent combined review and one
+actual Auth/UI/Storage/scanner/preflight proof remain required before enablement.
+
+The independently proved D4 persistent-export candidate remains a separate lane
+until its same-slice retirement review closes. Then compose it with this tree
+using contiguous162→163→164; keep D2-only Storage credentials/deferred receipt
+settings scoped to its profile proof rather than requiring them in D3 config.
+Production worker CLI/composition remains implementation work; provider dispatch
+still requires the already-documented authorized case/file/project/budget inputs.
+No paid request, managed migration, deployment or old Docs retirement is implied.
+
+## 2026-09-13 — D3 durable queue: distinguish enqueue identity from verified source pages
+
+Before queue implementation, resolve a real contract timing seam: enqueue can
+resolve immutable document metadata, but actual PDF pages require bounded worker
+byte parsing. Client-supplied pages, in-transaction network/parser work and
+changing an already-used fingerprint are not acceptable substitutes. Keep an
+immutable request fingerprint over the original command/identity/source metadata
+and captured server config (no pages), and seal the separate existing canonical
+v1 processing fingerprint once after successful byte preflight. Replay uses the
+captured config and original profile revision, never current mutable defaults.
+Unknown pages remain NULL until verified; no upload/generation intent before seal.
+The full v1 contract/golden vector remains unchanged.
+
+Root allocates162 in isolated izzhackt/evo-docs-recognition-queue based on
+bc0cde68. Scope: closed durable jobs/attempts/provider-files and non-secret
+server configuration records, exact actor/source/profile guards, bounded money
+reservation, fenced claim/transitions/result publication/cleanup and session read
+RPC adapters. Configuration is server-selected; no browser model/budget/source
+metadata, no keys in DB records, no implicit paid-project attestation or enable.
+Preserve the existing D3 six-permission gates, lock order, one generation intent,
+unknown outcome rules, D2 human review and exact-source proposal provenance.
+The input count receipt from the separate transport slice is persisted before
+generation intent and must match exact model/body/config and input ceiling.
+
+Use ordinary real PostgreSQL positive/replay/restart workflow checks with bounded
+synthetic data; injected provider outcomes are not provider acceptance. Do not
+run a second full release suite, seed/apply managed schema or merge while the
+bc0cde68 release cycle is active (fullCI34767766251). Production worker/Storage/UI,
+hard memory/time bounded document parsing, real paid provider/file acceptance,
+D5 transfer and D6 retirement remain mandatory later work, not waived by this slice.
+
+Queue implementation starts with a complete bounded pre-dispatch segment:
+session enqueue/read, captured non-secret configuration, exact source authority,
+atomic reservation, fenced claim/renewal, once-only verified-page sealing and
+safe cancellation/recovery before any upload. No HTTP route or partial provider
+dispatcher is exposed. Upload/generation intents, persisted count receipt,
+result/proposal publication and independent cleanup commands remain mandatory
+and are not declared implemented by this segment. This may extend the same
+unmerged162 once its real PostgreSQL proof passes; root controls final allocation.
+Reuse the exact PR756 pure module/test bytes rather than duplicate DTOs:
+git blobs74c5f037a6673f85707f01e23e26545f881e00fc and
+e7b7b60f57b3ab1ed7c62e159be3075076adc073 match05b6a036.
+
+The first real queue/preflight SQL proof passed (01a09ba008b87562a64d02883bec18ad),
+so the same unmerged162 now extends to durable upload/generation intents,
+persisted model/body/config-bound count receipt, bounded result and ordinal
+proposal publication, and separately fenced cleanup. Conflicting candidates
+remain separate proposals; no confirmed value/review is overwritten. SQL proof
+uses synthetic provider observations only. Worker/HTTP/Storage integration is
+still absent, and no actual Gemini generation/cleanup is claimed.
+Before the first provider side effect and before generation, a UTC-day rollover
+must recheck/rebind the existing monetary reservation under the organization lock;
+enqueue yesterday must not bypass today's configured daily budget. Only one
+generation intent is possible, so this does not authorize another paid attempt.
+Register the new pure/adapter/queue-contract tests in the existing Node CI entry
+and recompute exact manifest totals; no removed tests, skip or full-CI dispatch.
+
+Queue candidate validation: isolated pinned PostgreSQL001–162 full workflow
+PASS01a09baab06f746290e94bdef3340ffd (including UTC rollover); preceding complete
+provider-state/proposal/cleanup proof PASS01a09ba92eb67b2199e97b71cdf7a6cd.
+Canonical Admin/session RPCs use synthetic metadata/scanner/provider outcomes,
+not real Auth/browser/Storage bytes or a paid Gemini call. The original D2
+confirmed-empty/full review rows remain unchanged; three ordinal proposals
+including conflicting English values publish once, with one revision/audit.
+Upload/generation replay returns dispatch:false; expired generation retains its
+reservation and does not produce a new attempt. DELETE acknowledgement remains
+pending until a separate absence observation; unknown upload plus404 is unresolved.
+Actual Node entrypoint88+12 PASS01a09ba64e26766196e81b16edcc63d4;
+manifest/classifier19 PASS01a09ba5600b7e728581a0197b50def4; scoped TypeScript0
+diagnostics01a09ba9536a7b819a15fe3e6d74be12 and ESLint/diff PASS. The new script
+is already a known code path; no classifier policy relaxation. Supabase queue
+guidance informed short transactions, organization-first SKIP LOCKED claims and
+partial active/cleanup indexes. All runner-owned containers are removed; trap
+uses only the exact random owned name with --volumes, never a broad prune.
+Independent exact-head review is still pending. This is durable SQL+session
+adapter evidence only; no worker/HTTP/UI, managed apply, deployment or provider
+acceptance is claimed. Preserve existing launch/release blockers and D5/D6 gates.
+
+### D3 queue review correction — truthful terminal budget outcome
+
+Independent review of7c614bfe found that the existing UTC rollover guard emits
+budget_exhausted, but neither worker finish RPC accepts that fixed failure code.
+Add it to both narrow allowlists; preserve the existing rule that pre-upload
+failure releases the reservation, while any upload intent retains it and leaves
+provider cleanup required. Prove the actual finish RPCs before/after upload with
+synthetic real PostgreSQL checks before coding the correction; no paid call,
+retry, budget relaxation or permission change. Keep generation intent uncertain
+outcomes unchanged. Clarify root-confirmed semantics: same-request replay keeps
+the original payload/config/revision; a new explicitly confirmed retry_of_job_id
+uses current revision/config/budget and must be shown as a new charged action.
+Outer config.enabled controls new enqueues only, not a hidden model migration
+or global cancellation of already captured jobs. Independent re-review required.
+
+Regression reached the real preflight finish RPC and failed with invalid_request
+before the correction:01a09bb3496673b2bc33f026ef0705df exit3. After only the two
+allowlist additions, the same full isolated PostgreSQL001–162 proof passed:
+01a09bb3e0ba77c3b399a14cc1f588e3 exit0. Both terminal budget paths now persist the
+correct fixed code; pre-upload reservation release and post-upload reservation
+retention/cleanup claim are asserted. Synthetic worker-reported outcomes are
+not evidence of real paid-budget exhaustion or provider cleanup.
+
+### D3 integration boundary — exact private source and cold job reopening
+
+Root approved163 after162 on isolated integration branch from823ecb02; neither
+migration is applied to managed production. Add service-only source-read RPC,
+bound to the current attempt/fence and saved live actor, all six permissions,
+exact active case/slot/version/hash/size/MIME and clean scan provenance. Every
+actual read revalidates; one idempotent document_access_events row records the
+attempt's source access with purpose document_recognition before bytes leave
+private Storage. Return exact private binding only to the service, never the UI.
+Stream only from the validated configured Supabase origin; no redirects, client
+path/URL, signed URL to Gemini, decompression or buffering an unbounded Blob.
+Deadline15s including grant/fetch/read, exact size <=25MiB, SHA and magic required.
+
+Shared parser runtime is root-owned at server/document-source-preflight.ts:
+inspectDocumentSource({bytes,mimeType,expectedSha256},{signal}) returns verified
+{sha256,byteLength,mimeType,pageCount,policyVersion} or fixed rejection.
+Policy document-source-v1: PDF <=20 pages, reject encrypted/unreadable; JPEG/PNG
+one page, width/height <=20000 and total <=40,000,000 pixels. Hard OS process
+isolation, no credentials/network, bounded memory/CPU/time/output and abort kill
+are mandatory before any untrusted file parsing or provider dispatch. A typed
+dependency seam is allowed; no pass stub or provider worker is shipped until the
+real implementation is wired/proven. This is not a second worker framework.
+
+For cold reopen,163 also adds current-session exact-source history read: latest10
+safe job DTOs, stable created_at/id cursor and explicit Load older when needed.
+The existing GET path accepts exactly job_id OR source_version_id; only history
+allows bounded cursor. No browser-storage authority, auto-enqueue or silent paid
+retry. POST remains the original four-field command. Small per-document UI shows
+existing job/result/cleanup state, explicit extraction/retry and human-review link.
+Actual authenticated routes, typed session adapter, bounded source bytes and SQL
+workflow checks precede local browser acceptance; provider/file/paid-project,
+root parser/runtime integration and production release remain separate gates.
+
+Official Supabase API-key documentation confirms backend secret keys bypass RLS;
+therefore the service RPC must perform live saved-actor authorization, not infer
+case access from key presence: https://supabase.com/docs/guides/getting-started/api-keys
+Storage wire path/headers are checked against installed storage-js source before
+implementation; no secret values, source files or paid calls are inspected here.
+
+Root approved continued worker orchestration against the real shared preflight
+interface, while the final runtime/CLI activation stays closed pending proof.
+Import only the exact reviewed PR758 transport module/test bytes from6feefd40:
+blobs c504e64bdc5efd3645007a587f0be9413ba18108 and
+8cba93db39dcdd6f2088a74907106ff1bae67913 (verified01a09bbc545e7931a8fe4c815966ae9f).
+Keep captured config and enqueue/processing fingerprint checks; this worker
+implements registry evo-profile-61-v1, schema1, prompt extract-v1 and parser
+document-source-v1 only. Unknown version fails before dispatch rather than
+using current code under another policy label. RPC and provider requests are
+separate; persist each upload/generation/delete intent, reconcile uncertain
+results with bounded reads and never repeat a generation request. Heartbeat15s,
+fenced lease90s, bounded tick240s; cleanup separately bounded within its90s lease.
+Real positive SQL and synthetic transport-boundary checks are complementary,
+not a substitute for the eventual real Auth/Storage/parser/provider acceptance.
+
+Root reviewed and approved four precise forward163 integration seams before code:
+persist-once source_preflight_policy_version=document-source-v1 beside verified
+pages (existing v1 processing fingerprint remains unchanged); explicit case-wide
+safe history to discover jobs after a source version is replaced; actual sealed
+source_pages in cleanup receipt (never invent page1); and truthful general finish
+codes document_not_eligible/provider_not_configured after upload. Preserve all
+live permission checks, generation-unknown coercion, reservation and cleanup rules.
+The old seven-argument seal command is removed rather than retained as an unpinned
+parallel entrypoint. The new command takes explicit p_preflight_policy_version;
+upload/generation require the sealed known policy. No history backfill fabricates
+past parser proof. GET scope=case is exclusive with job_id/source_version_id and
+uses the same stable10+cursor safe DTO. Current API/private data boundaries stay.
+
+Two necessary integration distinctions surfaced in actual call-site inspection:
+the private claim receipt must expose its persisted provider_file_state and
+observation_count, so a restart after the fifth confirmed ACTIVE observation
+uses that exact stored proof instead of attempting a forbidden sixth observation.
+The existing source/hash/MIME and deterministic owned resource URI remain bound;
+no new provider read or public metadata is added. Unknown uploads still use GET.
+Separately, session enqueue's typed error carries a non-public uncertain flag:
+actual42501 maps403, while lost/malformed RPC outcome maps503 and retains the
+original UI request ID/payload. No new public error strings, SQL grants or retry.
+
+The actual Node CI manifest must include every D3 integration boundary test:
+transport, private source, processing worker, independent cleanup, session route,
+history adapter and client reducer under the existing react-server Node group;
+the real component SSR contract uses the existing ordinary React group. Append
+these files only to test:student-profile-fields and update the manifest's exact
+counts/required-file assertions. Do not add dependencies, a parallel runner or
+full-CI skips. Tests with injected provider/RPC replies remain unit-boundary proof;
+the actual isolated PostgreSQL001–163 proof is separate and passed
+01a09bc51f5c7d309b46cbfc5a261667, including persisted fifth ACTIVE recovery,
+sealed parser policy, actual cleanup pages and source/case cursor history.
+
+Actual repository-tsconfig checking (target ES2017, not an overridden target)
+reported two unsupported bigint literals in the reviewed transport cost helper
+and one implicit return diagnostic in the source loader catch. Replace only
+999_999n/1_000_000n with equivalent BigInt(number) constructors and make the
+source's throwing return explicit. Preserve integer arithmetic, pricing limits,
+request bytes and configuration hashes; no target/dependency relaxation. This
+is the sole intentional transport delta from the initially byte-identical import
+and must be included in integration review. Initial diagnostics:
+01a09bc9cf8a79c3ba68ef3d3ad00b0d (three diagnostics).
+Whole-program checking additionally loads Next's ProcessEnv augmentation, which
+requires NODE_ENV in the source validator's explicit environment projection;
+include the current mode (production if absent) without copying other secrets.
+The validator still reads only URL/key and keeps identical URL rules. Generate
+the ignored Next route/image declarations via installed next typegen before
+whole-project checking; a clean worktree's missing declarations are not a logo
+product regression. No generated declaration or config change is committed.
+
+### D3 integration163 — bounded implemented candidate, not release acceptance
+
+Implemented session POST/read history, exact-case/source paged UI with manual
+paid-action consent and same-command unknown reconciliation, real private-source
+HTTP loader, processing worker and independently fenced cleanup worker. The
+worker requires a supplied real inspector; no CLI or always-verified fallback
+is present. Parent owns the isolated runtime and final wiring/activation.
+
+Actual PostgreSQL001–163 PASS01a09bc51f5c7d309b46cbfc5a261667; exact owned container
+evo-document-recognition-proof-6840-68589 absent01a09bcd57d97ca180f6130e2373a218.
+Actual npm test:student-profile-fields152+18PASS01a09bcc160f73e2a5f2182c02b4182d;
+manifest6PASS01a09bcc13e075308704e104c8c15278. Whole-repo typegen/tsc under unchanged
+ES2017 target PASS01a09bccc76978c18ca43875f3ecc259. Source HTTP includes real
+loopback streamed-read abort/grant expiry; it is not actual private Storage.
+Injected provider/RPC/inspector results prove ordering/recovery boundaries only.
+Processing never redispatches a persisted generation intent; result save must
+return the same job/result_saved before publication. Cleanup uses stored pages,
+verifies the exact owned name before DELETE, records acknowledgement separately
+and requires GET absence; early404 after unknown upload remains DB-pending.
+Independent integration review, real local Auth/Storage/browser proof, isolated
+parser proof, CLI wiring and explicit allowed-file/paid-project provider
+acceptance remain open. No main/schema/provider/production mutation in this slice.
+
+### 2026-09-13 — D3 bounded real-session acceptance preparation (before code)
+
+Prepare a dedicated foundation mode on a separate branch from independently
+reviewed integration26dd7b78; do not edit/publish over its frozen review. Reuse the
+owned OrbStack/Supabase bootstrap, canonical synthetic handoff, actual staff Auth
+and browser, actual document upload/scanner/private Storage, and safe pre-cleanup
+diagnostics. Reuse the public EVO logo bytes, not customer files. Exercise profile
+start/confirmed-empty, checklist/upload, explicit queued request, exact-session
+same-command replay and cold history read without a second job. Technical config
+seeding stays in the disposable local fixture and never represents real paid
+eligibility or permission to call a provider; no Gemini key, upload or generation.
+
+The source-preflight leg must use an immutable combined integration + reviewed
+Linux-runtime image containing exact loader/seal and actual inspector artifacts.
+Require a fail-closed readiness gate before stack creation; do not assume a
+runtime-only image contains D3 source. No macOS parsing fallback, injected
+verified result, fake worker success or diagnostic replacement. The real isolated
+loader/inspector seals measured pages/policy/fingerprint, then terminally ends the
+technical job before provider intent. Preserve explicit non-provider scope in its
+receipt. Root coordinates image identity and the single run after runtime proof;
+this preparation does not authorize a stack run now. Existing whole business,
+staff onboarding and D2 acceptance modes keep their gates unchanged.
+
+The image orchestrator belongs only to an acceptance image target, never the
+production final image. It imports actual source loader, isolated inspector,
+canonical fingerprint and service RPCs; it does not import provider transport or
+processing worker. After successful seal it uses the existing preflight
+`cancelled` transition. Bind the exact combined source/module hashes and compare
+real launcher/inspector/dependency-tree bytes against the immutable production
+image. Verify source access audit, cancelled state and released reservation with
+zero upload/generation intents, provider files and proposals. Configuration labels
+alone are not an egress control or proof of billing eligibility.
+
+### D3 acceptance harness prepared — no runtime or service acceptance claim
+
+Added the bounded `--document-recognition-only` mode, actual UI/session/Storage
+scenario and acceptance-only Linux driver. Shared D2 ownership/bootstrap and safe
+diagnostics are reused with a closed D2/D3 scope; its full workflow stays intact.
+Gate compares a clean exact checkout's imported TS module bytes (not a nonexistent
+production CLI bundle), actual runtime files/dependency tree and Node hashes in
+production/acceptance images, and native architecture. Docker FROM uses a resolvable
+reference; execution/readback uses immutable local IDs, with no label-only pass.
+Build behavior follows current official Docker FROM/image-identity docs linked
+in the D3 contract. The ordinary production Dockerfile is unchanged.
+
+Missing manifest entry observed RED20/1 `01a09be699cf7d23b5cc8d8d68bf1ccd`; append
+only the new harness contract test to the real existing CI entrypoint. Focused
+27 PASS `01a09be6f8a97060bb7a71b836027c6e`; actual npm test:student-profile-fields
+162+18 PASS `01a09be7de9a7353893b9a10209b44c6`; full repo TS0diag
+`01a09be7ec9674c2b6c108af4f765327`, scoped ESLint0warnings
+`01a09be7032771109426c4fb5352736c`, bash/entrypoint syntax+diff clean
+`01a09be73b5874c397fc021abea4160b`.
+No Docker/stack/image build, DB mutation, real user or provider was exercised.
+Runtime7ed531 is changes_requested pending two P1 fixes and independent review.
+Actual combined-image gate and the one local predispatch scenario remain open;
+full worker/provider generation/review/cleanup and production CLI remain separate.
+
+### 2026-09-13 — D3 acceptance cleanup completion (review P2, before code)
+
+The browser proof currently writes acceptance before the EXIT resource cleanup.
+Change only the D3 mode to keep a preliminary receipt until the owned app process,
+ClamAV container/volume and disposable Supabase project have confirmed cleanup.
+Any stop/removal/readback failure keeps this gate open, returns nonzero and leaves
+no final acceptance.json or VERIFIED marker. Preserve the preliminary private
+evidence and failed owned workdir for diagnosis; do not silently retry cleanup.
+Existing D2/staff/full foundation cleanup semantics remain unchanged. Verify the
+actual cleanup control flow with bounded injected command outcomes only; no
+Docker, database, image build or provider execution is authorized in this fix.
+
+Outcome: browser now records pending evidence only. The D3 EXIT path captures
+the original status, performs scoped cleanup once, verifies process/resource
+absence, and only then writes cleanupVerified acceptance and the final marker.
+Regression RED10/1 `01a09befffea748299ca4f1b81c1c068` → focused28 PASS
+`01a09bf264277560bdec90da9315a4c3`; actual npm entrypoint163+18 PASS
+`01a09bf1e7d079538d2c30bbfa59620a`. The regression executes the real shell
+functions with twelve bounded command-outcome cases, not real Docker or DB.
+ESLint/bash/diff PASS `01a09bf1eccc75d3883090afd54dee3c`; legacy D2/full cleanup
+body is byte-identical to bf618e1 (`01a09bf216c67a22b039943d034fec95`).
+This closes only the source-level receipt-ordering defect; actual combined-image
+and local Auth/Storage/runtime acceptance remain unrun and open.
+
+## 2026-09-14 — Combined D3 source candidate validation
+
+The local integration combines `32c6403` with reviewed acceptance `d4423d8d`
+(including its queue/integration ancestry). Both parent journals are preserved:
+565/565 and 552/552 complete sections match exact bytes, in their original order
+(`01a09c99219878f28a7ca11a90a180cc`; ordered-line check
+`01a09c98d7ec7eb0a81d73695a7c5001`). No parent entry was replaced or truncated.
+Runtime Dockerfile/inspector, lockfile and manifest runner match `32c6403`;
+pure DTO, corrected BigInt transport and migrations162/163 match `d4423d8d`.
+
+Only the four merge conflicts required reconciliation: append-only journal,
+test-script union, foundation mode flags and computed manifest counts. CI keeps
+182 unique files (152 bounded,21 serial,9 normal-React); unit keeps177. Existing
+Admissions/P4 checks and D3 cleanup finalizer remain, without skips or new grants.
+Actual `npm run test:student-profile-fields` exits0
+(`01a09c9805f67d03acd95c0196823fff`);21 focused manifest/route/foundation checks pass
+(`01a09c9800d174a19a5f0cc5b8edca15`). Scoped ESLint32 files, shell syntax and
+diff-check pass (`01a09c98b2d07d62926f238b2495bb9e`). One production Next build,
+including TypeScript and knowledge-import bundling, exits0
+(`01a09c995e0c7b238f5656b78afb886c`). No separate typecheck/full suite was run.
+
+This is source integration only: independent exact-head review, immutable
+combined images and actual local Auth/UI/Storage/scanner/preflight proof remain
+open. Production CLI composition, paid generation/result/review/cleanup and
+authorized real-case acceptance remain open. No Docker stack, provider call,
+managed migration, deployment or D4 persisted-export merge occurred here.
+
+## 2026-09-14 — Diagnose actual D3 history transport before provider dispatch
+
+The independently reviewed combined b5a73b2b image pair built on native OrbStack
+ARM64 and passed the immutable image gate. The real isolated foundation run then
+failed at RECOGNITION_ENQUEUE_UI (01a09ca56eee76309a0ded574bbcadd2, exit1): real
+Admin login, profile, checklist, ClamAV upload and byte-equal private download
+preceded an unavailable history panel and disabled extraction button. No enqueue,
+source inspection or provider success is claimed. Owned stack cleanup completed;
+the sanitized failure receipt/screenshot remain under output/document-recognition.
+
+Investigate the smallest transport seam before changing authority: actual SDK
+serialization of nullable history arguments, then live access, then response
+shape. The installed PostgREST SDK stringifies null GET parameters; migration163
+requires SQL NULL for absent source/cursor, not the literal text "null". Add a
+real loopback HTTP/SDK regression first. If confirmed, use the existing session
+RPC JSON request for this STABLE read, preserving external GET, SQL, permissions,
+DTO validation and no-enqueue semantics. The loopback reply is a controlled
+transport fixture, not database/provider acceptance. Re-run the original real
+browser scenario on reviewed rebuilt exact-source images after the correction.
+
+Official behavior checked: https://supabase.com/docs/reference/javascript/rpc
+and https://docs.postgrest.org/en/stable/references/api/functions.html.
+
+The actual SDK/loopback regression failed for both source and case history with
+the observed string 'null' instead of null (01a09ca7e1067303a0380b0cda2320d7).
+Removing GET only on this nullable history RPC makes the same wire checks pass;
+all30 related adapter/route/client checks pass (01a09ca8479a7721b47ee4b21e319aec),
+with scoped lint/diff checks clean. The original browser flow still needs its
+reviewed exact-image repeat; this is not a completed D3 acceptance claim.
+
+## 2026-09-14 — Preserve the next real cold-history failure before changing behavior
+
+The reviewed history correction1b699587 passed real UI enqueue and exact-session
+replay in the original isolated scenario; the run then failed at COLD_HISTORY
+(01a09cb162eb7ae08ab7a0f90afd77f1, exit1). It had no console/page errors or framework
+overlay, and its retained screenshot shows the source-history section collapsed.
+This confirms progress past the former nullable request failure, not full D3
+acceptance. The owned temporary containers were removed and absence verified.
+
+Before another behavior change, distinguish reload, toggle, expanded-state and
+queued-row assertions as separate stages. Retain only fixed Playwright error
+categories (navigation aborted, ambiguous locator, attribute expectation, other),
+never raw errors/URLs/locators/payloads. Add the missing explicit expanded-state
+assertion without retries, sleeps, changed permissions or skipped history checks.
+Ranked causes are early pre-hydration click, interrupted navigation, then history
+response/state. Repeat the same real source/image-bound scenario after independent
+review; do not label the preceding failure as passed or call Gemini.
+
+## 2026-09-14 — Bounded production recognition worker CLI
+
+Before code, root authorizes a separate CLI completion on combined `b5a73b2b`:
+compose the real fixed inspector with existing processing/cleanup orchestration;
+require explicit --once, mode and worker identity; package the executable bundle
+in the same app image through the existing esbuild pattern. No schema/dependency
+change, scheduler, enabled provider configuration or model default is introduced.
+Cleanup selects only its existing cleanup tick and is not gated on processing
+authority or inspector presence. Missing backend/Gemini credentials fail closed.
+Maximum processing240s/cleanup90s, optionally reduced by the operator, abort on
+deadline/SIGINT/SIGTERM, then force exit after5s if cancellation is ignored.
+Fixed summaries distinguish idle, settled success/failure, deferred, unavailable,
+timeout and signal; never print raw errors, credentials, IDs or document data.
+
+Scoped CLI/unit/build checks and one actual Next build are authorized. Do not
+run Docker, databases, browser/provider/managed-production acceptance, push or
+open a PR in this slice. Root separately reviews the exact committed candidate
+and owns the frozen combined image proof. Official Node signal/exit and Docker
+exec-form semantics are recorded in the runbook before implementation.
+
+Outcome: scoped worker/cleanup/CLI/manifest37/37 PASS
+`01a09ca5fa3f7bd19350fa9c36c3cc34`. Actual standalone bundle execution exposed
+a symlink main-entry mismatch; realpath comparison fixed it and CLI8/8 then
+passed `01a09ca4732575b390723672df919723` before the final37-case pass.
+One Next production build (including TypeScript and both bundles) passed
+`01a09ca501087e71930f9ce932600579`; scoped ESLint/diff-check passed
+`01a09ca4bdd47d3386ca0d6a18d3df6d`. Existing TS unit execution still reports
+MODULE_TYPELESS_PACKAGE_JSON warnings; no package-wide module change was made.
+Actual final bundle no-config processing/cleanup returned78 and invalid mode64,
+with fixed sanitized output; exact receipts/hash are in the runbook. CI inventory
+is322 occurrences/183 unique/139 duplicates; unit220/178/42, unchanged deduplication.
+Existing worker/transport/SQL/inspector source bytes remain unchanged. This is
+candidate CLI/build proof only; independent review and real image/provider gates
+remain open. No Docker, DB, provider, managed configuration, push or PR action ran.
+
+## 2026-09-14 — Compose independently reviewed CLI and cold-history diagnostics
+
+Root composes approved worker7da271c with reviewed history1b699587 and diagnostic
+f592329a. The sole merge conflict is this append-only journal; both complete
+parent entries are preserved. No application/UI/SQL change is introduced by the
+diagnostic block, and the CLI is not invoked by the browser or a scheduler.
+Its bundle ships in the same ordinary image for later explicit worker operation.
+The diagnostic block passed24 affected harness checks and scoped lint/diff
+(01a09cb4a4a77c91a63c8c6683318833), after correcting the real old privacy-test
+failure without permitting raw exception output. Exact-source combined review
+and a single rebuilt image pair precede the same original browser scenario.
+The last actual run remains failed at cold reopen; no D3/provider/release success
+or D4 persistence integration is implied. Keep production on accepted05585020.
+
+## 2026-09-14 — Make recognition history actionable only after hydration
+
+The original real local flow on frozen fb9d3949 again passed upload/scan/private
+download, UI enqueue and exact-command replay, then failed specifically at
+COLD_HISTORY_EXPANDED (01a09cbdaf0a70508bd715ca638ada66, exit1). The sanitized
+failure records ATTRIBUTE_EXPECTATION, zero console/page errors and a collapsed
+history panel. Reload and locator click completed; queued-row/provider stages
+were not reached. The owned local project was removed and absence rechecked.
+
+Before code, constrain this correction to the existing history disclosure.
+Reuse StaffDisclosure's server-false/client-true useSyncExternalStore readiness:
+render the toggle disabled and aria-busy until it has live event handlers. Keep
+its children mounted/hidden and every read, command, permission and draft rule
+unchanged. Do not retry the click, delay the test, force expansion, suppress a
+hydration error, or weaken the original queued-history assertion. The prediction
+is that the first actionable click then opens history after a cold reload.
+
+Use the existing real-component SSR test seam for a deterministic RED/ GREEN
+disabled/busy/closed contract, then repeat the unchanged actual Auth/Storage/
+ClamAV/browser scenario after independent review and a frozen image rebuild.
+SSR alone does not prove hydration or backend success. D3/provider acceptance
+and production enablement remain open until their distinct real proofs pass.
+
+Official basis checked2026-09-14: [Playwright hydration](https://playwright.dev/docs/navigations#hydration)
+describes clicks lost on enabled controls before listeners attach and recommends
+disabling them until ready; [React server snapshot](https://react.dev/reference/react/useSyncExternalStore#adding-support-for-server-rendering)
+defines matching server/initial-hydration snapshots. The installed Next.js guide
+on Server and Client Components confirms its first-load non-interactive preview.
+
+The new real-render SSR assertion failed on the old enabled button
+(01a09cbe83af7a21a5ab5b1aedfa5062, 6pass/1fail). After the readiness correction,
+both affected component suites passed10/10 with scoped ESLint and diff-check
+(01a09cbec5f373d1acd87468ddd16f91). No transport/React mock or browser skip was
+added. This is source-level regression proof; the rebuilt original browser flow
+is still required before accepting the cold-history fix.
+## 2026-09-13 — Persist Student Profile as the first shared D4 artifact producer
+
+Before coding, adopt the [persistent export contract](design/v3/evo-docs-export-artifacts-contract.md).
+The current migration161 records generation attempts but retains no file bytes.
+Add session-authenticated atomic input preparation before service orchestration;
+freeze confirmed values under the actual employee session, never service-read
+profile values. Seal output identity before private upload, verify exact readback,
+recheck live permissions/revisions, then commit an immutable ready receipt.
+History/replay/download must not regenerate; ambiguous operations reconcile only
+the known sealed object. Preserve legacy attempts without inventing stored files.
+
+Use a dedicated private platform-document-exports bucket, initially DOCX≤5MiB.
+The current platform-documents bucket is only PDF/JPEG/PNG≤25MiB and its registry
+represents uploaded originals. Do not broaden that ingress or impersonate a
+document slot for generated output. Add narrow managed bucket check/apply with
+sanitized readback because SQL deployment does not apply local Storage config.
+Future20MiB forms/65MiB packages require explicit capacity verification, not a
+silent limit reduction or paid upgrade. This is an implementation step toward
+the approved platform, not a new parallel product or completion of all D4.
+
+Reserve migration164 after D3 162–163; do not deploy a gapped sequence. Existing
+canonical persistent database, source files, no-new-backup decision, provider
+permissions and real-client gates stay unchanged. Root owns shared docs and
+integration; SQL/session-authority and HTTP/UI may be implemented in parallel.
+
+## 2026-09-13 — D4 acceptance boundary and source-authority coverage
+
+The first D4 SQL behavior proof passed on isolated001–161+164 with manual fields
+and synthetic System Admin identities. This does not prove the source-backed or
+scoped-employee paths. Before final review, extend the same rollback-only fixture
+with actual nonempty source-version evidence and current scoped access, revoked
+access, unhealthy/removed source and lease expiry cases. Use actual SQL commands;
+trusted byte observations in SQL remain explicit synthetic parameters, not a
+claim of Storage or provider acceptance. Do not weaken historical-source support
+in migration160 or change schemas only to satisfy a test.
+
+The existing D2 browser marker is written before outer cleanup, whose legacy
+stop failure only warns. The replacement D4 acceptance must publish a pending
+receipt first and promote it to acceptance.json/VERIFIED only after the owned
+local app and Supabase cleanup succeeds and exact owned resources are absent.
+Failure stays nonzero with no final success receipt; retain bounded private
+pending evidence and unresolved owned state. Scope this change to the profile
+proof mode; other foundation modes remain unchanged. No managed/prod/provider
+operations or new business identities are authorized by this proof.
+
+Implementation checkpoint: integrated history UI and strict session/Storage API
+now compile in the actual Next production build with TypeScript enabled:
+`01a09c0b35bf7261833961994cfec7ca`. Add narrow tracing for the new create route's
+fixed Student Profile DOCX (bundled Next output-file-tracing guide); old route
+tracing stays only until the already-required proven retirement. The client test
+is included once in normal React runtime rather than react-server: manifest8/8
+PASS `01a09c08d7db72708a89dab48a5f5fb3`. Root removed an undocumented100-row
+history truncation; client11/11 PASS `01a09c0a381a73a3a29b0f67886464d9`.
+These are bounded build/unit receipts, not live Storage or whole-D4 acceptance.
+
+## 2026-09-14 — Retire transient exports after real persisted-file proof
+
+Frozen0cc1f5c7199c040ac652ae40678da13aec845ef9 passed the actual isolated
+Admin Auth/DB/Storage/Chromium workflow and owned cleanup with exit0
+(`01a09c8201a27093b5a2f9957faec637`). Receipt SHA256:
+837e48f0b92c0b22e031265342b96043befe52fa80ab3e228d74c95abc8ee1dd.
+Two real private DOCX objects were read back and downloaded with matching hashes;
+exact request replay, cold history and historical download created no duplicate.
+No browser errors occurred; one warning was counted without retained text, so a
+warning-free console is not claimed. Desktop1440x1000 only; no lost-reply,
+provider, real-client, managed-bucket or contiguous162–164 release proof.
+
+The planned replacement gate is now satisfied for same-slice source retirement:
+remove the transient route/handler/tracing and old implementation tests, revoke
+legacy producer RPC grants only in forward164, preserve161 and attempt history.
+The new shared renderer, template and persisted history remain unchanged. Validate
+the exact retirement delta and independently review before integration/merge.
+
+Post-retirement Next build passed `01a09c91d4c07350943fe5441b3c45b0`; the final
+route manifest contains only new document-exports routes and the template hash
+is unchanged. Its first attempt correctly rejected stale generated dev types
+referencing the deleted route; only that owned generated types directory was
+moved to a recoverable /tmp location. No tsconfig exclusion or type bypass.
+Matching SQL run confirmed all legacy-role/PUBLIC revocations, then exposed a
+fixture expiry UPDATE using two clock_timestamp() values1 microsecond apart.
+Before correction: use one statement_timestamp() anchor for that timestamp pair,
+preserving exact relative intervals and the production constraint. Production
+defaults already use statement_timestamp(); no migration change is warranted.
+
+Final matching isolated SQL passed exit0 `01a09c966f7a723381b15ba2ca4110e6`,
+including the8 effective-role/PUBLIC legacy denials and all preserved artifact
+behavior. Owned network-none container was removed. Independent retirement
+source review approved e9a07f9d; the single stable-clock fixture correction was
+also separately approved before final commit. Route/manifest23 PASS and scoped
+lint passed. Production template hash stayed2fdbacc3; old route absent from the
+actual final app manifest. Browser proof remains bound to0cc1f5c7; no second
+browser run or managed/contiguous release proof is implied by these delta checks.
+
+## 2026-09-14 — Accept the bounded D3 predispatch flow and compose D4 artifacts
+
+Original real Auth/ClamAV/private Storage/browser/native-inspector flow passed
+on reviewed819268e9 with exit0 (01a09cc401f670b194bceb636acb67f3).
+The same single click now opens cold history, confirming the readiness fix.
+Final receipt SHA256266e6ee21863188121bb7e18a73848ec63f90ff9b8185719aed54a754aeacf83
+records cleanupVerified=true, one job/access event, zero provider intents/files/
+proposals and unchanged confirmed-empty profile value. Browser error count0,
+warning count4 retained without claiming warning-free operation. This is actual
+local synthetic predispatch acceptance, not Gemini/full-worker/business or
+production browser acceptance. Exact image IDs and limits are in the proof note.
+
+Per the existing integration order, compose reviewed persisted-exportc49707ef
+over819268e9, preserving both complete journals, D3 nullable history correction,
+hydration fix, worker and migrations162/163, and the exact D4 migration164.
+Resolve the eight shared-file conflicts without restoring transient exports or
+dropping the package/form test surface. Keep D2 and D3 proof namespaces and
+separate cleanup/finalizers; D2-only storage/deferred-acceptance inputs must not
+become prerequisites for D3. Union the route/CI inventories with no duplicate
+execution. Extend the existing bounded recognition SQL harness with an explicit
+document-export option: verify contiguous001–164, run both rollback-only domain
+fixtures in one owned database. No second schema apply per combined proof.
+Then focused checks, one Next build, independent exact-source review and actual
+combined D3/D4 flows precede a release candidate. Full forms/packages, authorized
+provider/client proofs, real migration and standalone retirement remain required.
+
+Combined-tree resolution checkpoint: actual contiguous001–164 SQL proof passed
+with exit0 `01a09ccd4f207630b777750f7a4fc9f9`: both rollback-only recognition
+and artifact fixtures ran in one owned network-none database. Migration164 kept
+SHA2567e7aef1e3a191c2082f8276ca8fe579209f96c67a1dd5e973e013bafbb9a3f2d.
+The first focused merge check reported52/54: D2's extracted cleanup fixture
+omitted the now-existing D3 mode variable, and its textual branch locator found
+an earlier helper conditional. Aligning that fixture with the real initialized
+mode and selecting the actual entrypoint preserves all behavior assertions.
+The resulting server/route/harness/artifact checks passed87/87
+(`01a09cccd89a7ee1b1de0dffabc16c34`), ordinary React/client checks28/28 and scoped
+lint passed (`01a09ccd234e7211863da6b5198e5559`). CI inventory185 unique files,
+unit180; retired route references remain only in explicit denial assertions.
+Combined image/browser proof and independent merge review remain pending at this
+checkpoint. No managed schema, production app, provider or real data changed.
+
+## 2026-09-14 — Record actual combined D3/D4 technical acceptance
+
+Exact combinedef279986 was independently approved before image/browser execution.
+The native production and derived acceptance builds passed; both actual local
+Auth/Storage/browser workflows then exited0 with cleanupVerified=true. D3 used
+real ClamAV/private bytes/image-bound inspection and cancelled before provider;
+D4 persisted draft/final files and recovered identical bytes from cold history
+without duplicate generation. Exact images, receipt hashes and limits are in
+the existing recognition/persisted-profile proof notes. Contiguous001–164 SQL,
+87 server checks,28 client checks and six protected fast PR checks also passed.
+
+This records stronger evidence for the already-planned bounded implementation,
+not reduced completion criteria. Full-worker/provider cleanup, approved real
+client, complete university forms/packages, actual data transfer, employee
+onboarding and standalone retirement remain required. Browser warning counts
+(D3:3,D4:1) are unclassified; D4 lost-reply browser reconciliation was not run.
+Next step is independent final evidence/main-readiness judgment, not automatic
+provider activation or deployment. No manual release CI, managed schema/bucket
+mutation or production change has occurred; production remains05585020.

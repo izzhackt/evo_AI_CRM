@@ -7,6 +7,7 @@ import type {
   ActiveDocumentGroup,
   DocumentGroup,
   DocumentUploadAccess,
+  DocumentRecognitionAccess,
   RemovedDocumentGroup,
 } from "./document-types";
 import { ProfileDocumentsClient } from "./ProfileDocumentsClient";
@@ -20,10 +21,12 @@ export function Documents({
   groups,
   uploadAccess,
   studentCaseId,
+  recognition = null,
 }: Readonly<{
   groups: readonly DocumentGroup[];
   uploadAccess: DocumentUploadAccess;
   studentCaseId: string | null;
+  recognition?: DocumentRecognitionAccess | null;
 }>) {
   const activeGroups = groups.filter(
     (group): group is ActiveDocumentGroup => group.kind === "active",
@@ -49,6 +52,7 @@ export function Documents({
           uploadAccess={uploadAccess}
           studentCaseId={studentCaseId}
           createRequestId={createRequestId}
+          recognition={recognition}
         />
       </Card>
     </div>

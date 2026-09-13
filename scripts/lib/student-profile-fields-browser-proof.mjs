@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Bounded synthetic acceptance on the harness-owned local Auth/DB/application.
 // Upstream synthetic data uses normal authenticated Sales→Admissions commands;
-// every profile/export mutation uses the actual product UI, never a mocked route.
+// Profile/export creation uses the product UI. One captured command is explicitly
+// replayed against the real session-bound HTTP route; no mocked responses/grants.
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
@@ -14,11 +15,14 @@ import PizZip from "pizzip";
 import postgres from "postgres";
 import { parse } from "smol-toml";
 import { PROFILE_FIELDS, PROFILE_GROUP_LABELS, PROFILE_REQUIRED_FIELD_KEYS } from "../../src/lib/student-profile-fields.ts";
+import { normalizeDocumentExportReceipt, normalizeDocumentExportWorkspace } from "../../src/lib/document-export-artifacts.ts";
+import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME } from "../../src/lib/document-export-artifact-contract.ts";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const TEMPLATE_HASH = "2fdbacc33511b05f4d130a5882589afe3698bc1b7665a5f746aef6f4281a04c0";
 const DRAFT_WARNING = "ЧЕРНОВИК — данные требуют проверки; не для подачи";
+const EXPORT_BUCKET = "platform-document-exports";
 export const SYNTHETIC_REQUIRED_VALUES = Object.freeze({
   student_first_name: "Амина", student_last_name: "Пример", date_of_birth: "2008-04-12",
   nationality: "Kyrgyzstan", passport_number: "QA0001234",
@@ -28,8 +32,13 @@ export const SYNTHETIC_REQUIRED_VALUES = Object.freeze({
 export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
   ...SYNTHETIC_REQUIRED_VALUES, mobile_phone: "+12025550101",
 });
-class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
-function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
+export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+export function proofScope(kind = "student-profile-fields") {
+  requireProof(["student-profile-fields", "document-recognition"].includes(kind), "PROOF_SCOPE_INVALID");
+  return { kind, prefix: kind === "document-recognition" ? "EVO_D3" : "EVO_D2",
+    marker: kind === "document-recognition" ? "DOCUMENT_RECOGNITION" : "STUDENT_PROFILE_FIELDS" };
+}
 function env(name) { const value = process.env[name]; requireProof(typeof value === "string" && value.length > 0, "ENVIRONMENT_MISSING"); return value; }
 function run(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8", timeout: 30_000, maxBuffer: 512 * 1024, stdio: ["ignore", "pipe", "pipe"] });
@@ -53,6 +62,12 @@ export function proofPathClass(raw, appOrigin) {
 
 export function proofExceptionCategory(error) {
   if (error instanceof ProofError) return "PROOF_ASSERTION";
+  // Classify only known Playwright failure shapes. Never retain its raw message,
+  // which can include request URLs, selectors or private page values.
+  const message = typeof error?.message === "string" ? error.message : "";
+  if (message.includes("net::ERR_ABORTED")) return "NAVIGATION_ABORTED";
+  if (message.includes("strict mode violation")) return "LOCATOR_AMBIGUOUS";
+  if (message.includes("toHaveAttribute")) return "ATTRIBUTE_EXPECTATION";
   const categories = { TimeoutError: "TIMEOUT", AssertionError: "ASSERTION", TypeError: "TYPE_ERROR", Error: "ERROR" };
   return Object.hasOwn(categories, error?.name) ? categories[error.name] : "OTHER_ERROR";
 }
@@ -103,33 +118,34 @@ export function summarizeStudentProfileAppLog(raw) {
   return { errorClasses: [...errorClasses].sort(), staticMessages: [...staticMessages].sort(), repositoryFrames: [...repositoryFrames.values()] };
 }
 
-function writeOwnedAppLogDiagnostic() {
+export function writeOwnedAppLogDiagnostic(kind = "student-profile-fields") {
+  const scope = proofScope(kind);
   try {
-    const runtimeDir = realpathSync(env("EVO_D2_RUNTIME_DIR"));
-    const logPath = env("EVO_D2_APP_LOG"); const evidencePath = env("EVO_D2_EVIDENCE_DIR");
+    const runtimeDir = realpathSync(env(`${scope.prefix}_RUNTIME_DIR`));
+    const logPath = env(`${scope.prefix}_APP_LOG`); const evidencePath = env(`${scope.prefix}_EVIDENCE_DIR`);
     const evidenceDir = realpathSync(evidencePath);
     requireProof(/\/evo-database-foundation\.[A-Za-z0-9]+$/u.test(runtimeDir)
       && !lstatSync(logPath).isSymbolicLink() && lstatSync(logPath).isFile()
       && realpathSync(logPath) === resolve(runtimeDir, "app.log") && lstatSync(logPath).size <= 4 * 1024 * 1024,
     "APP_LOG_NOT_OWNED");
-    requireProof(evidenceDir.startsWith(`${REPO}/output/student-profile-fields/`)
-      && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(evidenceDir.slice(`${REPO}/output/student-profile-fields/`.length))
+    requireProof(evidenceDir.startsWith(`${REPO}/output/${scope.kind}/`)
+      && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(evidenceDir.slice(`${REPO}/output/${scope.kind}/`.length))
       && !lstatSync(evidencePath).isSymbolicLink(), "EVIDENCE_DIRECTORY_INVALID");
     const summary = summarizeStudentProfileAppLog(readFileSync(logPath, "utf8"));
     writeFileSync(resolve(evidenceDir, "server-failure.json"), JSON.stringify({
-      schema: "evo-student-profile-server-failure/v1", synthetic: true, businessAcceptance: false,
+      schema: scope.kind === "document-recognition" ? "evo-document-recognition-server-failure/v1" : "evo-student-profile-server-failure/v1", synthetic: true, businessAcceptance: false,
       rawLogRetained: false, ...summary,
     }, null, 2), { mode: 0o600, flag: "wx" });
-    process.stdout.write("STUDENT_PROFILE_FIELDS_SERVER_DIAGNOSTIC:SAVED\n");
+    process.stdout.write(`${scope.marker}_SERVER_DIAGNOSTIC:SAVED\n`);
   } catch {
-    process.stderr.write("STUDENT_PROFILE_FIELDS_SERVER_DIAGNOSTIC:UNAVAILABLE\n");
+    process.stderr.write(`${scope.marker}_SERVER_DIAGNOSTIC:UNAVAILABLE\n`);
     process.exitCode = 1;
   }
 }
 
-async function writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts }) {
+export async function writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts }) {
   if (!config) return;
-  const snapshot = { schema: "evo-student-profile-browser-failure/v1", synthetic: true, businessAcceptance: false,
+  const snapshot = { schema: config.proofKind === "document-recognition" ? "evo-document-recognition-browser-failure/v1" : "evo-student-profile-browser-failure/v1", synthetic: true, businessAcceptance: false,
     stage, exceptionCategory: proofExceptionCategory(error), pathClass: "UNAVAILABLE", http,
     consoleErrorCount: counts.console, pageErrorCount: counts.page, browserWarningCount,
     browserErrorCodes: [...browserErrors].sort(), shellPresent: null, actualAdminShell: null,
@@ -159,10 +175,14 @@ async function writeFailureEvidence({ config, page, stage, error, http, browserE
   writeFileSync(resolve(config.evidenceDir, "failure.json"), JSON.stringify(snapshot, null, 2), { mode: 0o600, flag: "wx" });
 }
 
-function configuration() {
-  const appOrigin = localOrigin(env("EVO_D2_APP_ORIGIN"));
+export function configuration(kind = "student-profile-fields") {
+  const scope = proofScope(kind);
+  const profileOnly = scope.kind === "student-profile-fields";
+  const deferAcceptance = profileOnly ? process.env.EVO_D2_DEFER_ACCEPTANCE ?? "0" : "0";
+  requireProof(["0", "1"].includes(deferAcceptance), "ACCEPTANCE_MODE_INVALID");
+  const appOrigin = localOrigin(env(`${scope.prefix}_APP_ORIGIN`));
   const apiOrigin = localOrigin(env("NEXT_PUBLIC_SUPABASE_URL"));
-  const workdir = realpathSync(env("EVO_D2_SUPABASE_WORKDIR"));
+  const workdir = realpathSync(env(`${scope.prefix}_SUPABASE_WORKDIR`));
   requireProof(/\/evo-database-foundation\.[^/]+\/local-supabase$/u.test(workdir), "LOCAL_WORKDIR_INVALID");
   const config = parse(readFileSync(resolve(workdir, "supabase/config.toml"), "utf8"));
   const projectId = config.project_id;
@@ -175,28 +195,31 @@ function configuration() {
   const context = run("docker", ["context", "show"]);
   requireProof(run("docker", ["context", "inspect", context, "--format", "{{.Endpoints.docker.Host}}"] ).startsWith("unix://"), "LOCAL_RUNTIME_NOT_OWNED");
   if (process.platform === "darwin") requireProof(context === "orbstack" && run("orb", ["status"]) === "Running", "ORBSTACK_REQUIRED");
-  for (const service of ["db", "kong"]) {
+  for (const service of ["db", "kong", "storage"]) {
     const container = JSON.parse(run("docker", ["inspect", `supabase_${service}_${projectId}`]))[0];
     requireProof(container.State.Running && container.Config.Labels["com.supabase.cli.project"] === projectId
       && container.Config.Labels["com.supabase.cli.workdir"] === workdir, "LOCAL_RUNTIME_NOT_OWNED");
+    if (service === "storage") continue; // Storage is reached through verified local Kong.
     const port = service === "db" ? "5432/tcp" : "8000/tcp";
     const bindings = container.NetworkSettings.Ports[port] ?? [];
     requireProof(bindings.some(binding => ["127.0.0.1", "0.0.0.0", "::"].includes(binding.HostIp)
       && Number(binding.HostPort) === (service === "db" ? config.db.port : config.api.port)), "LOCAL_ENDPOINT_MISMATCH");
   }
-  const evidenceDir = realpathSync(env("EVO_D2_EVIDENCE_DIR"));
-  const relative = evidenceDir.slice(`${REPO}/output/student-profile-fields/`.length);
-  requireProof(evidenceDir.startsWith(`${REPO}/output/student-profile-fields/`) && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(relative)
-    && !lstatSync(env("EVO_D2_EVIDENCE_DIR")).isSymbolicLink() && readdirSync(evidenceDir).length === 0, "EVIDENCE_DIRECTORY_INVALID");
-  const organizationId = env("EVO_D2_ORGANIZATION_ID");
+  const evidenceDir = realpathSync(env(`${scope.prefix}_EVIDENCE_DIR`));
+  const relative = evidenceDir.slice(`${REPO}/output/${scope.kind}/`.length);
+  requireProof(evidenceDir.startsWith(`${REPO}/output/${scope.kind}/`) && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(relative)
+    && !lstatSync(env(`${scope.prefix}_EVIDENCE_DIR`)).isSymbolicLink() && readdirSync(evidenceDir).length === 0, "EVIDENCE_DIRECTORY_INVALID");
+  const organizationId = env(`${scope.prefix}_ORGANIZATION_ID`);
   requireProof(UUID.test(organizationId), "ORGANIZATION_INVALID");
   const email = env("EVO_STAFF_AUTH_ADMIN_EMAIL");
   requireProof(/^admin-[a-z0-9-]+@evo\.local\.test$/u.test(email), "SYNTHETIC_ADMIN_REQUIRED");
-  return { appOrigin, apiOrigin, dbUrl: dbUrl.toString(), evidenceDir, organizationId, email,
-    password: env("EVO_STAFF_AUTH_ADMIN_PASSWORD"), publishableKey: env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"), projectId };
+  return { appOrigin, apiOrigin, dbUrl: dbUrl.toString(), evidenceDir, organizationId, email, proofKind: scope.kind,
+    password: env("EVO_STAFF_AUTH_ADMIN_PASSWORD"), publishableKey: env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+    projectId, ...(profileOnly ? { storageServiceKey: env("EVO_D2_STORAGE_SERVICE_KEY"),
+      deferAcceptance: deferAcceptance === "1" } : {}) };
 }
 
-async function seedCase(sql, config, client, onStage) {
+export async function seedCase(sql, config, client, onStage) {
   const [actor] = await sql`
     SELECT member.id AS membership_id, profile.auth_user_id
     FROM platform.organization_memberships AS member
@@ -221,7 +244,9 @@ async function seedCase(sql, config, client, onStage) {
     requireProof(result && (result.request_id === undefined || result.request_id === requestId), "CANONICAL_FIXTURE_RECEIPT_INVALID");
     return result;
   };
-  const reason = "Fictional isolated D2 profile acceptance; no customer agreement or funds";
+  const recognition = config.proofKind === "document-recognition";
+  const reason = recognition ? "Fictional isolated D3 pre-dispatch acceptance; no customer agreement, funds or provider call"
+    : "Fictional isolated D2 profile acceptance; no customer agreement or funds";
   const day = new Date().toISOString().slice(0, 10); const changedPermissions = [];
   const personalPermission = async (key, granted) => {
     const receipt = await command("change_membership_permission", { p_organization_id: config.organizationId,
@@ -242,7 +267,8 @@ async function seedCase(sql, config, client, onStage) {
     }
     onStage("FIXTURE_LEAD");
     const lead = await command("create_manual_sales_lead", { p_organization_id: config.organizationId,
-      p_display_name: "D2 Synthetic Browser Student", p_phone: null, p_email: `d2-${randomUUID()}@evo.local.test`,
+      p_display_name: recognition ? "D3 Synthetic Browser Student" : "D2 Synthetic Browser Student", p_phone: null,
+      p_email: `${recognition ? "d3" : "d2"}-${randomUUID()}@evo.local.test`,
       p_source_key: "other", p_owner_membership_id: actor.membership_id, p_interest_direction: "CN",
       p_next_action: reason, p_next_action_due_date: day });
     requireProof(lead.status === "saved" && UUID.test(lead.lead_id), "FIXTURE_LEAD_INVALID");
@@ -309,6 +335,33 @@ export function verifyDocx(bytes, template, { draft, expectedValues }) {
   return { sha256: hash(bytes), bytes: bytes.length, draft, tableCount: 19 };
 }
 
+/** Read-only prerequisite: never create or repair a bucket from this proof. */
+export function verifyDocumentExportBucket(bucket) {
+  requireProof(bucket?.id === EXPORT_BUCKET && bucket.public === false
+    && bucket.file_size_limit === DOCUMENT_EXPORT_MAX_BYTES
+    && JSON.stringify(bucket.allowed_mime_types) === JSON.stringify([DOCUMENT_EXPORT_MIME]), "EXPORT_BUCKET_NOT_READY");
+}
+
+/** Independent Storage bytes must agree with both the safe receipt and durable row. */
+export function verifyStoredDocumentExport(bytes, receipt, stored, organizationId) {
+  requireProof(receipt.state === "ready" && receipt.can_download && stored?.state === "ready"
+    && stored.id === receipt.id && stored.receipt_id === receipt.receipt_id
+    && stored.student_case_id === receipt.student_case_id && stored.organization_id === organizationId
+    && Number(stored.profile_revision) === receipt.profile_revision && stored.mode === receipt.mode
+    && stored.template_sha256 === TEMPLATE_HASH && stored.workspace_revision === receipt.workspace_revision
+    && stored.input_snapshot_sha256 === receipt.input_snapshot_sha256, "PERSISTENT_RECEIPT_MISMATCH");
+  requireProof(stored.bucket_id === EXPORT_BUCKET && stored.bucket_public === false
+    && Number(stored.bucket_limit) === DOCUMENT_EXPORT_MAX_BYTES
+    && JSON.stringify(stored.bucket_mimes) === JSON.stringify([DOCUMENT_EXPORT_MIME])
+    && UUID.test(stored.storage_object_id) && stored.object_name === `${organizationId}/${receipt.student_case_id}/${receipt.id}.docx`,
+  "PERSISTENT_STORAGE_BOUNDARY_INVALID");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  requireProof(bytes.length > 0 && bytes.length <= DOCUMENT_EXPORT_MAX_BYTES
+    && bytes.length === receipt.output_bytes && bytes.length === Number(stored.output_bytes)
+    && sha256 === receipt.output_sha256 && sha256 === stored.output_sha256, "PERSISTENT_STORAGE_BYTES_MISMATCH");
+  return { sha256, bytes: bytes.length, persisted: true, privateStorageReadback: true };
+}
+
 async function main() {
   let stage = "CONFIGURATION"; let browser; let sql; let client; let config; let diagnosticPage;
   const browserErrors = new Set(); let browserWarningCount = 0;
@@ -316,6 +369,13 @@ async function main() {
   try {
     config = configuration();
     requireProof(PROFILE_REQUIRED_FIELD_KEYS.length === 9 && PROFILE_REQUIRED_FIELD_KEYS.every(key => Object.hasOwn(SYNTHETIC_REQUIRED_VALUES, key)), "REQUIRED_FIELDS_CHANGED");
+    // The service client is local, process-only and used exclusively for independent
+    // Storage readback. All profile values still come from the staff session/UI.
+    stage = "EXPORT_BUCKET";
+    const storage = createClient(config.apiOrigin, config.storageServiceKey, { auth: { persistSession: false, autoRefreshToken: false } }).storage;
+    const bucket = await storage.getBucket(EXPORT_BUCKET);
+    requireProof(!bucket.error, "EXPORT_BUCKET_NOT_READY");
+    verifyDocumentExportBucket(bucket.data);
     sql = postgres(config.dbUrl, { max: 1, prepare: false, connect_timeout: 10, idle_timeout: 5, onnotice: () => {} });
     stage = "FIXTURE";
     client = createClient(config.apiOrigin, config.publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -374,26 +434,85 @@ async function main() {
     await expect.poll(async () => (await snapshot()).profile?.revision).toBe(1);
     await expect(page.getByRole("button", { name: "Начать анкету", exact: true })).toHaveCount(0);
     const template = readFileSync(resolve(REPO, "assets/templates/student-profile.docx"));
-    const download = async (mode, values) => {
+    const exportUrl = `${config.appOrigin}/api/v3/student-cases/${caseId}/document-exports`;
+    const savedRow = (target, mode) => target.locator('[aria-label="Сохранённые файлы"]')
+      .getByRole("listitem").filter({ has: target.getByText(mode === "draft" ? "Черновик" : "Финальная анкета", { exact: true }) });
+    const inventory = async () => ({
+      artifacts: await sql`SELECT id, request_id, state, receipt_id, profile_revision, workspace_revision,
+          input_snapshot_sha256, output_sha256, output_bytes, object_name, ready_at
+        FROM platform_private.document_export_artifacts
+        WHERE organization_id = ${config.organizationId}::uuid AND student_case_id = ${caseId}::uuid ORDER BY id`,
+      objects: await sql`SELECT id, name, updated_at FROM storage.objects
+        WHERE bucket_id = ${EXPORT_BUCKET} AND name LIKE ${`${config.organizationId}/${caseId}/%`} ORDER BY id`,
+      events: await sql`SELECT event.id, event.event_kind FROM platform_private.document_export_events AS event
+        JOIN platform_private.document_export_artifacts AS artifact ON artifact.id = event.artifact_id
+        WHERE artifact.organization_id = ${config.organizationId}::uuid AND artifact.student_case_id = ${caseId}::uuid ORDER BY event.id`,
+    });
+    const generate = async mode => {
       const before = await snapshot();
-      const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: mode === "draft" ? "Скачать черновик" : "Скачать финальную анкету", exact: true }).click()]);
+      const previous = await inventory();
+      let automaticDownload = false;
+      const observeDownload = () => { automaticDownload = true; };
+      page.on("download", observeDownload);
+      const button = page.getByRole("button", { name: mode === "draft" ? "Сформировать черновик" : "Сформировать финальную анкету", exact: true });
+      await expect(button).toBeEnabled();
+      const [response] = await Promise.all([
+        page.waitForResponse(response => response.url() === exportUrl && response.request().method() === "POST"), button.click(),
+      ]);
+      requireProof(response.status() === 200, "PERSISTENT_EXPORT_NOT_READY");
+      const body = await response.json();
+      requireProof(Object.keys(body).length === 1 && Object.hasOwn(body, "artifact"), "PERSISTENT_RESPONSE_INVALID");
+      const receipt = normalizeDocumentExportReceipt(body.artifact, caseId);
+      const command = response.request().postDataJSON();
+      requireProof(receipt.state === "ready" && receipt.can_download && receipt.mode === mode
+        && receipt.profile_revision === before.profile.revision && receipt.student_profile_id === before.profile.id
+        && command.mode === mode && command.expected_workspace_revision === receipt.workspace_revision
+        && UUID.test(command.request_id), "PERSISTENT_RECEIPT_MISMATCH");
+      await expect(savedRow(page, mode).getByText(/ · Сохранён$/u)).toBeVisible();
+      await expect(page.getByText("Файл сохранён. Теперь его можно скачать.", { exact: true })).toBeVisible();
+      page.off("download", observeDownload);
+      requireProof(!automaticDownload, "GENERATION_DOWNLOADED_AUTOMATICALLY");
+      const current = await inventory();
+      requireProof(current.artifacts.length === previous.artifacts.length + 1 && current.objects.length === previous.objects.length + 1,
+        "PERSISTENT_EXPORT_COUNT_INVALID");
+      return { receipt, command };
+    };
+    const downloadSaved = async (target, receipt, values, filename) => {
+      const previous = await inventory();
+      const row = savedRow(target, receipt.mode);
+      await expect(row).toHaveCount(1);
+      await expect(row.getByText(/ · Сохранён$/u)).toBeVisible();
+      const [file] = await Promise.all([target.waitForEvent("download"), row.getByRole("button", { name: "Скачать файл", exact: true }).click()]);
       requireProof(await file.failure() === null, "BROWSER_DOWNLOAD_FAILED");
       const bytes = readFileSync(await file.path());
-      const proof = verifyDocx(bytes, template, { draft: mode === "draft", expectedValues: values });
-      await expect.poll(async () => {
-        const [attempt] = await sql`SELECT status, output_sha256, output_bytes, profile_revision, template_sha256
-          FROM platform_private.student_profile_export_attempts WHERE organization_id = ${config.organizationId}::uuid
-            AND student_case_id = ${caseId}::uuid AND mode = ${mode} ORDER BY attempted_at DESC LIMIT 1`;
-        return Boolean(attempt?.status === "generated" && attempt.output_sha256 === proof.sha256
-          && attempt.output_bytes === proof.bytes && Number(attempt.profile_revision) === before.profile.revision
-          && attempt.template_sha256 === TEMPLATE_HASH);
-      }).toBe(true);
-      writeFileSync(resolve(config.evidenceDir, `${mode}.docx`), bytes, { mode: 0o600, flag: "wx" });
-      return proof;
+      const proof = verifyDocx(bytes, template, { draft: receipt.mode === "draft", expectedValues: values });
+      const [stored] = await sql`SELECT artifact.id, artifact.organization_id, artifact.student_case_id, artifact.state,
+          artifact.receipt_id, artifact.profile_revision, artifact.mode, artifact.workspace_revision, artifact.input_snapshot_sha256,
+          artifact.output_sha256, artifact.output_bytes, artifact.template_sha256, artifact.bucket_id, artifact.object_name,
+          object.id AS storage_object_id, bucket.public AS bucket_public, bucket.file_size_limit AS bucket_limit,
+          bucket.allowed_mime_types AS bucket_mimes
+        FROM platform_private.document_export_artifacts AS artifact
+        JOIN storage.objects AS object ON object.bucket_id = artifact.bucket_id AND object.name = artifact.object_name
+        JOIN storage.buckets AS bucket ON bucket.id = object.bucket_id
+        WHERE artifact.id = ${receipt.id}::uuid AND artifact.organization_id = ${config.organizationId}::uuid
+          AND artifact.student_case_id = ${caseId}::uuid`;
+      verifyStoredDocumentExport(bytes, receipt, stored, config.organizationId);
+      const readback = await storage.from(EXPORT_BUCKET).download(stored.object_name);
+      requireProof(!readback.error && readback.data, "PERSISTENT_STORAGE_READBACK_FAILED");
+      const storedBytes = Buffer.from(await readback.data.arrayBuffer());
+      const storageProof = verifyStoredDocumentExport(storedBytes, receipt, stored, config.organizationId);
+      requireProof(storedBytes.equals(bytes), "PERSISTENT_DOWNLOAD_BYTES_CHANGED");
+      const [grant] = await sql`SELECT count(*)::integer AS verified FROM platform_private.document_export_download_grants
+        WHERE artifact_id = ${receipt.id}::uuid AND consumed_at IS NOT NULL AND completion ->> 'verified' = 'true'`;
+      requireProof(grant.verified > 0, "PERSISTENT_DOWNLOAD_NOT_VERIFIED");
+      requireProof(JSON.stringify(await inventory()) === JSON.stringify(previous), "DOWNLOAD_CHANGED_ARTIFACT_HISTORY");
+      writeFileSync(resolve(config.evidenceDir, filename), bytes, { mode: 0o600, flag: "wx" });
+      return { ...proof, ...storageProof };
     };
     stage = "DRAFT_DOWNLOAD";
-    await expect(page.getByRole("button", { name: "Скачать финальную анкету", exact: true })).toBeDisabled();
-    const draft = await download("draft", {});
+    await expect(page.getByRole("button", { name: "Сформировать финальную анкету", exact: true })).toBeDisabled();
+    const draftExport = await generate("draft");
+    const draft = await downloadSaved(page, draftExport.receipt, {}, "draft.docx");
     const openField = async (target, key) => {
       const definition = PROFILE_FIELDS.find(item => item.key === key);
       const group = target.getByRole("button", { name: new RegExp(`^${PROFILE_GROUP_LABELS[definition.group]} ·`) });
@@ -444,21 +563,54 @@ async function main() {
     await expect(refreshedEditor.locator("#profile-field-student_last_name")).toHaveValue(unsaved);
     requireProof((await field("mother_employer")).review_state === "confirmed" && (await field("mother_employer")).value === null, "CONFIRMED_EMPTY_NOT_PERSISTED");
     const finalValues = { ...SYNTHETIC_EXPECTED_VALUES, student_last_name: unsaved, education_1_school_name: "Example Secondary School" };
-    await expect(page.getByRole("button", { name: "Скачать финальную анкету", exact: true })).toBeEnabled();
-    const final = await download("final", finalValues);
+    await expect(page.getByRole("button", { name: "Сформировать финальную анкету", exact: true })).toBeEnabled();
+    const finalExport = await generate("final");
+    const final = await downloadSaved(page, finalExport.receipt, finalValues, "final.docx");
+    stage = "EXACT_REQUEST_REPLAY";
+    const beforeReplay = await inventory();
+    // A real retry, with the original browser command and current session cookies.
+    const replay = await page.request.post(exportUrl, { data: finalExport.command, headers: { origin: config.appOrigin } });
+    requireProof(replay.status() === 200, "PERSISTENT_REPLAY_FAILED");
+    const replayReceipt = normalizeDocumentExportReceipt((await replay.json()).artifact, caseId, finalExport.receipt.id);
+    requireProof(JSON.stringify(replayReceipt) === JSON.stringify(finalExport.receipt)
+      && JSON.stringify(await inventory()) === JSON.stringify(beforeReplay), "PERSISTENT_REPLAY_DUPLICATED_OR_CHANGED");
+    stage = "COLD_EXPORT_HISTORY";
+    const cold = await context.newPage(); diagnosticPage = cold; cold.setDefaultTimeout(30_000);
+    const [historyResponse] = await Promise.all([
+      cold.waitForResponse(response => response.url() === exportUrl && response.request().method() === "GET"),
+      cold.goto(profileUrl, { waitUntil: "domcontentloaded" }),
+    ]);
+    requireProof(historyResponse.status() === 200, "PERSISTENT_COLD_HISTORY_FAILED");
+    const history = normalizeDocumentExportWorkspace(await historyResponse.json(), caseId);
+    requireProof(history.artifacts.length === 2, "PERSISTENT_COLD_HISTORY_COUNT_INVALID");
+    const historicalDraft = history.artifacts.find(row => row.id === draftExport.receipt.id);
+    const currentFinal = history.artifacts.find(row => row.id === finalExport.receipt.id);
+    requireProof(historicalDraft?.historical && currentFinal && !currentFinal.historical, "PERSISTENT_HISTORY_REVISION_INVALID");
+    await expect(savedRow(cold, "draft").getByText(/^Предыдущая версия анкеты ·/u)).toBeVisible();
+    await expect(savedRow(cold, "final").getByText(/^Текущая версия анкеты ·/u)).toBeVisible();
+    const coldDraft = await downloadSaved(cold, historicalDraft, {}, "draft-history.docx");
+    const coldFinal = await downloadSaved(cold, currentFinal, finalValues, "final-history.docx");
+    requireProof(coldDraft.sha256 === draft.sha256 && coldFinal.sha256 === final.sha256
+      && JSON.stringify(await inventory()) === JSON.stringify(beforeReplay), "PERSISTENT_COLD_HISTORY_CHANGED_BYTES");
+    await cold.screenshot({ path: resolve(config.evidenceDir, "export-history.png"), fullPage: true });
     await expect(page.locator("[data-nextjs-dialog-overlay], [data-nextjs-error-dialog]")).toHaveCount(0);
     requireProof(browserErrors.size === 0, "BROWSER_RUNTIME_ERRORS");
     await page.screenshot({ path: resolve(config.evidenceDir, "profile-ready.png"), fullPage: true });
     const [databaseState] = await sql`SELECT count(profile.id)::integer AS profiles, max(profile.revision)::integer AS revision
       FROM platform.student_profiles AS profile WHERE profile.student_case_id = ${caseId}::uuid`;
     requireProof(databaseState.profiles === 1 && databaseState.revision === 14, "PROFILE_IDENTITY_OR_REVISION_INVALID");
-    writeFileSync(resolve(config.evidenceDir, "acceptance.json"), JSON.stringify({ schema: "evo-student-profile-browser-proof/v1",
+    const receipt = { schema: "evo-student-profile-browser-proof/v2",
       synthetic: true, businessAcceptance: false, localProjectId: config.projectId, realAdminAuth: true,
       absentProfileWithoutChecklist: true, requiredFieldsConfirmed: 9, extendedFieldConfirmed: true,
       confirmedEmptyPersisted: true, staleEditDraftPreserved: true, otherConfirmationPreserved: true,
       pageIdentityVerified: true, frameworkOverlayAbsent: true, browserErrorCount: 0, browserWarningCount,
-      profiles: databaseState.profiles, revision: databaseState.revision, draft, final }, null, 2), { mode: 0o600, flag: "wx" });
-    process.stdout.write("STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED\n");
+      profiles: databaseState.profiles, revision: databaseState.revision, draft, final,
+      persistentArtifacts: 2, generationSeparateFromDownload: true, exactRequestReplayWithoutDuplicate: true,
+      coldHistorySameBytes: true, historicalDraftDownload: true, downloadsCreateNoArtifacts: true,
+      lostReplyReconciliationExercised: false };
+    writeFileSync(resolve(config.evidenceDir, config.deferAcceptance ? "acceptance.pending.json" : "acceptance.json"),
+      JSON.stringify(config.deferAcceptance ? { ...receipt, cleanupVerified: false } : receipt, null, 2), { mode: 0o600, flag: "wx" });
+    process.stdout.write(config.deferAcceptance ? "STUDENT_PROFILE_FIELDS_BROWSER_RECORDED\n" : "STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED\n");
   } catch (error) {
     try { await writeFailureEvidence({ config, page: diagnosticPage, stage, error, http, browserErrors, browserWarningCount, counts }); }
     catch { process.stderr.write("STUDENT_PROFILE_FIELDS_BROWSER_DIAGNOSTIC:UNAVAILABLE\n"); }

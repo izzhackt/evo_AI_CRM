@@ -106,17 +106,127 @@ Managed schema001–161 is applied and verified through34765867429/34765967956.
 D3–D6 and real employee/document acceptance remain required; the scoped profile
 failures above were corrected in reviewed PR761 before the successful full gate.
 
+Current document-development checkpoint, 2026-09-14: combined PR768 at
+`ef279986124c7b1f8298994d152ee134aced655c` passed independent merge review,
+contiguous001–164 SQL, exact production/native image build and both actual local
+Auth/Storage/browser flows. See [predispatch proof](design/v3/references/2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986)
+and [persisted profile proof](design/v3/references/2026-09-14-persisted-profile-export-proof.md#combined-checkpoint-ef279986).
+Final main-readiness review and the later managed schema/bucket/release gates
+remain open. Provider/full-worker, real-client, full D4, data migration and
+standalone retirement are not completed. The dated paragraphs below retain
+earlier failed/incomplete checkpoints, not the latest combined result.
+
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and
 [D4 university forms/packages contract](design/v3/evo-docs-university-packages-contract.md).
-These are the execution contracts, not provider/client acceptance. Draft
-transport/queue PR758/760 and forms/package PR759/762 now contain implementation
-slices; [D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
+These are the execution contracts, not provider/client acceptance. Transport/queue
+PR758/760 remain draft. Forms PR759 merged7da50fa8 and package PR762 merged85a1efd;
+both are preserved in this combined candidate's main85a1efd ancestry.
+[D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
 is independently reviewed but remains draft pending the real runtime/acceptance.
 The isolated parser runtime continues separately. With D2 released,
 the two lanes may proceed in parallel because D4 accepts manually confirmed
 profile values. Preserve the D5 data reconciliation and D6 real acceptance/
 standalone-retirement gates; allocate forward migrations against current main.
+
+The bounded D3 worker completion on combined `b5a73b2b` adds the production
+`--once --mode processing|cleanup --worker-id <id>` CLI to the same application
+image. Each invocation claims at most one job or cleanup record. Processing uses
+the actual fixed source inspector; cleanup remains independent of processing
+permission and inspector availability. A240s processing/90s cleanup deadline,
+SIGINT/SIGTERM cancellation and a5s hard-stop grace bound process lifetime.
+Missing backend/provider configuration fails closed; model/budgets remain the
+existing database snapshot. Bundle, focused CLI checks and one Next build are
+required; image/browser/provider acceptance remains a separate root-owned gate.
+No activation, scheduling, provider calls, database changes or deployment occur
+in this implementation slice. See the [CLI runbook](document-recognition-worker.md).
+
+Root approves the bounded [isolated source runtime](design/v3/document-source-runtime-contract.md)
+from reviewed D4 `ae52a316`: fixed Linux source inspector, `document-source-v1`,
+real OS isolation/resource bounds and synthetic Linux proof only. It does not
+activate recognition, grant file access or complete D3/provider acceptance.
+Independent runtime review found signal-ownership and worker-thread re-exec gaps.
+The source-runtime contract now requires command-limited `fcntl` and mandatory
+native TSYNC sealing before document parser loading; both real regressions and
+production bootstrap proof are required before integration. Earlier ARM64 proof
+does not establish these missing invariants or native AMD64 readiness.
+
+The correction at `0584d2d` passed independent review with actual native ARM64
+12/12 proof, including both reproduced P1 regressions and required native bootstrap.
+Its integration refresh merges main `85a1efdf` after PR762 without runtime-source
+changes. This still does not prove native AMD64, combined D3 workflow or provider
+acceptance; the refreshed exact head requires separate independent delta review.
+
+PR766's first actual Next build (34774354642) rejected the adapter's empty
+environment against Next's required NODE_ENV type. The bounded correction is
+an explicit production-only launcher environment, without inherited secrets,
+casts or weaker type checks; native isolation bytes remain unchanged. Actual
+build and independent delta review are required before updating that draft PR.
+
+That adapter fix passed short CI34774934032 at32e7255. Native AMD64 then passed
+11/12 checks but correctly rejected bootstrap.mjs group-write permission0664.
+Asset COPY modes were normalized without changing source/isolation tests.
+The reviewed correction10f1a08 then passed all12 native checks, confirmed from
+complete terminal TAP after SSH reconnect; original docker-run exit unobserved.
+The permission audit found187 files/32 directories root-owned and read-only.
+See [native evidence](design/v3/references/2026-09-14-document-source-native-amd64-proof.md).
+Production stayed on accepted05585020; combined D3 acceptance remains open.
+
+Next integration candidate composes runtime32c6403 with reviewed D3 acceptance
+d4423d8d (including queue/integration ancestry), preserving the current main
+package/Admissions gates. It does not add duplicate DTO/transport implementations.
+After independent combined review, run one real predispatch proof; only then
+integrate the proved D4 persisted-export slice with contiguous162→163→164.
+Production worker composition, provider and real-client gates remain open.
+The combined source candidate now passes the focused D2/D3 npm entrypoint,
+21 manifest/route/foundation checks, scoped lint and one Next build including
+TypeScript (`01a09c995e0c7b238f5656b78afb886c`). Both parent decision journals and
+reviewed runtime/D3 module bytes are preserved. Exact-head independent review
+and actual combined-image/local predispatch acceptance have not run.
+
+The subsequent b5a73b2b native combined image gate passed, but the actual local
+browser run failed at recognition history before enqueue (01a09ca56eee76309a0ded574bbcadd2).
+Keep D3 unaccepted while investigating nullable history RPC transport; preserve
+all current authority and repeat the same real scenario after a reviewed fix.
+
+The reviewed fix1b699587 passed actual UI enqueue and same-session replay on
+repeat, then failed at cold-history reopen with zero console/page errors
+(01a09cb162eb7ae08ab7a0f90afd77f1). Preserve this failure and split its diagnostic
+stages before changing product behavior; provider and D3 acceptance remain open.
+
+Frozen fb9d3949 and its actual native image pair repeated the same failure at
+COLD_HISTORY_EXPANDED (01a09cbdaf0a70508bd715ca638ada66), isolating an unchanged
+collapsed disclosure after reload/click. The next bounded correction reuses the
+existing hydration-readiness pattern for that toggle; SSR regression and the
+original real workflow must both pass. No provider call or D3 completion implied.
+The next D4 vertical slice is [persistent profile exports](design/v3/evo-docs-export-artifacts-contract.md):
+freeze confirmed inputs under the actual staff session, store immutable generated
+bytes, and expose history/download without regeneration. Student Profile is the
+first producer of this shared artifact lifecycle, not completion of university
+forms/packages. A separate private export bucket preserves the existing student
+upload/scan boundary. Migration164 is reserved behind the unmerged D3 162–163;
+do not apply an incomplete forward migration sequence to production.
+
+The persistence/API/history candidate now builds successfully with all three new
+routes and the exact template in standalone output. Independent initial SQL,
+HTTP/Storage and UI slice reviews passed; final combined review remains open.
+Expanded source/scoped SQL checks passed in isolated001–161+164, including real
+scoped-role commands, healthy historical sources, revocation and expiry. This
+uses synthetic scanner/Storage metadata, not actual file-store acceptance.
+Frozen0cc1f5c7 passed the actual local Auth/Storage/browser history flow and verified
+owned cleanup (exit0, two persisted DOCX files, exact replay/cold-download hashes).
+See [persistent export proof](design/v3/references/2026-09-14-persisted-profile-export-proof.md).
+The same-slice transient route/RPC retirement passed independent review, focused
+SQL (including legacy grants), route/manifest tests and the production build.
+No managed bucket or deployment is claimed; D3's missing
+162–163 sequence must still be composed before a contiguous release.
+
+Current combined checkpoint: the original D3 predispatch flow passed on reviewed
+819268e9 with verified cleanup, actual cold-history reopen and native source
+inspection. [Proof and boundaries](design/v3/references/2026-09-14-recognition-predispatch-proof.md).
+Integrate reviewed D4c49707ef next, retaining its persisted-profile replacement
+and both independent workflow gates. Verify contiguous162→163→164 in one owned
+SQL proof; D3 provider/full-worker and full D4 forms/packages remain incomplete.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

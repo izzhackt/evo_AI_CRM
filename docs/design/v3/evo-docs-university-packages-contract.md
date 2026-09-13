@@ -2,7 +2,7 @@
 
 Дата: 2026-09-13. Контракт D4, не готовность всего блока; номера миграций выделяет root.
 Mapping/DOCX/PDF-модули объединены PR759 в main `7da50fa8`; pure package-модули
-подготовлены в PR762 на этой базе. Формы, пакеты и их production/клиентская приёмка
+объединены PR762 в main `85a1efdf`. Формы, пакеты и их production/клиентская приёмка
 пока не готовы.
 Исходная база ответвления: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`.
 Для объединения library-среза PR759 добавлен текущий main `db2a121`, который
@@ -60,8 +60,9 @@ revision/hash/outcome, не содержимое анкеты, оригинал�
   Supabase: отдельный bucket `platform-document-templates` и object registry/RLS,
   не student document slot. Базовый предел — 20 MiB для DOCX/PDF; upload/scan/inspection
   обязательны до публикации. Текущий student ingress PDF/JPEG/PNG ≤25 MiB не расширяется.
-- Документные версии и результаты остаются в `platform-documents` с явным типом
-  registry object и отдельными проверками. Объект получает новый непрогнозируемый key;
+- Документные версии остаются в `platform-documents`; результаты — в отдельном
+  private `platform-document-exports`, согласно [amendment](evo-docs-export-artifacts-contract.md).
+  Это сохраняет ограничения загрузки оригиналов. Объект получает новый непрогнозируемый key;
   upsert/overwrite готового файла запрещены. Нет публичного bucket или вечного URL.
 - DOCX: сохранить исходную структуру, запретить macros/OLE/ActiveX/signatures,
   неподдерживаемые отношения/архивы; переносить guards размера ZIP/entry/XML,

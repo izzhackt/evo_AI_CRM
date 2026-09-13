@@ -58,8 +58,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 321);
-  assert.equal(plan.uniqueFileCount, 182);
+  assert.equal(plan.occurrenceCount, 322);
+  assert.equal(plan.uniqueFileCount, 183);
   assert.equal(plan.duplicateCount, 139);
   assert.equal(new Set(plan.files).size, plan.files.length);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
@@ -93,6 +93,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
     "tests/gemini-document-recognition.test.mjs",
     "tests/document-recognition-source.test.mjs",
     "tests/document-recognition-worker.test.mjs",
+    "tests/document-recognition-worker-cli.test.mjs",
     "tests/document-recognition-cleanup.test.mjs",
     "tests/document-recognition-route.test.mjs",
     "tests/platform-document-recognition-history.test.mjs",
@@ -106,7 +107,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 152);
+  assert.equal(bounded.files.length, 153);
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
@@ -124,8 +125,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 219);
-  assert.equal(plan.uniqueFileCount, 177);
+  assert.equal(plan.occurrenceCount, 220);
+  assert.equal(plan.uniqueFileCount, 178);
   assert.equal(plan.duplicateCount, 42);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
 });

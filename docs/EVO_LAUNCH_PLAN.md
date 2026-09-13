@@ -118,6 +118,18 @@ the two lanes may proceed in parallel because D4 accepts manually confirmed
 profile values. Preserve the D5 data reconciliation and D6 real acceptance/
 standalone-retirement gates; allocate forward migrations against current main.
 
+The bounded D3 worker completion on combined `b5a73b2b` adds the production
+`--once --mode processing|cleanup --worker-id <id>` CLI to the same application
+image. Each invocation claims at most one job or cleanup record. Processing uses
+the actual fixed source inspector; cleanup remains independent of processing
+permission and inspector availability. A240s processing/90s cleanup deadline,
+SIGINT/SIGTERM cancellation and a5s hard-stop grace bound process lifetime.
+Missing backend/provider configuration fails closed; model/budgets remain the
+existing database snapshot. Bundle, focused CLI checks and one Next build are
+required; image/browser/provider acceptance remains a separate root-owned gate.
+No activation, scheduling, provider calls, database changes or deployment occur
+in this implementation slice. See the [CLI runbook](document-recognition-worker.md).
+
 Root approves the bounded [isolated source runtime](design/v3/document-source-runtime-contract.md)
 from reviewed D4 `ae52a316`: fixed Linux source inspector, `document-source-v1`,
 real OS isolation/resource bounds and synthetic Linux proof only. It does not

@@ -80,14 +80,20 @@ implemented; the last complete local onboarding before scope-proof expansion is 
 - **Archive correction:** compact impact preview/confirmation and fingerprint
   binding are implemented and independently source-reviewed in `40dc3498`.
   The assigned-role runtime scenario remains pending.
-- **Current CI:** CI34752745887 passed the previous migration155 ALTER point,
+- **Previous CI:** CI34752745887 passed the previous migration155 ALTER point,
   then failed the historical current-actor aggregate. Align that test with the
   accepted live staff identity/scoped-permission contract; preserve identity,
   status and ACL guards. Populated upgrade still needs a successful required CI.
-- **Latest local check (`d82a3fc0`):** qualification and handoff progressed, but
+- **Previous local check (`d82a3fc0`):** qualification and handoff progressed, but
   the expanded proof stopped at `DEPARTMENT_READ`; the exact subcheck is not yet
   known. Owned resources were cleaned. Fixed private diagnostic substages are
   source-reviewed and focused tests passed34/34; the next runtime is pending.
+- **Latest candidate (`375e58ef`):** actor-contract alignment is independently
+  source-reviewed; focused tests10/10 and ESLint pass. CI34753640952 is running.
+  Its local proof instead stopped earlier at SALES_READBACK; no scope result can
+  be inferred. Owned resources were removed. Invitation readback and sticky
+  browser-error checks are now separated with fixed private diagnostic labels;
+  36/36 helper tests pass, but the next actual workflow is still needed.
 - **Next:** prove an ordinary Sales→Admissions handoff and department-only,
   direction-only and combined scope matches; finish populated upgrade,
   independent whole-S2 review, the exact-main release gate and deployment.

@@ -445,6 +445,20 @@ Browser-проверка используемых ролей и назначен
 Storage acceptance новыми запусками не подтверждены. S1/D1 остаётся принят в
 `77cde9ba`; S2 — закоммиченный и отправленный черновик PR747, пока не выпущенный.
 
+Checkpoint375e58ef: actor alignment independently source-reviewed, focused10/10
+and lint passed (`cfw01a09a71cf4a78509e4e7ffae392d249`,
+`cfw01a09a724a3871e280ebba9a047e137c`); pushed to PR747, CI34753640952 running.
+Ordinary local session53541 exited1 at SALES_READBACK before onboarding/scope
+markers (`cfw01a09a74c4737b71a33a0446c6f8272d`). Owned
+`evo-local-2257ca6338666abe` cleanup was checked
+(`cfw01a09a74f3e37053859c797a88c2243b`). No confirmed DTO or success-before-commit
+race was found by source review; this combined stage also checked sticky browser
+errors. The next diagnostic diff separates those checks and uses only fixed
+error categories, no text/identities. Focused36/36 and scoped lint/diff pass
+(`cfw01a09a77b35a70a199b2376f819f5141`); runtime remains pending. Existing d82
+desktop/mobile final-catalogue screenshots were inspected; they prove only the
+shown draft layout, not the failed business workflow or a current runtime.
+
 ## Основания
 
 Проверено2026-09-13: [Supabase RBAC](https://supabase.com/docs/guides/api/custom-claims-and-role-based-access-control-rbac),

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink,
+import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink, localBrowserErrorCategory,
   prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor,
   verifyScopedStaffBusinessScopes } from "../scripts/lib/scoped-staff-provisioner.mjs";
 
@@ -17,6 +17,12 @@ const bundle = "51000000-0000-4000-8000-000000000005";
 const userId = "51000000-0000-4000-8000-000000000006";
 const profileId = "51000000-0000-4000-8000-000000000007";
 const assignment = { roleId, roleVersion: 2, scope: { kind: "own", key: null, resourceKind: null } };
+
+test("local browser diagnostics return fixed categories without carrying source text", () => {
+  assert.equal(localBrowserErrorCategory("Failed to load resource: example"), "RESOURCE_LOAD");
+  assert.equal(localBrowserErrorCategory("A tree hydrated with different attributes"), "HYDRATION");
+  for (const value of [null, undefined, {}, "private unrelated example"]) assert.equal(localBrowserErrorCategory(value), "OTHER");
+});
 const apiUrl = "http://127.0.0.1:45421";
 const appOrigin = "http://127.0.0.1:38971";
 const identity = { email: "sales-proof@evo.local.test", displayName: "Local Sales" };
@@ -274,6 +280,17 @@ test("invitation UI marker is required before unchanged mail acceptance and edit
   assert.ok(/const browser = await chromium\.launch[\s\S]*await prepareScopedStaffRoles[\s\S]*await prepareScopedStaffInvitations[\s\S]*LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED[\s\S]*accepted = await acceptScopedStaffInvitations[\s\S]*await verifyScopedStaffRoleEditor[\s\S]*await verifyScopedStaffMemberEditor/.test(wrapper), "Require UI dispatch before the existing acceptance sequence");
   assert.ok(/grep -Fx "LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/.test(shell), "Require the distinct invitation UI marker at the shell boundary");
   assert.doesNotMatch(helper, /dispatchScopedStaffInvitation|inviteUserByEmail|staff_workspace_claim_auth|staff_workspace_reconcile_auth/);
+});
+
+test("invitation diagnostics keep canonical readback and browser gates separate", () => {
+  const source = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8")
+    .split("export async function prepareScopedStaffInvitations")[1].split("export function staffInvitationLink")[0];
+  for (const suffix of ["HISTORY_RPC", "HISTORY_RESULT", "PREPARATION_RPC", "PREPARATION_PARSE", "PREPARATION_TARGET", "PREPARATION_ASSIGNMENTS", "PREPARATION_PERMISSIONS"]) {
+    assert.ok(source.includes('stage = `${scenario.toUpperCase()}_' + suffix + '`;'));
+  }
+  assert.match(source, /requireValue\(!clientError, "LOCAL_STAFF_INVITATION_BROWSER_ERROR"\)/);
+  assert.match(source, /_BROWSER_\$\{browserError\}/);
+  assert.doesNotMatch(source, /console\.|writeFile|screenshot|\.reload\(/);
 });
 
 test("acceptance keeps its local mail boundary", async () => {

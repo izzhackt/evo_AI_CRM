@@ -23836,3 +23836,15 @@ readback, fresh login/authority and case read. Keep every existing assertion,
 ordinary workflow and teardown unchanged. Do not emit responses, identities,
 tokens, page text or provider errors. One corrected positive run can then locate
 the actual failure instead of repeatedly guessing or weakening product checks.
+
+## 2026-09-13 — S2 distinguish invitation readback from browser errors
+
+The next frozen375e58ef positive run stopped earlier at SALES_READBACK. Independent
+source tracing found no evidence of a success-before-commit race: the Next button
+requires completed reconciliation. The combined assertion also includes a sticky
+browser-error flag, which the server's empty error-class diagnostic does not cover.
+Split history/preparation RPC, parsing, target, assignments, permissions and browser
+checks into fixed substages. In this helper only, classify browser errors into a
+small fixed allowlist (resource load, hydration, other); never retain/output error
+text, paths, response data or identities. Preserve single submission, all exact
+assertions, failure propagation and cleanup. Do not add retries, sleeps or bypasses.

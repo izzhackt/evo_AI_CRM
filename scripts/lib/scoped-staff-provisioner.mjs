@@ -26,6 +26,13 @@ function requireValue(condition, code) { if (!condition) throw new ScopedStaffPr
 function uuid(value) { requireValue(typeof value === "string" && UUID.test(value), "LOCAL_STAFF_ID_INVALID"); return value; }
 function sameSet(left, right) { return JSON.stringify([...left].sort()) === JSON.stringify([...right].sort()); }
 function pair(row) { return JSON.stringify([row.roleId, row.scope.kind, row.scope.key, row.scope.resourceKind]); }
+/** Diagnostic enum only; browser text never leaves this classifier. */
+export function localBrowserErrorCategory(text) {
+  if (typeof text !== "string") return "OTHER";
+  if (/hydration|hydrated/i.test(text)) return "HYDRATION";
+  if (/^Failed to load resource(?::|$)/.test(text)) return "RESOURCE_LOAD";
+  return "OTHER";
+}
 function strictParse(parser, code = "LOCAL_STAFF_CONTRACT_INVALID") {
   try { return parser(); } catch { throw new ScopedStaffProvisioningError(code); }
 }
@@ -173,6 +180,7 @@ export async function prepareScopedStaffInvitations({ browser, adminClient, apiU
   let context;
   let stage = "SETUP";
   let clientError = false;
+  let browserError = "OTHER";
   try {
     apiUrl = localStaffOrigin(apiUrl); appOrigin = localStaffOrigin(appOrigin);
     localClient(adminClient, apiUrl); uuid(organizationId); localIdentity(identity, true);
@@ -199,8 +207,10 @@ export async function prepareScopedStaffInvitations({ browser, adminClient, apiU
     await context.route("**/*", (route) => [appOrigin, apiUrl].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
     const page = await context.newPage();
     page.setDefaultTimeout(30_000);
-    page.on("pageerror", () => { clientError = true; });
-    page.on("console", (message) => { if (message.type() === "error") clientError = true; });
+    page.on("pageerror", (error) => { clientError = true; browserError = `PAGE_${localBrowserErrorCategory(error?.message)}`; });
+    page.on("console", (message) => { if (message.type() === "error") {
+      clientError = true; browserError = `CONSOLE_${localBrowserErrorCategory(message.text())}`;
+    } });
     await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
     await page.locator("#staff-email").fill(identity.email);
     await page.locator("#staff-password").fill(identity.password);
@@ -240,19 +250,27 @@ export async function prepareScopedStaffInvitations({ browser, adminClient, apiU
       stage = `${scenario.toUpperCase()}_SUBMIT`;
       await form().getByRole("button", { name: "Отправить приглашение", exact: true }).click();
       await next().waitFor();
-      stage = `${scenario.toUpperCase()}_READBACK`;
+      stage = `${scenario.toUpperCase()}_HISTORY_RPC`;
       const added = (await history()).filter((row) => !before.has(row.request_id));
+      stage = `${scenario.toUpperCase()}_HISTORY_RESULT`;
       requireValue(added.length === 1 && added[0].operation === "invite" && added[0].status === "completed"
         && added[0].display_name === identities[scenario].displayName && added[0].rejection_code === null, "LOCAL_STAFF_INVITATION_RECEIPT_MISMATCH");
       const requestId = uuid(added[0].request_id);
+      stage = `${scenario.toUpperCase()}_PREPARATION_RPC`;
       const raw = await rpc(adminClient, "staff_workspace_auth_preparation", { p_organization_id: organizationId, p_request_id: requestId });
+      stage = `${scenario.toUpperCase()}_PREPARATION_PARSE`;
       const preparation = strictParse(() => parseStaffAuthPreparation(raw, { organizationId, requestId }));
       const permissionKeys = [...new Set(preparation.assignments.flatMap((row) => row.permissionKeys))].sort();
+      stage = `${scenario.toUpperCase()}_PREPARATION_TARGET`;
       requireValue(preparation.status === "completed" && preparation.operation === "invite" && !preparation.noAccess && preparation.conflictCode === null
-        && preparation.targetMembershipId && preparation.displayName === identities[scenario].displayName
-        && sameSet(preparation.assignments.map(pair), assignments.map(pair)) && preparation.assignments.every((row) => assignments.some((expected) =>
-          pair(expected) === pair(row) && expected.roleVersion === row.roleVersion))
-        && sameSet(permissionKeys, new Set(selectedRoles.flatMap((row) => row.permissionKeys))) && !clientError, "LOCAL_STAFF_PREPARATION_MISMATCH");
+        && preparation.targetMembershipId && preparation.displayName === identities[scenario].displayName, "LOCAL_STAFF_PREPARATION_MISMATCH");
+      stage = `${scenario.toUpperCase()}_PREPARATION_ASSIGNMENTS`;
+      requireValue(sameSet(preparation.assignments.map(pair), assignments.map(pair)) && preparation.assignments.every((row) => assignments.some((expected) =>
+        pair(expected) === pair(row) && expected.roleVersion === row.roleVersion)), "LOCAL_STAFF_PREPARATION_MISMATCH");
+      stage = `${scenario.toUpperCase()}_PREPARATION_PERMISSIONS`;
+      requireValue(sameSet(permissionKeys, new Set(selectedRoles.flatMap((row) => row.permissionKeys))), "LOCAL_STAFF_PREPARATION_MISMATCH");
+      stage = `${scenario.toUpperCase()}_BROWSER_${browserError}`;
+      requireValue(!clientError, "LOCAL_STAFF_INVITATION_BROWSER_ERROR");
       invitations.push({ scenario, requestId, membershipId: preparation.targetMembershipId, preparationVersion: preparation.preparationVersion, assignments, permissionKeys });
     }
     return { schemaVersion: 1, organizationId, invitations };
@@ -819,6 +837,7 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
   organizationId, identities, publishableKey, accepted }) {
   let context, initial, originalDetails, originalPersonal, admin, sales, admissions, departmentId;
   let stage = "SETUP", failure = null, clientError = false;
+  let browserError = "OTHER";
   const temporaryRoles = [], changedPermissions = [];
   const reason = "Fictional isolated local department and direction acceptance";
   const check = (condition) => requireValue(condition, "LOCAL_BUSINESS_SCOPES_READBACK_MISMATCH");
@@ -1049,8 +1068,10 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false, viewport: { width: 1440, height: 1000 } });
     await context.route("**/*", (route) => [appOrigin, apiUrl].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
     const page = await context.newPage(); page.setDefaultTimeout(30_000);
-    page.on("pageerror", () => { clientError = true; });
-    page.on("console", (message) => { if (message.type() === "error") clientError = true; });
+    page.on("pageerror", (error) => { clientError = true; browserError = `PAGE_${localBrowserErrorCategory(error?.message)}`; });
+    page.on("console", (message) => { if (message.type() === "error") {
+      clientError = true; browserError = `CONSOLE_${localBrowserErrorCategory(message.text())}`;
+    } });
     await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
     await page.locator("#staff-email").fill(identities.admin.email);
     await page.locator("#staff-password").fill(identities.admin.password);
@@ -1135,7 +1156,10 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
       const target = await readback(original.accessVersion + index + 1, expected);
       currentAssignments = target.assignments;
       await freshSales(target.accessVersion, target.assignments, index < 3);
-      check(page.url() === memberUrl && !clientError);
+      stage = `${stage}_CARD_URL`;
+      check(page.url() === memberUrl);
+      stage = `${stage}_BROWSER_${browserError}`;
+      check(!clientError);
     }
     await form().getByRole("button", { name: "Изменить назначения", exact: true }).click();
     await fields(original.accessVersion + 4, original.assignments);

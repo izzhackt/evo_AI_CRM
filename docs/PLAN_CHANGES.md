@@ -25529,3 +25529,38 @@ combined images and actual local Auth/UI/Storage/scanner/preflight proof remain
 open. Production CLI composition, paid generation/result/review/cleanup and
 authorized real-case acceptance remain open. No Docker stack, provider call,
 managed migration, deployment or D4 persisted-export merge occurred here.
+
+## 2026-09-14 — Bounded production recognition worker CLI
+
+Before code, root authorizes a separate CLI completion on combined `b5a73b2b`:
+compose the real fixed inspector with existing processing/cleanup orchestration;
+require explicit --once, mode and worker identity; package the executable bundle
+in the same app image through the existing esbuild pattern. No schema/dependency
+change, scheduler, enabled provider configuration or model default is introduced.
+Cleanup selects only its existing cleanup tick and is not gated on processing
+authority or inspector presence. Missing backend/Gemini credentials fail closed.
+Maximum processing240s/cleanup90s, optionally reduced by the operator, abort on
+deadline/SIGINT/SIGTERM, then force exit after5s if cancellation is ignored.
+Fixed summaries distinguish idle, settled success/failure, deferred, unavailable,
+timeout and signal; never print raw errors, credentials, IDs or document data.
+
+Scoped CLI/unit/build checks and one actual Next build are authorized. Do not
+run Docker, databases, browser/provider/managed-production acceptance, push or
+open a PR in this slice. Root separately reviews the exact committed candidate
+and owns the frozen combined image proof. Official Node signal/exit and Docker
+exec-form semantics are recorded in the runbook before implementation.
+
+Outcome: scoped worker/cleanup/CLI/manifest37/37 PASS
+`01a09ca5fa3f7bd19350fa9c36c3cc34`. Actual standalone bundle execution exposed
+a symlink main-entry mismatch; realpath comparison fixed it and CLI8/8 then
+passed `01a09ca4732575b390723672df919723` before the final37-case pass.
+One Next production build (including TypeScript and both bundles) passed
+`01a09ca501087e71930f9ce932600579`; scoped ESLint/diff-check passed
+`01a09ca4bdd47d3386ca0d6a18d3df6d`. Existing TS unit execution still reports
+MODULE_TYPELESS_PACKAGE_JSON warnings; no package-wide module change was made.
+Actual final bundle no-config processing/cleanup returned78 and invalid mode64,
+with fixed sanitized output; exact receipts/hash are in the runbook. CI inventory
+is322 occurrences/183 unique/139 duplicates; unit220/178/42, unchanged deduplication.
+Existing worker/transport/SQL/inspector source bytes remain unchanged. This is
+candidate CLI/build proof only; independent review and real image/provider gates
+remain open. No Docker, DB, provider, managed configuration, push or PR action ran.

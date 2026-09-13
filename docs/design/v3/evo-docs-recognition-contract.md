@@ -8,7 +8,8 @@ Pure DTO/transport подготовлены в PR756/758; очередь162/PR76
 Интеграция163: HTTP/UI, fenced private-source loader и processing/cleanup orchestration реализованы и локально проверены.
 Исправленный изолированный runtime входит из `32c6403`; его отдельные native-проверки
 описаны в [доказательстве runtime](references/2026-09-14-document-source-native-amd64-proof.md).
-Combined image/Auth/Storage/browser proof, итоговый CLI и paid-provider gates ещё не закрыты; dispatch не включён.
+Production CLI реализован и прошёл bounded source/bundle проверки ниже.
+Combined image/Auth/Storage/browser proof и paid-provider gates ещё не закрыты; dispatch не включён.
 Интеграция `26dd7b78` независимо одобрена и сохранена в draft PR763 поверх PR760.
 Reviewed acceptance `d4423d8d` объединён с runtime и текущими main/Admissions/package gates.
 Этот combined candidate требует независимого review до сборки acceptance image и запуска стека.
@@ -202,6 +203,25 @@ Files SDK допускается с `config.name`; HTTP retries для upload/ge
 
 ## Минимальные gates и официальные основания
 
+### Production CLI amendment, 2026-09-14
+
+`scripts/run-document-recognition-worker.ts` composes the actual
+`inspectDocumentSource`, existing dependency factory and exactly one processing
+or cleanup tick. Require explicit `--once --mode processing|cleanup --worker-id`;
+there is no default processing mode, implicit loop or retry. Processing uses only
+the persisted approved model/config/budgets, with no environment model fallback.
+Cleanup does not require processing authorization or an available inspector.
+Maximum tick deadlines are240s/90s respectively; an optional shorter deadline is
+allowed. SIGINT/SIGTERM and the deadline abort all awaited work; after5s grace a
+hard exit bounds an abort-ignoring dependency. Aborted/unknown work stays subject
+to existing fenced reconciliation, never a new upload or generation.
+Emit only fixed outcome/state/failure codes, without IDs, source/provider values
+or raw errors. Distinguish settled failure, deferral, missing configuration,
+timeout and signal exits. The normal Next build bundles this CLI with existing
+esbuild and copies that bundle into the same final image; the server default
+command and native inspector artifacts remain unchanged. This prepares execution,
+without scheduling or activating it. See the [runbook](../../document-recognition-worker.md).
+
 До кода root связывает контракт с PLAN_CHANGES и выделяет миграции после D2 integration.
 Локально: реальные Auth/DB UI на изолированном синтетическом деле; очередь/restart до dispatch,
 same-request outcome, сохранённая пустота/stale editor; transport-boundary тесты unknown без платных вызовов.
@@ -225,7 +245,8 @@ Actual `npm run test:student-profile-fields`: 152 server/pure +18 component SSR 
 `next typegen` + whole-repo `tsc --noEmit --incremental false`: PASS `01a09bccc76978c18ca43875f3ecc259`.
 Real loopback HTTP проверяет capped streaming/abort/expiry, но не настоящий Supabase Storage.
 Injected Files/REST/RPC/inspector ответы — только unit-boundary proof, не real provider/parser evidence.
-CLI не содержит mock/pass инспектора и ещё не добавлен: root-owned hard runtime обязателен до wiring/dispatch.
+На момент этого integration163 proof CLI ещё не был добавлен: root-owned hard runtime
+был обязательным условием wiring. Текущий CLI-кандидат описан выше; dispatch остаётся закрыт.
 
 ## Следующая ограниченная техническая приёмка — до provider gate
 
@@ -269,7 +290,7 @@ parser, диагностическая подмена, mock inspector и fake ve
    Gate до stack creation сравнивает native architecture, revision, точные TS bytes
    из clean Git commit и фактические launcher/inspect/dependency-tree/Node hashes
    обоих образов. TS-модули исполняются только в acceptance target: это **не**
-   проверка отсутствующего production CLI bundle. Production image не получает test entrypoint.
+   проверка production CLI bundle. Production image не получает test entrypoint.
 4. Браузер сохраняет только `predispatch-pending.json` и предварительный marker
    `DOCUMENT_RECOGNITION_PREDISPATCH_RECORDED`. После успешного сценария D3 EXIT
    подтверждает удаление собственных процессов, ClamAV container/volume и Supabase

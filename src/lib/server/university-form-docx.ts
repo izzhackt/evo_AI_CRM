@@ -41,16 +41,17 @@ type CompressedEntry = {
   getCompressedContent: () => Uint8Array;
 };
 type XmlDocument = Document & { readonly documentElement: Element };
+type InspectedSlot = UniversityFormSlot & Readonly<{ truncated: boolean }>;
 type OpenForm = {
   zip: PizZip;
   document: XmlDocument;
   body: Element;
   paragraphs: Element[];
-  slots: UniversityFormSlot[];
+  slots: InspectedSlot[];
   warnings: string[];
 };
 
-export function inspectUniversityDocx(bytes: Buffer): { slots: UniversityFormSlot[]; warnings: string[] } {
+export function inspectUniversityDocx(bytes: Buffer): { slots: InspectedSlot[]; warnings: string[] } {
   const { slots, warnings } = openForm(bytes);
   return { slots, warnings };
 }
@@ -284,11 +285,11 @@ function assertPassiveXml(document: Document, part: string): void {
   }
 }
 
-function inspectSlot(paragraph: Element, index: number, paragraphs: Element[], tables: Element[], fields: Set<Element>): UniversityFormSlot {
+function inspectSlot(paragraph: Element, index: number, paragraphs: Element[], tables: Element[], fields: Set<Element>): InspectedSlot {
   const raw = paragraphText(paragraph), text = compact(raw);
   const cell = ancestor(paragraph, "tc"), row = cell ? ancestor(cell, "tr") : null;
   const table = row ? ancestor(row, "tbl") : null;
-  let label = "", location = `Абзац ${index + 1}`, nearby = "";
+  let label = "", location = `Абзац ${index + 1}`, nearby = "", truncated = text.length > 1200;
   if (cell && row && table) {
     const rows = children(table, "tr"), cells = children(row, "tc");
     const rowIndex = rows.indexOf(row), cellIndex = cells.indexOf(cell);
@@ -306,11 +307,13 @@ function inspectSlot(paragraph: Element, index: number, paragraphs: Element[], t
         }
       }
     }
-    nearby = cells.map(cellText).map(compact).filter(Boolean).join(" | ").slice(0, 280);
+    const rowText = cells.map(cellText).map(compact).filter(Boolean).join(" | ");
+    truncated ||= rowText.length > 280;
+    nearby = rowText.slice(0, 280);
   } else {
     for (let previous = index - 1; previous >= Math.max(0, index - 3); previous--) {
       const candidate = compact(paragraphText(paragraphs[previous]));
-      if (candidate) { nearby = candidate.slice(0, 180); break; }
+      if (candidate) { truncated ||= candidate.length > 180; nearby = candidate.slice(0, 180); break; }
     }
   }
   const context = [location, label ? `Поле: ${label.slice(0, 220)}` : "", nearby ? `Рядом: ${nearby}` : ""].filter(Boolean).join(" · ");
@@ -323,7 +326,8 @@ function inspectSlot(paragraph: Element, index: number, paragraphs: Element[], t
     else if (!/[:：]$/u.test(labelText) || labelText.length > 140 || /\b(?:instructions|requirements|information|background|record|study\s+plan)\s*[:：]$/iu.test(labelText) || /^\s*\d+[.)]/u.test(labelText)) reason = "Текст или заголовок бланка. Для подстановки выберите пустую позицию с подписью.";
     else if (cell && descendants(cell, "p").some(item => item !== paragraph && BLANK.test(paragraphText(item)))) reason = "Подпись поля. Для значения выберите пустой абзац в этой же ячейке.";
   }
-  return { id: `p-${index + 1}`, text: text.slice(0, 1200), context, kind, editable: reason === null, manualReason: reason };
+  return { id: `p-${index + 1}`, text: text.slice(0, 1200), context, kind, editable: reason === null,
+    manualReason: reason, truncated: truncated || label.length > 220 };
 }
 
 function manualReason(paragraph: Element, cell: Element | null, label: string, text: string, fields: Set<Element>): string | null {

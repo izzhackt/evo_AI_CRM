@@ -5,7 +5,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { readFile, writeFile, mkdtemp, rm, access, stat, readdir } from "node:fs/promises";
 import { PDFDocument, PDFName, PDFString } from "pdf-lib";
 import PizZip from "pizzip";
-import { inspectUniversityTemplate } from "./adapter.mjs";
+import { inspectUniversityTemplate, previewUniversityTemplateSource } from "./adapter.mjs";
 
 const ROOT = "/opt/evo-university-template-runtime";
 const launcher = `${ROOT}/launcher`, diagnostic = `${ROOT}/launcher.test`;
@@ -13,6 +13,8 @@ const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 const rejected = code => ({ status: "rejected", code });
 const inspect = (bytes, mimeType = DOCX, signal = new AbortController().signal) => inspectUniversityTemplate({ bytes, mimeType, expectedSha256: sha(bytes) }, { signal });
+const preview = (bytes, expectedManifest, offset = 0, signal = new AbortController().signal) =>
+  previewUniversityTemplateSource({ bytes, mimeType: DOCX, expectedSha256: sha(bytes), expectedManifest, offset }, { signal });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const p = text => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 function docx({ body = p("Name:") + p("Signature:") + p("PRIVATE SYNTHETIC SENTINEL"), extra = {} } = {}) {
@@ -93,11 +95,72 @@ test("actual passive PDF inspection preserves exact visible pages without manufa
 });
 
 test("3000 actual DOCX slots fit the dedicated 128KiB protocol; 3001 cannot pass", async () => {
-  const result = await inspect(docx({ body: p("Name:").repeat(3000) }));
+  const bytes = docx({ body: p("Name:").repeat(3000) }), result = await inspect(bytes);
   assert.equal(result.status, "verified"); assert.equal(result.manifest.slots.length, 3000);
   assert.ok(Buffer.byteLength(JSON.stringify(result)) > 4096);
   assert.ok(Buffer.byteLength(JSON.stringify(result)) <= 128 * 1024);
+  const last = await preview(bytes, result.manifest, 2990);
+  assert.equal(last.status, "preview"); assert.equal(last.totalSlots, 3000);
+  assert.equal(last.slots[9].id, "p-3000"); assert.equal(last.nextOffset, null);
   assert.deepEqual(await inspect(docx({ body: p("Name:").repeat(3001) })), rejected("template_not_eligible"));
+});
+
+test("actual source preview returns exact text/context/manual rows with stable complete pagination", async () => {
+  const cell = text => `<w:tc>${p(text)}</w:tc>`;
+  const bytes = docx({ body: `<w:tbl><w:tr>${cell("Family name")}${cell("___")}</w:tr></w:tbl>`
+    + p("Signature:") + Array.from({ length: 18 }, (_, index) => p(`Field ${index + 1}:`)).join("") });
+  const source = await inspect(bytes); assert.equal(source.status, "verified");
+  const first = await preview(bytes, source.manifest), second = await preview(bytes, source.manifest, 10), last = await preview(bytes, source.manifest, 20);
+  for (const result of [first, second, last]) {
+    assert.equal(result.status, "preview"); assert.equal(result.sha256, source.sha256); assert.equal(result.byteLength, bytes.length);
+    assert.equal(result.manifestDigest, sha(Buffer.from(JSON.stringify(source.manifest))));
+    assert.equal(result.totalSlots, 21); assert.ok(Buffer.byteLength(JSON.stringify(result)) < 128 * 1024);
+  }
+  assert.equal(first.nextOffset, 10); assert.equal(second.nextOffset, 20); assert.equal(last.nextOffset, null);
+  assert.deepEqual([...first.slots, ...second.slots, ...last.slots].map(slot => slot.id), source.manifest.slots.map(slot => slot.id));
+  assert.equal(first.slots[1].text, "___"); assert.equal(first.slots[1].editable, true); assert.equal(first.slots[1].kind, "blank");
+  assert.match(first.slots[1].context, /Таблица 1, строка 1, ячейка 2/); assert.match(first.slots[1].context, /Family name/);
+  assert.equal(first.slots[2].editable, false); assert.match(first.slots[2].manualReason, /вручную/);
+  assert.equal(first.slots[0].truncated, false);
+  assert.ok(Object.isFrozen(first.slots[0]));
+  const tampered = structuredClone(source.manifest); tampered.slots[20].editable = !tampered.slots[20].editable;
+  assert.deepEqual(await preview(bytes, tampered), rejected("source_unavailable")); // Difference outside requested page still rejects.
+  const pending = preview(bytes, source.manifest), oldHash = sha(bytes); bytes[0] = 0;
+  assert.equal((await pending).sha256, oldHash);
+});
+
+test("actual preview marks preexisting paragraph, label and nearby clipping and retains Unicode as plain text", async () => {
+  const cell = text => `<w:tc>${p(text)}</w:tc>`;
+  const bytes = docx({ body: p("X".repeat(1301)) + p("Name:") + p("&lt;img src=&quot;x&quot;&gt; 中文 Имя")
+    + `<w:tbl><w:tr>${cell("L".repeat(230))}${cell("___")}</w:tr>`
+    + `<w:tr>${cell("A".repeat(120))}${cell("B".repeat(120))}${cell("C".repeat(120))}</w:tr></w:tbl>` });
+  const source = await inspect(bytes), result = await preview(bytes, source.manifest);
+  assert.equal(result.status, "preview"); assert.equal(result.slots[0].text.length, 1200); assert.equal(result.slots[0].truncated, true);
+  assert.equal(result.slots[1].truncated, true); // Previous paragraph was clipped to180.
+  assert.equal(result.slots[2].text, '<img src="x"> 中文 Имя');
+  assert.equal(result.slots[3].truncated, true); // Own label clipped to220, before preview projection.
+  assert.equal(result.slots[4].truncated, true); // Empty cell inherits that clipped label.
+  assert.equal(result.slots[5].truncated, true); // Row context clipped to280 despite each label being short.
+  assert.equal(JSON.stringify(source).includes("truncated"), false);
+  assert.equal(JSON.stringify(source).includes("中文"), false);
+});
+
+test("actual child rejects invalid preview operation, offset and PDF; source/manifest mutation cannot substitute binding", async () => {
+  const bytes = docx(), source = await inspect(bytes);
+  for (const change of [{ operation: "render", offset: 0 }, { operation: "source-preview", offset: -1 },
+    { operation: "source-preview", offset: 0.5 }, { operation: "source-preview", offset: 3000 },
+    { operation: "source-preview", offset: 3 }, { operation: "source-preview", offset: 0, limit: 1 }]) {
+    assert.deepEqual(JSON.parse((await run(launcher, [], wire(bytes, DOCX, change))).stdout), rejected("template_not_eligible"));
+  }
+  assert.deepEqual(JSON.parse((await run(launcher, [], wire(await pdf(), "application/pdf", { operation: "source-preview", offset: 0 }))).stdout), rejected("template_not_eligible"));
+  const mutable = structuredClone(source.manifest), pending = preview(bytes, mutable);
+  mutable.slots[0].editable = false;
+  assert.equal((await pending).status, "preview");
+  const controller = new AbortController(), active = preview(bytes, source.manifest, 0, controller.signal);
+  assert.deepEqual(await inspect(bytes), rejected("source_unavailable"));
+  assert.deepEqual(await preview(bytes, source.manifest), rejected("source_unavailable"));
+  controller.abort(); assert.deepEqual(await active, rejected("source_unavailable"));
+  assert.equal((await preview(bytes, source.manifest)).status, "preview");
 });
 
 test("actual DOCX parser rejects malformed XML, active archive content and excessive entry expansion", async () => {
@@ -212,6 +275,7 @@ test("parent death leaves no orphan, and adapter cancellation releases its concu
   } finally { supervisor.kill("SIGKILL"); await closed; }
   const signal = new AbortController(), pending = inspect(docx(), DOCX, signal.signal);
   assert.deepEqual(await inspect(docx()), rejected("source_unavailable"));
+  assert.deepEqual(await preview(docx(), { format: "docx", slots: [{ id: "p-1", editable: true }], pageSizes: [] }), rejected("source_unavailable"));
   signal.abort(); assert.deepEqual(await pending, rejected("source_unavailable"));
   assert.equal((await inspect(docx())).status, "verified");
 });

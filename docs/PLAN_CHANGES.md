@@ -24579,3 +24579,81 @@ completed-handoff navigation match current permission gates. This is source
 consistency, not a runtime pass. Product source, all migrations and lockfile are
 unchanged. Full real Auth/DB/browser CI and application release have not been
 rerun; their previous failed/skipped outcomes remain the current release status.
+
+## 2026-09-13 — D3 durable queue: distinguish enqueue identity from verified source pages
+
+Before queue implementation, resolve a real contract timing seam: enqueue can
+resolve immutable document metadata, but actual PDF pages require bounded worker
+byte parsing. Client-supplied pages, in-transaction network/parser work and
+changing an already-used fingerprint are not acceptable substitutes. Keep an
+immutable request fingerprint over the original command/identity/source metadata
+and captured server config (no pages), and seal the separate existing canonical
+v1 processing fingerprint once after successful byte preflight. Replay uses the
+captured config and original profile revision, never current mutable defaults.
+Unknown pages remain NULL until verified; no upload/generation intent before seal.
+The full v1 contract/golden vector remains unchanged.
+
+Root allocates162 in isolated izzhackt/evo-docs-recognition-queue based on
+bc0cde68. Scope: closed durable jobs/attempts/provider-files and non-secret
+server configuration records, exact actor/source/profile guards, bounded money
+reservation, fenced claim/transitions/result publication/cleanup and session read
+RPC adapters. Configuration is server-selected; no browser model/budget/source
+metadata, no keys in DB records, no implicit paid-project attestation or enable.
+Preserve the existing D3 six-permission gates, lock order, one generation intent,
+unknown outcome rules, D2 human review and exact-source proposal provenance.
+The input count receipt from the separate transport slice is persisted before
+generation intent and must match exact model/body/config and input ceiling.
+
+Use ordinary real PostgreSQL positive/replay/restart workflow checks with bounded
+synthetic data; injected provider outcomes are not provider acceptance. Do not
+run a second full release suite, seed/apply managed schema or merge while the
+bc0cde68 release cycle is active (fullCI34767766251). Production worker/Storage/UI,
+hard memory/time bounded document parsing, real paid provider/file acceptance,
+D5 transfer and D6 retirement remain mandatory later work, not waived by this slice.
+
+Queue implementation starts with a complete bounded pre-dispatch segment:
+session enqueue/read, captured non-secret configuration, exact source authority,
+atomic reservation, fenced claim/renewal, once-only verified-page sealing and
+safe cancellation/recovery before any upload. No HTTP route or partial provider
+dispatcher is exposed. Upload/generation intents, persisted count receipt,
+result/proposal publication and independent cleanup commands remain mandatory
+and are not declared implemented by this segment. This may extend the same
+unmerged162 once its real PostgreSQL proof passes; root controls final allocation.
+Reuse the exact PR756 pure module/test bytes rather than duplicate DTOs:
+git blobs74c5f037a6673f85707f01e23e26545f881e00fc and
+e7b7b60f57b3ab1ed7c62e159be3075076adc073 match05b6a036.
+
+The first real queue/preflight SQL proof passed (01a09ba008b87562a64d02883bec18ad),
+so the same unmerged162 now extends to durable upload/generation intents,
+persisted model/body/config-bound count receipt, bounded result and ordinal
+proposal publication, and separately fenced cleanup. Conflicting candidates
+remain separate proposals; no confirmed value/review is overwritten. SQL proof
+uses synthetic provider observations only. Worker/HTTP/Storage integration is
+still absent, and no actual Gemini generation/cleanup is claimed.
+Before the first provider side effect and before generation, a UTC-day rollover
+must recheck/rebind the existing monetary reservation under the organization lock;
+enqueue yesterday must not bypass today's configured daily budget. Only one
+generation intent is possible, so this does not authorize another paid attempt.
+Register the new pure/adapter/queue-contract tests in the existing Node CI entry
+and recompute exact manifest totals; no removed tests, skip or full-CI dispatch.
+
+Queue candidate validation: isolated pinned PostgreSQL001–162 full workflow
+PASS01a09baab06f746290e94bdef3340ffd (including UTC rollover); preceding complete
+provider-state/proposal/cleanup proof PASS01a09ba92eb67b2199e97b71cdf7a6cd.
+Canonical Admin/session RPCs use synthetic metadata/scanner/provider outcomes,
+not real Auth/browser/Storage bytes or a paid Gemini call. The original D2
+confirmed-empty/full review rows remain unchanged; three ordinal proposals
+including conflicting English values publish once, with one revision/audit.
+Upload/generation replay returns dispatch:false; expired generation retains its
+reservation and does not produce a new attempt. DELETE acknowledgement remains
+pending until a separate absence observation; unknown upload plus404 is unresolved.
+Actual Node entrypoint88+12 PASS01a09ba64e26766196e81b16edcc63d4;
+manifest/classifier19 PASS01a09ba5600b7e728581a0197b50def4; scoped TypeScript0
+diagnostics01a09ba9536a7b819a15fe3e6d74be12 and ESLint/diff PASS. The new script
+is already a known code path; no classifier policy relaxation. Supabase queue
+guidance informed short transactions, organization-first SKIP LOCKED claims and
+partial active/cleanup indexes. All runner-owned containers are removed; trap
+uses only the exact random owned name with --volumes, never a broad prune.
+Independent exact-head review is still pending. This is durable SQL+session
+adapter evidence only; no worker/HTTP/UI, managed apply, deployment or provider
+acceptance is claimed. Preserve existing launch/release blockers and D5/D6 gates.

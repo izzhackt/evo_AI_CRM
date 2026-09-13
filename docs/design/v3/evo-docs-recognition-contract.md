@@ -1,13 +1,48 @@
 # D3 — распознавание документов с проверкой человеком
 
-Дата: 2026-09-13. Статус: подготовленный контракт, реализация D3 не начата.
+Дата: 2026-09-13. Статус: D3 в реализации в отдельных ветках; не выпущен.
 База: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS, итоговый выпуск ещё не подтверждён.
 Исполнитель читает [единый план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md) и [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
-Все новые пути, RPC, таблицы и лимиты ниже — проектируемый интерфейс D3.
+Pure DTO/transport подготовлены в PR756/758; очередь162 и session adapter проверены локально, ждут независимого ревью.
+Worker/HTTP/private byte preflight/UI и настоящая provider-приёмка ещё не готовы.
 Номера forward-миграций выделяет root после проверки актуального main; не резервировать самостоятельно.
 
 ## Результат и неизменные границы
+
+### Уточнение перед реализацией очереди, 2026-09-13
+
+При enqueue база знает версию, hash, MIME и размер оригинала, но число страниц
+узнаётся только после ограниченного разбора точных байтов worker. Не принимать
+page count от браузера и не запускать тяжёлый разбор внутри HTTP/SQL-транзакции.
+Поэтому хранить две разные неизменные привязки:
+
+- `request_fingerprint` фиксирует исходную команду, identity, exact-source metadata,
+  profile revision и server-resolved config/policy без числа страниц. Он определяет
+  replay исходного request_id; при повторе использовать сохранённый config snapshot,
+  а не новую текущую модель или отредактированный профиль.
+- `processing_fingerprint` использует полный canonical v1 contract из PR756,
+  включая фактически проверенное число страниц. `source_pages` и этот fingerprint
+  NULL только до успешного preflight; worker запечатывает их ровно один раз до
+  upload intent. SHA/размер/MIME байтов должны совпасть с enqueue snapshot.
+
+Это уточнение порядка получения доказательства, не ослабление idempotency или
+разрешение повторного вызова. Не переписывать v1/golden vector. Общий D3 transport
+также требует сохранённый countTokens receipt, связанный с exact model/body/config,
+до generation intent. Неизвестный/слишком большой count не разрешает generation.
+
+Root выделяет forward162 для закрытой очереди, attempts/provider files и
+server-only configuration records. Конфигурация содержит только несекретные
+model/project/policy/paid-eligibility references и бюджетные лимиты; API key
+остаётся в серверных секретах. Публичный enqueue выбирает активную конфигурацию
+на сервере, не принимает её или source metadata от пользователя. Отсутствующая
+подтверждённая конфигурация означает `provider_not_configured`.
+Никаких production seed/enable/apply в этой ветке; текущий выпуск bc0cde68 заморожен.
+RPC/read adapter и локальная настоящая PostgreSQL-проверка — обязательная часть
+среза; worker/Storage/UI, paid provider, разрешённый реальный файл и cleanup
+остаются отдельными обязательными интеграционными gates, а не объявляются готовыми.
+Локальное доказательство очереди: PostgreSQL001–162 PASS01a09baab06f746290e94bdef3340ffd,
+88+12 Node PASS, TS/lint PASS. Синтетические provider/scanner-факты не доказывают реальную интеграцию.
 
 Сотрудник выбирает версию документа дела → «Извлечь поля» → видит ход задания →
 проверяет предложения рядом с оригиналом в существующей «Анкете».
@@ -74,14 +109,20 @@
 
 Пользовательские `platform.enqueue_document_recognition(...)` и
 `platform.staff_document_recognition_job(case_id,job_id)` принимают текущую сессию.
-Service-only RPC: `claim_document_recognition(worker_id)`, `renew_document_recognition_lease(attempt_id,claim_token)`,
-`advance_document_recognition(attempt_id,claim_token,expected_stage,next_stage,metadata)`,
-`record_document_recognition_result(attempt_id,claim_token,result,response_id,model_version,usage)`,
+Service-only RPC в [162](../../../supabase/migrations/162_platform_document_recognition_queue.sql):
+`claim_document_recognition`, `renew_document_recognition_lease`, `seal_document_recognition_preflight`,
+`begin_document_recognition_upload`, `observe_document_recognition_file`,
+`record_document_recognition_token_count`, `begin_document_recognition_generation`,
+`record_document_recognition_result(attempt_id,claim_token,result_text,result_sha256,response_id,model_version,usage)`,
 `publish_document_recognition_proposals(attempt_id,claim_token)`,
-`finish_document_recognition(attempt_id,claim_token,outcome,failure_code)`,
+`finish_document_recognition(attempt_id,claim_token,failure_code)`,
 `claim_document_recognition_cleanup(worker_id)` и
-`record_document_recognition_cleanup(attempt_id,cleanup_token,resource_name,outcome,checked_at)`.
+`begin_document_recognition_delete` и `record_document_recognition_cleanup(attempt_id,cleanup_token,observation)`.
 Metadata/result строго типизированы; переходы whitelist, произвольное состояние записать нельзя.
+Observation: ровно outcome/resource_name/state/sha256/bytes/mime_type; для unknown/not_found поля metadata NULL.
+DELETE intent возвращает dispatch:false при replay; ack не равен confirmed_absent. SQL хранит только серверное имя.
+Result хранится отдельно с hash точного нормализованного UTF-8 JSON, предложения связаны attempt+ordinal;
+в том числе конфликтующие варианты одного поля сохраняются раздельно. Session adapter не создаёт request ID/профиль.
 Сохранять общий lock order organization → job/attempt → identity → case/profile;
 никаких сетевых вызовов внутри транзакции. Claim: `FOR UPDATE SKIP LOCKED`, fencing token,
 lease 90 s, heartbeat 15 s. Истёкшая lease разрешает reconcile, не повтор уже начатого вызова.
@@ -120,6 +161,7 @@ page ∈1..фактическое число страниц либо NULL, confi
 Worker: одна активная генерация/org, две/project; generation timeout 90 s, processing poll ≤60 s.
 В серверной конфигурации обязательны per-job и daily-org денежные бюджеты и версия pricing policy;
 атомарно резервировать до вызова, неизвестный исход не освобождает резерв как «бесплатный».
+При переносе до вызова через полночь UTC повторно проверить текущий дневной бюджет; retry unknown требует явный retry_of_job_id.
 Отсутствие модели/бюджета/paid-project подтверждения блокирует вызов. Только снижение лимитов без нового review.
 
 Использовать серверный `EVO_PLATFORM_GEMINI_API_KEY`, отдельные D3 model/config version и явное включение.
@@ -127,7 +169,7 @@ Worker: одна активная генерация/org, две/project; genera
 `latest` alias и молчаливый default запрещены. Текущий SDK `2.16.0` не типизирует новые generateContent
 `store/responseFormat`; узкий REST adapter проверяет реальное wire body, не делает type-cast обход.
 REST: `POST /v1beta/models/{model}:generateContent`, top-level `store:false`,
-`generationConfig.responseFormat.text={mimeType:"application/json",schema}`; сервер повторно валидирует JSON.
+`generationConfig.responseFormat.text={mimeType:"APPLICATION_JSON",schema}`; сервер повторно валидирует JSON.
 Files SDK допускается с `config.name`; HTTP retries для upload/generate выключены (`attempts:1`).
 Не копировать unsupported candidateCount/sampling-настройки в новую модель. Prompt считает документ данными,
 не инструкциями; без tools/search/URL fetch, выдуманных фактов и автоматического подтверждения confidence.

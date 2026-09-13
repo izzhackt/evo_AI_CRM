@@ -54,6 +54,11 @@ the two lanes may proceed in parallel because D4 accepts manually confirmed
 profile values. Preserve the D5 data reconciliation and D6 real acceptance/
 standalone-retirement gates; allocate forward migrations against current main.
 
+Root approves the bounded [isolated source runtime](design/v3/document-source-runtime-contract.md)
+from reviewed D4 `ae52a316`: fixed Linux source inspector, `document-source-v1`,
+real OS isolation/resource bounds and synthetic Linux proof only. It does not
+activate recognition, grant file access or complete D3/provider acceptance.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance

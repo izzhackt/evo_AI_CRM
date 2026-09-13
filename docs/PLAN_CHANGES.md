@@ -24771,3 +24771,56 @@ authorized snapshots/scanner/layout and per-asset rights, immutable Storage,
 history/reconciliation and UI. A D2 transient export attempt is not retroactively
 treated as a persisted artifact. Independent review is required before merge;
 D4 and real business acceptance remain incomplete.
+
+## 2026-09-13 — fixed isolated source inspection runtime before D3 integration
+
+Root explicitly approves new sibling `izzhackt/document-source-runtime` from
+reviewed D4 `ae52a3165c142c5f87bebd80e97b18a15e84877e`. Before code, pin the
+[runtime contract](design/v3/document-source-runtime-contract.md): exact D3
+`inspectDocumentSource` status-discriminated interface and `document-source-v1`.
+Scope is one C supervisor/launcher, one bundled Node source inspector, server-only
+adapter, narrow image packaging and bounded actual Linux tests. No provider,
+Storage, SQL, UI, broad CI, production changes or alternate data authority.
+
+Use existing Node22.23.1/pdf-lib1.17.1/sharp0.35.4; root-owned minimal runtime,
+Landlock>=3, architecture-aware seccomp, clean environment/descriptors, no network,
+no arbitrary commands or app Docker socket. OS address-space2 GiB/CPU10s/core0/FD64,
+supervisor wall15s, output4 KiB, one job at a time. Address space is not RSS proof.
+Abort/parent death terminate inspector; unsupported isolation is unavailable,
+never fallback. PDF/JPEG/PNG25 MiB, PDF20pages/no encryption, images20k/40MP.
+No raw metadata/text output or original rewriting; scanning remains independent.
+Official kernel, Node, Sharp and pdf-lib sources are linked in the contract.
+
+Only an isolated OrbStack execution after Running/orbstack may establish runtime
+proof; synthetic ordinary fixtures and fixed test-only diagnostics cover file/
+network denial and actual memory/CPU/wall/abort enforcement. No fuzzing. Test-only
+diagnostics must not ship in the production launcher. Parent/root continue their
+separate frozen release and D3 integration work. Independent exact-head review
+is required; no implementation, Linux isolation or provider success claimed yet.
+
+### Bounded implementation evidence — source runtime only
+
+Actual `npm run test:document-source-runtime` builds the narrow Linux target and
+passes 8 grouped tests in 26.8 seconds on native arm64 OrbStack, Node 22.23.1,
+UID 1001 (`01a09bd998127e00957d051917558310`). This includes actual production
+inspector PDF/JPEG/PNG reads, exact 25 MiB positive/oversize negative, 20-page
+positive/21-page negative, password-encrypted PDF rejection, 40 MP full decode,
+dimension/truncation/hash rejection, root-owned assets, Landlock/socket/env/FD
+denial, real AS allocation failure, separate CPU and wall kills, output cap,
+parent-death cleanup and actual adapter cancellation. Temporary parser-error
+diagnostics were removed before this run; production has no diagnostic mode.
+The OS AS bound is 2 GiB of virtual address space, not RSS or a per-job cgroup.
+
+Actual focused input boundary entry: 3 PASS (`01a09bd8bc527d32a10f1bad9f581fe8`).
+CI/UNIT registration: 9 manifest checks PASS (`01a09bd8ea2a7e92a1be19513be1eaad`),
+not a full CI execution or Linux isolation claim. Scoped TypeScript
+(`01a09bd8e1e87b5285d0af8babf94449`), lint
+(`01a09bd8ea1e7e52a3b0d1da78163ce9`) and diff checks pass. The initial positive
+Linux run failed before fixing the exact ELF-loader permission, required
+`FIONBIO` ioctl and fixed-fd stdin reading; the full policy remained enabled.
+The existing production Compose app already uses `init: true` for orphan reaping.
+
+Native amd64 execution remains mandatory on its intended kernel before enablement;
+arm64 proof does not establish it. Root still owns independent immutable-head
+review, combined D3 image, real isolated Storage/Auth workflow and later provider
+acceptance. No production image, route, worker dispatch or managed DB was changed.

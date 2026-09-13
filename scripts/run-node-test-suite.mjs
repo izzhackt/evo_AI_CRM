@@ -20,6 +20,7 @@ export const DEFAULT_ENTRY_SCRIPTS = Object.freeze([
   "test:student-profile-fields",
   "test:university-forms",
   "test:document-packages",
+  "test:document-source-preflight",
 ]);
 
 export const UNIT_ENTRY_SCRIPTS = Object.freeze([
@@ -38,6 +39,7 @@ export const UNIT_ENTRY_SCRIPTS = Object.freeze([
   "test:student-profile-fields",
   "test:university-forms",
   "test:document-packages",
+  "test:document-source-preflight",
 ]);
 
 export const D1_ENTRY_SCRIPTS = Object.freeze(["test:d1"]);

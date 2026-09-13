@@ -14,12 +14,14 @@ fail() {
 
 trap report_error ERR
 
-[[ "$#" -eq 0 || ( "$#" -eq 1 && ( "$1" == "--staff-onboarding-only" || "$1" == "--student-profile-fields-only" ) ) ]] \
-  || fail "Usage: $0 [--staff-onboarding-only | --student-profile-fields-only]"
+[[ "$#" -eq 0 || ( "$#" -eq 1 && ( "$1" == "--staff-onboarding-only" || "$1" == "--student-profile-fields-only" || "$1" == "--admissions-workflow-only" ) ) ]] \
+  || fail "Usage: $0 [--staff-onboarding-only | --student-profile-fields-only | --admissions-workflow-only]"
 staff_onboarding_only=0
 [[ "${1:-}" != "--staff-onboarding-only" ]] || staff_onboarding_only=1
 student_profile_fields_only=0
 [[ "${1:-}" != "--student-profile-fields-only" ]] || student_profile_fields_only=1
+admissions_workflow_only=0
+[[ "${1:-}" != "--admissions-workflow-only" ]] || admissions_workflow_only=1
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly clamav_image="clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9"
@@ -1418,6 +1420,23 @@ provision_local_staff_and_fixtures
 # Provider owner configuration becomes available only after the real staff invitation.
 stop_app
 start_app configured configured local-service
+if [[ "$admissions_workflow_only" == "1" ]]; then
+  if ! supabase_staff_auth_browser_assert configured 'real contract, payment and handoff open one Supabase Student 360 with role-safe access|Admissions manages one real private company file through V3'; then
+    EVO_ADMISSIONS_APP_LOG="$app_log" "$node_bin" --experimental-strip-types --input-type=module <<'EOF'
+import { readFileSync, statSync } from "node:fs";
+import { summarizeStudentProfileAppLog } from "./scripts/lib/student-profile-fields-browser-proof.mjs";
+const logPath = process.env.EVO_ADMISSIONS_APP_LOG;
+if (statSync(logPath).size <= 4 * 1024 * 1024) {
+  console.error("ADMISSIONS_WORKFLOW_SERVER_DIAGNOSTIC", JSON.stringify(summarizeStudentProfileAppLog(readFileSync(logPath, "utf8"))));
+}
+EOF
+    fail "The bounded real Admissions workflow failed; no full-gate pass is implied"
+  fi
+  verify_p4_admissions_storage_acceptance
+  assert_no_secret_or_payload_logs
+  echo "LOCAL_ADMISSIONS_WORKFLOW_VERIFIED"
+  exit 0
+fi
 supabase_staff_auth_browser_assert configured
 v3_browser_gate
 echo "V3 Supabase Auth, canonical-data and browser quality gate passed."

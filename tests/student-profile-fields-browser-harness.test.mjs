@@ -41,6 +41,24 @@ test("D2 bounded mode follows local Auth bootstrap and exits before unrelated su
   assert.match(harness, /stop --no-backup/u);
 });
 
+test("bounded Admissions mode preserves real setup and the end-of-workflow Storage receipt", () => {
+  const start = harness.indexOf('if [[ "$admissions_workflow_only" == "1" ]]');
+  assert.ok(start > harness.indexOf("\nprovision_local_staff_and_fixtures\n"));
+  assert.ok(start > harness.indexOf("\nstart_clamav_scanner\n"));
+  const end = harness.indexOf("\nfi\nsupabase_staff_auth_browser_assert configured", start);
+  assert.ok(end > start);
+  const branch = harness.slice(start, end);
+  assert.match(branch, /supabase_staff_auth_browser_assert configured 'real contract, payment and handoff open one Supabase Student 360 with role-safe access\|Admissions manages one real private company file through V3'/u);
+  assert.ok(branch.indexOf("verify_p4_admissions_storage_acceptance") > branch.indexOf("supabase_staff_auth_browser_assert"));
+  assert.ok(branch.indexOf("assert_no_secret_or_payload_logs") > branch.indexOf("verify_p4_admissions_storage_acceptance"));
+  assert.match(branch, /summarizeStudentProfileAppLog/u);
+  assert.match(branch, /statSync\(logPath\)\.size <= 4 \* 1024 \* 1024/u);
+  assert.match(branch, /no full-gate pass is implied/u);
+  assert.match(branch, /echo "LOCAL_ADMISSIONS_WORKFLOW_VERIFIED"\n  exit 0/u);
+  assert.doesNotMatch(branch, /V3 Supabase Auth, canonical-data and browser quality gate passed/u);
+  assert.match(harness.slice(end), /\nfi\nsupabase_staff_auth_browser_assert configured\nv3_browser_gate/u);
+});
+
 test("D2 runner uses real login and product field actions, not request mocks or Auth bypass", () => {
   const runner = readFileSync(runnerUrl, "utf8");
   assert.match(runner, /#staff-email/u);

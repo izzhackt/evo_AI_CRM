@@ -144,6 +144,7 @@ async function directPlatformRpc(
   functionName:
     | "current_actor_authority"
     | "staff_access_snapshot"
+    | "staff_student_case_read_snapshot"
     | "staff_workspace_directory"
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"
@@ -1442,6 +1443,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(admissionsAuthorityRow.schemaVersion).toBe(1);
   expect(admissionsAuthorityRow.systemRole).toBe("staff");
   expect(admissionsAuthorityRow.permissions).toContain("case.read.full");
+  expect(admissionsAuthorityRow.permissions).toContain("task.create");
+  expect(admissionsAuthorityRow.permissions).not.toContain("task.visibility.manage");
   const admissionsOwnerId = requireUuidValue(admissionsAuthorityRow.membershipId);
 
   assertDeniedRpc(
@@ -1543,6 +1546,32 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const studentCaseId = requireUuidValue(
     handoffRow.case_id,
   );
+
+  // A Sales summary is not permission to enter the full case workspace.
+  const salesCaseView = await directPlatformRpc(
+    "staff_student_case_read_snapshot", { p_student_case_id: studentCaseId }, salesToken,
+  );
+  expect(salesCaseView.status).toBe(200);
+  expect(salesCaseView.payload).toHaveLength(1);
+  expect(expectObject((salesCaseView.payload as unknown[])[0]).access_mode).toBe("sales_summary");
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  await expect(page.getByText(
+    "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+  )).toBeVisible();
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+
+  // Receiving a case grants its Admissions workspace, not the Sales handoff
+  // workflow. Prove that distinction before any calendar/document mutations.
+  expect(admissionsAuthorityRow.permissions).toContain("lead.read");
+  expect(admissionsAuthorityRow.permissions).not.toContain("lead.sales.workflow.manage");
+  assertDeniedRpc(await directPlatformRpc(
+    "staff_lead_admissions_handoff", { p_lead_id: leadId }, admissionsToken,
+  ));
+  await page.context().clearCookies();
+  await signIn(page, "admissions");
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=overview`);
+  await expect(page.getByTestId("v3-profile")).toBeVisible();
+  await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
   await page.context().clearCookies();
   await signIn(page, "admin");
@@ -1872,9 +1901,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .filter({ hasText: /^Дополнительные настройки$/ })
     .click();
   await createTask.locator('select[name="priority"]').selectOption("high");
-  await createTask
-    .locator('select[name="student_visible"]')
-    .selectOption("false");
+  // The preserved scoped Admissions baseline creates hidden tasks without the
+  // separate visibility-management grant. Assert the real control, not a select.
+  await expect(createTask.locator('input[type="hidden"][name="student_visible"]')).toHaveValue("false");
+  await expect(createTask.locator('select[name="student_visible"]')).toHaveCount(0);
   await createTask.locator('button[type="submit"]').click();
 
   const createdTask = page

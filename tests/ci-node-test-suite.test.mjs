@@ -48,8 +48,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 307);
-  assert.equal(plan.uniqueFileCount, 168);
+  assert.equal(plan.occurrenceCount, 308);
+  assert.equal(plan.uniqueFileCount, 169);
   assert.equal(plan.duplicateCount, 139);
   assert.equal(new Set(plan.files).size, plan.files.length);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
@@ -91,7 +91,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
     "tests/staff-role-controls.test.mjs", "tests/staff-disclosure.test.mjs",
     "tests/staff-metadata-feedback.test.mjs", "tests/v3-handoff-navigation.test.mjs",
-    "tests/v3-student-profile-fields.test.mjs"]);
+    "tests/v3-calendar-visibility-proof.test.mjs", "tests/v3-student-profile-fields.test.mjs"]);
   assert.equal(plain.concurrency, 1);
 });
 
@@ -102,8 +102,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 205);
-  assert.equal(plan.uniqueFileCount, 163);
+  assert.equal(plan.occurrenceCount, 206);
+  assert.equal(plan.uniqueFileCount, 164);
   assert.equal(plan.duplicateCount, 42);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
 });

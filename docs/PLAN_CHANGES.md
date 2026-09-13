@@ -25626,3 +25626,39 @@ failure without permitting raw exception output. Exact-source combined review
 and a single rebuilt image pair precede the same original browser scenario.
 The last actual run remains failed at cold reopen; no D3/provider/release success
 or D4 persistence integration is implied. Keep production on accepted05585020.
+
+## 2026-09-14 — Make recognition history actionable only after hydration
+
+The original real local flow on frozen fb9d3949 again passed upload/scan/private
+download, UI enqueue and exact-command replay, then failed specifically at
+COLD_HISTORY_EXPANDED (01a09cbdaf0a70508bd715ca638ada66, exit1). The sanitized
+failure records ATTRIBUTE_EXPECTATION, zero console/page errors and a collapsed
+history panel. Reload and locator click completed; queued-row/provider stages
+were not reached. The owned local project was removed and absence rechecked.
+
+Before code, constrain this correction to the existing history disclosure.
+Reuse StaffDisclosure's server-false/client-true useSyncExternalStore readiness:
+render the toggle disabled and aria-busy until it has live event handlers. Keep
+its children mounted/hidden and every read, command, permission and draft rule
+unchanged. Do not retry the click, delay the test, force expansion, suppress a
+hydration error, or weaken the original queued-history assertion. The prediction
+is that the first actionable click then opens history after a cold reload.
+
+Use the existing real-component SSR test seam for a deterministic RED/ GREEN
+disabled/busy/closed contract, then repeat the unchanged actual Auth/Storage/
+ClamAV/browser scenario after independent review and a frozen image rebuild.
+SSR alone does not prove hydration or backend success. D3/provider acceptance
+and production enablement remain open until their distinct real proofs pass.
+
+Official basis checked2026-09-14: [Playwright hydration](https://playwright.dev/docs/navigations#hydration)
+describes clicks lost on enabled controls before listeners attach and recommends
+disabling them until ready; [React server snapshot](https://react.dev/reference/react/useSyncExternalStore#adding-support-for-server-rendering)
+defines matching server/initial-hydration snapshots. The installed Next.js guide
+on Server and Client Components confirms its first-load non-interactive preview.
+
+The new real-render SSR assertion failed on the old enabled button
+(01a09cbe83af7a21a5ab5b1aedfa5062, 6pass/1fail). After the readiness correction,
+both affected component suites passed10/10 with scoped ESLint and diff-check
+(01a09cbec5f373d1acd87468ddd16f91). No transport/React mock or browser skip was
+added. This is source-level regression proof; the rebuilt original browser flow
+is still required before accepting the cold-history fix.

@@ -183,6 +183,12 @@ repeat, then failed at cold-history reopen with zero console/page errors
 (01a09cb162eb7ae08ab7a0f90afd77f1). Preserve this failure and split its diagnostic
 stages before changing product behavior; provider and D3 acceptance remain open.
 
+Frozen fb9d3949 and its actual native image pair repeated the same failure at
+COLD_HISTORY_EXPANDED (01a09cbdaf0a70508bd715ca638ada66), isolating an unchanged
+collapsed disclosure after reload/click. The next bounded correction reuses the
+existing hydration-readiness pattern for that toggle; SSR regression and the
+original real workflow must both pass. No provider call or D3 completion implied.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance

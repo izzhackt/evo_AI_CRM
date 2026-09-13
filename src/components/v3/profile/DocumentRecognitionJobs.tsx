@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import type { DocumentRecognitionJob, DocumentRecognitionRequest } from "@/lib/document-recognition";
 import { DocumentRecognitionClientError, readRecognitionHistory, submitRecognitionRequest,
   type RecognitionHistoryPage } from "@/lib/document-recognition-client";
@@ -10,6 +10,9 @@ import type { DocumentRecognitionAccess } from "./document-types";
 
 const button = "min-h-11 rounded-control border border-border px-3 py-2 text-sm text-fg disabled:cursor-not-allowed disabled:opacity-60";
 const retryable = (job: DocumentRecognitionJob) => ["failed", "generation_unknown", "cancelled", "publication_blocked"].includes(job.state);
+const subscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
 
 export function DocumentRecognitionJobList({ jobs, reviewHref, canRetry, onRetry }: {
   jobs: readonly DocumentRecognitionJob[]; reviewHref: string; canRetry: boolean;
@@ -33,6 +36,7 @@ export function DocumentRecognitionJobs({ access, sourceVersionId, sourceReady }
   access: DocumentRecognitionAccess; sourceVersionId: string | null; sourceReady: boolean;
 }) {
   const id = useId();
+  const ready = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [page, setPage] = useState<RecognitionHistoryPage | null>(null);
@@ -88,7 +92,8 @@ export function DocumentRecognitionJobs({ access, sourceVersionId, sourceReady }
   }
 
   return <section className="mt-3 border-t border-border pt-1" data-testid="document-recognition">
-    <button type="button" className="min-h-11 w-full text-left text-sm font-medium" aria-expanded={open} aria-controls={id}
+    <button type="button" className="min-h-11 w-full text-left text-sm font-medium disabled:cursor-wait"
+      disabled={!ready} aria-busy={!ready} aria-expanded={open} aria-controls={id}
       onClick={() => setOpen(value => !value)}>{sourceVersionId === null ? copy.caseTitle : copy.title}{unresolved ? ` · ${copy.uncertain}` : ""}</button>
     <div id={id} hidden={!open} className="space-y-3 pb-2">
       {sourceVersionId === null ? <p className="text-sm text-fg-2">{copy.caseDetail}</p> : null}

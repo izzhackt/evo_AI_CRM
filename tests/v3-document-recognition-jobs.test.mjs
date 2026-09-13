@@ -32,6 +32,20 @@ test("real component starts compact and loading; no persisted history or provide
   assert.doesNotMatch(html, /<form/);
 });
 
+test("source and case history cannot accept a click before hydration", () => {
+  for (const sourceVersionId of [SOURCE, null]) {
+    const html = renderToStaticMarkup(createElement(DocumentRecognitionJobs,
+      { access, sourceVersionId, sourceReady: sourceVersionId !== null }));
+    const toggle = html.match(/<button\b[^>]*aria-controls="[^"]+"[^>]*>/)?.[0];
+    assert.ok(toggle, "history has a disclosure button");
+    assert.match(toggle, /\bdisabled=""/);
+    assert.match(toggle, /aria-busy="true"/);
+    assert.match(toggle, /aria-expanded="false"/);
+    const contentId = toggle.match(/aria-controls="([^"]+)"/)?.[1];
+    assert.ok(html.includes(`id="${contentId}" hidden=""`));
+  }
+});
+
 test("unknown generation and cleanup remain distinct visible outcomes with an explicit retry choice", () => {
   const html = renderList([job], true);
   assert.match(html, /Исход извлечения неизвестен/);

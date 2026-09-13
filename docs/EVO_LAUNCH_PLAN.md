@@ -55,16 +55,23 @@ technical CI. The latest release checkpoint is
 
 S2 remains active and unreleased in [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
 Migrations155–157, editable roles/scoped assignments and prepared invitations are
-implemented; current shared checkpoint is `02497173`.
+implemented; current pushed checkpoint is `21cc76cb`.
 
-- **Proved locally:** actual Auth/Mailpit/password/login, full unused-role catalogue
+- **Earlier local proof (`02497173`):** actual Auth/Mailpit/password/login, full unused-role catalogue
   lifecycle and two same-card member-assignment saves with live V+1/V+2 and exact
   restoration. Owned test resources were removed; screenshots cover the final
   catalogue draft only. Earlier source findings are closed, not whole-S2 approval.
-- **Release blocker:** CI34749513196 passed the corrected membership DDL, then
-  stopped at `staff_backfill_owner_scope_requires_review`. Preserve the guard;
-  count-only diagnostics will identify the failing legacy ownership/scope category.
-- **Next:** prove the actual Admin invitation form, department/direction and
+- **Current local check (`21cc76cb`):** whole onboarding stopped at role-editor
+  `CREATE_ID`. Individual invitation/acceptance markers were not retained in the
+  failed output; this does not establish new Admin-form acceptance.
+- **Release blocker:** CI34750378975 on the same SHA stopped at
+  `staff_backfill_owner_scope_requires_review`: DETAIL reports
+  `selected_owner_missing_case_scope: 3`; the other three categories are zero.
+  Source tracing found three incomplete P135 synthetic handoff snapshots; their
+  fixture-only owner-scope correction is independently reviewed, awaiting CI.
+  The product guard is unchanged.
+- **Next:** run the corrected candidate and bounded role-opening diagnostics,
+  prove the actual Admin invitation form, department/direction and
   affected ordinary business workflows; finish populated upgrade, independent
   whole-slice review, the exact-main release gate and deployment.
 - **Separate human gates:** confirmed employee recipients/rights and real first

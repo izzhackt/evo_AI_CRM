@@ -425,7 +425,14 @@ if ! EVO_LOCAL_STAFF_PHASE="$staff_phase" \
     >"$staff_provision_log" 2>&1; then
   provision_failure="$(grep -m 1 -E '^LOCAL_SUPABASE_STAFF_ERROR:[A-Z0-9_]+$' "$staff_provision_log" || true)"
   [[ -z "$provision_failure" ]] || echo "$provision_failure" >&2
-  role_editor_diagnostic="$(grep -m 1 -E '^LOCAL_ROLE_EDITOR_UI_STATE:\{"stage":"[A-Z_]{1,48}","roleEditors":[0-9]+,"createButtons":[0-9]+,"archiveForms":[0-9]+,"restoreForms":[0-9]+,"emptyDetails":[0-9]+\}$' "$staff_provision_log" || true)"
+  # Completed stages are partial progress; the failed proof still exits nonzero.
+  if grep -Fx "LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED" "$staff_provision_log" >/dev/null; then
+    echo "LOCAL_SUPABASE_STAFF_COMPLETED_STAGE:invitation_ui" >&2
+  fi
+  if grep -Fx "LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED" "$staff_provision_log" >/dev/null; then
+    echo "LOCAL_SUPABASE_STAFF_COMPLETED_STAGE:onboarding" >&2
+  fi
+  role_editor_diagnostic="$(grep -m 1 -E '^LOCAL_ROLE_EDITOR_UI_STATE:\{"stage":"[A-Z_]{1,48}","roleEditors":[0-9]+,"createButtons":[0-9]+,"archiveForms":[0-9]+,"restoreForms":[0-9]+,"emptyDetails":[0-9]+,"createClickHandlerBefore":(true|false|null),"createClickHandlerAtFailure":(true|false|null),"mainFrameNavigationsSinceCreateAttempt":([0-9]+|null),"clientError":(true|false)\}$' "$staff_provision_log" || true)"
   [[ -z "$role_editor_diagnostic" ]] || echo "$role_editor_diagnostic" >&2
   "$node_bin" - "$app_log" <<'NODE'
 const { readFileSync } = require("node:fs");

@@ -23710,3 +23710,9 @@ the existing Student-private assertions and every product migration/guard. This
 is not normalization of unknown data or a production permission change. The
 corrected candidate's normal required CI must prove the migration proceeds;
 source tests alone do not establish a successful populated upgrade.
+
+Diagnostic review clarification: name the navigation counter
+`mainFrameNavigationsSinceCreateAttempt`. Its interval starts immediately before
+invoking Playwright's click, includes any actionability wait, and ends at the
+failure observation; it does not prove navigation happened after the physical
+click. This corrects the earlier wording without adding instrumentation or retries.

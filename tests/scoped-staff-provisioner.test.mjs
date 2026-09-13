@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink,
@@ -33,17 +35,56 @@ const baseline = { sales: ["lead.read", "task.manage", "workflow.contract.read",
 const adminSnapshot = { schemaVersion: 1, authUserId: userId, profileId, membershipId: member, organizationId: org,
   displayName: "Local Admin", systemRole: "admin", accessVersion: 1, assignments: [], permissions: ["membership.provision"] };
 
-test("foundation failure output forwards only the exact role-editor machine counters", () => {
+test("foundation failure output forwards only the exact role-editor machine observations", () => {
   const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   const pattern = harness.match(/role_editor_diagnostic="\$\(grep -m 1 -E '([^']+)' "\$staff_provision_log" \|\| true\)"/)?.[1];
   assert.ok(pattern, "The harness must retain the bounded role-editor observation before cleanup");
   assert.match(harness, /\[\[ -z "\$role_editor_diagnostic" \]\] \|\| echo "\$role_editor_diagnostic" >&2/);
-  const line = 'LOCAL_ROLE_EDITOR_UI_STATE:{"stage":"CREATE_ID","roleEditors":0,"createButtons":1,"archiveForms":0,"restoreForms":0,"emptyDetails":1}';
+  const line = 'LOCAL_ROLE_EDITOR_UI_STATE:{"stage":"CREATE_ID","roleEditors":0,"createButtons":1,"archiveForms":0,"restoreForms":0,"emptyDetails":1,"createClickHandlerBefore":false,"createClickHandlerAtFailure":true,"mainFrameNavigationsSinceCreateAttempt":0,"clientError":false}';
   const select = (input) => spawnSync("grep", ["-m", "1", "-E", pattern], { input, encoding: "utf8" }).stdout.trim();
   assert.equal(select(`private log before\n${line}\nprivate log after\n`), line);
+  const unavailable = line.replace('"createClickHandlerBefore":false', '"createClickHandlerBefore":null')
+    .replace('"createClickHandlerAtFailure":true', '"createClickHandlerAtFailure":null')
+    .replace('"mainFrameNavigationsSinceCreateAttempt":0', '"mainFrameNavigationsSinceCreateAttempt":null');
+  assert.equal(select(unavailable), unavailable);
   for (const input of [line + " private", line.replace('"CREATE_ID"', '"person@example.com"'),
-    line.replace('"roleEditors":0', '"roleEditors":"private"'), "LOCAL_ROLE_EDITOR_UI_STATE:private"]) {
+    line.replace('"roleEditors":0', '"roleEditors":"private"'),
+    line.replace('"createClickHandlerBefore":false', '"createClickHandlerBefore":"private"'),
+    line.replace('"createClickHandlerAtFailure":true', '"createClickHandlerAtFailure":1'),
+    line.replace('"mainFrameNavigationsSinceCreateAttempt":0', '"mainFrameNavigationsSinceCreateAttempt":-1'),
+    line.replace('"clientError":false', '"clientError":"private"'), "LOCAL_ROLE_EDITOR_UI_STATE:private"]) {
     assert.equal(select(input), "");
+  }
+});
+
+test("foundation failure reports only fixed completed invitation and onboarding stages and still fails", () => {
+  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const start = harness.indexOf('  # Completed stages are partial progress; the failed proof still exits nonzero.');
+  const end = harness.indexOf('  role_editor_diagnostic=', start);
+  assert.ok(start > 0 && end > start);
+  const report = harness.slice(start, end);
+  const failFunction = harness.match(/^fail\(\) \{\n[\s\S]*?^\}/m)?.[0];
+  const terminalFailure = harness.slice(end).match(/^  fail "Local Supabase staff identity and RLS provisioning failed"(?=\nfi)/m)?.[0];
+  assert.ok(failFunction && terminalFailure);
+  const run = (input) => {
+    const directory = mkdtempSync(join(tmpdir(), "evo-stage-report-test-"));
+    const log = join(directory, "private.log");
+    try {
+      writeFileSync(log, input, { mode: 0o600 });
+      return spawnSync("bash", ["-c", `set -Eeuo pipefail\n${failFunction}\nstaff_provision_log="$1"\n${report}\n${terminalFailure}`,
+        "stage-report", log], { encoding: "utf8" });
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  };
+  for (const [input, expected] of [
+    ["LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED\nLOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED\n",
+      "LOCAL_SUPABASE_STAFF_COMPLETED_STAGE:invitation_ui\nLOCAL_SUPABASE_STAFF_COMPLETED_STAGE:onboarding\n"],
+    ["LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED\n", "LOCAL_SUPABASE_STAFF_COMPLETED_STAGE:invitation_ui\n"],
+    ["LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED\n", "LOCAL_SUPABASE_STAFF_COMPLETED_STAGE:onboarding\n"],
+    ["LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED private\nprivate LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED\nLOCAL_SUPABASE_STAFF_PROVISIONED\n", ""],
+  ]) {
+    const result = run(input);
+    assert.equal(result.status, 1); assert.equal(result.stdout, "");
+    assert.equal(result.stderr, `${expected}Local Supabase staff identity and RLS provisioning failed\n`);
   }
 });
 
@@ -320,8 +361,11 @@ for (const [stage, expectedCode] of [
 
 // A fake UI/repository boundary only: this tests helper sequencing and safe
 // diagnostics. It is explicitly not browser, Auth, SQL or role-editor acceptance.
-function roleEditorBoundary({ failureAction, alterExistingAccess = false } = {}) {
+function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickHandlers = [true, true],
+  mainFrameNavigations = 0, childFrameNavigations = 0, clientFailure = false, observationFailure } = {}) {
   const actions = [], reads = [];
+  const listeners = new Map(), mainFrame = {}, childFrame = {};
+  let nativeClickObservations = 0;
   const editorIdentity = { email: "admin@evo.local.test", password: randomUUID() };
   const privateError = new Error(`${editorIdentity.email} ${editorIdentity.password} ${appOrigin}/login?token=private`);
   const permissions = [
@@ -344,7 +388,18 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false } = {})
       if (name === "Название роли") draft.label = value;
       if (name === "Для какой работы") draft.description = value;
     },
-    async inputValue() { return name.includes("expected_version") ? String(draft.version) : draft.id; },
+    async inputValue() {
+      act(name.includes("expected_version") ? "input:expected_version" : "input:role_id");
+      return name.includes("expected_version") ? String(draft.version) : draft.id;
+    },
+    async evaluateAll(evaluate) {
+      act("observe:native-click");
+      if (observationFailure === "native-click") throw privateError;
+      // Navigation before the Create click attempt must not count toward that interval.
+      if (nativeClickObservations === 0) listeners.get("framenavigated")?.(mainFrame);
+      const present = clickHandlers[nativeClickObservations++];
+      return evaluate(present === null ? [] : [{ onclick: present ? () => {} : null }]);
+    },
     async check() {
       act(`check:${name}`);
       const permission = permissions.find(({ label }) => label === name);
@@ -352,7 +407,12 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false } = {})
     },
     async click() {
       act(`click:${name}`);
-      if (name === "Создать роль") { draft = emptyRole(ids[0]); operation = "create"; }
+      if (name === "Создать роль") {
+        draft = emptyRole(ids[0]); operation = "create";
+        for (let index = 0; index < mainFrameNavigations; index += 1) listeners.get("framenavigated")?.(mainFrame);
+        for (let index = 0; index < childFrameNavigations; index += 1) listeners.get("framenavigated")?.(childFrame);
+        if (clientFailure) listeners.get("pageerror")?.(privateError);
+      }
       else if (name === "Изменить") { draft = structuredClone(selected); operation = "save"; }
       else if (name === "Скопировать") { draft = { ...emptyRole(ids[1]), draftPermissionKeys: [...selected.draftPermissionKeys] }; operation = "copy"; }
       else if (name === "Сохранить черновик") {
@@ -376,9 +436,15 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false } = {})
     },
     async waitFor() { act(`wait:${name}`); },
     async getAttribute(attribute) { return attribute === "data-system-role" ? "admin" : "actual"; },
-    async count() { return 0; },
+    async count() { if (observationFailure === "fixed-counts") throw privateError; return 0; },
   });
-  const page = { ...locator(), setDefaultTimeout() {}, on() {}, url: () => pageUrl,
+  const page = { ...locator(), setDefaultTimeout() {},
+    on(event, listener) {
+      if (event === "framenavigated" && observationFailure === "navigation-listener") throw privateError;
+      listeners.set(event, listener);
+    },
+    mainFrame() { if (observationFailure === "main-frame") throw privateError; return mainFrame; },
+    url: () => pageUrl,
     getByTestId: () => locator("shell"), async goto(url) { act("goto"); pageUrl = url; },
     async screenshot() { assert.fail("No default screenshots, especially during login"); },
   };
@@ -427,6 +493,44 @@ for (const [failureAction, code] of [["goto", "LOCAL_ROLE_EDITOR_LOGIN_FAILED"],
       return true;
     });
     assert.equal(fixture.actions.filter((name) => name === failureAction).length, 1);
+    assert.equal(fixture.closed(), 1);
+  });
+}
+
+test("role editor failure emits only native handler observations and main-frame counts since the Create attempt", async (t) => {
+  const output = [];
+  t.mock.method(process.stderr, "write", (value) => { output.push(String(value)); return true; });
+  const fixture = roleEditorBoundary({ failureAction: "input:role_id", clickHandlers: [false, true],
+    mainFrameNavigations: 2, childFrameNavigations: 3, clientFailure: true });
+  await assert.rejects(verifyScopedStaffRoleEditor(fixture.input), { code: "LOCAL_ROLE_EDITOR_CREATE_ID_FAILED" });
+  assert.equal(output.length, 1);
+  assert.deepEqual(JSON.parse(output[0].slice("LOCAL_ROLE_EDITOR_UI_STATE:".length)), {
+    stage: "CREATE_ID", roleEditors: 0, createButtons: 0, archiveForms: 0, restoreForms: 0, emptyDetails: 0,
+    createClickHandlerBefore: false, createClickHandlerAtFailure: true, mainFrameNavigationsSinceCreateAttempt: 2, clientError: true,
+  });
+  const click = fixture.actions.indexOf("click:Создать роль");
+  assert.equal(fixture.actions[click - 1], "observe:native-click");
+  assert.equal(fixture.actions.filter((action) => action === "click:Создать роль").length, 1);
+  for (const secret of [fixture.input.identity.email, fixture.input.identity.password, appOrigin, "token=private"])
+    assert.ok(!output.join("").includes(secret));
+  assert.equal(fixture.closed(), 1);
+});
+
+for (const observationFailure of ["native-click", "navigation-listener", "main-frame", "fixed-counts"]) {
+  test(`role editor preserves the actual failure when ${observationFailure} observation is unavailable`, async (t) => {
+    const output = [];
+    t.mock.method(process.stderr, "write", (value) => { output.push(String(value)); return true; });
+    const fixture = roleEditorBoundary({ failureAction: "input:role_id", mainFrameNavigations: 1, observationFailure });
+    await assert.rejects(verifyScopedStaffRoleEditor(fixture.input), { code: "LOCAL_ROLE_EDITOR_CREATE_ID_FAILED" });
+    if (observationFailure === "fixed-counts") assert.deepEqual(output, []);
+    else {
+      assert.equal(output.length, 1);
+      const diagnostic = JSON.parse(output[0].slice("LOCAL_ROLE_EDITOR_UI_STATE:".length));
+      if (observationFailure === "native-click") {
+        assert.equal(diagnostic.createClickHandlerBefore, null); assert.equal(diagnostic.createClickHandlerAtFailure, null);
+      } else assert.equal(diagnostic.mainFrameNavigationsSinceCreateAttempt, null);
+    }
+    assert.equal(fixture.actions.filter((action) => action === "click:Создать роль").length, 1);
     assert.equal(fixture.closed(), 1);
   });
 }

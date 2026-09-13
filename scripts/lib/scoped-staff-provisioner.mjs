@@ -443,6 +443,18 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
   let page;
   let stage = "SETUP";
   let clientError = false;
+  let createClickHandlerBefore = null;
+  let createClickStarted = false;
+  let mainFrameNavigationsSinceCreateAttempt = null;
+  const observeCreateClickHandler = async () => {
+    try {
+      // A native property observation only, not a React hydration assertion.
+      // evaluateAll observes current matches without waiting for a button:
+      // https://playwright.dev/docs/api/class-locator#locator-evaluate-all
+      return await page.getByRole("button", { name: "Создать роль", exact: true })
+        .evaluateAll((elements) => elements.length === 1 ? typeof elements[0].onclick === "function" : null);
+    } catch { return null; }
+  };
   try {
     apiUrl = localStaffOrigin(apiUrl); appOrigin = localStaffOrigin(appOrigin);
     localClient(adminClient, apiUrl); uuid(organizationId); localIdentity(identity, true);
@@ -531,6 +543,19 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
       await details().getByRole("heading", { name: label, exact: true }).waitFor();
     };
     stage = "CREATE";
+    try {
+      // This Page's main frame only; no URL or frame content is recorded.
+      // https://playwright.dev/docs/api/class-page#page-event-framenavigated
+      page.on("framenavigated", (frame) => {
+        try {
+          if (createClickStarted && mainFrameNavigationsSinceCreateAttempt !== null && frame === page.mainFrame()) mainFrameNavigationsSinceCreateAttempt += 1;
+        } catch { mainFrameNavigationsSinceCreateAttempt = null; }
+      });
+      mainFrameNavigationsSinceCreateAttempt = 0;
+    } catch { /* Observations must never replace the actual UI failure. */ }
+    createClickHandlerBefore = await observeCreateClickHandler();
+    // Start at the click attempt, including Playwright's actionability wait.
+    createClickStarted = true;
     await page.getByRole("button", { name: "Создать роль", exact: true }).click();
     stage = "CREATE_ID";
     const roleId = uuid(await editor().locator('input[name="role_id"]').inputValue());
@@ -648,6 +673,10 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
           archiveForms: await page.getByRole("form", { name: "Архивировать роль", exact: true }).count(),
           restoreForms: await page.getByRole("form", { name: "Восстановить роль", exact: true }).count(),
           emptyDetails: await details.getByText("Выберите роль, чтобы посмотреть и изменить разрешения.", { exact: true }).count(),
+          createClickHandlerBefore,
+          createClickHandlerAtFailure: await observeCreateClickHandler(),
+          mainFrameNavigationsSinceCreateAttempt,
+          clientError,
         })}\n`);
       } catch { /* Page setup or closure can make even fixed counters unavailable. */ }
     }

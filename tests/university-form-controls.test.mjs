@@ -30,6 +30,10 @@ const wording = compile("../src/lib/v3/wording.ts");
 const { UniversityFormCreate } = compile("../src/components/v3/universities/forms/UniversityFormCreate.tsx");
 const { UniversityFormUpload } = compile("../src/components/v3/universities/forms/UniversityFormUpload.tsx");
 const { UniversityFormUploadStatus } = compile("../src/components/v3/universities/forms/UniversityFormUploadStatus.tsx");
+const { UniversityFormDecision } = compile("../src/components/v3/universities/forms/UniversityFormDecision.tsx");
+const { UniversityFormMappingEditor, UniversityFormSavedFragment } = compile("../src/components/v3/universities/forms/UniversityFormMappingEditor.tsx");
+const { UniversityFormMappingHistory } = compile("../src/components/v3/universities/forms/UniversityFormMappingHistory.tsx");
+const { universityFormWorkspaceMatches } = compile("../src/lib/university-form-ui.ts");
 
 test("actual React SSR renders one labelled create control and a recovery URL without running a command", () => {
   let called = false;
@@ -153,4 +157,93 @@ for (const pause of ["prepare", "reserve"]) test(`leaving while ${pause} awaits 
   paused.resolve(pause === "prepare" ? prepared : reserved);
   await result;
   assert.deepEqual(probe.counts(), { reserveCalls: pause === "reserve" ? 1 : 0, uploads: 0 });
+});
+
+const mapping = { id: "ffffffff-ffff-4fff-8fff-ffffffffffff", template_version_id: version.id, template_sha256: version.sha256,
+  sha256: "b".repeat(64), revision: 3, mappings: [], created_at: "2026-09-14T00:00:00Z", review: null };
+function decisionMarkup(decision) {
+  return renderToStaticMarkup(createElement(UniversityFormDecision, { catalogId, templateId, versionId: version.id,
+    revision: 3, requestId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", decision,
+    action: async () => { throw new Error("render must not mutate"); } }));
+}
+test("review control binds a saved mapping, requires confirmation and does not publish automatically", () => {
+  const html = decisionMarkup({ operation: "review_mapping", mapping });
+  assert.match(html, /name="mapping_id" value="ffffffff-ffff-4fff-8fff-ffffffffffff"/u);
+  assert.match(html, /name="decision"/u);
+  assert.match(html, /Я сверил поля с исходным бланком/u);
+  assert.match(html, /type="submit" disabled=""/u);
+  assert.doesNotMatch(html, /name="review_id"|Бланк доступен для заполнения/u);
+});
+test("publication only offers the exact approved review and remains unconfirmed initially", () => {
+  assert.equal(decisionMarkup({ operation: "publish", mapping }), "");
+  const approved = { ...mapping, review: { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", decision: "approved" } };
+  const html = decisionMarkup({ operation: "publish", mapping: approved });
+  assert.match(html, /name="review_id" value="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"/u);
+  assert.match(html, /type="submit" disabled=""/u);
+  assert.doesNotMatch(html, /checked=""|name="decision"/u);
+});
+test("archive is explicit and truthful about preserving files and history", () => {
+  const html = decisionMarkup({ operation: "archive" });
+  assert.match(html, /Файлы и история сохранятся/u);
+  assert.match(html, /type="checkbox"[^>]*name="confirmed"/u);
+  assert.match(html, /type="submit" disabled=""/u);
+  assert.doesNotMatch(html, /name="mapping_id"|name="review_id"/u);
+  assert.equal(wording.universityFormSourceLabel("student_first_name"), "Имя");
+  assert.equal(wording.universityFormSourceLabel("assessment_result"), null);
+  assert.equal(wording.universityFormSourceLabel("toString"), null);
+});
+
+test("mapping editor preserves supplied selections but waits for an authorized source preview before saving", () => {
+  const mappings = [{ slotId: "p-1", sourceKey: "student_first_name", manual: false, required: true, format: "text" }];
+  const html = renderToStaticMarkup(createElement(UniversityFormMappingEditor, { catalogId, templateId, revision: 3,
+    version: { ...version, mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    manifest: { format: "docx", slots: [{ id: "p-1", editable: true }], pageSizes: [] }, manifestDigest: "b".repeat(64),
+    mappingId: mapping.id, requestId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", initialMappings: mappings,
+    action: async () => { throw new Error("render must not save a mapping"); } }));
+  assert.ok(html.includes(wording.universityFormManagement.previewLoading));
+  assert.match(html, /name="operation" value="save_mapping"/u);
+  assert.match(html, /name="mappings" value="[^"]*&quot;student_first_name&quot;/u);
+  assert.match(html, /type="submit" disabled=""/u);
+  assert.equal((html.match(/type="submit"/gu) ?? []).length, 1);
+  assert.doesNotMatch(html, /<iframe|<table|<select|Бланк доступен для заполнения/u);
+});
+
+test("every mapping in a 20-row history page has an exact link without skipping intermediate rows", () => {
+  const rows = Array.from({ length: 20 }, (_, index) => ({ ...mapping,
+    id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(index + 1).padStart(12, "0")}`, revision: 80 - index }));
+  const html = renderToStaticMarkup(createElement(UniversityFormMappingHistory, { base: `/v3/universities/${catalogId}/forms`,
+    templateId, versionId: version.id, mappings: rows, selectedId: rows[8].id, before: 90, next: 61 }));
+  for (const item of rows) assert.ok(html.includes(`before_mapping=90&amp;mapping=${item.id}`), item.id);
+  assert.equal((html.match(/&amp;mapping=/gu) ?? []).length, 20);
+  assert.match(html, /before_mapping=61/u);
+  assert.equal((html.match(/aria-current="page"/gu) ?? []).length, 1);
+  const short = renderToStaticMarkup(createElement(UniversityFormMappingHistory, { base: `/v3/universities/${catalogId}/forms`,
+    templateId, versionId: version.id, mappings: rows.slice(0, 3), before: null, next: null }));
+  assert.equal((short.match(/&amp;mapping=/gu) ?? []).length, 3);
+  assert.doesNotMatch(short, /before_mapping=/u);
+});
+
+test("saved mapping review renders exact target context, date format and manual reasons without editable controls", () => {
+  const slot = { id: "p-47", text: "Date of birth: ____", context: "Student section, not parent section",
+    kind: "label", editable: true, manualReason: null, truncated: true };
+  const html = renderToStaticMarkup(createElement(UniversityFormSavedFragment, { slot, position: 47,
+    field: { slotId: "p-47", sourceKey: "date_of_birth", required: true, manual: false, format: "DD.MM.YYYY" } }));
+  for (const value of ["Фрагмент 47", slot.text, slot.context, "Дата рождения", "31.12.2026", "Обязательное поле", "Фрагмент сокращён"])
+    assert.ok(html.includes(value), value);
+  assert.doesNotMatch(html, /<select|<input|<button|date_of_birth|p-47/u);
+  const manual = renderToStaticMarkup(createElement(UniversityFormSavedFragment, { position: 48,
+    slot: { ...slot, id: "p-48", text: "Signature: ____", editable: false, manualReason: "Подпись заполняется вручную <script>" },
+    field: { slotId: "p-48", sourceKey: null, required: false, manual: true, format: "text" } }));
+  assert.match(manual, /Подпись заполняется вручную &lt;script&gt;/u);
+  assert.match(manual, /Вручную/u); assert.doesNotMatch(manual, /<script>|<select|<input/u);
+});
+
+test("session-authorized archived history remains readable without inventing write authority", () => {
+  const organizationId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const workspace = { can_manage: false, template: { archived: true, organization_id: organizationId, catalog_institution_id: catalogId } };
+  assert.equal(universityFormWorkspaceMatches(workspace, organizationId, catalogId), true);
+  assert.equal(workspace.can_manage, false);
+  assert.equal(universityFormWorkspaceMatches({ ...workspace, template: { ...workspace.template, archived: false } }, organizationId, catalogId), false);
+  assert.equal(universityFormWorkspaceMatches(workspace, templateId, catalogId), false);
+  assert.equal(universityFormWorkspaceMatches(workspace, organizationId, templateId), false);
 });

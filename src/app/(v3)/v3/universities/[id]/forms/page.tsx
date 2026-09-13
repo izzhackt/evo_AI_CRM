@@ -1,18 +1,23 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import { PartShell } from "@/components/v3/PartShell";
 import { UniversityFormCreate } from "@/components/v3/universities/forms/UniversityFormCreate";
 import { UniversityFormUpload } from "@/components/v3/universities/forms/UniversityFormUpload";
 import { UniversityFormUploadStatus } from "@/components/v3/universities/forms/UniversityFormUploadStatus";
+import { UniversityFormDecision } from "@/components/v3/universities/forms/UniversityFormDecision";
+import { UniversityFormMappingEditor } from "@/components/v3/universities/forms/UniversityFormMappingEditor";
+import { UniversityFormMappingHistory } from "@/components/v3/universities/forms/UniversityFormMappingHistory";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { universityUuid } from "@/lib/platform-university-catalog";
 import { PlatformUniversityFormError } from "@/lib/platform-university-forms";
 import { createUniversityFormAction, reserveUniversityFormVersionAction } from "@/lib/platform-university-form-actions";
+import { manageUniversityFormAction } from "@/lib/platform-university-form-management-actions";
 import { readStaffUniversities } from "@/lib/v3/university-source";
 import { readUniversityFormWorkspace } from "@/lib/v3/university-form-source";
 import { universityFormWorkspace as words, universityFormActionMessage } from "@/lib/v3/wording";
+import { universityFormManagement as management, universityFormSourceLabel } from "@/lib/v3/wording";
 
 export const dynamic = "force-dynamic";
 const link = "inline-flex min-h-11 items-center rounded-ctl px-3 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2";
@@ -33,10 +38,11 @@ export default async function UniversityFormsPage({ params, searchParams }: {
   const catalogId = universityUuid(route.id) ?? notFound();
   const base = `/v3/universities/${catalogId}/forms`;
   if (isStaffPreview(actor) || !staffHasPermission(actor, "catalog.import.manage")) redirect(`/access-denied?from=${encodeURIComponent(base)}`);
-  const templateId = uuid(query, "template"), versionId = uuid(query, "version"), afterId = uuid(query, "after");
+  const templateId = uuid(query, "template"), versionId = uuid(query, "version"), afterId = uuid(query, "after"), mappingId = uuid(query, "mapping");
   const beforeVersion = before(query, "before_version"), beforeMapping = before(query, "before_mapping");
-  const create = single(query, "new") === "1", upload = single(query, "upload") === "1";
-  if ((create && (templateId || upload)) || ((upload || versionId || beforeVersion || beforeMapping) && !templateId)) notFound();
+  const create = single(query, "new") === "1", upload = single(query, "upload") === "1", edit = single(query, "edit") === "1";
+  if ((create && (templateId || upload || edit)) || (upload && edit) || (mappingId && !versionId)
+    || ((edit || upload || versionId || beforeVersion || beforeMapping || mappingId) && !templateId)) notFound();
   let data, university;
   try {
     const [catalogue, forms] = await Promise.all([readStaffUniversities(actor, undefined, catalogId),
@@ -52,7 +58,10 @@ export default async function UniversityFormsPage({ params, searchParams }: {
   }
   const { templates, workspace, inspection } = data;
   const selected = workspace?.selected_version;
-  const writable = workspace && !workspace.template.archived && inspection?.source_current !== false;
+  const mapping = mappingId ? workspace?.mappings.find(item => item.id === mappingId) : workspace?.mappings[0];
+  if (mappingId && !mapping) notFound();
+  const writable = workspace && workspace.can_manage && !workspace.template.archived && inspection?.source_current !== false;
+  const mappingUrl = workspace && selected && mapping ? `${base}?template=${workspace.template.id}&version=${selected.id}${beforeMapping ? `&before_mapping=${beforeMapping}` : ""}&mapping=${mapping.id}` : undefined;
   return <PartShell title={words.title}>
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -83,8 +92,38 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                   catalogId={catalogId} templateId={workspace.template.id} revision={workspace.template.revision}
                   reserveRequestId={randomUUID()} uploadRequestId={randomUUID()} version={upload ? null : selected}
                   action={reserveUniversityFormVersionAction} />
-                : selected ? <UniversityFormUploadStatus key={selected.id} catalogId={catalogId} templateId={workspace.template.id} version={selected} initialInspection={inspection} /> : null}
+                : selected && !workspace.template.archived ? <UniversityFormUploadStatus key={selected.id} catalogId={catalogId} templateId={workspace.template.id} version={selected} initialInspection={inspection} /> : null}
               {writable && selected && !upload ? <Link prefetch={false} href={`${base}?template=${workspace.template.id}&upload=1`} className={link}>{words.newVersion}</Link> : null}
+              {writable && selected && inspection?.inspection === "verified" && inspection.manifest?.format === "docx" && !upload ?
+                !mapping || edit ? <UniversityFormMappingEditor key={`edit:${selected.id}:${mapping?.id ?? "new"}`}
+                  catalogId={catalogId} templateId={workspace.template.id} revision={workspace.template.revision} version={selected}
+                  manifest={inspection.manifest} manifestDigest={createHash("sha256").update(JSON.stringify(inspection.manifest)).digest("hex")}
+                  mappingId={randomUUID()} requestId={randomUUID()} initialMappings={mapping?.mappings ?? []} action={manageUniversityFormAction} />
+                  : <Link prefetch={false} href={`${base}?template=${workspace.template.id}&version=${selected.id}${beforeMapping ? `&before_mapping=${beforeMapping}` : ""}&mapping=${mapping.id}&edit=1`} className={link}>{management.edit}</Link> : null}
+              {mapping && !upload && !edit ? <div className="space-y-5 border-t border-border pt-5">
+                <div className="space-y-2"><h3 className="text-lg font-bold text-fg">{management.mappings}</h3>
+                  <p className="text-sm text-fg-2">{management.mappingCount} {mapping.mappings.length} · {mapping.review?.decision === "approved" ? management.mappingApproved : mapping.review?.decision === "rejected" ? management.mappingRejected : management.mappingPending}</p>
+                  {!(writable && selected && inspection?.inspection === "verified" && inspection.manifest?.format === "docx") ? <ul className="max-h-80 space-y-2 overflow-y-auto pr-2" tabIndex={0} aria-label={management.mappings}>
+                    {mapping.mappings.map(field => <li key={field.slotId} className="text-sm leading-6 text-fg">
+                      {field.manual ? management.manual : universityFormSourceLabel(field.sourceKey ?? "")} · {field.required ? management.required : management.optional}
+                    </li>)}
+                  </ul> : null}
+                </div>
+                {writable && selected && inspection?.inspection === "verified" && inspection.manifest?.format === "docx" ?
+                  <UniversityFormMappingEditor key={`review-context:${selected.id}:${mapping.id}`} readOnly
+                    catalogId={catalogId} templateId={workspace.template.id} revision={workspace.template.revision} version={selected}
+                    manifest={inspection.manifest} manifestDigest={createHash("sha256").update(JSON.stringify(inspection.manifest)).digest("hex")}
+                    mappingId={mapping.id} requestId={randomUUID()} initialMappings={mapping.mappings} action={manageUniversityFormAction} /> : null}
+                {writable && inspection?.inspection === "verified" && mapping.review?.decision !== "approved" ? <UniversityFormDecision key={`review:${mapping.id}`}
+                  catalogId={catalogId} templateId={workspace.template.id} versionId={selected?.id ?? null} revision={workspace.template.revision}
+                  requestId={randomUUID()} decision={{ operation: "review_mapping", mapping }} action={manageUniversityFormAction} returnUrl={mappingUrl} /> : null}
+                {writable && inspection?.inspection === "verified" && mapping.review?.decision === "approved" && workspace.publication?.mapping_id !== mapping.id ?
+                  <UniversityFormDecision key={`publish:${mapping.id}:${mapping.review.id}`} catalogId={catalogId} templateId={workspace.template.id}
+                    versionId={selected?.id ?? null} revision={workspace.template.revision} requestId={randomUUID()}
+                    decision={{ operation: "publish", mapping }} action={manageUniversityFormAction} returnUrl={mappingUrl} /> : null}
+              </div> : null}
+              {selected && (workspace.mappings.length || beforeMapping) ? <UniversityFormMappingHistory base={base} templateId={workspace.template.id}
+                versionId={selected.id} mappings={workspace.mappings} selectedId={mapping?.id} before={beforeMapping} next={workspace.next_mapping_before} /> : null}
               {workspace.versions.length ? <details className="border-t border-border pt-4"><summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-fg">{words.versions}</summary>
                 <ul className="space-y-1">{workspace.versions.map(version => <li key={version.id}>
                   <Link prefetch={false} href={`${base}?template=${workspace.template.id}&version=${version.id}`} className={link} aria-current={selected?.id === version.id ? "page" : undefined}>
@@ -92,6 +131,12 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                   </Link></li>)}</ul>
                 {workspace.next_version_before ? <Link href={`${base}?template=${workspace.template.id}&before_version=${workspace.next_version_before}`} className={link}>{words.olderVersions}</Link> : null}
                 {beforeVersion ? <Link href={`${base}?template=${workspace.template.id}`} className={link}>{words.currentVersion}</Link> : null}
+              </details> : null}
+              {writable && !upload && !edit ? <details className="border-t border-border pt-4">
+                <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-fg-2">{management.archive}</summary>
+                <UniversityFormDecision key={`archive:${workspace.template.id}`} catalogId={catalogId} templateId={workspace.template.id}
+                  versionId={selected?.id ?? null} revision={workspace.template.revision} requestId={randomUUID()}
+                  decision={{ operation: "archive" }} action={manageUniversityFormAction} />
               </details> : null}
             </> : <div className="space-y-2"><h2 className="text-xl font-bold text-fg">{templates.items.length ? words.choose : words.empty}</h2>
               <p className="max-w-xl text-sm leading-6 text-fg-2">{templates.items.length ? words.chooseExplanation : words.emptyExplanation}</p></div>}

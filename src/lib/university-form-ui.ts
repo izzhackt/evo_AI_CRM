@@ -1,4 +1,13 @@
-import type { UniversityFormCommandReceipt } from "./university-form-registry.ts";
+import type { UniversityFormCommandReceipt, UniversityFormWorkspace } from "./university-form-registry.ts";
+
+/** After the session RPC: archived history is readable, never writable.
+ * SQL rejects archived reads without live manager authority because publication
+ * is null. can_manage also includes !archived, so it is not a read permission.
+ */
+export function universityFormWorkspaceMatches(workspace: UniversityFormWorkspace, organizationId: string, catalogId: string): boolean {
+  return (workspace.can_manage || workspace.template.archived)
+    && workspace.template.organization_id === organizationId && workspace.template.catalog_institution_id === catalogId;
+}
 
 /** Presentation result only. A saved registry command is not a verified file. */
 export type UniversityFormActionStatus =

@@ -9,7 +9,7 @@ import { readUniversityTemplateRuntimeIdentity } from "./university-template-run
 import type { UniversityTemplateRuntimeIdentity } from "./university-template-runtime-identity.ts";
 import type { PlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { ClamdScanError, isClamdMalwareScanProof, scanBytesWithClamd } from "./clamd-malware-scanner.ts";
-import { inspectUniversityTemplate } from "./university-template-preflight.ts";
+import { inspectUniversityTemplate, previewUniversityTemplateSource, type UniversityTemplateSourcePreviewResult } from "./university-template-preflight.ts";
 import { UniversityTemplateSourceError, awaitUniversityTemplateOperation, readUniversityTemplateStream,
   readUniversityTemplateSource, uploadUniversityTemplateSource, universityTemplateSha256 } from "./university-template-source-storage.ts";
 import { templateIngressUuid, templateIngressMime, templateIngressRecord, templateIngressHash, templateIngressInteger,
@@ -27,6 +27,7 @@ export type UniversityTemplateIngressDependencies = Readonly<{
   readIdentity: typeof readUniversityTemplateRuntimeIdentity;
   scan: typeof scanBytesWithClamd;
   inspect: typeof inspectUniversityTemplate;
+  preview: typeof previewUniversityTemplateSource;
   backendConfig: typeof getPlatformSupabaseBackendConfig;
   fetch: typeof fetch;
   requestId(): string;
@@ -36,6 +37,7 @@ const DEFAULTS: UniversityTemplateIngressDependencies = {
   createSessionClient: async () => (await import("../supabase/server.ts")).createSupabaseServerClient(),
   createServiceClient: () => createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()),
   readIdentity: readUniversityTemplateRuntimeIdentity, scan: scanBytesWithClamd, inspect: inspectUniversityTemplate,
+  preview: previewUniversityTemplateSource,
   backendConfig: getPlatformSupabaseBackendConfig, fetch, requestId: randomUUID,
 };
 const HEADERS = { "cache-control": "private, no-store", "x-content-type-options": "nosniff" };
@@ -224,19 +226,29 @@ async function processUpload(request: Request, mime: UniversityTemplateMime, rec
   }
 }
 
-async function accessSource(request: Request, context: Context, intent: "read" | "reconcile", deps: UniversityTemplateIngressDependencies,
+async function accessSource(request: Request, context: Context, intent: "read" | "reconcile" | "preview", deps: UniversityTemplateIngressDependencies,
   signal: AbortSignal): Promise<Response> {
   const actor = actorFrom(await awaitUniversityTemplateOperation(() => deps.loadActor(), signal));
   const { template, version } = await routeContext(context, signal);
+  let previewOffset = 0;
+  if (intent === "preview") {
+    const params = new URL(request.url).searchParams;
+    const value = params.get("offset");
+    if ([...params].length !== 1 || !value || !/^(?:0|[1-9]\d{0,3})$/u.test(value) || Number(value) > 2999)
+      throw new IngressError(400, "invalid_request");
+    previewOffset = Number(value);
+  }
   const session = await awaitUniversityTemplateOperation(() => deps.createSessionClient(), signal);
   const metadata = await readMetadata(session, template, version, signal);
-  const command = intent === "read" ? { expected: metadata.template_revision, requestId: templateIngressUuid(deps.requestId()), reason: "Read private university template" }
+  const command = intent !== "reconcile" ? { expected: metadata.template_revision, requestId: templateIngressUuid(deps.requestId()), reason: "Read private university template" }
     : await readCommand(request, signal);
   if (!metadata.source_current || !metadata.ingress) throw new IngressError(409, "source_changed");
-  if (intent === "read" && metadata.inspection !== "verified") throw new IngressError(409, "not_inspected");
-  return byteOperation(async () => {
+  if (intent !== "reconcile" && metadata.inspection !== "verified") throw new IngressError(409, "not_inspected");
+  if (intent === "preview" && (metadata.manifest?.format !== "docx" || previewOffset >= metadata.manifest.slots.length))
+    throw new IngressError(400, "invalid_request");
+  return byteOperation(async retain => {
     const granted = templateIngressRecord(await rpc(session, "prepare_university_template_source_access", { p_template_id: template,
-      p_template_version_id: version, p_expected_revision: command.expected, p_intent: intent, p_request_id: command.requestId,
+      p_template_version_id: version, p_expected_revision: command.expected, p_intent: intent === "preview" ? "read" : intent, p_request_id: command.requestId,
       p_reason: command.reason }, signal), ["grant_id"]);
     const grantId = templateIngressUuid(granted.grant_id);
     if (intent === "reconcile") {
@@ -256,6 +268,15 @@ async function accessSource(request: Request, context: Context, intent: "read" |
       || receipt.ingress_id !== metadata.ingress?.ingress_id) throw new IngressError(503, "unavailable");
     const bytes = await readUniversityTemplateSource(source, config, AbortSignal.any([signal, AbortSignal.timeout(20_000)]), deps.fetch);
     const observedHash = bytes ? universityTemplateSha256(bytes) : null;
+    let preview: UniversityTemplateSourcePreviewResult | null = null;
+    if (intent === "preview") {
+      if (!bytes || observedHash !== source.sha256 || !metadata.manifest) throw new IngressError(409, "source_changed");
+      // Keep the source grant open until after native processing. The completion
+      // below rechecks live authority before any private excerpt is returned.
+      preview = await awaitUniversityTemplateOperation(() => retain(deps.preview({ bytes, mimeType: source.mime_type,
+        expectedSha256: source.sha256, expectedManifest: metadata.manifest!, offset: previewOffset }, { signal })), signal);
+      if (preview.status !== "preview") throw new IngressError(503, "unavailable");
+    }
     const finished = templateIngressRecord(await rpc(service, "complete_university_template_source_access", { p_grant_id: grantId,
       p_observed_sha256: observedHash, p_observed_bytes: bytes?.byteLength ?? null,
       p_observed_mime_type: bytes ? source.mime_type : null, p_storage_missing: bytes === null }, signal), ["permitted", "receipt"]);
@@ -267,6 +288,7 @@ async function accessSource(request: Request, context: Context, intent: "read" |
       return receiptResponse(final);
     }
     if (!finished.permitted || !bytes || observedHash !== source.sha256 || final.state !== "verified") throw new IngressError(409, "source_changed");
+    if (preview?.status === "preview") return Response.json(preview, { headers: HEADERS });
     return new Response(new Uint8Array(bytes), { headers: { ...HEADERS, "content-type": source.mime_type,
       "content-length": String(bytes.byteLength), "content-disposition": source.mime_type === "application/pdf"
         ? 'inline; filename="university-template.pdf"' : 'attachment; filename="university-template.docx"',
@@ -333,6 +355,9 @@ export function createUniversityTemplateIngressHandlers(overrides: Partial<Unive
     },
     read(request: Request, context: Context): Promise<Response> {
       return bounded(request, signal => accessSource(request, context, "read", deps, signal), 50_000);
+    },
+    preview(request: Request, context: Context): Promise<Response> {
+      return bounded(request, signal => accessSource(request, context, "preview", deps, signal), 55_000);
     },
     reconcile(request: Request, context: Context): Promise<Response> {
       return bounded(request, signal => accessSource(request, context, "reconcile", deps, signal), 55_000);

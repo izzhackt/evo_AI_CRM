@@ -82,16 +82,16 @@ test("cancel remains a live-session command without scanner, native identity or 
 test("source reads and reconciliation reject anonymous callers without any private operation", async () => {
   const handlers = createUniversityTemplateIngressHandlers({ loadActor: async () => ({ status: "anonymous", actor: null }),
     createSessionClient() { assert.fail("anonymous source access"); }, createServiceClient() { assert.fail("anonymous source access"); } });
-  for (const method of ["read", "reconcile"]) {
+  for (const method of ["read", "reconcile", "preview"]) {
     const response = await handlers[method](new Request(url, { method: method === "read" ? "GET" : "POST" }), context);
     assert.equal(response.status, 401); assert.deepEqual(await response.json(), { error: "authentication_required" });
   }
 });
 
-test("only four exact template source API paths enter the connected route boundary", () => {
+test("only five exact template source API paths enter the connected route boundary", () => {
   const base = new URL(url).pathname;
-  for (const suffix of ["", "/status", "/cancel", "/reconcile"]) assert.equal(isConnectedPlatformApi(base + suffix), true, suffix);
-  for (const suffix of ["/", "/status/", "/unknown", "/download", "/reconcile/other"]) assert.equal(isConnectedPlatformApi(base + suffix), false, suffix);
+  for (const suffix of ["", "/status", "/cancel", "/reconcile", "/preview"]) assert.equal(isConnectedPlatformApi(base + suffix), true, suffix);
+  for (const suffix of ["/", "/status/", "/unknown", "/download", "/reconcile/other", "/preview/", "/preview/other"]) assert.equal(isConnectedPlatformApi(base + suffix), false, suffix);
   assert.equal(isConnectedPlatformApi(base.replace(template, "invalid")), false);
   assert.equal(isConnectedPlatformApi("/api/v3/university-forms"), false);
 });
@@ -102,7 +102,7 @@ for (const [name, actorResult] of [["no permission", { status: "authenticated", 
   test(`${name} cannot enter any template source operation`, async () => {
     const handlers = createUniversityTemplateIngressHandlers({ loadActor: async () => actorResult,
       createSessionClient() { assert.fail("session after rejected actor"); }, readIdentity() { assert.fail("identity after rejected actor"); } });
-    for (const operation of ["upload", "status", "read", "cancel", "reconcile"]) {
+    for (const operation of ["upload", "status", "read", "cancel", "reconcile", "preview"]) {
       const response = await handlers[operation](new Request(url), context); assert.ok([403, 503].includes(response.status));
     }
   });
@@ -155,12 +155,14 @@ test("aborted upload retains byte admission until the actual uncancellable scann
   } finally { rejectScan(new Error("fixture cleanup")); await new Promise(resolve => setImmediate(resolve)); }
 });
 
-function sourceAccessFixture(permitted) {
+function sourceAccessFixture(permitted, { docx = false, preview } = {}) {
   const bytes = Buffer.from("synthetic"), sha256 = createHash("sha256").update(bytes).digest("hex"), calls = [];
+  const mime = docx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf";
   const verified = receipt("verified", { revision: 3, sha256, inspection_receipt_id: claim, can_cancel: false });
   const metadata = { schema_version: 1, template_id: template, template_version_id: version, template_sha256: sha256,
-    mime_type: "application/pdf", template_revision: 3, source_current: true, inspection: "verified",
-    manifest: { format: "pdf", slots: [], pageSizes: [{ width: 595, height: 842 }] }, receipt_id: claim,
+    mime_type: mime, template_revision: 3, source_current: true, inspection: "verified",
+    manifest: docx ? { format: "docx", slots: [{ id: "p-1", editable: true }], pageSizes: [] }
+      : { format: "pdf", slots: [], pageSizes: [{ width: 595, height: 842 }] }, receipt_id: claim,
     inspected_at: "2026-09-14T00:00:00Z", ingress: verified };
   const handlers = createUniversityTemplateIngressHandlers({ loadActor: async () => ({ status: "authenticated", actor }),
     readIdentity() { assert.fail("verified source read must not need native processing authority"); },
@@ -172,11 +174,13 @@ function sourceAccessFixture(permitted) {
     }), createServiceClient: () => transport((name, args) => {
       calls.push(name);
       if (name === "consume_university_template_source_access") return { data: { grant_id: claim, receipt: verified,
-        source: { ...source, expected_revision: 3, sha256 }, expires_at: new Date(Date.now() + 60000).toISOString() }, error: null };
+        source: { ...source, expected_revision: 3, sha256, mime_type: mime,
+          object_name: `${actor.organizationId}/${template}/${version}.${docx ? "docx" : "pdf"}` }, expires_at: new Date(Date.now() + 60000).toISOString() }, error: null };
       assert.equal(name, "complete_university_template_source_access"); assert.equal(args.p_observed_sha256, sha256);
       return { data: { permitted, receipt: verified }, error: null };
-    }), fetch: async () => new Response(bytes, { headers: { "content-type": "application/pdf", "content-length": "9" } }) });
-  return { handlers, bytes, calls };
+    }), fetch: async () => { calls.push("storage-read"); return new Response(bytes, { headers: { "content-type": mime, "content-length": "9" } }); },
+    preview: async (input, options) => { calls.push("native-preview"); return preview(input, options); } });
+  return { handlers, bytes, calls, metadata };
 }
 test("guarded source transport withholds even exact bytes after final authority denial", async () => {
   const f = sourceAccessFixture(false), response = await f.handlers.read(new Request(url), context);
@@ -196,9 +200,52 @@ test("guarded source transport emits exact bytes only after single-use final per
 test("actual source route modules reject unsupported methods rather than executing implicit HEAD reads", async () => {
   for (const [suffix, allow, methods] of [["", "GET, POST", ["HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"]],
     ["/status", "GET", ["HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]],
+    ["/preview", "GET", ["HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]],
     ["/cancel", "POST", ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"]],
     ["/reconcile", "POST", ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"]]]) {
     const route = await import(`../src/app/api/v3/university-forms/[templateId]/versions/[versionId]/source${suffix}/route.ts`);
     for (const method of methods) { const response = route[method](); assert.equal(response.status, 405); assert.equal(response.headers.get("allow"), allow); }
   }
+});
+
+test("preview requires one canonical bounded offset before session or private operations", async () => {
+  const handlers = createUniversityTemplateIngressHandlers({ loadActor: async () => ({ status: "authenticated", actor }),
+    createSessionClient() { assert.fail("invalid query reached session"); } });
+  for (const query of ["", "?offset=", "?offset=00", "?offset=-1", "?offset=1.5", "?offset=3000", "?offset=0&offset=0", "?offset=0&extra=1"]) {
+    const response = await handlers.preview(new Request(`${url}/preview${query}`), context);
+    assert.equal(response.status, 400, query); assert.deepEqual(await response.json(), { error: "invalid_request" });
+  }
+});
+test("preview rejects PDF and an out-of-range DOCX page before grant, bytes or native work", async () => {
+  for (const [docx, offset] of [[false, 0], [true, 1]]) {
+    const f = sourceAccessFixture(true, { docx }), response = await f.handlers.preview(new Request(`${url}/preview?offset=${offset}`), context);
+    assert.equal(response.status, 400); assert.deepEqual(f.calls, ["staff_university_template_inspection"]);
+  }
+});
+
+// These boundary tests use explicit transport envelopes, not real native/Storage
+// acceptance. The production preview adapter has its own actual Linux proof.
+const previewEnvelope = input => ({ status: "preview", policyVersion: "evo-university-template-preview-v1", sha256: input.expectedSha256,
+  byteLength: input.bytes.length, mimeType: input.mimeType, manifestDigest: createHash("sha256").update(JSON.stringify(input.expectedManifest)).digest("hex"),
+  offset: input.offset, totalSlots: 1, nextOffset: null,
+  slots: [{ id: "p-1", text: "Private synthetic excerpt", context: "", kind: "blank", editable: true, manualReason: null, truncated: false }] });
+test("preview rechecks authority after native processing and withholds excerpts after denial", async () => {
+  const f = sourceAccessFixture(false, { docx: true, preview: async input => previewEnvelope(input) });
+  const response = await f.handlers.preview(new Request(`${url}/preview?offset=0`), context);
+  assert.equal(response.status, 409); assert.deepEqual(await response.json(), { error: "source_changed" });
+  assert.deepEqual(f.calls.slice(-3), ["storage-read", "native-preview", "complete_university_template_source_access"]);
+});
+test("permitted preview returns private no-store JSON only after final authority", async () => {
+  const f = sourceAccessFixture(true, { docx: true, preview: async input => previewEnvelope(input) });
+  const response = await f.handlers.preview(new Request(`${url}/preview?offset=0`), context);
+  assert.equal(response.status, 200); assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal((await response.json()).slots[0].text, "Private synthetic excerpt");
+  assert.equal(f.calls.at(-1), "complete_university_template_source_access");
+});
+test("native preview failure cannot disclose partial content or complete the source grant", async () => {
+  const f = sourceAccessFixture(true, { docx: true, preview: async () => { throw new Error("Private synthetic excerpt"); } });
+  const response = await f.handlers.preview(new Request(`${url}/preview?offset=0`), context);
+  assert.equal(response.status, 503); assert.deepEqual(await response.json(), { error: "unavailable" });
+  assert.equal(f.calls.includes("complete_university_template_source_access"), false);
 });

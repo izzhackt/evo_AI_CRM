@@ -77,7 +77,7 @@ const DOCUMENT_EXPORT_PATH =
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
 const UNIVERSITY_TEMPLATE_SOURCE_PATH =
-  /^\/api\/v3\/university-forms\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/source(?:\/(?:status|cancel|reconcile))?$/i;
+  /^\/api\/v3\/university-forms\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/source(?:\/(?:status|preview|cancel|reconcile))?$/i;
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",

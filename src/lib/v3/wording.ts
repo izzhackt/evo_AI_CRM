@@ -25,6 +25,7 @@ import type {
   PlatformDocumentReviewDecision,
   PlatformDocumentSlotStatus,
 } from "../platform-private-documents.ts";
+import { PROFILE_FIELDS } from "../student-profile-fields.ts";
 
 export function studentProfileFieldState(value: string): string | null {
   const labels: Record<string, string> = {
@@ -841,6 +842,77 @@ export function universityTemplateUploadState(value: string): string | null {
     failed: "Загрузка не завершена", cancelled: "Загрузка отменена",
   };
   return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export const universityFormManagement = {
+  mappings: "Настройка заполнения",
+  mappingVersion: "Настройка",
+  mappingCount: "Полей для заполнения:",
+  mappingEmpty: "Выберите поля анкеты для заполнения бланка.",
+  mappingPending: "Ожидает проверки",
+  mappingApproved: "Проверена",
+  mappingRejected: "Нужны исправления",
+  review: "Проверить настройку",
+  reviewExplanation: "Сверьте выбранные поля с исходным бланком. Проверка относится только к этой сохранённой настройке.",
+  approve: "Подтвердить настройку",
+  reject: "Вернуть на исправление",
+  decision: "Результат проверки",
+  reviewConfirm: "Я сверил поля с исходным бланком",
+  reviewReason: "Проверка настройки университетского бланка",
+  reviewSaved: "Результат проверки сохранён.",
+  publish: "Разрешить заполнение",
+  publishExplanation: "Эта проверенная настройка станет доступна сотрудникам. Предыдущая версия сохранится в истории.",
+  publishConfirm: "Использовать эту настройку для заполнения бланка",
+  publishReason: "Публикация проверенной настройки университетского бланка",
+  publishSaved: "Бланк доступен для заполнения.",
+  archive: "Убрать бланк в архив",
+  archiveExplanation: "Бланк перестанет предлагаться для нового заполнения. Файлы и история сохранятся.",
+  archiveConfirm: "Убрать бланк из доступных для заполнения",
+  archiveReason: "Архивирование университетского бланка",
+  archiveSaved: "Бланк перемещён в архив.",
+  comment: "Комментарий",
+  saving: "Сохраняем…",
+  next: "Открыть обновлённый бланк",
+  history: "История настроек",
+  latestMapping: "Последняя настройка",
+  savedMapping: "Сохранённые поля и исходный бланк",
+  older: "Предыдущие настройки",
+  manual: "Вручную",
+  optional: "Необязательное поле",
+  required: "Обязательное поле",
+  edit: "Настроить поля",
+  editExplanation: "Выберите, какие данные анкеты подставлять в каждый фрагмент бланка. Подписи и согласия заполняются вручную.",
+  sourceExcerpt: "Фрагменты исходного бланка",
+  excerptExplanation: "Здесь показан текст для настройки полей, а не внешний вид готового документа.",
+  sourceField: "Данные из анкеты",
+  skip: "Не заполнять автоматически",
+  combined: "Составные поля",
+  context: "Контекст в бланке",
+  excerptShortened: "Фрагмент сокращён; полный текст — в исходном файле.",
+  blank: "Пустое место для заполнения",
+  format: "Формат даты",
+  dateFull: "Дата полностью",
+  day: "День",
+  month: "Месяц",
+  year: "Год",
+  previous: "Предыдущие фрагменты",
+  following: "Следующие фрагменты",
+  fragment: "Фрагмент",
+  of: "из",
+  previewLoading: "Открываем фрагменты…",
+  previewUnavailable: "Не удалось открыть фрагменты. Настройка остаётся на экране; попробуйте ещё раз.",
+  retryPreview: "Повторить открытие",
+  saveMapping: "Сохранить настройку",
+  mappingReason: "Настройка полей университетского бланка",
+  mappingSaved: "Настройка сохранена. Следующий шаг — сверка полей с бланком.",
+} as const;
+
+export function universityFormSourceLabel(value: string): string | null {
+  const combined: Record<string, string> = {
+    full_name: "Имя и фамилия", surname_first_name: "Фамилия и имя",
+    father_full_name: "Имя и фамилия отца", mother_full_name: "Имя и фамилия матери",
+  };
+  return Object.hasOwn(combined, value) ? combined[value] : PROFILE_FIELDS.find(field => field.key === value)?.label ?? null;
 }
 
 export function universityTemplateUploadFailure(value: string): string | null {

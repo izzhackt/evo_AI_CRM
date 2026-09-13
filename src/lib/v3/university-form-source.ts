@@ -2,6 +2,7 @@ import "server-only";
 import type { ActivePlatformActor } from "../platform-auth";
 import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import { universityUuid } from "../platform-university-catalog.ts";
+import { universityFormWorkspaceMatches } from "../university-form-ui.ts";
 import { createSupabaseServerClient } from "../supabase/server";
 import {
   getPlatformUniversityFormManagerTemplates, getPlatformUniversityFormWorkspace,
@@ -29,8 +30,7 @@ export async function readUniversityFormWorkspace(actor: ActivePlatformActor, ca
   });
   // A valid foreign template ID must never attach another university's draft to
   // the selected catalogue screen, even if the actor can manage both.
-  if (!workspace.can_manage || workspace.template.organization_id !== actor.organizationId
-    || workspace.template.catalog_institution_id !== catalogId) throw new PlatformUniversityFormError("forbidden");
+  if (!universityFormWorkspaceMatches(workspace, actor.organizationId, catalogId)) throw new PlatformUniversityFormError("forbidden");
   const version = workspace.selected_version;
   const inspection = version ? await getPlatformUniversityTemplateInspection(client, {
     p_template_id: workspace.template.id, p_template_version_id: version.id,

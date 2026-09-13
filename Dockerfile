@@ -20,6 +20,34 @@ RUN mkdir -p /out/runtime /out/proof \
   && gcc -std=c11 -O2 -Wall -Wextra -Werror -Wl,-z,relro,-z,now /build/launcher.c -o /out/runtime/launcher \
   && gcc -std=c11 -O2 -Wall -Wextra -Werror -pthread -DEVO_DOCUMENT_TEST -Wl,-z,relro,-z,now /build/launcher.c -o /out/proof/launcher.test
 
+FROM document-source-native AS university-template-native
+RUN mkdir -p /out/template/runtime /out/template/proof \
+  && cp /out/runtime/seal.node /out/template/runtime/seal.node \
+  && gcc -std=c11 -O2 -Wall -Wextra -Werror -DEVO_UNIVERSITY_TEMPLATE -Wl,-z,relro,-z,now /build/launcher.c -o /out/template/runtime/launcher \
+  && gcc -std=c11 -O2 -Wall -Wextra -Werror -pthread -DEVO_UNIVERSITY_TEMPLATE -DEVO_DOCUMENT_TEST -Wl,-z,relro,-z,now /build/launcher.c -o /out/template/proof/launcher.test
+
+FROM deps AS university-template-assets
+COPY scripts/document-source/bootstrap.mjs ./scripts/document-source/bootstrap.mjs
+COPY scripts/university-template ./scripts/university-template
+COPY src/lib/server/university-template-preflight.ts src/lib/server/university-form-docx.ts src/lib/server/university-form-pdf.ts ./src/lib/server/
+COPY src/lib/university-form-fields.ts src/lib/student-profile-fields.ts ./src/lib/
+RUN node scripts/university-template/build.mjs /out
+
+FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS university-template-runtime
+COPY --from=university-template-native --chown=0:0 --chmod=0555 /out/template/runtime/ /opt/evo-university-template-runtime/
+COPY --from=university-template-assets --chown=0:0 --chmod=0555 /out/runtime/ /opt/evo-university-template-runtime/
+USER 1001:1001
+CMD ["/opt/evo-university-template-runtime/launcher"]
+
+FROM university-template-runtime AS university-template-runtime-test
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends qpdf \
+  && rm -rf /var/lib/apt/lists/*
+COPY --from=university-template-native --chown=0:0 --chmod=0555 /out/template/proof/launcher.test /opt/evo-university-template-runtime/launcher.test
+COPY --from=university-template-assets --chown=0:0 --chmod=0555 /out/proof/ /opt/evo-university-template-runtime/
+USER 1001:1001
+CMD ["node", "--test", "/opt/evo-university-template-runtime/test-harness.mjs"]
+
 FROM deps AS document-source-assets
 COPY scripts/document-source ./scripts/document-source
 COPY src/lib/server/document-source-preflight.ts ./src/lib/server/document-source-preflight.ts
@@ -81,6 +109,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/transcribe_mlx_chunks.py 
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/platform-knowledge-import.mjs ./scripts/import-platform-knowledge-bundle.mjs
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/document-recognition-worker.mjs ./document-recognition-worker.mjs
 COPY --from=document-source-runtime --chown=0:0 /opt/evo-document-runtime/ /opt/evo-document-runtime/
+COPY --from=university-template-runtime --chown=0:0 /opt/evo-university-template-runtime/ /opt/evo-university-template-runtime/
 
 USER nextjs
 

@@ -1,0 +1,47 @@
+import { createHash } from "node:crypto";
+import { readSync } from "node:fs";
+import { inspectUniversityDocx } from "../../src/lib/server/university-form-docx.ts";
+import { inspectUniversityPdf } from "../../src/lib/server/university-form-pdf.ts";
+
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const MAX_BYTES = 20 * 1024 * 1024;
+function reject() { throw new Error("template_not_eligible"); }
+function request() {
+  const chunks = []; let size = 0;
+  for (;;) {
+    const chunk = Buffer.alloc(64 * 1024);
+    const length = readSync(0, chunk, 0, chunk.length, null);
+    if (length === 0) break;
+    size += length;
+    if (size > MAX_BYTES + 512) reject();
+    chunks.push(chunk.subarray(0, length));
+  }
+  const wire = Buffer.concat(chunks, size), separator = wire.indexOf(10);
+  if (separator < 1 || separator > 511) reject();
+  const header = JSON.parse(wire.subarray(0, separator).toString("utf8"));
+  if (!header || typeof header !== "object" || Array.isArray(header)
+    || Object.keys(header).sort().join(",") !== "byteLength,expectedSha256,mimeType"
+    || ![DOCX, "application/pdf"].includes(header.mimeType) || !/^[a-f0-9]{64}$/.test(header.expectedSha256)
+    || !Number.isInteger(header.byteLength) || header.byteLength < 1 || header.byteLength > MAX_BYTES) reject();
+  const bytes = wire.subarray(separator + 1);
+  if (bytes.length !== header.byteLength || createHash("sha256").update(bytes).digest("hex") !== header.expectedSha256) reject();
+  return { header, bytes };
+}
+// No library diagnostics or extracted form text may cross the process boundary.
+for (const method of ["log", "warn", "error", "info", "debug"]) console[method] = () => {};
+try {
+  const { header, bytes } = request();
+  let manifest;
+  if (header.mimeType === DOCX) {
+    const inspected = inspectUniversityDocx(bytes);
+    manifest = { format: "docx", slots: inspected.slots.map(({ id, editable }) => ({ id, editable })), pageSizes: [] };
+  } else {
+    const inspected = await inspectUniversityPdf(bytes);
+    // Rectangles/manual fields are reviewed mappings, not facts discovered by PDF inspection.
+    manifest = { format: "pdf", slots: [], pageSizes: inspected.pageSizes };
+  }
+  process.stdout.write(`${JSON.stringify({ status: "verified", sha256: header.expectedSha256, byteLength: bytes.length,
+    mimeType: header.mimeType, policyVersion: "evo-university-template-v1", manifest })}\n`);
+} catch {
+  process.stdout.write(`${JSON.stringify({ status: "rejected", code: "template_not_eligible" })}\n`);
+}

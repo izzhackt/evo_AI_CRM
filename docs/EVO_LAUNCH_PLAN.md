@@ -1,5 +1,10 @@
 # EVO Launch Plan
 
+D4 next implementation slice: [hard-isolated DOCX/PDF template inspection](design/v3/evo-docs-template-native-contract.md)
+from exact `ef279986`, alongside separately reviewed registry PR770. Native proof
+is required before private ingress/receipt writer; it is not full forms readiness.
+PDF editable rectangles remain human-reviewed mapping, never invented source proof.
+
 Status: active V3-on-managed-Supabase production-successor contract
 Date: 2026-09-13 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and

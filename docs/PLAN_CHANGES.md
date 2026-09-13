@@ -23755,3 +23755,38 @@ CI on the next frozen candidate, not that source check, proves the populated
 upgrade. Local6ae41a2a onboarding PASS remains separate from this upgrade failure.
 Official behavior: [PostgreSQL row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
 and [deferred constraints](https://www.postgresql.org/docs/current/sql-set-constraints.html).
+
+## 2026-09-13 — S2 bind role archival to the reviewed access change
+
+Independent source review found that archive currently confirms only the source
+role version, replacement ID and revoke choice. The contract already requires an
+impact preview: assignments or the replacement's publication may change without
+changing the source role version. Complete that existing contract, not a new
+permission model. Add an Admin-only read preview for the selected archive choice,
+show affected staff and the role-contribution permissions added/removed, and
+require its fingerprint on the archive command. Bind source version/published
+permissions, live assignment identities/scopes, affected member access versions,
+the replacement's published binding and the explicit revoke choice. Recompute
+under the existing organization lock before writes; changed inputs require a
+fresh preview. Keep audit/replay, scope validation and original assignments'
+history. Restoring an archived role remains a separate versioned command.
+
+Use the existing compact two-step publish pattern: choose replacement/removal,
+review impact, explicitly confirm and save. State clearly that other roles remain
+and displayed deltas describe this role's contribution, not an exhaustive claim
+about final effective rights. Strictly parse the preview response and compare its
+identity/version/choice to the request. Update only affected local proof callers
+to obtain the ordinary preview before archiving their own temporary roles.
+Focused source/contract checks and the ordinary local catalogue/business flow
+must verify the correction before release; no exploit reproduction is needed.
+Official basis: [PostgreSQL locks](https://www.postgresql.org/docs/current/explicit-locking.html)
+and [Next.js server-action data security](https://nextjs.org/docs/app/guides/data-security).
+
+The ordinary local business proof also covers an assigned role: after its four
+scope saves and V0+4 readback, add one of its own temporary roles to the same
+Sales identity through the normal assignment command (V0+5). Open that role in
+the Admin UI, preview explicit removal, verify the one affected staff member and
+permission contribution, confirm the exact fingerprint, and archive once. A
+fresh readback must restore the original assignment tuples at V0+6. Existing
+cleanup skips the role already archived and still verifies all original data.
+No new identity, applicant data or production mutation is introduced.

@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { createClient } from "@supabase/supabase-js";
 import { parseStaffAccessSnapshot } from "../../src/lib/supabase/platform-authority.ts";
-import { parseStaffRoleWorkspace, parseStaffRoleCommandResult, parseStaffRoleImpact, parseStaffRoleAssignmentInputs } from "../../src/lib/v3/staff-roles-contract.ts";
+import { parseStaffRoleWorkspace, parseStaffRoleCommandResult, parseStaffRoleImpact,
+  parseStaffRoleArchiveImpact, parseStaffRoleAssignmentInputs } from "../../src/lib/v3/staff-roles-contract.ts";
 import { parseStaffAuthPreparation,
   parseStaffInviteAssignmentInputs } from "../../src/lib/v3/staff-workspace-contract.ts";
 
@@ -616,8 +617,19 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     await openSavedRole(copyLabel);
     stage = "ARCHIVE";
     await details().getByRole("button", { name: "Архивировать", exact: true }).click();
+    await details().getByRole("button", { name: "Проверить архивирование", exact: true }).click();
     const archive = page.getByRole("form", { name: "Архивировать роль", exact: true });
+    await archive.locator('input[name="expected_impact_fingerprint"]').waitFor({ state: "attached" });
+    const rawArchiveImpact = await rpc(adminClient, "staff_role_archive_impact", { p_organization_id: organizationId,
+      p_role_id: copyId, p_expected_version: 1, p_replacement_role_id: null, p_revoke_assignments: false });
+    const archiveImpact = strictParse(() => parseStaffRoleArchiveImpact(rawArchiveImpact));
+    requireValue(archiveImpact.roleId === copyId && archiveImpact.version === 1 && archiveImpact.replacementRoleId === null
+      && archiveImpact.revokeAssignments === false && archiveImpact.affectedMembershipIds.length === 0
+      && archiveImpact.addedPermissionKeys.length === 0 && archiveImpact.removedPermissionKeys.length === 0
+      && await archive.locator('input[name="expected_impact_fingerprint"]').inputValue() === archiveImpact.impactFingerprint,
+    "LOCAL_ROLE_EDITOR_ARCHIVE_IMPACT_MISMATCH");
     await archive.getByLabel("Причина", { exact: true }).fill(reason);
+    await archive.locator('input[name="confirm_impact"]').check();
     await archive.getByRole("button", { name: "Перенести в архив", exact: true }).click();
     await details().getByText(savedAccess, { exact: true }).waitFor();
     stage = "ARCHIVE_READBACK";
@@ -660,7 +672,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
       }
     }
     return { schemaVersion: 1, proof: { actualAdminPasswordLogin: true, draftCreated: true, draftEdited: true,
-      impactReviewed: true, published: true, copied: true, archived: true, restored: true, existingAccessUnchanged: true }, screenshots };
+      impactReviewed: true, archiveImpactReviewed: true, published: true, copied: true, archived: true, restored: true, existingAccessUnchanged: true }, screenshots };
   } catch {
     // Fixed counters only: never print DOM text, URLs, inputs or raw errors.
     if (page) {
@@ -1092,6 +1104,56 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     await form().getByRole("button", { name: "Изменить назначения", exact: true }).click();
     await fields(original.accessVersion + 4, original.assignments);
     check(page.url() === memberUrl && !clientError);
+    // A separate ordinary archive proof starts only after the four scope edits are complete.
+    stage = "ASSIGNED_ARCHIVE_SETUP";
+    const archiveRole = baseline.roles.find((entry) => entry.id === additions[0].roleId);
+    const assigned = [...original.assignments, additions[0]];
+    const assignmentReceipt = await command("staff_role_assignments_save", { p_organization_id: organizationId,
+      p_membership_id: sales.membershipId, p_expected_access_version: original.accessVersion + 4,
+      p_assignments: inputs(assigned), p_expected_role_bindings: bindings(baseline.roles, assigned), p_reason: reason });
+    check(assignmentReceipt?.membershipId === sales.membershipId && assignmentReceipt.accessVersion === original.accessVersion + 5);
+    const assignedMember = await readback(original.accessVersion + 5, assigned);
+    await freshSales(assignedMember.accessVersion, assignedMember.assignments, true);
+    stage = "ASSIGNED_ARCHIVE_PREVIEW";
+    await page.goto(`${appOrigin}/v3/settings?section=staff&view=roles&role=${archiveRole.id}`, { waitUntil: "domcontentloaded" });
+    const roleDetails = page.getByRole("region", { name: "Выбранная роль", exact: true });
+    await roleDetails.getByRole("heading", { name: archiveRole.label, exact: true }).waitFor();
+    await roleDetails.getByRole("button", { name: "Архивировать", exact: true }).click();
+    const preview = roleDetails.getByRole("form", { name: "Проверить архивирование", exact: true });
+    await preview.locator('input[name="revoke_assignments"]').check();
+    await preview.getByRole("button", { name: "Проверить архивирование", exact: true }).click();
+    const archiveForm = roleDetails.getByRole("form", { name: "Архивировать роль", exact: true });
+    await archiveForm.locator('input[name="expected_impact_fingerprint"]').waitFor({ state: "attached" });
+    const rawArchiveImpact = await rpc(adminClient, "staff_role_archive_impact", { p_organization_id: organizationId,
+      p_role_id: archiveRole.id, p_expected_version: archiveRole.version, p_replacement_role_id: null, p_revoke_assignments: true });
+    const archiveImpact = strictParse(() => parseStaffRoleArchiveImpact(rawArchiveImpact));
+    check(archiveImpact.roleId === archiveRole.id && archiveImpact.version === archiveRole.version
+      && archiveImpact.replacementRoleId === null && archiveImpact.revokeAssignments === true
+      && sameSet(archiveImpact.affectedMembershipIds, [sales.membershipId]) && archiveImpact.addedPermissionKeys.length === 0
+      && sameSet(archiveImpact.removedPermissionKeys, ["case.read.full"])
+      && await archiveForm.locator('input[name="expected_impact_fingerprint"]').inputValue() === archiveImpact.impactFingerprint
+      && await archiveForm.locator('input[name="expected_version"]').inputValue() === String(archiveRole.version));
+    await roleDetails.getByText("Затронуто сотрудников: 1", { exact: true }).waitFor();
+    await roleDetails.getByText(original.displayName, { exact: true }).waitFor();
+    const permissionLabel = baseline.permissions.find((entry) => entry.key === "case.read.full").label;
+    await roleDetails.getByText(`Перестанут предоставляться этой ролью: ${permissionLabel}.`, { exact: true }).waitFor();
+    stage = "ASSIGNED_ARCHIVE_SAVE";
+    await archiveForm.getByLabel("Причина", { exact: true }).fill(reason);
+    await archiveForm.locator('input[name="confirm_impact"]').check();
+    await archiveForm.getByRole("button", { name: "Перенести в архив", exact: true }).click();
+    await roleDetails.getByText("Изменение доступа сохранено.", { exact: true }).waitFor();
+    stage = "ASSIGNED_ARCHIVE_READBACK";
+    const archivedWorkspace = await workspace();
+    const restoredMember = archivedWorkspace.members.find((entry) => entry.membershipId === sales.membershipId);
+    check(restoredMember?.accessVersion === original.accessVersion + 6 && restoredMember.systemRole === "staff"
+      && restoredMember.displayName === original.displayName && sameSet(restoredMember.assignments.map(pair), original.assignments.map(pair))
+      && JSON.stringify(otherMembers(archivedWorkspace.members)) === JSON.stringify(otherMembers(baseline.members))
+      && JSON.stringify(archivedWorkspace.roles) === JSON.stringify(baseline.roles.map((role) => role.id === archiveRole.id
+        ? { ...role, version: role.version + 1, status: "archived" } : role))
+      && JSON.stringify(archivedWorkspace.permissions) === JSON.stringify(baseline.permissions)
+      && JSON.stringify(archivedWorkspace.departments) === JSON.stringify(baseline.departments));
+    await freshSales(restoredMember.accessVersion, restoredMember.assignments, false);
+    check(!clientError);
   } catch { failure = new ScopedStaffProvisioningError(`LOCAL_BUSINESS_SCOPES_${stage}_FAILED`); }
   finally {
     if (context) {
@@ -1132,8 +1194,16 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
           const role = (await workspace()).roles.find((entry) => entry.id === roleId);
           if (!role) { check(failure); return; }
           check(role.memberCount === 0);
+          if (role.status === "archived") return;
+          const rawImpact = await rpc(adminClient, "staff_role_archive_impact", { p_organization_id: organizationId,
+            p_role_id: roleId, p_expected_version: role.version, p_replacement_role_id: null, p_revoke_assignments: false });
+          const impact = strictParse(() => parseStaffRoleArchiveImpact(rawImpact));
+          check(impact.roleId === roleId && impact.version === role.version && impact.replacementRoleId === null
+            && impact.revokeAssignments === false && impact.affectedMembershipIds.length === 0
+            && impact.addedPermissionKeys.length === 0 && sameSet(impact.removedPermissionKeys, role.permissionKeys));
           const receipt = await command("staff_role_command", { p_organization_id: organizationId, p_role_id: roleId,
-            p_expected_version: role.version, p_operation: "archive", p_payload: { replacementRoleId: null, revokeAssignments: false }, p_reason: reason });
+            p_expected_version: role.version, p_operation: "archive", p_payload: { replacementRoleId: null, revokeAssignments: false,
+              expectedImpactFingerprint: impact.impactFingerprint }, p_reason: reason });
           const archived = (await workspace()).roles.find((entry) => entry.id === roleId);
           check(receipt?.version === role.version + 1 && archived?.status === "archived" && archived.memberCount === 0 && archived.version === receipt.version);
         });
@@ -1168,6 +1238,7 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
   if (failure) throw failure;
   return { schemaVersion: 1, edits: 4, proof: { ordinaryHandoff: true, canonicalDirection: true,
     independentDepartmentRead: true, independentDirectionRead: true, combinedRead: true, sameCard: true,
-    versionIncrements: 4, assignmentsRestored: true, personalGrantsRestored: true, organizationalDetailsRestored: true,
+    versionIncrements: 4, assignedRoleArchive: true, archiveVersionIncrements: 2,
+    assignmentsRestored: true, personalGrantsRestored: true, organizationalDetailsRestored: true,
     temporaryRolesArchived: true, temporaryDepartmentArchived: true, otherMembersUnchangedDuringEdits: true, noBrowserErrors: true } };
 }

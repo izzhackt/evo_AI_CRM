@@ -55,7 +55,7 @@ technical CI. The latest release checkpoint is
 
 S2 remains active and unreleased in [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
 Migrations155–157, editable roles/scoped assignments and prepared invitations are
-implemented; current pushed checkpoint is `6ae41a2a`.
+implemented; the last complete local onboarding before scope-proof expansion is `6ae41a2a`.
 
 - **Earlier local proof (`02497173`):** actual Auth/Mailpit/password/login, full unused-role catalogue
   lifecycle and two same-card member-assignment saves with live V+1/V+2 and exact
@@ -75,8 +75,12 @@ implemented; current pushed checkpoint is `6ae41a2a`.
   catalogue only.
 - **Current CI blocker:** CI34751346856 passed the earlier owner-scope guard, then
   failed at migration155:1297: `cannot ALTER TABLE staff_role_definitions because
-  it has pending trigger events`. Populated upgrade remains unverified; move the
-  RLS ALTER statements before backfill while preserving guards and constraints.
+  it has pending trigger events`. The RLS ALTER statements are now moved before
+  backfill with guards and constraints preserved; populated upgrade still needs CI.
+- **Remaining review correction:** assigned-role archival must display impact and
+  bind the command to the reviewed assignments and replacement publication.
+  Implement the compact preview/confirmation and fingerprint contract before
+  release; independent review and ordinary runtime acceptance remain required.
 - **Next:** prove an ordinary Sales→Admissions handoff and department-only,
   direction-only and combined scope matches; finish populated upgrade,
   independent whole-S2 review, the exact-main release gate and deployment.

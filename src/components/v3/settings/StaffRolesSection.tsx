@@ -115,23 +115,86 @@ function RolePublication({ role, workspace }: { role: StaffEditableRole; workspa
   </div>;
 }
 
-function RoleArchive({ role, workspace }: { role: StaffEditableRole; workspace: StaffRoleWorkspace }) {
+function RoleArchiveReview({ role, workspace, onRestart }: {
+  role: StaffEditableRole; workspace: StaffRoleWorkspace; onRestart: () => void;
+}) {
   const [initial] = useState(role);
-  return <StaffRoleCommandForm label={role.status === "archived" ? "Восстановить роль" : "Архивировать роль"}
-    submitLabel={role.status === "archived" ? "Восстановить роль" : "Перенести в архив"}>
-    {() => <>
-      <input type="hidden" name="operation" value={initial.status === "archived" ? "restore" : "archive"} />
+  const [replacement, setReplacement] = useState("");
+  const [state, action, pending] = useActionState(staffRolesAction, STAFF_ROLES_INITIAL_STATE);
+  const impact = state.archiveImpact;
+  const detailsAvailable = !impact || (impact.affectedMembershipIds.every((id) => workspace.members.some((member) => member.membershipId === id))
+    && [...impact.addedPermissionKeys, ...impact.removedPermissionKeys].every((key) => workspace.permissions.some((permission) => permission.key === key))
+    && (!impact.replacementRoleId || workspace.roles.some((other) => other.id === impact.replacementRoleId)));
+  const permissionLabel = (key: string) => workspace.permissions.find((permission) => permission.key === key)?.label
+    ?? "Разрешение больше недоступно — обновите данные";
+  return <div className="space-y-4">
+    {!impact ? <form action={action} aria-label="Проверить архивирование" aria-busy={pending} className="space-y-4">
+      <input type="hidden" name="operation" value="archive-impact" />
       <input type="hidden" name="role_id" value={initial.id} />
       <input type="hidden" name="expected_version" value={initial.version} />
-      {initial.status === "active" ? <>
-        <p className="text-sm leading-6 text-fg-2">Роль используется у {initial.memberCount} сотрудников. История сохранится.</p>
+      <fieldset disabled={pending} className="min-w-0 space-y-4">
+        <p className="text-sm leading-6 text-fg-2">Выберите, что сделать с назначениями этой роли. До подтверждения ничего не изменится; история сохранится.</p>
         <label className="grid gap-1.5 text-sm">Заменить роль на
-          <select className={inputCls} name="replacement_role_id" defaultValue=""><option value="">Без замены</option>
-            {workspace.roles.filter((other) => other.id !== initial.id && other.status === "active" && other.bundleId).map((other) => <option key={other.id} value={other.id}>{other.label}</option>)}
+          <select className={inputCls} name="replacement_role_id" value={replacement} onChange={(event) => setReplacement(event.target.value)}>
+            <option value="">Без замены</option>
+            {workspace.roles.filter((other) => other.id !== initial.id && other.status === "active" && other.bundleId)
+              .map((other) => <option key={other.id} value={other.id}>{other.label}</option>)}
           </select>
         </label>
-        <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" name="revoke_assignments" value="yes" />Если замены нет, отозвать назначения этой роли</label>
-      </> : null}
+        {!replacement ? <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input type="checkbox" name="revoke_assignments" value="yes" />Отозвать назначения этой роли без замены
+        </label> : null}
+      </fieldset>
+      <StaffRoleFeedback state={state} />
+      <button type="submit" className={btnCls} disabled={pending}>{pending ? "Проверяем…" : "Проверить архивирование"}</button>
+    </form> : <>
+      <h4 className="text-sm font-semibold">Изменение доступа при архивировании</h4>
+      <div className="space-y-2 text-sm leading-6">
+        <p>Затронуто сотрудников: {impact.affectedMembershipIds.length}</p>
+        {impact.affectedMembershipIds.length ? <ul className="list-disc space-y-1 pl-5">
+          {impact.affectedMembershipIds.map((id) => <li key={id}>{workspace.members.find((member) => member.membershipId === id)?.displayName
+            ?? "Сотрудник больше недоступен — обновите данные"}</li>)}
+        </ul> : null}
+        <p>{impact.replacementRoleId ? `Замена: ${workspace.roles.find((other) => other.id === impact.replacementRoleId)?.label
+          ?? "Роль больше недоступна — обновите данные"}. Области назначений сохранятся.`
+          : "Назначения этой роли будут сняты без замены."}</p>
+        <p className="text-fg-3">Ниже — разрешения этой роли и её замены. Другие роли сотрудников сохраняются и могут давать те же разрешения.</p>
+        {impact.addedPermissionKeys.length ? <p>Добавятся через замену: {impact.addedPermissionKeys.map(permissionLabel).join(", ")}.</p> : null}
+        {impact.removedPermissionKeys.length ? <p>Перестанут предоставляться этой ролью: {impact.removedPermissionKeys.map(permissionLabel).join(", ")}.</p> : null}
+        {!impact.addedPermissionKeys.length && !impact.removedPermissionKeys.length ? <p>Состав разрешений не меняется.</p> : null}
+      </div>
+      {!detailsAvailable ? <div className="space-y-3">
+        <p role="alert" className="text-sm leading-6 text-danger">Список сотрудников или разрешений изменился. Обновите данные перед подтверждением.</p>
+        <button type="button" className={btnGhostCls} onClick={() => window.location.reload()}>Обновить данные</button>
+      </div> : <StaffRoleCommandForm label="Архивировать роль" submitLabel="Перенести в архив">
+        {(locked, archival) => <>
+          <input type="hidden" name="operation" value="archive" />
+          <input type="hidden" name="role_id" value={impact.roleId} />
+          <input type="hidden" name="expected_version" value={impact.version} />
+          <input type="hidden" name="expected_impact_fingerprint" value={impact.impactFingerprint} />
+          <input type="hidden" name="replacement_role_id" value={impact.replacementRoleId ?? ""} />
+          {impact.revokeAssignments ? <input type="hidden" name="revoke_assignments" value="yes" /> : null}
+          <label className="grid gap-1.5 text-sm">Причина<input className={inputCls} name="reason" required maxLength={500} /></label>
+          <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" name="confirm_impact" value="yes" required />Я проверил изменение доступа</label>
+          {!locked ? <button type="button" className={btnGhostCls} onClick={onRestart}>Изменить выбор</button> : null}
+          {archival.status === "error" && archival.outcome !== "unknown" ? <button type="button" className={btnGhostCls}
+            onClick={() => window.location.reload()}>Обновить данные и проверить изменение заново</button> : null}
+        </>}
+      </StaffRoleCommandForm>}
+    </>}
+  </div>;
+}
+
+function RoleArchive({ role, workspace }: { role: StaffEditableRole; workspace: StaffRoleWorkspace }) {
+  const [review, setReview] = useState(0);
+  const [initial] = useState(role);
+  if (initial.status === "active") return <RoleArchiveReview key={review} role={initial} workspace={workspace}
+    onRestart={() => setReview((current) => current + 1)} />;
+  return <StaffRoleCommandForm label="Восстановить роль" submitLabel="Восстановить роль">
+    {() => <>
+      <input type="hidden" name="operation" value="restore" />
+      <input type="hidden" name="role_id" value={initial.id} />
+      <input type="hidden" name="expected_version" value={initial.version} />
       <label className="grid gap-1.5 text-sm">Причина<input className={inputCls} name="reason" required maxLength={500} /></label>
     </>}
   </StaffRoleCommandForm>;

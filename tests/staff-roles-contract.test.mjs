@@ -5,6 +5,7 @@ import {
   parseStaffRoleCommandResult,
   parseStaffRoleExpectedBindings,
   parseStaffRoleImpact,
+  parseStaffRoleArchiveImpact,
   parseStaffRoleImpactFingerprint,
   parseStaffRoleScope,
   parseStaffRoleWorkspace,
@@ -13,6 +14,23 @@ import {
 const id = (suffix) => `00000000-0000-4000-8000-${String(suffix).padStart(12, "0")}`;
 const permission = "case.document.read";
 const assignment = { roleId: id(1), scope: { kind: "direction", key: "CN", resourceKind: null } };
+
+test("archive preview preserves the reviewed role, choice and permission contribution", () => {
+  const preview = { roleId: id(1), version: 2, affectedMembershipIds: [id(3)],
+    addedPermissionKeys: [permission], removedPermissionKeys: ["case.read.full"],
+    impactFingerprint: "b".repeat(64), replacementRoleId: id(2), revokeAssignments: false };
+  assert.deepEqual(parseStaffRoleArchiveImpact(preview), preview);
+  const removal = { ...preview, replacementRoleId: null, revokeAssignments: true, addedPermissionKeys: [] };
+  assert.deepEqual(parseStaffRoleArchiveImpact(removal), removal);
+  for (const invalidPreview of [
+    { ...preview, replacementRoleId: "" }, { ...preview, revokeAssignments: "false" },
+    { ...preview, replacementRoleId: preview.roleId }, { ...preview, revokeAssignments: true },
+    { ...preview, unexpected: true }, { ...preview, impactFingerprint: null },
+  ]) assert.throws(() => parseStaffRoleArchiveImpact(invalidPreview), /staff_roles_invalid_contract/);
+  const incomplete = { ...preview };
+  delete incomplete.replacementRoleId;
+  assert.throws(() => parseStaffRoleArchiveImpact(incomplete), /staff_roles_invalid_contract/);
+});
 function workspace() {
   return {
     schemaVersion: 1,

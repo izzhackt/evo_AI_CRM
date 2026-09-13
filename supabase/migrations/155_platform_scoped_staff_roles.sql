@@ -865,10 +865,12 @@ BEGIN
   IF p_payload<>'{}'::JSONB OR r.status<>'archived' THEN RAISE EXCEPTION 'staff_roles_invalid_restore' USING ERRCODE='22023'; END IF;
   UPDATE platform.staff_role_definitions SET status='active',version=version+1,updated_at=statement_timestamp() WHERE id=r.id;
  ELSE
-  IF r.status<>'active' OR NOT(p_payload ?& ARRAY['replacementRoleId','revokeAssignments'])
-  OR (SELECT count(*) FROM jsonb_object_keys(p_payload))<>2
+  IF r.status<>'active' OR NOT(p_payload ?& ARRAY['replacementRoleId','revokeAssignments','expectedImpactFingerprint'])
+  OR (SELECT count(*) FROM jsonb_object_keys(p_payload))<>3
   OR jsonb_typeof(p_payload->'replacementRoleId') NOT IN ('string','null')
-  OR jsonb_typeof(p_payload->'revokeAssignments')<>'boolean' THEN
+  OR jsonb_typeof(p_payload->'revokeAssignments')<>'boolean'
+  OR jsonb_typeof(p_payload->'expectedImpactFingerprint')<>'string'
+  OR (p_payload->>'expectedImpactFingerprint')!~'^[0-9a-f]{64}$' THEN
    RAISE EXCEPTION 'staff_roles_invalid_archive' USING ERRCODE='22023'; END IF;
   replacement_id:=(p_payload->>'replacementRoleId')::UUID;
   SELECT COALESCE(array_agg(DISTINCT a.membership_id ORDER BY a.membership_id),'{}') INTO affected
@@ -888,6 +890,9 @@ BEGIN
    RAISE EXCEPTION 'staff_roles_archive_requires_resolution' USING ERRCODE='22023';
   END IF;
   PERFORM platform_private.staff_lock_memberships(p_organization_id,affected);
+  IF platform_private.staff_role_archive_impact_fingerprint(p_organization_id,r.id,replacement_id,
+    (p_payload->>'revokeAssignments')::BOOLEAN) IS DISTINCT FROM p_payload->>'expectedImpactFingerprint' THEN
+   RAISE EXCEPTION 'staff_roles_impact_version_conflict' USING ERRCODE='40001'; END IF;
   WITH revoked AS (UPDATE platform.staff_role_assignments SET revoked_at=statement_timestamp()
    WHERE organization_id=p_organization_id AND role_id=r.id AND revoked_at IS NULL RETURNING *)
   INSERT INTO platform.staff_role_assignments(organization_id,membership_id,role_id,bundle_id,scope_kind,scope_key,resource_kind)
@@ -925,6 +930,33 @@ RETURNS TEXT LANGUAGE SQL STABLE SECURITY DEFINER SET search_path='' AS $$
       AND a.role_id=r.id AND a.revoked_at IS NULL),'[]'::JSONB)
  )::TEXT,'UTF8')),'hex')
  FROM platform.staff_role_definitions r WHERE r.organization_id=p_organization_id AND r.id=p_role_id
+$$;
+
+-- Archive reviews the source contribution and the exact selected replacement.
+-- Compose the canonical source fingerprint with live affected access versions;
+-- another role held by a member remains outside the displayed permission delta.
+CREATE FUNCTION platform_private.staff_role_archive_impact_fingerprint(p_organization_id UUID,p_role_id UUID,
+ p_replacement_role_id UUID,p_revoke_assignments BOOLEAN)
+RETURNS TEXT LANGUAGE SQL STABLE SECURITY DEFINER SET search_path='' AS $$
+ SELECT encode(sha256(convert_to(jsonb_build_object(
+  'schemaVersion',1,'operation','archive','organizationId',p_organization_id,'roleId',p_role_id,
+  'sourceFingerprint',platform_private.staff_role_impact_fingerprint(p_organization_id,p_role_id),
+  'replacementRoleId',p_replacement_role_id,'revokeAssignments',p_revoke_assignments,
+  'affectedMembers',COALESCE((SELECT jsonb_agg(jsonb_build_object('membershipId',m.id,
+    'accessVersion',p.access_version) ORDER BY m.id)
+    FROM platform.organization_memberships m JOIN platform.profiles p ON p.id=m.profile_id
+    WHERE m.organization_id=p_organization_id AND EXISTS(SELECT 1 FROM platform.staff_role_assignments a
+      WHERE a.organization_id=p_organization_id AND a.role_id=p_role_id AND a.membership_id=m.id AND a.revoked_at IS NULL)),'[]'::JSONB),
+  'replacement',(SELECT jsonb_build_object('roleId',r.id,'roleVersion',r.version,'status',r.status,
+    'bundleId',r.current_bundle_id,'bundleVersion',binding.bundle_version,'bundleStatus',bundle.status,
+    'publishedPermissionKeys',COALESCE((SELECT jsonb_agg(bp.permission_key ORDER BY bp.permission_key)
+      FROM platform.role_bundle_permissions bp WHERE bp.bundle_id=r.current_bundle_id),'[]'::JSONB))
+    FROM platform.staff_role_definitions r
+    LEFT JOIN platform.staff_role_bundle_bindings binding ON binding.organization_id=r.organization_id
+      AND binding.role_id=r.id AND binding.bundle_id=r.current_bundle_id
+    LEFT JOIN platform.role_bundle_versions bundle ON bundle.id=binding.bundle_id AND bundle.version=binding.bundle_version
+    WHERE r.organization_id=p_organization_id AND r.id=p_replacement_role_id)
+ )::TEXT,'UTF8')),'hex')
 $$;
 
 -- The ordinary member editor supplies a separate published-role binding set.
@@ -987,6 +1019,48 @@ BEGIN
    WHERE a.organization_id=p_organization_id AND a.role_id=r.id AND a.revoked_at IS NULL) members),'[]'::JSONB),
   'addedPermissionKeys',COALESCE((SELECT jsonb_agg(k ORDER BY k) FROM unnest(r.draft_permission_keys) k WHERE NOT(k=ANY(published))),'[]'::JSONB),
   'removedPermissionKeys',COALESCE((SELECT jsonb_agg(k ORDER BY k) FROM unnest(published) k WHERE NOT(k=ANY(r.draft_permission_keys))),'[]'::JSONB));
+END $$;
+
+CREATE FUNCTION platform.staff_role_archive_impact(p_organization_id UUID,p_role_id UUID,p_expected_version BIGINT,
+ p_replacement_role_id UUID,p_revoke_assignments BOOLEAN)
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
+DECLARE r platform.staff_role_definitions%ROWTYPE; replacement platform.staff_role_definitions%ROWTYPE;
+ published TEXT[]; replacement_keys TEXT[]:='{}'; affected UUID[]; assignment RECORD;
+BEGIN
+ PERFORM 1 FROM platform_private.require_admin_actor(p_organization_id,'rbac.read');
+ SELECT * INTO r FROM platform.staff_role_definitions WHERE organization_id=p_organization_id AND id=p_role_id;
+ IF NOT FOUND OR p_expected_version IS NULL OR r.version<>p_expected_version THEN
+  RAISE EXCEPTION 'staff_roles_version_conflict' USING ERRCODE='40001'; END IF;
+ IF r.status<>'active' OR p_revoke_assignments IS NULL THEN
+  RAISE EXCEPTION 'staff_roles_invalid_archive' USING ERRCODE='22023'; END IF;
+ SELECT COALESCE(array_agg(DISTINCT a.membership_id ORDER BY a.membership_id),'{}') INTO affected
+ FROM platform.staff_role_assignments a WHERE a.organization_id=p_organization_id AND a.role_id=r.id AND a.revoked_at IS NULL;
+ IF p_replacement_role_id IS NOT NULL THEN
+  IF p_replacement_role_id=r.id OR p_revoke_assignments THEN
+   RAISE EXCEPTION 'staff_roles_invalid_replacement' USING ERRCODE='22023'; END IF;
+  SELECT source.* INTO replacement FROM platform.staff_role_definitions source
+  JOIN platform.staff_role_bundle_bindings binding ON binding.organization_id=source.organization_id
+    AND binding.role_id=source.id AND binding.bundle_id=source.current_bundle_id
+  JOIN platform.role_bundle_versions bundle ON bundle.id=binding.bundle_id
+    AND bundle.version=binding.bundle_version AND bundle.status='published'
+  WHERE source.organization_id=p_organization_id AND source.id=p_replacement_role_id AND source.status='active';
+  IF NOT FOUND THEN RAISE EXCEPTION 'staff_roles_unpublished_role' USING ERRCODE='22023'; END IF;
+  FOR assignment IN SELECT * FROM platform.staff_role_assignments a WHERE a.organization_id=p_organization_id
+    AND a.role_id=r.id AND a.revoked_at IS NULL LOOP
+   PERFORM platform_private.staff_validate_role_scope(p_organization_id,p_replacement_role_id,
+    jsonb_build_object('kind',assignment.scope_kind,'key',assignment.scope_key,'resourceKind',assignment.resource_kind));
+  END LOOP;
+  SELECT COALESCE(array_agg(bp.permission_key ORDER BY bp.permission_key),'{}') INTO replacement_keys
+  FROM platform.role_bundle_permissions bp WHERE bp.bundle_id=replacement.current_bundle_id;
+ ELSIF cardinality(affected)>0 AND NOT p_revoke_assignments THEN
+  RAISE EXCEPTION 'staff_roles_archive_requires_resolution' USING ERRCODE='22023'; END IF;
+ SELECT COALESCE(array_agg(bp.permission_key ORDER BY bp.permission_key),'{}') INTO published
+ FROM platform.role_bundle_permissions bp WHERE bp.bundle_id=r.current_bundle_id;
+ RETURN jsonb_build_object('roleId',r.id,'version',r.version,'affectedMembershipIds',to_jsonb(affected),
+  'replacementRoleId',p_replacement_role_id,'revokeAssignments',p_revoke_assignments,
+  'impactFingerprint',platform_private.staff_role_archive_impact_fingerprint(p_organization_id,r.id,p_replacement_role_id,p_revoke_assignments),
+  'addedPermissionKeys',COALESCE((SELECT jsonb_agg(k ORDER BY k) FROM unnest(replacement_keys) k WHERE NOT(k=ANY(published))),'[]'::JSONB),
+  'removedPermissionKeys',COALESCE((SELECT jsonb_agg(k ORDER BY k) FROM unnest(published) k WHERE NOT(k=ANY(replacement_keys))),'[]'::JSONB));
 END $$;
 
 CREATE FUNCTION platform.staff_role_publish(p_organization_id UUID,p_role_id UUID,p_expected_version BIGINT,
@@ -1318,10 +1392,10 @@ BEGIN
  'staff_can_access','staff_can_access_for_actor','staff_can_receive_assignment','staff_can_create_for_owner',
  'staff_validate_permission_keys','staff_validate_role_scope','staff_lock_memberships','staff_bump_memberships',
  'staff_role_request_begin','staff_role_request_finish','staff_replace_assignments','staff_assignment_snapshot',
- 'staff_role_impact_fingerprint','staff_validate_assignment_bindings',
+ 'staff_role_impact_fingerprint','staff_validate_assignment_bindings','staff_role_archive_impact_fingerprint',
  'staff_legacy_role_frozen','staff_assignment_revoke_only','staff_department_access_changed'))
  OR (n.nspname='platform' AND p.proname IN ('staff_access_snapshot','staff_role_workspace','staff_role_command',
- 'staff_role_impact','staff_role_publish','staff_role_assignments_save','staff_system_admin_command'))
+ 'staff_role_impact','staff_role_archive_impact','staff_role_publish','staff_role_assignments_save','staff_system_admin_command'))
  LOOP
   EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin',f.signature);
  END LOOP;
@@ -1329,6 +1403,7 @@ END $function_acl$;
 GRANT EXECUTE ON FUNCTION platform.staff_access_snapshot(),platform.staff_role_workspace(UUID),
  platform.staff_role_command(UUID,UUID,BIGINT,TEXT,JSONB,TEXT,UUID),
  platform.staff_role_impact(UUID,UUID,BIGINT),platform.staff_role_publish(UUID,UUID,BIGINT,TEXT,TEXT,UUID),
+ platform.staff_role_archive_impact(UUID,UUID,BIGINT,UUID,BOOLEAN),
  platform.staff_role_assignments_save(UUID,UUID,BIGINT,JSONB,JSONB,TEXT,UUID),
  platform.staff_system_admin_command(UUID,UUID,BIGINT,BOOLEAN,TEXT,UUID) TO authenticated;
 REVOKE ALL ON FUNCTION platform_private.custom_access_token_hook(JSONB) FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;

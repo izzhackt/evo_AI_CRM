@@ -31,9 +31,12 @@ export type StaffRoleImpact = Readonly<{
   addedPermissionKeys: readonly string[]; removedPermissionKeys: readonly string[];
   impactFingerprint: string;
 }>;
+export type StaffRoleArchiveImpact = StaffRoleImpact & Readonly<{
+  replacementRoleId: string | null; revokeAssignments: boolean;
+}>;
 export type StaffRolesActionState = Readonly<{
   status: "idle" | "success" | "error"; message: string; outcome?: "unknown";
-  roleId?: string; version?: number; impact?: StaffRoleImpact;
+  roleId?: string; version?: number; impact?: StaffRoleImpact; archiveImpact?: StaffRoleArchiveImpact;
   membershipId?: string; accessVersion?: number;
 }>;
 export const STAFF_ROLES_INITIAL_STATE: StaffRolesActionState = { status: "idle", message: "" };
@@ -150,6 +153,18 @@ export function parseStaffRoleImpact(value: unknown): StaffRoleImpact {
     affectedMembershipIds: unique(array(row.affectedMembershipIds).map(uuid), (id) => id),
     addedPermissionKeys: strings(row.addedPermissionKeys), removedPermissionKeys: strings(row.removedPermissionKeys),
     impactFingerprint: parseStaffRoleImpactFingerprint(row.impactFingerprint) };
+}
+
+export function parseStaffRoleArchiveImpact(value: unknown): StaffRoleArchiveImpact {
+  const { replacementRoleId, revokeAssignments, ...details } = record(value, [
+    "roleId", "version", "affectedMembershipIds", "addedPermissionKeys", "removedPermissionKeys",
+    "impactFingerprint", "replacementRoleId", "revokeAssignments",
+  ]);
+  const impact = parseStaffRoleImpact(details);
+  const replacement = replacementRoleId === null ? null : uuid(replacementRoleId);
+  const revoke = boolean(revokeAssignments);
+  if (replacement === impact.roleId || (replacement !== null && revoke)) return invalid();
+  return { ...impact, replacementRoleId: replacement, revokeAssignments: revoke };
 }
 
 export function parseStaffRoleCommandResult(value: unknown, kind: "role" | "publish" | "assignments" | "admin") {

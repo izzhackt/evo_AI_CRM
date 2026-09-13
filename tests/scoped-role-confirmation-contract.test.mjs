@@ -95,6 +95,52 @@ test("publish compares the reviewed impact after serialized locks and before bus
   assert.match(publish, /IF result IS NOT NULL THEN RETURN result; END IF/);
 });
 
+test("archive fingerprint binds the source contribution, affected live versions and selected published replacement", () => {
+  const fingerprint = definition("platform_private.staff_role_archive_impact_fingerprint");
+  assert.match(fingerprint, /'sourceFingerprint',platform_private\.staff_role_impact_fingerprint\(p_organization_id,p_role_id\)/);
+  assert.match(fingerprint, /'replacementRoleId',p_replacement_role_id,'revokeAssignments',p_revoke_assignments/);
+  assert.match(fingerprint, /'membershipId',m\.id,[\s\S]*'accessVersion',p\.access_version\) ORDER BY m\.id/);
+  assert.match(fingerprint, /m\.organization_id=p_organization_id AND EXISTS[\s\S]*a\.role_id=p_role_id[\s\S]*a\.revoked_at IS NULL/);
+  for (const field of ["roleVersion", "bundleId", "bundleVersion", "bundleStatus", "publishedPermissionKeys"]) {
+    assert.ok(fingerprint.includes(`'${field}'`));
+  }
+  assert.match(fingerprint, /binding\.role_id=r\.id AND binding\.bundle_id=r\.current_bundle_id/);
+  assert.match(fingerprint, /bundle\.id=binding\.bundle_id AND bundle\.version=binding\.bundle_version/);
+  assert.match(fingerprint, /r\.organization_id=p_organization_id AND r\.id=p_replacement_role_id/);
+  assert.doesNotMatch(fingerprint, /email|display_name|auth_user_id/);
+});
+
+test("Admin archive preview validates the selected choice and reports role-contribution deltas", () => {
+  const preview = definition("platform.staff_role_archive_impact");
+  assert.match(preview, /p_replacement_role_id UUID,p_revoke_assignments BOOLEAN/);
+  assert.match(preview, /require_admin_actor\(p_organization_id,'rbac\.read'\)/);
+  assert.match(preview, /p_expected_version IS NULL OR r\.version<>p_expected_version/);
+  assert.match(preview, /p_replacement_role_id=r\.id OR p_revoke_assignments/);
+  assert.match(preview, /bundle\.version=binding\.bundle_version AND bundle\.status='published'/);
+  assert.match(preview, /staff_validate_role_scope\(p_organization_id,p_replacement_role_id/);
+  assert.match(preview, /cardinality\(affected\)>0 AND NOT p_revoke_assignments/);
+  assert.match(preview, /'addedPermissionKeys',[\s\S]*unnest\(replacement_keys\) k WHERE NOT\(k=ANY\(published\)\)/);
+  assert.match(preview, /'removedPermissionKeys',[\s\S]*unnest\(published\) k WHERE NOT\(k=ANY\(replacement_keys\)\)/);
+  assert.doesNotMatch(preview, /INSERT INTO|UPDATE platform\.|DELETE FROM|staff_has_permission|staff_can_access/);
+});
+
+test("archive verifies the reviewed input under organization and member locks before revocation", () => {
+  const command = definition("platform.staff_role_command");
+  const archive = command.slice(command.indexOf("IF r.status<>'active' OR NOT(p_payload"));
+  before(command, "staff_role_request_begin", "staff_lock_memberships");
+  assert.match(archive, /ARRAY\['replacementRoleId','revokeAssignments','expectedImpactFingerprint'\]/);
+  assert.match(archive, /count\(\*\) FROM jsonb_object_keys\(p_payload\)\)<>3/);
+  assert.match(archive, /expectedImpactFingerprint'\)!~'\^\[0-9a-f\]\{64\}\$'/);
+  before(archive, "staff_lock_memberships", "staff_role_archive_impact_fingerprint");
+  before(archive, "staff_role_archive_impact_fingerprint", "WITH revoked AS (UPDATE platform.staff_role_assignments");
+  assert.match(archive, /staff_roles_impact_version_conflict' USING ERRCODE='40001'/);
+  assert.match(command, /IF result IS NOT NULL THEN RETURN result; END IF/);
+  assert.match(command, /p_operation='restore' THEN\s*IF p_payload<>'\{\}'::JSONB/);
+  assert.match(sql, /'staff_role_archive_impact_fingerprint'/);
+  assert.match(sql, /'staff_role_archive_impact','staff_role_publish'/);
+  assert.match(sql, /platform\.staff_role_archive_impact\(UUID,UUID,BIGINT,UUID,BOOLEAN\)/);
+});
+
 test("ordinary assignment changes bind the exact selected published role set before replacement", () => {
   const bindings = definition("platform_private.staff_validate_assignment_bindings");
   assert.match(bindings, /count\(DISTINCT \(a->>'roleId'\)::UUID\)/);

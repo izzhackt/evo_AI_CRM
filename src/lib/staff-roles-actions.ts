@@ -9,6 +9,7 @@ export async function staffRolesAction(previous: StaffRolesActionState, form: Fo
   let confirmed = false;
   try {
     const result = await executeStaffRoleCommand(form);
+    if ("archiveImpact" in result) return { status: "success", message: "Проверьте изменение доступа перед архивированием.", archiveImpact: result.archiveImpact };
     if ("impact" in result) return { status: "success", message: "Проверьте изменение доступа перед публикацией.", impact: result.impact };
     confirmed = true;
     revalidatePath("/v3/settings");
@@ -21,6 +22,8 @@ export async function staffRolesAction(previous: StaffRolesActionState, form: Fo
     const message = error instanceof Error ? error.message : "";
     return { status: "error", message: message.includes("confirmation_required")
       ? "Подтвердите, что проверили изменение доступа сотрудников."
+      : message.includes("archive_requires_resolution") || message.includes("invalid_replacement")
+        ? "Выберите опубликованную роль-замену либо подтвердите снятие назначений без замены."
       : message.includes("scope") ? "Область не подходит выбранной роли. Проверьте отдел, направление и разрешения."
       : message.includes("invalid_contract") ? "Не удалось подтвердить данные ролей. Обновите страницу; если ошибка повторится, сообщите администратору."
       : staffWorkspaceError(error) };

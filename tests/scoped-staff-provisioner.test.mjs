@@ -390,6 +390,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
       if (name === "Для какой работы") draft.description = value;
     },
     async inputValue() {
+      if (name.includes("expected_impact_fingerprint")) return "a".repeat(64);
       act(name.includes("expected_version") ? "input:expected_version" : "input:role_id");
       return name.includes("expected_version") ? String(draft.version) : draft.id;
     },
@@ -461,6 +462,9 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
       if (name === "staff_role_impact") return { data: { roleId: selected.id, version: selected.version,
         affectedMembershipIds: [], addedPermissionKeys: [...selected.draftPermissionKeys].sort(), removedPermissionKeys: [],
         impactFingerprint: "a".repeat(64) } };
+      if (name === "staff_role_archive_impact") return { data: { roleId: selected.id, version: selected.version,
+        affectedMembershipIds: [], addedPermissionKeys: [], removedPermissionKeys: [...selected.permissionKeys].sort(),
+        impactFingerprint: "a".repeat(64), replacementRoleId: null, revokeAssignments: false } };
       assert.fail(`Unexpected helper RPC: ${name}`);
     } }) };
   return { input: { browser, adminClient, apiUrl, appOrigin, organizationId: org, identity: editorIdentity },
@@ -472,7 +476,12 @@ test("role editor coordinator uses UI commands, read-only canonical checks and n
   const result = await verifyScopedStaffRoleEditor(fixture.input);
   assert.deepEqual(fixture.actions.filter((name) => name.startsWith("command:")),
     ["command:create", "command:save", "command:publish", "command:copy", "command:archive", "command:restore"]);
-  assert.ok(fixture.reads.every((name) => ["staff_access_snapshot", "staff_role_workspace", "staff_role_impact"].includes(name)));
+  assert.ok(fixture.reads.every((name) => ["staff_access_snapshot", "staff_role_workspace", "staff_role_impact", "staff_role_archive_impact"].includes(name)));
+  const archivePreview = fixture.actions.indexOf("click:Проверить архивирование");
+  const archiveConfirmation = fixture.actions.indexOf('check:input[name="confirm_impact"]');
+  assert.ok(archivePreview >= 0 && archiveConfirmation > archivePreview
+    && fixture.actions.indexOf("command:archive") > archiveConfirmation);
+  assert.equal(result.proof.archiveImpactReviewed, true);
   assert.equal(fixture.reads.filter((name) => name === "staff_role_workspace").length, 8);
   assert.equal(fixture.rows.length, 2);
   assert.ok(fixture.rows.every((row) => row.memberCount === 0 && row.status === "active"));
@@ -676,7 +685,7 @@ test("ordinary business proof orders canonical setup before the four same-card s
     'stage = "PAYMENT"', 'stage = "HANDOFF"', 'stage = "DIRECTION"', 'stage = "ROLES"', 'stage = "BASELINE"', 'stage = "CARD"'];
   assert.ok(order.every((needle, index) => source.indexOf(needle) >= 0 && (index === 0 || source.indexOf(needle) > source.indexOf(order[index - 1]))));
   assert.match(source, /const states = \[\[additions\[0\]\], \[additions\[1\]\], additions, \[\]\]/);
-  const edits = source.slice(source.indexOf('stage = "CARD"'), source.indexOf("} catch { failure ="));
+  const edits = source.slice(source.indexOf('stage = "CARD"'), source.indexOf('stage = "ASSIGNED_ARCHIVE_SETUP"'));
   assert.equal((edits.match(/page\.goto\(/g) ?? []).length, 1);
   assert.doesNotMatch(edits, /\.reload\(|staff_role_assignments_save|staff_role_command|staff_role_publish/);
   assert.match(edits, /Изменить назначения/);
@@ -714,6 +723,8 @@ test("business proof cleanup is ordinary, versioned, verified and never upgrades
   assert.match(cleanup, /personalPermission\(grant.key, grant.original\)/);
   assert.match(cleanup, /saveDetails\(originalDetails.department_id, currentDetails.organizational_version\)/);
   assert.match(cleanup, /check\(role.memberCount === 0\)/);
+  assert.match(cleanup, /if \(role.status === "archived"\) return/);
+  assert.match(cleanup, /staff_role_archive_impact[\s\S]*expectedImpactFingerprint: impact.impactFingerprint/);
   assert.match(cleanup, /archived\?\.status === "archived" && archived.member_count === 0/);
   assert.match(cleanup, /await refreshAdmin\(\)/);
   assert.match(cleanup, /after.accessVersion >= before.accessVersion/);
@@ -721,6 +732,21 @@ test("business proof cleanup is ordinary, versioned, verified and never upgrades
   assert.doesNotMatch(source, /auth\.admin|service_role|\.insert\(|\.update\(|\.delete\(|\.upsert\(|inviteUserByEmail|generateLink|storageState|addCookies|screenshot|writeFile|console\./);
   assert.match(source, /localClient\(adminClient, apiUrl\)/);
   assert.match(source, /\[appOrigin, apiUrl\].includes/);
+});
+
+test("assigned archive is a separate positive UI step after all four scope edits", () => {
+  const source = businessHelper();
+  const archive = source.slice(source.indexOf('stage = "ASSIGNED_ARCHIVE_SETUP"'), source.indexOf("} catch { failure ="));
+  assert.match(source.slice(0, source.indexOf('stage = "ASSIGNED_ARCHIVE_SETUP"')), /await fields\(original.accessVersion \+ 4, original.assignments\)/);
+  assert.match(archive, /p_expected_access_version: original.accessVersion \+ 4/);
+  assert.match(archive, /readback\(original.accessVersion \+ 5, assigned\)/);
+  assert.match(archive, /sameSet\(archiveImpact.affectedMembershipIds, \[sales.membershipId\]\)/);
+  assert.match(archive, /sameSet\(archiveImpact.removedPermissionKeys, \["case.read.full"\]\)/);
+  assert.match(archive, /input\[name="expected_impact_fingerprint"\][\s\S]*archiveImpact.impactFingerprint/);
+  assert.match(archive, /input\[name="confirm_impact"\][\s\S]*Перенести в архив/);
+  assert.match(archive, /restoredMember\?\.accessVersion === original.accessVersion \+ 6/);
+  assert.match(archive, /sameSet\(restoredMember.assignments.map\(pair\), original.assignments.map\(pair\)\)/);
+  assert.doesNotMatch(archive, /p_operation: "archive"|\.reload\(|newContext/);
 });
 
 test("business proof rejects incomplete inputs with a fixed private stage before any write", async () => {

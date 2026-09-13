@@ -24,8 +24,14 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Two build-time profiles only; neither path nor limits are caller selectable. */
+#ifdef EVO_UNIVERSITY_TEMPLATE
+#define RUNTIME "/opt/evo-university-template-runtime"
+#define MAX_OUTPUT (128 * 1024)
+#else
 #define RUNTIME "/opt/evo-document-runtime"
 #define MAX_OUTPUT 4096
+#endif
 #define WALL_MS 15000
 #define AS_LIMIT ((rlim_t)2 * 1024 * 1024 * 1024)
 /* Bookworm's build headers predate ABI3. Exact Linux6.2 UAPI value;
@@ -265,7 +271,20 @@ static void diagnostic(const char *name) {
   }
   if (!strcmp(name, "cpu")) { volatile uint64_t number = 1; for (;;) number = number * 3 + 1; }
   if (!strcmp(name, "wall")) { struct timespec delay = {.tv_sec = 60}; for (;;) nanosleep(&delay, NULL); }
-  if (!strcmp(name, "output")) { char excess[MAX_OUTPUT + 1]; memset(excess, 'x', sizeof(excess)); write(1, excess, sizeof(excess)); _exit(0); }
+  if (!strcmp(name, "output")) {
+    char excess[MAX_OUTPUT + 1]; memset(excess, 'x', sizeof(excess));
+    size_t written = 0;
+    /* The template ceiling exceeds pipe capacity. A single nonblocking write
+     * tests a short write, not the supervisor's actual output limit. */
+    while (written < sizeof(excess)) {
+      ssize_t count = write(1, excess + written, sizeof(excess) - written);
+      if (count > 0) written += (size_t)count;
+      else if (count < 0 && (errno == EAGAIN || errno == EINTR)) {
+        struct timespec delay = {.tv_nsec = 1000000}; nanosleep(&delay, NULL);
+      } else stop_child();
+    }
+    _exit(0);
+  }
   stop_child();
 }
 #endif

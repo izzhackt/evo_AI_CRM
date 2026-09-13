@@ -1,5 +1,10 @@
 # EVO Launch Plan
 
+D4 next implementation slice: [hard-isolated DOCX/PDF template inspection](design/v3/evo-docs-template-native-contract.md)
+from exact `ef279986`, alongside separately reviewed registry PR770. Native proof
+is required before private ingress/receipt writer; it is not full forms readiness.
+PDF editable rectangles remain human-reviewed mapping, never invented source proof.
+
 Status: active V3-on-managed-Supabase production-successor contract
 Date: 2026-09-13 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
@@ -206,6 +211,12 @@ first producer of this shared artifact lifecycle, not completion of university
 forms/packages. A separate private export bucket preserves the existing student
 upload/scan boundary. Migration164 is reserved behind the unmerged D3 162–163;
 do not apply an incomplete forward migration sequence to production.
+
+Parallel D4 registry slice: [template/version/mapping contract](design/v3/evo-docs-template-registry-contract.md),
+migration165, exact approved catalogue IDs and live S2 permissions. It installs
+immutable source/mapping/review history and fail-closed publication, not template
+ingress or a fabricated inspection writer. Full forms/package UI, real upload/
+inspection/render, exports and acceptance remain required after this slice.
 
 The persistence/API/history candidate now builds successfully with all three new
 routes and the exact template in standalone output. Independent initial SQL,

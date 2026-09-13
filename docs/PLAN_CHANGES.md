@@ -25815,3 +25815,74 @@ onboarding and standalone retirement remain required. Browser warning counts
 Next step is independent final evidence/main-readiness judgment, not automatic
 provider activation or deployment. No manual release CI, managed schema/bucket
 mutation or production change has occurred; production remains05585020.
+## 2026-09-14 — D4 persistent template registry, before implementation
+
+Root allocates165 on c49707ef for the independent registry slice;162/163D3 and
+164artifacts are untouched. Follow the new exact
+[registry contract](design/v3/evo-docs-template-registry-contract.md): org-scoped
+catalog permissions, exact immutable catalogue/version/hash binding, bounded
+resolver-compatible mappings, explicit append-only review/publication/archive,
+expected revision + request replay and source-safe DTOs. PostgreSQL locks and
+SECURITY DEFINER grants were checked in current official docs linked there.
+
+No existing trusted D4template ingress/inspector exists. Keep the inspection
+receipt table unwritable by runtime roles in this slice, and publish fail-closed
+without that proof. This is explicitly unfinished follow-up work, not a new
+success definition or permanent feature flag. D3 PDF/image inspection is not
+reused as DOCX/form proof. Synthetic SQL-owner metadata can exercise constraints,
+not pretend actual scanning/rendering occurred. No managed/prod/provider calls,
+real private files, student-ingress expansion or retirement is authorized here.
+
+Registry candidate now implements the contracted slice. Actual isolated SQL
+exit0 `01a09cd05d9b7853a6067ab3ea48446d` includes real existing catalogue/S2 role
+commands, manager vs published-only reader, revocation, tenant isolation,
+replay/stale/history/22-version pagination and PDF geometry/manual guards.
+Synthetic owner-only inspection metadata tests relational publication invariants;
+it does not prove a scan/file upload. The owned network-none container was removed.
+Canonical mapping hashes match the existing Node resolver for DOCX and decimal
+PDF coordinates. Runtime source/mapping types plus72 focused tests/lint passed
+`01a09cce6f367a32a6ec01bba1da2f0f`; one actual Next/TypeScript production build
+passed `01a09ccd8e7d7c9398ee8413e0482a2e`. Manifest8/8 passed; validate-only
+CI170/unit165 is inventory, not a full gate. Independent review/integration and
+all full D4 upload/inspection/render/form/package/UI/acceptance work remain open.
+
+## 2026-09-14 — Before D4 native template inspection implementation
+
+Root assigns a new isolated branch from ef279986; registry355a4c5c/PR770 and
+combined browser work stay untouched. Implement the [native contract](design/v3/evo-docs-template-native-contract.md):
+reuse D3 supervisor/seal through a fixed compile-time template profile, separate
+runtime path/protocol,128KiB output,20MiB DOCX/PDF input and existing hard limits.
+Real existing inspectors run only in the sealed process and return minimal
+source-bound manifests. No new migrations or trusted-writer claims in this slice.
+
+Forward-contract decision approved by root before coding: PDF inspection returns
+exact pages and slots=[], because plain PDFs do not provide authoritative editable
+slots. Later mapping review owns rectangle/manual-field decisions; a future
+forward migration must adjust165 validation without rewriting165 or fabricating
+editable slots. DOCX keeps actual inspected id/editable pairs, without text.
+
+Use narrow actual native tests plus scoped Node/lint checks, including shared D3
+regression and real kernel failure/limit controls. No duplicated Next build,
+provider, real documents, managed schema or production actions. Independent review
+must approve the frozen diff before commit/push; native PASS will not imply
+ClamAV/Storage/writer, layout, publication, export or whole-D4 acceptance.
+
+Native implementation checkpoint: initial actual run13/14 exposed a diagnostic
+short-write issue, not a relaxed production boundary. Its128KiB output probe
+issued one nonblocking pipe write; the test-only producer now handles short
+writes/EAGAIN to cross the real supervisor ceiling. D3's4096-byte production
+profile remains unchanged. Initial scoped TypeScript also found an unknown
+format type; the adapter now returns the already-validated literal format.
+
+Final actual template target14/14 PASS `01a09ce5daa17303bfc835a6d3ad708e`,
+image1473e442201315bde223347886beacf79294f2ef70c98884d8db5b89391bc7c8;
+original D3 target12/12 PASS `01a09ce5dabf7a22a2e08b4eb578137a`,
+imageb15af9709aaa576b947e6e5bdc599d0ae7b25d91bb8952afba44c65136bc80e3.
+Both owned network-none containers were removed and absence read back.
+Focused forms55/55 (`01a09ce3311e7ce0ba24e6149e3ad308`; same call later correctly
+failed stale CI group cardinality154→155), followed by corrected manifest/
+classifier25/25 and scoped lint (`01a09ce430d173028d8be59d4834e656`). Final
+adapter strict TypeScript/lint passed (`01a09ce55ad478b3b147b6b494202bf7`).
+No Next build, managed schema/provider/real document or production action ran.
+These narrow target proofs do not replace eventual combined image and full D4
+business acceptance. Freeze this source for independent review before publishing.

@@ -123,6 +123,10 @@ It validates all twelve source domains and explicit approved case mappings, then
 reports replay/conflicts without reading source values/files or executing transfer.
 Real import, target persistence gaps, private mapping approval and D5/D6 acceptance
 remain open; no second database, provider operation or runtime retirement is added.
+The next authorized D5 prerequisite is a bounded readonly SQLite snapshot adapter
+feeding that planner, with explicit mapping/file descriptors and synthetic SQLite
+proof only. It has no apply command or live-app constructor; missing university
+file sizes and omitted historical payloads remain explicit limitations.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

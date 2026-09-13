@@ -93,3 +93,65 @@ requires object mutations through its API, not SQL metadata writes;
 [Storage uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads)
 documents conflict/overwrite behavior. No backup, Storage operation or provider call
 is performed by this module, and this slice adds no backup requirement.
+
+## Readonly snapshot adapter (next D5 prerequisite)
+
+`readDocumentImportSnapshot(snapshotPath, contextJson)` reads an explicitly
+authorized, completed SQLite snapshot; it never opens the live standalone app.
+Context JSON has exact keys `schema` (`evo-docs-snapshot-context/v1`),
+`sourceInstanceId`, `snapshotSha256`, `caseMappings`, `targetCases`, `ledger`,
+`universityFiles`. The first five data fields reuse manifest validation.
+`universityFiles` entries are `{domain,sourcePk,file}` for university forms/exports
+only, with the manifest file descriptor. They are externally supplied assertions,
+not authority or verified attachment bytes; duplicate/foreign/hash-mismatched
+entries block. Forms also require the MIME to match source `file_format`.
+
+The absolute path must be canonical, with no symlink component, URI, dot traversal,
+hard link, directory or special file. Its parent must not be group/world writable.
+Limits: 64 MiB snapshot, 8 MiB context, 10,000 total rows/descriptors. A completed
+rollback-journal snapshot is required: WAL-format headers and any `-wal`, `-shm`
+or `-journal` sibling are rejected without opening SQLite. The reader holds a
+readonly file descriptor, verifies SQLite header/SHA, opens the existing pathname
+with `readOnly:true`, `allowExtension:false`, `timeout:0`, `query_only=ON` and
+`trusted_schema=OFF`, then verifies identity/size/mtime/SHA and sidecar absence
+again after close. It does not copy, create, repair, migrate, checkpoint or chmod
+anything. These checks detect drift; they are not a sandbox for hostile concurrent
+filesystem mutation. The caller must provide a frozen operator-controlled directory.
+
+Exactly the twelve ordinary tables are required (`sqlite_sequence` is allowed).
+Expected complete column names are checked from source schema; views, triggers,
+virtual tables and hidden/generated columns fail closed. Explicit SELECT lists:
+
+| Domain | Projected columns beyond identity/student linkage |
+|---|---|
+| students | none; no names |
+| documents | current_version_id, sha256, size_bytes, mime_type |
+| document_versions | document_id, sha256, size_bytes, mime_type |
+| field_values | key, source_document_id, source_version_id, state |
+| field_candidates | key, source_document_id, source_version_id |
+| event_log | none; no message or invented actor |
+| package_settings | generation |
+| package_parts | sha256, size_bytes, mime_type; no inferred parent |
+| package_reviews | file_id, version_id, sha256, constraints_hash |
+| package_exports | sha256, size_bytes; no private manifest membership |
+| university_forms | sha256, file_format, mapping_confirmed, generation |
+| university_form_exports | form_id, sha256; no snapshot payload |
+
+`metadataSha256` is a versioned hash of these allowlisted columns only. Hashing the
+SQLite file verifies snapshot identity but neither inspects nor proves attachment
+contents. Changes in omitted values/messages/settings/mappings/snapshots are not
+row-level reconciled by this reader. Legacy fields confirmed in source, package
+reviews/exports and form assertions stay historical; no reviewer is manufactured.
+
+Result includes all twelve counts and fixed metadata diagnostics. If university
+size metadata is absent or descriptors conflict, `manifest`/`plan` are null and
+status is `blocked`, never a partial manifest dropping rows. Otherwise it feeds the
+existing parser/planner; its issues (including foreign IDs) make status `blocked`.
+Every result still has `executionAllowed:false`, `sourceBytesVerified:false`,
+`liveAuthorityVerified:false`, `d5Complete:false`. No path/private value/raw error
+is included. The reader has no command or application-runtime entrypoint.
+
+Primary behavior verified: [Node22.23.1 SQLite](https://nodejs.org/download/release/v22.23.1/docs/api/sqlite.html#new-databasesyncpath-options)
+supports readonly existing-file opens and disabled extensions;
+[SQLite query_only](https://www.sqlite.org/pragma.html#pragma_query_only) alone is
+not a readonly connection. Real-data snapshot creation/access remains separately authorized.

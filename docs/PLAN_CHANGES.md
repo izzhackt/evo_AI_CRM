@@ -25057,3 +25057,58 @@ TypeScript `01a09ccab4227f8185625abd198343bf` and ESLint
 `01a09ccabb7777e0a9b4fc1fb3737bde` passed. Target-collision checks are scoped to
 the current source instance and domain; foreign-instance and other-domain controls
 do not create false collision findings. Corrected frozen diff requires exact review.
+
+## 2026-09-14 — D5 bounded readonly SQLite metadata adapter
+
+After independently approved and published metadata planner9ed4c6a (draft PR769),
+root authorizes its next prerequisite, not transfer: one Node22 snapshot reader
+feeding that same manifest/planner. The public test seam is
+`readDocumentImportSnapshot(snapshotPath, contextJson)` against real synthetic
+twelve-table SQLite files. No standalone runtime constructor, target DB/schema,
+Storage, provider, new dependency, CLI, real applicant data or deployment is added.
+
+Before code: require an explicit canonical regular single-link snapshot file in
+an operator-controlled directory; reject symlinks, URI/relative paths, SQLite WAL
+headers and sidecars. Bound snapshot bytes and total projected rows. Verify the
+supplied snapshot SHA before and after reading; open `DatabaseSync` with
+`readOnly:true`, `allowExtension:false`, zero lock wait and `query_only` defense.
+Accept only the twelve known ordinary source tables with expected column names;
+reject views/triggers/virtual/generated columns. Select only fixed allowlisted
+identity/integrity/status columns, never names, values, messages, paths or JSON
+payloads. A projection hash is not a hash of omitted private content.
+
+University file sizes do not exist in source schema. Missing supplied descriptors
+must yield fixed blocking diagnostics, not invented sizes or partial success.
+Descriptors must bind exact source domain/PK/hash; reject foreign/duplicate ones.
+No inferred historical parent, package membership or reviewer is added. Existing
+planner still reports missing mappings, unsupported MIME, foreign identities and
+unimplemented persistence; live authority, source attachment bytes and D5 stay
+unverified. Path checks assume a frozen operator-owned directory, not an adversarial
+filesystem race sandbox. No source file is copied, repaired or checkpointed.
+
+Validation: RED/GREEN public reader integration tests with actual synthetic SQLite,
+all twelve domains, unchanged bytes/mtime and no sidecars, exact schema/path/limits/
+identity failures and supplied approved descriptors. Reuse canonical test runner,
+scoped TypeScript/lint; no duplicate full Next/DB/browser gate. Freeze exact diff
+for independent review before any further commit or push.
+
+Implementation constraint before adjustment: actual Node22.23.1 native SQLite
+passes the first twelve-table reader check, but the repo's older Node type package
+does not declare `node:sqlite`. Keep dependencies unchanged: use Node's native
+`createRequire` with a local structural type limited to the SQLite methods used.
+There is no substitute implementation, dynamic path, fallback or provider mock.
+
+Reader proof: initial RED `01a09cd4fec17751bb8b7ce7b91f730c` failed because the
+new reader module did not yet exist. First real twelve-table SQLite path GREEN
+`01a09cd6bed07302a18cff94bc4285ae`. Expanded checks exposed three incorrect test
+expectations for existing planner issue names (`01a09cd80aaa73f19a2d94e4068a0526`)
+and one old canonical group count (`01a09cd9bdbc7a019896f4c4607df821`); corrected
+expectations, not planner behavior. Final GREEN `01a09cda29867501817c809a07883c28`
+passed59 native SQLite reader tests +52 unchanged planner tests +9 manifest tests
+(120 total). Strict scoped TypeScript, ESLint and diff check passed
+`01a09cda3ba973d09b719264679a0664`; validate-only inventory passed
+`01a09cd9d09178e2b523b5dab227adbc`: CI310/171/139, unit208/166/42. No full Next
+build, target database, source application, real data, provider or deployment ran.
+Synthetic snapshot bytes/mtime and sidecar absence were asserted; test-owned files
+were removed by fixture cleanup. Frozen source awaits independent exact-diff review;
+new adapter changes are not committed or pushed and do not close D5.

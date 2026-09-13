@@ -14,12 +14,14 @@ fail() {
 
 trap report_error ERR
 
-[[ "$#" -eq 0 || ( "$#" -eq 1 && ( "$1" == "--staff-onboarding-only" || "$1" == "--student-profile-fields-only" ) ) ]] \
-  || fail "Usage: $0 [--staff-onboarding-only | --student-profile-fields-only]"
+[[ "$#" -eq 0 || ( "$#" -eq 1 && ( "$1" == "--staff-onboarding-only" || "$1" == "--student-profile-fields-only" || "$1" == "--document-recognition-only" ) ) ]] \
+  || fail "Usage: $0 [--staff-onboarding-only | --student-profile-fields-only | --document-recognition-only]"
 staff_onboarding_only=0
 [[ "${1:-}" != "--staff-onboarding-only" ]] || staff_onboarding_only=1
 student_profile_fields_only=0
 [[ "${1:-}" != "--student-profile-fields-only" ]] || student_profile_fields_only=1
+document_recognition_only=0
+[[ "${1:-}" != "--document-recognition-only" ]] || document_recognition_only=1
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly clamav_image="clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9"
@@ -32,6 +34,16 @@ supabase_lock_pid_file="$supabase_lock_dir/pid"
 
 [[ -n "$node_bin" && -x "$node_bin" ]] \
   || fail "Node 22 binary is required via EVO_NODE_BIN or PATH"
+
+# Fail before acquiring a lock or creating the disposable stack. Images must be
+# the reviewed combined source/runtime pair, never a runtime-only substitute.
+if [[ "$document_recognition_only" == "1" ]]; then
+  [[ -z "${EVO_PLATFORM_GEMINI_API_KEY:-}" && -z "${GEMINI_API_KEY:-}" ]] \
+    || fail "D3 local predispatch proof must not receive provider credentials"
+  "$node_bin" --conditions=react-server --experimental-strip-types \
+    "$repo_root/scripts/lib/document-recognition-acceptance-image.mjs" \
+    || fail "D3 combined acceptance image gate is not ready; no foundation stack was started"
+fi
 
 foundation_harness_pid_active() {
   local pid="$1"
@@ -67,6 +79,7 @@ supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
 staff_provision_log="$tmp_dir/staff-provision.log"
 student_profile_fields_log="$tmp_dir/student-profile-fields.log"
+document_recognition_log="$tmp_dir/document-recognition.log"
 platform_communications_provision_log="$tmp_dir/platform-communications-provision.log"
 sales_proof_provision_log="$tmp_dir/sales-proof-provision.log"
 waha_log="$tmp_dir/waha.log"
@@ -1391,8 +1404,53 @@ student_profile_fields_browser_assert() {
   echo "Synthetic Student Profile evidence: $evidence_dir"
 }
 
+document_recognition_browser_assert() {
+  assert_app_reachable
+  local evidence_dir="$repo_root/output/document-recognition/${runtime_inventory_sha}/foundation-${RANDOM}-$$"
+  mkdir -p "$evidence_dir"
+  chmod 700 "$evidence_dir"
+  if ! EVO_D3_APP_ORIGIN="http://127.0.0.1:$app_port" \
+    EVO_D3_SUPABASE_WORKDIR="$supabase_workdir" \
+    EVO_D3_EVIDENCE_DIR="$evidence_dir" \
+    EVO_D3_ORGANIZATION_ID="$platform_organization_id" \
+    NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+    SUPABASE_DB_URL="$supabase_database_url" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    "$node_bin" --conditions=react-server --experimental-strip-types scripts/lib/document-recognition-browser-proof.mjs \
+      >"$document_recognition_log" 2>&1; then
+    local failure=""
+    failure="$(grep -m 1 -E '^DOCUMENT_RECOGNITION_BROWSER_ERROR:[A-Z0-9_]+$' "$document_recognition_log" || true)"
+    [[ -z "$failure" ]] || echo "$failure" >&2
+    EVO_D3_APP_LOG="$app_log" EVO_D3_RUNTIME_DIR="$tmp_dir" EVO_D3_EVIDENCE_DIR="$evidence_dir" \
+      "$node_bin" --conditions=react-server --experimental-strip-types scripts/lib/document-recognition-browser-proof.mjs \
+        --summarize-owned-app-log || true
+    echo "Synthetic D3 failure evidence: $evidence_dir" >&2
+    fail "D3 actual local predispatch proof failed; no full worker/provider acceptance is implied"
+  fi
+  for secret in "$supabase_service_role_key" "$staff_admin_email" "$staff_admin_password" "$supabase_database_url"; do
+    if grep -F "$secret" "$document_recognition_log" >/dev/null; then
+      fail "D3 predispatch proof exposed a credential in its output"
+    fi
+  done
+  grep -Fx 'DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED' "$document_recognition_log" >/dev/null \
+    || fail "D3 predispatch proof returned no verification marker"
+  echo 'DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED'
+  echo "Synthetic D3 predispatch evidence: $evidence_dir"
+}
+
 cd "$repo_root"
 echo "Validating the active Supabase-only foundation without the retired Drizzle toolchain."
+
+if [[ "$document_recognition_only" == "1" ]]; then
+  start_clamav_scanner
+  start_app configured unavailable blocked provider-not-authorized enabled
+  document_recognition_browser_assert
+  assert_no_secret_or_payload_logs
+  exit 0
+fi
 
 if [[ "$student_profile_fields_only" == "1" ]]; then
   start_app configured unavailable blocked provider-not-authorized enabled

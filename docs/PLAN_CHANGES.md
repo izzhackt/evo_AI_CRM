@@ -24808,3 +24808,60 @@ and requires GET absence; early404 after unknown upload remains DB-pending.
 Independent integration review, real local Auth/Storage/browser proof, isolated
 parser proof, CLI wiring and explicit allowed-file/paid-project provider
 acceptance remain open. No main/schema/provider/production mutation in this slice.
+
+### 2026-09-13 — D3 bounded real-session acceptance preparation (before code)
+
+Prepare a dedicated foundation mode on a separate branch from independently
+reviewed integration26dd7b78; do not edit/publish over its frozen review. Reuse the
+owned OrbStack/Supabase bootstrap, canonical synthetic handoff, actual staff Auth
+and browser, actual document upload/scanner/private Storage, and safe pre-cleanup
+diagnostics. Reuse the public EVO logo bytes, not customer files. Exercise profile
+start/confirmed-empty, checklist/upload, explicit queued request, exact-session
+same-command replay and cold history read without a second job. Technical config
+seeding stays in the disposable local fixture and never represents real paid
+eligibility or permission to call a provider; no Gemini key, upload or generation.
+
+The source-preflight leg must use an immutable combined integration + reviewed
+Linux-runtime image containing exact loader/seal and actual inspector artifacts.
+Require a fail-closed readiness gate before stack creation; do not assume a
+runtime-only image contains D3 source. No macOS parsing fallback, injected
+verified result, fake worker success or diagnostic replacement. The real isolated
+loader/inspector seals measured pages/policy/fingerprint, then terminally ends the
+technical job before provider intent. Preserve explicit non-provider scope in its
+receipt. Root coordinates image identity and the single run after runtime proof;
+this preparation does not authorize a stack run now. Existing whole business,
+staff onboarding and D2 acceptance modes keep their gates unchanged.
+
+The image orchestrator belongs only to an acceptance image target, never the
+production final image. It imports actual source loader, isolated inspector,
+canonical fingerprint and service RPCs; it does not import provider transport or
+processing worker. After successful seal it uses the existing preflight
+`cancelled` transition. Bind the exact combined source/module hashes and compare
+real launcher/inspector/dependency-tree bytes against the immutable production
+image. Verify source access audit, cancelled state and released reservation with
+zero upload/generation intents, provider files and proposals. Configuration labels
+alone are not an egress control or proof of billing eligibility.
+
+### D3 acceptance harness prepared — no runtime or service acceptance claim
+
+Added the bounded `--document-recognition-only` mode, actual UI/session/Storage
+scenario and acceptance-only Linux driver. Shared D2 ownership/bootstrap and safe
+diagnostics are reused with a closed D2/D3 scope; its full workflow stays intact.
+Gate compares a clean exact checkout's imported TS module bytes (not a nonexistent
+production CLI bundle), actual runtime files/dependency tree and Node hashes in
+production/acceptance images, and native architecture. Docker FROM uses a resolvable
+reference; execution/readback uses immutable local IDs, with no label-only pass.
+Build behavior follows current official Docker FROM/image-identity docs linked
+in the D3 contract. The ordinary production Dockerfile is unchanged.
+
+Missing manifest entry observed RED20/1 `01a09be699cf7d23b5cc8d8d68bf1ccd`; append
+only the new harness contract test to the real existing CI entrypoint. Focused
+27 PASS `01a09be6f8a97060bb7a71b836027c6e`; actual npm test:student-profile-fields
+162+18 PASS `01a09be7de9a7353893b9a10209b44c6`; full repo TS0diag
+`01a09be7ec9674c2b6c108af4f765327`, scoped ESLint0warnings
+`01a09be7032771109426c4fb5352736c`, bash/entrypoint syntax+diff clean
+`01a09be73b5874c397fc021abea4160b`.
+No Docker/stack/image build, DB mutation, real user or provider was exercised.
+Runtime7ed531 is changes_requested pending two P1 fixes and independent review.
+Actual combined-image gate and the one local predispatch scenario remain open;
+full worker/provider generation/review/cleanup and production CLI remain separate.

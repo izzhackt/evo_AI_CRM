@@ -7,7 +7,8 @@
 Pure DTO/transport подготовлены в PR756/758; очередь162/PR760 reviewed APPROVED на `823ecb02`, не merged.
 Интеграция163: HTTP/UI, fenced private-source loader и processing/cleanup orchestration реализованы и локально проверены.
 Изолированный parser/runtime, итоговый CLI и реальные Auth/Storage/browser/provider gates ещё не закрыты; dispatch не включён.
-Новый срез ждёт независимого ревью; статус и результаты ниже не означают выпуск или реальную paid-приёмку.
+Интеграция `26dd7b78` независимо одобрена и сохранена в draft PR763 поверх PR760.
+Следующий acceptance harness проверяется отдельно; это не выпуск или реальная paid-приёмка.
 Номера forward-миграций выделяет root после проверки актуального main; не резервировать самостоятельно.
 
 ## Результат и неизменные границы
@@ -221,3 +222,54 @@ Actual `npm run test:student-profile-fields`: 152 server/pure +18 component SSR 
 Real loopback HTTP проверяет capped streaming/abort/expiry, но не настоящий Supabase Storage.
 Injected Files/REST/RPC/inspector ответы — только unit-boundary proof, не real provider/parser evidence.
 CLI не содержит mock/pass инспектора и ещё не добавлен: root-owned hard runtime обязателен до wiring/dispatch.
+
+## Следующая ограниченная техническая приёмка — до provider gate
+
+От reviewed `26dd7b78` готовится отдельный foundation mode: настоящий локальный
+Admin/Auth → canonical Sales→Admissions fixture → UI-профиль и пустое подтверждение →
+UI checklist/upload публичного EVO logo через настоящий ClamAV/private Storage →
+явное UI enqueue → session replay/read/cold reopen без второго задания.
+Все данные изолированные и синтетические; fixture config явно технический, без
+API key и без утверждения paid-project eligibility. Он не разрешает provider dispatch.
+
+Source-preflight gate требует immutable combined D3 + independently reviewed
+Linux-runtime image: точные source-loader/seal bytes `26dd7b78` и реальные runtime
+artifact bytes должны входить в один проверенный образ. Runtime-only image, macOS
+parser, диагностическая подмена, mock inspector и fake verified result не подходят.
+До проверки образа команда останавливается до запуска стека. После согласованного
+запуска exact private bytes читаются через действующий grant, проходят настоящий
+изолированный inspector, pages/policy/fingerprint запечатываются и job завершается
+до upload; факт отсутствия upload/generation/provider-file подтверждает отдельный gate.
+
+Это доказательство локальных UI/Auth/Storage/preflight связей, не полного worker
+или paid-провайдера. Actual generation/result → human review → provider cleanup
+остаются обязательной отдельной приёмкой на разрешённых деле/файле и paid project.
+
+### Подготовка и запуск после разрешения root
+
+1. Сначала независимое одобрение исправленного hard runtime и объединённого среза.
+   `7ed5315a` получил changes_requested; его прежний 8/8 не заменяет исправления двух P1.
+   В этой ветке runtime намеренно не копируется; без него сборка/gate недоступны.
+2. В одном clean checkout объединить reviewed D3 + fixed runtime + этот harness.
+   Обычный `Dockerfile` собирает production image с exact `EVO_IMAGE_REVISION`.
+   Затем отдельный `scripts/Dockerfile.document-recognition-acceptance` получает
+   `EVO_D3_COMBINED_IMAGE_REF` (разрешаемое имя/тег или repository digest),
+   `EVO_D3_COMBINED_IMAGE` (его фактический local `sha256:<image ID>`) и
+   `EVO_D3_ACCEPTANCE_REVISION` (тот же commit). Reference и image ID не взаимозаменяемы;
+   см. [Docker FROM](https://docs.docker.com/reference/dockerfile/#from) и
+   [image identity](https://docs.docker.com/reference/cli/docker/image/pull/).
+3. Запуск: `EVO_D3_COMBINED_IMAGE` и `EVO_D3_ACCEPTANCE_IMAGE` задаются точными local
+   image ID, `EVO_NODE_BIN` указывает Node22; выполнить
+   `bash scripts/test-postgres-v2-foundation.sh --document-recognition-only`.
+   Gate до stack creation сравнивает native architecture, revision, точные TS bytes
+   из clean Git commit и фактические launcher/inspect/dependency-tree/Node hashes
+   обоих образов. TS-модули исполняются только в acceptance target: это **не**
+   проверка отсутствующего production CLI bundle. Production image не получает test entrypoint.
+4. Единственный полный marker — `DOCUMENT_RECOGNITION_PREDISPATCH_VERIFIED`;
+   закрытый receipt/screenshot сохраняется в `output/document-recognition/<SHA>/foundation-*`.
+   Нет marker или неудачна очистка — gate не закрыт. Внутри read/replay не создают
+   второго задания; terminal cancelled, released reservation и отсутствие
+   upload/generation/provider files/proposals читаются из реальной локальной БД.
+
+Подготовка проверена только как код: focused27 PASS, actual npm script162+18 PASS,
+TypeScript/lint/syntax PASS. Стек, acceptance image и внешний провайдер не запускались.

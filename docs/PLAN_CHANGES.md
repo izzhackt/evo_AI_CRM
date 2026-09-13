@@ -25815,3 +25815,22 @@ onboarding and standalone retirement remain required. Browser warning counts
 Next step is independent final evidence/main-readiness judgment, not automatic
 provider activation or deployment. No manual release CI, managed schema/bucket
 mutation or production change has occurred; production remains05585020.
+
+## 2026-09-14 — Bind trusted document receipts to verified runtime image
+
+Before implementation, root approves the bounded
+[runtime image identity contract](design/v3/runtime-image-identity-contract.md).
+The release already attests engine imageId separately from imageConfigDigest,
+but the app currently receives only its revision. Generate EVO_RUNTIME_IMAGE_ID
+inside the existing immutable candidate env snapshot, reject operator-supplied
+reserved identity, and verify actual container ID/revision at candidate/status/
+accept/recovery. Preserve exact historical env copying and restore the previous
+image identity on rollback; only a verified historical previous snapshot may
+omit the new key. No generic candidate fallback is permitted.
+
+This selects existing sealed env over a new read-only identity mount because
+snapshot hashes and previous-generation lifecycle already exist. No migration,
+Dockerfile, provider, managed service, browser authority or deployment changes
+are authorized by this slice. Focused real filesystem/CLI and actual owned local
+container transport checks plus independent exact-diff review precede publication;
+ingress separately owns the strict server-only reader and receipt writer.

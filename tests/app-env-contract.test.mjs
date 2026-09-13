@@ -18,7 +18,9 @@ import test from "node:test";
 
 import {
   AppEnvironmentContractError,
+  sealCandidateEnvironmentSnapshot,
   sealPrivateEnvironmentSnapshot,
+  verifyRuntimeEnvironmentIdentity,
   validateAppEnvironmentContract,
   verifySupabaseProjectCredentials,
 } from "../scripts/evo-app-env-contract.mjs";
@@ -387,6 +389,136 @@ test("seals exact private environment bytes once with mode 0600 and digest-only 
     assert.deepEqual(readFileSync(cliSnapshot), bytes);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("candidate CLI seals controller image identity without modifying operator env or historical copies", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-env-identity-")));
+  const source = join(root, ".env.production");
+  const snapshot = join(root, "candidate-app.env");
+  const historical = join(root, "rollback-app.env");
+  const imageId = `sha256:${"a".repeat(64)}`;
+  const sourceText = valid().trimEnd();
+  try {
+    writeFileSync(source, sourceText, { mode: 0o600 });
+    const cli = spawnSync(process.execPath, [
+      "scripts/evo-app-env-contract.mjs", "--seal-candidate-env", source,
+      "--snapshot", snapshot, "--runtime-image-id", imageId,
+    ], { encoding: "utf8" });
+    assert.equal(cli.status, 0, cli.stderr);
+    const expected = `${sourceText}\nEVO_RUNTIME_IMAGE_ID=${imageId}\n`;
+    assert.equal(readFileSync(snapshot, "utf8"), expected);
+    assert.equal(readFileSync(source, "utf8"), sourceText);
+    assert.equal(lstatSync(snapshot).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(cli.stdout), {
+      ok: true, sha256: createHash("sha256").update(expected).digest("hex"),
+    });
+    assert.equal(cli.stdout.includes(imageId), false);
+    sealPrivateEnvironmentSnapshot(snapshot, historical);
+    assert.equal(readFileSync(historical, "utf8"), expected);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime identity CLI binds sealed snapshot, actual container ID and revision without exposing other env", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-runtime-identity-")));
+  const snapshot = join(root, "candidate-app.env");
+  const imageId = `sha256:${"a".repeat(64)}`;
+  const revision = "b".repeat(40);
+  try {
+    writeFileSync(snapshot, `EVO_RUNTIME_IMAGE_ID=${imageId}\n`, { mode: 0o600 });
+    const cli = spawnSync(process.execPath, [
+      "scripts/evo-app-env-contract.mjs", "--verify-runtime-identity",
+      "--snapshot", snapshot, "--runtime-image-id", imageId,
+      "--release-revision", revision,
+    ], {
+      encoding: "utf8", input: JSON.stringify([
+        `EVO_RUNTIME_IMAGE_ID=${imageId}`, `EVO_RELEASE_REVISION=${revision}`,
+        "PRIVATE_TEST_KEY=never-print-this-value",
+      ]),
+    });
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.deepEqual(JSON.parse(cli.stdout), { ok: true });
+    assert.equal(cli.stderr, "");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("candidate seal rejects reserved identity, invalid IDs and source races before creating a snapshot", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-env-identity-deny-")));
+  const source = join(root, ".env.production");
+  const snapshot = join(root, "candidate-app.env");
+  const imageId = `sha256:${"a".repeat(64)}`;
+  try {
+    for (const text of [
+      `${valid()}EVO_RUNTIME_IMAGE_ID=${imageId}\n`,
+      `${valid()}  EVO_RUNTIME_IMAGE_ID = ''\n`,
+      `${valid()}EVO_RUNTIME_IMAGE_ID=x\nEVO_RUNTIME_IMAGE_ID=y\n`,
+    ]) {
+      writeFileSync(source, text, { mode: 0o600 });
+      assert.throws(() => sealCandidateEnvironmentSnapshot(source, snapshot, imageId));
+      assert.equal(lstatSync(snapshot, { throwIfNoEntry: false }), undefined);
+      assert.equal(readFileSync(source, "utf8"), text);
+    }
+    writeFileSync(source, valid(), { mode: 0o600 });
+    for (const invalid of ["", "a".repeat(64), imageId.toUpperCase(), `${imageId}\n`, null]) {
+      assert.throws(() => sealCandidateEnvironmentSnapshot(source, snapshot, invalid));
+      assert.equal(lstatSync(snapshot, { throwIfNoEntry: false }), undefined);
+    }
+    assert.throws(() => sealCandidateEnvironmentSnapshot(source, snapshot, imageId, {
+      afterSourceRead() { writeFileSync(source, `${valid()}# changed\n`); },
+    }), (error) => error.code === "snapshot_source_changed");
+    assert.equal(lstatSync(snapshot, { throwIfNoEntry: false }), undefined);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime identity denies missing, duplicate, malformed and mismatched actual or sealed values", () => {
+  const imageId = `sha256:${"a".repeat(64)}`;
+  const revision = "b".repeat(40);
+  const identity = `EVO_RUNTIME_IMAGE_ID=${imageId}`;
+  const revisionEntry = `EVO_RELEASE_REVISION=${revision}`;
+  const validInput = {
+    snapshotText: `${identity}\n`, containerEnvironment: [identity, revisionEntry],
+    runtimeImageId: imageId, releaseRevision: revision,
+  };
+  for (const overrides of [
+    { containerEnvironment: [revisionEntry] },
+    { containerEnvironment: [identity, identity, revisionEntry] },
+    { containerEnvironment: [identity, revisionEntry, revisionEntry] },
+    { containerEnvironment: [identity] },
+    { containerEnvironment: [`${identity}x`, revisionEntry] },
+    { containerEnvironment: [identity, `EVO_RELEASE_REVISION=${"c".repeat(40)}`] },
+    { containerEnvironment: [null] },
+    { snapshotText: "OTHER=allowed\n" },
+    { snapshotText: `${identity}\n${identity}\n` },
+    { snapshotText: `EVO_RUNTIME_IMAGE_ID=sha256:${"c".repeat(64)}\n` },
+    { runtimeImageId: imageId.toUpperCase() },
+    { releaseRevision: "not-a-revision" },
+  ]) {
+    assert.throws(() => verifyRuntimeEnvironmentIdentity({ ...validInput, ...overrides }));
+  }
+});
+
+test("historical previous compatibility requires absence in both frozen snapshot and actual container", () => {
+  const imageId = `sha256:${"a".repeat(64)}`;
+  const revision = "b".repeat(40);
+  const legacy = {
+    snapshotText: "OTHER=allowed\n", containerEnvironment: [`EVO_RELEASE_REVISION=${revision}`],
+    runtimeImageId: imageId, releaseRevision: revision,
+  };
+  assert.throws(() => verifyRuntimeEnvironmentIdentity(legacy));
+  assert.deepEqual(verifyRuntimeEnvironmentIdentity({ ...legacy, historicalPrevious: true }), { ok: true });
+  for (const overrides of [
+    { snapshotText: `EVO_RUNTIME_IMAGE_ID=${imageId}\n` },
+    { containerEnvironment: [...legacy.containerEnvironment, `EVO_RUNTIME_IMAGE_ID=${imageId}`] },
+    { containerEnvironment: [] },
+    { snapshotText: "EVO_RUNTIME_IMAGE_ID=\n" },
+  ]) {
+    assert.throws(() => verifyRuntimeEnvironmentIdentity({ ...legacy, historicalPrevious: true, ...overrides }));
   }
 });
 

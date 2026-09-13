@@ -293,6 +293,39 @@ verify_env_contract() {
     >/dev/null || fail "app_env_contract_invalid"
 }
 
+seal_candidate_app_env_snapshot() {
+  local source=$1 destination=$2 image_id=$3 output script_dir validator
+  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  validator=$script_dir/evo-app-env-contract.mjs
+  require_file "$validator" "app_env_validator_missing"
+  output=$(node "$validator" --seal-candidate-env "$source" \
+    --snapshot "$destination" --runtime-image-id "$image_id") \
+    || fail "app_env_snapshot_seal_failed"
+  jq -e 'type == "object" and keys == ["ok", "sha256"] and .ok == true and (.sha256 | test("^[0-9a-f]{64}$"))' \
+    <<<"$output" >/dev/null 2>&1 || fail "app_env_snapshot_seal_failed"
+  jq -er '.sha256' <<<"$output"
+}
+
+verify_runtime_environment_identity() {
+  local container=$1 image_id=$2 revision=$3 snapshot=$4 snapshot_hash=$5
+  local policy=${6:-required} script_dir validator
+  local -a identity_args=(--verify-runtime-identity --snapshot "$snapshot"
+    --runtime-image-id "$image_id" --release-revision "$revision")
+  case "$policy" in
+    required) ;;
+    verified-previous) identity_args+=(--historical-previous) ;;
+    *) fail "runtime_identity_policy_invalid" ;;
+  esac
+  require_app_env_snapshot "$snapshot" "$snapshot_hash"
+  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  validator=$script_dir/evo-app-env-contract.mjs
+  require_file "$validator" "app_env_validator_missing"
+  # Keep secret-bearing inspect output inside the bounded validator pipe.
+  docker inspect --format '{{json .Config.Env}}' "$container" 2>/dev/null \
+    | node "$validator" "${identity_args[@]}" >/dev/null \
+    || fail "runtime_environment_identity_drift"
+}
+
 verify_current_runtime_identity() {
   local ids id service services
   ids=$(docker ps -aq \
@@ -417,6 +450,7 @@ verify_transition_runtime_identity() (
   local candidate_app_env_snapshot=$5
   local candidate_app_env_sha256=$6
   local scanner_required=$7
+  local identity_policy=${8:-required}
   local candidate_compose_file=$EVO_RELEASE_COMPOSE_FILE
   local container actual_image actual_revision actual_version
 
@@ -448,6 +482,8 @@ verify_transition_runtime_identity() (
   [[ $actual_image == "$expected_image" ]] || fail "runtime_app_image_drift"
   [[ $actual_revision == "$EVO_RELEASE_REVISION" ]] || fail "runtime_app_revision_drift"
   [[ $actual_version == "$EVO_RELEASE_VERSION" ]] || fail "runtime_app_version_drift"
+  verify_runtime_environment_identity "$container" "$expected_image" "$EVO_RELEASE_REVISION" \
+    "$candidate_app_env_snapshot" "$candidate_app_env_sha256" "$identity_policy"
 )
 
 verify_transition_runtime() {
@@ -1012,9 +1048,10 @@ prepare_candidate_generation() {
     || fail "compose_hash_mismatch"
 
   candidate_app_env_snapshot=$directory/candidate-app.env
-  candidate_app_env_sha256=$(seal_app_env_snapshot \
+  candidate_app_env_sha256=$(seal_candidate_app_env_snapshot \
     "$EVO_RELEASE_APP_ENV_FILE" \
-    "$candidate_app_env_snapshot") || fail "app_env_snapshot_seal_failed"
+    "$candidate_app_env_snapshot" "$candidate_expected_image_id") \
+    || fail "app_env_snapshot_seal_failed"
   require_app_env_snapshot "$candidate_app_env_snapshot" "$candidate_app_env_sha256"
 }
 
@@ -1536,6 +1573,8 @@ rollback_from_state() {
       if [[ -n $target_container && $current_app_container_id != "$target_container" ]]; then
         return 1
       fi
+      verify_runtime_environment_identity "$current_app_container_id" "$target_image" "$target_revision" \
+        "$candidate_app_env_snapshot" "$candidate_app_env_sha256" || return 1
     elif [[ $previous_generation != none && $current_image == "$previous_image" && $current_revision == "$previous_revision" && $current_version == "$previous_version" ]]; then
       if [[ $mode == recovered || ( $mode == accepted && $previous_generation == v3 ) ]]; then
         runtime_already_restored=true
@@ -1578,6 +1617,10 @@ rollback_from_state() {
     actual_hash=$(sha256sum "$previous_compose" | awk '{print $1}') || return 1
     [[ $actual_hash == "$compose_hash" ]] || return 1
     require_app_env_snapshot "$previous_app_env" "$app_env_hash" || return 1
+    if [[ -n $current_app_container_id && $current_image == "$previous_image" ]]; then
+      verify_runtime_environment_identity "$current_app_container_id" "$previous_image" "$previous_revision" \
+        "$previous_app_env" "$app_env_hash" verified-previous || return 1
+    fi
     [[ $(docker image inspect --format '{{.Id}}' "$rollback_tag" 2>/dev/null || true) == "$previous_image" ]] || return 1
     EVO_RELEASE_REVISION=$previous_revision EVO_RELEASE_VERSION=$previous_version \
       compose_with_app_env "$previous_app_env" "$app_env_hash" "$previous_compose" \
@@ -1620,7 +1663,7 @@ rollback_from_state() {
     fi
     verify_transition_runtime \
       "$previous_compose" "$previous_revision" "$previous_version" "$previous_image" \
-      "$previous_app_env" "$app_env_hash" "$previous_scanner_present" || return 1
+      "$previous_app_env" "$app_env_hash" "$previous_scanner_present" verified-previous || return 1
     verify_external_health || return 1
     if [[ $mode == accepted ]]; then
       runtime_already_restored=true

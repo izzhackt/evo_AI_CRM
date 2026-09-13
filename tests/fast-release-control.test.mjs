@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -23,6 +24,7 @@ import {
   expectedMigrationVersions,
   verifyProductionMigrationLedger,
 } from "../scripts/fast-release-ledger-gate.mjs";
+import { sealCandidateEnvironmentSnapshot } from "../scripts/evo-app-env-contract.mjs";
 const REVISION = "90ab8b1b0c1dd6a92c931e9793c052f984f19fc4";
 const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
 
@@ -39,7 +41,7 @@ function writeExecutable(path, contents) {
 }
 
 function createInterruptedReleaseFixture({ previousScannerPresent, killPoint }) {
-  const root = mkdtempSync(join(tmpdir(), "evo-fast-interruption-"));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-fast-interruption-")));
   const bin = join(root, "bin");
   const releaseRoot = join(root, "release");
   const transferRoot = join(root, "transfer");
@@ -187,6 +189,10 @@ if (args[0] === "info") {
     if (service === "clamav") output(state.scannerImage);
     else if (service === "waha") output(wahaImage);
     else output("evo-crm:" + (state.app === "baseline" ? previousRevision : targetRevision));
+  } else if (format.includes("Config.Env")) {
+    output(JSON.stringify(state.app === "baseline"
+      ? ["EVO_RELEASE_REVISION=" + previousRevision]
+      : ["EVO_RELEASE_REVISION=" + targetRevision, "EVO_RUNTIME_IMAGE_ID=" + targetImage]));
   } else if (format.includes("PortBindings")) output("{}");
   else if (format.includes("NetworkSettings.Networks")) output("fixture_private");
   else if (format.includes(".Image")) {
@@ -267,13 +273,9 @@ if (args[0] === "info") {
   writeExecutable(
     join(bin, "node"),
     `#!/usr/bin/env bash
-if [[ \${1-} == *evo-app-env-contract.mjs ]]; then
-  if [[ \${2-} == --seal-private-env && \${4-} == --snapshot ]]; then
-    cp -- "$3" "$5"
-    chmod 600 "$5"
-    digest=$(sha256sum "$5" | awk '{print $1}')
-    printf '{"ok":true,"sha256":"%s"}\\n' "$digest"
-  fi
+if [[ \${1-} == *evo-app-env-contract.mjs && \${2-} == --example ]]; then
+  # Provider validation is outside this interrupted-controller fixture;
+  # snapshot sealing and runtime identity use the actual Node implementation.
   exit 0
 fi
 exec ${JSON.stringify(process.execPath)} "$@"
@@ -344,8 +346,8 @@ exec ${JSON.stringify(process.execPath)} "$@"
   };
 }
 
-function rollbackFixture({ appPresent, appHealth }) {
-  const root = mkdtempSync(join(tmpdir(), "evo-fast-rollback-"));
+function rollbackFixture({ appPresent, appHealth, previousIdentity = false }) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-fast-rollback-")));
   const bin = join(root, "bin");
   const releaseRoot = join(root, "release");
   const transferRoot = join(root, "transfer");
@@ -365,8 +367,8 @@ function rollbackFixture({ appPresent, appHealth }) {
   const wahaImage = `devlikeapro/waha@${wahaDigest}`;
   const candidateCompose = JSON.stringify({ candidate: true });
   const previousCompose = JSON.stringify({ previous: true });
-  const candidateEnv = "NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co\n";
-  const previousEnv = "NEXT_PUBLIC_SUPABASE_URL=https://previous.supabase.co\n";
+  const candidateEnv = `NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co\nEVO_RUNTIME_IMAGE_ID=${targetImage}\n`;
+  const previousEnv = `NEXT_PUBLIC_SUPABASE_URL=https://previous.supabase.co\n${previousIdentity ? `EVO_RUNTIME_IMAGE_ID=${previousImage}\n` : ""}`;
   const candidateComposePath = join(evidenceDir, "docker-compose.candidate.yml");
   const previousComposePath = join(evidenceDir, "docker-compose.previous.yml");
   const candidateEnvPath = join(evidenceDir, "candidate-app.env");
@@ -528,6 +530,15 @@ elif [[ $1 == inspect ]]; then
       *State.Health*) printf '%s\\n' "$APP_HEALTH" ;;
       *org.opencontainers.image.revision*) printf '%s\\n' "$APP_REVISION" ;;
       *org.opencontainers.image.version*) printf '%s\\n' "$APP_VERSION" ;;
+      *Config.Env*)
+        if [[ -n \${FAKE_APP_ENV_JSON-} ]]; then
+          printf '%s\\n' "$FAKE_APP_ENV_JSON"
+        elif [[ $APP_IMAGE == "$FAKE_PREVIOUS_IMAGE" && $FAKE_PREVIOUS_IDENTITY != 1 ]]; then
+          jq -cn --arg revision "$APP_REVISION" '["EVO_RELEASE_REVISION=" + $revision]'
+        else
+          jq -cn --arg revision "$APP_REVISION" --arg image "$APP_IMAGE" \\
+            '["EVO_RELEASE_REVISION=" + $revision, "EVO_RUNTIME_IMAGE_ID=" + $image]'
+        fi ;;
       '{{.Image}}') printf '%s\\n' "$APP_IMAGE" ;;
       *) exit 1 ;;
     esac
@@ -595,6 +606,7 @@ fi
     FAKE_PREVIOUS_IMAGE: previousImage,
     FAKE_PREVIOUS_REVISION: previousRevision,
     FAKE_PREVIOUS_VERSION: previousVersion,
+    FAKE_PREVIOUS_IDENTITY: previousIdentity ? "1" : "0",
     FAKE_COMPOSE_JSON: composeJson,
     EVO_RELEASE_ROOT: releaseRoot,
     EVO_RELEASE_PROJECT_NAME: "evo-crm",
@@ -619,6 +631,44 @@ fi
     releaseId,
     root,
   };
+}
+
+function candidateIdentityFixture() {
+  const fixture = rollbackFixture({ appPresent: true, appHealth: "healthy" });
+  const statePath = fixture.environment.EVO_RELEASE_ROLLBACK_STATE;
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  const controllerDir = join(fixture.evidenceDir, "controller");
+  mkdirSync(controllerDir, { mode: 0o700 });
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const wrapper = "#!/bin/sh\nexit 1\n";
+  writeFileSync(join(controllerDir, "evo-fast-release.sh"), controller, { mode: 0o700 });
+  writeFileSync(join(fixture.evidenceDir, "rollback-command.sh"), wrapper, { mode: 0o700 });
+  state.controllerSha256 = sha256(controller);
+  state.rollbackWrapperSha256 = sha256(wrapper);
+  const stateText = JSON.stringify(state);
+  writeFileSync(statePath, stateText);
+  for (const path of [fixture.pendingPath, join(fixture.evidenceDir, "candidate-runtime.json")]) {
+    const receipt = JSON.parse(readFileSync(path, "utf8"));
+    receipt.stateSha256 = sha256(stateText);
+    writeFileSync(path, JSON.stringify(receipt));
+  }
+  const archive = join(fixture.environment.EVO_RELEASE_TRANSFER_ROOT, "candidate.tar");
+  writeFileSync(archive, "control-flow fixture; archive verifier has separate tests\n");
+  Object.assign(fixture.environment, {
+    EVO_RELEASE_REVISION: state.revision, EVO_RELEASE_VERSION: state.version,
+    EVO_RELEASE_ID: state.releaseId, EVO_RELEASE_REPOSITORY: state.repository,
+    EVO_RELEASE_RUN_ID: state.releaseRunId, EVO_RELEASE_WORKFLOW_RUN_ID: state.workflowRunId,
+    EVO_RELEASE_WORKFLOW_RUN_ATTEMPT: state.workflowRunAttempt,
+    EVO_RELEASE_UPSTREAM_CI_RUN_ID: state.upstreamCiRunId,
+    EVO_RELEASE_UPSTREAM_CI_RUN_ATTEMPT: state.upstreamCiRunAttempt,
+    EVO_RELEASE_ARTIFACT_ID: state.artifactId, EVO_RELEASE_ARTIFACT_DIGEST: state.artifactDigest,
+    EVO_RELEASE_ARCHIVE: archive, EVO_RELEASE_ARCHIVE_SHA256: state.archiveSha256,
+    EVO_RELEASE_EXPECTED_IMAGE_ID: state.imageId,
+    EVO_RELEASE_EXPECTED_IMAGE_CONFIG_DIGEST: state.imageConfigDigest,
+    EVO_RELEASE_EXPECTED_COMPOSE_SHA256: state.composeSha256,
+    EVO_RELEASE_ACTOR_ID: "1", EVO_RELEASE_CURRENT_MAIN_REVISION: state.revision,
+  });
+  return fixture;
 }
 
 function acceptedV3RollbackRetryFixture() {
@@ -1376,6 +1426,49 @@ test("rollback restores the previous app from an exact unhealthy pending candida
   }
 });
 
+test("candidate status and accept reject actual environment drift before accepting any receipt", () => {
+  const fixture = candidateIdentityFixture();
+  try {
+    const status = spawnSync("bash", ["scripts/evo-fast-release.sh", "candidate-status"], {
+      encoding: "utf8", env: fixture.environment,
+    });
+    assert.equal(status.status, 0, status.stderr);
+    assert.equal(JSON.parse(status.stdout).status, "pending");
+    for (const command of ["candidate-status", "accept-candidate", "rollback-pending"]) {
+      const execution = spawnSync("bash", ["scripts/evo-fast-release.sh", command], {
+        encoding: "utf8", env: {
+          ...fixture.environment,
+          FAKE_APP_ENV_JSON: JSON.stringify([`EVO_RELEASE_REVISION=${REVISION}`]),
+        },
+      });
+      assert.notEqual(execution.status, 0);
+      assert.match(execution.stderr, /runtime_environment_identity_drift/u);
+      assert.equal(existsSync(fixture.pendingPath), true);
+      assert.equal(existsSync(join(fixture.evidenceDir, "v3-acceptance-record.json")), false);
+      assert.doesNotMatch(readFileSync(fixture.dockerLog, "utf8"), / up | stop | rm /u);
+    }
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("rollback restores the exact previous sealed image ID instead of inheriting the candidate ID", () => {
+  const fixture = rollbackFixture({ appPresent: true, appHealth: "unhealthy", previousIdentity: true });
+  const previousEnvPath = join(fixture.evidenceDir, "rollback-app.env");
+  const previousBytes = readFileSync(previousEnvPath);
+  try {
+    const execution = spawnSync("bash", ["scripts/evo-fast-release.sh", "rollback-pending"], {
+      encoding: "utf8", env: fixture.environment,
+    });
+    assert.equal(execution.status, 0, execution.stderr);
+    assert.deepEqual(readFileSync(previousEnvPath), previousBytes);
+    assert.equal(existsSync(fixture.pendingPath), false);
+    assert.match(readFileSync(fixture.dockerState, "utf8"), new RegExp(`APP_IMAGE=${fixture.previousImage}`, "u"));
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("pending-only rollback refuses both accepted crash windows before runtime mutation", () => {
   for (const pendingRemains of [true, false]) {
     const fixture = rollbackFixture({ appPresent: true, appHealth: "unhealthy" });
@@ -1657,6 +1750,69 @@ test("active platform CI executes only the root successor product", () => {
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
   assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
   assert.doesNotMatch(fastPr, /test:database:local|test:security|test:unit|playwright|supabase/iu);
+});
+
+test("actual OrbStack container transports and verifies sealed runtime image identity", {
+  skip: process.env.EVO_RUNTIME_IDENTITY_IMAGE === undefined,
+}, (context) => {
+  const requestedImage = process.env.EVO_RUNTIME_IDENTITY_IMAGE;
+  assert.match(requestedImage, /^sha256:[a-f0-9]{64}$/u);
+  const docker = (args) => {
+    assert.equal(execFileSync("orb", ["status"], { encoding: "utf8" }).trim(), "Running");
+    assert.equal(execFileSync("docker", ["context", "show"], { encoding: "utf8" }).trim(), "orbstack");
+    return execFileSync("docker", args, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], timeout: 30_000 }).trim();
+  };
+  const [imageId, revision] = docker([
+    "image", "inspect", "--format", '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}}', requestedImage,
+  ]).split(" ");
+  assert.equal(imageId, requestedImage);
+  assert.match(revision, /^[a-f0-9]{40}$/u);
+  const project = `evo-identity-${randomUUID().slice(0, 8)}`;
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-identity-container-")));
+  const source = join(root, "operator.env");
+  const snapshot = join(root, "candidate-app.env");
+  const compose = join(root, "compose.json");
+  let cleanupVerified = false;
+  try {
+    writeFileSync(source, "SYNTHETIC_IDENTITY_PROOF=1\n", { mode: 0o600 });
+    sealCandidateEnvironmentSnapshot(source, snapshot, imageId);
+    writeFileSync(compose, JSON.stringify({ services: { app: {
+      image: imageId, env_file: [snapshot], network_mode: "none", read_only: true,
+      cap_drop: ["ALL"], pids_limit: 32, mem_limit: "128m",
+      labels: { "evo.identity-proof": project },
+      entrypoint: ["node"], command: ["-e", "setInterval(() => {}, 1000)"],
+    } } }), { mode: 0o600 });
+    docker(["compose", "--project-name", project, "--file", compose, "--env-file", snapshot,
+      "up", "--detach", "--no-deps", "--no-build", "--pull", "never", "app"]);
+    const container = docker(["ps", "-aq", "--filter", `label=evo.identity-proof=${project}`]);
+    assert.match(container, /^[a-f0-9]{12,64}$/u);
+    assert.equal(docker(["inspect", "--format", "{{.Image}}", container]), imageId);
+    const environment = docker(["inspect", "--format", "{{json .Config.Env}}", container]);
+    const args = ["scripts/evo-app-env-contract.mjs", "--verify-runtime-identity", "--snapshot", snapshot,
+      "--runtime-image-id", imageId, "--release-revision", revision];
+    const checked = spawnSync(process.execPath, args, { input: environment, encoding: "utf8" });
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.deepEqual(JSON.parse(checked.stdout), { ok: true });
+    const processIdentity = JSON.parse(docker(["exec", container, "node", "-e",
+      "console.log(JSON.stringify({imageId:process.env.EVO_RUNTIME_IMAGE_ID,revision:process.env.EVO_RELEASE_REVISION}))"]));
+    assert.deepEqual(processIdentity, { imageId, revision });
+    const rejected = spawnSync(process.execPath, [...args.slice(0, -1), "0".repeat(40)], {
+      input: environment, encoding: "utf8",
+    });
+    assert.notEqual(rejected.status, 0);
+    assert.doesNotMatch(rejected.stderr, /SYNTHETIC_IDENTITY_PROOF/u);
+  } finally {
+    const ids = docker(["ps", "-aq", "--filter", `label=evo.identity-proof=${project}`]).split("\n").filter(Boolean);
+    for (const id of ids) {
+      assert.equal(docker(["inspect", "--format", '{{index .Config.Labels "evo.identity-proof"}}', id]), project);
+      docker(["rm", "--force", id]);
+    }
+    assert.equal(docker(["ps", "-aq", "--filter", `label=evo.identity-proof=${project}`]), "");
+    cleanupVerified = true;
+    rmSync(root, { recursive: true, force: true });
+    context.diagnostic(JSON.stringify({ imageId, revision, project, cleanupVerified,
+      scope: "actual local env transport/readback; no app release or D4 receipt" }));
+  }
 });
 
 test("version endpoint stays staff-authenticated while public health stays minimal", () => {

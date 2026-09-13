@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { createClient } from "@supabase/supabase-js";
 import { parseStaffAccessSnapshot } from "../../src/lib/supabase/platform-authority.ts";
-import { parseStaffRoleWorkspace, parseStaffRoleCommandResult, parseStaffRoleImpact } from "../../src/lib/v3/staff-roles-contract.ts";
+import { parseStaffRoleWorkspace, parseStaffRoleCommandResult, parseStaffRoleImpact, parseStaffRoleAssignmentInputs } from "../../src/lib/v3/staff-roles-contract.ts";
 import { parseStaffAuthClaim, parseStaffAuthResult, parseStaffAuthPreparation,
   parseStaffInviteAssignmentInputs } from "../../src/lib/v3/staff-workspace-contract.ts";
 
@@ -613,5 +613,122 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     }
     // No raw Playwright diagnostics: they can contain passwords, request bodies or URLs.
     throw new ScopedStaffProvisioningError(`LOCAL_ROLE_EDITOR_${stage}_FAILED`);
+  } finally { if (context) await context.close().catch(() => {}); }
+}
+
+/** Two ordinary saves in one existing accepted local member's card. No direct writes. */
+export async function verifyScopedStaffMemberEditor({ browser, adminClient, apiUrl, appOrigin,
+  organizationId, identity, accepted }) {
+  let context;
+  let stage = "SETUP";
+  let clientError = false;
+  try {
+    apiUrl = localStaffOrigin(apiUrl); appOrigin = localStaffOrigin(appOrigin);
+    localClient(adminClient, apiUrl); uuid(organizationId); localIdentity(identity, true);
+    await requireAdmin(adminClient, organizationId);
+    requireValue(accepted?.schemaVersion === 1 && accepted.organizationId === organizationId
+      && ["localMail", "actualCallback", "passwordSet", "freshPasswordLogin"].every((key) => accepted.proof?.[key] === true),
+    "LOCAL_MEMBER_EDITOR_ACCEPTANCE_REQUIRED");
+    const acceptedMember = accepted.members?.find((row) => row.systemRole === "staff" && row.assignments.length === 2);
+    requireValue(acceptedMember, "LOCAL_MEMBER_EDITOR_MEMBER_REQUIRED");
+    const readWorkspace = async () => {
+      const raw = await rpc(adminClient, "staff_role_workspace", { p_organization_id: organizationId });
+      return strictParse(() => parseStaffRoleWorkspace(raw), "LOCAL_MEMBER_EDITOR_WORKSPACE_INVALID");
+    };
+    const baseline = await readWorkspace();
+    const original = baseline.members.find((row) => row.membershipId === acceptedMember.membershipId);
+    requireValue(original?.systemRole === "staff" && original.assignments.length === 2
+      && original.accessVersion === acceptedMember.accessVersion
+      && sameSet(original.assignments.map(pair), acceptedMember.assignments.map(pair))
+      && original.assignments.every((row) => row.scope.resourceKind === null
+        && (row.scope.kind === "own" && row.scope.key === null || row.scope.kind === "organization" && row.scope.key === organizationId)),
+    "LOCAL_MEMBER_EDITOR_BASELINE_MISMATCH");
+    const remaining = original.assignments.slice(0, 1), removed = original.assignments[1];
+    const otherMembers = (members) => members.filter((row) => row.membershipId !== original.membershipId);
+    const readback = async (version, assignments) => {
+      const current = await readWorkspace();
+      const target = current.members.find((row) => row.membershipId === original.membershipId);
+      const expectedRoles = baseline.roles.map((role) => ({ ...role, memberCount: role.memberCount
+        - Number(original.assignments.some((row) => row.roleId === role.id))
+        + Number(assignments.some((row) => row.roleId === role.id)) }));
+      requireValue(target?.systemRole === "staff" && target.displayName === original.displayName && target.accessVersion === version
+        && sameSet(target.assignments.map(pair), assignments.map(pair))
+        && target.assignments.every((row) => {
+          const before = original.assignments.find((entry) => pair(entry) === pair(row));
+          return before && row.label === before.label && row.bundleId === before.bundleId && row.bundleVersion === before.bundleVersion;
+        }) && JSON.stringify(otherMembers(current.members)) === JSON.stringify(otherMembers(baseline.members))
+        && JSON.stringify(current.roles) === JSON.stringify(expectedRoles)
+        && JSON.stringify(current.permissions) === JSON.stringify(baseline.permissions)
+        && JSON.stringify(current.departments) === JSON.stringify(baseline.departments), "LOCAL_MEMBER_EDITOR_READBACK_MISMATCH");
+      return target;
+    };
+    stage = "LOGIN";
+    context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false, viewport: { width: 1440, height: 1000 } });
+    await context.route("**/*", (route) => [appOrigin, apiUrl].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
+    const page = await context.newPage();
+    page.setDefaultTimeout(30_000);
+    page.on("pageerror", () => { clientError = true; });
+    page.on("console", (message) => { if (message.type() === "error") clientError = true; });
+    await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
+    await page.locator("#staff-email").fill(identity.email);
+    await page.locator("#staff-password").fill(identity.password);
+    await page.getByRole("button", { name: "Войти в CRM", exact: true }).click();
+    await page.getByTestId("v3-shell").waitFor();
+    requireValue(await page.getByTestId("v3-shell").getAttribute("data-system-role") === "admin"
+      && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_MEMBER_EDITOR_ADMIN_UI_REQUIRED");
+    stage = "CARD";
+    const memberUrl = `${appOrigin}/v3/settings?section=staff&view=people&member=${original.membershipId}`;
+    await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
+    const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
+    await card.getByText("Доступ", { exact: true }).click();
+    const form = () => card.getByRole("form", { name: `Назначения: ${original.displayName}`, exact: true });
+    const row = (index) => form().getByRole("group", { name: `Назначение ${index + 1}`, exact: true });
+    const fields = async (version, assignments) => {
+      requireValue(await form().locator('input[name="expected_version"]').inputValue() === String(version), "LOCAL_MEMBER_EDITOR_UI_VERSION_MISMATCH");
+      const inputJson = await form().locator('input[name="assignments"]').inputValue();
+      const inputs = strictParse(() => parseStaffRoleAssignmentInputs(JSON.parse(inputJson)), "LOCAL_MEMBER_EDITOR_UI_ASSIGNMENTS_INVALID");
+      requireValue(sameSet(inputs.map(pair), assignments.map(pair)), "LOCAL_MEMBER_EDITOR_UI_ASSIGNMENTS_MISMATCH");
+      for (const [index, input] of inputs.entries()) {
+        const role = baseline.roles.find((entry) => entry.id === input.roleId);
+        const roleSelect = row(index).getByRole("combobox", { name: "Роль", exact: true });
+        const scopeSelect = row(index).getByRole("combobox", { name: "Область доступа", exact: true });
+        requireValue(await roleSelect.inputValue() === input.roleId && await roleSelect.locator("option:checked").textContent() === role.label
+          && await scopeSelect.inputValue() === input.scope.kind
+          && await scopeSelect.locator("option:checked").textContent() === (input.scope.kind === "own" ? "Свои записи" : "Вся организация"),
+        "LOCAL_MEMBER_EDITOR_UI_DISPLAY_MISMATCH");
+      }
+    };
+    const save = async () => {
+      await form().getByRole("textbox", { name: "Причина изменения", exact: true }).fill("Isolated local consecutive member assignment verification");
+      await form().getByRole("button", { name: "Сохранить назначения", exact: true }).click();
+      await form().getByText("Изменение доступа сохранено.", { exact: true }).waitFor();
+    };
+    await fields(original.accessVersion, original.assignments);
+    stage = "REMOVE";
+    await row(1).getByRole("button", { name: "Убрать назначение", exact: true }).click();
+    await fields(original.accessVersion, remaining);
+    await save();
+    stage = "FIRST_READBACK";
+    const first = await readback(original.accessVersion + 1, remaining);
+    stage = "NEXT_EDIT";
+    // click waits for the explicit next-action control to become enabled after revalidation.
+    await form().getByRole("button", { name: "Изменить назначения", exact: true }).click();
+    await fields(first.accessVersion, first.assignments);
+    stage = "RESTORE";
+    await form().getByRole("button", { name: "Добавить роль", exact: true }).click();
+    await row(1).getByRole("combobox", { name: "Роль", exact: true }).selectOption(removed.roleId);
+    await row(1).getByRole("combobox", { name: "Область доступа", exact: true }).selectOption(removed.scope.kind);
+    await fields(first.accessVersion, original.assignments);
+    await save();
+    stage = "SECOND_READBACK";
+    const restored = await readback(original.accessVersion + 2, original.assignments);
+    stage = "REOPEN";
+    await form().getByRole("button", { name: "Изменить назначения", exact: true }).click();
+    await fields(restored.accessVersion, restored.assignments);
+    requireValue(page.url() === memberUrl && !clientError, "LOCAL_MEMBER_EDITOR_UI_NOT_CONFIRMED");
+    return { schemaVersion: 1, edits: 2, membersEdited: 1, proof: { actualAdminPasswordLogin: true, consecutiveAssignmentEdits: true,
+      roleScopeDisplay: true, versionIncrements: 2, sameCard: true, finalAssignmentsRestored: true, otherMembersUnchanged: true, roleCatalogueUnchanged: true } };
+  } catch {
+    throw new ScopedStaffProvisioningError(`LOCAL_MEMBER_EDITOR_${stage}_FAILED`);
   } finally { if (context) await context.close().catch(() => {}); }
 }

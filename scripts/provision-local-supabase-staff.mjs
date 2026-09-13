@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { chromium } from "@playwright/test";
-import { prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor, ScopedStaffProvisioningError } from "./lib/scoped-staff-provisioner.mjs";
+import { prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor, verifyScopedStaffMemberEditor, ScopedStaffProvisioningError } from "./lib/scoped-staff-provisioner.mjs";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -329,6 +329,9 @@ async function main() {
       appOrigin, organizationId, identity: identities.admin,
       evidenceDirectory: process.env.EVO_LOCAL_STAFF_ROLE_EDITOR_EVIDENCE_DIR });
     process.stdout.write("LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED\n");
+    await verifyScopedStaffMemberEditor({ browser, adminClient: adminSession.client, apiUrl: url,
+      appOrigin, organizationId, identity: identities.admin, accepted });
+    process.stdout.write("LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED\n");
   } finally { await browser.close(); }
   if (phase === "onboarding-proof") {
     return;

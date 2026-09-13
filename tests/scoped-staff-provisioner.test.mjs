@@ -451,3 +451,107 @@ test("role editor marker stays distinct and follows successful onboarding before
   const editor = helper.slice(helper.indexOf("export async function verifyScopedStaffRoleEditor"));
   assert.doesNotMatch(editor, /inviteUserByEmail|signInWithPassword|staff_role_command|staff_role_publish|staff_role_assignments_save|storageState|addCookies/);
 });
+
+// Public browser/RPC boundary only, not browser or database acceptance.
+function memberEditorBoundary() {
+  const staffId = "51000000-0000-4000-8000-000000000021";
+  const otherId = "51000000-0000-4000-8000-000000000022";
+  const assignments = [
+    { id: "51000000-0000-4000-8000-000000000031", roleId, label: "Local own", bundleId: bundle, bundleVersion: 1,
+      scope: { kind: "own", key: null, resourceKind: null } },
+    { id: "51000000-0000-4000-8000-000000000032", roleId: request, label: "Local organization", bundleId: bundle, bundleVersion: 1,
+      scope: { kind: "organization", key: org, resourceKind: null } },
+  ];
+  const members = [
+    { membershipId: member, displayName: "Local Admin", systemRole: "admin", accessVersion: 1, assignments: [] },
+    { membershipId: staffId, displayName: "Local Sales", systemRole: "staff", accessVersion: 7, assignments },
+    { membershipId: otherId, displayName: "Local Admissions", systemRole: "staff", accessVersion: 5, assignments: structuredClone(assignments) },
+  ];
+  const roles = assignments.map((row) => ({ id: row.roleId, label: row.label, description: "Local role", status: "active", version: 2,
+    bundleId: bundle, bundleVersion: 1, permissionKeys: ["team.chat.general"], draftPermissionKeys: ["team.chat.general"], memberCount: 2 }));
+  const baseline = structuredClone(members), baselineRoles = structuredClone(roles);
+  const inputRows = (rows) => rows.map(({ roleId, scope }) => ({ roleId, scope }));
+  let draft = structuredClone(inputRows(assignments)), formVersion = 7, saved = false, observedVersion = 7, closed = 0, pageUrl;
+  const commands = [], reopenedVersions = [], navigation = [], reads = [];
+  const locator = (name = "", index, parent = "") => ({
+    getByRole: (_role, options = {}) => locator(options.name ?? "", /^Назначение [12]$/.test(options.name ?? "") ? Number(options.name.slice(-1)) - 1 : index),
+    getByText: (text) => locator(text, index), locator: (selector) => locator(selector, index, name),
+    async fill() {}, async waitFor() {},
+    async getAttribute(attribute) { return attribute === "data-system-role" ? "admin" : "actual"; },
+    async inputValue() {
+      if (name.includes('name="expected_version"')) return String(formVersion);
+      if (name.includes('name="assignments"')) return JSON.stringify(draft);
+      return name === "Роль" ? draft[index].roleId : draft[index].scope.kind;
+    },
+    async textContent() {
+      assert.equal(name, "option:checked");
+      return parent === "Роль" ? roles.find((role) => role.id === draft[index].roleId).label
+        : draft[index].scope.kind === "own" ? "Свои записи" : "Вся организация";
+    },
+    async selectOption(value) {
+      assert.equal(saved, false);
+      if (name === "Роль") draft[index].roleId = value;
+      else draft[index].scope = { kind: value, key: value === "organization" ? org : null, resourceKind: null };
+    },
+    async click() {
+      if (name === "Убрать назначение") draft.splice(index, 1);
+      if (name === "Добавить роль") draft.push({ roleId: "", scope: { kind: "own", key: null, resourceKind: null } });
+      if (name === "Сохранить назначения") {
+        assert.equal(saved, false); assert.equal(formVersion, members[1].accessVersion);
+        commands.push({ version: formVersion, assignments: structuredClone(draft) });
+        members[1].accessVersion += 1;
+        members[1].assignments = draft.map((row) => ({ ...assignments.find((original) => original.roleId === row.roleId), ...row }));
+        roles[1].memberCount = draft.length === 1 ? 1 : 2; saved = true;
+      }
+      if (name === "Изменить назначения") {
+        assert.equal(saved, true); assert.equal(observedVersion, members[1].accessVersion);
+        formVersion = observedVersion; draft = structuredClone(inputRows(members[1].assignments)); saved = false;
+        reopenedVersions.push(formVersion);
+      }
+    },
+  });
+  const page = { ...locator(), setDefaultTimeout() {}, on() {}, getByTestId: () => locator("shell"), url: () => pageUrl,
+    async goto(url) { navigation.push(url); pageUrl = url; },
+    async screenshot() { assert.fail("Member proof has no default artifacts"); } };
+  const browser = { async newContext(options) {
+    assert.equal(options.serviceWorkers, "block"); assert.equal(options.acceptDownloads, false);
+    return { async route() {}, async newPage() { return page; }, async close() { closed += 1; } };
+  } };
+  const adminClient = { supabaseUrl: apiUrl, auth: { getUser: async () => ({ data: { user: { id: userId, email: "admin@evo.local.test" } } }) },
+    schema: () => ({ async rpc(name) {
+      reads.push(name);
+      if (name === "staff_access_snapshot") return { data: adminSnapshot };
+      assert.equal(name, "staff_role_workspace"); observedVersion = members[1].accessVersion;
+      return { data: structuredClone({ schemaVersion: 1, members, roles, departments: [], permissions: [
+        { key: "team.chat.general", label: "Чат", group: "Команда", allowedScopes: ["own", "organization"], resourceKinds: ["organization"], sensitive: false, systemOnly: false },
+      ] }) };
+    } }) };
+  return { input: { browser, adminClient, apiUrl, appOrigin, organizationId: org,
+    identity: { email: "admin@evo.local.test", password: randomUUID() },
+    accepted: { schemaVersion: 1, organizationId: org, members: structuredClone(members.slice(1)),
+      proof: { localMail: true, actualCallback: true, passwordSet: true, freshPasswordLogin: true } } },
+  commands, reopenedVersions, navigation, reads, members, baseline, roles, baselineRoles, closed: () => closed };
+}
+
+test("member editor proves two same-card UI saves and restores existing assignments with fresh versions", async () => {
+  const { verifyScopedStaffMemberEditor } = await import("../scripts/lib/scoped-staff-provisioner.mjs");
+  const fixture = memberEditorBoundary();
+  const result = await verifyScopedStaffMemberEditor(fixture.input);
+  assert.deepEqual(fixture.commands.map(({ version, assignments }) => [version, assignments.length]), [[7, 1], [8, 2]]);
+  assert.deepEqual(fixture.reopenedVersions, [8, 9]);
+  assert.equal(fixture.navigation.length, 2);
+  assert.equal(fixture.navigation[1], `${appOrigin}/v3/settings?section=staff&view=people&member=${fixture.members[1].membershipId}`);
+  assert.deepEqual(fixture.members, fixture.baseline.map((row, index) => index === 1 ? { ...row, accessVersion: 9 } : row));
+  assert.deepEqual(fixture.roles, fixture.baselineRoles);
+  assert.ok(fixture.reads.every((name) => ["staff_access_snapshot", "staff_role_workspace"].includes(name)));
+  assert.equal(result.proof.consecutiveAssignmentEdits, true); assert.equal(result.proof.roleScopeDisplay, true);
+  assert.equal(result.proof.finalAssignmentsRestored, true); assert.equal(result.edits, 2); assert.equal(fixture.closed(), 1);
+  assert.doesNotMatch(JSON.stringify(result), /email|password|token|membershipId|roleId|@/);
+});
+
+test("member editor has a separate required shell marker after the complete catalogue proof", () => {
+  const wrapper = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  assert.match(wrapper, /await verifyScopedStaffRoleEditor[\s\S]*LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED[\s\S]*await verifyScopedStaffMemberEditor[\s\S]*LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED/);
+  assert.match(shell, /grep -Fx "LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/);
+});

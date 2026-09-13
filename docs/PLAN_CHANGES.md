@@ -23602,3 +23602,36 @@ never echo the log, form values, identities, URLs or raw exceptions. Keep failur
 terminal and preserve every workflow assertion, command and cleanup boundary.
 Prove the exact filter with red-before/green-after tests, then run the unchanged
 ordinary local onboarding/editor flow. This does not fix or accept the UI itself.
+
+## 2026-09-13 — S2 prove consecutive assignment edits in the actual member card
+
+The ordinary isolated run on e1f92405 passed onboarding and the complete role
+catalogue editor, including restore. That helper intentionally preserves all
+existing members, so it cannot prove the separate consecutive-assignment editor.
+Add one bounded positive UI scenario after the catalogue proof, using one of the
+two staff identities already accepted through local Mailpit. Remove one of its
+two assignments, save, then use the same card's explicit next-edit control to
+restore the exact original role/scope. Check live accessVersion V+1 and V+2 and
+the matching form version without reload or navigation between commands.
+Preserve the other member, all roles and the final semantic assignment set.
+Do not create another identity, change system Admin, send external mail, mutate
+production, bypass authority or add offensive/concurrency/failure-trigger tests.
+Require a distinct member-editor success marker before the ordinary local mode
+can finish; no provider or Storage workflow is included in this targeted mode.
+
+## 2026-09-13 — S2 order membership schema changes before the populated backfill
+
+Fast PR CI34748918360 on e1f92405 passed build/lint/release contracts but failed
+the existing populated migration boundary at155 line18: the Admin backfill
+updated14 memberships, then ALTER TABLE failed with pending trigger events.
+Migration041 retains a DEFERRABLE INITIALLY DEFERRED membership constraint
+trigger, so the empty fresh-stack pass did not exercise this upgrade condition.
+Move the unchanged Admin backfill after the membership ALTER TABLE statements;
+retain one transaction, the exact eligible-Admin predicate and all constraint
+triggers. Do not disable checks, use replication mode or split the transaction.
+Add a red-before/green-after source-order regression; the existing real populated
+boundary remains the runtime acceptance gate on the next candidate.
+The [PostgreSQL constraint-trigger documentation](https://www.postgresql.org/docs/17/sql-createtrigger.html)
+and [constraint timing](https://www.postgresql.org/docs/17/sql-set-constraints.html)
+were checked before this change. It is an unreleased155 correction, not a rewrite
+of any migration already applied to production.

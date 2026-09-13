@@ -55,25 +55,31 @@ technical CI. The latest release checkpoint is
 
 S2 remains active and unreleased in [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
 Migrations155–157, editable roles/scoped assignments and prepared invitations are
-implemented; current pushed checkpoint is `21cc76cb`.
+implemented; current pushed checkpoint is `6ae41a2a`.
 
 - **Earlier local proof (`02497173`):** actual Auth/Mailpit/password/login, full unused-role catalogue
   lifecycle and two same-card member-assignment saves with live V+1/V+2 and exact
   restoration. Owned test resources were removed; screenshots cover the final
   catalogue draft only. Earlier source findings are closed, not whole-S2 approval.
-- **Current local check (`21cc76cb`):** whole onboarding stopped at role-editor
+- **Previous local check (`21cc76cb`):** whole onboarding stopped at role-editor
   `CREATE_ID`. Individual invitation/acceptance markers were not retained in the
-  failed output; this does not establish new Admin-form acceptance.
-- **Release blocker:** CI34750378975 on the same SHA stopped at
+  failed output. The cause is not established; no product fix is claimed.
+- **Previous CI:** CI34750378975 on `21cc76cb` stopped at
   `staff_backfill_owner_scope_requires_review`: DETAIL reports
   `selected_owner_missing_case_scope: 3`; the other three categories are zero.
   Source tracing found three incomplete P135 synthetic handoff snapshots; their
-  fixture-only owner-scope correction is independently reviewed, awaiting CI.
-  The product guard is unchanged.
-- **Next:** run the corrected candidate and bounded role-opening diagnostics,
-  prove the actual Admin invitation form, department/direction and
-  affected ordinary business workflows; finish populated upgrade, independent
-  whole-slice review, the exact-main release gate and deployment.
+  fixture-only correction is independently reviewed. The product guard is unchanged.
+- **Current local proof (`6ae41a2a`):** `--staff-onboarding-only` exited 0 with
+  invitation UI, role editor, member editor and onboarding verified. Owned local
+  project cleanup was checked; desktop/mobile screenshots show the final role
+  catalogue only.
+- **Current CI blocker:** CI34751346856 passed the earlier owner-scope guard, then
+  failed at migration155:1297: `cannot ALTER TABLE staff_role_definitions because
+  it has pending trigger events`. Populated upgrade remains unverified; move the
+  RLS ALTER statements before backfill while preserving guards and constraints.
+- **Next:** prove an ordinary Sales→Admissions handoff and department-only,
+  direction-only and combined scope matches; finish populated upgrade,
+  independent whole-S2 review, the exact-main release gate and deployment.
 - **Separate human gates:** confirmed employee recipients/rights and real first
   login, document/provider acceptance and Docs data transfer. No live activation
   or employee email is implied by local checks.

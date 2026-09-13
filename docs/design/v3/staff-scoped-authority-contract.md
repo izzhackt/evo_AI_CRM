@@ -368,6 +368,31 @@ scopes. Исправление добавляет только их текущи
 34/34 helper/workdir-теста и scoped ESLint/bash/diff-проверки
 (`cfw01a09a3880917d23881682bd82e5ab9f`), не новый browser PASS.
 
+Следующий замороженный `6ae41a2a` прошёл обычный локальный сценарий полностью:
+`--staff-onboarding-only`, session37923, exit0, отдельные markers для Admin-формы
+приглашения, Auth/password onboarding, каталога ролей и двух изменений назначений
+(`cfw01a09a451fb37273a6ac3cc17d7f105e`). Непостоянный `CREATE_ID` в этот раз не
+повторился; это не установленная причина или доказанное исправление сбоя.
+Просмотрены desktop1440×1000 и mobile390×844 screenshots финального черновика
+каталога в `/private/tmp/evo-s2-opening-probe.vJSnGQ`; они не изображают все
+предыдущие шаги. После OrbStack-проверки у owned проекта
+`evo-local-3c9b2a865bbe7fa9` не осталось контейнеров, томов и сетей
+(`cfw01a09a459077774294657c252ab70376`).
+
+На том же SHA [CI34751346856](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34751346856)
+прошёл прежний owner-scope guard, но остановился на позднем ALTER TABLE
+`staff_role_definitions` с pending trigger events, migration155:1297
+(`cfw01a09a4a4ec17a9095e98bdb7a45ab6a`). Исправление переносит восемь неизменённых
+ENABLE/FORCE RLS перед backfill; deferred FK, ACL, guards и transaction остаются.
+Source-order regression: сначала8/9, затем9/9; scoped ESLint и diff check прошли
+(`cfw01a09a4bd7c779c3b15698816c0b6406`, `cfw01a09a4c6de87603b3fd55044f8daacb`).
+Успешное обновление заполненной базы ещё не подтверждено. Следующий позитивный
+сценарий отделов/направлений описан в PLAN_CHANGES и реализован в локальном helper:
+обычный handoff, четыре сохранения назначений в одной карточке и три независимых
+чтения дела свежей Sales-сессией. Независимое source review одобрило helper и
+интеграцию; 31/31 узких тестов и scoped ESLint прошли. Реальный сценарий ещё
+не выполнен; source review и тесты не заменяют runtime acceptance.
+
 Browser-проверка используемых ролей и назначений, повторная проверка исправленных
 потребителей, independent review, release gate
 и выкладка остаются обязательными. Реальные сотрудники, production, provider и

@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink,
-  prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor } from "../scripts/lib/scoped-staff-provisioner.mjs";
+  prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor,
+  verifyScopedStaffBusinessScopes } from "../scripts/lib/scoped-staff-provisioner.mjs";
 
 const org = "51000000-0000-4000-8000-000000000001";
 const request = "51000000-0000-4000-8000-000000000002";
@@ -558,7 +559,7 @@ test("role editor marker stays distinct and follows successful onboarding before
   assert.match(wrapper, /LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED/);
   assert.match(helper, /if \(evidence\) \{[\s\S]*await cleanSettings\(\)[\s\S]*page\.screenshot/);
   assert.match(helper, /flag: "wx", mode: 0o600/);
-  const editor = helper.slice(helper.indexOf("export async function verifyScopedStaffRoleEditor"));
+  const editor = helper.slice(helper.indexOf("export async function verifyScopedStaffRoleEditor"), helper.indexOf("export async function verifyScopedStaffMemberEditor"));
   assert.doesNotMatch(editor, /inviteUserByEmail|signInWithPassword|staff_role_command|staff_role_publish|staff_role_assignments_save|storageState|addCookies/);
 });
 
@@ -664,4 +665,69 @@ test("member editor has a separate required shell marker after the complete cata
   const shell = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   assert.match(wrapper, /await verifyScopedStaffRoleEditor[\s\S]*LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED[\s\S]*await verifyScopedStaffMemberEditor[\s\S]*LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED/);
   assert.match(shell, /grep -Fx "LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/);
+});
+
+const businessHelper = () => readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8")
+  .split("export async function verifyScopedStaffBusinessScopes")[1];
+
+test("ordinary business proof orders canonical setup before the four same-card scope edits", () => {
+  const source = businessHelper();
+  const order = ['stage = "DEPARTMENT"', 'stage = "PERSONAL_PERMISSIONS"', 'stage = "LEAD"', 'stage = "CONTRACT"',
+    'stage = "PAYMENT"', 'stage = "HANDOFF"', 'stage = "DIRECTION"', 'stage = "ROLES"', 'stage = "BASELINE"', 'stage = "CARD"'];
+  assert.ok(order.every((needle, index) => source.indexOf(needle) >= 0 && (index === 0 || source.indexOf(needle) > source.indexOf(order[index - 1]))));
+  assert.match(source, /const states = \[\[additions\[0\]\], \[additions\[1\]\], additions, \[\]\]/);
+  const edits = source.slice(source.indexOf('stage = "CARD"'), source.indexOf("} catch { failure ="));
+  assert.equal((edits.match(/page\.goto\(/g) ?? []).length, 1);
+  assert.doesNotMatch(edits, /\.reload\(|staff_role_assignments_save|staff_role_command|staff_role_publish/);
+  assert.match(edits, /Изменить назначения/);
+  assert.match(edits, /await fields\(original.accessVersion \+ 4, original.assignments\)/);
+  const wrapper = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  assert.match(wrapper, /await verifyScopedStaffMemberEditor[\s\S]*LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED[\s\S]*await verifyScopedStaffBusinessScopes[\s\S]*LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED/);
+  assert.match(shell, /grep -Fx "LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/);
+});
+
+test("ordinary business proof requires independent target matches, full reads and current authority", () => {
+  const source = businessHelper();
+  assert.match(source, /p_handoff_mode: "normal"/);
+  assert.match(source, /p_amount: 1, p_currency: "USD"/);
+  assert.match(source, /gate.gate_state === "satisfied" && gate.normal_handoff_allowed === true/);
+  assert.match(source, /const caseId = uuid\(handoff\?\.case_id\)/);
+  assert.match(source, /p_expected_version: Number\(unconfigured.version\), p_direction: "CN"/);
+  assert.match(source, /current_curator_membership_id === admissions.membershipId/);
+  assert.match(source, /canonical\?\.direction === "CN"/);
+  assert.match(source, /entry.scope.kind !== "organization"\s*\|\| !baseline.roles.find[\s\S]*?permissionKeys.includes\("case.read.full"\)/);
+  assert.match(source, /permissionKeys: \["case.read.full"\]/);
+  assert.doesNotMatch(source, /acceptedMember.accessVersion|sales.accessVersion|!actor.permissionKeys.includes\("case.read.full"\)/);
+  assert.match(source, /actor.platformAccessVersion === version && sameSet\(actor.assignments.map\(pair\), assignments.map\(pair\)\)/);
+  assert.match(source, /staff_student_case_read_snapshot[\s\S]*rows\?\.length === 1[\s\S]*rows\[0\].access_mode === "full"/);
+  assert.match(source, /await freshSales\(target.accessVersion, target.assignments, index < 3\)/);
+  assert.match(source, /JSON.stringify\(otherMembers\(current.members\)\) === JSON.stringify\(otherMembers\(baseline.members\)\)/);
+  assert.match(source, /input\[name="expected_role_bindings"\]/);
+});
+
+test("business proof cleanup is ordinary, versioned, verified and never upgrades a failed UI result", () => {
+  const source = businessHelper();
+  const cleanup = source.slice(source.indexOf("// Teardown uses ordinary commands"));
+  assert.match(cleanup, /p_expected_access_version: target.accessVersion/);
+  assert.match(cleanup, /p_expected_role_bindings: bindings\(current.roles, original.assignments\)/);
+  assert.match(cleanup, /personalPermission\(grant.key, grant.original\)/);
+  assert.match(cleanup, /saveDetails\(originalDetails.department_id, currentDetails.organizational_version\)/);
+  assert.match(cleanup, /check\(role.memberCount === 0\)/);
+  assert.match(cleanup, /archived\?\.status === "archived" && archived.member_count === 0/);
+  assert.match(cleanup, /await refreshAdmin\(\)/);
+  assert.match(cleanup, /after.accessVersion >= before.accessVersion/);
+  assert.match(cleanup, /if \(failure\) throw failure;\s*return \{ schemaVersion: 1, edits: 4/);
+  assert.doesNotMatch(source, /auth\.admin|service_role|\.insert\(|\.update\(|\.delete\(|\.upsert\(|inviteUserByEmail|generateLink|storageState|addCookies|screenshot|writeFile|console\./);
+  assert.match(source, /localClient\(adminClient, apiUrl\)/);
+  assert.match(source, /\[appOrigin, apiUrl\].includes/);
+});
+
+test("business proof rejects incomplete inputs with a fixed private stage before any write", async () => {
+  await assert.rejects(verifyScopedStaffBusinessScopes({ apiUrl, appOrigin, organizationId: org,
+    adminClient: { supabaseUrl: apiUrl }, identities: {} }), (error) => {
+    assert.equal(error.code, "LOCAL_BUSINESS_SCOPES_SETUP_FAILED");
+    assert.deepEqual(Object.keys(error), ["code"]);
+    assert.equal(error.message, error.code); return true;
+  });
 });

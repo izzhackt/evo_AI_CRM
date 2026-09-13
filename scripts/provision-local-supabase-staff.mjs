@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { chromium } from "@playwright/test";
-import { prepareScopedStaffRoles, prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor, verifyScopedStaffMemberEditor, ScopedStaffProvisioningError } from "./lib/scoped-staff-provisioner.mjs";
+import { prepareScopedStaffRoles, prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor, verifyScopedStaffMemberEditor, verifyScopedStaffBusinessScopes, ScopedStaffProvisioningError } from "./lib/scoped-staff-provisioner.mjs";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -334,10 +334,15 @@ async function main() {
     await verifyScopedStaffMemberEditor({ browser, adminClient: adminSession.client, apiUrl: url,
       appOrigin, organizationId, identity: identities.admin, accepted });
     process.stdout.write("LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED\n");
+    await verifyScopedStaffBusinessScopes({ browser, adminClient: adminSession.client, apiUrl: url,
+      appOrigin, organizationId, identities, publishableKey, accepted });
+    process.stdout.write("LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED\n");
   } finally { await browser.close(); }
   if (phase === "onboarding-proof") {
     return;
   }
+  // Department and personal-grant changes advance the live staff access version.
+  adminSession = await signIn(url, publishableKey, identities.admin, "SCOPED_BUSINESS_ADMIN_REFRESH");
   const salesMembershipId = assertUuid(accepted.members.find((member) => member.scenario === "sales")?.membershipId, "SALES_MEMBERSHIP_INVALID");
 
   async function grantPermission(targetMembershipId, permissionKey, code) {

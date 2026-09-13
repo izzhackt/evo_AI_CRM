@@ -801,3 +801,373 @@ export async function verifyScopedStaffMemberEditor({ browser, adminClient, apiU
     throw new ScopedStaffProvisioningError(`LOCAL_MEMBER_EDITOR_${stage}_FAILED`);
   } finally { if (context) await context.close().catch(() => {}); }
 }
+
+/** One ordinary local handoff, then independent department/direction full reads. */
+export async function verifyScopedStaffBusinessScopes({ browser, adminClient, apiUrl, appOrigin,
+  organizationId, identities, publishableKey, accepted }) {
+  let context, initial, originalDetails, originalPersonal, admin, sales, admissions, departmentId;
+  let stage = "SETUP", failure = null, clientError = false;
+  const temporaryRoles = [], changedPermissions = [];
+  const reason = "Fictional isolated local department and direction acceptance";
+  const check = (condition) => requireValue(condition, "LOCAL_BUSINESS_SCOPES_READBACK_MISMATCH");
+  const workspace = async () => {
+    const raw = await rpc(adminClient, "staff_role_workspace", { p_organization_id: organizationId });
+    return strictParse(() => parseStaffRoleWorkspace(raw));
+  };
+  const directory = () => rpc(adminClient, "staff_workspace_directory", { p_organization_id: organizationId });
+  const details = (value, id) => {
+    const matches = value?.members?.filter((member) => member.membership_id === id);
+    check(matches?.length === 1); return matches[0];
+  };
+  const personalState = (member) => [member.contract_confirmation_granted, member.first_payment_confirmation_granted,
+    member.admissions_gate_override_granted];
+  const inputs = (assignments) => assignments.map(({ roleId, scope }) => ({ roleId, scope }));
+  const bindings = (roles, assignments) => [...new Set(assignments.map((row) => row.roleId))].map((id) => {
+    const role = roles.find((entry) => entry.id === id);
+    check(role?.status === "active" && role.bundleId && role.bundleVersion);
+    return { roleId: id, roleVersion: role.version, bundleId: role.bundleId, bundleVersion: role.bundleVersion };
+  });
+  const refreshAdmin = async () => {
+    const login = await adminClient.auth.signInWithPassword({ email: identities.admin.email, password: identities.admin.password });
+    check(!login.error && login.data?.session && login.data.user?.id === admin.authUserId);
+    const current = await staffSnapshot(adminClient);
+    check(current.membershipId === admin.membershipId && current.organizationId === organizationId && current.systemRole === "admin");
+  };
+  const command = async (name, args) => {
+    const requestId = randomUUID();
+    const result = await rpc(adminClient, name, { ...args, p_request_id: requestId }, requestId);
+    check(result && (result.request_id === undefined || result.request_id === requestId)
+      && (result.requestId === undefined || result.requestId === requestId));
+    return result;
+  };
+  const personalPermission = async (key, granted) => {
+    const result = await command("change_membership_permission", { p_organization_id: organizationId,
+      p_membership_id: admin.membershipId, p_permission_key: key, p_granted: granted, p_reason: reason });
+    check(result?.organization_id === organizationId && result.membership_id === admin.membershipId
+      && result.permission_key === key && result.granted === granted);
+    await refreshAdmin();
+  };
+  const saveDetails = async (department, expectedVersion) => {
+    const receipt = await command("staff_organizational_details_save", { p_organization_id: organizationId,
+      p_membership_id: admissions.membershipId, p_department_id: department, p_job_title: originalDetails.job_title,
+      p_direction_codes: originalDetails.direction_codes, p_expected_version: expectedVersion, p_reason: reason });
+    check(receipt?.organizational_version === expectedVersion + 1);
+    await refreshAdmin();
+    const current = details(await directory(), admissions.membershipId);
+    check(current.department_id === department && current.job_title === originalDetails.job_title
+      && sameSet(current.direction_codes, originalDetails.direction_codes) && current.organizational_version === expectedVersion + 1);
+  };
+  try {
+    apiUrl = localStaffOrigin(apiUrl); appOrigin = localStaffOrigin(appOrigin);
+    localClient(adminClient, apiUrl); uuid(organizationId);
+    ["admin", ...SCENARIOS].forEach((scenario) => localIdentity(identities?.[scenario], true));
+    check(typeof publishableKey === "string" && publishableKey.length >= 16
+      && accepted?.schemaVersion === 1 && accepted.organizationId === organizationId
+      && ["localMail", "actualCallback", "passwordSet", "freshPasswordLogin"].every((key) => accepted.proof?.[key] === true));
+    admin = await staffSnapshot(adminClient);
+    check(admin.organizationId === organizationId && admin.systemRole === "admin");
+    const acceptedStaff = SCENARIOS.map((scenario) => {
+      const matches = accepted.members?.filter((member) => member.scenario === scenario && member.systemRole === "staff");
+      check(matches?.length === 1); return matches[0];
+    });
+    [sales, admissions] = acceptedStaff;
+    check(new Set([admin.membershipId, sales.membershipId, admissions.membershipId]).size === 3);
+    initial = await workspace();
+    for (const member of acceptedStaff) {
+      const current = initial.members.find((entry) => entry.membershipId === member.membershipId);
+      check(current?.systemRole === "staff" && sameSet(current.assignments.map(pair), member.assignments.map(pair)));
+    }
+    const before = await directory();
+    originalDetails = details(before, admissions.membershipId);
+    check(Number.isSafeInteger(originalDetails.organizational_version) && Array.isArray(originalDetails.direction_codes));
+    const originalAdmin = details(before, admin.membershipId);
+    originalPersonal = personalState(originalAdmin);
+    check(originalPersonal.every((value) => typeof value === "boolean"));
+    for (const [key, field] of [["contract.evidence.confirm", "contract_confirmation_granted"],
+      ["finance.first.payment.confirm", "first_payment_confirmation_granted"]]) {
+      check(typeof originalAdmin[field] === "boolean");
+      if (!originalAdmin[field]) changedPermissions.push({ key, field, original: false });
+    }
+    stage = "DEPARTMENT";
+    const departmentName = `Local scope ${randomUUID().slice(0, 8)}`;
+    const department = await command("staff_department_command", { p_organization_id: organizationId,
+      p_department_id: null, p_operation: "create", p_name: departmentName, p_description: reason,
+      p_expected_version: 0, p_reason: reason });
+    departmentId = uuid(department?.department_id); check(department.version === 1);
+    check((await directory()).departments.some((entry) => entry.id === departmentId && entry.status === "active" && entry.version === 1));
+    await saveDetails(departmentId, originalDetails.organizational_version);
+    stage = "PERSONAL_PERMISSIONS";
+    for (const grant of changedPermissions) await personalPermission(grant.key, true);
+    const grantedAdmin = details(await directory(), admin.membershipId);
+    check(grantedAdmin.contract_confirmation_granted === true && grantedAdmin.first_payment_confirmation_granted === true);
+    stage = "LEAD";
+    const day = new Date().toISOString().slice(0, 10);
+    const lead = await command("create_manual_sales_lead", { p_organization_id: organizationId,
+      p_display_name: "Fictional local scoped handoff", p_phone: null, p_email: `scope-${randomUUID()}@evo.local.test`,
+      p_source_key: "other", p_owner_membership_id: sales.membershipId, p_interest_direction: "CN",
+      p_next_action: reason, p_next_action_due_date: day });
+    check(lead?.status === "saved"); const leadId = uuid(lead.lead_id);
+    const readGate = async () => {
+      const rows = await rpc(adminClient, "staff_lead_admissions_gate", { p_lead_id: leadId });
+      check(rows?.length === 1 && rows[0].organization_id === organizationId && rows[0].lead_id === leadId
+        && Number.isSafeInteger(rows[0].gate_version)); return rows[0];
+    };
+    stage = "CONTRACT";
+    let gate = await readGate();
+    await command("mutate_lead_admissions_gate", { p_lead_id: leadId, p_expected_gate_version: gate.gate_version,
+      p_action: "confirm_contract", p_amount: 1, p_currency: "USD", p_due_date: day, p_received_date: null,
+      p_evidence_reference: "Fictional local contract: no customer agreement", p_reason: reason });
+    const contractGate = await readGate();
+    check(contractGate.contract_confirmed === true && contractGate.gate_version === gate.gate_version + 1
+      && Number(contractGate.first_payment_amount) === 1 && contractGate.first_payment_currency === "USD");
+    stage = "PAYMENT"; gate = contractGate;
+    await command("mutate_lead_admissions_gate", { p_lead_id: leadId, p_expected_gate_version: gate.gate_version,
+      p_action: "confirm_first_payment", p_amount: null, p_currency: null, p_due_date: null, p_received_date: day,
+      p_evidence_reference: "Fictional local payment: no funds transferred", p_reason: reason });
+    gate = await readGate();
+    check(gate.gate_version === contractGate.gate_version + 1 && gate.gate_state === "satisfied" && gate.normal_handoff_allowed === true
+      && gate.first_payment_received_date === day && gate.first_payment_confirmed_by_membership_id === admin.membershipId);
+    stage = "HANDOFF";
+    const handoff = await command("handoff_lead_to_admissions", { p_lead_id: leadId,
+      p_expected_gate_version: gate.gate_version, p_admissions_owner_membership_id: admissions.membershipId,
+      p_handoff_mode: "normal", p_reason: reason });
+    const caseId = uuid(handoff?.case_id);
+    const handoffRead = await rpc(adminClient, "staff_lead_admissions_handoff", { p_lead_id: leadId });
+    check(handoff.case_state === "active" && handoff.admissions_owner_membership_id === admissions.membershipId
+      && handoffRead?.length === 1 && handoffRead[0].case_id === caseId && handoffRead[0].case_state === "active"
+      && handoffRead[0].handoff_mode === "normal" && handoffRead[0].admissions_owner_membership_id === admissions.membershipId);
+    stage = "DIRECTION";
+    const catalogue = await rpc(adminClient, "admissions_playbook_catalog_v1", {});
+    const playbook = catalogue?.playbooks?.find((entry) => entry.direction === "CN" && entry.publishedAt);
+    uuid(playbook?.id);
+    const caseWorkspace = () => rpc(adminClient, "staff_case_admissions_workspace_v1", { p_student_case_id: caseId });
+    const unconfigured = (await caseWorkspace())?.case;
+    check(unconfigured?.id === caseId && unconfigured.organizationId === organizationId && unconfigured.state === "active"
+      && typeof unconfigured.version === "string" && /^\d+$/.test(unconfigured.version) && Number.isSafeInteger(Number(unconfigured.version)));
+    const configured = await command("configure_case_admissions_v1", { p_student_case_id: caseId,
+      p_expected_version: Number(unconfigured.version), p_direction: "CN", p_playbook_version_id: playbook.id,
+      p_next_action: reason, p_next_action_due_on: day });
+    const canonical = (await caseWorkspace())?.case;
+    check(configured?.caseId === caseId && canonical?.direction === "CN" && canonical.id === caseId
+      && canonical.organizationId === organizationId && canonical.state === "active" && canonical.playbookVersionId === playbook.id
+      && Number(canonical.version) === Number(unconfigured.version) + 1 && canonical.version === configured.version);
+    const ownerRead = await adminClient.schema("platform").from("student_cases")
+      .select("id,organization_id,current_curator_membership_id,responsible_sales_membership_id,admissions_direction,state")
+      .eq("organization_id", organizationId).eq("id", caseId);
+    check(!ownerRead.error && ownerRead.data?.length === 1 && ownerRead.data[0].organization_id === organizationId
+      && ownerRead.data[0].current_curator_membership_id === admissions.membershipId && ownerRead.data[0].responsible_sales_membership_id === sales.membershipId
+      && ownerRead.data[0].admissions_direction === "CN" && ownerRead.data[0].state === "active");
+    stage = "ROLES";
+    for (const kind of ["department", "direction"]) {
+      const roleId = randomUUID(); temporaryRoles.push(roleId);
+      const created = await command("staff_role_command", { p_organization_id: organizationId, p_role_id: roleId,
+        p_expected_version: 0, p_operation: "create", p_payload: { label: `Local case read ${kind} ${roleId.slice(0, 8)}`,
+          description: reason, permissionKeys: ["case.read.full"] }, p_reason: reason });
+      const creation = strictParse(() => parseStaffRoleCommandResult(created, "role"));
+      check(creation.roleId === roleId && creation.version === 1);
+      const impactRaw = await rpc(adminClient, "staff_role_impact", { p_organization_id: organizationId, p_role_id: roleId, p_expected_version: 1 });
+      const impact = strictParse(() => parseStaffRoleImpact(impactRaw));
+      check(impact.roleId === roleId && impact.version === 1 && impact.affectedMembershipIds.length === 0);
+      const published = await command("staff_role_publish", { p_organization_id: organizationId, p_role_id: roleId,
+        p_expected_version: 1, p_expected_impact_fingerprint: impact.impactFingerprint, p_reason: reason });
+      const publication = strictParse(() => parseStaffRoleCommandResult(published, "publish"));
+      check(publication.roleId === roleId && publication.version === 2 && published.affectedMembershipIds.length === 0);
+    }
+    // Department/grant setup and the previous member proof already changed live versions.
+    stage = "BASELINE";
+    const baseline = await workspace();
+    const original = baseline.members.find((entry) => entry.membershipId === sales.membershipId);
+    check(original?.systemRole === "staff" && sameSet(original.assignments.map(pair), sales.assignments.map(pair))
+      && original.assignments.every((entry) => entry.scope.resourceKind === null &&
+        (entry.scope.kind === "own" && entry.scope.key === null || entry.scope.kind === "organization" && entry.scope.key === organizationId)));
+    // case own is current Admissions owner, never responsible Sales. Baseline may contain the key under own.
+    check(sales.membershipId !== admissions.membershipId && original.assignments.every((entry) => entry.scope.kind !== "organization"
+      || !baseline.roles.find((role) => role.id === entry.roleId)?.permissionKeys.includes("case.read.full")));
+    const additions = temporaryRoles.map((roleId, index) => {
+      const role = baseline.roles.find((entry) => entry.id === roleId);
+      check(role?.version === 2 && role.status === "active" && role.memberCount === 0 && sameSet(role.permissionKeys, ["case.read.full"]));
+      return { roleId, scope: { kind: index === 0 ? "department" : "direction", key: index === 0 ? departmentId : "CN", resourceKind: null } };
+    });
+    const freshSales = async (version, assignments, fullRead) => {
+      const client = createClient(apiUrl, publishableKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+      try {
+        const login = await client.auth.signInWithPassword({ email: identities.sales.email, password: identities.sales.password });
+        check(!login.error && login.data?.session && login.data.user);
+        const actor = await staffSnapshot(client);
+        check(actor.organizationId === organizationId && actor.membershipId === sales.membershipId && actor.systemRole === "staff"
+          && actor.platformAccessVersion === version && sameSet(actor.assignments.map(pair), assignments.map(pair)));
+        if (fullRead) {
+          const rows = await rpc(client, "staff_student_case_read_snapshot", { p_student_case_id: caseId });
+          check(rows?.length === 1 && rows[0].student_case_id === caseId && rows[0].organization_id === organizationId
+            && rows[0].access_mode === "full" && rows[0].state === "active");
+        }
+      } finally { await client.auth.signOut({ scope: "local" }); }
+    };
+    await freshSales(original.accessVersion, original.assignments, false);
+    stage = "LOGIN";
+    context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false, viewport: { width: 1440, height: 1000 } });
+    await context.route("**/*", (route) => [appOrigin, apiUrl].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
+    const page = await context.newPage(); page.setDefaultTimeout(30_000);
+    page.on("pageerror", () => { clientError = true; });
+    page.on("console", (message) => { if (message.type() === "error") clientError = true; });
+    await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
+    await page.locator("#staff-email").fill(identities.admin.email);
+    await page.locator("#staff-password").fill(identities.admin.password);
+    await page.getByRole("button", { name: "Войти в CRM", exact: true }).click();
+    await page.getByTestId("v3-shell").waitFor();
+    check(await page.getByTestId("v3-shell").getAttribute("data-system-role") === "admin"
+      && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual");
+    stage = "CARD";
+    const memberUrl = `${appOrigin}/v3/settings?section=staff&view=people&member=${original.membershipId}`;
+    await page.goto(memberUrl, { waitUntil: "domcontentloaded" });
+    const card = page.getByRole("article", { name: `Сотрудник: ${original.displayName}`, exact: true });
+    await card.getByText("Доступ", { exact: true }).click();
+    const form = () => card.getByRole("form", { name: `Назначения: ${original.displayName}`, exact: true });
+    const row = (index) => form().getByRole("group", { name: `Назначение ${index + 1}`, exact: true });
+    const fields = async (version, assignments) => {
+      check(await form().locator('input[name="expected_version"]').inputValue() === String(version));
+      const raw = JSON.parse(await form().locator('input[name="assignments"]').inputValue());
+      const parsed = strictParse(() => parseStaffRoleAssignmentInputs(raw));
+      check(sameSet(parsed.map(pair), assignments.map(pair)));
+      const expected = JSON.parse(await form().locator('input[name="expected_role_bindings"]').inputValue());
+      check(sameSet(expected.map((entry) => JSON.stringify(entry)), bindings(baseline.roles, assignments).map((entry) => JSON.stringify(entry))));
+      for (const [index, entry] of parsed.entries()) {
+        const role = baseline.roles.find((item) => item.id === entry.roleId);
+        const roleSelect = row(index).getByRole("combobox", { name: "Роль", exact: true });
+        const scopeSelect = row(index).getByRole("combobox", { name: "Область доступа", exact: true });
+        check(await roleSelect.inputValue() === entry.roleId && await roleSelect.locator("option:checked").textContent() === role.label
+          && await scopeSelect.inputValue() === entry.scope.kind && await scopeSelect.locator("option:checked").textContent()
+          === { own: "Свои записи", organization: "Вся организация", department: "Отдел", direction: "Направление" }[entry.scope.kind]);
+        if (["department", "direction"].includes(entry.scope.kind)) {
+          const target = row(index).getByRole("combobox", { name: entry.scope.kind === "department" ? "Отдел" : "Направление", exact: true });
+          check(await target.inputValue() === entry.scope.key
+            && await target.locator("option:checked").textContent() === (entry.scope.kind === "department" ? departmentName : "Китай"));
+        }
+      }
+    };
+    const otherMembers = (members) => members.filter((entry) => entry.membershipId !== sales.membershipId);
+    const readback = async (version, assignments) => {
+      const current = await workspace(), target = current.members.find((entry) => entry.membershipId === sales.membershipId);
+      const expectedRoles = baseline.roles.map((role) => ({ ...role, memberCount: role.memberCount
+        - Number(original.assignments.some((entry) => entry.roleId === role.id)) + Number(assignments.some((entry) => entry.roleId === role.id)) }));
+      check(target?.accessVersion === version && target.systemRole === "staff" && target.displayName === original.displayName
+        && sameSet(target.assignments.map(pair), assignments.map(pair)) && target.assignments.every((entry) => {
+          const role = baseline.roles.find((item) => item.id === entry.roleId);
+          return entry.label === role?.label && entry.bundleId === role.bundleId && entry.bundleVersion === role.bundleVersion;
+        }) && JSON.stringify(otherMembers(current.members)) === JSON.stringify(otherMembers(baseline.members))
+        && JSON.stringify(current.roles) === JSON.stringify(expectedRoles) && JSON.stringify(current.permissions) === JSON.stringify(baseline.permissions)
+        && JSON.stringify(current.departments) === JSON.stringify(baseline.departments));
+      return target;
+    };
+    await fields(original.accessVersion, original.assignments);
+    let currentAssignments = original.assignments;
+    const states = [[additions[0]], [additions[1]], additions, []];
+    for (const [index, extra] of states.entries()) {
+      stage = ["DEPARTMENT_SAVE", "DIRECTION_SAVE", "COMBINED_SAVE", "RESTORE_SAVE"][index];
+      if (index > 0) {
+        await form().getByRole("button", { name: "Изменить назначения", exact: true }).click();
+        await fields(original.accessVersion + index, currentAssignments);
+      }
+      for (let cursor = currentAssignments.length - 1; cursor >= 0; cursor -= 1) {
+        if (temporaryRoles.includes(currentAssignments[cursor].roleId)) await row(cursor).getByRole("button", { name: "Убрать назначение", exact: true }).click();
+      }
+      for (const [offset, addition] of extra.entries()) {
+        await form().getByRole("button", { name: "Добавить роль", exact: true }).click();
+        const added = row(original.assignments.length + offset);
+        await added.getByRole("combobox", { name: "Роль", exact: true }).selectOption(addition.roleId);
+        await added.getByRole("combobox", { name: "Область доступа", exact: true }).selectOption(addition.scope.kind);
+        await added.getByRole("combobox", { name: addition.scope.kind === "department" ? "Отдел" : "Направление", exact: true }).selectOption(addition.scope.key);
+      }
+      const expected = [...original.assignments, ...extra];
+      await fields(original.accessVersion + index, expected);
+      await form().getByRole("textbox", { name: "Причина изменения", exact: true }).fill(reason);
+      await form().getByRole("button", { name: "Сохранить назначения", exact: true }).click();
+      await form().getByText("Изменение доступа сохранено.", { exact: true }).waitFor();
+      stage = ["DEPARTMENT_READ", "DIRECTION_READ", "COMBINED_READ", "RESTORE_READ"][index];
+      const target = await readback(original.accessVersion + index + 1, expected);
+      currentAssignments = target.assignments;
+      await freshSales(target.accessVersion, target.assignments, index < 3);
+      check(page.url() === memberUrl && !clientError);
+    }
+    await form().getByRole("button", { name: "Изменить назначения", exact: true }).click();
+    await fields(original.accessVersion + 4, original.assignments);
+    check(page.url() === memberUrl && !clientError);
+  } catch { failure = new ScopedStaffProvisioningError(`LOCAL_BUSINESS_SCOPES_${stage}_FAILED`); }
+  finally {
+    if (context) {
+      try { await context.close(); } catch { failure ??= new ScopedStaffProvisioningError("LOCAL_BUSINESS_SCOPES_BROWSER_CLOSE_FAILED"); }
+    }
+    if (clientError) failure ??= new ScopedStaffProvisioningError("LOCAL_BUSINESS_SCOPES_BROWSER_ERROR_FAILED");
+    // Teardown uses ordinary commands with current versions, including after a failed UI save.
+    if (initial && admin && originalDetails) {
+      const restore = async (action) => {
+        try { await refreshAdmin(); await action(); }
+        catch { failure ??= new ScopedStaffProvisioningError("LOCAL_BUSINESS_SCOPES_RESTORATION_FAILED"); }
+      };
+      await restore(async () => {
+        let current = await workspace();
+        const original = initial.members.find((entry) => entry.membershipId === sales.membershipId);
+        const target = current.members.find((entry) => entry.membershipId === sales.membershipId);
+        if (!sameSet(target.assignments.map(pair), original.assignments.map(pair))) {
+          const receipt = await command("staff_role_assignments_save", { p_organization_id: organizationId,
+            p_membership_id: sales.membershipId, p_expected_access_version: target.accessVersion,
+            p_assignments: inputs(original.assignments), p_expected_role_bindings: bindings(current.roles, original.assignments), p_reason: reason });
+          check(receipt?.accessVersion === target.accessVersion + 1);
+          current = await workspace();
+          check(sameSet(current.members.find((entry) => entry.membershipId === sales.membershipId).assignments.map(pair), original.assignments.map(pair)));
+        }
+      });
+      for (const grant of changedPermissions) {
+        await restore(async () => {
+          if (details(await directory(), admin.membershipId)[grant.field] !== grant.original) await personalPermission(grant.key, grant.original);
+          check(details(await directory(), admin.membershipId)[grant.field] === grant.original);
+        });
+      }
+      await restore(async () => {
+        const currentDetails = details(await directory(), admissions.membershipId);
+        if (departmentId && currentDetails.department_id === departmentId) await saveDetails(originalDetails.department_id, currentDetails.organizational_version);
+      });
+      for (const roleId of temporaryRoles) {
+        await restore(async () => {
+          const role = (await workspace()).roles.find((entry) => entry.id === roleId);
+          if (!role) { check(failure); return; }
+          check(role.memberCount === 0);
+          const receipt = await command("staff_role_command", { p_organization_id: organizationId, p_role_id: roleId,
+            p_expected_version: role.version, p_operation: "archive", p_payload: { replacementRoleId: null, revokeAssignments: false }, p_reason: reason });
+          const archived = (await workspace()).roles.find((entry) => entry.id === roleId);
+          check(receipt?.version === role.version + 1 && archived?.status === "archived" && archived.memberCount === 0 && archived.version === receipt.version);
+        });
+      }
+      if (departmentId) {
+        await restore(async () => {
+          const department = (await directory()).departments.find((entry) => entry.id === departmentId);
+          check(department?.member_count === 0);
+          const receipt = await command("staff_department_command", { p_organization_id: organizationId, p_department_id: departmentId,
+            p_expected_version: department.version, p_operation: "archive", p_name: null, p_description: null, p_reason: reason });
+          await refreshAdmin();
+          const archived = (await directory()).departments.find((entry) => entry.id === departmentId);
+          check(receipt?.version === department.version + 1 && archived?.status === "archived" && archived.member_count === 0 && archived.version === receipt.version);
+        });
+      }
+      await restore(async () => {
+        const restored = await workspace(), restoredDirectory = await directory();
+        const restoredDetails = details(restoredDirectory, admissions.membershipId);
+        check(restored.members.length === initial.members.length && initial.members.every((before) => {
+          const after = restored.members.find((entry) => entry.membershipId === before.membershipId);
+          return after?.systemRole === before.systemRole && after.displayName === before.displayName && after.accessVersion >= before.accessVersion
+            && sameSet(after.assignments.map(pair), before.assignments.map(pair));
+        }) && JSON.stringify(restored.roles.filter((entry) => !temporaryRoles.includes(entry.id))) === JSON.stringify(initial.roles)
+          && JSON.stringify(restored.permissions) === JSON.stringify(initial.permissions)
+          && JSON.stringify(restored.departments.filter((entry) => entry.id !== departmentId)) === JSON.stringify(initial.departments)
+          && restoredDetails.department_id === originalDetails.department_id && restoredDetails.job_title === originalDetails.job_title
+          && sameSet(restoredDetails.direction_codes, originalDetails.direction_codes)
+          && JSON.stringify(personalState(details(restoredDirectory, admin.membershipId))) === JSON.stringify(originalPersonal));
+      });
+    }
+  }
+  if (failure) throw failure;
+  return { schemaVersion: 1, edits: 4, proof: { ordinaryHandoff: true, canonicalDirection: true,
+    independentDepartmentRead: true, independentDirectionRead: true, combinedRead: true, sameCard: true,
+    versionIncrements: 4, assignmentsRestored: true, personalGrantsRestored: true, organizationalDetailsRestored: true,
+    temporaryRolesArchived: true, temporaryDepartmentArchived: true, otherMembersUnchangedDuringEdits: true, noBrowserErrors: true } };
+}

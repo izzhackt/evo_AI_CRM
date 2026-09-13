@@ -461,6 +461,9 @@ echo "LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED"
 grep -Fx "LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED" "$staff_provision_log" >/dev/null \
   || fail "Local staff member editor did not return its separate verification marker"
 echo "LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED"
+grep -Fx "LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED" "$staff_provision_log" >/dev/null \
+  || fail "Local staff department/direction business flow did not return its separate verification marker"
+echo "LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED"
 for sensitive_value in \
   "$supabase_service_role_key" \
   "$staff_admin_email" \

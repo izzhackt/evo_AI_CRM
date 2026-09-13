@@ -15,6 +15,15 @@ function before(body, first, second) {
   assert.ok(body.indexOf(first) >= 0 && body.indexOf(second) > body.indexOf(first), `${first} precedes ${second}`);
 }
 
+test("membership schema changes precede the populated Admin backfill and its deferred trigger events", () => {
+  const backfill = sql.indexOf("UPDATE platform.organization_memberships m SET is_system_admin = TRUE");
+  assert.ok(backfill > 0);
+  const changes = [...sql.matchAll(/ALTER TABLE platform\.organization_memberships[^;]+;/g)];
+  assert.equal(changes.length, 3);
+  for (const change of changes) assert.ok(change.index < backfill, "Complete membership DDL before updating existing rows");
+  assert.match(sql.slice(backfill, sql.indexOf(";", backfill)), /current_role" = 'admin'[\s\S]*b\.status='published'[\s\S]*membership_has_active_scope/);
+});
+
 test("publication impact uses one canonical role and live scoped assignment fingerprint", () => {
   const fingerprint = definition("platform_private.staff_role_impact_fingerprint");
   for (const field of ["schemaVersion", "organizationId", "roleId", "roleVersion", "status", "bundleId", "bundleVersion",

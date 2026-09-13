@@ -12,12 +12,14 @@ ALTER TABLE platform.role_bundle_permissions ADD CONSTRAINT staff_bundle_permiss
   FOREIGN KEY (bundle_id) REFERENCES platform.role_bundle_versions(id) ON DELETE RESTRICT;
 ALTER TABLE platform.role_bundle_versions ADD CONSTRAINT staff_bundle_id_version_key UNIQUE(id,version);
 ALTER TABLE platform.organization_memberships ADD COLUMN is_system_admin BOOLEAN NOT NULL DEFAULT FALSE;
-UPDATE platform.organization_memberships m SET is_system_admin = TRUE WHERE m."current_role" = 'admin'
- AND EXISTS(SELECT 1 FROM platform.role_bundle_versions b WHERE b.id=m.current_bundle_id AND b.status='published')
- AND platform_private.membership_has_active_scope(m.organization_id,m.id,'organization',m.organization_id);
 ALTER TABLE platform.organization_memberships DROP CONSTRAINT organization_memberships_active_authority_check;
 ALTER TABLE platform.organization_memberships ADD CONSTRAINT staff_admin_not_student
   CHECK (NOT is_system_admin OR "current_role" IS DISTINCT FROM 'student');
+-- Finish membership DDL before this populated backfill queues the existing
+-- deferred live-Admin constraint trigger. Keep that check enabled until COMMIT.
+UPDATE platform.organization_memberships m SET is_system_admin = TRUE WHERE m."current_role" = 'admin'
+ AND EXISTS(SELECT 1 FROM platform.role_bundle_versions b WHERE b.id=m.current_bundle_id AND b.status='published')
+ AND platform_private.membership_has_active_scope(m.organization_id,m.id,'organization',m.organization_id);
 
 ALTER TABLE platform.permission_definitions
   ADD COLUMN staff_label TEXT,

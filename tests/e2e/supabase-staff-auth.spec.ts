@@ -144,6 +144,7 @@ async function directPlatformRpc(
   functionName:
     | "current_actor_authority"
     | "staff_access_snapshot"
+    | "staff_student_case_read_snapshot"
     | "staff_workspace_directory"
     | "staff_sales_lead_page"
     | "staff_sales_lead_detail"
@@ -1545,6 +1546,32 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const studentCaseId = requireUuidValue(
     handoffRow.case_id,
   );
+
+  // A Sales summary is not permission to enter the full case workspace.
+  const salesCaseView = await directPlatformRpc(
+    "staff_student_case_read_snapshot", { p_student_case_id: studentCaseId }, salesToken,
+  );
+  expect(salesCaseView.status).toBe(200);
+  expect(salesCaseView.payload).toHaveLength(1);
+  expect(expectObject((salesCaseView.payload as unknown[])[0]).access_mode).toBe("sales_summary");
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
+  await expect(page.getByText(
+    "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+  )).toBeVisible();
+  await expect(page.getByTestId("v3-profile")).toHaveCount(0);
+
+  // Receiving a case grants its Admissions workspace, not the Sales handoff
+  // workflow. Prove that distinction before any calendar/document mutations.
+  expect(admissionsAuthorityRow.permissions).toContain("lead.read");
+  expect(admissionsAuthorityRow.permissions).not.toContain("lead.sales.workflow.manage");
+  assertDeniedRpc(await directPlatformRpc(
+    "staff_lead_admissions_handoff", { p_lead_id: leadId }, admissionsToken,
+  ));
+  await page.context().clearCookies();
+  await signIn(page, "admissions");
+  await page.goto(`/v3/profile?case=${studentCaseId}&tab=overview`);
+  await expect(page.getByTestId("v3-profile")).toBeVisible();
+  await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
   await page.context().clearCookies();
   await signIn(page, "admin");

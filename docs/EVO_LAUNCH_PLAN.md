@@ -11,7 +11,32 @@ those higher-level authorities.
 
 Last recorded accepted application: `77cde9ba8abdd8140db462dfe0203c0356944849`
 
-Current release checkpoint (2026-09-13): managed001–161 applied/verified via
+Current release checkpoint (2026-09-13, after PR757): full CI34767766251 on
+`bc0cde68` passed the corrected scoped Admissions calendar controls, then stopped
+when the same Admissions identity reopened `/v3/profile` at test line1998.
+No failure artifacts were retained by Actions. The bounded real reproduction
+traced it to optional Sales handoff enrichment denied to the assigned Admissions
+actor. The candidate preserves the canonical full case without that optional
+section. Its next real run passed reopen and document operations, then exposed
+the Sales summary branch throwing instead of returning the existing unavailable
+profile state. Both scoped-authority transitions must pass the original scenario;
+the missing downstream P4 receipt does not establish another Storage failure.
+Automatic release34768123391 was skipped, arm=false, and production remains
+the accepted77cde9ba. The isolated --admissions-workflow-only command retains
+the actual workflow and final Storage receipt. Require its positive result,
+independent exact-head review and one new exact-main gate before release.
+D3/D4 continue independently without production enablement.
+
+Local result: both existing real Auth/DB/Storage/scanner/browser scenarios now
+pass, including the complete P4 database receipt and the company-file prerequisite
+(01a09bb4700a7c23adfe675ed1b044d3, 2 passed in40.7s,
+LOCAL_ADMISSIONS_WORKFLOW_VERIFIED, exit0). The case and Sales summary regressions
+are retained in the ordinary full scenario; no assertions or grants were relaxed.
+65 related Node checks and actual test:frontend183+23 pass, scoped lint and
+bash/diff checks pass. This is a local release correction, not a new production
+version, real employee invitation, provider call or client acceptance.
+
+Previous release checkpoint (2026-09-13): managed001–161 applied/verified via
 34765867429/34765967956, but full CI34766012215 on c6669ff1 failed at the
 scoped Admissions calendar visibility selector. Automatic release34766594252
 was skipped and arm=false verified; no new application release is claimed.
@@ -54,9 +79,11 @@ Both actual files rendered correctly on all two pages. See the
 [local D2 proof](design/v3/references/2026-09-13-student-profile-fields-local-proof.md).
 D2/PR752 merged as `fd5b6a085ae97e8cb120f9998dc3418b0e6b580c` at15:24:30 UTC,
 tree-identical to reviewed `daf5b5ac`; all six fast checks34765172099 passed.
-This is not a D2 release or real client acceptance. Managed schema158–161,
-final current-main verification, D3–D6 and real employee/document acceptance
-remain required. Freeze main for the final combined proof after preparation PR754 merges.
+This is not a D2 release or real client acceptance. Managed schema001–161 is
+applied and verified through34765867429/34765967956. Final current-main
+verification, D3–D6 and real employee/document acceptance remain required.
+Preparation PR754 is merged; freeze a new reviewed current-main candidate only
+after the scoped profile failures above pass locally.
 
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and

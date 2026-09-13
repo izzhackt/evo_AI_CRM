@@ -23590,3 +23590,15 @@ Primary sources checked2026-09-13:
 [CLI image manifest](https://github.com/supabase/cli/blob/v2.116.0/apps/cli-go/pkg/config/templates/Dockerfile),
 [registry candidates](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-registry.ts),
 [resolved-image selection](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-image-resolve.ts).
+
+## 2026-09-13 — S2 preserve bounded role-editor diagnostics at the harness boundary
+
+S2 is committed and pushed in draft PR747 after merging current main77ef3385.
+The role-editor helper records fixed UI counters on failure, but the foundation
+harness forwards only its error code before cleaning the private log. Therefore
+the new observation is currently unavailable to the executor. Forward only the
+exact machine-counter line, with a bounded uppercase stage and numeric counts;
+never echo the log, form values, identities, URLs or raw exceptions. Keep failure
+terminal and preserve every workflow assertion, command and cleanup boundary.
+Prove the exact filter with red-before/green-after tests, then run the unchanged
+ordinary local onboarding/editor flow. This does not fix or accept the UI itself.

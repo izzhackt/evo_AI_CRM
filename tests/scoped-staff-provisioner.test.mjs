@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink, dispatchScopedStaffInvitation,
   prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor } from "../scripts/lib/scoped-staff-provisioner.mjs";
 
@@ -31,6 +32,20 @@ const baseline = { sales: ["lead.read", "task.manage", "workflow.contract.read",
   admissions: ["lead.read", "case.read.full", "task.manage", "workflow.contract.read", "document.download", "document.upload", "communication.manual.send", "finance.read.summary"] };
 const adminSnapshot = { schemaVersion: 1, authUserId: userId, profileId, membershipId: member, organizationId: org,
   displayName: "Local Admin", systemRole: "admin", accessVersion: 1, assignments: [], permissions: ["membership.provision"] };
+
+test("foundation failure output forwards only the exact role-editor machine counters", () => {
+  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const pattern = harness.match(/role_editor_diagnostic="\$\(grep -m 1 -E '([^']+)' "\$staff_provision_log" \|\| true\)"/)?.[1];
+  assert.ok(pattern, "The harness must retain the bounded role-editor observation before cleanup");
+  assert.match(harness, /\[\[ -z "\$role_editor_diagnostic" \]\] \|\| echo "\$role_editor_diagnostic" >&2/);
+  const line = 'LOCAL_ROLE_EDITOR_UI_STATE:{"stage":"CREATE_ID","roleEditors":0,"createButtons":1,"archiveForms":0,"restoreForms":0,"emptyDetails":1}';
+  const select = (input) => spawnSync("grep", ["-m", "1", "-E", pattern], { input, encoding: "utf8" }).stdout.trim();
+  assert.equal(select(`private log before\n${line}\nprivate log after\n`), line);
+  for (const input of [line + " private", line.replace('"CREATE_ID"', '"person@example.com"'),
+    line.replace('"roleEditors":0', '"roleEditors":"private"'), "LOCAL_ROLE_EDITOR_UI_STATE:private"]) {
+    assert.equal(select(input), "");
+  }
+});
 
 test("fixture roles reproduce155 own/organization split without sensitive or cross-case broadening", () => {
   const rows = buildScopedStaffBaselines({ permissions, baseline });

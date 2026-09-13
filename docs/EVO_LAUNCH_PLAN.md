@@ -53,7 +53,7 @@ No invitation, customer-file disclosure or standalone retirement is implied by
 technical CI. The latest release checkpoint is
 [the S1/D1 evidence](design/v3/references/2026-09-13-staff-docs-release.md).
 
-S2 remains active, uncommitted and unreleased under the
+S2 remains active and unreleased under the
 [scoped-authority contract](design/v3/staff-scoped-authority-contract.md), with
 155–157 reserved for one coordinated authority/onboarding transition. Shared
 SQL, live staff snapshots, role/assignment UI and prepared invitations are
@@ -66,11 +66,15 @@ Calendar/task and Sales/Finance source branches are aligned; all six source
 findings are closed, including independent 21/21 approval of the post-contract
 and case-help fixes. This is not whole-slice approval. Role-editor run 47064
 failed at restore fields; run 74115 then failed at creation. No complete workflow
-pass or confirming screenshots exist. Safe UI diagnostics were added; the fresh
-full unit run passed all 1426 checks across144 unique files, and the production
-build including TypeScript passed. No PR has been created.
+pass or confirming screenshots exist. Safe UI diagnostics were added; the pre-merge
+full unit checkpoint passed all 1426 checks across144 unique files, and the production
+build including TypeScript passed. The current-main merge is committed and pushed
+as `3897c5db`; [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) is open.
+Its merged checkpoint passed 66/66 scoped checks and full ESLint; application
+`src/` and migrations are unchanged from `5ddbde5a`. This remains draft review,
+not whole-slice browser approval or release.
 Remaining work includes full S2 runtime/browser
-verification, whole-slice review, commit, the full release gate and deployment.
+verification, whole-slice review, the full release gate and deployment.
 This local proof is not real employee first-login, provider or Storage acceptance; no
 production activation or employee invitation is implied.
 

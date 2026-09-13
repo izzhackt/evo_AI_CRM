@@ -377,7 +377,11 @@ export async function acceptScopedStaffInvitations({ browser, adminClient, authA
       await page.getByRole("button", { name: "Продолжить", exact: true }).click();
       browserStage = "PASSWORD_READY";
       await page.getByLabel("Новый пароль", { exact: true }).waitFor();
-      requireValue(page.url() === `${appOrigin}/auth/staff` && (await readUser()).email_confirmed_at, "LOCAL_STAFF_CALLBACK_NOT_CONFIRMED");
+      const callbackUrlClean = page.url() === `${appOrigin}/auth/staff`;
+      const callbackEmailConfirmed = Boolean((await readUser()).email_confirmed_at);
+      requireValue(callbackUrlClean && callbackEmailConfirmed, callbackUrlClean
+        ? "LOCAL_STAFF_CALLBACK_EMAIL_NOT_CONFIRMED"
+        : callbackEmailConfirmed ? "LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN" : "LOCAL_STAFF_CALLBACK_URL_AND_EMAIL_NOT_CONFIRMED");
       browserStage = "PASSWORD_INPUT";
       await page.getByLabel("Новый пароль", { exact: true }).fill(identity.password);
       await page.getByLabel("Повторите пароль", { exact: true }).fill(identity.password);

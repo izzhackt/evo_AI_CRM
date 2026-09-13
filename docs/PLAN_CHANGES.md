@@ -24058,3 +24058,48 @@ home and dashboard cards. Real department archive/restore/transfer advanced acce
 versions by3, and a subsequent title-only update left the complete access snapshot
 unchanged.46 focused module checks plus9 ordinary React checks passed. The full
 main-only release proof, production replacement and tunnel acceptance remain open.
+
+## 2026-09-13 — align the onboarding harness contract with PR749
+
+PR749 merged as c02c9ad0 after independent review and fast checks. Read-only
+schema34759018265 confirmed157 local=157 managed, with no missing/extra versions.
+Full CI34759082235 then passed1303 of1304 Node checks; the only failure is
+`local-staff-supabase-workdir` matching the substring `browser_assert` inside the
+new bounded `supabase_staff_auth_browser_assert` call. PR749 intentionally added
+that exact two-test call after real invitation acceptance; the real local run
+already exercised it. The test's broad prohibition is stale, not evidence of
+provider or Storage execution. Keep those suites prohibited and require exactly
+the approved staff browser command plus its terminal baseline marker. Do not
+remove a gate, broaden the subset or change production permissions.
+
+Release arm was set back to false and read back (01a09ae70a40727382d08c6d437db088).
+The database/browser job remains running; do not cancel or redispatch it, and do
+not merge another head before that job terminates. No application replacement
+has occurred. After this narrow contract fix, validate the complete Node manifest
+locally, obtain independent review and repeat full CI only on a changed exact main.
+
+Terminal result: database/browser job103728559657 failed after invitation_ui at
+`LOCAL_STAFF_CALLBACK_NOT_CONFIRMED`; release34759287701 was skipped. The fixed
+Node manifest passed locally in full (01a09ae9ca2f70f096e99e16d9a6fc65).
+The callback assertion combines exact clean URL and Auth email confirmation,
+so this result does not identify which condition failed. Split those conditions
+into fixed machine-only diagnostics and run the existing bounded real onboarding
+scenario once before changing product code. Do not print callback URLs, tokens,
+email addresses or browser payloads, relax either assertion, retry token use,
+increase waits or infer success from the password field alone.
+
+The bounded real onboarding run on the follow-up passed: Admin invitation UI,
+Auth/Mailpit password acceptance, real first login, scoped role/member/business
+proofs and both baseline browser checks, then terminal markers and exit0
+(01a09aef64be78b0bf9eb144a7b0dd28). Its owned local project
+evo-local-9e463272cf4142a6 was removed and absence verified. The original CI callback
+failure did not reproduce; its cause is not claimed fixed. Preserve both assertions
+and read both boolean conditions before returning one of three fixed errors:
+URL-only, email-only, or both. No runtime values are logged. Narrow stub-boundary
+tests cover those diagnostics and context cleanup; they do not substitute for the
+real local proof or the still-required full CI on the changed exact main.
+
+The final follow-up passed the complete154-file canonical Node manifest
+(01a09af649357e21a0e47c5bbb652a1a), all46 focused checks and scoped ESLint/diff
+checks. The three diagnostic branches are covered as stub-boundary checks only;
+the earlier actual local onboarding remains its separate runtime evidence.

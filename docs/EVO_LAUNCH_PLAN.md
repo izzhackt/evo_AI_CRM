@@ -55,6 +55,20 @@ technical CI. The latest release checkpoint is
 
 S2 is merged in [PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) as
 `0f80ced1`, but the application release remains pending.
+Latest: PR749 merged as `c02c9ad0`; read-only schema34759018265 confirmed157=157.
+Full CI34759082235 found one stale Node harness assertion (1303/1304 passed):
+its broad `browser_assert` prohibition also rejects PR749's intended two-test
+staff-only browser call. The narrow follow-up must require that exact call while
+retaining provider/Storage exclusion. The full Node manifest now passes locally.
+The database/browser job then failed at the combined callback URL/email-confirmation
+assertion after invitation_ui. The follow-up bounded real onboarding passed,
+including both actual baseline browser checks (01a09aef64be78b0bf9eb144a7b0dd28),
+but did not reproduce the CI failure. Three fixed diagnostics distinguish URL,
+email or both without logging values or relaxing assertions. The cause remains
+unproven. Release34759287701 was skipped, arm=false was read back and there was
+no app replacement. Independent review, full exact-main CI and release remain
+open. This checkpoint supersedes historical diagnostics below.
+
 PR748 is also merged as ce404b87. Its full CI34757193916 passed the scoped-staff
 invitation/editor/business proof, then failed old staff baseline expectations.
 The follow-up reconciles those assertions with the published scoped permissions

@@ -316,6 +316,9 @@ test("browser proof uses local mail, explicit callback, fresh password login and
 for (const [stage, expectedCode] of [
   ["invite-open", "LOCAL_STAFF_BROWSER_INVITE_OPEN_FAILED"],
   ["password-ready", "LOCAL_STAFF_BROWSER_PASSWORD_READY_FAILED"],
+  ["callback-url", "LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN"],
+  ["callback-email", "LOCAL_STAFF_CALLBACK_EMAIL_NOT_CONFIRMED"],
+  ["callback-both", "LOCAL_STAFF_CALLBACK_URL_AND_EMAIL_NOT_CONFIRMED"],
 ]) {
   test(`browser ${stage} failure reports only its safe stage and closes the stub context`, async (t) => {
     // All external boundaries are stubs: this is not a real Auth/browser acceptance proof.
@@ -333,10 +336,16 @@ for (const [stage, expectedCode] of [
         throw new Error("Unexpected stub RPC");
       } }),
     };
-    const authAdminClient = { supabaseUrl: apiUrl, auth: { admin: { getUserById: async () => ({ data: { user: {
-      id: userId, email: identity.email, invited_at: "2026-09-13T00:00:00Z", email_confirmed_at: null,
+    let continued = false;
+    let confirmationReads = 0;
+    const authAdminClient = { supabaseUrl: apiUrl, auth: { admin: { getUserById: async () => {
+      if (continued) confirmationReads += 1;
+      return { data: { user: {
+      id: userId, email: identity.email, invited_at: "2026-09-13T00:00:00Z",
+      email_confirmed_at: continued && stage === "callback-url" ? "2026-09-13T00:01:00Z" : null,
       user_metadata: { evo_staff_invitation_request_id: request },
-    } } }) } } };
+    } } };
+    } } } };
     t.mock.method(globalThis, "fetch", async (url) => {
       if (url === `${mailpitOrigin}/api/v1/messages`) {
         return new Response(JSON.stringify({ messages: [{ ID: "stub-invite", To: [{ Address: identity.email }] }] }));
@@ -344,16 +353,18 @@ for (const [stage, expectedCode] of [
       assert.equal(url, `${mailpitOrigin}/api/v1/message/stub-invite`);
       return new Response(JSON.stringify({ HTML: `<a href="${link}">Accept invitation</a>` }));
     });
-    let continued = false;
     let closed = 0;
     const page = {
       setDefaultTimeout() {},
+      url: () => stage === "callback-email" ? `${appOrigin}/auth/staff` : link,
       async goto(url) {
         assert.equal(url, link);
         if (stage === "invite-open") throw privateFailure();
       },
       getByRole: () => ({ click: async () => { continued = true; } }),
-      getByLabel: () => ({ waitFor: async () => { throw privateFailure(); } }),
+      getByLabel: () => ({ waitFor: async () => {
+        if (stage === "password-ready") throw privateFailure();
+      } }),
     };
     const browser = { newContext: async () => ({
       route: async () => {}, newPage: async () => page, close: async () => { closed += 1; },
@@ -376,7 +387,8 @@ for (const [stage, expectedCode] of [
       for (const privateValue of [link, token, password, identity.email]) assert.equal(serialized.includes(privateValue), false);
       return true;
     });
-    assert.equal(continued, stage === "password-ready");
+    assert.equal(continued, stage !== "invite-open");
+    assert.equal(confirmationReads, stage.startsWith("callback-") ? 1 : 0);
     assert.equal(closed, 1);
   });
 }

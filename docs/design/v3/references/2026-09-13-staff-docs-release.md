@@ -158,6 +158,25 @@ zero remaining owned resources, unchanged protected foundation125/container and
 SSH tunnel3000/PID7065. Validation receipt/source and the migrations symlink target
 were preserved; production and repository files were not cleanup targets.
 
+## Full CI after #743 — final verifier correction
+
+PR743 merged at04:48:17UTC as6ff4c017f89f1d5c772fe4aff22b5cf3adef6302.
+Exact-main CI34738787284 configured the local gateway successfully, passed
+18 browser tests (two skipped) at04:55:54UTC, then the V3 quality gate at04:56:38UTC.
+The subsequent SQL acceptance failed with
+`P4_ACCEPTANCE_ERROR:DOCUMENT_VERSIONS_NOT_IMMUTABLE`.
+Automatic release34739085097 was skipped and the repository release arm is false.
+The previous accepted production application is not replaced by this result.
+
+The browser's actual second upload is `p4-isolated-proof-v2.png`; its final SQL
+expectation was still `p4-isolated-proof-v2.pdf`. The added producer/verifier
+source-contract regression failed on that exact difference before the fix, then
+passed after changing the single stale expected filename. Existing P4 contract
+suite:6/6 passed; Bash syntax, scoped ESLint and diff whitespace checks passed.
+No version/ID/hash/scan/finalization assertion or runtime file handling changed.
+This regression detects metadata drift; it does not replace real database/browser
+acceptance. No focused Storage failure trigger was rerun.
+
 ## Pending completion evidence
 
 Record full CI outcome, release run, immutable acceptance/image/browser identities,

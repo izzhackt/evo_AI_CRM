@@ -25139,3 +25139,23 @@ TypeScript authority and the existing importer bundle) PASS
 `01a09c07d8f3791288ff2199b46b2496`; scoped lint PASS
 `01a09c07e5d776b1bf63bef8b1bf8808`. The boundary checks do not spawn the Linux
 runtime. Independent delta review and the new GitHub check remain required.
+
+## 2026-09-13 — Normalize immutable runtime asset permissions after native AMD64 proof
+
+Corrected32e7255 passed the complete short GitHub gate34774934032. Its first
+actual native AMD64 target build then ran all12 existing tests on Hermes in an
+owned network-none, read-only, nonroot temporary container. Eleven passed; the
+root-owned-asset invariant correctly failed because bootstrap.mjs had mode0664
+after archive extraction and cp, while other checked runtime assets were safe.
+Neither tracked100644 nor root ownership proves non-writable group permissions.
+The working production container/image stayed unchanged and healthy.
+
+Before code: normalize copied production runtime assets and test-only proof
+assets to root-owned0555 at their existing Docker COPY boundaries. This retains
+the established immutable asset requirement across checkout/archive umasks; do
+not relax the test, native isolation policy, resource limits or source bytes.
+Basis: [Docker COPY permissions](https://docs.docker.com/reference/dockerfile/#copy---chmod).
+Independently review the Docker-only implementation delta before repeating the
+same bounded native AMD64 target/harness against the corrected frozen commit.
+Keep old11/12 evidence as a failure, not native acceptance. No deployment,
+production configuration, managed database or provider call is part of this fix.

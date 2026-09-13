@@ -28,7 +28,7 @@ RUN node scripts/document-source/build.mjs /out
 # Narrow real-runtime test target; no Next build, app configuration or credentials.
 FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS document-source-runtime
 COPY --from=document-source-native --chown=0:0 --chmod=0555 /out/runtime/ /opt/evo-document-runtime/
-COPY --from=document-source-assets --chown=0:0 /out/runtime/ /opt/evo-document-runtime/
+COPY --from=document-source-assets --chown=0:0 --chmod=0555 /out/runtime/ /opt/evo-document-runtime/
 USER 1001:1001
 CMD ["/opt/evo-document-runtime/launcher"]
 
@@ -37,7 +37,7 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends qpdf \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=document-source-native --chown=0:0 --chmod=0555 /out/proof/launcher.test /opt/evo-document-runtime/launcher.test
-COPY --from=document-source-assets --chown=0:0 /out/proof/ /opt/evo-document-runtime/
+COPY --from=document-source-assets --chown=0:0 --chmod=0555 /out/proof/ /opt/evo-document-runtime/
 USER 1001:1001
 CMD ["node", "--test", "/opt/evo-document-runtime/test-harness.mjs"]
 

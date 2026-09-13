@@ -33,6 +33,8 @@ Landlock ABI>=3 denies filesystem access except runtime, Node and required syste
 libraries; no `/app`, homes, `/proc`, `/sys`, credentials or arbitrary temp files.
 Only explicit stdin/stdout/stderr pipes survive. A fresh explicit environment
 excludes `NODE_OPTIONS`, `LD_*`, application/provider credentials and user config.
+Copied runtime assets are explicitly0555/root-owned at Docker stage boundaries;
+their immutability must not depend on checkout/archive umask or cp source modes.
 An architecture-checked seccomp allowlist blocks network sockets, external process
 inspection, namespaces and process creation; only required same-process threads
 are permitted. Missing/unsupported isolation fails `source_unavailable`, without

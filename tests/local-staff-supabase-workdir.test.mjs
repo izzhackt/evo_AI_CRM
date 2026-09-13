@@ -75,9 +75,14 @@ test("onboarding subset proves real mail acceptance before returning, without pr
   const branch = subset.slice(0, subset.indexOf("\nfi"));
   assert.match(branch, /start_app configured unavailable blocked provider-not-authorized disabled/u);
   assert.match(branch, /provision_local_staff onboarding-proof/u);
+  assert.deepEqual(
+    branch.split("\n").map((line) => line.trim()).filter((line) => /browser_assert/u.test(line)),
+    ["supabase_staff_auth_browser_assert configured 'all three real identities|Admin department changes'"],
+  );
+  assert.match(branch, /LOCAL_SCOPED_STAFF_BASELINE_VERIFIED/u);
   assert.match(branch, /LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED/u);
   assert.match(branch, /exit 0/u);
-  assert.doesNotMatch(branch, /start_clamav_scanner|start_isolated_waha_service|provision_local_staff_and_fixtures|browser_assert|verify_p4/u);
+  assert.doesNotMatch(branch, /start_clamav_scanner|start_isolated_waha_service|provision_local_staff_and_fixtures|verify_p4/u);
   const provisioner = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
   const afterAcceptance = provisioner.slice(provisioner.indexOf("accepted = await acceptScopedStaffInvitations"));
   assert.match(afterAcceptance, /phase === "onboarding-proof"[\s\S]*?LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED[\s\S]*?return;/u);

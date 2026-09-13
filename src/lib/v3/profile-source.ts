@@ -20,7 +20,10 @@ import type {
   ProfileRouteTarget,
   ProfileSalesSnapshot,
 } from "@/components/v3/profile/types";
-import { profileSalesHandoffSnapshot } from "@/components/v3/profile/types";
+import {
+  profileFieldSourceVersions,
+  profileSalesHandoffSnapshot,
+} from "@/components/v3/profile/types";
 import {
   getPlatformStudentCaseView,
   listPlatformApplicationsForStudentCase,
@@ -67,6 +70,10 @@ import {
   getPlatformStudentProfile,
   type PlatformStudentProfileSnapshot,
 } from "@/lib/platform-student-profile";
+import {
+  getPlatformStudentProfileFields,
+  type PlatformStudentProfileFieldsSnapshot,
+} from "@/lib/platform-student-profile-fields";
 
 const DAY = new Intl.DateTimeFormat("ru-RU", {
   day: "2-digit",
@@ -139,6 +146,7 @@ type FullCaseData = Readonly<{
   visa: PlatformCaseVisa | null;
   finance: PlatformCaseFinanceControl | null;
   studentProfile: PlatformStudentProfileSnapshot | null;
+  profileFields: PlatformStudentProfileFieldsSnapshot | null;
   documents: PlatformCaseDocumentWorkspace | null;
   contract: PlatformCaseContractWorkspace | null;
   handoff: PlatformStudentCaseHandoffContext;
@@ -495,6 +503,7 @@ async function loadFullCase(
     sections,
     handoff,
     handoffAcknowledgement,
+    profileFields,
   ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCaseId, { pageSize: 100 }),
     getPlatformCaseVisa(actor, studentCaseId),
@@ -506,6 +515,9 @@ async function loadFullCase(
     }),
     getPlatformStudentCaseHandoffContext(actor, studentCaseId),
     getHandoffAcknowledgement(actor, studentCaseId),
+    access.studentProfile && staffHasPermission(actor, "profile.read.full")
+      ? getPlatformStudentProfileFields(actor, studentCaseId)
+      : null,
   ]);
   const { documents, contract } = sections;
   if (applicationsPage.hasNext) {
@@ -529,6 +541,7 @@ async function loadFullCase(
   }
   return {
     ...sections,
+    profileFields,
     studentCase,
     applications: applicationsPage.rows,
     visa,
@@ -569,6 +582,10 @@ function fullCaseDetails(
   }) : null;
   return {
     access: data.access,
+    profileFields: isStaffPreview(actor) && data.profileFields
+      ? { ...data.profileFields, canInitialize: false, canReview: false, canExport: false }
+      : data.profileFields,
+    profileFieldSources: profileFieldSourceVersions(data.documents, data.profileFields, isStaffPreview(actor)),
     routeTarget,
     responsible,
     provider: null,
@@ -744,6 +761,8 @@ async function readLeadProfile(
         provider: null,
         person: [],
         study: [],
+        profileFields: null,
+        profileFieldSources: [],
         documents: [],
         otherFiles: [],
         ...money,

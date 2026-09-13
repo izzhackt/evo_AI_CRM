@@ -33,6 +33,12 @@ GitHub `main` is the shared source of truth. Work through a GitHub Issue and a
 reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
+The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
+keeps document work inside Platform. D2 reviewed profile fields and Student Profile
+DOCX are implemented with [isolated local proof](docs/design/v3/references/2026-09-13-student-profile-fields-local-proof.md),
+not deployed or accepted on a real client case. Recognition, packages, data migration
+and standalone retirement remain open.
+
 The September11 [university completion run](docs/design/v3/university-catalog-completion-run-plan.md)
 is accepted in `892558b2`: **143 institutions across15 countries, 251 selected
 programmes and143 verified photos**. The eligible institutional source inventory

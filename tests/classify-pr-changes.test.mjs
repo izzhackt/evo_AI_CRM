@@ -147,3 +147,15 @@ test("control characters and dot segments in paths fail closed", () => {
   assert.throws(() => classifyNameStatus(nul("M", "docs/bad\nname.md")), /Unsafe changed path/u);
   assert.throws(() => classifyNameStatus(nul("M", "docs/./note.md")), /Unsafe changed path/u);
 });
+
+test("the pinned Student Profile runtime template requires a production build", () => {
+  const result = classifyNameStatus(nul("A", "assets/templates/student-profile.docx"));
+  assert.equal(result.code, true);
+  assert.equal(result.lint, true);
+  assert.equal(result.build, true);
+  assert.equal(result.ordinary_docs, false);
+  assert.equal(result.unknown, false);
+  for (const path of ["assets/templates/unreviewed.docx", "assets/unreviewed.bin"]) {
+    assert.equal(classifyNameStatus(nul("A", path)).unknown, true);
+  }
+});

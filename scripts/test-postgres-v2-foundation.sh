@@ -14,10 +14,12 @@ fail() {
 
 trap report_error ERR
 
-[[ "$#" -eq 0 || ( "$#" -eq 1 && "$1" == "--staff-onboarding-only" ) ]] \
-  || fail "Usage: $0 [--staff-onboarding-only]"
+[[ "$#" -eq 0 || ( "$#" -eq 1 && ( "$1" == "--staff-onboarding-only" || "$1" == "--student-profile-fields-only" ) ) ]] \
+  || fail "Usage: $0 [--staff-onboarding-only | --student-profile-fields-only]"
 staff_onboarding_only=0
 [[ "${1:-}" != "--staff-onboarding-only" ]] || staff_onboarding_only=1
+student_profile_fields_only=0
+[[ "${1:-}" != "--student-profile-fields-only" ]] || student_profile_fields_only=1
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly clamav_image="clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9"
@@ -64,6 +66,7 @@ app_log="$tmp_dir/app.log"
 supabase_log="$tmp_dir/supabase.log"
 supabase_env_file="$tmp_dir/supabase.env"
 staff_provision_log="$tmp_dir/staff-provision.log"
+student_profile_fields_log="$tmp_dir/student-profile-fields.log"
 platform_communications_provision_log="$tmp_dir/platform-communications-provision.log"
 sales_proof_provision_log="$tmp_dir/sales-proof-provision.log"
 waha_log="$tmp_dir/waha.log"
@@ -1352,8 +1355,51 @@ assert_no_secret_or_payload_logs() {
   done
 }
 
+student_profile_fields_browser_assert() {
+  assert_app_reachable
+  local evidence_dir="$repo_root/output/student-profile-fields/${runtime_inventory_sha}/foundation-${RANDOM}-$$"
+  mkdir -p "$evidence_dir"
+  chmod 700 "$evidence_dir"
+  if ! EVO_D2_APP_ORIGIN="http://127.0.0.1:$app_port" \
+    EVO_D2_SUPABASE_WORKDIR="$supabase_workdir" \
+    EVO_D2_EVIDENCE_DIR="$evidence_dir" \
+    EVO_D2_ORGANIZATION_ID="$platform_organization_id" \
+    NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    SUPABASE_DB_URL="$supabase_database_url" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    "$node_bin" --experimental-strip-types scripts/lib/student-profile-fields-browser-proof.mjs \
+      >"$student_profile_fields_log" 2>&1; then
+    local failure=""
+    failure="$(grep -m 1 -E '^STUDENT_PROFILE_FIELDS_BROWSER_ERROR:[A-Z0-9_]+$' "$student_profile_fields_log" || true)"
+    [[ -z "$failure" ]] || echo "$failure" >&2
+    EVO_D2_APP_LOG="$app_log" EVO_D2_RUNTIME_DIR="$tmp_dir" EVO_D2_EVIDENCE_DIR="$evidence_dir" \
+      "$node_bin" --experimental-strip-types scripts/lib/student-profile-fields-browser-proof.mjs \
+        --summarize-owned-app-log || true
+    echo "Synthetic Student Profile failure evidence: $evidence_dir" >&2
+    fail "The bounded real Student Profile browser proof failed; no live business acceptance is implied"
+  fi
+  for secret in "$supabase_service_role_key" "$staff_admin_email" "$staff_admin_password" "$supabase_database_url"; do
+    if grep -F "$secret" "$student_profile_fields_log" >/dev/null; then
+      fail "The Student Profile proof exposed a credential in its output"
+    fi
+  done
+  grep -Fx 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED' "$student_profile_fields_log" >/dev/null \
+    || fail "The Student Profile proof returned no verification marker"
+  echo 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED'
+  echo "Synthetic Student Profile evidence: $evidence_dir"
+}
+
 cd "$repo_root"
 echo "Validating the active Supabase-only foundation without the retired Drizzle toolchain."
+
+if [[ "$student_profile_fields_only" == "1" ]]; then
+  start_app configured unavailable blocked provider-not-authorized enabled
+  student_profile_fields_browser_assert
+  assert_no_secret_or_payload_logs
+  exit 0
+fi
 
 if [[ "$staff_onboarding_only" == "1" ]]; then
   start_app configured unavailable blocked provider-not-authorized disabled
@@ -1382,6 +1428,7 @@ echo "Canonical Sales and Admissions amoCRM command surfaces passed fail-closed 
 platform_provider_runtime_inventory_browser_assert
 echo "Provider runtime surfaces passed read-only Chromium and exact database no-mutation proof."
 platform_communications_browser_assert configured
+student_profile_fields_browser_assert
 assert_no_secret_or_payload_logs
 
 stop_app

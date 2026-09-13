@@ -16,6 +16,8 @@ import {
 import { Card } from "./Card";
 import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
 import { LeadInterestSummary } from "./LeadInterestSummary";
+import { StudentProfileFields } from "./StudentProfileFields";
+import { StaffDisclosure } from "../settings/StaffDisclosure";
 import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
@@ -205,8 +207,11 @@ export function Overview({
 
 /* ----------------------------------------------------------------- Анкета */
 
-export function Anketa({ profile, draft }: { profile: PersonProfile; draft: ProfileDraft }) {
-  return (
+export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, documentsHref }: {
+  profile: PersonProfile; draft: ProfileDraft;
+  fieldsRequestId: string; fieldsReadOnly: boolean; documentsHref: string | null;
+}) {
+  const caseFacts = (
     <div className="grid gap-4 @4xl:grid-cols-2">
       <Card title="Человек">
         {/* Телефон и почта — настоящие: они единственные, что модель знает про
@@ -238,6 +243,14 @@ export function Anketa({ profile, draft }: { profile: PersonProfile; draft: Prof
       ) : null}
     </div>
   );
+  if (!draft.profileFields) return caseFacts;
+  return <div className="min-w-0 space-y-5">
+    <StudentProfileFields key={draft.profileFields.studentCaseId} snapshot={draft.profileFields} requestId={fieldsRequestId}
+      readOnly={fieldsReadOnly} sourceVersions={draft.profileFieldSources} documentsHref={documentsHref} />
+    <StaffDisclosure label="Другие сведения дела" buttonClassName="font-semibold">
+      <div className="pt-3">{caseFacts}</div>
+    </StaffDisclosure>
+  </div>;
 }
 
 /* ----------------------------------------------------------------- Деньги */

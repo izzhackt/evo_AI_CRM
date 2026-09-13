@@ -23,6 +23,37 @@ import type {
 } from "@/lib/platform-case-notes";
 
 import type { DocumentGroup } from "./document-types";
+import type { PlatformStudentProfileFieldsSnapshot } from "@/lib/platform-student-profile-fields";
+import type { PlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
+
+export type ProfileFieldSourceVersion = Readonly<{
+  id: string; filename: string; versionNumber: number; downloadReady: boolean;
+}>;
+
+/** Current originals for explicit selection plus exactly referenced history. */
+export function profileFieldSourceVersions(
+  workspace: PlatformCaseDocumentWorkspace | null,
+  fields: PlatformStudentProfileFieldsSnapshot | null,
+  preview: boolean,
+): readonly ProfileFieldSourceVersion[] {
+  if (!workspace || !fields?.profile) return [];
+  const referenced = new Set(fields.fields.flatMap(field => [
+    field.sourceDocumentVersionId, ...field.proposals.map(proposal => proposal.sourceDocumentVersionId),
+  ]).filter((id): id is string => id !== null));
+  const versions = new Map<string, ProfileFieldSourceVersion>();
+  const currentVersionIds = new Set(workspace.slots.map(slot => slot.currentVersionId));
+  for (const slot of [...workspace.slots, ...workspace.removedSlots]) {
+    for (const version of slot.versions) {
+      const current = currentVersionIds.has(version.documentVersionId);
+      if (!current && !referenced.has(version.documentVersionId)) continue;
+      versions.set(version.documentVersionId, {
+        id: version.documentVersionId, filename: version.originalFilename,
+        versionNumber: version.versionNumber, downloadReady: version.downloadReady && !preview,
+      });
+    }
+  }
+  return [...versions.values()];
+}
 
 /**
  * Типы профиля.
@@ -191,6 +222,9 @@ export type ProfileDraft = Readonly<{
   provider: string | null;
   person: readonly Fact[];
   study: readonly Fact[];
+  /** null means this section was not authorized/loaded, not an absent profile. */
+  profileFields: PlatformStudentProfileFieldsSnapshot | null;
+  profileFieldSources: readonly ProfileFieldSourceVersion[];
   /** Канонический чеклист документов этого дела. */
   documents: readonly DocumentGroup[];
   /**

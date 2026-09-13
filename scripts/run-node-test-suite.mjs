@@ -17,6 +17,7 @@ export const DEFAULT_ENTRY_SCRIPTS = Object.freeze([
   "test:u11",
   "test:unit:supplemental",
   "test:unit:core",
+  "test:student-profile-fields",
 ]);
 
 export const UNIT_ENTRY_SCRIPTS = Object.freeze([
@@ -32,6 +33,7 @@ export const UNIT_ENTRY_SCRIPTS = Object.freeze([
   "test:u11",
   "test:unit:supplemental",
   "test:unit:core",
+  "test:student-profile-fields",
 ]);
 
 export const D1_ENTRY_SCRIPTS = Object.freeze(["test:d1"]);

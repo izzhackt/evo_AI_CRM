@@ -286,6 +286,16 @@ test("only exact private document and company-file APIs are connected", () => {
   }
 });
 
+test("generated Student Profile export is a staff-session API for one exact case path", () => {
+  const path = "/api/v3/student-cases/10000000-0000-4000-8000-000000000001/profile-exports";
+  assert.equal(isConnectedPlatformApi(path), true);
+  assert.equal(isConnectedPlatformPrivateApi(path), false);
+  assert.equal(isConnectedStudentPortalApi(path, "POST"), false);
+  assert.equal(isConnectedPlatformApi(`${path}/`), false);
+  assert.equal(isConnectedPlatformApi("/api/v3/student-cases/not-a-uuid/profile-exports"), false);
+  assert.equal(isConnectedPlatformApi("/api/v3/student-cases"), false);
+});
+
 test("Student document APIs admit only the exact path and HTTP method", () => {
   const documentSlotId = "10000000-0000-4000-8000-000000000001";
   const documentVersionId = "20000000-0000-4000-8000-000000000002";

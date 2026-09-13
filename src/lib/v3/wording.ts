@@ -26,6 +26,70 @@ import type {
   PlatformDocumentSlotStatus,
 } from "../platform-private-documents.ts";
 
+export function studentProfileFieldState(value: string): string | null {
+  const labels: Record<string, string> = {
+    extracted: "Предложение", needs_review: "Требует проверки",
+    conflict: "Источники расходятся", confirmed: "Подтверждено",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export function studentProfileProposalState(value: string): string | null {
+  const labels: Record<string, string> = {
+    pending: "Ожидает решения", accepted: "Принято", rejected: "Отклонено",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export function studentProfileFieldActionMessage(value: string): string | null {
+  const labels: Record<string, string> = {
+    saved: "Решение сохранено.",
+    invalid: "Проверьте значение и повторите сохранение. Для пустого значения есть отдельное подтверждение.",
+    forbidden: "Изменение анкеты недоступно. Проверьте доступ к делу.",
+    stale: "Анкета изменилась. Обновите её и сверьте актуальное значение. Ваши правки сохранены на экране.",
+    request_conflict: "Предыдущий запрос уже использован. Проверьте значение и повторите сохранение.",
+    source_unavailable: "Исходная версия документа сейчас недоступна. Проверьте источник перед повторным подтверждением.",
+    unavailable: "Результат сохранения не подтверждён. Повторите без изменений, чтобы проверить результат запроса.",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export function studentProfileExportMessage(value: string): string | null {
+  const labels: Record<string, string> = {
+    pending: "Готовим файл… Не закрывайте страницу.",
+    downloaded: "Файл готов. Скачивание начато.",
+    unsaved: "Сначала сохраните или отмените правки полей. В файл должны попасть ваши актуальные решения.",
+    saving: "Дождитесь завершения сохранения анкеты.",
+    awaiting_snapshot: "Обновляем сохранённую анкету. Если ожидание затянулось, обновите анкету кнопкой ниже.",
+    save_unconfirmed: "Результат последнего сохранения не подтверждён. Сначала проверьте его повторным сохранением без изменений.",
+    draft_invalid: "Для черновика исправьте формат или длину уже подтверждённых полей.",
+    unavailable_access: "Скачивание анкеты в этом режиме недоступно.",
+    invalid_request: "Не удалось начать скачивание. Обновите анкету и попробуйте снова.",
+    authentication_required: "Войдите в EVO заново, чтобы скачать анкету. Не закрывайте страницу с несохранёнными правками.",
+    forbidden: "Скачивание недоступно. Проверьте доступ к делу.",
+    access_changed: "Доступ к делу изменился. Обновите анкету и проверьте права на скачивание.",
+    profile_changed: "Анкета изменилась. Обновите её и проверьте поля перед новым скачиванием. Ваши правки останутся на экране.",
+    request_conflict: "Эта попытка уже использована. Проверьте анкету и начните новое скачивание кнопкой.",
+    export_request_pending: "Предыдущая попытка ещё обрабатывается. Файл пока не получен; автоматического повтора не будет.",
+    export_request_completed: "Эта попытка завершена. Для нового файла нажмите кнопку скачивания ещё раз.",
+    profile_not_ready: "Исправьте указанные поля перед скачиванием.",
+    export_unavailable: "Не удалось получить файл. Проверьте подключение и начните новую попытку кнопкой скачивания.",
+    template_unavailable: "Шаблон анкеты временно недоступен. Попробуйте скачать позже.",
+    render_failed: "Не удалось сформировать файл. Попробуйте скачать позже.",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export function studentProfileExportIssue(value: string): string | null {
+  const labels: Record<string, string> = {
+    missing: "заполните обязательное поле",
+    unconfirmed: "проверьте и подтвердите значение",
+    conflict: "выберите верное значение из источников",
+    invalid: "проверьте формат и длину значения",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
 /** Coverage conflicts are operational instructions, never raw database keys. */
 export function coverageConflictLabel(value: string): string | null {
   const labels: Record<string, string> = {

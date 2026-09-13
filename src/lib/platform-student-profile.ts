@@ -90,22 +90,22 @@ export type PlatformStudentProfileSnapshot = Readonly<{
   studentCaseId: string;
   studentProfileId: string;
   profileRevision: number;
-  preferredDisplayName: string;
+  preferredDisplayName: string | null;
   legalDisplayName: string | null;
-  communicationLanguage: PlatformStudentProfileCommunicationLanguage;
+  communicationLanguage: PlatformStudentProfileCommunicationLanguage | null;
   dateOfBirth: string | null;
-  citizenshipCountry: string;
-  residencyCountry: string;
-  currentEducationSummary: string;
-  academicSummary: string;
-  languageSummary: string;
-  budgetBand: string;
+  citizenshipCountry: string | null;
+  residencyCountry: string | null;
+  currentEducationSummary: string | null;
+  academicSummary: string | null;
+  languageSummary: string | null;
+  budgetBand: string | null;
   decisionParticipantLabels: readonly string[];
   consentStatus: PlatformProfileConsentStatus;
   consentEvidenceRef: string | null;
-  profileNextStep: string;
-  appliedCountryRequirementVersionId: string;
-  checklistVersion: number;
+  profileNextStep: string | null;
+  appliedCountryRequirementVersionId: string | null;
+  checklistVersion: number | null;
   requiredProfileFields: readonly PlatformStudentProfileField[];
 }>;
 
@@ -284,11 +284,18 @@ export function normalizePlatformStudentProfileSnapshot(
   const profileRevision = integer(value.profile_revision, 1);
   const consentStatus = oneOf(value.consent_status, PLATFORM_PROFILE_CONSENT_STATUSES);
   const consentEvidenceRef = optionalText(value.consent_evidence_ref, 512);
-  const appliedCountryRequirementVersionId = requiredUuid(
+  const appliedCountryRequirementVersionId = optionalUuid(
     value.applied_country_requirement_version_id,
   );
-  const checklistVersion = integer(value.checklist_version, 1);
+  const checklistVersion = optionalInteger(value.checklist_version, 1);
   const requiredProfileFields = profileFields(value.required_profile_fields);
+
+  if (
+    (appliedCountryRequirementVersionId === null) !== (checklistVersion === null) ||
+    (appliedCountryRequirementVersionId === null && requiredProfileFields.length !== 0)
+  ) {
+    return invalidShape();
+  }
   if (
     (consentStatus === "not_recorded" && consentEvidenceRef !== null) ||
     (consentStatus !== "not_recorded" && consentEvidenceRef === null)
@@ -299,19 +306,19 @@ export function normalizePlatformStudentProfileSnapshot(
     studentCaseId,
     studentProfileId,
     profileRevision,
-    preferredDisplayName: requiredText(value.preferred_display_name, 160),
+    preferredDisplayName: optionalText(value.preferred_display_name, 160),
     legalDisplayName: optionalText(value.legal_display_name, 200),
-    communicationLanguage: oneOf(
+    communicationLanguage: value.communication_language === null ? null : oneOf(
       value.communication_language,
       PLATFORM_STUDENT_PROFILE_COMMUNICATION_LANGUAGES,
     ),
     dateOfBirth: optionalDate(value.date_of_birth),
-    citizenshipCountry: requiredText(value.citizenship_country, 120),
-    residencyCountry: requiredText(value.residency_country, 120),
-    currentEducationSummary: requiredText(value.current_education_summary, 2000),
-    academicSummary: requiredText(value.academic_summary, 2000),
-    languageSummary: requiredText(value.language_summary, 2000),
-    budgetBand: requiredText(value.budget_band, 120),
+    citizenshipCountry: optionalText(value.citizenship_country, 120),
+    residencyCountry: optionalText(value.residency_country, 120),
+    currentEducationSummary: optionalText(value.current_education_summary, 2000),
+    academicSummary: optionalText(value.academic_summary, 2000),
+    languageSummary: optionalText(value.language_summary, 2000),
+    budgetBand: optionalText(value.budget_band, 120),
     decisionParticipantLabels: textArray(
       value.decision_participant_labels,
       PLATFORM_STUDENT_PROFILE_MAX_DECISION_PARTICIPANTS,
@@ -319,7 +326,7 @@ export function normalizePlatformStudentProfileSnapshot(
     ),
     consentStatus,
     consentEvidenceRef,
-    profileNextStep: requiredText(value.profile_next_step, 1000),
+    profileNextStep: optionalText(value.profile_next_step, 1000),
     appliedCountryRequirementVersionId,
     checklistVersion,
     requiredProfileFields,

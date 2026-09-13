@@ -24144,6 +24144,157 @@ shape (TS2339), not a new runtime outcome. Narrow it to an object with code/mess
 before matching the already-agreed exact denial pair. Keep unexpected error
 handling unchanged and verify with the production build before updating the PR.
 
+## 2026-09-13 — D2 partial canonical profile and reviewed Student Profile export
+
+Before D2 implementation, source inspection found that migration053 and its DTO
+require nine facts and an applied country checklist even to read a profile.
+The existing case can legitimately have neither. Creating invented facts or a
+second document-profile authority would contradict the owner's integrated product.
+The [D2 contract](design/v3/evo-docs-profile-fields-contract.md) therefore allows
+honest NULL facts, explicit authorized creation, and coherent snapshots without a
+checklist. Migration158 is reserved for this foundation; existing non-null bounds,
+identity, consent rules and S2 scoped authorization remain enforced.
+
+The standalone61-field registry maps DOB/citizenship/residence to their existing
+canonical columns and uses extensions for the remaining58. One profile revision
+governs edits and reviews. Human-confirmed emptiness survives future proposals;
+ordinary canonical edits invalidate only the corresponding field confirmation.
+Draft/final DOCX is a separate server-authorized generated export, not an uploaded
+original's download grant. Drafts contain confirmed values only; final output
+requires complete valid reviewed data. Export audit does not assert delivery.
+Persistent export artifacts/history remain D4. Gemini is D3, with no public route
+that can masquerade as provider extraction; no provider/customer-file call is made
+by this planning step. All D2–D6 acceptance and exact retirement gates remain.
+
+Parallel preparation starts from merged ce404b87 while exact-main CI34757193916
+runs for S2. Main remains frozen until that release is terminal. No schema is
+applied by this decision. The source/template and current official SQL/OOXML
+references are linked in the contract; recommendations are explicitly planned,
+not represented as shipped behavior.
+
+Before assigning the parallel D2 field-persistence worker, root reserved159 after
+confirming main remains157 and only158 is owned by the foundation worker. The D2
+contract now fixes the read/review RPC signatures, three explicit review decisions,
+four review states and absence of public proposal ingestion. Current mapped values
+stay in student_profiles; audit/proposal history is not a second live authority.
+This refines the same D2 scope before code; it does not authorize Gemini or import.
+
+D2c reuses the pinned original DOCX and its exact slot map, not the old Express
+runtime. The renderer accepts only server-owned bytes and confirmed registry
+values, with @xmldom/xmldom0.9.12 and PizZip3.2.0 pinned as its two small runtime
+dependencies (both provide declarations). Official
+[DOMParser/XMLSerializer](https://github.com/xmldom/xmldom) and
+[PizZip generation](https://open-xml-templating.github.io/pizzip/documentation/api_pizzip/generate.html)
+were checked2026-09-13. Preserve all ZIP parts except document.xml, exact A4
+geometry and EVO styling. Keep the source renderer's bounded heading keepNext
+correction: the unfilled retained template otherwise leaves the Mother section
+heading alone at the bottom of page1. Only marked drafts or validated final
+forms may be emitted; rendering and all-page visual review remain required.
+
+The first filled-template render exposed one remaining pagination defect: a
+Mother employer value split across pages, leaving a single word at page2 top.
+The bounded renderer correction sets cantSplit on existing table rows, preserving
+all rows, widths, fonts, data and package parts outside document.xml. Final and
+marked-draft fixtures now each render to two pages; all four pages were inspected
+with no split value, orphan heading, clipping or overlap. Renderer8/8 checks and
+scoped TypeScript/ESLint passed; this is template proof only, not authenticated
+export or real student acceptance. Task-local artifact record:
+/tmp/evo-profile-template.L2BvNO/artifact.md, test receipt01a09af48fe670629b8e6bc2f415b78e.
+
+Root reserves migration160 for the D2c generated-export audit boundary after
+confirming the branch has only158/159 above published157. The exact RPC/route
+contract is being designed before implementation. Authenticated clients must not
+be able to claim server-generated success by invoking a completion RPC directly.
+This remains generated-file attempt/outcome audit, not D4 persistent artifacts
+or a claim that a person received the download.
+
+Before implementation, D2c now fixes the route/attempt/replay/completion contract
+in the D2 document: only server-side begin/complete may record actual generation;
+user-session RPC reads remain the sole source of profile values. Service RPCs
+revalidate the resolved authUser/membership/org and same-case permissions.
+Exact request replay returns its existing pending/generated/failed state with no
+file or regeneration; a new explicit export uses a fresh ID/current revision.
+No artifact persistence, timer reclaim, blind retry or claim of delivery is added.
+Final rights/revision failures are committed as failed outcomes and return no
+bytes; an unknown audit result also returns no bytes. API allowlist and standalone
+template tracing are part of the same slice, not optional deployment follow-up.
+Official [function privileges](https://supabase.com/docs/guides/database/functions)
+and [backend key roles](https://supabase.com/docs/guides/getting-started/api-keys)
+were rechecked2026-09-13: explicitly restrict execution and keep elevated clients
+server-side with application authorization. No key creation/rotation is implied.
+
+At integration, draft export was found to silently omit invalid confirmed facts.
+That contradicts the no-truncation/validation contract: a confirmed120-character
+canonical country must remain stored, but its60-character DOCX slot must block
+the export with the exact field issue, not disappear. Draft now rejects invalid
+confirmed facts only; missing/unconfirmed/conflicting values remain excluded from
+the marked draft. Final keeps its complete readiness gate. Regression cases cover
+country length, dates, contact formats and preserved unconfirmed suggestions.
+
+## D2 export lock-order correction — 2026-09-13
+
+Independent static review found that draft migration160 acquired request/member/
+profile locks before its later organization foreign-key and audit writes. Existing
+staff commands serialize organization first, so concurrent ordinary edits and
+exports could deadlock. Align begin/complete with organization → request →
+membership/profile order. This preserves the agreed authority, revision fence and
+durable outcomes; it is not a new permission or weaker acceptance criterion.
+Verify the order statically and rerun the bounded positive SQL proof after the
+correction. No deadlock or access-bypass reproduction is requested.
+
+The same review found the exact runtime DOCX template absent from the PR path
+classifier. Add only assets/templates/student-profile.docx to known code and
+build-required paths, with a regression for that file and unknown sibling assets.
+It is executable release input for document generation, not prose-only content;
+the full build and pinned-template checks must not be skipped.
+
+## D2 real-browser fixture correction — 2026-09-13
+
+The actual isolated browser reached the Admin home, then the synthetic case page
+returned500 before any profile mutation. The fixture inserted only case/scope;
+the existing V3 case reader also requires the canonical Sales→Admissions handoff
+context. SQL088 joins sales_admissions_handoffs and the TypeScript reader requires
+exactly one row, so a bare inserted case cannot exercise this existing route.
+Do not change product authorization or hide the missing upstream business state.
+
+Prepare one synthetic case through the existing real authenticated lead/workflow/
+handoff commands, reusing the established isolated staff fixture contract. Any
+needed personal confirmation permissions are limited to the disposable local
+Admin; synthetic contract/payment evidence must explicitly say no real agreement
+or money transfer. Before D2 interactions, assert no student profile and no applied
+document requirement. All profile/review/export mutations remain actual browser
+actions. Keep complete owned-stack cleanup and bounded safe server-error evidence;
+no raw credentials, customer data, real messages or provider requests are added.
+
+## D2 local workflow accepted for integration — 2026-09-13
+
+The corrected bounded run completed with STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED
+and exit0 (receipt01a09b1a0a3778e3bed956efc94b23af). Actual Admin Auth, canonical
+Sales-to-Admissions handoff, absent profile/checklist, explicit initialization,
+nine required fields, one extended value, confirmed empty optional, stale-editor
+draft preservation and both downloaded DOCX/audit hashes passed. One profile
+remained at revision14; the browser recorded zero errors and one warning.
+Both actual downloads rendered to two pages and all four pages were inspected.
+Owned isolated containers, networks and volumes were confirmed absent afterward.
+
+This proves the working D2 candidate over basece404b87, not that base commit alone,
+production delivery, provider processing or real Student acceptance. Record the
+artifact hashes in the linked proof, commit the candidate, integrate current main
+without dropping S2 changes, and obtain independent exact-head review. Preserve
+the frozen S2 main release until its CI/release is terminal. No new permission,
+fallback, runtime or change to D3–D6 scope is introduced by this checkpoint.
+
+The final integration inventory found that D2's real browser path was reachable
+only through its focused local flag. Include that same function once at the end
+of the configured full foundation path, after the existing provider/no-mutation
+checks and before shutdown. It reuses the running isolated Auth/DB/application;
+do not provision a second stack, repeat migrations or make provider calls.
+The synthetic case is created through canonical commands after checks whose
+counts must remain unchanged. Keep the focused flag for diagnosis and register
+a narrow ordering assertion. The next D2 exact-main release gate must carry its
+verification marker; the previous focused PASS does not prove this new full-gate
+integration. S2's currently running frozen main is unchanged.
+
 ## 2026-09-13 — S2 handoff acceptance uses the current case owner without re-login
 
 Full CI34762041914 on 84346f71 passed the four scoped-staff onboarding markers,
@@ -24181,6 +24332,31 @@ All 59 related module/harness checks passed on Node22.23.1
 (01a09b2cdbc673c3a1efe5edc02c7f5e); scoped ESLint passed
 (01a09b2d7ecc79c280ba1dd4ba490f6c). These are source/module checks, not execution
 of the deferred full Auth/DB/browser acceptance.
+
+## 2026-09-13 — Reserve158 for the S2 fix and shift unapplied D2 migrations
+
+Before the mechanical change, root reserves the next forward migration158 for
+the S2 correction. The unapplied D2 foundation/review/export migrations move from
+158/159/160 to159/160/161 with byte-identical SQL bodies. Update only their active
+paths, source-test labels, the focused SQL proof baseline and current contracts.
+The focused proof must apply the real S2 baseline through158 before constructing
+its pre-D2 fixture and applying159/160, followed by export161.
+
+Preserve the earlier append-only decisions, local proof158–160 receipts, artifact
+hashes/output directories and synthetic UUIDs exactly as recorded. They prove the
+earlier candidate, not this newly composed migration sequence. No product rights,
+RPCs, profile data model, runtime source, dependencies or assets change here.
+Until root integrates the actual S2 migration158, run only source/regression checks;
+do not claim a coherent database/browser pass or publish this intermediate tree.
+Root owns subsequent integration, exact-head review and release validation.
+
+The mechanical rename preserved all three pre-change SHA256 digests; shell syntax,
+append-only history and the unchanged historical local-proof file were checked
+(01a09b4539e67972ba948534f9950ef0). The three affected source/module test files
+passed24/24 (01a09b453ed674529b3142b5a3d40fc5); scoped ESLint and the obsolete active
+path/marker scan passed (01a09b45885375d1b2ac7066e4d3ce33). Node emitted the existing
+MODULE_TYPELESS_PACKAGE_JSON warnings. S2 migration158 was still absent; no database,
+container, browser, provider or production proof was run for the new sequence.
 
 ## 2026-09-13 — Restore the System Admin document-requirement configuration boundary
 
@@ -24263,3 +24439,21 @@ responsibility after the existing-name precheck but before docker run, because
 the daemon can create the owned container before a timeout loses its response.
 The exact target, failure propagation and product SQL are unchanged; shell syntax
 and whitespace were rechecked. No new provider or production operation is involved.
+
+## 2026-09-13 — Integrate D2 with merged158 and preserve owned SQL-runner cleanup
+
+PR755 merged as561aa920. Compose its actual158 with D2's byte-identical159–161
+before the new SQL proof and exact-head review. Keep both append-only decision
+histories when resolving the documentation merge; no runtime source is changed.
+Apply the same reviewed disposable-runner correction to the active D2 proof:
+register cleanup of its collision-checked random container name before dispatch,
+so an ambiguous docker-run reply cannot skip cleanup. No shared Docker resource
+or provider is touched. Historical local receipts retain their original numbering.
+
+The coherent isolated PostgreSQL run passed (01a09b53c9287942a6a3c43f787bb564):
+baseline158, migrated existing profile through159/160, partial/review/replay,
+canonical revision invalidation, then161 export command outcomes and audit.
+The runner removed its exact owned network-none container; a fresh docker listing
+confirmed it absent (01a09b54415875e19749e093a8754715). Runtime source/dependencies/
+assets/Next configuration remain unchanged from reviewed6df0a328. This proves
+the new SQL composition, not the final Auth/browser, provider or production path.

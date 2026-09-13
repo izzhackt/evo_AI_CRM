@@ -105,7 +105,7 @@ function documentRow(overrides = {}) {
   };
 }
 
-test("student profile snapshot accepts only the bounded, applied checklist shape", () => {
+test("student profile snapshot accepts the bounded applied checklist shape", () => {
   const profile = normalizePlatformStudentProfileSnapshot(profileRow(), CASE_ID);
   assert.equal(profile.studentCaseId, CASE_ID);
   assert.equal(profile.profileRevision, 2);
@@ -131,6 +131,50 @@ test("student profile snapshot accepts only the bounded, applied checklist shape
     ),
     PlatformStudentProfileRepositoryError,
   );
+});
+
+test("persisted partial profile keeps unknown facts without inventing a checklist", () => {
+  const facts = [
+    "preferred_display_name", "communication_language", "citizenship_country",
+    "residency_country", "current_education_summary", "academic_summary",
+    "language_summary", "budget_band", "profile_next_step",
+  ];
+  const row = profileRow({
+    ...Object.fromEntries(facts.map((key) => [key, null])),
+    profile_revision: 1,
+    legal_display_name: null,
+    date_of_birth: null,
+    decision_participant_labels: [],
+    consent_status: "not_recorded",
+    consent_evidence_ref: null,
+    applied_country_requirement_version_id: null,
+    checklist_version: null,
+    required_profile_fields: [],
+  });
+  const profile = normalizePlatformStudentProfileSnapshot(row, CASE_ID);
+  assert.equal(profile.studentProfileId, PROFILE_ID);
+  assert.equal(profile.profileRevision, 1);
+  assert.equal(profile.preferredDisplayName, null);
+  assert.equal(profile.communicationLanguage, null);
+  assert.equal(profile.profileNextStep, null);
+  assert.equal(profile.appliedCountryRequirementVersionId, null);
+  assert.equal(profile.checklistVersion, null);
+  assert.deepEqual(profile.requiredProfileFields, []);
+});
+
+test("profile checklist metadata remains coherent when optional", () => {
+  for (const overrides of [
+    { applied_country_requirement_version_id: null },
+    { checklist_version: null },
+    { applied_country_requirement_version_id: null, checklist_version: null },
+    { preferred_display_name: "" },
+    { communication_language: undefined },
+  ]) {
+    assert.throws(
+      () => normalizePlatformStudentProfileSnapshot(profileRow(overrides)),
+      PlatformStudentProfileRepositoryError,
+    );
+  }
 });
 
 test("persisted profile snapshots cannot masquerade as an empty profile seed", () => {

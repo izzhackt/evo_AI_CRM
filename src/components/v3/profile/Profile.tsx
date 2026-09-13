@@ -1,4 +1,5 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { randomUUID } from "node:crypto";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
 
@@ -193,7 +194,10 @@ export function Profile({
           />
         </div>
       ) : null}
-      {current === "anketa" ? <Anketa profile={profile} draft={draft} /> : null}
+      {current === "anketa" ? <Anketa profile={profile} draft={draft}
+        fieldsRequestId={randomUUID()}
+        fieldsReadOnly={isStaffPreview(actor) || !staffHasPermission(actor, "profile.manage")}
+        documentsHref={draft.access.documents ? hrefFor("documents") : null} /> : null}
       {current === "documents" ? (
         <Documents
           groups={draft.documents}

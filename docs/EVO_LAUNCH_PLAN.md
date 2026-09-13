@@ -29,6 +29,21 @@ ADR0017's separate-product decision: one Platform/Auth/data authority, with exac
 legacy retirement only after real transfer and integrated workflow acceptance.
 This release does not close the prior Portal's remaining real Student acceptance.
 
+D2 implementation now follows the [profile fields contract](design/v3/evo-docs-profile-fields-contract.md):
+an explicit partial canonical profile, human-confirmed field review and the original
+Student Profile DOCX. Migrations159–161 and the application path are implemented
+on the D2 branch. Historical local proof used the original158–160 numbering;
+the renamed SQL sequence now passes with the actual S2 migration158 from561aa920.
+The final current-main Auth/DB/browser proof remains required.
+The bounded real Auth/DB/browser workflow passed locally on that earlier candidate:
+initialize one absent profile, confirm fields, preserve a stale editor's draft,
+and download draft/final DOCX files whose hashes match the export audit.
+Both actual files rendered correctly on all two pages. See the
+[local D2 proof](design/v3/references/2026-09-13-student-profile-fields-local-proof.md).
+This is not a D2 release or real client acceptance; final current-main verification,
+independent review, D3–D6 and real employee/document acceptance remain required.
+Do not move main during the S2 release proof.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance

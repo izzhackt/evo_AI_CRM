@@ -38,6 +38,7 @@ const KNOWN_CODE_PATHS = new Set([
   ".nvmrc",
   "Dockerfile",
   "agent-lead2-inbox/deploy/Caddyfile.evo-edge",
+  "assets/templates/student-profile.docx",
   "docker-compose.prod.yml",
   "eslint.config.mjs",
   "next.config.ts",
@@ -59,6 +60,7 @@ const KNOWN_CODE_PREFIXES = [
   "tests/",
 ];
 const BUILD_PATHS = new Set([
+  "assets/templates/student-profile.docx",
   "next.config.ts",
   "package-lock.json",
   "package.json",

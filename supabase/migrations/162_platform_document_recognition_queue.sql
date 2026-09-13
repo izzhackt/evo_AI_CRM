@@ -527,7 +527,7 @@ BEGIN
   IF job.state <> 'preflight' OR job.upload_started_at IS NOT NULL THEN
     RAISE EXCEPTION 'claim_unavailable' USING ERRCODE='40001'; END IF;
   IF p_failure_code IS NULL OR p_failure_code NOT IN ('document_not_eligible','source_changed','source_unavailable',
-    'access_revoked','provider_not_configured','cancelled') THEN RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023'; END IF;
+    'access_revoked','provider_not_configured','budget_exhausted','cancelled') THEN RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023'; END IF;
   -- Recording a pre-dispatch failure must remain possible after access revocation.
   -- A reservation is releasable only here, before any provider upload/generation.
   UPDATE platform_private.document_recognition_jobs SET state=CASE WHEN p_failure_code='cancelled' THEN 'cancelled' ELSE 'failed' END,
@@ -788,7 +788,7 @@ DECLARE job platform_private.document_recognition_jobs%ROWTYPE;
 BEGIN
   job:=platform_private.document_recognition_lock_claim(p_attempt_id,p_claim_token);
   IF p_failure_code IS NULL OR p_failure_code NOT IN ('access_revoked','source_changed','source_unavailable','provider_rejected',
-    'provider_unavailable','invalid_result','upload_unknown','generation_unknown','cancelled') THEN
+    'provider_unavailable','invalid_result','upload_unknown','generation_unknown','budget_exhausted','cancelled') THEN
     RAISE EXCEPTION 'invalid_request' USING ERRCODE='22023'; END IF;
   IF (p_failure_code='generation_unknown' AND job.generate_started_at IS NULL)
     OR (p_failure_code='upload_unknown' AND job.upload_started_at IS NULL) THEN

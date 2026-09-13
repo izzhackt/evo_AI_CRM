@@ -24657,3 +24657,26 @@ uses only the exact random owned name with --volumes, never a broad prune.
 Independent exact-head review is still pending. This is durable SQL+session
 adapter evidence only; no worker/HTTP/UI, managed apply, deployment or provider
 acceptance is claimed. Preserve existing launch/release blockers and D5/D6 gates.
+
+### D3 queue review correction — truthful terminal budget outcome
+
+Independent review of7c614bfe found that the existing UTC rollover guard emits
+budget_exhausted, but neither worker finish RPC accepts that fixed failure code.
+Add it to both narrow allowlists; preserve the existing rule that pre-upload
+failure releases the reservation, while any upload intent retains it and leaves
+provider cleanup required. Prove the actual finish RPCs before/after upload with
+synthetic real PostgreSQL checks before coding the correction; no paid call,
+retry, budget relaxation or permission change. Keep generation intent uncertain
+outcomes unchanged. Clarify root-confirmed semantics: same-request replay keeps
+the original payload/config/revision; a new explicitly confirmed retry_of_job_id
+uses current revision/config/budget and must be shown as a new charged action.
+Outer config.enabled controls new enqueues only, not a hidden model migration
+or global cancellation of already captured jobs. Independent re-review required.
+
+Regression reached the real preflight finish RPC and failed with invalid_request
+before the correction:01a09bb3496673b2bc33f026ef0705df exit3. After only the two
+allowlist additions, the same full isolated PostgreSQL001–162 proof passed:
+01a09bb3e0ba77c3b399a14cc1f588e3 exit0. Both terminal budget paths now persist the
+correct fixed code; pre-upload reservation release and post-upload reservation
+retention/cleanup claim are asserted. Synthetic worker-reported outcomes are
+not evidence of real paid-budget exhaustion or provider cleanup.

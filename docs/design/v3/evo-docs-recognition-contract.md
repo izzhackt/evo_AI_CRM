@@ -105,7 +105,10 @@ RPC/read adapter и локальная настоящая PostgreSQL-прове�
   Никаких имён клиентов в provider name/displayName; секреты не копировать в таблицы или аудит.
 - Fingerprint: все exact-source IDs и hash/bytes/MIME, actor, purpose, registry/schema/prompt/config/model,
   режим извлечения, expected_profile_revision и retry_of_job_id; другой fingerprint того же request_id → conflict.
-  Revision — optimistic guard enqueue; retry сохраняет исходный payload. Ручная правка профиля не повторяет AI.
+  Revision — optimistic guard enqueue; повтор того же request_id сохраняет исходный payload/config/revision.
+  Новый явно подтверждённый retry_of_job_id — отдельное платное действие над тем же exact source,
+  с текущими revision/server config/budget; UI явно показывает это отличие. Ручная правка не повторяет AI.
+  Внешний config.enabled выбирает конфигурацию только новых enqueue; не отменяет уже захваченные jobs.
 
 Пользовательские `platform.enqueue_document_recognition(...)` и
 `platform.staff_document_recognition_job(case_id,job_id)` принимают текущую сессию.

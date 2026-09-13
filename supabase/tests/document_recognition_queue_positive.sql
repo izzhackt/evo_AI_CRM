@@ -128,6 +128,20 @@ SELECT pg_temp.d3_assert(NOT has_function_privilege('authenticated','platform.cl
 
 -- Synthetic provider observations below exercise durable SQL transitions only.
 -- No upload, countTokens, generation, deletion or real billing occurs here.
+-- Exercise the actual terminal RPC when the worker reports the fixed outcome
+-- from the existing rollover budget guard. This is not a paid provider event.
+SAVEPOINT pre_upload_budget_outcome;
+SET LOCAL ROLE service_role;
+INSERT INTO d3_receipts SELECT 'pre-upload-budget-finish',platform.finish_document_recognition_preflight(
+  (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,'budget_exhausted')
+  FROM d3_receipts WHERE key='recovered';
+RESET ROLE;
+SELECT pg_temp.d3_assert((SELECT state='failed' AND failure_code='budget_exhausted'
+  AND reservation_released_at IS NOT NULL AND upload_started_at IS NULL
+  AND generate_started_at IS NULL AND cleanup_state='not_uploaded'
+  FROM platform_private.document_recognition_jobs), 'pre-upload budget outcome is terminal and releases only the unused reservation');
+ROLLBACK TO SAVEPOINT pre_upload_budget_outcome;
+RELEASE SAVEPOINT pre_upload_budget_outcome;
 INSERT INTO d3_receipts SELECT 'fields-before-publish',jsonb_agg(to_jsonb(f) ORDER BY field_key)
   FROM platform.student_profile_fields f;
 INSERT INTO d3_receipts SELECT 'reviews-before-publish',jsonb_agg(to_jsonb(r) ORDER BY id)
@@ -185,6 +199,21 @@ INSERT INTO d3_receipts SELECT 'count-replayed',platform.record_document_recogni
   (SELECT body FROM d3_receipts WHERE key='count-receipt')) FROM d3_receipts WHERE key='recovered';
 SELECT pg_temp.d3_assert((SELECT body->'token_count_receipt'=(SELECT body FROM d3_receipts WHERE key='count-receipt')
   FROM d3_receipts WHERE key='count-replayed'), 'exact full-request count receipt survives replay');
+SAVEPOINT post_upload_budget_outcome;
+INSERT INTO d3_receipts SELECT 'post-upload-budget-finish',platform.finish_document_recognition(
+  (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,'budget_exhausted')
+  FROM d3_receipts WHERE key='recovered';
+RESET ROLE;
+SELECT pg_temp.d3_assert((SELECT state='failed' AND failure_code='budget_exhausted'
+  AND reservation_released_at IS NULL AND upload_started_at IS NOT NULL
+  AND generate_started_at IS NULL AND cleanup_state='pending'
+  FROM platform_private.document_recognition_jobs), 'post-upload budget outcome is terminal but retains its reservation and required cleanup');
+SET LOCAL ROLE service_role;
+INSERT INTO d3_receipts SELECT 'budget-cleanup-claim',platform.claim_document_recognition_cleanup('synthetic-budget-cleanup');
+SELECT pg_temp.d3_assert((SELECT body->>'attempt_id'=(SELECT body->>'attempt_id' FROM d3_receipts WHERE key='recovered')
+  FROM d3_receipts WHERE key='budget-cleanup-claim'), 'uploaded budget failure remains claimable for exact owned-file cleanup');
+ROLLBACK TO SAVEPOINT post_upload_budget_outcome;
+RELEASE SAVEPOINT post_upload_budget_outcome;
 INSERT INTO d3_receipts SELECT 'generation-intent',platform.begin_document_recognition_generation(
   (body->>'attempt_id')::UUID,(body->>'claim_token')::UUID,
   (SELECT body FROM d3_receipts WHERE key='count-receipt')) FROM d3_receipts WHERE key='recovered';

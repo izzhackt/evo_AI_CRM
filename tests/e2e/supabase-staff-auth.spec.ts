@@ -1688,20 +1688,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     ),
   );
   assertDeniedRpc(
-    await directPlatformRpc(
-      "staff_student_case_handoff_context",
-      { p_student_case_id: studentCaseId },
-      admissionsToken,
-    ),
-  );
-  assertDeniedRpc(
     await directPlatformRpc("staff_student_case_handoff_context", {
       p_student_case_id: studentCaseId,
     }),
   );
-  const refreshedAdmissionsToken = await localSupabaseAccessToken("admissions");
-  let organizationId: string | null = null;
-  for (const accessToken of [refreshedAdmissionsToken, adminToken]) {
+  const assertHandoffContext = async (accessToken: string) => {
     const context = await directPlatformRpc(
       "staff_student_case_handoff_context",
       { p_student_case_id: studentCaseId },
@@ -1718,9 +1709,14 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       handoff_state: "completed",
       admissions_owner_membership_id: admissionsOwnerId,
     });
-    organizationId ??= requireUuidValue(contextRow.organization_id);
-  }
-  expect(organizationId).not.toBeNull();
+    return requireUuidValue(contextRow.organization_id);
+  };
+  // Scoped staff rights follow the current case owner, not a stale JWT version.
+  // Prove the pre-handoff session can read its new case before logging in again.
+  const organizationId = await assertHandoffContext(admissionsToken);
+  expect(await assertHandoffContext(adminToken)).toBe(organizationId);
+  const refreshedAdmissionsToken = await localSupabaseAccessToken("admissions");
+  expect(await assertHandoffContext(refreshedAdmissionsToken)).toBe(organizationId);
 
   const p4Route = {
     targetCountry: "Isolated technical country",

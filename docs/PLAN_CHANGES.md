@@ -24579,3 +24579,79 @@ completed-handoff navigation match current permission gates. This is source
 consistency, not a runtime pass. Product source, all migrations and lockfile are
 unchanged. Full real Auth/DB/browser CI and application release have not been
 rerun; their previous failed/skipped outcomes remain the current release status.
+
+## 2026-09-13 — Isolate the post-calendar Student 360 reopen failure
+
+PR757 merged as bc0cde68; full CI34767766251 passed its corrected calendar
+expectation, then failed at supabase-staff-auth.spec.ts1998 because v3-profile
+was absent after a fresh Admissions sign-in. Node/static and four scoped-staff
+markers passed. Actions retained zero artifacts; the cause is unproved.
+Release34768123391 skipped and EVO_PRODUCTION_RELEASE_ARMED is false. The
+accepted production image and localhost health remain unchanged.
+
+Before a product fix, add --admissions-workflow-only to the existing isolated
+foundation harness. It must use the same real local Supabase migrations/Auth,
+staff provisioning, scanner and application setup, and select exactly the
+existing contract/payment/handoff scenario, including its final P4 receipt
+verification. Keep the ordinary full gate unchanged. On failure emit only the
+existing allowlisted Student Profile server-error summary, never raw app logs,
+credentials or document payloads. This bounded diagnostic is not a full-gate
+pass or business/provider acceptance. Minimize from its actual failure evidence;
+no guessed permission grants, fallback profile, relaxed assertions or repeated
+full CI on unchanged main. Work branch: izzhackt/profile-reopen-release-fix.
+
+The bounded command reproduced the exact line1998 failure in30.0s; its diagnostic
+helper exposed stale local dependencies, corrected with Node22 npm ci
+--ignore-scripts. With the lockfile-installed dependencies, the same browser
+failure recurred in28.8s (01a09b9f2ee176e18a03c82532394d9f). The allowlisted
+server frames bind it to readCaseProfile → readLeadProfile → Student handoff
+repository, not a file-upload request. A narrowed assertion now opens the
+assigned Admissions case immediately after handoff, before calendar mutations.
+
+Root cause under investigation: lead.read enables a Sales presentation hint,
+but the linked Sales handoff RPC separately requires exact lead.sales.workflow.manage.
+Admissions case access must not depend on that optional Sales workflow. The
+planned correction treats only its typed forbidden response as an absent
+optional Sales section on a case route, then uses the already-authorized
+canonical case workspace. Primary case reads, explicit lead routes, malformed
+responses and unavailable services must still fail closed; Admin/authorized
+Sales enrichment must remain. This is neither a permission grant nor a second
+data/UI path. Extract this narrow orchestration seam for fast failure/pass
+checks, and prove the original full business scenario afterward. No SQL or
+runtime/provider configuration changes are planned for this correction.
+
+The corrected optional Sales enrichment passed the original reopen and all
+document create/upload/preview/history/link operations in the next real run.
+That run then failed at2520 (01a09ba87b6070909d5d9d6668ed3acd): the Sales actor's
+direct case URL threw at readCaseProfile636 instead of displaying the existing
+unavailable-profile message. The repository legitimately returns sales_summary
+for this actor; case.read is a presentation hint, not full access to that case.
+Before changing this branch, minimize the same real assertion immediately after
+handoff and prove the RPC returns sales_summary. Then return null for that
+known restricted view, preserving the canonical full-view path, explicit lead
+summary, service failures and all downstream Storage denial checks. No role
+grant, SQL change or weakened expected browser outcome. Keep this assertion in
+the real workflow as the regression; an artificial unit seam for a single
+discriminant check is not needed.
+
+The narrowed real Sales read reproduced the exact summary-only exception at1559
+in18.7s after the RPC independently proved access_mode=sales_summary
+(01a09bae27ce77b1984c48282adff5fe). Returning null for this validated restricted
+view then passed the entire original browser scenario in34.0s, including all
+document and access checks (01a09bb10d367ba2a1ad8a98042367c2). Its final database
+receipt check exposed an omission in the new bounded selector, not another
+product defect: COMPANY_SCANNER_PROOF_INVALID requires the separate existing
+company-file browser scenario. Include that exact second scenario in this
+bounded command. Keep the shared acceptance verifier intact and do not fabricate
+company scan rows, remove its assertion, or claim a full-gate pass.
+
+Final bounded result before independent review: both unchanged business scenarios
+PASS in40.7s with LOCAL_ADMISSIONS_WORKFLOW_VERIFIED and exit0, including P4
+database verification and no-secret log check (01a09bb4700a7c23adfe675ed1b044d3).
+The isolated technical environment was cleaned by the owning harness. Related
+Node command65/65 PASS (01a09bb2068f7c829ee1e2a83ca3ee63); actual
+npm run test:frontend183+23 PASS (01a09baf24a272e28f58e53e8d0138d5), no skips;
+scoped lint/bash syntax/diff checks PASS. The narrow regression stays in the
+existing full browser scenario; bounded-mode wiring has its own contract check.
+No new SQL, package/dependency, provider settings, permissions or public UI path.
+Independent exact-head review and a new frozen-main full CI/release remain open.

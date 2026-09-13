@@ -23195,3 +23195,19 @@ Use an existing non-personal document/image for file-path verification and repor
 technical proof separately from real employee/Student business acceptance.
 Remove only owned validation resources afterwards. Production and Docs retirement
 still require their recorded exact-head/release/transfer gates.
+
+## 2026-09-13 — Correct S1/D1 release proof after exact-main CI
+
+PR741 is merged as251dbdc5 and managed migration154 is applied. Full CI34730314289
+passed the new S1 browser flow but failed the later Admin document assertion:
+the fixture now uploads a real PNG as version2, while one assertion still expects
+the former PDF filename. Correct that exact expectation, retaining byte/version,
+private-preview and authorization assertions. The missing D2 acceptance receipt
+is downstream of the interrupted producer, not evidence of a D2 product defect.
+A separate company-upload503 remains under investigation; do not waive it or
+hide it behind retries. Include only a bounded machine error code in that exact
+status assertion so another failure distinguishes the real route stage; do not
+print response bodies, private identifiers, files or credentials.
+Release arm is false and prior accepted4e35b896 remains
+running. No schema rollback, fixture seeding, provider change or Docs retirement.
+This is a bounded test/proof correction, not a product-scope change.

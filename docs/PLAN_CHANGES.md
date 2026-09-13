@@ -24666,3 +24666,30 @@ failure is not a production or database incident.
 Actual npm run build then passed, including Next TypeScript and the bundled
 knowledge-import command (01a09bb8c1d47ac0acdfdaf1767da774). No standalone
 typecheck or duplicate Auth/DB/browser run was needed for the erased union change.
+
+## 2026-09-13 — Accept the combined S2/D2 release and continue the remaining run
+
+PR761 merged as05585020a411111939a72c4121c66369839a066b. Full exact-main
+CI34770582933 and automatic release34771170873 passed. At17:25:50UTC, independent
+Hermes readback matched the accepted revision, immutable image, snapshot and
+browser-receipt hashes; app healthy with zero restarts, no pending release,
+and unchanged private WAHA/ClamAV containers, images and volumes. Release arm
+was explicitly set/read back false. The existing loopback tunnel still targets
+172.16.8.4:3000; local health and Hermes public HTTPS health return200.
+
+Post-release Chrome used the existing Admin session through localhost:3000:
+staff list → roles → new-role editor → permission search → cancel. The editor
+rendered and filtered the actual permission catalogue without a persisted change.
+No production invitation, role publication/assignment or account mutation occurred.
+The old auth_unavailable observation no longer reproduces on this bounded flow;
+this does not establish its original cause. Retain real recipient/SMTP/first-login
+acceptance. Custom SMTP was read as disabled in the existing Dashboard session;
+the standard ConfirmationURL template is supported, not a proved callback defect.
+
+Update the existing plans, README, Admin guide and activation runbook to point to
+[the combined release evidence](design/v3/references/2026-09-13-staff-docs-s2-d2-release.md).
+This is a documentation-only checkpoint, not another release or scope change.
+D3/D4 implementation continues in reviewed draft slices; runtime/provider proof,
+real document acceptance, D5 reconciliation and D6 standalone retirement remain
+open. Preserve the single persistent database, source originals and the owner's
+no-new-backup decision. Do not replay the completed full gate for these prose edits.

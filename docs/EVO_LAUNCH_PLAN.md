@@ -155,6 +155,11 @@ package/Admissions gates. It does not add duplicate DTO/transport implementation
 After independent combined review, run one real predispatch proof; only then
 integrate the proved D4 persisted-export slice with contiguous162→163→164.
 Production worker composition, provider and real-client gates remain open.
+The combined source candidate now passes the focused D2/D3 npm entrypoint,
+21 manifest/route/foundation checks, scoped lint and one Next build including
+TypeScript (`01a09c995e0c7b238f5656b78afb886c`). Both parent decision journals and
+reviewed runtime/D3 module bytes are preserved. Exact-head independent review
+and actual combined-image/local predispatch acceptance have not run.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser

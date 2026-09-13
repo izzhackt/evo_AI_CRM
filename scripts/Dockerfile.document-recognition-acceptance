@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
+# Acceptance-only target. The ordinary Dockerfile/final production image is unchanged.
+# FROM takes a resolvable name/tag or repository digest; the separate immutable
+# local image ID is bound and checked against actual runtime artifact bytes.
+ARG EVO_D3_COMBINED_IMAGE_REF
+FROM ${EVO_D3_COMBINED_IMAGE_REF} AS combined
+
+FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS acceptance-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
+FROM combined AS document-recognition-acceptance
+ARG EVO_D3_COMBINED_IMAGE
+ARG EVO_D3_ACCEPTANCE_REVISION
+LABEL evo.d3.acceptance.production-image="${EVO_D3_COMBINED_IMAGE}" \
+      evo.d3.acceptance.revision="${EVO_D3_ACCEPTANCE_REVISION}"
+USER root
+WORKDIR /opt/evo-document-recognition-acceptance
+COPY --from=acceptance-deps /app/node_modules ./node_modules
+COPY src/lib/document-recognition.ts src/lib/student-profile-fields.ts ./src/lib/
+COPY src/lib/server/document-recognition-source.ts src/lib/server/document-source-preflight.ts \
+     src/lib/server/platform-supabase-backend-config.ts src/lib/server/platform-supabase-service-client.ts ./src/lib/server/
+COPY scripts/lib/document-recognition-predispatch-proof.mjs ./scripts/lib/
+RUN chmod -R a-w /opt/evo-document-recognition-acceptance
+USER nextjs
+ENTRYPOINT ["/usr/local/bin/node", "--conditions=react-server", "--experimental-strip-types", "/opt/evo-document-recognition-acceptance/scripts/lib/document-recognition-predispatch-proof.mjs"]

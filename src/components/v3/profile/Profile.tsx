@@ -203,6 +203,12 @@ export function Profile({
           groups={draft.documents}
           uploadAccess={uploadAccess}
           studentCaseId={draft.admissions?.studentCaseId ?? null}
+          recognition={!isStaffPreview(actor) && ["admin", "staff"].includes(actor.systemRole)
+            && draft.admissions && ["case.read.full", "profile.read.full", "document.read.full"].every(key => staffHasPermission(actor, key))
+            ? { studentCaseId: draft.admissions.studentCaseId, profileRevision: draft.profileFields?.profile?.revision ?? null,
+              canEnqueue: draft.admissions.caseState === "active" && draft.profileFields?.canReview === true
+                && ["profile.manage", "document.download", "document.extract"].every(key => staffHasPermission(actor, key)),
+              reviewHref: hrefFor("anketa") } : null}
         />
       ) : null}
       {current === "money" ? (

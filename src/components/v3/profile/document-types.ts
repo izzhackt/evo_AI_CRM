@@ -93,3 +93,11 @@ export type RemovedDocumentGroup = Readonly<{
 export type DocumentGroup = ActiveDocumentGroup | RemovedDocumentGroup;
 
 export type DocumentUploadAccess = "allowed" | "forbidden" | "closed";
+
+/** Server presentation hints; every HTTP/RPC repeats current exact-case authority. */
+export type DocumentRecognitionAccess = Readonly<{
+  studentCaseId: string;
+  profileRevision: number | null;
+  canEnqueue: boolean;
+  reviewHref: string;
+}>;

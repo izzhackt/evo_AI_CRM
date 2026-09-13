@@ -25192,3 +25192,340 @@ settings scoped to its profile proof rather than requiring them in D3 config.
 Production worker CLI/composition remains implementation work; provider dispatch
 still requires the already-documented authorized case/file/project/budget inputs.
 No paid request, managed migration, deployment or old Docs retirement is implied.
+
+## 2026-09-13 — D3 durable queue: distinguish enqueue identity from verified source pages
+
+Before queue implementation, resolve a real contract timing seam: enqueue can
+resolve immutable document metadata, but actual PDF pages require bounded worker
+byte parsing. Client-supplied pages, in-transaction network/parser work and
+changing an already-used fingerprint are not acceptable substitutes. Keep an
+immutable request fingerprint over the original command/identity/source metadata
+and captured server config (no pages), and seal the separate existing canonical
+v1 processing fingerprint once after successful byte preflight. Replay uses the
+captured config and original profile revision, never current mutable defaults.
+Unknown pages remain NULL until verified; no upload/generation intent before seal.
+The full v1 contract/golden vector remains unchanged.
+
+Root allocates162 in isolated izzhackt/evo-docs-recognition-queue based on
+bc0cde68. Scope: closed durable jobs/attempts/provider-files and non-secret
+server configuration records, exact actor/source/profile guards, bounded money
+reservation, fenced claim/transitions/result publication/cleanup and session read
+RPC adapters. Configuration is server-selected; no browser model/budget/source
+metadata, no keys in DB records, no implicit paid-project attestation or enable.
+Preserve the existing D3 six-permission gates, lock order, one generation intent,
+unknown outcome rules, D2 human review and exact-source proposal provenance.
+The input count receipt from the separate transport slice is persisted before
+generation intent and must match exact model/body/config and input ceiling.
+
+Use ordinary real PostgreSQL positive/replay/restart workflow checks with bounded
+synthetic data; injected provider outcomes are not provider acceptance. Do not
+run a second full release suite, seed/apply managed schema or merge while the
+bc0cde68 release cycle is active (fullCI34767766251). Production worker/Storage/UI,
+hard memory/time bounded document parsing, real paid provider/file acceptance,
+D5 transfer and D6 retirement remain mandatory later work, not waived by this slice.
+
+Queue implementation starts with a complete bounded pre-dispatch segment:
+session enqueue/read, captured non-secret configuration, exact source authority,
+atomic reservation, fenced claim/renewal, once-only verified-page sealing and
+safe cancellation/recovery before any upload. No HTTP route or partial provider
+dispatcher is exposed. Upload/generation intents, persisted count receipt,
+result/proposal publication and independent cleanup commands remain mandatory
+and are not declared implemented by this segment. This may extend the same
+unmerged162 once its real PostgreSQL proof passes; root controls final allocation.
+Reuse the exact PR756 pure module/test bytes rather than duplicate DTOs:
+git blobs74c5f037a6673f85707f01e23e26545f881e00fc and
+e7b7b60f57b3ab1ed7c62e159be3075076adc073 match05b6a036.
+
+The first real queue/preflight SQL proof passed (01a09ba008b87562a64d02883bec18ad),
+so the same unmerged162 now extends to durable upload/generation intents,
+persisted model/body/config-bound count receipt, bounded result and ordinal
+proposal publication, and separately fenced cleanup. Conflicting candidates
+remain separate proposals; no confirmed value/review is overwritten. SQL proof
+uses synthetic provider observations only. Worker/HTTP/Storage integration is
+still absent, and no actual Gemini generation/cleanup is claimed.
+Before the first provider side effect and before generation, a UTC-day rollover
+must recheck/rebind the existing monetary reservation under the organization lock;
+enqueue yesterday must not bypass today's configured daily budget. Only one
+generation intent is possible, so this does not authorize another paid attempt.
+Register the new pure/adapter/queue-contract tests in the existing Node CI entry
+and recompute exact manifest totals; no removed tests, skip or full-CI dispatch.
+
+Queue candidate validation: isolated pinned PostgreSQL001–162 full workflow
+PASS01a09baab06f746290e94bdef3340ffd (including UTC rollover); preceding complete
+provider-state/proposal/cleanup proof PASS01a09ba92eb67b2199e97b71cdf7a6cd.
+Canonical Admin/session RPCs use synthetic metadata/scanner/provider outcomes,
+not real Auth/browser/Storage bytes or a paid Gemini call. The original D2
+confirmed-empty/full review rows remain unchanged; three ordinal proposals
+including conflicting English values publish once, with one revision/audit.
+Upload/generation replay returns dispatch:false; expired generation retains its
+reservation and does not produce a new attempt. DELETE acknowledgement remains
+pending until a separate absence observation; unknown upload plus404 is unresolved.
+Actual Node entrypoint88+12 PASS01a09ba64e26766196e81b16edcc63d4;
+manifest/classifier19 PASS01a09ba5600b7e728581a0197b50def4; scoped TypeScript0
+diagnostics01a09ba9536a7b819a15fe3e6d74be12 and ESLint/diff PASS. The new script
+is already a known code path; no classifier policy relaxation. Supabase queue
+guidance informed short transactions, organization-first SKIP LOCKED claims and
+partial active/cleanup indexes. All runner-owned containers are removed; trap
+uses only the exact random owned name with --volumes, never a broad prune.
+Independent exact-head review is still pending. This is durable SQL+session
+adapter evidence only; no worker/HTTP/UI, managed apply, deployment or provider
+acceptance is claimed. Preserve existing launch/release blockers and D5/D6 gates.
+
+### D3 queue review correction — truthful terminal budget outcome
+
+Independent review of7c614bfe found that the existing UTC rollover guard emits
+budget_exhausted, but neither worker finish RPC accepts that fixed failure code.
+Add it to both narrow allowlists; preserve the existing rule that pre-upload
+failure releases the reservation, while any upload intent retains it and leaves
+provider cleanup required. Prove the actual finish RPCs before/after upload with
+synthetic real PostgreSQL checks before coding the correction; no paid call,
+retry, budget relaxation or permission change. Keep generation intent uncertain
+outcomes unchanged. Clarify root-confirmed semantics: same-request replay keeps
+the original payload/config/revision; a new explicitly confirmed retry_of_job_id
+uses current revision/config/budget and must be shown as a new charged action.
+Outer config.enabled controls new enqueues only, not a hidden model migration
+or global cancellation of already captured jobs. Independent re-review required.
+
+Regression reached the real preflight finish RPC and failed with invalid_request
+before the correction:01a09bb3496673b2bc33f026ef0705df exit3. After only the two
+allowlist additions, the same full isolated PostgreSQL001–162 proof passed:
+01a09bb3e0ba77c3b399a14cc1f588e3 exit0. Both terminal budget paths now persist the
+correct fixed code; pre-upload reservation release and post-upload reservation
+retention/cleanup claim are asserted. Synthetic worker-reported outcomes are
+not evidence of real paid-budget exhaustion or provider cleanup.
+
+### D3 integration boundary — exact private source and cold job reopening
+
+Root approved163 after162 on isolated integration branch from823ecb02; neither
+migration is applied to managed production. Add service-only source-read RPC,
+bound to the current attempt/fence and saved live actor, all six permissions,
+exact active case/slot/version/hash/size/MIME and clean scan provenance. Every
+actual read revalidates; one idempotent document_access_events row records the
+attempt's source access with purpose document_recognition before bytes leave
+private Storage. Return exact private binding only to the service, never the UI.
+Stream only from the validated configured Supabase origin; no redirects, client
+path/URL, signed URL to Gemini, decompression or buffering an unbounded Blob.
+Deadline15s including grant/fetch/read, exact size <=25MiB, SHA and magic required.
+
+Shared parser runtime is root-owned at server/document-source-preflight.ts:
+inspectDocumentSource({bytes,mimeType,expectedSha256},{signal}) returns verified
+{sha256,byteLength,mimeType,pageCount,policyVersion} or fixed rejection.
+Policy document-source-v1: PDF <=20 pages, reject encrypted/unreadable; JPEG/PNG
+one page, width/height <=20000 and total <=40,000,000 pixels. Hard OS process
+isolation, no credentials/network, bounded memory/CPU/time/output and abort kill
+are mandatory before any untrusted file parsing or provider dispatch. A typed
+dependency seam is allowed; no pass stub or provider worker is shipped until the
+real implementation is wired/proven. This is not a second worker framework.
+
+For cold reopen,163 also adds current-session exact-source history read: latest10
+safe job DTOs, stable created_at/id cursor and explicit Load older when needed.
+The existing GET path accepts exactly job_id OR source_version_id; only history
+allows bounded cursor. No browser-storage authority, auto-enqueue or silent paid
+retry. POST remains the original four-field command. Small per-document UI shows
+existing job/result/cleanup state, explicit extraction/retry and human-review link.
+Actual authenticated routes, typed session adapter, bounded source bytes and SQL
+workflow checks precede local browser acceptance; provider/file/paid-project,
+root parser/runtime integration and production release remain separate gates.
+
+Official Supabase API-key documentation confirms backend secret keys bypass RLS;
+therefore the service RPC must perform live saved-actor authorization, not infer
+case access from key presence: https://supabase.com/docs/guides/getting-started/api-keys
+Storage wire path/headers are checked against installed storage-js source before
+implementation; no secret values, source files or paid calls are inspected here.
+
+Root approved continued worker orchestration against the real shared preflight
+interface, while the final runtime/CLI activation stays closed pending proof.
+Import only the exact reviewed PR758 transport module/test bytes from6feefd40:
+blobs c504e64bdc5efd3645007a587f0be9413ba18108 and
+8cba93db39dcdd6f2088a74907106ff1bae67913 (verified01a09bbc545e7931a8fe4c815966ae9f).
+Keep captured config and enqueue/processing fingerprint checks; this worker
+implements registry evo-profile-61-v1, schema1, prompt extract-v1 and parser
+document-source-v1 only. Unknown version fails before dispatch rather than
+using current code under another policy label. RPC and provider requests are
+separate; persist each upload/generation/delete intent, reconcile uncertain
+results with bounded reads and never repeat a generation request. Heartbeat15s,
+fenced lease90s, bounded tick240s; cleanup separately bounded within its90s lease.
+Real positive SQL and synthetic transport-boundary checks are complementary,
+not a substitute for the eventual real Auth/Storage/parser/provider acceptance.
+
+Root reviewed and approved four precise forward163 integration seams before code:
+persist-once source_preflight_policy_version=document-source-v1 beside verified
+pages (existing v1 processing fingerprint remains unchanged); explicit case-wide
+safe history to discover jobs after a source version is replaced; actual sealed
+source_pages in cleanup receipt (never invent page1); and truthful general finish
+codes document_not_eligible/provider_not_configured after upload. Preserve all
+live permission checks, generation-unknown coercion, reservation and cleanup rules.
+The old seven-argument seal command is removed rather than retained as an unpinned
+parallel entrypoint. The new command takes explicit p_preflight_policy_version;
+upload/generation require the sealed known policy. No history backfill fabricates
+past parser proof. GET scope=case is exclusive with job_id/source_version_id and
+uses the same stable10+cursor safe DTO. Current API/private data boundaries stay.
+
+Two necessary integration distinctions surfaced in actual call-site inspection:
+the private claim receipt must expose its persisted provider_file_state and
+observation_count, so a restart after the fifth confirmed ACTIVE observation
+uses that exact stored proof instead of attempting a forbidden sixth observation.
+The existing source/hash/MIME and deterministic owned resource URI remain bound;
+no new provider read or public metadata is added. Unknown uploads still use GET.
+Separately, session enqueue's typed error carries a non-public uncertain flag:
+actual42501 maps403, while lost/malformed RPC outcome maps503 and retains the
+original UI request ID/payload. No new public error strings, SQL grants or retry.
+
+The actual Node CI manifest must include every D3 integration boundary test:
+transport, private source, processing worker, independent cleanup, session route,
+history adapter and client reducer under the existing react-server Node group;
+the real component SSR contract uses the existing ordinary React group. Append
+these files only to test:student-profile-fields and update the manifest's exact
+counts/required-file assertions. Do not add dependencies, a parallel runner or
+full-CI skips. Tests with injected provider/RPC replies remain unit-boundary proof;
+the actual isolated PostgreSQL001–163 proof is separate and passed
+01a09bc51f5c7d309b46cbfc5a261667, including persisted fifth ACTIVE recovery,
+sealed parser policy, actual cleanup pages and source/case cursor history.
+
+Actual repository-tsconfig checking (target ES2017, not an overridden target)
+reported two unsupported bigint literals in the reviewed transport cost helper
+and one implicit return diagnostic in the source loader catch. Replace only
+999_999n/1_000_000n with equivalent BigInt(number) constructors and make the
+source's throwing return explicit. Preserve integer arithmetic, pricing limits,
+request bytes and configuration hashes; no target/dependency relaxation. This
+is the sole intentional transport delta from the initially byte-identical import
+and must be included in integration review. Initial diagnostics:
+01a09bc9cf8a79c3ba68ef3d3ad00b0d (three diagnostics).
+Whole-program checking additionally loads Next's ProcessEnv augmentation, which
+requires NODE_ENV in the source validator's explicit environment projection;
+include the current mode (production if absent) without copying other secrets.
+The validator still reads only URL/key and keeps identical URL rules. Generate
+the ignored Next route/image declarations via installed next typegen before
+whole-project checking; a clean worktree's missing declarations are not a logo
+product regression. No generated declaration or config change is committed.
+
+### D3 integration163 — bounded implemented candidate, not release acceptance
+
+Implemented session POST/read history, exact-case/source paged UI with manual
+paid-action consent and same-command unknown reconciliation, real private-source
+HTTP loader, processing worker and independently fenced cleanup worker. The
+worker requires a supplied real inspector; no CLI or always-verified fallback
+is present. Parent owns the isolated runtime and final wiring/activation.
+
+Actual PostgreSQL001–163 PASS01a09bc51f5c7d309b46cbfc5a261667; exact owned container
+evo-document-recognition-proof-6840-68589 absent01a09bcd57d97ca180f6130e2373a218.
+Actual npm test:student-profile-fields152+18PASS01a09bcc160f73e2a5f2182c02b4182d;
+manifest6PASS01a09bcc13e075308704e104c8c15278. Whole-repo typegen/tsc under unchanged
+ES2017 target PASS01a09bccc76978c18ca43875f3ecc259. Source HTTP includes real
+loopback streamed-read abort/grant expiry; it is not actual private Storage.
+Injected provider/RPC/inspector results prove ordering/recovery boundaries only.
+Processing never redispatches a persisted generation intent; result save must
+return the same job/result_saved before publication. Cleanup uses stored pages,
+verifies the exact owned name before DELETE, records acknowledgement separately
+and requires GET absence; early404 after unknown upload remains DB-pending.
+Independent integration review, real local Auth/Storage/browser proof, isolated
+parser proof, CLI wiring and explicit allowed-file/paid-project provider
+acceptance remain open. No main/schema/provider/production mutation in this slice.
+
+### 2026-09-13 — D3 bounded real-session acceptance preparation (before code)
+
+Prepare a dedicated foundation mode on a separate branch from independently
+reviewed integration26dd7b78; do not edit/publish over its frozen review. Reuse the
+owned OrbStack/Supabase bootstrap, canonical synthetic handoff, actual staff Auth
+and browser, actual document upload/scanner/private Storage, and safe pre-cleanup
+diagnostics. Reuse the public EVO logo bytes, not customer files. Exercise profile
+start/confirmed-empty, checklist/upload, explicit queued request, exact-session
+same-command replay and cold history read without a second job. Technical config
+seeding stays in the disposable local fixture and never represents real paid
+eligibility or permission to call a provider; no Gemini key, upload or generation.
+
+The source-preflight leg must use an immutable combined integration + reviewed
+Linux-runtime image containing exact loader/seal and actual inspector artifacts.
+Require a fail-closed readiness gate before stack creation; do not assume a
+runtime-only image contains D3 source. No macOS parsing fallback, injected
+verified result, fake worker success or diagnostic replacement. The real isolated
+loader/inspector seals measured pages/policy/fingerprint, then terminally ends the
+technical job before provider intent. Preserve explicit non-provider scope in its
+receipt. Root coordinates image identity and the single run after runtime proof;
+this preparation does not authorize a stack run now. Existing whole business,
+staff onboarding and D2 acceptance modes keep their gates unchanged.
+
+The image orchestrator belongs only to an acceptance image target, never the
+production final image. It imports actual source loader, isolated inspector,
+canonical fingerprint and service RPCs; it does not import provider transport or
+processing worker. After successful seal it uses the existing preflight
+`cancelled` transition. Bind the exact combined source/module hashes and compare
+real launcher/inspector/dependency-tree bytes against the immutable production
+image. Verify source access audit, cancelled state and released reservation with
+zero upload/generation intents, provider files and proposals. Configuration labels
+alone are not an egress control or proof of billing eligibility.
+
+### D3 acceptance harness prepared — no runtime or service acceptance claim
+
+Added the bounded `--document-recognition-only` mode, actual UI/session/Storage
+scenario and acceptance-only Linux driver. Shared D2 ownership/bootstrap and safe
+diagnostics are reused with a closed D2/D3 scope; its full workflow stays intact.
+Gate compares a clean exact checkout's imported TS module bytes (not a nonexistent
+production CLI bundle), actual runtime files/dependency tree and Node hashes in
+production/acceptance images, and native architecture. Docker FROM uses a resolvable
+reference; execution/readback uses immutable local IDs, with no label-only pass.
+Build behavior follows current official Docker FROM/image-identity docs linked
+in the D3 contract. The ordinary production Dockerfile is unchanged.
+
+Missing manifest entry observed RED20/1 `01a09be699cf7d23b5cc8d8d68bf1ccd`; append
+only the new harness contract test to the real existing CI entrypoint. Focused
+27 PASS `01a09be6f8a97060bb7a71b836027c6e`; actual npm test:student-profile-fields
+162+18 PASS `01a09be7de9a7353893b9a10209b44c6`; full repo TS0diag
+`01a09be7ec9674c2b6c108af4f765327`, scoped ESLint0warnings
+`01a09be7032771109426c4fb5352736c`, bash/entrypoint syntax+diff clean
+`01a09be73b5874c397fc021abea4160b`.
+No Docker/stack/image build, DB mutation, real user or provider was exercised.
+Runtime7ed531 is changes_requested pending two P1 fixes and independent review.
+Actual combined-image gate and the one local predispatch scenario remain open;
+full worker/provider generation/review/cleanup and production CLI remain separate.
+
+### 2026-09-13 — D3 acceptance cleanup completion (review P2, before code)
+
+The browser proof currently writes acceptance before the EXIT resource cleanup.
+Change only the D3 mode to keep a preliminary receipt until the owned app process,
+ClamAV container/volume and disposable Supabase project have confirmed cleanup.
+Any stop/removal/readback failure keeps this gate open, returns nonzero and leaves
+no final acceptance.json or VERIFIED marker. Preserve the preliminary private
+evidence and failed owned workdir for diagnosis; do not silently retry cleanup.
+Existing D2/staff/full foundation cleanup semantics remain unchanged. Verify the
+actual cleanup control flow with bounded injected command outcomes only; no
+Docker, database, image build or provider execution is authorized in this fix.
+
+Outcome: browser now records pending evidence only. The D3 EXIT path captures
+the original status, performs scoped cleanup once, verifies process/resource
+absence, and only then writes cleanupVerified acceptance and the final marker.
+Regression RED10/1 `01a09befffea748299ca4f1b81c1c068` → focused28 PASS
+`01a09bf264277560bdec90da9315a4c3`; actual npm entrypoint163+18 PASS
+`01a09bf1e7d079538d2c30bbfa59620a`. The regression executes the real shell
+functions with twelve bounded command-outcome cases, not real Docker or DB.
+ESLint/bash/diff PASS `01a09bf1eccc75d3883090afd54dee3c`; legacy D2/full cleanup
+body is byte-identical to bf618e1 (`01a09bf216c67a22b039943d034fec95`).
+This closes only the source-level receipt-ordering defect; actual combined-image
+and local Auth/Storage/runtime acceptance remain unrun and open.
+
+## 2026-09-14 — Combined D3 source candidate validation
+
+The local integration combines `32c6403` with reviewed acceptance `d4423d8d`
+(including its queue/integration ancestry). Both parent journals are preserved:
+565/565 and 552/552 complete sections match exact bytes, in their original order
+(`01a09c99219878f28a7ca11a90a180cc`; ordered-line check
+`01a09c98d7ec7eb0a81d73695a7c5001`). No parent entry was replaced or truncated.
+Runtime Dockerfile/inspector, lockfile and manifest runner match `32c6403`;
+pure DTO, corrected BigInt transport and migrations162/163 match `d4423d8d`.
+
+Only the four merge conflicts required reconciliation: append-only journal,
+test-script union, foundation mode flags and computed manifest counts. CI keeps
+182 unique files (152 bounded,21 serial,9 normal-React); unit keeps177. Existing
+Admissions/P4 checks and D3 cleanup finalizer remain, without skips or new grants.
+Actual `npm run test:student-profile-fields` exits0
+(`01a09c9805f67d03acd95c0196823fff`);21 focused manifest/route/foundation checks pass
+(`01a09c9800d174a19a5f0cc5b8edca15`). Scoped ESLint32 files, shell syntax and
+diff-check pass (`01a09c98b2d07d62926f238b2495bb9e`). One production Next build,
+including TypeScript and knowledge-import bundling, exits0
+(`01a09c995e0c7b238f5656b78afb886c`). No separate typecheck/full suite was run.
+
+This is source integration only: independent exact-head review, immutable
+combined images and actual local Auth/UI/Storage/scanner/preflight proof remain
+open. Production CLI composition, paid generation/result/review/cleanup and
+authorized real-case acceptance remain open. No Docker stack, provider call,
+managed migration, deployment or D4 persisted-export merge occurred here.

@@ -681,3 +681,52 @@ export function staffDirectoryAccessSummary(
   }
   return staffAccessSummary(access);
 }
+export const documentRecognitionCopy = {
+  caseTitle: "История извлечения по делу", caseEmpty: "В этом деле заданий пока нет.",
+  caseDetail: "Здесь остаются задания по всем версиям, включая заменённые файлы. Новые запуски — в строке документа.",
+  title: "Извлечение полей", loading: "Загружаем историю…", empty: "Для этой версии заданий пока нет.",
+  extract: "Извлечь поля", retry: "Выбрать для нового запуска", send: "Подтвердить запуск", sending: "Сохраняем запрос…",
+  charge: "Разрешаю обработать эту версию документа. Запуск может оплачиваться отдельно; поля проверю вручную.",
+  retryCharge: "Это отдельная новая операция над той же версией с текущими моделью, настройками и бюджетом. Она может оплачиваться повторно.",
+  accepted: "Запрос сохранён. Результат появится в истории; подтверждение полей остаётся за вами.",
+  uncertain: "Ответ на запрос не получен. Он мог сохраниться; не создавайте новый запуск. Проверьте тот же запрос ниже.",
+  replay: "Проверить исходный запрос", replayDetail: "Повторяем тот же ID и исходные данные, без нового запуска.",
+  older: "Загрузить более ранние", latest: "К последним заданиям", refresh: "Обновить историю",
+  review: "Проверить предложения в анкете", proposals: "Предложений", cleanup: "Файл у провайдера",
+  unavailable: "История недоступна. Обновите её; новый запуск автоматически не выполняется.",
+  profileMissing: "Сначала начните анкету. Документ не создаёт её автоматически.",
+  readOnly: "Запуск недоступен с текущими правами или состоянием дела.",
+  cancel: "Отменить выбор",
+} as const;
+
+export function documentRecognitionState(value: string): string | null {
+  const labels: Record<string, string> = {
+    queued: "В очереди", preflight: "Проверка документа", uploading: "Передача документа",
+    file_processing: "Подготовка у провайдера", generating: "Извлечение полей", result_saved: "Результат сохранён",
+    review_ready: "Предложения ждут проверки", failed: "Задание не выполнено", upload_unknown: "Исход передачи неизвестен",
+    generation_unknown: "Исход извлечения неизвестен", publication_blocked: "Публикация предложений остановлена", cancelled: "Отменено",
+  };
+  return labels[value] ?? null;
+}
+export function documentRecognitionCleanup(value: string): string | null {
+  const labels: Record<string, string> = {
+    not_uploaded: "Передача не начиналась", pending: "Удаление ещё не подтверждено", deleting: "Проверяется удаление",
+    confirmed_absent: "Отсутствие подтверждено", unknown: "Отсутствие не подтверждено — нужна проверка",
+  };
+  return labels[value] ?? null;
+}
+export function documentRecognitionError(value: string): string | null {
+  const labels: Record<string, string> = {
+    invalid_request: "Запрос некорректен. Обновите страницу.", unavailable: "Нет доступа или ответ недоступен.",
+    profile_changed: "Анкета изменилась. Обновите страницу перед новым запуском.",
+    request_conflict: "Исходный запрос не совпадает с сохранённым. Новый запуск не выполнен.",
+    equivalent_job_active: "Для этой версии уже есть задание. Проверьте историю.",
+    document_not_eligible: "Документ не подходит для извлечения.", profile_not_started: "Сначала начните анкету.",
+    budget_exhausted: "Бюджет обработки исчерпан.", provider_not_configured: "Обработка документов ещё не настроена.",
+    access_revoked: "Доступ изменился.", source_changed: "Исходная версия изменилась.", source_unavailable: "Исходный файл недоступен.",
+    provider_rejected: "Провайдер отклонил обработку.", provider_unavailable: "Провайдер недоступен.",
+    invalid_result: "Результат не прошёл проверку.", upload_unknown: "Исход передачи неизвестен.",
+    generation_unknown: "Исход извлечения неизвестен.", publication_blocked: "Предложения не опубликованы.", cancelled: "Задание отменено.",
+  };
+  return labels[value] ?? null;
+}

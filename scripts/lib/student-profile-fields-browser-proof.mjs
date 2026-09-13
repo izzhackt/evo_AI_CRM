@@ -28,8 +28,13 @@ export const SYNTHETIC_REQUIRED_VALUES = Object.freeze({
 export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
   ...SYNTHETIC_REQUIRED_VALUES, mobile_phone: "+12025550101",
 });
-class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
-function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
+export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+export function proofScope(kind = "student-profile-fields") {
+  requireProof(["student-profile-fields", "document-recognition"].includes(kind), "PROOF_SCOPE_INVALID");
+  return { kind, prefix: kind === "document-recognition" ? "EVO_D3" : "EVO_D2",
+    marker: kind === "document-recognition" ? "DOCUMENT_RECOGNITION" : "STUDENT_PROFILE_FIELDS" };
+}
 function env(name) { const value = process.env[name]; requireProof(typeof value === "string" && value.length > 0, "ENVIRONMENT_MISSING"); return value; }
 function run(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8", timeout: 30_000, maxBuffer: 512 * 1024, stdio: ["ignore", "pipe", "pipe"] });
@@ -103,33 +108,34 @@ export function summarizeStudentProfileAppLog(raw) {
   return { errorClasses: [...errorClasses].sort(), staticMessages: [...staticMessages].sort(), repositoryFrames: [...repositoryFrames.values()] };
 }
 
-function writeOwnedAppLogDiagnostic() {
+export function writeOwnedAppLogDiagnostic(kind = "student-profile-fields") {
+  const scope = proofScope(kind);
   try {
-    const runtimeDir = realpathSync(env("EVO_D2_RUNTIME_DIR"));
-    const logPath = env("EVO_D2_APP_LOG"); const evidencePath = env("EVO_D2_EVIDENCE_DIR");
+    const runtimeDir = realpathSync(env(`${scope.prefix}_RUNTIME_DIR`));
+    const logPath = env(`${scope.prefix}_APP_LOG`); const evidencePath = env(`${scope.prefix}_EVIDENCE_DIR`);
     const evidenceDir = realpathSync(evidencePath);
     requireProof(/\/evo-database-foundation\.[A-Za-z0-9]+$/u.test(runtimeDir)
       && !lstatSync(logPath).isSymbolicLink() && lstatSync(logPath).isFile()
       && realpathSync(logPath) === resolve(runtimeDir, "app.log") && lstatSync(logPath).size <= 4 * 1024 * 1024,
     "APP_LOG_NOT_OWNED");
-    requireProof(evidenceDir.startsWith(`${REPO}/output/student-profile-fields/`)
-      && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(evidenceDir.slice(`${REPO}/output/student-profile-fields/`.length))
+    requireProof(evidenceDir.startsWith(`${REPO}/output/${scope.kind}/`)
+      && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(evidenceDir.slice(`${REPO}/output/${scope.kind}/`.length))
       && !lstatSync(evidencePath).isSymbolicLink(), "EVIDENCE_DIRECTORY_INVALID");
     const summary = summarizeStudentProfileAppLog(readFileSync(logPath, "utf8"));
     writeFileSync(resolve(evidenceDir, "server-failure.json"), JSON.stringify({
-      schema: "evo-student-profile-server-failure/v1", synthetic: true, businessAcceptance: false,
+      schema: scope.kind === "document-recognition" ? "evo-document-recognition-server-failure/v1" : "evo-student-profile-server-failure/v1", synthetic: true, businessAcceptance: false,
       rawLogRetained: false, ...summary,
     }, null, 2), { mode: 0o600, flag: "wx" });
-    process.stdout.write("STUDENT_PROFILE_FIELDS_SERVER_DIAGNOSTIC:SAVED\n");
+    process.stdout.write(`${scope.marker}_SERVER_DIAGNOSTIC:SAVED\n`);
   } catch {
-    process.stderr.write("STUDENT_PROFILE_FIELDS_SERVER_DIAGNOSTIC:UNAVAILABLE\n");
+    process.stderr.write(`${scope.marker}_SERVER_DIAGNOSTIC:UNAVAILABLE\n`);
     process.exitCode = 1;
   }
 }
 
-async function writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts }) {
+export async function writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts }) {
   if (!config) return;
-  const snapshot = { schema: "evo-student-profile-browser-failure/v1", synthetic: true, businessAcceptance: false,
+  const snapshot = { schema: config.proofKind === "document-recognition" ? "evo-document-recognition-browser-failure/v1" : "evo-student-profile-browser-failure/v1", synthetic: true, businessAcceptance: false,
     stage, exceptionCategory: proofExceptionCategory(error), pathClass: "UNAVAILABLE", http,
     consoleErrorCount: counts.console, pageErrorCount: counts.page, browserWarningCount,
     browserErrorCodes: [...browserErrors].sort(), shellPresent: null, actualAdminShell: null,
@@ -159,10 +165,11 @@ async function writeFailureEvidence({ config, page, stage, error, http, browserE
   writeFileSync(resolve(config.evidenceDir, "failure.json"), JSON.stringify(snapshot, null, 2), { mode: 0o600, flag: "wx" });
 }
 
-function configuration() {
-  const appOrigin = localOrigin(env("EVO_D2_APP_ORIGIN"));
+export function configuration(kind = "student-profile-fields") {
+  const scope = proofScope(kind);
+  const appOrigin = localOrigin(env(`${scope.prefix}_APP_ORIGIN`));
   const apiOrigin = localOrigin(env("NEXT_PUBLIC_SUPABASE_URL"));
-  const workdir = realpathSync(env("EVO_D2_SUPABASE_WORKDIR"));
+  const workdir = realpathSync(env(`${scope.prefix}_SUPABASE_WORKDIR`));
   requireProof(/\/evo-database-foundation\.[^/]+\/local-supabase$/u.test(workdir), "LOCAL_WORKDIR_INVALID");
   const config = parse(readFileSync(resolve(workdir, "supabase/config.toml"), "utf8"));
   const projectId = config.project_id;
@@ -184,19 +191,19 @@ function configuration() {
     requireProof(bindings.some(binding => ["127.0.0.1", "0.0.0.0", "::"].includes(binding.HostIp)
       && Number(binding.HostPort) === (service === "db" ? config.db.port : config.api.port)), "LOCAL_ENDPOINT_MISMATCH");
   }
-  const evidenceDir = realpathSync(env("EVO_D2_EVIDENCE_DIR"));
-  const relative = evidenceDir.slice(`${REPO}/output/student-profile-fields/`.length);
-  requireProof(evidenceDir.startsWith(`${REPO}/output/student-profile-fields/`) && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(relative)
-    && !lstatSync(env("EVO_D2_EVIDENCE_DIR")).isSymbolicLink() && readdirSync(evidenceDir).length === 0, "EVIDENCE_DIRECTORY_INVALID");
-  const organizationId = env("EVO_D2_ORGANIZATION_ID");
+  const evidenceDir = realpathSync(env(`${scope.prefix}_EVIDENCE_DIR`));
+  const relative = evidenceDir.slice(`${REPO}/output/${scope.kind}/`.length);
+  requireProof(evidenceDir.startsWith(`${REPO}/output/${scope.kind}/`) && /^[a-f0-9]{40}\/foundation-[0-9]+-[0-9]+$/u.test(relative)
+    && !lstatSync(env(`${scope.prefix}_EVIDENCE_DIR`)).isSymbolicLink() && readdirSync(evidenceDir).length === 0, "EVIDENCE_DIRECTORY_INVALID");
+  const organizationId = env(`${scope.prefix}_ORGANIZATION_ID`);
   requireProof(UUID.test(organizationId), "ORGANIZATION_INVALID");
   const email = env("EVO_STAFF_AUTH_ADMIN_EMAIL");
   requireProof(/^admin-[a-z0-9-]+@evo\.local\.test$/u.test(email), "SYNTHETIC_ADMIN_REQUIRED");
-  return { appOrigin, apiOrigin, dbUrl: dbUrl.toString(), evidenceDir, organizationId, email,
+  return { appOrigin, apiOrigin, dbUrl: dbUrl.toString(), evidenceDir, organizationId, email, proofKind: scope.kind,
     password: env("EVO_STAFF_AUTH_ADMIN_PASSWORD"), publishableKey: env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"), projectId };
 }
 
-async function seedCase(sql, config, client, onStage) {
+export async function seedCase(sql, config, client, onStage) {
   const [actor] = await sql`
     SELECT member.id AS membership_id, profile.auth_user_id
     FROM platform.organization_memberships AS member
@@ -221,7 +228,9 @@ async function seedCase(sql, config, client, onStage) {
     requireProof(result && (result.request_id === undefined || result.request_id === requestId), "CANONICAL_FIXTURE_RECEIPT_INVALID");
     return result;
   };
-  const reason = "Fictional isolated D2 profile acceptance; no customer agreement or funds";
+  const recognition = config.proofKind === "document-recognition";
+  const reason = recognition ? "Fictional isolated D3 pre-dispatch acceptance; no customer agreement, funds or provider call"
+    : "Fictional isolated D2 profile acceptance; no customer agreement or funds";
   const day = new Date().toISOString().slice(0, 10); const changedPermissions = [];
   const personalPermission = async (key, granted) => {
     const receipt = await command("change_membership_permission", { p_organization_id: config.organizationId,
@@ -242,7 +251,8 @@ async function seedCase(sql, config, client, onStage) {
     }
     onStage("FIXTURE_LEAD");
     const lead = await command("create_manual_sales_lead", { p_organization_id: config.organizationId,
-      p_display_name: "D2 Synthetic Browser Student", p_phone: null, p_email: `d2-${randomUUID()}@evo.local.test`,
+      p_display_name: recognition ? "D3 Synthetic Browser Student" : "D2 Synthetic Browser Student", p_phone: null,
+      p_email: `${recognition ? "d3" : "d2"}-${randomUUID()}@evo.local.test`,
       p_source_key: "other", p_owner_membership_id: actor.membership_id, p_interest_direction: "CN",
       p_next_action: reason, p_next_action_due_date: day });
     requireProof(lead.status === "saved" && UUID.test(lead.lead_id), "FIXTURE_LEAD_INVALID");

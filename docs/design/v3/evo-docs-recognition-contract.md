@@ -1,6 +1,8 @@
 # D3 — распознавание документов с проверкой человеком
 
-Дата: 2026-09-13. Статус: подготовленный контракт, реализация D3 не начата.
+Дата: 2026-09-13. Статус: исполнение начинается с общего контракта данных; полный D3 не реализован.
+На отдельной ветке начинается первый модульный срез ниже; очередь, worker,
+распознавание и реальная приёмка этим статусом не объявляются готовыми.
 База: D2/PR752 merged `fd5b6a08` = reviewed tree `daf5b5ac`; fast PASS, итоговый выпуск ещё не подтверждён.
 Исполнитель читает [единый план](evo-docs-unification-run-plan.md),
 [D2](evo-docs-profile-fields-contract.md) и [ADR0028](../../adr/0028-unify-document-automation-inside-evo-platform.md).
@@ -146,3 +148,29 @@ Unpaid API запрещает sensitive/personal/confidential inputs; `store:fal
 - [Files retention](https://ai.google.dev/gemini-api/docs/files); [abort не отменяет service](https://googleapis.github.io/js-genai/release_docs/interfaces/types.GenerateContentConfig.html#abortSignal); [retry defaults](https://googleapis.github.io/js-genai/release_docs/interfaces/types.HttpRetryOptions.html).
 - [REST store/responseFormat](https://ai.google.dev/api/generate-content); [structured output](https://ai.google.dev/gemini-api/docs/generate-content/structured-output); [model migration](https://ai.google.dev/gemini-api/docs/latest-model).
 - [Paid/unpaid и использование данных](https://ai.google.dev/gemini-api/terms); [logging отдельно от retention](https://ai.google.dev/gemini-api/docs/logs-datasets). Проверено 2026-09-13; повторно сверить перед provider acceptance.
+
+## Первый срез исполнения: общий контракт данных
+
+Во время frozen release c6669ff1 работать только в ветке
+`izzhackt/evo-docs-recognition`, не менять main/schema/runtime. Сначала реализовать
+`src/lib/document-recognition.ts` и узкие synthetic tests: строгие request/job/result
+DTO, schema из61 существующего ключа, Unicode limits, page/confidence bounds,
+фиксированные состояния/ошибки и canonical fingerprints. Никакого I/O или скрытой
+публикации. Это общий код будущих route/worker, не замена полного workflow.
+SQL/Storage/transport/orchestration/UI и все перечисленные реальные gates остаются
+следующими обязательными частями D3; номера миграций назначаются после текущего выпуска.
+
+Wire result: ровно `{candidates:[{key,value,source_page,source_snippet,confidence}],warnings:[]}`.
+Пустое значение не кандидат; неизвестные page/snippet/confidence — явный NULL,
+не пропущенный ключ. Сохранять порядок и повторные/конфликтующие кандидаты; не выбирать
+победителя. Trim внешних пробелов не изменяет факт; даты/телефоны не переинтерпретировать.
+Fingerprint v1: SHA-256 UTF-8 JSON с отсортированными ключами плоской server-resolved
+identity и версией контракта; UUID/hash lowercase, числа safe integers. request_id —
+отдельный ключ replay, значения распознавания входят только в отдельный result hash.
+Будущий SQL обязан повторять этот encoding/golden vector, не `jsonb::text`.
+
+Результат первого среза: [модуль](../../../src/lib/document-recognition.ts) и
+[11 тестов](../../../tests/document-recognition.test.mjs) реализованы; вместе с16
+registry/readiness tests —27 PASS, scoped TypeScript/ESLint PASS на Node22.23.1.
+Перед merge требуется независимое review. Очередь, SQL, файлы, Gemini, UI и
+реальные gates по-прежнему не реализованы/не пройдены этим модульным результатом.

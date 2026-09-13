@@ -24523,3 +24523,53 @@ independent review. Managed application of158–161, full exact-final-main
 Auth/DB/browser including D2, automatic release and runtime/tunnel/disarm proof
 remain pending. No new implementation, provider or real employee/client action
 is authorized or claimed by this documentation reconciliation.
+
+## 2026-09-13 — Start D3 on an isolated branch while the combined release is frozen
+
+Main c6669ff1 is frozen for full CI34766012215 and its automatic app release.
+Managed001–161 applied through34765867429 and read back equal in34765967956;
+this is schema evidence, not app/provider acceptance. Do not move main or apply
+another migration during that cycle. Work only on izzhackt/evo-docs-recognition.
+
+Begin D3 with the reusable pure recognition contract: strict job/request/result
+DTOs, registry-derived structured-output schema, normalized bounded proposals,
+fixed outcomes and deterministic fingerprints. Reuse the existing61-field registry
+and preserve confirmed-empty/conflict decisions; do not invent a second profile.
+The neutral module src/lib/document-recognition.ts may be consumed later by the
+planned platform DTO/route/worker modules. It does not enqueue work, read files,
+call Gemini, publish proposals or claim a completed recognition workflow.
+
+Keep the full recognition contract unchanged: follow with durable SQL jobs,
+source preflight, provider transport, worker/HTTP/UI and real acceptance. Allocate
+forward migration numbers only after the current frozen release terminates, so
+an emergency forward correction cannot collide with an unfinished D3 migration.
+Use only synthetic module inputs for this initial slice, independent review before
+merge, and no branch merge while current-main proof/release is active.
+
+The first-slice wire result is exactly `{candidates:[{key,value,source_page,
+source_snippet,confidence}],warnings:[]}`. Every candidate has a non-empty
+bounded extracted value; absence is omitted as a candidate, never converted to
+confirmed-empty. Page/snippet/confidence must be present and may explicitly be
+null. Preserve candidate order and duplicate/conflicting candidates for review;
+do not deduplicate, select winners, reinterpret dates or truncate source text.
+The provider schema enumerates all61 registry keys; server normalization also
+enforces each key's smaller limit and actual source-page bounds.
+
+Request fingerprints use SHA-256 over versioned canonical JSON of server-resolved
+source IDs/hash/size/MIME/pages, actor, purpose, model/project/config/policy,
+original profile revision and retry identity. The request UUID is a separate
+idempotency key; no extracted values belong in that fingerprint. The normalized
+result has a separate hash. Future SQL must match the documented v1 encoding and
+golden vector, not substitute PostgreSQL's differently formatted jsonb text.
+Internal validation failures and bounded job outcomes use fixed code enums;
+neither errors nor fingerprints expose extracted values or provider credentials.
+
+First-slice outcome: implemented the pure module and11 new module tests; these
+plus16 existing registry/review-readiness tests pass on Node22.23.1 (27 total,
+receipt01a09b7354cc7e039c2b612ede59ea14). Scoped TypeScript and ESLint pass
+(01a09b73568074428a5798ef761a5d78 / 01a09b7359d376d1a4da5083bf4b55d6).
+The canonical synthetic fingerprint vector is pinned in the test at
+`a4d3c643ef7e3349cdc9d662517cb30ead6d56f5fa3ab3ae59644412b493552b`.
+This is module evidence only: no Auth/DB/provider/browser execution, migration,
+runtime change, recognition workflow completion or release is claimed. Independent
+review and later full D3 hooks/gates remain required; main stays frozen.

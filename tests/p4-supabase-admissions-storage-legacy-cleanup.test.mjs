@@ -10,6 +10,25 @@ function source(relativePath) {
   return readFileSync(path(relativePath), "utf8");
 }
 
+test("P4 SQL acceptance checks the filenames actually uploaded by its browser producer", () => {
+  const browser = source("tests/e2e/supabase-staff-auth.spec.ts");
+  const verifier = source("scripts/test-postgres-v2-foundation.sh");
+
+  for (const [index, ordinal] of ["first", "second"].entries()) {
+    const uploaded = browser.match(new RegExp(
+      `${ordinal}Upload\\.locator\\([^\\n]+\\)\\.setInputFiles\\(\\{\\s+name: "([^"]+)"`,
+      "u",
+    ));
+    const expected = verifier.match(new RegExp(
+      `versions\\[${index}\\]\\.original_filename !== "([^"]+)"`,
+      "u",
+    ));
+    assert.ok(uploaded, `${ordinal} browser upload must specify its filename`);
+    assert.ok(expected, `${ordinal} SQL version must check its exact filename`);
+    assert.equal(expected[1], uploaded[1], `${ordinal} upload/verifier filename drift`);
+  }
+});
+
 const REMOVED_RUNTIME_PATHS = [
   "playwright.private-documents.config.ts",
   "src/app/(staff)/clients/[id]/AdmissionsCaseOperationsSection.tsx",

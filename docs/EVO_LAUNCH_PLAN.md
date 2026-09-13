@@ -35,8 +35,13 @@ execution, clean up owned validation resources, and keep real business acceptanc
 and production/Docs retirement separate. See the latest PLAN_CHANGES entry.
 
 The current continuation explicitly requests completion of the whole employee
-and Docs plans, not only S1/D1. Resume from merged `aa2e2346` and managed schema154:
-first repair the isolated Storage release blocker, prove and release the S1/D1
+and Docs plans, not only S1/D1. Resume from merged `6ff4c017` and managed schema154:
+the local gateway correction is merged via #743. Exact-main CI34738787284 passed
+18 browser tests (two skipped), then failed final SQL acceptance because the
+verifier still expects the second upload's old PDF filename while the browser
+now uploads PNG. Correct this exact fixture-contract mismatch without weakening
+version, hash or scan assertions; full release remains unproved and disarmed.
+Then prove and release the S1/D1
 candidate, then deliver scoped role authority/employee onboarding and D2–D6.
 Keep the recipient/effective-rights confirmation, real employee first-login,
 approved source-to-case mapping and real document/provider acceptance gates.

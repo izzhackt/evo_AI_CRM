@@ -23264,3 +23264,24 @@ Primary sources checked2026-09-13:
 [CLI2.116.0 Kong service](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/commands/start/services/kong.service.ts).
 The helper and its foundation-harness invocation are the only runtime code scope.
 Record actual checks and limitations in the release evidence before merge.
+
+## 2026-09-13 — Align the final document proof with its actual PNG upload
+
+Exact-main CI34738787284 on6ff4c017 passed the local gateway configuration,
+18 browser tests (two skipped) and the V3 quality gate, then failed with
+`P4_ACCEPTANCE_ERROR:DOCUMENT_VERSIONS_NOT_IMMUTABLE`. Release34739085097 was
+skipped; the release arm is false. No new application was deployed.
+
+The browser producer now uploads `p4-isolated-proof-v2.png` using real PNG bytes
+and checks its download and preview. The final SQL verifier still compares that
+version's filename against `p4-isolated-proof-v2.pdf`. A read-only source-contract
+check reproduced this exact mismatch without uploading files or running the
+earlier focused Storage failure trigger.
+
+Before changing the verifier, add a regression to the existing P4 contract suite
+that compares each actual browser upload name to its SQL acceptance expectation.
+Change only the stale second filename. Preserve the exact two versions and IDs,
+current slot, distinct SHA-256 hashes, clean/verified scan attestations and
+finalizations. This repairs stale test input metadata; it does not relax product
+immutability or prove runtime release by itself. After independent review and
+scoped checks, merge and run the ordinary full gate on the new exact main SHA.

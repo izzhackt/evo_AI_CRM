@@ -119,6 +119,11 @@ earlier failed/incomplete checkpoints, not the latest combined result.
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and
 [D4 university forms/packages contract](design/v3/evo-docs-university-packages-contract.md).
+The approved D4 receipt dependency now follows the
+[runtime image identity contract](design/v3/runtime-image-identity-contract.md):
+controller-generated identity in sealed per-generation env, verified candidate
+and rollback readback. This is bounded implementation, not a production release
+or proof that template ingestion/forms are complete.
 These are the execution contracts, not provider/client acceptance. Transport/queue
 PR758/760 remain draft. Forms PR759 merged7da50fa8 and package PR762 merged85a1efd;
 both are preserved in this combined candidate's main85a1efd ancestry.

@@ -19,6 +19,7 @@ import { pathToFileURL } from "node:url";
 
 const MAX_ENV_BYTES = 256 * 1024;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+const RUNTIME_IMAGE_ID = /^sha256:[a-f0-9]{64}$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const PLACEHOLDER = /(?:replace-with-|change-me|changeme|placeholder)/iu;
 const SUPABASE_PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]+$/u;
@@ -422,6 +423,30 @@ export function sealPrivateEnvironmentSnapshot(
   snapshotPath,
   { afterSourceOpened, afterSourceRead } = {},
 ) {
+  return sealEnvironmentSnapshot(sourcePath, snapshotPath, {
+    afterSourceOpened, afterSourceRead,
+  });
+}
+
+export function sealCandidateEnvironmentSnapshot(
+  sourcePath,
+  snapshotPath,
+  runtimeImageId,
+  { afterSourceOpened, afterSourceRead } = {},
+) {
+  if (typeof runtimeImageId !== "string" || !RUNTIME_IMAGE_ID.test(runtimeImageId)) {
+    fail("runtime_image_id_invalid");
+  }
+  return sealEnvironmentSnapshot(sourcePath, snapshotPath, {
+    afterSourceOpened, afterSourceRead, runtimeImageId,
+  });
+}
+
+function sealEnvironmentSnapshot(
+  sourcePath,
+  snapshotPath,
+  { afterSourceOpened, afterSourceRead, runtimeImageId },
+) {
   requireNoFollowSupport();
   const source = normalizedAbsolutePath(sourcePath);
   const snapshot = normalizedAbsolutePath(snapshotPath);
@@ -464,7 +489,7 @@ export function sealPrivateEnvironmentSnapshot(
     }
     afterSourceOpened?.();
 
-    const bytes = Buffer.alloc(Number(sourceBefore.size));
+    let bytes = Buffer.alloc(Number(sourceBefore.size));
     let readOffset = 0;
     while (readOffset < bytes.length) {
       const count = readSync(
@@ -486,6 +511,17 @@ export function sealPrivateEnvironmentSnapshot(
       !sameIdentity(statIdentity(sourceBefore), statIdentity(sourcePathAfter))
     ) {
       fail("snapshot_source_changed");
+    }
+
+    if (runtimeImageId !== undefined) {
+      const sourceText = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      const entries = parseEnvironmentText(sourceText);
+      if (entries.has("EVO_RUNTIME_IMAGE_ID")) fail("runtime_image_id_reserved");
+      bytes = Buffer.concat([
+        bytes,
+        Buffer.from(`${sourceText.endsWith("\n") ? "" : "\n"}EVO_RUNTIME_IMAGE_ID=${runtimeImageId}\n`),
+      ]);
+      if (bytes.length > MAX_ENV_BYTES) fail("snapshot_source_invalid");
     }
 
     snapshotDescriptor = openSync(
@@ -538,8 +574,72 @@ export function sealPrivateEnvironmentSnapshot(
   }
 }
 
+export function verifyRuntimeEnvironmentIdentity({
+  snapshotText, containerEnvironment, runtimeImageId, releaseRevision,
+  historicalPrevious = false,
+}) {
+  if (typeof runtimeImageId !== "string" || !RUNTIME_IMAGE_ID.test(runtimeImageId)) {
+    fail("runtime_image_id_invalid");
+  }
+  if (typeof releaseRevision !== "string" || !/^[a-f0-9]{40}$/u.test(releaseRevision)) {
+    fail("runtime_revision_invalid");
+  }
+  if (typeof historicalPrevious !== "boolean" || !Array.isArray(containerEnvironment) ||
+    containerEnvironment.some((value) => typeof value !== "string")) {
+    fail("runtime_environment_invalid");
+  }
+  const snapshot = parseEnvironmentText(snapshotText);
+  const ids = containerEnvironment.filter((value) => value.startsWith("EVO_RUNTIME_IMAGE_ID="));
+  const revisions = containerEnvironment.filter((value) => value.startsWith("EVO_RELEASE_REVISION="));
+  if (revisions.length !== 1 || revisions[0] !== `EVO_RELEASE_REVISION=${releaseRevision}`) {
+    fail("runtime_revision_drift");
+  }
+  if (historicalPrevious && !snapshot.has("EVO_RUNTIME_IMAGE_ID") && ids.length === 0) {
+    return Object.freeze({ ok: true });
+  }
+  if (snapshot.get("EVO_RUNTIME_IMAGE_ID") !== runtimeImageId ||
+    ids.length !== 1 || ids[0] !== `EVO_RUNTIME_IMAGE_ID=${runtimeImageId}`) {
+    fail("runtime_image_id_drift");
+  }
+  return Object.freeze({ ok: true });
+}
+
+function readRuntimeEnvironmentStdin() {
+  // Docker's environment includes secrets: bound it and never echo it, even on failure.
+  const bytes = Buffer.alloc(MAX_ENV_BYTES * 2 + 1);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const count = readSync(0, bytes, offset, bytes.length - offset, null);
+    if (count === 0) {
+      return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, offset)));
+    }
+    offset += count;
+  }
+  fail("runtime_environment_invalid");
+}
+
 function parseCli(argv) {
   if (!Array.isArray(argv)) fail("invalid_arguments");
+  if (
+    (argv.length === 7 || argv.length === 8) && argv[0] === "--verify-runtime-identity" &&
+    argv[1] === "--snapshot" && argv[3] === "--runtime-image-id" &&
+    argv[5] === "--release-revision" &&
+    (argv.length === 7 || argv[7] === "--historical-previous")
+  ) {
+    return Object.freeze({
+      operation: "runtime-identity", snapshotPath: argv[2], runtimeImageId: argv[4],
+      releaseRevision: argv[6], historicalPrevious: argv.length === 8,
+    });
+  }
+  if (
+    argv.length === 6 && argv[0] === "--seal-candidate-env" &&
+    argv[2] === "--snapshot" && argv[4] === "--runtime-image-id"
+  ) {
+    return Object.freeze({
+      operation: "seal-candidate", sourcePath: argv[1], snapshotPath: argv[3],
+      runtimeImageId: argv[5],
+    });
+  }
   if (
     argv.length === 4 &&
     argv[0] === "--seal-private-env" &&
@@ -571,6 +671,19 @@ function parseCli(argv) {
 
 export async function runAppEnvironmentContractCli(argv) {
   const parsed = parseCli(argv);
+  if (parsed.operation === "runtime-identity") {
+    return verifyRuntimeEnvironmentIdentity({
+      snapshotText: readClosedFile(parsed.snapshotPath, { privateFile: true }),
+      containerEnvironment: readRuntimeEnvironmentStdin(),
+      runtimeImageId: parsed.runtimeImageId, releaseRevision: parsed.releaseRevision,
+      historicalPrevious: parsed.historicalPrevious,
+    });
+  }
+  if (parsed.operation === "seal-candidate") {
+    return sealCandidateEnvironmentSnapshot(
+      parsed.sourcePath, parsed.snapshotPath, parsed.runtimeImageId,
+    );
+  }
   if (parsed.operation === "seal") {
     return sealPrivateEnvironmentSnapshot(parsed.sourcePath, parsed.snapshotPath);
   }

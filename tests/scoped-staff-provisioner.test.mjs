@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink, dispatchScopedStaffInvitation,
+import { buildScopedStaffBaselines, localStaffOrigin, staffInvitationLink,
   prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor } from "../scripts/lib/scoped-staff-provisioner.mjs";
 
 const org = "51000000-0000-4000-8000-000000000001";
@@ -85,53 +85,10 @@ test("captured invitation must be one exact app-local Staff TokenHash link", () 
   assert.throws(() => staffInvitationLink(`<a href="${link}">One</a><a href="${link}">Two</a>`, appOrigin));
 });
 
-function clients(options = {}) {
-  const calls = [];
-  let invited = 0;
-  const adminClient = { supabaseUrl: apiUrl, auth: { getUser: async () => ({ data: { user: { id: userId, email: "admin@evo.local.test" } }, error: null }) },
-    schema: () => ({ rpc: async (name, args) => {
-      calls.push({ name, args });
-      if (name === "staff_access_snapshot") return { data: adminSnapshot };
-      if (name === "staff_workspace_claim_auth") return options.claimError ? { error: { code: "40001", message: "private details" } }
-        : { data: { id: request, dispatch: !options.replay, status: options.replay ? "completed" : "dispatching", ...(!options.replay ? { email: identity.email } : {}) } };
-      if (name === "staff_workspace_reconcile_auth") return { data: { status: options.pending ? "reconciliation_required" : "completed", operation: "invite" } };
-      if (name === "staff_workspace_auth_preparation") return { data: { schemaVersion: 1, requestId: request, operation: "invite", status: "completed",
-        displayName: identity.displayName, preparationVersion: 1, conflictCode: null, noAccess: false, targetMembershipId: member,
-        assignments: [{ ...assignment, roleVersion: options.changedVersion ? 3 : 2, bundleId: bundle, bundleVersion: 1, label: "Local Sales", permissionKeys: ["lead.read"] }] } };
-      throw new Error("unexpected RPC");
-    } }) };
-  const authAdminClient = { supabaseUrl: apiUrl, auth: { admin: { inviteUserByEmail: async (email, params) => {
-    invited += 1; calls.push({ name: "inviteUserByEmail", email, params });
-    if (options.throwAuth) throw new Error("private token and email");
-    return { data: { user: { id: userId, email, invited_at: "2026-09-13T00:00:00Z", email_confirmed_at: null } } };
-  } } } };
-  return { calls, adminClient, authAdminClient, count: () => invited };
-}
-function input(fixture) { return { ...fixture, apiUrl, appOrigin, organizationId: org, identity, assignments: [assignment], requestId: request }; }
-
-test("invitation requires prepared157 claim and reconciled exact membership, with no private return fields", async () => {
-  const fixture = clients();
-  const result = await dispatchScopedStaffInvitation(input(fixture));
-  assert.equal(result.membershipId, member);
-  assert.deepEqual(result.permissionKeys, ["lead.read"]);
-  assert.equal(fixture.count(), 1);
-  const claim = fixture.calls.find((call) => call.name === "staff_workspace_claim_auth");
-  assert.deepEqual(claim.args.p_assignments, [assignment]);
-  assert.equal(Object.hasOwn(claim.args, "p_role"), false);
-  assert.equal(fixture.calls.find((call) => call.name === "inviteUserByEmail").params.data.evo_staff_invitation_request_id, request);
-  assert.doesNotMatch(JSON.stringify(result), /email|authUser|password|token|@/);
-});
-
-test("immutable replay reconciles but never sends another invitation", async () => {
-  const fixture = clients({ replay: true });
-  assert.equal((await dispatchScopedStaffInvitation(input(fixture))).membershipId, member);
-  assert.equal(fixture.count(), 0);
-});
-
-test("fresh fixtures create and publish four versioned roles before any prepared invitation", async () => {
+test("local role preparation publishes four scoped baselines without dispatching invitations", async () => {
+  const { prepareScopedStaffRoles } = await import("../scripts/lib/scoped-staff-provisioner.mjs");
   const calls = [];
   const roles = new Map();
-  const claims = new Map();
   const sourceIds = { sales: roleId, curator: bundle };
   const adminClient = { supabaseUrl: apiUrl,
     auth: { getUser: async () => ({ data: { user: { id: userId, email: "admin@evo.local.test" } } }) },
@@ -169,66 +126,115 @@ test("fresh fixtures create and publish four versioned roles before any prepared
           assert.equal(args.p_expected_impact_fingerprint, "a".repeat(64));
           return { data: { status: "applied", roleId: args.p_role_id, version: 2, bundleId: bundle, bundleVersion: 1, affectedMembershipIds: [] } };
         }
-        if (name === "staff_workspace_claim_auth") {
-          assert.equal(roles.size, 4);
-          assert.equal(calls.filter((name) => name === "staff_role_publish").length, 4);
-          claims.set(args.p_request_id, args);
-          return { data: { id: args.p_request_id, dispatch: true, status: "dispatching", email: args.p_email } };
-        }
-        if (name === "staff_workspace_reconcile_auth") return { data: { status: "completed", operation: "invite" } };
-        if (name === "staff_workspace_auth_preparation") {
-          const claim = claims.get(args.p_request_id);
-          return { data: { schemaVersion: 1, requestId: args.p_request_id, operation: "invite", status: "completed",
-            displayName: claim.p_display_name, preparationVersion: 1, conflictCode: null, noAccess: false,
-            targetMembershipId: claim.p_email === identity.email ? member : profileId,
-            assignments: claim.p_assignments.map((entry) => ({ ...entry, bundleId: bundle, bundleVersion: 1,
-              label: roles.get(entry.roleId).label, permissionKeys: roles.get(entry.roleId).permissionKeys })) } };
-        }
         throw new Error("unexpected RPC");
       },
     }) };
-  const authAdminClient = { supabaseUrl: apiUrl, auth: { admin: { inviteUserByEmail: async (email) => {
-    calls.push("inviteUserByEmail");
-    return { data: { user: { id: userId, email, invited_at: "2026-09-13T00:00:00Z", email_confirmed_at: null } } };
-  } } } };
-  const result = await prepareScopedStaffInvitations({ adminClient, authAdminClient, apiUrl, appOrigin, organizationId: org,
-    identities: { sales: identity, admissions: { email: "admissions-proof@evo.local.test", displayName: "Local Admissions" } } });
-  assert.equal(result.invitations.length, 2);
-  assert.equal(calls.filter((name) => name === "inviteUserByEmail").length, 2);
-  for (const invitation of result.invitations) {
-    assert.equal(invitation.assignments.length, 2);
-    assert.deepEqual(invitation.assignments.map((row) => row.scope), [{ kind: "own", key: null, resourceKind: null },
+  const result = await prepareScopedStaffRoles({ adminClient, apiUrl, organizationId: org });
+  assert.equal(result.roles.length, 4);
+  assert.equal(calls.filter((name) => name === "staff_role_publish").length, 4);
+  assert.ok(calls.every((name) => ["staff_access_snapshot", "staff_role_workspace", "staff_role_command", "staff_role_impact", "staff_role_publish"].includes(name)));
+  for (const scenario of ["sales", "admissions"]) {
+    const selected = result.roles.filter((row) => row.scenario === scenario);
+    assert.equal(selected.length, 2);
+    assert.ok(selected.every((row) => row.roleVersion === 2));
+    assert.deepEqual(selected.map((row) => row.scope), [{ kind: "own", key: null, resourceKind: null },
       { kind: "organization", key: org, resourceKind: null }]);
   }
   assert.doesNotMatch(JSON.stringify(result), /email|authUser|password|token|@/);
 });
 
-test("unknown Auth dispatch stops with request identity and no resend or fabricated success", async () => {
-  const fixture = clients({ throwAuth: true });
-  await assert.rejects(dispatchScopedStaffInvitation(input(fixture)), (error) => {
-    assert.equal(error.code, "LOCAL_STAFF_INVITE_OUTCOME_UNKNOWN");
-    assert.equal(error.requestId, request);
-    assert.doesNotMatch(error.message, /private token|@/);
-    return true;
+// Browser and authenticated read boundaries only; actual invitation acceptance
+// still requires the separate local Auth/Mailpit/browser run.
+function invitationUiBoundary() {
+  const identities = { sales: identity, admissions: { email: "admissions-proof@evo.local.test", displayName: "Local Admissions" } };
+  const roles = ["sales", "admissions"].flatMap((scenario, scenarioIndex) => ["own", "organization"].map((kind, scopeIndex) => ({
+    scenario, kind, roleId: `51000000-0000-4000-8000-00000000002${scenarioIndex * 2 + scopeIndex + 1}`, roleVersion: 2,
+    permissionKeys: [scenario === "sales" ? "lead.read" : "case.read.full"],
+    scope: { kind, key: kind === "organization" ? org : null, resourceKind: null },
+  })));
+  const rolePreparation = { schemaVersion: 1, organizationId: org, roles };
+  const history = [{ request_id: request, operation: "invite", display_name: "Earlier local request", status: "completed",
+    created_at: "2026-09-13T00:00:00Z", provider_observed_at: null, rejection_code: null, rejection_http_status: null, rejected_at: null }];
+  const submitted = [], reads = [], navigations = [], preparations = new Map();
+  let values = {}, rows = [], consents = [], closed = 0;
+  const locator = (name = "", index) => ({
+    getByRole: (_role, options = {}) => locator(options.name ?? "", /^Роль [12]$/.test(options.name ?? "") ? Number(options.name.slice(-1)) - 1 : index),
+    locator: (selector) => locator(selector, index),
+    filter({ has, hasText }) {
+      if (name === "form") assert.equal(has.name, "Пригласить сотрудника");
+      else assert.equal(String(hasText), "/^Пригласить сотрудника$/");
+      return locator(name, index);
+    },
+    name,
+    async fill(value) { values[name] = value; consents = []; },
+    async selectOption(value) {
+      consents = [];
+      if (name === "Название роли") rows[index] = { roleId: value, roleVersion: 2, scope: { kind: "own", key: null, resourceKind: null } };
+      else rows[index].scope = { kind: value, key: value === "organization" ? org : null, resourceKind: null };
+    },
+    async inputValue() { return name.includes('name="no_access"') ? "no" : JSON.stringify(rows); },
+    async check() { consents.push(name); },
+    async waitFor() {}, async getAttribute(attribute) { return attribute === "data-system-role" ? "admin" : "actual"; },
+    async click() {
+      if (name === "Добавить роль") { rows.push({}); consents = []; }
+      if (name === "Пригласить следующего сотрудника") { values = {}; rows = []; consents = []; }
+      if (name !== "Отправить приглашение") return;
+      assert.deepEqual(consents, ['input[name="recipient_confirmed"]', 'input[name="rights_confirmed"]']);
+      assert.ok(values["Основание подключения"].length >= 3);
+      const scenario = submitted.length === 0 ? "sales" : "admissions";
+      assert.equal(values["Имя"], identities[scenario].displayName); assert.equal(values["Рабочий email"], identities[scenario].email);
+      assert.deepEqual(rows, roles.filter((row) => row.scenario === scenario).map(({ roleId, roleVersion, scope }) => ({ roleId, roleVersion, scope })));
+      submitted.push(scenario);
+      const requestId = `51000000-0000-4000-8000-00000000003${submitted.length}`;
+      history.push({ ...history[0], request_id: requestId, display_name: identities[scenario].displayName });
+      preparations.set(requestId, { schemaVersion: 1, requestId, operation: "invite", status: "completed", displayName: identities[scenario].displayName,
+        preparationVersion: 1, conflictCode: null, noAccess: false, targetMembershipId: scenario === "sales" ? member : profileId,
+        assignments: rows.map((row) => ({ ...row, bundleId: bundle, bundleVersion: 1, label: "Local published role",
+          permissionKeys: roles.find((role) => role.roleId === row.roleId).permissionKeys })) });
+    },
   });
-  assert.equal(fixture.count(), 1);
-  assert.equal(fixture.calls.some((call) => call.name === "staff_workspace_reconcile_auth"), false);
+  const page = { ...locator(), setDefaultTimeout() {}, on() {}, getByTestId: () => locator("shell"),
+    async goto(url) { navigations.push(url); }, async screenshot() { assert.fail("No invitation artifacts"); } };
+  const browser = { async newContext(options) {
+    assert.equal(options.serviceWorkers, "block"); assert.equal(options.acceptDownloads, false);
+    return { async route() {}, async newPage() { return page; }, async close() { closed += 1; } };
+  } };
+  const adminClient = { supabaseUrl: apiUrl, auth: { getUser: async () => ({ data: { user: { id: userId, email: "admin@evo.local.test" } } }) },
+    schema: () => ({ async rpc(name, args) {
+      reads.push(name);
+      if (name === "staff_access_snapshot") return { data: adminSnapshot };
+      if (name === "staff_workspace_auth_history") return { data: structuredClone(history) };
+      assert.equal(name, "staff_workspace_auth_preparation");
+      return { data: structuredClone(preparations.get(args.p_request_id)) };
+    } }) };
+  return { input: { browser, adminClient, apiUrl, appOrigin, organizationId: org, identities, rolePreparation,
+    identity: { email: "admin@evo.local.test", password: randomUUID() } }, submitted, reads, navigations, closed: () => closed };
+}
+
+test("Admin invitation UI submits the two planned recipients once and returns canonical prepared assignments", async () => {
+  const fixture = invitationUiBoundary();
+  const result = await prepareScopedStaffInvitations(fixture.input);
+  assert.deepEqual(fixture.submitted, ["sales", "admissions"]);
+  assert.equal(result.invitations.length, 2);
+  assert.deepEqual(result.invitations.map(({ requestId }) => requestId), ["51000000-0000-4000-8000-000000000031", "51000000-0000-4000-8000-000000000032"]);
+  assert.deepEqual(result.invitations.map(({ membershipId }) => membershipId), [member, profileId]);
+  assert.deepEqual(result.invitations.map(({ permissionKeys }) => permissionKeys), [["lead.read"], ["case.read.full"]]);
+  assert.equal(fixture.reads.filter((name) => name === "staff_workspace_auth_history").length, 4);
+  assert.deepEqual(fixture.navigations, [`${appOrigin}/login`, `${appOrigin}/v3/settings?section=staff&view=people`]);
+  assert.equal(fixture.closed(), 1);
+  assert.doesNotMatch(JSON.stringify(result), /email|authUser|password|token|@/);
 });
 
-test("claim rejection, pending reconcile and drifted preparation cannot produce success", async () => {
-  const rejected = clients({ claimError: true });
-  await assert.rejects(dispatchScopedStaffInvitation(input(rejected)), /COMMAND_NOT_CONFIRMED/);
-  assert.equal(rejected.count(), 0);
-  await assert.rejects(dispatchScopedStaffInvitation(input(clients({ pending: true }))), /RECONCILIATION_REQUIRED/);
-  await assert.rejects(dispatchScopedStaffInvitation(input(clients({ changedVersion: true }))), /PREPARATION_MISMATCH/);
+test("invitation UI marker is required before unchanged mail acceptance and editor proofs", () => {
+  const wrapper = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
+  assert.ok(/const browser = await chromium\.launch[\s\S]*await prepareScopedStaffRoles[\s\S]*await prepareScopedStaffInvitations[\s\S]*LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED[\s\S]*accepted = await acceptScopedStaffInvitations[\s\S]*await verifyScopedStaffRoleEditor[\s\S]*await verifyScopedStaffMemberEditor/.test(wrapper), "Require UI dispatch before the existing acceptance sequence");
+  assert.ok(/grep -Fx "LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/.test(shell), "Require the distinct invitation UI marker at the shell boundary");
+  assert.doesNotMatch(helper, /dispatchScopedStaffInvitation|inviteUserByEmail|staff_workspace_claim_auth|staff_workspace_reconcile_auth/);
 });
 
-test("neither phase accepts external clients or real recipients", async () => {
-  const fixture = clients();
-  fixture.authAdminClient.supabaseUrl = "https://real.supabase.co";
-  await assert.rejects(dispatchScopedStaffInvitation(input(fixture)), /NOT_LOOPBACK/);
-  await assert.rejects(dispatchScopedStaffInvitation({ ...input(clients()), identity: { ...identity, email: "person@gmail.com" } }), /SYNTHETIC_EMAIL_REQUIRED/);
-  await assert.rejects(prepareScopedStaffInvitations({ ...input(clients()), identities: { sales: identity, admissions: identity } }), /IDENTITIES_NOT_DISTINCT/);
+test("acceptance keeps its local mail boundary", async () => {
   await assert.rejects(acceptScopedStaffInvitations({ apiUrl, appOrigin, mailpitOrigin: "https://external.example" }), /NOT_LOOPBACK/);
 });
 

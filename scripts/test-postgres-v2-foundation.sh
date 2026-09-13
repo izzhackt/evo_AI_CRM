@@ -445,6 +445,9 @@ local success_marker="LOCAL_SUPABASE_STAFF_PROVISIONED"
 [[ "$staff_phase" != "onboarding-proof" ]] || success_marker="LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED"
 grep -Fx "$success_marker" "$staff_provision_log" >/dev/null \
   || fail "Local Supabase staff provisioning did not return its success marker"
+grep -Fx "LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED" "$staff_provision_log" >/dev/null \
+  || fail "Local staff invitation UI did not return its separate verification marker"
+echo "LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED"
 grep -Fx "LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED" "$staff_provision_log" >/dev/null \
   || fail "Local staff role editor did not return its separate verification marker"
 echo "LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED"

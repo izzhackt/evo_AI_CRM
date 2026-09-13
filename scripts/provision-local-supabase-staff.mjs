@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { chromium } from "@playwright/test";
-import { prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor, verifyScopedStaffMemberEditor, ScopedStaffProvisioningError } from "./lib/scoped-staff-provisioner.mjs";
+import { prepareScopedStaffRoles, prepareScopedStaffInvitations, acceptScopedStaffInvitations, verifyScopedStaffRoleEditor, verifyScopedStaffMemberEditor, ScopedStaffProvisioningError } from "./lib/scoped-staff-provisioner.mjs";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -314,13 +314,15 @@ async function main() {
   const organizationId = adminAuthority.organizationId;
   const appOrigin = firstConfigured(["EVO_STAFF_AUTH_APP_ORIGIN"], "APP_ORIGIN_REQUIRED");
   const mailpitOrigin = firstConfigured(["EVO_STAFF_AUTH_MAILPIT_ORIGIN"], "MAILPIT_ORIGIN_REQUIRED");
-  const prepared = await prepareScopedStaffInvitations({ adminClient: adminSession.client,
-    authAdminClient: adminServiceClient, apiUrl: url, organizationId, appOrigin,
-    identities: { sales: { email: identities.sales.email, displayName: "Local Sales Manager" },
-      admissions: { email: identities.admissions.email, displayName: "Local Admissions Manager" } } });
   const browser = await chromium.launch({ headless: true });
   let accepted;
   try {
+    const rolePreparation = await prepareScopedStaffRoles({ adminClient: adminSession.client, apiUrl: url, organizationId });
+    const prepared = await prepareScopedStaffInvitations({ browser, adminClient: adminSession.client,
+      apiUrl: url, organizationId, appOrigin, identity: identities.admin, rolePreparation,
+      identities: { sales: { email: identities.sales.email, displayName: "Local Sales Manager" },
+        admissions: { email: identities.admissions.email, displayName: "Local Admissions Manager" } } });
+    process.stdout.write("LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED\n");
     accepted = await acceptScopedStaffInvitations({ browser, adminClient: adminSession.client,
       authAdminClient: adminServiceClient, apiUrl: url, publishableKey, mailpitOrigin,
       appOrigin, prepared, identities });

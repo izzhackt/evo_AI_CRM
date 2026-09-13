@@ -53,39 +53,26 @@ No invitation, customer-file disclosure or standalone retirement is implied by
 technical CI. The latest release checkpoint is
 [the S1/D1 evidence](design/v3/references/2026-09-13-staff-docs-release.md).
 
-S2 remains active and unreleased under the
-[scoped-authority contract](design/v3/staff-scoped-authority-contract.md), with
-155–157 reserved for one coordinated authority/onboarding transition. Shared
-SQL, live staff snapshots, role/assignment UI and prepared invitations are
-implemented locally. The fresh CLI stack passed the bounded ordinary onboarding
-check: protected first Admin, four published roles, two synthetic Mailpit
-invitations, explicit callback/password UI, fresh browser sign-in and live scoped
-snapshots; owned containers were cleaned up. The same checkpoint passed 1342 unit
-checks and the application build. See [S2 local evidence and limits](design/v3/staff-scoped-authority-contract.md#локальная-проверка-2026-09-13).
-Calendar/task and Sales/Finance source branches are aligned; all six source
-findings are closed, including independent 21/21 approval of the post-contract
-and case-help fixes. This is not whole-slice approval. Earlier role-editor runs
-failed at restore fields and creation; the first completed local onboarding/catalogue pass on
-`e1f92405` now proves onboarding and catalogue create/edit/publish/copy/archive/restore
-for two unused synthetic roles. The final restored-draft screenshots at
-desktop1440×1000 and mobile390×844 were inspected; owned test resources
-were removed. The earlier intermittent creation failure has no established root
-cause. The member two-save helper is implemented and independently approved with
-23/23 scoped checks; its actual browser run and used-role/business proof remain open.
-Safe UI diagnostics were added; the pre-merge
-full unit checkpoint passed all 1426 checks across144 unique files, and the production
-build including TypeScript passed. The current-main merge is committed and pushed
-as `3897c5db`; [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747) is open.
-Its merged checkpoint passed 66/66 scoped checks and full ESLint; application
-`src/` and migrations were unchanged from `5ddbde5a` at that checkpoint. This remains draft review,
-not whole-slice browser approval or release.
-Fast PR CI on `e1f92405` then failed populated migration155. The backfill-order
-fix is source/unit-approved and committed as `4c7f2eb3`; populated runtime after
-the next push remains pending. See [the canonical S2 checkpoint](design/v3/staff-scoped-authority-contract.md#локальная-проверка-2026-09-13).
-Remaining work includes full S2 runtime/browser
-verification, whole-slice review, the full release gate and deployment.
-This local proof is not real employee first-login, provider or Storage acceptance; no
-production activation or employee invitation is implied.
+S2 remains active and unreleased in [draft PR747](https://github.com/izzhackt/evo_AI_CRM/pull/747).
+Migrations155–157, editable roles/scoped assignments and prepared invitations are
+implemented; current shared checkpoint is `02497173`.
+
+- **Proved locally:** actual Auth/Mailpit/password/login, full unused-role catalogue
+  lifecycle and two same-card member-assignment saves with live V+1/V+2 and exact
+  restoration. Owned test resources were removed; screenshots cover the final
+  catalogue draft only. Earlier source findings are closed, not whole-S2 approval.
+- **Release blocker:** CI34749513196 passed the corrected membership DDL, then
+  stopped at `staff_backfill_owner_scope_requires_review`. Preserve the guard;
+  count-only diagnostics will identify the failing legacy ownership/scope category.
+- **Next:** prove the actual Admin invitation form, department/direction and
+  affected ordinary business workflows; finish populated upgrade, independent
+  whole-slice review, the exact-main release gate and deployment.
+- **Separate human gates:** confirmed employee recipients/rights and real first
+  login, document/provider acceptance and Docs data transfer. No live activation
+  or employee email is implied by local checks.
+
+Detailed source/build/runtime evidence and historical limits remain in the
+[S2 contract](design/v3/staff-scoped-authority-contract.md#локальная-проверка-2026-09-13).
 
 ## Active follow-up: complete Portal document review and reply notifications
 

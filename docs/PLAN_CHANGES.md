@@ -23635,3 +23635,40 @@ The [PostgreSQL constraint-trigger documentation](https://www.postgresql.org/doc
 and [constraint timing](https://www.postgresql.org/docs/17/sql-set-constraints.html)
 were checked before this change. It is an unreleased155 correction, not a rewrite
 of any migration already applied to production.
+
+## 2026-09-13 — S2 prove the actual Admin invitation form
+
+Frozen02497173 passed ordinary local onboarding, the unused-role catalogue and
+two consecutive member-assignment saves with live versions and exact restoration
+(`cfw01a09a18c6f67b23abc61d4e1b234242`). That onboarding sends through the prepared
+invitation coordinator, not the Admin form, so the form remains unproved.
+Replace only the local harness invitation dispatch with real Admin UI interaction
+for the same two planned loopback/Mailpit recipients. Keep the four published
+baseline roles and original own/organization assignments unchanged; do not add
+identities, broader permissions, generated links or a second invitation backend.
+Prepare baseline roles through the existing authenticated setup commands, fill
+the actual form, explicitly confirm recipient and rights, and submit once.
+Read the new completed request and its prepared assignments through existing
+authenticated history/preparation queries. Reuse the existing actual Mailpit,
+callback, password and fresh-login proof, then the already accepted catalogue
+and consecutive-member scenarios. Require a separate invitation-UI marker.
+Remove the superseded local direct-dispatch path when no active consumers remain;
+keep product coordinator/Auth semantics, uncertainty handling and privacy unchanged.
+This is a bounded positive workflow, not real employee delivery or proof of
+department/direction matching. Those scope and business checks remain open.
+
+## 2026-09-13 — S2 diagnose the legacy owner-scope backfill stop
+
+CI34749513196 on02497173 passed the corrected membership DDL but stopped at the
+existing155 guard `staff_backfill_owner_scope_requires_review`. Read-only source
+review did not establish an exact historical fixture offender; no runtime state
+or production inconsistency is inferred from that uncertainty.
+Keep the guard predicate, exception code and transaction unchanged. Only when it
+already fails, attach four independently counted categories to exception DETAIL:
+pending-owner role mismatch, active/closed-owner role mismatch, missing selected
+owner case scope, and curator-owned lead. Apply the same joins and eligibility
+gates as the original predicate; counts can overlap and are not a partition.
+Expose no record IDs, names, addresses, scope keys, raw rows or secrets. The next
+already-required candidate CI supplies the evidence; do not normalize fixtures,
+weaken migration checks or repeat the broad harness merely to search for a cause.
+This is diagnosis, not a fix or successful populated-upgrade claim.

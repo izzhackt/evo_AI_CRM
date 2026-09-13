@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { createClient } from "@supabase/supabase-js";
 import { parseStaffAccessSnapshot } from "../../src/lib/supabase/platform-authority.ts";
 import { parseStaffRoleWorkspace, parseStaffRoleCommandResult, parseStaffRoleImpact, parseStaffRoleAssignmentInputs } from "../../src/lib/v3/staff-roles-contract.ts";
-import { parseStaffAuthClaim, parseStaffAuthResult, parseStaffAuthPreparation,
+import { parseStaffAuthPreparation,
   parseStaffInviteAssignmentInputs } from "../../src/lib/v3/staff-workspace-contract.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -128,55 +128,11 @@ async function readBaselines(adminClient, organizationId) {
   return buildScopedStaffBaselines({ permissions: catalogue.permissions, baseline });
 }
 
-/** Issue exactly one immutable prepared request. An uncertain dispatch is never retried. */
-export async function dispatchScopedStaffInvitation({ adminClient, authAdminClient, apiUrl, organizationId, appOrigin, identity, assignments, requestId }) {
-  apiUrl = localStaffOrigin(apiUrl); appOrigin = localStaffOrigin(appOrigin);
-  localClient(adminClient, apiUrl); localClient(authAdminClient, apiUrl);
-  uuid(organizationId); uuid(requestId); localIdentity(identity);
-  assignments = strictParse(() => parseStaffInviteAssignmentInputs(assignments, false, organizationId));
-  await requireAdmin(adminClient, organizationId);
-  const raw = await rpc(adminClient, "staff_workspace_claim_auth", {
-    p_organization_id: organizationId, p_request_id: requestId, p_operation: "invite",
-    p_email: identity.email, p_display_name: identity.displayName, p_membership_id: null,
-    p_assignments: assignments, p_no_access: false, p_reason: REASON, p_expected_access_version: null,
-  }, requestId);
-  const claim = strictParse(() => parseStaffAuthClaim(raw, requestId, identity.email));
-  if (claim.dispatch) {
-    // The real Supabase invitation sends a local email; no generated-link shortcut.
-    // https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail
-    try {
-      const result = await authAdminClient.auth.admin.inviteUserByEmail(identity.email, {
-        redirectTo: `${appOrigin}/auth/staff`, data: { evo_staff_invitation_request_id: requestId },
-      });
-      if (result.error || !result.data?.user || !UUID.test(result.data.user.id)
-        || result.data.user.email !== identity.email || !result.data.user.invited_at
-        || result.data.user.email_confirmed_at || result.data.user.confirmed_at) {
-        throw new ScopedStaffProvisioningError("LOCAL_STAFF_INVITE_NOT_CONFIRMED", requestId);
-      }
-    } catch { throw new ScopedStaffProvisioningError("LOCAL_STAFF_INVITE_OUTCOME_UNKNOWN", requestId); }
-  }
-  const reconciled = await rpc(adminClient, "staff_workspace_reconcile_auth", {
-    p_organization_id: organizationId, p_request_id: requestId,
-  }, requestId);
-  const result = strictParse(() => parseStaffAuthResult(reconciled, "invite"));
-  requireValue(result.status === "completed", "LOCAL_STAFF_INVITE_RECONCILIATION_REQUIRED");
-  const selected = await rpc(adminClient, "staff_workspace_auth_preparation", { p_organization_id: organizationId, p_request_id: requestId });
-  const preparation = strictParse(() => parseStaffAuthPreparation(selected, { organizationId, requestId }));
-  requireValue(preparation.status === "completed" && preparation.operation === "invite" && !preparation.noAccess
-    && preparation.targetMembershipId && preparation.displayName === identity.displayName
-    && sameSet(preparation.assignments.map(pair), assignments.map(pair))
-    && preparation.assignments.every((row) => assignments.some((expected) => pair(expected) === pair(row) && expected.roleVersion === row.roleVersion)), "LOCAL_STAFF_PREPARATION_MISMATCH");
-  return { requestId, membershipId: preparation.targetMembershipId, preparationVersion: preparation.preparationVersion,
-    assignments, permissionKeys: [...new Set(preparation.assignments.flatMap((row) => row.permissionKeys))].sort() };
-}
-
-/** Phase one; call only after an isolated app and its local email sink are ready. */
-export async function prepareScopedStaffInvitations({ adminClient, authAdminClient, apiUrl, organizationId, appOrigin, identities }) {
+/** Publish the four unchanged local baselines; this does not invite anyone. */
+export async function prepareScopedStaffRoles({ adminClient, apiUrl, organizationId }) {
   try {
-    apiUrl = localStaffOrigin(apiUrl); appOrigin = localStaffOrigin(appOrigin);
-    localClient(adminClient, apiUrl); localClient(authAdminClient, apiUrl); uuid(organizationId);
-    SCENARIOS.forEach((scenario) => localIdentity(identities[scenario]));
-    requireValue(identities.sales.email !== identities.admissions.email, "LOCAL_STAFF_IDENTITIES_NOT_DISTINCT");
+    apiUrl = localStaffOrigin(apiUrl);
+    localClient(adminClient, apiUrl); uuid(organizationId);
     await requireAdmin(adminClient, organizationId);
     const baselines = await readBaselines(adminClient, organizationId);
     const roles = [];
@@ -203,21 +159,105 @@ export async function prepareScopedStaffInvitations({ adminClient, authAdminClie
       roles.push({ ...baseline, roleId, roleVersion: publishReceipt.version,
         scope: { kind: baseline.kind, key: baseline.kind === "organization" ? organizationId : null, resourceKind: null } });
     }
-    const invitations = [];
-    for (const scenario of SCENARIOS) {
-      const selectedRoles = roles.filter((row) => row.scenario === scenario);
-      const invitation = await dispatchScopedStaffInvitation({ adminClient, authAdminClient, apiUrl, organizationId, appOrigin,
-        identity: identities[scenario], requestId: randomUUID(),
-        assignments: selectedRoles.map(({ roleId, roleVersion, scope }) => ({ roleId, roleVersion, scope })),
-      });
-      requireValue(sameSet(invitation.permissionKeys, new Set(selectedRoles.flatMap((row) => row.permissionKeys))), "LOCAL_STAFF_EFFECTIVE_PERMISSIONS_MISMATCH");
-      invitations.push({ scenario, ...invitation });
-    }
-    return { schemaVersion: 1, organizationId, invitations };
+    return { schemaVersion: 1, organizationId, roles };
   } catch (error) {
     if (error instanceof ScopedStaffProvisioningError) throw error;
     throw new ScopedStaffProvisioningError("LOCAL_STAFF_PREPARATION_FAILED");
   }
+}
+
+/** Submit each planned local recipient once through the actual Admin form. */
+export async function prepareScopedStaffInvitations({ browser, adminClient, apiUrl, organizationId, appOrigin,
+  identities, identity, rolePreparation }) {
+  let context;
+  let stage = "SETUP";
+  let clientError = false;
+  try {
+    apiUrl = localStaffOrigin(apiUrl); appOrigin = localStaffOrigin(appOrigin);
+    localClient(adminClient, apiUrl); uuid(organizationId); localIdentity(identity, true);
+    SCENARIOS.forEach((scenario) => localIdentity(identities[scenario]));
+    requireValue(identities.sales.email !== identities.admissions.email, "LOCAL_STAFF_IDENTITIES_NOT_DISTINCT");
+    requireValue(rolePreparation?.schemaVersion === 1 && rolePreparation.organizationId === organizationId
+      && Array.isArray(rolePreparation.roles) && rolePreparation.roles.length === 4, "LOCAL_STAFF_ROLES_REQUIRED");
+    const { roles } = rolePreparation;
+    requireValue(sameSet(roles.map((row) => `${row.scenario}:${row.scope.kind}`), ["sales:own", "sales:organization", "admissions:own", "admissions:organization"])
+      && roles.every((row) => Array.isArray(row.permissionKeys) && row.permissionKeys.length > 0
+        && row.permissionKeys.every((key) => typeof key === "string" && PERMISSION.test(key))), "LOCAL_STAFF_ROLES_INVALID");
+    strictParse(() => parseStaffInviteAssignmentInputs(roles.map(({ roleId, roleVersion, scope }) => ({ roleId, roleVersion, scope })), false, organizationId));
+    await requireAdmin(adminClient, organizationId);
+    const history = async () => {
+      const rows = await rpc(adminClient, "staff_workspace_auth_history", { p_organization_id: organizationId });
+      requireValue(Array.isArray(rows) && rows.length <= 100 && rows.every((row) => row && UUID.test(row.request_id)
+        && ["invite", "recovery"].includes(row.operation) && typeof row.display_name === "string"
+        && ["dispatching", "reconciliation_required", "completed", "rejected"].includes(row.status))
+        && new Set(rows.map((row) => row.request_id)).size === rows.length, "LOCAL_STAFF_HISTORY_INVALID");
+      return rows;
+    };
+    stage = "LOGIN";
+    context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false, viewport: { width: 1440, height: 1000 } });
+    await context.route("**/*", (route) => [appOrigin, apiUrl].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
+    const page = await context.newPage();
+    page.setDefaultTimeout(30_000);
+    page.on("pageerror", () => { clientError = true; });
+    page.on("console", (message) => { if (message.type() === "error") clientError = true; });
+    await page.goto(`${appOrigin}/login`, { waitUntil: "domcontentloaded" });
+    await page.locator("#staff-email").fill(identity.email);
+    await page.locator("#staff-password").fill(identity.password);
+    await page.getByRole("button", { name: "Войти в CRM", exact: true }).click();
+    await page.getByTestId("v3-shell").waitFor();
+    requireValue(await page.getByTestId("v3-shell").getAttribute("data-system-role") === "admin"
+      && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_STAFF_INVITATION_ADMIN_UI_REQUIRED");
+    stage = "FORM";
+    await page.goto(`${appOrigin}/v3/settings?section=staff&view=people`, { waitUntil: "domcontentloaded" });
+    await page.locator("summary").filter({ hasText: /^Пригласить сотрудника$/ }).click();
+    const form = () => page.locator("form").filter({ has: page.getByRole("heading", { name: "Пригласить сотрудника", exact: true }) });
+    const next = () => form().getByRole("button", { name: "Пригласить следующего сотрудника", exact: true });
+    const invitations = [];
+    for (const scenario of SCENARIOS) {
+      stage = `${scenario.toUpperCase()}_FORM`;
+      if (invitations.length) await next().click();
+      const before = new Set((await history()).map((row) => row.request_id));
+      const selectedRoles = roles.filter((row) => row.scenario === scenario);
+      const assignments = selectedRoles.map(({ roleId, roleVersion, scope }) => ({ roleId, roleVersion, scope }));
+      await form().getByRole("textbox", { name: "Основание подключения", exact: true }).fill(REASON);
+      await form().getByRole("textbox", { name: "Имя", exact: true }).fill(identities[scenario].displayName);
+      await form().getByRole("textbox", { name: "Рабочий email", exact: true }).fill(identities[scenario].email);
+      for (const [index, assignment] of assignments.entries()) {
+        await form().getByRole("button", { name: "Добавить роль", exact: true }).click();
+        const row = form().getByRole("group", { name: `Роль ${index + 1}`, exact: true });
+        await row.getByRole("combobox", { name: "Название роли", exact: true }).selectOption(assignment.roleId);
+        await row.getByRole("combobox", { name: "Область доступа", exact: true }).selectOption(assignment.scope.kind);
+      }
+      const inputJson = await form().locator('input[name="assignments"]').inputValue();
+      const inputs = strictParse(() => parseStaffInviteAssignmentInputs(JSON.parse(inputJson), false, organizationId));
+      requireValue(await form().locator('input[name="no_access"]').inputValue() === "no"
+        && sameSet(inputs.map(pair), assignments.map(pair)) && inputs.every((row) => assignments.some((expected) => pair(expected) === pair(row)
+          && expected.roleVersion === row.roleVersion)), "LOCAL_STAFF_INVITATION_FIELDS_MISMATCH");
+      // Other changes clear rights consent: recipient first, rights last, then one submit.
+      await form().locator('input[name="recipient_confirmed"]').check();
+      await form().locator('input[name="rights_confirmed"]').check();
+      stage = `${scenario.toUpperCase()}_SUBMIT`;
+      await form().getByRole("button", { name: "Отправить приглашение", exact: true }).click();
+      await next().waitFor();
+      stage = `${scenario.toUpperCase()}_READBACK`;
+      const added = (await history()).filter((row) => !before.has(row.request_id));
+      requireValue(added.length === 1 && added[0].operation === "invite" && added[0].status === "completed"
+        && added[0].display_name === identities[scenario].displayName && added[0].rejection_code === null, "LOCAL_STAFF_INVITATION_RECEIPT_MISMATCH");
+      const requestId = uuid(added[0].request_id);
+      const raw = await rpc(adminClient, "staff_workspace_auth_preparation", { p_organization_id: organizationId, p_request_id: requestId });
+      const preparation = strictParse(() => parseStaffAuthPreparation(raw, { organizationId, requestId }));
+      const permissionKeys = [...new Set(preparation.assignments.flatMap((row) => row.permissionKeys))].sort();
+      requireValue(preparation.status === "completed" && preparation.operation === "invite" && !preparation.noAccess && preparation.conflictCode === null
+        && preparation.targetMembershipId && preparation.displayName === identities[scenario].displayName
+        && sameSet(preparation.assignments.map(pair), assignments.map(pair)) && preparation.assignments.every((row) => assignments.some((expected) =>
+          pair(expected) === pair(row) && expected.roleVersion === row.roleVersion))
+        && sameSet(permissionKeys, new Set(selectedRoles.flatMap((row) => row.permissionKeys))) && !clientError, "LOCAL_STAFF_PREPARATION_MISMATCH");
+      invitations.push({ scenario, requestId, membershipId: preparation.targetMembershipId, preparationVersion: preparation.preparationVersion, assignments, permissionKeys });
+    }
+    return { schemaVersion: 1, organizationId, invitations };
+  } catch {
+    throw new ScopedStaffProvisioningError(`LOCAL_STAFF_INVITATION_UI_${stage}_FAILED`);
+  } finally { if (context) await context.close().catch(() => {}); }
 }
 
 export function staffInvitationLink(html, appOrigin) {

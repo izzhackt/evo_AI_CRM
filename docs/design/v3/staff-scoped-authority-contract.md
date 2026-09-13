@@ -318,9 +318,28 @@ source-order regression и независимое source-ревью прошли
 
 Helper двух последовательных сохранений назначений существующего локального
 сотрудника реализован и независимо одобрен с23/23 scoped-проверками;
-его фактический browser-сценарий ещё не запускался. Совместный focused-checkpoint
+на том checkpoint его фактический browser-сценарий ещё не запускался. Совместный focused-checkpoint
 прошёл29/29 (`cfw01a09a13baf67610abed2a822e58ea7d`), полный ESLint — PASS
 (`cfw01a09a13e081740380b7b1cd1aaa1793`). Это source/unit-результаты, не новый runtime PASS.
+
+На чистом `02497173` следующий обычный запуск session77095 завершился exit0
+(`cfw01a09a18c6f67b23abc61d4e1b234242`) со всеми тремя отдельными markers:
+`LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED`, `LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED`,
+`LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED`. Под настоящим локальным Admin в одной
+карточке снято назначение, сохранено V+1, затем через «Изменить назначения» без
+перехода/перезагрузки восстановлен исходный набор и сохранено V+2. Сверены реальные
+данные и поля формы, остальные сотрудники и определения ролей не изменились.
+Root проверил screenshots финального черновика каталога в1440×1000 и390×844:
+`/private/tmp/evo-s2-members.mCkUm2/role-editor-c39dc735-desktop.png` и
+`role-editor-c39dc735-mobile.png`; screenshots самой карточки не снимались.
+Owned проект `evo-local-74b8d08d6012d5cf` очищен: контейнеров/томов/сетей нет
+(`cfw01a09a1965237ee1a6699820a21fcbc7`). Независимое source-ревью подтвердило границы
+member-proof; оно не повторяло runtime. CI34749513196 на том же SHA прошёл
+исправленный DDL, но завершился на migration155:471 с
+`staff_backfill_owner_scope_requires_review`
+(`cfw01a09a1d6eee70628c9d85cbf3ba454c`). Guard сохранён; ещё требуется определить
+источник несовпадения прежних владельцев и областей. Admin-форма приглашения, department/direction, эффективные права в
+рабочих сценариях и весь release gate остаются открытыми. Настоящих писем не было.
 
 Browser-проверка используемых ролей и назначений, повторная проверка исправленных
 потребителей, independent review, release gate

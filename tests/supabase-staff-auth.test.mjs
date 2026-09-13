@@ -178,3 +178,27 @@ test("current-actor SQL contract separates live staff identity from scoped grant
   assert.match(sql, /actual_columns IS DISTINCT FROM expected_columns/);
   assert.match(sql, /ROLLBACK;\s*$/);
 });
+
+test("handoff browser proof reads live Admissions ownership before re-login and keeps unrelated actors denied", async () => {
+  // Harness coverage only; the full release CI executes the real Auth/DB calls.
+  const source = await readFile(new URL("./e2e/supabase-staff-auth.spec.ts", import.meta.url), "utf8");
+  const start = source.indexOf('test("real contract, payment and handoff');
+  const end = source.indexOf('\ntest(', start + 1);
+  assert.ok(start >= 0 && end > start);
+  const handoff = source.slice(start, end);
+  assert.match(handoff, /const \[salesToken, admissionsToken, adminToken\] = await Promise\.all/);
+  assert.ok(handoff.includes("await ownerSelect.selectOption(admissionsOwnerId)"));
+  const sameSession = handoff.indexOf("const organizationId = await assertHandoffContext(admissionsToken)");
+  const refreshedLogin = handoff.indexOf('const refreshedAdmissionsToken = await localSupabaseAccessToken("admissions")');
+  assert.ok(sameSession >= 0 && refreshedLogin > sameSession,
+    "the original Admissions token must read its newly assigned case before another login");
+  assert.match(handoff, /expect\(await assertHandoffContext\(refreshedAdmissionsToken\)\)\.toBe\(organizationId\)/);
+  assert.match(handoff, /expect\(await assertHandoffContext\(adminToken\)\)\.toBe\(organizationId\)/);
+  const contextReads = handoff.slice(handoff.indexOf('  assertDeniedRpc(\n    await directPlatformRpc(\n      "staff_student_case_handoff_context"'), handoff.indexOf("  const p4Route"));
+  assert.match(contextReads, /assertDeniedRpc\(\s*await directPlatformRpc\(\s*"staff_student_case_handoff_context",\s*\{ p_student_case_id: studentCaseId \},\s*salesToken,/);
+  assert.match(contextReads, /assertDeniedRpc\(\s*await directPlatformRpc\("staff_student_case_handoff_context", \{\s*p_student_case_id: studentCaseId,\s*\}\)/);
+  assert.doesNotMatch(contextReads, /assertDeniedRpc\(\s*await directPlatformRpc\(\s*"staff_student_case_handoff_context",\s*\{ p_student_case_id: studentCaseId \},\s*admissionsToken,/);
+  for (const expected of ["expect(context.status).toBe(200)", "expect(context.payload).toHaveLength(1)",
+    "lead_id: leadId", "student_case_id: studentCaseId", "admissions_owner_membership_id: admissionsOwnerId"])
+    assert.ok(contextReads.includes(expected), expected);
+});

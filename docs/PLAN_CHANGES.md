@@ -24143,3 +24143,41 @@ PR751 fast build caught the repository RPC error's deliberately unknown TypeScri
 shape (TS2339), not a new runtime outcome. Narrow it to an object with code/message
 before matching the already-agreed exact denial pair. Keep unexpected error
 handling unchanged and verify with the production build before updating the PR.
+
+## 2026-09-13 — S2 handoff acceptance uses the current case owner without re-login
+
+Full CI34762041914 on 84346f71 passed the four scoped-staff onboarding markers,
+then stopped the handoff/Storage browser test at line 1690. This is the second
+denial assertion, for the pre-handoff Admissions token; the preceding Sales
+denial passed. The Admissions identity is the exact curator selected by the
+successful canonical handoff. Migration155 resolves current staff identity and
+permission/scope pairs from live data; migration156 binds this RPC to
+case.read.full on the requested case. Unlike the historical access-version
+token gate, the current contract does not require that curator to log in again
+after becoming the owner. The 200 response is therefore the expected positive
+same-session transition, not evidence for widening a Sales grant.
+
+Before changing the browser test: preserve its Sales and anonymous denials and
+the exact organization/case/lead/curator readback. Require successful context
+reads with both the original Admissions token and a fresh one, alongside Admin.
+Add narrow harness coverage that pins this same-session proof and keeps the
+unauthorized assertions intact. Do not change product code, SQL, grants, fixture
+assignments, the normal payment/handoff gates, or the global denial helper.
+
+The second CI failure, in the following media test, is missing
+p4-admissions-storage-acceptance.json. The failed handoff test writes that file
+only after its remaining Storage assertions; do not fabricate the artifact,
+skip the downstream test or label this as a separate Storage defect.
+
+Keep the established fast-PR cadence: local focused regression/lint checks,
+independent review, then the existing real Auth/DB/browser path in one full CI
+on the changed frozen main. A source-level harness check is not real browser
+acceptance. Release34762388127 was skipped; this correction makes no release or
+production-readiness claim.
+
+The focused harness regression first failed on the missing pre-refresh positive
+read (01a09b2c75d679a193f6dc538b2aea7e), then passed with the corrected ordering.
+All 59 related module/harness checks passed on Node22.23.1
+(01a09b2cdbc673c3a1efe5edc02c7f5e); scoped ESLint passed
+(01a09b2d7ecc79c280ba1dd4ba490f6c). These are source/module checks, not execution
+of the deferred full Auth/DB/browser acceptance.

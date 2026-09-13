@@ -23544,3 +23544,49 @@ staff. Change only that Student distinction to IS DISTINCT FROM, behind the
 unchanged exact case-read entrance check. Record this in unreleased156; no
 historical migration or broader grant changes. Validate ordinary authorized
 workflow behavior and source contracts, not offensive or provider workflows.
+
+## 2026-09-13 — Align the final document proof with its actual PNG upload
+
+Exact-main CI34738787284 on6ff4c017 passed the local gateway configuration,
+18 browser tests (two skipped) and the V3 quality gate, then failed with
+`P4_ACCEPTANCE_ERROR:DOCUMENT_VERSIONS_NOT_IMMUTABLE`. Release34739085097 was
+skipped; the release arm is false. No new application was deployed.
+
+The browser producer now uploads `p4-isolated-proof-v2.png` using real PNG bytes
+and checks its download and preview. The final SQL verifier still compares that
+version's filename against `p4-isolated-proof-v2.pdf`. A read-only source-contract
+check reproduced this exact mismatch without uploading files or running the
+earlier focused Storage failure trigger.
+
+Before changing the verifier, add a regression to the existing P4 contract suite
+that compares each actual browser upload name to its SQL acceptance expectation.
+Change only the stale second filename. Preserve the exact two versions and IDs,
+current slot, distinct SHA-256 hashes, clean/verified scan attestations and
+finalizations. This repairs stale test input metadata; it does not relax product
+immutability or prove runtime release by itself. After independent review and
+scoped checks, merge and run the ordinary full gate on the new exact main SHA.
+
+## 2026-09-13 — Verify local Kong identity across the pinned CLI registries
+
+PR744 merged as d45d9747. Full CI34739779810 failed before browser execution:
+`local_gateway_version_not_verified`; release34739920730 skipped and arm=false.
+The helper currently equates the version with one ECR image-reference string.
+CLI2.116.0 resolves its `library/kong:2.8.1` source through ECR, GHCR or the
+original Docker Hub image, returning the selected reference to container creation.
+The failed runner's selected reference was not retained; registry selection is
+a supported-path gap, not a proven claim about which registry that runner used.
+
+Accept only those three exact pinned references, also verify the running
+`kong version` is exactly2.8.1 and seal the immutable Docker image ID in the
+before/after identity check. Preserve all existing ownership, local Docker,
+network, routing/template, effective keepalive and health gates. Unknown image,
+malformed identity or different runtime version still fails before reload.
+Expose the pure reference check for a red-before/green-after regression in the
+existing release suite. Validate the real benign image/version/config path;
+do not repeat focused Storage failure triggers or weaken any document check.
+Only a subsequent successful exact-main full CI can prove release readiness.
+
+Primary sources checked2026-09-13:
+[CLI image manifest](https://github.com/supabase/cli/blob/v2.116.0/apps/cli-go/pkg/config/templates/Dockerfile),
+[registry candidates](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-registry.ts),
+[resolved-image selection](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-image-resolve.ts).

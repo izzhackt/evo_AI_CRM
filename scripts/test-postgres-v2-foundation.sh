@@ -1070,7 +1070,7 @@ try {
     versions[0].original_filename !== "p4-isolated-proof-v1.pdf" ||
     versions[1].id !== proof.secondDocumentVersionId ||
     versions[1].version_no !== "2" ||
-    versions[1].original_filename !== "p4-isolated-proof-v2.pdf" ||
+    versions[1].original_filename !== "p4-isolated-proof-v2.png" ||
     versions.some(
       (version) =>
         version.integrity_status !== "verified" ||

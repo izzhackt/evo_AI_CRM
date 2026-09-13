@@ -23804,3 +23804,35 @@ existing contract/payment steps. Check the normal handoff workspace readiness
 before sending. Preserve product guards and staff roles; do not widen permissions
 or edit SQL fixtures to bypass the missing business action. Add a focused source
 ordering regression, then rerun the ordinary local proof on the corrected SHA.
+
+## 2026-09-13 — S2 align current-actor checks with live staff authority
+
+CI34752745887 reached the post-migration actor checks and failed the historical
+aggregate at platform_current_actor_authority.sql:339. The S2 contract already
+separates active staff identity from live scoped business rights: legacy token
+role/bundle/access-version and standalone organization scope are not the staff
+business authority. This supersedes the older U1 exact-token-bundle rule in the
+2026-08-24 “Bind U1 staff access to one live Supabase authority” decisions
+(items2/3) for staff only. Student retains
+its separate strict resolver; subject, tenant/membership binding and live
+profile/membership/organization status remain mandatory for everyone.
+
+Align the existing actor fixture, created after backfill with no scoped role
+assignments, to prove exact current identity/version together with empty scoped
+business rights. Preserve identity-binding, blocked/inactive/suspended and
+schema/ACL checks. Replace obsolete staff legacy-scope/bundle assumptions; do not
+disable the legacy-bundle mutation guard or reintroduce legacy authority merely
+to satisfy this old test. Permission-change coverage uses ordinary versioned
+role assignments, not direct legacy bundle rewrites. Review source against the
+accepted S2 contract and retain the normal required CI as runtime evidence.
+
+## 2026-09-13 — S2 identify the failed positive readback without exposing data
+
+Frozen d82a3fc0 completed local qualification and handoff, then stopped at the
+combined `DEPARTMENT_READ` stage. That label covers workspace consistency, a fresh
+Sales session and the actual case read; it does not yet prove a permission defect.
+Split only this helper's fixed diagnostic stages into target/member/catalogue
+readback, fresh login/authority and case read. Keep every existing assertion,
+ordinary workflow and teardown unchanged. Do not emit responses, identities,
+tokens, page text or provider errors. One corrected positive run can then locate
+the actual failure instead of repeatedly guessing or weakening product checks.

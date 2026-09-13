@@ -69,18 +69,25 @@ implemented; the last complete local onboarding before scope-proof expansion is 
   `selected_owner_missing_case_scope: 3`; the other three categories are zero.
   Source tracing found three incomplete P135 synthetic handoff snapshots; their
   fixture-only correction is independently reviewed. The product guard is unchanged.
-- **Current local proof (`6ae41a2a`):** `--staff-onboarding-only` exited 0 with
+- **Previous complete local proof (`6ae41a2a`):** `--staff-onboarding-only` exited 0 with
   invitation UI, role editor, member editor and onboarding verified. Owned local
   project cleanup was checked; desktop/mobile screenshots show the final role
   catalogue only.
-- **Current CI blocker:** CI34751346856 passed the earlier owner-scope guard, then
+- **Previous CI blocker:** CI34751346856 passed the earlier owner-scope guard, then
   failed at migration155:1297: `cannot ALTER TABLE staff_role_definitions because
   it has pending trigger events`. The RLS ALTER statements are now moved before
   backfill with guards and constraints preserved; populated upgrade still needs CI.
-- **Remaining review correction:** assigned-role archival must display impact and
-  bind the command to the reviewed assignments and replacement publication.
-  Implement the compact preview/confirmation and fingerprint contract before
-  release; independent review and ordinary runtime acceptance remain required.
+- **Archive correction:** compact impact preview/confirmation and fingerprint
+  binding are implemented and independently source-reviewed in `40dc3498`.
+  The assigned-role runtime scenario remains pending.
+- **Current CI:** CI34752745887 passed the previous migration155 ALTER point,
+  then failed the historical current-actor aggregate. Align that test with the
+  accepted live staff identity/scoped-permission contract; preserve identity,
+  status and ACL guards. Populated upgrade still needs a successful required CI.
+- **Latest local check (`d82a3fc0`):** qualification and handoff progressed, but
+  the expanded proof stopped at `DEPARTMENT_READ`; the exact subcheck is not yet
+  known. Owned resources were cleaned. Fixed private diagnostic substages are
+  source-reviewed and focused tests passed34/34; the next runtime is pending.
 - **Next:** prove an ordinary Sales→Admissions handoff and department-only,
   direction-only and combined scope matches; finish populated upgrade,
   independent whole-S2 review, the exact-main release gate and deployment.

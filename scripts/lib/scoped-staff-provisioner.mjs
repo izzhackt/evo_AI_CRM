@@ -1023,19 +1023,26 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
       return { roleId, scope: { kind: index === 0 ? "department" : "direction", key: index === 0 ? departmentId : "CN", resourceKind: null } };
     });
     const freshSales = async (version, assignments, fullRead) => {
+      const readStage = stage;
+      stage = `${readStage}_LOGIN`;
       const client = createClient(apiUrl, publishableKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
       try {
         const login = await client.auth.signInWithPassword({ email: identities.sales.email, password: identities.sales.password });
         check(!login.error && login.data?.session && login.data.user);
+        stage = `${readStage}_AUTHORITY`;
         const actor = await staffSnapshot(client);
         check(actor.organizationId === organizationId && actor.membershipId === sales.membershipId && actor.systemRole === "staff"
           && actor.platformAccessVersion === version && sameSet(actor.assignments.map(pair), assignments.map(pair)));
         if (fullRead) {
+          stage = `${readStage}_CASE_RPC`;
           const rows = await rpc(client, "staff_student_case_read_snapshot", { p_student_case_id: caseId });
+          stage = `${readStage}_CASE_RESULT`;
           check(rows?.length === 1 && rows[0].student_case_id === caseId && rows[0].organization_id === organizationId
             && rows[0].access_mode === "full" && rows[0].state === "active");
         }
+        stage = `${readStage}_SIGNOUT`;
       } finally { await client.auth.signOut({ scope: "local" }); }
+      stage = readStage;
     };
     await freshSales(original.accessVersion, original.assignments, false);
     stage = "LOGIN";
@@ -1081,16 +1088,23 @@ export async function verifyScopedStaffBusinessScopes({ browser, adminClient, ap
     };
     const otherMembers = (members) => members.filter((entry) => entry.membershipId !== sales.membershipId);
     const readback = async (version, assignments) => {
+      const readStage = stage;
+      stage = `${readStage}_WORKSPACE`;
       const current = await workspace(), target = current.members.find((entry) => entry.membershipId === sales.membershipId);
       const expectedRoles = baseline.roles.map((role) => ({ ...role, memberCount: role.memberCount
         - Number(original.assignments.some((entry) => entry.roleId === role.id)) + Number(assignments.some((entry) => entry.roleId === role.id)) }));
+      stage = `${readStage}_TARGET`;
       check(target?.accessVersion === version && target.systemRole === "staff" && target.displayName === original.displayName
         && sameSet(target.assignments.map(pair), assignments.map(pair)) && target.assignments.every((entry) => {
           const role = baseline.roles.find((item) => item.id === entry.roleId);
           return entry.label === role?.label && entry.bundleId === role.bundleId && entry.bundleVersion === role.bundleVersion;
-        }) && JSON.stringify(otherMembers(current.members)) === JSON.stringify(otherMembers(baseline.members))
-        && JSON.stringify(current.roles) === JSON.stringify(expectedRoles) && JSON.stringify(current.permissions) === JSON.stringify(baseline.permissions)
+        }));
+      stage = `${readStage}_OTHER_MEMBERS`;
+      check(JSON.stringify(otherMembers(current.members)) === JSON.stringify(otherMembers(baseline.members)));
+      stage = `${readStage}_CATALOGUE`;
+      check(JSON.stringify(current.roles) === JSON.stringify(expectedRoles) && JSON.stringify(current.permissions) === JSON.stringify(baseline.permissions)
         && JSON.stringify(current.departments) === JSON.stringify(baseline.departments));
+      stage = readStage;
       return target;
     };
     await fields(original.accessVersion, original.assignments);

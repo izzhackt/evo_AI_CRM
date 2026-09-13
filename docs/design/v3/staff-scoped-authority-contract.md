@@ -422,6 +422,23 @@ Owned проект `evo-local-8a2e83679926b80e` не оставил контей
 (`cfw01a09a62e1cb74628d7191bf7bc1ce8d`). В `/private/tmp/evo-s2-scopes.QcZ0DM`
 просмотрены desktop/mobile screenshots финального каталога, не бизнес-сценария.
 
+На `d82a3fc0` обычный позитивный сценарий прошёл квалификацию/передачу и завершился
+с exit1 на `LOCAL_BUSINESS_SCOPES_DEPARTMENT_READ_FAILED`
+(`cfw01a09a69f5f87ad09887e83a86744c6c`). Этот этап объединял workspace readback,
+новую Sales-сессию и чтение дела; подтверждённого permission mismatch по коду
+не найдено. Owned `evo-local-420d5e413d71dc5d` полностью очищен
+(`cfw01a09a6ae8d779c099989b2aebd11207`). Добавлены только фиксированные приватные
+подэтапы без вывода runtime-данных/ошибок; все прежние assertions и teardown
+сохранены. Source review одобрило diff; 34/34 tests, scoped ESLint и diff check
+прошли (`cfw01a09a6fdc1d7163b9382f627e617c33`). Следующий runtime ещё нужен.
+
+CI34752745887 на `40dc3498` завершился failure в historical current-actor aggregate,
+не на прежнем ALTER (`cfw01a09a66f8327bc0aad10faf1b9bf205`). Старый тест требует
+от staff identity точного legacy JWT role/version и старого organization scope;
+это не принятый S2 контракт. Его текущая корректировка описана в PLAN_CHANGES;
+личность, live status, ACL и отдельный Student resolver остаются обязательными.
+Нормальный required CI должен подтвердить исправление, source review недостаточно.
+
 Browser-проверка используемых ролей и назначений, повторная проверка исправленных
 потребителей, independent review, release gate
 и выкладка остаются обязательными. Реальные сотрудники, production, provider и

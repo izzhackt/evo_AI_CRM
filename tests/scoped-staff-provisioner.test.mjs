@@ -727,6 +727,16 @@ test("ordinary handoff qualifies manual intake using fresh workflow state before
   assert.match(source, /handoffReady\[0\].can_submit_normal === true/);
 });
 
+test("business read diagnostics distinguish fixed private substages without exporting runtime data", () => {
+  const source = businessHelper();
+  for (const suffix of ["LOGIN", "AUTHORITY", "CASE_RPC", "CASE_RESULT", "SIGNOUT", "WORKSPACE", "TARGET", "OTHER_MEMBERS", "CATALOGUE"]) {
+    assert.ok(source.includes('stage = `${readStage}_' + suffix + '`;'));
+  }
+  assert.match(source, /stage = readStage;\s*return target;/);
+  assert.match(source, /\} catch \{ failure = new ScopedStaffProvisioningError\(`LOCAL_BUSINESS_SCOPES_\$\{stage\}_FAILED`\); \}/);
+  assert.doesNotMatch(source, /console\.|JSON.stringify\(.*error|throw new Error/);
+});
+
 test("business proof cleanup is ordinary, versioned, verified and never upgrades a failed UI result", () => {
   const source = businessHelper();
   const cleanup = source.slice(source.indexOf("// Teardown uses ordinary commands"));

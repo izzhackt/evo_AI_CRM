@@ -880,7 +880,10 @@ export async function getPlatformSalesLead(
     // Migration086's documented record-read denial, retained by migration156,
     // has the same unavailable-profile meaning as an empty result. Other
     // permission/schema/network errors remain failures, not missing records.
-    if (response.error?.code === "42501" && response.error.message === "sales_workflow_forbidden") return null;
+    const rpcError = response.error;
+    if (rpcError && typeof rpcError === "object"
+      && "code" in rpcError && rpcError.code === "42501"
+      && "message" in rpcError && rpcError.message === "sales_workflow_forbidden") return null;
     if (
       response.error ||
       !Array.isArray(response.data) ||

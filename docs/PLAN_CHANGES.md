@@ -24138,3 +24138,8 @@ scoped lint and the corrected155-file manifest registration. The new ordinary
 React test is registered without react-server conditions; stale manifest counts
 are reconciled with the actual unchanged logical suite plus that new test.
 No browser assertion or release gate is removed, and failure still blocks deploy.
+
+PR751 fast build caught the repository RPC error's deliberately unknown TypeScript
+shape (TS2339), not a new runtime outcome. Narrow it to an object with code/message
+before matching the already-agreed exact denial pair. Keep unexpected error
+handling unchanged and verify with the production build before updating the PR.

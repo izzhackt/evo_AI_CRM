@@ -23672,3 +23672,41 @@ Expose no record IDs, names, addresses, scope keys, raw rows or secrets. The nex
 already-required candidate CI supplies the evidence; do not normalize fixtures,
 weaken migration checks or repeat the broad harness merely to search for a cause.
 This is diagnosis, not a fix or successful populated-upgrade claim.
+
+## 2026-09-13 — S2 distinguish the role-editor opening failure
+
+The ordinary local onboarding run on21cc76cb stopped at `CREATE_ID` after
+clicking “Создать роль”: no editor, one create button and the empty detail pane
+remained (`cfw01a09a2f7d467c319b473c9967b96a0c`). Earlier02497173 passed this
+workflow; neither result proves the cause of the new failure. The new invitation
+and acceptance stages precede this point, but their individual markers were
+discarded by the shell's failure reporting.
+Extend only the existing local proof diagnostics: observe the native click-handler
+presence immediately before the click and on failure, same-page navigation count
+after that click and the existing client-error flag. These are booleans/nulls and
+counts, never DOM text, addresses, URLs, credentials or raw exceptions. Also retain
+fixed completed-stage names when a later stage fails; keep the overall nonzero
+exit and do not relabel partial progress as onboarding/role acceptance.
+This discriminates early interaction, navigation replacement and client failure
+without changing the product, adding retries or delaying the click. Native handler
+presence is an observation, not a general React hydration API. Follow the existing
+single-attempt loop and clean up only the owned local project. The next actual
+run, not a boundary-unit test, must establish the result.
+Official context: [Playwright navigation and hydration](https://playwright.dev/docs/navigations#hydration).
+
+## 2026-09-13 — S2 complete the P135 synthetic handoff snapshots
+
+CI34750378975 reports exactly three selected case owners without current case
+scope and zero role mismatches/curator-owned leads. Independent source tracing
+identified P135's committed setup: its three activated Student cases have active
+Curator owners, but the fixture assigns case scopes only to Students. Its stated
+upstream handoff snapshots omit the owner grants that normal handoff supplies;
+the assessment checks do not intentionally revoke these grants.
+Complete only that fixture with one matching current-case scope grant per declared
+Curator owner, under normal privilege/trigger handling after snapshot insertion.
+Derive organization, owner, scope ID and version from those three created cases;
+assert all three owner-case scope pairs before any assessment operation. Preserve
+the existing Student-private assertions and every product migration/guard. This
+is not normalization of unknown data or a production permission change. The
+corrected candidate's normal required CI must prove the migration proceeds;
+source tests alone do not establish a successful populated upgrade.

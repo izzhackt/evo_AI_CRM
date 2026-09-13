@@ -110,6 +110,20 @@ GRANT EXECUTE ON FUNCTION pg_temp.p135_id(INTEGER), pg_temp.p135_assert(BOOLEAN,
       'China','Bachelor','Engineering','2027','approved','documents','active',clock_timestamp(),clock_timestamp(),pg_temp.p135_id(400+n),1
     FROM p135_actors WHERE role='student';
   SET LOCAL session_replication_role=origin;
+  -- Complete the synthetic handoff owners' current-case grants under normal
+  -- triggers. An assigned Curator can read the case, never private assessments.
+  INSERT INTO platform.membership_scope_assignments(organization_id,membership_id,scope_id,scope_version,
+    assignment_version,granted,actor_kind,reason,request_id)
+    SELECT c.organization_id,c.current_curator_membership_id,c.current_scope_id,c.current_scope_version,
+      1,TRUE,'system','P135 synthetic handoff curator scope',pg_temp.p135_id(710+actor.n)
+    FROM platform.student_cases c
+    JOIN p135_actors actor ON c.id=pg_temp.p135_id(500+actor.n) AND c.organization_id=actor.org
+    WHERE actor.role='student';
+  SELECT pg_temp.p135_assert((SELECT count(*)=3 AND bool_and(platform_private.membership_has_active_scope(
+    c.organization_id,c.current_curator_membership_id,'student_case',c.id))
+    FROM platform.student_cases c
+    JOIN p135_actors actor ON c.id=pg_temp.p135_id(500+actor.n) AND c.organization_id=actor.org
+    WHERE actor.role='student'), 'synthetic handoff owners retain current-case scope');
   UPDATE p135_actors actor SET claims=jsonb_build_object('sub',profile.auth_user_id,'role','authenticated',
     'platform_role',actor.role,'platform_access_version',profile.access_version,
     'platform_organization_id',membership.organization_id,'platform_membership_id',membership.id,

@@ -37,6 +37,20 @@ test("owner backfill stop exposes only independent count categories without chan
   assert.match(body, /RAISE EXCEPTION 'staff_backfill_owner_scope_requires_review' USING ERRCODE='23514', DETAIL=guard_detail::TEXT/);
 });
 
+test("P135 activated snapshots retain their three declared Curators' current-case scopes", () => {
+  const setup = read("supabase/tests/platform_student_assessments_boundary.sql");
+  const start = setup.indexOf("-- Complete the synthetic handoff owners' current-case grants");
+  assert.ok(start > 0, "Activated handoff snapshots include owner scopes, not only Student scopes");
+  const grants = setup.slice(start, setup.indexOf("UPDATE p135_actors actor SET claims", start));
+  assert.match(grants, /SELECT c\.organization_id,c\.current_curator_membership_id,c\.current_scope_id,c\.current_scope_version/);
+  assert.match(grants, /JOIN p135_actors actor ON c\.id=pg_temp\.p135_id\(500\+actor\.n\) AND c\.organization_id=actor\.org/);
+  assert.match(grants, /WHERE actor\.role='student'/);
+  assert.match(grants, /count\(\*\)=3 AND bool_and\(platform_private\.membership_has_active_scope/);
+  assert.match(grants, /c\.organization_id,c\.current_curator_membership_id,'student_case',c\.id/);
+  before(setup, "SET LOCAL session_replication_role=origin;", "-- Complete the synthetic handoff owners' current-case grants");
+  assert.doesNotMatch(grants, /session_replication_role|DELETE FROM|UPDATE platform\./);
+});
+
 test("publication impact uses one canonical role and live scoped assignment fingerprint", () => {
   const fingerprint = definition("platform_private.staff_role_impact_fingerprint");
   for (const field of ["schemaVersion", "organizationId", "roleId", "roleVersion", "status", "bundleId", "bundleVersion",

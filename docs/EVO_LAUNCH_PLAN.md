@@ -9,7 +9,7 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `4e35b896e16449a63bd11bffd457ddf4acac6c62`
+Last recorded accepted application: `77cde9ba8abdd8140db462dfe0203c0356944849`
 
 ## Active run: dynamic employee roles and unified document automation
 
@@ -20,14 +20,14 @@ Extend the existing canonical Supabase identity/permission system; do not build
 a second role engine. Keep each permission bound to its assignment scope,
 Admin's staff functional superset and Student-private boundaries.
 
-The owner approved implementation on 2026-09-13. Begin the documented S1 staff
-directory/department slice; dynamic authority and real onboarding remain pending.
+The owner approved implementation on 2026-09-13. The documented S1 staff
+directory/department slice is released; dynamic authority and real onboarding remain pending.
 Personal contacts stay outside Git; no automatic bulk invitations or role grants.
 The owner also requests [EVO Docs integration and retirement](design/v3/evo-docs-unification-run-plan.md).
 [ADR0028](adr/0028-unify-document-automation-inside-evo-platform.md) supersedes
 ADR0017's separate-product decision: one Platform/Auth/data authority, with exact
 legacy retirement only after real transfer and integrated workflow acceptance.
-The accepted application above and prior real Portal acceptance are unchanged.
+This release does not close the prior Portal's remaining real Student acceptance.
 
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
@@ -35,15 +35,18 @@ execution, clean up owned validation resources, and keep real business acceptanc
 and production/Docs retirement separate. See the latest PLAN_CHANGES entry.
 
 The current continuation explicitly requests completion of the whole employee
-and Docs plans, not only S1/D1. Resume from merged `d45d9747` and managed schema154:
-the local gateway correction is merged via #743 and the final PNG filename
-correction via #744. Exact-main CI34739779810 stopped before browser execution
-at the local gateway's image-reference/version gate. Align that gate with the
-pinned CLI's three official Kong2.8.1 references and verify the real binary version
-and immutable image identity; preserve document, ownership and transport checks.
-Full release remains unproved and disarmed; release34739920730 was skipped.
-Then prove and release the S1/D1
-candidate, then deliver scoped role authority/employee onboarding and D2–D6.
+and Docs plans, not only S1/D1. S1/D1 is now accepted at `77cde9ba` on managed
+schema154: local gateway corrections #743/#745 and PNG verifier correction #744
+are merged; exact-main CI34740753764 and automatic release34741107458 passed.
+Independent Hermes readback matched the exact image and acceptance/browser
+hashes, healthy zero-restart app, unchanged private WAHA/ClamAV and no pending
+release. Arm=false was explicitly read back. Chrome through the existing
+localhost3000 SSH tunnel opened staff list, member details and departments
+under the existing Admin session without mutations. Local HTTPS curl had a CA
+verification failure; Hermes HTTPS on the active sslip hostname and the release's authenticated browser proof
+passed. Do not treat that local failure as a completed network diagnosis.
+Continue scoped role authority/employee onboarding and D2–D6; do not repeat this
+completed release or interpret it as delivery of those remaining features.
 Keep the recipient/effective-rights confirmation, real employee first-login,
 approved source-to-case mapping and real document/provider acceptance gates.
 No invitation, customer-file disclosure or standalone retirement is implied by

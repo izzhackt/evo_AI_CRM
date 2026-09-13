@@ -1,7 +1,7 @@
 # S1 staff directory and D1 private preview — release evidence
 
-Date: 2026-09-13. Release status: exact-main CI failed; correction in progress,
-release arm false, prior accepted application unchanged.
+Date: 2026-09-13. Release status: accepted `77cde9ba`; full CI and automatic
+release passed, independent server/tunnel checks complete, release arm false.
 This closes only S1 organization metadata and D1 private document preview,
 not dynamic multi-role authority, real employee onboarding or EVO Docs retirement.
 
@@ -211,12 +211,65 @@ These are local identity/configuration checks, not full document, managed-servic
 employee or release acceptance. No focused Storage failure trigger was repeated.
 The next reviewed exact-main candidate still needs its ordinary full CI.
 
-## Pending completion evidence
+## Accepted S1/D1 release — 2026-09-13
 
-Record full CI outcome, release run, immutable acceptance/image/browser identities,
-post-release health, arm=false, pending absence, preserved services and read-only
-production staff UI proof here after actual completion. Do not infer any of these
-from a successful build or schema apply.
+[PR745](https://github.com/izzhackt/evo_AI_CRM/pull/745) merged at05:35:38UTC as
+`77cde9ba8abdd8140db462dfe0203c0356944849`. Its reviewed tree matches the merged
+candidate. [Full CI34740753764](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34740753764)
+passed all jobs, including database/browser proof. Automatic
+[release34741107458 attempt1](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34741107458)
+passed both immutable-image build and pending-deploy/acceptance jobs. No repeated
+full CI or manual release dispatch was needed for this SHA.
+
+Independent Hermes readback at05:54:38UTC and subsequent file-hash checks:
+
+| Evidence | Observed value |
+| --- | --- |
+| Release | `v3-r34741107458-a1-77cde9ba` |
+| Application revision | `77cde9ba8abdd8140db462dfe0203c0356944849` |
+| Image ID | `sha256:9bc7457d2810f10ddafbfa37b87362b4aedb02dff53ac2d53bb69690cc8e8887` |
+| App container | `c9c9888c6d22f96a27cbc761ecd63693d46d5561649fda72a0ee6c3323017547` |
+| Artifact ID | `10313260031` |
+| Artifact digest | `sha256:0c6b681af57320c41611630cc5f4b9859cdecc72c1f02eb96caeed25118f4f48` |
+| Current-pointer SHA256 | `45b25b98e796232dccb71c7c009f1ea86d4db598d82a08139c38f1b8e542fe3f` |
+| Acceptance-record SHA256 | `3d8e3c4e719a330590a380bca5b7e7efe81a679c67eee4ebc2e19561f54d4ced` |
+| Browser-receipt SHA256 | `f176f06ea30ef56ef0c31d57a8d9d32750e90bbfb10692d11c7cbf522f74d32f` |
+| Candidate Compose SHA256 | `6cf9d7a609779a457ae19fd3a6cecee20a27fd0353829cc5c96a310474719d35` |
+
+The regular0600 pointer at `/opt/evo-crm/release-evidence/current-v3-accepted.json`
+names the matching regular0600 acceptance record and hash. The browser receipt
+is regular0600 and says `passed`, bound to the same run/SHA/artifact. Its actual
+hash and the retained Compose/environment-snapshot hashes match acceptance;
+environment contents were not printed. `pending-current.json` is absent,
+including no dangling symlink. App is running/healthy, restarts0, no published
+ports; private aliases and addresses remain intact. Previous accepted4e35b896
+is retained as the recorded rollback target. No schema reapply was performed.
+
+The original WAHA container `0d1017e3304d…` and ClamAV container `7242869f04f4…`
+retain the preflight IDs/images, healthy status, zero restarts and no public
+ports. Session/provider state was not changed or exercised. Repository arm was
+set to false after the terminal successful release and independently read back.
+
+Chrome read-only post-release check through the existing localhost3000 tunnel:
+staff list rendered under the existing Admin session, the member card opened,
+and the departments tab rendered its genuine empty state. No employee, role,
+department, invitation or customer document was created/changed. This is staff
+UI read proof, not real employee onboarding or D2–D6 acceptance. The same tunnel
+listener remains SSH PID7065; no local Next process or replacement database was
+introduced for this preview.
+
+Local network limitations are explicit: ordinary and macOS-system curl both
+could not verify the public host's issuer chain; no insecure TLS option was
+used. Plain HTTPS health from Hermes succeeded at
+`https://evo-crm.72.62.119.112.sslip.io/api/health` without `--resolve` or TLS
+bypass; this is the active hostname, not the deferred `crm.evoadmissions.com`.
+Unauthenticated localhost `/api/version`
+returned401 and direct Chrome navigation was blocked by the client, so neither
+is claimed as an independent local version read. Version proof comes from the
+sealed authenticated release browser receipt and independent server identity.
+The settings Platform page also showed unavailable database-observation metadata;
+successful staff directory reads do not prove that separate observation feed.
+These limitations do not negate the accepted release and are not reported fixed.
 
 ## Remaining business scope
 

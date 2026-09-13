@@ -159,3 +159,26 @@ test("the pinned Student Profile runtime template requires a production build", 
     assert.equal(classifyNameStatus(nul("A", path)).unknown, true);
   }
 });
+
+test("the exact reviewed PDF font bundle requires a build without allowing unrelated assets", () => {
+  for (const path of [
+    "assets/fonts/NotoSans-Regular.ttf",
+    "assets/fonts/OFL.txt",
+    "assets/fonts/README.md",
+  ]) {
+    const result = classifyNameStatus(nul("A", path));
+    assert.equal(result.code, true, path);
+    assert.equal(result.lint, true, path);
+    assert.equal(result.build, true, path);
+    assert.equal(result.ordinary_docs, false, path);
+    assert.equal(result.unknown, false, path);
+  }
+  for (const path of [
+    "assets/fonts/unreviewed.ttf",
+    "assets/fonts/unreviewed.md",
+    "assets/fonts/nested/NotoSans-Regular.ttf",
+    "assets/unreviewed.bin",
+  ]) {
+    assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
+  }
+});

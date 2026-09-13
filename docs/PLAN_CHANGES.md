@@ -24524,6 +24524,154 @@ Auth/DB/browser including D2, automatic release and runtime/tunnel/disarm proof
 remain pending. No new implementation, provider or real employee/client action
 is authorized or claimed by this documentation reconciliation.
 
+## 2026-09-13 — Start the D4 renderer lane without coupling it to Gemini or the frozen release
+
+Keep current-main c6669ff1 unchanged during CI34766012215 and automatic release.
+Use izzhackt/evo-docs-university-packages for the first D4 mapping/DOCX slice,
+based on the clean standalone6e7cf741 source and the approved package contract.
+Do not read runtime/client files, import presets as approved forms, expose an
+export endpoint, apply schema or change production in this slice.
+
+Reuse existing Platform PizZip3.2.0/xmldom0.9.12/61-field registry rather than the
+standalone dependency versions. Implement a confirmed-value resolver that retains
+confirmed-empty/conflict/invalid states; optional mapped conflicts still block
+final readiness. Manual/signature/photo/consent fields remain explicit. Port the
+bounded DOCX inspect/fill code using onError, fixed sanitized errors, validated
+supported relationships and deterministic ZIP metadata, not the SQLite service.
+
+Initial DOCX bounds:20MiB input/output,512 entries,50MiB expanded,20MiB per entry,
+5MiB per XML part,20MiB aggregate XML,3000 paragraphs. Reject unsupported packages,
+never silently strip/truncate applicant values. Structural roundtrip or byte
+determinism does not prove visual overflow/pagination correctness: visually inspect
+all synthetic output pages and retain the full contract's layout/template approval
+gate before any real or public final export. Do not weaken that gate to justify a port.
+
+PDF/font integration, whole-mapping geometry checks, immutable template versions,
+Storage, package/form first-class items, ZIP bounds, export history and UI remain
+mandatory next parts of D4. Root owns dependency pinning, build tracing and manifests;
+no migration number is reserved during the frozen release. Keep real template/case
+approval, D5 reconciliation and D6 acceptance/retirement gates unchanged.
+
+The first pure mapping seam consumes exact template/mapping versions and hashes,
+an immutable review snapshot (approved/rejected), and D2 fields with an explicit
+validation day. Recompute the canonical mapping-content SHA256 with Web Crypto;
+an ID/hash mismatch fails, not a mappingApproved boolean. Return fieldsReady,
+never overall export authority. Confirmed-empty is omitted from assignments but
+retained in resolved state; required missing/empty and every mapped unconfirmed,
+conflicting, invalid or manual field prevent final assignments. Draft excludes unresolved values visibly in
+the resolution; no source or profile snapshot is mutated.
+
+The initial DOCX relationship allowlist covers the ordinary officeDocument,
+properties, styles, numbering, settings, webSettings, fontTable, theme, headers,
+footers, footnotes, endnotes, comments and image parts. Every internal target must
+resolve to an existing package part; only HTTP(S)/mailto hyperlinks may remain
+external, without fetching them. Other relationships fail explicitly. Normalize
+ZIP entry order/date/permissions/comments to fixed metadata for deterministic
+output; preserve untouched part bytes. XML validity is not layout approval.
+
+The ordinary synthetic signature-table check exposed a source-port seam:
+underscore-only cells must count as blank before neighboring-label inference,
+otherwise the applicant-only signature/consent label is hidden. Correct that
+classification, retain explicit line/tab elements for multiline assignments,
+and check post-fill package bounds as well as the original input bounds.
+
+First-slice local evidence:26 focused mapping/DOCX tests passed on Node22.23.1
+(01a09b7b81c97742b93167f5573ab61c), including actual cross-timezone byte equality;
+scoped lint passed (01a09b7b8be674709833d0c7f5143561) and strict module TypeScript
+passed (01a09b798aea71029fc4c2f852a073aa). Synthetic artifacts were generated
+without changing their source bytes (01a09b7976f1752181f794c09aae642b); the root
+rendered/viewed all5 one-page files. Tables, styled labels, expanding long rows,
+draft headers and untouched applicant-only fields were visible. Chinese visual
+coverage did NOT pass: DOCX retained U+4E2D/U+6587 (01a09b7c73147b02b6600cff6bd73dc0),
+but the PDF's selected LinuxLibertineG subset had three empty glyph outlines
+(01a09b7d52407ec3acbe9ac9b95b538f), despite extractable Unicode text. Keep an
+explicit font/glyph/layout gate; do not replace/drop characters or claim universal
+Unicode/visual readiness. No PDF/font dependencies, public export, Storage, SQL,
+provider or real-template/client acceptance is implemented by this slice.
+
+## 2026-09-13 — Continue D4 with CI wiring and bounded PDF filling
+
+The independently approved first slice4795e5f6 remains isolated from the current
+release. Wire its mapping/DOCX tests and the new PDF tests into the actual Node
+CI manifest/classifier. Port passive PDF inspect/fill, not the standalone mutable
+service. Pin pdf-lib1.17.1 and @pdf-lib/fontkit1.1.1 (MIT metadata verified), retain
+the exact NotoSans-Regular font and its OFL1.1 license; never rely on host fonts.
+
+PDF inspection returns exact source SHA256 and visible CropBox/MediaBox intersection
+sizes. Mapping entries gain reviewed PDF rectangles whose coordinates/character
+cells are included in the canonical mapping hash. Explicit PDF template format
+and page sizes prevent a DOCX resolution from being used as a PDF mapping.
+fillUniversityPdf consumes the immutable resolution, rechecks source SHA/page
+geometry, validates every mapped rectangle (including omitted/manual positions),
+and obtains only confirmed assignments through the existing approved-review seam.
+This remains field/mapping readiness, not live actor/Storage/export authority.
+
+Bounds:20MiB input/output;100 pages;30000 indirect objects and bounded page tree;
+500 positions;1000 Unicode code points per value and50000 aggregate; visible page
+72–3000pt; box at least12pt; at most120 character cells and at least5pt per cell.
+All mapped rectangles must stay in bounds and not overlap. Preserve source text,
+manual signature/photo/consent fields and original content streams. Do not trim,
+rewrite spelling, collapse whitespace, or auto-convert an interactive/signed PDF.
+Use8–11pt text, reject unsupported glyphs/blank outlines and overflow before bytes
+are returned. Check actual glyph coverage with the retained font, including shaped
+runs; unsupported CJK/emoji fail explicitly. No substitute font or Chinese success
+claim follows from the prior extractable-but-invisible DOCX/PDF run. Preserve fixed
+metadata and deterministic drawing order; test actual synthetic PDF rendering.
+
+Parser limits are not a process-isolation proof; public upload/render isolation,
+full DOCX/font/layout approval, exact artifact persistence/reconciliation, Storage,
+schema, UI and real-template/client acceptance remain later D4 work. No migration,
+provider/customer data, production or release changes are part of this slice.
+
+Implementation clarification before the glyph/layout guard: pdf-lib1.17.1's
+custom-font encoder uses shaped glyph IDs and nominal advances, not fontkit's
+position offsets. This slice therefore rejects RTL/vertical/offset-dependent
+shaping with `form_pdf_shaping_unsupported`; it must not silently misplace combining
+marks. Ordinary Latin/Cyrillic kerning is not required for layout correctness;
+the renderer measures the same nominal advances it writes. Invisible non-space
+glyphs and unsupported characters fail, never disappear. The parser runs as a pure
+library here: input/post-parse limits do not bound parse time, RSS or decompression.
+Root owns a shared hard-isolated worker, including captured/discarded library
+diagnostics, before ingress/public export; no ad hoc heap-cap sandbox is added.
+
+Local implementation receipt (working tree based on4795e5f6, not an immutable
+tested commit): PDF inspection/filling and mapping geometry binding implemented;
+`npm run test:university-forms` now participates in the actual CI/UNIT entrypoint.
+Pinned pdf-lib1.17.1/fontkit1.1.1 MIT dependencies and unmodified NotoSans/OFL1.1
+are retained. Font SHA256 is
+`b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5`.
+No public route, process-isolation claim, SQL/Storage or customer data was added.
+
+Actual focused52 PASS: `01a09b9458dc7363b57d49d71d509777` (18 mapping,11 DOCX,23 PDF).
+Scoped lint + strict TypeScript PASS: `01a09b94aae67851bc1aa4ac3328b112`.
+CI manifest/classifier21 PASS: `01a09b91e0417912a9c96c0634142804`.
+CI166/UNIT161 validate-only: `01a09b92eba57841899360f971ee6759` /
+`01a09b92efea72f0bdc0519b8e313fc8`; these are not full CI execution.
+Real red feedback: old PDF API rejected the new reviewed resolution
+`01a09b8d75727233ac517c9c33872330`; invisible/offset-dependent glyph checks failed
+`01a09b8eb54d7e509277f9258693c0a2`, then passed with explicit fixed errors.
+
+Five synthetic PDFs generated at `/tmp/evo-d4-pdf-Vl0uCP`
+(`01a09b91dacd79c1934bb3fcb03d6ccb`): original, standard-filled, standard-draft,
+long-filled, long-draft. Each has2 pages. Poppler `-cropbox` renders:
+`01a09b923c7a71c08916623edeffec35`, `01a09b9244987103815133af66df9016`,
+`01a09b9248ce73e2a1213d0e2d3a1ab9`, `01a09b924d287243bd32caf709330287`,
+`01a09b92516d7ba3bd6b8717e9ad99b0`. Author viewed every page: Latin/Cyrillic/Kyrgyz
+are visible, long text wraps inside its box, manual signature/consent/photo remain
+unchanged, and draft marks appear on both pages. PDF text/font inspection
+`01a09b92e7147253a63d9915f13d0f97` confirms retained manual labels and real subset
+outlines (41/63/36/58 nonempty glyphs respectively), not just extractable Unicode.
+Synthetic files are outside Git. This is local module/layout evidence only;
+independent review, shared hard-isolated runtime and asset tracing, full original
+template/layout approval, immutable persistence/history/reconciliation, package
+engine, schema/UI and real business acceptance remain required. Prior DOCX CJK
+visual failure remains unresolved; unsupported CJK is rejected in the new PDF path.
+
+Final-source regeneration `01a09b95f3697002a1715c5c0d59d920` produced five
+byte-identical PDFs to the inspected set; no visual claim relies on stale output.
+Local link/font-license/hash/diff check: `01a09b9548807193ad072daaa4dd947f`
+(13 links; OFL identical to source). These receipts remain local scoped evidence,
+not a full build, isolated parser runtime, release or real applicant acceptance.
 ## 2026-09-13 — Align the calendar proof with the preserved scoped Admissions contract
 
 Full CI34766012215 on c6669ff1 failed at supabase-staff-auth.spec.ts1877:
@@ -24693,3 +24841,34 @@ D3/D4 implementation continues in reviewed draft slices; runtime/provider proof,
 real document acceptance, D5 reconciliation and D6 standalone retirement remain
 open. Preserve the single persistent database, source originals and the owner's
 no-new-backup decision. Do not replay the completed full gate for these prose edits.
+
+## 2026-09-13 — Integrate reviewed D4 form libraries with the accepted S2/D2 base
+
+The combined S2/D2 application is accepted as05585020 and its durable status is
+on main db2a121. PR759's independently reviewed form-library head9811b3c is now
+combined with that exact main without rewriting its reviewed history. Resolve
+only the append-only journal conflict by retaining both histories; preserve the
+current-main permission fixes, release evidence and all ordinary checks.
+
+This is the off-path mapping/DOCX/PDF library slice, not a public forms release.
+No HTTP, Storage, schema or UI export path is enabled. The existing D4 contract
+still requires isolated rendering, exact template/layout approval, immutable
+Storage/export receipts, package integration and real workflow acceptance.
+Run focused library and CI-manifest/classifier checks, independently review the
+combined head, then use the short PR gate. Do not repeat a production release or
+the full application gate for this library merge.
+
+The combined manifest check exposed a stale exact inventory: main added
+v3-calendar-visibility-proof.test.mjs to test:frontend, but the D4 count/list
+assertions still described the pre-calendar base (305/166 CI and203/161 unit).
+Retain that real test and assert its one plain-runtime occurrence; update only
+the resulting inventories to306/167 and204/162. Duplicate counts and all
+execution groups remain checked; no test is removed or skipped.
+
+Combined-source checks: actual52 forms PASS
+`01a09be69af47a60b66170c7e17cc367`; focused lint PASS
+`01a09be69e3873e3a91b19186e903b38`; manifest/classifier21 PASS
+`01a09be75adb7cf1b63b612904bbabc5` after the inventory correction.
+The three renderer/mapping modules, their three focused tests and exact fonts
+are byte-identical to reviewed9811b3c. Reuse its visual receipts; these checks
+do not claim isolated rendering, Storage, a public export or client acceptance.

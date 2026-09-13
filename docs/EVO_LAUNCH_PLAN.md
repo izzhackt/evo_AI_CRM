@@ -161,6 +161,11 @@ TypeScript (`01a09c995e0c7b238f5656b78afb886c`). Both parent decision journals a
 reviewed runtime/D3 module bytes are preserved. Exact-head independent review
 and actual combined-image/local predispatch acceptance have not run.
 
+The subsequent b5a73b2b native combined image gate passed, but the actual local
+browser run failed at recognition history before enqueue (01a09ca56eee76309a0ded574bbcadd2).
+Keep D3 unaccepted while investigating nullable history RPC transport; preserve
+all current authority and repeat the same real scenario after a reviewed fix.
+
 The follow-up “okay do it” authorizes the requested bounded isolated S1/D1
 technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance

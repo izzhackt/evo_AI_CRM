@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import { once } from "node:events";
+import { createClient } from "@supabase/supabase-js";
 import { getPlatformDocumentRecognitionHistory, getPlatformDocumentRecognitionCaseHistory, enqueuePlatformDocumentRecognition, isDocumentRecognitionCursor } from "../src/lib/platform-document-recognition.ts";
 
 const CASE = "10000000-0000-4000-8000-000000000001";
@@ -10,11 +13,50 @@ const job = n => ({ job_id: `10000000-0000-4000-8000-${String(n).padStart(12, "0
 const page = { jobs: Array.from({ length: 10 }, (_, i) => job(i + 10)), next_cursor: `2026-09-13T12:00:00.123456Z|${job(19).job_id}` };
 const boundary = rpc => ({ createSessionClient: async () => ({ schema(name) { assert.equal(name, "platform"); return { rpc }; } }) });
 
+for (const scope of ["source", "case"]) {
+  test(`actual SDK sends ${scope} history SQL nulls in a JSON body`, async () => {
+    const requests = [];
+    // A real loopback HTTP request proves serialization only; this controlled
+    // empty-page response does not stand in for Auth/PostgREST/RLS acceptance.
+    const server = createServer(async (request, response) => {
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      requests.push({ method: request.method, url: request.url,
+        body: Buffer.concat(chunks).toString("utf8"), schema: request.headers["content-profile"] });
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ jobs: [], next_cursor: null }));
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const client = createClient(`http://127.0.0.1:${server.address().port}`, "local-transport-test-key",
+      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    try {
+      const deps = { createSessionClient: async () => client };
+      const result = scope === "source"
+        ? await getPlatformDocumentRecognitionHistory(actor, CASE, SOURCE, null, deps)
+        : await getPlatformDocumentRecognitionCaseHistory(actor, CASE, null, deps);
+      assert.deepEqual(result, { jobs: [], next_cursor: null });
+      assert.equal(requests.length, 1);
+      assert.equal(new URL(requests[0].url, "http://127.0.0.1").searchParams.get("p_cursor"), null);
+      assert.equal(requests[0].method, "POST");
+      assert.equal(requests[0].url, "/rest/v1/rpc/staff_document_recognition_jobs");
+      assert.equal(requests[0].schema, "platform");
+      assert.deepEqual(JSON.parse(requests[0].body), {
+        p_student_case_id: CASE, p_source_version_id: scope === "source" ? SOURCE : null, p_cursor: null,
+      });
+    } finally {
+      client.auth.stopAutoRefresh();
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+    }
+  });
+}
+
 test("history uses exact current-session source and preserves the opaque SQL cursor", async () => {
   const result = await getPlatformDocumentRecognitionHistory(actor, CASE, SOURCE, null, boundary(async (name, args, options) => {
     assert.equal(name, "staff_document_recognition_jobs");
     assert.deepEqual(args, { p_student_case_id: CASE, p_source_version_id: SOURCE, p_cursor: null });
-    assert.deepEqual(options, { get: true });
+    assert.equal(options, undefined);
     return { data: page, error: null };
   }));
   assert.deepEqual(result, page);

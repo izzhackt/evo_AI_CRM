@@ -175,9 +175,11 @@ async function readHistory(actor: RecognitionActor, studentCaseId: string, sourc
     const caseId = uuid(studentCaseId);
     if (cursor !== null && !isDocumentRecognitionCursor(cursor)) throw new PlatformDocumentRecognitionError("invalid_request");
     const client = await dependencies.createSessionClient();
+    // JSON preserves SQL NULL; GET query arguments stringify it as "null".
+    // This remains the same STABLE, current-session read, never an enqueue.
     const response = await client.schema("platform").rpc("staff_document_recognition_jobs", {
       p_student_case_id: caseId, p_source_version_id: sourceId, p_cursor: cursor,
-    }, { get: true });
+    });
     if (response.error !== null) throw new PlatformDocumentRecognitionError(rpcErrorCode(response.error));
     const data = response.data;
     if (!data || typeof data !== "object" || Array.isArray(data)

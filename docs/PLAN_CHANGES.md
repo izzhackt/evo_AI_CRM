@@ -25529,3 +25529,33 @@ combined images and actual local Auth/UI/Storage/scanner/preflight proof remain
 open. Production CLI composition, paid generation/result/review/cleanup and
 authorized real-case acceptance remain open. No Docker stack, provider call,
 managed migration, deployment or D4 persisted-export merge occurred here.
+
+## 2026-09-14 — Diagnose actual D3 history transport before provider dispatch
+
+The independently reviewed combined b5a73b2b image pair built on native OrbStack
+ARM64 and passed the immutable image gate. The real isolated foundation run then
+failed at RECOGNITION_ENQUEUE_UI (01a09ca56eee76309a0ded574bbcadd2, exit1): real
+Admin login, profile, checklist, ClamAV upload and byte-equal private download
+preceded an unavailable history panel and disabled extraction button. No enqueue,
+source inspection or provider success is claimed. Owned stack cleanup completed;
+the sanitized failure receipt/screenshot remain under output/document-recognition.
+
+Investigate the smallest transport seam before changing authority: actual SDK
+serialization of nullable history arguments, then live access, then response
+shape. The installed PostgREST SDK stringifies null GET parameters; migration163
+requires SQL NULL for absent source/cursor, not the literal text "null". Add a
+real loopback HTTP/SDK regression first. If confirmed, use the existing session
+RPC JSON request for this STABLE read, preserving external GET, SQL, permissions,
+DTO validation and no-enqueue semantics. The loopback reply is a controlled
+transport fixture, not database/provider acceptance. Re-run the original real
+browser scenario on reviewed rebuilt exact-source images after the correction.
+
+Official behavior checked: https://supabase.com/docs/reference/javascript/rpc
+and https://docs.postgrest.org/en/stable/references/api/functions.html.
+
+The actual SDK/loopback regression failed for both source and case history with
+the observed string 'null' instead of null (01a09ca7e1067303a0380b0cda2320d7).
+Removing GET only on this nullable history RPC makes the same wire checks pass;
+all30 related adapter/route/client checks pass (01a09ca8479a7721b47ee4b21e319aec),
+with scoped lint/diff checks clean. The original browser flow still needs its
+reviewed exact-image repeat; this is not a completed D3 acceptance claim.

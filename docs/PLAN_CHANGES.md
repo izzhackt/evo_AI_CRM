@@ -24332,3 +24332,37 @@ All 59 related module/harness checks passed on Node22.23.1
 (01a09b2cdbc673c3a1efe5edc02c7f5e); scoped ESLint passed
 (01a09b2d7ecc79c280ba1dd4ba490f6c). These are source/module checks, not execution
 of the deferred full Auth/DB/browser acceptance.
+
+## 2026-09-13 — D3 and D4 preparation shares the reviewed D2 foundation
+
+Prepare two bounded execution contracts while S2's frozen release runs and D2
+remains PR752. This is documentation preparation, not D3/D4 implementation or
+permission to merge into the frozen main. After D2 is merged, recognition and
+university packages can proceed in separate implementation lanes: packages use
+manually confirmed D2 fields and therefore do not depend on a Gemini response.
+Root assigns forward migration numbers only after reconciling current main.
+
+The D3 contract reuses current private documents, case authority, the61-field
+registry and human proposals. Extraction owns durable attempts/claims and a
+separate explicit permission; it does not borrow reply-generation retries or
+copy the standalone process-local queue. Persist the provider resource identity
+before upload, retain ambiguous outcomes and independently reconcile cleanup.
+Do not automatically repeat an ambiguous paid generation. The existing reply
+adapter/model stays unchanged. New provider transport and request logging
+behavior are verified against current official documentation before code.
+Real document processing still needs an approved file/case and verified eligible
+provider billing configuration; a present API key is insufficient evidence.
+
+The D4 contract binds forms to canonical catalogue IDs, immutable template and
+mapping versions, reviewed source versions and confirmed profile values. Keep
+generated university forms as first-class package items. Persist exact exported
+bytes and provenance; a later download must not silently regenerate history.
+Template ingestion has its own checked boundary and does not widen student
+document formats. Port bounded renderer/rule code, not SQLite, Express, a second
+Auth system or another catalogue. Historical presets are not proof of a current
+approved form, and export is neither submission nor a signature/consent action.
+
+Both contracts preserve D5's explicit source-to-case reconciliation and D6's
+real integrated acceptance before standalone retirement. No original data,
+provider configuration, production runtime or employee account is changed by
+this preparatory documentation slice.

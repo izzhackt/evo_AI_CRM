@@ -34,6 +34,16 @@ technical identities/data and required CI. Use actual Supabase/scanner/browser
 execution, clean up owned validation resources, and keep real business acceptance
 and production/Docs retirement separate. See the latest PLAN_CHANGES entry.
 
+The current continuation explicitly requests completion of the whole employee
+and Docs plans, not only S1/D1. Resume from merged `aa2e2346` and managed schema154:
+first repair the isolated Storage release blocker, prove and release the S1/D1
+candidate, then deliver scoped role authority/employee onboarding and D2–D6.
+Keep the recipient/effective-rights confirmation, real employee first-login,
+approved source-to-case mapping and real document/provider acceptance gates.
+No invitation, customer-file disclosure or standalone retirement is implied by
+technical CI. The latest release checkpoint is
+[the S1/D1 evidence](design/v3/references/2026-09-13-staff-docs-release.md).
+
 ## Active follow-up: complete Portal document review and reply notifications
 
 The owner's 2026-09-11 checklist instruction approves closing the staff document

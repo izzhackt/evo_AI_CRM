@@ -1,9 +1,44 @@
 # D3: локальная проверка до передачи провайдеру
 
-Дата: 2026-09-14. Точный source: `819268e91bd8148cad2f77c145ec6719ca5aba26`.
+Дата: 2026-09-14. Первоначальный source: `819268e91bd8148cad2f77c145ec6719ca5aba26`.
 Статус: технический predispatch-сценарий пройден; D3 целиком не завершён.
+Последний объединённый source — `ef279986`, отдельное доказательство ниже.
 
-## Что действительно выполнено
+## Combined checkpoint ef279986
+
+Exact source `ef279986124c7b1f8298994d152ee134aced655c`, clean at start/end.
+Both real local workflows passed after the reviewed D3/D4 merge, not by reusing
+parent receipts. Native production build/Next/TypeScript passed
+`01a09cd18f4c7ba1bab46882a74aacae`; acceptance build passed
+`01a09cd3403a7852bff2cc432e011fd7`. Both images are Linux/arm64:
+
+- Production `sha256:75bca775dc4b0902538376554dc56e0123daa06c7eeaf245612f4a59e0712e96`.
+- Acceptance `sha256:b273e7c3308368dbc673865bfb7dbe606db1fb4a5207338aa04360098665e01d`.
+- Same `--document-recognition-only` command and exact image environment contract
+  as the [D3 run instructions](../evo-docs-recognition-contract.md); Node22.23.1,
+  OrbStack Running/contextorbstack, provider key variables unset. Exit0:
+  `01a09cd7591574129ecd9de38db97a97`.
+- Receipt `output/document-recognition/ef279986124c7b1f8298994d152ee134aced655c/foundation-21138-38911/acceptance.json`.
+- Receipt SHA256 `ddae947295883e5f5d1a46e7c65711715004a9c6352e0775da37535427cfb80f`.
+- Actual Auth/UI enqueue/replay/cold history, ClamAV, exact private Storage bytes
+  and image-bound native preflight passed. One job/access event, zero provider
+  intents/files/proposals; cancelled before provider, reservation released,
+  confirmed-empty value unchanged. `cleanupVerified:true`; owned resources absent.
+- Browser errors0, warnings3 unclassified. Root viewed the adjacent
+  `recognition-predispatch.png`: opened history shows cancellation/no transfer.
+- [Persisted profile flow](2026-09-14-persisted-profile-export-proof.md#combined-checkpoint-ef279986)
+  also passed on this exact source. Contiguous001–164 SQL ran both rollback-only
+  fixtures in one owned database, exit0 `01a09ccd4f207630b777750f7a4fc9f9`.
+
+This is local synthetic predispatch acceptance, not Gemini/full-worker/business
+acceptance. Web UI used the Next development harness, not production-optimized
+web serving. No managed164 bucket/schema or deployment was performed. Fresh
+server readback still shows05585020 running/healthy/restarts0
+(`01a09cda646075a181e8da103dd79969`).
+
+## Historical source 819268e9
+
+### Что действительно выполнено
 
 Изолированная Supabase/Auth/ClamAV/Storage среда, настоящий Admin bootstrap и
 Chromium1440×1000. Синтетический студент, публичный EVO logo37344bytes — не
@@ -23,7 +58,7 @@ Chromium1440×1000. Синтетический студент, публичны�
 `01a09cc401f670b194bceb636acb67f3`. В proof4 browser warnings и0errors;
 предупреждения не классифицированы и не объявлены отсутствующими.
 
-## Привязка доказательств
+### Привязка доказательств
 
 - Production image: `sha256:61a96ba96958066181f967486b24c5c547905968863920ab4f741bc17f8d7c37`.
 - Derived acceptance image: `sha256:1c59441224b98a93ceaff194c16607d5f2d2116d7f76e4c5296b3121c34012e4`.

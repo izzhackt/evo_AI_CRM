@@ -1,5 +1,30 @@
 # Сохранённая анкета — реальный локальный сценарий
 
+## Combined checkpoint ef279986
+
+Exact source `ef279986124c7b1f8298994d152ee134aced655c`, clean at start/end.
+The same `--student-profile-fields-only` command below passed on the combined
+D3/D4 candidate with Node22.23.1/OrbStack, exit0
+`01a09cd4cea4745280c1ec7918448fbf`. Actual Auth/private Storage/browser proved
+two persisted draft/final DOCX files, exact request replay without duplication,
+cold history and unchanged downloaded bytes. Confirmed-empty values and stale
+editor protection remained intact; downloads did not create artifacts.
+
+- Draft10817bytes SHA256 `16755b9f3c2be8bf459c3b14af4801baedaf3dbd8efe5a69f4f2369847b261d5`.
+- Final10849bytes SHA256 `82114d131ccf7b13ab1a9a41225d460528fabe4f3b12b1852521f1ae83183810`.
+- Receipt `output/student-profile-fields/ef279986124c7b1f8298994d152ee134aced655c/foundation-13382-36639/acceptance.json`.
+- Receipt SHA256 `a36b2c040c2ed2ab5519aaf176a697b4dca6544acfa09f54cf71479e0c807f71`.
+- `cleanupVerified:true`, owned project absent. Browser errors0, warning1
+  unclassified. Root viewed `export-history.png`: both files have download controls.
+- Combined contiguous001–164 SQL and exact native image pair are recorded in the
+  [D3 combined proof](2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986).
+
+No lost-reply reconciliation was exercised in this browser run. Synthetic local
+Next development UI is not real-client, production browser or managed-bucket
+acceptance. University forms/packages and the original full run remain open.
+
+## Historical source 0cc1f5c7
+
 Frozen source: `0cc1f5c7199c040ac652ae40678da13aec845ef9`, clean at start/end.
 Command: `EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node bash scripts/test-postgres-v2-foundation.sh --student-profile-fields-only`
 with Node22.23.1 first on PATH. OrbStack Running/contextorbstack verified.

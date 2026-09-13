@@ -9,11 +9,14 @@ Pure DTO/transport подготовлены в PR756/758; очередь162/PR76
 Исправленный изолированный runtime входит из `32c6403`; его отдельные native-проверки
 описаны в [доказательстве runtime](references/2026-09-14-document-source-native-amd64-proof.md).
 Production CLI реализован и прошёл bounded source/bundle проверки ниже.
-Combined image/Auth/Storage/browser proof и paid-provider gates ещё не закрыты; dispatch не включён.
+Combined image/Auth/Storage/browser predispatch proof пройден на `ef279986`;
+paid-provider/full-worker и реальная клиентская приёмка открыты, dispatch не включён.
 Интеграция `26dd7b78` независимо одобрена и сохранена в draft PR763 поверх PR760.
 Reviewed acceptance `d4423d8d` объединён с runtime и текущими main/Admissions/package gates.
-Этот combined candidate требует независимого review до сборки acceptance image и запуска стека.
-Нижние датированные результаты относятся к отдельным срезам, не доказывают combined-приёмку.
+Объединение независимо одобрено до сборки и двух реальных локальных сценариев.
+Актуальные [combined evidence и ограничения](references/2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986)
+отделены от нижних исторических результатов. Итоговый review для main, managed
+schema/bucket и выпуск ещё не выполнены; полная D3 не объявляется завершённой.
 Номера forward-миграций выделяет root после проверки актуального main; не резервировать самостоятельно.
 
 ## Результат и неизменные границы

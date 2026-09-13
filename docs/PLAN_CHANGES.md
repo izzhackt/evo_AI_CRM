@@ -25795,3 +25795,23 @@ lint passed (`01a09ccd234e7211863da6b5198e5559`). CI inventory185 unique files,
 unit180; retired route references remain only in explicit denial assertions.
 Combined image/browser proof and independent merge review remain pending at this
 checkpoint. No managed schema, production app, provider or real data changed.
+
+## 2026-09-14 — Record actual combined D3/D4 technical acceptance
+
+Exact combinedef279986 was independently approved before image/browser execution.
+The native production and derived acceptance builds passed; both actual local
+Auth/Storage/browser workflows then exited0 with cleanupVerified=true. D3 used
+real ClamAV/private bytes/image-bound inspection and cancelled before provider;
+D4 persisted draft/final files and recovered identical bytes from cold history
+without duplicate generation. Exact images, receipt hashes and limits are in
+the existing recognition/persisted-profile proof notes. Contiguous001–164 SQL,
+87 server checks,28 client checks and six protected fast PR checks also passed.
+
+This records stronger evidence for the already-planned bounded implementation,
+not reduced completion criteria. Full-worker/provider cleanup, approved real
+client, complete university forms/packages, actual data transfer, employee
+onboarding and standalone retirement remain required. Browser warning counts
+(D3:3,D4:1) are unclassified; D4 lost-reply browser reconciliation was not run.
+Next step is independent final evidence/main-readiness judgment, not automatic
+provider activation or deployment. No manual release CI, managed schema/bucket
+mutation or production change has occurred; production remains05585020.

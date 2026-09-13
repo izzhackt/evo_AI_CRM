@@ -106,6 +106,16 @@ Managed schema001–161 is applied and verified through34765867429/34765967956.
 D3–D6 and real employee/document acceptance remain required; the scoped profile
 failures above were corrected in reviewed PR761 before the successful full gate.
 
+Current document-development checkpoint, 2026-09-14: combined PR768 at
+`ef279986124c7b1f8298994d152ee134aced655c` passed independent merge review,
+contiguous001–164 SQL, exact production/native image build and both actual local
+Auth/Storage/browser flows. See [predispatch proof](design/v3/references/2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986)
+and [persisted profile proof](design/v3/references/2026-09-14-persisted-profile-export-proof.md#combined-checkpoint-ef279986).
+Final main-readiness review and the later managed schema/bucket/release gates
+remain open. Provider/full-worker, real-client, full D4, data migration and
+standalone retirement are not completed. The dated paragraphs below retain
+earlier failed/incomplete checkpoints, not the latest combined result.
+
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and
 [D4 university forms/packages contract](design/v3/evo-docs-university-packages-contract.md).

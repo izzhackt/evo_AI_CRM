@@ -1,6 +1,8 @@
 # D4 — сохранённые результаты и история анкет
 
-Дата: 2026-09-13. Implemented candidate; combined acceptance and release remain open.
+Дата: 2026-09-14. Implemented candidate; combined local technical acceptance
+passed on `ef279986`. Main-readiness review, managed bucket/schema and release
+remain open; this is not full D4 or real-client acceptance.
 Base: main7da50fa8, accepted application05585020. This amends the
 [D4 contract](evo-docs-university-packages-contract.md), not its completion criteria.
 
@@ -102,6 +104,11 @@ the candidate worktree. Initial isolated SQL behavior passed001–161+164, which
 is not contiguous release proof. The new profile producer renders the fixed
 reviewed DOCX template; it does not enable arbitrary university rendering.
 Native D3 source inspection is not a prerequisite for this manual-profile slice.
+
+The combined candidate also passed contiguous001–164 SQL and the actual
+Auth/private Storage/browser draft/final/replay/cold-download flow after retiring
+the transient producer. See the [exact combined proof](references/2026-09-14-persisted-profile-export-proof.md#combined-checkpoint-ef279986).
+The older results below remain bound to their original commits, not the release.
 
 The actual Next production build with all three new routes passed
 `01a09c0b35bf7261833961994cfec7ca`. The new create route explicitly traces the

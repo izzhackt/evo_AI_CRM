@@ -24333,6 +24333,40 @@ All 59 related module/harness checks passed on Node22.23.1
 (01a09b2d7ecc79c280ba1dd4ba490f6c). These are source/module checks, not execution
 of the deferred full Auth/DB/browser acceptance.
 
+## 2026-09-13 — D3 and D4 preparation shares the reviewed D2 foundation
+
+Prepare two bounded execution contracts while S2's frozen release runs and D2
+remains PR752. This is documentation preparation, not D3/D4 implementation or
+permission to merge into the frozen main. After D2 is merged, recognition and
+university packages can proceed in separate implementation lanes: packages use
+manually confirmed D2 fields and therefore do not depend on a Gemini response.
+Root assigns forward migration numbers only after reconciling current main.
+
+The D3 contract reuses current private documents, case authority, the61-field
+registry and human proposals. Extraction owns durable attempts/claims and a
+separate explicit permission; it does not borrow reply-generation retries or
+copy the standalone process-local queue. Persist the provider resource identity
+before upload, retain ambiguous outcomes and independently reconcile cleanup.
+Do not automatically repeat an ambiguous paid generation. The existing reply
+adapter/model stays unchanged. New provider transport and request logging
+behavior are verified against current official documentation before code.
+Real document processing still needs an approved file/case and verified eligible
+provider billing configuration; a present API key is insufficient evidence.
+
+The D4 contract binds forms to canonical catalogue IDs, immutable template and
+mapping versions, reviewed source versions and confirmed profile values. Keep
+generated university forms as first-class package items. Persist exact exported
+bytes and provenance; a later download must not silently regenerate history.
+Template ingestion has its own checked boundary and does not widen student
+document formats. Port bounded renderer/rule code, not SQLite, Express, a second
+Auth system or another catalogue. Historical presets are not proof of a current
+approved form, and export is neither submission nor a signature/consent action.
+
+Both contracts preserve D5's explicit source-to-case reconciliation and D6's
+real integrated acceptance before standalone retirement. No original data,
+provider configuration, production runtime or employee account is changed by
+this preparatory documentation slice.
+
 ## 2026-09-13 — Reserve158 for the S2 fix and shift unapplied D2 migrations
 
 Before the mechanical change, root reserves the next forward migration158 for
@@ -24457,3 +24491,35 @@ The runner removed its exact owned network-none container; a fresh docker listin
 confirmed it absent (01a09b54415875e19749e093a8754715). Runtime source/dependencies/
 assets/Next configuration remain unchanged from reviewed6df0a328. This proves
 the new SQL composition, not the final Auth/browser, provider or production path.
+
+## 2026-09-13 — Reconcile preparation contracts with the reviewed S2/D2 integration
+
+Before updating active checkpoints, merge reviewed D2 head
+daf5b5ac6ad4842c82ee2111b8f0be408d7df7df into preparation-only PR754. Preserve
+both decision histories, the actual S2 migration158 from merged PR755/561aa920,
+D2's active159–161 references and its coherent SQL proof. This is a normal local
+merge, not a D2 main merge, deployment or new application implementation.
+
+Extend this documentation slice only to the employee plan's active checkpoint:
+its older CI34754199878-era blocker is historical. The latest full CI34763194546
+failed on the document.manage configuration boundary (42501); the narrow fix is
+merged, D2's coherent SQL proof and independent review are complete, and fresh
+fast checks34765172099 are pending. Align the launch/employee checkpoints with
+that sequence while retaining every earlier receipt and diagnosis as history.
+After reviewed D2 and these six preparation/status documents merge, one final
+frozen-main Auth/DB/browser run including D2 and automatic release remains
+required. No code, migration, provider, client data or invitation is changed here.
+
+## 2026-09-13 — Record merged D2 before final preparation review
+
+D2/PR752 merged at15:24:30 UTC as
+fd5b6a085ae97e8cb120f9998dc3418b0e6b580c after all six fast checks34765172099
+passed. The fetched main and reviewed daf5b5ac share tree
+92d7be307552c9c19324c452be129e33bbd8f822 (01a09b5f390d79009794b131258c8d14).
+Before changing active checkpoints, normally merge that main into PR754 and
+retain the preceding pending-status entry as history. Update only the same six
+preparation/status documents to the factual merged state, then obtain incremental
+independent review. Managed application of158–161, full exact-final-main
+Auth/DB/browser including D2, automatic release and runtime/tunnel/disarm proof
+remain pending. No new implementation, provider or real employee/client action
+is authorized or claimed by this documentation reconciliation.

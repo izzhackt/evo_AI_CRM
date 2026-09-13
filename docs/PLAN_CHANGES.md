@@ -24103,3 +24103,38 @@ The final follow-up passed the complete154-file canonical Node manifest
 (01a09af649357e21a0e47c5bbb652a1a), all46 focused checks and scoped ESLint/diff
 checks. The three diagnostic branches are covered as stub-boundary checks only;
 the earlier actual local onboarding remains its separate runtime evidence.
+
+## 2026-09-13 — scoped profile denial and completed handoff navigation
+
+PR750 merged as abe8109d after independent approval. Full CI34760328421 passed
+the corrected Node manifest and all four real scoped-staff onboarding markers,
+then found two user-facing transitions in the broader browser path. A denied
+lead-detail RPC is turned into a generic invalid-shape exception, so the profile
+page never renders its intended unavailable state. Only documented record-read
+denial/not-found outcomes should map to that state; connectivity, schema and
+unexpected failures must remain explicit failures. Do not relax SQL authorization.
+
+The completed handoff card currently gates its case link on canSubmitExceptional.
+The canonical handoff snapshot correctly makes all submit flags false after a
+case exists; a completed case is not another submission. Bind navigation to the
+actual resolved case-read authority in the V3 adapter/UI instead of submission
+permission or a hardcoded role name. Preserve staff-preview and Student boundaries.
+The missing P4 evidence is downstream: the same test aborts at the handoff link
+before writing it. Do not fabricate that file, skip its assertion or claim another
+Storage failure without evidence.
+
+These two corrections keep the existing S2 scope. Add narrow regression checks,
+run the affected actual browser path on an isolated local foundation, and obtain
+independent exact-head approval. Repeat full CI only on a changed frozen main.
+Automatic release34760696579 was skipped; arm=false readback is
+01a09b04f11d7b41b6dcecccce55c548. Accepted production remains77cde9ba.
+
+Validation cadence clarification before release: keep the owner's existing fast
+PR policy. The affected real Auth/DB/browser path remains mandatory in the next
+single frozen-main full CI, which itself creates the isolated local foundation;
+do not duplicate that complete suite locally before this routine PR. The narrow
+local evidence is65 related module checks,3 actual React SSR/projection checks,
+scoped lint and the corrected155-file manifest registration. The new ordinary
+React test is registered without react-server conditions; stale manifest counts
+are reconciled with the actual unchanged logical suite plus that new test.
+No browser assertion or release gate is removed, and failure still blocks deploy.

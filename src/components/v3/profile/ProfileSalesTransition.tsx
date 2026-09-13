@@ -29,6 +29,7 @@ import type { HandoffAcknowledgement, HandoffDecision, SalesHandoffAcknowledgeme
 import { respondToHandoffAction, type HandoffResponseActionState } from "@/lib/platform-handoff-acknowledgement-actions";
 import { handoffAcknowledgementLabel } from "@/lib/v3/wording";
 import type {
+  ProfileSalesHandoffSnapshot,
   ProfileSalesRequestIds,
 } from "./types";
 
@@ -357,7 +358,7 @@ function HandoffCard({
   requestId,
 }: {
   actor: ActivePlatformActor;
-  handoff: PlatformLeadAdmissionsHandoffSnapshot;
+  handoff: ProfileSalesHandoffSnapshot;
   requestId: string;
 }) {
   const router = useRouter();
@@ -407,7 +408,7 @@ function HandoffCard({
           ) : (
             <p className="text-sm text-fg-2">Передача подтверждена. Обновляем дело.</p>
           )}
-          {exceptionalAvailable ? (
+          {!isStaffPreview(actor) && handoff.canOpenCase ? (
             <Link
               href={`/v3/profile?case=${caseId}&tab=overview`}
               className={btnGhostCls}
@@ -546,7 +547,7 @@ export function ProfileSalesTransition({
 }: {
   actor: ActivePlatformActor;
   gate: PlatformLeadAdmissionsGateSnapshot;
-  handoff: PlatformLeadAdmissionsHandoffSnapshot;
+  handoff: ProfileSalesHandoffSnapshot;
   requestIds: ProfileSalesRequestIds;
 }) {
   return (

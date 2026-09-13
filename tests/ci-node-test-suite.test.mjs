@@ -35,8 +35,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 276);
-  assert.equal(plan.uniqueFileCount, 137);
+  assert.equal(plan.occurrenceCount, 294);
+  assert.equal(plan.uniqueFileCount, 155);
   assert.equal(plan.duplicateCount, 139);
   assert.equal(new Set(plan.files).size, plan.files.length);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
@@ -64,10 +64,12 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 115);
+  assert.equal(bounded.files.length, 128);
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
-  assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs"]);
+  assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
+    "tests/staff-role-controls.test.mjs", "tests/staff-disclosure.test.mjs",
+    "tests/staff-metadata-feedback.test.mjs", "tests/v3-handoff-navigation.test.mjs"]);
   assert.equal(plain.concurrency, 1);
 });
 
@@ -78,8 +80,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 174);
-  assert.equal(plan.uniqueFileCount, 132);
+  assert.equal(plan.occurrenceCount, 192);
+  assert.equal(plan.uniqueFileCount, 150);
   assert.equal(plan.duplicateCount, 42);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));
 });

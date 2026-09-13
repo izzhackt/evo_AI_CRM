@@ -428,6 +428,25 @@ test("getPlatformSalesLead accepts exactly one row and parses linked conversatio
   );
 });
 
+test("the documented scoped lead-read denial becomes an unavailable profile without hiding other failures", async () => {
+  // The SQL read contract raises this exact code/message; a missing row already
+  // returns null. This is repository outcome coverage, not live authorization proof.
+  const denied = staticClient(null, { code: "42501", message: "sales_workflow_forbidden" });
+  assert.equal(await getPlatformSalesLead(actor, LEAD_ID, { client: denied.client }), null);
+  for (const error of [
+    { code: "42501", message: "permission denied for schema platform" },
+    { code: "42501", message: "unexpected_denial" },
+    { code: "PGRST202", message: "RPC missing from schema cache" },
+    { code: "08006", message: "Connection failure" },
+    { code: "XX000", message: "sales_workflow_forbidden" },
+  ]) {
+    await assert.rejects(getPlatformSalesLead(actor, LEAD_ID, { client: staticClient(null, error).client }), PlatformSalesRepositoryError);
+  }
+  const network = recordingClient(() => { throw new TypeError("Network unavailable"); });
+  await assert.rejects(getPlatformSalesLead(actor, LEAD_ID, { client: network.client }), PlatformSalesRepositoryError);
+  await assert.rejects(getPlatformSalesLead(actor, LEAD_ID, { client: staticClient({}).client }), PlatformSalesRepositoryError);
+});
+
 test("isPlatformLeadConversationLinked uses the exact cookie-bound canonical link RPC", async () => {
   const linkedResponse = staticClient([{ linked: true }]);
 

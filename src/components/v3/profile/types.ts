@@ -1,6 +1,7 @@
 import type { FixedRole } from "@/lib/fixed-role-policy";
 import type {
   PlatformApplicationQueueRow,
+  PlatformStudentCaseView,
 } from "@/lib/platform-admissions";
 import type {
   PlatformCaseFinanceControl,
@@ -101,10 +102,26 @@ export type ProfileActorRole = FixedRole;
 export type ProfileSalesActorRole = Extract<FixedRole, "admin" | "sales">;
 
 /** Canonical read model used by the profile's Sales-to-Admissions controls. */
+export type ProfileSalesHandoffSnapshot = PlatformLeadAdmissionsHandoffSnapshot & Readonly<{
+  canOpenCase: boolean;
+}>;
+
+/** Navigation follows the resolved case read, not permission to submit again. */
+export function profileSalesHandoffSnapshot(
+  handoff: PlatformLeadAdmissionsHandoffSnapshot,
+  caseView: PlatformStudentCaseView | null,
+  preview: boolean,
+): ProfileSalesHandoffSnapshot {
+  return Object.freeze({ ...handoff, canOpenCase: !preview && handoff.caseId !== null
+    && caseView?.access === "full"
+    && caseView.studentCase.studentCaseId === handoff.caseId
+    && caseView.studentCase.organizationId === handoff.organizationId });
+}
+
 export type ProfileSalesSnapshot = Readonly<{
   lead: PlatformSalesWorkflowLead;
   gate: PlatformLeadAdmissionsGateSnapshot;
-  handoff: PlatformLeadAdmissionsHandoffSnapshot;
+  handoff: ProfileSalesHandoffSnapshot;
 }>;
 
 export type ProfileNotesSnapshot = Readonly<{

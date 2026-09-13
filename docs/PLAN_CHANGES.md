@@ -23285,3 +23285,28 @@ current slot, distinct SHA-256 hashes, clean/verified scan attestations and
 finalizations. This repairs stale test input metadata; it does not relax product
 immutability or prove runtime release by itself. After independent review and
 scoped checks, merge and run the ordinary full gate on the new exact main SHA.
+
+## 2026-09-13 — Verify local Kong identity across the pinned CLI registries
+
+PR744 merged as d45d9747. Full CI34739779810 failed before browser execution:
+`local_gateway_version_not_verified`; release34739920730 skipped and arm=false.
+The helper currently equates the version with one ECR image-reference string.
+CLI2.116.0 resolves its `library/kong:2.8.1` source through ECR, GHCR or the
+original Docker Hub image, returning the selected reference to container creation.
+The failed runner's selected reference was not retained; registry selection is
+a supported-path gap, not a proven claim about which registry that runner used.
+
+Accept only those three exact pinned references, also verify the running
+`kong version` is exactly2.8.1 and seal the immutable Docker image ID in the
+before/after identity check. Preserve all existing ownership, local Docker,
+network, routing/template, effective keepalive and health gates. Unknown image,
+malformed identity or different runtime version still fails before reload.
+Expose the pure reference check for a red-before/green-after regression in the
+existing release suite. Validate the real benign image/version/config path;
+do not repeat focused Storage failure triggers or weaken any document check.
+Only a subsequent successful exact-main full CI can prove release readiness.
+
+Primary sources checked2026-09-13:
+[CLI image manifest](https://github.com/supabase/cli/blob/v2.116.0/apps/cli-go/pkg/config/templates/Dockerfile),
+[registry candidates](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-registry.ts),
+[resolved-image selection](https://github.com/supabase/cli/blob/v2.116.0/apps/cli/src/legacy/shared/legacy-docker-image-resolve.ts).

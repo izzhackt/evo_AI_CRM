@@ -5,6 +5,41 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import {
+  verifyLocalGatewayImageReference,
+  verifyLocalGatewayRuntimeIdentity,
+} from "../scripts/configure-local-supabase-gateway.mjs";
+
+test("local gateway accepts the pinned CLI's exact official Kong image references", () => {
+  for (const image of [
+    "public.ecr.aws/supabase/kong:2.8.1",
+    "ghcr.io/supabase/kong:2.8.1",
+    "library/kong:2.8.1",
+  ]) {
+    assert.doesNotThrow(() => verifyLocalGatewayImageReference(image), image);
+  }
+});
+
+test("local gateway rejects unverified references, runtime versions and image identities", () => {
+  for (const image of [
+    "public.ecr.aws/supabase/kong:latest", "ghcr.io/supabase/kong:3.0.0",
+    "other.example/supabase/kong:2.8.1", "library/kong:2.8.1-extra",
+    "library/kong:2.8.1\n", "kong:2.8.1", null, undefined,
+  ]) {
+    assert.throws(() => verifyLocalGatewayImageReference(image),
+      { message: "local_gateway_image_reference_unknown" });
+  }
+  const imageId = `sha256:${"a".repeat(64)}`;
+  assert.doesNotThrow(() => verifyLocalGatewayRuntimeIdentity(imageId, "2.8.1"));
+  for (const version of ["2.8.0", "3.0.0", "2.8.1-extra", "", null, undefined]) {
+    assert.throws(() => verifyLocalGatewayRuntimeIdentity(imageId, version),
+      { message: "local_gateway_version_not_verified" });
+  }
+  for (const invalidId of ["", "sha256:abc", "library/kong:2.8.1", null, undefined]) {
+    assert.throws(() => verifyLocalGatewayRuntimeIdentity(invalidId, "2.8.1"),
+      { message: "local_gateway_image_identity_invalid" });
+  }
+});
 
 const workflow = readFileSync(
   new URL("../.github/workflows/evo-fast-release.yml", import.meta.url),

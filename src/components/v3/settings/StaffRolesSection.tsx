@@ -8,6 +8,7 @@ import {
   STAFF_ROLES_INITIAL_STATE, type StaffEditableRole, type StaffRolePermission, type StaffRoleWorkspace,
 } from "@/lib/v3/staff-roles-contract";
 import { StaffRoleCommandForm, StaffRoleFeedback } from "./StaffRoleForms";
+import { StaffRoleControls } from "./StaffRoleControls";
 
 function roleHref(id: string) { return `/v3/settings?section=staff&view=roles&role=${encodeURIComponent(id)}`; }
 
@@ -236,7 +237,7 @@ export function StaffRolesSection({ workspace, selectedRoleId }: { workspace: St
   const selected = workspace.roles.find((role) => role.id === selectedRoleId);
   const visible = workspace.roles.filter((role) => (archived || role.status === "active") && `${role.label} ${role.description}`.toLocaleLowerCase("ru").includes(query.toLocaleLowerCase("ru").trim()));
   if (newRole) return <RoleEditor sourceRole={newRole === "new" ? undefined : newRole} permissions={workspace.permissions} onClose={() => setNewRole(null)} />;
-  return <div className="space-y-5">
+  return <StaffRoleControls>
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-md font-semibold">Роли и права</h3><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
     <p className="text-sm leading-6 text-fg-3">Роль задаёт действия. Область — свои записи, отдел или направление — выбирается при назначении сотруднику.</p>
     <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(220px,.8fr)_minmax(0,1.2fr)]">
@@ -256,5 +257,5 @@ export function StaffRolesSection({ workspace, selectedRoleId }: { workspace: St
         </div>}
       </section>
     </div>
-  </div>;
+  </StaffRoleControls>;
 }

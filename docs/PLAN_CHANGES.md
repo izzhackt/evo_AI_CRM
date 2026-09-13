@@ -23910,3 +23910,32 @@ Register the chart regression in the existing frontend script so the canonical
 CI manifest includes it once, using ordinary React rather than the server-only
 condition required by the neighboring source-contract tests. The unchanged
 positive browser workflow and new exact-main release are still pending.
+
+## 2026-09-13 — S2 keep role controls inactive before hydration
+
+Post-chart local run6e353819 stopped before app startup at disposable database
+reset; its cleanup removed the private log, so the cause is not established.
+One diagnostic run of the same head completed reset through157 and actual
+invitation/password/login, then stopped at ROLE_EDITOR_CREATE_ID. It observed
+createClickHandlerBefore=false, handlerAtFailure=true, one main-frame navigation
+and no client error. Owned project evo-local-579f005c0f578377 was removed.
+No post-chart full-browser PASS is claimed, and the reset issue is not declared fixed.
+
+Source tracing found an enabled server-rendered Create control whose only action
+is client state. A visible heading does not prove that handler is ready; the
+navigation count alone cannot identify a remount or prove a reset. Correct the
+observed interaction gap in the product: wrap role catalogue/detail controls in
+a native disabled fieldset until hydration completes, retaining visible content
+and native navigation links. Reuse the existing TeamChatComposer server-false/
+client-true useSyncExternalStore pattern. There is no timer or network wait.
+Add a real React server-render regression for the disabled initial controls.
+The existing positive browser workflow must still prove one click opens the
+editor and completes the unchanged role lifecycle; wait for the exact roles
+destination URL after tab navigation, not React internals. Do not retry clicks,
+suppress errors, broaden permissions or change the required business proof.
+
+Official sources checked2026-09-13:
+[Playwright hydration](https://playwright.dev/docs/navigations#hydration) explains
+lost clicks on enabled controls before listeners exist and recommends disabling
+them until ready; [React server snapshots](https://react.dev/reference/react/useSyncExternalStore#adding-support-for-server-rendering)
+bind the server and initial hydration render to the same snapshot.

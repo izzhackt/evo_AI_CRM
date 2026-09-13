@@ -75,6 +75,12 @@ implemented; the full expanded local onboarding/business proof passed on `451944
   reproduces duplicate grid keys at zero/one leads. The one-line grid correction
   and actual-component regression pass42 focused checks and scoped ESLint;
   new browser/full-release proof is still required.
+  Follow-up6e353819 completed database reset and invitation/login but stopped at
+  role creation: the enabled SSR button had no handler at the attempt. PR748 now
+  also gates role controls until hydration using the existing React pattern;
+  its real SSR regression passed after failing before the gate. The original
+  positive browser workflow remains required. The earlier disposable reset
+  failure is not diagnosed or silently counted as PASS.
 
 The following checkpoints are historical, not additional current blockers.
 
@@ -115,7 +121,7 @@ The following checkpoints are historical, not additional current blockers.
   be inferred. Owned resources were removed. Invitation readback and sticky
   browser-error checks are now separated with fixed private diagnostic labels;
   36/36 helper tests pass, but the next actual workflow is still needed.
-- **Next:** verify the corrected chart in the unchanged browser workflow, then
+- **Next:** verify the corrected chart and interactive role controls in the positive browser workflow, then
   finish the exact-main release gate, accepted deployment and localhost check.
   The ordinary handoff, separate scoped reads, populated migration and whole-S2
   source approval have passed; do not reopen them without new contrary evidence.

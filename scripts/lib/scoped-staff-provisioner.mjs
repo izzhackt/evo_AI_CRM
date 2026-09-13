@@ -523,6 +523,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
     const rolesTab = () => page.getByRole("navigation", { name: "Управление командой", exact: true })
       .getByRole("link", { name: "Роли и права", exact: true });
     await rolesTab().click();
+    await page.waitForURL(`${appOrigin}/v3/settings?section=staff&view=roles`);
     await page.getByRole("heading", { name: "Роли и права", exact: true }).waitFor();
     const details = () => page.getByRole("region", { name: "Выбранная роль", exact: true });
     const editor = () => page.getByRole("form", { name: "Редактор роли", exact: true });

@@ -427,6 +427,7 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     async click() {
       act(`click:${name}`);
+      if (name === "Роли и права") pageUrl = `${appOrigin}/v3/settings?section=staff&view=roles`;
       if (name === "Создать роль") {
         draft = emptyRole(ids[0]); operation = "create";
         for (let index = 0; index < mainFrameNavigations; index += 1) listeners.get("framenavigated")?.(mainFrame);
@@ -465,6 +466,10 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
     },
     mainFrame() { if (observationFailure === "main-frame") throw privateError; return mainFrame; },
     url: () => pageUrl,
+    async waitForURL(expected) {
+      assert.equal(expected, `${appOrigin}/v3/settings?section=staff&view=roles`);
+      assert.equal(pageUrl, expected);
+    },
     getByTestId: () => locator("shell"), async goto(url) { act("goto"); pageUrl = url; },
     async screenshot() { assert.fail("No default screenshots, especially during login"); },
   };

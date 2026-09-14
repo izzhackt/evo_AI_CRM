@@ -154,8 +154,10 @@ async function main() {
     stage = "COLD_RESUME"; await page.goto(`${config.appOrigin}/v3/universities/${catalogId}/forms`, { waitUntil: "domcontentloaded" });
     await page.getByRole("link", { name: /Synthetic PDF blank/u }).click();
     await expect(page.getByRole("link", { name: "Открыть исходный файл", exact: true })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Страница 1", exact: true })).toBeVisible();
     stage = "GUARDED_SOURCE"; const source = await context.request.get(route.href);
-    requireProof(source.status() === 200 && source.headers()["cache-control"] === "private, no-store" && hash(await source.body()) === sha256, "GUARDED_SOURCE_MISMATCH");
+    requireProof(source.status() === 200, `GUARDED_SOURCE_HTTP_${source.status()}`);
+    requireProof(source.headers()["cache-control"] === "private, no-store" && hash(await source.body()) === sha256, "GUARDED_SOURCE_MISMATCH");
     const stored = await storage.storage.from("platform-document-templates").download(`${config.organizationId}/${templateId}/${versionId}.pdf`);
     requireProof(!stored.error && hash(Buffer.from(await stored.data.arrayBuffer())) === sha256, "PRIVATE_STORAGE_MISMATCH");
     stage = "IMMUTABLE_RECEIPT";

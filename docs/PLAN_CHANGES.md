@@ -26329,3 +26329,16 @@ opened source page may still be rendering. The helper now waits for the actual
 readonly PNG, source control and saved overlay geometry before publication,
 matching its review step. No sleeps, ignored browser errors, source-grant
 relaxation or product scope change; actual browser acceptance remains pending.
+
+The first actual combined b0aae9b5 browser run passed login, upload/lost-response
+reconciliation and replay, then failed GUARDED_SOURCE_MISMATCH after cold resume
+(`01a09d91aae57d91afcf2bf18c3f3b91`); no browser errors, no acceptance receipt,
+owned cleanup verified. Its old source assertion did not retain response status.
+Source inspection identifies a new ordering conflict: the PDF editor auto-loads
+its page under the existing single byte-operation lease before the old helper's
+manual source GET. A controlled transport test now proves the concurrent503 and
+subsequent200 after page completion; it is not the missing real response receipt.
+Cold resume now awaits the actual decoded first-page image before manual GET.
+HTTP failure status is reported separately from byte/header mismatch. Native,
+permission, concurrency and timeout policies remain unchanged; rerun the same
+actual combined PDF+DOCX workflow before claiming success.

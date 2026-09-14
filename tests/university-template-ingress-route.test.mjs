@@ -291,3 +291,21 @@ test("PDF renderer refusal never completes a grant or emits source/partial PNG",
   assert.equal(response.status, 503); assert.deepEqual(await response.json(), { error: "unavailable" });
   assert.equal(f.calls.includes("complete_university_template_source_access"), false);
 });
+
+test("an active PDF page retains the shared byte lease until a source read can proceed", { timeout: 2000 }, async () => {
+  // Controlled transport envelopes prove admission ordering, not native/browser acceptance.
+  const entered = Promise.withResolvers(), finish = Promise.withResolvers();
+  const f = sourceAccessFixture(true, { renderPage: async () => { entered.resolve(); return finish.promise; } });
+  const pendingPage = f.handlers.page(new Request(`${url}/page?page=1`), context);
+  try {
+    await entered.promise;
+    const busy = await f.handlers.read(new Request(url), context);
+    assert.equal(busy.status, 503); assert.deepEqual(await busy.json(), { error: "unavailable" });
+  } finally {
+    finish.resolve({ status: "rendered", metadata: { synthetic: "transport-only" }, png: Buffer.from("synthetic-png") });
+    assert.equal((await pendingPage).status, 200);
+  }
+  const sourceRead = await f.handlers.read(new Request(url), context);
+  assert.equal(sourceRead.status, 200);
+  assert.deepEqual(Buffer.from(await sourceRead.arrayBuffer()), f.bytes);
+});

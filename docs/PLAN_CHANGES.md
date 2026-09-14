@@ -26605,3 +26605,15 @@ and current membership/permission checks; it is not a SQLite/standalone path.
 Keep strict inventory equality and every existing legacy-import/name assertion.
 No application, schema, provider, customer-data or access-rule change. Arm=false,
 live05585020 remains accepted, and no repeat schema/provisioning is necessary.
+
+### 2026-09-15 — load the real university-form child in the existing render test
+
+After PR779, Platform CI34898505017 passed the1794-test primary group and169
+serial checks, then its component group failed at loading
+`./UniversityFormExportPanel` from `v3-student-profile-fields.test.mjs`.
+Before coding, limit the correction to that existing test loader: compile the
+real child and its pure dependencies, retaining inert network/server commands
+and existing assertions. Do not replace the child with a success/no-op stub,
+skip the test, or alter production components. Check the remaining Node groups
+together before the next exact-main attempt. Managed schema/Storage stay as
+verified, app remains05585020, release arm is disabled and retirement is open.

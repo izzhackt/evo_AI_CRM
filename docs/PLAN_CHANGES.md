@@ -25985,3 +25985,76 @@ nonfinite/out-of-page coordinates, invalid character cells, manual/empty-region
 overlap and0/501 regions; controls retain500 regions, touching edges and separate
 pages. Canonical hashing and DOCX checks are unchanged. No Docker/build/provider
 or private-source execution; independent exact-diff review remains required.
+
+## 2026-09-14 — Before D4 isolated PDF page rendering
+
+Root accepted PDF.js6.3.289 + canvas1.0.9 as a candidate, not proven runtime
+compatibility, and assigned only the [page-render pre-code contract](design/v3/evo-docs-template-page-render-contract.md)
+plus this append-only entry. Exact protocol implementation still requires root
+to read and explicitly approve that contract. No dependency/install/runtime/code,
+build/container, private document, managed/provider or production action ran.
+
+Propose one read-only PNG operation in the existing sealed template runtime:
+fixed `--render-page-v1` mode, exact source/full-manifest binding, actual
+CropBox/MediaBox origin/geometry crosscheck and one bounded binary frame with
+metadata<=4KiB/PNG<=20MiB. Old inspect/source-preview128KiB,10-row preview,
+receipt165/166 semantics and PDF slots=[] stay unchanged. Human rectangles are
+reviewed mappings, not discovered slots. Root owns staff routes/UI, live source
+authority, region persistence, generated forms/packages and combined acceptance.
+
+Keep all existing OS limits and no-exec/network/private-FS boundaries; fixed
+native-addon path and disabled host-font discovery must not weaken them. The
+contract records unresolved Skia/AS2GiB/WASM/font/color compatibility, including
+Node PDF.js ICC fallback, and requires real native, fill and all-page visual
+checks. No CPU emulation: arm64 only on verified OrbStack; amd64 only on an
+explicitly available authorized native amd64 host. Missing native amd64 access
+is an open gate, never permission for QEMU/Rosetta, production or paid resources.
+PNG generation does not prove approved mapping, final export, packages or full D4.
+
+Root subsequently read the complete page-render contract at SHA256
+`980d4f745c7332e3302a737fc15569da3bbf6279705b5ad5fd6cc25ec43c5073`
+and explicitly approved bounded native implementation. First prove actual
+post-seal addon/PNG compatibility on native arm64 in the narrow target, then
+run the complete template and shared D3 native gates. Preserve every synthetic
+PNG for root visual review. No relaxed AS/OS/codec fallback: an incompatibility
+requires actual evidence and a stop before architecture changes. Native amd64
+remains a required support gate, not a blocker for useful arm64 implementation.
+Independent exact-diff review precedes commit/push; root retains HTTP/UI/SQL/
+packages and the combined browser/image acceptance. No emulation/new server,
+full Next image, production/provider/private-document changes are authorized.
+
+The first real fixed synthetic post-seal PDF.js/canvas PNG tracer passed1/1 on
+native Linux arm64/Node22.23.1 with unchanged limits
+(`01a09d36428f7d83bfe60e71c9040e70`), narrow image
+`sha256:641ba5c5267758f38f2c4443368fa4e08ad19dd1f53f069ae1042d14cbf8746a`.
+Visible Latin text and red/blue corner marks were checked in the retained PNG.
+Owned-container absence was verified. This unlocks implementation of the
+approved operation, not a production API/full native, amd64 or whole-D4 claim.
+
+The bounded page-render implementation now uses the fixed EUP1 frame and one
+sealed runtime with unchanged AS/CPU/wall/FD/network/private-FS rules. Root's
+reviewed region-only PDF resolver correction0e748452 is integrated as809095ac;
+synthetic fill now uses actual slots=[] and reviewed mapping regions. Native
+arm64 final image
+`sha256:d7c5e88b9890003097bcc4e3cbf14b54a03da402829cca547b1a2c58bad0a329`
+passed33/33 actual checks (`01a09d6267857b41a67d4161211657cc`), and unchanged
+final shared C passed D3 native12/12 (`01a09d4e98187d538906d1d96893c469`).
+Two final-image readonly asset-corruption controls rejected after real inspection
+(`01a09d6323787992b44fa32e44dae9f9`); owned-container absence was verified.
+
+Required visual inspection caught a numerically passing but incorrectly encoded
+CJK fixture: glyph-array IDs were not the regional CFF font's CIDs. The fixture
+now uses consistent CID/width/Unicode binding and visibly matches the requested
+ideographs. The full65,535-glyph CFF still warns and is explicitly rejected;
+no warning/limit/fallback was relaxed. A long Kyrgyz fixture also initially
+exceeded the existing field limit; only its synthetic prefix was shortened.
+All20 retained PNGs are visually covered, including every original/standard/long
+final/draft page and Ө/Ү/Ң; the final artifact manifest SHA256 is
+`82e236cb64d4686d040e1b9b0a90f2aadf7e4550561249c9b7148490575b1f40`.
+
+Integrated scoped tests passed86/86, ESLint, TypeScript and diff checks passed.
+Independent exact-diff review/publication remains required. Native amd64 is
+still unrun; authorized read-only Hermes inventory is readiness evidence only.
+HTTP/UI, live Auth/Storage, generated PDF/packages and business acceptance remain
+root-owned open gates. No full app build, production/provider/private-file or
+managed change ran in this native lane; this is not whole-D4 completion.

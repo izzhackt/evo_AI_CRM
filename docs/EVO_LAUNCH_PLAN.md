@@ -1,10 +1,27 @@
 # EVO Launch Plan
 
+## Active owner clarification: reuse EVO Docs, do not rebuild it (2026-09-14)
+
+The owner approved transferring the existing five Docs workflows: university
+templates/mapping, PDF editing, filled DOCX/PDF with saved history, ZIP packages,
+and Gemini extraction. Preserve their behavior and reuse their code/assets;
+adapt only the Platform case/catalog identity, existing staff permissions,
+Postgres persistence, private Storage and UI shell. Existing migrated renderers,
+registry and job lifecycle remain reusable work, not reasons to start over.
+Restore source PDF move/resize interactions in the current editor; do not add a
+second editor or replace the already integrated private page route.
+See the [unification plan](design/v3/evo-docs-unification-run-plan.md#reuse-first-delivery).
+Latest clarification governs older speculative implementation sequencing.
+
 D4 user-facing continuation: [university template workspace](design/v3/evo-docs-template-ui-contract.md)
 extends the existing university detail and reviewed registry/native inputs.
 
 D4 resume checkpoint (2026-09-14): registry, [native template inspection](design/v3/evo-docs-template-native-contract.md),
-private ingress and mapping source are integrated in [draft PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773).
+private ingress and mapping source were merged in [PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773)
+as `0f58072b`; exact-head review and all six checks on `7ce58d35` passed.
+The next source slice is [PDF page rendering and region editing](design/v3/evo-docs-template-page-render-contract.md#staff-pdf-page-http-and-region-editor).
+Native arm64 and amd64 evidence is accepted; the staff HTTP/editor integration
+and its actual browser acceptance are still pending. No production update is implied.
 The original combined browser flow now passes on `5833cd77` after the reviewed
 acceptance-only HTTPS correction: [actual ingress/mapping evidence](design/v3/references/2026-09-14-university-template-ingress-proof.md).
 Resume PDF region UI and saved forms/packages, not the completed login/ingress proof.

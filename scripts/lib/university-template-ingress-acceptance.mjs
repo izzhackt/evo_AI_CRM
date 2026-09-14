@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireAcceptanceImages } from "./document-recognition-acceptance-image.mjs";
-import { validateTemplateMappingProof } from "./university-template-mapping-evidence.mjs";
+import { validateTemplateMappingProof, validateTemplatePdfMappingProof } from "./university-template-mapping-evidence.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const IMAGE = /^sha256:[a-f0-9]{64}$/u, REVISION = /^[a-f0-9]{40}$/u;
@@ -223,6 +223,8 @@ export function requireTemplateAcceptanceImages() {
     /^(?:EVO_PLATFORM_GEMINI_API_KEY|GEMINI_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY)=.+/u.test(value)), "PROVIDER_KEY_NOT_ALLOWED");
   for (const path of ["scripts/lib/university-template-ingress-acceptance.mjs", "scripts/lib/university-template-ingress-browser-proof.mjs",
     "scripts/lib/university-template-mapping-browser-proof.mjs", "scripts/lib/university-template-mapping-evidence.mjs",
+    "scripts/lib/university-pdf-mapping-browser-proof.mjs", "src/lib/university-pdf-region-client.ts",
+    "src/components/v3/universities/forms/UniversityPdfMappingEditor.tsx",
     "scripts/lib/student-profile-fields-browser-proof.mjs", "scripts/test-postgres-v2-foundation.sh",
     "src/lib/server/university-template-ingress-route-handlers.ts", "src/lib/server/university-template-source-storage.ts",
     "src/lib/server/university-template-runtime-identity.ts", "src/lib/server/university-template-preflight.ts",
@@ -278,7 +280,7 @@ export const TEMPLATE_PROOF_CHECKS = Object.freeze(["realAdminAuth", "realCatalo
   "actualClamAV", "realLinuxInspection", "privateStorageSameBytes", "immutableReceipt", "sameRequestReplay",
   "coldResume", "guardedSourceSameBytes", "imageIdentityVerified", "appCleanupVerified", "unknownOutcomeRecovery"]);
 export function validateTemplatePendingReceipt(receipt, projectId) {
-  requireLocal(receipt?.schema === "evo-university-template-ingress-acceptance/v1" && receipt.localProjectId === projectId
+  requireLocal(receipt?.schema === "evo-university-template-ingress-acceptance/v2" && receipt.localProjectId === projectId
     && receipt.synthetic === true && receipt.businessAcceptance === false && receipt.providerAcceptance === false
     && receipt.fullD4Acceptance === false && receipt.cleanupVerified === false
     && TEMPLATE_PROOF_CHECKS.every(key => receipt[key] === true)
@@ -286,6 +288,7 @@ export function validateTemplatePendingReceipt(receipt, projectId) {
     && /^[a-f0-9]{64}$/u.test(receipt.sourceSha256) && receipt.sourceBytes > 0 && receipt.sourceBytes <= 20971520,
   "RECEIPT_INVALID");
   validateTemplateMappingProof(receipt.mapping);
+  validateTemplatePdfMappingProof(receipt.pdfMapping);
   return receipt;
 }
 export async function finalizeTemplateAcceptanceReceipt(directory, projectId) {

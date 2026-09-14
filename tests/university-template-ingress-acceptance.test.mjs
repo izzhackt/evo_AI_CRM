@@ -12,7 +12,7 @@ import { templateAcceptanceAppSpec, verifyTemplateAcceptanceContainer,
   createTemplateAcceptanceTls, validTemplateAcceptanceTls, createTemplateAcceptanceHttpsServer,
   validateTemplatePendingReceipt, TEMPLATE_APPLICATION_BOOTSTRAP } from "../scripts/lib/university-template-ingress-acceptance.mjs";
 import { classifyChangedEntries } from "../scripts/classify-pr-changes.mjs";
-import { TEMPLATE_MAPPING_CHECKS } from "../scripts/lib/university-template-mapping-evidence.mjs";
+import { TEMPLATE_MAPPING_CHECKS, TEMPLATE_PDF_MAPPING_CHECKS } from "../scripts/lib/university-template-mapping-evidence.mjs";
 import { assertUnknownTemplateOutcome, assertExactTemplateReplay } from "../scripts/lib/university-template-ingress-browser-proof.mjs";
 import { normalizeUniversityTemplateIngressReceipt, normalizeUniversityTemplateInspectionMetadata } from "../src/lib/university-template-ingress.ts";
 import { getSupabasePublicConfig } from "../src/lib/supabase/config.ts";
@@ -176,10 +176,12 @@ test("pending evidence cannot upgrade absent recovery, cleanup or source evidenc
     sourceSha256: "a".repeat(64), sourceBytes: 889, mappingSha256: "b".repeat(64),
     ...Object.fromEntries(TEMPLATE_MAPPING_CHECKS.map(key => [key, true])),
     generatedFormAcceptance: false, fullD4Acceptance: false, businessAcceptance: false };
-  const value = { schema: "evo-university-template-ingress-acceptance/v1", localProjectId: input.projectId,
+  const pdfMapping = { ...mapping, pagePngSha256: "c".repeat(64), pageCount: 2,
+    ...Object.fromEntries(TEMPLATE_PDF_MAPPING_CHECKS.map(key => [key, true])) };
+  const value = { schema: "evo-university-template-ingress-acceptance/v2", localProjectId: input.projectId,
     synthetic: true, businessAcceptance: false, providerAcceptance: false, fullD4Acceptance: false, cleanupVerified: false,
     browserErrorCount: 0, browserWarningCount: 0, sourceSha256: "a".repeat(64), sourceBytes: 123,
-    ...Object.fromEntries(TEMPLATE_PROOF_CHECKS.map(key => [key, true])), mapping };
+    ...Object.fromEntries(TEMPLATE_PROOF_CHECKS.map(key => [key, true])), mapping, pdfMapping };
   assert.equal(validateTemplatePendingReceipt(value, input.projectId), value);
   for (const key of TEMPLATE_PROOF_CHECKS) assert.throws(() => validateTemplatePendingReceipt({ ...value, [key]: false }, input.projectId));
   for (const change of [{ fullD4Acceptance: true }, { cleanupVerified: true }, { browserErrorCount: 1 }, { sourceSha256: "" }]) {
@@ -189,6 +191,9 @@ test("pending evidence cannot upgrade absent recovery, cleanup or source evidenc
   for (const key of TEMPLATE_MAPPING_CHECKS) {
     assert.throws(() => validateTemplatePendingReceipt({ ...value, mapping: { ...mapping, [key]: false } }, input.projectId));
   }
+  assert.throws(() => validateTemplatePendingReceipt({ ...value, schema: "evo-university-template-ingress-acceptance/v1" }, input.projectId));
+  assert.throws(() => validateTemplatePendingReceipt({ ...value, pdfMapping: undefined }, input.projectId));
+  for (const key of TEMPLATE_PDF_MAPPING_CHECKS) assert.throws(() => validateTemplatePendingReceipt({ ...value, pdfMapping: { ...pdfMapping, [key]: false } }, input.projectId));
 });
 
 for (const corrupt of [false, true]) test(`HTTP-only transport fixture: lost-reply marker requires exact readback (${corrupt ? "mismatch" : "match"})`, async () => {

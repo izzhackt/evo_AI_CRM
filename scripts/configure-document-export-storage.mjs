@@ -11,6 +11,9 @@ export const DOCUMENT_EXPORT_BUCKET = Object.freeze({
   allowed_mime_types: Object.freeze(["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
 });
 const MIME = DOCUMENT_EXPORT_BUCKET.allowed_mime_types[0];
+export const UNIVERSITY_FORM_EXPORT_BUCKET = Object.freeze({ ...DOCUMENT_EXPORT_BUCKET,
+  file_size_limit: 20 * 1024 * 1024, allowed_mime_types: Object.freeze([MIME, "application/pdf"]),
+});
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const REQUEST_TIMEOUT_MS = 10_000;
 const BUCKET_PATH = `/storage/v1/bucket/${DOCUMENT_EXPORT_BUCKET.id}`;
@@ -25,6 +28,9 @@ export function parseDocumentExportStorageArgs(argv) {
   if (argv.length === 0) return { apply: false, help: false };
   if (argv.length === 1 && argv[0] === "--apply") return { apply: true, help: false };
   if (argv.length === 1 && argv[0] === "--help") return { apply: false, help: true };
+  if (argv.includes("--university-forms") && new Set(argv).size === argv.length
+    && argv.every(value => value === "--apply" || value === "--university-forms"))
+    return { apply: argv.includes("--apply"), help: false, universityForms: true };
   fail("arguments_invalid");
 }
 
@@ -54,24 +60,25 @@ function bucketSettings(value) {
       && value.allowed_mime_types.every(mime => typeof mime === "string" && mime.length <= 256)))) fail("bucket_response_invalid");
   return {
     ...DOCUMENT_EXPORT_BUCKET, public: value.public, file_size_limit: value.file_size_limit,
-    allowed_mime_types: value.allowed_mime_types === null ? null : value.allowed_mime_types.map(mime => mime === MIME ? MIME : "OTHER_MIME").sort(),
+    allowed_mime_types: value.allowed_mime_types === null ? null : value.allowed_mime_types.map(mime =>
+      UNIVERSITY_FORM_EXPORT_BUCKET.allowed_mime_types.includes(mime) ? mime : "OTHER_MIME").sort(),
     type: value.type === undefined || value.type === "STANDARD" ? "STANDARD" : "OTHER_TYPE",
   };
 }
 
-function settingsMatch(value) {
-  return value !== null && value.public === false && value.file_size_limit === DOCUMENT_EXPORT_BUCKET.file_size_limit
-    && value.type === "STANDARD" && value.allowed_mime_types?.length === 1 && value.allowed_mime_types[0] === MIME;
+function settingsMatch(value, expected = DOCUMENT_EXPORT_BUCKET) {
+  return value !== null && value.public === false && value.file_size_limit === expected.file_size_limit
+    && value.type === "STANDARD" && JSON.stringify(value.allowed_mime_types) === JSON.stringify([...expected.allowed_mime_types].sort());
 }
 
-async function request(path, method, headers, fetchImpl) {
+async function request(path, method, headers, fetchImpl, payload = DOCUMENT_EXPORT_BUCKET) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let reader;
   try {
     const response = await fetchImpl(`${DOCUMENT_EXPORT_STORAGE_ORIGIN}${path}`, {
       method, headers, redirect: "error", cache: "no-store", signal: controller.signal,
-      ...(method === "POST" ? { body: JSON.stringify(DOCUMENT_EXPORT_BUCKET) } : {}),
+      ...(["POST", "PUT"].includes(method) ? { body: JSON.stringify(payload) } : {}),
     });
     if (response.status === 401 || response.status === 403) fail("credentials_rejected");
     if (response.status >= 300 && response.status < 400) fail("redirect_rejected");
@@ -106,7 +113,7 @@ async function readBucket(headers, fetchImpl) {
   return bucketSettings(body);
 }
 
-export async function configureDocumentExportStorage({ apply = false, environment = process.env, fetchImpl = globalThis.fetch } = {}) {
+export async function configureDocumentExportStorage({ apply = false, universityForms = false, environment = process.env, fetchImpl = globalThis.fetch } = {}) {
   const report = {
     schema: "evo-document-export-storage/v1", mode: apply === true ? "apply" : "check",
     projectRef: DOCUMENT_EXPORT_STORAGE_PROJECT, bucket: DOCUMENT_EXPORT_BUCKET.id,
@@ -115,31 +122,44 @@ export async function configureDocumentExportStorage({ apply = false, environmen
   };
   let stage = "configuration";
   try {
-    if (typeof apply !== "boolean" || !isRecord(environment) || typeof fetchImpl !== "function") fail("arguments_invalid");
+    if (typeof apply !== "boolean" || typeof universityForms !== "boolean" || !isRecord(environment) || typeof fetchImpl !== "function") fail("arguments_invalid");
+    const expected = universityForms ? UNIVERSITY_FORM_EXPORT_BUCKET : DOCUMENT_EXPORT_BUCKET;
     const headers = configuration(environment);
     stage = "before_read";
     report.before = await readBucket(headers, fetchImpl);
     if (report.before !== null) {
       report.after = report.before;
-      if (!settingsMatch(report.before)) fail("bucket_settings_conflict");
+      if (!settingsMatch(report.before, expected)) {
+        if (!universityForms || !settingsMatch(report.before)) fail("bucket_settings_conflict");
+        if (!apply) fail("university_forms_upgrade_required");
+        // Exactly the known D2 bucket, with no object, policy or public-access change.
+        stage = "update"; report.mutationAttempted = true;
+        const updated = await request(BUCKET_PATH, "PUT", headers, fetchImpl, expected);
+        if (updated.status !== 200) fail("update_outcome_unknown");
+        stage = "after_read"; report.after = await readBucket(headers, fetchImpl);
+        if (!settingsMatch(report.after, expected)) fail("readback_failed");
+        report.readbackVerified = true; report.status = "updated_and_verified";
+        return { exitCode: 0, report };
+      }
       report.readbackVerified = true; report.status = "ready";
       return { exitCode: 0, report };
     }
     if (!apply) fail("bucket_missing");
-    // A single create only. Never PUT, DELETE, retry, change policy or touch objects.
+    // A single create only. No retry, policy changes or object access.
     stage = "create"; report.mutationAttempted = true;
-    const created = await request("/storage/v1/bucket", "POST", headers, fetchImpl);
+    const created = await request("/storage/v1/bucket", "POST", headers, fetchImpl, expected);
     if (created.status === 409) fail("create_conflict");
     if (![200, 201].includes(created.status) || created.body?.name !== DOCUMENT_EXPORT_BUCKET.name) fail("create_outcome_unknown");
     stage = "after_read";
     report.after = await readBucket(headers, fetchImpl);
-    if (!settingsMatch(report.after)) fail("readback_failed");
+    if (!settingsMatch(report.after, expected)) fail("readback_failed");
     report.readbackVerified = true; report.status = "created_and_verified";
     return { exitCode: 0, report };
   } catch (error) {
     const code = error instanceof ConfigurationError ? error.code : "request_failed";
     report.status = stage === "create" && !["credentials_rejected", "create_conflict"].includes(code)
-      ? "create_outcome_unknown" : stage === "after_read" && code !== "credentials_rejected"
+      ? "create_outcome_unknown" : stage === "update" && code !== "credentials_rejected"
+        ? "update_outcome_unknown" : stage === "after_read" && code !== "credentials_rejected"
         ? "readback_failed" : code;
     return { exitCode: 1, report };
   }
@@ -150,10 +170,10 @@ export async function runDocumentExportStorageCli(argv, options = {}) {
   try {
     const args = parseDocumentExportStorageArgs(argv);
     if (args.help) {
-      write("Usage: node scripts/configure-document-export-storage.mjs [--apply]\nDefault: check only; --apply creates the absent exact private DOCX 5MiB bucket.\n");
+      write("Usage: node scripts/configure-document-export-storage.mjs [--apply] [--university-forms]\nDefault: check only; --apply creates the absent exact private DOCX 5MiB bucket.\n--university-forms targets private DOCX/PDF 20MiB; with --apply it may upgrade only the exact former DOCX 5MiB bucket.\n");
       return 0;
     }
-    const result = await configureDocumentExportStorage({ ...options, apply: args.apply });
+    const result = await configureDocumentExportStorage({ ...options, apply: args.apply, universityForms: args.universityForms ?? false });
     write(`${JSON.stringify(result.report)}\n`);
     return result.exitCode;
   } catch {

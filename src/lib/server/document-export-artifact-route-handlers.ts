@@ -8,19 +8,24 @@ import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import { normalizePlatformStudentProfileFieldsSnapshot } from "../platform-student-profile-fields.ts";
 import { getProfileExportValues, ProfileExportNotReadyError } from "../student-profile-fields.ts";
 import {
-  DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, type DocumentExportFailure,
-  type DocumentExportReceipt, type DocumentExportRpcContract, type DocumentExportStorageTarget,
+  DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, UNIVERSITY_FORM_EXPORT_MAX_BYTES, type DocumentExportFailure,
+  type DocumentExportReceipt, type StoredDocumentExportReceipt, type DocumentExportRpcContract, type DocumentExportStorageTarget,
 } from "../document-export-artifact-contract.ts";
 import {
   EXPORT_HASH, exportRecord, exportUuid, isDocumentExportFailure,
-  normalizeDocumentExportReceipt, normalizeDocumentExportWorkspace,
+  normalizeDocumentExportReceipt, normalizeDocumentExportWorkspace, normalizeStoredDocumentExportReceipt, normalizeDocumentExportWorkspaceV2,
+  normalizeUniversityFormExportWorkspace,
+  normalizeApplicationPublishedFormsWorkspace,
 } from "../document-export-artifacts.ts";
+import { getPlatformPublishedUniversityForms, PlatformUniversityFormError } from "../platform-university-forms.ts";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import { renderStudentProfileTemplate } from "./student-profile-template.ts";
+import { produceUniversityFormExport, UniversityFormExportError } from "./university-form-export.ts";
 
 const HEADERS = { "cache-control": "private, no-store", "x-content-type-options": "nosniff" };
-const FAILURE_STATUS: Record<DocumentExportFailure, number> = {
+const FAILURE_STATUS: Record<DocumentExportFailure | "form_not_ready", number> = {
+  form_not_ready: 422,
   profile_not_ready: 422, source_changed: 409, access_changed: 403, source_unavailable: 409,
   template_unavailable: 503, integrity_failed: 409, export_failed: 503, storage_unavailable: 503,
 };
@@ -50,7 +55,10 @@ class ExportError extends Error {
 }
 function responseError(status: number, error: string): Response { return Response.json({ error }, { status, headers: HEADERS }); }
 function failure(error: unknown): Response {
-  return error instanceof ExportError ? responseError(error.status, error.code) : responseError(503, "export_unavailable");
+  if (error instanceof PlatformUniversityFormError)
+    return error.code === "forbidden" ? responseError(403, "forbidden") : responseError(503, "export_unavailable");
+  return error instanceof ExportError || error instanceof UniversityFormExportError
+    ? responseError(error.status, error.code) : responseError(503, "export_unavailable");
 }
 function denyActor(result: PlatformActorResult): PlatformActor {
   if (result.status === "anonymous") throw new ExportError(401, "authentication_required");
@@ -80,7 +88,7 @@ function sameOrigin(request: Request): boolean {
       && parsed.protocol === `${protocol}:`;
   } catch { return false; }
 }
-async function body(request: Request, keys: readonly string[]): Promise<Record<string, unknown>> {
+async function body(request: Request, keys: readonly string[] | ((value: unknown) => readonly string[])): Promise<Record<string, unknown>> {
   if (!sameOrigin(request)) throw new ExportError(403, "forbidden");
   if (!/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers.get("content-type") ?? "") || !request.body)
     throw new ExportError(400, "invalid_request");
@@ -94,7 +102,8 @@ async function body(request: Request, keys: readonly string[]): Promise<Record<s
       if (size > 1024) { await reader.cancel(); throw new Error("oversize"); }
       chunks.push(value);
     }
-    return exportRecord(JSON.parse(Buffer.concat(chunks).toString("utf8")), keys);
+    const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return exportRecord(value, typeof keys === "function" ? keys(value) : keys);
   } catch { throw new ExportError(400, "invalid_request"); }
   finally { reader.releaseLock(); }
 }
@@ -109,26 +118,30 @@ async function rpc<N extends keyof DocumentExportRpcContract>(client: RpcClient,
   return result.data;
 }
 function digest(bytes: Buffer): string { return createHash("sha256").update(bytes).digest("hex"); }
-function receiptResponse(artifact: DocumentExportReceipt): Response {
+function receiptResponse(artifact: StoredDocumentExportReceipt): Response {
   return Response.json({ artifact }, { status: artifact.state === "ready" ? 200 : artifact.state === "failed"
     ? FAILURE_STATUS[artifact.failure_code!] : 202, headers: HEADERS });
 }
-function target(value: unknown, actor: PlatformActor, caseId: string, artifactId: string): DocumentExportStorageTarget {
+function target(value: unknown, actor: PlatformActor, caseId: string, artifactId: string,
+  artifact?: StoredDocumentExportReceipt): DocumentExportStorageTarget {
   const row = exportRecord(value, ["bucket_id", "object_name", "mime_type", "expires_at"]);
-  if (row.bucket_id !== "platform-document-exports" || row.mime_type !== DOCUMENT_EXPORT_MIME
-    || row.object_name !== `${actor.organizationId}/${caseId}/${artifactId}.docx`
+  const mime = artifact?.mime_type ?? DOCUMENT_EXPORT_MIME, extension = mime === "application/pdf" ? "pdf" : "docx";
+  if (row.bucket_id !== "platform-document-exports" || row.mime_type !== mime
+    || row.object_name !== `${actor.organizationId}/${caseId}/${artifactId}.${extension}`
     || typeof row.expires_at !== "string" || !Number.isFinite(Date.parse(row.expires_at))
     || Date.parse(row.expires_at) <= Date.now()) throw new ExportError(503, "export_unavailable");
   return row as DocumentExportStorageTarget;
 }
-async function readStored(client: ServiceClient, storage: DocumentExportStorageTarget): Promise<Buffer> {
+async function readStored(client: ServiceClient, storage: DocumentExportStorageTarget,
+  artifact?: StoredDocumentExportReceipt): Promise<Buffer> {
   if (Date.parse(storage.expires_at) <= Date.now()) throw new ExportError(503, "storage_unavailable");
   const result = await client.storage.from(storage.bucket_id).download(storage.object_name);
   if (result.error || !result.data) throw new ExportError(503, "storage_unavailable");
-  if (result.data.size < 1 || result.data.size > DOCUMENT_EXPORT_MAX_BYTES) throw new ExportError(409, "integrity_failed");
+  const maximum = artifact?.kind === "university_form" ? UNIVERSITY_FORM_EXPORT_MAX_BYTES : DOCUMENT_EXPORT_MAX_BYTES;
+  if (result.data.size < 1 || result.data.size > maximum) throw new ExportError(409, "integrity_failed");
   return Buffer.from(await result.data.arrayBuffer());
 }
-function verify(bytes: Buffer, artifact: DocumentExportReceipt): void {
+function verify(bytes: Buffer, artifact: StoredDocumentExportReceipt): void {
   if (bytes.byteLength !== artifact.output_bytes || digest(bytes) !== artifact.output_sha256) throw new ExportError(409, "integrity_failed");
 }
 
@@ -140,10 +153,48 @@ export function createDocumentExportHandlers(deps: DocumentExportDependencies = 
   async function GET(request: Request, context: Context): Promise<Response> {
     if (request.method !== "GET") return documentExportMethodNotAllowed();
     try {
-      denyActor(await deps.loadActor());
+      const actor = denyActor(await deps.loadActor());
       const caseId = exportUuid((await context.params).studentCaseId);
-      const data = await rpc(await deps.createSessionClient(), "staff_document_export_workspace", { p_student_case_id: caseId });
-      return Response.json(normalizeDocumentExportWorkspace(data, caseId), { headers: HEADERS });
+      const query = new URL(request.url).searchParams;
+      if (query.has("published_for_application_id")) {
+        if ([...query.keys()].some(key => !["published_for_application_id", "after_id"].includes(key))
+          || query.getAll("published_for_application_id").length !== 1 || query.getAll("after_id").length > 1)
+          throw new ExportError(400, "invalid_request");
+        let applicationId: string, afterId: string | null;
+        try { applicationId = exportUuid(query.get("published_for_application_id"));
+          afterId = query.has("after_id") ? exportUuid(query.get("after_id")) : null; }
+        catch { throw new ExportError(400, "invalid_request"); }
+        const session = await deps.createSessionClient();
+        const { data, error } = await session.schema("platform").from("university_applications")
+          .select("id,catalog_institution_id").eq("organization_id", actor.organizationId)
+          .eq("student_case_id", caseId).eq("id", applicationId).maybeSingle();
+        if (error) throw new ExportError(error.code === "42501" ? 403 : 503, error.code === "42501" ? "forbidden" : "export_unavailable");
+        if (!data) throw new ExportError(403, "forbidden");
+        const application = exportRecord(data, ["id", "catalog_institution_id"]);
+        if (exportUuid(application.id) !== applicationId) throw new ExportError(503, "export_unavailable");
+        const catalog = application.catalog_institution_id === null ? null : exportUuid(application.catalog_institution_id);
+        const forms = catalog === null ? null : await getPlatformPublishedUniversityForms(session,
+          { p_catalog_institution_id: catalog, p_after_id: afterId });
+        const workspace = normalizeApplicationPublishedFormsWorkspace({ schema_version: 1, student_case_id: caseId,
+          application_id: applicationId, catalog_institution_id: catalog, forms }, caseId, applicationId);
+        return Response.json(workspace, { headers: HEADERS });
+      }
+      if (query.has("application_id") || query.has("mapping_id")) {
+        if ([...query.keys()].length !== 2 || query.getAll("application_id").length !== 1 || query.getAll("mapping_id").length !== 1)
+          throw new ExportError(400, "invalid_request");
+        let applicationId: string, mappingId: string;
+        try { applicationId = exportUuid(query.get("application_id")); mappingId = exportUuid(query.get("mapping_id")); }
+        catch { throw new ExportError(400, "invalid_request"); }
+        const data = await rpc(await deps.createSessionClient(), "staff_university_form_export_workspace", {
+          p_student_case_id: caseId, p_application_id: applicationId, p_mapping_id: mappingId,
+        });
+        return Response.json(normalizeUniversityFormExportWorkspace(data, caseId, applicationId, mappingId), { headers: HEADERS });
+      }
+      if ([...query.keys()].some(key => key !== "schema_version") || query.getAll("schema_version").length > 1
+        || (query.has("schema_version") && !["1", "2"].includes(query.get("schema_version")!))) throw new ExportError(400, "invalid_request");
+      const v2 = query.get("schema_version") === "2";
+      const data = await rpc(await deps.createSessionClient(), v2 ? "staff_document_export_workspace_v2" : "staff_document_export_workspace", { p_student_case_id: caseId });
+      return Response.json(v2 ? normalizeDocumentExportWorkspaceV2(data, caseId) : normalizeDocumentExportWorkspace(data, caseId), { headers: HEADERS });
     } catch (error) { return failure(error); }
   }
   async function POST(request: Request, context: Context): Promise<Response> {
@@ -152,12 +203,26 @@ export function createDocumentExportHandlers(deps: DocumentExportDependencies = 
     let client: ServiceClient; let artifact: DocumentExportReceipt; let claim: string; let frozen: unknown;
     try {
       actor = denyActor(await deps.loadActor()); caseId = exportUuid((await context.params).studentCaseId);
-      const raw = await body(request, ["mode", "expected_workspace_revision", "request_id"]);
+      const raw = await body(request, value => value && typeof value === "object" && "kind" in value && value.kind === "university_form"
+        ? ["kind", "application_id", "mapping_id", "mode", "expected_workspace_revision", "request_id"]
+        : ["mode", "expected_workspace_revision", "request_id"]);
       if ((raw.mode !== "draft" && raw.mode !== "final") || typeof raw.expected_workspace_revision !== "string"
         || !EXPORT_HASH.test(raw.expected_workspace_revision)) throw new ExportError(400, "invalid_request");
       let requestId: string;
       try { requestId = exportUuid(raw.request_id); } catch { throw new ExportError(400, "invalid_request"); }
       command = { mode: raw.mode, expected_workspace_revision: raw.expected_workspace_revision, request_id: requestId };
+      if (raw.kind === "university_form") {
+        let applicationId: string, mappingId: string;
+        try { applicationId = exportUuid(raw.application_id); mappingId = exportUuid(raw.mapping_id); }
+        catch { throw new ExportError(400, "invalid_request"); }
+        const initialActor = actor;
+        const result = await produceUniversityFormExport({ actor, caseId,
+          session: await deps.createSessionClient(), service: deps.createServiceClient(), signal: request.signal,
+          command: { ...command, kind: "university_form", application_id: applicationId, mapping_id: mappingId },
+          refreshActor: () => refreshActor(deps, initialActor),
+        });
+        return receiptResponse(result);
+      }
       const prepared = exportRecord(await rpc(await deps.createSessionClient(), "prepare_document_export", {
         p_student_case_id: caseId, p_mode: command.mode, p_expected_workspace_revision: command.expected_workspace_revision,
         p_request_id: command.request_id,
@@ -252,11 +317,11 @@ export function createDocumentExportDownloadHandler(deps: DocumentExportDependen
         p_grant_id: grantId, p_actor_auth_user_id: actor.authUserId, p_actor_membership_id: actor.membershipId,
       }), ["grant_id", "artifact", "storage"]);
       if (consumed.grant_id !== grantId) throw new Error("export_unavailable");
-      const artifact = normalizeDocumentExportReceipt(consumed.artifact, caseId, id);
+      const artifact = normalizeStoredDocumentExportReceipt(consumed.artifact, caseId, id);
       if (artifact.state !== "ready") throw new ExportError(409, "artifact_pending");
-      const storage = target(consumed.storage, actor, caseId, id);
+      const storage = target(consumed.storage, actor, caseId, id, artifact);
       let bytes: Buffer | null = null; let readError: unknown;
-      try { bytes = await readStored(client, storage); verify(bytes, artifact); }
+      try { bytes = await readStored(client, storage, artifact); verify(bytes, artifact); }
       catch (error) { readError = error; }
       await refreshActor(deps, actor);
       const completed = exportRecord(await rpc(client, "complete_document_export_download", {
@@ -266,8 +331,10 @@ export function createDocumentExportDownloadHandler(deps: DocumentExportDependen
       if (completed.grant_id !== grantId || completed.artifact_id !== id || completed.verified !== true || completed.failure_code !== null)
         throw new ExportError(403, "download_unavailable");
       if (readError || !bytes) throw readError ?? new ExportError(503, "storage_unavailable");
-      return new Response(new Uint8Array(bytes), { headers: { ...HEADERS, "content-type": DOCUMENT_EXPORT_MIME,
-        "content-length": String(bytes.byteLength), "content-disposition": `attachment; filename="EVO-Student-Profile-${artifact.mode}.docx"` } });
+      const name = artifact.kind === "university_form" ? "EVO-University-Form" : "EVO-Student-Profile";
+      const extension = artifact.mime_type === "application/pdf" ? "pdf" : "docx";
+      return new Response(new Uint8Array(bytes), { headers: { ...HEADERS, "content-type": artifact.mime_type,
+        "content-length": String(bytes.byteLength), "content-disposition": `attachment; filename="${name}-${artifact.mode}.${extension}"` } });
     } catch (error) { return failure(error); }
   };
 }
@@ -280,7 +347,7 @@ export function createDocumentExportReconcileHandler(deps: DocumentExportDepende
       const caseId = exportUuid(params.studentCaseId); const id = exportUuid(params.artifactId);
       const command = await body(request, ["request_id"]); const requestId = exportUuid(command.request_id);
       const session = await deps.createSessionClient();
-      const workspace = normalizeDocumentExportWorkspace(await rpc(session, "staff_document_export_workspace", { p_student_case_id: caseId }), caseId);
+      const workspace = normalizeDocumentExportWorkspaceV2(await rpc(session, "staff_document_export_workspace_v2", { p_student_case_id: caseId }), caseId);
       const existing = workspace.artifacts.find(artifact => artifact.id === id);
       if (!existing) throw new ExportError(403, "forbidden");
       if (existing.state === "ready" || existing.state === "failed") return receiptResponse(existing);
@@ -288,17 +355,17 @@ export function createDocumentExportReconcileHandler(deps: DocumentExportDepende
       const inspected = exportRecord(await rpc(client, "inspect_document_export_reconciliation", {
         p_artifact_id: id, p_actor_auth_user_id: actor.authUserId, p_actor_membership_id: actor.membershipId,
       }), ["artifact", "storage"]);
-      const artifact = normalizeDocumentExportReceipt(inspected.artifact, caseId, id);
+      const artifact = normalizeStoredDocumentExportReceipt(inspected.artifact, caseId, id);
       if (artifact.state === "ready" || artifact.state === "failed") return receiptResponse(artifact);
-      const storage = inspected.storage === null ? null : target(inspected.storage, actor, caseId, id);
+      const storage = inspected.storage === null ? null : target(inspected.storage, actor, caseId, id, artifact);
       let observed: Buffer | null = null; let code: "source_unavailable" | "storage_unavailable" | "integrity_failed" | null = null;
       try {
-        if (storage) { observed = await readStored(client, storage); verify(observed, artifact); }
+        if (storage) { observed = await readStored(client, storage, artifact); verify(observed, artifact); }
         else code = "source_unavailable";
       }
       catch (error) { code = error instanceof ExportError && error.code === "integrity_failed" ? "integrity_failed" : "storage_unavailable"; }
       await refreshActor(deps, actor);
-      const completed = normalizeDocumentExportReceipt(await rpc(client, "reconcile_document_export", {
+      const completed = normalizeStoredDocumentExportReceipt(await rpc(client, "reconcile_document_export", {
         p_artifact_id: id, p_actor_auth_user_id: actor.authUserId, p_actor_membership_id: actor.membershipId,
         p_request_id: requestId, p_observed_sha256: observed && code === null ? digest(observed) : null,
         p_observed_bytes: code === null ? observed?.byteLength ?? null : null,

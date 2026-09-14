@@ -7,6 +7,7 @@ import { UniversityFormUpload } from "@/components/v3/universities/forms/Univers
 import { UniversityFormUploadStatus } from "@/components/v3/universities/forms/UniversityFormUploadStatus";
 import { UniversityFormDecision } from "@/components/v3/universities/forms/UniversityFormDecision";
 import { UniversityFormMappingEditor } from "@/components/v3/universities/forms/UniversityFormMappingEditor";
+import { UniversityPdfMappingEditor } from "@/components/v3/universities/forms/UniversityPdfMappingEditor";
 import { UniversityFormMappingHistory } from "@/components/v3/universities/forms/UniversityFormMappingHistory";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
@@ -58,6 +59,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
   }
   const { templates, workspace, inspection } = data;
   const selected = workspace?.selected_version;
+  const MappingEditor = inspection?.manifest?.format === "pdf" ? UniversityPdfMappingEditor : UniversityFormMappingEditor;
   const mapping = mappingId ? workspace?.mappings.find(item => item.id === mappingId) : workspace?.mappings[0];
   if (mappingId && !mapping) notFound();
   const writable = workspace && workspace.can_manage && !workspace.template.archived && inspection?.source_current !== false;
@@ -94,8 +96,8 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                   action={reserveUniversityFormVersionAction} />
                 : selected && !workspace.template.archived ? <UniversityFormUploadStatus key={selected.id} catalogId={catalogId} templateId={workspace.template.id} version={selected} initialInspection={inspection} /> : null}
               {writable && selected && !upload ? <Link prefetch={false} href={`${base}?template=${workspace.template.id}&upload=1`} className={link}>{words.newVersion}</Link> : null}
-              {writable && selected && inspection?.inspection === "verified" && inspection.manifest?.format === "docx" && !upload ?
-                !mapping || edit ? <UniversityFormMappingEditor key={`edit:${selected.id}:${mapping?.id ?? "new"}`}
+              {writable && selected && inspection?.inspection === "verified" && inspection.manifest && !upload ?
+                !mapping || edit ? <MappingEditor key={`edit:${selected.id}:${mapping?.id ?? "new"}`}
                   catalogId={catalogId} templateId={workspace.template.id} revision={workspace.template.revision} version={selected}
                   manifest={inspection.manifest} manifestDigest={createHash("sha256").update(JSON.stringify(inspection.manifest)).digest("hex")}
                   mappingId={randomUUID()} requestId={randomUUID()} initialMappings={mapping?.mappings ?? []} action={manageUniversityFormAction} />
@@ -103,14 +105,14 @@ export default async function UniversityFormsPage({ params, searchParams }: {
               {mapping && !upload && !edit ? <div className="space-y-5 border-t border-border pt-5">
                 <div className="space-y-2"><h3 className="text-lg font-bold text-fg">{management.mappings}</h3>
                   <p className="text-sm text-fg-2">{management.mappingCount} {mapping.mappings.length} · {mapping.review?.decision === "approved" ? management.mappingApproved : mapping.review?.decision === "rejected" ? management.mappingRejected : management.mappingPending}</p>
-                  {!(writable && selected && inspection?.inspection === "verified" && inspection.manifest?.format === "docx") ? <ul className="max-h-80 space-y-2 overflow-y-auto pr-2" tabIndex={0} aria-label={management.mappings}>
+                  {!(writable && selected && inspection?.inspection === "verified" && inspection.manifest) ? <ul className="max-h-80 space-y-2 overflow-y-auto pr-2" tabIndex={0} aria-label={management.mappings}>
                     {mapping.mappings.map(field => <li key={field.slotId} className="text-sm leading-6 text-fg">
                       {field.manual ? management.manual : universityFormSourceLabel(field.sourceKey ?? "")} · {field.required ? management.required : management.optional}
                     </li>)}
                   </ul> : null}
                 </div>
-                {writable && selected && inspection?.inspection === "verified" && inspection.manifest?.format === "docx" ?
-                  <UniversityFormMappingEditor key={`review-context:${selected.id}:${mapping.id}`} readOnly
+                {writable && selected && inspection?.inspection === "verified" && inspection.manifest ?
+                  <MappingEditor key={`review-context:${selected.id}:${mapping.id}`} readOnly
                     catalogId={catalogId} templateId={workspace.template.id} revision={workspace.template.revision} version={selected}
                     manifest={inspection.manifest} manifestDigest={createHash("sha256").update(JSON.stringify(inspection.manifest)).digest("hex")}
                     mappingId={mapping.id} requestId={randomUUID()} initialMappings={mapping.mappings} action={manageUniversityFormAction} /> : null}

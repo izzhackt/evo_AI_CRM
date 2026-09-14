@@ -36,10 +36,18 @@ export interface UniversityPdfInspection {
 // PDF-lib uses bottom-left page coordinates. This boundary exposes the visible
 // CropBox in points from its top-left corner, matching the review preview.
 export async function inspectUniversityPdf(bytes: Buffer): Promise<UniversityPdfInspection> {
+  return (await inspectUniversityPdfGeometry(bytes)).inspection;
+}
+
+/** Internal isolated-runtime port. Origins are not receipt/HTTP manifest fields. */
+export async function inspectUniversityPdfGeometry(bytes: Buffer): Promise<Readonly<{
+  inspection: UniversityPdfInspection; boxes: readonly Readonly<PageBox>[];
+}>> {
   const source = captureBytes(bytes);
   const { boxes, warnings } = await openPdf(source);
-  return Object.freeze({ sha256: createHash("sha256").update(source).digest("hex"),
+  const inspection = Object.freeze({ sha256: createHash("sha256").update(source).digest("hex"),
     pageSizes: Object.freeze(boxes.map(({ width, height }) => Object.freeze({ width, height }))), warnings: Object.freeze(warnings) });
+  return Object.freeze({ inspection, boxes: Object.freeze(boxes.map(box => Object.freeze({ ...box }))) });
 }
 
 /** Field/mapping readiness is not public export authorization or a complete layout approval. */

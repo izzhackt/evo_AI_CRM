@@ -246,6 +246,7 @@ export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, docume
   if (!draft.profileFields) return caseFacts;
   return <div className="min-w-0 space-y-5">
     <StudentProfileFields key={draft.profileFields.studentCaseId} snapshot={draft.profileFields} requestId={fieldsRequestId}
+      applications={profile.applications.map(({ id, institution, program }) => ({ id, institution, program }))}
       readOnly={fieldsReadOnly} sourceVersions={draft.profileFieldSources} documentsHref={documentsHref} />
     <StaffDisclosure label="Другие сведения дела" buttonClassName="font-semibold">
       <div className="pt-3">{caseFacts}</div>

@@ -23,7 +23,7 @@ import {
 import { StaffDisclosure } from "../settings/StaffDisclosure";
 import { DocumentPreviewButton } from "./DocumentPreviewButton";
 import { StudentProfileExportHistory } from "./StudentProfileExportHistory";
-import type { ProfileFieldSourceVersion } from "./types";
+import type { ProfileApplication, ProfileFieldSourceVersion } from "./types";
 export type ProfileFieldDraft = Readonly<{
   value: string;
   selectedSourceVersionId: string;
@@ -40,6 +40,7 @@ type WorkspaceProps = Readonly<{
   readOnly: boolean;
   sourceVersions: readonly ProfileFieldSourceVersion[];
   documentsHref: string | null;
+  applications?: readonly Pick<ProfileApplication, "id" | "institution" | "program">[];
 }>;
 
 const BUTTON = "min-h-11 rounded-ctl border border-control-edge px-3 py-2 text-sm font-semibold text-fg hover:bg-bg disabled:cursor-not-allowed";
@@ -59,6 +60,7 @@ export function profileExportBlocker(input: ExportInput): string | null {
   if (input.pending) return "saving";
   if (input.hasDrafts) return "unsaved";
   if (input.saveStatus === "unavailable") return "save_unconfirmed";
+  if (input.saveStatus === "stale") return "workspace_changed";
   if (input.savedRevision !== null && input.snapshot.profile.revision < input.savedRevision) return "awaiting_snapshot";
   try { getProfileExportValues(input.snapshot, input.mode); }
   catch { return "profile_not_ready"; }
@@ -157,12 +159,13 @@ function SourceDetails({ versionId, page, sourceVersions, documentsHref }: Reado
   </div>;
 }
 
-function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, documentsHref }: WorkspaceProps) {
+function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, documentsHref, applications }: WorkspaceProps) {
   const router = useRouter();
   const workspaceRef = useRef<HTMLElement>(null);
   const commandInFlight = useRef(false);
   const [drafts, setDrafts] = useState<Drafts>({});
   const [exportPending, setExportPending] = useState(false);
+  const [staleAtRevision, setStaleAtRevision] = useState<number | null>(null);
   const [activeField, setActiveField] = useState<ProfileFieldKey | null>(null);
   const [lastField, setLastField] = useState<ProfileFieldKey | null>(null);
   const [state, action, pending] = useActionState(async (previous: PlatformStudentProfileFieldActionState, form: FormData) => {
@@ -173,6 +176,10 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
     try { result = await reviewPlatformStudentProfileFieldAction(previous, form); }
     catch { return { ...initialState(previous.requestId), status: "unavailable" as const }; }
     finally { commandInFlight.current = false; }
+    if (result.status === "stale") {
+      const attemptedRevision = Number(form.get("expected_revision"));
+      setStaleAtRevision(Number.isSafeInteger(attemptedRevision) && attemptedRevision > 0 ? attemptedRevision : null);
+    } else if (result.status === "saved") setStaleAtRevision(null);
     // A failed action retains every local draft. Rejecting evidence never
     // silently discards a curator's independent manual correction either.
     if (result.status === "saved" && decision !== "reject_proposal") {
@@ -199,7 +206,8 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
   const busy = pending || exportPending;
   const blocked = busy || !mayReview;
   const exportInput = { snapshot, hasDrafts: Object.keys(drafts).length > 0, pending: busy,
-    savedRevision: state.profileRevision, saveStatus: state.status };
+    savedRevision: state.profileRevision,
+    saveStatus: state.status === "stale" && staleAtRevision !== null && revision > staleAtRevision ? "idle" as const : state.status };
   const draftBlocker = profileExportBlocker({ ...exportInput, mode: "draft" });
   const finalBlocker = profileExportBlocker({ ...exportInput, mode: "final" });
 
@@ -227,6 +235,7 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
     </header>
 
     <StudentProfileExportHistory studentCaseId={snapshot.studentCaseId} profile={profile} canExport={snapshot.canExport}
+      applications={applications}
       ready={readiness.ready} draftBlocker={draftBlocker} finalBlocker={finalBlocker} busy={busy}
       commandInFlightRef={commandInFlight} onBusyChange={setExportPending} onRefreshProfile={() => router.refresh()}>
       {!readiness.ready ? <StaffDisclosure label={studentProfileFiles.review} buttonClassName="font-semibold">

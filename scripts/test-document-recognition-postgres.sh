@@ -8,15 +8,19 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 node_bin="${EVO_NODE_BIN:-node}"
 with_document_exports=0
+with_university_form_exports=0
 if [[ "$#" -eq 1 && "$1" == --document-exports ]]; then
   with_document_exports=1
+elif [[ "$#" -eq 1 && "$1" == --university-form-exports ]]; then
+  with_document_exports=1
+  with_university_form_exports=1
 elif [[ "$#" -ne 0 ]]; then
-  echo 'Usage: test-document-recognition-postgres.sh [--document-exports]' >&2; exit 1
+  echo 'Usage: test-document-recognition-postgres.sh [--document-exports|--university-form-exports]' >&2; exit 1
 fi
 [[ "$("$node_bin" --version)" == v22.* ]] || { echo 'Node 22 is required' >&2; exit 1; }
 
 # Reject gaps, duplicate prefixes and unexpected files before creating resources.
-# Both domain fixtures use this same complete schema, never a 161 -> 164 slice.
+# All domain fixtures use this complete schema, never a selected migration slice.
 migrations=()
 next_migration=1
 while IFS= read -r migration; do
@@ -32,6 +36,7 @@ while IFS= read -r migration; do
 done < <(rg --files supabase/migrations | LC_ALL=C sort)
 minimum_migrations=163
 [[ "$with_document_exports" == 0 ]] || minimum_migrations=164
+[[ "$with_university_form_exports" == 0 ]] || minimum_migrations=167
 [[ "${#migrations[@]}" -ge "$minimum_migrations" ]] || {
   echo "Foundation requires at least migrations 001-$minimum_migrations" >&2; exit 1;
 }
@@ -107,4 +112,8 @@ if [[ "$with_document_exports" == 1 ]]; then
   # this is not an Auth, private-byte upload/download, or browser acceptance.
   run_sql -f /workspace/supabase/tests/platform_document_export_artifacts.sql
   echo 'DOCUMENT_EXPORT_ARTIFACTS_POSTGRES_VERIFIED'
+fi
+if [[ "$with_university_form_exports" == 1 ]]; then
+  run_sql -f /workspace/supabase/tests/platform_university_form_exports.sql
+  echo 'UNIVERSITY_FORM_EXPORTS_POSTGRES_VERIFIED'
 fi

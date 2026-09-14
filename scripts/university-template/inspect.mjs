@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readSync } from "node:fs";
+import { readSync, readFileSync } from "node:fs";
 import { inspectUniversityDocx } from "../../src/lib/server/university-form-docx.ts";
 import { inspectUniversityPdf } from "../../src/lib/server/university-form-pdf.ts";
 import { UNIVERSITY_TEMPLATE_PREVIEW_PAGE_SIZE, UNIVERSITY_TEMPLATE_PREVIEW_POLICY } from "../../src/lib/university-template-preview.ts";
@@ -33,7 +33,19 @@ function request() {
 }
 // No library diagnostics may cross; only explicit preview responses contain source excerpts.
 for (const method of ["log", "warn", "error", "info", "debug"]) console[method] = () => {};
-try {
+if (process.argv[2] === "--render-form-v1") {
+  const entry = "/opt/evo-university-template-runtime/src/lib/server/render-form.mjs";
+  const assets = JSON.parse(readFileSync("/opt/evo-university-template-runtime/form-assets.json", "utf8"));
+  if (!assets || Object.keys(assets).sort().join(",") !== "fontSha256,rendererSha256"
+    || assets.fontSha256 !== "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5"
+    || typeof assets.rendererSha256 !== "string" || !/^[a-f0-9]{64}$/.test(assets.rendererSha256)
+    || createHash("sha256").update(readFileSync(entry)).digest("hex") !== assets.rendererSha256
+    || createHash("sha256").update(readFileSync("/opt/evo-university-template-runtime/assets/fonts/NotoSans-Regular.ttf")).digest("hex") !== assets.fontSha256) throw new Error("source_unavailable");
+  await (await import(entry)).runRenderFormRequest();
+} else if (process.argv[2] === "--render-page-v1") {
+  const entry = "/opt/evo-university-template-runtime/render-page.mjs";
+  await (await import(entry)).runRenderPageRequest();
+} else try {
   const { header, bytes } = request();
   let manifest;
   if (header.mimeType === DOCX) {

@@ -17,3 +17,18 @@ export function validateTemplateMappingProof(value) {
   }
   return value;
 }
+
+export const TEMPLATE_PDF_MAPPING_CHECKS = Object.freeze([
+  "actualSourcePage", "pointerRegion", "numericAdjustment", "keyboardAdjustment", "zoomResizeGeometry",
+  "pageNavigationRetained", "actualMappingSave", "actualReadOnlyReview", "actualExplicitReview",
+  "actualExplicitPublication", "coldResume", "responsiveScreenshots", "pageIdentityVerified", "noFrameworkOverlay",
+]);
+export function validateTemplatePdfMappingProof(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || !TEMPLATE_PDF_MAPPING_CHECKS.every(key => value[key] === true)
+    || ![value.templateId, value.versionId, value.mappingId].every(id => typeof id === "string" && UUID.test(id))
+    || ![value.sourceSha256, value.mappingSha256, value.pagePngSha256].every(sha => typeof sha === "string" && SHA.test(sha))
+    || value.pageCount !== 2 || value.generatedFormAcceptance !== false || value.fullD4Acceptance !== false || value.businessAcceptance !== false)
+    throw new Error("LOCAL_TEMPLATE_PDF_MAPPING_RECEIPT_INVALID");
+  return value;
+}

@@ -26238,3 +26238,46 @@ real166 minimal manifest; the isolated child reconstructs rich DOCX resolver slo
 by same-byte reinspection, without fabricated text/new persistence. Keep164 schema1
 and profile-only default history for migration-first/app rollback; add a third session
 RPC for explicit HTTP v2 union-history opt-in, with no silent schema fallback.
+
+### D4 saved-form SQL167 implementation boundary (2026-09-14)
+
+Root reserves167 after the fresh shared-main readback `0f58072b` confirmed the
+contiguous001–166 source. Implementation starts from that exact source plus the
+independently approved saved-form contract `658dc151` (rebased append-only as
+`bdacf81e`); the prior published ingress branch remains intact. Own only forward
+`167_platform_university_form_exports.sql`, its synthetic SQL fixture, necessary
+164-fixture signature assertions, this journal and the existing bounded foundation
+runner. Historical migrations001–166, runtime, TypeScript, UI and Storage settings
+remain unchanged. Implement the approved three session RPCs and the shared164
+service lifecycle, exact closed minimal-manifest capsules, immutable metadata/hash
+domains and actual-proof seal nullability; preserve profile-only v1 defaults for
+migration-first/app rollback. No service-role frozen-profile read is introduced.
+
+Proposed verification extends the existing one disposable pinned PostgreSQL
+foundation with `--university-form-exports`: contiguous001–167 and actual D3 queue,
+164 profile and new form authority/lifecycle SQL assertions, then owned cleanup.
+Local Docker execution waits for root's bounded validation approval and OrbStack
+preflight. SQL fixture metadata is synthetic; it cannot prove native execution,
+private Storage bytes or browser acceptance. Native fill framing/resources and
+real20MiB storage remain separate activation gates; no managed apply or full D4
+completion is claimed by this SQL slice.
+
+SQL167 local evidence: root authorized the bounded runner above. OrbStack was
+running on the `orbstack` context, the pinned PostgreSQL image was already local,
+free disk was21GiB and the OS reported54% available memory before execution.
+The final run `01a09d91d20b7c938a72c3180e854f85` applied contiguous001–167 and passed
+D3 queue, unchanged164 profile-artifact and new form fixtures, each rolling back.
+Owned container `evo-document-recognition-proof-31185-98070` was removed; exact-name
+readback `01a09d920dbc7ee18e3d936d60cc849b` returned no container. Earlier RED runs
+stopped on two new-fixture setup/order mistakes (initial active case; a profile
+claim created after a profile edit); neither failure was hidden or converted to
+success. The actual package TypeScript helper produced the pinned compact-hash
+golden `35cead709586de4efb4c954d78420cb39ddeff5a48fab971fb8bb489f5a3a35e`
+(`01a09d8b6aeb76f08a0aeb834b6468da`), and PostgreSQL matched it. Form fixtures cover
+minimal DOCX/PDF manifests, v1/v2 history,20MiB versus profile5MiB caps, proof
+nullability/immutability, replay/unknown reconciliation, profile/day/archive
+fencing, non-manager export, live revocation and unhealthy confirmed sources.
+Catalog rows remain append-only in056; this fixture does not bypass that guard to
+manufacture a catalog revision mutation. These are synthetic SQL observations,
+not actual renderer/image/Storage/browser or managed-schema acceptance. Source
+is frozen for independent review before publication; activation gates stay open.

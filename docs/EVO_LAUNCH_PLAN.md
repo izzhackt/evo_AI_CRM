@@ -1,5 +1,26 @@
 # EVO Launch Plan
 
+## Active Docs release preparation (2026-09-15)
+
+The owner requests verification, server release and retirement of standalone
+EVO Docs. Preserve the D5/D6 data and real-workflow gates before retirement.
+Read-only schema check [34893968851](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34893968851)
+confirms managed001–161; source162–167 is not deployed. The live accepted05585020
+still calls the transient161 export RPCs revoked by164. Prepare forward168
+compatibility for exactly those two unchanged service-role-only RPCs; preserve
+their existing actor/case/revision checks and generation-only audit. Never map
+legacy `generated` to stored-artifact `ready`, grant browser roles, or expose
+frozen values to service readers. The new app continues to use164/167 only.
+Remove compatibility in a later reviewed migration once both the current and
+retained rollback app use persisted exports. This postpones only transient-RPC
+retirement, not the one-Platform target or standalone data-preservation gates.
+
+Fix the existing Storage configurators' handling of the observed legacy
+missing-bucket response before exact private20MiB PDF/DOCX provisioning.
+Keep checks read-only by default, one explicit create/update plus readback,
+and fail closed on permissions, conflicts and unknown responses. No public
+bucket, global limit, paid upgrade or provider submission is authorized here.
+
 ## Active owner clarification: reuse EVO Docs, do not rebuild it (2026-09-14)
 
 The owner approved transferring the existing five Docs workflows: university

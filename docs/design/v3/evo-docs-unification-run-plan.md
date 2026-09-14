@@ -1,6 +1,6 @@
 # EVO Docs → одна EVO Platform
 
-Дата: 2026-09-13. Владелец разрешил перенос функций и последующее удаление отдельного
+Дата: 2026-09-14. Владелец разрешил перенос функций и последующее удаление отдельного
 приложения. Статус: D0/D1 завершены; D2 выпущен в `05585020` с полным CI.
 Приёмка анкеты на согласованном реальном деле остаётся открытой.
 D3/D4 разрабатываются; D3–D6, перенос данных и выключение отдельного приложения
@@ -12,14 +12,32 @@ D3/D4 разрабатываются; D3–D6, перенос данных и в
 Контракт: `docs/EVO_LAUNCH_PLAN.md` → ADR0028 → этот план → `DESIGN.md`.
 Параллельный run: [сотрудники и роли](employee-roles-accounts-run-plan.md).
 
-Checkpoint разработки, 2026-09-14: PR768, exact `ef279986`, объединяет D3 и
+Точка возобновления, 2026-09-14: в [draft PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773)
+объединены registry/native inspection/private ingress/mapping и source migrations 162–166;
+managed остаётся на последней подтверждённой schema 001–161. На `55b7f41c`
+реальные app/derived-image builds и [шесть коротких CI-проверок 34792136150](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34792136150)
+прошли, но browser-run остановился на `LOGIN_UI` до загрузки шаблона
+(`01a09d50d4667d8087e475e282c0fbfe`). Acceptance receipt отсутствует, cleanup
+пройден, production не менялся. Reviewed login diagnostics `f58f6d81` и PDF
+resolver `0e748452` объединены в `13a9c8c8`. Следующий реальный прогон дошёл до
+`AUTHENTICATED_SHELL`, но остался на login с `authUnavailable`: production-валидатор
+отклонил HTTP-адрес проверочной базы (`insecure_url`). Исправление `4e120599`
+включает настоящий временный HTTPS только в проверочном окружении; 33 локальные
+проверки прошли, включая доверие сертификату и отказ при неверном имени сервера.
+Исходный browser-сценарий на исправлении ещё не пройден; точные доказательства —
+в последней записи `docs/PLAN_CHANGES.md`.
+Следом нужны исходный полный сценарий и отдельное доказательство PDF rendering:
+базовая native inspection не закрывает формы/ZIP, D3–D6 или реальную приёмку.
+
+Исторический объединённый checkpoint: [PR768](https://github.com/izzhackt/evo_AI_CRM/pull/768), exact `ef279986`, объединял D3 и
 сохранённые анкеты D4. Независимое review объединения, production/native build,
 contiguous001–164 SQL и оба реальных локальных Auth/Storage/browser сценария
 пройдены: [распознавание до Gemini](references/2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986)
 и [история анкет](references/2026-09-14-persisted-profile-export-proof.md#combined-checkpoint-ef279986).
-Это не выпуск: следующий шаг — итоговый main-readiness review и сохранение
-проверенного изменения в main; дальнейшие D4 формы/пакеты, D5/D6, настоящие
-приглашения и разрешённая Gemini/client приёмка остаются обязательными.
+PR768 merged как `c2ddd12d` 2026-09-13; тогдашний следующий шаг review/merge
+завершён. Это не выпуск и не доказательство нового PR773 browser-run.
+Дальнейшие D4 формы/пакеты, D5/D6, настоящие приглашения и разрешённая
+Gemini/client приёмка остаются обязательными.
 
 Текущий production checkpoint: full CI34770582933 и release34771170873 SUCCESS на
 `05585020a411111939a72c4121c66369839a066b`. Independent server readback совпал
@@ -97,11 +115,11 @@ version history и текущий staff/Student review. Service key не зам�
 
 ## Реализация без лишних зависимостей
 
-Следующие контракты подготовлены до кода: [D3 — распознавание](evo-docs-recognition-contract.md)
-и [D4 — формы и пакеты](evo-docs-university-packages-contract.md). Реализация идёт
-в draft PR758/760 (transport/queue), [PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
-(проверенная интеграция) и PR759/762 (forms/packages). Изолированный parser
-runtime и реальная приёмка ещё впереди. Это ещё не выпущенные функции.
+История старта D3/D4, до объединения PR768: контракты [D3 — распознавание](evo-docs-recognition-contract.md)
+и [D4 — формы и пакеты](evo-docs-university-packages-contract.md) подготовлены до кода.
+Тогда работа шла в draft PR758/760 (transport/queue), [PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
+и PR759/762 (forms/packages); parser runtime ещё предстоял. Эти source-входы уже
+объединены, текущий checkpoint указан выше. Реальная приёмка и выпуск D3/D4 открыты.
 Эти этапы можно выполнять параллельно: для пакета
 достаточно полей, вручную подтверждённых куратором; ожидать Gemini не нужно.
 Reviewed D2 `daf5b5ac` объединён как `fd5b6a08`, все шесть fast checks34765172099

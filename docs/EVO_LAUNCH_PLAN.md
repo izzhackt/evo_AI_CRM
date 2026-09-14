@@ -1,7 +1,23 @@
 # EVO Launch Plan
 
+D4 user-facing continuation: [university template workspace](design/v3/evo-docs-template-ui-contract.md)
+extends the existing university detail and reviewed registry/native inputs.
+
+D4 resume checkpoint (2026-09-14): registry, [native template inspection](design/v3/evo-docs-template-native-contract.md),
+private ingress and mapping source are integrated in [draft PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773).
+The original combined browser flow now passes on `5833cd77` after the reviewed
+acceptance-only HTTPS correction: [actual ingress/mapping evidence](design/v3/references/2026-09-14-university-template-ingress-proof.md).
+Resume PDF region UI and saved forms/packages, not the completed login/ingress proof.
+This is not full D4, provider/client acceptance or a production release.
+PDF inspection reports `slots: []`; editable regions belong to reviewed mapping.
+
+D4 approved readable mapping context: [bounded native source preview](design/v3/evo-docs-template-preview-contract.md).
+Keep the minimal inspection/165 receipt unchanged; a separate read-only operation
+inside the same isolated runtime returns exact-source-bound DOCX text excerpts.
+Root approved the exact protocol before implementation; UI/ingress remain separately owned.
+
 Status: active V3-on-managed-Supabase production-successor contract
-Date: 2026-09-13 (Asia/Dubai)
+Date: 2026-09-14 (Asia/Dubai)
 Authority: owner directions 2026-09-04 and 2026-09-06, ADRs 0024, 0026 and
 0027, this plan and
 the latest append-only `docs/PLAN_CHANGES.md` entry, parent issue #543 and the
@@ -22,7 +38,8 @@ search → cancel passed without persisted writes. See
 [the combined release evidence](design/v3/references/2026-09-13-staff-docs-s2-d2-release.md).
 Do not repeat this completed full gate/release for status-only documentation.
 Real employee mail/first-login, real client document/provider acceptance and
-D3–D6 remain open. Managed001–161 is current;162/163 are unapplied draft work.
+D3–D6 remain open. Last confirmed managed schema is 001–161; source migrations
+162–166 are integrated in the development candidate, not applied to production.
 
 ### Historical release diagnostics before accepted05585020
 
@@ -78,7 +95,8 @@ Admin's staff functional superset and Student-private boundaries.
 The owner approved implementation on 2026-09-13. The documented S1 staff
 directory/department slice and S2 scoped roles are released; real employee
 onboarding remains pending. Custom SMTP was read as disabled in the existing
-Dashboard session; the supported ConfirmationURL template is not a proved defect.
+Dashboard session on 2026-09-13; this is not a refreshed configuration check.
+The supported ConfirmationURL template is not a proved defect.
 Follow the [activation runbook](runbooks/team-workspace-activation.md) for the
 exact missing mail configuration and recipient/first-login sequence.
 Personal contacts stay outside Git; no automatic bulk invitations or role grants.
@@ -106,15 +124,31 @@ Managed schema001–161 is applied and verified through34765867429/34765967956.
 D3–D6 and real employee/document acceptance remain required; the scoped profile
 failures above were corrected in reviewed PR761 before the successful full gate.
 
-Current document-development checkpoint, 2026-09-14: combined PR768 at
+Current document-development checkpoint, 2026-09-14: PR773 source `55b7f41c`
+passed the actual app/derived-image builds and all six short
+[CI checks 34792136150](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34792136150).
+Its real combined browser run failed at `LOGIN_UI` before upload
+(`01a09d50d4667d8087e475e282c0fbfe`): no acceptance receipt, owned cleanup passed,
+production unchanged. Reviewed diagnostic `f58f6d81` and PDF resolver `0e748452`
+are integrated in source `13a9c8c8`. Its next actual run reached
+`AUTHENTICATED_SHELL` but remained at login with `authUnavailable`; the real
+configuration validator rejected the acceptance-only HTTP origin as `insecure_url`.
+Reviewed correction `4e120599` uses real ephemeral HTTPS in that test transport;
+33 scoped checks pass, including real TLS trust/hostname refusals. The original
+browser workflow then passed on `5833cd77`, including PDF lost-response recovery,
+DOCX mapping/review/publication, mobile/cold resume and owned cleanup;
+see [the exact proof](design/v3/references/2026-09-14-university-template-ingress-proof.md).
+Basic native inspection/source checks do not prove PDF rendering, saved university
+forms/ZIP packages, full-worker/provider/client acceptance, full D3–D6 or release readiness.
+
+Historical merged checkpoint: [PR768](https://github.com/izzhackt/evo_AI_CRM/pull/768) at
 `ef279986124c7b1f8298994d152ee134aced655c` passed independent merge review,
 contiguous001–164 SQL, exact production/native image build and both actual local
 Auth/Storage/browser flows. See [predispatch proof](design/v3/references/2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986)
 and [persisted profile proof](design/v3/references/2026-09-14-persisted-profile-export-proof.md#combined-checkpoint-ef279986).
-Final main-readiness review and the later managed schema/bucket/release gates
-remain open. Provider/full-worker, real-client, full D4, data migration and
-standalone retirement are not completed. The dated paragraphs below retain
-earlier failed/incomplete checkpoints, not the latest combined result.
+It merged as `c2ddd12d` on 2026-09-13; its then-next main-readiness/merge step is
+complete. The later managed schema/bucket/release gates remain open. Preserve
+these earlier successful flows without treating them as PR773 browser proof.
 
 Preparation for the next document blocks is described in the
 [D3 recognition contract](design/v3/evo-docs-recognition-contract.md) and
@@ -123,16 +157,21 @@ The approved D4 receipt dependency now follows the
 [runtime image identity contract](design/v3/runtime-image-identity-contract.md):
 controller-generated identity in sealed per-generation env, verified candidate
 and rollback readback. This is bounded implementation, not a production release
-or proof that template ingestion/forms are complete.
-These are the execution contracts, not provider/client acceptance. Transport/queue
-PR758/760 remain draft. Forms PR759 merged7da50fa8 and package PR762 merged85a1efd;
-both are preserved in this combined candidate's main85a1efd ancestry.
-[D3 integration PR763](https://github.com/izzhackt/evo_AI_CRM/pull/763)
-is independently reviewed but remains draft pending the real runtime/acceptance.
-The isolated parser runtime continues separately. With D2 released,
+or proof that template ingestion/forms are complete. It is merged through PR772
+at `06d43b29`.
+These are the execution contracts, not provider/client acceptance. The earlier
+transport/queue and D3 integration PR758/760/763 inputs were incorporated through
+PR768; their historical draft status is not a current missing-source dependency.
+Forms PR759 and package PR762 engines are retained, not proof of saved outputs.
+With D2 released,
 the two lanes may proceed in parallel because D4 accepts manually confirmed
 profile values. Preserve the D5 data reconciliation and D6 real acceptance/
 standalone-retirement gates; allocate forward migrations against current main.
+
+### Historical document implementation checkpoints
+
+The records below retain earlier evidence and then-next actions. They do not
+override the current resume checkpoint or request another completed merge/build.
 
 The bounded D3 worker completion on combined `b5a73b2b` adds the production
 `--once --mode processing|cleanup --worker-id <id>` CLI to the same application
@@ -211,6 +250,12 @@ first producer of this shared artifact lifecycle, not completion of university
 forms/packages. A separate private export bucket preserves the existing student
 upload/scan boundary. Migration164 is reserved behind the unmerged D3 162–163;
 do not apply an incomplete forward migration sequence to production.
+
+Parallel D4 registry slice: [template/version/mapping contract](design/v3/evo-docs-template-registry-contract.md),
+migration165, exact approved catalogue IDs and live S2 permissions. It installs
+immutable source/mapping/review history and fail-closed publication, not template
+ingress or a fabricated inspection writer. Full forms/package UI, real upload/
+inspection/render, exports and acceptance remain required after this slice.
 
 The persistence/API/history candidate now builds successfully with all three new
 routes and the exact template in standalone output. Independent initial SQL,

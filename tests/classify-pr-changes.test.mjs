@@ -8,6 +8,16 @@ import {
 
 const nul = (...fields) => Buffer.from(`${fields.join("\0")}\0`, "utf8");
 
+test("D4 native template runtime and server adapter remain code, not ordinary documentation", () => {
+  for (const path of ["scripts/document-source/launcher.c", "scripts/university-template/inspect.mjs",
+    "scripts/university-template/build.mjs", "scripts/university-template/test-harness.mjs",
+    "scripts/run-university-template-runtime-tests.mjs", "src/lib/server/university-template-preflight.ts", "Dockerfile"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.code, true, path); assert.equal(result.unknown, false, path);
+    assert.equal(result.ordinary_docs, false, path); assert.equal(result.lint, true, path);
+  }
+});
+
 test("name-status parser handles safe NUL-delimited changes and renames", () => {
   assert.deepEqual(
     parseNameStatus(nul("M", "docs/note.md", "R100", "src/old.ts", "docs/new.md")),

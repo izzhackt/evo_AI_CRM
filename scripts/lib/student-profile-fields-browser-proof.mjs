@@ -35,6 +35,7 @@ export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
 export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
 export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
 export function proofScope(kind = "student-profile-fields") {
+  if (kind === "university-template-ingress") return { kind, prefix: "EVO_D4_TEMPLATE", marker: "UNIVERSITY_TEMPLATE_INGRESS" };
   requireProof(["student-profile-fields", "document-recognition"].includes(kind), "PROOF_SCOPE_INVALID");
   return { kind, prefix: kind === "document-recognition" ? "EVO_D3" : "EVO_D2",
     marker: kind === "document-recognition" ? "DOCUMENT_RECOGNITION" : "STUDENT_PROFILE_FIELDS" };
@@ -70,6 +71,10 @@ export function proofExceptionCategory(error) {
   if (message.includes("toHaveAttribute")) return "ATTRIBUTE_EXPECTATION";
   const categories = { TimeoutError: "TIMEOUT", AssertionError: "ASSERTION", TypeError: "TYPE_ERROR", Error: "ERROR" };
   return Object.hasOwn(categories, error?.name) ? categories[error.name] : "OTHER_ERROR";
+}
+
+export function proofLoginErrorCode(value) {
+  return ["accessDenied", "authUnavailable", "staffAccessDenied"].includes(value) ? value : null;
 }
 
 // This is an allowlist, not a raw-log redactor. Unknown text is never retained.
@@ -145,11 +150,12 @@ export function writeOwnedAppLogDiagnostic(kind = "student-profile-fields") {
 
 export async function writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts }) {
   if (!config) return;
-  const snapshot = { schema: config.proofKind === "document-recognition" ? "evo-document-recognition-browser-failure/v1" : "evo-student-profile-browser-failure/v1", synthetic: true, businessAcceptance: false,
+  const snapshot = { schema: config.proofKind === "university-template-ingress" ? "evo-university-template-ingress-browser-failure/v1"
+    : config.proofKind === "document-recognition" ? "evo-document-recognition-browser-failure/v1" : "evo-student-profile-browser-failure/v1", synthetic: true, businessAcceptance: false,
     stage, exceptionCategory: proofExceptionCategory(error), pathClass: "UNAVAILABLE", http,
     consoleErrorCount: counts.console, pageErrorCount: counts.page, browserWarningCount,
     browserErrorCodes: [...browserErrors].sort(), shellPresent: null, actualAdminShell: null,
-    passwordControlPresent: null, loginErrorPresent: null, profileStartControlPresent: null,
+    passwordControlPresent: null, loginErrorPresent: null, loginErrorCode: null, loginFormPending: null, profileStartControlPresent: null,
     frameworkOverlayPresent: null, screenshotSaved: false };
   if (page && !page.isClosed()) {
     try {
@@ -160,6 +166,12 @@ export async function writeFailureEvidence({ config, page, stage, error, http, b
         && await shell.getAttribute("data-presentation-role") === "actual";
       snapshot.passwordControlPresent = await page.locator('input[type="password"]').count() > 0;
       snapshot.loginErrorPresent = await page.locator("#login-error").count() > 0;
+      if (snapshot.loginErrorPresent) {
+        const code = await page.locator("#login-error").getAttribute("data-auth-error");
+        snapshot.loginErrorCode = proofLoginErrorCode(code);
+      }
+      const loginForm = page.locator('form[aria-labelledby="login-title"]');
+      if (await loginForm.count() === 1) snapshot.loginFormPending = await loginForm.getAttribute("aria-busy") === "true";
       snapshot.profileStartControlPresent = await page.getByRole("button", { name: "Начать анкету", exact: true }).count() > 0;
       snapshot.frameworkOverlayPresent = await page.locator("[data-nextjs-dialog-overlay], [data-nextjs-error-dialog]").count() > 0;
       // Never capture the login screen or a framework error containing raw diagnostics.

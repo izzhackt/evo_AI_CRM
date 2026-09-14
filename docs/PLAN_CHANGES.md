@@ -25815,6 +25815,223 @@ onboarding and standalone retirement remain required. Browser warning counts
 Next step is independent final evidence/main-readiness judgment, not automatic
 provider activation or deployment. No manual release CI, managed schema/bucket
 mutation or production change has occurred; production remains05585020.
+## 2026-09-14 — D4 persistent template registry, before implementation
+
+Root allocates165 on c49707ef for the independent registry slice;162/163D3 and
+164artifacts are untouched. Follow the new exact
+[registry contract](design/v3/evo-docs-template-registry-contract.md): org-scoped
+catalog permissions, exact immutable catalogue/version/hash binding, bounded
+resolver-compatible mappings, explicit append-only review/publication/archive,
+expected revision + request replay and source-safe DTOs. PostgreSQL locks and
+SECURITY DEFINER grants were checked in current official docs linked there.
+
+No existing trusted D4template ingress/inspector exists. Keep the inspection
+receipt table unwritable by runtime roles in this slice, and publish fail-closed
+without that proof. This is explicitly unfinished follow-up work, not a new
+success definition or permanent feature flag. D3 PDF/image inspection is not
+reused as DOCX/form proof. Synthetic SQL-owner metadata can exercise constraints,
+not pretend actual scanning/rendering occurred. No managed/prod/provider calls,
+real private files, student-ingress expansion or retirement is authorized here.
+
+Registry candidate now implements the contracted slice. Actual isolated SQL
+exit0 `01a09cd05d9b7853a6067ab3ea48446d` includes real existing catalogue/S2 role
+commands, manager vs published-only reader, revocation, tenant isolation,
+replay/stale/history/22-version pagination and PDF geometry/manual guards.
+Synthetic owner-only inspection metadata tests relational publication invariants;
+it does not prove a scan/file upload. The owned network-none container was removed.
+Canonical mapping hashes match the existing Node resolver for DOCX and decimal
+PDF coordinates. Runtime source/mapping types plus72 focused tests/lint passed
+`01a09cce6f367a32a6ec01bba1da2f0f`; one actual Next/TypeScript production build
+passed `01a09ccd8e7d7c9398ee8413e0482a2e`. Manifest8/8 passed; validate-only
+CI170/unit165 is inventory, not a full gate. Independent review/integration and
+all full D4 upload/inspection/render/form/package/UI/acceptance work remain open.
+
+## 2026-09-14 — Before D4 native template inspection implementation
+
+Root assigns a new isolated branch from ef279986; registry355a4c5c/PR770 and
+combined browser work stay untouched. Implement the [native contract](design/v3/evo-docs-template-native-contract.md):
+reuse D3 supervisor/seal through a fixed compile-time template profile, separate
+runtime path/protocol,128KiB output,20MiB DOCX/PDF input and existing hard limits.
+Real existing inspectors run only in the sealed process and return minimal
+source-bound manifests. No new migrations or trusted-writer claims in this slice.
+
+Forward-contract decision approved by root before coding: PDF inspection returns
+exact pages and slots=[], because plain PDFs do not provide authoritative editable
+slots. Later mapping review owns rectangle/manual-field decisions; a future
+forward migration must adjust165 validation without rewriting165 or fabricating
+editable slots. DOCX keeps actual inspected id/editable pairs, without text.
+
+Use narrow actual native tests plus scoped Node/lint checks, including shared D3
+regression and real kernel failure/limit controls. No duplicated Next build,
+provider, real documents, managed schema or production actions. Independent review
+must approve the frozen diff before commit/push; native PASS will not imply
+ClamAV/Storage/writer, layout, publication, export or whole-D4 acceptance.
+
+Native implementation checkpoint: initial actual run13/14 exposed a diagnostic
+short-write issue, not a relaxed production boundary. Its128KiB output probe
+issued one nonblocking pipe write; the test-only producer now handles short
+writes/EAGAIN to cross the real supervisor ceiling. D3's4096-byte production
+profile remains unchanged. Initial scoped TypeScript also found an unknown
+format type; the adapter now returns the already-validated literal format.
+
+Final actual template target14/14 PASS `01a09ce5daa17303bfc835a6d3ad708e`,
+image1473e442201315bde223347886beacf79294f2ef70c98884d8db5b89391bc7c8;
+original D3 target12/12 PASS `01a09ce5dabf7a22a2e08b4eb578137a`,
+imageb15af9709aaa576b947e6e5bdc599d0ae7b25d91bb8952afba44c65136bc80e3.
+Both owned network-none containers were removed and absence read back.
+Focused forms55/55 (`01a09ce3311e7ce0ba24e6149e3ad308`; same call later correctly
+failed stale CI group cardinality154→155), followed by corrected manifest/
+classifier25/25 and scoped lint (`01a09ce430d173028d8be59d4834e656`). Final
+adapter strict TypeScript/lint passed (`01a09ce55ad478b3b147b6b494202bf7`).
+No Next build, managed schema/provider/real document or production action ran.
+These narrow target proofs do not replace eventual combined image and full D4
+business acceptance. Freeze this source for independent review before publishing.
+
+## 2026-09-14 — Before university template workspace implementation
+
+PR768 merged to `c2ddd12d29334480182659a9614ce0d1c1b7fd90`; independent readback
+proved exact equality with reviewed `e0e2f971` tree, all six protected checks PASS.
+Superseded source PRs756/758/760/763/765/766/767 were closed without branch,
+runtime or data deletion. The production revision remains05585020.
+
+Root owns the [template UI contract](design/v3/evo-docs-template-ui-contract.md)
+in an isolated tree based on reviewed dependency integration7723146e. Extend
+the existing university page with a real URL-based staff workspace; no second
+catalogue, raw slot IDs/hash/status codes in ordinary UI, or student template editor.
+Session actions use the registry165 command contract and current live permissions.
+Parallel ingress166 supplies manager draft listing, inspected slot/page metadata,
+bounded file upload and source access; the release lane supplies exact native
+runtime identity. UI does not manufacture either proof or mark pending as saved.
+
+First implement reusable create/version/mapping controls and their typed action
+boundary, then wire the real reader/actions/routes after reviewed dependencies.
+Keep entered data on errors, exact request IDs on ambiguous retries, versions in
+URLs, and explicit archive/review/publication. DOCX layout/visible CJK, generated
+forms/packages, real-case acceptance and final deployment remain required; a
+component check is not proof of these workflows. Use focused UI/contract checks
+and one integrated actual Auth/Storage/browser proof, not repeated full gates.
+
+## 2026-09-14 — Before D4 private template ingress and receipt writer
+
+Root assigns an isolated tree from exact e0e2f971 and exclusively reserves166.
+Integrate only reviewed registry355a4c5c and native05f83e76 dependencies, preserving
+current D3/export tests and both historical journals;165 is immutable. Follow the
+[bounded ingress proposal](design/v3/evo-docs-template-ingress-contract.md): live
+session preparation, server claim fencing, actual ClamAV/native proofs on frozen
+bytes, create-only private Storage and exact readback before a trusted receipt.
+Cancellation, unknown/replay and source reads remain explicit, not success flags.
+Forward166 may separate human PDF rectangles from actual slots=[]/pageSizes;
+DOCX inspected-slot matching stays mandatory. No UI/import/provider/deployment.
+
+New authority question is deliberately unresolved before code:165 requires an
+inspector image SHA, while the app receives only release revision/version. The
+existing release controller verifies image/config digests; root is deciding how
+to bind that exact identity into the server. No synthetic digest or browser proof,
+and no binding/166 implementation before that decision. No managed apply or real
+document access is authorized. Later synthetic proof must exercise actual native
+inspection, scanner and Storage; unit adapters do not replace it.
+
+PR768 merged at2026-09-13T22:40:53Z to main c2ddd12d29334480182659a9614ce0d1c1b7fd90.
+Its exact tree equals reviewed e0e2f971: d348c8d6df193bb02923c2d3db6c833d44755cec.
+The dependency-only integration passed50/50 scoped registry/native-adapter/CI
+manifest/classifier tests (`01a09cee825b72c09200b838b34571fa`); inventory is now
+CI326 occurrences/187 unique/139 duplicates, unit224/182/42. This is not a full
+CI, new native build or ingress proof. No earlier product gate was repeated.
+
+Root then approved the image authority: controller-generated EVO_RUNTIME_IMAGE_ID
+in the existing hash-sealed per-generation candidate-app.env, bound to the actual
+verified Docker engine .Image ID and revision. It is not imageConfigDigest and is
+never supplied by browser/mutable operator env. The release agent owns delivery
+and runtime uniqueness/readback checks; this slice owns the fail-closed server
+reader and receipt binding. Root now authorizes166 and ingress implementation.
+Add only justified forward manager-list/inspection-metadata RPCs for cold resume
+and mapping UI;165 stays unchanged. Freeze typed session exports and raw-source
+HTTP/status/cancel/reconcile contract for root-owned catalogue UI integration.
+
+First public adapter checkpoint is limited to strict DTOs and typed session RPC
+wrappers, not implemented166/HTTP ingress. Actual32 parser/transport-contract tests
+passed (`01a09cfa5edc7a92958a53880256e3b3`); synthetic response fixtures prove only
+validation/fail-closed adapters, not a successful database write or inspection.
+Manager listing preserves unpublished records, inspection metadata rejects text/
+private keys and fabricated PDF slots, unknown remains distinct from verified.
+
+Independent166 review found a contract mismatch before integration: SQL accepted
+empty or nonsequential DOCX slots, although the reviewed native inspector and
+public DTO require nonempty ordered p-1…p-N. Tighten only the forward166 helper;
+keep165 immutable. Add real rolled-back SQL regressions for empty/gap/reorder/
+p-9999 manifests and prove rejected seals create no inspection receipt. The first
+contiguous001–166 synthetic command proof passed (`01a09d060b4c7643882f73aa86ef1bbe`),
+but that pre-correction receipt does not certify the corrected helper.
+
+Root chooses one later combined UI+ingress image/browser proof, including the
+reviewed controller identity binding now on main06d43b29. This slice may add only
+the bounded foundation-harness mode and acceptance helper; defer image execution
+until root supplies the integrated frozen SHA. Do not repeat Next/image builds,
+bootstrap a parallel stack or claim full mapping/output acceptance from ingress.
+
+The bounded server/API/storage checkpoint now has actual100/100 scoped checks and
+strict TypeScript/lint (`01a09d0ddbe777e3953f19eb5cf1cf78`), offline bucket plan only,
+CI332/193/139 and unit230/188/42. Corrected DOCX SQL constraint was actually RED
+(`01a09d0cf04379a1975c7671268bbfec`) then contiguous001–166 GREEN with cleanup
+(`01a09d0ddc877af0aa8831ae73769755`). No actual combined image/Storage/native/browser
+claim follows: root coordinates one integrated proof after exact source review.
+
+The bounded ingress acceptance mode must run the HTTP application in the exact
+Linux production image, not macOS Next dev. Reuse the existing foundation-owned
+Supabase/Auth/ClamAV bootstrap. Attach only the owned application and scanner to
+the already verified `supabase_network_evo-local-<16hex>` network. An in-process
+acceptance bootstrap forwards application-local `127.0.0.1:8000` exclusively to
+that run's `supabase_kong_evo-local-<16hex>:8000`; scanner traffic targets only
+the exact already-owned scanner name on3310. These are fixed local transports,
+not a production URL-validator exception or a configurable arbitrary HTTP host.
+Publish only `127.0.0.1:<owned-free-port>:3000` for the browser. Read actual image
+ID/revision/native architecture before startup, inject the verified runtime
+identity, and read back actual container image/config/bindings before acceptance.
+Keep credentials on stdin/process memory, never Docker env/argv or evidence.
+The existing cleanup must remove/check the additional exact app container before
+removing the one existing stack; publish no accepted receipt before all owned
+resources are absent. Prepare/test selection and negative contracts only now;
+root owns the single later integrated image/browser execution. Docker bridge DNS
+and loopback publishing follow official Docker documentation linked in the
+ingress contract. No new database, provider call, managed bucket or build gate.
+
+Whole-ingress independent review identified a boundedness defect: request abort
+could release the byte-operation slot while the actual ClamAV promise still owned
+its socket and byte buffers. Keep the same one-operation admission policy, but
+retain its lease until any started scanner/native promise actually settles.
+Returning an aborted HTTP response is not evidence that external work stopped.
+Add a deferred negative scanner regression proving a second upload is refused
+until settlement, then admitted; no synthetic successful inspection is needed.
+SQL166 and its already approved immutable-receipt constraint remain unchanged.
+
+## 2026-09-14 — Before D4 readable mapping source preview
+
+The existing minimal source manifest cannot tell staff what `p-N` refers to.
+Propose the [bounded preview contract](design/v3/evo-docs-template-preview-contract.md)
+before protocol implementation: one read-only DOCX operation in the existing
+hard-isolated runtime, ten bounded text/context rows per request, exact frozen
+source binding and a transient normalized-manifest digest checked against live
+trusted metadata. Existing inspection output,128KiB limit and165 receipt semantics
+remain unchanged. No source text enters DB receipts or Student projections.
+PDF uses actual page geometry and guarded original bytes; no invented slots.
+Root approval is pending for this new protocol. This lane owns runtime/adapter/
+DTO/focused tests only; ingress owns166/source authorization, root owns UI/routes.
+No production/full build/provider/private-file access is part of this proposal.
+
+Root subsequently read and approved the exact preview protocol when execution
+resumed, including clipped text/label/nearby metadata, full-manifest binding and
+the separate transient digest. Implement only this native/adapter/DTO slice;
+HTTP/UI and166 stay separately owned. The independent protocol check confirmed
+the worst-case ten-row response remains within128KiB. Implementation/native proof
+are still required; this approval is not a runtime or product acceptance claim.
+
+The bounded implementation then passed18 scoped DOCX/preview Node checks, lint
+and strict adapter TypeScript, followed by17 actual Linux native checks on
+`sha256:cc5bd0ded17a48df396f44ee1fbbf0ab589e016a5a8011b7c1609e4879c4ccbd`
+(`01a09d14db9a75a1a2924bfeac777eb4`). Owned-container absence was verified.
+Shared C/seal/bootstrap and inspection/receipt semantics remain unchanged.
+This is synthetic native proof only; review, staff HTTP/UI and root's combined
+Auth/Storage/browser proof remain open. No full app image or production release.
 
 ## 2026-09-14 — Bind trusted document receipts to verified runtime image
 
@@ -25834,3 +26051,166 @@ Dockerfile, provider, managed service, browser authority or deployment changes
 are authorized by this slice. Focused real filesystem/CLI and actual owned local
 container transport checks plus independent exact-diff review precede publication;
 ingress separately owns the strict server-only reader and receipt writer.
+
+## 2026-09-14 — Private ingress acceptance harness integration history
+
+Root additionally authorizes one acceptance-only lost Storage reply on the owned
+local proxy, never an application fallback or database state edit. Replace the
+acceptance TCP forwarding loop with fixed-destination HTTP forwarding so the
+proxy can identify exactly one create-only PDF template POST. Only after an
+actual upstream200/201 response and independent private GET with identical hash,
+length and MIME may it deliberately close that response connection. All other
+traffic passes unchanged. A fixed process-only marker records that the exact
+after-commit condition occurred; missing/mismatched readback must fail the proof,
+not simulate recovery. Browser acceptance must observe actual unknown state,
+use the explicit UI reconcile action, then confirm exact bytes and one immutable
+receipt. No synthetic SQL/status/receipt insertion, provider or managed target.
+
+The separate nine-file acceptance-harness source checkpoint has50/50 actual
+scoped contract/regression checks, JavaScript lint and shell syntax validation
+(`01a09d2257817730ae0b8a82e21328e2`). These include bounded missing-image refusal
+before foundation lock, existing D3/D4 harness regressions, serialized bootstrap
+syntax, exact image/config readback validators, one-shot HTTP fault match/mismatch
+fixtures and CI manifest accounting333/194/139; unit231/189/42. HTTP fixtures test
+only proxy control flow, not a successful Storage service or native inspection.
+Actual Docker image, local database, Storage, ClamAV and browser execution remains
+deferred to root's one frozen combined workflow; no fullD4/production claim.
+
+Root found a concrete acceptance DTO mismatch before execution: inspection
+metadata exposes `receipt_id`, while an ingress command exposes
+`inspection_receipt_id`. Correct only the unknown/replay assertions at that
+existing boundary; retain the SQL full `sha256:` image-ID comparison. Regression
+tests exercise the actual normalizers and the same assertion functions used by
+the browser helper, with synthetic DTOs only. The prior harness approval is
+withdrawn pending the corrected exact-diff review; no service proof is inferred.
+Both actual-normalizer regressions failed before correction
+(`01a09d3710727f71bb81a7931e237b39`). After the two field corrections,52/52
+scoped tests, lint, shell syntax and diff checks pass
+(`01a09d37594c72d1a676cedb2607d07c`), including mismatched receipt and unproven
+lost-reply negative controls. No Docker/image/Storage/browser run was performed.
+The publication hook then rejected a literal synthetic `apikey` fixture header
+(`01a09d3a5c7d75208c5f041cab500d19`). Do not bypass that guard: generate an
+ephemeral UUID for this HTTP-only fixture and re-review the resulting exact diff.
+It is not a service credential and does not change the acceptance transport.
+
+## 2026-09-14 — Integrate actual template mapping browser acceptance
+
+Reviewed workspace source is published as `e459639b`; this is not a release or
+browser acceptance. Extend the existing bounded ingress acceptance with one
+synthetic13-paragraph DOCX in the same real Auth/ClamAV/native/Storage/application
+stack. Exercise two preview pages, retained selections, exact saved mapping,
+read-only source review, explicit publication, mobile cold resume and archived
+history. Do not start another database or repeat the completed S2/D2 gates.
+
+The final receipt must require the actual mapping helper result, including exact
+template/version/mapping identities and source/mapping hashes, before cleanup
+can promote it to accepted. Contract/fixture checks are not a substitute for
+running the browser. Source PDF raster/fill, generated university files/packages,
+managed migrations, Gemini/client acceptance and deployment remain open.
+
+The integration preserves all reviewed ingress and root tests. Its host lifetime
+is480seconds for two distinct bounded workflows (previously240seconds for the
+PDF-only upload/recovery flow): the additional DOCX upload has the unchanged100s
+product deadline, followed by paged native reads and explicit UI commands. This
+is one run with one cleanup, not a retry, product timeout extension or second
+stack. Missing any nested mapping receipt fact prevents final acceptance.
+
+Independent source review identified a possible preview/mutation race, not an
+observed browser failure: publish/archive changes the revision while the new
+page's native preview may still be reading. The scenario now waits for its exact
+read-only source fragment before either mutation; no sleep, ignored console error
+or product authority relaxation. Actual browser execution is still pending.
+
+## 2026-09-14 — Diagnose the actual template browser login failure
+
+Published source55b7f41c passed the real application/derived-image builds and all
+six fast PR773 checks (34792136150). The single combined local run
+`01a09d50d4667d8087e475e282c0fbfe` passed image identity, real Admin API login,
+private bucket readback and synthetic catalogue commands, then failed at
+`LOGIN_UI`, before any template upload. It produced no acceptance receipt.
+The owned application/scanner/Supabase cleanup completed; production is unchanged.
+
+Before the next run, reuse the existing privacy-safe browser failure recorder
+and split login navigation/fill/submit/shell stages. Record only fixed error
+categories, known route classes, status/counts and DOM booleans; never login
+values, cookies, arbitrary URLs, raw console/exception text or login screenshots.
+This adds diagnostic evidence, not a login workaround, weaker assertions,
+provider access or an accepted template workflow. Root keeps the entire real
+upload/recovery/mapping scenario required. The observed duplicate initial
+migration application is recorded separately for a guarded future optimization;
+do not remove reset without proving the CLI's exact fresh owned project.
+
+### D4 PDF reviewer regions at the existing resolver boundary
+
+Root authorizes this bounded integration correction before code. A PDF template
+snapshot contains the actual inspector manifest: `slots: []` and visible
+`pageSizes`. Editable regions are defined by the explicitly reviewed existing
+`mapping.mappings` (`pdf-N`, position and manual flag), never invented inspector
+slots. Keep the canonical mapping hash and review tuple unchanged. The resolver
+must reject nonempty PDF inspector slots and validate1–500 reviewed regions,
+finite bounded coordinates, page bounds,1–120 character cells of at least5pt,
+and overlap across every region including manual/empty ones. DOCX inspection
+and slot matching remain unchanged. Reuse166/renderer geometry semantics without
+editing SQL, runtime/API/UI, dependencies or production configuration. Replace
+the fictitious PDF slot fixtures and prove the seam through actual focused
+resolver/renderer tests; this is not native/layout/fullD4 acceptance.
+
+Actual RED confirmed `mapping_slot_not_found` for empty native PDF slot lists
+(`01a09d4fd7497ac38cb621def5d160d8`); after the boundary correction42 checks
+passed. The next RED found17 missing geometry/count/overlap refusals
+(`01a09d50c8ef7cf28dfdf766dc04de2f`). With region validation,75/75 focused
+fields/PDF/DOCX tests, scoped lint and diff check pass
+(`01a09d5144bd72d0982dff1c7d0330f9`). Negative tests cover invented slots,
+nonfinite/out-of-page coordinates, invalid character cells, manual/empty-region
+overlap and0/501 regions; controls retain500 regions, touching edges and separate
+pages. Canonical hashing and DOCX checks are unchanged. No Docker/build/provider
+or private-source execution; independent exact-diff review remains required.
+
+## 2026-09-14 — Use real local TLS for production-image template acceptance
+
+The diagnostic run on `13a9c8c8` reached `AUTHENTICATED_SHELL` but remained at
+login with `authUnavailable`, no browser errors/overlay and no pending form
+(`01a09d5f4a2d7ea08a98b9494cd902fb`, safe failure artifact
+`output/university-template-ingress/13a9c8c85636052b1f196616d4ef29d3ddd2159b/foundation-7410-54445/failure.json`).
+Owned cleanup was verified. The actual configuration validator independently
+returned `insecure_url` for the acceptance bootstrap's HTTP loopback URL under
+`NODE_ENV=production` (`01a09d5f3ec87352906c9720e87e6b3a`). D2 used `next dev`;
+successful host API login does not exercise this production Server Action path.
+
+Correct only the acceptance transport: generate one ephemeral IP-SAN certificate
+for `127.0.0.1`, pass bounded PEM/key bytes on stdin, run the existing owned Kong
+proxy as HTTPS and add its certificate to this Node thread's default trust before
+loading the unchanged application. No permanent/system trust, public listener,
+provider, Auth/config guard change, TLS-verification bypass or image substitution.
+Preserve the exact Storage fault/readback and full browser/mapping requirements.
+Temporary certificate files belong to one generated directory and are cleaned on
+success and error. Bound the TLS handshake as well as HTTP request lifetime.
+
+The [pinned Node TLS API](https://nodejs.org/download/release/v22.23.1/docs/api/tls.html#tlssetdefaultcacertificatescerts)
+supports process-thread-local default CA replacement; retain existing defaults.
+Require real fetch proofs for untrusted-certificate rejection, exact-IP success
+after explicit trust and wrong-identity rejection, then rerun the original real
+browser scenario. A configuration or TLS unit pass is not workflow acceptance.
+
+The regression first failed through the actual production validator with
+`insecure_url` (`01a09d60994f7662b7dc5a6202a3d424`). The HTTPS correction passes
+33/33 scoped checks (`01a09d629c2478229364aa0ed66fa250`), including actual fetch
+rejection before trust, success after process-local trust, and exact
+`ERR_TLS_CERT_ALTNAME_INVALID` for a wrong identity. The original browser flow
+has not yet been rerun on this correction; production is unchanged.
+
+### Original template browser acceptance passed on5833cd77
+
+The same full ingress/mapping scenario now completes with actual local Auth,
+ClamAV, native inspection and private Storage: exit0,
+`UNIVERSITY_TEMPLATE_INGRESS_VERIFIED` (`01a09d6cfcdb7621b7ca7f47245ed92d`).
+PDF lost-response/replay/reconciliation, DOCX preview/mapping/separate review and
+publication, desktop/mobile cold resume and archived history all passed. Browser
+error/warning counts are0/0; root inspected both mapping screenshots. Owned app,
+project containers/network/volumes are absent after cleanup
+(`01a09d6d6b1d7980aa4b0058921cd67c`).
+The [exact source/image/run evidence](design/v3/references/2026-09-14-university-template-ingress-proof.md)
+closes the prior acceptance-only login failure, not full D4, provider/client
+acceptance or release. Preserve the original false business/full-D4 flags.
+Next work remains PDF region UI, saved filled forms and packages, followed by
+managed release, D5 import and D6 acceptance/retirement. No production changes.

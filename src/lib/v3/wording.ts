@@ -25,6 +25,7 @@ import type {
   PlatformDocumentReviewDecision,
   PlatformDocumentSlotStatus,
 } from "../platform-private-documents.ts";
+import { PROFILE_FIELDS } from "../student-profile-fields.ts";
 
 export function studentProfileFieldState(value: string): string | null {
   const labels: Record<string, string> = {
@@ -773,4 +774,171 @@ export function documentRecognitionError(value: string): string | null {
     generation_unknown: "Исход извлечения неизвестен.", publication_blocked: "Предложения не опубликованы.", cancelled: "Задание отменено.",
   };
   return labels[value] ?? null;
+}
+export const universityFormWorkspace = {
+  title: "Бланки университета",
+  back: "Вернуться к университету",
+  add: "Добавить бланк",
+  createTitle: "Новый бланк",
+  name: "Название бланка",
+  nameExample: "Например, заявление на поступление",
+  createExplanation: "Сначала назовите бланк. На следующем шаге загрузите файл университета.",
+  create: "Создать бланк",
+  upload: "Загрузить файл",
+  creating: "Создаём бланк…",
+  cancel: "Отмена",
+  saved: "Изменения сохранены.",
+  createReason: "Добавление бланка университета",
+  checkSaved: "Проверить список бланков",
+  checkingExplanation: "Ответ сервера не получен. Бланк мог сохраниться — сначала проверьте список или повторите тот же запрос.",
+  retry: "Повторить тот же запрос",
+  empty: "Бланков пока нет",
+  emptyExplanation: "Добавьте файл университета, чтобы настроить заполнение из анкеты студента.",
+  choose: "Выберите бланк",
+  chooseExplanation: "Откройте сохранённый бланк или добавьте новый.",
+  draft: "Черновик",
+  published: "Доступен для заполнения",
+  archived: "В архиве",
+  sourceChanged: "Сведения об университете изменились. Нужна новая версия бланка.",
+  more: "Следующие бланки",
+  first: "В начало списка",
+  versions: "Версии файла",
+  olderVersions: "Предыдущие версии",
+  currentVersion: "Последняя версия",
+  version: "Версия",
+  newVersion: "Загрузить новую версию",
+  file: "Файл университета",
+  fileHint: "PDF или DOCX, не более 20 МБ.",
+  selectedFile: "Выбран файл:",
+  source: "Откуда получен бланк",
+  sourceHint: "Ссылка на сайт университета или описание письма партнёра.",
+  sourceDate: "Дата получения",
+  sourceReason: "Добавление версии университетского бланка",
+  uploading: "Загружаем и проверяем файл…",
+  reserving: "Сохраняем сведения о версии…",
+  inspectPending: "Ожидает загрузки или проверки",
+  verified: "Файл проверен",
+  openSource: "Открыть исходный файл",
+  pendingExplanation: "Статус обновится автоматически. Можно вернуться к бланку позже.",
+  unknownExplanation: "Не удалось подтвердить результат. Проверьте статус перед следующим действием.",
+  fileInvalid: "Выберите PDF или DOCX размером до 20 МБ.",
+  fileMismatch: "Это другой файл. Выберите исходный файл этой версии или создайте новую версию.",
+  statusUnavailable: "Статус сейчас недоступен. Файл повторно не отправляется.",
+  refreshStatus: "Проверить статус",
+  reconcile: "Проверить завершение загрузки",
+  cancelUpload: "Отменить загрузку",
+  cancelConfirm: "Подтверждаю отмену загрузки этой версии",
+  reconcileReason: "Проверка завершения загрузки университетского бланка",
+  cancelReason: "Отмена загрузки университетского бланка",
+  checking: "Проверяем…",
+  reload: "Обновить страницу",
+  readUnavailable: "Бланки сейчас недоступны. Попробуйте обновить страницу.",
+} as const;
+
+export function universityTemplateUploadState(value: string): string | null {
+  const labels: Record<string, string> = {
+    prepared: "Загрузка подготовлена", processing: "Проверяем файл", sealed: "Завершаем сохранение",
+    verified: "Файл проверен", unknown: "Результат загрузки требует проверки",
+    failed: "Загрузка не завершена", cancelled: "Загрузка отменена",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export const universityFormManagement = {
+  mappings: "Настройка заполнения",
+  mappingVersion: "Настройка",
+  mappingCount: "Полей для заполнения:",
+  mappingEmpty: "Выберите поля анкеты для заполнения бланка.",
+  mappingPending: "Ожидает проверки",
+  mappingApproved: "Проверена",
+  mappingRejected: "Нужны исправления",
+  review: "Проверить настройку",
+  reviewExplanation: "Сверьте выбранные поля с исходным бланком. Проверка относится только к этой сохранённой настройке.",
+  approve: "Подтвердить настройку",
+  reject: "Вернуть на исправление",
+  decision: "Результат проверки",
+  reviewConfirm: "Я сверил поля с исходным бланком",
+  reviewReason: "Проверка настройки университетского бланка",
+  reviewSaved: "Результат проверки сохранён.",
+  publish: "Разрешить заполнение",
+  publishExplanation: "Эта проверенная настройка станет доступна сотрудникам. Предыдущая версия сохранится в истории.",
+  publishConfirm: "Использовать эту настройку для заполнения бланка",
+  publishReason: "Публикация проверенной настройки университетского бланка",
+  publishSaved: "Бланк доступен для заполнения.",
+  archive: "Убрать бланк в архив",
+  archiveExplanation: "Бланк перестанет предлагаться для нового заполнения. Файлы и история сохранятся.",
+  archiveConfirm: "Убрать бланк из доступных для заполнения",
+  archiveReason: "Архивирование университетского бланка",
+  archiveSaved: "Бланк перемещён в архив.",
+  comment: "Комментарий",
+  saving: "Сохраняем…",
+  next: "Открыть обновлённый бланк",
+  history: "История настроек",
+  latestMapping: "Последняя настройка",
+  savedMapping: "Сохранённые поля и исходный бланк",
+  older: "Предыдущие настройки",
+  manual: "Вручную",
+  optional: "Необязательное поле",
+  required: "Обязательное поле",
+  edit: "Настроить поля",
+  editExplanation: "Выберите, какие данные анкеты подставлять в каждый фрагмент бланка. Подписи и согласия заполняются вручную.",
+  sourceExcerpt: "Фрагменты исходного бланка",
+  excerptExplanation: "Здесь показан текст для настройки полей, а не внешний вид готового документа.",
+  sourceField: "Данные из анкеты",
+  skip: "Не заполнять автоматически",
+  combined: "Составные поля",
+  context: "Контекст в бланке",
+  excerptShortened: "Фрагмент сокращён; полный текст — в исходном файле.",
+  blank: "Пустое место для заполнения",
+  format: "Формат даты",
+  dateFull: "Дата полностью",
+  day: "День",
+  month: "Месяц",
+  year: "Год",
+  previous: "Предыдущие фрагменты",
+  following: "Следующие фрагменты",
+  fragment: "Фрагмент",
+  of: "из",
+  previewLoading: "Открываем фрагменты…",
+  previewUnavailable: "Не удалось открыть фрагменты. Настройка остаётся на экране; попробуйте ещё раз.",
+  retryPreview: "Повторить открытие",
+  saveMapping: "Сохранить настройку",
+  mappingReason: "Настройка полей университетского бланка",
+  mappingSaved: "Настройка сохранена. Следующий шаг — сверка полей с бланком.",
+} as const;
+
+export function universityFormSourceLabel(value: string): string | null {
+  const combined: Record<string, string> = {
+    full_name: "Имя и фамилия", surname_first_name: "Фамилия и имя",
+    father_full_name: "Имя и фамилия отца", mother_full_name: "Имя и фамилия матери",
+  };
+  return Object.hasOwn(combined, value) ? combined[value] : PROFILE_FIELDS.find(field => field.key === value)?.label ?? null;
+}
+
+export function universityTemplateUploadFailure(value: string): string | null {
+  const labels: Record<string, string> = {
+    source_mismatch: "Файл не совпадает с выбранной версией.", malware_detected: "Файл отклонён проверкой безопасности.",
+    scanner_unavailable: "Проверка безопасности временно недоступна.", template_not_eligible: "Этот файл нельзя использовать как бланк.",
+    template_runtime_unavailable: "Проверка бланков временно недоступна.", storage_unavailable: "Хранилище временно недоступно.",
+    storage_missing: "Сохранённый файл не найден.", access_changed: "Права доступа изменились.",
+    source_changed: universityFormWorkspace.sourceChanged, archived: "Бланк перемещён в архив.",
+    stale_revision: "Бланк изменился. Обновите страницу.", expired: "Время обработки истекло.",
+    cancelled: "Загрузка отменена.", integrity_failed: "Проверка целостности файла не пройдена.",
+  };
+  return Object.hasOwn(labels, value) ? labels[value] : null;
+}
+
+export function universityFormActionMessage(value: string): string | null {
+  const messages: Record<string, string> = {
+    forbidden: "У вас нет доступа к изменению бланков этого университета.",
+    invalid_request: "Проверьте название и заполнение формы.",
+    stale_revision: "Бланк уже изменён. Обновите страницу перед следующим действием.",
+    request_conflict: "Этот запрос уже использован для другого изменения. Проверьте сохранённый бланк.",
+    source_changed: "Сведения об университете изменились. Сначала проверьте актуальную версию.",
+    archived: "Бланк в архиве. Его история сохранена, но новые изменения недоступны.",
+    not_inspected: "Проверка файла ещё не завершена. Дождитесь результата.",
+    not_ready: "Бланк пока не готов к этому действию. Проверьте файл и настройку полей.",
+    unavailable: universityFormWorkspace.checkingExplanation,
+  };
+  return Object.hasOwn(messages, value) ? messages[value] : null;
 }

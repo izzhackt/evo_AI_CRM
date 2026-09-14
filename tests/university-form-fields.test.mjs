@@ -153,13 +153,76 @@ test("resolution captures inputs before async hashing and cannot be edited after
 async function pdfFixture() {
   const input = await fixture({ sourceKey: "student_first_name" });
   input.template = { ...input.template, format: "pdf", pageSizes: [{ width: 612, height: 792 }],
-    slots: [{ ...input.template.slots[0], id: "pdf-1" }] };
+    slots: [] };
   input.mapping.mappings[0] = { ...input.mapping.mappings[0], slotId: "pdf-1",
     position: { page: 1, x: 20, y: 30, width: 120, height: 24, characterCount: 12 } };
   input.mapping.sha256 = await computeUniversityFormMappingHash(input.mapping);
   input.review.mappingSha256 = input.mapping.sha256;
   return input;
 }
+
+test("PDF reviewed regions do not become invented inspector slots", async () => {
+  const input = await pdfFixture();
+  const profile = { fields: [{ key: "student_first_name", value: "Synthetic", state: "confirmed" }] };
+  const result = await resolveUniversityFormMappings({ ...input, profile, today });
+  assert.deepEqual(input.template.slots, []);
+  assert.deepEqual(getUniversityFormAssignments(result, "final"), [{ slotId: "pdf-1", value: "Synthetic" }]);
+  input.template.slots = [{ id: "pdf-1", text: "Invented", context: "Not an inspected slot",
+    kind: "blank", editable: true, manualReason: null }];
+  await assert.rejects(resolveUniversityFormMappings({ ...input, profile, today }), { code: "invalid_template_snapshot" });
+});
+
+async function resolveReviewedPdf(input) {
+  input.mapping.sha256 = await computeUniversityFormMappingHash(input.mapping);
+  input.review.mappingSha256 = input.mapping.sha256;
+  return resolveUniversityFormMappings({ ...input, profile: { fields: [] }, today });
+}
+
+for (const [change, code] of [
+  [{ page: 0 }, "form_pdf_page_not_found"], [{ page: 2 }, "form_pdf_page_not_found"],
+  [{ page: 101 }, "form_pdf_page_not_found"], [{ page: 1.5 }, "invalid_mapping_snapshot"],
+  [{ x: -1 }, "form_pdf_position_invalid"], [{ y: -1 }, "form_pdf_position_invalid"],
+  [{ width: 11 }, "form_pdf_position_invalid"], [{ height: 11 }, "form_pdf_position_invalid"],
+  [{ x: 493 }, "form_pdf_position_invalid"], [{ y: 769 }, "form_pdf_position_invalid"],
+  [{ width: 3001 }, "form_pdf_position_invalid"], [{ height: 3001 }, "form_pdf_position_invalid"],
+  [{ x: Number.POSITIVE_INFINITY }, "invalid_mapping_snapshot"], [{ y: Number.NaN }, "invalid_mapping_snapshot"],
+  [{ characterCount: 0 }, "form_pdf_cells_invalid"], [{ characterCount: 121 }, "form_pdf_cells_invalid"],
+  [{ characterCount: 25 }, "form_pdf_cells_invalid"], [{ characterCount: 1.5 }, "invalid_mapping_snapshot"],
+]) test(`PDF region is rejected before assignment (${Object.keys(change)[0]}/${String(Object.values(change)[0])})`, async () => {
+  const input = await pdfFixture();
+  Object.assign(input.mapping.mappings[0].position, change);
+  await assert.rejects(resolveReviewedPdf(input), { code });
+});
+
+for (const manual of [false, true]) test(`PDF all-region overlap includes ${manual ? "manual" : "empty"} reviewed regions`, async () => {
+  const input = await pdfFixture(), first = input.mapping.mappings[0];
+  input.mapping.mappings.push({ ...first, slotId: "pdf-2", sourceKey: manual ? null : first.sourceKey, manual,
+    position: { page: 1, x: 30, y: 40, width: 120, height: 24 } });
+  await assert.rejects(resolveReviewedPdf(input), { code: "form_pdf_positions_overlap" });
+});
+
+test("PDF adjacent regions and the same coordinates on different pages remain valid", async () => {
+  const input = await pdfFixture(), first = input.mapping.mappings[0];
+  input.template.pageSizes.push({ width: 612, height: 792 });
+  input.mapping.mappings.push({ ...first, slotId: "pdf-2", sourceKey: null, manual: true,
+    position: { ...first.position, x: 140 } }, { ...first, slotId: "pdf-3", position: { ...first.position, page: 2 } });
+  const result = await resolveReviewedPdf(input);
+  assert.equal(result.values.length, 3);
+  assert.equal(result.values[1].state, "manual");
+  assert.deepEqual(getUniversityFormAssignments(result, "draft"), []);
+});
+
+test("PDF requires 1–500 reviewed regions while the inspector slot list remains empty", async () => {
+  const input = await pdfFixture(), first = input.mapping.mappings[0];
+  input.mapping.mappings = [];
+  await assert.rejects(resolveReviewedPdf(input), { code: "invalid_mapping_snapshot" });
+  input.mapping.mappings = Array.from({ length: 500 }, (_, index) => ({ ...first, slotId: `pdf-${index + 1}`,
+    position: { page: 1, x: (index % 20) * 20, y: Math.floor(index / 20) * 20, width: 12, height: 12 } }));
+  assert.equal((await resolveReviewedPdf(input)).values.length, 500);
+  assert.deepEqual(input.template.slots, []);
+  input.mapping.mappings.push({ ...first, slotId: "pdf-501", position: { page: 1, x: 400, y: 500, width: 12, height: 12 } });
+  await assert.rejects(resolveReviewedPdf(input), { code: "invalid_mapping_snapshot" });
+});
 
 test("PDF review hash binds every coordinate and character count", async () => {
   for (const key of ["page", "x", "y", "width", "height", "characterCount"]) {

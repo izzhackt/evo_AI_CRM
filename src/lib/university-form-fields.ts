@@ -40,11 +40,12 @@ export interface UniversityFormMapping {
 interface UniversityFormTemplateBase {
   readonly versionId: string;
   readonly sha256: string;
-  /** Inspection of these exact template bytes, supplied by the outer trusted boundary. */
-  readonly slots: readonly UniversityFormSlot[];
 }
 export type UniversityFormTemplateSnapshot = UniversityFormTemplateBase & (
-  { readonly format?: "docx" } | { readonly format: "pdf"; readonly pageSizes: readonly UniversityPdfPageSize[] }
+  /** DOCX slots are inspected from the exact source bytes. */
+  { readonly format?: "docx"; readonly slots: readonly UniversityFormSlot[] }
+  /** PDF inspection discovers pages, not editable regions; mapping owns regions. */
+  | { readonly format: "pdf"; readonly slots: readonly []; readonly pageSizes: readonly UniversityPdfPageSize[] }
 );
 export interface UniversityFormMappingContent {
   readonly versionId: string;
@@ -127,6 +128,27 @@ export async function computeUniversityFormMappingHash(content: UniversityFormMa
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function validatePdfRegions(mappings: readonly UniversityFormMapping[], pages: readonly UniversityPdfPageSize[]): void {
+  if (mappings.length < 1 || mappings.length > 500) fail("invalid_mapping_snapshot");
+  const positions: UniversityPdfPosition[] = [];
+  for (const mapping of mappings) {
+    const position = mapping.position;
+    if (!position || !Number.isInteger(position.page) || position.page < 1 || position.page > pages.length) fail("form_pdf_page_not_found");
+    const page = pages[position.page - 1];
+    if (![position.x, position.y, position.width, position.height].every(Number.isFinite)
+      || position.x < 0 || position.y < 0 || position.width < 12 || position.height < 12
+      || position.x + position.width > page.width || position.y + position.height > page.height) fail("form_pdf_position_invalid");
+    if (position.characterCount !== undefined && (!Number.isInteger(position.characterCount)
+      || position.characterCount < 1 || position.characterCount > 120 || position.width / position.characterCount < 5)) fail("form_pdf_cells_invalid");
+    // Every reviewed region occupies space, even when manual or not assigned.
+    for (const other of positions) {
+      if (position.page === other.page && position.x < other.x + other.width && other.x < position.x + position.width
+        && position.y < other.y + other.height && other.y < position.y + position.height) fail("form_pdf_positions_overlap");
+    }
+    positions.push(position);
+  }
+}
+
 export async function resolveUniversityFormMappings(input: {
   readonly template: UniversityFormTemplateSnapshot;
   readonly mapping: UniversityFormMappingSnapshot;
@@ -149,7 +171,9 @@ export async function resolveUniversityFormMappings(input: {
   if (!Array.isArray(pageSizes) || (templateFormat === "pdf" && (!pageSizes.length || pageSizes.length > 100))
     || pageSizes.some(page => !page || ![page.width, page.height].every(value => Number.isFinite(value) && value >= 72 && value <= 3000))) fail("invalid_template_snapshot");
   if (mapping.mappings.some(item => templateFormat === "pdf" ? !item.position || !item.slotId.startsWith("pdf-") : item.position !== undefined || !item.slotId.startsWith("p-"))) fail("invalid_mapping_snapshot");
-  if (!Array.isArray(template.slots) || template.slots.length > 3000) fail("invalid_template_snapshot");
+  if (!Array.isArray(template.slots) || template.slots.length > 3000
+    || (templateFormat === "pdf" && template.slots.length !== 0)) fail("invalid_template_snapshot");
+  if (templateFormat === "pdf") validatePdfRegions(mapping.mappings, pageSizes);
   const slots = new Map<string, UniversityFormSlot>();
   for (const slot of template.slots) {
     if (!slot || !/^(?:p|pdf)-[1-9]\d{0,3}$/u.test(slot.id) || slots.has(slot.id) || typeof slot.editable !== "boolean"
@@ -166,12 +190,12 @@ export async function resolveUniversityFormMappings(input: {
   }
   const values = mapping.mappings.map((item): UniversityFormResolvedValue => {
     const slot = slots.get(item.slotId);
-    if (!slot) fail("mapping_slot_not_found");
+    if (templateFormat === "docx" && !slot) fail("mapping_slot_not_found");
     const keys = (sources.get(item.sourceKey ?? "") ?? []) as readonly ProfileFieldKey[];
     const base = { slotId: item.slotId, sourceKey: item.sourceKey, required: item.required, fieldKeys: Object.freeze([...keys]),
       ...(item.position ? { position: Object.freeze(canonicalPosition(item.position)) } : {}) };
     const resolved = (state: UniversityFormValueState, value = ""): UniversityFormResolvedValue => Object.freeze({ ...base, state, value });
-    if (item.manual || !slot.editable) return resolved("manual");
+    if (item.manual || slot?.editable === false) return resolved("manual");
     const components = keys.map(key => fields.get(key));
     if (components.some(field => field?.state === "conflict")) return resolved("conflict");
     if (components.some(field => field && field.state !== "confirmed")) return resolved("unconfirmed");

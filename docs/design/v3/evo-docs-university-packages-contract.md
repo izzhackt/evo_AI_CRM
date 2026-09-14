@@ -282,3 +282,16 @@ Primary API: [PizZip file data](https://open-xml-templating.github.io/pizzip/doc
 [generate](https://open-xml-templating.github.io/pizzip/documentation/api_pizzip/generate.html)
 (STORE/platform); существующая зависимость PizZip3.2.0, без новых packages.
 Точные scoped receipts — [PLAN_CHANGES](../../PLAN_CHANGES.md).
+
+### PDF inspection and reviewer-defined regions
+
+The PDF resolver snapshot must retain the real native manifest `slots: []` plus
+visible `pageSizes`. Existing approved `mapping.mappings` define the1–500 human
+reviewed `pdf-N` regions, positions and manual flags; they are not discovered
+editable slots. The canonical mapping/review hash remains unchanged. All regions,
+including manual or empty fields, must satisfy166/renderer bounds, character-cell
+limits and non-overlap before resolution. DOCX still requires inspected slot
+matching. This repair is a library integration seam, not full PDF acceptance.
+The bounded correction passes75 focused fields/PDF/DOCX checks and lint after
+actual RED cases for empty inspected slots and missing geometry refusals; see
+`01a09d5144bd72d0982dff1c7d0330f9`. No native/build/browser gate was repeated.

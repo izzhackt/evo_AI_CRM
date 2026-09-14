@@ -52,6 +52,7 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
 ]);
 
 const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STAFF_UNIVERSITY_FORMS_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_PREVIEW_UNIVERSITY_DETAIL_PATH = /^\/preview\/student\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -75,6 +76,8 @@ const DOCUMENT_EXPORT_PATH =
   /^\/api\/v3\/student-cases\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/document-exports(?:\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:download|reconcile))?$/i;
 const PLATFORM_STAFF_ASSISTANT_PATH =
   "/api/platform-ai/staff-assistant";
+const UNIVERSITY_TEMPLATE_SOURCE_PATH =
+  /^\/api\/v3\/university-forms\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/source(?:\/(?:status|preview|cancel|reconcile))?$/i;
 const PLATFORM_AUDIT_EXPORT_PATH = "/api/platform-audit/export";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
@@ -126,6 +129,7 @@ export function isConnectedPlatformPage(path: string): boolean {
   return (
     PLATFORM_STAFF_PAGE_ALLOWLIST.has(path) ||
     STAFF_UNIVERSITY_DETAIL_PATH.test(path) ||
+    STAFF_UNIVERSITY_FORMS_PATH.test(path) ||
     isConnectedStudentPortalPreviewPage(path) ||
     isConnectedStudentPortalPage(path) ||
     isConnectedStudentAuthPage(path)
@@ -193,6 +197,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     PRIVATE_COMPANY_FILE_DOWNLOAD_PATH.test(path) ||
     DOCUMENT_RECOGNITION_JOBS_PATH.test(path) ||
     DOCUMENT_EXPORT_PATH.test(path) ||
+    UNIVERSITY_TEMPLATE_SOURCE_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

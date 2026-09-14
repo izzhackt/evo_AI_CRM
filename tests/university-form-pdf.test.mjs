@@ -35,8 +35,7 @@ async function resolution(bytes, { value = "Айлин Synthetic", state = "conf
   reviewState = "approved", pageSizes, second = null, manual = false,
   position = { page: 1, x: 160, y: 118, width: 350, height: 32 }, extra = [] } = {}) {
   const inspection = await inspectUniversityPdf(bytes);
-  const slots = [{ id: "pdf-1", text: "Name", context: "Synthetic field", kind: "blank", editable: !manual, manualReason: manual ? "Applicant only" : null }, ...extra.map(item => item.slot)];
-  const template = { versionId: templateId, format: "pdf", sha256: inspection.sha256, pageSizes: pageSizes ?? inspection.pageSizes, slots };
+  const template = { versionId: templateId, format: "pdf", sha256: inspection.sha256, pageSizes: pageSizes ?? inspection.pageSizes, slots: [] };
   const mapping = { versionId: mappingId, templateVersionId: templateId, templateSha256: template.sha256,
     mappings: [{ slotId: "pdf-1", sourceKey: manual ? null : sourceKey, required, format: "text", manual, position }, ...extra.map(item => item.mapping)] };
   mapping.sha256 = await computeUniversityFormMappingHash(mapping);
@@ -131,10 +130,9 @@ test("manual form areas stay manual and optional confirmed-empty stays empty", a
 
 for (const manual of [false, true]) test(`omitted ${manual ? "manual" : "empty"} rectangles participate in overlap validation`, async () => {
   const bytes = await fixture();
-  const extra = [{ slot: { id: "pdf-2", text: "Optional / signature", context: "Synthetic", kind: "blank", editable: !manual, manualReason: manual ? "Applicant" : null },
-    mapping: { slotId: "pdf-2", sourceKey: manual ? null : "student_last_name", required: false, format: "text", manual,
+  const extra = [{ mapping: { slotId: "pdf-2", sourceKey: manual ? null : "student_last_name", required: false, format: "text", manual,
       position: { page: 1, x: 200, y: 120, width: 80, height: 20 } } }];
-  await assert.rejects(fillUniversityPdf(bytes, await resolution(bytes, { extra }), { draft: true }), { code: "form_pdf_positions_overlap" });
+  await assert.rejects(async () => fillUniversityPdf(bytes, await resolution(bytes, { extra }), { draft: true }), { code: "form_pdf_positions_overlap" });
 });
 
 for (const [position, code] of [
@@ -144,7 +142,7 @@ for (const [position, code] of [
   [{ page: 1, x: 10, y: 10, width: 100, height: 30, characterCount: 21 }, "form_pdf_cells_invalid"],
 ]) test(`reviewed ordinary position must fit the actual page (${code}/${position.page})`, async () => {
   const bytes = await fixture();
-  await assert.rejects(fillUniversityPdf(bytes, await resolution(bytes, { position }), { draft: true }), { code });
+  await assert.rejects(async () => fillUniversityPdf(bytes, await resolution(bytes, { position }), { draft: true }), { code });
 });
 
 test("overlong normal text fails without truncation while character cells accept accented Cyrillic", async () => {
@@ -168,7 +166,6 @@ test("two-page cropped synthetic forms retain ordinary and long Latin/Cyrillic l
     ["pdf-3", "student_first_name", { page: 2, x: 140, y: 88, width: 350, height: 32 }],
     ["pdf-4", "why_this_field", { page: 2, x: 140, y: 140, width: 350, height: 240 }],
   ].map(([id, sourceKey, position]) => ({
-    slot: { id, text: "Synthetic text area", context: "Name / motivation", kind: "blank", editable: true, manualReason: null },
     mapping: { slotId: id, sourceKey, required: true, format: "text", manual: false, position },
   }));
   const outputs = new Map([["original.pdf", bytes]]);

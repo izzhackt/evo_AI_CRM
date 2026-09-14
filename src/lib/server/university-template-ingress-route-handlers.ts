@@ -17,6 +17,7 @@ import { templateIngressUuid, templateIngressMime, templateIngressRecord, templa
   normalizeUniversityTemplateInspectionMetadata,
   type UniversityTemplateIngressReceipt } from "../university-template-ingress.ts";
 import { UNIVERSITY_TEMPLATE_MAX_BYTES, type UniversityTemplateMime } from "../university-form-registry.ts";
+import { withUniversityTemplateByteOperation as byteOperation, type RetainUniversityTemplateByteWork as RetainByteWork } from "./university-template-byte-operation.ts";
 
 type RpcClient = Pick<SupabaseClient, "schema">;
 type Context = { params: Promise<{ templateId: string; versionId: string }> };
@@ -45,7 +46,6 @@ const HEADERS = { "cache-control": "private, no-store", "x-content-type-options"
 export function universityTemplateMethodNotAllowed(allow: "GET" | "POST" | "GET, POST"): Response {
   return Response.json({ error: "method_not_allowed" }, { status: 405, headers: { ...HEADERS, allow } });
 }
-let activeByteOperations = 0;
 class IngressError extends Error {
   readonly status: number; readonly code: string;
   constructor(status: number, code: string) { super(code); this.status = status; this.code = code; }
@@ -94,26 +94,6 @@ function sourceFrom(raw: unknown, expectedOrganization: string, template: string
 function freshExpiry(value: unknown, maximumMs: number): void {
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value)) || Date.parse(value) <= Date.now()
     || Date.parse(value) > Date.now() + maximumMs) throw new IngressError(409, "expired");
-}
-type RetainByteWork = <T>(task: Promise<T>) => Promise<T>;
-async function byteOperation(work: (retain: RetainByteWork) => Promise<Response>): Promise<Response> {
-  // No implicit queue: cap the one native invocation and retained20MiB inputs.
-  if (activeByteOperations >= 1) throw new IngressError(503, "unavailable");
-  activeByteOperations++;
-  const pending = new Set<Promise<unknown>>();
-  const retain: RetainByteWork = task => {
-    pending.add(task);
-    void task.then(() => pending.delete(task), () => pending.delete(task));
-    return task;
-  };
-  try { return await work(retain); }
-  finally {
-    // HTTP cancellation can win its race while a scanner/socket or native child
-    // still owns bytes. Release admission only on actual settlement, not abort.
-    // This continuation performs accounting only, never background processing.
-    if (pending.size) void Promise.allSettled([...pending]).then(() => { activeByteOperations--; });
-    else activeByteOperations--;
-  }
 }
 function actorFrom(result: PlatformActorResult): PlatformActor {
   if (result.status === "anonymous") throw new IngressError(401, "authentication_required");

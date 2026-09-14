@@ -182,10 +182,16 @@ function compile(path, resolve = require) {
   return compiledModule.exports;
 }
 const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+const formPanel = compile("src/components/v3/profile/UniversityFormExportPanel.tsx", id => {
+  if (id === "@/lib/document-export-client") return client;
+  if (id === "@/lib/v3/wording") return wording;
+  return require(id);
+});
 const ui = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
   if (id === "@/lib/document-export-client") return client;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "../settings/StaffDisclosure") return disclosure;
+  if (id === "./UniversityFormExportPanel") return formPanel;
   return require(id);
 });
 const noAction = () => { throw new Error("SSR markup proof does not execute a command"); };
@@ -210,7 +216,8 @@ test("actual empty/busy history SSR and shared editor guard remain explicit; no 
   assert.match(busy, /<button[^>]*disabled=""[^>]*>Проверить сохранение/);
   const source = read("src/components/v3/profile/StudentProfileExportHistory.tsx");
   assert.doesNotMatch(source, /setInterval|setTimeout|localStorage|sessionStorage|profile-exports/);
-  assert.match(source, /generate\(unresolvedCommand.mode, unresolvedCommand\)/);
+  assert.match(source, /execute\(unresolvedCommand.command\)/);
+  assert.match(source, /unresolvedCommand.studentCaseId !== studentCaseId/);
   assert.match(source, /reconcileRequests.current.get\(artifact.id\) \?\? crypto.randomUUID\(\)/);
   assert.match(source, /commandInFlightRef.current = true/);
   assert.match(read("src/components/v3/profile/StudentProfileFields.tsx"), /commandInFlightRef=\{commandInFlight\}/);

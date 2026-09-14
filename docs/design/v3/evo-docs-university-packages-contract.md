@@ -295,3 +295,269 @@ matching. This repair is a library integration seam, not full PDF acceptance.
 The bounded correction passes75 focused fields/PDF/DOCX checks and lint after
 actual RED cases for empty inspected slots and missing geometry refusals; see
 `01a09d5144bd72d0982dff1c7d0330f9`. No native/build/browser gate was repeated.
+
+## Saved university-form artifact producer — pre-code amendment, 2026-09-14
+
+База:164 persistence,165 registry,166 trusted ingress и resolver `0e748452`;
+это следующий **не реализованный** срез полного DOCX/PDF export, не новый importer,
+не ZIP producer и не готовность D4. Ни номер forward migration, ни применение
+Storage-конфигурации здесь не разрешаются. Для saved-form producer этот amendment
+заменяет ранние `target_id`/`expected_revision` и предположение «output hash только
+после ready» выше. Установленный Student Profile contract164 сохраняется.
+
+### Точные DTO и HTTP seam
+
+Все объекты закрытые: неизвестные ключи отвергаются, nullable поля обязательны.
+`UUID` — canonical UUID, `Hex` —64 lowercase hex, `ImageId` — `sha256:` + Hex,
+`Revision` —40 lowercase hex, `Day` — действительная UTC-дата `YYYY-MM-DD`;
+revision/size — положительные safe integers. `DOCX` означает MIME из
+[existing artifact contract](../../../src/lib/document-export-artifact-contract.ts),
+`PDF` — `application/pdf`. Имена existing types ниже — точные aliases, не новые
+неопределённые DTO. В JSON нет `undefined`.
+
+```ts
+type FormBinding = {
+  application_id: UUID; catalog_institution_id: UUID; catalog_source_revision: string;
+  template_id: UUID; template_version_id: UUID; inspection_receipt_id: UUID;
+  mapping_id: UUID; mapping_sha256: Hex; review_id: UUID; validation_day: Day;
+};
+type RendererProof = {
+  image_id: ImageId; release_revision: Revision; font_sha256: Hex | null;
+};
+type ProfileReceipt = DocumentExportReceipt; // exact pre-amendment164 shape
+type FormReceipt = Omit<ProfileReceipt, "kind" | "mime_type" | "failure_code"> & {
+  kind: "university_form"; mime_type: DOCX | PDF;
+  form: FormBinding; generated_input_sha256: Hex; renderer_proof: RendererProof | null;
+  failure_code: DocumentExportFailure | "form_not_ready" | null;
+};
+type ExportReceipt = ProfileReceipt | FormReceipt;
+type BoundTemplate = {
+  versionId: UUID; sha256: Hex;
+  manifest: { format: "docx"; slots: { id: string; editable: boolean }[]; pageSizes: [] }
+    | { format: "pdf"; slots: []; pageSizes: { width: number; height: number }[] };
+};
+type FormMetadata = {
+  schema_version: 1; kind: "university_form"; organization_id: UUID; student_case_id: UUID;
+  form: FormBinding; template: BoundTemplate;
+  mapping: UniversityFormMappingSnapshot; review: UniversityFormMappingReviewSnapshot;
+  source_byte_size: number; source_mime_type: DOCX | PDF; manifest_sha256: Hex;
+  renderer_version: "evo-university-form-docx-v1" | "evo-university-form-pdf-v1";
+  font_sha256: Hex | null;
+};
+type FormInput = FormMetadata & { mode: "draft" | "final"; frozen_profile: FrozenProfile164 };
+type FormPreparation = {
+  schema_version: 1; preparation_id: UUID; artifact: FormReceipt; frozen_form: FormInput | null;
+};
+type FormWorkspace = {
+  schema_version: 1; student_case_id: UUID; application_id: UUID; catalog_institution_id: UUID;
+  profile: { id: UUID; revision: number } | null; selection: FormBinding | null;
+  workspace_revision: Hex | null; can_export: boolean;
+  unavailable_reason: "profile_missing" | "mapping_not_current" | null;
+};
+type ExportWorkspaceV2 = Omit<DocumentExportWorkspace, "schema_version" | "artifacts"> & {
+  schema_version: 2; artifacts: ExportReceipt[];
+};
+type TemplateSource = {
+  bucket_id: "platform-document-templates"; object_name: string; mime_type: DOCX | PDF;
+  sha256: Hex; byte_size: number; inspection_receipt_id: UUID; manifest_sha256: Hex; expires_at: string;
+};
+type FormBeginning = {
+  artifact: FormReceipt; created: boolean; claim_token: UUID | null; template_source: TemplateSource | null;
+};
+```
+
+`FrozenProfile164` — ровно JSON, который164 строит из `staff_student_profile_fields`:
+case/profile IDs+revision, capability booleans и61 fields с исходными review states;
+только confirmed values/source references, все прочие values=NULL, proposals=[].
+Проверять его `normalizePlatformStudentProfileFieldsSnapshot`, затем передавать
+нормализованные `fields` существующему resolver; не применять9 required D2 к форме.
+`mapping`, `review` — aliases [resolver types](../../../src/lib/university-form-fields.ts).
+`template` — закрытый BoundTemplate, **не** rich UniversityFormTemplateSnapshot:
+SQL копирует настоящий minimal manifest166. DOCX slots содержат только id/editable,
+ordered `p-1…p-N` (1–3000), pageSizes=[]; PDF slots=[], pageSizes1–100 в пределах72–3000pt.
+Text/context/kind/manualReason в БД отсутствуют: не выдумывать и не добавлять их в165/166.
+В isolated child повторная inspection exact bound bytes строит настоящий rich resolver
+snapshot; его minimal projection должна совпасть с frozen manifest, иначе отказ.
+Только затем child выполняет resolve/fill; rich DOCX text не сохраняется в SQL или receipt.
+PDF snapshot сохраняет slots=[]/actual pageSizes, regions/manual/position — только mapping.
+Review `versionId` = review row ID, `state="approved"`; IDs/SHA всех трёх DTO обязаны
+совпадать с FormBinding и receipt166. Никаких browser values, paths или доказательств.
+
+`FormReceipt` сохраняет все остальные ключи164, но template SHA берётся из exact
+version, renderer policy и MIME — из FormMetadata. Все FormBinding поля non-NULL;
+source size1–20971520. Для PDF ожидаемый NotoSans SHA —
+`b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5`;
+для DOCX `font_sha256=null`: fill сохраняет font declarations, не доказывает встраивание
+PDF-шрифта. `renderer_proof=null` до seal; после seal non-NULL и неизменен, включая
+unknown/failed после upload. Output SHA/size также появляются при seal, а не при ready;
+`receipt_id`/`ready_at` non-NULL только ready, `can_download` только ready + live access.
+Старый ProfileReceipt не получает новых ключей или выдуманной execution provenance.
+
+Существующий POST `/api/v3/student-cases/[studentCaseId]/document-exports` принимает
+ровно прежний profile body `{mode, expected_workspace_revision, request_id}` либо
+form body `{kind:"university_form", application_id, mapping_id, mode,
+expected_workspace_revision, request_id}`. Org, catalog, template и actor выводит БД.
+Существующие same-origin/session/request UUID guards сохраняются. Ответ `{artifact}`
+использует ExportReceipt; ready200, pending/unknown202, fixed failures по существующим
+HTTP категориям (`form_not_ready`409; native unavailable/timeout → `export_failed`503).
+GET без query либо с единственным `schema_version=1` сохраняет exact164 schema1,
+profile-only history и `staff_document_export_workspace` (SQL фильтрует kind=student_profile).
+Новый history consumer явно запрашивает `?schema_version=2`: только этот opt-in вызывает
+`staff_document_export_workspace_v2` и возвращает ExportWorkspaceV2. Остальные keys
+по-прежнему относятся к profile command. Unknown/повторные version query и лишние query
+keys →400; v2 consumer не принимает schema1 и не делает скрытый fallback. Migration
+устанавливает новый read RPC до нового app, но не меняет v1 shape даже после создания
+form rows: rollback старого app сохраняет его profile history. Legacy prepare остаётся v1.
+Download/reconcile URL и их request bodies не меняются. Private capsule, claim,
+TemplateSource, Storage key и значения не пересылаются browser или audit.
+
+### SQL/RPC и immutable binding
+
+Добавить только три session RPC, все `RETURNS JSONB`, без service-role grant:
+
+| RPC | Аргументы SQL (все обязательны) | Результат |
+|---|---|---|
+| `staff_university_form_export_workspace` | `p_student_case_id UUID, p_application_id UUID, p_mapping_id UUID` | FormWorkspace; STABLE, не создаёт данные |
+| `prepare_university_form_export` | те же3 UUID, `p_mode TEXT, p_expected_workspace_revision TEXT, p_request_id UUID` | FormPreparation; одна короткая transaction |
+| `staff_document_export_workspace_v2` | `p_student_case_id UUID` | ExportWorkspaceV2; STABLE, обе artifact kinds с live scope filtering; не создаёт данные |
+
+Application обязан существовать в `platform.university_applications` с exact org/case;
+его `catalog_institution_id` обязан совпасть с template. Cross-scope/неизвестные IDs
+дают forbidden, не диагностический lookup. Для доступного same-scope, но не текущего
+mapping: selection/workspace_revision=NULL, can_export=false, reason=mapping_not_current;
+иначе при отсутствующем profile: selection=FormBinding, digest=NULL, reason=profile_missing.
+При наличии обоих digest non-NULL, reason=NULL, can_export=true означает допустимость
+команды, **не** final field readiness. Приоритет причины — mapping, затем profile.
+Prepare требует exact current publication165; ни draft mapping, ни старый approval
+не годятся даже для draft export. Exact request replay сохраняет outcome; capsule
+возвращается только до begin и при текущих правах/inputs. После begin всегда NULL.
+
+Расширить existing164 RPC, не вводить параллельную lifecycle:
+
+| RPC | Изменение относительно [точных164 args/results](../../../src/lib/document-export-artifact-contract.ts) |
+|---|---|
+| `begin_document_export` | Args unchanged; profile result unchanged; form → FormBeginning, TemplateSource только при `created=true`, с expiry existing10-minute claim |
+| `seal_document_export_output` | Заменить4-arg function одной5-arg: прежние `p_artifact_id UUID, p_claim_token UUID, p_output_sha256 TEXT, p_output_bytes INTEGER` + `p_renderer_proof JSONB DEFAULT NULL`; вернуть `{artifact:ExportReceipt, storage:DocumentExportStorageTarget|null}` с MIME по kind |
+| `complete_document_export`, `inspect_document_export_reconciliation`, `reconcile_document_export` | Args unchanged, closed failure union дополнен только `form_not_ready`; artifact result union; Storage result MIME по kind |
+| `grant_document_export_download`, `consume_document_export_download`, `complete_document_export_download` | Args и grant/result keys unchanged; nested artifact union/MIME по kind, тот же exact readback |
+
+Не оставлять4/5-arg overload одновременно. Forward migration меняет signature,
+явно REVOKE/GRANT и [PostgREST schema-cache reload](https://docs.postgrest.org/en/stable/references/schema_cache.html);
+4-arg profile callers [пропускают default argument](https://docs.postgrest.org/en/stable/references/api/functions.html#calling-with-get)
+и получают NULL. `p_renderer_proof` non-NULL запрещён для profile, обязателен для form;
+его host writer берёт identity только из `readUniversityTemplateRuntimeIdentity()`.
+`image_id` = проверенный Docker engine-native `.Image`, **не** config digest, revision
+или hash от revision. Actual execution proof нельзя получить из session при prepare:
+она записывается ровно один раз trusted seal вместе с output SHA/size/key. Exact seal
+replay сравнивает и proof; unknown upload/reconcile не меняет её на identity нового app.
+
+Одна forward migration расширяет четыре таблицы164;165/166 остаются неизменными:
+
+- `document_export_artifacts`: добавить колонки FormBinding, `generated_input_sha256`,
+  `renderer_proof JSONB`. Binding/generated hash все NULL для profile и все non-NULL
+  для form; profile ID/revision остаются NOT NULL. Scoped FKs связывают org/case/application,
+  catalog/template/version/mapping/review/inspection; добавить только необходимые
+  composite UNIQUE targets, не ослаблять existing FKs. Exact version/hash tuple дополнительно
+  проверяет writer, а не только независимое существование IDs. Immutable trigger защищает
+  новые bindings; renderer_proof разрешён только в единственном seal переходе, дальше frozen.
+- `document_export_input_snapshots`: добавить `frozen_form JSONB NULL` = FormMetadata;
+  existing `frozen_profile` не дублировать. В transaction составить FormInput из двух
+  колонок + artifact.mode; оба immutable. Ни нового service values reader, ни direct grants.
+- Пер-kind CHECK: existing profile constants/5MiB/.docx без изменений; form output
+  1–20971520 bytes, DOCX/.docx либо PDF/.pdf и соответствующая fixed renderer policy.
+  `renderer_proof`/output tuple all-NULL до seal и all-present после seal для form;
+  PDF font proof равен frozen SHA, DOCX font NULL. Key выдаёт seal create-only.
+- Events/grants остаются164: IDs/hash/outcome без fields/manifest/source path; form audit
+  resource связывается с artifact и application, не маскируется под profile generation.
+  Ready/failed history не переписывается. Package kind/table/schema в этот срез не добавлять.
+
+### Два hash-domain и проверка актуальности
+
+`bw1_input_sha256` = SHA256 UTF-8 PostgreSQL `jsonb::text`. Existing profile
+`input_snapshot_sha256=bw1(frozen_profile)` остаётся byte-for-byte прежним.
+Для form `input_snapshot_sha256=bw1(FormInput)`; actual runtime image в него не входит:
+он связан с этим input через immutable artifact/seal proof. Workspace digest = bw1
+объекта с exact keys `{schema_version:1, kind:"university_form", organization_id,
+student_case_id, form:FormBinding, profile_id, profile_revision, field_reviews_sha256,
+template_sha256, manifest_sha256, renderer_version, font_sha256}`. `validation_day`
+берётся из DB UTC date, не браузера. Request digest = bw1 закрытого объекта
+`{kind:"university_form", organization_id, student_case_id, application_id, mapping_id,
+mode, workspace_revision, auth_user_id, membership_id}`; request UUID unique как в164.
+
+`generated_input_sha256` — **другой digest**, exact результат existing
+[`computePackageGeneratedInputHash`](../../../src/lib/document-package.ts) над
+`{kind:"university_form", organizationId, studentCaseId, profileId, profileRevision,
+fieldReviewsSha256, templateSha256, applicationId, catalogInstitutionId,
+templateVersionId, mappingVersionId, mappingSha256, mappingReviewVersionId}`.
+Это sorted-key **compact** canonical JSON, не `jsonb::text`: SQL writer должен
+воспроизвести именно эту ASCII UUID/hash/integer projection и доказать TS/SQL parity
+golden vectors, а не принимать готовый browser hash. Не менять mapping hash или review
+tuple. Старые profile hashes не переименовывать; будущий package adapter отдельно
+вычислит projection из их immutable metadata без backfill. Package current eligibility
+дополнительно проверяет полную form binding/policy/day: этот узкий package hash сам
+по себе не проверяет публикацию, catalog source revision, renderer или validation day.
+
+### Live authority, порядок операций и gates
+
+Session prepare/read и каждый service transition проверяют auth + active membership
+того же org, `profile.read.full`/`document.download` для case и `document.download`
+для **каждой** confirmed field source version, плюс `catalog.read` на organization.
+Обычный экспорт не требует `catalog.import.manage`;166 manager source route не
+ослабляется: TemplateSource выдаёт только case-bound begin. History фильтрует form
+rows без live catalog access. Service key не заменяет actor и не читает frozen values;
+это важно, поскольку [service key обходит Storage RLS](https://supabase.com/docs/guides/storage/security/access-control).
+
+Во всех изменяемых RPC: organization FOR UPDATE → request advisory locks (UUID
+по порядку) → memberships по UUID → case → profile → application → catalog FOR SHARE
+→ template FOR UPDATE → immutable version/mapping/review/receipt → source slots и
+versions по UUID FOR SHARE → artifact FOR UPDATE. Сохраняются organization-first164/165/166
+и catalog-before-template. Никаких DB locks во время native/Storage I/O. Publication,
+catalog binding/source revision, profile/reviews, source health и validation day
+проверяются prepare/begin/seal/complete/reconcile до ready. Смена → `source_changed`,
+revocation → `access_changed`, unsafe/missing source → `source_unavailable`, не rerender.
+Новый unrelated draft сам по себе не меняет текущую опубликованную tuple. Старый ready
+можно download при текущих per-source/case/catalog правах и source health; смена profile,
+publication или дня лишь делает его historical, не заменяет bytes и не доказывает
+актуальный final/пригодность для нового package.
+
+Один host flow: session frozen input → begin → exact private template GET SHA/size/MIME
+и binding к настоящему receipt166 → hard-isolated reinspection/resolve/fill тех же bytes
+со сверкой minimal manifest → seal → create-only Storage → exact output GET SHA/size
+→ live complete/ready receipt.
+Resolver и fill исполняются в одном bounded child: WeakSet-branded resolution нельзя
+сериализовать как якобы trusted JSON. PDF сохраняет slots=[] и проверяет approved human
+regions против actual pageSizes; DOCX проверяет actual inspected slots. Final требует
+`fieldsReady`; draft включает только confirmed assignments с draft notice/omissions.
+Timeout/missing native не разрешает in-process fallback или uninspected output.
+Lease на память/concurrency удерживается до actual settlement/kill, даже если HTTP
+abort уже вернулся. Ambiguous upload → unknown, explicit same-key reconciliation;
+никакой повторной генерации/download-as-render, implicit loop или overwrite.
+
+Формы требуют private `platform-document-exports`20MiB + DOCX/PDF, не текущие5MiB/DOCX.
+Student uploads25MiB и template bucket20MiB не меняются. Для >6MiB переиспользовать
+existing resumable helper: [6MiB TUS chunks, direct Storage hostname, один upload URL](https://supabase.com/docs/guides/storage/uploads/resumable-uploads),
+без upsert; неизвестный commit выясняется exact readback, не новым upload URL.
+ZIP остаётся следующим полным срезом:40 items, original25MiB/generated20MiB,
+source aggregate64MiB, manifest64KiB, ZIP65MiB. Текущий global50MiB не доказывает65MiB:
+нужны разрешённый read-only managed global/bucket/tier capacity readback и затем
+явно разрешённая конфигурация; [bucket не может превышать global limit](https://supabase.com/docs/guides/storage/uploads/file-limits).
+Если доступная capacity недостаточна — blocker, не сокращение продукта/платный upgrade.
+
+### Ownership и стоп до реализации/активации
+
+| Срез | Минимальные файлы/ответственность |
+|---|---|
+| SQL author, номер выделяет root | одна forward migration; `supabase/tests/platform_document_export_artifacts.sql` + новый form fixture и existing local runner; helpers/locks/closed DTOs/TS-SQL hash vectors |
+| Host/API author | `src/lib/document-export-artifact-contract.ts`, `src/lib/document-export-artifacts.ts`, `src/lib/server/document-export-artifact-route-handlers.ts`; новый `src/lib/server/university-form-export.ts` для form-only orchestration; scoped tests |
+| Native author | existing university-template runtime/build/tracing + server adapter; reviewed fill protocol для обеих форм, assets/font identity, hard bounds и actual Linux evidence |
+| UI/Storage/integration author | existing document-export client/history, profile Documents controls; export bucket configuration+local config; один existing foundation acceptance flow после exact-diff review |
+
+**Открытое техническое решение до кода native/host:** утвердить с native author точный
+fill protocol/output framing и measured CPU/RSS/wall/buffer envelope для full20MiB
+DOCX/PDF. Inspection128KiB stdout/15s не является контрактом fill и не наследуется
+молча. Остальные DTO/RPC выше фиксированы; решение дописывается здесь до его реализации.
+До активации нужны actual isolated fill обоих форматов, visible glyph/layout proof,
+SQL regressions164+form replay/stale/revocation/scope/seal invariants и одна реальная
+Auth/Storage/browser проверка create→stored history→cold download/reconcile exact bytes
+с cleanup. Synthetic stubs, successful source ingress и CI не заменяют эти gates;
+полные D4/ZIP, D5 и D6 остаются открытыми.

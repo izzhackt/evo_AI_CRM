@@ -58,6 +58,7 @@ function fixture(options = {}) {
       const result = value => ({ data: structuredClone(value), error: null });
       if (scope === "session") {
         if (name === "staff_document_export_workspace") return result(workspace());
+        if (name === "staff_document_export_workspace_v2") return result({ ...workspace(), schema_version: 2 });
         if (name === "prepare_document_export") return result({ schema_version: 1, preparation_id: PREP,
           artifact: current, frozen_profile: options.replay ? null : profile });
         assert.equal(name, "grant_document_export_download");
@@ -206,6 +207,9 @@ test("history read is session-only with no implicit preparation", async () => {
   const f = fixture(); const res = await f.handlers.GET(request({}, "", "GET"), context);
   assert.equal(res.status, 200); assert.equal((await res.json()).artifacts.length, 1);
   assert.deepEqual(f.calls.map(call => call[1]), ["staff_document_export_workspace"]);
+  const v2 = await f.handlers.GET(request({}, "?schema_version=2", "GET"), context);
+  assert.equal(v2.status, 200); assert.equal((await v2.json()).schema_version, 2);
+  assert.deepEqual(f.calls.map(call => call[1]), ["staff_document_export_workspace", "staff_document_export_workspace_v2"]);
 });
 test("anonymous, staff preview and permission denial touch neither SQL nor Storage", async () => {
   for (const result of [{ status: "anonymous", actor: null }, { status: "authenticated", actor: { ...actor, permissionKeys: [] } },
@@ -220,6 +224,11 @@ test("extra browser values, foreign origin and oversized body are rejected", asy
   const foreign = new Request(request(), { headers: { origin: "https://outside.invalid", host: "localhost:3000", "content-type": "application/json" } });
   assert.equal((await f.handlers.POST(foreign, context)).status, 403);
   assert.equal((await f.handlers.POST(request({ value: "x".repeat(2000) }), context)).status, 400);
+  for (const query of ["?schema_version=3", "?schema_version=1&schema_version=2", `?application_id=${CASE}`,
+    `?published_for_application_id=${CASE}&mapping_id=${PROFILE}`, `?published_for_application_id=${CASE}&after_id=bad`,
+    `?published_for_application_id=${CASE}&published_for_application_id=${PROFILE}`]) {
+    assert.equal((await f.handlers.GET(request({}, query, "GET"), context)).status, 400);
+  }
   assert.equal(f.calls.length, 0);
 });
 test("DTOs reject extra private fields, unsafe readiness and another case", () => {

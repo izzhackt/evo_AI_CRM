@@ -26342,3 +26342,206 @@ Cold resume now awaits the actual decoded first-page image before manual GET.
 HTTP failure status is reported separately from byte/header mismatch. Native,
 permission, concurrency and timeout policies remain unchanged; rerun the same
 actual combined PDF+DOCX workflow before claiming success.
+### D4 saved DOCX/PDF form producer — exact pre-code boundary (2026-09-14)
+
+Scope approved by root: amend the existing university/packages contract, no code,
+SQL or migration number. Extend164's one artifact/history lifecycle with session-only
+form workspace/prepare, closed discriminated DTOs and immutable165/166 source,
+application/catalog/mapping/review bindings. Preserve existing profile requests,
+rows and hashes. Logical snapshots freeze at prepare; real controller-bound Docker
+image/revision and format-specific font proof freeze only at trusted output seal.
+Keep PostgreSQL JSONB input hashing distinct from package canonical projection hashing.
+Require full DOCX/PDF native fill, real20MiB export Storage and live per-source authority;
+ZIP remains the later65MiB product with an actual managed capacity gate, no quiet cap
+shrink. The only unresolved implementation decision is native fill output framing and
+measured resource envelope; inspection limits are not fill proof. See the exact DTO/RPC,
+nullability, lock order and ownership in
+[the existing D4 contract](design/v3/evo-docs-university-packages-contract.md#saved-university-form-artifact-producer--pre-code-amendment-2026-09-14).
+No activation, build, real private data, provider/managed mutation or D4 completion is
+claimed. Freeze these two docs for independent review before any commit/implementation.
+
+Independent pre-code review requested two narrow corrections: SQL freezes only the
+real166 minimal manifest; the isolated child reconstructs rich DOCX resolver slots
+by same-byte reinspection, without fabricated text/new persistence. Keep164 schema1
+and profile-only default history for migration-first/app rollback; add a third session
+RPC for explicit HTTP v2 union-history opt-in, with no silent schema fallback.
+
+### D4 saved-form SQL167 implementation boundary (2026-09-14)
+
+Root reserves167 after the fresh shared-main readback `0f58072b` confirmed the
+contiguous001–166 source. Implementation starts from that exact source plus the
+independently approved saved-form contract `658dc151` (rebased append-only as
+`bdacf81e`); the prior published ingress branch remains intact. Own only forward
+`167_platform_university_form_exports.sql`, its synthetic SQL fixture, necessary
+164-fixture signature assertions, this journal and the existing bounded foundation
+runner. Historical migrations001–166, runtime, TypeScript, UI and Storage settings
+remain unchanged. Implement the approved three session RPCs and the shared164
+service lifecycle, exact closed minimal-manifest capsules, immutable metadata/hash
+domains and actual-proof seal nullability; preserve profile-only v1 defaults for
+migration-first/app rollback. No service-role frozen-profile read is introduced.
+
+Proposed verification extends the existing one disposable pinned PostgreSQL
+foundation with `--university-form-exports`: contiguous001–167 and actual D3 queue,
+164 profile and new form authority/lifecycle SQL assertions, then owned cleanup.
+Local Docker execution waits for root's bounded validation approval and OrbStack
+preflight. SQL fixture metadata is synthetic; it cannot prove native execution,
+private Storage bytes or browser acceptance. Native fill framing/resources and
+real20MiB storage remain separate activation gates; no managed apply or full D4
+completion is claimed by this SQL slice.
+
+SQL167 local evidence: root authorized the bounded runner above. OrbStack was
+running on the `orbstack` context, the pinned PostgreSQL image was already local,
+free disk was21GiB and the OS reported54% available memory before execution.
+The final run `01a09d91d20b7c938a72c3180e854f85` applied contiguous001–167 and passed
+D3 queue, unchanged164 profile-artifact and new form fixtures, each rolling back.
+Owned container `evo-document-recognition-proof-31185-98070` was removed; exact-name
+readback `01a09d920dbc7ee18e3d936d60cc849b` returned no container. Earlier RED runs
+stopped on two new-fixture setup/order mistakes (initial active case; a profile
+claim created after a profile edit); neither failure was hidden or converted to
+success. The actual package TypeScript helper produced the pinned compact-hash
+golden `35cead709586de4efb4c954d78420cb39ddeff5a48fab971fb8bb489f5a3a35e`
+(`01a09d8b6aeb76f08a0aeb834b6468da`), and PostgreSQL matched it. Form fixtures cover
+minimal DOCX/PDF manifests, v1/v2 history,20MiB versus profile5MiB caps, proof
+nullability/immutability, replay/unknown reconciliation, profile/day/archive
+fencing, non-manager export, live revocation and unhealthy confirmed sources.
+Catalog rows remain append-only in056; this fixture does not bypass that guard to
+manufacture a catalog revision mutation. These are synthetic SQL observations,
+not actual renderer/image/Storage/browser or managed-schema acceptance. Source
+is frozen for independent review before publication; activation gates stay open.
+### 2026-09-14 — D4 saved DOCX/PDF native producer pre-code contract
+
+Root assigned a docs-only follow-on at clean published c35a1fd3. Add
+[isolated form-render contract](design/v3/evo-docs-university-form-render-contract.md)
+against the independently approved saved producer amendment658dc151. Preserve
+minimal BoundTemplate,164 lifecycle/history v1,165/166 inspection semantics and
+the existing single runtime. No implementation/build/service/SQL changes here.
+
+Propose fixed `--render-form-v1`, separate EUFQ input/EUF1 result,2 MiB closed
+input capsule plus20 MiB source and20 MiB actual DOCX/PDF output. The new capsule
+budget accommodates existing1 MiB mapping and full confirmed-only profile; it
+does not widen inspection/preview or archive limits. Reinspect exact bytes,
+reconstruct rich DOCX slots or actual PDF pages, then resolve and fill in one
+sealed child. Preserve PDF slots=[]; never transport a serialized trusted brand.
+
+SQL bw1 bindings stay opaque DB provenance, explicitly distinct from computed
+transport capsule, mapping and package hashes. Native output reports actual
+engine/font/output identity; only controller-derived runtime ImageId/revision
+may form the existing trusted seal proof after verified execution. No fake image
+proof at prepare, font fallback or claims based on a PNG-only test envelope.
+
+CPU10s/AS2GiB/heap256MiB/wall15s remain explicit candidate ceilings, not full-size
+acceptance. Require both-format near20 MiB actual fill, boundary/backpressure/
+abort/OS checks, all-page/font/manual/draft visuals and native arm64+amd64 gates;
+stop for measured evidence and review if a ceiling cannot support valid fixtures.
+Root/other authors retain SQL167/HTTP/UI/Storage/packages and live integration.
+
+Provenance correction to the older entry: c35 native amd64 is now actually
+proved and independently reviewed: D3 12/12, template33/33, two corruption
+controls and20 inspected PNGs, scoped cleanup complete. Preserved report SHA256
+`05bcc8995c1e6f072eecb493d88338b6dbb81eb7be1a2549aba7e1ee97aed7be`
+and exact local/remote paths are in the new contract. This does not prove the
+new saved-form transport, full D4 or production. Independent exact-doc review
+and explicit root approval are required before implementing this new protocol.
+
+Root explicitly approved implementation after independent APPROVED on exact
+two-doc diff70cc2aecf2b9fd54b5060075ae24e7c3e50906f203cee483eb8e974ecbbe8708,
+published asb41f9d10. Before code, clarify shared input ownership: native author
+owns NEW `src/lib/university-form-export-contract.ts` for normative FormBinding,
+BoundTemplate, FormMetadata, FormInput and FrozenProfile164 aliases plus closed
+input guards and tests. Coordinate exact shapes with SQL167 author; do not
+duplicate these types in the native wire DTO. Root owns existing
+`document-export-artifact-contract.ts` receipt/history changes and later HTTP/
+host producer. Native owns the agreed runtime/C/build/preflight/pure wire DTO
+and tests. Approved local narrow arm64 runs require OrbStack/resource preflight;
+no remote rebuilds or managed/production changes. Root coordinates later amd64
+and independent exact implementation review. Existing candidate limits remain.
+
+Root requested a separately reviewed publication of the shared pure FormInput
+module, focused DTO test and synthetic helper so the existing host producer can
+import one normative contract while the native implementation remains WIP.
+This source-only slice closes every object shape, captures/deep-freezes the
+minimal DOCX/PDF manifest and approved mapping/review tuple, and retains only
+the raw164 confirmed-only61-field profile. SQL167 metadata/prepare shapes were
+cross-checked against the actual local PostgreSQL fixture result. Logical bw1
+hashes remain opaque DB bindings; no SQL serializer or renderer proof is added.
+The publication excludes native wire/runtime/build/adapter changes. Those need
+their own full-size, isolation, layout and native-architecture validation/review;
+the passing initial arm64 render tracer is not complete native/D4 acceptance.
+
+### 2026-09-14 — owner-approved reuse-first EVO Docs transfer
+
+The owner explicitly approved reusing the five existing Docs workflows instead
+of rebuilding them. Source6e7cf741 already contains template import/mapping,
+PDF create/move/resize, DOCX/PDF filling/history, ZIP and Gemini extraction.
+Retain the already ported renderers and integrated Platform lifecycle. Adapt
+case/catalog IDs, staff permissions, Postgres and private Storage; no second
+Auth/database/product or new renderer. Port the original PDF gestures into the
+current editor, retaining its private page transport and save/review actions.
+Root owns host artifact/history/storage integration; the PDF UI author owns
+only the existing editor/client geometry, and the native author closes the
+existing adapter without new infrastructure. Reuse real prior evidence; run
+only changed-path checks with existing authorized sources, without invented
+personal data or synthetic acceptance. New synthetic test-platform expansion
+is not the delivery task. Full real-case/provider acceptance remains open.
+Source ZIP allows250MiB, while the draft Platform contract describes65MiB:
+resolve capacity/fidelity before package release rather than silently reduce
+functionality. No paid upgrade, provider action or managed configuration
+mutation follows from this code-transfer approval. Supabase recommends TUS
+for uploads above6MB; reuse the existing resumable upload implementation
+(https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
+### 2026-09-14 — close the existing saved-form adapter under owner-approved reuse
+
+Root's active reuse-first amendment in EVO_LAUNCH_PLAN and the unification plan
+governs this bounded publication. Reuse the already ported DOCX/PDF renderers
+without modifying them; finish only the existing sealed runtime dispatch,
+framed transport, closed metadata/adapter and previously prepared focused tests.
+Shared input DTO c41b677d is already separately reviewed/published. Root owns
+receipt/history/host/Storage and any further shared-helper extraction. No second
+runtime, new infrastructure, new fixture program or limit increase is authorized.
+
+Retained real native arm64 evidence: DOCX/PDF final+draft tracer1/1;
+actual19.5–20MiB outputs1/1; full template matrix41/45 PASS,4 FAIL,0 skipped on
+image074b7ff47974b7fa063eb4e98396f62bdda3d194d9cb4bac9f72d279efc5db62
+(receipt01a09dabf0cc778086f927cfa207c924). Four test-only corrections are present
+but unverified: manual-source nullability, expired delivery expectation,
+oversized overflow-source fixture and explicit synthetic canvas setup. Their
+presence does not convert the failed run into PASS. No unchanged expensive suite
+is rerun to manufacture a new green status. Preserve all prior artifacts and
+sampled resource/cleanup evidence in `/tmp/evo-form-matrix.i0ao5C/`.
+
+Source review/publication is distinct from actual Office layout, new-mode native
+amd64, D3/asset-control and host Auth/Storage/seal acceptance. Source Docs6e7cf741
+has no Git-tracked public university originals; authorized registry metadata may
+identify known blank files, but file bytes require an exact allowlist. A chosen
+confirmed real case/profile remains necessary for actual autofill acceptance;
+do not substitute fabricated personal values or provider calls. New executions
+require root resource coordination; current runtime/format bounds stay intact.
+
+The thin host adapter reuses the existing case document-exports route and
+history component. Its GET has disjoint closed query shapes: optional
+schema_version=1|2 for history, or exactly application_id+mapping_id for the
+existing167 session-only form workspace. No frozen fields or template Storage
+paths enter either public response. POST accepts the already specified exact
+university_form command; the existing profile command remains the active
+profile feature, not a second implementation. Download/reconciliation select
+the existing artifact kind and preserve its exact MIME, bytes and authority.
+
+The form picker reuses applications already loaded in the student's card. A
+closed published_for_application_id query (optional after_id cursor) resolves only that
+application's catalog link through the staff session, organization and case
+filters, then calls the existing published-forms registry reader. No new queue
+DTO, discovery migration, name matching or second university catalog is added.
+An unlinked application or empty published list is shown as an actionable empty
+state. The university form's own required mappings govern final generation;
+unrelated required fields of the generic Student Profile do not block it.
+
+Source-level integration check found the export bucket configurator still targets
+DOCX-only5MiB (D2), while reviewed167 university artifacts allow DOCX/PDF20MiB.
+Extend the same configurator with an explicit university-forms mode; default
+remains read-only and preserves D2 behavior. With apply, only the exact known
+private5MiB/DOCX settings may be upgraded to private20MiB/DOCX+PDF; other drift
+must stop. No object deletion, public access, global-limit or paid-plan change.
+Require an independent GET after the one create/update. No managed write is
+performed by this code change. Official Supabase behavior verified2026-09-14:
+[bucket update](https://supabase.com/docs/reference/javascript/file-buckets-updatebucket),
+[global and per-bucket limits](https://supabase.com/docs/guides/storage/uploads/file-limits).

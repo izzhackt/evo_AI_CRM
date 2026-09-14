@@ -273,10 +273,12 @@ static void diagnostic(const char *name) {
   if (!strcmp(name, "cpu")) { volatile uint64_t number = 1; for (;;) number = number * 3 + 1; }
   if (!strcmp(name, "wall")) { struct timespec delay = {.tv_sec = 60}; for (;;) nanosleep(&delay, NULL); }
 #ifdef EVO_UNIVERSITY_TEMPLATE
-  if (!strcmp(name, "page-output") || !strcmp(name, "page-output-overflow") || !strcmp(name, "page-partial-failure")) {
+  if (!strcmp(name, "page-output") || !strcmp(name, "page-output-overflow") || !strcmp(name, "page-partial-failure")
+      || !strcmp(name, "form-output") || !strcmp(name, "form-output-overflow") || !strcmp(name, "form-partial-failure")) {
     char chunk[8192]; memset(chunk, 'x', sizeof(chunk));
-    size_t remaining = !strcmp(name, "page-partial-failure") ? 32
-      : MAX_PAGE_OUTPUT + (!strcmp(name, "page-output-overflow") ? 1 : 0);
+    int partial = !strcmp(name, "page-partial-failure") || !strcmp(name, "form-partial-failure");
+    size_t remaining = partial ? 32
+      : MAX_PAGE_OUTPUT + ((!strcmp(name, "page-output-overflow") || !strcmp(name, "form-output-overflow")) ? 1 : 0);
     while (remaining) {
       ssize_t amount = write(1, chunk, remaining < sizeof(chunk) ? remaining : sizeof(chunk));
       if (amount > 0) remaining -= (size_t)amount;
@@ -284,7 +286,7 @@ static void diagnostic(const char *name) {
         struct timespec delay = {.tv_nsec = 1000000}; nanosleep(&delay, NULL);
       } else stop_child();
     }
-    if (!strcmp(name, "page-partial-failure")) stop_child();
+    if (partial) stop_child();
     _exit(0);
   }
 #endif
@@ -336,7 +338,7 @@ static void child(int output_fd, pid_t supervisor, const char *test_mode, int re
   if (fill_probe) entry = RUNTIME "/fill-proof/src/lib/server/bootstrap.mjs";
 #endif
   char *const argv[] = {"/usr/local/bin/node", "--max-old-space-size=256", "--disable-wasm-trap-handler",
-    "--v8-pool-size=1", (char *)entry, render_page ? "--render-page-v1" : NULL, NULL};
+    "--v8-pool-size=1", (char *)entry, render_page == 2 ? "--render-form-v1" : render_page ? "--render-page-v1" : NULL, NULL};
   char *const env[] = {"LANG=C.UTF-8", "TZ=UTC", "UV_THREADPOOL_SIZE=1", "MALLOC_ARENA_MAX=2", NULL};
 #ifdef EVO_UNIVERSITY_TEMPLATE
   char *const canvas_env[] = {"LANG=C.UTF-8", "TZ=UTC", "UV_THREADPOOL_SIZE=1", "MALLOC_ARENA_MAX=2",
@@ -345,7 +347,7 @@ static void child(int output_fd, pid_t supervisor, const char *test_mode, int re
     missing_native ? "NAPI_RS_NATIVE_LIBRARY_PATH=" RUNTIME "/vendor/missing-native.node" :
 #endif
     "NAPI_RS_NATIVE_LIBRARY_PATH=" RUNTIME "/vendor/canvas-native.node", NULL};
-  if (render_page) { execve(argv[0], argv, canvas_env); stop_child(); }
+  if (render_page == 1) { execve(argv[0], argv, canvas_env); stop_child(); }
 #ifdef EVO_DOCUMENT_TEST
   if (canvas_probe) { execve(argv[0], argv, canvas_env); stop_child(); }
 #endif
@@ -376,9 +378,10 @@ static int write_page(const void *buffer, size_t size, int64_t started) {
   }
   return 0;
 }
-static int unavailable_page(int64_t started) {
+static int unavailable_page(int64_t started, int render_mode) {
   /* The trailing JSON newline is unnecessary but valid whitespace in metadata. */
   unsigned char frame[12 + sizeof(unavailable) - 1] = {'E', 'U', 'P', '1'};
+  if (render_mode == 2) frame[2] = 'F';
   frame[7] = sizeof(unavailable) - 1;
   memcpy(frame + 12, unavailable, sizeof(unavailable) - 1);
   return write_page(frame, sizeof(frame), started);
@@ -390,6 +393,7 @@ int main(int argc, char **argv) {
   int render_page = 0;
 #ifdef EVO_UNIVERSITY_TEMPLATE
   if (argc == 2 && !strcmp(argv[1], "--render-page-v1")) render_page = 1;
+  if (argc == 2 && !strcmp(argv[1], "--render-form-v1")) render_page = 2;
 #endif
 #ifdef EVO_DOCUMENT_TEST
   if (argc == 2 && !render_page) test_mode = argv[1];
@@ -398,6 +402,8 @@ int main(int argc, char **argv) {
 #ifdef EVO_UNIVERSITY_TEMPLATE
   if (test_mode && (!strcmp(test_mode, "page-output") || !strcmp(test_mode, "page-output-overflow")
       || !strcmp(test_mode, "page-partial-failure") || !strcmp(test_mode, "fill-proof") || !strcmp(test_mode, "page-missing-native"))) render_page = 1;
+  if (test_mode && (!strcmp(test_mode, "form-output") || !strcmp(test_mode, "form-output-overflow")
+      || !strcmp(test_mode, "form-partial-failure"))) render_page = 2;
 #endif
   if (test_mode && !strcmp(test_mode, "async-signals")) signal(SIGUSR1, received_signal);
   /* A high pre-opened descriptor demonstrates that child cleanup is real. */
@@ -462,7 +468,7 @@ int main(int argc, char **argv) {
 #ifdef EVO_UNIVERSITY_TEMPLATE
   if (render_page) {
     int result = failed || !WIFEXITED(status) || WEXITSTATUS(status) || !count
-      ? unavailable_page(started) : write_page(output, count, started);
+      ? unavailable_page(started, render_page) : write_page(output, count, started);
     free(output);
     return result;
   }

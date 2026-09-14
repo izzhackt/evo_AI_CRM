@@ -1,5 +1,18 @@
 # EVO Launch Plan
 
+## Active owner clarification: reuse EVO Docs, do not rebuild it (2026-09-14)
+
+The owner approved transferring the existing five Docs workflows: university
+templates/mapping, PDF editing, filled DOCX/PDF with saved history, ZIP packages,
+and Gemini extraction. Preserve their behavior and reuse their code/assets;
+adapt only the Platform case/catalog identity, existing staff permissions,
+Postgres persistence, private Storage and UI shell. Existing migrated renderers,
+registry and job lifecycle remain reusable work, not reasons to start over.
+Restore source PDF move/resize interactions in the current editor; do not add a
+second editor or replace the already integrated private page route.
+See the [unification plan](design/v3/evo-docs-unification-run-plan.md#reuse-first-delivery).
+Latest clarification governs older speculative implementation sequencing.
+
 D4 user-facing continuation: [university template workspace](design/v3/evo-docs-template-ui-contract.md)
 extends the existing university detail and reviewed registry/native inputs.
 

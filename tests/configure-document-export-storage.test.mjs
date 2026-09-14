@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  DOCUMENT_EXPORT_BUCKET, DOCUMENT_EXPORT_STORAGE_ORIGIN, DOCUMENT_EXPORT_STORAGE_PROJECT,
+  DOCUMENT_EXPORT_BUCKET, UNIVERSITY_FORM_EXPORT_BUCKET, DOCUMENT_EXPORT_STORAGE_ORIGIN, DOCUMENT_EXPORT_STORAGE_PROJECT,
   configureDocumentExportStorage, parseDocumentExportStorageArgs, runDocumentExportStorageCli,
 } from "../scripts/configure-document-export-storage.mjs";
 
@@ -27,6 +27,8 @@ function fakeHttp(responses) {
 test("default is check-only and the CLI exposes no project, credential or overwrite arguments", async () => {
   assert.deepEqual(parseDocumentExportStorageArgs([]), { apply: false, help: false });
   assert.deepEqual(parseDocumentExportStorageArgs(["--apply"]), { apply: true, help: false });
+  assert.deepEqual(parseDocumentExportStorageArgs(["--university-forms"]), { apply: false, help: false, universityForms: true });
+  assert.deepEqual(parseDocumentExportStorageArgs(["--university-forms", "--apply"]), { apply: true, help: false, universityForms: true });
   for (const args of [["--apply", "--apply"], ["--project", "other"], ["--force"], ["--key", syntheticKey]]) {
     assert.throws(() => parseDocumentExportStorageArgs(args), { code: "arguments_invalid" });
   }
@@ -34,6 +36,40 @@ test("default is check-only and the CLI exposes no project, credential or overwr
   const fake = fakeHttp([]);
   assert.equal(await runDocumentExportStorageCli(["--help"], { environment: {}, fetchImpl: fake.fetchImpl, write: text => { output += text; } }), 0);
   assert.match(output, /Default: check only/u); assert.equal(fake.calls.length, 0);
+});
+
+test("university forms require an explicit upgrade; check-only never writes", async () => {
+  const fake = fakeHttp([json(bucket())]);
+  const result = await configureDocumentExportStorage({ universityForms: true, environment, fetchImpl: fake.fetchImpl });
+  assert.equal(result.exitCode, 1); assert.equal(result.report.status, "university_forms_upgrade_required");
+  assert.equal(result.report.mutationAttempted, false); assert.equal(fake.calls.length, 1);
+});
+
+test("university form upgrade is one exact private bucket update with independent readback", async () => {
+  const upgraded = { ...bucket(), ...UNIVERSITY_FORM_EXPORT_BUCKET };
+  const fake = fakeHttp([json(bucket()), json({ message: "Successfully updated" }), json(upgraded)]);
+  const result = await configureDocumentExportStorage({ apply: true, universityForms: true, environment, fetchImpl: fake.fetchImpl });
+  assert.equal(result.exitCode, 0); assert.equal(result.report.status, "updated_and_verified");
+  assert.equal(result.report.readbackVerified, true); assert.equal(result.report.globalLimitVerified, false);
+  assert.deepEqual(fake.calls.map(call => call.method), ["GET", "PUT", "GET"]);
+  assert.equal(fake.calls[1].url, `${DOCUMENT_EXPORT_STORAGE_ORIGIN}/storage/v1/bucket/platform-document-exports`);
+  assert.deepEqual(JSON.parse(fake.calls[1].body), UNIVERSITY_FORM_EXPORT_BUCKET);
+  const ready = fakeHttp([json(upgraded)]);
+  assert.equal((await configureDocumentExportStorage({ apply: true, universityForms: true, environment, fetchImpl: ready.fetchImpl })).exitCode, 0);
+  assert.equal(ready.calls.length, 1);
+});
+
+test("university form mode never upgrades drift or retries an ambiguous update", async () => {
+  for (const before of [{ ...bucket(), public: true }, { ...bucket(), file_size_limit: null },
+    { ...bucket(), allowed_mime_types: ["application/pdf"] }]) {
+    const fake = fakeHttp([json(before)]);
+    const result = await configureDocumentExportStorage({ apply: true, universityForms: true, environment, fetchImpl: fake.fetchImpl });
+    assert.equal(result.report.status, "bucket_settings_conflict"); assert.equal(fake.calls.length, 1);
+  }
+  const lost = fakeHttp([json(bucket()), new Error(syntheticKey)]);
+  const result = await configureDocumentExportStorage({ apply: true, universityForms: true, environment, fetchImpl: lost.fetchImpl });
+  assert.equal(result.report.status, "update_outcome_unknown"); assert.equal(result.report.readbackVerified, false);
+  assert.equal(lost.calls.length, 2); assert.equal(JSON.stringify(result).includes(syntheticKey), false);
 });
 
 test("wrong or absent project fails before sending any credential or request", async () => {

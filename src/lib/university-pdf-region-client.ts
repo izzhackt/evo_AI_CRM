@@ -40,17 +40,45 @@ export async function readUniversityPdfPage(response: Response, expected: Univer
 }
 
 const rounded = (value: number) => Math.round(value * 100) / 100;
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), Math.max(min, max));
+
+// Port of EVO Docs PdfFormEditor.tsx fitSlot at 6e7cf741. Preserve Platform's
+// hundredth-point precision and page limits instead of introducing its 2000pt cap.
+export function universityPdfFit(position: UniversityPdfPosition, size: UniversityPdfPageSize): UniversityPdfPosition | null {
+  if (![position.x, position.y, position.width, position.height, size.width, size.height].every(Number.isFinite)
+    || size.width < 12 || size.height < 12) return null;
+  const x = Math.min(rounded(Math.max(0, position.x)), Math.floor((size.width - 12) * 100) / 100);
+  const y = Math.min(rounded(Math.max(0, position.y)), Math.floor((size.height - 12) * 100) / 100);
+  return { ...position, x, y,
+    width: Math.min(Math.max(12, rounded(position.width)), Math.floor((size.width - x) * 100) / 100),
+    height: Math.min(Math.max(12, rounded(position.height)), Math.floor((size.height - y) * 100) / 100) };
+}
+
+// The original editor's create/move/resize math; the caller still owns mapping
+// validation, a single undo entry and cancellation of an uncommitted gesture.
+export function universityPdfGesturePosition(type: "create" | "move" | "resize", start: Readonly<{ x: number; y: number }>,
+  original: UniversityPdfPosition, end: Readonly<{ x: number; y: number }>, size: UniversityPdfPageSize): UniversityPdfPosition | null {
+  if (![start.x, start.y, end.x, end.y].every(Number.isFinite)) return null;
+  const next = { ...original };
+  if (type === "move") {
+    next.x = clamp(original.x + end.x - start.x, 0, size.width - original.width);
+    next.y = clamp(original.y + end.y - start.y, 0, size.height - original.height);
+  } else if (type === "resize") {
+    next.width = clamp(original.width + end.x - start.x, 12, size.width - original.x);
+    next.height = clamp(original.height + end.y - start.y, 12, size.height - original.y);
+  } else if (Math.abs(end.x - start.x) > 4 || Math.abs(end.y - start.y) > 4) {
+    next.x = Math.min(start.x, end.x); next.y = Math.min(start.y, end.y);
+    next.width = Math.min(Math.max(12, Math.abs(end.x - start.x)), size.width - next.x);
+    next.height = Math.min(Math.max(12, Math.abs(end.y - start.y)), size.height - next.y);
+  }
+  return universityPdfFit(next, size);
+}
+
 export function universityPdfPoint(clientX: number, clientY: number, box: Readonly<{ left: number; top: number; width: number; height: number }>, size: UniversityPdfPageSize) {
   if (![clientX, clientY, box.left, box.top, box.width, box.height, size.width, size.height].every(Number.isFinite)
     || box.width <= 0 || box.height <= 0 || size.width <= 0 || size.height <= 0) return null;
   return { x: Math.min(size.width, rounded(Math.max(0, (clientX - box.left) * size.width / box.width))),
     y: Math.min(size.height, rounded(Math.max(0, (clientY - box.top) * size.height / box.height))) };
-}
-export function universityPdfDrag(start: Readonly<{ x: number; y: number }>, end: Readonly<{ x: number; y: number }>, page: number): UniversityPdfPosition | null {
-  const dx = Math.abs(end.x - start.x), dy = Math.abs(end.y - start.y);
-  const width = Math.min(dx, rounded(dx)), height = Math.min(dy, rounded(dy));
-  if (![start.x, start.y, end.x, end.y].every(Number.isFinite) || !Number.isInteger(page) || page < 1 || width < 12 || height < 12) return null;
-  return { page, x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width, height };
 }
 export function universityPdfRegionError(mappings: readonly UniversityFormMapping[], pages: readonly UniversityPdfPageSize[]): "bounds" | "overlap" | "cells" | null {
   if (mappings.length > 500) return "bounds";

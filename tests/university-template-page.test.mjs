@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { parseUniversityTemplatePageMetadata, universityTemplatePagePixels } from "../src/lib/university-template-page.ts";
 import { parseUniversityTemplatePageFrame } from "../src/lib/server/university-template-preflight.ts";
-import { readUniversityPdfPage, universityPdfPoint, universityPdfDrag, universityPdfRegionError } from "../src/lib/university-pdf-region-client.ts";
+import { readUniversityPdfPage, universityPdfPoint, universityPdfGesturePosition, universityPdfRegionError } from "../src/lib/university-pdf-region-client.ts";
 
 const expected = { sha256: "a".repeat(64), byteLength: 123, manifestDigest: "b".repeat(64), page: 2,
   pageSizes: [{ width: 300, height: 400 }, { width: 3000, height: 1500 }] };
@@ -76,8 +76,10 @@ test("PDF region geometry uses the actual image box per axis across scrolling an
   assert.deepEqual(universityPdfPoint(310, 380, { left: 10, top: -100, width: 600, height: 960 }, size), { x: 297.64, y: 420.95 });
   assert.deepEqual(universityPdfPoint(-5, 2000, { left: 10, top: 20, width: 300, height: 480 }, size), { x: 0, y: 841.89 });
   assert.equal(universityPdfPoint(0, 0, { left: 0, top: 0, width: 0, height: 480 }, size), null);
-  assert.deepEqual(universityPdfDrag({ x: 120, y: 80 }, { x: 30, y: 20 }, 2), { page: 2, x: 30, y: 20, width: 90, height: 60 });
-  assert.equal(universityPdfDrag({ x: 0, y: 0 }, { x: 11, y: 20 }, 1), null);
+  assert.deepEqual(universityPdfGesturePosition("create", { x: 120, y: 80 }, { page: 2, x: 120, y: 80, width: 180, height: 24 },
+    { x: 30, y: 20 }, size), { page: 2, x: 30, y: 20, width: 90, height: 60 });
+  assert.deepEqual(universityPdfGesturePosition("create", { x: 0, y: 0 }, { page: 1, x: 0, y: 0, width: 180, height: 24 },
+    { x: 11, y: 20 }, size), { page: 1, x: 0, y: 0, width: 12, height: 20 });
 });
 
 test("PDF editor rejects overlap including manual fields, bounds and invalid cells without changing stored mappings", () => {

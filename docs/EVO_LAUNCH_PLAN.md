@@ -1,6 +1,18 @@
 # EVO Launch Plan
 
-## Active Docs release preparation (2026-09-15)
+## Active Docs release checkpoint (2026-09-15)
+
+PR778 is merged as934228ed. Managed apply34897249592 verified001–168;
+both private20MiB PDF/DOCX buckets are provisioned and independently read back.
+Actual project limit is50MiB: forms fit,260MiB ZIP parity remains blocked.
+Manual Platform CI34897643936 stopped on the stale V3 adapter inventory:
+the legitimate `university-form-source.ts` from merged PR773 is absent from
+its two explicit expected lists. Update only those lists; preserve exact
+inventory equality and all Supabase-only/no-legacy assertions. Release is
+disarmed; live accepted05585020 is unchanged. Do not repeat schema apply or
+bucket creation. D4 real browser acceptance, D5/D6 and retirement remain open.
+
+## Docs release preparation before PR778 (2026-09-15)
 
 The owner requests verification, server release and retirement of standalone
 EVO Docs. Preserve the D5/D6 data and real-workflow gates before retirement.

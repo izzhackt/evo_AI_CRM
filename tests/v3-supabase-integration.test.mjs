@@ -48,6 +48,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "student-assessment-source.ts",
     "task-case-actions.ts",
     "team-chat-source.ts",
+    "university-form-source.ts",
     "university-source.ts",
     "wording.ts",
   ]);
@@ -77,6 +78,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "staff-workspace-source.ts",
     "student-assessment-source.ts",
     "team-chat-source.ts",
+    "university-form-source.ts",
     "university-source.ts",
   ]);
 

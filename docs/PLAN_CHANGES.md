@@ -26593,3 +26593,15 @@ apply when requested proof is unavailable or insufficient. No token extraction,
 raw config logging, tariff/limit change, new workflow, test object or upload.
 Source: [official Storage config API](https://supabase.com/docs/reference/api/v1-get-storage-config)
 (GET, `storage_config_read`, `fileSizeLimit`), verified2026-09-15.
+
+### 2026-09-15 — reconcile the explicit V3 adapter inventory
+
+After PR778, schema apply34897249592 and both private bucket readbacks passed.
+Manual Platform CI34897643936 failed one Node test: the exact V3 inventory
+omits `university-form-source.ts`, introduced by merged PR773. Before coding,
+scope the fix to adding that named adapter to the two explicit expected lists
+in the existing integration contract. The adapter uses staff-scoped Supabase
+and current membership/permission checks; it is not a SQLite/standalone path.
+Keep strict inventory equality and every existing legacy-import/name assertion.
+No application, schema, provider, customer-data or access-rule change. Arm=false,
+live05585020 remains accepted, and no repeat schema/provisioning is necessary.

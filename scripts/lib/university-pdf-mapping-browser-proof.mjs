@@ -8,6 +8,17 @@ import { requireProof } from "./student-profile-fields-browser-proof.mjs";
 import { TEMPLATE_PDF_MAPPING_CHECKS, validateTemplatePdfMappingProof } from "./university-template-mapping-evidence.mjs";
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
+export function pdfPointerDragCoordinates(box, viewport) {
+  requireProof(box && [box.x, box.y, box.width, box.height].every(Number.isFinite)
+    && box.width > 0 && box.height > 0, "PDF_IMAGE_BOX_MISSING");
+  const point = (x, y) => ({ x: box.x + x * box.width / 612, y: box.y + y * box.height / 792 });
+  const start = point(72, 240), end = point(272, 270);
+  requireProof(viewport && [viewport.width, viewport.height].every(Number.isFinite)
+    && [start, end].every(({ x, y }) => x >= 0 && x < viewport.width && y >= 0 && y < viewport.height),
+  "PDF_POINTER_OUTSIDE_VIEWPORT");
+  return { start, end };
+}
+
 export async function proveUniversityPdfMapping({ page, context, client, config, catalogId, templateId, versionId, status, sourceBytes, stage }) {
   const base = `${config.appOrigin}/v3/universities/${catalogId}/forms?template=${templateId}&version=${versionId}`;
   const source = `${config.appOrigin}/api/v3/university-forms/${templateId}/versions/${versionId}/source`;
@@ -26,10 +37,12 @@ export async function proveUniversityPdfMapping({ page, context, client, config,
   await expect(image()).toBeVisible();
   stage("PDF_POINTER_REGION");
   await page.getByRole("button", { name: "Выделить область", exact: true }).click();
-  const box = await image().boundingBox(); requireProof(box?.width > 0 && box.height > 0, "PDF_IMAGE_BOX_MISSING");
-  const p = (x, y) => ({ x: box.x + x * box.width / 612, y: box.y + y * box.height / 792 });
-  const start = p(72, 240), end = p(272, 270);
+  await expect(page.getByRole("button", { name: "Отменить выделение", exact: true })).toBeVisible();
+  await image().scrollIntoViewIfNeeded();
+  const { start, end } = pdfPointerDragCoordinates(await image().boundingBox(), page.viewportSize());
+  stage("PDF_POINTER_DRAG");
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 8 }); await page.mouse.up();
+  stage("PDF_FIELD_SOURCE");
   await expect(page.getByLabel("Данные из анкеты", { exact: true })).toBeVisible();
   await page.getByLabel("Данные из анкеты", { exact: true }).selectOption("student_first_name");
   await page.getByLabel("Обязательное поле", { exact: true }).check();

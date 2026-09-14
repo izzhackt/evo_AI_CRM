@@ -26650,3 +26650,32 @@ login, explicit mapping of five source records and the50MiB-versus260MiB ZIP
 capacity decision remain open. Keep168 for the retained05585020 rollback app.
 All old Docs runtime/data/history and existing backups remain preserved; no new
 backup, provider activation, paid capacity increase or deletion is claimed.
+
+### 2026-09-15 — record real blank-template transfer and bounded coordinate normalization
+
+The owner personally logged into the ordinary Admin UI through the existing
+server tunnel. All nine approved blank PDFs now have verified Platform versions;
+the current per-template IDs and mapping/publication status live in
+`docs/design/v3/references/2026-09-15-docs-managed-release.md`. INTI draw/move/
+corner-resize/two-undo gestures and13 cold-read fields passed. Tongmyong's20
+fields passed exact source/position/page/date-format/required/cell readback and
+visual review. Both mappings were explicitly reviewed by an agent and published,
+not accepted as filled student applications. USTC remains a verified draft;
+the university's acceptance of the local DOC→PDF conversion is unknown.
+
+For City PreU/Postgraduate only, the existing HTML number-input step0.01 rejects
+legacy three-decimal geometry (observed width399.387; nearest399.38/399.39).
+The coordinating agent (root) chose and disclosed a bounded normalization within the
+approved transfer scope: round only x/y/width/height to the nearest0.01 PDF
+point, with maximum absolute delta0.005 point. This is an implementation
+recommendation, not a separate confirmation received from the owner.
+Record each changed before/after value, then cold-read and visually recheck the
+saved result. Claim normalized parity, not exact legacy numeric identity.
+Keep original PDFs unchanged; no validation bypass, UI code change or new release.
+
+Refresh README and the current launch checkpoint without rewriting release
+history. No accessible Admissions case was found in the ordinary UI; no client
+records were created or changed. Real filled-form/Gemini acceptance, explicit
+five-record mapping and twelve-domain/43-file D5 reconciliation, ZIP capacity
+and persistence, and D6 retirement remain open. No application/schema/provider,
+backup, paid-capacity or deletion operation is part of this docs update.

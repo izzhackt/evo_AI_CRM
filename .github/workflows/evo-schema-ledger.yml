@@ -18,6 +18,11 @@ on:
         options:
           - check
           - apply
+      check_storage_capacity:
+        description: "Прочитать лимит Storage и требовать не менее20MiB перед продолжением"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: evo-schema-ledger
@@ -40,6 +45,60 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
+
+      - name: Check project Storage capacity (read-only)
+        if: ${{ inputs.check_storage_capacity == true }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+        run: |
+          set -Eeuo pipefail
+          node <<'NODE'
+          // GET only; requires storage_config_read. Never change project limits.
+          // https://supabase.com/docs/reference/api/v1-get-storage-config
+          async function checkStorageCapacity() {
+            const ref = process.env.EVO_SUPABASE_PROJECT_REF;
+            const token = process.env.SUPABASE_ACCESS_TOKEN;
+            if (ref !== "iosckaqtovbbnssqcpde" || !token?.trim()) throw new Error("invalid_configuration");
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000);
+            try {
+              const response = await fetch("https://api.supabase.com/v1/projects/iosckaqtovbbnssqcpde/config/storage", {
+                method: "GET",
+                headers: { Authorization: "Bearer " + token },
+                redirect: "error",
+                signal: controller.signal,
+              });
+              if (response.status !== 200 || !response.body) throw new Error("unavailable");
+              const reader = response.body.getReader();
+              const chunks = [];
+              let bytes = 0;
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                bytes += value.byteLength;
+                if (bytes > 65536) throw new Error("response_too_large");
+                chunks.push(value);
+              }
+              const config = JSON.parse(Buffer.concat(chunks, bytes).toString("utf8"));
+              if (!config || typeof config !== "object" || Array.isArray(config)
+                || !Number.isSafeInteger(config.fileSizeLimit) || config.fileSizeLimit < 0) {
+                throw new Error("invalid_capacity");
+              }
+              const minimumBytes = 20 * 1024 * 1024;
+              const eligible = config.fileSizeLimit >= minimumBytes;
+              console.log(JSON.stringify({ fileSizeLimit: config.fileSizeLimit, minimumBytes, eligible }));
+              if (!eligible) process.exitCode = 1;
+            } finally {
+              clearTimeout(timeout);
+              controller.abort();
+            }
+          }
+          checkStorageCapacity().catch(() => {
+            console.error("storage_capacity_unavailable");
+            process.exitCode = 1;
+          });
+          NODE
 
       - name: Read remote migration ledger (read-only)
         env:

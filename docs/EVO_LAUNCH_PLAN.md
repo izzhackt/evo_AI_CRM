@@ -21,6 +21,14 @@ Keep checks read-only by default, one explicit create/update plus readback,
 and fail closed on permissions, conflicts and unknown responses. No public
 bucket, global limit, paid upgrade or provider submission is authorized here.
 
+Read the actual project-wide Storage file-size limit before enabling20MiB
+forms. Reuse the existing manual schema-ledger workflow with an optional,
+default-off read-only capacity input; call only the official project's GET
+Storage-config endpoint using its existing step-scoped management credential.
+Print only the numeric limit and20MiB eligibility, never the response or token.
+Fail before schema apply on unknown, insufficient or rejected capacity checks.
+This adds no provider write, new workflow, object upload or tariff change.
+
 ## Active owner clarification: reuse EVO Docs, do not rebuild it (2026-09-14)
 
 The owner approved transferring the existing five Docs workflows: university

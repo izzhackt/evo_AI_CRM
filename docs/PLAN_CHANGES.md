@@ -26579,3 +26579,17 @@ Retirement remains blocked by missing D5 identity/provenance transfer, package
 integration and real case acceptance; preserve all local originals and history.
 Remote standalone SQLite is empty but does not erase the nonempty local source.
 Do not use the release smoke account for business mutations or fabricate cases.
+
+### 2026-09-15 — read actual Storage capacity before form activation
+
+Independent preflight review retains actual project-wide capacity as a gate
+before enabling20MiB form outputs. The app service key cannot establish this
+management setting; the existing GitHub schema workflow already owns the
+step-scoped management credential. Before coding, add only a default-off manual
+`check_storage_capacity` input and one bounded, read-only GET to the exact
+`iosckaqtovbbnssqcpde` project's Storage config. Validate the integer byte limit,
+report only that limit and20MiB eligibility, and fail closed before any schema
+apply when requested proof is unavailable or insufficient. No token extraction,
+raw config logging, tariff/limit change, new workflow, test object or upload.
+Source: [official Storage config API](https://supabase.com/docs/reference/api/v1-get-storage-config)
+(GET, `storage_config_read`, `fileSizeLimit`), verified2026-09-15.

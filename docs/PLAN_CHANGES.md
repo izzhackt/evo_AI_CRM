@@ -26214,3 +26214,27 @@ closes the prior acceptance-only login failure, not full D4, provider/client
 acceptance or release. Preserve the original false business/full-D4 flags.
 Next work remains PDF region UI, saved filled forms and packages, followed by
 managed release, D5 import and D6 acceptance/retirement. No production changes.
+
+### D4 saved DOCX/PDF form producer — exact pre-code boundary (2026-09-14)
+
+Scope approved by root: amend the existing university/packages contract, no code,
+SQL or migration number. Extend164's one artifact/history lifecycle with session-only
+form workspace/prepare, closed discriminated DTOs and immutable165/166 source,
+application/catalog/mapping/review bindings. Preserve existing profile requests,
+rows and hashes. Logical snapshots freeze at prepare; real controller-bound Docker
+image/revision and format-specific font proof freeze only at trusted output seal.
+Keep PostgreSQL JSONB input hashing distinct from package canonical projection hashing.
+Require full DOCX/PDF native fill, real20MiB export Storage and live per-source authority;
+ZIP remains the later65MiB product with an actual managed capacity gate, no quiet cap
+shrink. The only unresolved implementation decision is native fill output framing and
+measured resource envelope; inspection limits are not fill proof. See the exact DTO/RPC,
+nullability, lock order and ownership in
+[the existing D4 contract](design/v3/evo-docs-university-packages-contract.md#saved-university-form-artifact-producer--pre-code-amendment-2026-09-14).
+No activation, build, real private data, provider/managed mutation or D4 completion is
+claimed. Freeze these two docs for independent review before any commit/implementation.
+
+Independent pre-code review requested two narrow corrections: SQL freezes only the
+real166 minimal manifest; the isolated child reconstructs rich DOCX resolver slots
+by same-byte reinspection, without fabricated text/new persistence. Keep164 schema1
+and profile-only default history for migration-first/app rollback; add a third session
+RPC for explicit HTTP v2 union-history opt-in, with no silent schema fallback.

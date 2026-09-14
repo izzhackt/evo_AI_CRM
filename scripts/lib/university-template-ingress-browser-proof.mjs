@@ -7,7 +7,7 @@ import { chromium, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import postgres from "postgres";
-import { configuration, requireProof, ProofError } from "./student-profile-fields-browser-proof.mjs";
+import { configuration, requireProof, ProofError, proofPathClass, writeFailureEvidence } from "./student-profile-fields-browser-proof.mjs";
 import { templateAcceptanceAppSpec, requireTemplateAcceptanceImages,
   startTemplateAcceptanceApp, cleanupTemplateAcceptanceApp, TEMPLATE_PROOF_CHECKS,
   validateTemplatePendingReceipt } from "./university-template-ingress-acceptance.mjs";
@@ -50,8 +50,9 @@ async function seedCatalogue(client, organizationId) {
 }
 
 async function main() {
-  let config, sql, client, storage, browser, spec, stage = "IMAGE_GATE", appCleaned = false;
-  const counts = { error: 0, warning: 0 }; let pending;
+  let config, sql, client, storage, browser, spec, diagnosticPage, stage = "IMAGE_GATE", appCleaned = false;
+  const counts = { error: 0, warning: 0, page: 0, console: 0 }, http = { LOGIN: null, MAIN: null };
+  const browserErrors = new Set(); let pending;
   const timer = setTimeout(() => {
     // Hard host lifetime: no hung browser may leave its owned app running.
     try { if (spec) cleanupTemplateAcceptanceApp(spec.appName); } catch { /* outer harness still owns cleanup */ }
@@ -88,15 +89,24 @@ async function main() {
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1440, height: 1000 } });
     context.on("page", page => {
-      page.on("pageerror", () => { counts.error++; });
-      page.on("console", message => { if (message.type() === "error") counts.error++; if (message.type() === "warning") counts.warning++; });
+      page.on("pageerror", () => { counts.error++; counts.page++; browserErrors.add("PAGE_ERROR"); });
+      page.on("console", message => { if (message.type() === "error") { counts.error++; counts.console++; browserErrors.add("CONSOLE_ERROR"); }
+        if (message.type() === "warning") counts.warning++; });
+    });
+    context.on("response", response => {
+      const route = proofPathClass(response.url(), config.appOrigin);
+      if (Object.hasOwn(http, route)) http[route] = response.status();
     });
     await context.route("**/*", route => [config.appOrigin, config.apiOrigin].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
-    const page = await context.newPage(); page.setDefaultTimeout(30_000);
-    stage = "LOGIN_UI"; await page.goto(`${config.appOrigin}/login`, { waitUntil: "domcontentloaded" });
-    await page.locator("#staff-email").fill(config.email); await page.locator("#staff-password").fill(config.password);
+    const page = await context.newPage(); diagnosticPage = page; page.setDefaultTimeout(30_000);
+    stage = "LOGIN_DOCUMENT"; await page.goto(`${config.appOrigin}/login`, { waitUntil: "domcontentloaded" });
+    stage = "LOGIN_EMAIL"; await page.locator("#staff-email").fill(config.email);
+    stage = "LOGIN_PASSWORD"; await page.locator("#staff-password").fill(config.password);
+    stage = "LOGIN_SUBMIT";
     await page.getByRole("button", { name: "Войти в CRM", exact: true }).click();
+    stage = "AUTHENTICATED_SHELL";
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-system-role", "admin");
+    stage = "ACTUAL_ROLE";
     await expect(page.getByTestId("v3-shell")).toHaveAttribute("data-presentation-role", "actual");
     stage = "CATALOGUE_UI"; await page.goto(`${config.appOrigin}/v3/universities`, { waitUntil: "domcontentloaded" });
     await page.locator(`a[href="/v3/universities/${catalogId}"]`).first().click();
@@ -163,6 +173,9 @@ async function main() {
       sourceSha256: sha256, sourceBytes: bytes.length, browserErrorCount: counts.error, browserWarningCount: counts.warning,
       images, runtimeIdentity: identity, mapping };
   } catch (error) {
+    try { await writeFailureEvidence({ config, page: diagnosticPage, stage, error, http, browserErrors,
+      browserWarningCount: counts.warning, counts }); }
+    catch { process.stderr.write("UNIVERSITY_TEMPLATE_INGRESS_DIAGNOSTIC_UNAVAILABLE\n"); }
     const code = error instanceof ProofError ? error.code : stage;
     process.stderr.write(`UNIVERSITY_TEMPLATE_INGRESS_ERROR:${code}\n`); process.exitCode = 1;
   } finally {

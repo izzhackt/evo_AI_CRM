@@ -5,12 +5,28 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { localOrigin, proofExceptionCategory, proofPathClass, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256 } from "../src/lib/document-export-artifact-contract.ts";
 
 const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
 const runnerUrl = new URL("../scripts/lib/student-profile-fields-browser-proof.mjs", import.meta.url);
+
+test("template failure evidence retains categories, never credential values or raw errors", async () => {
+  for (const code of ["accessDenied", "authUnavailable", "staffAccessDenied"]) assert.equal(proofLoginErrorCode(code), code);
+  for (const value of [null, undefined, {}, "private-value", "https://example.test/private", ["accessDenied"]]) assert.equal(proofLoginErrorCode(value), null);
+  const evidenceDir = mkdtempSync(join(tmpdir(), "evo-template-diagnostic-unit-"));
+  try {
+    await writeFailureEvidence({ config: { proofKind: "university-template-ingress", evidenceDir }, page: null,
+      stage: "LOGIN_SUBMIT", error: new Error("private-value"), http: { LOGIN: 200, MAIN: null },
+      browserErrors: new Set(), browserWarningCount: 0, counts: { page: 0, console: 0 } });
+    const raw = readFileSync(join(evidenceDir, "failure.json"), "utf8"), evidence = JSON.parse(raw);
+    assert.equal(evidence.schema, "evo-university-template-ingress-browser-failure/v1");
+    assert.equal(evidence.businessAcceptance, false); assert.equal(evidence.screenshotSaved, false);
+    assert.equal(evidence.exceptionCategory, "ERROR"); assert.equal(evidence.loginErrorCode, null);
+    assert.equal(evidence.loginFormPending, null); assert.doesNotMatch(raw, /private-value/u);
+  } finally { rmSync(evidenceDir, { recursive: true, force: true }); }
+});
 
 test("profile-only acceptance waits for owned cleanup and fails closed on stop or absence-readback failure", () => {
   const newStart = harness.indexOf("student_profile_cleanup() {");

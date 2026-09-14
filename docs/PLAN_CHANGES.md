@@ -26120,3 +26120,22 @@ observed browser failure: publish/archive changes the revision while the new
 page's native preview may still be reading. The scenario now waits for its exact
 read-only source fragment before either mutation; no sleep, ignored console error
 or product authority relaxation. Actual browser execution is still pending.
+
+## 2026-09-14 — Diagnose the actual template browser login failure
+
+Published source55b7f41c passed the real application/derived-image builds and all
+six fast PR773 checks (34792136150). The single combined local run
+`01a09d50d4667d8087e475e282c0fbfe` passed image identity, real Admin API login,
+private bucket readback and synthetic catalogue commands, then failed at
+`LOGIN_UI`, before any template upload. It produced no acceptance receipt.
+The owned application/scanner/Supabase cleanup completed; production is unchanged.
+
+Before the next run, reuse the existing privacy-safe browser failure recorder
+and split login navigation/fill/submit/shell stages. Record only fixed error
+categories, known route classes, status/counts and DOM booleans; never login
+values, cookies, arbitrary URLs, raw console/exception text or login screenshots.
+This adds diagnostic evidence, not a login workaround, weaker assertions,
+provider access or an accepted template workflow. Root keeps the entire real
+upload/recovery/mapping scenario required. The observed duplicate initial
+migration application is recorded separately for a guarded future optimization;
+do not remove reset without proving the CLI's exact fresh owned project.

@@ -26545,3 +26545,51 @@ Require an independent GET after the one create/update. No managed write is
 performed by this code change. Official Supabase behavior verified2026-09-14:
 [bucket update](https://supabase.com/docs/reference/javascript/file-buckets-updatebucket),
 [global and per-bucket limits](https://supabase.com/docs/guides/storage/uploads/file-limits).
+
+### 2026-09-15 — preserve the accepted-app rollback during Docs release
+
+Before coding, the live read-only inventory confirms accepted05585020, no pending
+candidate, arm=false and managed001–161 (workflow34893968851). Migration164
+intentionally revokes two transient161 producer RPCs while the accepted app still
+uses them. App rollback does not undo schema, so applying162–167 alone would
+disable the old Word download during cutover and after an app rollback.
+
+For the owner's requested release, root chooses a minimal forward168 compatibility
+amendment: restore EXECUTE only to service_role for the two exact unchanged161
+begin/complete signatures. All prior live actor, case, permission, revision,
+replay and audit checks remain. Browser/PUBLIC/anon/Auth-admin roles stay denied.
+No new producer, frozen-value service reader or generated-to-ready conversion;
+new Platform code continues exclusively through164/167 artifact routes. Remove
+the compatibility grants in a reviewed follow-up only when both accepted current
+and retained rollback applications no longer call161. Preserve immutable history.
+Official privilege semantics: https://www.postgresql.org/docs/current/sql-grant.html.
+
+The two live private bucket GETs also expose a real configurator incompatibility:
+HTTP400 with legacy statusCode404 and `Bucket not found`, rather than the modern
+HTTP404/NoSuchBucket shape. Correct only bounded known missing-bucket handling;
+do not reinterpret generic400/404, auth errors, conflicting bodies or arbitrary
+messages as absence. Existing check modes remain non-mutating. An explicit apply
+may create only the exact absent private20MiB DOCX/PDF template/export buckets,
+or the already-contracted exact5MiB-to20MiB export upgrade, followed by GET.
+No object deletion, RLS change, global-size or billing change. Official Storage
+docs distinguish legacy and current errors:
+https://supabase.com/docs/guides/storage/debugging/error-codes.
+
+Retirement remains blocked by missing D5 identity/provenance transfer, package
+integration and real case acceptance; preserve all local originals and history.
+Remote standalone SQLite is empty but does not erase the nonempty local source.
+Do not use the release smoke account for business mutations or fabricate cases.
+
+### 2026-09-15 — read actual Storage capacity before form activation
+
+Independent preflight review retains actual project-wide capacity as a gate
+before enabling20MiB form outputs. The app service key cannot establish this
+management setting; the existing GitHub schema workflow already owns the
+step-scoped management credential. Before coding, add only a default-off manual
+`check_storage_capacity` input and one bounded, read-only GET to the exact
+`iosckaqtovbbnssqcpde` project's Storage config. Validate the integer byte limit,
+report only that limit and20MiB eligibility, and fail closed before any schema
+apply when requested proof is unavailable or insufficient. No token extraction,
+raw config logging, tariff/limit change, new workflow, test object or upload.
+Source: [official Storage config API](https://supabase.com/docs/reference/api/v1-get-storage-config)
+(GET, `storage_config_read`, `fileSizeLimit`), verified2026-09-15.

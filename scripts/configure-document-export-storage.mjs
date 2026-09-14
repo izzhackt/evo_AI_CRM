@@ -109,6 +109,11 @@ async function request(path, method, headers, fetchImpl, payload = DOCUMENT_EXPO
 async function readBucket(headers, fetchImpl) {
   const { status, body } = await request(BUCKET_PATH, "GET", headers, fetchImpl);
   if (status === 404 && body?.code === "NoSuchBucket") return null;
+  // Managed Storage still emits this legacy envelope (observed 2026-09-15).
+  // https://supabase.com/docs/guides/storage/debugging/error-codes
+  if (status === 400 && isRecord(body) && body.statusCode === "404" && body.code === "NoSuchBucket"
+    && body.error === "Bucket not found" && body.message === "Bucket not found"
+    && Object.keys(body).length === 4) return null;
   if (status !== 200) fail("bucket_read_failed");
   return bucketSettings(body);
 }

@@ -1,10 +1,11 @@
 # EVO Docs → одна EVO Platform
 
-Дата: 2026-09-14. Владелец разрешил перенос функций и последующее удаление отдельного
+Дата: 2026-09-15. Владелец разрешил перенос функций и последующее удаление отдельного
 приложения. Статус: D0/D1 завершены; D2 выпущен в `05585020` с полным CI.
 Приёмка анкеты на согласованном реальном деле остаётся открытой.
-D3/D4 разрабатываются; D3–D6, перенос данных и выключение отдельного приложения
-не завершены. [Контракт D2](evo-docs-profile-fields-contract.md) и
+Код распознавания и сохранённых университетских форм объединён; D3–D6,
+перенос данных и выключение отдельного приложения не завершены.
+[Контракт D2](evo-docs-profile-fields-contract.md) и
 [локальное доказательство](references/2026-09-13-student-profile-fields-local-proof.md)
 фиксируют реализованный путь, не разрешение выключать старый runtime.
 Сервер, обязательный CI, выпуск и localhost-туннель проверены:
@@ -12,7 +13,18 @@ D3/D4 разрабатываются; D3–D6, перенос данных и в
 Контракт: `docs/EVO_LAUNCH_PLAN.md` → ADR0028 → этот план → `DESIGN.md`.
 Параллельный run: [сотрудники и роли](employee-roles-accounts-run-plan.md).
 
-Reuse-first checkpoint: [PR775](https://github.com/izzhackt/evo_AI_CRM/pull/775)
+Checkpoint 2026-09-15: [сверка перед cutover](references/2026-09-15-docs-cutover-preflight.md)
+фиксирует clean source `f420fe8c`, действующий accepted `05585020`, `arm=false`
+и read-only schema-check34893968851 SUCCESS: managed001–161, source162–167.
+Выбран временный forward168 для двух прежних service-only RPC, чтобы сохранить
+D2 на действующем и rollback-приложении; контракт находится в корневом launch-plan.
+Это подготовка, не применённая миграция или новый выпуск. Нужны проверенные private
+Storage buckets, release gates и реальная приёмка. Локальные данные сохранены;
+пустая серверная SQLite не закрывает D5/D6. Девять пустых шаблонов можно переносить
+отдельно через текущий ingress, без выбора студентских дел. Точные следующие шаги
+и границы сохранения приведены в заметке; импорт и удаление ещё не выполнены.
+
+Предыдущий reuse-first checkpoint: [PR775](https://github.com/izzhackt/evo_AI_CRM/pull/775)
 merged в `main` как `a063a1ab` после независимого review и всех шести
 [CI-проверок exact `51049c4c`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34839629608).
 В коде объединены SQL167, прежние Word/PDF-движки, приватное сохранение форм,
@@ -151,9 +163,16 @@ Supabase, не синхронизация двух баз. Обычные заг
 - VPS: `/opt/evo-student-docs`, старый image `evo-student-docs:eadbef1`, healthy.
   Шесть базовых таблиц пустые. Публичный health недоступен по HTTPS; активный edge
   не содержит маршрута student-docs. Это не причина восстанавливать отдельный продукт.
+  Повторная read-only сверка 2026-09-15: остальные шесть доменов отсутствуют,
+  non-DB files0; integrity-check серверной SQLite не выполнялся. Image tag не
+  доказывает source commit: у серверного source-каталога нет `.git`.
 - В локальном `runtime/evo-docs.sqlite`: 5 student records, 6 documents, 7 versions,
   27 field values, 46 candidates, 124 events; package settings1/parts1/reviews3/exports3;
-  university forms9/exports23. Прочитаны только количества, не персональные поля/файлы.
+  university forms9/exports23. Повторно проверены только метаданные и хеши:
+  integrity/FK PASS, 49 ссылок на 43 файла (67 422 701 байт), все SHA совпали.
+  Все23 university exports — draft; ZIP:1 draft/2 final. База/WAL/SHM не изменены;
+  персональные поля и содержимое документов не извлекались. Метаданные не позволяют
+  считать пять student records техническими; требуется явный mapping дел.
 - Все 12 доменов данных: students, documents, document_versions, field_values,
   field_candidates, event_log, package_settings, package_parts, package_reviews,
   package_exports, university_forms, university_form_exports. Старый отдельный

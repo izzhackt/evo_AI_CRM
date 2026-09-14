@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import {
   verifyLocalGatewayImageReference,
   verifyLocalGatewayRuntimeIdentity,
@@ -48,6 +49,115 @@ const workflow = readFileSync(
 const packageJson = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 );
+const schemaWorkflow = readFileSync(
+  new URL("../.github/workflows/evo-schema-ledger.yml", import.meta.url), "utf8",
+);
+
+function storageCapacityStep() {
+  const marker = "      - name: Check project Storage capacity (read-only)";
+  const start = schemaWorkflow.indexOf(marker);
+  assert.notEqual(start, -1, "the explicit capacity check must exist");
+  return schemaWorkflow.slice(start, schemaWorkflow.indexOf("\n      - name:", start + marker.length));
+}
+
+async function runStorageCapacity({ body = '{"fileSizeLimit":20971520}', status = 200,
+  projectRef = "iosckaqtovbbnssqcpde", networkFailure = false, timeout = false } = {}) {
+  const step = storageCapacityStep();
+  const source = step.match(/node <<'NODE'\n([\s\S]*?)\n          NODE/u)?.[1].replace(/^          /gmu, "");
+  assert.ok(source, "execute the actual workflow Node body");
+  const token = randomUUID();
+  const calls = [], output = [], errors = [], timers = [];
+  const processState = { env: { SUPABASE_ACCESS_TOKEN: token, EVO_SUPABASE_PROJECT_REF: projectRef }, exitCode: 0 };
+  let deadline;
+  await runInNewContext(source, {
+    Buffer, AbortController, process: processState,
+    setTimeout: (callback, milliseconds) => { deadline = callback; timers.push(milliseconds); return 1; },
+    clearTimeout: () => {},
+    console: { log: value => output.push(value), error: value => errors.push(value) },
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      if (timeout) {
+        deadline();
+        options.signal.throwIfAborted();
+      }
+      if (networkFailure) throw new Error(token);
+      return new Response(body, { status });
+    },
+  });
+  assert.ok(![...output, ...errors].join("\n").includes(token), "never disclose credentials");
+  return { calls, output, errors, timers, token, exitCode: processState.exitCode };
+}
+
+test("schema Storage capacity accepts the exact20MiB limit through one bounded read-only GET", async () => {
+  const result = await runStorageCapacity();
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(result.output.map(value => JSON.parse(value)), [
+    { fileSizeLimit: 20971520, minimumBytes: 20971520, eligible: true },
+  ]);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.timers, [30000]);
+  assert.equal(result.calls.length, 1);
+  assert.equal(result.calls[0].url, "https://api.supabase.com/v1/projects/iosckaqtovbbnssqcpde/config/storage");
+  assert.equal(result.calls[0].options.method, "GET");
+  assert.equal(result.calls[0].options.redirect, "error");
+  assert.equal(result.calls[0].options.headers.Authorization, "Bearer " + result.token);
+});
+
+test("schema Storage capacity stays default-off, step-scoped and before ledger/apply", () => {
+  assert.match(schemaWorkflow, /check_storage_capacity:\n\s+description: .+\n\s+required: false\n\s+default: false\n\s+type: boolean/u);
+  const step = storageCapacityStep();
+  assert.match(step, /if: \$\{\{ inputs\.check_storage_capacity == true \}\}/u);
+  assert.match(step, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/u);
+  assert.match(step, /EVO_SUPABASE_PROJECT_REF: \$\{\{ vars\.EVO_SUPABASE_PROJECT_REF \}\}/u);
+  assert.doesNotMatch(step, /continue-on-error|POST|PATCH|PUT|DELETE/u);
+  assert.ok(schemaWorkflow.indexOf(step) < schemaWorkflow.indexOf("      - name: Read remote migration ledger"));
+  assert.ok(schemaWorkflow.indexOf(step) < schemaWorkflow.indexOf("      - name: Apply missing migrations"));
+  assert.doesNotMatch(schemaWorkflow, /^ {0,8}SUPABASE_ACCESS_TOKEN:/mu);
+});
+
+test("schema Storage capacity reports only numeric eligibility and fails insufficient limits", async () => {
+  for (const limit of [0, 5242880, 20971519, 20971520, 52428800]) {
+    const result = await runStorageCapacity({ body: JSON.stringify({ fileSizeLimit: limit, privateConfig: "must-not-be-logged" }) });
+    const eligible = limit >= 20971520;
+    assert.equal(result.exitCode, eligible ? 0 : 1);
+    assert.deepEqual(result.output.map(value => JSON.parse(value)), [
+      { fileSizeLimit: limit, minimumBytes: 20971520, eligible },
+    ]);
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.calls.length, 1);
+  }
+});
+
+test("schema Storage capacity rejects malformed, oversized and non-integer configuration", async () => {
+  for (const body of ["not-json", "null", "[]", "{}", '{"fileSizeLimit":"20971520"}',
+    '{"fileSizeLimit":-1}', '{"fileSizeLimit":20971520.5}', '{"fileSizeLimit":9007199254740992}',
+    JSON.stringify({ fileSizeLimit: 20971520, padding: "界".repeat(23000) })]) {
+    const result = await runStorageCapacity({ body });
+    assert.equal(result.exitCode, 1);
+    assert.deepEqual(result.output, []);
+    assert.deepEqual(result.errors, ["storage_capacity_unavailable"]);
+    assert.equal(result.calls.length, 1);
+  }
+});
+
+test("schema Storage capacity fails HTTP/network/deadline errors without response or credential disclosure", async () => {
+  for (const scenario of [...[301, 401, 403, 429, 500].map(status => ({ status, body: "private response" })),
+    { networkFailure: true }, { timeout: true }]) {
+    const result = await runStorageCapacity(scenario);
+    assert.equal(result.exitCode, 1);
+    assert.deepEqual(result.output, []);
+    assert.deepEqual(result.errors, ["storage_capacity_unavailable"]);
+    assert.equal(result.calls.length, 1);
+  }
+});
+
+test("schema Storage capacity refuses another project before sending any credential", async () => {
+  const result = await runStorageCapacity({ projectRef: "anotherprojectabcdef" });
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(result.calls, []);
+  assert.deepEqual(result.output, []);
+  assert.deepEqual(result.errors, ["storage_capacity_unavailable"]);
+});
 
 function job(name, nextName) {
   const start = workflow.indexOf(`  ${name}:`);

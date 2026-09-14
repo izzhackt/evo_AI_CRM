@@ -31,6 +31,9 @@ COPY scripts/document-source/bootstrap.mjs ./scripts/document-source/bootstrap.m
 COPY scripts/university-template ./scripts/university-template
 COPY src/lib/server/university-template-preflight.ts src/lib/server/university-form-docx.ts src/lib/server/university-form-pdf.ts ./src/lib/server/
 COPY src/lib/university-form-fields.ts src/lib/student-profile-fields.ts src/lib/university-template-preview.ts src/lib/university-template-page.ts ./src/lib/
+COPY src/lib/university-form-export-contract.ts src/lib/university-form-render.ts src/lib/university-form-registry.ts src/lib/document-package.ts ./src/lib/
+COPY src/lib/platform-student-profile-fields.ts src/lib/platform-access.ts src/lib/fixed-role-policy.ts src/lib/roles.ts ./src/lib/
+COPY src/lib/server/action-form-fields.ts ./src/lib/server/
 COPY assets/fonts/NotoSans-Regular.ttf assets/fonts/OFL.txt ./assets/fonts/
 RUN node scripts/university-template/build.mjs /out
 

@@ -59,7 +59,15 @@ const options = { bundle: true, platform: "node", format: "esm", target: "node22
 await build({ ...options, entryPoints: ["scripts/university-template/compatibility.mjs"], outfile: join(proof, "canvas-compatibility", "inspect.mjs") });
 await build({ ...options, entryPoints: ["scripts/university-template/inspect.mjs"], outfile: join(runtime, "inspect.mjs") });
 await build({ ...options, entryPoints: ["scripts/university-template/render-page.mjs"], outfile: join(runtime, "render-page.mjs") });
+await build({ ...options, entryPoints: ["scripts/university-template/render-form.mjs"], outfile: join(runtime, "src", "lib", "server", "render-form.mjs") });
+await mkdir(join(runtime, "assets", "fonts"), { recursive: true });
+for (const filename of ["NotoSans-Regular.ttf", "OFL.txt"]) await cp(join("assets", "fonts", filename), join(runtime, "assets", "fonts", filename));
+await writeFile(join(runtime, "form-assets.json"), JSON.stringify({
+  rendererSha256: createHash("sha256").update(await readFile(join(runtime, "src", "lib", "server", "render-form.mjs"))).digest("hex"),
+  fontSha256: createHash("sha256").update(await readFile(join(runtime, "assets", "fonts", "NotoSans-Regular.ttf"))).digest("hex"),
+}));
 await build({ ...options, entryPoints: ["scripts/university-template/fill-proof.mjs"], outfile: join(proof, "fill-proof", "src", "lib", "server", "inspect.mjs") });
 await build({ ...options, entryPoints: ["scripts/university-template/raster-fixtures.mjs"], outfile: join(proof, "raster-fixtures.mjs") });
 await build({ ...options, entryPoints: ["src/lib/server/university-template-preflight.ts"], outfile: join(proof, "adapter.mjs") });
 await build({ ...options, external: ["./adapter.mjs"], entryPoints: ["scripts/university-template/test-harness.mjs"], outfile: join(proof, "test-harness.mjs") });
+await cp("scripts/university-template/form-asset-control.mjs", join(proof, "form-asset-control.mjs"));

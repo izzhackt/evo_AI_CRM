@@ -7,7 +7,9 @@ import { readFile, writeFile, mkdtemp, mkdir, rm, access, stat, readdir } from "
 import { PDFDocument, PDFName, PDFNumber, PDFString, degrees, rgb } from "pdf-lib";
 import PizZip from "pizzip";
 import { rasterFixture } from "./raster-fixtures.mjs";
-import { inspectUniversityTemplate, previewUniversityTemplateSource, renderUniversityTemplatePage } from "./adapter.mjs";
+import { inspectUniversityTemplate, previewUniversityTemplateSource, renderUniversityTemplatePage, renderUniversityForm } from "./adapter.mjs";
+import { formRenderFixture } from "./form-fixtures.mjs";
+import "./form-test-harness.mjs";
 
 const ROOT = "/opt/evo-university-template-runtime";
 const launcher = `${ROOT}/launcher`, diagnostic = `${ROOT}/launcher.test`;
@@ -19,6 +21,26 @@ const preview = (bytes, expectedManifest, offset = 0, signal = new AbortControll
   previewUniversityTemplateSource({ bytes, mimeType: DOCX, expectedSha256: sha(bytes), expectedManifest, offset }, { signal });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const p = text => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
+test("actual saved-form mode reinspects and fills complete DOCX and PDF with confirmed-only values", async () => {
+  for (const format of ["docx", "pdf"]) for (const mode of ["final", "draft"]) {
+    const source = format === "docx" ? docx() : await pdf(2);
+    const inspection = await inspect(source, format === "docx" ? DOCX : "application/pdf");
+    assert.equal(inspection.status, "verified");
+    const fixture = await formRenderFixture(inspection, { mode });
+    const result = await renderUniversityForm({ bytes: source, ...fixture }, { signal: new AbortController().signal });
+    assert.equal(result.status, "rendered", JSON.stringify(result));
+    assert.equal(result.metadata.outputSha256, sha(result.bytes));
+    assert.equal(result.metadata.counts.confirmed, 1);
+    assert.equal(result.metadata.mode, mode);
+    assert.notEqual(sha(result.bytes), sha(source));
+    if (format === "docx") {
+      const xml = new PizZip(result.bytes).file("word/document.xml").asText();
+      assert.ok(xml.includes("Айлин Synthetic Ө Ү Ң"));
+      assert.ok(xml.includes("Signature:"));
+    } else assert.equal((await inspect(result.bytes, "application/pdf")).status, "verified");
+    await writeFile(`/proof-output/saved-${format}-${mode}.${format}`, result.bytes);
+  }
+});
 await mkdir("/tmp/evo-university-template-fixtures", { recursive: true });
 function docx({ body = p("Name:") + p("Signature:") + p("PRIVATE SYNTHETIC SENTINEL"), extra = {} } = {}) {
   const zip = new PizZip();

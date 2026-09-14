@@ -26118,3 +26118,31 @@ hashes remain opaque DB bindings; no SQL serializer or renderer proof is added.
 The publication excludes native wire/runtime/build/adapter changes. Those need
 their own full-size, isolation, layout and native-architecture validation/review;
 the passing initial arm64 render tracer is not complete native/D4 acceptance.
+
+### 2026-09-14 — close the existing saved-form adapter under owner-approved reuse
+
+Root's active reuse-first amendment in EVO_LAUNCH_PLAN and the unification plan
+governs this bounded publication. Reuse the already ported DOCX/PDF renderers
+without modifying them; finish only the existing sealed runtime dispatch,
+framed transport, closed metadata/adapter and previously prepared focused tests.
+Shared input DTO c41b677d is already separately reviewed/published. Root owns
+receipt/history/host/Storage and any further shared-helper extraction. No second
+runtime, new infrastructure, new fixture program or limit increase is authorized.
+
+Retained real native arm64 evidence: DOCX/PDF final+draft tracer1/1;
+actual19.5–20MiB outputs1/1; full template matrix41/45 PASS,4 FAIL,0 skipped on
+image074b7ff47974b7fa063eb4e98396f62bdda3d194d9cb4bac9f72d279efc5db62
+(receipt01a09dabf0cc778086f927cfa207c924). Four test-only corrections are present
+but unverified: manual-source nullability, expired delivery expectation,
+oversized overflow-source fixture and explicit synthetic canvas setup. Their
+presence does not convert the failed run into PASS. No unchanged expensive suite
+is rerun to manufacture a new green status. Preserve all prior artifacts and
+sampled resource/cleanup evidence in `/tmp/evo-form-matrix.i0ao5C/`.
+
+Source review/publication is distinct from actual Office layout, new-mode native
+amd64, D3/asset-control and host Auth/Storage/seal acceptance. Source Docs6e7cf741
+has no Git-tracked public university originals; authorized registry metadata may
+identify known blank files, but file bytes require an exact allowlist. A chosen
+confirmed real case/profile remains necessary for actual autofill acceptance;
+do not substitute fabricated personal values or provider calls. New executions
+require root resource coordination; current runtime/format bounds stay intact.

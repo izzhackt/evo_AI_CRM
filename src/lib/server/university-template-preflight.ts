@@ -1,6 +1,13 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { FormInput } from "../university-form-export-contract.ts";
+import { encodeUniversityFormCapsule, normalizeUniversityFormRequest, parseUniversityFormRenderMetadata,
+  UNIVERSITY_FORM_RENDER_CAPSULE_DOMAIN, UNIVERSITY_FORM_RENDER_FAILURES, UNIVERSITY_FORM_RENDER_MAX_BYTES,
+  UNIVERSITY_FORM_RENDER_MAX_FRAME, UNIVERSITY_FORM_RENDER_MAX_METADATA,
+  type FormRenderBinding, type FormRenderExpectation, type FormRenderMetadata, type FormRenderRejection } from "../university-form-render.ts";
 import { parseUniversityTemplateSourcePreview, type UniversityTemplateSourcePreview } from "../university-template-preview.ts";
 import { parseUniversityTemplatePageMetadata, UNIVERSITY_TEMPLATE_PAGE_MAX_FRAME, UNIVERSITY_TEMPLATE_PAGE_MAX_METADATA,
   UNIVERSITY_TEMPLATE_PAGE_MAX_PNG, type UniversityTemplatePageExpectation, type UniversityTemplatePageMetadata } from "../university-template-page.ts";
@@ -26,6 +33,84 @@ const LAUNCHER = "/opt/evo-university-template-runtime/launcher";
 const unavailable = (): UniversityTemplateRejection => ({ status: "rejected", code: "source_unavailable" });
 const ineligible = (): UniversityTemplateRejection => ({ status: "rejected", code: "template_not_eligible" });
 let running = false;
+export type UniversityFormRenderResult = Readonly<{ status: "rendered"; metadata: FormRenderMetadata; bytes: Uint8Array }> | FormRenderRejection;
+
+/** Framing/digest checks only. No general ZIP/PDF parser or authorization. */
+export function parseUniversityFormRenderFrame(wire: Buffer, expected: FormRenderExpectation): UniversityFormRenderResult | null {
+  try {
+    if (wire.length < 12 || wire.length > UNIVERSITY_FORM_RENDER_MAX_FRAME || !wire.subarray(0, 4).equals(Buffer.from("EUF1"))) return null;
+    const metaLength = wire.readUInt32BE(4), byteLength = wire.readUInt32BE(8);
+    if (metaLength < 1 || metaLength > UNIVERSITY_FORM_RENDER_MAX_METADATA || byteLength > UNIVERSITY_FORM_RENDER_MAX_BYTES
+      || wire.length !== 12 + metaLength + byteLength || wire.subarray(12, 15).equals(Buffer.from([0xef, 0xbb, 0xbf]))) return null;
+    const json = new TextDecoder("utf-8", { fatal: true }).decode(wire.subarray(12, 12 + metaLength));
+    const value: unknown = JSON.parse(json);
+    // Child writes compact JSON; supervisor's fixed rejection may add one LF.
+    // Re-encoding also rejects duplicate keys and alternate numeric encodings.
+    if (JSON.stringify(value) !== json.replace(/\n$/, "")) return null;
+    if (record(value) && keys(value, "code,status") && value.status === "rejected" && typeof value.code === "string"
+      && UNIVERSITY_FORM_RENDER_FAILURES.some(code => code === value.code) && byteLength === 0) {
+      return Object.freeze({ status: "rejected", code: value.code as FormRenderRejection["code"] });
+    }
+    const metadata = parseUniversityFormRenderMetadata(value, expected), bytes = wire.subarray(12 + metaLength);
+    if (!metadata || metadata.outputByteLength !== byteLength || createHash("sha256").update(bytes).digest("hex") !== metadata.outputSha256) return null;
+    if (metadata.mimeType === DOCX ? !bytes.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 3, 4])) : !bytes.subarray(0, 5).equals(Buffer.from("%PDF-"))) return null;
+    return Object.freeze({ status: "rendered", metadata, bytes });
+  } catch { return null; }
+}
+
+/** Private same-child resolution/fill. Caller owns live Auth/source/receipt and trusted seal. */
+export async function renderUniversityForm(input: { bytes: Uint8Array; formInput: FormInput; binding: FormRenderBinding },
+  options: { signal: AbortSignal }): Promise<UniversityFormRenderResult> {
+  const reject = (code: FormRenderRejection["code"]): FormRenderRejection => Object.freeze({ status: "rejected", code });
+  if (running || process.platform !== "linux" || !options?.signal || options.signal.aborted) return reject("source_unavailable");
+  running = true;
+  try {
+    let bytes: Buffer, capsule: Uint8Array, expected: FormRenderExpectation;
+    try {
+      if (!(input?.bytes instanceof Uint8Array) || input.bytes.length < 1 || input.bytes.length > UNIVERSITY_FORM_RENDER_MAX_BYTES) return reject("invalid_input");
+      const request = normalizeUniversityFormRequest({ operation: "render-form-v1", formInput: input.formInput, binding: input.binding });
+      capsule = encodeUniversityFormCapsule(request); bytes = Buffer.from(input.bytes);
+      if (bytes.length !== request.formInput.source_byte_size || createHash("sha256").update(bytes).digest("hex") !== request.formInput.template.sha256) return reject("binding_mismatch");
+      expected = { request, capsuleSha256: createHash("sha256").update(UNIVERSITY_FORM_RENDER_CAPSULE_DOMAIN).update(capsule).digest("hex"),
+        manifestDigest: createHash("sha256").update(JSON.stringify(request.formInput.template.manifest)).digest("hex") };
+    } catch { return reject("invalid_input"); }
+    return await new Promise<UniversityFormRenderResult>((resolve) => {
+      const child = spawn(LAUNCHER, ["--render-form-v1"], { cwd: "/", env: { NODE_ENV: "production" }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
+      const prefix = Buffer.alloc(12); let prefixLength = 0, output: Buffer | undefined, length = 0, stopped = false, finished = false;
+      const stop = () => { stopped = true; child.kill("SIGKILL"); child.stdin.destroy(); };
+      const timer = setTimeout(stop, 16_000), signal = options.signal;
+      signal.addEventListener("abort", stop, { once: true }); if (signal.aborted) stop();
+      child.on("error", stop); child.stdout.on("error", stop); child.stdin.on("error", stop);
+      child.stdout.on("data", (chunk: Buffer) => {
+        if (stopped) return;
+        let offset = 0;
+        if (prefixLength < 12) {
+          const amount = Math.min(12 - prefixLength, chunk.length); chunk.copy(prefix, prefixLength, 0, amount); prefixLength += amount; offset = amount;
+          if (prefixLength < 12) return;
+          const metadataLength = prefix.readUInt32BE(4), bodyLength = prefix.readUInt32BE(8);
+          if (!prefix.subarray(0, 4).equals(Buffer.from("EUF1")) || metadataLength < 1 || metadataLength > UNIVERSITY_FORM_RENDER_MAX_METADATA || bodyLength > UNIVERSITY_FORM_RENDER_MAX_BYTES) return stop();
+          output = Buffer.allocUnsafe(12 + metadataLength + bodyLength); prefix.copy(output); length = 12;
+        }
+        if (!output || length + chunk.length - offset > output.length) return stop();
+        chunk.copy(output, length, offset); length += chunk.length - offset;
+      });
+      child.on("close", (code) => {
+        if (finished) return; finished = true; clearTimeout(timer); signal.removeEventListener("abort", stop);
+        if (stopped || code !== 0 || !output || length !== output.length) return resolve(reject("source_unavailable"));
+        resolve(parseUniversityFormRenderFrame(output, expected) ?? reject("source_unavailable"));
+      });
+      const header = Buffer.alloc(12); header.write("EUFQ"); header.writeUInt32BE(capsule.length, 4); header.writeUInt32BE(bytes.length, 8);
+      function* chunks() {
+        yield header;
+        for (const buffer of [capsule, bytes]) for (let offset = 0; offset < buffer.length; offset += 64 * 1024) yield buffer.subarray(offset, offset + 64 * 1024);
+      }
+      // pipeline honors write(false)/drain; a rejected stream kills the job and is
+      // not settlement. The admission lease remains held until child close.
+      void pipeline(Readable.from(chunks()), child.stdin, { signal }).catch(stop);
+    });
+  } catch { return reject("source_unavailable"); }
+  finally { running = false; }
+}
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }

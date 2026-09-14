@@ -1,6 +1,12 @@
 # D4 — isolated saved DOCX/PDF form rendering
 
-2026-09-14. **Pre-code proposal; independent review and root approval required.**
+2026-09-14. **Implementation candidate; partial native evidence, source review pending.**
+Independent review approved exact two-doc diff
+`70cc2aecf2b9fd54b5060075ae24e7c3e50906f203cee483eb8e974ecbbe8708`,
+published as`b41f9d10141c267d21ce7647a6aad9ca77b23db3`; root then authorized
+the bounded native implementation. Shared input types/closed guards are owned
+by this author in new `src/lib/university-form-export-contract.ts`, coordinated
+with SQL167. Root owns existing receipt/history DTOs and host/HTTP orchestration.
 Native baseline: `c35a1fd3d871177f49ea76668a162be4c9d145d3`.
 Persistence/host authority: the independently reviewed saved-form amendment in
 [forms/packages](evo-docs-university-packages-contract.md), published as
@@ -8,6 +14,19 @@ Persistence/host authority: the independently reviewed saved-form amendment in
 `FormReceipt`, `RendererProof`, hashes and lifecycle are normative aliases below.
 This contract supplies that amendment's missing native framing/resource seam;
 it does not revise164/165/166, history v1, Auth, Storage or package rules.
+
+## Active reuse-first delivery clarification
+
+The owner's2026-09-14 clarification in the active
+[unification plan](evo-docs-unification-run-plan.md#reuse-first-delivery) governs
+delivery sequencing. Finish the existing adapter around the already ported
+`inspect/fillUniversityDocx` and `inspect/fillUniversityPdf`; those renderer files
+are unchanged by this candidate. No new engine, infrastructure, capacity limit,
+generic compatibility program or acceptance with invented personal values.
+Retain prior evidence and the original design matrix below as provenance; run
+only coordinated changed-path checks against authorized sources. Source review
+or publication does not turn an unrun correction into PASS or close real-case,
+Office-layout, host/Storage or new-mode native-amd64 acceptance.
 
 ## Scope and existing evidence
 
@@ -42,11 +61,40 @@ native x86_64 D3 **12/12**, template **33/33**, two asset-corruption controls,
 This supersedes the older journal's “amd64 unrun” status only for c35's narrow
 slice, not this new full-size form transport, integration, full D4 or production.
 
+Current saved-form evidence (native arm64, unchanged limits):
+
+- Initial real isolated DOCX/PDF final+draft tracer passed1/1,
+  receipt`01a09d9373a67b20b2a0d564c001a429`; four synthetic outputs retained at
+  `/tmp/evo-form-native.Qm82O0/`. These are engineering controls, not real-case acceptance.
+- Image`sha256:074b7ff47974b7fa063eb4e98396f62bdda3d194d9cb4bac9f72d279efc5db62`
+  passed actual19.5–20MiB DOCX/PDF output gate1/1,
+  receipt`01a09da8bb5772b0a9fc253c9ca2d5c7`.
+- Full template matrix was **41/45 PASS,4 FAIL,0 skipped**,118.17s,
+  receipt`01a09dabf0cc778086f927cfa207c924`. Existing33, large outputs,
+  3000DOCX mappings,500PDF regions/100pages, DOCX section/determinism and15 new
+  portrait/landscape/cropped-fractional page PNGs passed.
+- Four test-only corrections are present but **not rerun**: manual mapping now
+  uses sourceKey=NULL; expired delivery expects close/fail without resetting its
+  deadline; overflow control source is adjusted to stay below the input ceiling;
+  the synthetic JPEG encoder sets its fixed native canvas path independently of
+  test order. No runtime limits or renderer implementation changed for these.
+- Artifacts and failure details remain in `/tmp/evo-form-matrix.i0ao5C/`, including
+  `FIRST_MATRIX_REPORT.md` and `saved-large-report.json`. Resource values are
+  sampled /proc observations, not exact post-exit rusage. Run-owned container
+  was removed after exited1/OOMKilled=false readback; outputs retained.
+
+No new-mode D3 run, native-amd64 run, asset-corruption run, actual Office visual
+acceptance or authenticated host/Storage seal flow is claimed. The source Docs
+Git tree at6e7cf741 contains only the committed Student Profile DOCX, not public
+university DOCX/PDF originals. Authorized metadata inventory may identify known
+blank registry templates; do not read arbitrary private files or invent a
+confirmed case/profile to close that acceptance gap.
+
 ## Server API and input frame
 
-Proposed export in `src/lib/server/university-template-preflight.ts`; types and
-closed guards in new pure `src/lib/university-form-render.ts`. These signatures
-are specifications, not currently executable APIs:
+Implemented export in `src/lib/server/university-template-preflight.ts`; types and
+closed guards in pure `src/lib/university-form-render.ts`. The API is exercised
+by the partial native evidence above; host integration/publication remain separate:
 
 ```ts
 type FormRenderBinding = {

@@ -15,7 +15,7 @@ import PizZip from "pizzip";
 import postgres from "postgres";
 import { parse } from "smol-toml";
 import { PROFILE_FIELDS, PROFILE_GROUP_LABELS, PROFILE_REQUIRED_FIELD_KEYS } from "../../src/lib/student-profile-fields.ts";
-import { normalizeDocumentExportReceipt, normalizeDocumentExportWorkspace } from "../../src/lib/document-export-artifacts.ts";
+import { normalizeDocumentExportReceipt, normalizeDocumentExportWorkspaceV2 } from "../../src/lib/document-export-artifacts.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME } from "../../src/lib/document-export-artifact-contract.ts";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -589,12 +589,13 @@ async function main() {
     stage = "COLD_EXPORT_HISTORY";
     const cold = await context.newPage(); diagnosticPage = cold; cold.setDefaultTimeout(30_000);
     const [historyResponse] = await Promise.all([
-      cold.waitForResponse(response => response.url() === exportUrl && response.request().method() === "GET"),
+      cold.waitForResponse(response => response.url() === `${exportUrl}?schema_version=2` && response.request().method() === "GET"),
       cold.goto(profileUrl, { waitUntil: "domcontentloaded" }),
     ]);
     requireProof(historyResponse.status() === 200, "PERSISTENT_COLD_HISTORY_FAILED");
-    const history = normalizeDocumentExportWorkspace(await historyResponse.json(), caseId);
+    const history = normalizeDocumentExportWorkspaceV2(await historyResponse.json(), caseId);
     requireProof(history.artifacts.length === 2, "PERSISTENT_COLD_HISTORY_COUNT_INVALID");
+    requireProof(history.artifacts.every(row => row.kind === "student_profile"), "PERSISTENT_COLD_HISTORY_KIND_INVALID");
     const historicalDraft = history.artifacts.find(row => row.id === draftExport.receipt.id);
     const currentFinal = history.artifacts.find(row => row.id === finalExport.receipt.id);
     requireProof(historicalDraft?.historical && currentFinal && !currentFinal.historical, "PERSISTENT_HISTORY_REVISION_INVALID");

@@ -26617,3 +26617,18 @@ and existing assertions. Do not replace the child with a success/no-op stub,
 skip the test, or alter production components. Check the remaining Node groups
 together before the next exact-main attempt. Managed schema/Storage stay as
 verified, app remains05585020, release arm is disabled and retirement is open.
+
+### 2026-09-15 — align the cold-history proof with the real v2 workspace
+
+Platform CI 34899485487 on `7a11f047` passed all Node/static/build/dependency
+gates and the earlier Auth, UI-quality and Admissions Storage scenarios, then
+failed at `COLD_EXPORT_HISTORY`. The proof waits for the old queryless history
+URL and normalizes schema1; the actual client requests `?schema_version=2`.
+Before coding, repair only the existing browser proof and its contract test to
+require that exact URL and strict v2 payload. Retain the two real profile
+artifacts, old/current revisions, fresh page, immutable download hashes,
+explicit replay and unchanged inventory. Do not relax the matcher to either
+schema, stub responses, skip assertions, or modify product permissions/API.
+Use the existing focused disposable harness for this boundary before another
+exact-main release. Production release was skipped; arm=false. Schema 001–168,
+both private buckets, accepted05585020 and old Docs data are unchanged.

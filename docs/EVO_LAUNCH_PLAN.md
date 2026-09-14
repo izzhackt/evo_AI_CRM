@@ -2,6 +2,16 @@
 
 ## Active Docs release checkpoint (2026-09-15)
 
+Platform CI 34899485487 on merged PR780 (`7a11f047`) passed Node/static,
+build and dependency gates, then stopped at `COLD_EXPORT_HISTORY`. The existing
+browser proof waits for the old history URL/schema, while the real client now
+requests the strict v2 workspace. Before coding, limit the repair to that proof
+and its existing contract test: exact v2 URL and normalizer, unchanged real
+cold-page history, revision, download bytes/SHA and no-regeneration assertions.
+Run the existing focused disposable Student Profile proof before another full
+release attempt. No product, schema, Storage or permission change; arm=false,
+release skipped, live05585020 and all old Docs data/runtime remain preserved.
+
 PR779 fixed the explicit adapter inventory. In subsequent Platform
 CI34898505017 the1794-test group passed (one existing skip), then the component
 group stopped because its bespoke test loader does not resolve the newly

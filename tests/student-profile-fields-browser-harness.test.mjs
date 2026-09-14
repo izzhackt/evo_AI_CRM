@@ -231,7 +231,10 @@ test("persistent UI proof separates generation, exact replay and cold historical
   assert.match(runner, /page\.request\.post\(exportUrl, \{ data: finalExport\.command, headers: \{ origin: config\.appOrigin \}/u);
   assert.match(runner, /PERSISTENT_REPLAY_DUPLICATED_OR_CHANGED/u);
   assert.match(runner, /const cold = await context\.newPage\(\)/u);
-  assert.match(runner, /normalizeDocumentExportWorkspace\(await historyResponse\.json\(\), caseId\)/u);
+  assert.match(runner, /cold\.waitForResponse\(response => response\.url\(\) === `\$\{exportUrl\}\?schema_version=2` && response\.request\(\)\.method\(\) === "GET"\)/u);
+  assert.match(runner, /normalizeDocumentExportWorkspaceV2\(await historyResponse\.json\(\), caseId\)/u);
+  assert.match(runner, /history\.artifacts\.length === 2/u);
+  assert.match(runner, /history\.artifacts\.every\(row => row\.kind === "student_profile"\)/u);
   assert.match(runner, /coldDraft\.sha256 === draft\.sha256 && coldFinal\.sha256 === final\.sha256/u);
   assert.match(runner, /DOWNLOAD_CHANGED_ARTIFACT_HISTORY/u);
   assert.match(runner, /lostReplyReconciliationExercised: false/u);

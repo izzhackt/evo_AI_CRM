@@ -26058,3 +26058,38 @@ still unrun; authorized read-only Hermes inventory is readiness evidence only.
 HTTP/UI, live Auth/Storage, generated PDF/packages and business acceptance remain
 root-owned open gates. No full app build, production/provider/private-file or
 managed change ran in this native lane; this is not whole-D4 completion.
+
+### 2026-09-14 — D4 saved DOCX/PDF native producer pre-code contract
+
+Root assigned a docs-only follow-on at clean published c35a1fd3. Add
+[isolated form-render contract](design/v3/evo-docs-university-form-render-contract.md)
+against the independently approved saved producer amendment658dc151. Preserve
+minimal BoundTemplate,164 lifecycle/history v1,165/166 inspection semantics and
+the existing single runtime. No implementation/build/service/SQL changes here.
+
+Propose fixed `--render-form-v1`, separate EUFQ input/EUF1 result,2 MiB closed
+input capsule plus20 MiB source and20 MiB actual DOCX/PDF output. The new capsule
+budget accommodates existing1 MiB mapping and full confirmed-only profile; it
+does not widen inspection/preview or archive limits. Reinspect exact bytes,
+reconstruct rich DOCX slots or actual PDF pages, then resolve and fill in one
+sealed child. Preserve PDF slots=[]; never transport a serialized trusted brand.
+
+SQL bw1 bindings stay opaque DB provenance, explicitly distinct from computed
+transport capsule, mapping and package hashes. Native output reports actual
+engine/font/output identity; only controller-derived runtime ImageId/revision
+may form the existing trusted seal proof after verified execution. No fake image
+proof at prepare, font fallback or claims based on a PNG-only test envelope.
+
+CPU10s/AS2GiB/heap256MiB/wall15s remain explicit candidate ceilings, not full-size
+acceptance. Require both-format near20 MiB actual fill, boundary/backpressure/
+abort/OS checks, all-page/font/manual/draft visuals and native arm64+amd64 gates;
+stop for measured evidence and review if a ceiling cannot support valid fixtures.
+Root/other authors retain SQL167/HTTP/UI/Storage/packages and live integration.
+
+Provenance correction to the older entry: c35 native amd64 is now actually
+proved and independently reviewed: D3 12/12, template33/33, two corruption
+controls and20 inspected PNGs, scoped cleanup complete. Preserved report SHA256
+`05bcc8995c1e6f072eecb493d88338b6dbb81eb7be1a2549aba7e1ee97aed7be`
+and exact local/remote paths are in the new contract. This does not prove the
+new saved-form transport, full D4 or production. Independent exact-doc review
+and explicit root approval are required before implementing this new protocol.

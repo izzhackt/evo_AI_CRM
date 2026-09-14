@@ -9,7 +9,7 @@ import type { UniversityTemplateManifest } from "@/lib/university-template-ingre
 import type { UniversityFormVersionMetadata } from "@/lib/university-form-registry";
 import type { UniversityTemplatePageMetadata } from "@/lib/university-template-page";
 import { universityTemplateSourceUrl } from "@/lib/university-template-upload-client";
-import { readUniversityPdfPage, universityPdfPoint, universityPdfDrag, universityPdfRegionError } from "@/lib/university-pdf-region-client";
+import { readUniversityPdfPage, universityPdfPoint, universityPdfFit, universityPdfGesturePosition, universityPdfRegionError } from "@/lib/university-pdf-region-client";
 import { universityFormActionMessage, universityFormSourceLabel, universityFormManagement as words,
   universityFormWorkspace as shared, universityPdfMapping as pdf } from "@/lib/v3/wording";
 
@@ -17,6 +17,8 @@ const control = "min-h-11 w-full rounded-ctl border border-control-edge bg-surfa
 const button = "min-h-11 rounded-ctl px-3 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2 disabled:opacity-50";
 const dates = new Set(["date_of_birth", "passport_expiry_date", "desired_start_date"]);
 const combined = ["full_name", "surname_first_name", "father_full_name", "mother_full_name"];
+type Gesture = { type: "create" | "move" | "resize"; start: { x: number; y: number }; original: UniversityPdfPosition;
+  slotId: string | null; pointerId: number; readKey: string };
 
 export function UniversityPdfMappingEditor({ catalogId, templateId, revision, version, manifest, manifestDigest, mappingId, requestId,
   initialMappings, action, readOnly = false }: {
@@ -28,8 +30,9 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
   const [mappings, setMappings] = useState(initialMappings), [history, setHistory] = useState<readonly (readonly UniversityFormMapping[])[]>([]);
   const [selected, setSelected] = useState(initialMappings[0]?.slotId ?? "");
   const [page, setPage] = useState(initialMappings[0]?.position?.page ?? 1), [zoom, setZoom] = useState(100), [retry, setRetry] = useState(0);
-  const [drawing, setDrawing] = useState(false), [draftRegion, setDraftRegion] = useState<UniversityPdfPosition | null>(null);
-  const drag = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [gesturePreview, setGesturePreview] = useState<{ slotId: string | null; position: UniversityPdfPosition; readKey: string } | null>(null);
+  const gesture = useRef<Gesture | null>(null);
   const [localError, setLocalError] = useState<string | null>(null), [accessLost, setAccessLost] = useState(false);
   const [readState, setReadState] = useState<{ key: string; url: string | null; metadata: UniversityTemplatePageMetadata | null; error: boolean } | null>(null);
   const [uncertain, setUncertain] = useState(false), frozen = useRef<FormData | null>(null);
@@ -82,6 +85,7 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
   const base = `/v3/universities/${catalogId}/forms?template=${templateId}&version=${version.id}`;
   function change(next: readonly UniversityFormMapping[]) {
     if (locked) return;
+    stopGesture();
     setHistory(items => [...items.slice(-29), mappings]); setMappings(next); setLocalError(null);
   }
   function update(value: Partial<UniversityFormMapping>) {
@@ -108,32 +112,76 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
     }
     setLocalError(pdf.noSpace);
   }
-  function pointer(event: PointerEvent<HTMLDivElement>) {
+  function pointer(event: PointerEvent<HTMLElement>) {
     const box = frame.current?.getBoundingClientRect();
     return box && size ? universityPdfPoint(event.clientX, event.clientY, box, size) : null;
   }
-  function stopDrag() { drag.current = null; setDraftRegion(null); setDrawing(false); }
+  // Reuse EVO Docs' captured, transient gestures. Only pointerup commits to the
+  // Platform mapping; cancellation/page changes leave its undo history untouched.
+  function startGesture(event: PointerEvent<HTMLElement>, type: Gesture["type"], item?: UniversityFormMapping) {
+    if (locked || !preview || !size || gesture.current || event.button !== 0 || (type === "create" && mappings.length >= 500)) return;
+    const start = pointer(event);
+    if (!start) return;
+    const original = item?.position ?? universityPdfFit({ page, x: start.x, y: start.y, width: 180, height: 24 }, size);
+    if (!original || original.page !== page) return;
+    event.preventDefault(); event.stopPropagation();
+    frame.current?.setPointerCapture(event.pointerId);
+    gesture.current = { type, start, original, slotId: item?.slotId ?? null, pointerId: event.pointerId, readKey };
+    setGesturePreview({ slotId: item?.slotId ?? null, position: original, readKey }); setLocalError(null);
+    if (item) { setSelected(item.slotId); event.currentTarget.closest("button")?.focus({ preventScroll: true }); }
+  }
+  function stopGesture() {
+    const active = gesture.current; gesture.current = null; setGesturePreview(null); setDrawing(false);
+    if (active && frame.current?.hasPointerCapture(active.pointerId)) frame.current.releasePointerCapture(active.pointerId);
+  }
+  function moveGesture(event: PointerEvent<HTMLElement>) {
+    const active = gesture.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    if (locked || !preview || active.readKey !== readKey) { stopGesture(); return; }
+    const end = pointer(event);
+    if (!end) return;
+    const position = universityPdfGesturePosition(active.type, active.start, active.original, end, size);
+    if (position) setGesturePreview({ slotId: active.slotId, position, readKey });
+  }
+  function endGesture(event: PointerEvent<HTMLElement>) {
+    const active = gesture.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    const end = pointer(event);
+    stopGesture();
+    if (locked || !preview || active.readKey !== readKey || !end) return;
+    if (active.type !== "create" && end.x === active.start.x && end.y === active.start.y) return;
+    const position = universityPdfGesturePosition(active.type, active.start, active.original, end, size);
+    if (!position) return;
+    if (active.type === "create") { add(position); return; }
+    const next = mappings.map(item => item.slotId === active.slotId ? { ...item, position } : item);
+    const problem = universityPdfRegionError(next, manifest.pageSizes);
+    if (problem) { setLocalError(pdf[problem]); return; }
+    change(next);
+  }
   function regionStyle(position: UniversityPdfPosition) {
     return { left: `${position.x / size.width * 100}%`, top: `${position.y / size.height * 100}%`,
       width: `${position.width / size.width * 100}%`, height: `${position.height / size.height * 100}%` };
   }
-  function select(slot: UniversityFormMapping) { setSelected(slot.slotId); setPage(slot.position?.page ?? page); stopDrag(); }
+  function select(slot: UniversityFormMapping) { setSelected(slot.slotId); setPage(slot.position?.page ?? page); stopGesture(); }
+  const moving = !locked && preview && gesturePreview?.readKey === readKey ? gesturePreview : null;
   return <section aria-labelledby={`${id}-title`} className="space-y-5">
     <div className="max-w-2xl space-y-2"><h3 id={`${id}-title`} className="text-lg font-bold text-fg">{readOnly ? words.savedMapping : words.edit}</h3>
       <p className="text-sm leading-6 text-fg-2">{readOnly ? words.reviewExplanation : pdf.explanation}</p></div>
-    <form action={readOnly ? undefined : submit} aria-busy={pending} className="space-y-5">
+    <form action={readOnly ? undefined : submit} aria-busy={pending} className="space-y-5"
+      onSubmit={event => { if (gesture.current) { event.preventDefault(); stopGesture(); } }}
+      onKeyDown={event => { if (event.key === "Escape" && (gesture.current || drawing)) { event.preventDefault(); stopGesture(); } }}>
       {!readOnly ? Object.entries({ operation: "save_mapping", template_id: templateId, request_id: requestId, expected_revision: String(revision),
         reason: words.mappingReason, mapping_id: mappingId, template_version_id: version.id, template_sha256: version.sha256,
         mime_type: version.mime_type, mappings: JSON.stringify(mappings) }).map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />) : null}
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-40 space-y-1"><label htmlFor={`${id}-page`} className="text-sm text-fg-2">{pdf.page}</label>
-          <select id={`${id}-page`} className={control} value={page} onChange={event => { setPage(Number(event.target.value)); stopDrag(); }}>
+          <select id={`${id}-page`} className={control} value={page} onChange={event => { stopGesture(); setPage(Number(event.target.value)); }}>
             {manifest.pageSizes.map((_, index) => <option key={index} value={index + 1}>{index + 1} {words.of} {manifest.pageSizes.length}</option>)}</select></div>
         <div className="w-32 space-y-1"><label htmlFor={`${id}-zoom`} className="text-sm text-fg-2">{pdf.zoom}</label>
-          <select id={`${id}-zoom`} className={control} value={zoom} onChange={event => { setZoom(Number(event.target.value)); stopDrag(); }}>
+          <select id={`${id}-zoom`} className={control} value={zoom} onChange={event => { stopGesture(); setZoom(Number(event.target.value)); }}>
             <option value={100}>{pdf.fit}</option><option value={150}>150%</option><option value={200}>200%</option></select></div>
         {!readOnly ? <><button type="button" className={`${button} border border-border`} disabled={locked || !preview || mappings.length >= 500}
-          onClick={() => { setDrawing(!drawing); setLocalError(null); }} aria-pressed={drawing}>{drawing ? pdf.cancelDraw : pdf.draw}</button>
+          onClick={() => { stopGesture(); setDrawing(!drawing); setLocalError(null); }} aria-pressed={drawing}>{drawing ? pdf.cancelDraw : pdf.draw}</button>
           <button type="button" className={button} disabled={locked || !preview || mappings.length >= 500} onClick={addDefault}>{pdf.add}</button></> : null}
       </div>
       {loading ? <p role="status" className="text-sm text-fg-2">{words.previewLoading}</p> : null}
@@ -142,26 +190,27 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
       {drawing ? <p role="status" className="text-sm text-fg-2">{pdf.drawHint}</p> : null}
       {preview?.url && size ? <div className="max-w-full overflow-auto bg-surface-2 p-2" tabIndex={0} aria-label={pdf.pageView}>
         <div ref={frame} className="relative select-none bg-white" style={{ width: `${zoom}%`, touchAction: drawing ? "none" : "auto", cursor: drawing ? "crosshair" : "auto" }}
-          onPointerDown={event => { if (!drawing || locked || event.button !== 0) return; const point = pointer(event); if (!point) return;
-            event.preventDefault(); drag.current = { ...point, pointerId: event.pointerId }; event.currentTarget.setPointerCapture(event.pointerId); }}
-          onPointerMove={event => { const start = drag.current, point = pointer(event); if (start?.pointerId === event.pointerId && point) setDraftRegion(universityPdfDrag(start, point, page)); }}
-          onPointerUp={event => { const start = drag.current, point = pointer(event); if (start?.pointerId !== event.pointerId || !point) return;
-            const position = universityPdfDrag(start, point, page); stopDrag(); if (position) add(position); else setLocalError(pdf.bounds); }}
-          onPointerCancel={stopDrag} onLostPointerCapture={() => { if (drag.current) stopDrag(); }}>
+          onPointerDown={event => { if (drawing) startGesture(event, "create"); }}
+          onPointerMove={moveGesture} onPointerUp={endGesture}
+          onPointerCancel={stopGesture} onLostPointerCapture={() => { if (gesture.current) stopGesture(); }}>
           {/* The PNG is a private verified blob, never a Next image-optimizer URL. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview.url} alt={`${pdf.page} ${page}`} draggable={false} width={preview.metadata?.pixelWidth} height={preview.metadata?.pixelHeight} className="block h-auto w-full" />
-          {mappings.map((item, index) => item.position?.page === page && [item.position.x, item.position.y, item.position.width, item.position.height].every(Number.isFinite) ? <button key={item.slotId} type="button" style={regionStyle(item.position)}
+          {mappings.map((item, index) => item.position?.page === page && [item.position.x, item.position.y, item.position.width, item.position.height].every(Number.isFinite) ? <button key={item.slotId} type="button"
+            style={{ ...regionStyle(moving?.slotId === item.slotId ? moving.position : item.position), touchAction: locked ? "auto" : "none" }}
             aria-label={`${pdf.field} ${index + 1}: ${item.manual ? words.manual : universityFormSourceLabel(item.sourceKey ?? "")}`}
-            aria-pressed={selected === item.slotId} onClick={() => select(item)}
-            className={`absolute overflow-hidden border-2 text-left text-xs font-bold outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent ${selected === item.slotId ? "border-accent bg-accent/10 text-accent" : "border-fg-2 bg-surface/40 text-fg"} ${drawing ? "pointer-events-none" : ""}`}
+            aria-pressed={selected === item.slotId} onClick={() => select(item)} onFocus={() => setSelected(item.slotId)}
+            onPointerDown={event => { if (!drawing) startGesture(event, "move", item); }}
+            className={`absolute border-2 text-left text-xs font-bold outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent ${selected === item.slotId ? "z-10 border-accent bg-accent/10 text-accent" : "border-fg-2 bg-surface/40 text-fg"} ${drawing ? "pointer-events-none" : ""} ${!locked ? "cursor-move" : ""}`}
             onKeyDown={event => {
               if (locked || selected !== item.slotId || !item.position || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
               event.preventDefault(); const step = event.shiftKey ? 10 : 1, p = item.position;
               update({ position: { ...p, x: Math.max(0, Math.min(size.width - p.width, p.x + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0))),
                 y: Math.max(0, Math.min(size.height - p.height, p.y + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0))) } });
-            }}>{index + 1}</button> : null)}
-          {draftRegion ? <div className="pointer-events-none absolute border-2 border-dashed border-accent bg-accent/10" style={regionStyle(draftRegion)} /> : null}
+            }}><span className="pointer-events-none block max-h-full overflow-hidden">{index + 1}</span>{!locked && selected === item.slotId ? <span aria-hidden="true" title={pdf.resize}
+              onPointerDown={event => startGesture(event, "resize", item)}
+              className="absolute left-full top-full h-[17px] w-[17px] cursor-nwse-resize rounded-sm border-2 border-white bg-accent sm:h-3 sm:w-3" /> : null}</button> : null)}
+          {moving?.slotId === null ? <div className="pointer-events-none absolute border-2 border-dashed border-accent bg-accent/10" style={regionStyle(moving.position)} /> : null}
         </div>
       </div> : null}
       {mappings.length ? <div className="space-y-4 border-t border-border pt-4">
@@ -196,9 +245,9 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
       {feedback ? <p role="alert" className="text-sm text-danger">{feedback}</p> : null}
       {saved ? <p role="status" className="text-sm text-fg">{words.mappingSaved}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
-        {!readOnly && !saved && !blocked ? <button type="submit" disabled={pending || !mappings.length || (!uncertain && (loading || readError || !!regionError || drawing))}
+        {!readOnly && !saved && !blocked ? <button type="submit" disabled={pending || !mappings.length || (!uncertain && (loading || readError || !!regionError || drawing || !!moving))}
           className="min-h-11 rounded-ctl bg-accent px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-50">{pending ? words.saving : uncertain ? shared.retry : words.saveMapping}</button> : null}
-        {!readOnly ? <><button type="button" className={button} disabled={locked || !history.length} onClick={() => { const previous = history.at(-1)!; setMappings(previous); setHistory(history.slice(0, -1)); setSelected(previous[0]?.slotId ?? ""); setLocalError(null); }}>{pdf.undo}</button>
+        {!readOnly ? <><button type="button" className={button} disabled={locked || !history.length} onClick={() => { stopGesture(); const previous = history.at(-1)!; setMappings(previous); setHistory(history.slice(0, -1)); setSelected(previous[0]?.slotId ?? ""); setLocalError(null); }}>{pdf.undo}</button>
           <button type="button" className={button} disabled={locked || !history.length} onClick={() => { change(initialMappings); setSelected(initialMappings[0]?.slotId ?? ""); }}>{pdf.reset}</button></> : null}
         {saved || blocked || uncertain ? <a href={base} className={button}>{saved ? words.next : shared.reload}</a> : null}
       </div>

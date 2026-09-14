@@ -35,6 +35,7 @@ export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
 export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
 export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
 export function proofScope(kind = "student-profile-fields") {
+  if (kind === "university-template-ingress") return { kind, prefix: "EVO_D4_TEMPLATE", marker: "UNIVERSITY_TEMPLATE_INGRESS" };
   requireProof(["student-profile-fields", "document-recognition"].includes(kind), "PROOF_SCOPE_INVALID");
   return { kind, prefix: kind === "document-recognition" ? "EVO_D3" : "EVO_D2",
     marker: kind === "document-recognition" ? "DOCUMENT_RECOGNITION" : "STUDENT_PROFILE_FIELDS" };

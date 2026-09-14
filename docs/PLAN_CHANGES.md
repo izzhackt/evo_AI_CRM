@@ -25979,3 +25979,42 @@ Returning an aborted HTTP response is not evidence that external work stopped.
 Add a deferred negative scanner regression proving a second upload is refused
 until settlement, then admitted; no synthetic successful inspection is needed.
 SQL166 and its already approved immutable-receipt constraint remain unchanged.
+
+Root additionally authorizes one acceptance-only lost Storage reply on the owned
+local proxy, never an application fallback or database state edit. Replace the
+acceptance TCP forwarding loop with fixed-destination HTTP forwarding so the
+proxy can identify exactly one create-only PDF template POST. Only after an
+actual upstream200/201 response and independent private GET with identical hash,
+length and MIME may it deliberately close that response connection. All other
+traffic passes unchanged. A fixed process-only marker records that the exact
+after-commit condition occurred; missing/mismatched readback must fail the proof,
+not simulate recovery. Browser acceptance must observe actual unknown state,
+use the explicit UI reconcile action, then confirm exact bytes and one immutable
+receipt. No synthetic SQL/status/receipt insertion, provider or managed target.
+
+The separate nine-file acceptance-harness source checkpoint has50/50 actual
+scoped contract/regression checks, JavaScript lint and shell syntax validation
+(`01a09d2257817730ae0b8a82e21328e2`). These include bounded missing-image refusal
+before foundation lock, existing D3/D4 harness regressions, serialized bootstrap
+syntax, exact image/config readback validators, one-shot HTTP fault match/mismatch
+fixtures and CI manifest accounting333/194/139; unit231/189/42. HTTP fixtures test
+only proxy control flow, not a successful Storage service or native inspection.
+Actual Docker image, local database, Storage, ClamAV and browser execution remains
+deferred to root's one frozen combined workflow; no fullD4/production claim.
+
+Root found a concrete acceptance DTO mismatch before execution: inspection
+metadata exposes `receipt_id`, while an ingress command exposes
+`inspection_receipt_id`. Correct only the unknown/replay assertions at that
+existing boundary; retain the SQL full `sha256:` image-ID comparison. Regression
+tests exercise the actual normalizers and the same assertion functions used by
+the browser helper, with synthetic DTOs only. The prior harness approval is
+withdrawn pending the corrected exact-diff review; no service proof is inferred.
+Both actual-normalizer regressions failed before correction
+(`01a09d3710727f71bb81a7931e237b39`). After the two field corrections,52/52
+scoped tests, lint, shell syntax and diff checks pass
+(`01a09d37594c72d1a676cedb2607d07c`), including mismatched receipt and unproven
+lost-reply negative controls. No Docker/image/Storage/browser run was performed.
+The publication hook then rejected a literal synthetic `apikey` fixture header
+(`01a09d3a5c7d75208c5f041cab500d19`). Do not bypass that guard: generate an
+ephemeral UUID for this HTTP-only fixture and re-review the resulting exact diff.
+It is not a service credential and does not change the acceptance transport.

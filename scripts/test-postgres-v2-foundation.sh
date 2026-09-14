@@ -14,8 +14,8 @@ fail() {
 
 trap report_error ERR
 
-[[ "$#" -eq 0 || ( "$#" -eq 1 && ( "$1" == "--staff-onboarding-only" || "$1" == "--student-profile-fields-only" || "$1" == "--admissions-workflow-only" || "$1" == "--document-recognition-only" ) ) ]] \
-  || fail "Usage: $0 [--staff-onboarding-only | --student-profile-fields-only | --admissions-workflow-only | --document-recognition-only]"
+[[ "$#" -eq 0 || ( "$#" -eq 1 && ( "$1" == "--staff-onboarding-only" || "$1" == "--student-profile-fields-only" || "$1" == "--admissions-workflow-only" || "$1" == "--document-recognition-only" || "$1" == "--university-template-ingress-only" ) ) ]] \
+  || fail "Usage: $0 [--staff-onboarding-only | --student-profile-fields-only | --admissions-workflow-only | --document-recognition-only | --university-template-ingress-only]"
 staff_onboarding_only=0
 [[ "${1:-}" != "--staff-onboarding-only" ]] || staff_onboarding_only=1
 student_profile_fields_only=0
@@ -24,6 +24,21 @@ admissions_workflow_only=0
 [[ "${1:-}" != "--admissions-workflow-only" ]] || admissions_workflow_only=1
 document_recognition_only=0
 [[ "${1:-}" != "--document-recognition-only" ]] || document_recognition_only=1
+university_template_ingress_only=0
+[[ "${1:-}" != "--university-template-ingress-only" ]] || university_template_ingress_only=1
+
+docker() {
+  if [[ "$university_template_ingress_only" == "1" ]]; then
+    [[ -z "${DOCKER_HOST:-}" || "$DOCKER_HOST" == unix://* ]] || return 1
+    local owned_context
+    owned_context="$(command docker context show)" || return 1
+    [[ "$(command docker context inspect "$owned_context" --format '{{.Endpoints.docker.Host}}')" == unix://* ]] || return 1
+    if [[ "$(uname -s)" == Darwin ]]; then
+      [[ "$owned_context" == orbstack && "$(command orb status)" == Running ]] || return 1
+    fi
+  fi
+  command docker "$@"
+}
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly clamav_image="clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9"
@@ -36,6 +51,12 @@ supabase_lock_pid_file="$supabase_lock_dir/pid"
 
 [[ -n "$node_bin" && -x "$node_bin" ]] \
   || fail "Node 22 binary is required via EVO_NODE_BIN or PATH"
+
+if [[ "$university_template_ingress_only" == "1" ]]; then
+  "$node_bin" --conditions=react-server --experimental-strip-types \
+    "$repo_root/scripts/lib/university-template-ingress-acceptance.mjs" --image-gate \
+    || fail "Template production image gate is not ready; no foundation stack was started"
+fi
 
 # Fail before acquiring a lock or creating the disposable stack. Images must be
 # the reviewed combined source/runtime pair, never a runtime-only substitute.
@@ -119,6 +140,9 @@ clamav_signature_volume=""
 document_recognition_project_id=""
 document_recognition_evidence_dir=""
 document_recognition_proof_ready=0
+university_template_app_name=""
+university_template_evidence_dir=""
+university_template_proof_ready=0
 clamd_host="127.0.0.1"
 clamd_port=""
 clamd_timeout_ms="10000"
@@ -399,6 +423,26 @@ EOF
 
 cleanup() {
   local original_status=$?
+  if [[ "${university_template_ingress_only:-0}" == "1" ]]; then
+    trap - EXIT
+    if [[ -n "$university_template_app_name" ]] && ! "$node_bin" --conditions=react-server --experimental-strip-types \
+      "$repo_root/scripts/lib/university-template-ingress-acceptance.mjs" --cleanup-app "$university_template_app_name"; then
+      echo 'UNIVERSITY_TEMPLATE_INGRESS_APP_CLEANUP_FAILED' >&2
+      exit 1
+    fi
+    if ! document_recognition_cleanup; then
+      echo 'UNIVERSITY_TEMPLATE_INGRESS_STACK_CLEANUP_FAILED' >&2
+      exit 1
+    fi
+    if [[ "$original_status" == "0" && "$university_template_proof_ready" == "1" ]]; then
+      "$node_bin" --conditions=react-server --experimental-strip-types \
+        "$repo_root/scripts/lib/university-template-ingress-acceptance.mjs" --finalize \
+        "$university_template_evidence_dir" "$document_recognition_project_id" || exit 1
+      echo 'UNIVERSITY_TEMPLATE_INGRESS_VERIFIED'
+      echo "Synthetic template ingress evidence: $university_template_evidence_dir"
+    elif [[ "$original_status" == "0" ]]; then exit 1; fi
+    exit "$original_status"
+  fi
   if [[ "$document_recognition_only" == "1" ]]; then
     trap - EXIT
     if ! document_recognition_cleanup; then
@@ -560,7 +604,7 @@ staff_mailpit_origin="$("$node_bin" scripts/lib/local-staff-supabase-workdir.mjs
   || fail "Could not prepare the isolated local Auth callback and mail configuration"
 # macOS /var aliases /private/var; CLI ownership and its verifier must receive one exact path.
 supabase_workdir="$(cd -- "$supabase_workdir" && pwd -P)"
-if [[ "$document_recognition_only" == "1" ]]; then
+if [[ "$document_recognition_only" == "1" || "$university_template_ingress_only" == "1" ]]; then
   document_recognition_project_id="$("$node_bin" --input-type=module - "$supabase_workdir/supabase/config.toml" <<'EOF'
 import { readFileSync } from "node:fs";
 import { parse } from "smol-toml";
@@ -1668,8 +1712,47 @@ document_recognition_browser_assert() {
   document_recognition_proof_ready=1
 }
 
+university_template_ingress_browser_assert() {
+  university_template_evidence_dir="$repo_root/output/university-template-ingress/${runtime_inventory_sha}/foundation-${RANDOM}-$$"
+  university_template_app_name="evo-template-ingress-$(openssl rand -hex 16)"
+  mkdir -p "$university_template_evidence_dir"
+  chmod 700 "$university_template_evidence_dir"
+  local proof_log="$tmp_dir/university-template-ingress.log"
+  if ! EVO_D4_TEMPLATE_APP_ORIGIN="http://127.0.0.1:$app_port" \
+    EVO_D4_TEMPLATE_SUPABASE_WORKDIR="$supabase_workdir" \
+    EVO_D4_TEMPLATE_EVIDENCE_DIR="$university_template_evidence_dir" \
+    EVO_D4_TEMPLATE_ORGANIZATION_ID="$platform_organization_id" \
+    EVO_D4_TEMPLATE_SCANNER="$clamav_container_name" \
+    EVO_D4_TEMPLATE_APP_NAME="$university_template_app_name" \
+    NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
+    EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
+    SUPABASE_DB_URL="$supabase_database_url" \
+    EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
+    EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
+    "$node_bin" --conditions=react-server --experimental-strip-types \
+      scripts/lib/university-template-ingress-browser-proof.mjs >"$proof_log" 2>&1; then
+    local failure=""
+    failure="$(grep -m 1 -E '^UNIVERSITY_TEMPLATE_INGRESS_ERROR:[A-Z0-9_]+$' "$proof_log" || true)"
+    [[ -z "$failure" ]] || echo "$failure" >&2
+    fail "The real local template ingress proof failed; no acceptance is implied"
+  fi
+  for secret in "$supabase_service_role_key" "$staff_admin_email" "$staff_admin_password" "$supabase_database_url"; do
+    if grep -F "$secret" "$proof_log" >/dev/null; then fail "Template proof output contained a credential"; fi
+  done
+  grep -Fx 'UNIVERSITY_TEMPLATE_INGRESS_RECORDED' "$proof_log" >/dev/null \
+    || fail "Template proof returned no pending evidence marker"
+  university_template_proof_ready=1
+}
+
 cd "$repo_root"
 echo "Validating the active Supabase-only foundation without the retired Drizzle toolchain."
+
+if [[ "$university_template_ingress_only" == "1" ]]; then
+  start_clamav_scanner
+  university_template_ingress_browser_assert
+  exit 0
+fi
 
 if [[ "$document_recognition_only" == "1" ]]; then
   start_clamav_scanner

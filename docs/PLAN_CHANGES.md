@@ -26093,3 +26093,28 @@ controls and20 inspected PNGs, scoped cleanup complete. Preserved report SHA256
 and exact local/remote paths are in the new contract. This does not prove the
 new saved-form transport, full D4 or production. Independent exact-doc review
 and explicit root approval are required before implementing this new protocol.
+
+Root explicitly approved implementation after independent APPROVED on exact
+two-doc diff70cc2aecf2b9fd54b5060075ae24e7c3e50906f203cee483eb8e974ecbbe8708,
+published asb41f9d10. Before code, clarify shared input ownership: native author
+owns NEW `src/lib/university-form-export-contract.ts` for normative FormBinding,
+BoundTemplate, FormMetadata, FormInput and FrozenProfile164 aliases plus closed
+input guards and tests. Coordinate exact shapes with SQL167 author; do not
+duplicate these types in the native wire DTO. Root owns existing
+`document-export-artifact-contract.ts` receipt/history changes and later HTTP/
+host producer. Native owns the agreed runtime/C/build/preflight/pure wire DTO
+and tests. Approved local narrow arm64 runs require OrbStack/resource preflight;
+no remote rebuilds or managed/production changes. Root coordinates later amd64
+and independent exact implementation review. Existing candidate limits remain.
+
+Root requested a separately reviewed publication of the shared pure FormInput
+module, focused DTO test and synthetic helper so the existing host producer can
+import one normative contract while the native implementation remains WIP.
+This source-only slice closes every object shape, captures/deep-freezes the
+minimal DOCX/PDF manifest and approved mapping/review tuple, and retains only
+the raw164 confirmed-only61-field profile. SQL167 metadata/prepare shapes were
+cross-checked against the actual local PostgreSQL fixture result. Logical bw1
+hashes remain opaque DB bindings; no SQL serializer or renderer proof is added.
+The publication excludes native wire/runtime/build/adapter changes. Those need
+their own full-size, isolation, layout and native-architecture validation/review;
+the passing initial arm64 render tracer is not complete native/D4 acceptance.

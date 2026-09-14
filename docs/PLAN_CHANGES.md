@@ -26165,3 +26165,36 @@ nonfinite/out-of-page coordinates, invalid character cells, manual/empty-region
 overlap and0/501 regions; controls retain500 regions, touching edges and separate
 pages. Canonical hashing and DOCX checks are unchanged. No Docker/build/provider
 or private-source execution; independent exact-diff review remains required.
+
+## 2026-09-14 — Use real local TLS for production-image template acceptance
+
+The diagnostic run on `13a9c8c8` reached `AUTHENTICATED_SHELL` but remained at
+login with `authUnavailable`, no browser errors/overlay and no pending form
+(`01a09d5f4a2d7ea08a98b9494cd902fb`, safe failure artifact
+`output/university-template-ingress/13a9c8c85636052b1f196616d4ef29d3ddd2159b/foundation-7410-54445/failure.json`).
+Owned cleanup was verified. The actual configuration validator independently
+returned `insecure_url` for the acceptance bootstrap's HTTP loopback URL under
+`NODE_ENV=production` (`01a09d5f3ec87352906c9720e87e6b3a`). D2 used `next dev`;
+successful host API login does not exercise this production Server Action path.
+
+Correct only the acceptance transport: generate one ephemeral IP-SAN certificate
+for `127.0.0.1`, pass bounded PEM/key bytes on stdin, run the existing owned Kong
+proxy as HTTPS and add its certificate to this Node thread's default trust before
+loading the unchanged application. No permanent/system trust, public listener,
+provider, Auth/config guard change, TLS-verification bypass or image substitution.
+Preserve the exact Storage fault/readback and full browser/mapping requirements.
+Temporary certificate files belong to one generated directory and are cleaned on
+success and error. Bound the TLS handshake as well as HTTP request lifetime.
+
+The [pinned Node TLS API](https://nodejs.org/download/release/v22.23.1/docs/api/tls.html#tlssetdefaultcacertificatescerts)
+supports process-thread-local default CA replacement; retain existing defaults.
+Require real fetch proofs for untrusted-certificate rejection, exact-IP success
+after explicit trust and wrong-identity rejection, then rerun the original real
+browser scenario. A configuration or TLS unit pass is not workflow acceptance.
+
+The regression first failed through the actual production validator with
+`insecure_url` (`01a09d60994f7662b7dc5a6202a3d424`). The HTTPS correction passes
+33/33 scoped checks (`01a09d629c2478229364aa0ed66fa250`), including actual fetch
+rejection before trust, success after process-local trust, and exact
+`ERR_TLS_CERT_ALTNAME_INVALID` for a wrong identity. The original browser flow
+has not yet been rerun on this correction; production is unchanged.

@@ -1,8 +1,9 @@
 // Acceptance-only transport for the existing disposable foundation stack.
 // No image build, production configuration, provider or managed target support.
 import { spawn, spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
-import { lstatSync, realpathSync, readFileSync, writeFileSync, linkSync, unlinkSync } from "node:fs";
+import crypto, { createHash, randomUUID } from "node:crypto";
+import { lstatSync, realpathSync, readFileSync, writeFileSync, linkSync, unlinkSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireAcceptanceImages } from "./document-recognition-acceptance-image.mjs";
@@ -18,6 +19,44 @@ function requireLocal(ok, code) { if (!ok) throw new Error(`LOCAL_TEMPLATE_${cod
 function exact(value, keys) {
   return value && typeof value === "object" && !Array.isArray(value)
     && Object.keys(value).sort().join(",") === [...keys].sort().join(",");
+}
+
+// Also serialized into the acceptance bootstrap. Never accept a general CA or
+// hostname: this short-lived certificate is exclusively for its own loopback.
+export function validTemplateAcceptanceTls(value, crypto) {
+  try {
+    if (!value || Object.keys(value).sort().join(",") !== "cert,key"
+      || ![value.cert, value.key].every(part => typeof part === "string" && part.length >= 100 && part.length <= 4096)
+      || !/^-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/=\r\n]+\n-----END CERTIFICATE-----\n?$/u.test(value.cert)
+      || !/^-----BEGIN (?:RSA )?PRIVATE KEY-----\n[A-Za-z0-9+/=\r\n]+\n-----END (?:RSA )?PRIVATE KEY-----\n?$/u.test(value.key)) return false;
+    const certificate = new crypto.X509Certificate(value.cert), now = Date.now();
+    return certificate.subjectAltName === "IP Address:127.0.0.1"
+      && certificate.checkPrivateKey(crypto.createPrivateKey(value.key))
+      && certificate.verify(certificate.publicKey)
+      && Date.parse(certificate.validFrom) <= now && Date.parse(certificate.validTo) > now
+      && Date.parse(certificate.validTo) - Date.parse(certificate.validFrom) <= 172800000;
+  } catch { return false; }
+}
+
+export function createTemplateAcceptanceTls() {
+  const directory = mkdtempSync(resolve(tmpdir(), "evo-template-tls-"));
+  try {
+    const key = resolve(directory, "key.pem"), cert = resolve(directory, "cert.pem");
+    for (const file of [key, cert]) writeFileSync(file, "", { mode: 0o600, flag: "wx" });
+    const result = spawnSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256",
+      "-keyout", key, "-out", cert, "-days", "1", "-subj", "/CN=EVO-owned-template-proof",
+      "-addext", "subjectAltName=IP:127.0.0.1", "-addext", "basicConstraints=critical,CA:TRUE"],
+    { encoding: "utf8", timeout: 10000, maxBuffer: 32768, stdio: ["ignore", "pipe", "pipe"] });
+    requireLocal(!result.error && result.status === 0, "TLS_GENERATION_FAILED");
+    const material = { key: readFileSync(key, "utf8"), cert: readFileSync(cert, "utf8") };
+    requireLocal(validTemplateAcceptanceTls(material, crypto), "TLS_MATERIAL_INVALID");
+    return Object.freeze(material);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+export function createTemplateAcceptanceHttpsServer(material, listener, { https, crypto }) {
+  if (!validTemplateAcceptanceTls(material, crypto)) throw new Error("LOCAL_TEMPLATE_TLS_MATERIAL_INVALID");
+  return https.createServer({ key: material.key, cert: material.cert, minVersion: "TLSv1.2", handshakeTimeout: 10000 }, listener);
 }
 
 // The function is serialized into the acceptance bootstrap below. Dependencies
@@ -93,15 +132,21 @@ let parts=[],size=0;const timer=setTimeout(fail,5000);
 process.stdin.on('error',fail).on('data',part=>{size+=part.length;if(size>16384)fail();parts.push(part);});
 process.stdin.on('end',()=>{clearTimeout(timer);let v;try{v=JSON.parse(Buffer.concat(parts).toString('utf8'));}catch{fail();}
  parts=[];
- if(!v||Object.keys(v).sort().join(',')!=='organizationId,publishableKey,serviceKey'
+ if(!v||Object.keys(v).sort().join(',')!=='organizationId,publishableKey,serviceKey,tls'
   ||!['publishableKey','serviceKey'].every(k=>typeof v[k]==='string'&&v[k].length>=16&&v[k].length<=4096&&!/[\u0000-\u0020\u007f]/.test(v[k]))
   ||! /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v.organizationId||''))fail();
- Object.assign(process.env,{NEXT_PUBLIC_SUPABASE_URL:'http://127.0.0.1:8000',NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:v.publishableKey,
+ try {
+ const crypto=require('node:crypto'),https=require('node:https'),tls=require('node:tls');
+ const validTemplateAcceptanceTls=(${validTemplateAcceptanceTls.toString()});
+ const createHttps=(${createTemplateAcceptanceHttpsServer.toString()}),material=v.tls;
+ Object.assign(process.env,{NEXT_PUBLIC_SUPABASE_URL:'https://127.0.0.1:8000',NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:v.publishableKey,
   EVO_PLATFORM_SUPABASE_SECRET_KEY:v.serviceKey,EVO_PLATFORM_ORGANIZATION_ID:v.organizationId,
   EVO_CLAMD_HOST:scanner,EVO_CLAMD_PORT:'3310',EVO_CLAMD_TIMEOUT_MS:'10000',HOSTNAME:'0.0.0.0',PORT:'3000'});v=null;
  const proxy=(${createTemplateAcceptanceProxy.toString()})(project,()=>process.stdout.write('LOCAL_TEMPLATE_LOST_STORAGE_REPLY_VERIFIED\n'),
-  {http:require('node:http'),crypto:require('node:crypto')});
+  {http:{request:require('node:http').request,createServer:listener=>createHttps(material,listener,{https,crypto})},crypto});
+ tls.setDefaultCACertificates([...tls.getCACertificates('default'),material.cert]);
  proxy.on('error',fail);proxy.listen(8000,'127.0.0.1',()=>{try{require('/app/server.js');}catch{fail();}});
+ }catch{fail();}
 });`;
 
 export function templateAcceptanceAppSpec(value) {
@@ -120,12 +165,15 @@ export function templateAcceptanceAppSpec(value) {
     "--entrypoint", "/usr/local/bin/node", imageId, "-e", TEMPLATE_APPLICATION_BOOTSTRAP];
   return Object.freeze({ ...value, network, args: Object.freeze(args) });
 }
-export function templateAcceptanceSecretInput(value) {
+export function templateAcceptanceSecretInput(value, tls) {
   requireLocal(exact(value, ["publishableKey", "serviceKey", "organizationId"])
     && ["publishableKey", "serviceKey"].every(key => typeof value[key] === "string" && value[key].length >= 16
       && value[key].length <= 4096 && !/[\u0000-\u0020\u007f]/u.test(value[key]))
     && UUID.test(value.organizationId), "STDIN_INVALID");
-  return JSON.stringify(value);
+  requireLocal(validTemplateAcceptanceTls(tls, crypto), "TLS_MATERIAL_INVALID");
+  const input = JSON.stringify({ ...value, tls });
+  requireLocal(Buffer.byteLength(input) <= 16384, "STDIN_INVALID");
+  return input;
 }
 export function verifyTemplateAcceptanceContainer(value, spec) {
   const env = value.Config?.Env;
@@ -188,13 +236,13 @@ export function requireTemplateAcceptanceImages() {
   return { ...images, templateRuntime: production.native, applicationServer: production.app };
 }
 export async function startTemplateAcceptanceApp(spec, credentials, workdir) {
-  const stdin = templateAcceptanceSecretInput(credentials);
   const kong = JSON.parse(docker(["inspect", `supabase_kong_${spec.projectId}`]))[0];
   requireLocal(kong.State?.Running && kong.Config?.Labels?.["com.supabase.cli.project"] === spec.projectId
     && kong.Config.Labels["com.supabase.cli.workdir"] === workdir && kong.NetworkSettings?.Networks?.[spec.network], "NETWORK_NOT_OWNED");
   const scanner = JSON.parse(docker(["inspect", spec.scannerName]))[0];
   requireLocal(scanner.State?.Running && scanner.State.Health?.Status === "healthy"
     && scanner.Config?.Labels?.["com.evo.runtime.role"] === "private-malware-scanner", "SCANNER_NOT_OWNED");
+  const stdin = templateAcceptanceSecretInput(credentials, createTemplateAcceptanceTls());
   docker(["network", "connect", spec.network, spec.scannerName]);
   docker(spec.args); preflight();
   const child = spawn("docker", ["start", "--attach", "--interactive", spec.appName], { cwd: ROOT, stdio: ["pipe", "pipe", "ignore"] });

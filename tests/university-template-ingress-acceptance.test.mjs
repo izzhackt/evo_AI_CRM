@@ -1,16 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import http from "node:http";
+import https from "node:https";
+import tls from "node:tls";
+import dns from "node:dns";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { templateAcceptanceAppSpec, verifyTemplateAcceptanceContainer,
   templateAcceptanceSecretInput, createTemplateAcceptanceProxy, TEMPLATE_PROOF_CHECKS,
+  createTemplateAcceptanceTls, validTemplateAcceptanceTls, createTemplateAcceptanceHttpsServer,
   validateTemplatePendingReceipt, TEMPLATE_APPLICATION_BOOTSTRAP } from "../scripts/lib/university-template-ingress-acceptance.mjs";
 import { classifyChangedEntries } from "../scripts/classify-pr-changes.mjs";
 import { TEMPLATE_MAPPING_CHECKS } from "../scripts/lib/university-template-mapping-evidence.mjs";
 import { assertUnknownTemplateOutcome, assertExactTemplateReplay } from "../scripts/lib/university-template-ingress-browser-proof.mjs";
 import { normalizeUniversityTemplateIngressReceipt, normalizeUniversityTemplateInspectionMetadata } from "../src/lib/university-template-ingress.ts";
+import { getSupabasePublicConfig } from "../src/lib/supabase/config.ts";
+
+test("the real production Supabase validator accepts the acceptance bootstrap origin", () => {
+  const keys = ["NODE_ENV", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = TEMPLATE_APPLICATION_BOOTSTRAP.match(/NEXT_PUBLIC_SUPABASE_URL:'([^']+)'/u)?.[1];
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = `sb_publishable_${crypto.randomUUID()}`;
+    assert.equal(getSupabasePublicConfig().url, "https://127.0.0.1:8000");
+  } finally {
+    for (const key of keys) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; }
+  }
+});
 
 const templateId = "73000000-0000-4000-8000-000000000001", versionId = "73000000-0000-4000-8000-000000000002";
 const receiptId = "73000000-0000-4000-8000-000000000009";
@@ -82,10 +100,49 @@ test("actual container readback must match exact image, unique identity and loop
 test("bootstrap secrets are bounded exact stdin fields, never an arbitrary environment map", () => {
   const value = { publishableKey: "synthetic-publishable", serviceKey: "synthetic-secret",
     organizationId: "73000000-0000-4000-8000-000000000005" };
-  assert.deepEqual(JSON.parse(templateAcceptanceSecretInput(value)), value);
+  const material = createTemplateAcceptanceTls();
+  const parsed = JSON.parse(templateAcceptanceSecretInput(value, material));
+  assert.ok(Object.keys(parsed).sort().join(",") === "organizationId,publishableKey,serviceKey,tls");
+  assert.ok(parsed.tls.cert === material.cert && parsed.tls.key === material.key);
+  delete parsed.tls;
+  assert.deepEqual(parsed, value);
   for (const changed of [{ serviceKey: "" }, { serviceKey: "x".repeat(4097) }, { organizationId: "bad" },
     { EVO_RUNTIME_IMAGE_ID: input.imageId }, { NODE_OPTIONS: "--require=untrusted" }]) {
-    assert.throws(() => templateAcceptanceSecretInput({ ...value, ...changed }), /LOCAL_TEMPLATE_/u);
+    assert.throws(() => templateAcceptanceSecretInput({ ...value, ...changed }, material), /LOCAL_TEMPLATE_/u);
+  }
+  assert.throws(() => templateAcceptanceSecretInput(value), /TLS_MATERIAL_INVALID/u);
+});
+
+test("ephemeral TLS material is exact, single-certificate, short-lived and matches its private key", () => {
+  const material = createTemplateAcceptanceTls();
+  assert.equal(validTemplateAcceptanceTls(material, crypto), true);
+  for (const changed of [{ cert: material.cert + material.cert }, { key: "not-a-key" },
+    { cert: "x".repeat(4097) }, { extra: true }, { key: createTemplateAcceptanceTls().key }]) {
+    assert.equal(validTemplateAcceptanceTls({ ...material, ...changed }, crypto), false);
+  }
+});
+
+test("real fetch requires explicit ephemeral trust and still checks the server IP identity", async () => {
+  // Real TLS transport with synthetic response bytes; not Auth/Storage acceptance.
+  const material = createTemplateAcceptanceTls(), defaults = tls.getCACertificates("default");
+  const order = dns.getDefaultResultOrder();
+  const server = createTemplateAcceptanceHttpsServer(material, (_request, response) => {
+    response.setHeader("connection", "close"); response.end("owned-template-tls");
+  }, { https, crypto });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  try {
+    await assert.rejects(fetch(`https://127.0.0.1:${port}`, { signal: AbortSignal.timeout(3000) }),
+      error => error.cause?.code === "DEPTH_ZERO_SELF_SIGNED_CERT");
+    tls.setDefaultCACertificates([...defaults, material.cert]);
+    const response = await fetch(`https://127.0.0.1:${port}`, { signal: AbortSignal.timeout(3000) });
+    assert.equal(response.status, 200); assert.equal(await response.text(), "owned-template-tls");
+    dns.setDefaultResultOrder("ipv4first");
+    await assert.rejects(fetch(`https://localhost:${port}`, { signal: AbortSignal.timeout(3000) }),
+      error => error.cause?.code === "ERR_TLS_CERT_ALTNAME_INVALID");
+  } finally {
+    tls.setDefaultCACertificates(defaults); dns.setDefaultResultOrder(order);
+    server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   }
 });
 test("the exact serialized application bootstrap parses without executing or starting a service", () => {

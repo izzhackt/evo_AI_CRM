@@ -5,10 +5,10 @@ extends the existing university detail and reviewed registry/native inputs.
 
 D4 resume checkpoint (2026-09-14): registry, [native template inspection](design/v3/evo-docs-template-native-contract.md),
 private ingress and mapping source are integrated in [draft PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773).
-The combined browser run confirmed a local HTTP/production-config mismatch before
-upload; its build/CI success does not prove ingress or full D4 acceptance.
-Resume the original browser flow with the reviewed acceptance-only HTTPS correction
-and the separate PDF rendering proof, not the completed initial inspection slice.
+The original combined browser flow now passes on `5833cd77` after the reviewed
+acceptance-only HTTPS correction: [actual ingress/mapping evidence](design/v3/references/2026-09-14-university-template-ingress-proof.md).
+Resume PDF region UI and saved forms/packages, not the completed login/ingress proof.
+This is not full D4, provider/client acceptance or a production release.
 PDF inspection reports `slots: []`; editable regions belong to reviewed mapping.
 
 D4 approved readable mapping context: [bounded native source preview](design/v3/evo-docs-template-preview-contract.md).
@@ -135,8 +135,9 @@ are integrated in source `13a9c8c8`. Its next actual run reached
 configuration validator rejected the acceptance-only HTTP origin as `insecure_url`.
 Reviewed correction `4e120599` uses real ephemeral HTTPS in that test transport;
 33 scoped checks pass, including real TLS trust/hostname refusals. The original
-browser workflow remains pending on this correction. See the latest
-`docs/PLAN_CHANGES.md` entry for the exact failure and TLS evidence.
+browser workflow then passed on `5833cd77`, including PDF lost-response recovery,
+DOCX mapping/review/publication, mobile/cold resume and owned cleanup;
+see [the exact proof](design/v3/references/2026-09-14-university-template-ingress-proof.md).
 Basic native inspection/source checks do not prove PDF rendering, saved university
 forms/ZIP packages, full-worker/provider/client acceptance, full D3–D6 or release readiness.
 

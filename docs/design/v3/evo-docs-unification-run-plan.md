@@ -24,10 +24,11 @@ resolver `0e748452` объединены в `13a9c8c8`. Следующий ре�
 отклонил HTTP-адрес проверочной базы (`insecure_url`). Исправление `4e120599`
 включает настоящий временный HTTPS только в проверочном окружении; 33 локальные
 проверки прошли, включая доверие сертификату и отказ при неверном имени сервера.
-Исходный browser-сценарий на исправлении ещё не пройден; точные доказательства —
-в последней записи `docs/PLAN_CHANGES.md`.
-Следом нужны исходный полный сценарий и отдельное доказательство PDF rendering:
-базовая native inspection не закрывает формы/ZIP, D3–D6 или реальную приёмку.
+Исходный полный browser-сценарий затем пройден на `5833cd77`: PDF upload/recovery,
+DOCX mapping/review/publication, desktop/mobile cold resume и owned cleanup.
+[Точные доказательства](references/2026-09-14-university-template-ingress-proof.md).
+Следом нужны PDF region UI, сохранённые заполненные формы и ZIP; этот успех
+не закрывает полный D4, D3–D6, production или реальную приёмку.
 
 Исторический объединённый checkpoint: [PR768](https://github.com/izzhackt/evo_AI_CRM/pull/768), exact `ef279986`, объединял D3 и
 сохранённые анкеты D4. Независимое review объединения, production/native build,

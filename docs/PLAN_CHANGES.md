@@ -26198,3 +26198,19 @@ The regression first failed through the actual production validator with
 rejection before trust, success after process-local trust, and exact
 `ERR_TLS_CERT_ALTNAME_INVALID` for a wrong identity. The original browser flow
 has not yet been rerun on this correction; production is unchanged.
+
+### Original template browser acceptance passed on5833cd77
+
+The same full ingress/mapping scenario now completes with actual local Auth,
+ClamAV, native inspection and private Storage: exit0,
+`UNIVERSITY_TEMPLATE_INGRESS_VERIFIED` (`01a09d6cfcdb7621b7ca7f47245ed92d`).
+PDF lost-response/replay/reconciliation, DOCX preview/mapping/separate review and
+publication, desktop/mobile cold resume and archived history all passed. Browser
+error/warning counts are0/0; root inspected both mapping screenshots. Owned app,
+project containers/network/volumes are absent after cleanup
+(`01a09d6d6b1d7980aa4b0058921cd67c`).
+The [exact source/image/run evidence](design/v3/references/2026-09-14-university-template-ingress-proof.md)
+closes the prior acceptance-only login failure, not full D4, provider/client
+acceptance or release. Preserve the original false business/full-D4 flags.
+Next work remains PDF region UI, saved filled forms and packages, followed by
+managed release, D5 import and D6 acceptance/retirement. No production changes.

@@ -28,6 +28,7 @@
 #ifdef EVO_UNIVERSITY_TEMPLATE
 #define RUNTIME "/opt/evo-university-template-runtime"
 #define MAX_OUTPUT (128 * 1024)
+#define MAX_PAGE_OUTPUT (20 * 1024 * 1024 + 4108)
 #else
 #define RUNTIME "/opt/evo-document-runtime"
 #define MAX_OUTPUT 4096
@@ -271,6 +272,22 @@ static void diagnostic(const char *name) {
   }
   if (!strcmp(name, "cpu")) { volatile uint64_t number = 1; for (;;) number = number * 3 + 1; }
   if (!strcmp(name, "wall")) { struct timespec delay = {.tv_sec = 60}; for (;;) nanosleep(&delay, NULL); }
+#ifdef EVO_UNIVERSITY_TEMPLATE
+  if (!strcmp(name, "page-output") || !strcmp(name, "page-output-overflow") || !strcmp(name, "page-partial-failure")) {
+    char chunk[8192]; memset(chunk, 'x', sizeof(chunk));
+    size_t remaining = !strcmp(name, "page-partial-failure") ? 32
+      : MAX_PAGE_OUTPUT + (!strcmp(name, "page-output-overflow") ? 1 : 0);
+    while (remaining) {
+      ssize_t amount = write(1, chunk, remaining < sizeof(chunk) ? remaining : sizeof(chunk));
+      if (amount > 0) remaining -= (size_t)amount;
+      else if (amount < 0 && (errno == EAGAIN || errno == EINTR)) {
+        struct timespec delay = {.tv_nsec = 1000000}; nanosleep(&delay, NULL);
+      } else stop_child();
+    }
+    if (!strcmp(name, "page-partial-failure")) stop_child();
+    _exit(0);
+  }
+#endif
   if (!strcmp(name, "output")) {
     char excess[MAX_OUTPUT + 1]; memset(excess, 'x', sizeof(excess));
     size_t written = 0;
@@ -289,7 +306,7 @@ static void diagnostic(const char *name) {
 }
 #endif
 
-static void child(int output_fd, pid_t supervisor, const char *test_mode) {
+static void child(int output_fd, pid_t supervisor, const char *test_mode, int render_page) {
   if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != supervisor) stop_child();
   if (dup2(output_fd, STDOUT_FILENO) < 0) stop_child();
   int null_fd = open("/dev/null", O_WRONLY | O_CLOEXEC);
@@ -299,34 +316,96 @@ static void child(int output_fd, pid_t supervisor, const char *test_mode) {
   limit(RLIMIT_AS, AS_LIMIT); limit(RLIMIT_CPU, 10); limit(RLIMIT_CORE, 0); limit(RLIMIT_NOFILE, 64);
   filesystem_policy(); syscall_policy();
 #ifdef EVO_DOCUMENT_TEST
+  int canvas_probe = 0;
+  int fill_probe = 0;
+  int missing_native = 0;
+#ifdef EVO_UNIVERSITY_TEMPLATE
+  canvas_probe = test_mode && !strcmp(test_mode, "canvas-compatibility");
+  fill_probe = test_mode && !strcmp(test_mode, "fill-proof");
+  missing_native = test_mode && !strcmp(test_mode, "page-missing-native");
+#endif
   if (test_mode && !strcmp(test_mode, "seal-unavailable")) deny_seal_installation();
-  else if (test_mode && strcmp(test_mode, "missing-addon")) { seal_execution(); diagnostic(test_mode); }
+  else if (test_mode && strcmp(test_mode, "missing-addon") && !canvas_probe && !fill_probe && !missing_native) { seal_execution(); diagnostic(test_mode); }
 #else
   (void)test_mode;
 #endif
   const char *entry = RUNTIME "/bootstrap.mjs";
 #ifdef EVO_DOCUMENT_TEST
   if (test_mode && !strcmp(test_mode, "missing-addon")) entry = RUNTIME "/missing-addon/bootstrap.mjs";
+  if (canvas_probe) entry = RUNTIME "/canvas-compatibility/bootstrap.mjs";
+  if (fill_probe) entry = RUNTIME "/fill-proof/src/lib/server/bootstrap.mjs";
 #endif
   char *const argv[] = {"/usr/local/bin/node", "--max-old-space-size=256", "--disable-wasm-trap-handler",
-    "--v8-pool-size=1", (char *)entry, NULL};
+    "--v8-pool-size=1", (char *)entry, render_page ? "--render-page-v1" : NULL, NULL};
   char *const env[] = {"LANG=C.UTF-8", "TZ=UTC", "UV_THREADPOOL_SIZE=1", "MALLOC_ARENA_MAX=2", NULL};
+#ifdef EVO_UNIVERSITY_TEMPLATE
+  char *const canvas_env[] = {"LANG=C.UTF-8", "TZ=UTC", "UV_THREADPOOL_SIZE=1", "MALLOC_ARENA_MAX=2",
+    "DISABLE_SYSTEM_FONTS_LOAD=1",
+#ifdef EVO_DOCUMENT_TEST
+    missing_native ? "NAPI_RS_NATIVE_LIBRARY_PATH=" RUNTIME "/vendor/missing-native.node" :
+#endif
+    "NAPI_RS_NATIVE_LIBRARY_PATH=" RUNTIME "/vendor/canvas-native.node", NULL};
+  if (render_page) { execve(argv[0], argv, canvas_env); stop_child(); }
+#ifdef EVO_DOCUMENT_TEST
+  if (canvas_probe) { execve(argv[0], argv, canvas_env); stop_child(); }
+#endif
+#endif
   execve(argv[0], argv, env);
   stop_child();
 }
 
+#ifdef EVO_UNIVERSITY_TEMPLATE
+/* PNG delivery shares the job deadline. Never block indefinitely or mistake a
+ * short pipe write for a complete frame. Child bytes stay private until exit. */
+static int write_page(const void *buffer, size_t size, int64_t started) {
+  int flags = fcntl(STDOUT_FILENO, F_GETFL);
+  if (flags < 0 || fcntl(STDOUT_FILENO, F_SETFL, flags | O_NONBLOCK) < 0) return 74;
+  size_t offset = 0;
+  while (offset < size) {
+    int64_t now = monotonic_ms();
+    if (now < 0 || now - started >= WALL_MS) return 74;
+    ssize_t written = write(STDOUT_FILENO, (const char *)buffer + offset, size - offset);
+    if (written > 0) offset += (size_t)written;
+    else if (written < 0 && errno == EINTR) continue;
+    else if (written < 0 && errno == EAGAIN) {
+      struct pollfd delivery = {.fd = STDOUT_FILENO, .events = POLLOUT};
+      int ready = poll(&delivery, 1, (int)(WALL_MS - (now - started)));
+      if (ready < 0 && errno == EINTR) continue;
+      if (ready <= 0 || (delivery.revents & (POLLERR | POLLHUP | POLLNVAL))) return 74;
+    } else return 74;
+  }
+  return 0;
+}
+static int unavailable_page(int64_t started) {
+  /* The trailing JSON newline is unnecessary but valid whitespace in metadata. */
+  unsigned char frame[12 + sizeof(unavailable) - 1] = {'E', 'U', 'P', '1'};
+  frame[7] = sizeof(unavailable) - 1;
+  memcpy(frame + 12, unavailable, sizeof(unavailable) - 1);
+  return write_page(frame, sizeof(frame), started);
+}
+#endif
+
 int main(int argc, char **argv) {
   const char *test_mode = NULL;
+  int render_page = 0;
+#ifdef EVO_UNIVERSITY_TEMPLATE
+  if (argc == 2 && !strcmp(argv[1], "--render-page-v1")) render_page = 1;
+#endif
 #ifdef EVO_DOCUMENT_TEST
-  if (argc == 2) test_mode = argv[1];
+  if (argc == 2 && !render_page) test_mode = argv[1];
+  else if (render_page) { /* Fixed production mode, not a diagnostic name. */ }
   else if (argc != 1) return 64;
+#ifdef EVO_UNIVERSITY_TEMPLATE
+  if (test_mode && (!strcmp(test_mode, "page-output") || !strcmp(test_mode, "page-output-overflow")
+      || !strcmp(test_mode, "page-partial-failure") || !strcmp(test_mode, "fill-proof") || !strcmp(test_mode, "page-missing-native"))) render_page = 1;
+#endif
   if (test_mode && !strcmp(test_mode, "async-signals")) signal(SIGUSR1, received_signal);
   /* A high pre-opened descriptor demonstrates that child cleanup is real. */
   int inherited = open("/tmp/evo-document-outside", O_RDONLY);
   if (inherited >= 0) { if (dup2(inherited, 63) < 0) return 71; close(inherited); }
 #else
   (void)argv;
-  if (argc != 1) return 64;
+  if (argc != 1 && !render_page) return 64;
 #endif
   pid_t caller = getppid();
   if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != caller) return 71;
@@ -337,16 +416,22 @@ int main(int argc, char **argv) {
   if (started < 0) return 71;
   pid_t supervisor = getpid(), pid = fork();
   if (pid < 0) return 71;
-  if (!pid) child(descriptors[1], supervisor, test_mode);
+  if (!pid) child(descriptors[1], supervisor, test_mode, render_page);
   close(descriptors[1]);
-  char output[MAX_OUTPUT + 1];
+  char small_output[MAX_OUTPUT + 1];
+  size_t maximum = MAX_OUTPUT;
+#ifdef EVO_UNIVERSITY_TEMPLATE
+  if (render_page) maximum = MAX_PAGE_OUTPUT;
+#endif
+  char *output = render_page ? malloc(maximum + 1) : small_output;
+  if (!output) { kill(pid, SIGKILL); while (waitpid(pid, NULL, 0) < 0 && errno == EINTR) {} close(descriptors[0]); return 71; }
   size_t count = 0;
   int status = 0, done = 0, eof = 0, failed = 0;
   while (!done || !eof) {
     int64_t now = monotonic_ms();
     if (now < 0 || now - started >= WALL_MS) { failed = 1; break; }
-    ssize_t amount = read(descriptors[0], output + count, sizeof(output) - count);
-    if (amount > 0) { count += (size_t)amount; if (count > MAX_OUTPUT) { failed = 1; break; } }
+    ssize_t amount = read(descriptors[0], output + count, maximum + 1 - count);
+    if (amount > 0) { count += (size_t)amount; if (count > maximum) { failed = 1; break; } }
     else if (!amount) eof = 1;
     else if (errno != EAGAIN && errno != EINTR) { failed = 1; break; }
     if (!done) {
@@ -372,6 +457,14 @@ int main(int argc, char **argv) {
       WIFSIGNALED(status) ? WTERMSIG(status) : 0, failed ? "true" : "false",
       usage.ru_utime.tv_sec * 1000 + usage.ru_utime.tv_usec / 1000 + usage.ru_stime.tv_sec * 1000 + usage.ru_stime.tv_usec / 1000);
     return write(1, report, size) < 0 ? 74 : 0;
+  }
+#endif
+#ifdef EVO_UNIVERSITY_TEMPLATE
+  if (render_page) {
+    int result = failed || !WIFEXITED(status) || WEXITSTATUS(status) || !count
+      ? unavailable_page(started) : write_page(output, count, started);
+    free(output);
+    return result;
   }
 #endif
   if (failed || !WIFEXITED(status) || WEXITSTATUS(status) || !count) {

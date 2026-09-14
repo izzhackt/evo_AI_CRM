@@ -30,7 +30,8 @@ FROM deps AS university-template-assets
 COPY scripts/document-source/bootstrap.mjs ./scripts/document-source/bootstrap.mjs
 COPY scripts/university-template ./scripts/university-template
 COPY src/lib/server/university-template-preflight.ts src/lib/server/university-form-docx.ts src/lib/server/university-form-pdf.ts ./src/lib/server/
-COPY src/lib/university-form-fields.ts src/lib/student-profile-fields.ts src/lib/university-template-preview.ts ./src/lib/
+COPY src/lib/university-form-fields.ts src/lib/student-profile-fields.ts src/lib/university-template-preview.ts src/lib/university-template-page.ts ./src/lib/
+COPY assets/fonts/NotoSans-Regular.ttf assets/fonts/OFL.txt ./assets/fonts/
 RUN node scripts/university-template/build.mjs /out
 
 FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS university-template-runtime
@@ -45,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends qpdf \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=university-template-native --chown=0:0 --chmod=0555 /out/template/proof/launcher.test /opt/evo-university-template-runtime/launcher.test
 COPY --from=university-template-assets --chown=0:0 --chmod=0555 /out/proof/ /opt/evo-university-template-runtime/
+COPY --from=university-template-native --chown=0:0 --chmod=0555 /out/template/runtime/seal.node /opt/evo-university-template-runtime/canvas-compatibility/seal.node
+COPY --from=university-template-native --chown=0:0 --chmod=0555 /out/template/runtime/seal.node /opt/evo-university-template-runtime/fill-proof/src/lib/server/seal.node
 USER 1001:1001
 CMD ["node", "--test", "/opt/evo-university-template-runtime/test-harness.mjs"]
 

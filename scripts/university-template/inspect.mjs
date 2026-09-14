@@ -33,7 +33,10 @@ function request() {
 }
 // No library diagnostics may cross; only explicit preview responses contain source excerpts.
 for (const method of ["log", "warn", "error", "info", "debug"]) console[method] = () => {};
-try {
+if (process.argv[2] === "--render-page-v1") {
+  const entry = "/opt/evo-university-template-runtime/render-page.mjs";
+  await (await import(entry)).runRenderPageRequest();
+} else try {
   const { header, bytes } = request();
   let manifest;
   if (header.mimeType === DOCX) {

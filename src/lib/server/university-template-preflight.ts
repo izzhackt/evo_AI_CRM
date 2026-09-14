@@ -2,6 +2,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { parseUniversityTemplateSourcePreview, type UniversityTemplateSourcePreview } from "../university-template-preview.ts";
+import { parseUniversityTemplatePageMetadata, UNIVERSITY_TEMPLATE_PAGE_MAX_FRAME, UNIVERSITY_TEMPLATE_PAGE_MAX_METADATA,
+  UNIVERSITY_TEMPLATE_PAGE_MAX_PNG, type UniversityTemplatePageExpectation, type UniversityTemplatePageMetadata } from "../university-template-page.ts";
 
 export type UniversityTemplateMime = "application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export type UniversityTemplateManifest = Readonly<{
@@ -15,6 +17,7 @@ export type UniversityTemplateInspection = Readonly<{
   policyVersion: "evo-university-template-v1"; manifest: UniversityTemplateManifest;
 }> | UniversityTemplateRejection;
 export type UniversityTemplateSourcePreviewResult = UniversityTemplateSourcePreview | UniversityTemplateRejection;
+export type UniversityTemplatePageResult = Readonly<{ status: "rendered"; metadata: UniversityTemplatePageMetadata; png: Uint8Array }> | UniversityTemplateRejection;
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -79,10 +82,50 @@ export async function previewUniversityTemplateSource(input: {
 }
 
 /** Both operations share one fixed supervisor, admission lock and bounded pipe. */
+/** Internal binary seam exported for bounded framing tests; never an authorization proof. */
+export function parseUniversityTemplatePageFrame(wire: Uint8Array, expected: UniversityTemplatePageExpectation): UniversityTemplatePageResult | null {
+  if (!(wire instanceof Uint8Array) || wire.byteLength < 12 || wire.byteLength > UNIVERSITY_TEMPLATE_PAGE_MAX_FRAME) return null;
+  const frame = Buffer.isBuffer(wire) ? wire : Buffer.from(wire);
+  if (frame.subarray(0, 4).toString("ascii") !== "EUP1") return null;
+  const size = frame.readUInt32BE(4), pngSize = frame.readUInt32BE(8);
+  if (size < 1 || size > UNIVERSITY_TEMPLATE_PAGE_MAX_METADATA || pngSize > UNIVERSITY_TEMPLATE_PAGE_MAX_PNG || frame.length !== 12 + size + pngSize) return null;
+  let value: unknown;
+  try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(frame.subarray(12, 12 + size))); }
+  catch { return null; }
+  if (record(value) && keys(value, "code,status") && value.status === "rejected" && pngSize === 0) {
+    return value.code === "template_not_eligible" ? ineligible() : value.code === "source_unavailable" ? unavailable() : null;
+  }
+  const metadata = parseUniversityTemplatePageMetadata(value, expected);
+  if (!metadata || metadata.pngByteLength !== pngSize || pngSize < 33) return null;
+  const png = frame.subarray(12 + size);
+  if (png.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" || png.readUInt32BE(8) !== 13
+    || png.subarray(12, 16).toString("ascii") !== "IHDR" || png.readUInt32BE(16) !== metadata.pixelWidth || png.readUInt32BE(20) !== metadata.pixelHeight
+    || png[24] !== 8 || (png[25] !== 2 && png[25] !== 6) || png[26] !== 0 || png[27] !== 0 || png[28] !== 0
+    || createHash("sha256").update(png).digest("hex") !== metadata.pngSha256) return null;
+  return Object.freeze({ status: "rendered", metadata, png: Buffer.from(png) });
+}
+
+/** Live manager/source-version authorization and its post-render recheck belong to the route. */
+export async function renderUniversityTemplatePage(input: {
+  bytes: Uint8Array; mimeType: UniversityTemplateMime; expectedSha256: string;
+  expectedManifest: UniversityTemplateManifest; page: number;
+}, options: { signal: AbortSignal }): Promise<UniversityTemplatePageResult> {
+  if (!input || input.mimeType !== "application/pdf" || !(input.bytes instanceof Uint8Array) || input.bytes.byteLength < 12
+    || typeof input.expectedSha256 !== "string" || !Number.isInteger(input.page)) return ineligible();
+  const expectedManifest = manifest(input.expectedManifest, "application/pdf"), page = input.page;
+  if (!expectedManifest || page < 1 || page > expectedManifest.pageSizes.length) return ineligible();
+  const manifestDigest = createHash("sha256").update(JSON.stringify(expectedManifest)).digest("hex");
+  return runUniversityTemplate(input, options, { operation: "render-page-v1", expectedManifestDigest: manifestDigest, page },
+    (value, bytes, _mime, sha256) => value instanceof Uint8Array ? parseUniversityTemplatePageFrame(value, {
+      sha256, byteLength: bytes.length, manifestDigest, page, pageSizes: expectedManifest.pageSizes,
+    }) : null, true);
+}
+
 async function runUniversityTemplate<T>(input: {
   bytes: Uint8Array; mimeType: UniversityTemplateMime; expectedSha256: string;
 }, options: { signal: AbortSignal }, operation: Record<string, string | number>,
-validate: (value: unknown, bytes: Buffer, mimeType: UniversityTemplateMime, expectedSha256: string) => T | null): Promise<T | UniversityTemplateRejection> {
+validate: (value: unknown, bytes: Buffer, mimeType: UniversityTemplateMime, expectedSha256: string) => T | null,
+binary = false): Promise<T | UniversityTemplateRejection> {
   if (!input || !(input.bytes instanceof Uint8Array) || input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_BYTES
     || ![DOCX, "application/pdf"].includes(input.mimeType) || !/^[a-f0-9]{64}$/.test(input.expectedSha256)) return ineligible();
   const bytes = Buffer.from(input.bytes), mimeType = input.mimeType, expectedSha256 = input.expectedSha256;
@@ -92,7 +135,7 @@ validate: (value: unknown, bytes: Buffer, mimeType: UniversityTemplateMime, expe
   running = true;
   try {
     return await new Promise<T | UniversityTemplateRejection>((resolve) => {
-      const child = spawn(LAUNCHER, [], { cwd: "/", env: { NODE_ENV: "production" }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
+      const child = spawn(LAUNCHER, binary ? ["--render-page-v1"] : [], { cwd: "/", env: { NODE_ENV: "production" }, stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
       const chunks: Buffer[] = []; let length = 0, stopped = false, settled = false;
       const stop = () => { stopped = true; child.kill("SIGKILL"); };
       const timer = setTimeout(stop, 16_000);
@@ -107,12 +150,14 @@ validate: (value: unknown, bytes: Buffer, mimeType: UniversityTemplateMime, expe
       child.stdout.on("error", stop);
       child.stdout.on("data", (chunk: Buffer) => {
         length += chunk.length;
-        if (length > MAX_OUTPUT) stop(); else chunks.push(chunk);
+        if (length > (binary ? UNIVERSITY_TEMPLATE_PAGE_MAX_FRAME : MAX_OUTPUT)) stop(); else chunks.push(chunk);
       });
       child.on("close", (code) => {
         if (stopped || code !== 0) return finish(unavailable());
         try {
-          const value: unknown = JSON.parse(Buffer.concat(chunks, length).toString("utf8"));
+          const wire = Buffer.concat(chunks, length);
+          if (binary) return finish(validate(wire, bytes, mimeType, expectedSha256) ?? unavailable());
+          const value: unknown = JSON.parse(wire.toString("utf8"));
           if (!record(value)) return finish(unavailable());
           if (keys(value, "code,status") && value.status === "rejected"
             && ["template_not_eligible", "source_unavailable"].includes(String(value.code))) {

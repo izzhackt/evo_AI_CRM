@@ -122,7 +122,17 @@ Managed schema001–161 is applied and verified through34765867429/34765967956.
 D3–D6 and real employee/document acceptance remain required; the scoped profile
 failures above were corrected in reviewed PR761 before the successful full gate.
 
-Current document-development checkpoint, 2026-09-14: combined PR768 at
+Current source checkpoint, 2026-09-14: PR768 is merged as `c2ddd12d`; the
+runtime identity contract is merged through PR772 at `06d43b29`. The reviewed
+university workspace, DOCX source review and mapping management are published on
+`izzhackt/evo-university-forms-ui` at `e459639b`, not yet merged or released.
+Next: one actual combined template upload/recovery/mapping browser proof, then
+the remaining PDF/form/package implementation. Production remains the accepted
+S2/D2 release `05585020`; don't repeat the historical504 diagnosis below as a
+current blocker. Employee invitations, provider/client acceptance, D5 import and
+D6 retirement are still open.
+
+Previous document-development checkpoint, 2026-09-14: combined PR768 at
 `ef279986124c7b1f8298994d152ee134aced655c` passed independent merge review,
 contiguous001–164 SQL, exact production/native image build and both actual local
 Auth/Storage/browser flows. See [predispatch proof](design/v3/references/2026-09-14-recognition-predispatch-proof.md#combined-checkpoint-ef279986)

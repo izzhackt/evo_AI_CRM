@@ -26051,3 +26051,72 @@ Dockerfile, provider, managed service, browser authority or deployment changes
 are authorized by this slice. Focused real filesystem/CLI and actual owned local
 container transport checks plus independent exact-diff review precede publication;
 ingress separately owns the strict server-only reader and receipt writer.
+
+## 2026-09-14 — Private ingress acceptance harness integration history
+
+Root additionally authorizes one acceptance-only lost Storage reply on the owned
+local proxy, never an application fallback or database state edit. Replace the
+acceptance TCP forwarding loop with fixed-destination HTTP forwarding so the
+proxy can identify exactly one create-only PDF template POST. Only after an
+actual upstream200/201 response and independent private GET with identical hash,
+length and MIME may it deliberately close that response connection. All other
+traffic passes unchanged. A fixed process-only marker records that the exact
+after-commit condition occurred; missing/mismatched readback must fail the proof,
+not simulate recovery. Browser acceptance must observe actual unknown state,
+use the explicit UI reconcile action, then confirm exact bytes and one immutable
+receipt. No synthetic SQL/status/receipt insertion, provider or managed target.
+
+The separate nine-file acceptance-harness source checkpoint has50/50 actual
+scoped contract/regression checks, JavaScript lint and shell syntax validation
+(`01a09d2257817730ae0b8a82e21328e2`). These include bounded missing-image refusal
+before foundation lock, existing D3/D4 harness regressions, serialized bootstrap
+syntax, exact image/config readback validators, one-shot HTTP fault match/mismatch
+fixtures and CI manifest accounting333/194/139; unit231/189/42. HTTP fixtures test
+only proxy control flow, not a successful Storage service or native inspection.
+Actual Docker image, local database, Storage, ClamAV and browser execution remains
+deferred to root's one frozen combined workflow; no fullD4/production claim.
+
+Root found a concrete acceptance DTO mismatch before execution: inspection
+metadata exposes `receipt_id`, while an ingress command exposes
+`inspection_receipt_id`. Correct only the unknown/replay assertions at that
+existing boundary; retain the SQL full `sha256:` image-ID comparison. Regression
+tests exercise the actual normalizers and the same assertion functions used by
+the browser helper, with synthetic DTOs only. The prior harness approval is
+withdrawn pending the corrected exact-diff review; no service proof is inferred.
+Both actual-normalizer regressions failed before correction
+(`01a09d3710727f71bb81a7931e237b39`). After the two field corrections,52/52
+scoped tests, lint, shell syntax and diff checks pass
+(`01a09d37594c72d1a676cedb2607d07c`), including mismatched receipt and unproven
+lost-reply negative controls. No Docker/image/Storage/browser run was performed.
+The publication hook then rejected a literal synthetic `apikey` fixture header
+(`01a09d3a5c7d75208c5f041cab500d19`). Do not bypass that guard: generate an
+ephemeral UUID for this HTTP-only fixture and re-review the resulting exact diff.
+It is not a service credential and does not change the acceptance transport.
+
+## 2026-09-14 — Integrate actual template mapping browser acceptance
+
+Reviewed workspace source is published as `e459639b`; this is not a release or
+browser acceptance. Extend the existing bounded ingress acceptance with one
+synthetic13-paragraph DOCX in the same real Auth/ClamAV/native/Storage/application
+stack. Exercise two preview pages, retained selections, exact saved mapping,
+read-only source review, explicit publication, mobile cold resume and archived
+history. Do not start another database or repeat the completed S2/D2 gates.
+
+The final receipt must require the actual mapping helper result, including exact
+template/version/mapping identities and source/mapping hashes, before cleanup
+can promote it to accepted. Contract/fixture checks are not a substitute for
+running the browser. Source PDF raster/fill, generated university files/packages,
+managed migrations, Gemini/client acceptance and deployment remain open.
+
+The integration preserves all reviewed ingress and root tests. Its host lifetime
+is480seconds for two distinct bounded workflows (previously240seconds for the
+PDF-only upload/recovery flow): the additional DOCX upload has the unchanged100s
+product deadline, followed by paged native reads and explicit UI commands. This
+is one run with one cleanup, not a retry, product timeout extension or second
+stack. Missing any nested mapping receipt fact prevents final acceptance.
+
+Independent source review identified a possible preview/mutation race, not an
+observed browser failure: publish/archive changes the revision while the new
+page's native preview may still be reading. The scenario now waits for its exact
+read-only source fragment before either mutation; no sleep, ignored console error
+or product authority relaxation. Actual browser execution is still pending.

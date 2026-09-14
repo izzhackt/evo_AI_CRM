@@ -66,3 +66,10 @@ Integrated proof must exercise real local Auth,166,ClamAV,native image,private
 Storage and browser create → upload → reload → mapping → review → publication.
 Use synthetic non-personal source files only. Actual managed schema/bucket,
 release, client documents/Gemini and complete D4 are not authorized by a UI test.
+
+The bounded foundation ingress mode now includes a synthetic13-paragraph DOCX
+scenario in the same stack as PDF lost-response recovery. It must verify actual
+source previews, retained page selections, exact persisted mappings, read-only
+review, separate publication, desktop/mobile resume and archived history. Its
+nested receipt is mandatory before final cleanup acceptance. Preparing and
+unit-checking this scenario does not mean it has run; integrated proof is pending.

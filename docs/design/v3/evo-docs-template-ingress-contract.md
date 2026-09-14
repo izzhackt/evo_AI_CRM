@@ -185,3 +185,33 @@ harness is not execution or fullD4/business acceptance.
 Primary transport references: [Docker bridge DNS and network isolation](https://docs.docker.com/engine/network/drivers/bridge/),
 [explicit loopback port publishing](https://docs.docker.com/engine/network/port-publishing/),
 and [Node TCP servers and clients](https://nodejs.org/docs/latest-v22.x/api/net.html).
+
+### One explicitly authorized lost-reply fault
+
+The acceptance-only loopback proxy may lose exactly one successful create-only
+PDF upload response. Its fixed target remains the already-owned Kong/8000. It
+must first observe actual200/201 from Storage, then perform a private GET of the
+same exact object and verify SHA256, byte length and MIME against the forwarded
+POST before closing the application-facing response. No response/DB/status is
+fabricated. A fixed marker is emitted only after verified readback; any mismatch
+leaves recovery acceptance failed/pending. The browser then observes real unknown
+and explicitly reconciles to verified. This fault is not a production feature,
+retry or fallback. No other request is faulted; ordinary requests pass through.
+The proxy uses [Node HTTP message completion and socket destruction](https://r2.nodejs.org/docs/latest-jod/api/http.html);
+timeouts destroy the request explicitly rather than treating a timeout event as
+completed work. The committed product adapter remains unchanged by this harness.
+
+Prepared entry point: `scripts/test-postgres-v2-foundation.sh --university-template-ingress-only`.
+It requires the same `EVO_D3_COMBINED_IMAGE`, `EVO_D3_ACCEPTANCE_IMAGE` and frozen
+revision binding used by the shared image-pair gate. No image is built by this
+mode. The browser helper is `scripts/lib/university-template-ingress-browser-proof.mjs`;
+root may extend this one helper with reviewed mapping/preview/publication steps.
+Its current receipt explicitly keeps `fullD4Acceptance`, `businessAcceptance`
+and `providerAcceptance` false.50/50 scoped checks/lint/shell syntax passed
+(`01a09d2257817730ae0b8a82e21328e2`), not the actual integrated workflow.
+
+Pre-execution review caught the different receipt keys: inspection metadata
+uses `receipt_id`; ingress command receipts use `inspection_receipt_id`.
+The helper now compares those actual normalized shapes. Both regressions were
+RED before correction;52/52 scoped checks, lint and shell syntax are now GREEN
+(`01a09d37594c72d1a676cedb2607d07c`). Actual integrated execution remains pending.

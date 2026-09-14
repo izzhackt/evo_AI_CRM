@@ -26018,3 +26018,29 @@ The publication hook then rejected a literal synthetic `apikey` fixture header
 (`01a09d3a5c7d75208c5f041cab500d19`). Do not bypass that guard: generate an
 ephemeral UUID for this HTTP-only fixture and re-review the resulting exact diff.
 It is not a service credential and does not change the acceptance transport.
+
+### D4 PDF reviewer regions at the existing resolver boundary
+
+Root authorizes this bounded integration correction before code. A PDF template
+snapshot contains the actual inspector manifest: `slots: []` and visible
+`pageSizes`. Editable regions are defined by the explicitly reviewed existing
+`mapping.mappings` (`pdf-N`, position and manual flag), never invented inspector
+slots. Keep the canonical mapping hash and review tuple unchanged. The resolver
+must reject nonempty PDF inspector slots and validate1–500 reviewed regions,
+finite bounded coordinates, page bounds,1–120 character cells of at least5pt,
+and overlap across every region including manual/empty ones. DOCX inspection
+and slot matching remain unchanged. Reuse166/renderer geometry semantics without
+editing SQL, runtime/API/UI, dependencies or production configuration. Replace
+the fictitious PDF slot fixtures and prove the seam through actual focused
+resolver/renderer tests; this is not native/layout/fullD4 acceptance.
+
+Actual RED confirmed `mapping_slot_not_found` for empty native PDF slot lists
+(`01a09d4fd7497ac38cb621def5d160d8`); after the boundary correction42 checks
+passed. The next RED found17 missing geometry/count/overlap refusals
+(`01a09d50c8ef7cf28dfdf766dc04de2f`). With region validation,75/75 focused
+fields/PDF/DOCX tests, scoped lint and diff check pass
+(`01a09d5144bd72d0982dff1c7d0330f9`). Negative tests cover invented slots,
+nonfinite/out-of-page coordinates, invalid character cells, manual/empty-region
+overlap and0/501 regions; controls retain500 regions, touching edges and separate
+pages. Canonical hashing and DOCX checks are unchanged. No Docker/build/provider
+or private-source execution; independent exact-diff review remains required.

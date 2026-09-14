@@ -2,6 +2,14 @@
 
 ## Active Docs release checkpoint (2026-09-15)
 
+PR779 fixed the explicit adapter inventory. In subsequent Platform
+CI34898505017 the1794-test group passed (one existing skip), then the component
+group stopped because its bespoke test loader does not resolve the newly
+imported `UniversityFormExportPanel`. Repair only that existing render-test
+loader using the real child component, keep command/network boundaries inert,
+and run the remaining Node groups together before another release attempt.
+No production component or access-rule change is needed; release is disarmed.
+
 PR778 is merged as934228ed. Managed apply34897249592 verified001–168;
 both private20MiB PDF/DOCX buckets are provisioned and independently read back.
 Actual project limit is50MiB: forms fit,260MiB ZIP parity remains blocked.

@@ -24,10 +24,16 @@ function compile(path, resolve = require) {
 }
 
 const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+const universityFormExport = compile("src/components/v3/profile/UniversityFormExportPanel.tsx", id => {
+  if (id === "@/lib/document-export-client") return exportClient;
+  if (id === "@/lib/v3/wording") return wording;
+  return require(id);
+});
 const exportHistory = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
   if (id === "@/lib/document-export-client") return exportClient;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "../settings/StaffDisclosure") return disclosure;
+  if (id === "./UniversityFormExportPanel") return universityFormExport;
   return require(id);
 });
 const unavailableCommand = async () => { throw new Error("Component-only check never executes a server command"); };
@@ -201,13 +207,16 @@ function readySnapshot() {
   return data;
 }
 
-test("real export controls distinguish final readiness, draft and separate download permission", () => {
+test("real export controls distinguish final readiness, draft and separate download permission", t => {
+  const transport = t.mock.method(globalThis, "fetch", async () => { throw new Error("No transport in SSR checks"); });
   const ready = readySnapshot();
   assert.equal(registry.getProfileReadiness(ready).ready, true);
   const html = render(ready);
   assert.match(html, /Файлы анкеты/);
   assert.match(html, /Сформировать финальную анкету/);
   assert.match(html, /Сформировать черновик/);
+  assert.match(html, /aria-label="Бланк университета"/);
+  assert.ok(html.includes(wording.universityFormExport.noApplications));
   const incomplete = render(snapshot());
   assert.match(incomplete, /<button[^>]*disabled=""[^>]*>Сформировать финальную анкету<\/button>/);
   assert.match(incomplete, /Что проверить перед формированием/);
@@ -219,6 +228,7 @@ test("real export controls distinguish final readiness, draft and separate downl
   assert.match(render(ready, { readOnly: true }), /Загружаем историю файлов/);
   assert.equal(component.profileExportBlocker({ snapshot: ready, mode: "draft", hasDrafts: false,
     pending: false, savedRevision: null, saveStatus: "idle" }), null);
+  assert.equal(transport.mock.callCount(), 0);
 });
 
 test("export gates keep unsaved edits, shared pending work and unconfirmed saves out of the request", async t => {

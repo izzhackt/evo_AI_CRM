@@ -464,7 +464,66 @@ Integrated focused Node tests passed **86/86** (`01a09d5c66d47f11a3da9c4c123be07
 alongside scoped ESLint, TypeScript and diff checks. TypeScript used explicit
 `node,next/image-types/global` declarations without generating a Next build.
 The implementation remains pending independent exact-diff review/publication.
-Native amd64, staff authorization/Storage/visual mapping, generated-PDF/package
-transport and full D4 business acceptance remain open. The read-only authorized
+At that arm64 checkpoint, native amd64, staff authorization/Storage/visual mapping,
+generated-PDF/package transport and full D4 business acceptance remained open. The read-only authorized
 Hermes inventory found an available x86_64 Docker host; it did not authorize or
 execute a remote build/container. No production or managed service was changed.
+
+## Staff PDF page HTTP and region editor
+
+Pre-code continuation, 2026-09-14. Native `c35a1fd3` was independently approved
+and integrated as `abcd82bf`; the final integration preserved all existing tests,
+adding the page test once (21 focused checks pass, receipt `01a09d795cde75d19b819a1e092036f7`).
+The accepted ingress source is now main `0f58072b` (PR773).
+
+Native amd64 also passed D3 12/12, template33/33 and two asset-corruption refusals,
+with no skipped cases, on the exact published native source. Independent review
+covered all29 source blobs, actual resource/cleanup logs and all20 PNGs
+(`01a09d7b620c78109be3e3b303165f91`). D3 image `sha256:b529789c1e7c7615a2216629746fa073addb50bd82583e0584c35bc337cda87d`,
+template image `sha256:c8c3de9a43fb5d914312d3a0e08b6d05d94f4415fd325a301f8e22935771325a`;
+proof manifest `fa0a479b528d575ffc2826af2e38a41e8b753e904795929ea3d8e750c24df944`.
+This closes the narrow native-architecture gate, not the app/browser/form-output gate.
+
+- Add GET `.../versions/[versionId]/source/page?page=N`, exactly one canonical
+  integer query1–100 within the trusted PDF manifest. All other methods405.
+  Keep the same manager permission, exact source metadata, one-use read grant,
+  private Storage read/hash, shared byte-operation lease and completion-time
+  live permission/source recheck as DOCX preview. No SQL/migration/auth change.
+- Invoke only the reviewed `renderUniversityTemplatePage` after Storage read.
+  Return `image/png`, exact content length and `x-evo-template-page` containing
+  the bounded ASCII metadata JSON, plus private/no-store/nosniff/same-origin.
+  No signed URL, browser-provided manifest or public cache. No PNG before grant
+  completion. Cancellation holds the lease until actual native settlement.
+- Client fetches at most20MiB with same-origin credentials, bounded timeout and
+  no redirects; verifies closed metadata against version/hash/whole manifest/page,
+  PNG length/SHA and decoded natural dimensions. Only then display a local blob URL;
+  revoke on replacement/unmount, discard late responses. No persistent browser cache.
+- Existing forms page selects the PDF editor for inspected PDF and keeps DOCX
+  behavior. Use exact saved version/hash/manifest keys, existing save_mapping,
+  separate explicit review and publication; no automatic approval. Saved review
+  displays its actual page overlays read-only. Archived/source-changed stays blocked.
+- Visual thesis: quiet white EVO workspace, actual document dominant, red accent
+  for current region/primary save. Content: page controls → document → selected field
+  settings, one column on narrow screens. Interaction: visible selection/focus,
+  bounded loading feedback, responsive zoom without losing points-based geometry.
+- Add a region by pointer drag (capture/cancel) or an accessible button; select and
+  edit it via labelled numeric x/y/width/height controls and arrow-key movement.
+  Coordinates use the current borderless image box per axis; overlay percentages
+  survive resize/zoom. Page navigation retains unsaved edits; explicit undo/reset
+  restores prior edits. Field source/date format/required/manual and optional
+  character cells reuse existing policy. Reject overlaps/out-of-bounds/invalid
+  cells before save, without replacing authoritative server validation.
+- Existing500-region/100-page bounds stay unchanged. A manual field remains blank;
+  no profile data is fetched/displayed by the mapping editor. Save uncertainty
+  freezes exact request/form and offers same-request retry or reload, never a new
+  request with changed content. Errors preserve draft and explain a next action.
+
+Current primary API references: [image box coordinates](https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect),
+[pointer capture](https://developer.mozilla.org/en-US/docs/Web/API/Element/setPointerCapture),
+[blob URL cleanup](https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL_static).
+Browser plugin not available: use existing repository Playwright acceptance.
+Target flow: university → inspected PDF → draw/edit region → save → explicit
+review/publication → cold reopen exact overlays, desktop1440px and mobile393px.
+Before claiming the UI works, require actual Auth/Storage/native/browser flow,
+screenshots, page identity, no blank/overlay, clean console and interaction proof.
+Pure geometry/denial tests support but do not replace that acceptance.

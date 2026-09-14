@@ -32,8 +32,26 @@ const { UniversityFormUpload } = compile("../src/components/v3/universities/form
 const { UniversityFormUploadStatus } = compile("../src/components/v3/universities/forms/UniversityFormUploadStatus.tsx");
 const { UniversityFormDecision } = compile("../src/components/v3/universities/forms/UniversityFormDecision.tsx");
 const { UniversityFormMappingEditor, UniversityFormSavedFragment } = compile("../src/components/v3/universities/forms/UniversityFormMappingEditor.tsx");
+const { UniversityPdfMappingEditor } = compile("../src/components/v3/universities/forms/UniversityPdfMappingEditor.tsx");
 const { UniversityFormMappingHistory } = compile("../src/components/v3/universities/forms/UniversityFormMappingHistory.tsx");
 const { universityFormWorkspaceMatches } = compile("../src/lib/university-form-ui.ts");
+
+test("PDF editor renders labelled keyboard alternatives and waits for the actual private page before save", () => {
+  const props = { catalogId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", templateId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    revision: 2, version: { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", sha256: "a".repeat(64), byte_size: 123, mime_type: "application/pdf" },
+    manifest: { format: "pdf", slots: [], pageSizes: [{ width: 300, height: 400 }] }, manifestDigest: "b".repeat(64),
+    mappingId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    initialMappings: [{ slotId: "pdf-1", manual: false, sourceKey: "student_first_name", format: "text", required: true,
+      position: { page: 1, x: 10, y: 10, width: 100, height: 20 } }], action: () => assert.fail("SSR cannot mutate") };
+  const html = renderToStaticMarkup(createElement(UniversityPdfMappingEditor, props));
+  assert.match(html, /Добавить поле без мыши/u); assert.match(html, /Точное положение и размер/u);
+  assert.match(html, /Отменить последнее изменение/u);
+  assert.match(html, /<button[^>]*type="submit"[^>]*disabled=""[^>]*>Сохранить настройку/u);
+  assert.doesNotMatch(html, /<img|<iframe|<table/u);
+  const review = renderToStaticMarkup(createElement(UniversityPdfMappingEditor, { ...props, readOnly: true }));
+  assert.match(review, /Сохранённые поля и исходный бланк/u);
+  assert.doesNotMatch(review, /Сохранить настройку|name="operation"|Разрешить заполнение/u);
+});
 
 test("actual React SSR renders one labelled create control and a recovery URL without running a command", () => {
   let called = false;

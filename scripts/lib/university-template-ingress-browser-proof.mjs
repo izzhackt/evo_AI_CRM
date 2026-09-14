@@ -13,6 +13,7 @@ import { templateAcceptanceAppSpec, requireTemplateAcceptanceImages,
   validateTemplatePendingReceipt } from "./university-template-ingress-acceptance.mjs";
 import { normalizeUniversityTemplateIngressReceipt, normalizeUniversityTemplateInspectionMetadata } from "../../src/lib/university-template-ingress.ts";
 import { proveUniversityTemplateMapping } from "./university-template-mapping-browser-proof.mjs";
+import { proveUniversityPdfMapping } from "./university-pdf-mapping-browser-proof.mjs";
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const hash = value => createHash("sha256").update(value).digest("hex");
@@ -27,6 +28,8 @@ export async function syntheticTemplatePdf() {
   const pdf = await PDFDocument.create(), page = pdf.addPage([612, 792]);
   page.drawText("Synthetic University Blank - no applicant information", { x: 30, y: 750,
     size: 12, font: await pdf.embedFont(StandardFonts.Helvetica) });
+  const second = pdf.addPage([612, 792]);
+  second.drawText("Synthetic second page - date of birth", { x: 30, y: 720, size: 12 });
   return Buffer.from(await pdf.save({ useObjectStreams: false }));
 }
 async function seedCatalogue(client, organizationId) {
@@ -141,7 +144,7 @@ async function main() {
     await page.getByRole("button", { name: "Проверить завершение загрузки", exact: true }).click();
     await expect(page.getByRole("link", { name: "Открыть исходный файл", exact: true })).toBeVisible();
     const status = await readStatus(); requireProof(status.ingress?.state === "verified" && status.inspection === "verified"
-      && status.manifest?.format === "pdf" && status.manifest.slots.length === 0 && status.manifest.pageSizes.length === 1, "TEMPLATE_NOT_VERIFIED");
+      && status.manifest?.format === "pdf" && status.manifest.slots.length === 0 && status.manifest.pageSizes.length === 2, "TEMPLATE_NOT_VERIFIED");
     stage = "EXACT_REPLAY";
     const headers = request.headers(); const replay = await context.request.post(route.href, { data: bytes,
       headers: { origin: config.appOrigin, "content-type": "application/pdf", "if-match": headers["if-match"], "idempotency-key": headers["idempotency-key"] } });
@@ -164,14 +167,16 @@ async function main() {
       WHERE r.template_version_id=${versionId}::uuid AND r.organization_id=${config.organizationId}::uuid`;
     requireProof(fact.receipts === 1 && fact.valid === true, "IMMUTABLE_TEMPLATE_RECEIPT_INVALID");
     await page.screenshot({ path: resolve(config.evidenceDir, "template-ingress.png"), fullPage: true });
+    const pdfMapping = await proveUniversityPdfMapping({ page, context, client, config, catalogId, templateId, versionId,
+      status, sourceBytes: bytes.length, stage: value => { stage = value; } });
     const mapping = await proveUniversityTemplateMapping({ page, context, client, storage, config, catalogId,
       stage: value => { stage = value; } });
     requireProof(counts.error === 0, "BROWSER_RUNTIME_ERRORS");
-    pending = { schema: "evo-university-template-ingress-acceptance/v1", synthetic: true, businessAcceptance: false,
+    pending = { schema: "evo-university-template-ingress-acceptance/v2", synthetic: true, businessAcceptance: false,
       providerAcceptance: false, fullD4Acceptance: false, cleanupVerified: false,
       ...Object.fromEntries(TEMPLATE_PROOF_CHECKS.map(key => [key, true])), localProjectId: config.projectId,
       sourceSha256: sha256, sourceBytes: bytes.length, browserErrorCount: counts.error, browserWarningCount: counts.warning,
-      images, runtimeIdentity: identity, mapping };
+      images, runtimeIdentity: identity, mapping, pdfMapping };
   } catch (error) {
     try { await writeFailureEvidence({ config, page: diagnosticPage, stage, error, http, browserErrors,
       browserWarningCount: counts.warning, counts }); }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { syntheticMappingDocx } from "../scripts/lib/university-template-mapping-browser-proof.mjs";
-import { TEMPLATE_MAPPING_CHECKS, validateTemplateMappingProof } from "../scripts/lib/university-template-mapping-evidence.mjs";
+import { TEMPLATE_MAPPING_CHECKS, validateTemplateMappingProof, TEMPLATE_PDF_MAPPING_CHECKS, validateTemplatePdfMappingProof } from "../scripts/lib/university-template-mapping-evidence.mjs";
 import { inspectUniversityDocx } from "../src/lib/server/university-form-docx.ts";
 
 test("the exact browser DOCX input spans two preview batches with stable fragments and a manual signature", () => {
@@ -35,5 +35,17 @@ test("mapping receipt requires every explicit flow check and exact identity/hash
     { sourceSha256: "" }, { mappingSha256: "bad" }, { sourceBytes: 0 }, { sourceBytes: 20971521 },
     { sourceBytes: 1.5 }, { fullD4Acceptance: true }, { generatedFormAcceptance: true }, { businessAcceptance: true }]) {
     assert.throws(() => validateTemplateMappingProof({ ...receipt(), ...changed }), /MAPPING_RECEIPT_INVALID/u);
+  }
+});
+
+test("PDF evidence requires geometry, input methods, independent publication and actual source page binding", () => {
+  const value = { ...receipt(), pagePngSha256: "c".repeat(64), pageCount: 2,
+    ...Object.fromEntries(TEMPLATE_PDF_MAPPING_CHECKS.map(key => [key, true])) };
+  assert.equal(validateTemplatePdfMappingProof(value), value);
+  for (const key of TEMPLATE_PDF_MAPPING_CHECKS) for (const invalid of [false, undefined, "true"]) {
+    assert.throws(() => validateTemplatePdfMappingProof({ ...value, [key]: invalid }), /PDF_MAPPING_RECEIPT_INVALID/u);
+  }
+  for (const change of [{ pagePngSha256: "" }, { pageCount: 1 }, { generatedFormAcceptance: true }]) {
+    assert.throws(() => validateTemplatePdfMappingProof({ ...value, ...change }), /PDF_MAPPING_RECEIPT_INVALID/u);
   }
 });

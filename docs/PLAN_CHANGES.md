@@ -26299,3 +26299,33 @@ one new unique file changes CI/unit totals and the explicit focused list.
 Update only those inventory expectations and require exact once-only membership;
 do not remove any existing check or rerun unchanged native/browser suites.
 This source integration does not claim implemented PDF HTTP/region UI or release.
+
+### Connect reviewed PDF rendering to the staff region editor
+
+Before HTTP/UI implementation, extend the existing page-render contract with
+the exact manager-only GET/page metadata+PNG transport, same166 read-grant
+completion check, bounded client reader and version-bound points geometry.
+The editor extends existing forms save/review/publication, supports pointer and
+numeric/keyboard input, and preserves drafts/unknown-outcome request identity.
+No second catalog, Storage, role, SQL or generated-form producer is introduced.
+PR773 is now merged as0f58072b with all six exact-head checks and independent
+approval; reviewed native source integratedabcd82bf and native amd64 gate also
+passed independently. Git main's tree equals accepted7ce58d35 exactly; the
+92328bec ancestry-only merge preserves the reviewed native tree byte-for-byte.
+Remaining app/browser/form/package/provider/real-client/release gates stay open.
+Use DESIGN.md's calm document-first composition and original EVO branding;
+official image-box/pointer/blob behavior is referenced in the contract. Do not
+claim rendered UI success from narrow Node checks or from native PNGs alone.
+
+The PDF browser proof extends the existing single-stack ingress run with a
+two-page synthetic PDF, real pointer/numeric/keyboard mapping, zoom/reflow,
+separate review/publication and cold readback. Its receipt becomes v2 and requires
+an explicit nested PDF proof; historical v1 receipts remain historical evidence,
+not revalidated as this expanded gate. Existing DOCX flow remains required.
+
+Independent source review found a publication/read ordering race in the new
+PDF browser helper: publication changes the template revision while the newly
+opened source page may still be rendering. The helper now waits for the actual
+readonly PNG, source control and saved overlay geometry before publication,
+matching its review step. No sleeps, ignored browser errors, source-grant
+relaxation or product scope change; actual browser acceptance remains pending.

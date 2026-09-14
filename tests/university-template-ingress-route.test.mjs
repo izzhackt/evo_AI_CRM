@@ -82,7 +82,7 @@ test("cancel remains a live-session command without scanner, native identity or 
 test("source reads and reconciliation reject anonymous callers without any private operation", async () => {
   const handlers = createUniversityTemplateIngressHandlers({ loadActor: async () => ({ status: "anonymous", actor: null }),
     createSessionClient() { assert.fail("anonymous source access"); }, createServiceClient() { assert.fail("anonymous source access"); } });
-  for (const method of ["read", "reconcile", "preview"]) {
+  for (const method of ["read", "reconcile", "preview", "page"]) {
     const response = await handlers[method](new Request(url, { method: method === "read" ? "GET" : "POST" }), context);
     assert.equal(response.status, 401); assert.deepEqual(await response.json(), { error: "authentication_required" });
   }
@@ -90,7 +90,7 @@ test("source reads and reconciliation reject anonymous callers without any priva
 
 test("only five exact template source API paths enter the connected route boundary", () => {
   const base = new URL(url).pathname;
-  for (const suffix of ["", "/status", "/cancel", "/reconcile", "/preview"]) assert.equal(isConnectedPlatformApi(base + suffix), true, suffix);
+  for (const suffix of ["", "/status", "/cancel", "/reconcile", "/preview", "/page"]) assert.equal(isConnectedPlatformApi(base + suffix), true, suffix);
   for (const suffix of ["/", "/status/", "/unknown", "/download", "/reconcile/other", "/preview/", "/preview/other"]) assert.equal(isConnectedPlatformApi(base + suffix), false, suffix);
   assert.equal(isConnectedPlatformApi(base.replace(template, "invalid")), false);
   assert.equal(isConnectedPlatformApi("/api/v3/university-forms"), false);
@@ -102,7 +102,7 @@ for (const [name, actorResult] of [["no permission", { status: "authenticated", 
   test(`${name} cannot enter any template source operation`, async () => {
     const handlers = createUniversityTemplateIngressHandlers({ loadActor: async () => actorResult,
       createSessionClient() { assert.fail("session after rejected actor"); }, readIdentity() { assert.fail("identity after rejected actor"); } });
-    for (const operation of ["upload", "status", "read", "cancel", "reconcile", "preview"]) {
+    for (const operation of ["upload", "status", "read", "cancel", "reconcile", "preview", "page"]) {
       const response = await handlers[operation](new Request(url), context); assert.ok([403, 503].includes(response.status));
     }
   });
@@ -155,7 +155,7 @@ test("aborted upload retains byte admission until the actual uncancellable scann
   } finally { rejectScan(new Error("fixture cleanup")); await new Promise(resolve => setImmediate(resolve)); }
 });
 
-function sourceAccessFixture(permitted, { docx = false, preview } = {}) {
+function sourceAccessFixture(permitted, { docx = false, preview, renderPage } = {}) {
   const bytes = Buffer.from("synthetic"), sha256 = createHash("sha256").update(bytes).digest("hex"), calls = [];
   const mime = docx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf";
   const verified = receipt("verified", { revision: 3, sha256, inspection_receipt_id: claim, can_cancel: false });
@@ -179,7 +179,8 @@ function sourceAccessFixture(permitted, { docx = false, preview } = {}) {
       assert.equal(name, "complete_university_template_source_access"); assert.equal(args.p_observed_sha256, sha256);
       return { data: { permitted, receipt: verified }, error: null };
     }), fetch: async () => { calls.push("storage-read"); return new Response(bytes, { headers: { "content-type": mime, "content-length": "9" } }); },
-    preview: async (input, options) => { calls.push("native-preview"); return preview(input, options); } });
+    preview: async (input, options) => { calls.push("native-preview"); return preview(input, options); },
+    renderPage: async (input, options) => { calls.push("native-page"); return renderPage(input, options); } });
   return { handlers, bytes, calls, metadata };
 }
 test("guarded source transport withholds even exact bytes after final authority denial", async () => {
@@ -201,6 +202,7 @@ test("actual source route modules reject unsupported methods rather than executi
   for (const [suffix, allow, methods] of [["", "GET, POST", ["HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"]],
     ["/status", "GET", ["HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]],
     ["/preview", "GET", ["HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]],
+    ["/page", "GET", ["HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]],
     ["/cancel", "POST", ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"]],
     ["/reconcile", "POST", ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"]]]) {
     const route = await import(`../src/app/api/v3/university-forms/[templateId]/versions/[versionId]/source${suffix}/route.ts`);
@@ -246,6 +248,46 @@ test("permitted preview returns private no-store JSON only after final authority
 test("native preview failure cannot disclose partial content or complete the source grant", async () => {
   const f = sourceAccessFixture(true, { docx: true, preview: async () => { throw new Error("Private synthetic excerpt"); } });
   const response = await f.handlers.preview(new Request(`${url}/preview?offset=0`), context);
+  assert.equal(response.status, 503); assert.deepEqual(await response.json(), { error: "unavailable" });
+  assert.equal(f.calls.includes("complete_university_template_source_access"), false);
+});
+
+test("PDF page request rejects duplicate, unknown and noncanonical queries before private operations", async () => {
+  const handlers = createUniversityTemplateIngressHandlers({ loadActor: async () => ({ status: "authenticated", actor }),
+    createSessionClient: () => assert.fail("invalid page reached database") });
+  for (const query of ["", "?page=0", "?page=01", "?page=101", "?page=1.5", "?page=1&page=1", "?page=1&zoom=2", "?page=-1"]) {
+    const response = await handlers.page(new Request(`${url}/page${query}`), context);
+    assert.equal(response.status, 400, query);
+  }
+  for (const [docx, page] of [[true, 1], [false, 2]]) {
+    const f = sourceAccessFixture(true, { docx });
+    assert.equal((await f.handlers.page(new Request(`${url}/page?page=${page}`), context)).status, 400);
+    assert.deepEqual(f.calls, ["staff_university_template_inspection"]);
+  }
+});
+
+test("PDF transport completes live permission check after native work, withholding PNG after denial", async () => {
+  // Framing/ordering envelopes only; actual PNG/native acceptance is separate.
+  const result = { status: "rendered", metadata: { synthetic: "transport-only" }, png: Buffer.from("synthetic-png") };
+  for (const permitted of [false, true]) {
+    const f = sourceAccessFixture(permitted, { renderPage: async input => { assert.equal(input.page, 1); assert.equal(input.expectedManifest.format, "pdf"); return result; } });
+    const response = await f.handlers.page(new Request(`${url}/page?page=1`), context);
+    assert.deepEqual(f.calls.slice(-3), ["storage-read", "native-page", "complete_university_template_source_access"]);
+    if (!permitted) { assert.equal(response.status, 409); assert.deepEqual(await response.json(), { error: "source_changed" }); }
+    else {
+      assert.equal(response.status, 200); assert.equal(response.headers.get("content-type"), "image/png");
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.equal(response.headers.get("cross-origin-resource-policy"), "same-origin");
+      assert.equal(response.headers.get("content-length"), String(result.png.length));
+      assert.deepEqual(JSON.parse(response.headers.get("x-evo-template-page")), result.metadata);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), result.png);
+    }
+  }
+});
+
+test("PDF renderer refusal never completes a grant or emits source/partial PNG", async () => {
+  const f = sourceAccessFixture(true, { renderPage: async () => ({ status: "rejected", code: "source_unavailable" }) });
+  const response = await f.handlers.page(new Request(`${url}/page?page=1`), context);
   assert.equal(response.status, 503); assert.deepEqual(await response.json(), { error: "unavailable" });
   assert.equal(f.calls.includes("complete_university_template_source_access"), false);
 });

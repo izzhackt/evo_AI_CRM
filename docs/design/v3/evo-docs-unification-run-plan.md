@@ -12,7 +12,10 @@ D3/D4 разрабатываются; D3–D6, перенос данных и в
 Контракт: `docs/EVO_LAUNCH_PLAN.md` → ADR0028 → этот план → `DESIGN.md`.
 Параллельный run: [сотрудники и роли](employee-roles-accounts-run-plan.md).
 
-Точка возобновления, 2026-09-14: в [draft PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773)
+Точка возобновления, 2026-09-14: [PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773)
+merged как `0f58072b` после review и всех шести проверок exact `7ce58d35`.
+Следующий блок — визуальная настройка PDF, сохранённые формы и пакеты;
+production от merge не менялся. В PR773
 объединены registry/native inspection/private ingress/mapping и source migrations 162–166;
 managed остаётся на последней подтверждённой schema 001–161. На `55b7f41c`
 реальные app/derived-image builds и [шесть коротких CI-проверок 34792136150](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34792136150)

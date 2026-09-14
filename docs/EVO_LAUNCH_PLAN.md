@@ -23,13 +23,32 @@ schema apply, bucket creation or unchanged successful suites. Retain168 while
 the retained05585020 rollback app still needs the two unchanged service-only
 RPCs. Actual project Storage limit is50MiB;260MiB ZIP parity remains unresolved.
 
-Resume: ordinary Admin login in the existing tunnel, real PDF move/resize and
-filled-form save/history/download acceptance; import the nine blank templates
-through current ingress; obtain explicit mapping of the five source student
-records, then reconcile the twelve D5 domains and43 original files. Complete
-persisted ZIP integration after the owner's capacity choice and real Gemini
+Ordinary Admin continuation (2026-09-15): the owner personally logged in through
+that tunnel. All nine approved real blank PDFs are uploaded and verified through
+the current UI. INTI draw/body move/corner resize and two undos passed; its13
+fields were saved, cold-read and explicitly agent-reviewed before publication.
+Tongmyong's20 fields likewise match the source preset after cold readback and
+visual review of both pages. All eight eligible forms are published with94
+saved/cold-read/visually checked fields; City PreU/Postgraduate geometry uses
+the recorded0.01-point normalization (maximum delta0.005), not exact legacy
+numeric identity. USTC remains a verified draft because acceptance of
+the local DOC→PDF conversion is unconfirmed. Use the
+[per-template receipt table](design/v3/references/2026-09-15-docs-managed-release.md#продолжение-в-обычной-admin-сессии)
+for target IDs and mapping status; do not repeat uploads or published mappings. This records
+blank-template checks, not university acceptance or filled-client-form proof.
+The ordinary Admissions worklist showed no accessible cases across its filters;
+no applicant records or values were created or changed.
+
+Resume real-case filled-form save/history/download acceptance; resolve USTC's
+format before its mapping/publication. Reproduce/fix the observed City/GDUT
+preview failures: normal retry/reload recovered them, but no fix is claimed.
+Obtain explicit mapping of the five source student records, then
+reconcile the twelve D5 domains and43 original files. Complete persisted ZIP
+integration after the owner's50MiB-versus260MiB capacity choice and real Gemini
 acceptance with an authorized document. D5/D6 remain open: no old Docs runtime,
 data, source, history or secrets were deleted. No new backup was created.
+This UI/docs continuation made no application release, schema or provider change;
+earlier preparation checkpoints below remain historical.
 
 ## Docs release preparation before PR778 (2026-09-15)
 

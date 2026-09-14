@@ -34,13 +34,16 @@ reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
 The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
-keeps document work inside Platform. S2 staff roles/onboarding and D2 reviewed
-profile fields/Student Profile DOCX are deployed in accepted `05585020`
-(`r59.1-05585020`): full CI `34770582933` and release `34771170873` passed.
-See the [release and post-release evidence](docs/design/v3/references/2026-09-13-staff-docs-s2-d2-release.md)
-and [Admin guide](docs/design/v3/staff-admin-guide.md). Real employee invite delivery,
-first login and real-client document acceptance remain open. Recognition, packages,
-data migration and standalone retirement remain open.
+keeps document work inside Platform. Current production is accepted `a358a3e3`
+(`r63.1-a358a3e3`); full CI `34901397830`, release `34902113327` and independent
+server readback passed. The [current release and real-UI evidence](docs/design/v3/references/2026-09-15-docs-managed-release.md)
+records ordinary Admin access, PDF gestures and nine verified blank-template
+uploads, with each mapping's status. Do not repeat completed uploads or treat
+them as filled-client-form acceptance. S2 roles/onboarding and D2 profile work
+from the [earlier `05585020` release](docs/design/v3/references/2026-09-13-staff-docs-s2-d2-release.md)
+remain deployed; see the [Admin guide](docs/design/v3/staff-admin-guide.md).
+Real employee invite/first-login, client-form and Gemini acceptance, ZIP capacity
+and persistence, D5 data transfer and D6 standalone retirement remain open.
 
 The September11 [university completion run](docs/design/v3/university-catalog-completion-run-plan.md)
 is accepted in `892558b2`: **143 institutions across15 countries, 251 selected

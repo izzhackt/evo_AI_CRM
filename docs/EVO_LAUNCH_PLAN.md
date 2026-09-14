@@ -2,33 +2,34 @@
 
 ## Active Docs release checkpoint (2026-09-15)
 
-Platform CI 34899485487 on merged PR780 (`7a11f047`) passed Node/static,
-build and dependency gates, then stopped at `COLD_EXPORT_HISTORY`. The existing
-browser proof waits for the old history URL/schema, while the real client now
-requests the strict v2 workspace. Before coding, limit the repair to that proof
-and its existing contract test: exact v2 URL and normalizer, unchanged real
-cold-page history, revision, download bytes/SHA and no-regeneration assertions.
-Run the existing focused disposable Student Profile proof before another full
-release attempt. No product, schema, Storage or permission change; arm=false,
-release skipped, live05585020 and all old Docs data/runtime remain preserved.
+The application release is complete; the full Docs unification is not.
+[Platform CI34901397830](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34901397830)
+and [managed release34902113327](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34902113327)
+passed on `a358a3e3767264bd3c77c4afc0e50af2c11b3eba`. Production accepted
+`r63.1-a358a3e3`; independent pointer/record/image/runtime readback agrees.
+App and private scanner/WAHA are healthy with zero restarts; pending is absent,
+and release arm=false was explicitly restored and read back. The existing
+localhost:3000 SSH tunnel still targets this same server app, not a local copy.
+See the [release evidence and handover](design/v3/references/2026-09-15-docs-managed-release.md).
 
-PR779 fixed the explicit adapter inventory. In subsequent Platform
-CI34898505017 the1794-test group passed (one existing skip), then the component
-group stopped because its bespoke test loader does not resolve the newly
-imported `UniversityFormExportPanel`. Repair only that existing render-test
-loader using the real child component, keep command/network boundaries inert,
-and run the remaining Node groups together before another release attempt.
-No production component or access-rule change is needed; release is disarmed.
+PR779–781 repaired only stale test inventory, real-child loading and the strict
+v2 cold-history proof. Full Node checks:2029 PASS,1 existing SKIP,0 FAIL;
+build/lint/types, database/Auth/browser gates and read-only production login
+passed. Saved-profile cold downloads and replay are technically proved with
+synthetic fixtures, not accepted as a real client/form workflow.
 
-PR778 is merged as934228ed. Managed apply34897249592 verified001–168;
-both private20MiB PDF/DOCX buckets are provisioned and independently read back.
-Actual project limit is50MiB: forms fit,260MiB ZIP parity remains blocked.
-Manual Platform CI34897643936 stopped on the stale V3 adapter inventory:
-the legitimate `university-form-source.ts` from merged PR773 is absent from
-its two explicit expected lists. Update only those lists; preserve exact
-inventory equality and all Supabase-only/no-legacy assertions. Release is
-disarmed; live accepted05585020 is unchanged. Do not repeat schema apply or
-bucket creation. D4 real browser acceptance, D5/D6 and retirement remain open.
+Managed001–168 and both private20MiB PDF/DOCX buckets are verified; do not repeat
+schema apply, bucket creation or unchanged successful suites. Retain168 while
+the retained05585020 rollback app still needs the two unchanged service-only
+RPCs. Actual project Storage limit is50MiB;260MiB ZIP parity remains unresolved.
+
+Resume: ordinary Admin login in the existing tunnel, real PDF move/resize and
+filled-form save/history/download acceptance; import the nine blank templates
+through current ingress; obtain explicit mapping of the five source student
+records, then reconcile the twelve D5 domains and43 original files. Complete
+persisted ZIP integration after the owner's capacity choice and real Gemini
+acceptance with an authorized document. D5/D6 remain open: no old Docs runtime,
+data, source, history or secrets were deleted. No new backup was created.
 
 ## Docs release preparation before PR778 (2026-09-15)
 
@@ -101,9 +102,10 @@ ordered sequence #594 through #600, then #551 through #553. After #594 merges,
 root `CLAUDE.md` and `docs/design/v3/product.md` govern V3 product detail under
 those higher-level authorities.
 
-Last recorded accepted application: `05585020a411111939a72c4121c66369839a066b`
+Previous accepted application: `05585020a411111939a72c4121c66369839a066b`.
+The current application/schema checkpoint is the September15 entry at the top.
 
-Current release checkpoint (2026-09-13): S2 dynamic staff authority and D2
+Historical release checkpoint (2026-09-13): S2 dynamic staff authority and D2
 reviewed profile fields/Student Profile DOCX are released. Full exact-main
 CI34770582933 and automatic release34771170873 passed on05585020. Independent
 Hermes readback at17:25:50UTC matched revision/image/acceptance/browser hashes:
@@ -114,8 +116,8 @@ search → cancel passed without persisted writes. See
 [the combined release evidence](design/v3/references/2026-09-13-staff-docs-s2-d2-release.md).
 Do not repeat this completed full gate/release for status-only documentation.
 Real employee mail/first-login, real client document/provider acceptance and
-D3–D6 remain open. Last confirmed managed schema is 001–161; source migrations
-162–166 are integrated in the development candidate, not applied to production.
+D3–D6 remained open. At that checkpoint managed schema was001–161 and source
+162–166 was not yet applied. Current managed001–168 supersedes that state.
 
 ### Historical release diagnostics before accepted05585020
 

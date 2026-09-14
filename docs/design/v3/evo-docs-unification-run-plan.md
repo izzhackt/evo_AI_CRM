@@ -1,19 +1,30 @@
 # EVO Docs → одна EVO Platform
 
 Дата: 2026-09-15. Владелец разрешил перенос функций и последующее удаление отдельного
-приложения. Статус: D0/D1 завершены; D2 выпущен в `05585020` с полным CI.
+приложения. Статус: D0/D1 завершены; текущий выпуск — `a358a3e3`, полный CI пройден.
 Приёмка анкеты на согласованном реальном деле остаётся открытой.
-Код распознавания и сохранённых университетских форм объединён; D3–D6,
+Код распознавания и сохранённых университетских форм выложен; D3–D6,
 перенос данных и выключение отдельного приложения не завершены.
 [Контракт D2](evo-docs-profile-fields-contract.md) и
 [локальное доказательство](references/2026-09-13-student-profile-fields-local-proof.md)
 фиксируют реализованный путь, не разрешение выключать старый runtime.
 Сервер, обязательный CI, выпуск и localhost-туннель проверены:
-[доказательства S2/D2](references/2026-09-13-staff-docs-s2-d2-release.md).
+[текущий выпуск и остаток работ](references/2026-09-15-docs-managed-release.md).
 Контракт: `docs/EVO_LAUNCH_PLAN.md` → ADR0028 → этот план → `DESIGN.md`.
 Параллельный run: [сотрудники и роли](employee-roles-accounts-run-plan.md).
 
-Checkpoint 2026-09-15: [сверка перед cutover](references/2026-09-15-docs-cutover-preflight.md)
+Текущий checkpoint: CI34901397830 и managed release34902113327 SUCCESS на
+`a358a3e3767264bd3c77c4afc0e50af2c11b3eba`, accepted `r63.1-a358a3e3`.
+Независимо совпали pointer/record/image/runtime; healthy,0 restarts, pending нет,
+arm=false. Managed001–168 и оба private20MiB PDF/DOCX buckets проверены.
+Существующий localhost:3000-туннель ведёт к той же версии; нужен обычный Admin
+login для оставшейся реальной приёмки. CI и smoke не закрывают D3–D6.
+Global Storage limit50MiB: формы помещаются, исходные ZIP260MiB — нет; вопрос
+владельцу задан, тариф/лимит не менялись. Пять source records и43 файла сохранены;
+импорт девяти пустых шаблонов, D5-сопоставление/перенос и удаление ещё не выполнены.
+Не повторять завершённые schema/provisioning/CI gates без относящегося изменения.
+
+История подготовки 2026-09-15: [сверка перед cutover](references/2026-09-15-docs-cutover-preflight.md)
 фиксирует clean source `f420fe8c`, действующий accepted `05585020`, `arm=false`
 и read-only schema-check34893968851 SUCCESS: managed001–161, source162–167.
 Выбран временный forward168 для двух прежних service-only RPC, чтобы сохранить
@@ -56,8 +67,8 @@ Evidence: `/tmp/evo-form-four-51049c4c.sdFtVc/RESULT.md`, SHA256
 После него — ZIP с исходными возможностями250MiB+анкета/260MiB download,
 проверкой доступной Storage capacity, затем D5/D6. Не повторять завершённые
 ingress/review/CI gates без изменения относящегося к ним кода.
-Production и managed-schema в этом срезе не менялись; последний подтверждённый
-managed checkpoint остаётся001–161. Старый EVO Docs и его данные не удалены.
+На момент PR775 production и managed-schema ещё не менялись (001–161).
+Теперь действует текущий checkpoint выше; старый EVO Docs и его данные не удалены.
 
 Предыдущая точка, 2026-09-14: [PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773)
 merged как `0f58072b` после review и всех шести проверок exact `7ce58d35`.
@@ -90,7 +101,7 @@ PR768 merged как `c2ddd12d` 2026-09-13; тогдашний следующий
 Дальнейшие D4 формы/пакеты, D5/D6, настоящие приглашения и разрешённая
 Gemini/client приёмка остаются обязательными.
 
-Текущий production checkpoint: full CI34770582933 и release34771170873 SUCCESS на
+Предыдущий production checkpoint: full CI34770582933 и release34771170873 SUCCESS на
 `05585020a411111939a72c4121c66369839a066b`. Independent server readback совпал
 с accepted image/revision/receipts; healthy/0 restarts, pending отсутствует,
 arm=false. Localhost-туннель ведёт к этой же версии. Это технический выпуск,

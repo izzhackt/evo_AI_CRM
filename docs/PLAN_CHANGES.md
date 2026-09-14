@@ -26632,3 +26632,21 @@ schema, stub responses, skip assertions, or modify product permissions/API.
 Use the existing focused disposable harness for this boundary before another
 exact-main release. Production release was skipped; arm=false. Schema 001–168,
 both private buckets, accepted05585020 and old Docs data are unchanged.
+
+### 2026-09-15 — record the accepted Docs application release, preserve cutover gates
+
+Full Platform CI34901397830 and managed release34902113327 passed on exact
+`a358a3e3767264bd3c77c4afc0e50af2c11b3eba`. The release's authenticated read-only
+browser smoke and named acceptance step passed; independent server readback
+confirms accepted r63.1-a358a3e3, exact image/runtime, healthy private services,
+zero restarts and no pending candidate. Arm=false was restored and verified.
+The existing localhost tunnel still reaches that server app. No further
+runtime change or repeated schema/provisioning run follows from this docs update.
+
+Refresh root and unification-plan checkpoints and publish sanitized release
+evidence. Synthetic profile history/download/replay and deployment proof do not
+close real D3/D4 acceptance, D5 transfer or D6 retirement. Ordinary Admin browser
+login, explicit mapping of five source records and the50MiB-versus260MiB ZIP
+capacity decision remain open. Keep168 for the retained05585020 rollback app.
+All old Docs runtime/data/history and existing backups remain preserved; no new
+backup, provider activation, paid capacity increase or deletion is claimed.

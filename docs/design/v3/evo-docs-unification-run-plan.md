@@ -12,22 +12,42 @@ D3/D4 разрабатываются; D3–D6, перенос данных и в
 Контракт: `docs/EVO_LAUNCH_PLAN.md` → ADR0028 → этот план → `DESIGN.md`.
 Параллельный run: [сотрудники и роли](employee-roles-accounts-run-plan.md).
 
-Reuse-first checkpoint: [PR774](https://github.com/izzhackt/evo_AI_CRM/pull/774)
-содержит проверенные перенос жестов PDF `c5382ba3` и исправление координат
-браузерного сценария `c26ecb86`; это source review, не новый browser PASS.
+Reuse-first checkpoint: [PR775](https://github.com/izzhackt/evo_AI_CRM/pull/775)
+merged в `main` как `a063a1ab` после независимого review и всех шести
+[CI-проверок exact `51049c4c`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34839629608).
+В коде объединены SQL167, прежние Word/PDF-движки, приватное сохранение форм,
+выбор заявления/опубликованного бланка и общая история скачиваний.
+[PR774](https://github.com/izzhackt/evo_AI_CRM/pull/774) закрыт как включённый
+в PR775; его ветка и локальные материалы сохранены. Перенос жестов PDF
+`c5382ba3` и исправление координат браузерного сценария `c26ecb86` включены;
+это source review, не новый browser PASS.
 Native-адаптер `902497fd` сохраняет прежние Word/PDF-движки. На существующем
 образе `sha256:074b7ff47974b7fa063eb4e98396f62bdda3d194d9cb4bac9f72d279efc5db62`
 проверены девять разрешённых пустых PDF-бланков:9/9 совпадений SHA/inspection,
 31/31 страниц отрисованы и просмотрены. Это просмотр, не заполнение анкетой.
 Локальные evidence: `/tmp/evo-real-blank-native.Vfti0U/RESULT.md` и `report.json`
 (SHA256 `494b4ebf4eab835461203bebaaa0acbf04d594e8f4a4f27d501ea9dfd5721cc9`).
-Host-ветка `izzhackt/evo-university-form-host` объединяет готовые SQL167,
-renderer и адаптер сохранения; выбор заявки/бланка и история интегрируются.
-Следующее: review общего host diff → фактическая проверка изменённых экранов
-и сохранённого файла → ZIP с сохранением возможностей исходного приложения.
-Production и managed-schema от этих коммитов не изменились.
+Четыре ранее непроверенных исправления native harness подтверждены отдельным
+прогоном exact `51049c4c`:4/4 PASS,31,3с, exit0/OOMfalse; собственный контейнер
+удалён, отсутствие проверено. Проверены readiness/manual, deadline/cleanup,
+отказ при результате >20MiB для обоих форматов и PDF font/image compatibility.
+Image: `sha256:2c7baa761b8ede2ea3533508a0024bf8e300004abcc25080243d77a14b953be6`.
+Evidence: `/tmp/evo-form-four-51049c4c.sdFtVc/RESULT.md`, SHA256
+`128fe84c243080ce7b33052dff4db86289cbb648c38b6d6afa89d4c4edcbba42`.
+Четыре полученных PNG просмотрены. Это синтетические native-примеры, не новое
+45/45, amd64, host/browser или реальная клиентская приёмка.
 
-Точка возобновления, 2026-09-14: [PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773)
+Следующее: фактическая проверка перемещения/размера поля в PDF UI и пути
+формирование → сохранение → история → скачивание после повторного входа.
+Существующий ingress browser proof не проверяет body move/corner resize и
+сохраняет `generatedFormAcceptance=false`; не выдавать его за этот новый gate.
+После него — ZIP с исходными возможностями250MiB+анкета/260MiB download,
+проверкой доступной Storage capacity, затем D5/D6. Не повторять завершённые
+ingress/review/CI gates без изменения относящегося к ним кода.
+Production и managed-schema в этом срезе не менялись; последний подтверждённый
+managed checkpoint остаётся001–161. Старый EVO Docs и его данные не удалены.
+
+Предыдущая точка, 2026-09-14: [PR773](https://github.com/izzhackt/evo_AI_CRM/pull/773)
 merged как `0f58072b` после review и всех шести проверок exact `7ce58d35`.
 Следующий блок — визуальная настройка PDF, сохранённые формы и пакеты;
 production от merge не менялся. В PR773

@@ -12,6 +12,32 @@ test("template bucket configuration defaults to credential-free no-mutation plan
 const key = "sb_secret_synthetic_transport_only_123";
 const environment = { NEXT_PUBLIC_SUPABASE_URL: "https://iosckaqtovbbnssqcpde.supabase.co", EVO_PLATFORM_SUPABASE_SECRET_KEY: key };
 const response = (value, status = 200) => Response.json(value, { status });
+// Exact non-sensitive response observed from managed Storage on 2026-09-15.
+const legacyMissing = { statusCode: "404", error: "Bucket not found", message: "Bucket not found", code: "NoSuchBucket" };
+
+test("observed legacy template absence supports read-only check and one explicit create", async () => {
+  for (const mode of ["check", "apply"]) {
+    const calls = [], replies = [response(legacyMissing, 400), response({ name: UNIVERSITY_TEMPLATE_BUCKET.name }), response(UNIVERSITY_TEMPLATE_BUCKET)];
+    const result = await configureUniversityTemplateStorage({ mode, environment, fetchImpl: async (_url, init) => {
+      calls.push(init.method); return replies.shift();
+    } });
+    assert.equal(result.report.status, mode === "apply" ? "created_and_verified" : "bucket_missing");
+    assert.equal(result.report.mutationAttempted, mode === "apply");
+    assert.equal(result.report.readbackVerified, mode === "apply");
+    assert.deepEqual(calls, mode === "apply" ? ["GET", "POST", "GET"] : ["GET"]);
+  }
+});
+
+test("conflicting or incomplete legacy absence never authorizes a template bucket create", async () => {
+  for (const override of [{ statusCode: "403" }, { code: "AccessDenied" }, { error: "Unauthorized" },
+    { message: "not found" }, { code: undefined }, { detail: "unexpected" }]) {
+    let calls = 0;
+    const result = await configureUniversityTemplateStorage({ mode: "apply", environment, fetchImpl: async (_url, init) => {
+      calls++; assert.equal(init.method, "GET"); return response({ ...legacyMissing, ...override }, 400);
+    } });
+    assert.equal(result.report.status, "bucket_read_failed"); assert.equal(result.report.mutationAttempted, false); assert.equal(calls, 1);
+  }
+});
 // Script transport fixtures are not evidence that a managed bucket exists.
 test("check is strictly read-only and sanitizes bucket setting conflicts", async () => {
   for (const bucket of [{ ...UNIVERSITY_TEMPLATE_BUCKET, public: true }, { ...UNIVERSITY_TEMPLATE_BUCKET, file_size_limit: 1 },

@@ -11,6 +11,8 @@ const bucket = () => ({ ...DOCUMENT_EXPORT_BUCKET, allowed_mime_types: [...DOCUM
   owner: "excluded-owner", created_at: "excluded-timestamp", arbitrary: syntheticKey });
 const json = (body, status = 200) => Response.json(body, { status });
 const missing = () => json({ code: "NoSuchBucket", message: "Bucket not found" }, 404);
+// Exact non-sensitive response observed from managed Storage on 2026-09-15.
+const legacyMissing = { statusCode: "404", error: "Bucket not found", message: "Bucket not found", code: "NoSuchBucket" };
 
 function fakeHttp(responses) {
   const calls = [];
@@ -104,6 +106,28 @@ test("absent bucket is reported without mutation in the default mode", async () 
   assert.equal(result.exitCode, 1); assert.equal(result.report.status, "bucket_missing");
   assert.equal(result.report.before, null); assert.equal(result.report.mutationAttempted, false);
   assert.equal(fake.calls.length, 1); assert.equal(fake.calls[0].method, "GET");
+});
+
+test("observed legacy missing-bucket response supports check and one explicit create", async () => {
+  for (const apply of [false, true]) {
+    const fake = fakeHttp([json(legacyMissing, 400), json({ name: UNIVERSITY_FORM_EXPORT_BUCKET.name }), json(UNIVERSITY_FORM_EXPORT_BUCKET)]);
+    const result = await configureDocumentExportStorage({ apply, universityForms: true, environment, fetchImpl: fake.fetchImpl });
+    assert.equal(result.report.status, apply ? "created_and_verified" : "bucket_missing");
+    assert.equal(result.report.mutationAttempted, apply);
+    assert.equal(result.report.readbackVerified, apply);
+    assert.deepEqual(fake.calls.map(call => call.method), apply ? ["GET", "POST", "GET"] : ["GET"]);
+    if (apply) assert.deepEqual(JSON.parse(fake.calls[1].body), UNIVERSITY_FORM_EXPORT_BUCKET);
+  }
+});
+
+test("conflicting or incomplete legacy absence never authorizes an export bucket create", async () => {
+  for (const override of [{ statusCode: "403" }, { code: "AccessDenied" }, { error: "Unauthorized" },
+    { message: "not found" }, { code: undefined }, { detail: "unexpected" }]) {
+    const fake = fakeHttp([json({ ...legacyMissing, ...override }, 400)]);
+    const result = await configureDocumentExportStorage({ apply: true, universityForms: true, environment, fetchImpl: fake.fetchImpl });
+    assert.equal(result.report.status, "bucket_read_failed");
+    assert.equal(result.report.mutationAttempted, false); assert.equal(fake.calls.length, 1);
+  }
 });
 
 test("matching existing settings are an idempotent read even with apply", async () => {

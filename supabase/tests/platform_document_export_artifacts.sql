@@ -54,10 +54,10 @@ SELECT pg_temp.d4_assert(NOT has_function_privilege('authenticated','platform.co
  'staff cannot mark an artifact ready');
 SELECT pg_temp.d4_assert(NOT has_table_privilege('authenticated','platform_private.document_export_artifacts','UPDATE'),
  'staff cannot overwrite publication state');
--- Historical functions still exist, but no runtime role can use the retired
--- transient producer after the proved persistent replacement's cutover.
-SELECT pg_temp.d4_assert(NOT has_function_privilege(actor.role_name,legacy.signature,'EXECUTE'),
- format('retired producer denied to %s: %s',actor.role_name,legacy.signature))
+-- Forward168 preserves the accepted/rollback app's two unchanged161 RPCs.
+-- This compatibility grants only service execution, never a value reader.
+SELECT pg_temp.d4_assert(has_function_privilege(actor.role_name,legacy.signature,'EXECUTE')=(actor.role_name='service_role'),
+ format('rollback producer privilege for %s: %s',actor.role_name,legacy.signature))
  FROM (VALUES ('anon'),('authenticated'),('service_role'),('supabase_auth_admin')) AS actor(role_name)
  CROSS JOIN (VALUES
   ('platform.begin_student_profile_export(uuid,uuid,uuid,uuid,bigint,text,text,uuid)'),
@@ -69,7 +69,9 @@ SELECT pg_temp.d4_assert(NOT EXISTS (
   'platform.begin_student_profile_export(uuid,uuid,uuid,uuid,bigint,text,text,uuid)'::REGPROCEDURE,
   'platform.complete_student_profile_export(uuid,text,text,integer,text)'::REGPROCEDURE)
  AND permission.grantee=0 AND permission.privilege_type='EXECUTE'),
- 'PUBLIC has no retired producer execution grant');
+ 'PUBLIC has no rollback producer execution grant');
+SELECT pg_temp.d4_assert(NOT has_table_privilege('service_role','platform_private.student_profile_export_attempts','SELECT'),
+ 'rollback compatibility grants no legacy attempt reader');
 SET LOCAL ROLE service_role;
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 DO $$BEGIN
@@ -483,5 +485,47 @@ SELECT pg_temp.d4_assert((SELECT state='ready' AND output_sha256=repeat('d',64) 
  'source health and removal never rewrite an immutable ready receipt');
 SELECT pg_temp.d4_assert((SELECT count(*)=14 FROM platform_private.document_export_artifacts WHERE organization_id=pg_temp.d4_id(1)),
  'all source checks, lease/grant failures and downloads retain one artifact per preparation');
+
+-- Reuse the existing case/admin, after persistent-path assertions. These are
+-- SQL generation metadata, not a rendering/Storage/delivery acceptance claim.
+SET LOCAL request.jwt.claims TO :'d4_admin';
+SET LOCAL ROLE authenticated;
+INSERT INTO d4_receipts SELECT 'legacy-workspace-before',platform.staff_document_export_workspace(pg_temp.d4_id(501));
+RESET ROLE;
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+INSERT INTO d4_receipts SELECT 'legacy-begin',platform.begin_student_profile_export(
+ pg_temp.d4_id(1),pg_temp.d4_id(501),pg_temp.d4_id(102),pg_temp.d4_id(302),
+ (SELECT (body->'profile'->>'revision')::BIGINT FROM d4_receipts WHERE key='legacy-workspace-before'),
+ 'draft',repeat('8',64),pg_temp.d4_id(1280));
+INSERT INTO d4_receipts SELECT 'legacy-generated',platform.complete_student_profile_export(
+ (SELECT (body->>'attempt_id')::UUID FROM d4_receipts WHERE key='legacy-begin'),'generated',repeat('9',64),128,NULL);
+SELECT pg_temp.d4_assert((SELECT body->>'status'='generated' AND body->'failure_code'='null'::JSONB
+ FROM d4_receipts WHERE key='legacy-generated'),'accepted app can record generation through unchanged161');
+INSERT INTO d4_receipts SELECT 'legacy-replay',platform.begin_student_profile_export(
+ pg_temp.d4_id(1),pg_temp.d4_id(501),pg_temp.d4_id(102),pg_temp.d4_id(302),
+ (SELECT (body->'profile'->>'revision')::BIGINT FROM d4_receipts WHERE key='legacy-workspace-before'),
+ 'draft',repeat('8',64),pg_temp.d4_id(1280));
+SELECT pg_temp.d4_assert((SELECT body->>'created'='false' AND body->>'status'='generated'
+ AND body->>'attempt_id'=(SELECT body->>'attempt_id' FROM d4_receipts WHERE key='legacy-begin')
+ FROM d4_receipts WHERE key='legacy-replay'),'legacy replay does not regenerate');
+SELECT pg_temp.d4_assert(pg_temp.d4_error(format('SELECT platform.complete_student_profile_export(%L::uuid,%L,%L,128,NULL)',
+ (SELECT body->>'attempt_id' FROM d4_receipts WHERE key='legacy-begin'),'generated',repeat('a',64)))='23505',
+ 'legacy completion still rejects a changed replay');
+SELECT pg_temp.d4_assert(pg_temp.d4_error(format('SELECT platform.begin_student_profile_export(%L::uuid,%L::uuid,%L::uuid,%L::uuid,%s,%L,%L,%L::uuid)',
+ pg_temp.d4_id(1),pg_temp.d4_id(501),pg_temp.d4_id(101),pg_temp.d4_id(302),
+ (SELECT body->'profile'->>'revision' FROM d4_receipts WHERE key='legacy-workspace-before'),'draft',repeat('8',64),pg_temp.d4_id(1281)))='42501',
+ 'rollback grant does not bypass actual actor identity');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'d4_admin';
+SET LOCAL ROLE authenticated;
+INSERT INTO d4_receipts SELECT 'legacy-workspace-after',platform.staff_document_export_workspace(pg_temp.d4_id(501));
+SELECT pg_temp.d4_assert((SELECT body=(SELECT body FROM d4_receipts WHERE key='legacy-workspace-before')
+ FROM d4_receipts WHERE key='legacy-workspace-after'),'legacy generated does not become stored ready or change164 history');
+RESET ROLE;
+SELECT pg_temp.d4_assert((SELECT count(*)=1 FROM platform_private.student_profile_export_attempts
+ WHERE organization_id=pg_temp.d4_id(1) AND status='generated'), 'one separate immutable legacy generation record');
+SELECT pg_temp.d4_assert((SELECT count(*)=14 FROM platform_private.document_export_artifacts WHERE organization_id=pg_temp.d4_id(1)),
+ 'legacy compatibility inserts no persistent artifact');
 ROLLBACK;
 \echo DOCUMENT_EXPORT_ARTIFACT_SQL_BEHAVIOR_VERIFIED

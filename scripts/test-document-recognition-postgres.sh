@@ -35,8 +35,7 @@ while IFS= read -r migration; do
   next_migration=$((next_migration + 1))
 done < <(rg --files supabase/migrations | LC_ALL=C sort)
 minimum_migrations=163
-[[ "$with_document_exports" == 0 ]] || minimum_migrations=164
-[[ "$with_university_form_exports" == 0 ]] || minimum_migrations=167
+[[ "$with_document_exports" == 0 ]] || minimum_migrations=168
 [[ "${#migrations[@]}" -ge "$minimum_migrations" ]] || {
   echo "Foundation requires at least migrations 001-$minimum_migrations" >&2; exit 1;
 }
@@ -93,14 +92,46 @@ docker exec --env PGPASSWORD=postgres "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U supabase_admin -d "$test_database" \
   -c 'GRANT anon, authenticated, service_role, supabase_auth_admin, supabase_admin TO postgres;' >>"$proof_log" 2>&1
 run_sql -f /workspace/supabase/tests/bootstrap_supabase.sql >>"$proof_log" 2>&1
+# Compare the actual installed definitions, not a hand-copied approximation.
+# The same ACL assertion must fail at167 and pass at168 in this one database.
+legacy_definitions_sql="SELECT string_agg(pg_get_functiondef(signature::REGPROCEDURE),E'\n' ORDER BY signature)
+ FROM (VALUES
+ ('platform.begin_student_profile_export(uuid,uuid,uuid,uuid,bigint,text,text,uuid)'),
+ ('platform.complete_student_profile_export(uuid,text,text,integer,text)')) AS legacy(signature);"
+legacy_service_acl_sql="DO \$\$ BEGIN
+ IF NOT has_function_privilege('service_role','platform.begin_student_profile_export(uuid,uuid,uuid,uuid,bigint,text,text,uuid)','EXECUTE')
+ OR NOT has_function_privilege('service_role','platform.complete_student_profile_export(uuid,text,text,integer,text)','EXECUTE') THEN
+ RAISE EXCEPTION 'Rollback compatibility service EXECUTE missing';
+ END IF; END \$\$;"
+legacy_definitions_161=''
 migration_count=0
 for migration in "${migrations[@]}"; do
+  if [[ "$with_document_exports" == 1 && "${migration##*/}" == 168_* ]]; then
+    if legacy_acl_red="$(run_sql -c "$legacy_service_acl_sql" 2>&1)"; then
+      echo 'Expected the compatibility ACL regression to fail before168' >&2; exit 1
+    fi
+    [[ "$legacy_acl_red" == *'ERROR:  Rollback compatibility service EXECUTE missing'* ]] || {
+      printf '%s\n' "$legacy_acl_red" >&2; exit 1;
+    }
+    echo 'STUDENT_PROFILE_EXPORT_COMPATIBILITY_RED_BEFORE168'
+  fi
   if ! run_sql -f "/workspace/$migration" >>"$proof_log" 2>&1; then
     echo "Foundation migration failed: $(basename "$migration")" >&2
     tail -20 "$proof_log" >&2
     exit 1
   fi
   migration_count=$((migration_count + 1))
+  if [[ "$with_document_exports" == 1 && "${migration##*/}" == 161_* ]]; then
+    legacy_definitions_161="$(run_sql -At -c "$legacy_definitions_sql")"
+    [[ -n "$legacy_definitions_161" ]] || { echo 'Missing161 function definitions' >&2; exit 1; }
+  elif [[ "$with_document_exports" == 1 && "${migration##*/}" == 168_* ]]; then
+    run_sql -c "$legacy_service_acl_sql"
+    legacy_definitions_168="$(run_sql -At -c "$legacy_definitions_sql")"
+    [[ "$legacy_definitions_168" == "$legacy_definitions_161" ]] || {
+      echo 'Rollback compatibility changed161 function definitions' >&2; exit 1;
+    }
+    echo 'STUDENT_PROFILE_EXPORT_COMPATIBILITY_GREEN_AFTER168_DEFINITIONS_UNCHANGED'
+  fi
 done
 echo "DOCUMENT_RECOGNITION_PROOF_MIGRATIONS $migration_count"
 # SQL exercises authenticated public RPCs and rolls back its synthetic fixtures.

@@ -53,7 +53,12 @@ export async function configureUniversityTemplateStorage({ mode = "plan", enviro
       if (!settingsMatch(current.body)) fail("bucket_settings_conflict");
       report.status = "ready"; report.readbackVerified = true; return { exitCode: 0, report };
     }
-    if (current.status !== 404 || current.body?.code !== "NoSuchBucket") fail("bucket_read_failed");
+    // Accept the exact legacy envelope observed on managed Storage, not generic400.
+    // https://supabase.com/docs/guides/storage/debugging/error-codes
+    const legacyMissing = current.status === 400 && current.body?.statusCode === "404"
+      && current.body.code === "NoSuchBucket" && current.body.error === "Bucket not found"
+      && current.body.message === "Bucket not found" && Object.keys(current.body).length === 4;
+    if (!legacyMissing && (current.status !== 404 || current.body?.code !== "NoSuchBucket")) fail("bucket_read_failed");
     if (mode !== "apply") fail("bucket_missing");
     // Explicit apply creates once; never overwrite settings, objects or policies.
     stage = "create"; report.mutationAttempted = true;

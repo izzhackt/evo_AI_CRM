@@ -1,5 +1,46 @@
 # EVO Launch Plan
 
+## Owner scope update: discard old test data and retire Docs (2026-09-15)
+
+The owner confirms the five old Docs students were test records, explicitly
+waives their history transfer and filled-document acceptance, and requests
+deletion of standalone EVO Docs. D5 is cancelled by owner decision, not completed
+by migration. Do not create Platform cases or replay old history. Existing
+Platform profiles, form generation/history and the nine imported blank templates
+remain; this does not remove those product features.
+
+The owner also authorizes the standard isolated test checks requested in the
+previous turn. Use them for regression/release evidence, never as real-client
+acceptance. Complete the prepared PDF fix with scoped regression, independent
+review, required PR checks and one exact-main CI/release. Then verify the actual
+published GDUT mapping through the production tunnel. No gate bypass or new
+production test students. No new backup, reset, paid upgrade or provider action.
+
+Retire only verified old Docs app resources and its now-disposable test runtime;
+preserve shared Caddy/network, CRM, WAHA, unrelated projects and external secrets.
+Prefer recoverable removal of the standalone source checkout; retain reused code
+until ZIP needs are resolved. Existing backups are not deletion targets.
+The owner explicitly accepts ZIP up to50MiB without additional costs, replacing
+the former260MiB capacity goal. Implement it in the existing partner-packet panel
+and document-export history: immutable selected original/generated versions,
+hash-verified bytes, private persistent artifact, idempotent save and cold
+download. Never omit an oversized/invalid selected file. Original-only packages
+must not fabricate a profile. Keep current5/20MiB profile/form limits; raise only
+the private export bucket to50MiB and add ZIP MIME, with exact readback. Global
+Storage limit and tariff remain unchanged. See the updated D4 package contract.
+Merge the bounded PDF slice first, then ZIP; run one final combined exact-main
+CI/release rather than deploying twice.
+
+Standalone retirement is now executed independently of the still-pending PDF
+release: the old container/image/private network are absent; source/data were
+moved recoverably, not copied. Existing backups and keys remain. See the
+[retirement receipt](design/v3/references/2026-09-15-docs-managed-release.md#standalone-retirement-after-owner-test-data-waiver).
+The main app, scanner, WAHA and shared edge retained their IDs/images and zero
+restarts. Tunnel login=200. Primary-domain DNS fails from Mac and VPS; this is
+not a successful custom-domain health check and no DNS/proxy change was made.
+Follow-up confirms the existing owner decision: sslip is the sole configured
+production hostname; custom DNS is deferred. VPS sslip login=200/TLS verify0.
+
 ## Active PDF preview reliability slice (2026-09-15)
 
 On accepted `a358a3e3`, rapid GDUT Degree page1→2→1 changes reproduced a
@@ -24,8 +65,8 @@ TypeScript and the full production build pass on Node22.23.1. Positive browser
 acceptance is pending: the Mac preview cannot run the Linux-only native page
 handler, and localhost:3000 still serves the unchanged accepted app. Do not
 invent a controller image identity or replace the real page endpoint. The owner
-has been asked whether the existing isolated synthetic CI checks are permitted;
-until answered, do not dispatch them or describe them as real-client proof.
+has now permitted existing isolated CI checks; run them under the owner scope
+update above and keep the real post-release GDUT check separate.
 
 ## Active Docs release checkpoint (2026-09-15)
 

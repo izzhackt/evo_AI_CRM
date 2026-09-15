@@ -26708,3 +26708,44 @@ owner decisions for five source records alone do not finish the twelve-domain,
 staff confirmations. ZIP remains library-only with incompatible current limits;
 the observed50MiB global setting does not establish the project tariff or permit
 260MiB parity. Preserve the old source/runtime until those separate gates close.
+
+### 2026-09-15 — owner cancels test-history migration and authorizes Docs retirement
+
+The owner's explicit continuation confirms all five legacy students were tests:
+do not transfer their history or require filled documents from those records.
+They request deletion of standalone EVO Docs and approve the previously requested
+standard isolated test checks. Mark D5 cancelled by owner, not reconciled/migrated.
+Keep the already imported real blank templates and active Platform functionality.
+Do not create replacement students or label fixture verification as client proof.
+
+Release the bounded PDF lifecycle fix through scoped regression, independent
+review, required PR gates and one exact-main managed CI/release. Positive testing
+on the saved production GDUT mapping follows that release; the isolated suite is
+now permitted, but not a substitute for this post-release check. No invented
+runtime image identity, direct hot patch or release-gate weakening.
+
+Deletion scope must first be verified against the live old Docs Compose/runtime,
+proxy route and local checkout. Remove only app-owned resources; shared EVO edge,
+network, CRM/WAHA, external secrets and existing backups remain protected. No new
+backup is requested. Prefer recoverable source removal, and retain reusable ZIP
+source until its implementation decision is resolved. The separate50MiB-versus-
+260MiB ZIP choice remains explicit, with no tariff mutation or silent downgrade.
+
+### 2026-09-15 — owner accepts persisted ZIP up to50MiB without extra costs
+
+The owner selected the explicit50MiB option. This supersedes the former260MiB
+parity target; no paid/global Storage change is authorized or needed. Extend the
+existing partner-packet composition and shared document-export artifact/history
+path, not a new screen, storage authority or transient-only archive download.
+Freeze selected approved/clean originals and saved generated artifacts with
+exact hashes and case access; validate all selected files, persist once and
+download the same immutable ZIP after reauthentication. Final excludes draft
+generated files. No fabricated profile or placeholder binding for originals-only
+packages. Raise only the existing private export bucket to50MiB with ZIP MIME;
+retain5/20MiB per-kind profile/form caps and current original ingress limits.
+
+Standalone retirement has no remaining runtime dependency on ZIP: source inputs
+remain in the pinned GitHub history and recoverable local checkout. Merge PDF
+and ZIP in separate reviewed slices, then one combined exact-main CI/release and
+real post-release saved-template browser check. Old test-history migration stays
+cancelled; fixture regression is technical evidence only, not client acceptance.

@@ -213,3 +213,56 @@ Receipt нормализации: массивы `[x,y,width,height]`, PDF point
 `/opt/evo-student-docs/data`, локальный runtime, оригиналы, шаблоны, история,
 `.env`, Git history и provider secrets сохранены. Shared edge/network,
 CRM/Inbox/WAHA/ClamAV и их volumes не входят в удаление.
+
+## Standalone retirement after owner test-data waiver
+
+2026-09-15: the owner explicitly confirmed that the five legacy students were
+tests, cancelled history transfer/filled-old-document acceptance and requested
+old Docs deletion. This supersedes the historical D5/retirement prerequisites
+above; it does not prove ZIP, Gemini or real-client document acceptance.
+
+Before removal, exact container/project/mounts/network/image consumers and active
+Caddy routes were checked. No active edge route, other-container mount, service,
+cron, local listener or active Platform import depended on old Docs. The clean
+old checkout and GitHub main both resolve to
+`6e7cf741aa9c1005021860e509fb7b1294f94e00`; reusable ZIP inputs remain in Git.
+
+| Removed active resource | Verified identity |
+|---|---|
+| Container `evo-student-docs-app` | `a7c1f33bc9f009159964a66e4b7fb9a1f14c8514809c14ae3f69a7df5e92d872` |
+| Private network `evo_student_docs_private` | `809258ed10bf6073a0e232896d908629adaf98743702a834c053ba8abf0326fb` |
+| Image `evo-student-docs:eadbef1` | `sha256:d02bf43c4720188f5cdbd209e0ad4ced6b4520b6356c212f0b812d51515e2a30` |
+
+Exact stop/remove operations completed without force, volume deletion or pruning;
+absence was checked afterwards. Shared `evo_public_web` remains attached to
+`evo-edge-caddy`, `evo-crm-app-1` and `olympiadai-lms`. Main app/scanner/WAHA/edge
+IDs and image hashes are unchanged across retirement, all running with0 restarts.
+No Caddy configuration or provider setting was modified.
+
+Recoverable file moves, not new backups:
+
+- Local checkout moved from
+  `/Users/iskhak.tazhibaev/Documents/01_Projects/evo_student_document_system`
+  to `/Users/iskhak.tazhibaev/.Trash/evo_student_document_system-retired-20260915`.
+  Old path is absent; Git HEAD in Trash still equals the verified source SHA.
+- VPS `/opt/evo-student-docs/source` and `/opt/evo-student-docs/data` moved to
+  `/opt/evo-retired/evo-student-docs-20260915/source` and `data`; destination parent
+  mode0700. Old paths are absent and both destinations exist.
+- Existing `/opt/evo-student-docs/backups` (145 files), `secrets` (two credential
+  files), historical `caddy` material and GitHub repository remain untouched.
+  Source/data can be moved back deliberately; the removed image would need a
+  rebuild/reload. No new copy, fresh backup, credential rotation or revocation.
+
+Post-retirement tunnel `/login` returned200. Ordinary public-domain health could
+not be verified: `crm.evoadmissions.com` fails DNS resolution from both Mac and
+VPS; a Mac request pinned to the known server IP also encountered TLS reset.
+Do not label those requests healthy or infer causation from retirement. The
+configured release-health origin is checked separately by the managed release.
+
+Follow-up: this is the existing September6 owner decision, not a retirement
+regression. `evo-crm.72.62.119.112.sslip.io` remains the sole configured production
+hostname (CONTEXT/launch-plan); active Caddy has that host → `evo-crm-app:3000`
+and no custom CRM host. VPS sslip login returned200 with TLS verification0.
+Both VPS DNS and Google DNS from Mac returned NXDOMAIN for the deferred custom
+domain. Mac sslip curl separately failed local issuer trust (verification20).
+No DNS, Caddy or certificate-trust setting was changed.

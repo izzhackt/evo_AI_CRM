@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
@@ -264,4 +265,112 @@ test("session-authorized archived history remains readable without inventing wri
   assert.equal(universityFormWorkspaceMatches({ ...workspace, template: { ...workspace.template, archived: false } }, organizationId, catalogId), false);
   assert.equal(universityFormWorkspaceMatches(workspace, templateId, catalogId), false);
   assert.equal(universityFormWorkspaceMatches(workspace, organizationId, templateId), false);
+});
+
+// Deterministic control-flow probes of the actual component, NOT mounted React,
+// browser decoding, native rendering or business acceptance. The real browser
+// counterpart runs in university-pdf-mapping-browser-proof.mjs. Hooks below only
+// expose render-before-passive-cleanup; they do not model concurrent React.
+function pdfReadLifetimeProbe(t) {
+  const slots = [], effects = [], requests = [], revoked = new Set();
+  let cursor = 0, nextUrl = 0, decoding = deferred();
+  const same = (a, b) => a?.length === b.length && b.every((value, index) => Object.is(value, a[index]));
+  const hooks = {
+    useId: () => "pdf-lifetime",
+    useState(initial) {
+      const index = cursor++;
+      if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
+      return [slots[index], value => { slots[index] = typeof value === "function" ? value(slots[index]) : value; }];
+    },
+    useRef(initial) { const index = cursor++; return slots[index] ??= { current: initial }; },
+    useMemo(calculate, deps) {
+      const index = cursor++;
+      if (!same(slots[index]?.deps, deps)) slots[index] = { deps, value: calculate() };
+      return slots[index].value;
+    },
+    useEffect(setup, deps) {
+      const index = cursor++;
+      if (!same(slots[index]?.deps, deps)) effects.push(() => {
+        slots[index]?.cleanup?.(); slots[index] = { deps, cleanup: setup() };
+      });
+    },
+    useActionState: (_callback, initial) => [initial, () => assert.fail("probe cannot submit"), false],
+  };
+  t.mock.method(globalThis, "fetch", async url => {
+    const response = deferred(); requests.push({ page: Number(new URL(url, "https://example.invalid").searchParams.get("page")), response });
+    return response.promise;
+  });
+  t.mock.method(URL, "createObjectURL", () => `blob:pdf-lifetime-${++nextUrl}`);
+  t.mock.method(URL, "revokeObjectURL", url => revoked.add(url));
+  const originalImage = Object.getOwnPropertyDescriptor(globalThis, "Image");
+  Object.defineProperty(globalThis, "Image", { configurable: true, value: class {
+    naturalWidth = 600; naturalHeight = 800;
+    decode() { decoding.resolve(); return Promise.resolve(); }
+  } });
+  t.after(() => {
+    slots.forEach(slot => slot?.cleanup?.());
+    if (originalImage) Object.defineProperty(globalThis, "Image", originalImage); else delete globalThis.Image;
+  });
+  const source = readFileSync(new URL("../src/components/v3/universities/forms/UniversityPdfMappingEditor.tsx", import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
+  } });
+  const compiled = { exports: {} };
+  new Function("require", "module", "exports", outputText)(specifier => specifier === "react" ? hooks
+    : specifier.startsWith("@/") ? compile(`../src/${specifier.slice(2)}.ts`) : require(specifier), compiled, compiled.exports);
+  const manifest = { format: "pdf", slots: [], pageSizes: [{ width: 300, height: 400 }, { width: 300, height: 400 }] };
+  let props = { catalogId, templateId, version: { ...version, byte_size: 123 }, revision: 3,
+    manifest, manifestDigest: "b".repeat(64), mappingId: mapping.id, requestId: reserved.requestId,
+    initialMappings: [], action: () => assert.fail("probe cannot mutate") };
+  const nodes = (node, match) => !node || typeof node !== "object" ? [] : Array.isArray(node)
+    ? node.flatMap(item => nodes(item, match)) : [...(match(node) ? [node] : []), ...nodes(node.props?.children, match)];
+  function render() { cursor = 0; return compiled.exports.UniversityPdfMappingEditor(props); }
+  return {
+    render, commit: () => { for (const effect of effects.splice(0)) effect(); },
+    image: tree => nodes(tree, node => node.type === "img")[0]?.props.src ?? null,
+    select: (tree, page) => nodes(tree, node => node.type === "select" && node.props.id === "pdf-lifetime-page")[0].props.onChange({ target: { value: String(page) } }),
+    manifest: value => { props = { ...props, manifest: value }; }, originalManifest: manifest,
+    revoked, requestCount: () => requests.length,
+    async finish(index) {
+      const request = requests[index]; assert.ok(request, "a new page read must have started");
+      // Same framing-only bytes as the transport guard tests; Image.decode is
+      // simulated above. A passing probe cannot certify these as a rendered PNG.
+      const bytes = Buffer.alloc(33);
+      for (const [offset, value] of [[0, 0x89504e47], [4, 0x0d0a1a0a], [8, 13], [12, 0x49484452], [16, 600], [20, 800]]) bytes.writeUInt32BE(value, offset);
+      const metadata = { status: "rendered", policyVersion: "evo-university-template-page-v1", rendererId: "pdfjs-6.3.289-canvas-1.0.9",
+        mimeType: "application/pdf", sha256: version.sha256, byteLength: 123, manifestDigest: props.manifestDigest,
+        page: request.page, pageCount: 2, widthPt: 300, heightPt: 400, pixelWidth: 600, pixelHeight: 800,
+        pngByteLength: bytes.length, pngSha256: createHash("sha256").update(bytes).digest("hex") };
+      decoding = deferred();
+      request.response.resolve(new Response(bytes, { headers: { "content-type": "image/png", "content-length": String(bytes.length), "x-evo-template-page": JSON.stringify(metadata) } }));
+      await decoding.promise; await Promise.resolve(); await Promise.resolve();
+    },
+  };
+}
+
+test("PDF lifetime control-flow: page A→B→A never reuses the revoked A image while its replacement loads", { timeout: 3000 }, async t => {
+  const probe = pdfReadLifetimeProbe(t);
+  let tree = probe.render(); probe.commit(); await probe.finish(0);
+  tree = probe.render(); probe.commit(); const firstUrl = probe.image(tree); assert.ok(firstUrl);
+  probe.select(tree, 2); tree = probe.render(); probe.commit();
+  assert.ok(probe.revoked.has(firstUrl)); assert.equal(probe.image(tree), null);
+  probe.select(tree, 1); tree = probe.render();
+  assert.equal(probe.image(tree), null, "returning A must not commit the revoked image before the new effect");
+  probe.commit(); assert.equal(probe.requestCount(), 3); await probe.finish(2);
+  tree = probe.render(); probe.commit();
+  assert.ok(probe.image(tree)); assert.notEqual(probe.image(tree), firstUrl); assert.ok(!probe.revoked.has(probe.image(tree)));
+});
+
+test("PDF lifetime control-flow: same-key manifest replacement and reference return do not revive old image state", { timeout: 3000 }, async t => {
+  const probe = pdfReadLifetimeProbe(t);
+  let tree = probe.render(); probe.commit(); await probe.finish(0);
+  tree = probe.render(); probe.commit(); const firstUrl = probe.image(tree); assert.ok(firstUrl);
+  probe.manifest(structuredClone(probe.originalManifest)); tree = probe.render(); probe.commit();
+  assert.ok(probe.revoked.has(firstUrl));
+  assert.equal(probe.image(tree), null, "same read key must not keep the image whose manifest owner was cleaned up");
+  probe.manifest(probe.originalManifest); tree = probe.render();
+  assert.equal(probe.image(tree), null, "reusing the original manifest reference must not reuse its obsolete request");
+  probe.commit(); assert.equal(probe.requestCount(), 3); await probe.finish(2);
+  tree = probe.render(); probe.commit();
+  assert.ok(probe.image(tree)); assert.notEqual(probe.image(tree), firstUrl); assert.ok(!probe.revoked.has(probe.image(tree)));
 });

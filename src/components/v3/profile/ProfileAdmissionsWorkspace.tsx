@@ -40,6 +40,7 @@ import {
 } from "@/lib/v3/wording";
 
 import { Card } from "./Card";
+import { ApplicationUniversitySelector } from "./ApplicationUniversitySelector";
 import type { ProfileAdmissionsWorkspace } from "./types";
 
 type ActionStatus =
@@ -180,16 +181,12 @@ function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmis
   const locked = pending || state.status === "saved" || state.status === "stale";
 
   return (
-    <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
+    <form action={action} className="mt-3 space-y-3" aria-busy={pending} data-testid="v3-application-create">
       <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
-      <input type="hidden" name="catalog_institution_id" value="" />
       <input type="hidden" name="request_id" value={state.requestId} />
       <input type="hidden" name="expected_version" value="0" />
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
-        <label>
-          <span className={labelCls}>Университет</span>
-          <input name="institution_name" required maxLength={300} className={inputCls} />
-        </label>
+        <ApplicationUniversitySelector key={workspace.studentCaseId} />
         <label>
           <span className={labelCls}>Программа</span>
           <input name="program_name" required maxLength={300} className={inputCls} />

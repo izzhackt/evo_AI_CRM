@@ -1020,3 +1020,24 @@ export function universityFormActionMessage(value: string): string | null {
   };
   return Object.hasOwn(messages, value) ? messages[value] : null;
 }
+
+export const applicationUniversitySelector = {
+  manual: "Ввести вручную",
+  institution: "Университет",
+  manualHint: "Без связи с каталогом бланки университета недоступны.",
+  searchLabel: "Поиск университета",
+  search: "Найти",
+  selectLabel: "Университет из каталога",
+  placeholder: "Выберите университет",
+  loading: "Ищем университеты…",
+  hint: "Найдите университет и выберите его из каталога.",
+  empty: "Университеты не найдены. Попробуйте другое название.",
+  retry: "Повторить поиск",
+  previous: "Назад",
+  next: "Далее",
+  errors: {
+    invalid: "Проверьте поисковый запрос: не более 100 символов.",
+    forbidden: "Каталог недоступен с текущими правами.",
+    unavailable: "Не удалось загрузить каталог. Повторите поиск.",
+  },
+} as const;

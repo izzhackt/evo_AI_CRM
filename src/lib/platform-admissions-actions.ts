@@ -25,6 +25,8 @@ import {
   type PlatformApplicationStatus,
 } from "./platform-application-contract.ts";
 import { requirePlatformStaffActor } from "./platform-guards";
+import { parseUniversityFilters } from "./platform-university-catalog";
+import { readStaffUniversities } from "./v3/university-source";
 import type {
   PlatformAdmissionsActionStatus,
 } from "./platform-admissions-task-actions";
@@ -87,6 +89,43 @@ function applicationStatus(value: string): PlatformApplicationStatus | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export type ApplicationUniversitySearchResult = Readonly<{
+  status: "ready" | "invalid" | "forbidden" | "unavailable";
+  items: readonly Readonly<{ id: string; name: string; country: string }>[];
+  nextOffset: number | null;
+}>;
+
+export async function searchApplicationUniversitiesAction(
+  input: unknown,
+): Promise<ApplicationUniversitySearchResult> {
+  const actor = await requirePlatformStaffActor();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "catalog.read") ||
+      !staffHasPermission(actor, "application.manage")) {
+    return { status: "forbidden", items: [], nextOffset: null };
+  }
+  if (!isRecord(input) || Object.keys(input).length !== 2 ||
+      Object.keys(input).some((key) => key !== "query" && key !== "offset") ||
+      typeof input.query !== "string" || input.query.length > 100 ||
+      typeof input.offset !== "number" || !Number.isSafeInteger(input.offset) ||
+      input.offset < 0 || input.offset > 50_000) {
+    return { status: "invalid", items: [], nextOffset: null };
+  }
+  const filters = parseUniversityFilters({ q: input.query, offset: String(input.offset) });
+  if (!filters) return { status: "invalid", items: [], nextOffset: null };
+  try {
+    const page = await readStaffUniversities(actor, filters);
+    return {
+      status: "ready",
+      items: page.items.map(({ id, content }) => ({
+        id, name: content.name, country: content.country,
+      })),
+      nextOffset: page.nextOffset,
+    };
+  } catch {
+    return { status: "unavailable", items: [], nextOffset: null };
+  }
 }
 
 type ApplicationStringFields = ReadonlyMap<string, string>;

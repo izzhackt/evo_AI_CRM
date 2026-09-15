@@ -26910,3 +26910,22 @@ error/retry states, keeping the typed programme and manual-entry option. No new
 schema, automatic relinking, duplicate cases, programme-ID mapping or old test
 data restoration is authorized by this scope. This checkpoint records the gap;
 it does not claim the UI fix or real-client path complete.
+
+### 2026-09-15 — start the bounded catalogue application selector
+
+Implement the selector scoped by merged PR788 without waiting for employee SMTP
+or a chosen client's data. Reuse the existing ordinary staff catalogue reader
+and create action; no migration, new catalogue authority or production seeding.
+The search action must authenticate and authorize each invocation, validate its
+bounded query/page input and return only selector fields. The control must not
+auto-pick a result, submit the outer application during search, or let a late
+response replace newer input. Preserve request/version semantics and the manual
+application route. Russian wording and existing controls follow DESIGN.md.
+
+References checked before implementation: the installed Next guide
+`node_modules/next/dist/docs/01-app/01-getting-started/07-mutating-data.md`,
+[Next action authorization](https://nextjs.org/docs/app/guides/data-security#authentication-and-authorization)
+and [React request ordering](https://react.dev/reference/react/useTransition#my-state-updates-in-transitions-are-out-of-order).
+Run focused existing admissions tests, required PR checks and independent review;
+any production release uses the existing serialized managed lane. Actual chosen
+client acceptance stays separate from isolated technical verification.

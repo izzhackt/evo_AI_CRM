@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
+import * as platformAccess from "../src/lib/platform-access.ts";
+import { parseUniversityFilters } from "../src/lib/platform-university-catalog.ts";
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -45,6 +48,73 @@ const VERSION_ID = "44444444-4444-4444-8444-444444444444";
 const CONTRACT_ID = "55555555-5555-4555-8555-555555555555";
 const HANDOFF_ID = "66666666-6666-4666-8666-666666666666";
 const AT = "2026-08-01T05:00:00+00:00";
+
+function loadUniversitySearch({ authorize, read }) {
+  const actionExports = {};
+  const compiled = ts.transpileModule(readFileSync(
+    new URL("../src/lib/platform-admissions-actions.ts", import.meta.url), "utf8",
+  ), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
+  new Function("exports", "require", compiled.outputText)(actionExports, (id) => {
+    if (id === "./platform-access.ts") return platformAccess;
+    if (id === "./platform-guards") return { requirePlatformStaffActor: authorize };
+    if (id === "./platform-university-catalog") return { parseUniversityFilters };
+    if (id === "./v3/university-source") return { readStaffUniversities: read };
+    return {};
+  });
+  return actionExports.searchApplicationUniversitiesAction;
+}
+
+test("application catalogue search checks fresh staff authority and projects only selector fields", async () => {
+  let actor = { systemRole: "staff", presentationRole: null, organizationId: ORGANIZATION_ID,
+    permissionKeys: ["application.manage", "catalog.read"] };
+  let authorizations = 0;
+  const reads = [];
+  const search = loadUniversitySearch({
+    authorize: async () => { authorizations += 1; return actor; },
+    read: async (...args) => {
+      reads.push(args);
+      return { items: [{ id: APPLICATION_ID, version: 8, content: {
+        name: "Catalogue university", country: "MY", programs: ["not returned"], photoKey: "not returned",
+      } }], nextOffset: 30 };
+    },
+  });
+  assert.deepEqual(await search({ query: "Catalogue", offset: 0 }), {
+    status: "ready", items: [{ id: APPLICATION_ID, name: "Catalogue university", country: "MY" }], nextOffset: 30,
+  });
+  assert.deepEqual(reads[0], [actor, { query: "Catalogue", country: "", level: "", offset: 0 }]);
+  await search({ query: "Catalogue", offset: 30 });
+  assert.equal(reads[1][1].offset, 30);
+  for (const forbidden of [
+    { ...actor, permissionKeys: ["application.manage"] },
+    { ...actor, permissionKeys: ["catalog.read"] },
+    { ...actor, systemRole: "admin", presentationRole: "op" },
+  ]) {
+    actor = forbidden;
+    assert.deepEqual(await search({ query: "Catalogue", offset: 0 }), {
+      status: "forbidden", items: [], nextOffset: null,
+    });
+  }
+  assert.equal(authorizations, 5);
+  assert.equal(reads.length, 2);
+});
+
+test("application catalogue search rejects unbounded or malformed input before read and hides failures", async () => {
+  let reads = 0;
+  const search = loadUniversitySearch({
+    authorize: async () => ({ systemRole: "admin", presentationRole: null, permissionKeys: [] }),
+    read: async () => { reads += 1; throw new Error("private backend details"); },
+  });
+  for (const input of [null, [], "query", {}, { query: "x", offset: 0, organizationId: ORGANIZATION_ID },
+    { query: ["x"], offset: 0 }, { query: "x".repeat(101), offset: 0 }, { query: "x\n", offset: 0 },
+    ...[-1, 0.5, 50_001, NaN, Infinity, "0"].map((offset) => ({ query: "x", offset }))]) {
+    assert.deepEqual(await search(input), { status: "invalid", items: [], nextOffset: null });
+  }
+  assert.equal(reads, 0);
+  for (const input of [{ query: "", offset: 0 }, { query: "x".repeat(100), offset: 50_000 }]) {
+    assert.deepEqual(await search(input), { status: "unavailable", items: [], nextOffset: null });
+  }
+  assert.equal(reads, 2);
+});
 
 test("V3 Admissions forms own versioned retry state without legacy query envelopes", () => {
   const actionsSource = readFileSync(

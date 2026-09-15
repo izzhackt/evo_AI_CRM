@@ -1,5 +1,27 @@
 # EVO Launch Plan
 
+## Catalogue application selector implementation (2026-09-15)
+
+The bounded P1 selector is implemented in the ordinary application form:
+explicit catalogue search/selection, paging, retry and manual entry. The existing
+authorized reader and create RPC preserve the catalogue ID; programme text,
+request identity and optimistic version checks remain unchanged. No migration,
+new authority, historical relinking or production fixture is introduced.
+
+Focused Node checks (28/28), scoped lint and TypeScript passed. The existing
+isolated Admissions browser scenario now covers catalogue and manual creation,
+Enter without accidental submission, programme preservation and authenticated
+RLS readback after reload. Runtime proof for this updated scenario is still
+pending the canonical CI run; source assertions alone are not browser acceptance.
+Use required PR checks and independent exact-head review, then one exact-main CI
+and managed app release. Do not create a staging environment or duplicate the
+full database/browser run locally. Record the release receipt after readback.
+
+Employee invitations still need the EVO mail sender and exact recipient/scope
+approval. The owner's chosen-client form/ZIP flow remains a separate acceptance
+gap; the isolated fixture does not satisfy it. Earlier checkpoints below are
+historical and must not cause completed work to be repeated.
+
 ## P1 readiness checkpoint (2026-09-15)
 
 Prepared four **unpublished, unassigned** Sales/Admissions role drafts through

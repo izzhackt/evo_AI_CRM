@@ -26884,3 +26884,29 @@ The earlier callback failure did not recur on this same-SHA retry; its underlyin
 intermittent cause is not claimed fixed. No auth or gate weakening was made.
 Current Docs code/schema/bucket/retirement is done; real client/Gemini acceptance
 and USTC remain separately scoped follow-ups under the new pilot priorities.
+
+### 2026-09-15 — P1 preparation separates drafts from actual staff access
+
+Continue the owner's approved pilot-first P1 without repeating the accepted
+release. Live ordinary Admin UI initially showed one employee, no role catalogue
+and no configured departments. Save only four editable, unpublished, unassigned
+Sales/Admissions drafts; separate own-record work from organization-wide common
+sections because a role's permissions must share a supported assignment scope.
+Production reload/reopen confirmed15/11/27/11 permissions and zero employees.
+No Auth user, invitation, role publication, assignment or provider call was made.
+
+The live roster has twelve employees; do not commit personal contacts or infer
+Admin from a job title. Live Supabase Dashboard confirms built-in email with no
+configured custom SMTP. The owner was asked for a sender/service and the client
+to use for the document acceptance path. Preserve normal Auth; exact recipients
+and grants require confirmation before invitations. First/repeat employee login
+and actual-client acceptance remain open, independent of existing technical CI.
+
+The parallel source audit found an ordinary-UI seam: ApplicationCreateForm always
+submits an empty catalogue ID despite the existing catalogue creation RPC, while
+university-form export requires that link. Scope the next code slice to explicit
+catalogue selection using the authorized existing reader, search/paging and
+error/retry states, keeping the typed programme and manual-entry option. No new
+schema, automatic relinking, duplicate cases, programme-ID mapping or old test
+data restoration is authorized by this scope. This checkpoint records the gap;
+it does not claim the UI fix or real-client path complete.

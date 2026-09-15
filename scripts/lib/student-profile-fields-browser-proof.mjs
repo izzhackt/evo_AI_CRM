@@ -39,6 +39,7 @@ export function profileExportDiagnosticStage(phase, step) {
   requireProof(["DRAFT", "FINAL", "COLD_DRAFT", "COLD_FINAL"].includes(phase) && [
     "GENERATE_SNAPSHOT", "GENERATE_INVENTORY_BEFORE", "GENERATE_BUTTON_READY", "GENERATE_POST_RESPONSE",
     "GENERATE_RECEIPT", "GENERATE_HISTORY_ROW", "GENERATE_SAVED_MESSAGE", "GENERATE_INVENTORY_AFTER",
+    "RESPONSE_BODY_READ", "RECEIPT_NORMALIZE", "COMMAND_READ", "RECEIPT_COMPARE",
     "DOWNLOAD_INVENTORY_BEFORE", "DOWNLOAD_ROW_COUNT", "DOWNLOAD_ROW_READY", "DOWNLOAD_EVENT",
     "DOWNLOAD_FAILURE_CHECK", "DOWNLOAD_FILE_PATH", "DOWNLOAD_DOCX_VERIFY", "DOWNLOAD_STORED_ROW",
     "DOWNLOAD_STORAGE_READBACK", "DOWNLOAD_STORAGE_BYTES", "DOWNLOAD_GRANT", "DOWNLOAD_INVENTORY_AFTER",
@@ -490,11 +491,14 @@ async function main() {
         page.waitForResponse(response => response.url() === exportUrl && response.request().method() === "POST"), button.click(),
       ]);
       requireProof(response.status() === 200, "PERSISTENT_EXPORT_NOT_READY");
-      mark("GENERATE_RECEIPT");
+      mark("RESPONSE_BODY_READ");
       const body = await response.json();
       requireProof(Object.keys(body).length === 1 && Object.hasOwn(body, "artifact"), "PERSISTENT_RESPONSE_INVALID");
+      mark("RECEIPT_NORMALIZE");
       const receipt = normalizeDocumentExportReceipt(body.artifact, caseId);
+      mark("COMMAND_READ");
       const command = response.request().postDataJSON();
+      mark("RECEIPT_COMPARE");
       requireProof(receipt.state === "ready" && receipt.can_download && receipt.mode === mode
         && receipt.profile_revision === before.profile.revision && receipt.student_profile_id === before.profile.id
         && command.mode === mode && command.expected_workspace_revision === receipt.workspace_revision

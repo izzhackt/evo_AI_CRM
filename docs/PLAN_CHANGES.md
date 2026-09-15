@@ -26964,3 +26964,29 @@ fix. No raw callback URLs, tokens, passwords, screenshots or traces are permitte
 in this phase. Preserve the exact clean-URL requirement before password entry,
 email confirmation, fresh login and role-scope verification. Scope any proven
 fix and regression before editing product Auth behavior; no blanket bypass.
+
+### 2026-09-15 — isolate Student Profile receipt failure after Admissions GREEN
+
+PR791 merged as `da4956d333ba15f32eb680222b567b30c78b9980`. Its canonical
+CI34985451032 passed the unchanged staff onboarding gate, the full original
+contract/application/handoff workflow and V3 browser quality checks. Callback
+cause remains unconfirmed; the diagnostic change did not weaken its gate.
+The later Student Profile proof stopped at `DRAFT_GENERATE_RECEIPT` after an
+HTTP200 export response. Release arm was restored to `false`; production stays
+accepted5bc5df73. Admissions integration is GREEN, whole CI/release is not.
+
+Next bounded investigation: preserve the existing receipt invariants and inspect
+the scoped `--student-profile-fields-only` real workflow before choosing a fix.
+Compare response shape, normalized receipt and command/revision bindings using
+only fixed categories/booleans. No synthetic production records, lost gate,
+provider mutation, duplicate full stack or blind canonical CI retry.
+
+The unchanged scoped probe passed on `da4956d3`: draft/final DOCX, ZIP, exact
+request replay, cold same-byte downloads and owned-stack cleanup. Synthetic
+acceptance SHA256 is `43de028772b13e03651b5a5e7fc1000325b4201de234db0e84debe935a45ac6a`;
+business acceptance remains false. CI exposes no uploaded failure artifact.
+Its generic stage excludes the existing named `ProofError` assertions but does
+not distinguish body parsing, receipt normalization and command readback.
+Limit the next patch to four fixed diagnostic stages through the existing
+sanitized failure transport, plus focused stage tests. No new full local run,
+retry, timeout or product behavior change; diagnose before choosing a fix.

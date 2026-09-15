@@ -2,27 +2,31 @@
 
 ## Current release checkpoint (2026-09-15)
 
-PR790 merged the contract read-side recovery as
-`1759e61a528b9fe9f0b28063c37f8b45995f2416`; required checks and independent
-review passed. Its exact-main CI34982631243 attempts1/2 both stop earlier at
-`LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN`. The automatic release jobs were skipped,
-the release arm is `false`, and accepted production remains `5bc5df73`.
-The selector and contract recovery are merged, **not yet deployed**.
+PR790 merged the contract read-side recovery; PR791 added fixed-shape callback
+diagnostics as `da4956d333ba15f32eb680222b567b30c78b9980`. Required checks and
+independent reviews passed. Canonical CI34985451032 then passed unchanged staff
+onboarding, the full original contract/application/handoff workflow, V3 browser
+quality and subsequent provider-interface tests. The earlier callback cause is
+unconfirmed; no Auth gate was relaxed. Admissions integration is now GREEN.
 
-One real isolated `--staff-onboarding-only` probe passed, including the original
-callback/email/password/fresh-login checks and 2/2 Chromium tests. This does not
-explain the CI-only failure. Add fixed-shape boolean-only callback observations
-to the existing sanitized failure output, then use the canonical CI to distinguish
-the browser's actual address from the automation's cached address. Preserve the
-original exact clean-URL gate before password entry; no product Auth change,
-timeout increase, third blind retry or full local stack duplication.
+The later Student Profile proof failed at `DRAFT_GENERATE_RECEIPT`, after an
+HTTP200 export response but before history/download checks. This stage means an
+ordinary exception in response parsing/receipt normalization/request readback,
+not a named receipt-invariant assertion. Its proof and export route/normalizer
+are unchanged from the accepted baseline; do not infer a product cause yet.
+Release34986705706 was skipped, arm is `false`, and accepted production remains
+`5bc5df73`. The selector and contract recovery are **not yet deployed**.
 
-Resume: review and merge the bounded diagnostic change, freeze current main,
-run canonical CI and the existing managed release. On failure, disarm and use
-the retained observations to select a proven fix. On success, verify accepted
-revision/image/receipt hashes, health, no pending release and browser/tunnel
-readback, then record the durable receipt. Employee SMTP sender and the owner's
-chosen client remain separate follow-ups, not blockers for this app release.
+The unchanged `--student-profile-fields-only` workflow passed locally: draft,
+final, ZIP, exact replay, cold same-byte downloads and owned-stack cleanup.
+This synthetic result is not chosen-client acceptance or a proven CI cause.
+Resume: split the existing generic receipt diagnostic into four fixed stages
+before another canonical CI run. No duplicate full local suite, weakened receipt
+gate, blind retry or product Auth change. After successful managed release,
+verify accepted revision/image/receipt hashes, health, no pending release and
+browser/tunnel readback, then record the durable receipt. Employee SMTP sender
+and the owner's chosen client remain separate follow-ups, not blockers for
+this app release.
 
 ## Catalogue release recovery (2026-09-15)
 
@@ -44,8 +48,8 @@ duplicates remain rejected, with the five mutation source kinds unchanged.
 All 24 focused contract tests and scoped lint pass; URL length boundaries and
 closed-schema/identity guards are covered by the same existing test file.
 PR790 completed required PR checks and exact-head review. The unchanged original
-integration scenario remains pending behind the callback checkpoint above.
-Avoid a second duplicate local cold-stack run; integration GREEN is still pending.
+integration scenario passed in CI34985451032; whole release remains blocked by
+the later Student Profile checkpoint above. Do not repeat the Admissions run.
 Do not remove the failed assertion, relax Auth or change applied migrations.
 
 ## Catalogue application selector implementation (2026-09-15)
@@ -59,11 +63,11 @@ new authority, historical relinking or production fixture is introduced.
 Focused Node checks (28/28), scoped lint and TypeScript passed. The existing
 isolated Admissions browser scenario now covers catalogue and manual creation,
 Enter without accidental submission, programme preservation and authenticated
-RLS readback after reload. Runtime proof for this updated scenario is still
-pending the canonical CI run; source assertions alone are not browser acceptance.
-Use required PR checks and independent exact-head review, then one exact-main CI
-and managed app release. Do not create a staging environment or duplicate the
-full database/browser run locally. Record the release receipt after readback.
+RLS readback after reload. This real scenario passed in canonical CI34985451032;
+source assertions alone are not the evidence. PR789 passed required checks and
+independent exact-head review. Managed release is pending the later Student
+Profile gate above. Do not create staging or duplicate the full database/browser
+run locally. Record the release receipt after actual readback.
 
 Employee invitations still need the EVO mail sender and exact recipient/scope
 approval. The owner's chosen-client form/ZIP flow remains a separate acceptance

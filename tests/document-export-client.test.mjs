@@ -72,7 +72,7 @@ test("packet action unlocks only known rolled-back55000 preparation errors", asy
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const input = { caseId: CASE, applicationId: PROFILE, versionIds: [ARTIFACT], exportIds: [], expectedRevision: HASH, requestId: REQUEST };
   for (const [message, expected] of [["package_too_large", "invalid"], ["packet_source_unavailable", "stale"], ["unknown_internal_detail", "unavailable"]]) {
-    const module = { exports: {} };
+    const actionModule = { exports: {} };
     const require = name => {
       if (name === "./platform-access.ts") return { isStaffPreview: () => false };
       if (name === "next/cache") return { revalidatePath: () => {} };
@@ -83,8 +83,8 @@ test("packet action unlocks only known rolled-back55000 preparation errors", asy
       if (name === "./platform-admissions-support-contract") return packetContract;
       throw new Error(`Unexpected action dependency: ${name}`);
     };
-    new Function("require", "module", "exports", code)(require, module, module.exports);
-    const result = await module.exports.preparePartnerPacketAction(input);
+    new Function("require", "module", "exports", code)(require, actionModule, actionModule.exports);
+    const result = await actionModule.exports.preparePartnerPacketAction(input);
     assert.equal(result.ok, false); assert.equal(result.code, expected); assert.ok(!result.message.includes("unknown_internal_detail"));
   }
 });

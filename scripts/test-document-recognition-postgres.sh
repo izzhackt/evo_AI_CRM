@@ -35,7 +35,7 @@ while IFS= read -r migration; do
   next_migration=$((next_migration + 1))
 done < <(rg --files supabase/migrations | LC_ALL=C sort)
 minimum_migrations=163
-[[ "$with_document_exports" == 0 ]] || minimum_migrations=168
+[[ "$with_document_exports" == 0 ]] || minimum_migrations=169
 [[ "${#migrations[@]}" -ge "$minimum_migrations" ]] || {
   echo "Foundation requires at least migrations 001-$minimum_migrations" >&2; exit 1;
 }
@@ -147,4 +147,6 @@ fi
 if [[ "$with_university_form_exports" == 1 ]]; then
   run_sql -f /workspace/supabase/tests/platform_university_form_exports.sql
   echo 'UNIVERSITY_FORM_EXPORTS_POSTGRES_VERIFIED'
+  run_sql -f /workspace/supabase/tests/platform_document_packages.sql
+  echo 'DOCUMENT_PACKAGES_POSTGRES_VERIFIED'
 fi

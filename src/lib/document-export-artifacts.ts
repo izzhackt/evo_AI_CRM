@@ -1,6 +1,7 @@
 import {
   DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_RENDERER_VERSION,
   DOCUMENT_EXPORT_TEMPLATE_SHA256,
+  DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME, type DocumentPackageExportReceipt,
   UNIVERSITY_FORM_EXPORT_MAX_BYTES, type DocumentExportFailure, type DocumentExportReceipt, type DocumentExportWorkspace,
   type StoredDocumentExportReceipt, type UniversityFormExportReceipt, type UniversityFormRendererProof, type DocumentExportWorkspaceV2,
   type UniversityFormExportWorkspace, type ApplicationPublishedFormsWorkspace,
@@ -85,6 +86,8 @@ export function normalizeDocumentExportReceipt(value: unknown, caseId: string, a
 
 /** Public history contains provenance only, never frozen profile values or Storage paths. */
 export function normalizeStoredDocumentExportReceipt(value: unknown, caseId: string, artifactId?: string): StoredDocumentExportReceipt {
+  if (value && typeof value === "object" && "kind" in value && value.kind === "package")
+    return normalizeDocumentPackageExportReceipt(value, caseId, artifactId);
   if (value && typeof value === "object" && "kind" in value && value.kind === "student_profile")
     return normalizeDocumentExportReceipt(value, caseId, artifactId);
   const row = exportRecord(value, [...RECEIPT_KEYS, "form", "generated_input_sha256", "renderer_proof"]);
@@ -103,6 +106,33 @@ export function normalizeStoredDocumentExportReceipt(value: unknown, caseId: str
   if ((fields.output_sha256 === null) !== (proof === null)) throw new Error("export_unavailable");
   return { ...fields, kind: "university_form", mime_type: row.mime_type, renderer_version: renderer,
     form: normalizeUniversityFormBinding(row.form), generated_input_sha256: hash(row.generated_input_sha256), renderer_proof: proof } satisfies UniversityFormExportReceipt;
+}
+
+export function normalizeDocumentPackageExportReceipt(value: unknown, caseId: string, artifactId?: string): DocumentPackageExportReceipt {
+  const row = exportRecord(value, [...RECEIPT_KEYS, "package"]);
+  const binding = exportRecord(row.package, ["id", "application_id", "item_count"]);
+  const id = exportUuid(row.id);
+  if (row.kind !== "package" || row.mime_type !== DOCUMENT_PACKAGE_MIME || row.renderer_version !== "evo-partner-packet-zip-v1"
+    || row.student_profile_id !== null || row.profile_revision !== null || row.field_reviews_sha256 !== null || row.template_sha256 !== null
+    || exportUuid(row.student_case_id) !== caseId || (artifactId !== undefined && id !== artifactId)
+    || (row.mode !== "draft" && row.mode !== "final") || typeof row.state !== "string" || !["pending", "stored_unverified", "ready", "unknown", "failed"].includes(row.state)
+    || (row.failure_code !== null && !isDocumentExportFailure(row.failure_code))) throw new Error("export_unavailable");
+  const receipt: DocumentPackageExportReceipt = {
+    id, student_case_id: caseId, student_profile_id: null, profile_revision: null, field_reviews_sha256: null, template_sha256: null,
+    kind: "package", mime_type: DOCUMENT_PACKAGE_MIME, renderer_version: "evo-partner-packet-zip-v1", mode: row.mode,
+    workspace_revision: hash(row.workspace_revision), input_snapshot_sha256: hash(row.input_snapshot_sha256),
+    state: row.state as DocumentPackageExportReceipt["state"], created_at: timestamp(row.created_at),
+    ready_at: row.ready_at === null ? null : timestamp(row.ready_at), output_sha256: row.output_sha256 === null ? null : hash(row.output_sha256),
+    output_bytes: row.output_bytes === null ? null : positive(row.output_bytes, DOCUMENT_PACKAGE_MAX_BYTES),
+    receipt_id: row.receipt_id === null ? null : exportUuid(row.receipt_id), failure_code: row.failure_code as DocumentExportFailure | null,
+    historical: bool(row.historical), can_download: bool(row.can_download),
+    package: { id: exportUuid(binding.id), application_id: exportUuid(binding.application_id), item_count: positive(binding.item_count, 50) },
+  };
+  if ((receipt.output_sha256 === null) !== (receipt.output_bytes === null)
+    || (receipt.state === "ready" && (!receipt.output_sha256 || !receipt.receipt_id || !receipt.ready_at || receipt.failure_code !== null))
+    || (receipt.state !== "ready" && (receipt.can_download || receipt.ready_at !== null || receipt.receipt_id !== null))
+    || ((receipt.state === "failed" || receipt.state === "unknown") !== (receipt.failure_code !== null))) throw new Error("export_unavailable");
+  return receipt;
 }
 
 function workspaceFields(value: unknown, caseId: string, version: 1 | 2) {

@@ -5,10 +5,40 @@ import test from "node:test";
 import PizZip from "pizzip";
 import { PDFDocument } from "pdf-lib";
 import { computePackageRulesHash, resolveDocumentPackage } from "../src/lib/document-package.ts";
-import { buildDocumentPackageZip } from "../src/lib/server/document-package.ts";
+import { buildDocumentPackageZip, buildPartnerPacketZip } from "../src/lib/server/document-package.ts";
 import { fixture, generatedFixture, id } from "./fixtures/document-package.mjs";
 
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
+function partnerFixture() {
+  const first = Buffer.from("Synthetic opaque original"), second = Buffer.from("Synthetic saved Word artifact");
+  return { snapshot: { packetId: id(801), caseId: id(802), inputSha256: "a".repeat(64), mode: "draft", sources: [
+    { id: id(803), kind: "original", sha256: sha(first), sizeBytes: first.length, mimeType: "application/pdf", name: "../../Original.pdf", mode: null },
+    { id: id(804), kind: "generated", sha256: sha(second), sizeBytes: second.length,
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", name: "Generated.docx", mode: "draft" },
+  ] }, buffers: [{ itemId: id(803), bytes: first }, { itemId: id(804), bytes: second }] };
+}
+test("persisted partner ZIP includes every selected opaque input with safe UUID paths and deterministic manifest", () => {
+  const { snapshot, buffers } = partnerFixture();
+  const result = buildPartnerPacketZip(snapshot, buffers), zip = new PizZip(result.bytes);
+  assert.deepEqual(Object.keys(zip.files).sort(), ["README.txt", "manifest.json", `original/${id(803)}.pdf`, `generated/${id(804)}.docx`].sort());
+  for (const [index, path] of [`original/${id(803)}.pdf`, `generated/${id(804)}.docx`].entries())
+    assert.deepEqual(zip.file(path).asNodeBuffer(), buffers[index].bytes);
+  assert.equal(result.sha256, sha(result.bytes));
+  assert.deepEqual(result.bytes, buildPartnerPacketZip({ ...snapshot, sources: [...snapshot.sources].reverse() }, [...buffers].reverse()).bytes);
+  assert.equal(result.manifest.items.length, 2);
+  assert.ok(!JSON.stringify(result.manifest).includes("bucket"));
+});
+test("partner ZIP rejects missing, corrupt, duplicate, oversized and draft-in-final selections without omissions", () => {
+  const { snapshot, buffers } = partnerFixture();
+  for (const selected of [buffers.slice(0, 1), [buffers[0], buffers[0]], [buffers[0], { ...buffers[1], bytes: Buffer.from("wrong") }]])
+    assert.throws(() => buildPartnerPacketZip(snapshot, selected));
+  assert.throws(() => buildPartnerPacketZip({ ...snapshot, mode: "final" }, buffers));
+  const big = Buffer.alloc(25 * 1024 * 1024), digest = sha(big);
+  const large = snapshot.sources.map((source, index) => ({ ...source, kind: "original", mode: null, mimeType: "application/pdf",
+    name: String(index), sizeBytes: big.length, sha256: digest }));
+  assert.throws(() => buildPartnerPacketZip({ ...snapshot, sources: large }, large.map(source => ({ itemId: source.id, bytes: big }))), { code: "package_too_large" });
+  assert.throws(() => buildPartnerPacketZip({ ...snapshot, sources: Array(51).fill(snapshot.sources[0]) }, Array(51).fill(buffers[0])));
+});
 async function inputFixture() {
   const document = await PDFDocument.create(); document.addPage([200, 200]).drawText("Synthetic original");
   const bytes = Buffer.from(await document.save()), snapshot = await fixture(), item = snapshot.items[0];

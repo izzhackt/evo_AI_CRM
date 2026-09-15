@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { requireStudentPortalActor } from "./student-portal-guards";
 import { caseOperationsRpc, readCaseHelp } from "./v3/case-operations-source";
+import { partnerPacketExport } from "./v3/wording.ts";
 import { caseOperationText, caseOperationUuid, caseOperationVersion, decodePartnerPacket,
   type CaseOperationFailure, type CaseOperationResult, type HelpCursor } from "./platform-admissions-support-contract";
 
@@ -34,17 +35,27 @@ export async function preparePartnerPacketAction(input: unknown): Promise<CaseOp
   try {
     const actor = await requirePlatformStaffActor();
     if (actor.presentationRole === "sales" || isStaffPreview(actor)) return failure("denied");
-    const row = fields(input, ["caseId", "applicationId", "versionIds", "requestId"]);
+    const row = fields(input, ["caseId", "applicationId", "versionIds", "exportIds", "expectedRevision", "requestId"]);
     if (!row || !caseOperationUuid(row.caseId) || !caseOperationUuid(row.applicationId) || !caseOperationUuid(row.requestId)
-      || !Array.isArray(row.versionIds) || !row.versionIds.length || row.versionIds.length > 50 || !row.versionIds.every(caseOperationUuid)
-      || new Set(row.versionIds).size !== row.versionIds.length) return failure("invalid");
-    const packet = decodePartnerPacket(await caseOperationsRpc("prepare_partner_packet_v1", {
+      || !Array.isArray(row.versionIds) || !Array.isArray(row.exportIds) || row.versionIds.length + row.exportIds.length < 1
+      || row.versionIds.length + row.exportIds.length > 50 || !row.versionIds.every(caseOperationUuid) || !row.exportIds.every(caseOperationUuid)
+      || new Set(row.versionIds).size !== row.versionIds.length || new Set(row.exportIds).size !== row.exportIds.length
+      || typeof row.expectedRevision !== "string" || !/^[a-f0-9]{64}$/.test(row.expectedRevision)) return failure("invalid");
+    const packet = decodePartnerPacket(await caseOperationsRpc("prepare_partner_packet_v2", {
       p_case_id: row.caseId, p_application_id: row.applicationId, p_version_ids: row.versionIds, p_request_id: row.requestId,
+      p_export_ids: row.exportIds, p_expected_revision: row.expectedRevision,
     }));
     if (packet.caseId !== row.caseId || packet.applicationId !== row.applicationId || packet.requestId !== row.requestId
-      || packet.files.length !== row.versionIds.length || packet.files.some(file => !(row.versionIds as string[]).includes(file.versionId))) return failure("unavailable");
+      || packet.files.length !== row.versionIds.length || packet.files.some(file => !(row.versionIds as string[]).includes(file.versionId))
+      || packet.generatedExports.length !== row.exportIds.length || packet.generatedExports.some(file => !(row.exportIds as string[]).includes(file.id))) return failure("unavailable");
     return { ok: true, id: packet.id, requestId: packet.requestId };
-  } catch (error) { return errorResult(error); }
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "55000" && "message" in error) {
+      if (error.message === "package_too_large") return { ok: false, code: "invalid", message: partnerPacketExport.errors.package_too_large };
+      if (error.message === "packet_source_unavailable") return failure("stale");
+    }
+    return errorResult(error);
+  }
 }
 export async function createCaseHelpAction(input: unknown): Promise<CaseOperationResult> {
   try {

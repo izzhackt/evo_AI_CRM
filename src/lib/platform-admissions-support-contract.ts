@@ -1,8 +1,14 @@
 /** Admissions packet/help DTOs; separate from the existing case handover commands. */
-export type PacketFile = Readonly<{ slotId: string; versionId: string; name: string; sha256: string; versionNo: string }>;
+export type PacketFile = Readonly<{ slotId: string; versionId: string; name: string; sha256: string; versionNo: string;
+  sizeBytes: number; mimeType: "application/pdf" | "image/jpeg" | "image/png" }>;
+export type PacketGeneratedExport = Readonly<{ id: string; kind: "student_profile" | "university_form"; mode: "draft" | "final";
+  mimeType: "application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  sizeBytes: number; sha256: string; createdAt: string; applicationId: string | null }>;
 export type PartnerPacket = Readonly<{ id: string; caseId: string; applicationId: string; applicationName: string;
-  createdBy: string; createdAt: string; requestId: string; files: readonly PacketFile[] }>;
-export type PacketWorkspace = Readonly<{ files: readonly PacketFile[]; packets: readonly PartnerPacket[] }>;
+  createdBy: string; createdAt: string; requestId: string; files: readonly PacketFile[];
+  generatedExports: readonly PacketGeneratedExport[]; revision: string | null }>;
+export type PacketWorkspace = Readonly<{ files: readonly PacketFile[]; packets: readonly PartnerPacket[];
+  generatedExports: readonly PacketGeneratedExport[]; workspaceRevision: string; maxArchiveBytes: 52428800 }>;
 export type CaseHelpRequest = Readonly<{ id: string; subject: string; body: string; answer: string | null;
   status: "open" | "answered"; version: string; createdAt: string; answeredAt: string | null }>;
 export type HelpCursor = Readonly<{ at: string; id: string }>;
@@ -30,21 +36,43 @@ function time(value: unknown): string {
   return typeof value === "string" && value.length <= 40 && Number.isFinite(Date.parse(value)) ? value : invalid();
 }
 function entries(value: unknown, max: number): unknown[] { return Array.isArray(value) && value.length <= max ? value : invalid(); }
+function sha(value: unknown): string { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) ? value : invalid(); }
+function size(value: unknown, max: number): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 && value <= max ? value : invalid();
+}
 function packetFile(value: unknown): PacketFile {
   const row = record(value);
   if (typeof row.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(row.sha256) || !caseOperationVersion(row.versionNo)) return invalid();
-  return { slotId: uuid(row.slotId), versionId: uuid(row.versionId), name: text(row.name, 1000), sha256: row.sha256, versionNo: row.versionNo };
+  if (row.mimeType !== "application/pdf" && row.mimeType !== "image/jpeg" && row.mimeType !== "image/png") return invalid();
+  return { slotId: uuid(row.slotId), versionId: uuid(row.versionId), name: text(row.name, 1000), sha256: row.sha256, versionNo: row.versionNo,
+    sizeBytes: size(row.sizeBytes, 26214400), mimeType: row.mimeType as PacketFile["mimeType"] };
+}
+function packetGeneratedExport(value: unknown): PacketGeneratedExport {
+  const row = record(value);
+  if ((row.kind !== "student_profile" && row.kind !== "university_form") || (row.mode !== "draft" && row.mode !== "final")
+    || (row.mimeType !== "application/pdf" && row.mimeType !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    || (row.kind === "student_profile" && (row.applicationId !== null || row.mimeType === "application/pdf"))
+    || (row.kind === "university_form" && !caseOperationUuid(row.applicationId))) return invalid();
+  return { id: uuid(row.id), kind: row.kind as PacketGeneratedExport["kind"], mode: row.mode as PacketGeneratedExport["mode"],
+    mimeType: row.mimeType as PacketGeneratedExport["mimeType"], sizeBytes: size(row.sizeBytes, row.kind === "student_profile" ? 5242880 : 20971520),
+    sha256: sha(row.sha256), createdAt: time(row.createdAt), applicationId: row.applicationId === null ? null : uuid(row.applicationId) };
 }
 export function decodePartnerPacket(value: unknown): PartnerPacket {
   const row = record(value); const files = entries(row.files, 50).map(packetFile);
-  if (!files.length || new Set(files.map(file => file.versionId)).size !== files.length) return invalid();
+  const generatedExports = entries(row.generatedExports, 50).map(packetGeneratedExport);
+  if ((!files.length && !generatedExports.length) || files.length + generatedExports.length > 50
+    || new Set(files.map(file => file.versionId)).size !== files.length
+    || new Set(generatedExports.map(file => file.id)).size !== generatedExports.length) return invalid();
   return { id: uuid(row.id), caseId: uuid(row.caseId), applicationId: uuid(row.applicationId),
-    applicationName: text(row.applicationName, 1100), createdBy: text(row.createdBy, 200), createdAt: time(row.createdAt), requestId: uuid(row.requestId), files };
+    applicationName: text(row.applicationName, 1100), createdBy: text(row.createdBy, 200), createdAt: time(row.createdAt), requestId: uuid(row.requestId),
+    files, generatedExports, revision: row.revision === null ? null : sha(row.revision) };
 }
 export function decodePacketWorkspace(value: unknown, caseId: string): PacketWorkspace {
   const row = record(value); const packets = entries(row.packets, 20).map(decodePartnerPacket);
   if (packets.some(packet => packet.caseId !== caseId)) return invalid();
-  return { files: entries(row.files, 1000).map(packetFile), packets };
+  if (row.maxArchiveBytes !== 52428800) return invalid();
+  return { files: entries(row.files, 1000).map(packetFile), packets, generatedExports: entries(row.generatedExports, 1000).map(packetGeneratedExport),
+    workspaceRevision: sha(row.workspaceRevision), maxArchiveBytes: 52428800 };
 }
 export function decodeCaseHelpPage(value: unknown, expectedCaseId: string): CaseHelpPage {
   const row = record(value); if (row.caseId !== expectedCaseId) return invalid();

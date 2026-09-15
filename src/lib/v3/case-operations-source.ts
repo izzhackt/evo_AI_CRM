@@ -12,7 +12,7 @@ export async function caseOperationsRpc(name: string, args: Record<string, unkno
 }
 export async function readPartnerPackets(actor: ActivePlatformActor, caseId: string) {
   if (actor.presentationRole === "sales" || !caseOperationUuid(caseId)) throw new Error("case_operations_forbidden");
-  return decodePacketWorkspace(await caseOperationsRpc("partner_packet_workspace_v1", { p_case_id: caseId }), caseId);
+  return decodePacketWorkspace(await caseOperationsRpc("partner_packet_workspace_v2", { p_case_id: caseId }), caseId);
 }
 export async function readCaseHelp(actor: ActivePlatformActor | ActiveStudentPortalActor, caseId: string, cursor: HelpCursor | null = null) {
   if (!caseOperationUuid(caseId) || ("presentationRole" in actor ? actor.presentationRole === "sales" : actor.studentCaseId !== caseId)) throw new Error("case_operations_forbidden");

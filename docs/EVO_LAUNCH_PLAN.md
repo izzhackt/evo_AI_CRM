@@ -1,5 +1,32 @@
 # EVO Launch Plan
 
+## Active PDF preview reliability slice (2026-09-15)
+
+On accepted `a358a3e3`, rapid GDUT Degree page1→2→1 changes reproduced a
+transient broken image twice: `complete=true`, natural dimensions0×0 and no
+loading message. The image later recovered without retry. Cleanup revokes the
+page's object URL but leaves its matching read-state key available for reuse.
+Bind read state to the current request instance, not a reusable page key;
+retain abort, digest/dimension checks, access-loss handling and existing retry UI.
+No schema, template bytes, mapping, publication or applicant data changes.
+
+Acceptance: rerun that real saved-mapping flow on the changed application;
+each intermediate state must show loading/error or a decoded image, never a
+revoked image. Check both pages, cold reload and unchanged read-only controls.
+Static checks and independent review are additional evidence, not a substitute
+for the real browser check. A new manifest instance must also invalidate the
+preview before cleanup, without resetting the editor's mappings. Keep other
+City/server failures unclaimed until separately reproduced. Do not redeploy or
+retire Docs on source inspection alone.
+
+Implementation is prepared on `izzhackt/docs-preview-reliability`. Scoped ESLint,
+TypeScript and the full production build pass on Node22.23.1. Positive browser
+acceptance is pending: the Mac preview cannot run the Linux-only native page
+handler, and localhost:3000 still serves the unchanged accepted app. Do not
+invent a controller image identity or replace the real page endpoint. The owner
+has been asked whether the existing isolated synthetic CI checks are permitted;
+until answered, do not dispatch them or describe them as real-client proof.
+
 ## Active Docs release checkpoint (2026-09-15)
 
 The application release is complete; the full Docs unification is not.

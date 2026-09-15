@@ -34,11 +34,13 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
   const [gesturePreview, setGesturePreview] = useState<{ slotId: string | null; position: UniversityPdfPosition; readKey: string } | null>(null);
   const gesture = useRef<Gesture | null>(null);
   const [localError, setLocalError] = useState<string | null>(null), [accessLost, setAccessLost] = useState(false);
-  const [readState, setReadState] = useState<{ key: string; url: string | null; metadata: UniversityTemplatePageMetadata | null; error: boolean } | null>(null);
   const [uncertain, setUncertain] = useState(false), frozen = useRef<FormData | null>(null);
   const sourceUrl = universityTemplateSourceUrl(templateId, version.id);
   const readKey = JSON.stringify([sourceUrl, version.sha256, version.byte_size, manifestDigest, page, retry]);
-  const loading = readState?.key !== readKey, readError = !loading && readState?.error === true;
+  // Returning to a page must not resurrect the URL revoked by its previous request.
+  const readRequest = useMemo(() => ({ key: readKey, manifest }), [readKey, manifest]);
+  const [readState, setReadState] = useState<{ request: typeof readRequest; url: string | null; metadata: UniversityTemplatePageMetadata | null; error: boolean } | null>(null);
+  const loading = readState?.request !== readRequest, readError = !loading && readState?.error === true;
   const preview = !loading && !readError ? readState : null;
   useEffect(() => {
     const operation = new AbortController();
@@ -55,14 +57,14 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
         const decoded = new Image(); decoded.src = localUrl; await decoded.decode();
         if (signal.aborted || decoded.naturalWidth !== result.metadata.pixelWidth || decoded.naturalHeight !== result.metadata.pixelHeight)
           throw new Error("page_unavailable");
-        setReadState({ key: readKey, url: localUrl, metadata: result.metadata, error: false });
+        setReadState({ request: readRequest, url: localUrl, metadata: result.metadata, error: false });
       } catch {
         if (localUrl) { URL.revokeObjectURL(localUrl); localUrl = null; }
-        if (!operation.signal.aborted) setReadState({ key: readKey, url: null, metadata: null, error: true });
+        if (!operation.signal.aborted) setReadState({ request: readRequest, url: null, metadata: null, error: true });
       }
     })();
     return () => { operation.abort(); if (localUrl) URL.revokeObjectURL(localUrl); };
-  }, [sourceUrl, version.sha256, version.byte_size, manifestDigest, manifest, page, readKey]);
+  }, [sourceUrl, version.sha256, version.byte_size, manifestDigest, manifest, page, readRequest]);
   const initial: UniversityFormActionState = { status: "idle", requestId, receipt: null };
   const [state, submit, pending] = useActionState(async (previous: UniversityFormActionState, form: FormData) => {
     if (readOnly) return previous;

@@ -26679,3 +26679,32 @@ records were created or changed. Real filled-form/Gemini acceptance, explicit
 five-record mapping and twelve-domain/43-file D5 reconciliation, ZIP capacity
 and persistence, and D6 retirement remain open. No application/schema/provider,
 backup, paid-capacity or deletion operation is part of this docs update.
+
+### 2026-09-15 — repair the reproduced PDF page-return lifecycle
+
+Actual ordinary Admin browsing of the published GDUT Degree mapping reproduced
+page1→2→1 returning an already-complete image with natural dimensions0×0, twice;
+later it recovered to1190×1683 without a retry. This is a transient client
+preview defect, not proof of a persistent server failure or failed mapping.
+The effect revokes its object URL on cleanup while retaining readState under
+the old key. Returning to that key can therefore render the revoked URL before
+the fresh fetch/decode completes.
+
+Bind each read result to its request instance (page/source/retry and manifest),
+so render rejects an outgoing preview before cleanup revokes it. Clearing state
+only in the next passive effect would leave an intermediate stale commit.
+Keep mapping/editor state unchanged. Preserve
+source binding, abort/timeout, image decoding, access-loss and explicit retry.
+Do not add image caching, fallback bytes, automatic provider retries or bypasses.
+Official [React effect lifecycle](https://react.dev/reference/react/useEffect)
+and [object URL release](https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL_static)
+documentation informed this diagnosis; Context7 was unavailable because of its
+monthly quota. The real saved-mapping browser flow must be green on the changed
+app before calling the fix verified. Current production is unchanged.
+
+D5 inspection also found no complete historical importer/provenance ledger:
+owner decisions for five source records alone do not finish the twelve-domain,
+43-file migration. Existing current-action APIs cannot relabel old events as new
+staff confirmations. ZIP remains library-only with incompatible current limits;
+the observed50MiB global setting does not establish the project tariff or permit
+260MiB parity. Preserve the old source/runtime until those separate gates close.

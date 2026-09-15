@@ -280,7 +280,10 @@ test("profile export timeout stages distinguish refresh, generation and each war
   boundaries(generate, [
     ['mark("GENERATE_SNAPSHOT")', 'await snapshot()'], ['mark("GENERATE_INVENTORY_BEFORE")', 'await inventory()'],
     ['mark("GENERATE_BUTTON_READY")', 'await expect(button).toBeEnabled()'],
-    ['mark("GENERATE_POST_RESPONSE")', 'await Promise.all('], ['mark("GENERATE_RECEIPT")', 'await response.json()'],
+    ['mark("GENERATE_POST_RESPONSE")', 'await Promise.all('], ['mark("RESPONSE_BODY_READ")', 'await response.json()'],
+    ['mark("RECEIPT_NORMALIZE")', 'normalizeDocumentExportReceipt(body.artifact, caseId)'],
+    ['mark("COMMAND_READ")', 'response.request().postDataJSON()'],
+    ['mark("RECEIPT_COMPARE")', 'requireProof(receipt.state === "ready"'],
     ['mark("GENERATE_HISTORY_ROW")', 'await expect(savedRow('],
     ['mark("GENERATE_SAVED_MESSAGE")', 'Файл сохранён. Теперь его можно скачать.'],
     ['mark("GENERATE_INVENTORY_AFTER")', 'await inventory()'],
@@ -301,6 +304,11 @@ test("profile export timeout stages distinguish refresh, generation and each war
   for (const block of [generate, download]) assert.match(block, /stage = profileExportDiagnosticStage\(phase, step\)/u);
   const { profileExportDiagnosticStage } = await import(runnerUrl.href);
   assert.equal(profileExportDiagnosticStage("DRAFT", "GENERATE_POST_RESPONSE"), "DRAFT_GENERATE_POST_RESPONSE");
+  for (const step of ["RESPONSE_BODY_READ", "RECEIPT_NORMALIZE", "COMMAND_READ", "RECEIPT_COMPARE"]) {
+    assert.equal(profileExportDiagnosticStage("DRAFT", step), `DRAFT_${step}`);
+    assert.equal(profileExportDiagnosticStage("FINAL", step), `FINAL_${step}`);
+  }
+  assert.equal(profileExportDiagnosticStage("DRAFT", "GENERATE_RECEIPT"), "DRAFT_GENERATE_RECEIPT");
   assert.equal(profileExportDiagnosticStage("FINAL", "DOWNLOAD_EVENT"), "FINAL_DOWNLOAD_EVENT");
   assert.equal(profileExportDiagnosticStage("COLD_DRAFT", "DOWNLOAD_STORAGE_BYTES"), "COLD_DRAFT_DOWNLOAD_STORAGE_BYTES");
   assert.equal(profileExportDiagnosticStage("COLD_FINAL", "DOWNLOAD_GRANT"), "COLD_FINAL_DOWNLOAD_GRANT");

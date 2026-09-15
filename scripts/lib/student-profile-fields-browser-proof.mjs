@@ -16,7 +16,8 @@ import postgres from "postgres";
 import { parse } from "smol-toml";
 import { PROFILE_FIELDS, PROFILE_GROUP_LABELS, PROFILE_REQUIRED_FIELD_KEYS } from "../../src/lib/student-profile-fields.ts";
 import { normalizeDocumentExportReceipt, normalizeDocumentExportWorkspaceV2 } from "../../src/lib/document-export-artifacts.ts";
-import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME } from "../../src/lib/document-export-artifact-contract.ts";
+import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_PACKAGE_MAX_BYTES } from "../../src/lib/document-export-artifact-contract.ts";
+import { exportBucketMimeTypesValid, PackageProofError, provePersistedPackage } from "./document-package-browser-proof.mjs";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -62,7 +63,7 @@ export function proofPathClass(raw, appOrigin) {
 }
 
 export function proofExceptionCategory(error) {
-  if (error instanceof ProofError) return "PROOF_ASSERTION";
+  if (error instanceof ProofError || error instanceof PackageProofError) return "PROOF_ASSERTION";
   // Classify only known Playwright failure shapes. Never retain its raw message,
   // which can include request URLs, selectors or private page values.
   const message = typeof error?.message === "string" ? error.message : "";
@@ -350,8 +351,8 @@ export function verifyDocx(bytes, template, { draft, expectedValues }) {
 /** Read-only prerequisite: never create or repair a bucket from this proof. */
 export function verifyDocumentExportBucket(bucket) {
   requireProof(bucket?.id === EXPORT_BUCKET && bucket.public === false
-    && bucket.file_size_limit === DOCUMENT_EXPORT_MAX_BYTES
-    && JSON.stringify(bucket.allowed_mime_types) === JSON.stringify([DOCUMENT_EXPORT_MIME]), "EXPORT_BUCKET_NOT_READY");
+    && bucket.file_size_limit === DOCUMENT_PACKAGE_MAX_BYTES
+    && exportBucketMimeTypesValid(bucket.allowed_mime_types), "EXPORT_BUCKET_NOT_READY");
 }
 
 /** Independent Storage bytes must agree with both the safe receipt and durable row. */
@@ -363,8 +364,8 @@ export function verifyStoredDocumentExport(bytes, receipt, stored, organizationI
     && stored.template_sha256 === TEMPLATE_HASH && stored.workspace_revision === receipt.workspace_revision
     && stored.input_snapshot_sha256 === receipt.input_snapshot_sha256, "PERSISTENT_RECEIPT_MISMATCH");
   requireProof(stored.bucket_id === EXPORT_BUCKET && stored.bucket_public === false
-    && Number(stored.bucket_limit) === DOCUMENT_EXPORT_MAX_BYTES
-    && JSON.stringify(stored.bucket_mimes) === JSON.stringify([DOCUMENT_EXPORT_MIME])
+    && Number(stored.bucket_limit) === DOCUMENT_PACKAGE_MAX_BYTES
+    && exportBucketMimeTypesValid(stored.bucket_mimes)
     && UUID.test(stored.storage_object_id) && stored.object_name === `${organizationId}/${receipt.student_case_id}/${receipt.id}.docx`,
   "PERSISTENT_STORAGE_BOUNDARY_INVALID");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
@@ -606,19 +607,26 @@ async function main() {
     requireProof(coldDraft.sha256 === draft.sha256 && coldFinal.sha256 === final.sha256
       && JSON.stringify(await inventory()) === JSON.stringify(beforeReplay), "PERSISTENT_COLD_HISTORY_CHANGED_BYTES");
     await cold.screenshot({ path: resolve(config.evidenceDir, "export-history.png"), fullPage: true });
+    const persistedPackage = await provePersistedPackage({ browser, page: cold, client, storage, sql, config, caseId,
+      finalReceipt: finalExport.receipt, draftReceipt: draftExport.receipt, inventory,
+      onStage: value => { stage = value; }, onPage: target => { diagnosticPage = target; },
+      onBrowserError: kind => { browserErrors.add(kind === "page" ? "PAGE_ERROR" : "CONSOLE_ERROR"); counts[kind] += 1; },
+      onBrowserWarning: () => { browserWarningCount += 1; } });
+    diagnosticPage = cold;
     await expect(page.locator("[data-nextjs-dialog-overlay], [data-nextjs-error-dialog]")).toHaveCount(0);
     requireProof(browserErrors.size === 0, "BROWSER_RUNTIME_ERRORS");
     await page.screenshot({ path: resolve(config.evidenceDir, "profile-ready.png"), fullPage: true });
     const [databaseState] = await sql`SELECT count(profile.id)::integer AS profiles, max(profile.revision)::integer AS revision
       FROM platform.student_profiles AS profile WHERE profile.student_case_id = ${caseId}::uuid`;
     requireProof(databaseState.profiles === 1 && databaseState.revision === 14, "PROFILE_IDENTITY_OR_REVISION_INVALID");
-    const receipt = { schema: "evo-student-profile-browser-proof/v2",
+    const receipt = { schema: "evo-student-profile-browser-proof/v3",
       synthetic: true, businessAcceptance: false, localProjectId: config.projectId, realAdminAuth: true,
       absentProfileWithoutChecklist: true, requiredFieldsConfirmed: 9, extendedFieldConfirmed: true,
       confirmedEmptyPersisted: true, staleEditDraftPreserved: true, otherConfirmationPreserved: true,
       pageIdentityVerified: true, frameworkOverlayAbsent: true, browserErrorCount: 0, browserWarningCount,
       profiles: databaseState.profiles, revision: databaseState.revision, draft, final,
-      persistentArtifacts: 2, generationSeparateFromDownload: true, exactRequestReplayWithoutDuplicate: true,
+      persistentArtifacts: 3, profileArtifacts: 2, packageArtifacts: 1, persistedPackage,
+      generationSeparateFromDownload: true, exactRequestReplayWithoutDuplicate: true,
       coldHistorySameBytes: true, historicalDraftDownload: true, downloadsCreateNoArtifacts: true,
       lostReplyReconciliationExercised: false };
     writeFileSync(resolve(config.evidenceDir, config.deferAcceptance ? "acceptance.pending.json" : "acceptance.json"),
@@ -628,7 +636,7 @@ async function main() {
     try { await writeFailureEvidence({ config, page: diagnosticPage, stage, error, http, browserErrors, browserWarningCount, counts }); }
     catch { process.stderr.write("STUDENT_PROFILE_FIELDS_BROWSER_DIAGNOSTIC:UNAVAILABLE\n"); }
     // Never print raw Playwright/Postgres/provider errors, DOM, URLs or credentials.
-    process.stderr.write(`STUDENT_PROFILE_FIELDS_BROWSER_ERROR:${error instanceof ProofError ? error.code : stage}\n`);
+    process.stderr.write(`STUDENT_PROFILE_FIELDS_BROWSER_ERROR:${error instanceof ProofError || error instanceof PackageProofError ? error.code : stage}\n`);
     process.exitCode = 1;
   } finally {
     await browser?.close().catch(() => {});

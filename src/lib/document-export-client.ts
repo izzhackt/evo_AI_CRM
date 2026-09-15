@@ -4,7 +4,7 @@ import {
   normalizeApplicationPublishedFormsWorkspace,
 } from "./document-export-artifacts.ts";
 import {
-  DOCUMENT_EXPORT_MAX_BYTES, UNIVERSITY_FORM_EXPORT_MAX_BYTES,
+  DOCUMENT_EXPORT_MAX_BYTES, UNIVERSITY_FORM_EXPORT_MAX_BYTES, DOCUMENT_PACKAGE_MAX_BYTES, type DocumentPackageExportCommand,
   type DocumentExportMode, type DocumentExportReceipt, type DocumentExportWorkspace, type StoredDocumentExportReceipt, type DocumentExportWorkspaceV2,
   type UniversityFormExportCommand, type UniversityFormExportWorkspace, type ApplicationPublishedFormsWorkspace,
 } from "./document-export-artifact-contract.ts";
@@ -20,10 +20,12 @@ const FAILURES: Readonly<Record<string, number>> = {
   invalid_request: 400, authentication_required: 401, forbidden: 403, access_changed: 403,
   source_changed: 409, request_conflict: 409, profile_not_ready: 422,
   form_not_ready: 422,
+  package_not_ready: 422, package_too_large: 422, package_storage_not_ready: 503,
   source_unavailable: 409, integrity_failed: 409, template_unavailable: 503,
   export_failed: 503, storage_unavailable: 503, artifact_pending: 409, export_unavailable: 503,
 };
-const DEFINITE = new Set(["invalid_request", "authentication_required", "forbidden", "access_changed", "source_changed", "request_conflict", "profile_not_ready", "form_not_ready"]);
+const DEFINITE = new Set(["invalid_request", "authentication_required", "forbidden", "access_changed", "source_changed", "request_conflict", "profile_not_ready", "form_not_ready",
+  "package_not_ready", "package_too_large", "package_storage_not_ready"]);
 const base = (caseId: string) => `/api/v3/student-cases/${exportUuid(caseId)}/document-exports`;
 
 async function bytes(response: Response, max: number): Promise<Uint8Array<ArrayBuffer>> {
@@ -102,7 +104,7 @@ export async function readUniversityFormExportWorkspace(caseId: string, applicat
   } catch { return { status: "export_unavailable", workspace: null }; }
 }
 
-async function commandResponse(response: Response, caseId: string, command?: DocumentExportCommand | UniversityFormExportCommand, artifactId?: string): Promise<DocumentExportOutcome> {
+async function commandResponse(response: Response, caseId: string, command?: DocumentExportCommand | UniversityFormExportCommand | DocumentPackageExportCommand, artifactId?: string): Promise<DocumentExportOutcome> {
   const value = await json(response);
   if (value && typeof value === "object" && Object.hasOwn(value, "artifact")) {
     const row = exportRecord(value, ["artifact"]);
@@ -111,7 +113,9 @@ async function commandResponse(response: Response, caseId: string, command?: Doc
     if (response.status !== expected) return UNKNOWN;
     if (command) {
       if (artifact.mode !== command.mode || artifact.workspace_revision !== command.expected_workspace_revision) return UNKNOWN;
-      if ("kind" in command) {
+      if ("kind" in command && command.kind === "package") {
+        if (artifact.kind !== "package" || artifact.package.id !== command.packet_id) return UNKNOWN;
+      } else if ("kind" in command) {
         if (artifact.kind !== "university_form" || artifact.form.application_id !== command.application_id
           || artifact.form.mapping_id !== command.mapping_id) return UNKNOWN;
       } else if (artifact.kind !== "student_profile") return UNKNOWN;
@@ -119,6 +123,19 @@ async function commandResponse(response: Response, caseId: string, command?: Doc
     return { status: "received", uncertain: false, artifact };
   }
   return safeFailure(response, value);
+}
+
+/** One explicit immutable packet export; retry retains the same command identity. */
+export async function createDocumentPackageExport(caseId: string, command: DocumentPackageExportCommand): Promise<DocumentExportOutcome> {
+  try {
+    exportUuid(command.request_id); exportUuid(command.packet_id);
+    if (command.kind !== "package" || !["draft", "final"].includes(command.mode)
+      || !EXPORT_HASH.test(command.expected_workspace_revision)) throw new Error("invalid_request");
+    const response = await fetch(base(caseId), { method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: command.kind, packet_id: command.packet_id,
+        mode: command.mode, expected_workspace_revision: command.expected_workspace_revision, request_id: command.request_id }) });
+    return await commandResponse(response, caseId, command);
+  } catch { return UNKNOWN; }
 }
 
 /** One explicit command. Its caller retains this exact payload if the outcome is unknown. */
@@ -165,7 +182,7 @@ export async function downloadDocumentExport(caseId: string, input: StoredDocume
     const response = await fetch(`${base(caseId)}/${artifact.id}/download`, { method: "GET", credentials: "same-origin", cache: "no-store" });
     if (response.status !== 200) return safeFailure(response, await json(response)).status;
     if (response.headers.get("content-type")?.split(";", 1)[0].trim() !== artifact.mime_type) return "integrity_failed";
-    const data = await bytes(response, artifact.kind === "university_form" ? UNIVERSITY_FORM_EXPORT_MAX_BYTES : DOCUMENT_EXPORT_MAX_BYTES);
+    const data = await bytes(response, artifact.kind === "package" ? DOCUMENT_PACKAGE_MAX_BYTES : artifact.kind === "university_form" ? UNIVERSITY_FORM_EXPORT_MAX_BYTES : DOCUMENT_EXPORT_MAX_BYTES);
     if (data.byteLength !== artifact.output_bytes) return "integrity_failed";
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", data))].map(byte => byte.toString(16).padStart(2, "0")).join("");
     if (hash !== artifact.output_sha256) return "integrity_failed";
@@ -173,8 +190,8 @@ export async function downloadDocumentExport(caseId: string, input: StoredDocume
     let link: HTMLAnchorElement | null = null;
     try {
       link = document.createElement("a"); link.href = url;
-      const name = artifact.kind === "university_form" ? "EVO-University-Form" : "EVO-Student-Profile";
-      const extension = artifact.mime_type === "application/pdf" ? "pdf" : "docx";
+      const name = artifact.kind === "package" ? "EVO-Documents" : artifact.kind === "university_form" ? "EVO-University-Form" : "EVO-Student-Profile";
+      const extension = artifact.kind === "package" ? "zip" : artifact.mime_type === "application/pdf" ? "pdf" : "docx";
       link.download = `${name}${artifact.mode === "draft" ? "-Draft" : ""}.${extension}`;
       document.body.appendChild(link); link.click();
     } finally { link?.remove(); setTimeout(() => URL.revokeObjectURL(url), 0); }

@@ -43,6 +43,17 @@ production hostname; custom DNS is deferred. VPS sslip login=200/TLS verify0.
 
 ## Active PDF preview reliability slice (2026-09-15)
 
+Source checkpoint: reviewed PR784 merged as `5cf45158f910146028f6714a1a769526cb3b683b`.
+The revoked-URL regression fails against the former implementation and passes
+against the fix; required fast checks34964735716 passed. Production remains
+`a358a3e3`. ZIP source is committed as `e088e8ba` on
+`izzhackt/docs-persisted-zip-50m`, including migration169. Independent backend
+and UI reviews passed; isolated SQL001–169, existing164/167 regressions,
+50MiB unknown→reconcile→ready,54 producer/builder/route tests,16 client/action
+tests,18 UI tests, typecheck and scoped lint passed. The actual ZIP browser/
+Storage proof, managed169 apply, private bucket upgrade and app release remain
+pending. Do not repeat the old Docs retirement or blank-template import.
+
 On accepted `a358a3e3`, rapid GDUT Degree page1→2→1 changes reproduced a
 transient broken image twice: `complete=true`, natural dimensions0×0 and no
 loading message. The image later recovered without retry. Cleanup revokes the
@@ -60,7 +71,7 @@ preview before cleanup, without resetting the editor's mappings. Keep other
 City/server failures unclaimed until separately reproduced. Do not redeploy or
 retire Docs on source inspection alone.
 
-Implementation is prepared on `izzhackt/docs-preview-reliability`. Scoped ESLint,
+Implementation was prepared on `izzhackt/docs-preview-reliability` and is now merged. Scoped ESLint,
 TypeScript and the full production build pass on Node22.23.1. Positive browser
 acceptance is pending: the Mac preview cannot run the Linux-only native page
 handler, and localhost:3000 still serves the unchanged accepted app. Do not

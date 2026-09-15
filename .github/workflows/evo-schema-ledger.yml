@@ -19,7 +19,7 @@ on:
           - check
           - apply
       check_storage_capacity:
-        description: "Прочитать лимит Storage и требовать не менее20MiB перед продолжением"
+        description: "Прочитать лимит Storage и требовать не менее50MiB для ZIP перед продолжением"
         required: false
         default: false
         type: boolean
@@ -85,7 +85,7 @@ jobs:
                 || !Number.isSafeInteger(config.fileSizeLimit) || config.fileSizeLimit < 0) {
                 throw new Error("invalid_capacity");
               }
-              const minimumBytes = 20 * 1024 * 1024;
+              const minimumBytes = 50 * 1024 * 1024;
               const eligible = config.fileSizeLimit >= minimumBytes;
               console.log(JSON.stringify({ fileSizeLimit: config.fileSizeLimit, minimumBytes, eligible }));
               if (!eligible) process.exitCode = 1;

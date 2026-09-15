@@ -27,6 +27,15 @@
   сохранение draft/final, повторный вход и скачивание, entry hashes, отказ при
   stale/access/oversize/replay conflict. Это техническая приёмка, не клиентская.
 
+Существующие manifests самой Platform не удаляются: записи до ZIP сохраняются
+для чтения с `revision:null`; пользователь формирует новый состав для экспорта.
+Ретроспективные snapshots и фиктивные версии не создаются. Настройка хранилища
+добавляет явный `--packages`: по умолчанию только проверка; с `--apply` допускается
+лишь переход от точного private5/20MiB predecessor к private50MiB/DOCX+PDF+ZIP.
+Произвольные настройки и downgrade отклоняются. Ёмкость проекта проверяется
+отдельно до записи, поскольку bucket не может превышать global limit
+([Supabase file limits](https://supabase.com/docs/guides/storage/uploads/file-limits)).
+
 Ниже — исходный контракт и исторический library checkpoint; изменённые здесь
 пределы, reuse существующего partner panel и отказ от старого импорта приоритетны.
 

@@ -5,9 +5,11 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import PizZip from "pizzip";
 import { localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { verifyPersistedPackageZip, verifyPackageStorage } from "../scripts/lib/document-package-browser-proof.mjs";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
-import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256 } from "../src/lib/document-export-artifact-contract.ts";
+import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
 
 const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
 const runnerUrl = new URL("../scripts/lib/student-profile-fields-browser-proof.mjs", import.meta.url);
@@ -32,22 +34,34 @@ test("profile-only acceptance waits for owned cleanup and fails closed on stop o
   const newStart = harness.indexOf("student_profile_cleanup() {");
   const start = newStart < 0 ? harness.indexOf("cleanup() {") : newStart;
   const functions = harness.slice(start, harness.indexOf("\ntrap cleanup EXIT", start));
-  for (const failure of ["supabase-stop", "remaining-container", "remaining-network", "remaining-volume", "container-read", "network-read", "volume-read", "original-exit", "proof-not-ready", "malformed-pending", "wrong-project", ""]) {
+  for (const failure of ["supabase-stop", "remaining-container", "remaining-network", "remaining-volume", "container-read", "network-read", "volume-read", "original-exit", "proof-not-ready", "malformed-pending", "wrong-project", "missing-package-proof", "wrong-package-hash", "wrong-package-size", "wrong-package-count", ""]) {
     const root = mkdtempSync(join(tmpdir(), "evo-profile-cleanup-unit-"));
     try {
       const evidence = join(root, "evidence"); mkdirSync(evidence);
       const ownedTmp = join(root, "evo-database-foundation.synthetic"); mkdirSync(ownedTmp);
       const lock = join(root, "lock"); mkdirSync(lock); writeFileSync(join(lock, "pid"), "123\n");
       writeFileSync(join(evidence, "acceptance.pending.json"), JSON.stringify({
-        schema: "evo-student-profile-browser-proof/v2", synthetic: true, businessAcceptance: false,
+        schema: "evo-student-profile-browser-proof/v3", synthetic: true, businessAcceptance: false,
         localProjectId: "evo-local-0123456789abcdef", cleanupVerified: false, realAdminAuth: true,
-        persistentArtifacts: 2, generationSeparateFromDownload: true, exactRequestReplayWithoutDuplicate: true,
+        persistentArtifacts: 3, profileArtifacts: 2, packageArtifacts: 1,
+        persistedPackage: { realUiPreparation: true, realUiGeneration: true, privateStorageReadback: true,
+          selectedEntryBytesVerified: true, finalExcludesDraft: true, freshLoginHistorySameBytes: true,
+          downloadsCreateNoArtifacts: true, sha256: "a".repeat(64), bytes: 512, selectedEntries: 1 },
+        generationSeparateFromDownload: true, exactRequestReplayWithoutDuplicate: true,
         coldHistorySameBytes: true, historicalDraftDownload: true, downloadsCreateNoArtifacts: true,
       }));
       if (failure === "malformed-pending") writeFileSync(join(evidence, "acceptance.pending.json"), "{");
       if (failure === "wrong-project") {
         const pending = JSON.parse(readFileSync(join(evidence, "acceptance.pending.json"), "utf8"));
         writeFileSync(join(evidence, "acceptance.pending.json"), JSON.stringify({ ...pending, localProjectId: "evo-local-fedcba9876543210" }));
+      }
+      if (["missing-package-proof", "wrong-package-hash", "wrong-package-size", "wrong-package-count"].includes(failure)) {
+        const pending = JSON.parse(readFileSync(join(evidence, "acceptance.pending.json"), "utf8"));
+        if (failure === "missing-package-proof") delete pending.persistedPackage;
+        if (failure === "wrong-package-hash") pending.persistedPackage.sha256 = "not-a-hash";
+        if (failure === "wrong-package-size") pending.persistedPackage.bytes = DOCUMENT_PACKAGE_MAX_BYTES + 1;
+        if (failure === "wrong-package-count") pending.packageArtifacts = 0;
+        writeFileSync(join(evidence, "acceptance.pending.json"), JSON.stringify(pending));
       }
       // Exercise the actual EXIT functions. Only local command boundaries are
       // synthetic: this never calls a Docker daemon, database or provider.
@@ -85,7 +99,8 @@ exit 0
       assert.equal(result.status, failure ? 1 : 0, `${failure || "success"}: ${result.stderr}`);
       assert.equal(result.stdout.includes("STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED"), !failure, failure);
       assert.equal(existsSync(join(evidence, "acceptance.json")), !failure, failure);
-      if (failure && !["original-exit", "proof-not-ready", "malformed-pending", "wrong-project"].includes(failure)) {
+      const invalidReceipt = ["malformed-pending", "wrong-project", "missing-package-proof", "wrong-package-hash", "wrong-package-size", "wrong-package-count"].includes(failure);
+      if (failure && !["original-exit", "proof-not-ready"].includes(failure) && !invalidReceipt) {
         assert.ok(existsSync(ownedTmp));
         assert.ok(existsSync(join(evidence, "acceptance.pending.json")));
         assert.match(result.stderr, /STUDENT_PROFILE_FIELDS_CLEANUP_FAILED/u);
@@ -93,7 +108,7 @@ exit 0
         assert.equal(existsSync(ownedTmp), false);
         assert.equal(existsSync(lock), false);
         if (!failure) assert.equal(JSON.parse(readFileSync(join(evidence, "acceptance.json"), "utf8")).cleanupVerified, true);
-        if (["malformed-pending", "wrong-project"].includes(failure)) assert.match(result.stderr, /STUDENT_PROFILE_FIELDS_RECEIPT_FINALIZATION_FAILED/u);
+        if (invalidReceipt) assert.match(result.stderr, /STUDENT_PROFILE_FIELDS_RECEIPT_FINALIZATION_FAILED/u);
       }
     } finally { rmSync(root, { recursive: true, force: true }); }
   }
@@ -108,7 +123,7 @@ test("cleanup for all other foundation modes remains byte-identical", () => {
 });
 
 test("local export bucket is checked before any synthetic business mutation", () => {
-  const valid = { id: "platform-document-exports", public: false, file_size_limit: DOCUMENT_EXPORT_MAX_BYTES, allowed_mime_types: [DOCUMENT_EXPORT_MIME] };
+  const valid = { id: "platform-document-exports", public: false, file_size_limit: DOCUMENT_PACKAGE_MAX_BYTES, allowed_mime_types: [DOCUMENT_EXPORT_MIME, "application/pdf", DOCUMENT_PACKAGE_MIME] };
   assert.doesNotThrow(() => verifyDocumentExportBucket(valid));
   for (const change of [{ id: "platform-documents" }, { public: true }, { file_size_limit: 25 * 1024 * 1024 }, { allowed_mime_types: ["application/pdf"] }, { allowed_mime_types: null }]) {
     assert.throws(() => verifyDocumentExportBucket({ ...valid, ...change }), /EXPORT_BUCKET_NOT_READY/u);
@@ -253,8 +268,8 @@ function persistentFixture() {
     state: "ready", can_download: true, profile_revision: 14, mode: "final", workspace_revision: "b".repeat(64),
     input_snapshot_sha256: "c".repeat(64), output_sha256: createHash("sha256").update(bytes).digest("hex"), output_bytes: bytes.length };
   const stored = { ...receipt, organization_id: organizationId, template_sha256: DOCUMENT_EXPORT_TEMPLATE_SHA256,
-    bucket_id: "platform-document-exports", bucket_public: false, bucket_limit: DOCUMENT_EXPORT_MAX_BYTES,
-    bucket_mimes: [DOCUMENT_EXPORT_MIME], storage_object_id: "aaaa0000-0000-4000-8000-000000000005",
+    bucket_id: "platform-document-exports", bucket_public: false, bucket_limit: DOCUMENT_PACKAGE_MAX_BYTES,
+    bucket_mimes: [DOCUMENT_EXPORT_MIME, "application/pdf", DOCUMENT_PACKAGE_MIME], storage_object_id: "aaaa0000-0000-4000-8000-000000000005",
     object_name: `${organizationId}/${caseId}/${id}.docx` };
   return { bytes, receipt, stored, organizationId };
 }
@@ -275,6 +290,96 @@ test("Storage proof requires identical ready receipt, private object scope and d
   assert.throws(() => verifyStoredDocumentExport(Buffer.from("different bytes"), receipt, stored, organizationId), /PERSISTENT_STORAGE_BYTES_MISMATCH/u);
   assert.throws(() => verifyStoredDocumentExport(bytes, receipt, { ...stored, output_sha256: "0".repeat(64) }, organizationId), /PERSISTENT_STORAGE_BYTES_MISMATCH/u);
   assert.throws(() => verifyStoredDocumentExport(bytes, receipt, null, organizationId), /PERSISTENT_RECEIPT_MISMATCH/u);
+  const oversized = Buffer.alloc(DOCUMENT_EXPORT_MAX_BYTES + 1);
+  const output = { output_bytes: oversized.length, output_sha256: createHash("sha256").update(oversized).digest("hex") };
+  assert.throws(() => verifyStoredDocumentExport(oversized, { ...receipt, ...output }, { ...stored, ...output }, organizationId),
+    /PERSISTENT_STORAGE_BYTES_MISMATCH/u); // Raising the shared bucket never raises the profile output cap.
+});
+
+function packageFixture() {
+  const { receipt: profileReceipt, organizationId } = persistentFixture();
+  const source = { id: "aaaa0000-0000-4000-8000-000000000011", kind: "generated", mode: "final", bytes: Buffer.from("existing final DOCX bytes") };
+  const receipt = { ...profileReceipt, kind: "package", mime_type: DOCUMENT_PACKAGE_MIME,
+    package: { id: "aaaa0000-0000-4000-8000-000000000012", application_id: "aaaa0000-0000-4000-8000-000000000013", item_count: 1 } };
+  const manifest = { schemaVersion: 1, rendererVersion: "evo-partner-packet-zip-v1", packetId: receipt.package.id,
+    studentCaseId: receipt.student_case_id, inputSha256: receipt.input_snapshot_sha256, mode: "final",
+    items: [{ id: source.id, kind: source.kind, mode: source.mode, path: `generated/${source.id}.docx`,
+      mimeType: DOCUMENT_EXPORT_MIME, sizeBytes: source.bytes.length, sha256: createHash("sha256").update(source.bytes).digest("hex") }] };
+  const zip = new PizZip();
+  zip.file(manifest.items[0].path, source.bytes, { createFolders: false });
+  zip.file("manifest.json", JSON.stringify(manifest));
+  zip.file("README.txt", "This is not a submission or delivery receipt.");
+  const seal = () => {
+    const bytes = zip.generate({ type: "nodebuffer" });
+    return { bytes, receipt: { ...receipt, output_bytes: bytes.length, output_sha256: createHash("sha256").update(bytes).digest("hex") } };
+  };
+  return { ...seal(), organizationId, source, manifest, zip, seal };
+}
+
+test("package proof decodes exact selected bytes and rejects added, changed or draft contents", () => {
+  const fixture = packageFixture();
+  assert.deepEqual(verifyPersistedPackageZip(fixture.bytes, fixture.receipt, [fixture.source]), {
+    sha256: fixture.receipt.output_sha256, bytes: fixture.bytes.length, selectedEntries: 1,
+    selectedEntryBytesVerified: true, finalExcludesDraft: true,
+  });
+  assert.throws(() => verifyPersistedPackageZip(fixture.bytes, fixture.receipt, [{ ...fixture.source, mode: "draft" }]), /PACKAGE_SELECTION_INVALID/u);
+  for (const mutation of ["extra", "bytes", "manifest-hash", "manifest-case", "draft-warning"]) {
+    const f = packageFixture();
+    if (mutation === "extra") f.zip.file("generated/unselected-draft.docx", "draft", { createFolders: false });
+    if (mutation === "bytes") f.zip.file(f.manifest.items[0].path, "altered output", { createFolders: false });
+    if (mutation === "manifest-hash") { f.manifest.items[0].sha256 = "0".repeat(64); f.zip.file("manifest.json", JSON.stringify(f.manifest)); }
+    if (mutation === "manifest-case") { f.manifest.studentCaseId = f.organizationId; f.zip.file("manifest.json", JSON.stringify(f.manifest)); }
+    if (mutation === "draft-warning") f.zip.file("README.txt", "DRAFT. This is not a submission or delivery receipt.");
+    const changed = f.seal(); // Even a matching outer hash must not hide wrong ZIP contents.
+    assert.throws(() => verifyPersistedPackageZip(changed.bytes, changed.receipt, [f.source]), /PACKAGE_(?:ENTRIES_CHANGED|ENTRY_BYTES_CHANGED|MANIFEST_SOURCE_MISMATCH|MANIFEST_MISMATCH|FINAL_LABEL_INVALID)/u, mutation);
+  }
+  assert.throws(() => verifyPersistedPackageZip(fixture.bytes, { ...fixture.receipt, output_sha256: "0".repeat(64) }, [fixture.source]), /PACKAGE_OUTPUT_MISMATCH/u);
+});
+
+test("package storage proof binds private object, current receipt and independent readback hash", () => {
+  const { bytes, receipt, organizationId } = packageFixture();
+  const stored = { ...persistentFixture().stored, ...receipt, organization_id: organizationId,
+    application_id: receipt.package.application_id, package_id: receipt.package.id,
+    object_name: `${organizationId}/${receipt.student_case_id}/${receipt.id}.zip` };
+  assert.doesNotThrow(() => verifyPackageStorage(bytes, receipt, stored, organizationId));
+  for (const change of [{ kind: "student_profile" }, { state: "pending" }, { package_id: organizationId },
+    { application_id: organizationId }, { workspace_revision: "0".repeat(64) }]) {
+    assert.throws(() => verifyPackageStorage(bytes, receipt, { ...stored, ...change }, organizationId), /PACKAGE_STORED_RECEIPT_MISMATCH/u);
+  }
+  for (const change of [{ bucket_public: true }, { bucket_limit: DOCUMENT_EXPORT_MAX_BYTES },
+    { bucket_mimes: [DOCUMENT_PACKAGE_MIME] }, { object_name: "wrong/object.zip" }]) {
+    assert.throws(() => verifyPackageStorage(bytes, receipt, { ...stored, ...change }, organizationId), /PACKAGE_PRIVATE_STORAGE_INVALID/u);
+  }
+  assert.throws(() => verifyPackageStorage(Buffer.from("different"), receipt, stored, organizationId), /PACKAGE_STORED_BYTES_MISMATCH/u);
+});
+
+test("package fixture supplies the exact current canonical application RPC signature", () => {
+  const proof = readFileSync(new URL("../scripts/lib/document-package-browser-proof.mjs", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../supabase/migrations/118_platform_university_application_geography.sql", import.meta.url), "utf8");
+  const signature = migration.match(/CREATE FUNCTION platform\.create_university_application\(([\s\S]*?)\)\s*RETURNS JSONB/u)?.[1];
+  const payload = proof.match(/rpc\("create_university_application", \{([\s\S]*?)\}\);/u)?.[1];
+  assert.ok(signature && payload);
+  const required = [...signature.matchAll(/\b(p_[a-z_]+)\s+[A-Za-z]/gu)].map(match => match[1]).sort();
+  const supplied = [...payload.matchAll(/\b(p_[a-z_]+):/gu)].map(match => match[1]).sort();
+  assert.equal(required.length, 13);
+  assert.deepEqual(supplied, required);
+  assert.match(payload, /p_is_primary: false/u);
+  for (const key of ["p_university_deadline_on", "p_country", "p_degree"]) assert.ok(payload.includes(`${key}: null`), key);
+});
+
+test("persisted ZIP runs after profile cold checks using UI and a fresh real login, not renderer or Storage writes", () => {
+  const runner = readFileSync(runnerUrl, "utf8");
+  const proof = readFileSync(new URL("../scripts/lib/document-package-browser-proof.mjs", import.meta.url), "utf8");
+  assert.ok(runner.indexOf("await provePersistedPackage(") > runner.indexOf('"PERSISTENT_COLD_HISTORY_CHANGED_BYTES"'));
+  assert.match(runner, /persistentArtifacts: 3, profileArtifacts: 2, packageArtifacts: 1, persistedPackage/u);
+  assert.match(proof, /rpc\("create_university_application"/u);
+  for (const label of ["Зафиксировать пакет", "Сохранить финальный ZIP", "Скачать файл", "Войти в CRM"]) assert.ok(proof.includes(label));
+  assert.match(proof, /browser\.newContext\(/u);
+  assert.match(proof, /fresh\.locator\("#staff-password"\)\.fill\(config\.password\)/u);
+  assert.match(proof, /history\.artifacts\.length === 3/u);
+  assert.match(proof, /PACKAGE_DOWNLOAD_CHANGED_HISTORY/u);
+  assert.match(proof, /storedBytes\.equals\(bytes\)/u);
+  assert.doesNotMatch(proof, /route\.fulfill|storage\.from\([^)]*\)\.(?:upload|update|remove)|\.rpc\("(?:prepare|begin|seal|complete|reconcile)_document_export|buildPersistedDocumentPackageZip|storageState\s*:/u);
 });
 
 test("failure evidence separates login from profile rendering and never emits raw diagnostic payloads", () => {

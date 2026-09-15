@@ -6,6 +6,8 @@ export const DOCUMENT_EXPORT_RENDERER_VERSION = "evo-student-profile-docx-v1";
 export const DOCUMENT_EXPORT_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export const DOCUMENT_EXPORT_MAX_BYTES = 5 * 1024 * 1024;
 export const UNIVERSITY_FORM_EXPORT_MAX_BYTES = 20 * 1024 * 1024;
+export const DOCUMENT_PACKAGE_MAX_BYTES = 50 * 1024 * 1024;
+export const DOCUMENT_PACKAGE_MIME = "application/zip";
 export type DocumentExportMode = "draft" | "final";
 export type DocumentExportState = "pending" | "stored_unverified" | "ready" | "unknown" | "failed";
 export type DocumentExportFailure = "profile_not_ready" | "source_changed" | "access_changed" | "source_unavailable"
@@ -32,7 +34,16 @@ export type UniversityFormExportReceipt = Readonly<Omit<DocumentExportReceipt,
   form: FormBinding; generated_input_sha256: string; renderer_proof: UniversityFormRendererProof | null;
   failure_code: DocumentExportFailure | "form_not_ready" | null;
 }>;
-export type StoredDocumentExportReceipt = DocumentExportReceipt | UniversityFormExportReceipt;
+export type DocumentPackageExportReceipt = Readonly<Omit<DocumentExportReceipt,
+  "kind" | "mime_type" | "student_profile_id" | "profile_revision" | "field_reviews_sha256" | "template_sha256"> & {
+  kind: "package"; mime_type: typeof DOCUMENT_PACKAGE_MIME;
+  student_profile_id: null; profile_revision: null; field_reviews_sha256: null; template_sha256: null;
+  package: Readonly<{ id: string; application_id: string; item_count: number }>;
+}>;
+export type DocumentPackageExportCommand = Readonly<{
+  kind: "package"; packet_id: string; mode: DocumentExportMode; expected_workspace_revision: string; request_id: string;
+}>;
+export type StoredDocumentExportReceipt = DocumentExportReceipt | UniversityFormExportReceipt | DocumentPackageExportReceipt;
 export type DocumentExportWorkspaceV2 = Readonly<Omit<DocumentExportWorkspace, "schema_version" | "artifacts"> & {
   schema_version: 2; artifacts: readonly StoredDocumentExportReceipt[];
 }>;
@@ -59,7 +70,7 @@ export type DocumentExportBeginning = Readonly<{
   artifact: DocumentExportReceipt; created: boolean; claim_token: string | null;
 }>;
 export type DocumentExportStorageTarget = Readonly<{
-  bucket_id: "platform-document-exports"; object_name: string; mime_type: typeof DOCUMENT_EXPORT_MIME | "application/pdf";
+  bucket_id: "platform-document-exports"; object_name: string; mime_type: typeof DOCUMENT_EXPORT_MIME | "application/pdf" | typeof DOCUMENT_PACKAGE_MIME;
   expires_at: string;
 }>;
 export type DocumentExportSeal = Readonly<{ artifact: DocumentExportReceipt; storage: DocumentExportStorageTarget | null }>;

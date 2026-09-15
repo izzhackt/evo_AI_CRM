@@ -14,6 +14,12 @@ const MIME = DOCUMENT_EXPORT_BUCKET.allowed_mime_types[0];
 export const UNIVERSITY_FORM_EXPORT_BUCKET = Object.freeze({ ...DOCUMENT_EXPORT_BUCKET,
   file_size_limit: 20 * 1024 * 1024, allowed_mime_types: Object.freeze([MIME, "application/pdf"]),
 });
+// Bucket limits cannot exceed the separately verified project limit.
+// https://supabase.com/docs/guides/storage/uploads/file-limits
+export const DOCUMENT_PACKAGE_EXPORT_BUCKET = Object.freeze({ ...DOCUMENT_EXPORT_BUCKET,
+  file_size_limit: 50 * 1024 * 1024,
+  allowed_mime_types: Object.freeze([MIME, "application/pdf", "application/zip"]),
+});
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const REQUEST_TIMEOUT_MS = 10_000;
 const BUCKET_PATH = `/storage/v1/bucket/${DOCUMENT_EXPORT_BUCKET.id}`;
@@ -31,6 +37,9 @@ export function parseDocumentExportStorageArgs(argv) {
   if (argv.includes("--university-forms") && new Set(argv).size === argv.length
     && argv.every(value => value === "--apply" || value === "--university-forms"))
     return { apply: argv.includes("--apply"), help: false, universityForms: true };
+  if (argv.includes("--packages") && new Set(argv).size === argv.length
+    && argv.every(value => value === "--apply" || value === "--packages"))
+    return { apply: argv.includes("--apply"), help: false, packages: true };
   fail("arguments_invalid");
 }
 
@@ -61,7 +70,7 @@ function bucketSettings(value) {
   return {
     ...DOCUMENT_EXPORT_BUCKET, public: value.public, file_size_limit: value.file_size_limit,
     allowed_mime_types: value.allowed_mime_types === null ? null : value.allowed_mime_types.map(mime =>
-      UNIVERSITY_FORM_EXPORT_BUCKET.allowed_mime_types.includes(mime) ? mime : "OTHER_MIME").sort(),
+      DOCUMENT_PACKAGE_EXPORT_BUCKET.allowed_mime_types.includes(mime) ? mime : "OTHER_MIME").sort(),
     type: value.type === undefined || value.type === "STANDARD" ? "STANDARD" : "OTHER_TYPE",
   };
 }
@@ -118,7 +127,7 @@ async function readBucket(headers, fetchImpl) {
   return bucketSettings(body);
 }
 
-export async function configureDocumentExportStorage({ apply = false, universityForms = false, environment = process.env, fetchImpl = globalThis.fetch } = {}) {
+export async function configureDocumentExportStorage({ apply = false, universityForms = false, packages = false, environment = process.env, fetchImpl = globalThis.fetch } = {}) {
   const report = {
     schema: "evo-document-export-storage/v1", mode: apply === true ? "apply" : "check",
     projectRef: DOCUMENT_EXPORT_STORAGE_PROJECT, bucket: DOCUMENT_EXPORT_BUCKET.id,
@@ -127,17 +136,21 @@ export async function configureDocumentExportStorage({ apply = false, university
   };
   let stage = "configuration";
   try {
-    if (typeof apply !== "boolean" || typeof universityForms !== "boolean" || !isRecord(environment) || typeof fetchImpl !== "function") fail("arguments_invalid");
-    const expected = universityForms ? UNIVERSITY_FORM_EXPORT_BUCKET : DOCUMENT_EXPORT_BUCKET;
+    if (typeof apply !== "boolean" || typeof universityForms !== "boolean" || typeof packages !== "boolean"
+      || (universityForms && packages) || !isRecord(environment) || typeof fetchImpl !== "function") fail("arguments_invalid");
+    const expected = packages ? DOCUMENT_PACKAGE_EXPORT_BUCKET : universityForms ? UNIVERSITY_FORM_EXPORT_BUCKET : DOCUMENT_EXPORT_BUCKET;
     const headers = configuration(environment);
     stage = "before_read";
     report.before = await readBucket(headers, fetchImpl);
     if (report.before !== null) {
       report.after = report.before;
       if (!settingsMatch(report.before, expected)) {
-        if (!universityForms || !settingsMatch(report.before)) fail("bucket_settings_conflict");
-        if (!apply) fail("university_forms_upgrade_required");
-        // Exactly the known D2 bucket, with no object, policy or public-access change.
+        const knownUpgrade = packages
+          ? settingsMatch(report.before) || settingsMatch(report.before, UNIVERSITY_FORM_EXPORT_BUCKET)
+          : universityForms && settingsMatch(report.before);
+        if (!knownUpgrade) fail("bucket_settings_conflict");
+        if (!apply) fail(packages ? "packages_upgrade_required" : "university_forms_upgrade_required");
+        // Only a known private predecessor. No downgrade, object, policy or public-access change.
         stage = "update"; report.mutationAttempted = true;
         const updated = await request(BUCKET_PATH, "PUT", headers, fetchImpl, expected);
         if (updated.status !== 200) fail("update_outcome_unknown");
@@ -175,10 +188,10 @@ export async function runDocumentExportStorageCli(argv, options = {}) {
   try {
     const args = parseDocumentExportStorageArgs(argv);
     if (args.help) {
-      write("Usage: node scripts/configure-document-export-storage.mjs [--apply] [--university-forms]\nDefault: check only; --apply creates the absent exact private DOCX 5MiB bucket.\n--university-forms targets private DOCX/PDF 20MiB; with --apply it may upgrade only the exact former DOCX 5MiB bucket.\n");
+      write("Usage: node scripts/configure-document-export-storage.mjs [--apply] [--university-forms | --packages]\nDefault: check only; --apply creates the absent exact private DOCX 5MiB bucket.\n--university-forms targets private DOCX/PDF 20MiB; with --apply it may upgrade only the exact former DOCX 5MiB bucket.\n--packages targets private DOCX/PDF/ZIP 50MiB; with --apply it may upgrade only the exact private 5MiB or 20MiB predecessor. Verify project capacity separately; this command never changes the global limit or tariff.\n");
       return 0;
     }
-    const result = await configureDocumentExportStorage({ ...options, apply: args.apply, universityForms: args.universityForms ?? false });
+    const result = await configureDocumentExportStorage({ ...options, apply: args.apply, universityForms: args.universityForms ?? false, packages: args.packages ?? false });
     write(`${JSON.stringify(result.report)}\n`);
     return result.exitCode;
   } catch {

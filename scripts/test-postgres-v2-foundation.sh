@@ -404,11 +404,17 @@ try {
   const info = lstatSync(pending);
   if (!info.isFile() || info.isSymbolicLink() || info.size > 64 * 1024) throw new Error();
   const receipt = JSON.parse(readFileSync(pending, "utf8"));
-  if (receipt.schema !== "evo-student-profile-browser-proof/v2" || receipt.synthetic !== true
+  if (receipt.schema !== "evo-student-profile-browser-proof/v3" || receipt.synthetic !== true
     || receipt.businessAcceptance !== false || receipt.localProjectId !== projectId || receipt.cleanupVerified !== false
-    || receipt.realAdminAuth !== true || receipt.persistentArtifacts !== 2
+    || receipt.realAdminAuth !== true || receipt.persistentArtifacts !== 3
+    || receipt.profileArtifacts !== 2 || receipt.packageArtifacts !== 1
     || !["generationSeparateFromDownload", "exactRequestReplayWithoutDuplicate", "coldHistorySameBytes",
       "historicalDraftDownload", "downloadsCreateNoArtifacts"].every(key => receipt[key] === true)) throw new Error();
+  const packet = receipt.persistedPackage;
+  if (!packet || !["realUiPreparation", "realUiGeneration", "privateStorageReadback", "selectedEntryBytesVerified",
+    "finalExcludesDraft", "freshLoginHistorySameBytes", "downloadsCreateNoArtifacts"].every(key => packet[key] === true)
+    || !/^[a-f0-9]{64}$/.test(packet.sha256 ?? "") || !Number.isSafeInteger(packet.bytes)
+    || packet.bytes < 1 || packet.bytes > 52428800 || packet.selectedEntries !== 1) throw new Error();
   writeFileSync(staging, JSON.stringify({ ...receipt, cleanupVerified: true }, null, 2), { mode: 0o600, flag: "wx" });
   staged = true;
   linkSync(staging, final); published = true; // Atomic publication, never replace an existing receipt.

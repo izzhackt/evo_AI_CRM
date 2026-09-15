@@ -8,6 +8,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import * as client from "../src/lib/document-export-client.ts";
 import * as contract from "../src/lib/document-export-artifact-contract.ts";
+import { normalizeStoredDocumentExportReceipt } from "../src/lib/document-export-artifacts.ts";
+import { decodePacketWorkspace } from "../src/lib/platform-admissions-support-contract.ts";
+import * as packetContract from "../src/lib/platform-admissions-support-contract.ts";
 import * as wording from "../src/lib/v3/wording.ts";
 
 const CASE = "10000000-0000-4000-8000-000000000001";
@@ -17,6 +20,74 @@ const ARTIFACT = "10000000-0000-4000-8000-000000000004";
 const HASH = "a".repeat(64);
 const DATA = new Uint8Array([80, 75, 3, 4]); // Synthetic transport bytes, not a rendered DOCX acceptance.
 const command = Object.freeze({ mode: "final", expected_workspace_revision: HASH, request_id: REQUEST });
+function packageArtifact(changes = {}) {
+  return artifact({ kind: "package", student_profile_id: null, profile_revision: null, field_reviews_sha256: null, template_sha256: null,
+    mime_type: "application/zip", renderer_version: "evo-partner-packet-zip-v1", package: { id: PROFILE, application_id: REQUEST, item_count: 1 }, ...changes });
+}
+test("package receipt keeps null profile bindings and strictly enforces50MiB, ZIP identity and counts", () => {
+  assert.deepEqual(normalizeStoredDocumentExportReceipt(packageArtifact(), CASE), packageArtifact());
+  for (const change of [{ student_profile_id: PROFILE }, { template_sha256: HASH }, { output_bytes: 52428801 },
+    { mime_type: contract.DOCUMENT_EXPORT_MIME }, { package: { id: PROFILE, application_id: REQUEST, item_count: 0 } },
+    { kind: ["package"] }]) assert.throws(() => normalizeStoredDocumentExportReceipt(packageArtifact(change), CASE));
+  for (const state of [["pending"], [["pending"]], {}, null]) assert.throws(() => normalizeStoredDocumentExportReceipt(packageArtifact({
+    state, can_download: false, ready_at: null, output_bytes: null, output_sha256: null, receipt_id: null }), CASE));
+});
+test("only exact recognized prewrite package failures unlock a fresh command; storage uncertainty remains unknown", async t => {
+  const input = { ...command, kind: "package", packet_id: PROFILE };
+  for (const [error, status] of [["package_not_ready", 422], ["package_too_large", 422], ["package_storage_not_ready", 503]]) {
+    t.mock.method(globalThis, "fetch", async () => Response.json({ error }, { status }));
+    assert.deepEqual(await client.createDocumentPackageExport(CASE, input), { status: error, uncertain: false, artifact: null });
+  }
+  t.mock.method(globalThis, "fetch", async () => Response.json({ error: "package_storage_not_ready" }, { status: 422 }));
+  assert.equal((await client.createDocumentPackageExport(CASE, input)).uncertain, true);
+  t.mock.method(globalThis, "fetch", async () => Response.json({ error: "storage_unavailable" }, { status: 503 }));
+  assert.equal((await client.createDocumentPackageExport(CASE, input)).uncertain, true);
+});
+test("package create serializes exact immutable selection and preserves UNKNOWN/replay identity", async t => {
+  const input = { ...command, kind: "package", packet_id: PROFILE }, calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({ url, options }); if (calls.length === 1) throw new Error("Synthetic lost reply");
+    return Response.json({ artifact: packageArtifact() });
+  });
+  assert.deepEqual(await client.createDocumentPackageExport(CASE, input), { status: "export_unavailable", uncertain: true, artifact: null });
+  assert.equal((await client.createDocumentPackageExport(CASE, input)).status, "received");
+  assert.equal(calls[0].options.body, calls[1].options.body);
+  assert.deepEqual(JSON.parse(calls[0].options.body), input);
+});
+test("packet literal fields reject coercible arrays/objects/null; legacy JSON-only packets retain null revision", () => {
+  const file = { slotId: PROFILE, versionId: REQUEST, name: "Original.pdf", sha256: HASH, versionNo: "1", sizeBytes: 10, mimeType: "application/pdf" };
+  const generated = { id: ARTIFACT, kind: "student_profile", mode: "draft", mimeType: contract.DOCUMENT_EXPORT_MIME,
+    sizeBytes: 10, sha256: HASH, createdAt: "2026-09-15T00:00:00Z", applicationId: null };
+  const base = { files: [file], generatedExports: [generated], packets: [], workspaceRevision: HASH, maxArchiveBytes: 52428800 };
+  assert.equal(decodePacketWorkspace(base, CASE).files.length, 1);
+  for (const bad of [["application/pdf"], {}, null]) assert.throws(() => decodePacketWorkspace({ ...base, files: [{ ...file, mimeType: bad }] }, CASE));
+  for (const key of ["kind", "mode", "mimeType"]) for (const bad of [[generated[key]], {}, null])
+    assert.throws(() => decodePacketWorkspace({ ...base, generatedExports: [{ ...generated, [key]: bad }] }, CASE));
+  const legacy = { id: ARTIFACT, caseId: CASE, applicationId: REQUEST, applicationName: "Synthetic University", createdBy: "Staff",
+    createdAt: "2026-09-15T00:00:00Z", requestId: PROFILE, files: [file], generatedExports: [], revision: null };
+  assert.equal(decodePacketWorkspace({ ...base, packets: [legacy] }, CASE).packets[0].revision, null);
+});
+test("packet action unlocks only known rolled-back55000 preparation errors", async () => {
+  const source = readFileSync(new URL("../src/lib/platform-admissions-support-actions.ts", import.meta.url), "utf8");
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const input = { caseId: CASE, applicationId: PROFILE, versionIds: [ARTIFACT], exportIds: [], expectedRevision: HASH, requestId: REQUEST };
+  for (const [message, expected] of [["package_too_large", "invalid"], ["packet_source_unavailable", "stale"], ["unknown_internal_detail", "unavailable"]]) {
+    const actionModule = { exports: {} };
+    const require = name => {
+      if (name === "./platform-access.ts") return { isStaffPreview: () => false };
+      if (name === "next/cache") return { revalidatePath: () => {} };
+      if (name === "./v3/wording.ts") return wording;
+      if (name === "./platform-guards") return { requirePlatformStaffActor: async () => ({ presentationRole: "admin" }) };
+      if (name === "./student-portal-guards") return {};
+      if (name === "./v3/case-operations-source") return { caseOperationsRpc: async () => { throw { code: "55000", message }; } };
+      if (name === "./platform-admissions-support-contract") return packetContract;
+      throw new Error(`Unexpected action dependency: ${name}`);
+    };
+    new Function("require", "module", "exports", code)(require, actionModule, actionModule.exports);
+    const result = await actionModule.exports.preparePartnerPacketAction(input);
+    assert.equal(result.ok, false); assert.equal(result.code, expected); assert.ok(!result.message.includes("unknown_internal_detail"));
+  }
+});
 function artifact(changes = {}) {
   return {
     id: ARTIFACT, student_case_id: CASE, student_profile_id: PROFILE, profile_revision: 1,

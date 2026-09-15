@@ -9,6 +9,7 @@ import { normalizeDocumentExportReceipt, normalizeDocumentExportWorkspace } from
 import { DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_RENDERER_VERSION, DOCUMENT_EXPORT_TEMPLATE_SHA256 } from "../src/lib/document-export-artifact-contract.ts";
 import { renderStudentProfileTemplate } from "../src/lib/server/student-profile-template.ts";
 import { PROFILE_FIELDS } from "../src/lib/student-profile-fields.ts";
+import PizZip from "pizzip";
 
 const id = n => `60164000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const ORG = id(1), CASE = id(2), PROFILE = id(3), USER = id(4), MEMBER = id(5), REQUEST = id(6), ARTIFACT = id(7), PREP = id(8), CLAIM = id(9), GRANT = id(10);
@@ -41,6 +42,108 @@ function request(overrides = {}, suffix = "", method = "POST") {
   });
 }
 const context = { params: Promise.resolve({ studentCaseId: CASE, artifactId: ARTIFACT }) };
+
+// Explicit SQL/Storage transport doubles around the real opaque ZIP builder.
+// Actual Auth/Storage/browser evidence belongs to the isolated browser harness.
+function packageFixture(t, options = {}) {
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL, previousKey = process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://synthetic-package.supabase.co";
+  process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY = "sb_secret_synthetic_package_fixture_only";
+  t.after(() => {
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY; else process.env.EVO_PLATFORM_SUPABASE_SECRET_KEY = previousKey;
+  });
+  const calls = [], inputBytes = Buffer.from("Synthetic opaque source bytes"); let stored = null;
+  const expires = new Date(Date.now() + 590000).toISOString(), packetId = id(21), versionId = id(22), applicationId = id(23);
+  let a = receipt({ kind: "package", student_profile_id: null, profile_revision: null, field_reviews_sha256: null, template_sha256: null,
+    mime_type: "application/zip", renderer_version: "evo-partner-packet-zip-v1", package: { id: packetId, application_id: applicationId, item_count: 1 } });
+  const target = { bucket_id: "platform-document-exports", object_name: `${ORG}/${CASE}/${ARTIFACT}.zip`, mime_type: "application/zip", expires_at: expires };
+  const source = { kind: "original", id: versionId, slot_id: id(24), filename: "Original.pdf", version_no: "1",
+    sha256: hash(inputBytes), size_bytes: inputBytes.length, mime_type: "application/pdf", bucket_id: "platform-documents",
+    object_name: "aa/" + "b".repeat(62), review_id: id(25) };
+  function client(scope) { return { schema(schema) { assert.equal(schema, "platform"); return { rpc(name, args) {
+    calls.push([scope, name, args]);
+    const error = options.errors?.[name];
+    if (error) return { abortSignal: async () => ({ data: null, error: { code: error } }) };
+    let data;
+    if (name === "prepare_document_package_export") data = { schema_version: 1, preparation_id: PREP, artifact: a };
+    else if (name === "begin_document_export") data = { artifact: a, created: !options.replay, claim_token: options.replay ? null : CLAIM };
+    else if (name === "read_document_package_export_sources") data = { artifact_id: ARTIFACT, packet_id: packetId, workspace_revision: HASH,
+      expires_at: expires, sources: [{ ...source, ...(options.source ?? {}) }] };
+    else if (name === "seal_document_export_output") {
+      assert.equal(args.p_renderer_proof, null); a = { ...a, output_bytes: args.p_output_bytes, output_sha256: args.p_output_sha256 };
+      data = { artifact: a, storage: target };
+    } else if (name === "complete_document_export") {
+      if (options.lostCompletion) return { abortSignal: async () => { throw new Error("Synthetic lost completion reply"); } };
+      const ready = args.p_outcome === "ready";
+      a = { ...a, state: args.p_outcome, failure_code: args.p_failure_code, ready_at: ready ? "2026-09-15T00:00:00Z" : null,
+        receipt_id: ready ? GRANT : null, can_download: ready }; data = a;
+    } else assert.fail(`Unexpected RPC ${name}`);
+    return { abortSignal: async () => ({ data: structuredClone(data), error: null }) };
+  } }; }, storage: {
+    getBucket: async () => ({ data: { public: false, file_size_limit: options.capacity ?? 52428800, allowed_mime_types: ["application/zip"] }, error: null }),
+    from(bucket) { assert.equal(bucket, "platform-document-exports"); return { upload: async (object, bytes, policy) => {
+      calls.push(["storage", "upload"]); assert.equal(object, target.object_name); assert.equal(policy.upsert, false);
+      if (options.uploadError) return { data: null, error: new Error("Synthetic uncertain storage") };
+      stored = Buffer.from(bytes); return { error: null };
+    } }; },
+  } }; }
+  t.mock.method(globalThis, "fetch", async url => {
+    calls.push(["storage", "read"]);
+    if (url.endsWith(source.object_name)) return new Response(options.corruptSource ? Buffer.alloc(inputBytes.length) : inputBytes,
+      { headers: { "content-type": "application/pdf", "content-length": String(inputBytes.length) } });
+    assert.ok(url.endsWith(target.object_name)); assert.ok(stored);
+    return new Response(options.corruptReadback ? Buffer.alloc(stored.length) : stored,
+      { headers: { "content-type": "application/zip", "content-length": String(stored.length) } });
+  });
+  const deps = { loadActor: async () => ({ status: "authenticated", actor }),
+    createSessionClient: async () => client("session"), createServiceClient: () => client("service") };
+  return { deps, calls, packetId, inputBytes, versionId, stored: () => stored };
+}
+test("package route saves one immutable ZIP, verifies source and readback, no profile rendering", async t => {
+  const f = packageFixture(t), response = await createDocumentExportHandlers(f.deps).POST(request({ kind: "package", packet_id: f.packetId }), context);
+  assert.equal(response.status, 200); const body = await response.json(); assert.equal(body.artifact.kind, "package");
+  assert.equal(body.artifact.student_profile_id, null); assert.equal(body.artifact.state, "ready");
+  const zip = new PizZip(f.stored()); assert.deepEqual(zip.file(`original/${f.versionId}.pdf`).asNodeBuffer(), f.inputBytes);
+  assert.ok(!JSON.stringify(body).includes("object_name")); assert.ok(!JSON.stringify(body).includes("claim_token"));
+  assert.equal(f.calls.filter(([, name]) => name === "upload").length, 1);
+  assert.equal(f.calls.filter(([, name]) => name === "complete_document_export").length, 1);
+});
+test("package replay never reads sources or writes bytes", async t => {
+  const f = packageFixture(t, { replay: true });
+  const response = await createDocumentExportHandlers(f.deps).POST(request({ kind: "package", packet_id: f.packetId }), context);
+  assert.equal(response.status, 202); assert.equal(f.calls.some(([scope]) => scope === "storage"), false);
+});
+test("insufficient configured capacity is an explicit prewrite failure", async t => {
+  const f = packageFixture(t, { capacity: 20971520 });
+  const response = await createDocumentExportHandlers(f.deps).POST(request({ kind: "package", packet_id: f.packetId }), context);
+  assert.equal(response.status, 503); assert.deepEqual(await response.json(), { error: "package_storage_not_ready" }); assert.equal(f.calls.length, 0);
+});
+test("SQL preparation rejection is definite, later lease uncertainty is not relabeled prewrite", async t => {
+  const f = packageFixture(t, { errors: { prepare_document_package_export: "55000" } });
+  const response = await createDocumentExportHandlers(f.deps).POST(request({ kind: "package", packet_id: f.packetId }), context);
+  assert.equal(response.status, 422); assert.deepEqual(await response.json(), { error: "package_not_ready" });
+  assert.equal(f.calls.length, 1);
+});
+test("SQL begin uncertainty stays artifact_pending after preparation exists", async t => {
+  const f = packageFixture(t, { errors: { begin_document_export: "55000" } });
+  const response = await createDocumentExportHandlers(f.deps).POST(request({ kind: "package", packet_id: f.packetId }), context);
+  assert.equal(response.status, 409); assert.deepEqual(await response.json(), { error: "artifact_pending" });
+  assert.equal(f.calls.length, 2);
+});
+for (const [name, options, expected] of [["corrupt source", { corruptSource: true }, "failed"],
+  ["unbound source location", { source: { object_name: "../elsewhere" } }, "failed"],
+  ["corrupt stored ZIP", { corruptReadback: true }, "failed"], ["uncertain upload", { uploadError: true }, "unknown"]]) {
+  test(`package ${name} never becomes ready`, async t => {
+    const f = packageFixture(t, options), response = await createDocumentExportHandlers(f.deps).POST(request({ kind: "package", packet_id: f.packetId }), context);
+    const body = await response.json(); assert.equal(body.artifact.state, expected); assert.equal(body.artifact.can_download, false);
+  });
+}
+test("lost package completion has no competing second completion", async t => {
+  const f = packageFixture(t, { lostCompletion: true });
+  const response = await createDocumentExportHandlers(f.deps).POST(request({ kind: "package", packet_id: f.packetId }), context);
+  assert.equal(response.status, 503); assert.equal(f.calls.filter(([, name]) => name === "complete_document_export").length, 1);
+});
 
 // Real input normalizer/readiness/OOXML renderer. Auth, SQL and Storage are
 // explicit test doubles; this suite is not database/provider/browser proof.

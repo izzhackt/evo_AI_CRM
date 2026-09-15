@@ -8,7 +8,7 @@ import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
 import { normalizePlatformStudentProfileFieldsSnapshot } from "../platform-student-profile-fields.ts";
 import { getProfileExportValues, ProfileExportNotReadyError } from "../student-profile-fields.ts";
 import {
-  DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, UNIVERSITY_FORM_EXPORT_MAX_BYTES, type DocumentExportFailure,
+  DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, UNIVERSITY_FORM_EXPORT_MAX_BYTES, DOCUMENT_PACKAGE_MAX_BYTES, type DocumentExportFailure,
   type DocumentExportReceipt, type StoredDocumentExportReceipt, type DocumentExportRpcContract, type DocumentExportStorageTarget,
 } from "../document-export-artifact-contract.ts";
 import {
@@ -22,6 +22,7 @@ import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-co
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import { renderStudentProfileTemplate } from "./student-profile-template.ts";
 import { produceUniversityFormExport, UniversityFormExportError } from "./university-form-export.ts";
+import { produceDocumentPackageExport, DocumentPackageExportError } from "./document-package-export.ts";
 
 const HEADERS = { "cache-control": "private, no-store", "x-content-type-options": "nosniff" };
 const FAILURE_STATUS: Record<DocumentExportFailure | "form_not_ready", number> = {
@@ -57,14 +58,13 @@ function responseError(status: number, error: string): Response { return Respons
 function failure(error: unknown): Response {
   if (error instanceof PlatformUniversityFormError)
     return error.code === "forbidden" ? responseError(403, "forbidden") : responseError(503, "export_unavailable");
-  return error instanceof ExportError || error instanceof UniversityFormExportError
+  return error instanceof ExportError || error instanceof UniversityFormExportError || error instanceof DocumentPackageExportError
     ? responseError(error.status, error.code) : responseError(503, "export_unavailable");
 }
 function denyActor(result: PlatformActorResult): PlatformActor {
   if (result.status === "anonymous") throw new ExportError(401, "authentication_required");
   if (result.status !== "authenticated") throw new ExportError(503, "export_unavailable");
-  if (isStaffPreview(result.actor) || !staffHasPermission(result.actor, "profile.read.full")
-    || !staffHasPermission(result.actor, "document.download")) throw new ExportError(403, "forbidden");
+  if (isStaffPreview(result.actor) || !staffHasPermission(result.actor, "document.download")) throw new ExportError(403, "forbidden");
   return result.actor;
 }
 async function refreshActor(deps: DocumentExportDependencies, initial: PlatformActor): Promise<void> {
@@ -125,7 +125,7 @@ function receiptResponse(artifact: StoredDocumentExportReceipt): Response {
 function target(value: unknown, actor: PlatformActor, caseId: string, artifactId: string,
   artifact?: StoredDocumentExportReceipt): DocumentExportStorageTarget {
   const row = exportRecord(value, ["bucket_id", "object_name", "mime_type", "expires_at"]);
-  const mime = artifact?.mime_type ?? DOCUMENT_EXPORT_MIME, extension = mime === "application/pdf" ? "pdf" : "docx";
+  const mime = artifact?.mime_type ?? DOCUMENT_EXPORT_MIME, extension = mime === "application/zip" ? "zip" : mime === "application/pdf" ? "pdf" : "docx";
   if (row.bucket_id !== "platform-document-exports" || row.mime_type !== mime
     || row.object_name !== `${actor.organizationId}/${caseId}/${artifactId}.${extension}`
     || typeof row.expires_at !== "string" || !Number.isFinite(Date.parse(row.expires_at))
@@ -137,7 +137,8 @@ async function readStored(client: ServiceClient, storage: DocumentExportStorageT
   if (Date.parse(storage.expires_at) <= Date.now()) throw new ExportError(503, "storage_unavailable");
   const result = await client.storage.from(storage.bucket_id).download(storage.object_name);
   if (result.error || !result.data) throw new ExportError(503, "storage_unavailable");
-  const maximum = artifact?.kind === "university_form" ? UNIVERSITY_FORM_EXPORT_MAX_BYTES : DOCUMENT_EXPORT_MAX_BYTES;
+  const maximum = artifact?.kind === "package" ? DOCUMENT_PACKAGE_MAX_BYTES
+    : artifact?.kind === "university_form" ? UNIVERSITY_FORM_EXPORT_MAX_BYTES : DOCUMENT_EXPORT_MAX_BYTES;
   if (result.data.size < 1 || result.data.size > maximum) throw new ExportError(409, "integrity_failed");
   return Buffer.from(await result.data.arrayBuffer());
 }
@@ -205,12 +206,23 @@ export function createDocumentExportHandlers(deps: DocumentExportDependencies = 
       actor = denyActor(await deps.loadActor()); caseId = exportUuid((await context.params).studentCaseId);
       const raw = await body(request, value => value && typeof value === "object" && "kind" in value && value.kind === "university_form"
         ? ["kind", "application_id", "mapping_id", "mode", "expected_workspace_revision", "request_id"]
+        : value && typeof value === "object" && "kind" in value && value.kind === "package"
+          ? ["kind", "packet_id", "mode", "expected_workspace_revision", "request_id"]
         : ["mode", "expected_workspace_revision", "request_id"]);
       if ((raw.mode !== "draft" && raw.mode !== "final") || typeof raw.expected_workspace_revision !== "string"
         || !EXPORT_HASH.test(raw.expected_workspace_revision)) throw new ExportError(400, "invalid_request");
       let requestId: string;
       try { requestId = exportUuid(raw.request_id); } catch { throw new ExportError(400, "invalid_request"); }
       command = { mode: raw.mode, expected_workspace_revision: raw.expected_workspace_revision, request_id: requestId };
+      if (raw.kind === "package") {
+        let packetId: string;
+        try { packetId = exportUuid(raw.packet_id); } catch { throw new ExportError(400, "invalid_request"); }
+        const initialActor = actor;
+        return receiptResponse(await produceDocumentPackageExport({ actor, caseId, session: await deps.createSessionClient(),
+          service: deps.createServiceClient(), signal: request.signal, command: { ...command, kind: "package", packet_id: packetId },
+          refreshActor: () => refreshActor(deps, initialActor) }));
+      }
+      if (!staffHasPermission(actor, "profile.read.full")) throw new ExportError(403, "forbidden");
       if (raw.kind === "university_form") {
         let applicationId: string, mappingId: string;
         try { applicationId = exportUuid(raw.application_id); mappingId = exportUuid(raw.mapping_id); }
@@ -331,8 +343,8 @@ export function createDocumentExportDownloadHandler(deps: DocumentExportDependen
       if (completed.grant_id !== grantId || completed.artifact_id !== id || completed.verified !== true || completed.failure_code !== null)
         throw new ExportError(403, "download_unavailable");
       if (readError || !bytes) throw readError ?? new ExportError(503, "storage_unavailable");
-      const name = artifact.kind === "university_form" ? "EVO-University-Form" : "EVO-Student-Profile";
-      const extension = artifact.mime_type === "application/pdf" ? "pdf" : "docx";
+      const name = artifact.kind === "package" ? "EVO-Documents" : artifact.kind === "university_form" ? "EVO-University-Form" : "EVO-Student-Profile";
+      const extension = artifact.mime_type === "application/zip" ? "zip" : artifact.mime_type === "application/pdf" ? "pdf" : "docx";
       return new Response(new Uint8Array(bytes), { headers: { ...HEADERS, "content-type": artifact.mime_type,
         "content-length": String(bytes.byteLength), "content-disposition": `attachment; filename="${name}-${artifact.mode}.${extension}"` } });
     } catch (error) { return failure(error); }

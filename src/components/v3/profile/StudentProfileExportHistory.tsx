@@ -6,7 +6,7 @@ import {
   createDocumentExport, createUniversityFormExport, reconcileDocumentExport, downloadDocumentExport, readDocumentExportHistory,
   documentExportWorkspaceMatches, updateDocumentExportHistory, type DocumentExportCommand, type DocumentExportOutcome,
 } from "@/lib/document-export-client";
-import { studentProfileFiles as words, studentProfileFileMessage, studentProfileFileState } from "@/lib/v3/wording";
+import { studentProfileFiles as words, studentProfileFileMessage, studentProfileFileState, partnerPacketExport as packetWords } from "@/lib/v3/wording";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
 import { UniversityFormExportPanel } from "./UniversityFormExportPanel";
 import type { ProfileApplication } from "./types";
@@ -34,15 +34,21 @@ export function StudentProfileExportList({ artifacts, busy, uncertainReconciles,
   const rows = (items: readonly StoredDocumentExportReceipt[]) => <ul className="divide-y divide-border">
     {items.map(artifact => <li key={artifact.id} className="min-w-0 space-y-2 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <p className="text-sm font-semibold">{artifact.kind === "university_form"
+        <p className="text-sm font-semibold">{artifact.kind === "package"
+          ? `${packetWords.package} · ZIP · ${artifact.mode === "final" ? packetWords.final : packetWords.draft}`
+          : artifact.kind === "university_form"
           ? `${words.universityForm} · ${artifact.mime_type === "application/pdf" ? "PDF" : "Word"} · ${artifact.mode === "final" ? words.filled : words.draft}`
           : artifact.mode === "final" ? words.final : words.draft}</p>
         <time className="text-sm text-fg-2" dateTime={artifact.created_at}>{DATE.format(new Date(artifact.created_at))}</time>
       </div>
-      <p className="text-sm leading-6 text-fg-2">{artifact.kind === "university_form"
+      <p className="text-sm leading-6 text-fg-2">{artifact.kind === "package"
+        ? `${artifact.historical ? packetWords.historical : packetWords.current} · ${packetWords.items}: ${artifact.package.item_count}`
+        : artifact.kind === "university_form"
         ? artifact.historical ? words.formHistorical : words.formCurrent
         : artifact.historical ? words.historical : words.current} · {studentProfileFileState(artifact.state)}</p>
-      {artifact.failure_code ? <p className="text-sm leading-6 text-fg-2">{studentProfileFileMessage(artifact.failure_code)}</p> : null}
+      {artifact.failure_code ? <p className="text-sm leading-6 text-fg-2">{artifact.kind === "package"
+        ? packetWords.errors[artifact.failure_code] ?? studentProfileFileMessage(artifact.failure_code)
+        : studentProfileFileMessage(artifact.failure_code)}</p> : null}
       {artifact.state === "ready" ? artifact.can_download
         ? <button type="button" className={BUTTON} disabled={busy} onClick={() => onDownload(artifact)}>{words.download}</button>
         : <p className="text-sm text-fg-3">{words.noDownload}</p>

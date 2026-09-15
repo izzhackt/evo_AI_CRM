@@ -1,10 +1,69 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
+
+test("application catalogue selector renders actual React with deliberate choice and no extra submitted fields", async () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const compiled = await build({
+    stdin: { contents: `
+      import { createElement } from "react";
+      import { renderToStaticMarkup } from "react-dom/server";
+      import { ApplicationUniversitySelector } from "./src/components/v3/profile/ApplicationUniversitySelector";
+      process.stdout.write(renderToStaticMarkup(createElement(ApplicationUniversitySelector)));
+    `, resolveDir: root, sourcefile: "application-selector-ssr.tsx", loader: "tsx" },
+    bundle: true, write: false, platform: "node", format: "cjs", target: "node22",
+    packages: "external", jsx: "automatic", logLevel: "silent",
+    plugins: [{ name: "read-action-boundary", setup(builder) {
+      builder.onResolve({ filter: /platform-admissions-actions$/ }, () => ({ path: "search-action", namespace: "test" }));
+      builder.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents:
+        "export async function searchApplicationUniversitiesAction() { throw new Error('SSR must not read'); }" }));
+    } }],
+  });
+  const childEnv = { ...process.env, NODE_OPTIONS: "" };
+  delete childEnv.NODE_TEST_CONTEXT;
+  const rendered = spawnSync(process.execPath, ["--input-type=commonjs"], {
+    cwd: root, input: compiled.outputFiles[0].text, encoding: "utf8", env: childEnv,
+    timeout: 30_000, maxBuffer: 1024 * 1024,
+  });
+  assert.ifError(rendered.error);
+  assert.equal(rendered.status, 0, rendered.stderr);
+  assert.match(rendered.stdout, /data-testid="v3-application-university-selector" aria-busy="false"/u);
+  assert.match(rendered.stdout, /Поиск университета/u);
+  assert.match(rendered.stdout, /<button type="button"[^>]*>Найти<\/button>/u);
+  assert.match(rendered.stdout, /<select name="catalog_institution_id" required=""/u);
+  assert.match(rendered.stdout, /<option value="" selected="">Выберите университет<\/option>/u);
+  assert.deepEqual([...rendered.stdout.matchAll(/ name="([^"]+)"/gu)].map((match) => match[1]).sort(),
+    ["catalog_institution_id", "institution_name"]);
+});
+
+test("application selector owns stale reads and search Enter without changing application retry or programme", () => {
+  const selector = source("src/components/v3/profile/ApplicationUniversitySelector.tsx");
+  const workspace = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
+  assert.match(selector, /const request = \+\+epoch\.current/u);
+  assert.match(selector, /if \(request !== epoch\.current\) return;/u);
+  assert.match(selector, /useEffect\(\(\) => \(\) => \{ epoch\.current \+= 1;/u);
+  assert.match(selector, /onChange=\{\(event\) => \{ invalidate\(\); setQuery/u);
+  assert.match(selector, /event\.preventDefault\(\);/u);
+  assert.match(selector, /!event\.nativeEvent\.isComposing && !loading/u);
+  assert.match(selector, /search\(result\.nextOffset\)/u);
+  assert.match(selector, /search\(offset\)/u);
+  assert.doesNotMatch(selector, /setSelectedId\(.*items\[/u);
+  assert.doesNotMatch(selector, /name="(?:query|offset|manual)"/u);
+  assert.match(selector, /const countryLabel = country\(item\.country\);/u);
+  assert.match(selector, /\{countryLabel \? ` · \$\{countryLabel\}` : ""\}/u);
+  assert.doesNotMatch(selector, /country\(item\.country\)\s*\?\?\s*item\.country/u);
+  assert.match(workspace, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} \/>/u);
+  assert.match(workspace, /name="program_name" required maxLength=\{300\}/u);
+  assert.match(workspace, /name="request_id" value=\{state\.requestId\}/u);
+  assert.match(workspace, /name="expected_version" value="0"/u);
+});
 
 test("V3 profile keeps lead and Admissions case route identities separate", () => {
   const page = source("src/app/(v3)/v3/profile/page.tsx");

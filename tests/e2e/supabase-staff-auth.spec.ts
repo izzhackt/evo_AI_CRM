@@ -166,7 +166,9 @@ async function directPlatformRpc(
     | "set_student_case_route"
     | "create_document_requirement"
     | "create_document_slot"
-    | "create_payment_obligation",
+    | "create_payment_obligation"
+    | "stage_university_catalog_publication"
+    | "review_university_catalog_publication",
   body: Readonly<Record<string, unknown>>,
   accessToken?: string,
 ): Promise<Readonly<{ status: number; payload: unknown }>> {
@@ -189,6 +191,28 @@ async function directPlatformRpc(
     // Status is still authoritative; never echo a provider body or token.
   }
   return { status: response.status, payload };
+}
+
+async function readLocalApplicationBindings(studentCaseId: string, accessToken: string) {
+  const { apiOrigin, publishableKey } = localSupabaseApiConfig();
+  const query = new URLSearchParams({
+    select: "id,catalog_institution_id,institution_name,program_name",
+    student_case_id: `eq.${requireUuidValue(studentCaseId)}`,
+    order: "id.asc",
+  });
+  // The normal Admissions session and table RLS must prove the persisted link;
+  // the application snapshot RPC intentionally does not expose the catalogue ID.
+  const response = await fetch(`${apiOrigin}/rest/v1/university_applications?${query}`, {
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${accessToken}`,
+      "Accept-Profile": "platform",
+    },
+  });
+  expect(response.status).toBe(200);
+  const payload: unknown = await response.json();
+  expect(Array.isArray(payload)).toBe(true);
+  return (payload as unknown[]).map(expectObject);
 }
 
 async function directStorageRequest(
@@ -2026,17 +2050,65 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(page.getByTestId("v3-profile-admissions-workspace")).toBeVisible();
 
   const applications = page.locator("#applications");
+  // Use the same disposable organization and real publication commands as the
+  // template-ingress proof. The runner removes its entire owned Supabase stack.
+  const catalogueDraft = await directPlatformRpc(
+    "stage_university_catalog_publication",
+    {
+      p_organization_id: organizationId,
+      p_institution_id: null,
+      p_base_version: 0,
+      p_content: {
+        name: "P4 isolated technical university",
+        country: "MY",
+        city: "Synthetic city",
+        overview: "Synthetic local Admissions acceptance catalogue, not a university offer.",
+        websiteUrl: "https://example.com",
+        sourceUrl: "https://example.com/p4-synthetic-university",
+        verifiedOn: "2026-09-15",
+        notes: "Disposable synthetic fixture only",
+        photoKey: null,
+        programs: [{
+          id: "p4-synthetic-program",
+          title: "P4 isolated technical program",
+          level: "bachelor",
+          duration: null,
+          language: "English",
+          summary: "Synthetic test programme",
+          sourceUrl: "https://example.com/p4-synthetic-university",
+          intakes: [],
+        }],
+      },
+      p_reason: "Synthetic local application catalogue selection acceptance",
+      p_request_id: randomUUID(),
+    },
+    adminToken,
+  );
+  expect(catalogueDraft.status).toBe(200);
+  const catalogueDraftRow = expectObject(catalogueDraft.payload);
+  expect(catalogueDraftRow.status).toBe("saved");
+  const cataloguePublication = await directPlatformRpc(
+    "review_university_catalog_publication",
+    {
+      p_organization_id: organizationId,
+      p_draft_id: requireUuidValue(catalogueDraftRow.draftId),
+      p_decision: "publish",
+      p_request_id: randomUUID(),
+    },
+    adminToken,
+  );
+  expect(cataloguePublication.status).toBe(200);
+  const cataloguePublicationRow = expectObject(cataloguePublication.payload);
+  expect(cataloguePublicationRow.status).toBe("published");
+  const catalogInstitutionId = requireUuidValue(cataloguePublicationRow.institutionId);
+  expect(await readLocalApplicationBindings(studentCaseId, refreshedAdmissionsToken)).toEqual([]);
+
   await applications
     .locator("details")
     .filter({ hasText: "Новая заявка" })
     .locator("summary")
     .click();
-  const createApplication = applications.locator(
-    'form:has(input[name="institution_name"])',
-  );
-  await createApplication
-    .locator('input[name="institution_name"]')
-    .fill("P4 isolated technical university");
+  const createApplication = applications.getByTestId("v3-application-create");
   await createApplication
     .locator('input[name="program_name"]')
     .fill("P4 isolated technical program");
@@ -2051,6 +2123,33 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await createApplication
     .locator('input[name="evidence_reference"]')
     .fill("p4://application-created");
+  const universitySelector = createApplication.getByTestId("v3-application-university-selector");
+  await expect(universitySelector.getByRole("checkbox", { name: "Ввести вручную" })).not.toBeChecked();
+  const universitySearch = universitySelector.getByRole("textbox", { name: "Поиск университета" });
+  await universitySearch.fill("P4 isolated technical university");
+  await universitySelector.getByRole("button", { name: "Найти", exact: true }).click();
+  const universityChoice = universitySelector.getByRole("combobox", { name: "Университет из каталога" });
+  await expect(universityChoice.locator(`option[value="${catalogInstitutionId}"]`)).toContainText(
+    "P4 isolated technical university",
+  );
+  await expect(universityChoice).toHaveValue("");
+  await universityChoice.selectOption(catalogInstitutionId);
+  await expect(universityChoice).toHaveValue(catalogInstitutionId);
+  // With every application field filled, Enter must search rather than submit.
+  // A new result requires a new explicit choice; it must not erase the programme.
+  await universitySearch.press("Enter");
+  await expect(universityChoice).toHaveValue("");
+  await expect(universitySelector).toHaveAttribute("aria-busy", "false");
+  await expect(universityChoice.locator(`option[value="${catalogInstitutionId}"]`)).toContainText(
+    "P4 isolated technical university",
+  );
+  await expect(applications.getByTestId("v3-profile-application")).toHaveCount(0);
+  expect(await readLocalApplicationBindings(studentCaseId, refreshedAdmissionsToken)).toEqual([]);
+  await expect(createApplication.locator('input[name="program_name"]')).toHaveValue(
+    "P4 isolated technical program",
+  );
+  await universityChoice.selectOption(catalogInstitutionId);
+  await expect(universityChoice).toHaveValue(catalogInstitutionId);
   await createApplication.locator('button[type="submit"]').click();
 
   const application = applications
@@ -2073,6 +2172,12 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const universityApplicationId = requireUuidValue(
     await changeApplication.locator('input[name="application_id"]').inputValue(),
   );
+  expect(await readLocalApplicationBindings(studentCaseId, refreshedAdmissionsToken)).toEqual([{
+    id: universityApplicationId,
+    catalog_institution_id: catalogInstitutionId,
+    institution_name: "P4 isolated technical university",
+    program_name: "P4 isolated technical program",
+  }]);
   await changeApplication
     .locator('select[name="status"]')
     .selectOption("submitted");
@@ -2101,9 +2206,8 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .filter({ hasText: "Новая заявка" })
     .locator("summary")
     .click();
-  const createAlternativeApplication = refreshedApplications.locator(
-    'form:has(input[name="institution_name"])',
-  );
+  const createAlternativeApplication = refreshedApplications.getByTestId("v3-application-create");
+  await createAlternativeApplication.getByRole("checkbox", { name: "Ввести вручную" }).check();
   await createAlternativeApplication
     .locator('input[name="institution_name"]')
     .fill("P4 isolated alternative university");
@@ -2233,6 +2337,25 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     country: "IT",
     degree: "language",
   });
+  const persistedApplicationBindings = await readLocalApplicationBindings(
+    studentCaseId,
+    refreshedAdmissionsToken,
+  );
+  expect(persistedApplicationBindings).toHaveLength(2);
+  expect(persistedApplicationBindings).toEqual(expect.arrayContaining([
+    {
+      id: universityApplicationId,
+      catalog_institution_id: catalogInstitutionId,
+      institution_name: "P4 isolated technical university",
+      program_name: "P4 isolated technical program",
+    },
+    {
+      id: alternativeUniversityApplicationId,
+      catalog_institution_id: null,
+      institution_name: "P4 isolated alternative university",
+      program_name: "P4 isolated alternative program",
+    },
+  ]));
 
   const visaSection = page.locator("#visa");
   const visaForm = visaSection.locator('form:has(select[name="status"])');

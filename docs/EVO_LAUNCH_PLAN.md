@@ -1,5 +1,30 @@
 # EVO Launch Plan
 
+## ZIP release recovery checkpoint (2026-09-15)
+
+PR785 is merged as `cfac17f7923cdd52408b40addc2d67eacb48a5f1`. Managed
+schema run34969326250 applied only169 and verified001–169; the private export
+bucket is now50MiB/DOCX+PDF+ZIP with exact readback. Global capacity and tariff
+are unchanged. Do not repeat these writes or the old Docs retirement.
+
+Full CI34969363566 passed Node/static, dependency audit, real staff workflows
+and the desktop/mobile/dark V3 gate, then stopped at the existing D2
+`REFRESH_AND_FINAL_DOWNLOAD` stage before reaching ZIP. No CI artifacts were
+published. Release34970414014 was skipped; arm=false was restored and read back.
+The app remains the accepted `a358a3e3`. Reproduce the exact D2 failure with the
+existing isolated `--student-profile-fields-only` harness; inspect its bounded
+diagnostic before changing code, fix only the proven cause, review and retry
+the exact-main lane. Never change an already applied migration169 in place.
+
+The isolated local D2 run passed final profile generation and cold downloads,
+then timed out at ZIP application selection. A bounded real Chromium repro
+confirmed that exact `getByLabel` does not match the implicit label containing
+option text, while the existing accessible combobox has the exact correct name.
+Change only the test selector to that exact role/name and verify its selected
+value. Add fixed-enum diagnostic substages for the old broad D2 failure, without
+changing product behavior, timeouts, assertions or data/privacy boundaries.
+Rerun the complete original isolated profile/ZIP scenario before review/release.
+
 ## Owner scope update: discard old test data and retire Docs (2026-09-15)
 
 The owner confirms the five old Docs students were test records, explicitly
@@ -42,6 +67,9 @@ Follow-up confirms the existing owner decision: sslip is the sole configured
 production hostname; custom DNS is deferred. VPS sslip login=200/TLS verify0.
 
 ## Active PDF preview reliability slice (2026-09-15)
+
+Historical source checkpoint; the recovery checkpoint above is authoritative
+for the subsequently merged ZIP source and completed managed prerequisites.
 
 Source checkpoint: reviewed PR784 merged as `5cf45158f910146028f6714a1a769526cb3b683b`.
 The revoked-URL regression fails against the former implementation and passes

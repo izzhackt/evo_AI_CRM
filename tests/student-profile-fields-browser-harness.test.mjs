@@ -259,6 +259,57 @@ test("persistent UI proof separates generation, exact replay and cold historical
   assert.doesNotMatch(runner, /storage\.from\([^)]*\)\.(?:upload|update|remove)|\.rpc\("(?:prepare|begin|seal|complete|reconcile)_document_export/u);
 });
 
+test("profile export timeout stages distinguish refresh, generation and each warm or cold download boundary", async () => {
+  const runner = readFileSync(runnerUrl, "utf8");
+  const boundaries = (block, pairs) => {
+    let previous = -1;
+    for (const [marker, operation] of pairs) {
+      const start = block.indexOf(marker, previous + 1), end = block.indexOf(operation, start + marker.length);
+      assert.ok(start > previous && end > start, `${marker} must precede ${operation}`);
+      previous = end;
+    }
+  };
+  boundaries(runner.slice(runner.indexOf('stage = "FINAL_REFRESH_DOCUMENT"'), runner.indexOf('stage = "EXACT_REQUEST_REPLAY"')), [
+    ['stage = "FINAL_REFRESH_DOCUMENT"', 'await page.reload('],
+    ['stage = "FINAL_REFRESH_FIELD_EDITOR"', 'await openField('],
+    ['stage = "FINAL_REFRESH_FIELD_VALUE"', '.toHaveValue(unsaved)'],
+    ['stage = "FINAL_REFRESH_CONFIRMED_EMPTY"', 'await field("mother_employer")'],
+    ['stage = "FINAL_REFRESH_EXPORT_READY"', '.toBeEnabled()'],
+  ]);
+  const generate = runner.slice(runner.indexOf("const generate = async"), runner.indexOf("const downloadSaved = async"));
+  boundaries(generate, [
+    ['mark("GENERATE_SNAPSHOT")', 'await snapshot()'], ['mark("GENERATE_INVENTORY_BEFORE")', 'await inventory()'],
+    ['mark("GENERATE_BUTTON_READY")', 'await expect(button).toBeEnabled()'],
+    ['mark("GENERATE_POST_RESPONSE")', 'await Promise.all('], ['mark("GENERATE_RECEIPT")', 'await response.json()'],
+    ['mark("GENERATE_HISTORY_ROW")', 'await expect(savedRow('],
+    ['mark("GENERATE_SAVED_MESSAGE")', 'Файл сохранён. Теперь его можно скачать.'],
+    ['mark("GENERATE_INVENTORY_AFTER")', 'await inventory()'],
+  ]);
+  const download = runner.slice(runner.indexOf("const downloadSaved = async"), runner.indexOf('stage = "DRAFT_DOWNLOAD"'));
+  boundaries(download, [
+    ['mark("DOWNLOAD_INVENTORY_BEFORE")', 'await inventory()'], ['mark("DOWNLOAD_ROW_COUNT")', '.toHaveCount(1)'],
+    ['mark("DOWNLOAD_ROW_READY")', '.toBeVisible()'], ['mark("DOWNLOAD_EVENT")', 'await Promise.all('],
+    ['mark("DOWNLOAD_FAILURE_CHECK")', 'await file.failure()'], ['mark("DOWNLOAD_FILE_PATH")', 'await file.path()'],
+    ['mark("DOWNLOAD_DOCX_VERIFY")', 'verifyDocx('], ['mark("DOWNLOAD_STORED_ROW")', 'await sql`'],
+    ['mark("DOWNLOAD_STORAGE_READBACK")', 'storage.from(EXPORT_BUCKET).download('],
+    ['mark("DOWNLOAD_STORAGE_BYTES")', 'await readback.data.arrayBuffer()'], ['mark("DOWNLOAD_GRANT")', 'await sql`'],
+    ['mark("DOWNLOAD_INVENTORY_AFTER")', 'await inventory()'], ['mark("DOWNLOAD_EVIDENCE_WRITE")', 'writeFileSync('],
+  ]);
+  for (const [file, phase] of [["draft.docx", "DRAFT"], ["final.docx", "FINAL"],
+    ["draft-history.docx", "COLD_DRAFT"], ["final-history.docx", "COLD_FINAL"]]) assert.ok(runner.includes(`"${file}", "${phase}")`));
+  assert.match(generate, /mode === "draft" \? "DRAFT" : "FINAL"/u);
+  for (const block of [generate, download]) assert.match(block, /stage = profileExportDiagnosticStage\(phase, step\)/u);
+  const { profileExportDiagnosticStage } = await import(runnerUrl.href);
+  assert.equal(profileExportDiagnosticStage("DRAFT", "GENERATE_POST_RESPONSE"), "DRAFT_GENERATE_POST_RESPONSE");
+  assert.equal(profileExportDiagnosticStage("FINAL", "DOWNLOAD_EVENT"), "FINAL_DOWNLOAD_EVENT");
+  assert.equal(profileExportDiagnosticStage("COLD_DRAFT", "DOWNLOAD_STORAGE_BYTES"), "COLD_DRAFT_DOWNLOAD_STORAGE_BYTES");
+  assert.equal(profileExportDiagnosticStage("COLD_FINAL", "DOWNLOAD_GRANT"), "COLD_FINAL_DOWNLOAD_GRANT");
+  for (const value of ["private-value", "https://example.test/private", null, undefined, {}, ["DRAFT"], [["DRAFT"]]]) {
+    assert.throws(() => profileExportDiagnosticStage(value, "DOWNLOAD_EVENT"), /EXPORT_DIAGNOSTIC_STAGE_INVALID/u);
+    assert.throws(() => profileExportDiagnosticStage("DRAFT", value), /EXPORT_DIAGNOSTIC_STAGE_INVALID/u);
+  }
+});
+
 function persistentFixture() {
   const id = "aaaa0000-0000-4000-8000-000000000001";
   const organizationId = "aaaa0000-0000-4000-8000-000000000002";
@@ -373,6 +424,9 @@ test("persisted ZIP runs after profile cold checks using UI and a fresh real log
   assert.ok(runner.indexOf("await provePersistedPackage(") > runner.indexOf('"PERSISTENT_COLD_HISTORY_CHANGED_BYTES"'));
   assert.match(runner, /persistentArtifacts: 3, profileArtifacts: 2, packageArtifacts: 1, persistedPackage/u);
   assert.match(proof, /rpc\("create_university_application"/u);
+  assert.match(proof, /getByRole\("combobox", \{ name: "Заявление", exact: true \}\)/u);
+  assert.match(proof, /toHaveValue\(applicationId\)/u);
+  assert.doesNotMatch(proof, /getByLabel\("Заявление", \{ exact: true \}\)/u);
   for (const label of ["Зафиксировать пакет", "Сохранить финальный ZIP", "Скачать файл", "Войти в CRM"]) assert.ok(proof.includes(label));
   assert.match(proof, /browser\.newContext\(/u);
   assert.match(proof, /fresh\.locator\("#staff-password"\)\.fill\(config\.password\)/u);

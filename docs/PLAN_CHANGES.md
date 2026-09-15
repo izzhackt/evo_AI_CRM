@@ -26798,3 +26798,30 @@ passed. Final source-only proof review
 has no open findings. Actual isolated browser/Storage execution remains required
 in the single combined exact-main CI; no synthetic test receipt is live-client
 or provider acceptance.
+
+### 2026-09-15 — ZIP managed prerequisites applied; app release held for D2 repro
+
+PR785 merged as `cfac17f7923cdd52408b40addc2d67eacb48a5f1`. Full local Node
+suite passed2050 checks with one existing skip; final PR checks34968674478 passed.
+Managed schema34969326250 applied only169 after exact50MiB capacity proof and
+read back001–169. The reviewed configurator upgraded only the known private20MiB
+export bucket to50MiB/DOCX+PDF+ZIP and read it back; no global/tariff change.
+
+Exact-main CI34969363566 failed at D2 `REFRESH_AND_FINAL_DOWNLOAD` before ZIP,
+after Node/static, dependency, staff workflow and all24 V3 visual/a11y page checks
+passed. Detailed bounded evidence remained on the ephemeral runner, with no
+uploaded artifacts. Release34970414014 was skipped; arm=false is verified and
+the accepted app remains `a358a3e3`. Resume on `izzhackt/docs-zip-release-recovery`:
+use the existing isolated D2-only harness and its sanitized evidence to reproduce
+and fix the actual failure; no speculative product rewrite or gate weakening.
+Migration169 is already managed/applied: any proven SQL correction must be a new
+additive migration, never an edit to169. No provider/client acceptance is claimed.
+
+The local original D2 repro passed the old final/cold profile flow, then failed
+at ZIP application selection. Bounded real Chromium demonstrated exact-label
+lookup0 versus exact accessible combobox lookup1 with successful selection. The
+app's accessible name is already correct. Scope of this recovery is test-only:
+use the exact role/name, assert the selected application ID, and add fixed-enum
+substages for diagnosis. No product change, timeout increase, weakened assertion,
+raw diagnostic logging or schema write. Re-run the full original isolated flow;
+the earlier CI failure is distinct and not claimed fixed without that proof.

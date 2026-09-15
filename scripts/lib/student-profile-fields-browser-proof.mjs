@@ -35,6 +35,17 @@ export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
 });
 export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
 export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+export function profileExportDiagnosticStage(phase, step) {
+  requireProof(["DRAFT", "FINAL", "COLD_DRAFT", "COLD_FINAL"].includes(phase) && [
+    "GENERATE_SNAPSHOT", "GENERATE_INVENTORY_BEFORE", "GENERATE_BUTTON_READY", "GENERATE_POST_RESPONSE",
+    "GENERATE_RECEIPT", "GENERATE_HISTORY_ROW", "GENERATE_SAVED_MESSAGE", "GENERATE_INVENTORY_AFTER",
+    "DOWNLOAD_INVENTORY_BEFORE", "DOWNLOAD_ROW_COUNT", "DOWNLOAD_ROW_READY", "DOWNLOAD_EVENT",
+    "DOWNLOAD_FAILURE_CHECK", "DOWNLOAD_FILE_PATH", "DOWNLOAD_DOCX_VERIFY", "DOWNLOAD_STORED_ROW",
+    "DOWNLOAD_STORAGE_READBACK", "DOWNLOAD_STORAGE_BYTES", "DOWNLOAD_GRANT", "DOWNLOAD_INVENTORY_AFTER",
+    "DOWNLOAD_EVIDENCE_WRITE",
+  ].includes(step), "EXPORT_DIAGNOSTIC_STAGE_INVALID");
+  return `${phase}_${step}`;
+}
 export function proofScope(kind = "student-profile-fields") {
   if (kind === "university-template-ingress") return { kind, prefix: "EVO_D4_TEMPLATE", marker: "UNIVERSITY_TEMPLATE_INGRESS" };
   requireProof(["student-profile-fields", "document-recognition"].includes(kind), "PROOF_SCOPE_INVALID");
@@ -462,17 +473,24 @@ async function main() {
         WHERE artifact.organization_id = ${config.organizationId}::uuid AND artifact.student_case_id = ${caseId}::uuid ORDER BY event.id`,
     });
     const generate = async mode => {
+      const phase = mode === "draft" ? "DRAFT" : "FINAL";
+      const mark = step => { stage = profileExportDiagnosticStage(phase, step); };
+      mark("GENERATE_SNAPSHOT");
       const before = await snapshot();
+      mark("GENERATE_INVENTORY_BEFORE");
       const previous = await inventory();
       let automaticDownload = false;
       const observeDownload = () => { automaticDownload = true; };
       page.on("download", observeDownload);
       const button = page.getByRole("button", { name: mode === "draft" ? "Сформировать черновик" : "Сформировать финальную анкету", exact: true });
+      mark("GENERATE_BUTTON_READY");
       await expect(button).toBeEnabled();
+      mark("GENERATE_POST_RESPONSE");
       const [response] = await Promise.all([
         page.waitForResponse(response => response.url() === exportUrl && response.request().method() === "POST"), button.click(),
       ]);
       requireProof(response.status() === 200, "PERSISTENT_EXPORT_NOT_READY");
+      mark("GENERATE_RECEIPT");
       const body = await response.json();
       requireProof(Object.keys(body).length === 1 && Object.hasOwn(body, "artifact"), "PERSISTENT_RESPONSE_INVALID");
       const receipt = normalizeDocumentExportReceipt(body.artifact, caseId);
@@ -481,24 +499,36 @@ async function main() {
         && receipt.profile_revision === before.profile.revision && receipt.student_profile_id === before.profile.id
         && command.mode === mode && command.expected_workspace_revision === receipt.workspace_revision
         && UUID.test(command.request_id), "PERSISTENT_RECEIPT_MISMATCH");
+      mark("GENERATE_HISTORY_ROW");
       await expect(savedRow(page, mode).getByText(/ · Сохранён$/u)).toBeVisible();
+      mark("GENERATE_SAVED_MESSAGE");
       await expect(page.getByText("Файл сохранён. Теперь его можно скачать.", { exact: true })).toBeVisible();
       page.off("download", observeDownload);
       requireProof(!automaticDownload, "GENERATION_DOWNLOADED_AUTOMATICALLY");
+      mark("GENERATE_INVENTORY_AFTER");
       const current = await inventory();
       requireProof(current.artifacts.length === previous.artifacts.length + 1 && current.objects.length === previous.objects.length + 1,
         "PERSISTENT_EXPORT_COUNT_INVALID");
       return { receipt, command };
     };
-    const downloadSaved = async (target, receipt, values, filename) => {
+    const downloadSaved = async (target, receipt, values, filename, phase) => {
+      const mark = step => { stage = profileExportDiagnosticStage(phase, step); };
+      mark("DOWNLOAD_INVENTORY_BEFORE");
       const previous = await inventory();
       const row = savedRow(target, receipt.mode);
+      mark("DOWNLOAD_ROW_COUNT");
       await expect(row).toHaveCount(1);
+      mark("DOWNLOAD_ROW_READY");
       await expect(row.getByText(/ · Сохранён$/u)).toBeVisible();
+      mark("DOWNLOAD_EVENT");
       const [file] = await Promise.all([target.waitForEvent("download"), row.getByRole("button", { name: "Скачать файл", exact: true }).click()]);
+      mark("DOWNLOAD_FAILURE_CHECK");
       requireProof(await file.failure() === null, "BROWSER_DOWNLOAD_FAILED");
+      mark("DOWNLOAD_FILE_PATH");
       const bytes = readFileSync(await file.path());
+      mark("DOWNLOAD_DOCX_VERIFY");
       const proof = verifyDocx(bytes, template, { draft: receipt.mode === "draft", expectedValues: values });
+      mark("DOWNLOAD_STORED_ROW");
       const [stored] = await sql`SELECT artifact.id, artifact.organization_id, artifact.student_case_id, artifact.state,
           artifact.receipt_id, artifact.profile_revision, artifact.mode, artifact.workspace_revision, artifact.input_snapshot_sha256,
           artifact.output_sha256, artifact.output_bytes, artifact.template_sha256, artifact.bucket_id, artifact.object_name,
@@ -510,22 +540,27 @@ async function main() {
         WHERE artifact.id = ${receipt.id}::uuid AND artifact.organization_id = ${config.organizationId}::uuid
           AND artifact.student_case_id = ${caseId}::uuid`;
       verifyStoredDocumentExport(bytes, receipt, stored, config.organizationId);
+      mark("DOWNLOAD_STORAGE_READBACK");
       const readback = await storage.from(EXPORT_BUCKET).download(stored.object_name);
       requireProof(!readback.error && readback.data, "PERSISTENT_STORAGE_READBACK_FAILED");
+      mark("DOWNLOAD_STORAGE_BYTES");
       const storedBytes = Buffer.from(await readback.data.arrayBuffer());
       const storageProof = verifyStoredDocumentExport(storedBytes, receipt, stored, config.organizationId);
       requireProof(storedBytes.equals(bytes), "PERSISTENT_DOWNLOAD_BYTES_CHANGED");
+      mark("DOWNLOAD_GRANT");
       const [grant] = await sql`SELECT count(*)::integer AS verified FROM platform_private.document_export_download_grants
         WHERE artifact_id = ${receipt.id}::uuid AND consumed_at IS NOT NULL AND completion ->> 'verified' = 'true'`;
       requireProof(grant.verified > 0, "PERSISTENT_DOWNLOAD_NOT_VERIFIED");
+      mark("DOWNLOAD_INVENTORY_AFTER");
       requireProof(JSON.stringify(await inventory()) === JSON.stringify(previous), "DOWNLOAD_CHANGED_ARTIFACT_HISTORY");
+      mark("DOWNLOAD_EVIDENCE_WRITE");
       writeFileSync(resolve(config.evidenceDir, filename), bytes, { mode: 0o600, flag: "wx" });
       return { ...proof, ...storageProof };
     };
     stage = "DRAFT_DOWNLOAD";
     await expect(page.getByRole("button", { name: "Сформировать финальную анкету", exact: true })).toBeDisabled();
     const draftExport = await generate("draft");
-    const draft = await downloadSaved(page, draftExport.receipt, {}, "draft.docx");
+    const draft = await downloadSaved(page, draftExport.receipt, {}, "draft.docx", "DRAFT");
     const openField = async (target, key) => {
       const definition = PROFILE_FIELDS.find(item => item.key === key);
       const group = target.getByRole("button", { name: new RegExp(`^${PROFILE_GROUP_LABELS[definition.group]} ·`) });
@@ -569,16 +604,20 @@ async function main() {
     await expect.poll(async () => (await field("student_last_name"))?.value).toBe(unsaved);
     requireProof((await field("student_first_name")).value === SYNTHETIC_REQUIRED_VALUES.student_first_name
       && (await field("student_first_name")).review_state === "confirmed", "OTHER_CONFIRMATION_LOST");
-    stage = "REFRESH_AND_FINAL_DOWNLOAD";
+    stage = "FINAL_REFRESH_DOCUMENT";
     diagnosticPage = page;
     await page.reload({ waitUntil: "domcontentloaded" });
+    stage = "FINAL_REFRESH_FIELD_EDITOR";
     const refreshedEditor = await openField(page, "student_last_name");
+    stage = "FINAL_REFRESH_FIELD_VALUE";
     await expect(refreshedEditor.locator("#profile-field-student_last_name")).toHaveValue(unsaved);
+    stage = "FINAL_REFRESH_CONFIRMED_EMPTY";
     requireProof((await field("mother_employer")).review_state === "confirmed" && (await field("mother_employer")).value === null, "CONFIRMED_EMPTY_NOT_PERSISTED");
     const finalValues = { ...SYNTHETIC_EXPECTED_VALUES, student_last_name: unsaved, education_1_school_name: "Example Secondary School" };
+    stage = "FINAL_REFRESH_EXPORT_READY";
     await expect(page.getByRole("button", { name: "Сформировать финальную анкету", exact: true })).toBeEnabled();
     const finalExport = await generate("final");
-    const final = await downloadSaved(page, finalExport.receipt, finalValues, "final.docx");
+    const final = await downloadSaved(page, finalExport.receipt, finalValues, "final.docx", "FINAL");
     stage = "EXACT_REQUEST_REPLAY";
     const beforeReplay = await inventory();
     // A real retry, with the original browser command and current session cookies.
@@ -602,8 +641,8 @@ async function main() {
     requireProof(historicalDraft?.historical && currentFinal && !currentFinal.historical, "PERSISTENT_HISTORY_REVISION_INVALID");
     await expect(savedRow(cold, "draft").getByText(/^Предыдущая версия анкеты ·/u)).toBeVisible();
     await expect(savedRow(cold, "final").getByText(/^Текущая версия анкеты ·/u)).toBeVisible();
-    const coldDraft = await downloadSaved(cold, historicalDraft, {}, "draft-history.docx");
-    const coldFinal = await downloadSaved(cold, currentFinal, finalValues, "final-history.docx");
+    const coldDraft = await downloadSaved(cold, historicalDraft, {}, "draft-history.docx", "COLD_DRAFT");
+    const coldFinal = await downloadSaved(cold, currentFinal, finalValues, "final-history.docx", "COLD_FINAL");
     requireProof(coldDraft.sha256 === draft.sha256 && coldFinal.sha256 === final.sha256
       && JSON.stringify(await inventory()) === JSON.stringify(beforeReplay), "PERSISTENT_COLD_HISTORY_CHANGED_BYTES");
     await cold.screenshot({ path: resolve(config.evidenceDir, "export-history.png"), fullPage: true });

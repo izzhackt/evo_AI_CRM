@@ -92,16 +92,23 @@ export async function provePersistedPackage({ browser, page, client, storage, sq
   onStage("PACKAGE_UI_PREPARATION");
   await page.goto(packetUrl, { waitUntil: "domcontentloaded" });
   const panel = page.locator("#partner-packets");
+  onStage("PACKAGE_UI_OPEN_PANEL");
   await panel.locator(":scope > summary").click();
-  await panel.getByLabel("Заявление", { exact: true }).selectOption(applicationId);
+  onStage("PACKAGE_UI_SELECT_APPLICATION");
+  const applicationSelect = panel.getByRole("combobox", { name: "Заявление", exact: true });
+  await applicationSelect.selectOption(applicationId);
+  await expect(applicationSelect).toHaveValue(applicationId);
+  onStage("PACKAGE_UI_SELECT_FINAL");
   await panel.getByRole("checkbox", { name: /Анкета студента · Word · Финальный/u }).check();
   await expect(panel.getByRole("checkbox", { name: /Анкета студента · Word · Черновик/u })).toHaveCount(0);
+  onStage("PACKAGE_UI_SAVE_COMPOSITION");
   await panel.getByRole("button", { name: "Зафиксировать пакет", exact: true }).click();
   await expect.poll(async () => (await workspace()).packets.length).toBe(1);
   const packet = (await workspace()).packets[0];
   check(packet.applicationId === applicationId && packet.files.length === 0 && packet.generatedExports.length === 1
     && packet.generatedExports[0].id === finalReceipt.id, "PACKAGE_UI_SELECTION_CHANGED");
   const packetDetails = panel.locator("details").filter({ hasText: packet.id });
+  onStage("PACKAGE_UI_OPEN_SAVED_COMPOSITION");
   await expect(packetDetails).toHaveCount(1);
   await packetDetails.locator(":scope > summary").click();
   onStage("PACKAGE_UI_GENERATION");

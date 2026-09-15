@@ -2,35 +2,62 @@
 
 ## Current release checkpoint (2026-09-15)
 
-PR790 merged the contract read-side recovery; PR791 added fixed-shape callback
-diagnostics as `da4956d333ba15f32eb680222b567b30c78b9980`. Required checks and
-independent reviews passed. Canonical CI34985451032 then passed unchanged staff
-onboarding, the full original contract/application/handoff workflow, V3 browser
-quality and subsequent provider-interface tests. The earlier callback cause is
-unconfirmed; no Auth gate was relaxed. Admissions integration is now GREEN.
+**Released and independently verified:** `35868e75d2cd3c041b415c809f222c252a3b86a1`,
+version `r72.1-35868e75`. [Canonical CI34989896327](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34989896327)
+and [managed release34991072628](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34991072628)
+passed. Catalogue selection in applications (PR789) and contract workspace
+recovery (PR790) are now in production. The existing PDF/ZIP delivery remains
+included; no new migration, database, staging or provider write was introduced.
+
+Independent readback matched the accepted pointer/record/browser SHA256 chain,
+app revision/version/image and GitHub artifact. App is healthy with zero restarts;
+pending is absent and `EVO_PRODUCTION_RELEASE_ARMED=false` was read back after
+explicit disarm. The unchanged SSH tunnel at `http://localhost:3000` reaches this
+same production. The owner's ordinary Admin browser reopened four role drafts
+and the paged university catalogue; no employee invitation or client write occurred.
+[Exact release receipt](design/v3/references/2026-09-15-docs-managed-release.md#catalogue-and-pilot-production-release).
+
+The configured sslip HTTPS endpoint passed HTTP200/TLS0 from the VPS. The custom
+`crm.evoadmissions.com` hostname did not resolve there; do not claim it working.
+Use the tunnel or verified fallback while custom-domain DNS remains a separate
+follow-up. No certificate warning was bypassed and DNS/proxy configuration was
+not changed by this release.
+
+Next P1 work: obtain the EVO invitation sender/mail service, reconcile the roster
+with current users, confirm exact recipients/roles/scopes, then exercise one
+employee's invitation and first login. Separately, use the owner's chosen case
+for a saved university form → ZIP → fresh download. Four unassigned role drafts
+are preparation, not employee access; isolated document proof is not client
+acceptance. Gemini, USTC and additional polish remain P2. Keep one permanent
+database, small parallel changes and one release owner; do not repeat completed
+full checks, schema169 apply, template imports or standalone Docs retirement.
+
+### Historical release recovery — resolved, not work to repeat
+
+PR791 added fixed-shape callback diagnostics as
+`da4956d333ba15f32eb680222b567b30c78b9980`. CI34985451032 passed unchanged staff
+onboarding and the original contract/application/handoff workflow. The earlier
+callback cause remains unconfirmed; no Auth gate was relaxed.
 
 The later Student Profile proof failed at `DRAFT_GENERATE_RECEIPT`. PR792 split
 that diagnostic as `761ae8ed55ad57998f4b890f4baf236821a0ea2d`; subsequent
 CI34987631399 passed draft generation/receipt/download but failed at
 `FINAL_RESPONSE_BODY_READ`, after HTTP200 and before receipt normalization.
 This narrows the failure to body retrieval/JSON parsing or a null envelope;
-the product export route/normalizer remain unchanged. Releases34986705706 and
-34988890671 were skipped, arm is `false`, and accepted production remains
-`5bc5df73`. The selector and contract recovery are **not yet deployed**.
+the product export route/normalizer remained unchanged. Releases34986705706 and
+34988890671 were skipped, arm was returned to `false`, and production stayed
+on `5bc5df73` until the successful release above.
 
 The unchanged scoped workflow passed locally: draft, final, ZIP, exact replay,
-cold same-byte downloads and owned-stack cleanup. The next bounded mitigation
+cold same-byte downloads and owned-stack cleanup. PR793's bounded mitigation
 captures the same POST body immediately when matched, before click completion,
 with fixed transport/JSON diagnostics and all existing receipt/history/download
 checks. It adds no HTTP request/retry or mocked response. The ordering regression
-can prove earlier capture, not the underlying Chromium cause. Verify the exact
-patch with one original scoped workflow, review/required checks and canonical CI.
-No duplicate full local suite, weakened receipt gate or product Auth change.
-After successful managed release,
-verify accepted revision/image/receipt hashes, health, no pending release and
-browser/tunnel readback, then record the durable receipt. Employee SMTP sender
-and the owner's chosen client remain separate follow-ups, not blockers for
-this app release.
+proves earlier capture, not the underlying Chromium cause. The exact reviewed
+patch passed 25 focused tests, the original scoped profile/ZIP workflow with
+owned cleanup, required PR checks and the full canonical CI above. All receipt,
+history and byte checks remained in place. This is a validated lifecycle
+mitigation, not a claim that the prior Chromium failure's root cause was proven.
 
 ## Catalogue release recovery (2026-09-15)
 
@@ -38,7 +65,8 @@ PR789 merged as `b194bb57b760db1b2795f8dba0a346fa8294e772`, with fast checks
 and independent review passed. CI34980108921 passed Node/static and dependency
 audit but failed the later Admin case-open assertion in the real Admissions
 scenario. Release34981142975 was skipped; release arm was set back to `false`.
-Production remains accepted `5bc5df73`; no new schema or provider write occurred.
+At that point production remained accepted `5bc5df73`; no new schema or provider
+write occurred. This incident is resolved by the current release above.
 
 The unchanged isolated `--admissions-workflow-only` run reproduced the same
 failure after the new catalogue-selection/manual-entry checks had passed. Its
@@ -52,8 +80,9 @@ duplicates remain rejected, with the five mutation source kinds unchanged.
 All 24 focused contract tests and scoped lint pass; URL length boundaries and
 closed-schema/identity guards are covered by the same existing test file.
 PR790 completed required PR checks and exact-head review. The unchanged original
-integration scenario passed in CI34985451032; whole release remains blocked by
-the later Student Profile checkpoint above. Do not repeat the Admissions run.
+integration scenario passed in CI34985451032 and the successful CI34989896327.
+The later Student Profile blocker is now resolved for release. Do not repeat
+the Admissions run without a changed input or concrete failure.
 Do not remove the failed assertion, relax Auth or change applied migrations.
 
 ## Catalogue application selector implementation (2026-09-15)
@@ -69,9 +98,9 @@ isolated Admissions browser scenario now covers catalogue and manual creation,
 Enter without accidental submission, programme preservation and authenticated
 RLS readback after reload. This real scenario passed in canonical CI34985451032;
 source assertions alone are not the evidence. PR789 passed required checks and
-independent exact-head review. Managed release is pending the later Student
-Profile gate above. Do not create staging or duplicate the full database/browser
-run locally. Record the release receipt after actual readback.
+independent exact-head review. Managed release34991072628 is accepted and read
+back as recorded above. Do not create staging or duplicate the full
+database/browser run locally.
 
 Employee invitations still need the EVO mail sender and exact recipient/scope
 approval. The owner's chosen-client form/ZIP flow remains a separate acceptance
@@ -94,14 +123,12 @@ then send one invitation and have the employee complete their own password/login
 Do not substitute a shared password or claim delivery from an invitation row.
 
 The chosen-client form/ZIP acceptance is still open; the inspected Admissions
-list has no available case. A source audit also found that the normal application
-creator submits an empty `catalog_institution_id`, while university-form export
-requires a catalogue-linked application. Next bounded code slice: use the existing
-authorized catalogue reader and creation RPC, with explicit selection, search,
-paging and error/retry states. Preserve manual entry and the typed programme;
-do not relink old applications or create duplicate cases automatically. This
-UI fix is **not implemented** by the readiness checkpoint. After it lands, use
-the owner's selected case for a real saved form → final ZIP → fresh download.
+list had no available case. The earlier catalogue-linking gap is fixed and now
+released: the normal application creator supports explicit catalogue selection
+through the existing authorized reader and creation RPC, with search, paging
+and retry. Manual entry and typed programme are preserved; old applications
+were not relinked and duplicate cases were not created. Use the owner's selected
+case for a real saved form → final ZIP → fresh download.
 No further PDF/ZIP release, schema169 apply or old Docs retirement is needed.
 
 ## Pilot priorities: prod first, small parallel deliveries (2026-09-15)

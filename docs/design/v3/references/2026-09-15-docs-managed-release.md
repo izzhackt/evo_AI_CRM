@@ -1,9 +1,11 @@
 # EVO Docs: выпуск приложения и остаток переноса
 
-Текущий выпуск: `r66.1-5bc5df73`, PDF/ZIP выложены и проверены 2026-09-15.
-См. [итоговую квитанцию](#pdf-and-zip-production-release) и приоритеты
-пилота в launch-plan. Старый standalone Docs убран; D5 отменён владельцем.
-Gemini, USTC и приёмка выбранного клиентского сценария остаются отдельно.
+Текущий выпуск: `r72.1-35868e75`, принят и независимо сверен 2026-09-15.
+См. [квитанцию каталога и пилота](#catalogue-and-pilot-production-release).
+Выбор университета из каталога и исправление чтения contract workspace уже
+в production; прежние PDF/ZIP сохранены. Старый standalone Docs убран;
+D5 отменён владельцем. SMTP-отправитель, вход сотрудников и выбранный
+клиентский сценарий остаются отдельными follow-ups; Gemini и USTC — отдельно.
 
 Ниже сохранены исторические этапы начиная с выпуска `a358a3e3`.
 Его независимая серверная сверка: 2026-09-14,22:10:21–22:11:02 UTC.
@@ -338,3 +340,67 @@ USTC DOC→PDF format/mapping/publication and optional UI polish are P2 and do n
 hold this released slice. Eight of nine imported blank templates are published;
 USTC remains draft. D5 test-history migration is cancelled, not completed.
 Existing backups/secrets/history remain preserved as recorded above.
+
+## Catalogue and pilot production release
+
+2026-09-15: каталоговый выбор университета в заявлении и исправление чтения
+contract workspace выложены вместе с узкой lifecycle mitigation браузерной
+проверки экспорта. Канонический CI и управляемый выпуск завершились успешно;
+независимая серверная сверка выполнена в 16:04:13 UTC.
+
+| Проверка | Подтверждённый результат |
+|---|---|
+| Revision / version | `35868e75d2cd3c041b415c809f222c252a3b86a1` / `r72.1-35868e75` |
+| Канонический CI | [34989896327](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34989896327), SUCCESS |
+| Управляемый выпуск | [34991072628](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34991072628), SUCCESS |
+| Accepted identity | `v3-r34991072628-a1-35868e75` |
+| GitHub artifact / digest | `10406115016` / `sha256:9d9f1045d22f855344b4e24c421aa639465413d32126f99d0680c2e99d9864ae` |
+| Config digest | `sha256:e77e5cffce3ea5b3a255a870d42d8273ca7620531e0710c4b44675a0170aacd8` |
+| App image | `sha256:7c7569c28fc6dfbb7926db78b617d8f318258b37990229ff33481bf44c7c7252` |
+| App container | `d01896d3c9aa707b1bbe028a5f22c8a8a7dcf3901f19c7ff51d2ca61812ac989` |
+| Pointer SHA256 | `6aca0f9db812cecf287eec37967a272910807de9806b0f1b69ba77ad58770d8d` |
+| Acceptance record SHA256 | `64345e0829e4da41726f37662dd36bdda024b3a286751a5c1066c85e3daa5ed4` |
+| Release browser receipt SHA256 | `411b5459cda4cb9a1ae291fdd062186180b46afaeee9c2b2ed10ad561d701e02` |
+| Состояние | Accepted pointer, record, browser и runtime identity совпадают; pending отсутствует; app healthy, 0 restarts |
+| Release arm | После завершения явно выключен и перечитан: `EVO_PRODUCTION_RELEASE_ARMED=false` |
+| Доступ | VPS fallback HTTPS health 200, TLS verify 0; localhost-туннель к тому же app — health 200 |
+
+Источником текущего accepted-состояния служит pointer, а не историческое
+`pending` внутри `result.json`. Artifact digest независимо совпал с GitHub API;
+config/archive bindings сверены по receipts и release gate, без повторного
+чтения image archive. Ledger 001–169 подтверждён реальными release
+guards; новый прямой SQL-запрос для этой квитанции не выполнялся. Повторять
+миграцию169, настройку private Storage, перенос бланков или retirement не нужно.
+WAHA и ClamAV сохранили IDs/images, private-доступ, healthy и 0 restarts.
+У Caddy совпали image и время запуска; сравнение с отсутствующим историческим
+полным container ID не заявляется. Провайдеры, DNS и proxy не менялись.
+
+Независимые server receipts: chunks `c0e063`, `d6046e`, `84a113`, `4e57fe`,
+`9ec0d2`, `25365e`; отдельный disarm/localhost readback —
+`01a0a5cd17a772d0ae34b7bec4f11afe`. Пользовательский
+`crm.evoadmissions.com` при этой сверке не разрешился с VPS (`curl` exit 6).
+Подтверждён HTTPS именно настроенного fallback
+`evo-crm.72.62.119.112.sslip.io`, не custom hostname; TLS-проверка не обходилась.
+
+После выпуска обычная Admin-сессия через localhost-туннель перечитала роли:
+четыре черновика, создание/редактирование доступны; назначения и приглашения
+не выполнялись. Каталог загрузил 30 карточек и пагинацию. Это реальные
+read-only UI-наблюдения, но не проверка выбранного клиентского дела.
+
+Mitigation начинает чтение тела того же matched POST до завершения click,
+без дополнительного HTTP-запроса, retry или ослабления receipt-проверок.
+Deferred-click тест показал RED → GREEN именно порядка захвата; Chromium root
+cause не доказана. Исходный scoped profile/ZIP сценарий на `2132210e` прошёл
+с draft/final, историей, теми же скачанными bytes и owned cleanup. Его
+`acceptance.json` SHA256 —
+`974a3006e42dee3b93c97713f0f070ac3446a50e071401ddbb8c62df6fcc8eb7`;
+`synthetic=true`, `businessAcceptance=false`. Полный CI выше затем проверил
+канонический release SHA, а не только локальный patch.
+
+Следующие P1 шаги: согласовать EVO SMTP-отправителя/сервис и точных
+получателей/роли/scopes, затем провести первое приглашение и вход сотрудника;
+получить выбранное владельцем реальное дело для сохранённой университетской
+формы → финального ZIP → повторного скачивания. Клиентские данные для этой
+квитанции не создавались. Отмена D5 и recoverable retirement сохраняют прежний
+смысл; Gemini/USTC и дополнительная полировка не становятся закрытыми от
+успешного технического выпуска.

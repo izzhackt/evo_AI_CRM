@@ -26990,3 +26990,23 @@ not distinguish body parsing, receipt normalization and command readback.
 Limit the next patch to four fixed diagnostic stages through the existing
 sanitized failure transport, plus focused stage tests. No new full local run,
 retry, timeout or product behavior change; diagnose before choosing a fix.
+
+### 2026-09-15 — bound export response capture before click completion
+
+PR792 merged as `761ae8ed55ad57998f4b890f4baf236821a0ea2d`.
+CI34987631399 passed draft generation/receipt/download, then failed at the
+new `FINAL_RESPONSE_BODY_READ` stage; release34988890671 was skipped and
+arm=false verified. The failure is now before receipt normalization, either
+body retrieval/JSON parsing or an invalid null envelope. Production is unchanged.
+
+Investigate the response-capture lifecycle rather than product persistence.
+The installed Playwright implementation already waits for the response to finish
+inside body retrieval, so adding `finished()` alone is not an evidence-backed
+fix. A bounded candidate is to begin capturing the matched response body before
+waiting for click completion, retaining all existing exact response/inventory/
+download checks and classifying failures only into fixed safe categories.
+Treat this as a lifecycle mitigation hypothesis until the original scenario
+passes; do not claim a proven underlying Chromium cause. No new HTTP request,
+automatic command retry, mocked response, route fulfillment or page-fetch patch.
+Use focused ordering/failure regression and the existing isolated proof, then
+canonical CI. [Playwright response contract](https://playwright.dev/docs/api/class-response).

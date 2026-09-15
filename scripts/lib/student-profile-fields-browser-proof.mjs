@@ -35,11 +35,32 @@ export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
 });
 export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
 export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+export async function captureProfileExportResponse(page, button, exportUrl, mark) {
+  // Capture from this exact POST as soon as its response arrives, without waiting
+  // for click auto-waiting to finish. No refetch/retry or replacement response.
+  const [captured] = await Promise.all([
+    page.waitForResponse(response => response.url() === exportUrl && response.request().method() === "POST").then(async response => {
+      requireProof(response.status() === 200, "PERSISTENT_EXPORT_NOT_READY");
+      mark("RESPONSE_BODY_READ");
+      let bytes;
+      try { bytes = await response.body(); }
+      catch { mark("BODY_TRANSPORT"); throw new ProofError("BODY_TRANSPORT"); }
+      let body;
+      try { body = JSON.parse(bytes.toString("utf8")); }
+      catch { mark("BODY_INVALID_JSON"); throw new ProofError("BODY_INVALID_JSON"); }
+      requireProof(body !== null && typeof body === "object" && !Array.isArray(body)
+        && Object.keys(body).length === 1 && Object.hasOwn(body, "artifact"), "PERSISTENT_RESPONSE_INVALID");
+      return { response, body };
+    }),
+    button.click(),
+  ]);
+  return captured;
+}
 export function profileExportDiagnosticStage(phase, step) {
   requireProof(["DRAFT", "FINAL", "COLD_DRAFT", "COLD_FINAL"].includes(phase) && [
     "GENERATE_SNAPSHOT", "GENERATE_INVENTORY_BEFORE", "GENERATE_BUTTON_READY", "GENERATE_POST_RESPONSE",
     "GENERATE_RECEIPT", "GENERATE_HISTORY_ROW", "GENERATE_SAVED_MESSAGE", "GENERATE_INVENTORY_AFTER",
-    "RESPONSE_BODY_READ", "RECEIPT_NORMALIZE", "COMMAND_READ", "RECEIPT_COMPARE",
+    "RESPONSE_BODY_READ", "BODY_TRANSPORT", "BODY_INVALID_JSON", "RECEIPT_NORMALIZE", "COMMAND_READ", "RECEIPT_COMPARE",
     "DOWNLOAD_INVENTORY_BEFORE", "DOWNLOAD_ROW_COUNT", "DOWNLOAD_ROW_READY", "DOWNLOAD_EVENT",
     "DOWNLOAD_FAILURE_CHECK", "DOWNLOAD_FILE_PATH", "DOWNLOAD_DOCX_VERIFY", "DOWNLOAD_STORED_ROW",
     "DOWNLOAD_STORAGE_READBACK", "DOWNLOAD_STORAGE_BYTES", "DOWNLOAD_GRANT", "DOWNLOAD_INVENTORY_AFTER",
@@ -487,13 +508,7 @@ async function main() {
       mark("GENERATE_BUTTON_READY");
       await expect(button).toBeEnabled();
       mark("GENERATE_POST_RESPONSE");
-      const [response] = await Promise.all([
-        page.waitForResponse(response => response.url() === exportUrl && response.request().method() === "POST"), button.click(),
-      ]);
-      requireProof(response.status() === 200, "PERSISTENT_EXPORT_NOT_READY");
-      mark("RESPONSE_BODY_READ");
-      const body = await response.json();
-      requireProof(Object.keys(body).length === 1 && Object.hasOwn(body, "artifact"), "PERSISTENT_RESPONSE_INVALID");
+      const { response, body } = await captureProfileExportResponse(page, button, exportUrl, mark);
       mark("RECEIPT_NORMALIZE");
       const receipt = normalizeDocumentExportReceipt(body.artifact, caseId);
       mark("COMMAND_READ");

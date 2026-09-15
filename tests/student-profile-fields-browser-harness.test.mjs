@@ -6,13 +6,74 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import PizZip from "pizzip";
-import { localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { captureProfileExportResponse, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { verifyPersistedPackageZip, verifyPackageStorage } from "../scripts/lib/document-package-browser-proof.mjs";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
 
 const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
 const runnerUrl = new URL("../scripts/lib/student-profile-fields-browser-proof.mjs", import.meta.url);
+
+test("profile response capture reads the same POST body before a deferred click completes", async () => {
+  // This verifies orchestration at the Playwright boundary, not a Chromium race.
+  const exportUrl = "http://127.0.0.1:43210/export";
+  let finishClick, bodyReads = 0, clicks = 0, waits = 0, settled = false;
+  const clickPending = new Promise(resolve => { finishClick = resolve; });
+  const body = { artifact: { id: "unit-only" } };
+  const response = { url: () => exportUrl, request: () => ({ method: () => "POST" }), status: () => 200,
+    body: async () => { bodyReads++; return Buffer.from(JSON.stringify(body)); },
+    json: async () => { bodyReads++; return body; } };
+  const stages = [];
+  const pending = captureProfileExportResponse({ waitForResponse: async predicate => {
+    waits++;
+    assert.equal(predicate({ ...response, url: () => `${exportUrl}/other` }), false);
+    assert.equal(predicate({ ...response, request: () => ({ method: () => "GET" }) }), false);
+    assert.equal(predicate(response), true);
+    return response;
+  } }, { click: () => { clicks++; return clickPending; } }, exportUrl, stage => stages.push(stage));
+  pending.then(() => { settled = true; }, () => { settled = true; });
+  try {
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(bodyReads, 1, "capture must not await click completion before reading the body");
+    assert.equal(settled, false, "capture must still await the original click");
+    assert.deepEqual(stages, ["RESPONSE_BODY_READ"]);
+  } finally { finishClick(); }
+  assert.deepEqual(await pending, { response, body });
+  assert.equal(waits, 1); assert.equal(clicks, 1); assert.equal(bodyReads, 1);
+});
+
+test("profile response capture preserves strict status and envelope checks with safe body failures", async () => {
+  const cases = [
+    { status: 202, text: '{"artifact":{}}', code: "PERSISTENT_EXPORT_NOT_READY", reads: 0 },
+    { text: "null", code: "PERSISTENT_RESPONSE_INVALID" },
+    { text: "[]", code: "PERSISTENT_RESPONSE_INVALID" },
+    { text: "[{}]", code: "PERSISTENT_RESPONSE_INVALID" },
+    { text: "{}", code: "PERSISTENT_RESPONSE_INVALID" },
+    { text: '"artifact"', code: "PERSISTENT_RESPONSE_INVALID" },
+    { text: '{"artifact":{},"extra":"private-sentinel"}', code: "PERSISTENT_RESPONSE_INVALID" },
+    { text: "", code: "BODY_INVALID_JSON" },
+    { text: "private-sentinel", code: "BODY_INVALID_JSON" },
+    { transport: true, code: "BODY_TRANSPORT" },
+  ];
+  for (const item of cases) {
+    let reads = 0;
+    const stages = [];
+    await assert.rejects(captureProfileExportResponse({ waitForResponse: async () => ({
+      status: () => item.status ?? 200,
+      body: async () => { reads++; if (item.transport) throw new Error("private-sentinel"); return Buffer.from(item.text); },
+    }) }, { click: async () => {} }, "http://127.0.0.1:43210/export", stage => stages.push(stage)), error => {
+      assert.equal(error.code, item.code); assert.equal(error.message, item.code);
+      assert.equal(Object.hasOwn(error, "cause"), false);
+      return true;
+    });
+    assert.equal(reads, item.reads ?? 1);
+    if (item.code.startsWith("BODY_")) assert.deepEqual(stages, ["RESPONSE_BODY_READ", item.code]);
+  }
+  const clickError = new Error("unit click failure");
+  await assert.rejects(captureProfileExportResponse({ waitForResponse: async () => ({
+    status: () => 200, body: async () => Buffer.from('{"artifact":{}}'),
+  }) }, { click: async () => { throw clickError; } }, "http://127.0.0.1:43210/export", () => {}), error => error === clickError);
+});
 
 test("template failure evidence retains categories, never credential values or raw errors", async () => {
   for (const code of ["accessDenied", "authUnavailable", "staffAccessDenied"]) assert.equal(proofLoginErrorCode(code), code);
@@ -280,7 +341,7 @@ test("profile export timeout stages distinguish refresh, generation and each war
   boundaries(generate, [
     ['mark("GENERATE_SNAPSHOT")', 'await snapshot()'], ['mark("GENERATE_INVENTORY_BEFORE")', 'await inventory()'],
     ['mark("GENERATE_BUTTON_READY")', 'await expect(button).toBeEnabled()'],
-    ['mark("GENERATE_POST_RESPONSE")', 'await Promise.all('], ['mark("RESPONSE_BODY_READ")', 'await response.json()'],
+    ['mark("GENERATE_POST_RESPONSE")', 'await captureProfileExportResponse(page, button, exportUrl, mark)'],
     ['mark("RECEIPT_NORMALIZE")', 'normalizeDocumentExportReceipt(body.artifact, caseId)'],
     ['mark("COMMAND_READ")', 'response.request().postDataJSON()'],
     ['mark("RECEIPT_COMPARE")', 'requireProof(receipt.state === "ready"'],
@@ -288,6 +349,7 @@ test("profile export timeout stages distinguish refresh, generation and each war
     ['mark("GENERATE_SAVED_MESSAGE")', 'Файл сохранён. Теперь его можно скачать.'],
     ['mark("GENERATE_INVENTORY_AFTER")', 'await inventory()'],
   ]);
+  boundaries(captureProfileExportResponse.toString(), [['mark("RESPONSE_BODY_READ")', 'await response.body()']]);
   const download = runner.slice(runner.indexOf("const downloadSaved = async"), runner.indexOf('stage = "DRAFT_DOWNLOAD"'));
   boundaries(download, [
     ['mark("DOWNLOAD_INVENTORY_BEFORE")', 'await inventory()'], ['mark("DOWNLOAD_ROW_COUNT")', '.toHaveCount(1)'],
@@ -304,7 +366,7 @@ test("profile export timeout stages distinguish refresh, generation and each war
   for (const block of [generate, download]) assert.match(block, /stage = profileExportDiagnosticStage\(phase, step\)/u);
   const { profileExportDiagnosticStage } = await import(runnerUrl.href);
   assert.equal(profileExportDiagnosticStage("DRAFT", "GENERATE_POST_RESPONSE"), "DRAFT_GENERATE_POST_RESPONSE");
-  for (const step of ["RESPONSE_BODY_READ", "RECEIPT_NORMALIZE", "COMMAND_READ", "RECEIPT_COMPARE"]) {
+  for (const step of ["RESPONSE_BODY_READ", "BODY_TRANSPORT", "BODY_INVALID_JSON", "RECEIPT_NORMALIZE", "COMMAND_READ", "RECEIPT_COMPARE"]) {
     assert.equal(profileExportDiagnosticStage("DRAFT", step), `DRAFT_${step}`);
     assert.equal(profileExportDiagnosticStage("FINAL", step), `FINAL_${step}`);
   }

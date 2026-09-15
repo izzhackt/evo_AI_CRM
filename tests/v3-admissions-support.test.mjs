@@ -1,11 +1,32 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { test } from "node:test";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { fileURLToPath } from "node:url";
+import * as React from "react";
 import ts from "typescript";
 import * as wording from "../src/lib/v3/wording.ts";
+
+if (typeof React.useState !== "function") {
+  test("all Admissions support assertions run with actual client SSR exports", () => {
+    // Like platform-university-catalog.test.mjs: ordinary React/ReactDOM exports
+    // belong in a child, not in the enclosing suite's react-server runtime.
+    const env = { ...process.env, NODE_OPTIONS: "" };
+    delete env.NODE_TEST_CONTEXT;
+    const execution = spawnSync(process.execPath, ["--experimental-strip-types", "--test", fileURLToPath(import.meta.url)], {
+      cwd: fileURLToPath(new URL("../", import.meta.url)), env,
+      encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 30_000,
+    });
+    assert.ifError(execution.error);
+    assert.equal(execution.status, 0, execution.stderr || execution.stdout);
+    for (const summary of ["tests 18", "pass 18", "fail 0", "cancelled 0", "skipped 0"]) {
+      assert.ok(execution.stdout.includes(`# ${summary}\n`), execution.stdout);
+    }
+  });
+} else {
+const { createElement } = React;
+const { renderToStaticMarkup } = await import("react-dom/server");
 
 // Static regression boundaries; not a substitute for live role/file acceptance.
 const source = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -239,3 +260,4 @@ test("package commands retain exact intent, serialize busy work and ignore super
   assert.match(form, /begin\("idle", false\)/u, "preparing a composition must not strand the first pending history read");
   assert.match(form, /!uncertain && \(invalid \|\| command.blocked\)/u, "uncertain prepare replays retained input despite refreshed selection");
 });
+}

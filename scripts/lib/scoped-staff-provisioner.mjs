@@ -378,7 +378,17 @@ export async function acceptScopedStaffInvitations({ browser, adminClient, authA
       browserStage = "PASSWORD_READY";
       await page.getByLabel("Новый пароль", { exact: true }).waitFor();
       const callbackUrlClean = page.url() === `${appOrigin}/auth/staff`;
+      const callbackBrowserState = await page.evaluate((cleanUrl) => ({
+        locationClean: window.location.href === cleanUrl,
+        documentComplete: document.readyState === "complete",
+      }), `${appOrigin}/auth/staff`);
+      const callbackCachedCleanAfterBrowserRead = page.url() === `${appOrigin}/auth/staff`;
       const callbackEmailConfirmed = Boolean((await readUser()).email_confirmed_at);
+      process.stdout.write(`${JSON.stringify({ stage: "LOCAL_STAFF_CALLBACK_READINESS",
+        cachedClean: callbackUrlClean, locationClean: callbackBrowserState.locationClean,
+        documentComplete: callbackBrowserState.documentComplete,
+        cachedCleanAfterBrowserRead: callbackCachedCleanAfterBrowserRead,
+        emailConfirmed: callbackEmailConfirmed })}\n`);
       requireValue(callbackUrlClean && callbackEmailConfirmed, callbackUrlClean
         ? "LOCAL_STAFF_CALLBACK_EMAIL_NOT_CONFIRMED"
         : callbackEmailConfirmed ? "LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN" : "LOCAL_STAFF_CALLBACK_URL_AND_EMAIL_NOT_CONFIRMED");

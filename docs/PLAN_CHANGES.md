@@ -26945,3 +26945,22 @@ official website sources from the contract-template choices. Do not broaden
 the contract mutation source allowlist, ignore unknown/malformed data, change
 permissions or edit applied migrations. Keep the original real late Admin
 assertion and re-run it before release. No blind retry or timeout increase.
+
+### 2026-09-15 — isolate recurrent staff callback observation failure
+
+PR790 merged as `1759e61a528b9fe9f0b28063c37f8b45995f2416`. Its exact-main
+CI34982631243 attempts1 and2 stop before the Admissions scenario at
+`LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN`; Node/static and dependency gates pass.
+Releases34983300281/34983912032 were skipped and arm=false restored. Production
+is still accepted5bc5df73. Do not claim the complete recovery integration passed.
+
+The unchanged onboarding helper also passed in the recent local Admissions RED
+reproduction, and the same callback category was recorded in CI34972050911.
+After one bounded same-SHA retry reproduced it again, stop retries and compare
+only cached/browser clean-URL booleans in the actual local Next invitation flow.
+The app removes callback secrets before awaiting the account action; distinguish
+a stale browser-tool observation from actual URL restoration before choosing a
+fix. No raw callback URLs, tokens, passwords, screenshots or traces are permitted
+in this phase. Preserve the exact clean-URL requirement before password entry,
+email confirmation, fresh login and role-scope verification. Scope any proven
+fix and regression before editing product Auth behavior; no blanket bypass.

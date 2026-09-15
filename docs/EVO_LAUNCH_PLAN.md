@@ -1,5 +1,29 @@
 # EVO Launch Plan
 
+## Current release checkpoint (2026-09-15)
+
+PR790 merged the contract read-side recovery as
+`1759e61a528b9fe9f0b28063c37f8b45995f2416`; required checks and independent
+review passed. Its exact-main CI34982631243 attempts1/2 both stop earlier at
+`LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN`. The automatic release jobs were skipped,
+the release arm is `false`, and accepted production remains `5bc5df73`.
+The selector and contract recovery are merged, **not yet deployed**.
+
+One real isolated `--staff-onboarding-only` probe passed, including the original
+callback/email/password/fresh-login checks and 2/2 Chromium tests. This does not
+explain the CI-only failure. Add fixed-shape boolean-only callback observations
+to the existing sanitized failure output, then use the canonical CI to distinguish
+the browser's actual address from the automation's cached address. Preserve the
+original exact clean-URL gate before password entry; no product Auth change,
+timeout increase, third blind retry or full local stack duplication.
+
+Resume: review and merge the bounded diagnostic change, freeze current main,
+run canonical CI and the existing managed release. On failure, disarm and use
+the retained observations to select a proven fix. On success, verify accepted
+revision/image/receipt hashes, health, no pending release and browser/tunnel
+readback, then record the durable receipt. Employee SMTP sender and the owner's
+chosen client remain separate follow-ups, not blockers for this app release.
+
 ## Catalogue release recovery (2026-09-15)
 
 PR789 merged as `b194bb57b760db1b2795f8dba0a346fa8294e772`, with fast checks
@@ -19,8 +43,8 @@ excludes it from contract-template choices; unknown/malformed sources and
 duplicates remain rejected, with the five mutation source kinds unchanged.
 All 24 focused contract tests and scoped lint pass; URL length boundaries and
 closed-schema/identity guards are covered by the same existing test file.
-Complete required PR checks and exact-head review, then run the unchanged
-original integration scenario in canonical exact-main CI before managed release.
+PR790 completed required PR checks and exact-head review. The unchanged original
+integration scenario remains pending behind the callback checkpoint above.
 Avoid a second duplicate local cold-stack run; integration GREEN is still pending.
 Do not remove the failed assertion, relax Auth or change applied migrations.
 

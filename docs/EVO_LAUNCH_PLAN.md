@@ -1,6 +1,72 @@
 # EVO Launch Plan
 
+## Pilot priorities: prod first, small parallel deliveries (2026-09-15)
+
+Owner direction: this is currently a pilot with test clients and employees.
+Prioritize a usable production release and ordinary authenticated access; do not
+hold it for every backlog item or add a staging environment. Keep the same
+permanent database and the localhost SSH view of production.
+
+- P0 complete: PDF/ZIP released and read back; normal authenticated access,
+  changed PDF screen and production/tunnel access verified (receipt below).
+- P1, separate follow-ups: actual employee invitations/first login and a chosen
+  client document flow. These are honest acceptance gaps, not reasons to hide
+  already working screens from the owner.
+- P2, not release blockers: real Gemini acceptance, USTC format/mapping decision,
+  further visual polish and broad completeness work. Reprioritize when needed
+  for the first actual workflow; do not claim these items done.
+- Deliver small independent slices in parallel branches/worktrees with explicit
+  file ownership. One release owner serializes deployment; do not mutate the
+  frozen candidate while its release is active. Merge finished slices promptly.
+- Verify the actual changed path; reuse still-valid exact-revision evidence.
+  Do not repeat expensive full runs without a changed input or concrete failure.
+  The current configured CI/release checks remain in force: this decision does
+  not silently disable Auth, role checks, migration validation or rollback.
+  Any future narrowing of CI belongs to a separate measured change, not this
+  release. Test-client status does not authorize fabricated proof or unsafe
+  handling of employee/customer data.
+
+The existing lane already deploys without staging: successful exact-main CI
+starts one automatic release via `workflow_run`, followed by short production
+checks. See [runbook](../deploy/fast-app-release.md) and the
+[official trigger semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
+
 ## ZIP release recovery checkpoint (2026-09-15)
+
+**Released and verified:** `5bc5df73a03825d9b5dba4ad4b8bdf65d0a8f809`,
+version `r66.1-5bc5df73`. [CI34972050911 attempt2](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34972050911)
+and automatic [release34973968977](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34973968977)
+passed. Independent server readback matched accepted pointer/record/browser
+hashes, app image and revision; health200/TLS0, pending absent, arm=false after
+explicit operator disarm. In ordinary Admin Chrome through the existing tunnel,
+GDUT pages1/2, three rapid page-return cycles and cold reload decoded correctly.
+No source upload or mapping edit was repeated. [Full release receipt](design/v3/references/2026-09-15-docs-managed-release.md#pdf-and-zip-production-release).
+
+No further release/apply/retirement is needed for this slice. Next work follows
+the P1/P2 priorities above. The remaining paragraphs are historical incident
+evidence, not current commands or an unresolved release blocker.
+
+Current source is `5bc5df73a03825d9b5dba4ad4b8bdf65d0a8f809` (PR786).
+The exact-role ZIP selector fix and bounded diagnostic substages passed an
+independent review,23 harness checks, full lint and the original isolated
+profile/ZIP run. Its receipt verifies2 profile files +1 ZIP, private Storage
+readback, independently decoded selected bytes, identical fresh-login download,
+no download-created artifacts and owned cleanup. This is synthetic technical
+proof, not a real client or Gemini acceptance.
+
+CI34972050911 attempt1 passed Node/static and dependency audit but failed earlier
+than D2 at `LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN` during staff invitation setup.
+The same unchanged staff-onboarding-only loop then passed real local mail,
+callback/password/fresh login, role/member editors and business scopes. No auth
+rewrite or weakened URL check was made; the bounded same-SHA failed-job retry
+(attempt2) subsequently passed. Release34972496448 was skipped before the later
+successful release above. If the callback failure recurs in future, compare only
+cached/browser clean-URL booleans. Never log URLs
+containing tokens, passwords or raw callback errors.
+
+The paragraphs below retain the earlier recovery evidence, not instructions to
+repeat completed work. Draft PR769 is closed as owner-cancelled D5;770/771 are
+closed as superseded. Their source/history remains available.
 
 PR785 is merged as `cfac17f7923cdd52408b40addc2d67eacb48a5f1`. Managed
 schema run34969326250 applied only169 and verified001–169; the private export

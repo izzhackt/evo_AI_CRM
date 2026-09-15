@@ -1,7 +1,12 @@
 # EVO Docs: выпуск приложения и остаток переноса
 
-Дата: 2026-09-15 Asia/Dubai. Независимая серверная сверка: 2026-09-14,
-22:10:21–22:11:02 UTC. Приложение выложено; полное объединение Docs не закончено.
+Текущий выпуск: `r66.1-5bc5df73`, PDF/ZIP выложены и проверены 2026-09-15.
+См. [итоговую квитанцию](#pdf-and-zip-production-release) и приоритеты
+пилота в launch-plan. Старый standalone Docs убран; D5 отменён владельцем.
+Gemini, USTC и приёмка выбранного клиентского сценария остаются отдельно.
+
+Ниже сохранены исторические этапы начиная с выпуска `a358a3e3`.
+Его независимая серверная сверка: 2026-09-14,22:10:21–22:11:02 UTC.
 Порядок работы: [launch-plan](../../../EVO_LAUNCH_PLAN.md) →
 [план объединения](../evo-docs-unification-run-plan.md). Эта заметка заменяет
 активные шаги подготовки из [предварительной сверки](2026-09-15-docs-cutover-preflight.md),
@@ -188,6 +193,9 @@ Receipt нормализации: массивы `[x,y,width,height]`, PDF point
 
 ## Что продолжить — без повторения завершённых проверок
 
+**Исторический список до решения владельца и выпуска PDF/ZIP. Не выполнять
+его как текущий план:** актуальный остаток указан в итоговой квитанции ниже.
+
 1. Не повторять девять завершённых uploads и восемь опубликованных mappings.
    Для USTC отдельно решить допустимость DOC→PDF, затем настройку и публикацию.
    На согласованном реальном деле проверить формирование → сохранение → история
@@ -266,3 +274,67 @@ and no custom CRM host. VPS sslip login returned200 with TLS verification0.
 Both VPS DNS and Google DNS from Mac returned NXDOMAIN for the deferred custom
 domain. Mac sslip curl separately failed local issuer trust (verification20).
 No DNS, Caddy or certificate-trust setting was changed.
+
+## PDF and ZIP production release
+
+2026-09-15: PDF preview repair and persisted ZIP up to50MiB are released together.
+PR784–786 are merged. Managed schema34969326250 had already applied169 and
+verified001–169. The existing private export bucket was read back at50MiB with
+DOCX/PDF/ZIP allowed; global capacity and tariff were unchanged. These writes
+and standalone retirement must not be repeated.
+
+| Release proof | Verified result |
+|---|---|
+| Revision / version | `5bc5df73a03825d9b5dba4ad4b8bdf65d0a8f809` / `r66.1-5bc5df73` |
+| Exact-main CI | [34972050911 attempt2](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34972050911), SUCCESS |
+| Automatic managed release | [34973968977 attempt1](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34973968977), SUCCESS |
+| Accepted identity | `v3-r34973968977-a1-5bc5df73` |
+| App image | `sha256:50bd91337c05f592a796f622f49777b40c61026288c528bcd536bfcee3aa65f3` |
+| App container | `e8424e503bb83107c569db05daa1e8f83ccb33b35685eb93dd319949a2085291` |
+| Pointer SHA256 | `6fb53744604389da5d5682d4e20c58be09e5557d82ff60a3e3092f15216257ff` |
+| Acceptance record SHA256 | `816a71a74b78e862d99e0207778731f045cfa4a38ab432ee496e8106fe817ddc` |
+| Release browser receipt SHA256 | `d172435846bcacca33b067d8a5eef8350059caccf9f1dc1438ba4085a5a5c02d` |
+| Independent readback | 13:22:18–13:23:22 UTC; pointer→record→browser and image/revision/version match |
+| Runtime | App healthy,0 restarts; pending-current absent including symlink test |
+| HTTPS | Configured sslip production `/api/health`200, TLS verify0 from VPS |
+| Release arm | Explicitly disabled by operator after release; independently read back `false` |
+
+Protected WAHA and ClamAV full IDs/images match their recorded baselines; both
+are healthy with0 restarts. Caddy image matches its baseline and it has run since
+September6 with0 restarts; no unsupported comparison to a missing prior full
+container ID is made. Shared `evo_public_web` remains present. No provider call,
+QR, customer mutation, DNS or proxy edit was part of this release.
+
+Server receipts: chunks `f49ec7`, `a4dd63`, `0eb1af`; independent arm receipt
+`01a0a53c534b7be282d8429d139421e8`; operator disarm/readback
+`01a0a53c07407aa0832c54c8f48ec26c`.
+
+Post-release Chrome used the owner's ordinary Admin session through the existing
+`http://localhost:3000` SSH tunnel, not role preview. GDUT Degree's unchanged
+saved template/version/mapping displayed both pages at1190×1683 decoded pixels.
+Three rapid page-return cycles recovered page1; a cold reload again decoded
+page1 correctly and the actual screenshot showed the PDF with saved fields.
+The browser tool had selector/deadline delays after reload; a fresh DOM snapshot
+and read-only `document.images` check confirmed the loaded image. This is not
+reported as an application failure or hidden as an uninterrupted tool run.
+No template/source upload or mapping mutation was repeated. The tab was left
+open for the owner. The tunnel is the same production, not a second database.
+
+The original isolated profile/ZIP proof also passed private Storage and entry
+byte verification:2 profile artifacts and1 ZIP (12004 bytes), SHA256
+`07b0683c81a0b69e69f6f6b8b3cf43a6dba69e30e4b2ce730a616304347a1d85`.
+Profile files were reread after cold opening; ZIP was downloaded byte-identically
+after a fresh login. Downloads created no artifacts; owned cleanup was verified.
+CI attempt2 passed staff onboarding,28 browser tests and the profile/ZIP gate;
+Node/static recorded2051 passes,1 existing skip,0 failures. These authorized
+isolated checks do not constitute a real chosen-client or Gemini acceptance.
+
+### Remaining pilot follow-ups
+
+The owner prioritizes accessible prod and small parallel releases without
+staging. Employee first-login/role acceptance and one chosen client document
+flow are separate P1 work. Real Gemini recognition/human review/provider cleanup,
+USTC DOC→PDF format/mapping/publication and optional UI polish are P2 and do not
+hold this released slice. Eight of nine imported blank templates are published;
+USTC remains draft. D5 test-history migration is cancelled, not completed.
+Existing backups/secrets/history remain preserved as recorded above.

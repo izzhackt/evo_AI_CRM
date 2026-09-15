@@ -34,16 +34,28 @@ reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
 The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
-keeps document work inside Platform. Current production is accepted `a358a3e3`
-(`r63.1-a358a3e3`); full CI `34901397830`, release `34902113327` and independent
-server readback passed. The [current release and real-UI evidence](docs/design/v3/references/2026-09-15-docs-managed-release.md)
-records ordinary Admin access, PDF gestures and nine verified blank-template
-uploads, with each mapping's status. Do not repeat completed uploads or treat
-them as filled-client-form acceptance. S2 roles/onboarding and D2 profile work
+keeps document work inside Platform. PDF preview fixes and persistent ZIP
+packages up to 50 MiB are merged through PRs #784–#786 (`5bc5df73`). The original
+isolated profile/ZIP scenario passed private Storage, entry-byte verification,
+identical ZIP download after a fresh login and owned cleanup. Managed migration169
+and the private 50 MiB DOCX/PDF/ZIP export bucket are already applied and verified;
+do not repeat these writes. CI `34972050911` attempt2 and automatic release
+`34973968977` passed. Production readback confirmed accepted
+`r66.1-5bc5df73`, healthy HTTPS, no pending release and the release arm off.
+The ordinary Admin GDUT preview passed both pages, rapid switching and cold reload.
+Follow the [pilot priorities](docs/EVO_LAUNCH_PLAN.md#pilot-priorities-prod-first-small-parallel-deliveries-2026-09-15):
+production first, the existing permanent database and SSH tunnel, no staging.
+The [release and real-UI evidence](docs/design/v3/references/2026-09-15-docs-managed-release.md)
+records nine imported blank templates: eight published, USTC still draft pending
+DOC→PDF format confirmation. Standalone Docs is retired, with source/data moved
+recoverably; D5 transfer of five old test students/history was cancelled by the
+owner, not completed. Do not repeat uploads or retirement. Real Gemini provider
+acceptance, USTC and extra polish are deferred, not pilot-release blockers;
+isolated proof is not real-client acceptance. S2 roles/onboarding and D2 profile work
 from the [earlier `05585020` release](docs/design/v3/references/2026-09-13-staff-docs-s2-d2-release.md)
 remain deployed; see the [Admin guide](docs/design/v3/staff-admin-guide.md).
-Real employee invite/first-login, client-form and Gemini acceptance, ZIP capacity
-and persistence, D5 data transfer and D6 standalone retirement remain open.
+Actual employee invite/first login and a chosen client document flow remain
+separate follow-ups, not claims of complete business readiness.
 
 The September11 [university completion run](docs/design/v3/university-catalog-completion-run-plan.md)
 is accepted in `892558b2`: **143 institutions across15 countries, 251 selected

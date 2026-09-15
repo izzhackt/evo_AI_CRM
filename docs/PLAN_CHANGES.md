@@ -26825,3 +26825,62 @@ use the exact role/name, assert the selected application ID, and add fixed-enum
 substages for diagnosis. No product change, timeout increase, weakened assertion,
 raw diagnostic logging or schema write. Re-run the full original isolated flow;
 the earlier CI failure is distinct and not claimed fixed without that proof.
+
+### 2026-09-15 — ZIP technical proof passed; bounded callback CI retry
+
+PR786 merged as `5bc5df73a03825d9b5dba4ad4b8bdf65d0a8f809` after independent
+source approval and23 harness checks/full lint. The original isolated D2/ZIP
+loop passed:2 profile artifacts,1 ZIP, private Storage readback, independently
+verified entries, identical fresh-login download and verified owned cleanup.
+ZIP output was12004 bytes, SHA256
+`07b0683c81a0b69e69f6f6b8b3cf43a6dba69e30e4b2ce730a616304347a1d85`.
+
+Exact-main CI34972050911 attempt1 passed Node/static and dependency audit, but
+failed before D2 at `LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN`. Release34972496448
+was skipped and arm=false was read back. The unchanged local
+`--staff-onboarding-only` loop subsequently passed mail/callback/password/fresh
+login, role/member editors, business scopes and both real-identity browser
+checks. This does not prove the intermittent CI condition fixed. One bounded
+failed-job retry on the same frozen SHA is in progress with the existing gates;
+there is no speculative auth change, timeout increase or relaxed URL check.
+On recurrence, capture only browser/cached URL cleanliness booleans, never tokens
+or raw callback errors. Managed169/bucket50MiB and old Docs retirement remain done.
+
+Closed obsolete draft PR769 as owner-cancelled D5, and770/771 as superseded by
+the merged registry/native-runtime implementation. Branches/history are retained.
+The final Docs handover must distinguish waived old test-data acceptance from
+the still-unexercised real Gemini path and the USTC draft-format exception.
+
+### 2026-09-15 — owner prioritizes accessible pilot prod and parallel small releases
+
+Owner requests a status checklist, removal of lower-priority release blockers,
+usable production first and parallel follow-up development, explicitly without
+staging. Current users are pilot/test clients and employees. Record this as the
+working priority, not a claim of completed real-business acceptance.
+
+Finish the active PDF/ZIP release and normal access/readback first. Employee
+onboarding and one chosen client workflow are separate P1 follow-ups; Gemini,
+USTC and extra polish do not hold this release. Keep independent changes small
+and parallel with explicit ownership and one serialized deployment owner.
+Reuse still-valid evidence; avoid speculative refactors, repeat full checks and
+new staging infrastructure. Preserve actual-path verification, ordinary Auth,
+role boundaries, migration checks and rollback. Current workflow gates are not
+removed by this docs change; any measured CI optimization is a separate slice.
+The owner asks to retain this preference for future EVO work.
+
+### 2026-09-15 — PDF and persisted ZIP accepted in production
+
+Exact-main CI34972050911 attempt2 and automatic managed release34973968977 both
+passed on5bc5df73. Independent13:22–13:23 UTC readback verified accepted
+`r66.1-5bc5df73`, matching pointer/record/browser hashes and image/revision,
+health200/TLS0, pending absence and arm=false after explicit operator disarm.
+WAHA/ClamAV identities and Caddy image/long-running state were preserved.
+Ordinary Admin Chrome via the unchanged localhost production tunnel verified
+GDUT pages1/2, three rapid page-return cycles and cold reload; decoded1190×1683
+and a real screenshot, without new upload or mapping edits.
+
+See the [final receipt](design/v3/references/2026-09-15-docs-managed-release.md#pdf-and-zip-production-release).
+The earlier callback failure did not recur on this same-SHA retry; its underlying
+intermittent cause is not claimed fixed. No auth or gate weakening was made.
+Current Docs code/schema/bucket/retirement is done; real client/Gemini acceptance
+and USTC remain separately scoped follow-ups under the new pilot priorities.

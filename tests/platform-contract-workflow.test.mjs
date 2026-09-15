@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  PLATFORM_CONTRACT_SOURCE_KINDS,
   PlatformContractRepositoryError,
   buildPlatformContractRedirectTarget,
   normalizePlatformCaseContractWorkspace,
@@ -45,6 +46,18 @@ function source(overrides = {}) {
     reviewed_at: AT,
     ...overrides,
   };
+}
+
+function websiteSource(overrides = {}) {
+  // SQL148 register_workflow_source + SQL057 reviewed_sources projection.
+  return source({
+    id: "33333333-3333-4333-8333-333333333334",
+    source_key: "src_44444444444444448444444444444446",
+    source_kind: "official_website",
+    source_url: "https://newinti.edu.my/",
+    source_revision: SHA256,
+    ...overrides,
+  });
 }
 
 function template(overrides = {}) {
@@ -210,6 +223,67 @@ function rejectsWorkspace(value) {
       error.message === "Platform contract workspace is unavailable.",
   );
 }
+
+test("Admin contract workspace survives SQL148 publication without offering website sources for contracts", () => {
+  const expected = normalizePlatformCaseContractWorkspace(workspace());
+  const parsed = normalizePlatformCaseContractWorkspace(workspace({
+    reviewed_sources: [source(), websiteSource()],
+  }));
+  assert.deepEqual(parsed, expected);
+  assert.deepEqual(parsed.reviewedSources.map((row) => row.sourceRegistryId), [SOURCE_ID]);
+});
+
+test("catalogue website filtering retains all five eligible contract source kinds and SQL148 URL bounds", () => {
+  const eligible = [
+    source(),
+    source({ id: "33333333-3333-4333-8333-333333333335", source_kind: "google_document",
+      source_url: "https://docs.google.com/document/d/abcdefghij/edit" }),
+    source({ id: "33333333-3333-4333-8333-333333333336", source_kind: "google_spreadsheet",
+      source_url: "https://docs.google.com/spreadsheets/d/abcdefghij/edit" }),
+    source({ id: "33333333-3333-4333-8333-333333333337", source_kind: "google_drive_file",
+      source_url: "https://drive.google.com/file/d/abcdefghij/view" }),
+    source({ id: "33333333-3333-4333-8333-333333333338", source_kind: "notion_database",
+      source_url: `https://notion.so/${"a".repeat(32)}` }),
+  ];
+  const longUrl = "https://newinti.edu.my/".padEnd(1000, "a");
+  const parsed = normalizePlatformCaseContractWorkspace(workspace({
+    reviewed_sources: [...eligible, websiteSource({ source_url: longUrl })],
+  }));
+  assert.deepEqual(parsed.reviewedSources, normalizePlatformCaseContractWorkspace(workspace({
+    reviewed_sources: eligible,
+  })).reviewedSources);
+  assert.deepEqual(parsed.reviewedSources.map((row) => row.sourceKind), [
+    "repository_contract", "google_document", "google_spreadsheet", "google_drive_file", "notion_database",
+  ]);
+  assert.equal(PLATFORM_CONTRACT_SOURCE_KINDS.includes("official_website"), false);
+  assert.deepEqual(normalizePlatformCaseContractWorkspace(workspace({
+    reviewed_sources: [websiteSource()],
+  })).reviewedSources, []);
+  rejectsWorkspace(workspace({ reviewed_sources: [websiteSource({ source_url: `${longUrl}a` })] }));
+});
+
+test("excluded catalogue sources still require exact reviewed rows and retain duplicate and count guards", () => {
+  for (const overrides of [
+    { source_kind: "unknown_kind" }, { source_kind: ["official_website"] },
+    { review_status: "pending" }, { review_status: "rejected" },
+    { id: "not-a-uuid" }, { source_key: "invalid" }, { source_revision: "" },
+    { reviewed_at: null }, { reviewed_at: "not-a-date" }, { unexpected: true },
+    ...[null, "http://newinti.edu.my/", "https://localhost/", "https://127.0.0.1/",
+      "https://newinti.edu.my/?token=secret", "https://newinti.edu.my/#fragment",
+      "https://newinti.edu.my/\n"].map((source_url) => ({ source_url })),
+  ]) {
+    rejectsWorkspace(workspace({ reviewed_sources: [source(), websiteSource(overrides)] }));
+  }
+  const missing = websiteSource();
+  delete missing.reviewed_at;
+  rejectsWorkspace(workspace({ reviewed_sources: [missing] }));
+  rejectsWorkspace(workspace({ reviewed_sources: [websiteSource(), websiteSource()] }));
+  rejectsWorkspace(workspace({ reviewed_sources: [source(), websiteSource({ id: SOURCE_ID })] }));
+  const websites = Array.from({ length: 251 }, (_, index) => websiteSource({
+    id: `33333333-3333-4333-8333-${String(index).padStart(12, "0")}`,
+  }));
+  rejectsWorkspace(workspace({ reviewed_sources: websites }));
+});
 
 test("normalizes the exact typed BW6 workspace without provider bodies", () => {
   const parsed = normalizePlatformCaseContractWorkspace(workspace(), {

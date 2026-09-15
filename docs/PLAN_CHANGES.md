@@ -26749,3 +26749,52 @@ remain in the pinned GitHub history and recoverable local checkout. Merge PDF
 and ZIP in separate reviewed slices, then one combined exact-main CI/release and
 real post-release saved-template browser check. Old test-history migration stays
 cancelled; fixture regression is technical evidence only, not client acceptance.
+
+### 2026-09-15 — persisted ZIP implementation checkpoint and capacity proof
+
+PR784 PDF/retirement scope merged as `5cf45158` after fast checks34964735716.
+ZIP work proceeds on `izzhackt/docs-persisted-zip-50m`;169 is reserved for the
+existing packet/export lifecycle, not a replacement data authority. Preserve
+pre-ZIP Platform manifests read-only with null revision; a newly prepared
+immutable snapshot is required before export, with no invented legacy binding.
+
+Storage configurator adds explicit `--packages` targeting exactly the existing
+private export bucket,50MiB and DOCX/PDF/ZIP. It can upgrade only known exact
+private5/20MiB predecessors and cannot downgrade, change policy/global limit or
+tariff. The existing opt-in read-only capacity step now requires50MiB before
+ledger/apply. Official [global/bucket limits](https://supabase.com/docs/guides/storage/uploads/file-limits)
+were checked2026-09-15.67 isolated configurator/workflow tests passed;
+independent four-file review `5bae062d1c6159167921c7bd7628b8268f4ecfdeeecb5f1e1e472dcb561c1d0f`
+found no issues. This is source/test evidence, not applied Storage or ZIP release.
+
+Read-only managed preflight34966065841 on reviewed `f6408b5c` now confirms
+global52,428,800 bytes against the same required minimum, and source/managed
+001–168 with no extra or missing entries. No migration/bucket write occurred.
+The local Supabase export-bucket declaration is aligned to50MiB/DOCX/PDF/ZIP;
+per-kind profile/form limits stay5/20MiB. Extend the existing isolated D2 browser
+proof at its end with one saved final ZIP using the already generated final
+profile; count three actual artifacts (two profiles and one ZIP). Verify actual
+entry bytes, private Storage hash and cold fresh-login download. Existing draft
+and profile checks remain; no new provider/test infrastructure or production
+students are added. Receipt v3 also requires the ZIP evidence before owned
+cleanup publishes acceptance.
+
+Source checkpoint `e088e8ba`: immutable packet169/API/UI are committed. Backend
+review hash `34de3197af07bbb8edecacfb3334ba69da48abbafb9b559b3107e9e66e91ddac`
+and independent UI review hash
+`031486c009e5c8fa26540cbbbda8bd2b5b089e3047a0c3f6500f59500bfccd26`
+have no open Standards/Spec findings. Isolated SQL001–169 plus164/167 regressions,
+original-only50MiB seal and unknown→reconcile→ready/replay passed;54 producer/
+builder/route,16 client/action and18 UI checks passed, with typecheck and scoped
+lint. These checks do not exercise managed Storage, a live provider or real
+client acceptance. Old packet preparation v1 remains JSON-only for rollback;
+new UI usesv2 and no source snapshot is invented for old manifests.
+
+Independent proof review found and corrected a missing four-argument canonical
+application RPC payload before execution; the exact13-argument regression failed
+before and passed after the correction.22 focused proof tests and scoped lint
+passed. Final source-only proof review
+`3ae76fd6db1dbd893fc19a6a6fe1812bc5fb3b482c980ff849d7713cd077ef1c`
+has no open findings. Actual isolated browser/Storage execution remains required
+in the single combined exact-main CI; no synthetic test receipt is live-client
+or provider acceptance.

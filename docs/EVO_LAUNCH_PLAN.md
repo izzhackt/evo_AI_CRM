@@ -1,5 +1,31 @@
 # EVO Launch Plan
 
+## P1 readiness checkpoint (2026-09-15)
+
+Prepared four **unpublished, unassigned** Sales/Admissions role drafts through
+the ordinary production Admin UI. Reload and reopen confirmed permission counts
+15/11/27/11; all four have zero employees and no published permissions.
+No invitation, account creation or access expansion occurred. The source roster
+contains twelve employees, but it is not approval of individual access grants.
+See [staff checkpoint](design/v3/employee-roles-accounts-run-plan.md#подготовка-пилотного-подключения-2026-09-15).
+
+Actual onboarding is waiting for a service sender: the live Supabase dashboard
+still shows built-in email and no configured custom SMTP. Obtain the sender and
+service, reconcile existing users, confirm exact recipients/roles/scopes once,
+then send one invitation and have the employee complete their own password/login.
+Do not substitute a shared password or claim delivery from an invitation row.
+
+The chosen-client form/ZIP acceptance is still open; the inspected Admissions
+list has no available case. A source audit also found that the normal application
+creator submits an empty `catalog_institution_id`, while university-form export
+requires a catalogue-linked application. Next bounded code slice: use the existing
+authorized catalogue reader and creation RPC, with explicit selection, search,
+paging and error/retry states. Preserve manual entry and the typed programme;
+do not relink old applications or create duplicate cases automatically. This
+UI fix is **not implemented** by the readiness checkpoint. After it lands, use
+the owner's selected case for a real saved form → final ZIP → fresh download.
+No further PDF/ZIP release, schema169 apply or old Docs retirement is needed.
+
 ## Pilot priorities: prod first, small parallel deliveries (2026-09-15)
 
 Owner direction: this is currently a pilot with test clients and employees.

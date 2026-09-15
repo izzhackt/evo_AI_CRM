@@ -60,7 +60,7 @@ function storageCapacityStep() {
   return schemaWorkflow.slice(start, schemaWorkflow.indexOf("\n      - name:", start + marker.length));
 }
 
-async function runStorageCapacity({ body = '{"fileSizeLimit":20971520}', status = 200,
+async function runStorageCapacity({ body = '{"fileSizeLimit":52428800}', status = 200,
   projectRef = "iosckaqtovbbnssqcpde", networkFailure = false, timeout = false } = {}) {
   const step = storageCapacityStep();
   const source = step.match(/node <<'NODE'\n([\s\S]*?)\n          NODE/u)?.[1].replace(/^          /gmu, "");
@@ -88,11 +88,11 @@ async function runStorageCapacity({ body = '{"fileSizeLimit":20971520}', status 
   return { calls, output, errors, timers, token, exitCode: processState.exitCode };
 }
 
-test("schema Storage capacity accepts the exact20MiB limit through one bounded read-only GET", async () => {
+test("schema Storage capacity accepts the exact50MiB ZIP limit through one bounded read-only GET", async () => {
   const result = await runStorageCapacity();
   assert.equal(result.exitCode, 0);
   assert.deepEqual(result.output.map(value => JSON.parse(value)), [
-    { fileSizeLimit: 20971520, minimumBytes: 20971520, eligible: true },
+    { fileSizeLimit: 52428800, minimumBytes: 52428800, eligible: true },
   ]);
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.timers, [30000]);
@@ -116,12 +116,12 @@ test("schema Storage capacity stays default-off, step-scoped and before ledger/a
 });
 
 test("schema Storage capacity reports only numeric eligibility and fails insufficient limits", async () => {
-  for (const limit of [0, 5242880, 20971519, 20971520, 52428800]) {
+  for (const limit of [0, 5242880, 20971520, 52428799, 52428800]) {
     const result = await runStorageCapacity({ body: JSON.stringify({ fileSizeLimit: limit, privateConfig: "must-not-be-logged" }) });
-    const eligible = limit >= 20971520;
+    const eligible = limit >= 52428800;
     assert.equal(result.exitCode, eligible ? 0 : 1);
     assert.deepEqual(result.output.map(value => JSON.parse(value)), [
-      { fileSizeLimit: limit, minimumBytes: 20971520, eligible },
+      { fileSizeLimit: limit, minimumBytes: 52428800, eligible },
     ]);
     assert.deepEqual(result.errors, []);
     assert.equal(result.calls.length, 1);

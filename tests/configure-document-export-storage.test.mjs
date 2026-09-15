@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  DOCUMENT_EXPORT_BUCKET, UNIVERSITY_FORM_EXPORT_BUCKET, DOCUMENT_EXPORT_STORAGE_ORIGIN, DOCUMENT_EXPORT_STORAGE_PROJECT,
+  DOCUMENT_EXPORT_BUCKET, UNIVERSITY_FORM_EXPORT_BUCKET, DOCUMENT_PACKAGE_EXPORT_BUCKET, DOCUMENT_EXPORT_STORAGE_ORIGIN, DOCUMENT_EXPORT_STORAGE_PROJECT,
   configureDocumentExportStorage, parseDocumentExportStorageArgs, runDocumentExportStorageCli,
 } from "../scripts/configure-document-export-storage.mjs";
 
@@ -31,13 +31,79 @@ test("default is check-only and the CLI exposes no project, credential or overwr
   assert.deepEqual(parseDocumentExportStorageArgs(["--apply"]), { apply: true, help: false });
   assert.deepEqual(parseDocumentExportStorageArgs(["--university-forms"]), { apply: false, help: false, universityForms: true });
   assert.deepEqual(parseDocumentExportStorageArgs(["--university-forms", "--apply"]), { apply: true, help: false, universityForms: true });
-  for (const args of [["--apply", "--apply"], ["--project", "other"], ["--force"], ["--key", syntheticKey]]) {
+  assert.deepEqual(parseDocumentExportStorageArgs(["--packages"]), { apply: false, help: false, packages: true });
+  assert.deepEqual(parseDocumentExportStorageArgs(["--apply", "--packages"]), { apply: true, help: false, packages: true });
+  for (const args of [["--apply", "--apply"], ["--project", "other"], ["--force"], ["--key", syntheticKey],
+    ["--packages", "--university-forms"], ["--packages", "--packages"]]) {
     assert.throws(() => parseDocumentExportStorageArgs(args), { code: "arguments_invalid" });
   }
   let output = "";
   const fake = fakeHttp([]);
   assert.equal(await runDocumentExportStorageCli(["--help"], { environment: {}, fetchImpl: fake.fetchImpl, write: text => { output += text; } }), 0);
   assert.match(output, /Default: check only/u); assert.equal(fake.calls.length, 0);
+});
+
+test("packages upgrade only an exact known private predecessor with readback, never in check mode", async () => {
+  for (const before of [DOCUMENT_EXPORT_BUCKET, UNIVERSITY_FORM_EXPORT_BUCKET]) {
+    const check = fakeHttp([json(before)]);
+    const checked = await configureDocumentExportStorage({ packages: true, environment, fetchImpl: check.fetchImpl });
+    assert.equal(checked.report.status, "packages_upgrade_required");
+    assert.equal(checked.report.mutationAttempted, false); assert.equal(check.calls.length, 1);
+    const apply = fakeHttp([json(before), json({ message: "Successfully updated" }), json(DOCUMENT_PACKAGE_EXPORT_BUCKET)]);
+    const result = await configureDocumentExportStorage({ packages: true, apply: true, environment, fetchImpl: apply.fetchImpl });
+    assert.equal(result.exitCode, 0); assert.equal(result.report.status, "updated_and_verified");
+    assert.equal(result.report.readbackVerified, true); assert.equal(result.report.globalLimitVerified, false);
+    assert.equal(result.report.artifactAcceptance, false);
+    assert.deepEqual(apply.calls.map(call => call.method), ["GET", "PUT", "GET"]);
+    assert.deepEqual(JSON.parse(apply.calls[1].body), DOCUMENT_PACKAGE_EXPORT_BUCKET);
+    assert.equal(apply.calls[1].url, `${DOCUMENT_EXPORT_STORAGE_ORIGIN}/storage/v1/bucket/platform-document-exports`);
+    assert.equal(result.report.after.file_size_limit, 52428800);
+  }
+});
+
+test("package mode creates only the fixed 50MiB bucket, then is read-only idempotent", async () => {
+  const create = fakeHttp([missing(), json({ name: DOCUMENT_PACKAGE_EXPORT_BUCKET.name }), json(DOCUMENT_PACKAGE_EXPORT_BUCKET)]);
+  let output = "";
+  assert.equal(await runDocumentExportStorageCli(["--packages", "--apply"], { environment, fetchImpl: create.fetchImpl,
+    write: text => { output += text; } }), 0);
+  assert.equal(JSON.parse(output).status, "created_and_verified");
+  assert.deepEqual(JSON.parse(create.calls[1].body), DOCUMENT_PACKAGE_EXPORT_BUCKET);
+  for (const apply of [false, true]) {
+    const ready = fakeHttp([json(DOCUMENT_PACKAGE_EXPORT_BUCKET)]);
+    const result = await configureDocumentExportStorage({ packages: true, apply, environment, fetchImpl: ready.fetchImpl });
+    assert.equal(result.report.status, "ready"); assert.equal(result.report.mutationAttempted, false);
+    assert.equal(ready.calls.length, 1);
+  }
+});
+
+test("package mode refuses drift and earlier modes cannot downgrade the package bucket", async () => {
+  for (const before of [{ ...UNIVERSITY_FORM_EXPORT_BUCKET, public: true },
+    { ...DOCUMENT_PACKAGE_EXPORT_BUCKET, file_size_limit: null },
+    { ...UNIVERSITY_FORM_EXPORT_BUCKET, allowed_mime_types: ["application/pdf"] },
+    { ...DOCUMENT_PACKAGE_EXPORT_BUCKET, allowed_mime_types: [...DOCUMENT_PACKAGE_EXPORT_BUCKET.allowed_mime_types, "text/plain"] }]) {
+    const fake = fakeHttp([json(before)]);
+    const result = await configureDocumentExportStorage({ packages: true, apply: true, environment, fetchImpl: fake.fetchImpl });
+    assert.equal(result.report.status, "bucket_settings_conflict"); assert.equal(fake.calls.length, 1);
+  }
+  for (const universityForms of [false, true]) {
+    const fake = fakeHttp([json(DOCUMENT_PACKAGE_EXPORT_BUCKET)]);
+    const result = await configureDocumentExportStorage({ universityForms, apply: true, environment, fetchImpl: fake.fetchImpl });
+    assert.equal(result.report.status, "bucket_settings_conflict"); assert.equal(fake.calls.length, 1);
+  }
+  const fake = fakeHttp([]);
+  const result = await configureDocumentExportStorage({ packages: true, universityForms: true, apply: true, environment, fetchImpl: fake.fetchImpl });
+  assert.equal(result.report.status, "arguments_invalid"); assert.equal(fake.calls.length, 0);
+});
+
+test("package update failures never retry or claim unverified configuration", async () => {
+  const lost = fakeHttp([json(UNIVERSITY_FORM_EXPORT_BUCKET), new Error(syntheticKey)]);
+  const result = await configureDocumentExportStorage({ packages: true, apply: true, environment, fetchImpl: lost.fetchImpl });
+  assert.equal(result.report.status, "update_outcome_unknown"); assert.equal(lost.calls.length, 2);
+  assert.equal(result.report.readbackVerified, false); assert.equal(JSON.stringify(result).includes(syntheticKey), false);
+  const stale = fakeHttp([json(UNIVERSITY_FORM_EXPORT_BUCKET), json({ message: "Successfully updated" }), json(UNIVERSITY_FORM_EXPORT_BUCKET)]);
+  const unverified = await configureDocumentExportStorage({ packages: true, apply: true, environment, fetchImpl: stale.fetchImpl });
+  assert.equal(unverified.report.status, "readback_failed"); assert.equal(stale.calls.length, 3);
+  assert.equal(unverified.report.readbackVerified, false);
 });
 
 test("university forms require an explicit upgrade; check-only never writes", async () => {

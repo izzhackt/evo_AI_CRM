@@ -1,5 +1,29 @@
 # EVO Launch Plan
 
+## Catalogue release recovery (2026-09-15)
+
+PR789 merged as `b194bb57b760db1b2795f8dba0a346fa8294e772`, with fast checks
+and independent review passed. CI34980108921 passed Node/static and dependency
+audit but failed the later Admin case-open assertion in the real Admissions
+scenario. Release34981142975 was skipped; release arm was set back to `false`.
+Production remains accepted `5bc5df73`; no new schema or provider write occurred.
+
+The unchanged isolated `--admissions-workflow-only` run reproduced the same
+failure after the new catalogue-selection/manual-entry checks had passed. Its
+bounded diagnostic points to contract workspace normalization on Admin load.
+SQL057 returns all reviewed sources, while catalogue publication148 adds
+`official_website`, which the older contract-source parser rejects. A focused
+regression at the existing public normalizer confirmed RED before the fix and
+GREEN after it. The read-side fix validates this known unrelated source, then
+excludes it from contract-template choices; unknown/malformed sources and
+duplicates remain rejected, with the five mutation source kinds unchanged.
+All 24 focused contract tests and scoped lint pass; URL length boundaries and
+closed-schema/identity guards are covered by the same existing test file.
+Complete required PR checks and exact-head review, then run the unchanged
+original integration scenario in canonical exact-main CI before managed release.
+Avoid a second duplicate local cold-stack run; integration GREEN is still pending.
+Do not remove the failed assertion, relax Auth or change applied migrations.
+
 ## Catalogue application selector implementation (2026-09-15)
 
 The bounded P1 selector is implemented in the ordinary application form:

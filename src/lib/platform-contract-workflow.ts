@@ -1,4 +1,5 @@
 import type { PlatformActor } from "./platform-auth";
+import { universityPublicUrl } from "./platform-university-catalog.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -671,7 +672,11 @@ export function validatePlatformContractTemplateText(
   return templateText;
 }
 
-function normalizeReviewedSource(value: unknown): PlatformContractReviewedSource {
+type WorkspaceReviewedSource = Omit<PlatformContractReviewedSource, "sourceKind"> & {
+  sourceKind: PlatformContractSourceKind | "official_website";
+};
+
+function normalizeReviewedSource(value: unknown): WorkspaceReviewedSource {
   if (!isRecord(value)) return invalidShape();
   requireExactKeys(value, [
     "id",
@@ -682,7 +687,9 @@ function normalizeReviewedSource(value: unknown): PlatformContractReviewedSource
     "review_status",
     "reviewed_at",
   ]);
-  const sourceKind = oneOf(value.source_kind, PLATFORM_CONTRACT_SOURCE_KINDS);
+  const sourceKind = value.source_kind === "official_website"
+    ? "official_website"
+    : oneOf(value.source_kind, PLATFORM_CONTRACT_SOURCE_KINDS);
   if (value.review_status !== "reviewed") return invalidShape();
   const sourceKey = safeSingleLine(value.source_key, 1, 68);
   if (!SOURCE_KEY_PATTERN.test(sourceKey)) return invalidShape();
@@ -690,7 +697,10 @@ function normalizeReviewedSource(value: unknown): PlatformContractReviewedSource
     sourceRegistryId: requiredUuid(value.id),
     sourceKey,
     sourceKind,
-    sourceUrl: safeSourceUrl(sourceKind, value.source_url),
+    sourceUrl: sourceKind === "official_website"
+      ? (typeof value.source_url === "string" && universityPublicUrl(value.source_url)
+        ? value.source_url : invalidShape())
+      : safeSourceUrl(sourceKind, value.source_url),
     sourceRevision: sourceRevision(value.source_revision),
     reviewStatus: "reviewed",
     reviewedAt: timestamp(value.reviewed_at),
@@ -1153,7 +1163,9 @@ export function normalizePlatformCaseContractWorkspace(
     value.reviewed_sources,
     normalizeReviewedSource,
     (source) => source.sourceRegistryId,
-  );
+  // SQL057 includes all reviewed registry rows. Validate identities before
+  // excluding SQL148 catalogue sources from the contract-template selector.
+  ).filter((source): source is PlatformContractReviewedSource => source.sourceKind !== "official_website");
   const templates = uniqueRows(
     value.templates,
     (row) => normalizeTemplate(row, organizationId),

@@ -26929,3 +26929,19 @@ and [React request ordering](https://react.dev/reference/react/useTransition#my-
 Run focused existing admissions tests, required PR checks and independent review;
 any production release uses the existing serialized managed lane. Actual chosen
 client acceptance stays separate from isolated technical verification.
+
+### 2026-09-15 — bounded contract workspace recovery after catalogue publication
+
+CI34980108921 and the unchanged isolated Admissions workflow both reproduce a
+late Admin case-open failure; catalogue selection/manual entry and binding
+readback complete before it. Release34981142975 was skipped and arm=false was
+restored. The server diagnostic identifies contract workspace normalization.
+SQL057 includes all reviewed sources in that read response; publication148 adds
+the known `official_website` kind absent from the contract-specific parser.
+
+Scope the recovery to the existing normalizer and its tests: first reproduce the
+same source-row shape at this boundary, then validate and exclude unrelated
+official website sources from the contract-template choices. Do not broaden
+the contract mutation source allowlist, ignore unknown/malformed data, change
+permissions or edit applied migrations. Keep the original real late Admin
+assertion and re-run it before release. No blind retry or timeout increase.

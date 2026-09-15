@@ -98,6 +98,36 @@ test("foundation failure reports only fixed completed invitation and onboarding 
   }
 });
 
+test("foundation callback diagnostic forwards only the last exact five-boolean observation", () => {
+  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const report = harness.match(/^  callback_readiness_diagnostic=.*\n  \[\[ -z "\$callback_readiness_diagnostic" \]\] \|\| echo "\$callback_readiness_diagnostic" >&2/m)?.[0];
+  assert.ok(report, "Callback diagnostics must survive the private log cleanup");
+  const first = '{"stage":"LOCAL_STAFF_CALLBACK_READINESS","cachedClean":true,"locationClean":true,"documentComplete":true,"cachedCleanAfterBrowserRead":true,"emailConfirmed":true}';
+  const last = first.replace('"cachedClean":true', '"cachedClean":false');
+  const select = (input) => {
+    const directory = mkdtempSync(join(tmpdir(), "evo-callback-report-test-"));
+    const log = join(directory, "private.log");
+    try {
+      writeFileSync(log, input, { mode: 0o600 });
+      const result = spawnSync("bash", ["-c", `set -Eeuo pipefail\nstaff_provision_log="$1"\n${report}`,
+        "callback-report", log], { encoding: "utf8" });
+      assert.ifError(result.error);
+      assert.equal(result.status, 0);
+      assert.equal(result.stdout, "");
+      return result.stderr.trim();
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  };
+  assert.equal(select(`private before\n${first}\nprivate middle\n${last}\nprivate after\n`), last);
+  for (const input of ["private text", `${first} private`, `prefix ${first}`,
+    first.replace("LOCAL_STAFF_CALLBACK_READINESS", "OTHER_STAGE"),
+    first.replace('"emailConfirmed":true', '"emailConfirmed":true,"extra":false'),
+    first.replace(',"emailConfirmed":true', ""),
+    ...["cachedClean", "locationClean", "documentComplete", "cachedCleanAfterBrowserRead", "emailConfirmed"]
+      .flatMap((key) => ["null", "1", '"true"', '"private"', "[]", "{}"].map((value) =>
+        first.replace(`"${key}":true`, `"${key}":${value}`))),
+  ]) assert.equal(select(input), "");
+});
+
 test("fixture roles reproduce155 own/organization split without sensitive or cross-case broadening", () => {
   const rows = buildScopedStaffBaselines({ permissions, baseline });
   assert.equal(rows.length, 4);
@@ -317,6 +347,7 @@ for (const [stage, expectedCode] of [
   ["invite-open", "LOCAL_STAFF_BROWSER_INVITE_OPEN_FAILED"],
   ["password-ready", "LOCAL_STAFF_BROWSER_PASSWORD_READY_FAILED"],
   ["callback-url", "LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN"],
+  ["callback-url-cache-lag", "LOCAL_STAFF_CALLBACK_URL_NOT_CLEAN"],
   ["callback-email", "LOCAL_STAFF_CALLBACK_EMAIL_NOT_CONFIRMED"],
   ["callback-both", "LOCAL_STAFF_CALLBACK_URL_AND_EMAIL_NOT_CONFIRMED"],
 ]) {
@@ -342,7 +373,7 @@ for (const [stage, expectedCode] of [
       if (continued) confirmationReads += 1;
       return { data: { user: {
       id: userId, email: identity.email, invited_at: "2026-09-13T00:00:00Z",
-      email_confirmed_at: continued && stage === "callback-url" ? "2026-09-13T00:01:00Z" : null,
+      email_confirmed_at: continued && stage.startsWith("callback-url") ? "2026-09-13T00:01:00Z" : null,
       user_metadata: { evo_staff_invitation_request_id: request },
     } } };
     } } } };
@@ -354,9 +385,16 @@ for (const [stage, expectedCode] of [
       return new Response(JSON.stringify({ HTML: `<a href="${link}">Accept invitation</a>` }));
     });
     let closed = 0;
+    let browserRead = false;
     const page = {
       setDefaultTimeout() {},
-      url: () => stage === "callback-email" ? `${appOrigin}/auth/staff` : link,
+      url: () => stage === "callback-email" || (stage === "callback-url-cache-lag" && browserRead)
+        ? `${appOrigin}/auth/staff` : link,
+      async evaluate(_observe, cleanUrl) {
+        assert.equal(cleanUrl, `${appOrigin}/auth/staff`);
+        browserRead = true;
+        return { locationClean: stage === "callback-email" || stage === "callback-url-cache-lag", documentComplete: true };
+      },
       async goto(url) {
         assert.equal(url, link);
         if (stage === "invite-open") throw privateFailure();

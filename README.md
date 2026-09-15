@@ -34,13 +34,19 @@ reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
 The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
-keeps document work inside Platform. PDF preview fixes and persistent ZIP
+keeps document work inside Platform. Current production is `r72.1-35868e75`:
+application catalogue selection and contract workspace recovery are released,
+with exact-main CI, accepted server receipt and ordinary Admin tunnel readback
+verified. See the [current receipt](docs/design/v3/references/2026-09-15-docs-managed-release.md#catalogue-and-pilot-production-release)
+for access URLs and remaining employee/client follow-ups.
+
+The preceding PDF preview fixes and persistent ZIP
 packages up to 50 MiB are merged through PRs #784–#786 (`5bc5df73`). The original
 isolated profile/ZIP scenario passed private Storage, entry-byte verification,
 identical ZIP download after a fresh login and owned cleanup. Managed migration169
 and the private 50 MiB DOCX/PDF/ZIP export bucket are already applied and verified;
 do not repeat these writes. CI `34972050911` attempt2 and automatic release
-`34973968977` passed. Production readback confirmed accepted
+`34973968977` passed. That release's production readback confirmed accepted
 `r66.1-5bc5df73`, healthy HTTPS, no pending release and the release arm off.
 The ordinary Admin GDUT preview passed both pages, rapid switching and cold reload.
 Follow the [pilot priorities](docs/EVO_LAUNCH_PLAN.md#pilot-priorities-prod-first-small-parallel-deliveries-2026-09-15):

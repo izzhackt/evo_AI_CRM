@@ -27010,3 +27010,30 @@ passes; do not claim a proven underlying Chromium cause. No new HTTP request,
 automatic command retry, mocked response, route fulfillment or page-fetch patch.
 Use focused ordering/failure regression and the existing isolated proof, then
 canonical CI. [Playwright response contract](https://playwright.dev/docs/api/class-response).
+
+### 2026-09-15 — pilot catalogue release accepted; P1 owner follow-ups remain
+
+PR793 merged as `35868e75d2cd3c041b415c809f222c252a3b86a1` after exact-head
+independent review and required checks. Its 25 focused tests and original
+isolated profile/ZIP workflow passed; all receipt/history/download invariants
+remained enforced. The ordering regression validates earlier capture, not the
+underlying Chromium failure's cause. Canonical CI34989896327 attempt1 and
+managed release34991072628 attempt1 both passed. Catalogue selection (PR789)
+and contract read-side recovery (PR790) are now deployed in `r72.1-35868e75`.
+
+Independent readback at 16:04:13 UTC matched accepted pointer/record/browser
+hashes, revision/image/version and GitHub artifact; app healthy/zero restarts,
+pending absent and release arm=false after explicit disarm. WAHA/ClamAV retained
+their exact identities and private state. Production through the same localhost
+SSH tunnel reopened roles and catalogue in the owner's ordinary Admin session.
+Configured sslip HTTPS passed200/TLS0 from the VPS; the custom CRM hostname did
+not resolve there. Do not conflate fallback health with custom-domain readiness.
+[Full receipt](design/v3/references/2026-09-15-docs-managed-release.md#catalogue-and-pilot-production-release).
+
+No new schema, staging, database, account/invitation, client record or provider
+mutation was part of this release. Preserve four unpublished/unassigned role
+drafts. Next: EVO sender/mail service, current-user reconciliation and exact
+recipient/scope approval before one employee onboarding; chosen owner case for
+form/ZIP acceptance; custom-domain DNS separately. Keep Gemini, USTC and extra
+polish deferred. This docs-only checkpoint does not require another app release
+or repetition of the completed full CI/browser suite.

@@ -68,6 +68,38 @@ export async function proveUniversityPdfMapping({ page, context, client, config,
   await page.getByLabel("Формат даты", { exact: true }).selectOption("DD.MM.YYYY");
   await page.getByLabel("Поле", { exact: true }).selectOption("pdf-1");
   await expect(image()).toBeVisible(); await expect(page.getByLabel("Слева", { exact: true })).toHaveValue("81"); await geometry();
+  stage("PDF_RAPID_PAGE_RETURN");
+  // Observe the actual React/browser image lifecycle, including a transient
+  // broken image that later recovers. Final visibility alone misses that bug.
+  const watch = await image().evaluateHandle(node => {
+    const owner = node.closest("form"), failures = new Set();
+    if (!owner) throw new Error("PDF_IMAGE_OWNER_MISSING");
+    let frame;
+    const onError = event => { if (event.target instanceof HTMLImageElement) failures.add("image_error"); };
+    const sample = () => {
+      for (const image of owner.querySelectorAll("img")) {
+        if (image.getAttribute("src") && image.complete && (!image.naturalWidth || !image.naturalHeight)) failures.add("complete_without_pixels");
+      }
+      frame = requestAnimationFrame(sample);
+    };
+    owner.addEventListener("error", onError, true); frame = requestAnimationFrame(sample);
+    return { stop() { cancelAnimationFrame(frame); owner.removeEventListener("error", onError, true); return [...failures]; } };
+  });
+  let replayFailures;
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await page.getByLabel("Страница", { exact: true }).selectOption("2");
+      // Deliberately return before waiting for page 2's response/image.
+      await page.getByLabel("Страница", { exact: true }).selectOption("1");
+      await expect(image()).toBeVisible();
+      await expect.poll(() => image().evaluate(node => ({ complete: node.complete, width: node.naturalWidth, height: node.naturalHeight })))
+        .toEqual({ complete: true, width: metadata.pixelWidth, height: metadata.pixelHeight });
+      await expect(page.getByLabel("Слева", { exact: true })).toHaveValue("81"); await geometry();
+    }
+  } finally {
+    replayFailures = await watch.evaluate(observer => observer.stop()); await watch.dispose();
+  }
+  requireProof(replayFailures.length === 0, "PDF_RAPID_PAGE_RETURN_BROKEN_IMAGE");
   await page.screenshot({ path: resolve(config.evidenceDir, "pdf-mapping-desktop.png"), fullPage: true });
   stage("PDF_MAPPING_SAVE"); await page.getByRole("button", { name: "Сохранить настройку", exact: true }).click();
   await expect(page.getByText("Настройка сохранена. Следующий шаг — сверка полей с бланком.", { exact: true })).toBeVisible();

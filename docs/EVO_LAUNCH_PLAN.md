@@ -9,20 +9,24 @@ onboarding, the full original contract/application/handoff workflow, V3 browser
 quality and subsequent provider-interface tests. The earlier callback cause is
 unconfirmed; no Auth gate was relaxed. Admissions integration is now GREEN.
 
-The later Student Profile proof failed at `DRAFT_GENERATE_RECEIPT`, after an
-HTTP200 export response but before history/download checks. This stage means an
-ordinary exception in response parsing/receipt normalization/request readback,
-not a named receipt-invariant assertion. Its proof and export route/normalizer
-are unchanged from the accepted baseline; do not infer a product cause yet.
-Release34986705706 was skipped, arm is `false`, and accepted production remains
+The later Student Profile proof failed at `DRAFT_GENERATE_RECEIPT`. PR792 split
+that diagnostic as `761ae8ed55ad57998f4b890f4baf236821a0ea2d`; subsequent
+CI34987631399 passed draft generation/receipt/download but failed at
+`FINAL_RESPONSE_BODY_READ`, after HTTP200 and before receipt normalization.
+This narrows the failure to body retrieval/JSON parsing or a null envelope;
+the product export route/normalizer remain unchanged. Releases34986705706 and
+34988890671 were skipped, arm is `false`, and accepted production remains
 `5bc5df73`. The selector and contract recovery are **not yet deployed**.
 
-The unchanged `--student-profile-fields-only` workflow passed locally: draft,
-final, ZIP, exact replay, cold same-byte downloads and owned-stack cleanup.
-This synthetic result is not chosen-client acceptance or a proven CI cause.
-Resume: split the existing generic receipt diagnostic into four fixed stages
-before another canonical CI run. No duplicate full local suite, weakened receipt
-gate, blind retry or product Auth change. After successful managed release,
+The unchanged scoped workflow passed locally: draft, final, ZIP, exact replay,
+cold same-byte downloads and owned-stack cleanup. The next bounded mitigation
+captures the same POST body immediately when matched, before click completion,
+with fixed transport/JSON diagnostics and all existing receipt/history/download
+checks. It adds no HTTP request/retry or mocked response. The ordering regression
+can prove earlier capture, not the underlying Chromium cause. Verify the exact
+patch with one original scoped workflow, review/required checks and canonical CI.
+No duplicate full local suite, weakened receipt gate or product Auth change.
+After successful managed release,
 verify accepted revision/image/receipt hashes, health, no pending release and
 browser/tunnel readback, then record the durable receipt. Employee SMTP sender
 and the owner's chosen client remain separate follow-ups, not blockers for

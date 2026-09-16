@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import PizZip from "pizzip";
-import { captureProfileExportResponse, profileBodyTransportCategory, profileBodyTransportDiagnosticLine, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { captureProfileExportResponse, profileBodyTransportCategory, profileBodyTransportDiagnosticLine, profileBrowserRuntimeDiagnostic, profileBrowserRuntimeDiagnosticLine, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { verifyPersistedPackageZip, verifyPackageStorage } from "../scripts/lib/document-package-browser-proof.mjs";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
@@ -174,16 +174,52 @@ test("body transport CI printer strictly projects safe JSON and rejects malforme
 test("template failure evidence retains categories, never credential values or raw errors", async () => {
   for (const code of ["accessDenied", "authUnavailable", "staffAccessDenied"]) assert.equal(proofLoginErrorCode(code), code);
   for (const value of [null, undefined, {}, "private-value", "https://example.test/private", ["accessDenied"]]) assert.equal(proofLoginErrorCode(value), null);
+  const diagnostic = profileBrowserRuntimeDiagnostic({ kind: "console", stage: "PACKAGE_UI_SAVE_READBACK", page: "profile_cold",
+    text: 'A tree hydrated but some attributes private-value\n PreparePartnerPacketForm\n+ aria-busy="private-value"\n- disabled="private-value"',
+    location: { url: "https://example.test/node_modules_next/runtime.js?token=private-value" } });
+  assert.deepEqual(diagnostic, { kind: "console", category: "HYDRATION_ATTRIBUTES", stage: "PACKAGE_UI_SAVE_READBACK",
+    page: "profile_cold", source: "NEXT_RUNTIME", frames: ["PreparePartnerPacketForm"], attributes: ["disabled", "aria-busy"], httpStatus: null });
+  for (const [text, category] of [
+    ["Hydration failed", "HYDRATION_CONTENT"], ["In HTML, <p> cannot contain a nested <div>", "HTML_NESTING"],
+    ["uncontrolled input to be controlled", "CONTROLLED_INPUT"], ['unique "key" prop', "REACT_KEY"],
+    ["ChunkLoadError", "CHUNK_LOAD"], ["Content Security Policy", "CSP"], ["Failed to fetch", "NETWORK"],
+    ["Maximum update depth", "REACT_RENDER_LOOP"], ["Rendered fewer hooks", "REACT_HOOKS"],
+    ["Failed to load resource: the server responded with a status of 403 private-value", "RESOURCE_LOAD"],
+    ["private-value", "OTHER_RUNTIME_ERROR"],
+  ]) {
+    const result = profileBrowserRuntimeDiagnostic({ kind: "page", text, stage: "COLD_FINAL_DOWNLOAD_EVENT", page: "package_fresh" });
+    assert.equal(result.category, category); assert.equal(result.stage, "COLD_FINAL_DOWNLOAD_EVENT");
+    assert.equal(result.httpStatus, category === "RESOURCE_LOAD" ? 403 : null);
+    assert.doesNotMatch(JSON.stringify(result), /private-value/u);
+  }
+  const runtimeSnapshot = { schema: "evo-student-profile-browser-failure/v1", runtimeDiagnostics: [diagnostic] };
+  const expectedRuntimeLine = `STUDENT_PROFILE_FIELDS_RUNTIME_DIAGNOSTIC:${JSON.stringify([diagnostic])}`;
+  assert.equal(profileBrowserRuntimeDiagnosticLine({ ...runtimeSnapshot, raw: "private-value", runtimeDiagnostics: [{ ...diagnostic,
+    raw: "private-value", frames: [...diagnostic.frames, "private-value"], attributes: [...diagnostic.attributes, "private-value"] }] }), expectedRuntimeLine);
+  for (const field of ["kind", "category", "source", "page"]) for (const value of [null, {}, [], [diagnostic[field]], "private-value"]) {
+    assert.equal(profileBrowserRuntimeDiagnosticLine({ ...runtimeSnapshot, runtimeDiagnostics: [{ ...diagnostic, [field]: value }] }), "STUDENT_PROFILE_FIELDS_RUNTIME_DIAGNOSTIC:UNAVAILABLE");
+  }
+  const projected = JSON.parse(profileBrowserRuntimeDiagnosticLine({ ...runtimeSnapshot,
+    runtimeDiagnostics: [{ ...diagnostic, stage: "PRIVATE_VALUE", httpStatus: "403", frames: {}, attributes: [] }] }).split("DIAGNOSTIC:")[1]);
+  assert.equal(projected[0].stage, "UNAVAILABLE"); assert.equal(projected[0].httpStatus, null); assert.deepEqual(projected[0].frames, []);
+  assert.equal(JSON.parse(profileBrowserRuntimeDiagnosticLine({ ...runtimeSnapshot, runtimeDiagnostics: Array(20).fill(diagnostic) }).split("DIAGNOSTIC:")[1]).length, 12);
   const evidenceDir = mkdtempSync(join(tmpdir(), "evo-template-diagnostic-unit-"));
   try {
     await writeFailureEvidence({ config: { proofKind: "university-template-ingress", evidenceDir }, page: null,
       stage: "LOGIN_SUBMIT", error: new Error("private-value"), http: { LOGIN: 200, MAIN: null },
-      browserErrors: new Set(), browserWarningCount: 0, counts: { page: 0, console: 0 } });
+      browserErrors: new Set(), browserWarningCount: 0, counts: { page: 0, console: 0 },
+      runtimeDiagnostics: [{ ...diagnostic, raw: "private-value" }] });
     const raw = readFileSync(join(evidenceDir, "failure.json"), "utf8"), evidence = JSON.parse(raw);
     assert.equal(evidence.schema, "evo-university-template-ingress-browser-failure/v1");
     assert.equal(evidence.businessAcceptance, false); assert.equal(evidence.screenshotSaved, false);
     assert.equal(evidence.exceptionCategory, "ERROR"); assert.equal(evidence.loginErrorCode, null);
     assert.equal(evidence.loginFormPending, null); assert.doesNotMatch(raw, /private-value/u);
+    assert.deepEqual(evidence.runtimeDiagnostics, [diagnostic]);
+    writeFileSync(join(evidenceDir, "failure.json"), JSON.stringify({ ...runtimeSnapshot, raw: "private-value" }));
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", runnerUrl.pathname, "--print-body-transport-diagnostic"],
+      { encoding: "utf8", env: { ...process.env, EVO_D2_EVIDENCE_DIR: evidenceDir } });
+    assert.equal(result.status, 0); assert.equal(result.stdout, ""); assert.ok(result.stderr.includes(expectedRuntimeLine));
+    assert.doesNotMatch(result.stderr, /private-value|example\.test/u);
   } finally { rmSync(evidenceDir, { recursive: true, force: true }); }
 });
 
@@ -616,14 +652,17 @@ test("failure evidence separates login from profile rendering and never emits ra
   assert.match(runner, /mask: \[page\.locator\("input, textarea"\)\]/u);
   assert.match(runner, /!snapshot\.passwordControlPresent/u);
   let withoutClassifiers = runner;
-  // Only these two pure fixed-enum classifiers may inspect a message. Raw
-  // capture remains forbidden everywhere else, including the snapshot writer.
-  for (const classify of [proofExceptionCategory, profileBodyTransportCategory]) {
+  // Only pure fixed-enum classifiers and this exact event-to-classifier handoff
+  // may inspect a message. Raw capture remains forbidden in the snapshot writer.
+  for (const classify of [proofExceptionCategory, profileBodyTransportCategory, profileBrowserRuntimeDiagnostic]) {
     const classifier = classify.toString();
     assert.equal(runner.split(classifier).length, 2);
     assert.doesNotMatch(classifier, /writeFile|console\.|stdout|stderr|spawn|fetch\(/u);
     withoutClassifiers = withoutClassifiers.replace(classifier, "");
   }
+  const eventHandoff = 'page.on("pageerror", error => recordBrowserError("page", error.stack ?? error.message, undefined, pageTag));';
+  assert.equal(withoutClassifiers.split(eventHandoff).length, 2);
+  withoutClassifiers = withoutClassifiers.replace(eventHandoff, "");
   assert.doesNotMatch(withoutClassifiers, /(?:error|message)\.(?:stack|message)|page\.content\(|storageState\(/u);
 });
 

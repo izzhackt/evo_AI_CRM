@@ -1,5 +1,31 @@
 # EVO Launch Plan
 
+## Active website release blocker — bounded resumption (2026-09-17)
+
+Owner approved diagnosing the remaining blocker before cutover. Main `c5e088`
+failed CI35129471538 at `PACKAGE_UI_SAVE_COMPOSITION`; production remains the
+accepted `35868e75`, release disarmed, website edge/DNS unchanged. PR801 is draft:
+its actual SSR readiness assertion passed after the narrow guard, but its final
+local run failed `BROWSER_RUNTIME_ERRORS` (one console error, no page errors,
+overlay present). The cause is not established.
+
+Resumed isolated verification passed once on the existing readiness guard:
+real Auth/UI → profile Word exports → private ZIP → fresh login/history returned
+identical bytes, zero browser errors, no overlay and verified owned cleanup.
+The earlier console error did not reproduce; no fix of that unknown error is
+claimed. Safe event diagnostics remain for the next CI failure, including the
+existing CI log printer. No additional product change or runtime retry was made.
+
+- Capture exact console/page-error events in memory on both existing browser
+  contexts, emit only bounded static categories and known repository frames.
+- Reproduce through the existing isolated Student profile → saved ZIP → fresh
+  login/history path. Preserve every assertion, permissions and cleanup.
+- Change product code only after evidence identifies the cause; require actual
+  GREEN, scoped checks and independent exact-head review before PR801 can merge.
+- Root owns final exact-main CI, managed release, public edge/DNS and Web-X
+  operations. No provider/deployment action or fabricated customer acceptance
+  belongs to this diagnostic slice.
+
 ## Website public edge — implementation merged, acceptance pending (2026-09-16)
 
 Owner approved the public website and real website-to-Platform inquiry path.
@@ -21,13 +47,10 @@ yet acceptance of public DNS, edge routing or a delivered inquiry.
   Caddy. Matching private app/edge configuration and the eligible existing Admin
   are provisioned; migration170 is already applied, ledger001–170 verified.
 - [ ] Accept a final Platform main through the full CI and managed release.
-  CI35126620685 on `34ee9a3b434a8935bf52a0ad23f4a6514acf50c1` failed at
-  profile export `BODY_TRANSPORT`; staff onboarding, Node/static and audit passed.
-  The release is disarmed and the accepted production app is unchanged.
-  Callback fixes PR798/799 are merged. A diagnostic-only follow-up must preserve
-  the failing assertion while exposing the exact primary POST's safe transport
-  category/lifecycle flags. Its local profile/ZIP pass does not explain the CI
-  failure or replace final CI/runtime readback. No product workaround is approved.
+  Callback fixes PR798/799 and diagnostic-only PR800 are merged. CI35129471538
+  on `c5e088` passed the profile export path, then failed package preparation.
+  Continue only the bounded PR801 investigation above; earlier local passes do
+  not replace final CI/runtime readback. The release remains disarmed.
 - [ ] Validate/reload the existing edge gracefully, confirm unchanged old routes,
   then switch apex/www A and verify both public HTTPS addresses and site assets.
   Root owns these operations; committed config is not a reload receipt.

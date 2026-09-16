@@ -27290,3 +27290,48 @@ weaken the failure gate, retry the runtime or extend the fix to another module.
 Release remains disarmed, accepted production remains 35868e75, and website
 edge/DNS/inquiry acceptance remains open. Further diagnosis needs new evidence
 and a separately scoped decision; no full acceptance or CI root-cause fix is claimed.
+
+## 2026-09-17 — Resume PR801 from its observed browser runtime failure
+
+Owner now authorizes bounded diagnosis, cause-backed correction and real proof
+before the website cutover. This supersedes the previous stop instruction only
+for PR801's existing isolated Student profile/export/package path. The captured
+one-console-error/overlay failure has no retained cause; do not guess from its
+final stage. Read exact ConsoleMessage text/location and page-error stacks in
+memory at their events; retain only static error categories and known repository
+frame/attribute identifiers, never raw messages, HTML, auth URLs or private data.
+Use the original real harness once with this new discriminator; no retries
+without new evidence, skipped gates, mocked providers or production data.
+Any demonstrated product fix stays in the existing UI/harness and related tests.
+Actual GREEN and independent exact-head review remain required; root alone owns
+release, edge, DNS and Web-X. Main c5e088 and accepted runtime35868e75 differ;
+neither a draft PR nor the prior successful ZIP bytes imply release acceptance.
+
+Official basis: [Playwright ConsoleMessage](https://playwright.dev/docs/api/class-consolemessage)
+provides event text/location; [Next hydration diagnostics](https://nextjs.org/docs/messages/react-hydration-error)
+distinguish server/browser render mismatches. These are diagnostic hypotheses,
+not a claim that hydration caused this specific failure.
+
+Resumption result: one real invocation of
+`EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node PATH=/opt/homebrew/opt/node@22/bin:$PATH bash scripts/test-postgres-v2-foundation.sh --student-profile-fields-only`
+returned `STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED` (exit0; CFW
+`01a0abfda78f7550bdc9cdd7c4842f7b`). Receipt at
+`output/student-profile-fields/3d1e5eeba3fa1332a0ffffb0ebc399873f0ea1ec/foundation-24577-68437/acceptance.json`
+confirms three saved artifacts, ZIP12004bytes, exact selected-entry bytes,
+fresh-login identical download, browserErrorCount0, frameworkOverlayAbsent=true
+and cleanupVerified=true. The real screenshot was reviewed. The local project
+`evo-local-e41bd55b2d4ff554` has no remaining containers. This was authorized
+synthetic local validation, not a real customer/provider acceptance.
+
+No product code changed after the original PR801 readiness guard. The earlier
+console error did not reproduce and its origin remains unknown. Retain bounded
+event-time diagnostic categories and distinct primary/second/cold/fresh-page
+tags with strict projection at both file and existing CI-printer boundaries;
+unit checks exercise classifier/CLI redaction, not mocked business acceptance.
+The next exact-main CI remains the release gate; no extra runtime repetition
+was performed. The historical draft stop above is superseded only by this
+actual local GREEN and required independent review, not by a guessed bug fix.
+Final scoped Node22 checks passed46/46 (CFW `01a0ac0068c47d338bbbec09cf423b8c`);
+ESLint and diff checks passed (CFW `01a0ac006f8b716086ef6c21f90b8584`). The existing
+static no-raw-capture test now permits only the exact event-to-classifier handoff;
+raw output remains prohibited and is checked at the persisted/CLI boundaries.

@@ -35,6 +35,71 @@ export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
 });
 export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
 export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+const RUNTIME_FRAMES = ["PreparePartnerPacketForm", "PartnerPacketsPanel", "StudentProfileExportHistory",
+  "StudentProfileExportList", "StudentProfileFields", "ProfileAdmissionsWorkspace", "CaseOperationsForms",
+  "StudentProfileWorkspace", "StudentProfileFieldsPanel", "StudentProfileField", "StaffLogin", "V3Shell"];
+const RUNTIME_ATTRIBUTES = ["disabled", "aria-busy", "id", "htmlFor", "className", "value", "checked", "open"];
+const RUNTIME_CATEGORIES = ["OTHER_RUNTIME_ERROR", "HYDRATION_ATTRIBUTES", "HYDRATION_CONTENT", "HTML_NESTING",
+  "CONTROLLED_INPUT", "REACT_KEY", "CHUNK_LOAD", "CSP", "RESOURCE_LOAD", "NETWORK", "REACT_RENDER_LOOP", "REACT_HOOKS"];
+const RUNTIME_PAGES = ["profile_primary", "profile_second", "profile_cold", "profile_other", "package_fresh"];
+const RUNTIME_STAGES = new Set(["UNAVAILABLE", "CONFIGURATION", "EXPORT_BUCKET", "FIXTURE", "PROFILE_BASELINE",
+  "LOGIN_DOCUMENT", "LOGIN_EMAIL", "LOGIN_PASSWORD", "LOGIN_SUBMIT", "AUTHENTICATED_SHELL", "ACTUAL_ROLE",
+  "PROFILE_NAVIGATION", "PROFILE_URL", "PROFILE_TITLE", "PROFILE_START_CONTROL", "PROFILE_READ_ONLY", "START_PROFILE",
+  "DRAFT_DOWNLOAD", "CONFIRM_REQUIRED_AND_EXTENDED", "CONFIRMED_EMPTY", "STALE_SECOND_EDITOR", "FINAL_REFRESH_DOCUMENT",
+  "FINAL_REFRESH_FIELD_EDITOR", "FINAL_REFRESH_FIELD_VALUE", "FINAL_REFRESH_CONFIRMED_EMPTY", "FINAL_REFRESH_EXPORT_READY",
+  "EXACT_REQUEST_REPLAY", "COLD_EXPORT_HISTORY", "PACKAGE_APPLICATION_FIXTURE", "PACKAGE_UI_PREPARATION",
+  "PACKAGE_SSR_PREPARATION_CONTROLS", "PACKAGE_UI_OPEN_PANEL", "PACKAGE_UI_SELECT_APPLICATION", "PACKAGE_UI_SELECT_FINAL",
+  "PACKAGE_UI_SAVE_CLICK", "PACKAGE_UI_SAVE_READBACK", "PACKAGE_UI_OPEN_SAVED_COMPOSITION", "PACKAGE_UI_GENERATION",
+  "PACKAGE_STORAGE_DOWNLOAD", "PACKAGE_FRESH_LOGIN", "PACKAGE_COLD_HISTORY"]);
+function safeRuntimeStage(stage) {
+  if (typeof stage !== "string") return "UNAVAILABLE";
+  if (RUNTIME_STAGES.has(stage)) return stage;
+  const parts = stage.match(/^(COLD_DRAFT|COLD_FINAL|DRAFT|FINAL)_(.+)$/u);
+  try { if (parts) return profileExportDiagnosticStage(parts[1], parts[2]); } catch { /* Not an allowed stage. */ }
+  return "UNAVAILABLE";
+}
+function safeRuntimeDiagnostics(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 12).flatMap(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item) || !["page", "console"].includes(item.kind)
+      || !RUNTIME_CATEGORIES.includes(item.category) || !RUNTIME_PAGES.includes(item.page)
+      || !["NEXT_RUNTIME", "APPLICATION", "OTHER"].includes(item.source)) return [];
+    return [{ kind: item.kind, category: item.category, stage: safeRuntimeStage(item.stage), page: item.page, source: item.source,
+      frames: RUNTIME_FRAMES.filter(frame => Array.isArray(item.frames) && item.frames.includes(frame)),
+      attributes: RUNTIME_ATTRIBUTES.filter(attribute => Array.isArray(item.attributes) && item.attributes.includes(attribute)),
+      httpStatus: Number.isSafeInteger(item.httpStatus) && item.httpStatus >= 100 && item.httpStatus <= 599 ? item.httpStatus : null }];
+  });
+}
+export function profileBrowserRuntimeDiagnosticLine(snapshot) {
+  const diagnostics = snapshot?.schema === "evo-student-profile-browser-failure/v1" ? safeRuntimeDiagnostics(snapshot.runtimeDiagnostics) : [];
+  return `STUDENT_PROFILE_FIELDS_RUNTIME_DIAGNOSTIC:${diagnostics.length ? JSON.stringify(diagnostics) : "UNAVAILABLE"}`;
+}
+export function profileBrowserRuntimeDiagnostic({ kind, text, location, stage, page }) {
+  // Exact event text/location stay in memory; emit only fixed categories and identifiers.
+  const message = typeof text === "string" ? text : "";
+  let category = "OTHER_RUNTIME_ERROR";
+  if (/A tree hydrated but some attributes/u.test(message)) category = "HYDRATION_ATTRIBUTES";
+  else if (/Hydration failed|Text content did not match|server rendered HTML didn't match/u.test(message)) category = "HYDRATION_CONTENT";
+  else if (/cannot (?:be a child|contain a nested)|validateDOMNesting|In HTML,/u.test(message)) category = "HTML_NESTING";
+  else if (/uncontrolled input to be controlled|controlled input to be uncontrolled/u.test(message)) category = "CONTROLLED_INPUT";
+  else if (/unique ["']key["'] prop|same key/u.test(message)) category = "REACT_KEY";
+  else if (/ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module/u.test(message)) category = "CHUNK_LOAD";
+  else if (/Content Security Policy|Content-Security-Policy/u.test(message)) category = "CSP";
+  else if (/Failed to load resource/u.test(message)) category = "RESOURCE_LOAD";
+  else if (/Failed to fetch|NetworkError|ERR_NETWORK|ERR_CONNECTION/u.test(message)) category = "NETWORK";
+  else if (/Maximum update depth|Too many re-renders/u.test(message)) category = "REACT_RENDER_LOOP";
+  else if (/Invalid hook call|Rendered (?:more|fewer) hooks/u.test(message)) category = "REACT_HOOKS";
+  const resource = typeof location?.url === "string" ? location.url : "";
+  const source = resource.includes("node_modules_next") || resource.includes("next/dist") ? "NEXT_RUNTIME"
+    : resource.includes("src_") || resource.includes("/src/") ? "APPLICATION" : "OTHER";
+  const attributes = RUNTIME_ATTRIBUTES
+    .filter(attribute => new RegExp(`^[+-]\\s+${attribute}=`, "mu").test(message));
+  const status = message.match(/server responded with a status of ([1-5][0-9]{2})\b/u)?.[1];
+  return { kind: kind === "page" ? "page" : "console", category,
+    stage: safeRuntimeStage(stage), page: RUNTIME_PAGES.includes(page) ? page : "profile_other", source,
+    frames: RUNTIME_FRAMES.filter(frame => message.includes(frame)), attributes,
+    httpStatus: status ? Number(status) : null };
+}
 const BODY_TRANSPORT_CATEGORIES = new Set(["RESOURCE_MISSING", "RESOURCE_EVICTED", "TARGET_OR_SESSION_CLOSED",
   "REQUEST_ABORTED", "REDIRECT_BODY_UNAVAILABLE", "OTHER_PROTOCOL_ERROR", "OTHER_BODY_ERROR"]);
 export function profileBodyTransportCategory(error) {
@@ -70,6 +135,7 @@ function printBodyTransportDiagnostic() {
     if (stat.isFile() && stat.size <= 64 * 1024) snapshot = JSON.parse(readFileSync(file, "utf8"));
   } catch { /* Missing/malformed evidence must not reveal paths or replace the original failure. */ }
   process.stderr.write(`${profileBodyTransportDiagnosticLine(snapshot)}\n`);
+  process.stderr.write(`${profileBrowserRuntimeDiagnosticLine(snapshot)}\n`);
 }
 export async function captureProfileExportResponse(page, button, exportUrl, mark) {
   const finishedRequests = new Set(), failedRequests = new Set();
@@ -238,7 +304,7 @@ export function writeOwnedAppLogDiagnostic(kind = "student-profile-fields") {
   }
 }
 
-export async function writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts }) {
+export async function writeFailureEvidence({ config, page, stage, error, http, browserErrors, browserWarningCount, counts, runtimeDiagnostics = [] }) {
   if (!config) return;
   const snapshot = { schema: config.proofKind === "university-template-ingress" ? "evo-university-template-ingress-browser-failure/v1"
     : config.proofKind === "document-recognition" ? "evo-document-recognition-browser-failure/v1" : "evo-student-profile-browser-failure/v1", synthetic: true, businessAcceptance: false,
@@ -247,6 +313,8 @@ export async function writeFailureEvidence({ config, page, stage, error, http, b
     browserErrorCodes: [...browserErrors].sort(), shellPresent: null, actualAdminShell: null,
     passwordControlPresent: null, loginErrorPresent: null, loginErrorCode: null, loginFormPending: null, profileStartControlPresent: null,
     frameworkOverlayPresent: null, screenshotSaved: false };
+  const safeRuntime = safeRuntimeDiagnostics(runtimeDiagnostics);
+  if (safeRuntime.length) snapshot.runtimeDiagnostics = safeRuntime;
   if (error?.code === "BODY_TRANSPORT") {
     const diagnostic = safeBodyTransportDiagnostic(error.transportDiagnostic);
     if (diagnostic) snapshot.transportDiagnostic = diagnostic;
@@ -471,7 +539,12 @@ export function verifyStoredDocumentExport(bytes, receipt, stored, organizationI
 async function main() {
   let stage = "CONFIGURATION"; let browser; let sql; let client; let config; let diagnosticPage;
   const browserErrors = new Set(); let browserWarningCount = 0;
+  const runtimeDiagnostics = [];
   const counts = { console: 0, page: 0 }; const http = { LOGIN: null, MAIN: null, PROFILE: null };
+  const recordBrowserError = (kind, text, location, pageTag) => {
+    browserErrors.add(kind === "page" ? "PAGE_ERROR" : "CONSOLE_ERROR"); counts[kind] += 1;
+    if (runtimeDiagnostics.length < 12) runtimeDiagnostics.push(profileBrowserRuntimeDiagnostic({ kind, text, location, stage, page: pageTag }));
+  };
   try {
     config = configuration();
     requireProof(PROFILE_REQUIRED_FIELD_KEYS.length === 9 && PROFILE_REQUIRED_FIELD_KEYS.every(key => Object.hasOwn(SYNTHETIC_REQUIRED_VALUES, key)), "REQUIRED_FIELDS_CHANGED");
@@ -498,10 +571,12 @@ async function main() {
     requireProof(initialCase.applied_country_requirement_version_id === null, "CHECKLIST_NOT_ABSENT");
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: true, viewport: { width: 1440, height: 1000 } });
+    let observedPageCount = 0;
     context.on("page", page => {
-      page.on("pageerror", () => { browserErrors.add("PAGE_ERROR"); counts.page += 1; });
+      const pageTag = ["profile_primary", "profile_second", "profile_cold"][observedPageCount++] ?? "profile_other";
+      page.on("pageerror", error => recordBrowserError("page", error.stack ?? error.message, undefined, pageTag));
       page.on("console", message => {
-        if (message.type() === "error") { browserErrors.add("CONSOLE_ERROR"); counts.console += 1; }
+        if (message.type() === "error") recordBrowserError("console", message.text(), message.location(), pageTag);
         if (message.type() === "warning") browserWarningCount += 1;
       });
     });
@@ -728,7 +803,7 @@ async function main() {
     const persistedPackage = await provePersistedPackage({ browser, page: cold, client, storage, sql, config, caseId,
       finalReceipt: finalExport.receipt, draftReceipt: draftExport.receipt, inventory,
       onStage: value => { stage = value; }, onPage: target => { diagnosticPage = target; },
-      onBrowserError: kind => { browserErrors.add(kind === "page" ? "PAGE_ERROR" : "CONSOLE_ERROR"); counts[kind] += 1; },
+      onBrowserError: (kind, text, location) => recordBrowserError(kind, text, location, "package_fresh"),
       onBrowserWarning: () => { browserWarningCount += 1; } });
     diagnosticPage = cold;
     await expect(page.locator("[data-nextjs-dialog-overlay], [data-nextjs-error-dialog]")).toHaveCount(0);
@@ -751,7 +826,7 @@ async function main() {
       JSON.stringify(config.deferAcceptance ? { ...receipt, cleanupVerified: false } : receipt, null, 2), { mode: 0o600, flag: "wx" });
     process.stdout.write(config.deferAcceptance ? "STUDENT_PROFILE_FIELDS_BROWSER_RECORDED\n" : "STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED\n");
   } catch (error) {
-    try { await writeFailureEvidence({ config, page: diagnosticPage, stage, error, http, browserErrors, browserWarningCount, counts }); }
+    try { await writeFailureEvidence({ config, page: diagnosticPage, stage, error, http, browserErrors, browserWarningCount, counts, runtimeDiagnostics }); }
     catch { process.stderr.write("STUDENT_PROFILE_FIELDS_BROWSER_DIAGNOSTIC:UNAVAILABLE\n"); }
     // Never print raw Playwright/Postgres/provider errors, DOM, URLs or credentials.
     process.stderr.write(`STUDENT_PROFILE_FIELDS_BROWSER_ERROR:${error instanceof ProofError || error instanceof PackageProofError ? error.code : stage}\n`);

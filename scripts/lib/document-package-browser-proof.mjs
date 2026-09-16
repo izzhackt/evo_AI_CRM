@@ -180,8 +180,8 @@ export async function provePersistedPackage({ browser, page, client, storage, sq
   try {
     await freshContext.route("**/*", route => [config.appOrigin, config.apiOrigin].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
     const fresh = await freshContext.newPage(); fresh.setDefaultTimeout(30_000); onPage(fresh);
-    fresh.on("pageerror", () => onBrowserError("page"));
-    fresh.on("console", message => { if (message.type() === "error") onBrowserError("console"); if (message.type() === "warning") onBrowserWarning(); });
+    fresh.on("pageerror", error => onBrowserError("page", error.stack ?? error.message));
+    fresh.on("console", message => { if (message.type() === "error") onBrowserError("console", message.text(), message.location()); if (message.type() === "warning") onBrowserWarning(); });
     onStage("PACKAGE_FRESH_LOGIN");
     await fresh.goto(`${config.appOrigin}/login`, { waitUntil: "domcontentloaded" });
     await fresh.locator("#staff-email").fill(config.email);

@@ -27335,3 +27335,38 @@ Final scoped Node22 checks passed46/46 (CFW `01a0ac0068c47d338bbbec09cf423b8c`);
 ESLint and diff checks passed (CFW `01a0ac006f8b716086ef6c21f90b8584`). The existing
 static no-raw-capture test now permits only the exact event-to-classifier handoff;
 raw output remains prohibited and is checked at the persisted/CLI boundaries.
+
+## 2026-09-17 — Record the exact failed POST transport code, without a workaround
+
+After PR801 merged as be79b290, full CI35149706220 failed BODY_TRANSPORT during
+the draft export. The same captured POST had status200, requestFailed=true,
+requestFinished=false, mainFrameNavigations=0, pageAlive=true, browserAlive=true.
+Only OTHER_PROTOCOL_ERROR was retained; the run has zero artifacts. The actual
+request failure text and protocol subtype cannot be recovered from existing logs.
+Generation has no download/navigation/POST AbortSignal; do not invent such a fix.
+
+Approved slice: extend the existing strict diagnostic projection with fixed
+Chromium network-error enum, known body protocol subtype and protocol-method
+enum from that exact captured request. Read strings in memory only; unknowns
+stay bounded enums. Keep the failing assertion, all original request/response
+checks and cleanup; no retry, alternative read, CDP fallback, timeout changes,
+product changes or gate bypass. Validate only existing parser/privacy tests and
+lint; independent review precedes root's single next instrumented exact-main CI.
+No local full Student replay or deployment belongs to this slice. This corrects
+an evidence gap, not the unresolved transport failure.
+
+Official basis: [Playwright request lifecycle/failure](https://playwright.dev/docs/api/class-request#request-failure)
+distinguishes requestfailed from a completed HTTP error and exposes errorText;
+[Streams cancellation](https://streams.spec.whatwg.org/#readable-stream-cancel)
+returns immediately for an already closed stream, so the reader's post-EOF
+cancel alone is not evidence of an abort bug.
+Also print the existing bounded, allowlisted server summary directly in the CI
+failure log: its current SAVED marker points to an unuploaded file that disappears
+with the runner. Keep the original safe summary and no raw log/artifact upload.
+
+Scoped validation: existing28 parser/privacy tests passed on Node22 (CFW
+`01a0ac115d787182b6c248449c725df8`), including exact-request failure identity,
+malformed/coercible enum rejection, CLI/file redaction and unchanged listener
+cleanup. ESLint/diff passed (CFW `01a0ac1163077ec0b2d4ce7ac5314944`). These are
+diagnostic-boundary checks, not a transport fix or new browser acceptance. No
+Student/browser/full-CI replay, runtime change or deployment was performed.

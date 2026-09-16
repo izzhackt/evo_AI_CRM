@@ -125,6 +125,8 @@ jobs:
 
       - name: Test the V3 local PostgreSQL, migration, and browser contract
         timeout-minutes: 35
+        env:
+          EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC: "1"
         run: npm run test:database:local
 
   dependency_audit:

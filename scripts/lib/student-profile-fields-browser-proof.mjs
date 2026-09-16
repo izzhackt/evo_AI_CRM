@@ -158,6 +158,107 @@ function printBodyTransportDiagnostic() {
   } catch { /* Missing/malformed evidence must not reveal paths or replace the original failure. */ }
   process.stderr.write(`${profileBodyTransportDiagnosticLine(snapshot)}\n`);
   process.stderr.write(`${profileBrowserRuntimeDiagnosticLine(snapshot)}\n`);
+  if (process.env.EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC === "1") printTransportLifecycleDiagnostic();
+}
+
+const LIFECYCLE_EVENTS = new Set(["NAVIGATION_START", "NAVIGATION_COMMIT",
+  "POST_START", "POST_RESPONSE", "POST_FINISHED", "POST_FAILED", "HMR_OPEN", "HMR_FRAME", "HMR_SESSION_CHANGED", "HMR_CLOSE", "HMR_ERROR", "HMR_FULL_RELOAD"]);
+const LIFECYCLE_HMR_TYPES = new Set(["addedPage", "removedPage", "reloadPage", "serverComponentChanges", "staticParamsChanged",
+  "middlewareChanges", "clientChanges", "serverOnlyChanges", "sync", "built", "building", "turbopack-message", "serverError", "turbopack-connected"]);
+const LIFECYCLE_SERVER_PATTERNS = { ABORTED: /(?:^|\n)\s*(?:⨯\s*)?Error: aborted(?:\s|$)/u,
+  PIPE_RESPONSE: /failed to pipe response/iu, ECONNRESET: /\bECONNRESET\b/u, PREMATURE_CLOSE: /\bERR_STREAM_PREMATURE_CLOSE\b/u,
+  SOCKET_HANG_UP: /socket hang up/iu, HMR_FULL_RELOAD: /Fast Refresh.*full reload/iu,
+  WORKER_EXIT: /worker.*(?:exited|SIGKILL|SIGTERM)/iu, FETCH_TERMINATED: /TypeError: terminated/u, CHUNK_LOAD: /ChunkLoadError/u };
+export function safeProfileTransportLifecycle(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || value.schema !== "evo-profile-transport-lifecycle/v1" || !Array.isArray(value.events)
+    || !Array.isArray(value.serverCategories) || typeof value.serverLogAvailable !== "boolean"
+    || ["droppedEvents", "ignoredHmrFrames"].some(key => !Number.isSafeInteger(value[key]) || value[key] < 0)) return null;
+  const events = [];
+  for (const item of value.events.slice(-256)) {
+    if (!item || !LIFECYCLE_EVENTS.has(item.event) || !["DRAFT", "FINAL", "OTHER"].includes(item.phase)
+      || !Number.isSafeInteger(item.ms) || item.ms < 0
+      || (item.event === "HMR_FRAME" ? !LIFECYCLE_HMR_TYPES.has(item.detail) : item.detail !== null)) return null;
+    events.push({ ms: item.ms, event: item.event, phase: item.phase, detail: item.detail });
+  }
+  const droppedEvents = value.droppedEvents + Math.max(0, value.events.length - 256);
+  if (!Number.isSafeInteger(droppedEvents)) return null;
+  return { schema: value.schema, events, droppedEvents,
+    ignoredHmrFrames: value.ignoredHmrFrames,
+    serverLogAvailable: value.serverLogAvailable,
+    serverCategories: Object.keys(LIFECYCLE_SERVER_PATTERNS).filter(key => value.serverCategories.includes(key)) };
+}
+export function profileTransportLifecycleDiagnosticLine(value) {
+  const safe = safeProfileTransportLifecycle(value);
+  return `STUDENT_PROFILE_FIELDS_TRANSPORT_LIFECYCLE:${safe ? JSON.stringify(safe) : "UNAVAILABLE"}`;
+}
+function printTransportLifecycleDiagnostic() {
+  let value;
+  try {
+    const file = resolve(env("EVO_D2_EVIDENCE_DIR"), "transport-lifecycle.json");
+    const stat = lstatSync(file);
+    if (!stat.isSymbolicLink() && stat.isFile() && stat.size <= 64 * 1024) value = JSON.parse(readFileSync(file, "utf8"));
+  } catch { /* Optional evidence never replaces the original test verdict. */ }
+  process.stderr.write(`${profileTransportLifecycleDiagnosticLine(value)}\n`);
+}
+export async function observeProfileTransportLifecycle(page, exportUrl, readStage) {
+  const started = performance.now(); const events = []; const disposers = []; const captured = new Set();
+  let sessionId, droppedEvents = 0, ignoredHmrFrames = 0, active = true;
+  const record = (event, detail = null) => {
+    if (!active || !LIFECYCLE_EVENTS.has(event)) return;
+    const stage = readStage();
+    events.push({ ms: Math.round(performance.now() - started), event,
+      phase: stage.startsWith("DRAFT_") ? "DRAFT" : stage.startsWith("FINAL_") ? "FINAL" : "OTHER", detail });
+    if (events.length > 256) { events.shift(); droppedEvents += 1; }
+  };
+  const on = (target, name, fn) => { target.on(name, fn); disposers.push(() => target.off(name, fn)); };
+  const dispose = () => { active = false; for (const off of disposers) off(); };
+  on(page, "request", request => {
+    if (request.isNavigationRequest()) {
+      try { if (request.frame() === page.mainFrame()) record("NAVIGATION_START"); } catch {}
+    }
+    if (request.url() === exportUrl && request.method() === "POST") { captured.add(request); record("POST_START"); }
+  });
+  on(page, "response", response => { if (captured.has(response.request())) record("POST_RESPONSE"); });
+  on(page, "requestfinished", request => { if (captured.has(request)) record("POST_FINISHED"); });
+  on(page, "requestfailed", request => { if (captured.has(request)) record("POST_FAILED"); });
+  on(page, "framenavigated", frame => { if (frame === page.mainFrame()) record("NAVIGATION_COMMIT"); });
+  on(page, "console", message => { if (/Fast Refresh.*full reload/iu.test(message.text())) record("HMR_FULL_RELOAD"); });
+  on(page, "websocket", socket => {
+    let url; try { url = new URL(socket.url()); } catch { return; }
+    const expected = new URL(exportUrl);
+    if (url.host !== expected.host || url.pathname !== "/_next/hmr") return;
+    record("HMR_OPEN");
+    on(socket, "close", () => record("HMR_CLOSE")); on(socket, "socketerror", () => record("HMR_ERROR"));
+    on(socket, "framereceived", frame => {
+      if (typeof frame.payload !== "string" || frame.payload.length > 1024 * 1024) { ignoredHmrFrames += 1; return; }
+      let message; try { message = JSON.parse(frame.payload); } catch { ignoredHmrFrames += 1; return; }
+      if (!LIFECYCLE_HMR_TYPES.has(message?.type)) { ignoredHmrFrames += 1; return; }
+      record("HMR_FRAME", message.type);
+      if (message.type === "turbopack-connected" && ["string", "number"].includes(typeof message.data?.sessionId)) {
+        if (sessionId !== undefined && sessionId !== message.data.sessionId) record("HMR_SESSION_CHANGED");
+        sessionId = message.data.sessionId;
+      }
+    });
+  });
+  return { dispose, snapshot: () => safeProfileTransportLifecycle({ schema: "evo-profile-transport-lifecycle/v1",
+    events, droppedEvents, ignoredHmrFrames, serverCategories: [], serverLogAvailable: false }) };
+}
+function writeTransportLifecycle(probe, config) {
+  try {
+    probe.dispose();
+    const value = probe.snapshot();
+    try {
+      const runtimeDir = realpathSync(env("EVO_D2_RUNTIME_DIR")), logPath = env("EVO_D2_APP_LOG");
+      requireProof(/\/evo-database-foundation\.[A-Za-z0-9]+$/u.test(runtimeDir)
+        && !lstatSync(logPath).isSymbolicLink() && lstatSync(logPath).isFile()
+        && realpathSync(logPath) === resolve(runtimeDir, "app.log") && lstatSync(logPath).size <= 4 * 1024 * 1024, "APP_LOG_NOT_OWNED");
+      const raw = readFileSync(logPath, "utf8");
+      value.serverCategories = Object.entries(LIFECYCLE_SERVER_PATTERNS).filter(([, pattern]) => pattern.test(raw)).map(([key]) => key);
+      value.serverLogAvailable = true;
+    } catch { /* An unavailable server log must not erase the browser chronology. */ }
+    writeFileSync(resolve(config.evidenceDir, "transport-lifecycle.json"), JSON.stringify(safeProfileTransportLifecycle(value)), { mode: 0o600, flag: "wx" });
+  } catch { process.stderr.write("STUDENT_PROFILE_FIELDS_TRANSPORT_LIFECYCLE:UNAVAILABLE\n"); }
 }
 export async function captureProfileExportResponse(page, button, exportUrl, mark) {
   const finishedRequests = new Set(), failedRequests = new Set();
@@ -562,6 +663,7 @@ export function verifyStoredDocumentExport(bytes, receipt, stored, organizationI
 
 async function main() {
   let stage = "CONFIGURATION"; let browser; let sql; let client; let config; let diagnosticPage;
+  let transportLifecycle;
   const browserErrors = new Set(); let browserWarningCount = 0;
   const runtimeDiagnostics = [];
   const counts = { console: 0, page: 0 }; const http = { LOGIN: null, MAIN: null, PROFILE: null };
@@ -611,6 +713,8 @@ async function main() {
     // No fulfilled/mocked traffic. Third-party origins are simply not exercised.
     await context.route("**/*", route => [config.appOrigin, config.apiOrigin].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
     const page = await context.newPage(); diagnosticPage = page; page.setDefaultTimeout(30_000);
+    if (process.env.EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC === "1") transportLifecycle = await observeProfileTransportLifecycle(
+      page, `${config.appOrigin}/api/v3/student-cases/${caseId}/document-exports`, () => stage);
     stage = "LOGIN_DOCUMENT";
     await page.goto(`${config.appOrigin}/login`, { waitUntil: "domcontentloaded" });
     stage = "LOGIN_EMAIL";
@@ -856,6 +960,7 @@ async function main() {
     process.stderr.write(`STUDENT_PROFILE_FIELDS_BROWSER_ERROR:${error instanceof ProofError || error instanceof PackageProofError ? error.code : stage}\n`);
     process.exitCode = 1;
   } finally {
+    if (transportLifecycle && config) writeTransportLifecycle(transportLifecycle, config);
     await browser?.close().catch(() => {});
     client?.auth.stopAutoRefresh();
     await sql?.end({ timeout: 5 }).catch(() => {});
@@ -864,5 +969,6 @@ async function main() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv[2] === "--summarize-owned-app-log") writeOwnedAppLogDiagnostic();
   else if (process.argv[2] === "--print-body-transport-diagnostic") printBodyTransportDiagnostic();
+  else if (process.argv[2] === "--print-transport-lifecycle-diagnostic") printTransportLifecycleDiagnostic();
   else await main();
 }

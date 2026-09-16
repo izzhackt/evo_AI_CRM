@@ -1645,6 +1645,7 @@ student_profile_fields_browser_assert() {
   chmod 700 "$evidence_dir"
   if [[ "$student_profile_fields_only" == "1" ]]; then student_profile_evidence_dir="$evidence_dir"; fi
   if ! EVO_D2_APP_ORIGIN="http://127.0.0.1:$app_port" \
+    EVO_D2_APP_LOG="$app_log" EVO_D2_RUNTIME_DIR="$tmp_dir" \
     EVO_D2_DEFER_ACCEPTANCE="$student_profile_fields_only" \
     EVO_D2_SUPABASE_WORKDIR="$supabase_workdir" \
     EVO_D2_EVIDENCE_DIR="$evidence_dir" \
@@ -1683,6 +1684,10 @@ student_profile_fields_browser_assert() {
       || fail "The Student Profile proof returned no verification marker"
     echo 'STUDENT_PROFILE_FIELDS_BROWSER_VERIFIED'
     echo "Synthetic Student Profile evidence: $evidence_dir"
+  fi
+  if [[ "${EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC:-0}" == "1" ]]; then
+    EVO_D2_EVIDENCE_DIR="$evidence_dir" "$node_bin" --experimental-strip-types \
+      scripts/lib/student-profile-fields-browser-proof.mjs --print-transport-lifecycle-diagnostic || true
   fi
 }
 

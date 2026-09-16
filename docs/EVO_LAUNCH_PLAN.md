@@ -1,6 +1,41 @@
 # EVO Launch Plan
 
-## Active website release blocker — exact POST transport diagnosis (2026-09-17)
+## Active website release blocker — exact Linux lifecycle observation (2026-09-17)
+
+PR802 merged as `0f40f7ad`; CI35151520335 failed the original draft POST with
+`RESOURCE_DATA_MISSING`, `Network.getResponseBody`, `ERR_ABORTED`,
+requestFailed=true/requestFinished=false and a live page/browser. No main-frame
+navigation committed. This proves cancellation, not its initiator. Release is
+disarmed and production/edge/DNS remain unchanged.
+
+The one authorized full local `npm run test:database:local` run passed on Node
+22.23.1/Playwright1.61.1, including the previously warmed predecessor order and
+real profile→Word→ZIP→fresh-login history. Draft POST finished normally
+(start1893ms, headers2079ms, finished2080ms); errors0, overlay absent. Its generic
+server Error summary also occurs on GREEN and does not identify the CI cause.
+Owned stack cleanup passed and all66 prior running container IDs were preserved.
+Temporary observers were removed; no product fix or release success is claimed.
+
+Approved next slice: reapply the reviewed passive observer as opt-in diagnostics
+for one exact-main Linux CI, keeping bounded allowlisted chronology in CI logs
+(not only runner files). Validate privacy/parser boundaries and independent review;
+do not rerun the local full suite. No extra requests, retry, timeout, product fix,
+fallback or gate change. Root alone dispatches the one observed CI and decides
+release/cutover; main and production stay unchanged until those gates pass.
+
+### Completed single local experiment
+
+Authorized diagnostic experiment: run the existing `npm run test:database:local`
+once on Node22, preserving its full predecessor order, isolated stack ownership,
+original requests/assertions and cleanup. Add temporary passive observations only
+to the exact Student page: navigation start/lifecycle events and allowlisted HMR
+types/session-change/category timing. Keep raw messages, URLs, credentials and
+payloads out of persisted output. No product change, extra API request, retry,
+timeout, fallback or gate change; no CI, deploy, push or observational PR. Stop
+after this single run even if cancellation does not reproduce; report the causal
+evidence or explicit remaining blocker and remove the temporary observers.
+
+### Historical PR802 diagnostic scope
 
 PR801 merged as `be79b290`. Full CI35149706220 passed Node/static and dependency
 audit, then failed `DRAFT_BODY_TRANSPORT`: HTTP200 headers were observed, the

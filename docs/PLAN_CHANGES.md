@@ -27097,3 +27097,12 @@ exact paths beside the already known Caddyfile infrastructure entry, with a
 regression that unrelated files in the same directory still fail closed.
 Do not allow the frozen companion tree by prefix or skip required checks.
 This does not change the validated edge/runtime source or release boundary.
+
+### 2026-09-16 — include the reviewed website reader in the adapter inventory
+
+Full CI35121530651 found one Node contract failure: the closed V3 file/adapter
+inventory did not include the newly reviewed `website-lead-source.ts` from
+PR795. Add that exact filename to both inventories; retain all canonical
+Supabase, legacy-name and server-only assertions so they also cover the new
+reader. No runtime code, permission, migration or release gate changes.
+Release is disarmed until the corrected final main passes the normal pipeline.

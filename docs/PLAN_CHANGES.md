@@ -27437,3 +27437,57 @@ shell syntax and diff checks passed on Node22 (CFW
 passed (CFW `01a0ac3927ff7e02b9ad385441fcc37c`). The original no-addInitScript
 assertion is unchanged. These checks validate the diagnostic boundary, not a
 cancellation fix; no second full local run or new CI dispatch was performed.
+
+## 2026-09-17 — Exact Linux CI and managed release passed; public apex/www live
+
+PR803 merged as `5736405b025c29caaf6767da0cef4df1ce6fb3a1` after independent
+exact-head approval and short CI. Root's one full CI35155801219 passed, including
+the unchanged real isolated Student profile Word/ZIP/fresh-login/history path.
+Passive chronology showed draft4284→4735→4737ms and final27236→27740→27741ms
+(start→headers→finished), no failed POST. Server categories ABORTED/ECONNRESET
+also appear on GREEN and are not a proven cause. Preserve prior RED evidence:
+the intermittent cancellation initiator is still unknown, not fixed by logging.
+
+Automatic managed release35156824957 passed. Independent server readback verified:
+
+- accepted revision `5736405b025c29caaf6767da0cef4df1ce6fb3a1`, release
+  `v3-r35156824957-a1-5736405b`;
+- receipt SHA256 `42d316cc3e4ef6a34adba5480078ca53ce156503d21023f639361937e369d58d`;
+- browser receipt SHA256 `998c62236ab6bff0ad6fc21e65a113883fedf85b359f15e05dd0e80fbf5d3be0`;
+- image `sha256:4bdfaac12c6998a78b536153d84e9fc529bae8fc443d52f8e6d3db49477c19fc`;
+- app healthy/restarts0, pending absent, release arm false. Private intake
+  app/edge key match and organization/eligible-owner checks passed without
+  exposing values; the previously applied migration170 was not repeated.
+
+Edge config SHA256 `9a49f6a38a4dabe2896ca6a85bf94f93d30d6c9c9fbda9fe7205bacc836d9e4d`
+was validated and gracefully applied at22:23:54 UTC. Only apex/www A records
+changed to `72.62.119.112`, TTL300; authoritative/public resolver readback passed.
+Initial www ACME validation still reached the old IP. After TTL propagation and
+public resolver confirmation, one validated same-config forced graceful reload
+at22:29:41.949 completed issuance. This followed Caddy's documented
+[reload behavior](https://caddyserver.com/docs/command-line#caddy-reload), not a
+container restart or secret/config deletion. Independent22:31:36 readback
+confirmed edge ID `4ee88d188151288dd457833a8176610f70f04b28e13805a20be62db0a7f22298`
+unchanged/running/restarts0 and matching source/mounted config hashes. Both
+authoritative nameservers retained the previous MX/SPF/mail A/NS/DS records;
+no other public route or DNS record was changed.
+
+At approximately22:30 UTC, all11 guarded public checks passed: apex/www each
+HTTPS200 with normal TLS at the VPS and matching deployed website `d2ab537`
+HTML hash prefix `92da`; intake GET405, empty POST with website Origin
+400/invalid_request before DB RPC, other website API404 and public CRM receiver404.
+Existing CRM/invite routes returned307 and inbox/codex/OlympiadAI200, all with
+valid TLS. Actual Chrome apex navigation displayed the new site/globe and Apply
+Now reached its visible form; no POST was made. Negative checks are not positive
+intake acceptance. Real owner-authorized inquiry, staff visibility/idempotent
+retry and Gmail delivery remain unverified, pending owner data/mailbox access.
+
+This two-file docs-only closeout records root's runtime evidence; it performs no
+new runtime/provider action or application test/CI run. Web-X was a one-time
+payment, but the latest owner instruction
+("отменяем web-x окей делай") separately authorizes cancelling the exact hosting
+Start service after a healthy website cutover. No cancellation button is
+available; a support request is planned from the registered business email
+`evoadmissions@gmail.com`, with mailbox access still pending. No mandatory sender
+policy was verified. Cancellation is not performed or confirmed.
+Preserve domain registration/mail and do not permanently delete hosting files.

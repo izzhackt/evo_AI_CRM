@@ -21,6 +21,9 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile.evo-edge:/etc/caddy/Caddyfile:ro
+      # Private /data/evo-website/intake-header.caddy persists here. Provision
+      # through the operator secret workflow, then caddy validate/reload.
+      # Do not add env_file/mounts and recreate the shared running edge.
       - evo_edge_caddy_data:/data
       - evo_edge_caddy_config:/config
     networks:

@@ -27037,3 +27037,34 @@ recipient/scope approval before one employee onboarding; chosen owner case for
 form/ZIP acceptance; custom-domain DNS separately. Keep Gemini, USTC and extra
 polish deferred. This docs-only checkpoint does not require another app release
 or repetition of the completed full CI/browser suite.
+
+### 2026-09-16 — additive website edge with persistent private import
+
+The owner approved finishing real website intake, public VPS/domain cutover and
+later Web-X retirement. This slice changes only the shared edge source and its
+operating instructions; the release owner retains all production/DNS actions.
+Read-only inspection found Caddy2.11.3, its existing `/data` named volume and
+five loaded sites. Preserve the extra live OlympiadAI route as well as CRM,
+invite-bishkek, inbox and codex; preserve the bound historical config path.
+
+Add apex/www static proxy and exact POST-only intake proxy with an 8 KB cap,
+trusted socket IP, overwritten private key, stripped browser credentials and
+hidden direct CRM receiver. The backend contract is PR795; no second store,
+amoCRM write or staff impersonation is introduced.
+
+Adding Compose `env_file` would require recreating the protected shared edge.
+Instead, use a required private header-file import in the already mounted
+persistent `/data/evo-website` directory. Only the release owner provisions its
+real key from private runtime configuration. Missing import fails validation;
+reload retains the previous working configuration. Cold starts require the
+persisted file. No secret is committed, printed or placed in a build argument;
+no proxy restart/recreation is authorized. Existing Caddy runtime verification
+gets only the minimal non-secret configuration input needed to parse this import.
+
+Official contracts: [Caddy import](https://caddyserver.com/docs/caddyfile/directives/import),
+[reload](https://caddyserver.com/docs/command-line#caddy-reload),
+[reverse proxy headers](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy),
+[body limit](https://caddyserver.com/docs/caddyfile/directives/request_body).
+These checks do not replace real owner-approved inquiry delivery, DNS/TLS and
+post-reload route acceptance. Web-X retirement remains after those proofs and
+separate confirmation that its mail/DNS services are not still required.

@@ -8,8 +8,9 @@ umask 077
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly DEADLINE_RUNNER="${REPO_ROOT}/scripts/run-command-with-deadline.mjs"
 readonly SOURCE_CADDYFILE="${REPO_ROOT}/agent-lead2-inbox/deploy/Caddyfile.evo-edge"
+readonly WEBSITE_HEADER_EXAMPLE="${REPO_ROOT}/agent-lead2-inbox/deploy/website-intake-header.caddy.example"
 readonly CRM_HOST="evo-crm.72.62.119.112.sslip.io"
-readonly CADDY_IMAGE="caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+readonly CADDY_IMAGE="caddy@sha256:86deaf5e3d3408a6ccec08fbb79989783dd26e206ae10bcf78a801dc8c9ab794"
 readonly RUN_ID="p7b-edge-$$_${RANDOM}"
 readonly CONTAINER_NAME="evo-platform-${RUN_ID}"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/evo-p7b-edge.XXXXXX")"
@@ -50,6 +51,8 @@ trap cleanup EXIT HUP INT TERM
   || fail "The bounded command runner is missing."
 [[ -f "${SOURCE_CADDYFILE}" ]] \
   || fail "The canonical EVO edge Caddyfile is missing."
+[[ -f "${WEBSITE_HEADER_EXAMPLE}" ]] \
+  || fail "The non-secret website header parser input is missing."
 command -v docker >/dev/null 2>&1 \
   || fail "A local container engine is required for the Caddy runtime proof."
 
@@ -86,6 +89,9 @@ cat >>"${TEST_CADDYFILE}" <<'CADDY'
 	import evo_canonical_api_paths
 	respond 204
 }
+http://evoadmissions.com:8080, http://www.evoadmissions.com:8080 {
+	import evo_website
+}
 CADDY
 
 run_with_deadline 180000 docker pull "${CADDY_IMAGE}" >/dev/null \
@@ -109,6 +115,7 @@ run_with_deadline 30000 docker run --detach \
   --log-opt max-file=1 \
   --publish 127.0.0.1::8080 \
   --volume "${TEST_CADDYFILE}:/test/Caddyfile:ro" \
+  --volume "${WEBSITE_HEADER_EXAMPLE}:/data/evo-website/intake-header.caddy:ro" \
   "${CADDY_IMAGE}" \
   caddy run --config /test/Caddyfile --adapter caddyfile \
   >/dev/null 2>"${START_STDERR_FILE}" \
@@ -165,12 +172,33 @@ done
 [[ "${ready}" == true ]] \
   || fail "The disposable Caddy edge did not become ready."
 
+# Exercise the real website routing snippet; no customer input or pretend
+# successful upstream is used. The application/static upstreams are absent.
+for website_host in evoadmissions.com www.evoadmissions.com; do
+  for method in GET PUT OPTIONS; do
+    status="$(curl --silent --show-error --request "${method}" \
+      --output "${RESPONSE_FILE}" --write-out '%{http_code}' \
+      --header "Host: ${website_host}" "${edge_origin}/api/website-leads")" \
+      || fail "The website method guard request failed."
+    [[ "${status}" == "405" ]] || fail "The website accepted a non-POST method."
+  done
+  for website_path in /api /api/other /api/public/website-leads /api/website-leads/near /api//website-leads; do
+    status="$(curl --silent --show-error --path-as-is --request POST \
+      --output "${RESPONSE_FILE}" --write-out '%{http_code}' \
+      --header "Host: ${website_host}" "${edge_origin}${website_path}")" \
+      || fail "The website path guard request failed."
+    [[ "${status}" == "404" ]] || fail "The website API path escaped its exact allowlist."
+  done
+done
+
 for private_path in \
   /api/readiness \
   /api/readiness/near \
   /metrics \
   /metrics/near \
   /api/internal/p7b \
+  /api/public/website-leads \
+  /api/public/website-leads/near \
   /admin/p7b; do
   status="$(
     curl --silent --show-error \
@@ -179,6 +207,8 @@ for private_path in \
       --header "Host: ${CRM_HOST}" \
       --header "Authorization: Bearer ${AUTH_SENTINEL}" \
       --header "x-evo-observability-hmac: ${HMAC_SENTINEL}" \
+      --header "X-EVO-Website-Key: ${AUTH_SENTINEL}" \
+      --header "X-EVO-Website-IP: ${AUTH_SENTINEL}" \
       "${edge_origin}${private_path}"
   )" || fail "The disposable Caddy request failed."
   [[ "${status}" == "404" ]] \

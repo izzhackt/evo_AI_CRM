@@ -5,7 +5,7 @@
 }
 
 (evo_app) {
-	@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics /metrics/*
+	@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics /metrics/* /api/public/website-leads /api/public/website-leads/*
 	respond @private 404
 
 	@health path /api/health
@@ -51,6 +51,8 @@
 			request>headers>X-Evo-History-Hmac-Algorithm delete
 			request>headers>X-Evo-Media-Hmac delete
 			request>headers>X-Evo-Media-Hmac-Algorithm delete
+			request>headers>X-Evo-Website-Key delete
+			request>headers>X-Evo-Website-Ip delete
 		}
 	}
 }
@@ -96,4 +98,63 @@ codex.72.62.119.112.sslip.io {
 	header {
 		-Server
 	}
+}
+
+# OlympiadAI LMS: maintained in /opt/olympiadai-lms
+olympiadai.72.62.119.112.sslip.io {
+  encode zstd gzip
+  request_body {
+    max_size 21MB
+  }
+  reverse_proxy olympiadai-lms:3000
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    -Server
+  }
+}
+
+(evo_website) {
+	encode zstd gzip
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+	route {
+		import evo_canonical_api_paths
+		@website_intake {
+			method POST
+			path /api/website-leads
+		}
+		handle @website_intake {
+			request_body {
+				max_size 8KB
+			}
+			reverse_proxy evo-crm-app:3000 {
+				rewrite /api/public/website-leads
+				header_up -Cookie
+				header_up -Authorization
+				header_up -Proxy-Authorization
+				header_up X-EVO-Website-IP {remote_host}
+				# Required private file in the existing persistent Caddy data volume.
+				# It overwrites X-EVO-Website-Key; never put the real value in Git.
+				import /data/evo-website/intake-header.caddy
+			}
+		}
+		handle /api/website-leads {
+			header Allow "POST"
+			respond 405
+		}
+		@website_api path /api /api/*
+		handle @website_api {
+			respond 404
+		}
+		handle {
+			reverse_proxy evo-website-web:8080
+		}
+	}
+}
+
+evoadmissions.com, www.evoadmissions.com {
+	import evo_website
 }

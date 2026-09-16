@@ -27183,3 +27183,60 @@ All 41 existing boundary tests pass. That compatibility stub is not provider or
 browser acceptance. Scope is four
 files: component, real harness, existing boundary tests and this ledger. Final
 exact-main CI/review remain release gates; no production changes were made.
+
+### 2026-09-16 — close out website implementation separately from acceptance
+
+Backend PR795, edge PR796, inventory correction PR797 and staff callback fixes
+PR798/799 are merged; candidate main is
+`34ee9a3b434a8935bf52a0ad23f4a6514acf50c1`. Managed schema170 is already applied
+and ledger001–170 read back. An eligible existing Admin and matching private
+app/edge key are configured. Mark those implementation/provisioning steps done;
+do not repeat schema application or create another owner/key from stale lists.
+Website d2ab537 is deployed separately. Platform CI35126620685 failed at profile
+export BODY_TRANSPORT; the release is disarmed and accepted production unchanged.
+Accepted runtime, graceful edge reload, apex/www DNS/HTTPS and the
+owner-authorized real inquiry remain separate evidence gates; no successful
+delivery is claimed here.
+
+The owner's latest Web-X instruction supersedes hosting retirement/cancellation:
+it was a one-time payment with no recurring charges. Only disconnect the old
+website from apex/www by the approved Spaceship DNS change. No hosting
+cancellation, Web-X login or data deletion is required. Preserve domain
+registration and the chosen Gmail forwarding; its real delivery remains a
+separate check. CRM/student/inbox hostname changes are outside this cutover.
+Include this status closeout with the bounded diagnostic follow-up below; do not
+advance main during an exact-SHA release. Independent review precedes publication.
+
+### 2026-09-16 — preserve safe evidence for profile response-body transport failure
+
+Full CI35126620685 on main34ee9 failed after the actual profile export POST
+returned HTTP200, when Playwright read that same response body. The catch
+discarded the original exception and CI retained no failure artifact. This proves
+an instrumentation gap, not a product root cause. The existing isolated
+`--student-profile-fields-only` path passed locally with a temporary category
+probe: two profile artifacts plus one ZIP, exact replay, cold-login byte equality,
+zero browser errors and owned cleanup all verified. It did not reproduce the CI
+transport error; do not call it fixed or add retries, sleeps, refetches or fallback.
+
+Approved scope is five files: the existing proof helper, its existing unit tests,
+the existing shell error printer, this ledger and the top launch-plan checkpoint.
+Classify only static protocol-error categories and exact-primary-POST lifecycle
+flags, main-frame navigation count and page/browser liveness. Preserve
+BODY_TRANSPORT as a failure; listeners must be removed on every outcome. Print
+only a strictly validated projection of that diagnostic JSON in existing CI error
+output, never raw messages, URLs, bodies, credentials, account values or document
+contents. No artifact upload, product/API change, extra POST or provider action.
+
+Focused boundary tests establish classification, redaction, primary-request
+identity and listener cleanup; they are not browser/provider acceptance. The
+previous real local pass remains bounded evidence, and one instrumented full CI
+on a new frozen main is reserved for the root after independent exact-head review.
+Official context: [Playwright response API](https://playwright.dev/docs/api/class-response)
+and [upstream response-body/navigation report](https://github.com/microsoft/playwright/issues/41512).
+That report is a possible category to distinguish, not evidence of our cause.
+
+Validation: the focused Node22 harness suite passes 28/28, scoped ESLint,
+`bash -n` and `git diff --check` pass. The original orchestration/status/envelope
+and cleanup assertions remain; the source-level no-raw-message guard now names
+exactly the two pure static classifiers instead of one. No live failure category
+was observed in the local run, and no new runtime/deployment success is claimed.

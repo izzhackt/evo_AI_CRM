@@ -1,13 +1,14 @@
 # EVO Launch Plan
 
-## Website public edge — active bounded slice (2026-09-16)
+## Website public edge — implementation merged, acceptance pending (2026-09-16)
 
 Owner approved the public website and real website-to-Platform inquiry path.
-Keep the marketing runtime separate at `/opt/evo-website`; add apex/www to the
-existing shared Caddy edge, not another public proxy. Preserve every currently
-loaded route, including the live OlympiadAI block missing from repository main.
+Marketing runtime remains separate at `/opt/evo-website`. PR796 merged the
+apex/www routes into the existing shared Caddy source, preserving all five live
+routes including OlympiadAI. Website `d2ab537` is already deployed; this is not
+yet acceptance of public DNS, edge routing or a delivered inquiry.
 
-- Add `evoadmissions.com` / `www.evoadmissions.com` → `evo-website-web:8080`.
+- [x] Implement `evoadmissions.com` / `www.evoadmissions.com` → `evo-website-web:8080`.
 - Only exact `POST /api/website-leads` reaches the existing private CRM app,
   rewritten to `/api/public/website-leads`. Bound the body to 8 KB; overwrite
   the private key and socket client-IP headers; strip Cookie/Authorization.
@@ -16,40 +17,57 @@ loaded route, including the live OlympiadAI block missing from repository main.
   No stop/recreate: import the private key header from an operator-provisioned
   file in the already persistent `/data` volume, then validate and gracefully
   reload. Cold restart requires the same file; no secret enters Git or output.
-- Independently review the exact commit and validate with real pinned Caddy.
-  Configuration proof is not successful inquiry delivery. Root owns private
-  file provisioning, managed CRM release/migration170, real owner/input,
-  edge reload, DNS/TLS acceptance and any subsequent Web-X retirement.
+- [x] Independently review the exact edge commit and validate with real pinned
+  Caddy. Matching private app/edge configuration and the eligible existing Admin
+  are provisioned; migration170 is already applied, ledger001–170 verified.
+- [ ] Accept a final Platform main through the full CI and managed release.
+  CI35126620685 on `34ee9a3b434a8935bf52a0ad23f4a6514acf50c1` failed at
+  profile export `BODY_TRANSPORT`; staff onboarding, Node/static and audit passed.
+  The release is disarmed and the accepted production app is unchanged.
+  Callback fixes PR798/799 are merged. A diagnostic-only follow-up must preserve
+  the failing assertion while exposing the exact primary POST's safe transport
+  category/lifecycle flags. Its local profile/ZIP pass does not explain the CI
+  failure or replace final CI/runtime readback. No product workaround is approved.
+- [ ] Validate/reload the existing edge gracefully, confirm unchanged old routes,
+  then switch apex/www A and verify both public HTTPS addresses and site assets.
+  Root owns these operations; committed config is not a reload receipt.
+- [ ] Receive one owner-authorized real inquiry, confirm its fields and staff
+  visibility, and verify an idempotent retry. No fabricated customer acceptance.
 
-Do not retire Web-X, change mail DNS, reset data, or expose WAHA as part of this
-code slice. [Edge procedure](design/v3/references/2026-09-16-website-edge.md).
+The owner clarified that Web-X was paid once with no recurring charges. This
+cutover only disconnects the old site from apex/www; no hosting cancellation,
+Web-X login or data deletion is needed. Keep domain registration and the chosen
+Gmail forwarding; actual mail delivery remains a separate check. Changes to
+`crm`, `app` and `inbox` DNS are deferred, not part of this apex/www cutover.
+Do not reset data or expose WAHA. [Edge procedure](design/v3/references/2026-09-16-website-edge.md).
 
-## Website lead intake (2026-09-16, implementation active)
+## Website lead intake — implementation merged (2026-09-16)
 
 The owner selected **EVO Platform**, not direct amoCRM, as the recipient for the
 separate marketing website. The site deployment/DNS work is a separate lane.
 
-- [ ] Add one service-only transactional intake RPC (migration170), reusing the
+- [x] Add one service-only transactional intake RPC (migration170), reusing the
   canonical client/lead helpers, persistent request receipts, contact locking,
   persistent per-IP/organization throttling and the existing scoped owner rules.
-- [ ] Add a bounded `POST /api/public/website-leads` handler. Website Caddy maps
+- [x] Add a bounded `POST /api/public/website-leads` handler. Website Caddy maps
   same-origin `/api/website-leads` and overwrites the private edge key and real
   client-IP headers. Exact HTTPS website origins, request schema/size limits and
   server-side organization/owner configuration fail closed. No staff impersonation,
   browser service key, direct amoCRM write or second business database.
-- [ ] Preserve name/phone/age/city/exact country and consent with the receipt;
+- [x] Preserve name/phone/age/city/exact country and consent with the receipt;
   show a compact website inquiry detail only to staff who can read its lead.
   Do not overwrite an existing person's identity or silently merge conflicting
   contacts. Browser replies do not disclose contact existence/internal IDs.
-- [ ] Verify current code with scoped real checks, obtain independent review,
-  then use the managed release path. Production acceptance separately requires
-  one owner-authorized real submission and visible Platform lead/readback plus
-  an idempotent retry; no fabricated client or synthetic successful receipt.
+- [x] Complete scoped schema/grants and fail-closed HTTP checks plus independent
+  code review; merge backend PR795. No customer row was used for those checks.
+- [ ] Finish the managed release and real inquiry acceptance listed above.
+  Schema/HTTP checks are not a successful submission or staff visibility proof.
 
-Runtime blockers are explicit organization/eligible-owner selection, private edge
-key provisioning, edge routing, migration170/release and the real acceptance
-submission. Repository implementation is not delivery evidence. The later owner
-waived the unrelated chosen-client form-to-ZIP acceptance; it is not a gate here.
+Remaining gates are final release, edge/DNS acceptance and the authorized real
+submission. Organization/eligible owner, private key and migration170 are already
+configured/applied; do not repeat them. Repository implementation is not delivery
+evidence. The owner waived the unrelated chosen-client form-to-ZIP acceptance;
+it is not a gate here.
 
 Official implementation basis: [Supabase functions](https://supabase.com/docs/guides/database/functions),
 [backend API keys](https://supabase.com/docs/guides/getting-started/api-keys).

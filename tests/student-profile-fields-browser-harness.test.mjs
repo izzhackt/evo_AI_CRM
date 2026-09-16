@@ -9,6 +9,7 @@ import test from "node:test";
 import PizZip from "pizzip";
 import { captureProfileExportResponse, profileBodyTransportCategory, profileBodyProtocolMethod, profileRequestFailureCategory, profileBodyTransportDiagnosticLine, profileBrowserRuntimeDiagnostic, profileBrowserRuntimeDiagnosticLine, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { verifyPersistedPackageZip, verifyPackageStorage } from "../scripts/lib/document-package-browser-proof.mjs";
+import { safeProfileTransportLifecycle, profileTransportLifecycleDiagnosticLine, observeProfileTransportLifecycle } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
 
@@ -23,6 +24,78 @@ function capturePage(overrides) {
 function assertCaptureListenersRemoved(page) {
   for (const event of captureEvents) assert.equal(page.listenerCount(event), 0, event);
 }
+
+test("transport lifecycle projects bounded enums and rejects coercible/private fields", () => {
+  const event = { ms: 12, event: "POST_FAILED", phase: "DRAFT", detail: null };
+  const value = { schema: "evo-profile-transport-lifecycle/v1", events: [event], droppedEvents: 0,
+    ignoredHmrFrames: 1, serverLogAvailable: true, serverCategories: ["ECONNRESET"] };
+  assert.deepEqual(safeProfileTransportLifecycle({ ...value, raw: "private-value", url: "https://example.test/private",
+    events: [{ ...event, raw: "private-value" }], serverCategories: ["ECONNRESET", ["ABORTED"], "private-value"] }), value);
+  for (const patch of [{ event: ["POST_FAILED"] }, { phase: ["DRAFT"] }, { ms: "12" }, { ms: -1 },
+    { ms: Infinity }, { detail: "private-value" }, { event: "HMR_FRAME", detail: ["reloadPage"] },
+    { event: "HMR_FRAME", detail: null }]) {
+    assert.equal(safeProfileTransportLifecycle({ ...value, events: [{ ...event, ...patch }] }), null);
+  }
+  for (const invalid of [null, [], {}, { ...value, schema: [value.schema] }, { ...value, droppedEvents: "0" },
+    { ...value, ignoredHmrFrames: -1 }, { ...value, serverLogAvailable: "true" }, { ...value, serverCategories: {} }]) {
+    assert.equal(profileTransportLifecycleDiagnosticLine(invalid), "STUDENT_PROFILE_FIELDS_TRANSPORT_LIFECYCLE:UNAVAILABLE");
+  }
+  const bounded = safeProfileTransportLifecycle({ ...value, events: Array(270).fill(event) });
+  assert.equal(bounded.events.length, 256); assert.equal(bounded.droppedEvents, 14);
+  assert.equal(safeProfileTransportLifecycle({ ...value, droppedEvents: Number.MAX_SAFE_INTEGER, events: Array(270).fill(event) }), null);
+  assert.doesNotMatch(profileTransportLifecycleDiagnosticLine({ ...value, raw: "private-value" }), /private-value/u);
+});
+
+test("passive lifecycle observer follows exact request identity and disposes all listeners", async () => {
+  // Unit boundary only: no simulated browser/provider success is acceptance.
+  const page = capturePage({});
+  const socket = Object.assign(new EventEmitter(), { url: () => "ws://127.0.0.1:43210/_next/hmr?private-value" });
+  const exportUrl = "http://127.0.0.1:43210/export";
+  const request = { url: () => exportUrl, method: () => "POST", isNavigationRequest: () => false };
+  const observer = await observeProfileTransportLifecycle(page, exportUrl, () => "DRAFT_GENERATE_POST_RESPONSE");
+  page.emit("request", { ...request, method: () => "GET" });
+  page.emit("response", { request: () => request });
+  assert.equal(observer.snapshot().events.length, 0);
+  page.emit("request", request); page.emit("response", { request: () => request });
+  page.emit("requestfailed", { ...request }); // Same URL, not the same captured request.
+  page.emit("requestfailed", request);
+  page.emit("request", { ...request, method: () => "GET", isNavigationRequest: () => true, frame: () => page.mainFrame() });
+  page.emit("websocket", socket);
+  for (const sessionId of ["private-one", "private-two"]) socket.emit("framereceived", {
+    payload: JSON.stringify({ type: "turbopack-connected", data: { sessionId }, raw: "private-value" }) });
+  socket.emit("framereceived", { payload: JSON.stringify({ type: ["reloadPage"], raw: "private-value" }) });
+  socket.emit("framereceived", { payload: Buffer.from("private-value") });
+  const snapshot = observer.snapshot();
+  assert.deepEqual(snapshot.events.map(item => item.event), ["POST_START", "POST_RESPONSE", "POST_FAILED",
+    "NAVIGATION_START", "HMR_OPEN", "HMR_FRAME", "HMR_FRAME", "HMR_SESSION_CHANGED"]);
+  assert.equal(snapshot.ignoredHmrFrames, 2);
+  assert.doesNotMatch(JSON.stringify(snapshot), /private-|127\.0\.0\.1|sessionId/u);
+  observer.dispose();
+  assert.deepEqual(page.eventNames(), []); assert.deepEqual(socket.eventNames(), []);
+  page.emit("request", request);
+  assert.deepEqual(observer.snapshot(), snapshot);
+});
+
+test("opt-in lifecycle CI output reprojects private file and preserves command and fatal gates", () => {
+  const directory = mkdtempSync(join(tmpdir(), "evo-profile-lifecycle-unit-"));
+  try {
+    const value = { schema: "evo-profile-transport-lifecycle/v1", events: [{ ms: 1, event: "POST_FAILED", phase: "DRAFT", detail: null }],
+      droppedEvents: 0, ignoredHmrFrames: 0, serverLogAvailable: false, serverCategories: [] };
+    writeFileSync(join(directory, "transport-lifecycle.json"), JSON.stringify({ ...value, raw: "private-value" }));
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", runnerUrl.pathname, "--print-transport-lifecycle-diagnostic"],
+      { encoding: "utf8", env: { ...process.env, EVO_D2_EVIDENCE_DIR: directory } });
+    assert.equal(result.status, 0); assert.equal(result.stdout, "");
+    assert.ok(result.stderr.includes(profileTransportLifecycleDiagnosticLine(value)));
+    assert.doesNotMatch(result.stderr, /private-value/u);
+    const runner = readFileSync(runnerUrl, "utf8");
+    assert.match(runner, /if \(process\.env\.EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC === "1"\) transportLifecycle = await observeProfileTransportLifecycle/u);
+    assert.match(harness, /if \[\[ "\$\{EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC:-0\}" == "1" \]\]/u);
+    assert.ok(harness.includes('fail "The bounded real Student Profile browser proof failed; no live business acceptance is implied"'));
+    const workflow = readFileSync(new URL("../.github/workflows/evo-platform-ci.yml", import.meta.url), "utf8");
+    assert.equal((workflow.match(/EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC:/gu) ?? []).length, 1);
+    assert.match(workflow, /timeout-minutes: 35\n        env:\n          EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC: "1"\n        run: npm run test:database:local/u);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
 
 test("profile response capture reads the same POST body before a deferred click completes", async () => {
   // This verifies orchestration at the Playwright boundary, not a Chromium race.

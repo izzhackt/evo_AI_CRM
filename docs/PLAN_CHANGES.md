@@ -27370,3 +27370,70 @@ malformed/coercible enum rejection, CLI/file redaction and unchanged listener
 cleanup. ESLint/diff passed (CFW `01a0ac1163077ec0b2d4ce7ac5314944`). These are
 diagnostic-boundary checks, not a transport fix or new browser acceptance. No
 Student/browser/full-CI replay, runtime change or deployment was performed.
+
+## 2026-09-17 — One real warmed-server local transport experiment
+
+CI35151520335 on main0f40f7ad retained exact draft POST cancellation:
+RESOURCE_DATA_MISSING / Network.getResponseBody / ERR_ABORTED, requestfailed
+without requestfinished, no committed main-frame navigation and live browser.
+The safe server summary contains only Error; neither the initiator nor a
+product fix is established. Generation has no POST abort signal, native submit
+or automatic download. Next dev can initiate reload before a frame commits.
+
+Root authorizes exactly one existing full `npm run test:database:local` sequence,
+matching the actual workflow command instead of the previously fresh scoped
+server. Temporary passive exact-page navigation-start, lifecycle and bounded
+HMR/category chronology distinguish a dev reload from other cancellation.
+Only fixed names/booleans/timings may leave process memory; no raw frames, URLs,
+request data or credentials. Preserve the original fatal checks and requests;
+no new mocks/provider calls/retries/timeouts/fallbacks, production changes or
+CI dispatch. Keep every pre-existing local stack untouched, verify the owned
+stack cleanup and stop after the single attempt even without reproduction.
+Do not push observers or claim release acceptance from this experiment.
+
+Official observation contracts: [Playwright navigation requests](https://playwright.dev/docs/api/class-request#request-is-navigation-request)
+and [WebSocket frame events](https://playwright.dev/docs/api/class-websocket#web-socket-event-frame-received).
+
+Outcome: the single full local command passed (CFW
+`01a0ac3316457670940167375628d29e`, milestones
+`01a0ac33529e7d1092f71f95c8d978bd`). Safe evidence is in
+`output/student-profile-fields/0f40f7ad5933ab32390da56b2a4d0600c59ac318/foundation-12181-88989/`.
+Draft POST start1893ms→headers2079ms→finished2080ms and final
+9972ms→10144ms→10145ms; no cancellation or navigation/reload start during either.
+Real Auth/Word/ZIP/fresh-login history passed, browser errors0, warnings2,
+overlay absent, ZIP12004bytes. The generic server Error summary also appears in
+this GREEN run, so it is not evidence of the CI cause. The bounded256-event ring
+retained both POST intervals; earlier events may have rolled off.
+Owned evo-local-429939ed8902e770 containers/network/volumes/tempdir/Next lock are
+absent; all66 pre-existing running IDs were preserved (CFW
+`01a0ac33eb2777a0b640185f0d4a9105`). Temporary observers were removed completely;
+the two runtime files again matched0f40. No further local run was performed.
+
+## 2026-09-17 — One observed Linux CI after the full local control passed
+
+Root now authorizes a separate narrow diagnostics PR from0f40: reapply the
+reviewed actual passive observer behind an explicit switch, project fixed
+lifecycle/HMR names, phase/timing and session-change boolean, and expose the
+bounded result in CI logs. Do not rely on unuploaded artifacts or store raw
+frames/session IDs/URLs/error text. Keep original requests/assertions/cleanup;
+no product fix, repeat POST, retry, timeout, alternate reader or gate relaxation.
+Use focused parser/privacy validation and the completed actual local run, then
+independent exact-head review. Root owns one instrumented Linux full CI; this
+author must not launch CI, deploy or repeat the full local run. Local GREEN
+narrows the environment difference but does not prove a warmed-server/HMR cause.
+The existing database workflow step opts in with
+`EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC=1`; the helper is default-off elsewhere.
+No workflow command, job, trigger, permission or release gate changes. This
+single scoped workflow environment addition is part of the six-file review.
+Final scope is narrower than the temporary local probe: retain native Playwright
+navigation-request start/commit and HMR events only. Remove the injected
+beforeunload/pagehide listeners and binding, leaving the original no-addInitScript
+guard unchanged. Native events retain the needed start-vs-commit discriminator;
+no second full local run is required for removing those passive listeners.
+
+Final bounded validation: existing parser/privacy harness31/31, scoped ESLint,
+shell syntax and diff checks passed on Node22 (CFW
+`01a0ac3a9ed87432a4901d84412b1d52`). Existing workflow/exact-SHA contract checks2/2
+passed (CFW `01a0ac3927ff7e02b9ad385441fcc37c`). The original no-addInitScript
+assertion is unchanged. These checks validate the diagnostic boundary, not a
+cancellation fix; no second full local run or new CI dispatch was performed.

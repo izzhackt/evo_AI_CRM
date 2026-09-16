@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
+import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
 import { ProfileAdmissionsRoute } from "@/components/v3/profile/ProfileAdmissionsRoute";
 import { AdmissionsSummaryPanel } from "@/components/v3/profile/AdmissionsSummaryPanel";
@@ -237,6 +238,9 @@ export default async function ProfilePart({
             >
               К списку поступления
             </Link>
+            {view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
+              <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
+            </Suspense> : null}
             <Profile
               key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
                 view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}

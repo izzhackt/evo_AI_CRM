@@ -1,7 +1,8 @@
 # Public website edge
 
 Status: implementation candidate; not DNS, TLS or successful inquiry evidence.
-Backend contract: PR795 and `2026-09-16-website-intake.md` after that PR merges.
+Backend contract: merged PR795 and
+[website intake](2026-09-16-website-intake.md).
 
 ## Routing contract
 

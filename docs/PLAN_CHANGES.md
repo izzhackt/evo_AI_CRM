@@ -27106,3 +27106,40 @@ PR795. Add that exact filename to both inventories; retain all canonical
 Supabase, legacy-name and server-only assertions so they also cover the new
 reader. No runtime code, permission, migration or release gate changes.
 Release is disarmed until the corrected final main passes the normal pipeline.
+
+### 2026-09-16 — diagnose the real staff callback URL restoration
+
+Exact-main CI35122270446 on71bca297 failed the existing onboarding proof after
+the real invitation UI. Provider email confirmation was true, but both cached
+and browser-read callback URLs remained unclean. The unchanged isolated
+`--staff-onboarding-only` path passed locally, so a speculative wait is not a fix.
+Use that same real Auth/mail/application/browser path to capture only bounded
+boolean URL transitions; never record callback URLs, tokens, mail or credentials.
+If a primary App Router/action ordering cause is proved, fix only that callback
+boundary and rerun the unchanged clean-URL, password, fresh-login and role checks.
+Do not remove assertions, add retries or weaken Auth/role/release gates. No
+production/provider/DNS changes are part of this diagnostic slice.
+
+The bounded transition replay also passed: both actual local invitations kept a
+clean URL and sent the action on the clean route. This does not establish the
+intermittent hydration trigger. CI nevertheless proves that client-only history
+cleanup does not guarantee the canonical URL after successful authentication.
+A same-route Server Action redirect plus authenticated/invitation key was tried
+and rejected: the real scoped run failed at `PASSWORD_READY`, without an app
+error. Remove that candidate rather than layering another mechanism onto it.
+After the unchanged successful action validates the provider and active actor,
+clear the client token reference and use `window.location.replace('/auth/staff')`
+as the primary success transition. Keep the form unready until that fresh GET
+resolves the verified session; preserve early URL cleanup and all failure paths.
+This is one full-document transition after invitation acceptance, not an Auth
+bypass, retry, timeout or fallback. Remove temporary transition probes; keep the
+existing URL/email/password/fresh-login/role proof unchanged.
+The [Location.replace contract](https://developer.mozilla.org/en-US/docs/Web/API/Location/replace)
+loads the destination resource and replaces the current history entry.
+
+The revised primary transition passed the unchanged real
+`--staff-onboarding-only` run: invitation, clean URL, confirmed email, password
+setup, fresh login, role/member/business-scope proof and both browser checks
+(8.0 seconds). Scoped ESLint and diff checks passed. The intermittent CI trigger
+remains unproven; exact-head review and final-main CI are still required before
+release. No production access or provider configuration changed here.

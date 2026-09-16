@@ -13,8 +13,9 @@ a local organization/docs-only change, not a production release.
 - [x] Link each product to the shared context while retaining self-contained
   runtime assets, tests, migrations and product docs. Move only inventoried
   non-product local materials; no blanket deletion or history rewriting.
-- [ ] Verify real Git paths, worktree identities, dirty-file hashes, links,
-  repository boundaries and unchanged public availability. Review/publish docs.
+- [x] Verify real Git paths, worktree identities, dirty-file hashes, links and
+  repository boundaries; independently review and publish the scoped docs.
+  CRM publication is completed by merging this docs-only PR805; no deploy follows.
 
 Saved Codex tasks may still reference old checkout paths. Temporary directory
 symlinks are permitted solely to preserve those active paths until the user
@@ -31,14 +32,22 @@ logobook PDFs were copied to the shared brand index with verified provenance;
 the product fixture remains. Shared metadata repository `izzhackt/EVO` is private;
 existing CRM repository is public, website private, visibility unchanged.
 
-CRM context links and removal of the two retired corporate registry Markdown
-files are prepared in this isolated current-main branch; originals remain in
-ignored shared storage and Git history is unchanged. Fourteen added link targets
-and five retained product-asset hashes passed local checks. Website counterpart
-links passed its60-relative-link check in draft PR9. Independent final review
-and publication remain pending. No fresh normal-TLS CRM success is inferred from
-the local relocation: the Mac connection currently sees a Fortinet issuer;
-the accepted production release receipt below remains historical evidence.
+Shared context [PR1](https://github.com/izzhackt/EVO/pull/1) and website context
+[PR9](https://github.com/izzhackt/evoadmissions-website/pull/9) are merged; both
+local checkouts are clean on main. CRM context links and removal of the two
+retired corporate registry Markdown files are published through
+[PR805](https://github.com/izzhackt/evo_AI_CRM/pull/805); originals remain in
+ignored shared storage and Git history is unchanged. Fourteen added link targets,
+five retained product-asset hashes and the website's60-relative-link check passed.
+Independent exact-head review and the protected short checks passed before merge.
+The original dirty CRM checkout remains on its user's branch, not forcibly synced.
+
+Post-move availability is recorded separately: website HTTPS200 from Mac, CRM
+health200 with verified TLS from the VPS over both public and loopback/SNI paths.
+The Mac connection to CRM currently sees a substituted Fortinet issuer and rejects
+the chain; this is not a successful Mac-access check or evidence of a server TLS
+failure. No trust bypass or network change was made. The accepted production
+release receipt below remains historical evidence, not a new release for this move.
 
 ## Active website checkpoint — released, apex/www live (2026-09-17)
 

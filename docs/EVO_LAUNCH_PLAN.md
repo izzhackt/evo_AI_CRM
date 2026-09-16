@@ -1,6 +1,48 @@
 # EVO Launch Plan
 
-## Active website release blocker — exact Linux lifecycle observation (2026-09-17)
+## Active website checkpoint — released, apex/www live (2026-09-17)
+
+PR803 merged as `5736405b025c29caaf6767da0cef4df1ce6fb3a1` after independent
+exact-head review and short CI. [Full CI35155801219](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35155801219)
+passed on that exact main, including real isolated Student profile Word, ZIP and
+fresh-login/history verification. Draft POST start4284ms→headers4735ms→finished4737ms
+and final27236ms→27740ms→27741ms; neither failed. `ABORTED`/`ECONNRESET` server
+categories also appeared in this GREEN run, so those categories alone do not
+identify the earlier cancellation cause. That cause remains unknown; no
+transport fix or relaxed gate is claimed.
+
+[Automatic managed release35156824957](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35156824957)
+passed. Independent readback verified accepted release
+`v3-r35156824957-a1-5736405b`, its receipt/browser hashes and exact image. The app
+is healthy, restarts0, pending release absent and release arm read back `false`.
+Private intake app/edge key, organization and eligible-owner checks passed
+without exposing their values; migration170 was already applied.
+
+Only apex/www A records changed to `72.62.119.112` (TTL300). Around 22:30 UTC,
+both public HTTPS addresses returned200 with valid TLS and the deployed website
+`d2ab537` HTML hash. All five prior edge routes remained healthy. Chrome opened
+the new apex site and its Apply Now control reached the visible form; no form
+submission was made. The shared edge retained its container identity and
+restarts0; initial graceful apply at22:23:54 and one same-config forced graceful
+reload at22:29:41.949 completed www certificate issuance after DNS propagation.
+No proxy recreation, config change on that second reload or secret deletion.
+
+Public negative checks passed: intake GET405, empty POST with website Origin
+400/invalid_request before the database RPC, other website API paths404, direct
+public CRM receiver404. These prove routing/fail-closed behavior, not a delivered
+lead. Remaining acceptance: one owner-authorized real inquiry, staff visibility
+and idempotent retry; Gmail delivery also remains unverified. See the exact
+[receipt and remaining boundaries](PLAN_CHANGES.md#2026-09-17--exact-linux-ci-and-managed-release-passed-public-apexwww-live).
+
+Latest owner approval ("отменяем web-x окей делай") authorizes cancelling only
+the Web-X **hosting Start** service after a healthy website cutover. Cancellation
+has not been performed or confirmed. No cancellation button is available; the
+provider requires a support request from `evoadmissions@gmail.com`, whose mailbox
+access remains pending. Do not cancel domain registration or mail, or permanently
+delete hosting files. The earlier one-time-payment fact does not revoke this
+new, explicit cancellation authorization.
+
+### Historical controlled Linux lifecycle observation
 
 PR802 merged as `0f40f7ad`; CI35151520335 failed the original draft POST with
 `RESOURCE_DATA_MISSING`, `Network.getResponseBody`, `ERR_ABORTED`,
@@ -83,13 +125,14 @@ existing CI log printer. No additional product change or runtime retry was made.
   operations. No provider/deployment action or fabricated customer acceptance
   belongs to this diagnostic slice.
 
-## Website public edge — implementation merged, acceptance pending (2026-09-16)
+## Website public edge — public HTTPS accepted, real inquiry pending (2026-09-17)
 
 Owner approved the public website and real website-to-Platform inquiry path.
 Marketing runtime remains separate at `/opt/evo-website`. PR796 merged the
 apex/www routes into the existing shared Caddy source, preserving all five live
-routes including OlympiadAI. Website `d2ab537` is already deployed; this is not
-yet acceptance of public DNS, edge routing or a delivered inquiry.
+routes including OlympiadAI. Website `d2ab537` is deployed and apex/www public
+DNS, TLS, matching HTML and edge routing are verified. A delivered inquiry is
+still unverified.
 
 - [x] Implement `evoadmissions.com` / `www.evoadmissions.com` → `evo-website-web:8080`.
 - Only exact `POST /api/website-leads` reaches the existing private CRM app,
@@ -103,24 +146,26 @@ yet acceptance of public DNS, edge routing or a delivered inquiry.
 - [x] Independently review the exact edge commit and validate with real pinned
   Caddy. Matching private app/edge configuration and the eligible existing Admin
   are provisioned; migration170 is already applied, ledger001–170 verified.
-- [ ] Accept a final Platform main through the full CI and managed release.
-  PR798–801 are merged; latest CI35149706220 on `be79b290` failed the draft POST
-  transport. Continue only the bounded diagnostic slice above; local passes do
-  not replace final CI/runtime readback. The release remains disarmed.
-- [ ] Validate/reload the existing edge gracefully, confirm unchanged old routes,
-  then switch apex/www A and verify both public HTTPS addresses and site assets.
-  Root owns these operations; committed config is not a reload receipt.
+- [x] Pass full CI for final Platform main `5736405b`; CI35155801219 passed after
+  PR803. Previous cancellation remains unexplained; no gate was weakened.
+- [x] Accept managed release35156824957; independent exact receipt/image/browser
+  readback passed, app healthy/restarts0, pending absent and release arm false.
+- [x] Validate/reload the existing edge gracefully and change only apex/www A.
+  Both public addresses passed HTTPS/TLS/exact HTML; all five old routes passed.
+  Shared edge identity and restarts0 were preserved.
 - [ ] Receive one owner-authorized real inquiry, confirm its fields and staff
   visibility, and verify an idempotent retry. No fabricated customer acceptance.
 
-The owner clarified that Web-X was paid once with no recurring charges. This
-cutover only disconnects the old site from apex/www; no hosting cancellation,
-Web-X login or data deletion is needed. Keep domain registration and the chosen
-Gmail forwarding; actual mail delivery remains a separate check. Changes to
+The owner previously clarified that Web-X was paid once with no recurring
+charges; the latest explicit approval additionally requests cancellation of
+only hosting Start after healthy cutover, under the current boundary above.
+Provider cancellation is not yet performed or confirmed. Keep domain registration,
+mail and the chosen Gmail forwarding; do not permanently delete hosting files.
+Actual mail delivery remains a separate check. Changes to
 `crm`, `app` and `inbox` DNS are deferred, not part of this apex/www cutover.
 Do not reset data or expose WAHA. [Edge procedure](design/v3/references/2026-09-16-website-edge.md).
 
-## Website lead intake — implementation merged (2026-09-16)
+## Website lead intake — released, real submission pending (2026-09-17)
 
 The owner selected **EVO Platform**, not direct amoCRM, as the recipient for the
 separate marketing website. The site deployment/DNS work is a separate lane.
@@ -139,11 +184,13 @@ separate marketing website. The site deployment/DNS work is a separate lane.
   contacts. Browser replies do not disclose contact existence/internal IDs.
 - [x] Complete scoped schema/grants and fail-closed HTTP checks plus independent
   code review; merge backend PR795. No customer row was used for those checks.
-- [ ] Finish the managed release and real inquiry acceptance listed above.
+- [x] Release the receiver and public website route; production negative checks
+  passed without creating a customer record.
+- [ ] Complete the real inquiry acceptance listed above.
   Schema/HTTP checks are not a successful submission or staff visibility proof.
 
-Remaining gates are final release, edge/DNS acceptance and the authorized real
-submission. Organization/eligible owner, private key and migration170 are already
+Remaining intake acceptance is the authorized real submission and staff
+visibility/idempotent retry. Organization/eligible owner, private key and migration170 are already
 configured/applied; do not repeat them. Repository implementation is not delivery
 evidence. The owner waived the unrelated chosen-client form-to-ZIP acceptance;
 it is not a gate here.
@@ -151,7 +198,7 @@ it is not a gate here.
 Official implementation basis: [Supabase functions](https://supabase.com/docs/guides/database/functions),
 [backend API keys](https://supabase.com/docs/guides/getting-started/api-keys).
 
-## Current release checkpoint (2026-09-15)
+## Historical release checkpoint (2026-09-15)
 
 **Released and independently verified:** `35868e75d2cd3c041b415c809f222c252a3b86a1`,
 version `r72.1-35868e75`. [Canonical CI34989896327](https://github.com/izzhackt/evo_AI_CRM/actions/runs/34989896327)

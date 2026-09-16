@@ -40,7 +40,13 @@ export function StaffAccountAccess({ initial = INITIAL }: { initial?: StaffAccou
     }
     for (const [key, value] of Object.entries(link.current)) form.set(key, value);
     const result = await acceptStaffAccountAction(previous, form);
-    if (result.ready) link.current = {};
+    if (result.ready) {
+      link.current = {};
+      // Start the password screen from a fresh, server-verified session rather
+      // than the invitation route's in-memory router/action state.
+      window.location.replace("/auth/staff");
+      return previous;
+    }
     return result;
   }, initial);
   return <>

@@ -1,5 +1,54 @@
 # EVO Launch Plan
 
+## EVO workspace consolidation — 2026-09-17
+
+Owner approved a common local `EVO/` parent with independent Platform and
+website Git repositories, shared agent context and brand navigation. This is
+a local organization/docs-only change, not a production release.
+
+- [x] Move the two main checkouts intact; preserve dirty/untracked work and
+  HEAD/index, repair all existing linked worktrees (including nested ones).
+- [x] Add shared README, AGENTS, infrastructure/status map and brand entrypoint;
+  keep secrets/raw/private files out of versioned context.
+- [x] Link each product to the shared context while retaining self-contained
+  runtime assets, tests, migrations and product docs. Move only inventoried
+  non-product local materials; no blanket deletion or history rewriting.
+- [x] Verify real Git paths, worktree identities, dirty-file hashes, links and
+  repository boundaries; independently review and publish the scoped docs.
+  CRM publication is completed by merging this docs-only PR805; no deploy follows.
+
+Saved Codex tasks may still reference old checkout paths. Temporary directory
+symlinks are permitted solely to preserve those active paths until the user
+opens the new directories; they are not duplicate checkouts. VPS paths, DNS,
+deploy workflows, database and external services remain unchanged.
+
+Local receipt 2026-09-16 22:53:50 UTC: two real child directories moved under
+`01_Projects/EVO`; all 102 existing worktrees preserved HEAD/index/status and
+modified/untracked-file hashes. All 100 linked worktree gitdir/backlinks were
+canonicalized and verified independently of the old-path aliases. Eight
+previously missing worktrees were left untouched. Seven inventoried corporate
+files moved to ignored shared storage with unchanged SHA-256. Both distinct
+logobook PDFs were copied to the shared brand index with verified provenance;
+the product fixture remains. Shared metadata repository `izzhackt/EVO` is private;
+existing CRM repository is public, website private, visibility unchanged.
+
+Shared context [PR1](https://github.com/izzhackt/EVO/pull/1) and website context
+[PR9](https://github.com/izzhackt/evoadmissions-website/pull/9) are merged; both
+local checkouts are clean on main. CRM context links and removal of the two
+retired corporate registry Markdown files are published through
+[PR805](https://github.com/izzhackt/evo_AI_CRM/pull/805); originals remain in
+ignored shared storage and Git history is unchanged. Fourteen added link targets,
+five retained product-asset hashes and the website's60-relative-link check passed.
+Independent exact-head review and the protected short checks passed before merge.
+The original dirty CRM checkout remains on its user's branch, not forcibly synced.
+
+Post-move availability is recorded separately: website HTTPS200 from Mac, CRM
+health200 with verified TLS from the VPS over both public and loopback/SNI paths.
+The Mac connection to CRM currently sees a substituted Fortinet issuer and rejects
+the chain; this is not a successful Mac-access check or evidence of a server TLS
+failure. No trust bypass or network change was made. The accepted production
+release receipt below remains historical evidence, not a new release for this move.
+
 ## Active website checkpoint — released, apex/www live (2026-09-17)
 
 PR803 merged as `5736405b025c29caaf6767da0cef4df1ce6fb3a1` after independent

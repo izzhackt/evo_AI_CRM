@@ -27491,3 +27491,43 @@ available; a support request is planned from the registered business email
 `evoadmissions@gmail.com`, with mailbox access still pending. No mandatory sender
 policy was verified. Cancellation is not performed or confirmed.
 Preserve domain registration/mail and do not permanently delete hosting files.
+
+## 2026-09-17 — Shared EVO workspace, independent product repositories
+
+Owner requested `01_Projects/EVO/` containing `evo_AI_CRM/` and
+`evoadmissions-website/`, with common context, infrastructure map and brand
+materials above product code. Preserve each repository/remote and all current
+uncommitted work. Shared context belongs to a separate private metadata
+repository; child checkouts, private documents, raw archives and secrets are
+excluded. This is not a monorepo conversion or production rollout.
+
+The CRM main checkout is an older dirty branch, so do not update it to main or
+overwrite its local edits. Publish product-context changes from an isolated
+current-main branch. Keep self-contained product assets/tests (including the
+logobook used as an upload fixture) in the product. Move only exact inventoried
+non-product files; preserve private originals and do not publish their contents.
+
+Main checkout moves use filesystem rename plus `git worktree repair`, including
+new paths of nested linked worktrees, as described in the
+[official Git documentation](https://git-scm.com/docs/git-worktree#_commands).
+Temporary old-path symlinks preserve active Codex tasks and local references;
+new work uses canonical EVO paths. Do not prune missing worktrees or alter app
+state databases. Validate HEAD/index, dirty-file hashes and every previously
+accessible worktree; verify navigation and Git exclusion boundaries. DNS,
+server directories, running containers, authentication and delivery gates are
+unchanged. No code build/deploy is needed for this docs/local-layout change.
+
+CRM publication candidate: update AGENTS/README/CONTEXT and documentation
+navigation for the public CRM/private shared-metadata boundary; retain all
+product business docs, presentations and standalone runtime/test assets. Replace
+the company index with a product-brand/shared-context entrypoint and remove only
+the two retired corporate registry Markdown files after their archive was
+verified. Fourteen added link targets passed checks, no remaining references to
+the removed registry pages were found, and five required asset hashes match
+the base commit. Fresh GitHub visibility readback confirmed CRM public, shared
+EVO and website private. Changed-range classification is contracts-only, with
+no unknown/code/build/migration paths. The existing short Release contracts
+suite passed on Node22:163 passed/1 skipped, no failures (CFW
+`01a0ac71344d7400a34e14dce5e6ac2c`). No application build, browser/container run,
+provider operation or deployment was performed for this documentation slice.
+Independent exact-head review and publication are still pending at PR creation.

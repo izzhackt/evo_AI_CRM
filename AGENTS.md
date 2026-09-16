@@ -27,6 +27,31 @@
 - Keep WAHA, the lead-agent, and their dashboards/APIs private unless explicit
   authenticated public access is added.
 
+## Shared EVO Workspace And Repository Boundaries
+
+- This CRM GitHub repository is public; the authenticated staff product and its
+  private runtime data are not public. Never copy confidential company material
+  into this repository, issues, PRs or logs.
+- The canonical local parent is
+  `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO`, containing independent
+  `evo_AI_CRM/` and `evoadmissions-website/` checkouts. Their Git histories,
+  dependencies and releases remain separate; this is not a monorepo.
+- [Shared EVO context](https://github.com/izzhackt/EVO) is a separate private
+  metadata repository. When available, read its `AGENTS.md`, `CONTEXT.md` and
+  brand index for cross-product work; follow this repository's launch plan,
+  ADRs and `DESIGN.md` for CRM implementation. Shared-context access is not a
+  prerequisite for a standalone CRM clone, build or test run.
+- Keep runtime/test assets inside CRM, including `public/brand/evo-logo.png`,
+  `assets/`, and `docs/company/brand/evo-admissions-logobook.pdf`. Do not replace
+  them with imports or symlinks into the parent or website checkout. A shared
+  brand reference is not permission to replace versioned product/test bytes.
+- Corporate originals and their local registry belong to ignored `EVO/Компания/`,
+  not this public repository or the shared metadata Git history. Existing
+  knowledge-base and secret-storage boundaries below remain unchanged.
+- Use canonical paths for new work. Temporary old-path directory aliases only
+  preserve existing tasks; do not create a second checkout or prune worktrees
+  as part of navigation cleanup.
+
 ## Current Product Authority
 
 - Current September10 screenshot follow-up is

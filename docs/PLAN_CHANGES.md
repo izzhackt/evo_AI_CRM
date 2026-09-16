@@ -27037,3 +27037,22 @@ recipient/scope approval before one employee onboarding; chosen owner case for
 form/ZIP acceptance; custom-domain DNS separately. Keep Gemini, USTC and extra
 polish deferred. This docs-only checkpoint does not require another app release
 or repetition of the completed full CI/browser suite.
+
+### 2026-09-16 — website inquiries enter canonical EVO Platform
+
+Owner explicitly chose EVO Platform, not direct amoCRM, for marketing-site
+submissions. Add migration170 and one exact edge-mediated public intake route;
+reuse canonical identity/lead helpers without weakening the staff-only manual
+creation RPC. The website remains a separate static deployment and repository.
+The edge overwrites its private key and client-IP headers; only the approved
+HTTPS website origins and bounded JSON payloads are accepted. Server-only
+organization/owner configuration, durable per-IP/org rate limits, exact-request
+receipts and contact serialization enforce a single canonical write. Preserve
+age/city/exact country/consent for authorized lead readers, with no contact
+enumeration in public responses, no invented staff actor and no amoCRM effects.
+Missing configuration fails closed. Independent review, scoped real verification
+and managed release precede claims; real submission acceptance remains a separate
+gate requiring owner-provided real input. No synthetic customer acceptance.
+The later owner waiver removes chosen-client form-to-ZIP acceptance from this
+run's prerequisites; waived is not passed. Current authority is the new website
+intake section at the top of `docs/EVO_LAUNCH_PLAN.md`.

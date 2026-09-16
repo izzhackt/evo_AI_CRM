@@ -174,12 +174,12 @@ export function isDirectPlatformStaffAssistantApi(path: string): boolean {
 }
 
 /**
- * These exact service-to-service routes own their own HMAC or disabled-state
+ * These exact service-to-service routes own their HMAC, trusted-edge key or disabled-state
  * checks. They must bypass the staff-cookie refresh flow while still staying
  * in the connected Platform boundary.
  */
 export function isConnectedPlatformPrivateApi(path: string): boolean {
-  return PLATFORM_PRIVATE_API_ALLOWLIST.has(path);
+  return PLATFORM_PRIVATE_API_ALLOWLIST.has(path) || path === "/api/public/website-leads";
 }
 
 /**

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import PizZip from "pizzip";
-import { captureProfileExportResponse, profileBodyTransportCategory, profileBodyTransportDiagnosticLine, profileBrowserRuntimeDiagnostic, profileBrowserRuntimeDiagnosticLine, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { captureProfileExportResponse, profileBodyTransportCategory, profileBodyProtocolMethod, profileRequestFailureCategory, profileBodyTransportDiagnosticLine, profileBrowserRuntimeDiagnostic, profileBrowserRuntimeDiagnosticLine, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { verifyPersistedPackageZip, verifyPackageStorage } from "../scripts/lib/document-package-browser-proof.mjs";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
@@ -72,7 +72,7 @@ test("profile response capture preserves strict status and envelope checks with 
     const stages = [];
     const page = capturePage({ waitForResponse: async () => ({
       status: () => item.status ?? 200,
-      request: () => ({}),
+      request: () => ({ failure: () => null }),
       body: async () => { reads++; if (item.transport) throw new Error("private-sentinel"); return Buffer.from(item.text); },
     }) });
     await assert.rejects(captureProfileExportResponse(page, { click: async () => {} }, "http://127.0.0.1:43210/export", stage => stages.push(stage)), error => {
@@ -96,6 +96,7 @@ test("body transport classification retains only static categories", () => {
   const cases = [
     ["Protocol error (Network.getResponseBody): No resource with given identifier found", "RESOURCE_MISSING"],
     ["Missing content of resource for given requestId", "RESOURCE_MISSING"],
+    ["Protocol error (Network.getResponseBody): No data found for resource with given identifier", "RESOURCE_DATA_MISSING"],
     ["Request content was evicted from inspector cache", "RESOURCE_EVICTED"],
     ["Target page, context or browser has been closed", "TARGET_OR_SESSION_CLOSED"],
     ["Protocol error: Session closed", "TARGET_OR_SESSION_CLOSED"],
@@ -107,28 +108,46 @@ test("body transport classification retains only static categories", () => {
   for (const [message, category] of cases) assert.equal(profileBodyTransportCategory(new Error(message)), category);
   for (const error of [null, undefined, "private-value", {}, { message: ["net::ERR_ABORTED"] }]) {
     assert.equal(profileBodyTransportCategory(error), "OTHER_BODY_ERROR");
+    assert.equal(profileBodyProtocolMethod(error), "NONE");
+  }
+  for (const method of ["Network.getResponseBody", "Network.loadNetworkResource", "IO.read", "IO.close"]) {
+    assert.equal(profileBodyProtocolMethod(new Error(`Protocol error (${method}): private-value https://example.test/private`)), method);
+  }
+  assert.equal(profileBodyProtocolMethod(new Error("Protocol error (private-value): private-value")), "OTHER");
+  assert.equal(profileRequestFailureCategory(null), "NONE");
+  for (const code of ["ERR_ABORTED", "ERR_CONTENT_LENGTH_MISMATCH", "ERR_INCOMPLETE_CHUNKED_ENCODING", "ERR_CONNECTION_RESET",
+    "ERR_BLOCKED_BY_ORB", "ERR_INSUFFICIENT_RESOURCES", "ERR_FAILED", "ERR_RESPONSE_HEADERS_TRUNCATED"]) {
+    assert.equal(profileRequestFailureCategory({ errorText: `net::${code}` }), code);
+  }
+  for (const failure of [undefined, {}, [], { errorText: ["net::ERR_ABORTED"] }, { errorText: {} },
+    { errorText: "net::ERR_ABORTED private-value" }, { errorText: "private-value https://example.test/private" }]) {
+    assert.equal(profileRequestFailureCategory(failure), "OTHER");
   }
 });
 
 test("body transport evidence tracks the exact response request and removes listeners", async () => {
   for (const primaryEvent of ["requestfinished", "requestfailed"]) {
-    const request = {}, unrelatedRequest = {};
+    let failureReads = 0, unrelatedFailureReads = 0;
+    const request = { failure: () => { failureReads++; return primaryEvent === "requestfailed" ? { errorText: "net::ERR_CONTENT_LENGTH_MISMATCH" } : null; } };
+    const unrelatedRequest = { failure: () => { unrelatedFailureReads++; return { errorText: "net::ERR_ABORTED" }; } };
     const page = capturePage({ waitForResponse: async () => ({ status: () => 200, request: () => request,
       body: async () => {
         page.emit("requestfinished", unrelatedRequest); page.emit("requestfailed", unrelatedRequest);
         page.emit(primaryEvent, request);
         page.emit("framenavigated", {}); page.emit("framenavigated", page.mainFrame());
-        throw new Error("Protocol error: No resource with given identifier found private-value");
+        throw new Error("Protocol error (Network.getResponseBody): No resource with given identifier found private-value");
       } }) });
     await assert.rejects(captureProfileExportResponse(page, { click: async () => {} }, "http://127.0.0.1:43210/export", () => {}), error => {
       assert.equal(error.code, "BODY_TRANSPORT");
       assert.equal(error.message, "BODY_TRANSPORT");
       assert.equal(Object.hasOwn(error, "cause"), false);
-      assert.deepEqual(error.transportDiagnostic, { category: "RESOURCE_MISSING", requestFinished: primaryEvent === "requestfinished",
+      assert.deepEqual(error.transportDiagnostic, { category: "RESOURCE_MISSING", protocolMethod: "Network.getResponseBody",
+        requestFailure: primaryEvent === "requestfailed" ? "ERR_CONTENT_LENGTH_MISMATCH" : "NONE", requestFinished: primaryEvent === "requestfinished",
         requestFailed: primaryEvent === "requestfailed", mainFrameNavigations: 1, pageAlive: true, browserAlive: true });
       assert.doesNotMatch(JSON.stringify(error), /private-value/u);
       return true;
     });
+    assert.equal(failureReads, 1); assert.equal(unrelatedFailureReads, 0);
     assertCaptureListenersRemoved(page);
   }
   const page = capturePage({ waitForResponse: async () => { throw new Error("wait failure"); } });
@@ -137,7 +156,7 @@ test("body transport evidence tracks the exact response request and removes list
 });
 
 test("body transport CI printer strictly projects safe JSON and rejects malformed fields", async () => {
-  const transportDiagnostic = { category: "RESOURCE_MISSING", requestFinished: true, requestFailed: false,
+  const transportDiagnostic = { category: "RESOURCE_MISSING", protocolMethod: "Network.getResponseBody", requestFailure: "NONE", requestFinished: true, requestFailed: false,
     mainFrameNavigations: 0, pageAlive: true, browserAlive: true };
   const snapshot = { schema: "evo-student-profile-browser-failure/v1", stage: "DRAFT_BODY_TRANSPORT",
     exceptionCategory: "PROOF_ASSERTION", transportDiagnostic };
@@ -147,6 +166,8 @@ test("body transport CI printer strictly projects safe JSON and rejects malforme
   for (const invalid of [null, [], {}, { ...snapshot, stage: "private-value" },
     { ...snapshot, schema: "other" }, { ...snapshot, exceptionCategory: "ERROR" },
     ...[{ category: ["RESOURCE_MISSING"] }, { category: "private-value" }, { requestFinished: "true" },
+      ...[undefined, null, [], {}, ["Network.getResponseBody"], "private-value"].map(protocolMethod => ({ protocolMethod })),
+      ...[undefined, null, [], {}, ["ERR_ABORTED"], "private-value"].map(requestFailure => ({ requestFailure })),
       { requestFailed: null }, { pageAlive: {} }, { browserAlive: [] },
       { mainFrameNavigations: -1 }, { mainFrameNavigations: 0.5 }, { mainFrameNavigations: Infinity }]
       .map(patch => ({ ...snapshot, transportDiagnostic: { ...transportDiagnostic, ...patch } }))]) {
@@ -654,7 +675,7 @@ test("failure evidence separates login from profile rendering and never emits ra
   let withoutClassifiers = runner;
   // Only pure fixed-enum classifiers and this exact event-to-classifier handoff
   // may inspect a message. Raw capture remains forbidden in the snapshot writer.
-  for (const classify of [proofExceptionCategory, profileBodyTransportCategory, profileBrowserRuntimeDiagnostic]) {
+  for (const classify of [proofExceptionCategory, profileBodyTransportCategory, profileBodyProtocolMethod, profileBrowserRuntimeDiagnostic]) {
     const classifier = classify.toString();
     assert.equal(runner.split(classifier).length, 2);
     assert.doesNotMatch(classifier, /writeFile|console\.|stdout|stderr|spawn|fetch\(/u);
@@ -710,6 +731,7 @@ test("D2 failure extracts the owned application log before cleanup and keeps raw
   const runner = readFileSync(runnerUrl, "utf8");
   assert.match(runner, /"server-failure\.json"/u);
   assert.match(runner, /APP_LOG_NOT_OWNED/u);
+  assert.match(runner, /process\.stdout\.write\(`\$\{scope\.marker\}_SERVER_DETAIL:\$\{JSON\.stringify\(summary\)\}\\n`\)/u);
   assert.doesNotMatch(block, /(?:cat|tail|sed).*\$app_log/u);
 });
 

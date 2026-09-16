@@ -100,12 +100,32 @@ export function profileBrowserRuntimeDiagnostic({ kind, text, location, stage, p
     frames: RUNTIME_FRAMES.filter(frame => message.includes(frame)), attributes,
     httpStatus: status ? Number(status) : null };
 }
-const BODY_TRANSPORT_CATEGORIES = new Set(["RESOURCE_MISSING", "RESOURCE_EVICTED", "TARGET_OR_SESSION_CLOSED",
+const BODY_TRANSPORT_CATEGORIES = new Set(["RESOURCE_MISSING", "RESOURCE_DATA_MISSING", "RESOURCE_EVICTED", "TARGET_OR_SESSION_CLOSED",
   "REQUEST_ABORTED", "REDIRECT_BODY_UNAVAILABLE", "OTHER_PROTOCOL_ERROR", "OTHER_BODY_ERROR"]);
+const BODY_PROTOCOL_METHODS = ["Network.getResponseBody", "Network.loadNetworkResource", "IO.read", "IO.close", "NONE", "OTHER"];
+const REQUEST_FAILURE_CODES = ["ERR_ABORTED", "ERR_FAILED", "ERR_TIMED_OUT", "ERR_EMPTY_RESPONSE",
+  "ERR_CONNECTION_RESET", "ERR_CONNECTION_CLOSED", "ERR_CONNECTION_ABORTED", "ERR_CONNECTION_REFUSED", "ERR_CONNECTION_FAILED",
+  "ERR_CONTENT_LENGTH_MISMATCH", "ERR_INCOMPLETE_CHUNKED_ENCODING", "ERR_CONTENT_DECODING_FAILED", "ERR_INVALID_RESPONSE",
+  "ERR_HTTP2_PROTOCOL_ERROR", "ERR_HTTP2_SERVER_REFUSED_STREAM", "ERR_QUIC_PROTOCOL_ERROR", "ERR_HTTP_RESPONSE_CODE_FAILURE",
+  "ERR_BLOCKED_BY_CLIENT", "ERR_BLOCKED_BY_RESPONSE", "ERR_BLOCKED_BY_ORB", "ERR_ACCESS_DENIED", "ERR_NETWORK_CHANGED",
+  "ERR_INTERNET_DISCONNECTED", "ERR_NAME_NOT_RESOLVED", "ERR_ADDRESS_UNREACHABLE", "ERR_INSUFFICIENT_RESOURCES",
+  "ERR_NETWORK_IO_SUSPENDED", "ERR_CACHE_MISS", "ERR_CACHE_READ_FAILURE", "ERR_RESPONSE_HEADERS_TRUNCATED"];
+const REQUEST_FAILURE_CATEGORIES = new Set([...REQUEST_FAILURE_CODES, "NONE", "OTHER"]);
+export function profileRequestFailureCategory(failure) {
+  if (failure === null) return "NONE";
+  const text = typeof failure?.errorText === "string" ? failure.errorText : "";
+  return REQUEST_FAILURE_CODES.find(code => text === `net::${code}`) ?? "OTHER";
+}
+export function profileBodyProtocolMethod(error) {
+  const message = typeof error?.message === "string" ? error.message : "";
+  return BODY_PROTOCOL_METHODS.slice(0, 4).find(method => message.includes(`Protocol error (${method}):`))
+    ?? (/Protocol error/u.test(message) ? "OTHER" : "NONE");
+}
 export function profileBodyTransportCategory(error) {
   // Never retain the raw protocol message: it may contain URLs or private values.
   const message = typeof error?.message === "string" ? error.message : "";
   if (/No resource with given identifier found|Missing content of resource for given requestId/u.test(message)) return "RESOURCE_MISSING";
+  if (/No data found for resource with given identifier/u.test(message)) return "RESOURCE_DATA_MISSING";
   if (/evicted from inspector cache/iu.test(message)) return "RESOURCE_EVICTED";
   if (/Target.*closed|Session.*closed|has been closed/iu.test(message)) return "TARGET_OR_SESSION_CLOSED";
   if (/net::ERR_ABORTED|request aborted/iu.test(message)) return "REQUEST_ABORTED";
@@ -115,9 +135,11 @@ export function profileBodyTransportCategory(error) {
 function safeBodyTransportDiagnostic(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)
     || !BODY_TRANSPORT_CATEGORIES.has(value.category)
+    || !BODY_PROTOCOL_METHODS.includes(value.protocolMethod) || !REQUEST_FAILURE_CATEGORIES.has(value.requestFailure)
     || !Number.isSafeInteger(value.mainFrameNavigations) || value.mainFrameNavigations < 0
     || ["requestFinished", "requestFailed", "pageAlive", "browserAlive"].some(key => typeof value[key] !== "boolean")) return null;
-  return { category: value.category, requestFinished: value.requestFinished, requestFailed: value.requestFailed,
+  return { category: value.category, protocolMethod: value.protocolMethod, requestFailure: value.requestFailure,
+    requestFinished: value.requestFinished, requestFailed: value.requestFailed,
     mainFrameNavigations: value.mainFrameNavigations, pageAlive: value.pageAlive, browserAlive: value.browserAlive };
 }
 export function profileBodyTransportDiagnosticLine(snapshot) {
@@ -158,6 +180,7 @@ export async function captureProfileExportResponse(page, button, exportUrl, mark
           const request = response.request();
           const transportError = new ProofError("BODY_TRANSPORT");
           transportError.transportDiagnostic = { category: profileBodyTransportCategory(error),
+            protocolMethod: profileBodyProtocolMethod(error), requestFailure: profileRequestFailureCategory(request.failure()),
             requestFinished: finishedRequests.has(request), requestFailed: failedRequests.has(request), mainFrameNavigations,
             pageAlive: !page.isClosed(), browserAlive: page.context().browser()?.isConnected() === true };
           mark("BODY_TRANSPORT"); throw transportError;
@@ -298,6 +321,7 @@ export function writeOwnedAppLogDiagnostic(kind = "student-profile-fields") {
       rawLogRetained: false, ...summary,
     }, null, 2), { mode: 0o600, flag: "wx" });
     process.stdout.write(`${scope.marker}_SERVER_DIAGNOSTIC:SAVED\n`);
+    process.stdout.write(`${scope.marker}_SERVER_DETAIL:${JSON.stringify(summary)}\n`);
   } catch {
     process.stderr.write(`${scope.marker}_SERVER_DIAGNOSTIC:UNAVAILABLE\n`);
     process.exitCode = 1;

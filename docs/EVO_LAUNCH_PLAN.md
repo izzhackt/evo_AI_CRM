@@ -1,6 +1,28 @@
 # EVO Launch Plan
 
-## Active website release blocker — bounded resumption (2026-09-17)
+## Active website release blocker — exact POST transport diagnosis (2026-09-17)
+
+PR801 merged as `be79b290`. Full CI35149706220 passed Node/static and dependency
+audit, then failed `DRAFT_BODY_TRANSPORT`: HTTP200 headers were observed, the
+exact POST emitted requestfailed (not requestfinished), no main-frame navigation
+occurred and page/browser remained alive. The retained subtype was only
+`OTHER_PROTOCOL_ERROR`; zero CI artifacts exist. Release is disarmed; accepted
+production remains `35868e75`, website edge/DNS unchanged.
+
+- Add only fixed-enum `request.failure().errorText` and known body protocol
+  subtypes/method to the existing captured-POST diagnostic. Project them through
+  the existing sanitized CI printer; no raw messages, URLs or private values.
+- Preserve BODY_TRANSPORT failure, original request identity and all gates.
+  No retry, timeout, alternate read, CDP fallback or speculative product fix.
+- Run focused parser/privacy tests and lint, then exact-head independent review.
+  Do not replay local Student/full CI here; root owns one subsequent instrumented
+  exact-main CI and any release/cutover decision.
+
+Source review found no generation-time download/navigation or POST abort signal.
+The browser request's failure code was not recorded, so its precise cause cannot
+be reconstructed. Earlier local GREEN does not establish the CI cause.
+
+### Historical PR801 resumption
 
 Owner approved diagnosing the remaining blocker before cutover. Main `c5e088`
 failed CI35129471538 at `PACKAGE_UI_SAVE_COMPOSITION`; production remains the
@@ -47,9 +69,8 @@ yet acceptance of public DNS, edge routing or a delivered inquiry.
   Caddy. Matching private app/edge configuration and the eligible existing Admin
   are provisioned; migration170 is already applied, ledger001–170 verified.
 - [ ] Accept a final Platform main through the full CI and managed release.
-  Callback fixes PR798/799 and diagnostic-only PR800 are merged. CI35129471538
-  on `c5e088` passed the profile export path, then failed package preparation.
-  Continue only the bounded PR801 investigation above; earlier local passes do
+  PR798–801 are merged; latest CI35149706220 on `be79b290` failed the draft POST
+  transport. Continue only the bounded diagnostic slice above; local passes do
   not replace final CI/runtime readback. The release remains disarmed.
 - [ ] Validate/reload the existing edge gracefully, confirm unchanged old routes,
   then switch apex/www A and verify both public HTTPS addresses and site assets.

@@ -35,26 +35,82 @@ export const SYNTHETIC_EXPECTED_VALUES = Object.freeze({
 });
 export class ProofError extends Error { constructor(code) { super(code); this.code = code; } }
 export function requireProof(condition, code) { if (!condition) throw new ProofError(code); }
+const BODY_TRANSPORT_CATEGORIES = new Set(["RESOURCE_MISSING", "RESOURCE_EVICTED", "TARGET_OR_SESSION_CLOSED",
+  "REQUEST_ABORTED", "REDIRECT_BODY_UNAVAILABLE", "OTHER_PROTOCOL_ERROR", "OTHER_BODY_ERROR"]);
+export function profileBodyTransportCategory(error) {
+  // Never retain the raw protocol message: it may contain URLs or private values.
+  const message = typeof error?.message === "string" ? error.message : "";
+  if (/No resource with given identifier found|Missing content of resource for given requestId/u.test(message)) return "RESOURCE_MISSING";
+  if (/evicted from inspector cache/iu.test(message)) return "RESOURCE_EVICTED";
+  if (/Target.*closed|Session.*closed|has been closed/iu.test(message)) return "TARGET_OR_SESSION_CLOSED";
+  if (/net::ERR_ABORTED|request aborted/iu.test(message)) return "REQUEST_ABORTED";
+  if (/Response body is unavailable for redirect responses/u.test(message)) return "REDIRECT_BODY_UNAVAILABLE";
+  return /Protocol error/u.test(message) ? "OTHER_PROTOCOL_ERROR" : "OTHER_BODY_ERROR";
+}
+function safeBodyTransportDiagnostic(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || !BODY_TRANSPORT_CATEGORIES.has(value.category)
+    || !Number.isSafeInteger(value.mainFrameNavigations) || value.mainFrameNavigations < 0
+    || ["requestFinished", "requestFailed", "pageAlive", "browserAlive"].some(key => typeof value[key] !== "boolean")) return null;
+  return { category: value.category, requestFinished: value.requestFinished, requestFailed: value.requestFailed,
+    mainFrameNavigations: value.mainFrameNavigations, pageAlive: value.pageAlive, browserAlive: value.browserAlive };
+}
+export function profileBodyTransportDiagnosticLine(snapshot) {
+  const prefix = "STUDENT_PROFILE_FIELDS_BODY_TRANSPORT_DIAGNOSTIC:";
+  const diagnostic = safeBodyTransportDiagnostic(snapshot?.transportDiagnostic);
+  if (snapshot?.schema !== "evo-student-profile-browser-failure/v1" || snapshot.exceptionCategory !== "PROOF_ASSERTION"
+    || !["DRAFT_BODY_TRANSPORT", "FINAL_BODY_TRANSPORT"].includes(snapshot.stage) || !diagnostic) return `${prefix}UNAVAILABLE`;
+  return `${prefix}${JSON.stringify({ stage: snapshot.stage, ...diagnostic })}`;
+}
+function printBodyTransportDiagnostic() {
+  let snapshot;
+  try {
+    const file = resolve(env("EVO_D2_EVIDENCE_DIR"), "failure.json");
+    const stat = lstatSync(file);
+    if (stat.isFile() && stat.size <= 64 * 1024) snapshot = JSON.parse(readFileSync(file, "utf8"));
+  } catch { /* Missing/malformed evidence must not reveal paths or replace the original failure. */ }
+  process.stderr.write(`${profileBodyTransportDiagnosticLine(snapshot)}\n`);
+}
 export async function captureProfileExportResponse(page, button, exportUrl, mark) {
-  // Capture from this exact POST as soon as its response arrives, without waiting
-  // for click auto-waiting to finish. No refetch/retry or replacement response.
-  const [captured] = await Promise.all([
-    page.waitForResponse(response => response.url() === exportUrl && response.request().method() === "POST").then(async response => {
-      requireProof(response.status() === 200, "PERSISTENT_EXPORT_NOT_READY");
-      mark("RESPONSE_BODY_READ");
-      let bytes;
-      try { bytes = await response.body(); }
-      catch { mark("BODY_TRANSPORT"); throw new ProofError("BODY_TRANSPORT"); }
-      let body;
-      try { body = JSON.parse(bytes.toString("utf8")); }
-      catch { mark("BODY_INVALID_JSON"); throw new ProofError("BODY_INVALID_JSON"); }
-      requireProof(body !== null && typeof body === "object" && !Array.isArray(body)
-        && Object.keys(body).length === 1 && Object.hasOwn(body, "artifact"), "PERSISTENT_RESPONSE_INVALID");
-      return { response, body };
-    }),
-    button.click(),
-  ]);
-  return captured;
+  const finishedRequests = new Set(), failedRequests = new Set();
+  let mainFrameNavigations = 0;
+  const finished = request => { finishedRequests.add(request); };
+  const failed = request => { failedRequests.add(request); };
+  const navigated = frame => { if (frame === page.mainFrame()) mainFrameNavigations += 1; };
+  page.on("requestfinished", finished);
+  page.on("requestfailed", failed);
+  page.on("framenavigated", navigated);
+  try {
+    // Capture this exact POST immediately. No refetch/retry or replacement response.
+    const [captured] = await Promise.all([
+      page.waitForResponse(response => response.url() === exportUrl && response.request().method() === "POST").then(async response => {
+        requireProof(response.status() === 200, "PERSISTENT_EXPORT_NOT_READY");
+        mark("RESPONSE_BODY_READ");
+        let bytes;
+        try { bytes = await response.body(); }
+        catch (error) {
+          const request = response.request();
+          const transportError = new ProofError("BODY_TRANSPORT");
+          transportError.transportDiagnostic = { category: profileBodyTransportCategory(error),
+            requestFinished: finishedRequests.has(request), requestFailed: failedRequests.has(request), mainFrameNavigations,
+            pageAlive: !page.isClosed(), browserAlive: page.context().browser()?.isConnected() === true };
+          mark("BODY_TRANSPORT"); throw transportError;
+        }
+        let body;
+        try { body = JSON.parse(bytes.toString("utf8")); }
+        catch { mark("BODY_INVALID_JSON"); throw new ProofError("BODY_INVALID_JSON"); }
+        requireProof(body !== null && typeof body === "object" && !Array.isArray(body)
+          && Object.keys(body).length === 1 && Object.hasOwn(body, "artifact"), "PERSISTENT_RESPONSE_INVALID");
+        return { response, body };
+      }),
+      button.click(),
+    ]);
+    return captured;
+  } finally {
+    page.off("requestfinished", finished);
+    page.off("requestfailed", failed);
+    page.off("framenavigated", navigated);
+  }
 }
 export function profileExportDiagnosticStage(phase, step) {
   requireProof(["DRAFT", "FINAL", "COLD_DRAFT", "COLD_FINAL"].includes(phase) && [
@@ -191,6 +247,10 @@ export async function writeFailureEvidence({ config, page, stage, error, http, b
     browserErrorCodes: [...browserErrors].sort(), shellPresent: null, actualAdminShell: null,
     passwordControlPresent: null, loginErrorPresent: null, loginErrorCode: null, loginFormPending: null, profileStartControlPresent: null,
     frameworkOverlayPresent: null, screenshotSaved: false };
+  if (error?.code === "BODY_TRANSPORT") {
+    const diagnostic = safeBodyTransportDiagnostic(error.transportDiagnostic);
+    if (diagnostic) snapshot.transportDiagnostic = diagnostic;
+  }
   if (page && !page.isClosed()) {
     try {
       snapshot.pathClass = proofPathClass(page.url(), config.appOrigin);
@@ -704,5 +764,6 @@ async function main() {
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv[2] === "--summarize-owned-app-log") writeOwnedAppLogDiagnostic();
+  else if (process.argv[2] === "--print-body-transport-diagnostic") printBodyTransportDiagnostic();
   else await main();
 }

@@ -2,17 +2,27 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import PizZip from "pizzip";
-import { captureProfileExportResponse, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { captureProfileExportResponse, profileBodyTransportCategory, profileBodyTransportDiagnosticLine, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { verifyPersistedPackageZip, verifyPackageStorage } from "../scripts/lib/document-package-browser-proof.mjs";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
 
 const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
 const runnerUrl = new URL("../scripts/lib/student-profile-fields-browser-proof.mjs", import.meta.url);
+const captureEvents = ["requestfinished", "requestfailed", "framenavigated"];
+function capturePage(overrides) {
+  const frame = {};
+  return Object.assign(new EventEmitter(), { mainFrame: () => frame, isClosed: () => false,
+    context: () => ({ browser: () => ({ isConnected: () => true }) }), ...overrides });
+}
+function assertCaptureListenersRemoved(page) {
+  for (const event of captureEvents) assert.equal(page.listenerCount(event), 0, event);
+}
 
 test("profile response capture reads the same POST body before a deferred click completes", async () => {
   // This verifies orchestration at the Playwright boundary, not a Chromium race.
@@ -24,13 +34,14 @@ test("profile response capture reads the same POST body before a deferred click 
     body: async () => { bodyReads++; return Buffer.from(JSON.stringify(body)); },
     json: async () => { bodyReads++; return body; } };
   const stages = [];
-  const pending = captureProfileExportResponse({ waitForResponse: async predicate => {
+  const page = capturePage({ waitForResponse: async predicate => {
     waits++;
     assert.equal(predicate({ ...response, url: () => `${exportUrl}/other` }), false);
     assert.equal(predicate({ ...response, request: () => ({ method: () => "GET" }) }), false);
     assert.equal(predicate(response), true);
     return response;
-  } }, { click: () => { clicks++; return clickPending; } }, exportUrl, stage => stages.push(stage));
+  } });
+  const pending = captureProfileExportResponse(page, { click: () => { clicks++; return clickPending; } }, exportUrl, stage => stages.push(stage));
   pending.then(() => { settled = true; }, () => { settled = true; });
   try {
     await new Promise(resolve => setImmediate(resolve));
@@ -40,6 +51,7 @@ test("profile response capture reads the same POST body before a deferred click 
   } finally { finishClick(); }
   assert.deepEqual(await pending, { response, body });
   assert.equal(waits, 1); assert.equal(clicks, 1); assert.equal(bodyReads, 1);
+  assertCaptureListenersRemoved(page);
 });
 
 test("profile response capture preserves strict status and envelope checks with safe body failures", async () => {
@@ -58,21 +70,105 @@ test("profile response capture preserves strict status and envelope checks with 
   for (const item of cases) {
     let reads = 0;
     const stages = [];
-    await assert.rejects(captureProfileExportResponse({ waitForResponse: async () => ({
+    const page = capturePage({ waitForResponse: async () => ({
       status: () => item.status ?? 200,
+      request: () => ({}),
       body: async () => { reads++; if (item.transport) throw new Error("private-sentinel"); return Buffer.from(item.text); },
-    }) }, { click: async () => {} }, "http://127.0.0.1:43210/export", stage => stages.push(stage)), error => {
+    }) });
+    await assert.rejects(captureProfileExportResponse(page, { click: async () => {} }, "http://127.0.0.1:43210/export", stage => stages.push(stage)), error => {
       assert.equal(error.code, item.code); assert.equal(error.message, item.code);
       assert.equal(Object.hasOwn(error, "cause"), false);
       return true;
     });
     assert.equal(reads, item.reads ?? 1);
     if (item.code.startsWith("BODY_")) assert.deepEqual(stages, ["RESPONSE_BODY_READ", item.code]);
+    assertCaptureListenersRemoved(page);
   }
   const clickError = new Error("unit click failure");
-  await assert.rejects(captureProfileExportResponse({ waitForResponse: async () => ({
+  const page = capturePage({ waitForResponse: async () => ({
     status: () => 200, body: async () => Buffer.from('{"artifact":{}}'),
-  }) }, { click: async () => { throw clickError; } }, "http://127.0.0.1:43210/export", () => {}), error => error === clickError);
+  }) });
+  await assert.rejects(captureProfileExportResponse(page, { click: async () => { throw clickError; } }, "http://127.0.0.1:43210/export", () => {}), error => error === clickError);
+  assertCaptureListenersRemoved(page);
+});
+
+test("body transport classification retains only static categories", () => {
+  const cases = [
+    ["Protocol error (Network.getResponseBody): No resource with given identifier found", "RESOURCE_MISSING"],
+    ["Missing content of resource for given requestId", "RESOURCE_MISSING"],
+    ["Request content was evicted from inspector cache", "RESOURCE_EVICTED"],
+    ["Target page, context or browser has been closed", "TARGET_OR_SESSION_CLOSED"],
+    ["Protocol error: Session closed", "TARGET_OR_SESSION_CLOSED"],
+    ["net::ERR_ABORTED", "REQUEST_ABORTED"],
+    ["Response body is unavailable for redirect responses", "REDIRECT_BODY_UNAVAILABLE"],
+    ["Protocol error (Network.getResponseBody): unknown", "OTHER_PROTOCOL_ERROR"],
+    ["private-value https://example.test/secret", "OTHER_BODY_ERROR"],
+  ];
+  for (const [message, category] of cases) assert.equal(profileBodyTransportCategory(new Error(message)), category);
+  for (const error of [null, undefined, "private-value", {}, { message: ["net::ERR_ABORTED"] }]) {
+    assert.equal(profileBodyTransportCategory(error), "OTHER_BODY_ERROR");
+  }
+});
+
+test("body transport evidence tracks the exact response request and removes listeners", async () => {
+  for (const primaryEvent of ["requestfinished", "requestfailed"]) {
+    const request = {}, unrelatedRequest = {};
+    const page = capturePage({ waitForResponse: async () => ({ status: () => 200, request: () => request,
+      body: async () => {
+        page.emit("requestfinished", unrelatedRequest); page.emit("requestfailed", unrelatedRequest);
+        page.emit(primaryEvent, request);
+        page.emit("framenavigated", {}); page.emit("framenavigated", page.mainFrame());
+        throw new Error("Protocol error: No resource with given identifier found private-value");
+      } }) });
+    await assert.rejects(captureProfileExportResponse(page, { click: async () => {} }, "http://127.0.0.1:43210/export", () => {}), error => {
+      assert.equal(error.code, "BODY_TRANSPORT");
+      assert.equal(error.message, "BODY_TRANSPORT");
+      assert.equal(Object.hasOwn(error, "cause"), false);
+      assert.deepEqual(error.transportDiagnostic, { category: "RESOURCE_MISSING", requestFinished: primaryEvent === "requestfinished",
+        requestFailed: primaryEvent === "requestfailed", mainFrameNavigations: 1, pageAlive: true, browserAlive: true });
+      assert.doesNotMatch(JSON.stringify(error), /private-value/u);
+      return true;
+    });
+    assertCaptureListenersRemoved(page);
+  }
+  const page = capturePage({ waitForResponse: async () => { throw new Error("wait failure"); } });
+  await assert.rejects(captureProfileExportResponse(page, { click: async () => {} }, "http://127.0.0.1:43210/export", () => {}), /wait failure/u);
+  assertCaptureListenersRemoved(page);
+});
+
+test("body transport CI printer strictly projects safe JSON and rejects malformed fields", async () => {
+  const transportDiagnostic = { category: "RESOURCE_MISSING", requestFinished: true, requestFailed: false,
+    mainFrameNavigations: 0, pageAlive: true, browserAlive: true };
+  const snapshot = { schema: "evo-student-profile-browser-failure/v1", stage: "DRAFT_BODY_TRANSPORT",
+    exceptionCategory: "PROOF_ASSERTION", transportDiagnostic };
+  const expected = `STUDENT_PROFILE_FIELDS_BODY_TRANSPORT_DIAGNOSTIC:${JSON.stringify({ stage: snapshot.stage, ...transportDiagnostic })}`;
+  assert.equal(profileBodyTransportDiagnosticLine({ ...snapshot, rawBody: "private-value", url: "https://example.test/private",
+    transportDiagnostic: { ...transportDiagnostic, message: "private-value" } }), expected);
+  for (const invalid of [null, [], {}, { ...snapshot, stage: "private-value" },
+    { ...snapshot, schema: "other" }, { ...snapshot, exceptionCategory: "ERROR" },
+    ...[{ category: ["RESOURCE_MISSING"] }, { category: "private-value" }, { requestFinished: "true" },
+      { requestFailed: null }, { pageAlive: {} }, { browserAlive: [] },
+      { mainFrameNavigations: -1 }, { mainFrameNavigations: 0.5 }, { mainFrameNavigations: Infinity }]
+      .map(patch => ({ ...snapshot, transportDiagnostic: { ...transportDiagnostic, ...patch } }))]) {
+    assert.equal(profileBodyTransportDiagnosticLine(invalid), "STUDENT_PROFILE_FIELDS_BODY_TRANSPORT_DIAGNOSTIC:UNAVAILABLE");
+  }
+  const evidenceDir = mkdtempSync(join(tmpdir(), "evo-profile-transport-diagnostic-unit-"));
+  try {
+    const error = Object.assign(new Error("private-value"), { code: "BODY_TRANSPORT",
+      transportDiagnostic: { ...transportDiagnostic, message: "private-value" } });
+    await writeFailureEvidence({ config: { evidenceDir }, page: null, stage: snapshot.stage, error,
+      http: {}, browserErrors: new Set(), browserWarningCount: 0, counts: { page: 0, console: 0 } });
+    const persisted = readFileSync(join(evidenceDir, "failure.json"), "utf8");
+    assert.deepEqual(JSON.parse(persisted).transportDiagnostic, transportDiagnostic);
+    assert.doesNotMatch(persisted, /private-value/u);
+    writeFileSync(join(evidenceDir, "failure.json"), JSON.stringify({ ...snapshot, rawBody: "private-value" }));
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", runnerUrl.pathname, "--print-body-transport-diagnostic"],
+      { encoding: "utf8", env: { ...process.env, EVO_D2_EVIDENCE_DIR: evidenceDir } });
+    assert.equal(result.status, 0); assert.equal(result.stdout, "");
+    assert.match(result.stderr, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+    assert.doesNotMatch(result.stderr, /private-value|example\.test/u);
+    assert.ok(harness.includes("--print-body-transport-diagnostic"));
+  } finally { rmSync(evidenceDir, { recursive: true, force: true }); }
 });
 
 test("template failure evidence retains categories, never credential values or raw errors", async () => {
@@ -519,12 +615,16 @@ test("failure evidence separates login from profile rendering and never emits ra
   assert.match(runner, /await writeFailureEvidence/u);
   assert.match(runner, /mask: \[page\.locator\("input, textarea"\)\]/u);
   assert.match(runner, /!snapshot\.passwordControlPresent/u);
-  const classifier = proofExceptionCategory.toString();
-  assert.equal(runner.split(classifier).length, 2);
-  // Only this pure fixed-enum classifier may inspect a message. Raw diagnostic
+  let withoutClassifiers = runner;
+  // Only these two pure fixed-enum classifiers may inspect a message. Raw
   // capture remains forbidden everywhere else, including the snapshot writer.
-  assert.doesNotMatch(classifier, /writeFile|console\.|stdout|stderr|spawn|fetch\(/u);
-  assert.doesNotMatch(runner.replace(classifier, ""), /(?:error|message)\.(?:stack|message)|page\.content\(|storageState\(/u);
+  for (const classify of [proofExceptionCategory, profileBodyTransportCategory]) {
+    const classifier = classify.toString();
+    assert.equal(runner.split(classifier).length, 2);
+    assert.doesNotMatch(classifier, /writeFile|console\.|stdout|stderr|spawn|fetch\(/u);
+    withoutClassifiers = withoutClassifiers.replace(classifier, "");
+  }
+  assert.doesNotMatch(withoutClassifiers, /(?:error|message)\.(?:stack|message)|page\.content\(|storageState\(/u);
 });
 
 test("safe diagnostic classes discard query strings, credentials, exception text and stack", () => {

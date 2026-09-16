@@ -1660,6 +1660,9 @@ student_profile_fields_browser_assert() {
     local failure=""
     failure="$(grep -m 1 -E '^STUDENT_PROFILE_FIELDS_BROWSER_ERROR:[A-Z0-9_]+$' "$student_profile_fields_log" || true)"
     [[ -z "$failure" ]] || echo "$failure" >&2
+    EVO_D2_EVIDENCE_DIR="$evidence_dir" \
+      "$node_bin" --experimental-strip-types scripts/lib/student-profile-fields-browser-proof.mjs \
+        --print-body-transport-diagnostic || true
     EVO_D2_APP_LOG="$app_log" EVO_D2_RUNTIME_DIR="$tmp_dir" EVO_D2_EVIDENCE_DIR="$evidence_dir" \
       "$node_bin" --experimental-strip-types scripts/lib/student-profile-fields-browser-proof.mjs \
         --summarize-owned-app-log || true

@@ -169,6 +169,9 @@ test("original-only and generated-only preparation render without a profile or a
     assert.ok(!html.includes(words.prerequisites));
     assert.match(html, /<label[^>]*>Заявление<select[^>]*required=""/u);
     assert.match(html, /type="checkbox"/u);
+    assert.match(html, /<form[^>]*aria-busy="true"/u);
+    assert.match(html, /<fieldset disabled=""/u);
+    assert.match(html, /<button[^>]*disabled=""[^>]*>Зафиксировать пакет/u);
     assert.doesNotMatch(html, /profile_not_ready|profile_revision|student_profile_id|Настройка полей|textarea/u);
   }
 });

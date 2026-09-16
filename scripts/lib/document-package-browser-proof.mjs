@@ -90,7 +90,18 @@ export async function provePersistedPackage({ browser, page, client, storage, sq
   const packetUrl = `${config.appOrigin}/v3/profile?case=${caseId}&tab=route`;
   const exportUrl = `${config.appOrigin}/api/v3/student-cases/${caseId}/document-exports`;
   onStage("PACKAGE_UI_PREPARATION");
-  await page.goto(packetUrl, { waitUntil: "domcontentloaded" });
+  const documentResponse = await page.goto(packetUrl, { waitUntil: "domcontentloaded" });
+  onStage("PACKAGE_SSR_PREPARATION_CONTROLS");
+  check(documentResponse?.status() === 200, "PACKAGE_SSR_DOCUMENT_UNAVAILABLE");
+  // Inspect the actual document only in memory; never retain HTML or field values.
+  const documentHtml = await documentResponse.text();
+  const form = documentHtml.match(/<details\b[^>]*\bid="partner-packets"[\s\S]*?<form\b[^>]*>([\s\S]*?)<\/form>/u)?.[1];
+  const fieldset = form?.match(/<fieldset\b([^>]*)>([\s\S]*?)<\/fieldset>/u);
+  const save = form?.match(/<button\b([^>]*)>Зафиксировать пакет<\/button>/u);
+  const disabled = attributes => typeof attributes === "string" && /(?:^|\s)disabled(?:\s|=|$)/u.test(attributes);
+  check(fieldset && /<select\b/u.test(fieldset[2]) && /<input\b[^>]*type="checkbox"/u.test(fieldset[2])
+    && save, "PACKAGE_SSR_PREPARATION_FORM_MISSING");
+  check(disabled(fieldset[1]) && disabled(save[1]), "PACKAGE_SSR_CONTROLS_NOT_DISABLED");
   const panel = page.locator("#partner-packets");
   onStage("PACKAGE_UI_OPEN_PANEL");
   await panel.locator(":scope > summary").click();
@@ -101,8 +112,9 @@ export async function provePersistedPackage({ browser, page, client, storage, sq
   onStage("PACKAGE_UI_SELECT_FINAL");
   await panel.getByRole("checkbox", { name: /Анкета студента · Word · Финальный/u }).check();
   await expect(panel.getByRole("checkbox", { name: /Анкета студента · Word · Черновик/u })).toHaveCount(0);
-  onStage("PACKAGE_UI_SAVE_COMPOSITION");
+  onStage("PACKAGE_UI_SAVE_CLICK");
   await panel.getByRole("button", { name: "Зафиксировать пакет", exact: true }).click();
+  onStage("PACKAGE_UI_SAVE_READBACK");
   await expect.poll(async () => (await workspace()).packets.length).toBe(1);
   const packet = (await workspace()).packets[0];
   check(packet.applicationId === applicationId && packet.files.length === 0 && packet.generatedExports.length === 1
@@ -168,8 +180,8 @@ export async function provePersistedPackage({ browser, page, client, storage, sq
   try {
     await freshContext.route("**/*", route => [config.appOrigin, config.apiOrigin].includes(new URL(route.request().url()).origin) ? route.continue() : route.abort());
     const fresh = await freshContext.newPage(); fresh.setDefaultTimeout(30_000); onPage(fresh);
-    fresh.on("pageerror", () => onBrowserError("page"));
-    fresh.on("console", message => { if (message.type() === "error") onBrowserError("console"); if (message.type() === "warning") onBrowserWarning(); });
+    fresh.on("pageerror", error => onBrowserError("page", error.stack ?? error.message));
+    fresh.on("console", message => { if (message.type() === "error") onBrowserError("console", message.text(), message.location()); if (message.type() === "warning") onBrowserWarning(); });
     onStage("PACKAGE_FRESH_LOGIN");
     await fresh.goto(`${config.appOrigin}/login`, { waitUntil: "domcontentloaded" });
     await fresh.locator("#staff-email").fill(config.email);

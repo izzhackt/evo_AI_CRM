@@ -27240,3 +27240,53 @@ Validation: the focused Node22 harness suite passes 28/28, scoped ESLint,
 and cleanup assertions remain; the source-level no-raw-message guard now names
 exactly the two pure static classifiers instead of one. No live failure category
 was observed in the local run, and no new runtime/deployment success is claimed.
+
+### 2026-09-16 — verify package preparation readiness before client interaction
+
+Full CI35129471538 on c5e088 passed the profile draft/final path without the
+transport failure, then failed at PACKAGE_UI_SAVE_COMPOSITION. That stage covered
+both clicking Save and waiting for the saved packet; it does not identify which
+operation failed. The release is disarmed and accepted production unchanged.
+
+The existing PreparePartnerPacketForm renders controlled application/file
+controls enabled in server HTML before handlers are ready, while Save starts
+disabled because selection is empty. This is a concrete readiness risk; lost
+early React state is only a hypothesis for the CI failure. First add a genuine
+document-GET HTML assertion to the existing isolated ZIP scenario, scoped to
+the preparation form: its controls must inherit native fieldset disablement and
+Save must be disabled in SSR. Keep HTML and values in memory only. Run this
+check against unchanged product code before changing readiness behavior.
+
+Only if that actual SSR check fails, reuse the established useSyncExternalStore
+server-false/client-true pattern for this form, covering its fieldset and submit.
+Preserve every permission, selection limit, immutable export, idempotency and
+uncertain-result rule. Split the existing Save-click and saved-packet-readback
+stage names; do not add waits, retries, alternate reads or new ZIP functionality.
+Scope: CaseOperationsForms.tsx, document-package-browser-proof.mjs, the existing
+Admissions UI regression assertions if needed, and this ledger. Use the same
+real isolated profile/ZIP path for RED/GREEN; no full CI or production action by
+this executor. The exact intermittent CI sequence remains unproven unless
+separate evidence establishes it.
+
+Official basis: [Playwright hydration](https://playwright.dev/docs/navigations#hydration)
+and [React server snapshots](https://react.dev/reference/react/useSyncExternalStore#adding-support-for-server-rendering).
+Browser plugin is not available; validation uses the repository's existing real
+Playwright harness, not a substitute provider or mocked acceptance path.
+
+Outcome: unchanged product plus the genuine document assertion failed with
+PACKAGE_SSR_CONTROLS_NOT_DISABLED. After the bounded readiness guard, that SSR
+assertion passed and the existing flow produced both package.zip and
+package-history.zip after a fresh login. However, the final aggregate assertion
+failed BROWSER_RUNTIME_ERRORS at PACKAGE_COLD_HISTORY: consoleErrorCount=1,
+pageErrorCount=0, frameworkOverlayPresent=true. No acceptance receipt was written.
+The raw console category/message was not retained; whether the error is related
+to this patch is unknown. Empty server diagnostic allowlists do not prove the
+absence of errors. Both harness-owned temporary environments were cleaned.
+
+Scoped checks passed 46/46 (18 Admissions UI plus 28 existing profile harness),
+ESLint and diff checks. These checks do not override the final real-run failure.
+This four-file candidate is a draft handoff only: do not merge or deploy it,
+weaken the failure gate, retry the runtime or extend the fix to another module.
+Release remains disarmed, accepted production remains 35868e75, and website
+edge/DNS/inquiry acceptance remains open. Further diagnosis needs new evidence
+and a separately scoped decision; no full acceptance or CI root-cause fix is claimed.

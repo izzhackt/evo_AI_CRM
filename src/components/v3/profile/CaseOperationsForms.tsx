@@ -1,5 +1,5 @@
 "use client";
-import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { answerCaseHelpAction, createCaseHelpAction, preparePartnerPacketAction } from "@/lib/platform-admissions-support-actions";
 import type { CaseHelpRequest, CaseOperationResult, PacketGeneratedExport, PacketWorkspace, PartnerPacket } from "@/lib/platform-admissions-support-contract";
@@ -11,6 +11,9 @@ import { StudentProfileExportList } from "./StudentProfileExportHistory";
 const INPUT = "min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg focus-visible:outline-2 focus-visible:outline-focus-ring";
 const BUTTON = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50";
 const SECONDARY = "inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg";
+const subscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
 
 function useCaseCommand(action: (input: unknown) => Promise<CaseOperationResult>, onSaved?: () => void) {
   const router = useRouter(); const frozen = useRef<unknown>(null);
@@ -98,6 +101,7 @@ export function PreparePartnerPacketForm({ caseId, workspace, applications, acti
   caseId: string; workspace: PacketWorkspace; applications: PacketApplications; active: boolean; disabled: boolean;
   action: (input: unknown) => Promise<CaseOperationResult>;
 }) {
+  const hydrated = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
   const command = useCaseCommand(action);
   const [applicationId, setApplicationId] = useState("");
   const [versionIds, setVersionIds] = useState<string[]>([]);
@@ -105,16 +109,16 @@ export function PreparePartnerPacketForm({ caseId, workspace, applications, acti
   const selection = partnerPacketSelection(workspace, applicationId, versionIds, exportIds);
   const uncertain = Boolean(command.result && !command.result.ok && command.result.code === "unavailable");
   const invalid = !active || !applications.some(app => app.id === applicationId) || Boolean(selection.error);
-  const blocked = disabled || command.pending || (!uncertain && (invalid || command.blocked));
+  const blocked = !hydrated || disabled || command.pending || (!uncertain && (invalid || command.blocked));
   const generated = workspace.generatedExports.filter(file => exportIds.includes(file.id) || !file.applicationId || file.applicationId === applicationId);
-  return <form className="space-y-3" onSubmit={event => {
+  return <form className="space-y-3" aria-busy={!hydrated || command.pending} onSubmit={event => {
     event.preventDefault(); if (blocked) return;
     // useCaseCommand retains the original payload on uncertainty, even after a refresh.
     command.submit({ caseId, applicationId, versionIds, exportIds, expectedRevision: workspace.workspaceRevision, requestId: crypto.randomUUID() });
   }}>
     {!active ? <p className="text-sm text-fg-3">{words.inactive}</p> : null}
     {!applications.length || (!workspace.files.length && !workspace.generatedExports.length) ? <p className="text-sm leading-6 text-fg-2">{words.prerequisites}</p> : null}
-    <fieldset disabled={!active || command.blocked || disabled} className="space-y-3">
+    <fieldset disabled={!hydrated || !active || command.blocked || disabled} className="space-y-3">
       <label className="grid gap-1.5 text-sm text-fg-2">{words.application}<select className={INPUT} required value={applicationId} onChange={event => setApplicationId(event.target.value)}><option value="">{words.chooseApplication}</option>{applications.map(app => <option key={app.id} value={app.id}>{app.name}</option>)}</select></label>
       <p className="text-sm font-medium text-fg" aria-live="polite">{words.selected} {selection.count} {words.of50} · {formatPacketFileSize(selection.bytes)}</p>
       <div><p className="text-sm font-medium text-fg">{words.originals}</p><div className="mt-2 max-h-80 overflow-y-auto rounded-ctl border border-border">{workspace.files.map(file => <label key={file.versionId} className="flex min-h-11 items-center gap-3 border-b border-border px-3 py-2 last:border-0"><input type="checkbox" checked={versionIds.includes(file.versionId)} disabled={selection.count >= 50 && !versionIds.includes(file.versionId)} onChange={event => setVersionIds(previous => event.target.checked ? [...previous, file.versionId] : previous.filter(id => id !== file.versionId))} /><span className="min-w-0 break-words text-sm text-fg">{file.name} <span className="text-fg-3">· {words.version} {file.versionNo} · {formatPacketFileSize(file.sizeBytes)}</span></span></label>)}</div></div>

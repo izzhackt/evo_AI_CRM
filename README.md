@@ -1,10 +1,26 @@
 # EVO Admissions CRM
 
-EVO is one private staff product for Sales, Student 360, Admissions, Finance,
+EVO is one authenticated staff product for Sales, Student 360, Admissions, Finance,
 Tasks, Documents, WhatsApp and human-reviewed AI workflows. The active
 production-successor application lives at the repository root and uses one
 managed Supabase foundation for Postgres, staff Auth, private Storage, RLS and
 the limited Realtime capabilities the product needs.
+
+## Workspace and related repositories
+
+This CRM source repository is **public**; staff accounts, customer data and
+runtime secrets remain private. The [shared EVO workspace](https://github.com/izzhackt/EVO)
+is a separate **private** repository for cross-product context and brand
+navigation; access is limited to authorized collaborators. The independent
+[marketing website](https://github.com/izzhackt/evoadmissions-website) has its own
+source, dependencies and release process.
+
+The canonical local layout is `01_Projects/EVO/evo_AI_CRM/` alongside
+`01_Projects/EVO/evoadmissions-website/`. A standalone CRM clone still builds and
+tests without either sibling repository. Product assets, migrations, tests,
+business docs and demo presentations stay here. Corporate originals and their
+registry moved to ignored shared storage, not Git; see the
+[brand and company boundary](docs/company/README.md).
 
 The production Compose topology is:
 
@@ -34,10 +50,11 @@ reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
 The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
-keeps document work inside Platform. Current production is `r72.1-35868e75`:
-application catalogue selection and contract workspace recovery are released,
+keeps document work inside Platform. The current accepted runtime is recorded
+in the [launch plan](docs/EVO_LAUNCH_PLAN.md). At the earlier `r72.1-35868e75`
+checkpoint, application catalogue selection and contract workspace recovery were released,
 with exact-main CI, accepted server receipt and ordinary Admin tunnel readback
-verified. See the [current receipt](docs/design/v3/references/2026-09-15-docs-managed-release.md#catalogue-and-pilot-production-release)
+verified. See the [historical receipt](docs/design/v3/references/2026-09-15-docs-managed-release.md#catalogue-and-pilot-production-release)
 for access URLs and remaining employee/client follow-ups.
 
 The preceding PDF preview fixes and persistent ZIP

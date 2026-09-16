@@ -1,35 +1,24 @@
-# EVO Company Documents
+# EVO Product Brand And Shared Company Context
 
-This section records verified company and brand context without turning Git
-history into a store for bank details, identity numbers, signatures, or home
-addresses.
+This public CRM repository retains only product-safe context and the brand
+resources needed by its independently runnable product and tests.
 
-| Field | Value |
-| --- | --- |
-| Owner | EVO management |
-| Status | Active source registry |
-| Last verified | 2026-07-12 |
-| Effective date | 2025-09-12 for the supplied legal registration documents |
-| Sources | Supplied brand book, registration certificate, charter, and bank requisites |
+- [Company profile](../business/evo-company-profile.md): reviewed, product-safe
+  facts; use the existing approval rules before making external claims.
+- [CRM logobook](brand/evo-admissions-logobook.pdf): the versioned reference used
+  by design documentation, the specification generator and the real browser
+  upload check. Keep this file in CRM; do not replace it with an external link.
+- [Shared EVO context and brand navigation](https://github.com/izzhackt/EVO): a
+  separate private metadata repository, available to authorized collaborators.
+  It is not required to build or test a standalone CRM clone.
 
-## Contents
+Corporate originals and their local source registry are stored separately in
+ignored `EVO/Компания/`, outside both repositories' versioned files. Do not put
+legal/bank originals, personal details, signatures or credentials in tracked
+Markdown, issues, logs or presentations. The move preserves the originals and
+does not erase past Git history or authorize publication of private material.
 
-- [Company profile](../business/evo-company-profile.md): safe facts that may be
-  used by the product and team.
-- [Source-document registry](source-documents.md): filenames, classification,
-  page counts, and checksums.
-- [EVO Admissions logobook](brand/evo-admissions-logobook.pdf): approved visual
-  reference supplied by the owner.
-- `private-source-documents/`: local restricted originals that are deliberately
-  ignored by Git.
-
-## Handling Rules
-
-- Never paste bank account values, personal identity numbers, private addresses,
-  signatures, access tokens, or QR payloads into tracked Markdown, issues, logs,
-  screenshots, or presentations.
-- Verify a document checksum before relying on a copied file.
-- Share private originals only through an access-controlled company document
-  store. GitHub should contain a link or registry entry, not the private file.
-- Public-facing claims must use the company profile and approved brand material,
-  not ad hoc excerpts from legal documents.
+The runtime logo in `public/brand/`, fonts/template in `assets/`, product business
+docs and demo presentations stay in CRM. A shared brand source change requires
+a deliberate, reviewed product update; it must not silently replace test inputs
+or introduce a sibling-checkout dependency.

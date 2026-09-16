@@ -5,6 +5,22 @@ operator follow-up for EVO Admissions. This glossary pins down the language for
 converging the historical V1 runtime, the proved V2 business engine and the V3
 product surface into one managed-Supabase production successor.
 
+## Workspace context
+
+The local `01_Projects/EVO/` parent organizes two independent repositories:
+this public CRM source and the private `evoadmissions-website` marketing site.
+Shared company/brand navigation lives in the separate private
+[EVO metadata repository](https://github.com/izzhackt/EVO). Its context is useful
+for cross-product work, but it is not another business database, runtime or
+build dependency. This glossary, the launch plan, ADRs and `DESIGN.md` remain
+the product-specific authority. The CRM stays independently cloneable/testable;
+its required logo, fonts, document template and logobook test input stay local.
+Confidential corporate originals and the local source registry are outside
+versioned product context in ignored `EVO/Компания/`. Raw knowledge archives and
+secrets retain their existing separate storage boundaries.
+
+## Product authority
+
 The active contract is [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md)
 together with
 [`ADR 0024`](docs/adr/0024-use-managed-supabase-for-the-evo-production-successor.md),

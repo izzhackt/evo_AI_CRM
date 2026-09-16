@@ -139,6 +139,29 @@ test("the shared EVO edge Caddy source is a known infrastructure path", () => {
   assert.equal(result.unknown, false);
 });
 
+test("only the exact shared edge Compose and non-secret import example are recognized", () => {
+  for (const path of [
+    "agent-lead2-inbox/deploy/docker-compose.edge.yml",
+    "agent-lead2-inbox/deploy/website-intake-header.caddy.example",
+  ]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.code, true, path);
+    assert.equal(result.lint, true, path);
+    assert.equal(result.build, false, path);
+    assert.equal(result.unknown, false, path);
+    assert.deepEqual(result.unknown_paths, [], path);
+  }
+  for (const path of [
+    "agent-lead2-inbox/deploy/docker-compose.other.yml",
+    "agent-lead2-inbox/deploy/website-intake-header.caddy",
+  ]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.unknown, true, path);
+    assert.equal(result.build, true, path);
+    assert.deepEqual(result.unknown_paths, [path]);
+  }
+});
+
 test("runtime schemas and Node-version changes receive the production build gate", () => {
   const result = classifyNameStatus(nul(
     "M",

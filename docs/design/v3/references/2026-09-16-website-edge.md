@@ -121,7 +121,10 @@ header/body contracts without a customer input. No production changes are made.
   warning points at the unchanged space-indented OlympiadAI block; preserving
   those live bytes was intentional, and validation succeeded.
 - Actual Compose config validation passed; its change is comments only.
-  Existing changed-path classifier tests passed15/15; gates were not weakened.
+  The initial classifier tests passed15/15. CI then exposed two unclassified
+  edge inputs; the exact-path regression was first red, then passed16/16 after
+  enumerating only Compose and the non-secret example. Unknown siblings remain
+  rejected; no directory prefix or required gate was weakened.
 
 Candidate Caddyfile SHA256:
 `9a49f6a38a4dabe2896ca6a85bf94f93d30d6c9c9fbda9fe7205bacc836d9e4d`.

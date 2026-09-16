@@ -27087,3 +27087,13 @@ gate requiring owner-provided real input. No synthetic customer acceptance.
 The later owner waiver removes chosen-client form-to-ZIP acceptance from this
 run's prerequisites; waived is not passed. Current authority is the new website
 intake section at the top of `docs/EVO_LAUNCH_PLAN.md`.
+
+### 2026-09-16 — enumerate the two edge infrastructure inputs
+
+Fast PR run35120894304 correctly rejected unclassified paths: the existing
+`agent-lead2-inbox/deploy/docker-compose.edge.yml` and the new non-secret
+`agent-lead2-inbox/deploy/website-intake-header.caddy.example`. Add only these
+exact paths beside the already known Caddyfile infrastructure entry, with a
+regression that unrelated files in the same directory still fail closed.
+Do not allow the frozen companion tree by prefix or skip required checks.
+This does not change the validated edge/runtime source or release boundary.

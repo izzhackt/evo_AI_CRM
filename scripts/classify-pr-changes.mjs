@@ -38,6 +38,8 @@ const KNOWN_CODE_PATHS = new Set([
   ".nvmrc",
   "Dockerfile",
   "agent-lead2-inbox/deploy/Caddyfile.evo-edge",
+  "agent-lead2-inbox/deploy/docker-compose.edge.yml",
+  "agent-lead2-inbox/deploy/website-intake-header.caddy.example",
   "assets/fonts/NotoSans-Regular.ttf",
   "assets/fonts/OFL.txt",
   "assets/fonts/README.md",

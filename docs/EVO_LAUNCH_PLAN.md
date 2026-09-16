@@ -1,5 +1,29 @@
 # EVO Launch Plan
 
+## Website public edge — active bounded slice (2026-09-16)
+
+Owner approved the public website and real website-to-Platform inquiry path.
+Keep the marketing runtime separate at `/opt/evo-website`; add apex/www to the
+existing shared Caddy edge, not another public proxy. Preserve every currently
+loaded route, including the live OlympiadAI block missing from repository main.
+
+- Add `evoadmissions.com` / `www.evoadmissions.com` → `evo-website-web:8080`.
+- Only exact `POST /api/website-leads` reaches the existing private CRM app,
+  rewritten to `/api/public/website-leads`. Bound the body to 8 KB; overwrite
+  the private key and socket client-IP headers; strip Cookie/Authorization.
+  Reject other website API paths/methods; hide the receiver on the CRM public host.
+- Preserve the existing container, bind-mounted Caddyfile path, ports and network.
+  No stop/recreate: import the private key header from an operator-provisioned
+  file in the already persistent `/data` volume, then validate and gracefully
+  reload. Cold restart requires the same file; no secret enters Git or output.
+- Independently review the exact commit and validate with real pinned Caddy.
+  Configuration proof is not successful inquiry delivery. Root owns private
+  file provisioning, managed CRM release/migration170, real owner/input,
+  edge reload, DNS/TLS acceptance and any subsequent Web-X retirement.
+
+Do not retire Web-X, change mail DNS, reset data, or expose WAHA as part of this
+code slice. [Edge procedure](design/v3/references/2026-09-16-website-edge.md).
+
 ## Website lead intake (2026-09-16, implementation active)
 
 The owner selected **EVO Platform**, not direct amoCRM, as the recipient for the

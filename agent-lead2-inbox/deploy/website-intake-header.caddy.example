@@ -1,0 +1,4 @@
+# Syntax example only. NOT_CONFIGURED is deliberately not a credential.
+# Operator provisions the real value at /data/evo-website/intake-header.caddy
+# in the existing private Caddy volume, from EVO_WEBSITE_INTAKE_EDGE_KEY.
+header_up X-EVO-Website-Key "NOT_CONFIGURED"

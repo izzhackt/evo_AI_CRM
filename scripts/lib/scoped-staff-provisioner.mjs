@@ -374,7 +374,25 @@ export async function acceptScopedStaffInvitations({ browser, adminClient, authA
       await page.goto(link, { waitUntil: "domcontentloaded" });
       requireValue(!(await readUser()).email_confirmed_at, "LOCAL_STAFF_GET_CONSUMED_INVITE");
       browserStage = "INVITE_CONTINUE";
+      const passwordDocument = page.waitForResponse((response) => response.request().isNavigationRequest()
+        && response.request().method() === "GET" && response.url() === `${appOrigin}/auth/staff`)
+        .catch(() => null);
       await page.getByRole("button", { name: "Продолжить", exact: true }).click();
+      browserStage = "PASSWORD_SSR_READINESS";
+      const passwordResponse = await passwordDocument;
+      requireValue(passwordResponse?.status() === 200, "LOCAL_STAFF_PASSWORD_DOCUMENT_NOT_RECEIVED");
+      // Inspect only the genuine document response, never a mock or hydrated DOM.
+      // Keep the HTML (which contains private account data) in memory only.
+      const passwordHtml = await passwordResponse.text();
+      const passwordInputs = [...passwordHtml.matchAll(/<input\b[^>]*>/g)]
+        .map(([tag]) => tag).filter((tag) => /\btype="password"/.test(tag)
+          && /\bname="(?:password|confirmation)"/.test(tag));
+      const passwordSubmit = [...passwordHtml.matchAll(/<button\b([^>]*)>([^<]*)<\/button>/g)]
+        .find(([, , label]) => label === "Сохранить пароль и перейти ко входу");
+      requireValue(passwordInputs.length === 2
+        && ["password", "confirmation"].every((name) => passwordInputs.some((tag) => tag.includes(`name="${name}"`)))
+        && passwordInputs.every((tag) => /\bdisabled=""/.test(tag))
+        && passwordSubmit && /\bdisabled=""/.test(passwordSubmit[1]), "LOCAL_STAFF_PASSWORD_SSR_CONTROLS_NOT_DISABLED");
       browserStage = "PASSWORD_READY";
       await page.getByLabel("Новый пароль", { exact: true }).waitFor();
       const callbackUrlClean = page.url() === `${appOrigin}/auth/staff`;

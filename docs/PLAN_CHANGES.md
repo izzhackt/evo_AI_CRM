@@ -27143,3 +27143,43 @@ setup, fresh login, role/member/business-scope proof and both browser checks
 (8.0 seconds). Scoped ESLint and diff checks passed. The intermittent CI trigger
 remains unproven; exact-head review and final-main CI are still required before
 release. No production access or provider configuration changed here.
+
+### 2026-09-16 — keep staff password controls inactive until hydrated
+
+CI35124857812 on cd942ee passed the exact clean callback URL and confirmed email,
+then failed `LOCAL_STAFF_BROWSER_PASSWORD_REDIRECT_FAILED`. Its callback document
+was not complete. That is not proof of a particular lost event or input reset;
+the existing main-request diagnostic only covers `/v3/main`, not password POSTs.
+Source inspection does establish a product gap: both controlled password fields
+and the submit button are enabled in server-rendered HTML before their handlers
+are attached. Reuse the existing StaffRoleControls/TeamChatComposer
+`useSyncExternalStore` server-false/client-true readiness pattern for those three
+controls. Preserve their values, all error states, password rules, provider and
+live-actor checks, the clean-document transition and exact login redirect proof.
+No sleep, retry, timeout increase, bypass, new dependency or abstraction.
+
+Official [Playwright hydration guidance](https://playwright.dev/docs/navigations#hydration)
+describes this interaction gap and recommends disabling controls until hydrated;
+the [React server snapshot contract](https://react.dev/reference/react/useSyncExternalStore#adding-support-for-server-rendering)
+defines matching server/initial-hydration values. Check the actual server-rendered
+controls and repeat the existing real scoped onboarding path. Keep the specific
+intermittent CI event ordering unproven unless bounded evidence establishes it.
+No production or website documentation changes belong to this correction.
+
+The bounded regression uses the existing real onboarding harness: capture only
+the fresh successful canonical document GET after Continue and inspect its HTML
+in memory for both named password inputs and submit being disabled. Never log
+the HTML, account text or values. On unchanged cd942ee product code this failed
+with `LOCAL_STAFF_PASSWORD_SSR_CONTROLS_NOT_DISABLED`; the original callback,
+password, fresh-login and role assertions remain unchanged. This proves the SSR
+readiness gap, not the precise intermittent CI event sequence.
+
+After the guard, the same actual path passed: genuine SSR disabled controls,
+invitation/email/clean URL, password setup, fresh login, role/member/business
+scopes and both browser checks (8.1 seconds). Scoped lint and diff checks passed.
+The existing unit-only failure-stage page stub also gains the response method
+needed to reach its original assertions; those expectations remain unchanged.
+All 41 existing boundary tests pass. That compatibility stub is not provider or
+browser acceptance. Scope is four
+files: component, real harness, existing boundary tests and this ledger. Final
+exact-main CI/review remain release gates; no production changes were made.

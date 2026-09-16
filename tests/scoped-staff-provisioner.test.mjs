@@ -388,6 +388,13 @@ for (const [stage, expectedCode] of [
     let browserRead = false;
     const page = {
       setDefaultTimeout() {},
+      async waitForResponse(matches) {
+        const response = { request: () => ({ isNavigationRequest: () => true, method: () => "GET" }),
+          url: () => `${appOrigin}/auth/staff`, status: () => 200,
+          text: async () => '<input type="password" name="password" disabled=""><input type="password" name="confirmation" disabled=""><button disabled="">Сохранить пароль и перейти ко входу</button>' };
+        assert.equal(matches(response), true);
+        return response;
+      },
       url: () => stage === "callback-email" || (stage === "callback-url-cache-lag" && browserRead)
         ? `${appOrigin}/auth/staff` : link,
       async evaluate(_observe, cleanUrl) {

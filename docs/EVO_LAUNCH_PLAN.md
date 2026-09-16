@@ -1,5 +1,35 @@
 # EVO Launch Plan
 
+## Website lead intake (2026-09-16, implementation active)
+
+The owner selected **EVO Platform**, not direct amoCRM, as the recipient for the
+separate marketing website. The site deployment/DNS work is a separate lane.
+
+- [ ] Add one service-only transactional intake RPC (migration170), reusing the
+  canonical client/lead helpers, persistent request receipts, contact locking,
+  persistent per-IP/organization throttling and the existing scoped owner rules.
+- [ ] Add a bounded `POST /api/public/website-leads` handler. Website Caddy maps
+  same-origin `/api/website-leads` and overwrites the private edge key and real
+  client-IP headers. Exact HTTPS website origins, request schema/size limits and
+  server-side organization/owner configuration fail closed. No staff impersonation,
+  browser service key, direct amoCRM write or second business database.
+- [ ] Preserve name/phone/age/city/exact country and consent with the receipt;
+  show a compact website inquiry detail only to staff who can read its lead.
+  Do not overwrite an existing person's identity or silently merge conflicting
+  contacts. Browser replies do not disclose contact existence/internal IDs.
+- [ ] Verify current code with scoped real checks, obtain independent review,
+  then use the managed release path. Production acceptance separately requires
+  one owner-authorized real submission and visible Platform lead/readback plus
+  an idempotent retry; no fabricated client or synthetic successful receipt.
+
+Runtime blockers are explicit organization/eligible-owner selection, private edge
+key provisioning, edge routing, migration170/release and the real acceptance
+submission. Repository implementation is not delivery evidence. The later owner
+waived the unrelated chosen-client form-to-ZIP acceptance; it is not a gate here.
+
+Official implementation basis: [Supabase functions](https://supabase.com/docs/guides/database/functions),
+[backend API keys](https://supabase.com/docs/guides/getting-started/api-keys).
+
 ## Current release checkpoint (2026-09-15)
 
 **Released and independently verified:** `35868e75d2cd3c041b415c809f222c252a3b86a1`,

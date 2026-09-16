@@ -36,9 +36,11 @@ and idempotent retry; Gmail delivery also remains unverified. See the exact
 
 Latest owner approval ("отменяем web-x окей делай") authorizes cancelling only
 the Web-X **hosting Start** service after a healthy website cutover. Cancellation
-has not been performed or confirmed. No cancellation button is available; the
-provider requires a support request from `evoadmissions@gmail.com`, whose mailbox
-access remains pending. Do not cancel domain registration or mail, or permanently
+has not been performed or confirmed. No cancellation button is available; a
+support request is planned from the registered business email
+`evoadmissions@gmail.com`, whose mailbox access remains pending. This sending
+channel is our plan, not a verified mandatory provider policy. Do not cancel
+domain registration or mail, or permanently
 delete hosting files. The earlier one-time-payment fact does not revoke this
 new, explicit cancellation authorization.
 

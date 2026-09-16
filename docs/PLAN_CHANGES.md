@@ -27487,6 +27487,7 @@ new runtime/provider action or application test/CI run. Web-X was a one-time
 payment, but the latest owner instruction
 ("отменяем web-x окей делай") separately authorizes cancelling the exact hosting
 Start service after a healthy website cutover. No cancellation button is
-available; a provider support request from `evoadmissions@gmail.com` is needed,
-with mailbox access still pending. Cancellation is not performed or confirmed.
+available; a support request is planned from the registered business email
+`evoadmissions@gmail.com`, with mailbox access still pending. No mandatory sender
+policy was verified. Cancellation is not performed or confirmed.
 Preserve domain registration/mail and do not permanently delete hosting files.

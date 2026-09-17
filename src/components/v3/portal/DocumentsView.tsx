@@ -5,9 +5,11 @@ import { PortalEmptyState, PortalSection } from "./PortalPage";
 import { PortalStatus } from "./PortalStatus";
 import {
   documentReviewLabel,
+  documentProgress,
   documentStatus,
   formatPortalTimestamp,
 } from "./presentation";
+import styles from "./DocumentsView.module.css";
 
 export function DocumentsView({
   documents,
@@ -23,11 +25,25 @@ export function DocumentsView({
     );
   }
 
+  const { approved, inReview, corrections, missing } = documentProgress(documents);
+
   return (
     <PortalSection
       title="Чеклист"
       description={`${documents.length} ${documentCountLabel(documents.length)} в вашем деле`}
     >
+      <div className={styles.progress}>
+        <div className={styles.progressHeading}>
+          <p id="document-progress-label">Принято <strong>{approved} из {documents.length}</strong></p>
+          <p>{approved === documents.length ? "Все документы приняты" : "После проверки командой EVO"}</p>
+        </div>
+        <progress className={styles.progressBar} value={approved} max={documents.length} aria-labelledby="document-progress-label" />
+        <ul className={styles.counts} aria-label="Состояние документов">
+          {missing > 0 ? <li>Нужно добавить: <strong>{missing}</strong></li> : null}
+          {corrections > 0 ? <li>Нужны исправления: <strong>{corrections}</strong></li> : null}
+          {inReview > 0 ? <li>Ожидают проверки: <strong>{inReview}</strong></li> : null}
+        </ul>
+      </div>
       <ul className="divide-y divide-border">
         {documents.map((document) => {
           const status = documentStatus(document);

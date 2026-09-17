@@ -41,11 +41,12 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
   const evoStatus = evoAction ? evoActionStatus(evoAction) : null;
 
   return <div className={styles.workspace}>
+    {stage ? <div className={styles.stage}><p>Текущий этап</p><PortalStatus label={stage.label} tone={stage.tone} /></div> : null}
     <div>
       <section className={styles.sheet} aria-labelledby="student-next-step">
         <header className={styles.band}>
           <h2 id="student-next-step">{overview ? "Ваш следующий шаг" : "План поступления"}</h2>
-          {primary ? <span>Что требуется от вас</span> : null}
+          {primary ? <span>Что требуется от вас · {overview?.studentActions.length}</span> : null}
         </header>
         {primary ? <div className={styles.expanded}>
           <div className={styles.actionHeading}><span className={styles.actionIcon} aria-hidden="true">↗</span><h3>{actionTitle(primary)}</h3></div>
@@ -54,8 +55,9 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
           <span className={styles.emptyIcon} aria-hidden="true">{overview ? "✓" : "—"}</span>
           <h3>{overview ? "Сейчас действий от вас не требуется" : "План поступления пока не опубликован"}</h3>
           <p>{overview
-            ? "Сейчас нет документов на исправление или неоплаченных обязательств. Опубликованная работа команды EVO показана рядом."
+            ? "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору."
             : "Здесь появятся текущий этап, следующий шаг и контакт куратора, когда команда EVO закрепит их за вашим делом."}</p>
+          <Link className={styles.exploreLink} href="/portal/universities">Изучить университеты <span aria-hidden="true">→</span></Link>
         </div>}
         {remaining.length ? <div className={styles.queue}>
           <h3 className={styles.queueTitle}>Также требует внимания <span>{remaining.length}</span></h3>
@@ -73,7 +75,6 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
     </div>
 
     <aside className={styles.team} aria-label="Команда EVO и помощь">
-      {stage ? <div className={styles.stage}><p>Текущий этап</p><PortalStatus label={stage.label} tone={stage.tone} /></div> : null}
       <h2>Что делает EVO</h2>
       {evoAction && evoStatus ? <details id={`evo-task-${evoAction.taskId}`} className={styles.teamTask} open>
         <summary><span>{evoAction.title}</span><span className={styles.expandIcon} aria-hidden="true">+</span></summary>

@@ -3,11 +3,11 @@
 }
 
 .shell {
-  --portal-canvas: #f8f6f3;
-  --portal-ink: #272522;
-  --portal-muted: #746b63;
-  --portal-line: #e7e0d8;
-  --portal-accent: #892c3c;
+  --portal-canvas: var(--bg);
+  --portal-ink: var(--text);
+  --portal-muted: var(--text-3);
+  --portal-line: var(--border);
+  --portal-accent: var(--accent-text);
   display: grid;
   grid-template-columns: 208px minmax(0, 1fr);
   min-width: 0;
@@ -25,7 +25,7 @@
   padding: 12px 16px;
   border-radius: 8px;
   background: var(--portal-accent);
-  color: #fff;
+  color: var(--surface);
   font-size: 14px;
   font-weight: 600;
   transform: translateY(calc(-100% - 24px));
@@ -47,7 +47,7 @@
   overscroll-behavior: contain;
   border-right: 1px solid var(--portal-line);
   padding: 26px 16px 20px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .brandRow {
@@ -69,6 +69,8 @@
 .menuButton {
   display: none;
 }
+
+.mobileLocation { display: none; }
 
 .navigationPanel {
   display: flex;
@@ -94,8 +96,8 @@
   min-height: 44px;
   border-radius: 8px;
   padding: 10px 13px;
-  color: #6d645c;
-  font-size: 13px;
+  color: var(--text-2);
+  font-size: 14px;
   font-weight: 500;
   line-height: 20px;
   overflow-wrap: anywhere;
@@ -103,12 +105,12 @@
 }
 
 .navigationLink:hover {
-  background: #f7f4f0;
+  background: var(--bg);
   color: var(--portal-ink);
 }
 
 .navigationLink[aria-current="page"] {
-  background: #f7eeee;
+  background: var(--accent-weak);
   color: var(--portal-accent);
   font-weight: 650;
 }
@@ -126,14 +128,14 @@
 .accountLabel {
   margin: 0 0 5px;
   color: var(--portal-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
 }
 
 .displayName {
   margin: 0;
   color: var(--portal-ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 20px;
   overflow-wrap: anywhere;
@@ -191,8 +193,8 @@
 
 .pageEyebrow {
   margin: 0 0 16px;
-  color: var(--portal-muted, #746b63);
-  font-size: 11px;
+  color: var(--portal-muted);
+  font-size: 12px;
   font-weight: 500;
   line-height: 16px;
   letter-spacing: 0.08em;
@@ -201,7 +203,7 @@
 
 .pageTitle {
   margin: 0;
-  color: var(--portal-ink, #272522);
+  color: var(--portal-ink);
   font-size: clamp(27px, 2.5vw, 34px);
   font-weight: 650;
   line-height: 1.2;
@@ -212,8 +214,8 @@
 .pageDescription {
   max-width: 74ch;
   margin: 9px 0 0;
-  color: var(--portal-muted, #746b63);
-  font-size: 13px;
+  color: var(--portal-muted);
+  font-size: 14px;
   line-height: 22px;
 }
 
@@ -252,12 +254,26 @@
   }
 
   .sidebar {
-    position: static;
+    position: sticky;
+    z-index: 30;
     height: auto;
-    overflow: visible;
+    max-height: 100dvh;
+    overflow-y: auto;
     border-right: 0;
     border-bottom: 1px solid var(--portal-line);
     padding: 12px 20px;
+  }
+
+  .content :is([id], input, button, a, summary) {
+    scroll-margin-top: 128px;
+  }
+
+  .mobileLocation {
+    display: block;
+    margin: 6px 0 0;
+    color: var(--portal-muted);
+    font-size: 12px;
+    line-height: 18px;
   }
 
   .brandRow {
@@ -279,9 +295,9 @@
     border: 1px solid var(--portal-line);
     border-radius: 8px;
     padding: 9px 12px;
-    background: #fff;
+    background: var(--surface);
     color: var(--portal-accent);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 20px;
     cursor: pointer;
@@ -343,4 +359,12 @@
   .navigationLink {
     transition: none;
   }
+}
+
+.navigationHint {
+  flex: none;
+  width: 16px;
+  margin-left: auto;
+  text-align: right;
+  color: var(--portal-accent);
 }

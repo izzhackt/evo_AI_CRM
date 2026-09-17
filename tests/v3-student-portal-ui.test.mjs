@@ -183,7 +183,7 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
   assert.match(
     overview,
-    /Сейчас нет документов на исправление или неоплаченных обязательств/u,
+    /Сейчас нет действий по документам и оплате/u,
   );
   assert.match(overview, /Нет опубликованной задачи команды EVO/u);
   assert.match(overview, /min-h-11/u);
@@ -497,7 +497,7 @@ test("portal includes honest empty, loading and failure states", () => {
   assert.match(components, /PortalEmptyState/u);
   assert.match(loading, /aria-busy="true"/u);
   assert.match(error, /role="alert"/u);
-  assert.match(error, /кабинет не будет подменять недоступные сведения/u);
+  assert.match(error, /Попробуйте ещё раз или откройте другой раздел через меню/u);
 });
 
 // This is deliberately structural. The cumulative E5 integration gate must

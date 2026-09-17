@@ -12,7 +12,7 @@ export default function StudentPortalLoading() {
         <div className="h-48 rounded-card border border-border bg-surface" />
         <div className="h-48 rounded-card border border-border bg-surface" />
       </div>
-      <span className="sr-only">Загрузка…</span>
+      <p role="status" className="mt-5 text-sm text-fg-2">Загружаем данные… Можно перейти в другой раздел.</p>
     </main>
   );
 }

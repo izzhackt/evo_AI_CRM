@@ -22,14 +22,11 @@ const SECTIONS = [
 export function PortalShell({
   children,
   displayName,
-  preview = false,
 }: {
   children: React.ReactNode;
   displayName: string;
-  preview?: boolean;
 }) {
   const pathname = usePathname();
-  const base = preview ? "/preview/student" : "/portal";
   const [expandedForPath, setExpandedForPath] = useState<string | null>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
@@ -75,7 +72,7 @@ export function PortalShell({
       >
         <header className={styles.brandRow}>
           <Link
-            href={base}
+            href="/portal"
             className={styles.brand}
             aria-label="EVO Admissions — кабинет студента"
             onClick={() => setExpandedForPath(null)}
@@ -110,7 +107,7 @@ export function PortalShell({
           <nav aria-label="Разделы кабинета" className={styles.navigation}>
             <ul aria-label="Навигация по разделам кабинета" className={styles.navigationList}>
               {SECTIONS.map((section) => {
-                const href = `${base}${section.href.slice("/portal".length)}`;
+                const href = section.href;
                 const active = pathname === href || (section.href !== "/portal" && pathname.startsWith(`${href}/`));
                 return (
                   <li key={section.href}>
@@ -129,41 +126,18 @@ export function PortalShell({
           </nav>
 
           <div className={styles.account}>
-            <p className={styles.accountLabel}>{preview ? "Предпросмотр" : "Ваш аккаунт"}</p>
+            <p className={styles.accountLabel}>Ваш аккаунт</p>
             <p className={styles.displayName}>{displayName}</p>
-            {preview ? (
-              <Link href="/" className={styles.accountAction}>
-                Вернуться в CRM
-              </Link>
-            ) : (
-              <form action={logoutStudentPortalAction}>
-                <button type="submit" className={styles.accountAction}>
-                  Выйти
-                </button>
-              </form>
-            )}
+            <form action={logoutStudentPortalAction}>
+              <button type="submit" className={styles.accountAction}>
+                Выйти
+              </button>
+            </form>
           </div>
         </div>
       </aside>
 
       <div className={styles.workspace}>
-        {preview ? (
-          <aside
-            aria-label="Режим предпросмотра"
-            className={styles.previewBanner}
-            data-testid="student-portal-preview-banner"
-          >
-            <div className={styles.previewContent}>
-              <p className={styles.previewTitle}>Предпросмотр кабинета студента</p>
-              <p className={styles.previewDescription}>
-                Вы остаётесь в аккаунте Admin. Личные дела и ответы студентов не загружаются.
-                Разделы поступления показаны без данных; каталог университетов — действующий.
-                В тестах можно посмотреть вопросы без сохранения и оценки.
-              </p>
-            </div>
-          </aside>
-        ) : null}
-
         <div id="portal-content" tabIndex={-1} className={styles.content}>
           {children}
         </div>

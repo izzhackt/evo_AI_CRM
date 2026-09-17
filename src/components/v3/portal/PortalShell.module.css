@@ -178,33 +178,6 @@
   outline: none;
 }
 
-.previewBanner {
-  border-bottom: 1px solid #e8d6d9;
-  background: #f5e9eb;
-}
-
-.previewContent {
-  max-width: 1360px;
-  padding: 15px 36px;
-  margin: 0 auto;
-}
-
-.previewTitle {
-  margin: 0;
-  color: #702637;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 20px;
-}
-
-.previewDescription {
-  max-width: 100ch;
-  margin: 4px 0 0;
-  color: #70565b;
-  font-size: 12px;
-  line-height: 19px;
-}
-
 .page {
   width: 100%;
   max-width: 1360px;
@@ -271,9 +244,6 @@
     padding-inline: 24px;
   }
 
-  .previewContent {
-    padding-inline: 24px;
-  }
 }
 
 @media (max-width: 820px) {
@@ -356,15 +326,11 @@
     margin-top: 22px;
   }
 
-  .previewContent {
-    padding: 14px 20px;
-  }
 }
 
 @media (max-width: 360px) {
   .sidebar,
-  .page,
-  .previewContent {
+  .page {
     padding-inline: 16px;
   }
 

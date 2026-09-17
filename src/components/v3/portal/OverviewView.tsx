@@ -32,14 +32,13 @@ function ActionDetails({ action }: { action: StudentPortalAction }) {
   </>;
 }
 
-export function OverviewView({ overview, preview = false }: { overview: StudentPortalOverview | null; preview?: boolean }) {
+export function OverviewView({ overview }: { overview: StudentPortalOverview | null }) {
   const primary = overview?.studentAction ?? null;
   const remaining = overview?.studentActions.slice(1) ?? [];
   const stage = overview ? overviewStage(overview) : null;
   const evoAction = overview?.evoAction ?? null;
   const evoDue = evoAction ? evoActionDueLabel(evoAction) : null;
   const evoStatus = evoAction ? evoActionStatus(evoAction) : null;
-  const base = preview ? "/preview/student" : "/portal";
 
   return <div className={styles.workspace}>
     <div>
@@ -56,9 +55,7 @@ export function OverviewView({ overview, preview = false }: { overview: StudentP
           <h3>{overview ? "Сейчас действий от вас не требуется" : "План поступления пока не опубликован"}</h3>
           <p>{overview
             ? "Сейчас нет документов на исправление или неоплаченных обязательств. Опубликованная работа команды EVO показана рядом."
-            : preview
-              ? "В предпросмотре личное дело не загружается. В кабинете студента здесь появится его ближайшее действие после публикации плана."
-              : "Здесь появятся текущий этап, следующий шаг и контакт куратора, когда команда EVO закрепит их за вашим делом."}</p>
+            : "Здесь появятся текущий этап, следующий шаг и контакт куратора, когда команда EVO закрепит их за вашим делом."}</p>
         </div>}
         {remaining.length ? <div className={styles.queue}>
           <h3 className={styles.queueTitle}>Также требует внимания <span>{remaining.length}</span></h3>
@@ -68,8 +65,8 @@ export function OverviewView({ overview, preview = false }: { overview: StudentP
           </details>)}
         </div> : null}
         <nav className={styles.sheetLinks} aria-label="Документы и обязательства">
-          <Link href={`${base}/documents`}>Все документы <span aria-hidden="true">↗</span></Link>
-          <Link href={`${base}/payments`}>Платёжные обязательства <span aria-hidden="true">↗</span></Link>
+          <Link href="/portal/documents">Все документы <span aria-hidden="true">↗</span></Link>
+          <Link href="/portal/payments">Платёжные обязательства <span aria-hidden="true">↗</span></Link>
         </nav>
       </section>
       {primary ? <p className={styles.queueHint}>Ближайший срок — первым. Подробности остальных действий можно раскрыть в списке.</p> : null}
@@ -85,15 +82,15 @@ export function OverviewView({ overview, preview = false }: { overview: StudentP
           {evoDue ? <p>Срок: {evoDue}</p> : null}
           <p>Исполнитель этой задачи — команда EVO.</p>
         </div>
-      </details> : <p className={styles.teamEmpty}>{preview ? "Задачи команды видны в личном деле студента." : "Нет опубликованной задачи команды EVO."}</p>}
+      </details> : <p className={styles.teamEmpty}>Нет опубликованной задачи команды EVO.</p>}
       <div className={styles.curator}>
         <p>Ваш куратор</p>
-        {overview?.curatorDisplayName ? <strong>{overview.curatorDisplayName}</strong> : <span>{preview ? "Будет показан в личном кабинете студента." : "Куратор пока не назначен. Его имя появится здесь после назначения."}</span>}
+        {overview?.curatorDisplayName ? <strong>{overview.curatorDisplayName}</strong> : <span>Куратор пока не назначен. Его имя появится здесь после назначения.</span>}
       </div>
       <div className={styles.helpCard}>
         <h3>Вопрос куратору</h3>
-        <p>{preview ? "Студент может отправить вопрос команде EVO и прочитать ответ в своём кабинете." : "Отправьте вопрос команде EVO или прочитайте ответ на ваше обращение."}</p>
-        {preview ? <span className={styles.previewLabel}>Обращения доступны в кабинете студента</span> : <Link className="min-h-11" href="#case-help">Открыть обращения <span aria-hidden="true">↗</span></Link>}
+        <p>Отправьте вопрос команде EVO или прочитайте ответ на ваше обращение.</p>
+        <Link className="min-h-11" href="#case-help">Открыть обращения <span aria-hidden="true">↗</span></Link>
       </div>
     </aside>
   </div>;

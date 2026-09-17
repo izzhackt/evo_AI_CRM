@@ -221,16 +221,16 @@ Required non-secret variables:
 - `EVO_RELEASE_ROOT`, `EVO_RELEASE_PROJECT_NAME`,
   `EVO_RELEASE_TRANSFER_ROOT`, `EVO_RELEASE_EVIDENCE_ROOT`;
 - `EVO_RELEASE_EXTERNAL_HEALTH_URL` — exactly
-  `https://crm.evoadmissions.com/api/health` for the domain-cutover candidate;
+  `https://crm.evoadmissions.com/api/health` for the accepted domain contract;
 - `EVO_RELEASE_MIN_FREE_KB` — at least `1048576`;
 - `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest; and
 - `EVO_SUPABASE_PROJECT_REF`.
 
-Apply the new health variable and operator `EVO_CRM_DOMAIN` only after the
-[domain TLS prerequisite](README.md#canonical-domain-cutover) passes. The
-browser smoke derives its exact staff login origin from this health URL;
-Student and old sslip hosts are not release-health alternatives. This contract
-does not itself claim live cutover; use the latest launch-plan receipt.
+The [domain cutover](README.md#canonical-domain-cutover) and these inputs were
+verified with managed release `35167122534` on 2026-09-17. The browser smoke
+derives its exact staff login origin from this health URL; Student and old
+sslip hosts are not release-health alternatives. Every later release still
+requires its own exact-main CI, browser receipt and accepted server readback.
 
 `EVO_RELEASE_ROLLBACK_SEED` is a conditional non-secret variable. Leave it
 empty when the locked inventory proves the first-cutover app is genuinely

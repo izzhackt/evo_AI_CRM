@@ -28,7 +28,7 @@ multi-runtime material is retained under
 
 ## Canonical domain cutover
 
-Approved candidate, not a completed deployment claim: staff use
+Accepted on 2026-09-17: staff use
 `https://crm.evoadmissions.com`; Students use `https://app.evoadmissions.com`.
 Both terminate HTTPS at `evo-edge-caddy` and reach the same `evo-crm-app:3000`
 on `evo_public_web`. Preserve the original public Host and host-only cookies;
@@ -36,26 +36,31 @@ do not share sessions with the marketing site or use wildcard origin rules.
 Exact callbacks are `https://crm.evoadmissions.com/auth/staff` and
 `https://app.evoadmissions.com/auth/callback`.
 
-Preparation checkpoint, 2026-09-17: both authoritative nameservers return
-`72.62.119.112` with TTL 300 for both new names. The proposed final Caddy config
-passes validation with the running binary; it has not been reloaded at this
-checkpoint. DNS/config validation alone is not HTTPS or authenticated proof.
-The latest [launch-plan receipt](../docs/EVO_LAUNCH_PLAN.md) supersedes this
-checkpoint when actual cutover is verified.
+At the preparation checkpoint, both authoritative nameservers returned
+`72.62.119.112` with TTL 300; final Caddy validation had passed without reload.
+That checkpoint is superseded by the [launch-plan receipt](../docs/EVO_LAUNCH_PLAN.md):
+CI `35166365096` and managed release `35167122534` succeeded for
+`62b16ca8a12d8181ffbad03a000ca0695cb59689`. Server readback at 00:43:03 UTC
+confirmed release `v3-r35167122534-a1-62b16ca8`, healthy runtime, zero restarts,
+no pending candidate and a passed authenticated staff browser receipt.
+Final edge reload at 00:43:23 UTC matched the reviewed config without restart;
+all 24 public checks passed at 00:43:27 UTC. Mac Chrome rendered both login
+pages and audience links. This is not proof of real Student login or email
+delivery; custom SMTP remains off and no emails were sent.
 
-Cutover order:
+Completed cutover sequence (retain these boundaries for later releases):
 
-1. Bootstrap trusted HTTPS for both names on the existing app, preserving the
-   old sslip route only for this pending transition and rollback.
-2. Configure exact Supabase callbacks and compatible invite/recovery templates
+1. Bootstrapped trusted HTTPS for both names on the existing app; the old sslip
+   route remained only during the pending transition and rollback window.
+2. Configured exact Supabase callbacks and compatible invite/recovery templates
    per [team activation](../docs/runbooks/team-workspace-activation.md).
-3. After new TLS/health pass, update only mutable operator
+3. After new TLS/health passed, updated only mutable operator
    `EVO_CRM_DOMAIN=crm.evoadmissions.com` and GitHub variable
    `EVO_RELEASE_EXTERNAL_HEALTH_URL=https://crm.evoadmissions.com/api/health`.
-   Run the [exact-SHA managed release](production-release.md); do not edit old
-   accepted snapshots or bypass controller sealing.
-4. After acceptance, retire the old sslip app origin to GET-only navigation
-   redirects. Never redirect auth POSTs or retain an alternate active app.
+   Completed the [exact-SHA managed release](production-release.md); do not edit
+   old accepted snapshots or bypass controller sealing on subsequent releases.
+4. After acceptance, retired the old sslip app origin: GET navigation returns
+   308 and POST returns 405. Never redirect auth POSTs or retain an alternate app.
    Preserve unrelated edge routes, private API guards, DNS/mail and WAHA.
 
 See [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https) and

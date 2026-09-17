@@ -44,19 +44,19 @@ One release candidate contains:
 - one previously approved managed Supabase project whose migration ledger
   matches root `supabase/`.
 
-The approved domain-cutover candidate uses `https://crm.evoadmissions.com`
+The accepted domain contract uses `https://crm.evoadmissions.com`
 for staff and `https://app.evoadmissions.com` for Students, reaching one
 `evo-crm-app:3000` on `evo_public_web`. Preserve public Host and host-only
 cookies. Exact callbacks are `/auth/staff` on the staff origin and
 `/auth/callback` on the Student origin, without wildcard origin/session scope.
-Only after the new edge TLS/health prerequisite passes, set
+Keep the verified production inputs set to
 `EVO_CRM_DOMAIN=crm.evoadmissions.com` and
 `EVO_RELEASE_EXTERNAL_HEALTH_URL=https://crm.evoadmissions.com/api/health`.
-These are candidate instructions, not evidence that cutover has completed:
-follow [the domain sequence](README.md#canonical-domain-cutover) and the latest
-[launch-plan receipt](../docs/EVO_LAUNCH_PLAN.md). Keep old sslip only during
-pending cutover; after acceptance permit GET navigation redirects, not auth
-POST redirects or a second active app origin.
+The 2026-09-17 [domain receipt](README.md#canonical-domain-cutover) and
+[launch plan](../docs/EVO_LAUNCH_PLAN.md) record accepted release
+`v3-r35167122534-a1-62b16ca8`. Each later release still needs its own exact proof.
+Old sslip now permits only GET navigation redirects, not auth POST redirects
+or a second active app origin. This does not prove real Student sign-in.
 
 The candidate must not start, require, inspect, or fall back to a companion
 Inbox, Lead Agent, manual-send worker, SQLite database, Drizzle repository, V1

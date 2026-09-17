@@ -27,6 +27,38 @@
 - Keep WAHA, the lead-agent, and their dashboards/APIs private unless explicit
   authenticated public access is added.
 
+## Fast Execution And Validation — 2026-09-18
+
+The owner approves fast, scope-local execution. This supersedes earlier blanket
+instructions to run a full heavy suite for every change or release candidate.
+
+- Make the smallest requested change and verify the changed function on its
+  real application path. Use the actual authorized Auth, database, Storage or
+  provider path that the change affects; a browser change needs its real UI
+  journey. Production writes and provider actions still need their own authority.
+- Select only checks needed for the changed behavior and its direct risks.
+  Do not automatically run full migration/RLS, Supabase/Chromium, broad security
+  or unrelated regression suites. Expand validation only for a demonstrated
+  dependency/risk or an explicit user request. For prose-only edits, review the
+  diff and run `git diff --check`; do not launch product tests.
+- Reuse existing evidence when the relevant code, inputs and environment remain
+  unchanged. State its exact revision and limits; never relabel old proof as a
+  new run or retry an unchanged failure merely to obtain green status.
+- Do not substitute mocks, fake data, canned responses or fallback success for
+  execution of the real changed path. Explicitly authorized isolated QA remains
+  technical evidence, not real-customer/provider acceptance. Report missing
+  access, failed checks and unverified behavior; never fabricate success.
+- Preserve authentication, authorization/RLS, tenant and Student-private data
+  boundaries, idempotency and secret handling. Validate affected safeguards
+  within the changed scope; speed does not permit weakening them.
+- Record unrelated failures separately without expanding the task to fix or
+  investigate them. Report whether they actually block the requested outcome.
+- Protected PR checks, independent exact-head review and managed release
+  controls remain enforced. If current automation still requires a heavy gate,
+  report that remaining requirement; scoped success does not satisfy it by
+  assertion. Do not disable checks, forge receipts, weaken assertions or bypass
+  release controls. Workflow changes require a separate explicit scope.
+
 ## Shared EVO Workspace And Repository Boundaries
 
 - This CRM GitHub repository is public; the authenticated staff product and its
@@ -189,17 +221,10 @@
   point. Missing access, a failed prerequisite or ambiguous external state
   still fails clearly. Provider enablement, webhook ownership transfer and live
   provider calls remain outside that authorization.
-- The owner's 2026-09-05 CI correction supersedes the earlier automatic
-  full-gate cadence. Routine PRs use scoped real tests, independent exact-head
-  review and the short protected PR workflow only. They must not automatically
-  replay the full PostgreSQL migration/RLS, local Supabase and Chromium suite,
-  and merging to `main` must not start that suite again. Run `EVO platform CI`
-  manually only once on a frozen exact-current-`main` release candidate (and
-  again only after that candidate SHA changes). Production release may consume
-  only that successful manual full-proof run, never the short PR check.
-- Validation must also avoid duplicate work inside a gate. The manual full
-  proof applies migrations once through local Supabase, executes each Node test
-  file once through the canonical CI manifest, installs only Chromium headless
+- Validation must also avoid duplicate work inside a gate. When a full proof
+  is explicitly required, it applies migrations once through local Supabase,
+  executes each Node test file once through the canonical CI manifest,
+  installs only Chromium headless
   shell in the browser job, and does not run standalone typecheck before a
   production Next build. Keep the historical migration-boundary harness as a
   separate path-triggered gate. Required PR contexts must always be emitted;

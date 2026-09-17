@@ -11,6 +11,8 @@ import {
   type TeamChatQuery, type TeamChatSnapshot,
 } from "@/lib/platform-team-chat";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
+import { Icon } from "@/components/icons";
+import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { TeamChatComposer } from "./TeamChatComposer";
 import { TeamChatMessageRow } from "./TeamChatMessageRow";
 import styles from "./team-chat.module.css";
@@ -28,6 +30,8 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const [thread, setThread] = useState<{ root: TeamChatMessage; page: TeamChatPage } | null>(null);
   const [panel, setPanel] = useState<"channels" | "messages" | "thread">(showChannelsInitially ? "channels" : "messages");
   const [query, setQuery] = useState("");
+  const [channelQuery, setChannelQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState<{ term: string; page: TeamChatPage } | null>(null);
   const [error, setError] = useState<TeamChatFailure | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,7 +53,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const forbidden = error === "forbidden";
   const needsHistoryRecovery = !forbidden && (transport === "error" || error !== null);
   const transportLabel = forbidden ? "Доступ к каналу закрыт"
-    : transport === "live" ? error ? "Соединение установлено" : "Сообщения появляются автоматически"
+    : transport === "live" ? error ? "Соединение установлено" : null
     : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
 
   const accept = useCallback((snapshot: TeamChatSnapshot) => {
@@ -213,11 +217,11 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function preference(input: Record<string, unknown>) {
+  async function markRead(messageId: string) {
     setBusy(true);
     try {
       const form = new FormData();
-      form.set("request_id", crypto.randomUUID()); form.set("channel", channel); form.set("input", JSON.stringify(input));
+      form.set("request_id", crypto.randomUUID()); form.set("channel", channel); form.set("input", JSON.stringify({ operation: "read", messageId }));
       const result = await teamChatCommandAction(TEAM_CHAT_INITIAL_ACTION, form);
       if (result.status !== "saved") { if (result.status !== "idle") reportFailure(result.status); return; }
       await refresh();
@@ -231,43 +235,55 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     ownMembershipId={membershipId} canModerate={canModerate} participants={participants}
     storageScope={storageScope} onReply={(row) => startTransition(() => { void openThread(row); })}
     onSaved={afterSave} renderMessageAction={renderMessageAction} highlighted={highlighted === message.id} />;
+  const latestMessage = messages.find((message) => message.id === page.latestMessageId);
+  const visibleChannels = channels.filter((item) => TEAM_CHAT_LABELS[item.key].toLocaleLowerCase("ru-RU").includes(channelQuery.trim().toLocaleLowerCase("ru-RU")));
 
   return (
     <div className={styles.workspace} data-panel={panel} aria-busy={busy}>
       <nav className={styles.channels} aria-label="Каналы команды">
-        <p className={styles.eyebrow}>Каналы</p>
-        {channels.map((item) => <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`}
+        <h1 className={styles.channelTitle}>Командный чат</h1>
+        <div className={styles.channelSearch}>
+          <Icon name="search" size={18} />
+          <label className={styles.srOnly} htmlFor="team-channel-search">Поиск по каналам</label>
+          <input id="team-channel-search" type="search" placeholder="Поиск по каналам" value={channelQuery} onChange={(event) => setChannelQuery(event.target.value)} />
+        </div>
+        {visibleChannels.map((item) => <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`}
           className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
           onClick={() => { if (item.key === channel) setPanel("messages"); }}>
-          <span># {TEAM_CHAT_LABELS[item.key]}{item.muted ? <span className={styles.muted}> · тихо</span> : null}</span>
+          <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true">{TEAM_CHAT_LABELS[item.key][0]}</span>
+          <span className={styles.channelCopy}><span className={styles.channelName}>{TEAM_CHAT_LABELS[item.key]}</span>
+            {item.key === channel && latestMessage ? <span className={styles.channelPreview}>{latestMessage.deletedAt ? "Сообщение удалено" : `${latestMessage.authorMembershipId === membershipId ? "Вы" : latestMessage.authorName}: ${latestMessage.body}`}</span> : null}
+          </span>
           {item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
         </Link>)}
-        <p className={styles.channelHint}>Внутренняя переписка сотрудников EVO</p>
+        {!visibleChannels.length ? <p className={styles.empty}>Канал не найден.</p> : null}
       </nav>
       <section className={styles.conversation} aria-label={`Канал ${TEAM_CHAT_LABELS[channel]}`}>
         <div className={styles.conversationHeader}>
           <button type="button" className={`${styles.secondary} ${styles.mobileBack}`} onClick={() => setPanel("channels")}>← Каналы</button>
-          <h2># {TEAM_CHAT_LABELS[channel]}</h2>
-          {currentChannel ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => {
-            void preference({ operation: "mute", muted: !currentChannel.muted, expectedVersion: currentChannel.preferenceVersion });
-          })}>{currentChannel.muted ? "Включить уведомления" : "Приглушить"}</button> : null}
+          <span className={styles.channelAvatar} data-channel={channel} aria-hidden="true">{TEAM_CHAT_LABELS[channel][0]}</span>
+          <h2>{TEAM_CHAT_LABELS[channel]}</h2>
+          <button type="button" className={styles.iconButton} aria-label={searchOpen ? "Закрыть поиск" : "Поиск в канале"} aria-expanded={searchOpen} aria-controls="team-chat-search-form" onClick={() => {
+            setSearchOpen((open) => !open);
+            if (searchOpen) { setSearch(null); setQuery(""); }
+          }}><Icon name={searchOpen ? "x" : "search"} size={22} /></button>
         </div>
-        <div className={styles.transport} role="status">
+        {transportLabel ? <div className={styles.transport} role="status">
           {transportLabel}
           {needsHistoryRecovery ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { void refresh(); })}>Обновить историю</button> : null}
           {transport === "error" && !forbidden ? <button type="button" className={styles.textButton} onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
-        </div>
+        </div> : null}
         {error ? <div role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[error]}</div> : null}
         {error === "forbidden" ? <a className={styles.secondary} href="/login">Войти снова</a> : <>
-          <form className={styles.search} onSubmit={(event) => {
+          {searchOpen ? <form id="team-chat-search-form" className={styles.search} onSubmit={(event) => {
             event.preventDefault();
             startTransition(() => { void load({ channel, mode: "search", query: query.trim() }, (snapshot) => setSearch({ term: query.trim(), page: snapshot.page })); });
           }}>
             <label className={styles.srOnly} htmlFor="team-chat-search">Поиск в канале</label>
-            <input id="team-chat-search" type="search" placeholder="Поиск в этом канале" minLength={2} maxLength={200} value={query} onChange={(event) => setQuery(event.target.value)} />
+            <input id="team-chat-search" autoFocus type="search" placeholder="Поиск в этом канале" minLength={2} maxLength={200} value={query} onChange={(event) => setQuery(event.target.value)} />
             <button className={styles.secondary} disabled={busy || query.trim().length < 2}>Найти</button>
             {search ? <button type="button" className={styles.textButton} onClick={() => { setSearch(null); setQuery(""); }}>Закрыть поиск</button> : null}
-          </form>
+          </form> : null}
           <div className={styles.history} ref={viewport} tabIndex={0} aria-label={search ? "Результаты поиска" : "История сообщений"}>
             {search ? <p className={styles.muted}>Результаты: «{search.term}». Новые изменения появятся после повторного поиска.</p> : null}
             {(search ? search.page.hasMore : page.hasMore) ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => startTransition(() => {
@@ -279,11 +295,15 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
                 requestAnimationFrame(() => { if (viewport.current) viewport.current.scrollTop = position + viewport.current.scrollHeight - height; });
               });
             })}>Показать более ранние</button> : null}
-            {visibleMessages.length ? visibleMessages.map((message) => renderRow(message)) : <div className={styles.empty}>{search ? "Ничего не найдено в этом канале." : "Пока нет сообщений. Начните обсуждение с коллегами."}</div>}
+            {visibleMessages.length ? visibleMessages.map((message, index) => {
+              const date = new Date(message.createdAt).toLocaleDateString("ru-RU", { dateStyle: "long", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+              const previousDate = index > 0 ? new Date(visibleMessages[index - 1].createdAt).toLocaleDateString("ru-RU", { dateStyle: "long", timeZone: PLATFORM_ORGANIZATION_TIMEZONE }) : null;
+              return <div key={message.id}>{date !== previousDate ? <div className={styles.dateDivider}><span>{date}</span></div> : null}{renderRow(message)}</div>;
+            }) : <div className={styles.empty}>{search ? "Ничего не найдено в этом канале." : "Пока нет сообщений. Начните обсуждение с коллегами."}</div>}
           </div>
           <div className={styles.readActions}>
             {currentChannel?.firstUnreadId ? <button type="button" className={styles.textButton} onClick={() => openMessage(currentChannel.firstUnreadId!)}>К первому непрочитанному · {currentChannel.unreadCount}</button> : null}
-            {page.latestMessageId && currentChannel?.unreadCount ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { void preference({ operation: "read", messageId: page.latestMessageId }); })}>Отметить канал прочитанным</button> : null}
+            {page.latestMessageId && currentChannel?.unreadCount ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { if (page.latestMessageId) void markRead(page.latestMessageId); })}>Отметить канал прочитанным</button> : null}
             {newMessages || initialMessageId ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => startTransition(() => {
               void load({ channel, mode: "latest" }, (snapshot) => {
                 setMessages(snapshot.page.messages); setPage(snapshot.page); setSearch(null); setNewMessages(false);

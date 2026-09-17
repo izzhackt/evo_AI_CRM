@@ -7,6 +7,7 @@ import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, type TeamChatMessage,
 import { TeamChatComposer } from "./TeamChatComposer";
 import styles from "./team-chat.module.css";
 import { plainTextLinks } from "@/lib/plain-text-links";
+import { Icon } from "@/components/icons";
 
 type DeletionAttempt = { message: TeamChatMessage; requestId: string; isOwn: boolean };
 
@@ -22,22 +23,31 @@ export function TeamChatMessageRow({ message, ownMembershipId, canModerate, part
   const editButton = useRef<HTMLButtonElement>(null);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const isOwn = message.authorMembershipId === ownMembershipId;
+  const initials = message.authorName.trim().split(/\s+/u).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("ru-RU");
   const mentionedNames = message.mentionedMembershipIds.map((id) => participants.find((person) => person.membershipId === id)?.displayName ?? "Участник");
   return (
-    <article id={`team-message-${location}-${message.id}`} tabIndex={-1} className={`${styles.message} ${highlighted ? styles.highlighted : ""}`}>
+    <article id={`team-message-${location}-${message.id}`} tabIndex={-1} className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""}`}>
+      {!isOwn ? <span className={styles.authorAvatar} aria-hidden="true">{initials}</span> : null}
+      <div className={styles.messageContent}>
       <div className={styles.messageHeader}>
         <strong>{message.authorName}</strong>
-        <time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}</time>
+        <time dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}>{new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}</time>
         {message.editedAt && !message.deletedAt ? <span className={styles.muted}>изменено</span> : null}
       </div>
-      {message.deletedAt ? <p className={styles.muted}>Сообщение удалено</p> : <p className={styles.body}>{plainTextLinks(message.body).map((part, index) => part.href
+      <div className={styles.bubble}>{message.deletedAt ? <p className={styles.muted}>Сообщение удалено</p> : <p className={styles.body}>{plainTextLinks(message.body).map((part, index) => part.href
         ? <a key={index} href={part.href} target="_blank" rel="noopener noreferrer" className="text-accent-text underline underline-offset-2">{part.text}</a>
         : part.text)}</p>}
       {mentionedNames.length ? <p className={styles.mentionNames}>Упоминания: {mentionedNames.join(", ")}</p> : null}
+      </div>
       <div className={styles.messageActions}>
         <button type="button" className={styles.textButton} onClick={() => onReply(message)}>
+          <Icon name="message-circle" size={16} />
           {message.parentMessageId ? "К обсуждению" : message.replyCount ? `Ответы · ${message.replyCount}` : "Ответить"}
         </button>
+        {message.linkedTaskIds?.map((id) => <a className={styles.textButton} key={id} href={`/v3/tasks?task=${id}`}>Задача создана ↗</a>)}
+        <details className={styles.messageMenu}>
+          <summary aria-label="Действия с сообщением" title="Действия с сообщением"><span aria-hidden="true">···</span></summary>
+          <div className={styles.menuItems}>
         {!message.deletedAt && isOwn ? <button ref={editButton} className={styles.textButton} type="button" onClick={() => setEditing(message)}>Изменить</button> : null}
         {!message.deletedAt && (isOwn || canModerate) ? <button ref={deleteButton} className={styles.textButton} type="button"
           onClick={() => { if (!deleting) setDeleting({ message, requestId: crypto.randomUUID(), isOwn }); setConfirmingDeletion(true); }}>
@@ -45,8 +55,9 @@ export function TeamChatMessageRow({ message, ownMembershipId, canModerate, part
         </button> : null}
         {!message.deletedAt && !editing && !confirmingDeletion ? renderMessageAction ? renderMessageAction(message) : <a className={styles.textButton}
           href={`/v3/tasks?create=staff&message=${message.id}&channel=${message.channelKey}`}>Создать задачу</a> : null}
-        {message.linkedTaskIds?.map((id) => <a className={styles.textButton} key={id} href={`/v3/tasks?task=${id}`}>Задача создана ↗</a>)}
         <a className={styles.textButton} href={`/v3/team-chat?channel=${message.channelKey}&message=${message.id}`}>Ссылка</a>
+          </div>
+        </details>
       </div>
       {editing ? <TeamChatComposer key={`edit:${editing.id}`} channel={message.channelKey} edit={editing}
         participants={participants} storageScope={storageScope}
@@ -60,6 +71,7 @@ export function TeamChatMessageRow({ message, ownMembershipId, canModerate, part
           deleteButton.current?.focus();
         }}
         onSaved={() => { setDeleting(null); setConfirmingDeletion(false); onSaved(); deleteButton.current?.focus(); }} /> : null}
+      </div>
     </article>
   );
 }

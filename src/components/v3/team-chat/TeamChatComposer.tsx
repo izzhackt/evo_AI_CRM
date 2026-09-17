@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState, useSyncExternalStore } from "react";
+import { Icon } from "@/components/icons";
 import { teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, type TeamChatChannelKey, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
 import styles from "./team-chat.module.css";
@@ -79,10 +80,11 @@ function MountedTeamChatComposer({ channel, parentId = null, edit, participants,
       <input type="hidden" name="channel" value={channel} />
       <input type="hidden" name="request_id" value={draft.requestId} />
       <input type="hidden" name="input" value={draft.retryInput ?? JSON.stringify(input)} />
-      <label className={styles.label} htmlFor={`${key}-body`}>{edit ? "Правка сообщения" : parentId ? "Ответ в обсуждении" : "Сообщение в канал"}</label>
-      <textarea id={`${key}-body`} ref={textarea} value={draft.body} rows={3}
+      <label className={styles.srOnly} htmlFor={`${key}-body`}>{edit ? "Правка сообщения" : parentId ? "Ответ в обсуждении" : "Сообщение в канал"}</label>
+      <div className={styles.composerInput}>
+      <textarea id={`${key}-body`} ref={textarea} value={draft.body} rows={1}
         readOnly={pending || uncertain} maxLength={16000}
-        placeholder="Напишите коллегам…" aria-describedby={`${key}-hint`}
+        placeholder="Напишите коллегам…" aria-describedby={draft.body || onCancel ? `${key}-hint` : undefined}
         onChange={(event) => updateDraft({ body: event.target.value })}
         onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
         onKeyDown={(event) => {
@@ -93,7 +95,7 @@ function MountedTeamChatComposer({ channel, parentId = null, edit, participants,
           }
         }} />
       <details className={styles.mentions}>
-        <summary>Упомянуть коллегу{draft.mentions.length ? ` · ${draft.mentions.length}` : ""}</summary>
+        <summary aria-label="Упомянуть коллегу" title="Упомянуть коллегу"><span aria-hidden="true">@{draft.mentions.length ? <small>{draft.mentions.length}</small> : null}</span></summary>
         <div className={styles.mentionOptions}>
           {participants.map((participant) => (
             <label key={participant.membershipId}>
@@ -113,14 +115,17 @@ function MountedTeamChatComposer({ channel, parentId = null, edit, participants,
           {participants.length === 0 ? <p>Нет доступных участников.</p> : null}
         </div>
       </details>
-      <div className={styles.composerFooter}>
+        <button className={styles.sendButton} type="submit" disabled={pending || !draft.body.trim() || Array.from(draft.body).length > 8000}
+          aria-label={pending ? "Отправляется…" : uncertain ? "Повторить тот же запрос" : edit ? "Сохранить" : "Отправить"}
+          title={pending ? "Отправляется…" : uncertain ? "Повторить тот же запрос" : edit ? "Сохранить" : "Отправить"}>
+          <Icon name={pending ? "clock" : edit ? "check" : "send"} size={22} />
+        </button>
+      </div>
+      {draft.body || onCancel ? <div className={styles.composerFooter}>
         <span id={`${key}-hint`} className={styles.muted}>Enter — отправить · Shift+Enter — новая строка</span>
         <span className={styles.muted}>{Array.from(draft.body).length}/8000</span>
         {onCancel ? <button type="button" className={styles.secondary} onClick={onCancel} disabled={pending}>Отмена</button> : null}
-        <button className={styles.primary} type="submit" disabled={pending || !draft.body.trim() || Array.from(draft.body).length > 8000}>
-          {pending ? "Отправляется…" : uncertain ? "Повторить тот же запрос" : edit ? "Сохранить" : "Отправить"}
-        </button>
-      </div>
+      </div> : null}
       <div aria-live="polite" className={styles.muted}>{pending ? "Ожидаем подтверждения сервера…" : draft.body ? "Черновик в этой вкладке" : state.status === "saved" ? edit ? "Сохранено" : "Отправлено" : null}</div>
       {state.status !== "idle" && state.status !== "saved" ? <p role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[state.status]}</p> : null}
       {state.status === "conflict" && edit ? <p className={styles.muted}>Отмените правку, обновите историю и откройте изменение снова. Ваш черновик останется.</p> : null}

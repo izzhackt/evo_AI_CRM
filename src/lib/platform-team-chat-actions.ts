@@ -44,7 +44,7 @@ export async function teamChatCommandAction(_previous: TeamChatActionState, form
       edit: ["operation", "messageId", "expectedVersion", "body", "mentionedMembershipIds"],
       delete: ["operation", "messageId", "expectedVersion"],
       moderate: ["operation", "messageId", "expectedVersion", "reason"],
-      read: ["operation", "messageId"], mute: ["operation", "muted", "expectedVersion"],
+      read: ["operation", "messageId"],
     };
     const operation = typeof value.operation === "string" ? value.operation : "";
     const allowed = fields[operation];
@@ -57,8 +57,7 @@ export async function teamChatCommandAction(_previous: TeamChatActionState, form
     }
     if (operation === "post" && value.parentMessageId != null && !teamChatUuid(value.parentMessageId)) return fail("invalid", requestId);
     if (["edit", "delete", "moderate", "read"].includes(operation) && !teamChatUuid(value.messageId)) return fail("invalid", requestId);
-    if (["edit", "delete", "moderate", "mute"].includes(operation) && !teamChatCursor(value.expectedVersion)) return fail("invalid", requestId);
-    if (operation === "mute" && typeof value.muted !== "boolean") return fail("invalid", requestId);
+    if (["edit", "delete", "moderate"].includes(operation) && !teamChatCursor(value.expectedVersion)) return fail("invalid", requestId);
     if (operation === "moderate" && (typeof value.reason !== "string" || value.reason.trim().length < 3 || value.reason.length > 500)) return fail("invalid", requestId);
     const authorization = await resolvePlatformActor();
     if (authorization.status !== "authenticated" || isStaffPreview(authorization.actor)) return fail("forbidden", requestId);

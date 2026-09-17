@@ -1,4 +1,40 @@
-# Sidebar Option 2 — design QA
+# Team chat Messenger — focused design QA
+
+Date: 2026-09-18. Scope: PR #823 chat workspace only; the shared AppShell is
+byte-for-byte unchanged from main. The owner's latest instruction overrides the
+compact global rail shown in the selected concept.
+
+final result: passed (bounded local visual check; production release pending)
+
+- Reference: selected `exec-6b49d307-cca2-42b2-9b9f-ee304ef3c0f2.png` (1487×1058).
+  Compared with the actual authenticated `/v3/team-chat` at localhost:3102 in
+  one image input, using real existing authorized data, not seeded examples.
+- Actual desktop CSS viewport1486×1058 and mobile393×852: no horizontal document
+  overflow; composer bottoms1032/828 respectively, inside both viewports.
+  Browser capture includes black padding outside the emulated viewport; this is
+  capture output, not application overflow.
+- Typography: existing Golos, readable16px message bodies and restrained metadata.
+  Spacing:288px channel list, conversation fills remaining width below the original
+  shared64px topbar; mobile retains the original logo header and utility bar.
+- Colors: existing EVO red, neutral conversation background and soft-red own
+  bubbles. Assets: original EVO logo and current icon library; no fake avatars.
+- Copy: both requested explanatory strings, mute controls and quiet badges absent;
+  connecting/error recovery retained. Existing content is not copied into this
+  public report. Empty Sales channel remains honestly empty.
+- Actual interactions: General history and its existing discussion loaded;
+  switching to Sales showed its real empty history and enabled composer; mobile
+  channel-back revealed the channel list. No messages, tasks or accounts created.
+- Corrections verified: removed nested search-field border; restored the complete
+  original global sidebar/topbar after owner clarification. No remaining P0/P1/P2
+  visual findings in this bounded pass. No claim of new-message delivery or an
+  exhaustive interaction/accessibility audit.
+- Changed-file ESLint and14 focused source/runtime-harness checks passed; these
+  are separate from the real browser observations above. Production has its own
+  read-only authenticated chat smoke and accepted-release verification.
+
+---
+
+# Historical: Sidebar Option 2 — design QA
 
 Date: 2026-09-10 Asia/Dubai (checks through 2026-09-09 20:19 UTC).
 Scope: approved department navigation, existing Admissions summary shortcut,

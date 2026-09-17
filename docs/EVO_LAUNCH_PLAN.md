@@ -37,6 +37,16 @@ and [Next.js caching model](https://nextjs.org/docs/app/guides/caching-without-c
 Context7 was attempted but its monthly quota was exhausted; consult official
 docs/advisories and the installed Next.js documentation instead.
 
+Diagnosis: route-entry notification polling immediately calls `router.refresh`
+on operational pages, redundantly requesting fresh server content already being
+loaded. Preserve the initial badge read but refresh content only on subsequent
+timer/focus/online/manual updates, with stale-effect completion ignored. Also
+deduplicate the layout/page Student guard only within a React render request,
+and run independent application/visa list and timeline reads concurrently.
+Proxy authorization order and all RPC validators remain unchanged. Baseline
+Chrome observed real page responses around 0.9–1.74s and the extra route request;
+these are response-header observations, not completed-render percentiles.
+
 ## Real Student login and stable navigation — accepted 2026-09-17
 
 Owner requests retiring the Admin Student preview from CRM and using one

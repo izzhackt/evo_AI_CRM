@@ -52,10 +52,8 @@ export async function publishReviewedUniversityAction(input: unknown): Promise<U
     if (!receiptValid(published.data, publishId, "published", staged.data.draftId)) return "unavailable";
     revalidatePath("/v3/universities");
     revalidatePath("/portal/universities");
-    revalidatePath("/preview/student/universities");
     revalidatePath(`/v3/universities/${published.data.institutionId}`);
     revalidatePath(`/portal/universities/${published.data.institutionId}`);
-    revalidatePath(`/preview/student/universities/${published.data.institutionId}`);
     return "published";
   } catch { return "unavailable"; }
 }

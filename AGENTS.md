@@ -101,12 +101,12 @@
 - Assessment answers/results are Student-owner private in this run, including
   denial on ordinary Admin/Curator product paths. Do not add staff tracking,
   test assignments or case-timeline projections. No invented CEFR certification.
-- The owner-approved Admin Student Portal preview is tracked in #721 and
-  `docs/design/v3/student-portal-admin-preview-plan.md`. `/preview/student` is a
-  separately guarded read-only presentation, not a Student role or impersonation.
-  Keep `/portal` authority unchanged. Preview uses empty personal sections, the
-  published university catalogue and public authored question content only;
-  no Student attempts, private answers, grading keys or persisted selections.
+- The 2026-09-17 owner direction retires `/preview/student` and its CRM link.
+  Use a separate, explicitly authorized QA Student account on
+  `https://app.evoadmissions.com` to check the real portal. Keep `/portal`
+  authority and private assessments unchanged; no Admin impersonation or
+  presentation-only replacement. #721 and its run plan remain historical evidence,
+  not instructions to restore preview. Follow the current launch-plan QA gates.
 - The owner explicitly permits bounded fictional Student QA identities/data for
   this run, with real Auth/backend/browser execution and isolation from working
   sales reports. This is not an Auth bypass, fake provider acceptance or blanket

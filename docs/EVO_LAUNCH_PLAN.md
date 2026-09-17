@@ -1,5 +1,76 @@
 # EVO Launch Plan
 
+## Real Student login and stable navigation — active 2026-09-17
+
+Owner requests retiring the Admin Student preview from CRM and using one
+permanent, separate QA Student login on `https://app.evoadmissions.com` instead.
+This supersedes the active preview requirements in #721/AGENTS/DESIGN, not
+historical receipts. Existing Admin credentials, real students and their data
+remain unchanged. One explicitly requested test Student is allowed; this does
+not authorize a fake authentication path, universal test password, impersonation,
+synthetic provider success or general production seeding.
+
+- [x] Reproduce the reported transition in real authenticated Chrome. On the
+  accepted production preview, Payments → Documents showed only the global
+  preview loader at 340ms, no navigation, and completed at 1001ms. The preview
+  renders PortalShell inside its catch-all page rather than a persistent layout.
+- [x] Remove the preview routes, sidebar entry, preview-only renderers/readers,
+  obsolete route exceptions and implementation-only tests. Keep real Student
+  portal, published catalogue and assessments; old preview URLs must not render
+  a parallel portal or fall back to Admin impersonation.
+- [ ] Verify/improve real Student navigation: preserve shell and useful pending
+  feedback; eliminate demonstrated duplicate work only. Keep current identity,
+  role/RLS checks and assessment unsaved-change protection. Never cache private
+  authority/data between users or requests to improve timings.
+- [ ] Provision exactly one permanent QA Student using confirmed owner-controlled
+  email and supported Auth/provisioning lifecycle. Reuse the existing Supabase
+  project; keep the QA case out of working Sales reports and provider sends.
+  Do not fabricate an invitation receipt or mutate auth.users directly. Missing
+  mailbox/provider/lifecycle access is a named blocker, not a success substitute.
+  Store credentials only in an ignored 0600 owner handoff; never in code/logs/chat.
+- [ ] Real Student password login, refresh and section navigation on app; verify
+  persistent shell, actual persisted test-student data, staff/private denial,
+  sign-out, mobile usability and removal of preview from CRM. Record timings
+  separately from authentication/functional proof; don't claim instant networking.
+- [ ] Scoped checks, independent exact-head review, PR merge, one frozen-main
+  full gate and managed release; production readback and same real Student
+  browser proof, then disarm and publish receipt. No unrelated provider/DNS work.
+
+The proposed login is a plus-address of the Gmail mailbox already approved by
+the owner in this task history; no unrelated recipient or email send is added.
+Normal SMTP availability and the exact case/provisioning path are checked before
+any account write. Keep the exact login only in the private operator handoff.
+The owner retains website-inquiry and Gmail-delivery checks from the prior run;
+those are not reopened by this narrowly requested Student login.
+
+Implementation checkpoint (not deployed): nine preview-only source files and
+their dedicated test are removed; old preview paths are pre-auth 404 tombstones.
+The real Student layout already preserves PortalShell above its child loading
+boundary, so no unmeasured auth-cache or navigation rewrite was added. Scoped
+checks passed: 69 route/UI/catalogue tests, 10 CI-manifest tests, ESLint,
+repository typecheck and diff-check. Independent source review found no issues
+at non-plan diff SHA-256
+`666cf9a463df0a7a5274bd0e908af4747bcb5d3b4e4530020db8ab975787b9e6`.
+
+Production read-only inventory on 17 September found no Student memberships,
+cases or provisioning receipts to reuse. Custom SMTP remains off; provider OTP
+expiry is 3600 seconds. A real manually delivered Supabase invite link is a
+supported alternative to email delivery, but not yet executed or proven here.
+Account setup and a real Student browser journey remain the release gate;
+removing preview code is not itself proof of an operational replacement login.
+
+Approved narrow implementation path: operator creates one visibly fictional
+pending case and its case scope only, with no lead/client/payment/contract facts;
+existing Admin authorizes `legacy_pending` provisioning and owns curator duties
+under current capability rules. Reuse the normal coordinator/receipt/finalize
+guards with a real Supabase `generateLink(type: invite)` provider operation.
+Record delivery honestly as a private manual link, not an email. Consume the
+real one-time token and set the requested QA account's password using supported
+Auth operations; verify real Student authority and fresh password login.
+No direct auth.users changes, auto-confirm flags, fabricated timestamps,
+synthetic domain receipts, new staff account or new tenant are allowed.
+Independent operator-script review precedes any bounded production writes.
+
 ## Canonical staff and Student domains — accepted 2026-09-17
 
 Owner approved connecting `crm.evoadmissions.com` for employees and

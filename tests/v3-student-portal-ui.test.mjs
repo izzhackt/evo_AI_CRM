@@ -73,6 +73,33 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
   );
 });
 
+test("Student preview implementation and staff entry are retired without removing the real portal", () => {
+  for (const path of [
+    "src/app/(portal-preview)/layout.tsx",
+    "src/app/(portal-preview)/preview/student/[[...section]]/page.tsx",
+    "src/app/(portal-preview)/preview/student/[[...section]]/loading.tsx",
+    "src/app/(portal-preview)/preview/student/[[...section]]/error.tsx",
+    "src/lib/server/student-portal-preview.ts",
+    "src/lib/server/student-portal-assessment-preview.ts",
+    "src/lib/server/student-portal-assessment-preview-content.ts",
+    "src/components/v3/portal/assessments/AssessmentPreviewPage.tsx",
+    "src/components/v3/portal/assessments/AssessmentPreviewRunner.tsx",
+  ]) assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), false, path);
+  const staffShell = source("src/components/v3/AppShell.tsx");
+  assert.doesNotMatch(staffShell, /student-portal-preview|\/preview\/student|Предпросмотр кабинета студента/u);
+  assert.match(staffShell, /selectStaffRolePreviewAction/u);
+  for (const path of [
+    "src/components/v3/portal/PortalShell.tsx",
+    "src/components/v3/portal/OverviewView.tsx",
+  ]) assert.doesNotMatch(source(path), /preview/u, path);
+  for (const path of [
+    "src/app/(portal)/portal/tests/english/page.tsx",
+    "src/app/(portal)/portal/tests/career/page.tsx",
+    "supabase/assessment-content/english-v1.json",
+    "supabase/assessment-content/orvis-v1.json",
+  ]) assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), true, path);
+});
+
 test("every page passes the direct strict E2 result to its view", () => {
   const expected = [
     ["src/app/(portal)/portal/page.tsx", "readStudentPortalOverview", "overview", "OverviewView"],

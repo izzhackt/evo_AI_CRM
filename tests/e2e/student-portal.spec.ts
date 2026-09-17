@@ -359,8 +359,10 @@ test("anonymous, staff and Student routes stay mutually isolated", async ({ page
   await expect(page.getByTestId("student-portal-shell")).toBeVisible();
 
   for (const path of ["/preview/student", "/preview/student/tests/english"]) {
-    await page.goto(path);
-    await expect(page).toHaveURL(/\/portal$/);
+    const response = await page.goto(path);
+    expect(response?.status(), path).toBe(404);
+    expect(new URL(page.url()).pathname).toBe(path);
+    await expect(page.getByTestId("student-portal-shell")).toHaveCount(0);
     await expect(page.getByTestId("assessment-preview")).toHaveCount(0);
   }
 

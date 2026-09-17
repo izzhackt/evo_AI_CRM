@@ -35,10 +35,9 @@ test("all country packages are wired into the real server source, never a publis
   assert.match(source, /staff_university_catalog/);
   assert.match(source, /student_university_catalog/);
 });
-test("student and preview university detail routes use neutral reader descriptions", () => {
+test("the Student university detail route uses a neutral reader description", () => {
   for (const route of [
     "../src/app/(portal)/portal/universities/[id]/page.tsx",
-    "../src/app/(portal-preview)/preview/student/[[...section]]/page.tsx",
   ]) {
     const source = readFileSync(new URL(route, import.meta.url), "utf8");
     assert.match(source, /description="Программы, условия поступления и даты наборов\."/, route);

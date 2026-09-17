@@ -20,7 +20,6 @@ import {
   isConnectedStudentAuthPage,
   isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
-  isConnectedStudentPortalPreviewPage,
   isRetiredPlatformRoute,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
@@ -41,7 +40,7 @@ test("canonical audience hosts relocate only exact known pages, not API authorit
     assert.equal(canonicalPlatformPageOrigin("crm.evoadmissions.com", path), PRODUCTION_STUDENT_ORIGIN, path);
     assert.equal(canonicalPlatformPageOrigin("app.evoadmissions.com", path), null, path);
   }
-  for (const path of ["/v3/main", "/v3/calendar", "/auth/staff", "/preview/student", "/platform-pending", "/access-denied"]) {
+  for (const path of ["/v3/main", "/v3/calendar", "/auth/staff", "/platform-pending", "/access-denied"]) {
     assert.equal(canonicalPlatformPageOrigin("app.evoadmissions.com", path), PRODUCTION_STAFF_ORIGIN, path);
     assert.equal(canonicalPlatformPageOrigin("crm.evoadmissions.com", path), null, path);
   }
@@ -68,7 +67,7 @@ test("verified actor home dispatch cannot loop Staff through the Student portal"
   assert.match(proxy, /response.headers.set\("Referrer-Policy", "no-referrer"\)/u);
 });
 
-test("Admin Student preview has exact staff-only presentation routes, not Student endpoints", () => {
+test("retired Student preview is absent on both audiences and hidden before authentication", () => {
   const id = "b6214cbe-6d08-4a33-86b4-cdf5cc6ca5e2";
   for (const path of [
     "/preview/student",
@@ -81,11 +80,19 @@ test("Admin Student preview has exact staff-only presentation routes, not Studen
     "/preview/student/tests",
     "/preview/student/tests/english",
     "/preview/student/tests/career",
+    "/preview/student/",
+    "/preview/student//tests",
+    "/preview/student/tests/english/submit",
+    "/preview/student/universities/manage",
+    `/preview/student/universities/${id}/edit`,
   ]) {
-    assert.equal(isConnectedStudentPortalPreviewPage(path), true, path);
-    assert.equal(isConnectedPlatformPage(path), true, path);
+    assert.equal(isRetiredPlatformRoute(path), true, path);
+    assert.equal(isConnectedPlatformPage(path), false, path);
     assert.equal(isConnectedStudentPortalPage(path), false, path);
     assert.equal(isConnectedStudentPortalApi(path, "POST"), false, path);
+    for (const host of ["crm.evoadmissions.com", "app.evoadmissions.com"]) {
+      assert.equal(canonicalPlatformPageOrigin(host, path), null, `${host}${path}`);
+    }
   }
   for (const path of [
     "/preview", "/preview/student/", "/preview/Student", "/preview/student//tests",
@@ -94,9 +101,14 @@ test("Admin Student preview has exact staff-only presentation routes, not Studen
     "/preview/student/universities/manage", "/preview/student/universities/not-an-id",
     `/preview/student/universities/${id}/edit`, "/portal/preview", "/api/preview/student",
   ]) {
-    assert.equal(isConnectedStudentPortalPreviewPage(path), false, path);
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
+  assert.equal(isRetiredPlatformRoute("/preview/student-other"), false);
+  const proxy = source("src/proxy.ts");
+  const retiredCheck = proxy.indexOf("isRetiredPlatformRoute(path)");
+  assert.ok(retiredCheck >= 0);
+  assert.ok(retiredCheck < proxy.indexOf('canonicalPlatformPageOrigin(request.headers.get("host"), path)'));
+  assert.ok(retiredCheck < proxy.indexOf("await liveSessionState("));
 });
 
 test("only the exact V3 pages enter the active staff page contract", () => {
@@ -130,7 +142,6 @@ test("university template workspace is an exact staff page, never Student or pre
     "/v3/universities/invalid/forms", `/portal/universities/${id}/forms`, `/preview/student/universities/${id}/forms`]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
     assert.equal(isConnectedStudentPortalPage(path), false, path);
-    assert.equal(isConnectedStudentPortalPreviewPage(path), false, path);
   }
 });
 

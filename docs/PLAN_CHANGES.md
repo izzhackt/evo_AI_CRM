@@ -27606,3 +27606,54 @@ This is domain/release acceptance, not a new production Student business-case
 acceptance, SMTP-delivery claim or provider activation. The owner retains the
 inquiry/Gmail checks; no Web-X subscription action or hosting deletion occurred.
 Detailed immutable identities and limits are in the launch plan's dated receipt.
+
+### 2026-09-17 — replace Admin Student preview with a real QA Student login
+
+Owner explicitly requests deletion of CRM Student preview and one permanent
+test Student account usable by the admins on the existing app domain. No staff
+credential reuse, impersonation, auth bypass, second runtime/database or general
+QA seed is authorized. Existing invitation/authority invariants remain unless
+a separately documented supported provisioning mechanism is proved; never mark
+an invitation sent when it was not. Confirm target email before account writes.
+
+Real Chrome reproduced the full-page preview loader and missing navigation
+during an approximately 1s Payments→Documents transition. Preview shell lives
+inside the page, so the route loading boundary replaces it. Retire this entire
+preview path and prove the real Student layout stays mounted; improve further
+latency only with measured real-path evidence. Any request memoization must be
+request-local and preserve server-authoritative access decisions and RLS.
+
+Official docs checked: [Next navigation](https://nextjs.org/docs/app/getting-started/linking-and-navigating),
+[loading boundaries](https://nextjs.org/docs/app/api-reference/file-conventions/loading),
+[React request cache](https://react.dev/reference/react/cache),
+[Supabase invitations](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail)
+and [custom SMTP requirements](https://supabase.com/docs/guides/auth/auth-smtp).
+Context7 was attempted but its monthly quota is exhausted; official sites used.
+Shared layouts remain interactive during navigation; a loading boundary must
+wrap changing page content, not the entire authenticated shell. This run does
+not authorize cross-request private-data caching or weakening auth for speed.
+
+### 2026-09-17 — bounded QA bootstrap and manual invitation, no SMTP expansion
+
+Read-only production inventory found zero Student memberships, cases and invite
+receipts. Reuse therefore cannot provide the requested login. The existing Admin
+has the live nonsensitive curator capabilities; no extra employee is needed.
+Prepare exactly one explicitly fictional pending case plus its case scope, with
+no sales handoff, lead/client, contract confirmation or payment facts. Then use
+the real Admin-authorized `legacy_pending` provisioning and normal coordinator
+receipt/finalization checks, not direct Student-role grants.
+
+Custom SMTP is off. The operator-only alternative is Supabase
+[generateLink with type invite](https://supabase.com/docs/reference/javascript/auth-admin-generatelink).
+Its [pinned official implementation](https://github.com/supabase/auth/blob/4eee58f296d9698a1c2c0ae14d7a0b379c7622d3/internal/api/mail.go)
+creates an unconfirmed user and genuine one-time token, with real issuance
+timestamps, without sending email. Label the private operation `manual_link`,
+not email delivery. Use real OTP verification, receipt identity acceptance and
+supported password setup; never synthesize provider success or edit auth.users.
+Keep tokens, password, exact QA login and runtime row IDs only in ignored
+owner handoff/private operator evidence. The proposed identifier is a plus-alias
+of the owner's previously approved mailbox, not a new recipient. Do not re-open
+SMTP setup, real admissions data or provider integration work in this slice.
+
+Review the bounded operator script before execution. A persistent real Student
+login and browser acceptance remain mandatory before retiring preview in prod.

@@ -10,6 +10,8 @@ import PizZip from "pizzip";
 import { captureProfileExportResponse, profileBodyTransportCategory, profileBodyProtocolMethod, profileRequestFailureCategory, profileBodyTransportDiagnosticLine, profileBrowserRuntimeDiagnostic, profileBrowserRuntimeDiagnosticLine, localOrigin, proofExceptionCategory, proofPathClass, proofLoginErrorCode, writeFailureEvidence, summarizeStudentProfileAppLog, verifyDocumentExportBucket, verifyStoredDocumentExport, SYNTHETIC_EXPECTED_VALUES, SYNTHETIC_REQUIRED_VALUES } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
 import { verifyPersistedPackageZip, verifyPackageStorage } from "../scripts/lib/document-package-browser-proof.mjs";
 import { safeProfileTransportLifecycle, profileTransportLifecycleDiagnosticLine, observeProfileTransportLifecycle } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { profileExportUiState } from "../scripts/lib/student-profile-fields-browser-proof.mjs";
+import { studentProfileFileMessage } from "../src/lib/v3/wording.ts";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
 
@@ -228,6 +230,22 @@ test("body transport evidence tracks the exact response request and removes list
   assertCaptureListenersRemoved(page);
 });
 
+test("export UI diagnostic classifies only exact product status wording", () => {
+  for (const state of ["ready", "unknown", "creating"]) {
+    const message = studentProfileFileMessage(state);
+    assert.equal(typeof message, "string");
+    assert.equal(profileExportUiState([message]), state.toUpperCase());
+    assert.equal(profileExportUiState([`${message} private-value`]), "OTHER");
+  }
+  assert.equal(profileExportUiState([]), "ABSENT");
+  for (const message of ["", "private-value", "READY", studentProfileFileMessage("loading")]) {
+    assert.equal(profileExportUiState([message]), "OTHER");
+  }
+  for (const invalid of [null, undefined, {}, "private-value", [null], [{}], ["one", "two"]]) {
+    assert.equal(profileExportUiState(invalid), "UNAVAILABLE");
+  }
+});
+
 test("body transport CI printer strictly projects safe JSON and rejects malformed fields", async () => {
   const transportDiagnostic = { category: "RESOURCE_MISSING", protocolMethod: "Network.getResponseBody", requestFailure: "NONE", requestFinished: true, requestFailed: false,
     mainFrameNavigations: 0, pageAlive: true, browserAlive: true };
@@ -253,16 +271,26 @@ test("body transport CI printer strictly projects safe JSON and rejects malforme
     await writeFailureEvidence({ config: { evidenceDir }, page: null, stage: snapshot.stage, error,
       http: {}, browserErrors: new Set(), browserWarningCount: 0, counts: { page: 0, console: 0 } });
     const persisted = readFileSync(join(evidenceDir, "failure.json"), "utf8");
-    assert.deepEqual(JSON.parse(persisted).transportDiagnostic, transportDiagnostic);
+    assert.deepEqual(JSON.parse(persisted).transportDiagnostic, { ...transportDiagnostic, exportUiState: "UNAVAILABLE" });
     assert.doesNotMatch(persisted, /private-value/u);
-    writeFileSync(join(evidenceDir, "failure.json"), JSON.stringify({ ...snapshot, rawBody: "private-value" }));
+    const printedDiagnostic = { ...transportDiagnostic, exportUiState: "READY" };
+    writeFileSync(join(evidenceDir, "failure.json"), JSON.stringify({ ...snapshot, rawBody: "private-value", transportDiagnostic: printedDiagnostic }));
     const result = spawnSync(process.execPath, ["--experimental-strip-types", runnerUrl.pathname, "--print-body-transport-diagnostic"],
       { encoding: "utf8", env: { ...process.env, EVO_D2_EVIDENCE_DIR: evidenceDir } });
     assert.equal(result.status, 0); assert.equal(result.stdout, "");
-    assert.match(result.stderr, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+    const expectedPrinted = `STUDENT_PROFILE_FIELDS_BODY_TRANSPORT_DIAGNOSTIC:${JSON.stringify({ stage: snapshot.stage, ...printedDiagnostic })}`;
+    assert.match(result.stderr, new RegExp(expectedPrinted.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
     assert.doesNotMatch(result.stderr, /private-value|example\.test/u);
     assert.ok(harness.includes("--print-body-transport-diagnostic"));
   } finally { rmSync(evidenceDir, { recursive: true, force: true }); }
+  for (const exportUiState of ["READY", "UNKNOWN", "CREATING", "OTHER", "ABSENT", "UNAVAILABLE"]) {
+    const projected = profileBodyTransportDiagnosticLine({ ...snapshot, transportDiagnostic: { ...transportDiagnostic, exportUiState } });
+    assert.equal(projected, `STUDENT_PROFILE_FIELDS_BODY_TRANSPORT_DIAGNOSTIC:${JSON.stringify({ stage: snapshot.stage, ...transportDiagnostic, exportUiState })}`);
+  }
+  for (const exportUiState of [undefined, null, [], {}, ["READY"], "private-value"]) {
+    assert.equal(profileBodyTransportDiagnosticLine({ ...snapshot, transportDiagnostic: { ...transportDiagnostic, exportUiState } }),
+      "STUDENT_PROFILE_FIELDS_BODY_TRANSPORT_DIAGNOSTIC:UNAVAILABLE");
+  }
 });
 
 test("template failure evidence retains categories, never credential values or raw errors", async () => {

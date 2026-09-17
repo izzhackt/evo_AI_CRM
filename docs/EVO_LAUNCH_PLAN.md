@@ -1,5 +1,38 @@
 # EVO Launch Plan
 
+## Student Profile response cancellation — active 2026-09-17
+
+Owner approved investigating the release blocker and completing the Portal
+deployment. Start from merged main `efd53076`; Inbox maintenance is complete.
+Keep the existing failed request/body assertions, real Auth/PostgreSQL/Storage,
+private data boundaries and managed release gate. Do not fabricate successful
+responses, retry a mutation blindly, activate providers or alter working cases.
+
+- [x] Establish a bounded feedback loop for the exact document-export draft
+  POST using the existing isolated profile proof; record whether it reproduces.
+  A cold profile-only run is not equivalent to the warmed full-CI predecessor
+  sequence, and a single green run does not prove an intermittent bug fixed.
+- [ ] Distinguish client cancellation, proof lifecycle and development-runtime
+  behavior with actual request events and narrow official-source research.
+  Run only a justified one-variable experiment; production build/start is a
+  candidate comparison, not a presumed remedy or permission to weaken checks.
+- [ ] Fix an evidenced cause, independently review the exact change and merge.
+  Then run the frozen-current-main release gate once, use the managed release,
+  verify accepted SHA/image/health/pending/disarm and real Student navigation.
+
+The first profile-only run on `efd53076` passed against its owned local Auth,
+PostgreSQL and Storage: original draft/final POSTs finished, persisted exports
+and cold history passed, cleanup completed. Evidence is the ignored local
+`output/student-profile-fields/efd53076a60b8423306fa4c4d68660c841d72447/foundation-19334-47451/`.
+The cancellation remains unreproduced locally, not fixed. The next Linux
+observation adds only a passive, enum-only export-panel status to the existing
+body-transport failure evidence; original failure and release gates remain.
+
+Current [Next.js Playwright guidance](https://nextjs.org/docs/app/guides/testing/playwright)
+recommends a production build for realistic browser validation. Context7 was
+attempted again; its monthly quota remains exhausted. The prior red/green logs
+both contain HMR `built` during the POST, so that event alone is not causal.
+
 ## Portal latency and Inbox dependency maintenance — Inbox complete; portal release blocked 2026-09-17
 
 Owner approved these two checklist items. This is a bounded performance and

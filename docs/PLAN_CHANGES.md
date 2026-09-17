@@ -27722,3 +27722,39 @@ CRM image; its package/CI-only remediation does not authorize reactivation of
 the retired companion. Portal production acceptance remains open. A bounded
 investigation of the pre-existing response cancellation needs its own agreed
 scope before further changes or a new exact-main release attempt.
+
+### 2026-09-17 — approved response-cancellation investigation and Portal release
+
+Owner answered yes to the separate investigation and subsequent Portal release.
+Use current merged main efd53076 and preserve original mutation/body assertions.
+First use the existing bounded profile-only real Auth/database/Storage/browser
+proof to establish a faster feedback loop, explicitly distinguishing its cold
+start from the warmed full-CI predecessor order. Existing fictional Student QA
+scope is not permission to seed working business records, impersonate staff or
+activate provider substitutes. No new mocks, synthetic provider success,
+silent fallback, arbitrary delay or blind retry may stand in for a real result.
+
+Compare client/proof lifecycle against development-runtime behavior; consider
+one controlled production build/start comparison under unchanged assertions,
+consistent with official Next.js Playwright guidance. A single successful run
+does not establish intermittent cancellation resolved. Record evidence before
+changing product/runtime code, obtain independent review and retain exact-main
+managed release acceptance. Production stays disarmed until a reviewed fix.
+
+First bounded profile-only run on efd53076 passed with actual local Auth,
+PostgreSQL, Storage and browser execution. Draft/final original POSTs finished;
+no browser/server error occurred and owned cleanup completed. This cold result
+does not reproduce or resolve the intermittent Linux warmed-sequence failure.
+Source inspection excludes a submitted-form navigation, explicit POST abort
+signal or automatic generation-time download. Playwright already waits for
+the request terminal event before reading its body; adding another wait is not
+an evidenced fix. Do not change product behavior on those theories.
+
+Add one passive discriminator to the existing BODY_TRANSPORT evidence: before
+closing its live page, read only the export panel's fixed UI status and project
+it to READY/UNKNOWN/CREATING/OTHER/ABSENT/UNAVAILABLE. Persist/print the enum, not
+raw DOM text, identities, URLs, values or headers. Preserve the original failure,
+request, body assertion and all cleanup. This distinguishes a client-visible
+failure from a lost DevTools response body; READY still does not pass the gate.
+Only after independent review may one exact-main Linux observation use this
+additional diagnostic. Do not rerun an unchanged experiment until green.

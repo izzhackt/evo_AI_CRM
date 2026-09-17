@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Lightweight production release — active 2026-09-18
+## Lightweight production release — completed 2026-09-18
 
 Owner explicitly approves replacing the heavy release prerequisite and deploying
 the case-opening fix and reviewed Student portal UX now. Current mode is build,
@@ -17,11 +17,11 @@ short real checks of changed functions, and rollback; no full-suite replay.
   case (route and contract) as real Admin and overview/documents as the existing
   permanent QA Student. Credentials/case ID stay private; missing inputs or a
   failed real path fail the release and trigger pending-candidate rollback.
-- [ ] Merge independently reviewed PR820 and this release change using protected
+- [x] Merge independently reviewed PR820 and this release change using protected
   short PR checks, dispatch exact main, and accept only the actual immutable
   release with successful short production smoke. Never call that full-suite
   or real-client business acceptance.
-- [ ] Record deployed SHA, workflow result, healthy container, cleared pending
+- [x] Record deployed SHA, workflow result, healthy container, cleared pending
   state and disarmed release state. No unrelated heavy checks or Docs exports.
 
 Implementation checks: four selected actual-file release contracts, six smoke
@@ -30,11 +30,20 @@ YAML parsing and whitespace check pass. These are not real UI acceptance; that
 comes from the downstream production browser run. PR820 merged as61a1945c;
 its reviewed portal patch and earlier actual QA browser results are unchanged.
 
+Production receipt: PR821 merged as`ac04c8e38de7b27aadc1c926db40f65007b3c593`.
+Light exact-main CI35276171822 succeeded (Main CRM9s); managed release35276212272
+succeeded and accepted`v3-r35276212272-a1-ac04c8e3`. Real browser smoke took22s:
+Admin login/dashboard/version, exact case route/contract, separate Student login,
+overview, documents and sidebar return all passed. Container healthy/restart0,
+accepted pointer matches, no pending pointer, arm=false; both domain health
+routes200 with ordinary TLS. No heavy suite or business/provider writes.
+Detailed [release receipt](design/v3/references/2026-09-18-lightweight-production-release.md).
+
 Official workflow-run semantics: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run
 and https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow.
 Context7 was attempted but its monthly quota is exhausted.
 
-## Admissions case opening and fast execution — active 2026-09-18
+## Admissions case opening and fast execution — completed 2026-09-18
 
 Owner requests a targeted fix for opening an existing Admissions case and
 scope-local real validation, not another heavy unrelated suite. Portal UX work
@@ -55,9 +64,9 @@ new clients, schema changes or fake Sales handoffs belong to this fix.
   contract workspace and partner-package section. Anonymous request307 to login.
   Two directly affected source-contract checks, changed-file ESLint and diff
   check pass. No case/file/account/provider writes and no full suite.
-- [ ] Review/publish the bounded patch. Production remains41394497; local
-  candidate evidence is not a deployment receipt. Do not silently rerun or
-  bypass the existing full release gate.
+- [x] Review/publish the bounded patch. PR819 merged63a8b856; productionac04c8e3
+  now includes it and PR820 portal UX. Above owner-approved lightweight release
+  exercised the actual case route and contract on production successfully.
 
 ## amoCRM connection simplification — active 2026-09-17
 

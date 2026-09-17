@@ -9,7 +9,7 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly DEADLINE_RUNNER="${REPO_ROOT}/scripts/run-command-with-deadline.mjs"
 readonly SOURCE_CADDYFILE="${REPO_ROOT}/agent-lead2-inbox/deploy/Caddyfile.evo-edge"
 readonly WEBSITE_HEADER_EXAMPLE="${REPO_ROOT}/agent-lead2-inbox/deploy/website-intake-header.caddy.example"
-readonly CRM_HOST="evo-crm.72.62.119.112.sslip.io"
+readonly CRM_HOST="crm.evoadmissions.com"
 readonly CADDY_IMAGE="caddy@sha256:86deaf5e3d3408a6ccec08fbb79989783dd26e206ae10bcf78a801dc8c9ab794"
 readonly RUN_ID="p7b-edge-$$_${RANDOM}"
 readonly CONTAINER_NAME="evo-platform-${RUN_ID}"
@@ -92,6 +92,9 @@ cat >>"${TEST_CADDYFILE}" <<'CADDY'
 http://evoadmissions.com:8080, http://www.evoadmissions.com:8080 {
 	import evo_website
 }
+http://evo-crm.72.62.119.112.sslip.io:8080 {
+	import evo_retired_app
+}
 CADDY
 
 run_with_deadline 180000 docker pull "${CADDY_IMAGE}" >/dev/null \
@@ -171,6 +174,32 @@ for noncanonical_path in \
 done
 [[ "${ready}" == true ]] \
   || fail "The disposable Caddy edge did not become ready."
+
+# Exercise the real retirement handlers, including mutation rejection. No
+# application upstream or authentication success is simulated by these checks.
+for legacy_path in /login /portal /portal/documents /auth/callback; do
+  legacy_headers="$(curl --silent --show-error --dump-header - \
+    --output /dev/null --header 'Host: evo-crm.72.62.119.112.sslip.io' \
+    "${edge_origin}${legacy_path}")" || fail "The retired-host request failed."
+  case "${legacy_path}" in
+    /portal*) canonical_origin='https://app.evoadmissions.com' ;;
+    /auth/callback) canonical_origin='https://app.evoadmissions.com' ;;
+    *) canonical_origin='https://crm.evoadmissions.com' ;;
+  esac
+  [[ "${legacy_headers}" == *' 308 '* && "${legacy_headers}" == *"${canonical_origin}${legacy_path}"* ]] \
+    || fail "Retired-host navigation did not use its fixed audience origin."
+done
+for legacy_path in /login /auth/callback /auth/staff; do
+  status="$(curl --silent --show-error --request POST \
+    --output /dev/null --write-out '%{http_code}' \
+    --header 'Host: evo-crm.72.62.119.112.sslip.io' \
+    "${edge_origin}${legacy_path}")" || fail "The retired-host POST check failed."
+  [[ "${status}" == '405' ]] || fail "Retired hostname forwarded a mutation."
+done
+status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  --header 'Host: evo-crm.72.62.119.112.sslip.io' \
+  "${edge_origin}/api/public/website-leads")" || fail "The retired private-path check failed."
+[[ "${status}" == '404' ]] || fail "Retired hostname exposed the private receiver."
 
 # Exercise the real website routing snippet; no customer input or pretend
 # successful upstream is used. The application/static upstreams are absent.

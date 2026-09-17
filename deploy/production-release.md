@@ -44,13 +44,19 @@ One release candidate contains:
 - one previously approved managed Supabase project whose migration ledger
   matches root `supabase/`.
 
-The sole current public hostname is
-`https://evo-crm.72.62.119.112.sslip.io`. Caddy obtains and renews HTTPS for
-that hostname and proxies it to `evo-crm-app:3000` on `evo_public_web`.
-`crm.evoadmissions.com` is deferred until working owner-controlled DNS exists;
-it is not a release prerequisite or a parallel active route. Set
-`EVO_CRM_DOMAIN=evo-crm.72.62.119.112.sslip.io` and
-`EVO_RELEASE_EXTERNAL_HEALTH_URL=https://evo-crm.72.62.119.112.sslip.io/api/health`.
+The approved domain-cutover candidate uses `https://crm.evoadmissions.com`
+for staff and `https://app.evoadmissions.com` for Students, reaching one
+`evo-crm-app:3000` on `evo_public_web`. Preserve public Host and host-only
+cookies. Exact callbacks are `/auth/staff` on the staff origin and
+`/auth/callback` on the Student origin, without wildcard origin/session scope.
+Only after the new edge TLS/health prerequisite passes, set
+`EVO_CRM_DOMAIN=crm.evoadmissions.com` and
+`EVO_RELEASE_EXTERNAL_HEALTH_URL=https://crm.evoadmissions.com/api/health`.
+These are candidate instructions, not evidence that cutover has completed:
+follow [the domain sequence](README.md#canonical-domain-cutover) and the latest
+[launch-plan receipt](../docs/EVO_LAUNCH_PLAN.md). Keep old sslip only during
+pending cutover; after acceptance permit GET navigation redirects, not auth
+POST redirects or a second active app origin.
 
 The candidate must not start, require, inspect, or fall back to a companion
 Inbox, Lead Agent, manual-send worker, SQLite database, Drizzle repository, V1
@@ -242,6 +248,15 @@ key Auth-settings probe and the server-key Auth Admin read probe all target that
 same snapshot and exact Supabase origin. Every later Compose/rollback operation
 uses only that path/hash; replacement of the source `.env.production` after the
 copy cannot change the release input.
+
+For the domain transition, edit only the mutable operator source before the
+new controller seals it. The previous accepted V3 source is resolved from
+`release-evidence/current-v3-accepted.json`; its hash-bound `candidate-app.env`
+is copied unchanged to the new release's `rollback-app.env`. Do not rewrite
+accepted snapshots, receipts or hashes to make the old domain match the new
+contract. Pending rollback restores that exact prior app/env. After retiring
+the old edge origin, any later rollback also needs an explicit assessment of
+the prior app's callback/edge requirements; changing a snapshot is not a fix.
 
 ## 4. Build and inspect once
 

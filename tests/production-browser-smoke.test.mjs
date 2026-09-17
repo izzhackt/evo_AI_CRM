@@ -23,7 +23,7 @@ const smokeSource = readFileSync(
 
 function environment(receiptPath = "/tmp/evo-v3-browser-receipt.json") {
   return {
-    EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://evo-crm.72.62.119.112.sslip.io/api/health",
+    EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://crm.evoadmissions.com/api/health",
     EVO_PRODUCTION_SMOKE_ADMIN_EMAIL: "release-smoke@evo.invalid",
     EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD: "not-a-real-secret",
     EVO_PRODUCTION_SMOKE_RECEIPT: receiptPath,
@@ -58,9 +58,11 @@ test("browser receipt is a deterministic closed identity without credentials", (
 
 test("configuration is exact and rejects unsafe or normalized authority values", () => {
   for (const [name, value] of [
-    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "http://evo-crm.72.62.119.112.sslip.io/api/health"],
-    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "https://evo-crm.72.62.119.112.sslip.io/api/health?ok=1"],
-    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "https://crm.evoadmissions.com/api/health"],
+    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "http://crm.evoadmissions.com/api/health"],
+    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "https://crm.evoadmissions.com/api/health?ok=1"],
+    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "https://evo-crm.72.62.119.112.sslip.io/api/health"],
+    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "https://app.evoadmissions.com/api/health"],
+    ["EVO_RELEASE_EXTERNAL_HEALTH_URL", "https://crm.evoadmissions.com.attacker.invalid/api/health"],
     ["EVO_RELEASE_REVISION", REVISION.toUpperCase()],
     ["EVO_RELEASE_WORKFLOW_RUN_ATTEMPT", "02"],
     ["EVO_RELEASE_ARTIFACT_DIGEST", "b".repeat(64)],
@@ -92,7 +94,7 @@ test("receipt writer creates one private file and refuses replacement", async ()
 test("smoke signs in, proves V3 admin operations and exact release metadata", async () => {
   const calls = [];
   let written;
-  let currentUrl = "https://evo-crm.72.62.119.112.sslip.io/login";
+  let currentUrl = "https://crm.evoadmissions.com/login";
   const role = {
     async getAttribute(name) {
       return name === "data-role" || name === "data-system-role" ? "admin" : null;
@@ -151,7 +153,7 @@ test("smoke signs in, proves V3 admin operations and exact release metadata", as
   assert.deepEqual(calls.slice(0, 3), [
     ["launch", true],
     ["context", false, "block"],
-    ["goto", "https://evo-crm.72.62.119.112.sslip.io/login"],
+    ["goto", "https://crm.evoadmissions.com/login"],
   ]);
   assert.ok(calls.some(([kind, value]) => kind === "testid" && value === "v3-shell"));
   assert.ok(
@@ -167,8 +169,10 @@ test("smoke signs in, proves V3 admin operations and exact release metadata", as
 test("unsafe login redirects are rejected before credentials are filled", async () => {
   for (const finalUrl of [
     "https://attacker.invalid/login",
-    "https://evo-crm.72.62.119.112.sslip.io/unexpected",
-    "https://user:pass@evo-crm.72.62.119.112.sslip.io/login",
+    "https://crm.evoadmissions.com/unexpected",
+    "https://user:pass@crm.evoadmissions.com/login",
+    "https://evo-crm.72.62.119.112.sslip.io/login",
+    "https://app.evoadmissions.com/login",
   ]) {
     const calls = [];
     const chromiumRuntime = {

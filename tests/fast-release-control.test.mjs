@@ -614,7 +614,7 @@ fi
     EVO_RELEASE_EVIDENCE_ROOT: evidenceRoot,
     EVO_RELEASE_COMPOSE_FILE: candidateComposePath,
     EVO_RELEASE_APP_ENV_FILE: liveEnv,
-    EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://evo-crm.72.62.119.112.sslip.io/api/health",
+    EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://crm.evoadmissions.com/api/health",
     EVO_SUPABASE_PROJECT_REF: "abcdefghijklmnopqrst",
     EVO_WAHA_IMAGE_DIGEST: wahaDigest,
     EVO_RELEASE_ROLLBACK_STATE: statePath,
@@ -841,6 +841,30 @@ test("preflight removes only owned snapshots with real filesystem commands", () 
     assert.equal(readFileSync(original, "utf8"), "original fixture\n");
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("release health accepts only the canonical staff host and existing loopback rehearsal", () => {
+  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const declaration = controller.match(/^readonly HEALTH_URL_RE=.*$/mu)?.[0];
+  assert.ok(declaration, "actual release health declaration must exist");
+  for (const [url, accepted] of [
+    ["https://crm.evoadmissions.com/api/health", true],
+    ["http://127.0.0.1:9/api/health", true],
+    ["https://evo-crm.72.62.119.112.sslip.io/api/health", false],
+    ["https://app.evoadmissions.com/api/health", false],
+    ["http://crm.evoadmissions.com/api/health", false],
+    ["https://crm.evoadmissions.com.attacker.invalid/api/health", false],
+    ["https://user:pass@crm.evoadmissions.com/api/health", false],
+    ["https://crm.evoadmissions.com:443/api/health", false],
+    ["https://crm.evoadmissions.com/api/health?ok=1", false],
+    ["https://crm.evoadmissions.com/api/health#ok", false],
+  ]) {
+    const result = spawnSync("bash", ["-c", `${declaration}\n[[ "$HEALTH_URL" =~ $HEALTH_URL_RE ]]`], {
+      env: { PATH: process.env.PATH, HEALTH_URL: url },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, accepted ? 0 : 1, url);
   }
 });
 

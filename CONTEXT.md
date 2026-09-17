@@ -31,9 +31,15 @@ sequence `#551` through `#553`, and the latest append-only entry in
 authenticated product surface over the ready-made managed Supabase foundation
 and the proved server-side CRM workflows. The target has one canonical Supabase
 Postgres model, real staff identity, private files, one UI and one runtime;
-V1/V2 are historical and rollback inputs, not parallel products. The current
-production hostname is `https://evo-crm.72.62.119.112.sslip.io`; custom CRM DNS
-is deferred and is not a release prerequisite or parallel route.
+V1/V2 are historical and rollback inputs, not parallel products. The approved
+2026-09-17 cutover candidate uses `https://crm.evoadmissions.com` for staff and
+`https://app.evoadmissions.com` for Students over that same app. This supersedes
+custom-domain deferral but is not a deployment receipt: use the latest launch
+plan checkpoint and [domain runbook](deploy/README.md). Preserve public Host,
+host-only cookies and audience-specific exact callbacks; do not introduce a
+shared wildcard session or second runtime. After accepted cutover, the old
+sslip hostname is only a GET navigation redirect, not an active app origin;
+auth POSTs must not be redirected.
 
 The completed U2 contract is
 recorded in

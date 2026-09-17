@@ -7,6 +7,13 @@ import {
   fixedRoleCanAccessRoute,
 } from "../src/lib/fixed-role-policy.ts";
 import {
+  canonicalPlatformPageOrigin,
+  platformAudienceForHost,
+  platformAudienceHomeRoute,
+  PRODUCTION_STAFF_ORIGIN,
+  PRODUCTION_STUDENT_ORIGIN,
+} from "../src/lib/platform-public-origin.ts";
+import {
   isConnectedPlatformApi,
   isConnectedPlatformPage,
   isConnectedPlatformPrivateApi,
@@ -21,6 +28,45 @@ import {
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
+
+test("canonical audience hosts relocate only exact known pages, not API authority", () => {
+  assert.equal(platformAudienceForHost("crm.evoadmissions.com"), "staff");
+  assert.equal(platformAudienceForHost("app.evoadmissions.com"), "student");
+  for (const host of [null, "", "127.0.0.1:3000", "evo-crm.72.62.119.112.sslip.io",
+    "app.evoadmissions.com.attacker.invalid", "app.evoadmissions.com, crm.evoadmissions.com"]) {
+    assert.equal(platformAudienceForHost(host), null);
+    assert.equal(canonicalPlatformPageOrigin(host, "/portal"), null);
+  }
+  for (const path of ["/portal", "/portal/documents", "/portal/tests", "/auth/callback", "/auth/set-password", "/auth/account-pending"]) {
+    assert.equal(canonicalPlatformPageOrigin("crm.evoadmissions.com", path), PRODUCTION_STUDENT_ORIGIN, path);
+    assert.equal(canonicalPlatformPageOrigin("app.evoadmissions.com", path), null, path);
+  }
+  for (const path of ["/v3/main", "/v3/calendar", "/auth/staff", "/preview/student", "/platform-pending", "/access-denied"]) {
+    assert.equal(canonicalPlatformPageOrigin("app.evoadmissions.com", path), PRODUCTION_STAFF_ORIGIN, path);
+    assert.equal(canonicalPlatformPageOrigin("crm.evoadmissions.com", path), null, path);
+  }
+  for (const host of ["crm.evoadmissions.com", "app.evoadmissions.com"]) {
+    for (const path of ["/", "/login", "/api/health", "/api/portal/unknown", "/api/public/website-leads", "/portal/unknown", "//attacker.invalid"]) {
+      assert.equal(canonicalPlatformPageOrigin(host, path), null, path);
+    }
+  }
+});
+
+test("verified actor home dispatch cannot loop Staff through the Student portal", () => {
+  assert.equal(platformAudienceHomeRoute("app.evoadmissions.com", "staff", "/v3/main"), "https://crm.evoadmissions.com/v3/main");
+  assert.equal(platformAudienceHomeRoute("crm.evoadmissions.com", "student", "/portal"), "https://app.evoadmissions.com/portal");
+  assert.equal(platformAudienceHomeRoute("crm.evoadmissions.com", "student", "/auth/account-pending"), "https://app.evoadmissions.com/auth/account-pending");
+  assert.equal(platformAudienceHomeRoute("app.evoadmissions.com", "student", "/portal"), "/portal");
+  assert.equal(platformAudienceHomeRoute("crm.evoadmissions.com", "staff", "/v3/calendar"), "/v3/calendar");
+  assert.equal(platformAudienceHomeRoute("127.0.0.1:31457", "staff", "/v3/main"), "/v3/main");
+  assert.equal(platformAudienceHomeRoute("127.0.0.1:31457", "student", "/portal"), "/portal");
+  assert.equal(new URL(platformAudienceHomeRoute("app.evoadmissions.com", "staff", "//attacker.invalid")).origin, PRODUCTION_STAFF_ORIGIN);
+  const proxy = source("src/proxy.ts");
+  assert.match(proxy, /canonicalPlatformPageOrigin\(request.headers.get\("host"\), path\)/u);
+  assert.match(proxy, /if \(request.method !== "GET" && request.method !== "HEAD"\) return hiddenNotFound\(id\)/u);
+  assert.match(proxy, /target.search = request.nextUrl.search/u);
+  assert.match(proxy, /response.headers.set\("Referrer-Policy", "no-referrer"\)/u);
+});
 
 test("Admin Student preview has exact staff-only presentation routes, not Student endpoints", () => {
   const id = "b6214cbe-6d08-4a33-86b4-cdf5cc6ca5e2";

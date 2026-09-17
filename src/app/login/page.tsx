@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import { LoginForm } from "@/components/AuthForms";
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
@@ -7,6 +8,12 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { getT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
+import {
+  platformAudienceForHost,
+  PRODUCTION_STAFF_ORIGIN,
+  PRODUCTION_STUDENT_ORIGIN,
+  type PlatformAudience,
+} from "@/lib/platform-public-origin";
 
 const COPY: Record<
   Locale,
@@ -56,6 +63,23 @@ const COPY: Record<
   },
 };
 
+const AUDIENCE_COPY: Record<Locale, Record<PlatformAudience, Readonly<{
+  title: string; intro: string; signIn: string; otherSignIn: string;
+}>>> = {
+  ru: {
+    staff: { title: "Вход для сотрудников", intro: "Рабочее пространство EVO.", signIn: "Войти в CRM", otherSignIn: "Кабинет студента" },
+    student: { title: "Кабинет студента", intro: "Ваше поступление и документы в EVO.", signIn: "Войти в кабинет", otherSignIn: "Вход для сотрудников" },
+  },
+  ky: {
+    staff: { title: "Кызматкерлер үчүн кирүү", intro: "EVO иш мейкиндиги.", signIn: "CRMге кирүү", otherSignIn: "Студенттин кабинети" },
+    student: { title: "Студенттин кабинети", intro: "EVO'догу окууга тапшырууңуз жана документтериңиз.", signIn: "Кабинетке кирүү", otherSignIn: "Кызматкерлер үчүн кирүү" },
+  },
+  en: {
+    staff: { title: "Staff sign-in", intro: "Your EVO workspace.", signIn: "Sign in to CRM", otherSignIn: "Student portal" },
+    student: { title: "Student portal", intro: "Your EVO admissions and documents.", signIn: "Sign in to portal", otherSignIn: "Staff sign-in" },
+  },
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   return buildRouteMetadata({
     ru: COPY.ru.title,
@@ -78,7 +102,9 @@ export default async function LoginPage({
   searchParams,
 }: Readonly<{ searchParams: LoginPageSearchParams }>) {
   const { t, locale } = await getT();
-  const copy = COPY[locale];
+  const audience = platformAudienceForHost((await headers()).get("host"));
+  const audienceCopy = audience ? AUDIENCE_COPY[locale][audience] : null;
+  const copy = { ...COPY[locale], ...audienceCopy };
   const error = firstQueryValue((await searchParams).error);
   const initialError =
     error === "session_invalid"
@@ -106,6 +132,14 @@ export default async function LoginPage({
           <div className="mt-6">
             <LoginForm labels={copy} initialError={initialError} />
           </div>
+          {audienceCopy && (
+            <a
+              href={`${audience === "staff" ? PRODUCTION_STUDENT_ORIGIN : PRODUCTION_STAFF_ORIGIN}/login`}
+              className="mt-4 inline-flex min-h-11 items-center text-sm text-fg-2 underline underline-offset-4"
+            >
+              {audienceCopy.otherSignIn}
+            </a>
+          )}
         </div>
       </div>
     </main>

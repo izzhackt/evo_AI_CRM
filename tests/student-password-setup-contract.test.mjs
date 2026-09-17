@@ -44,8 +44,8 @@ test("root, login and proxy dispatch each authenticated identity to one product"
   assert.match(root, /resolvePlatformActor/u);
   assert.match(root, /resolveStudentPortalActor/u);
   assert.match(root, /readVerifiedStudentInviteSession/u);
-  assert.match(root, /return "\/portal"/u);
-  assert.match(root, /return "\/auth\/account-pending"/u);
+  assert.match(root, /return platformAudienceHomeRoute\(host, "student", "\/portal"\)/u);
+  assert.match(root, /return platformAudienceHomeRoute\(host, "student", "\/auth\/account-pending"\)/u);
 
   assert.match(login, /readVerifiedStudentPortalAuthority/u);
   assert.match(login, /readVerifiedStudentInviteSession/u);

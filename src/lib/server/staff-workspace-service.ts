@@ -1,7 +1,7 @@
 import "server-only";
 import { resolvePlatformActor } from "@/lib/platform-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { studentInviteCallbackUrl } from "@/lib/student-invite-callback-contract";
+import { staffInviteCallbackUrl } from "@/lib/student-invite-callback-contract";
 import { getPlatformSupabaseBackendConfig, PlatformSupabaseBackendConfigurationError } from "./platform-supabase-backend-config";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client";
 import { STAFF_UUID, parseStaffAuthInput, parseStaffAuthClaim, parseStaffAuthResult, parseStaffAuthPreparation,
@@ -36,10 +36,10 @@ export async function staffAdminContext() {
 }
 
 export function staffAuthCallbackUrl(): string {
-  // Reuse the accepted runtime origin; never trust Host, form input or redirect query.
-  return new URL("/auth/staff", studentInviteCallbackUrl(
+  // Each audience has a fixed production origin; never derive it from request input.
+  return staffInviteCallbackUrl(
     process.env.NODE_ENV, process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN,
-  )).toString();
+  );
 }
 
 export async function requestStaffAuth(form: FormData) {

@@ -26,18 +26,40 @@ resource, and log rules. The managed-Supabase recovery boundary is in
 multi-runtime material is retained under
 [`docs/archive/v1`](../docs/archive/v1/README.md) and must not be executed.
 
-## Current public hostname
+## Canonical domain cutover
 
-The sole current production hostname is
-`https://evo-crm.72.62.119.112.sslip.io`. `evo-edge-caddy` terminates automatic
-HTTPS for that exact hostname and proxies it to the single `evo-crm-app:3000`
-upstream on `evo_public_web`. `crm.evoadmissions.com` is deferred until the
-owner has working DNS; its absence does not block #552 and it must not be kept
-as a parallel active route. Both `EVO_CRM_DOMAIN` and
-`EVO_RELEASE_EXTERNAL_HEALTH_URL` must use the sslip hostname for this release.
-See [sslip.io](https://sslip.io/) for embedded-IP hostname resolution and
-[Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https) for the
-certificate lifecycle.
+Approved candidate, not a completed deployment claim: staff use
+`https://crm.evoadmissions.com`; Students use `https://app.evoadmissions.com`.
+Both terminate HTTPS at `evo-edge-caddy` and reach the same `evo-crm-app:3000`
+on `evo_public_web`. Preserve the original public Host and host-only cookies;
+do not share sessions with the marketing site or use wildcard origin rules.
+Exact callbacks are `https://crm.evoadmissions.com/auth/staff` and
+`https://app.evoadmissions.com/auth/callback`.
+
+Preparation checkpoint, 2026-09-17: both authoritative nameservers return
+`72.62.119.112` with TTL 300 for both new names. The proposed final Caddy config
+passes validation with the running binary; it has not been reloaded at this
+checkpoint. DNS/config validation alone is not HTTPS or authenticated proof.
+The latest [launch-plan receipt](../docs/EVO_LAUNCH_PLAN.md) supersedes this
+checkpoint when actual cutover is verified.
+
+Cutover order:
+
+1. Bootstrap trusted HTTPS for both names on the existing app, preserving the
+   old sslip route only for this pending transition and rollback.
+2. Configure exact Supabase callbacks and compatible invite/recovery templates
+   per [team activation](../docs/runbooks/team-workspace-activation.md).
+3. After new TLS/health pass, update only mutable operator
+   `EVO_CRM_DOMAIN=crm.evoadmissions.com` and GitHub variable
+   `EVO_RELEASE_EXTERNAL_HEALTH_URL=https://crm.evoadmissions.com/api/health`.
+   Run the [exact-SHA managed release](production-release.md); do not edit old
+   accepted snapshots or bypass controller sealing.
+4. After acceptance, retire the old sslip app origin to GET-only navigation
+   redirects. Never redirect auth POSTs or retain an alternate active app.
+   Preserve unrelated edge routes, private API guards, DNS/mail and WAHA.
+
+See [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https) and
+[Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls).
 
 ## Active inputs
 

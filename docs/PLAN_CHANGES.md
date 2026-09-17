@@ -27987,3 +27987,23 @@ Reuse unchanged local feature evidence, independently review the bounded diff,
 then run the real managed release once. PR820 is merged by its own task; root
 coordinates release. Current official GitHub workflow-run/manual-dispatch docs
 are linked in the launch plan; Context7 was quota-limited.
+
+### 2026-09-18 — team chat copy and mute removal; layout choice separate
+
+Before implementation: owner requests deleting the normal automatic-update
+message, internal-chat description and mute functionality, plus three larger
+chat design options. Owner explicitly approves light testing and production.
+Mute currently suppresses mention notifications in a database trigger, and an
+existing channel is muted. Hiding its control alone would strand that setting.
+Use a forward function replacement to reject mute commands and ignore legacy
+mute values for notification delivery. Keep historical preference rows/read
+cursors and inert response fields for rollback compatibility, without dropping
+data. Keep real transport/reconnect errors and all existing channel access.
+Validate only changed behavior and existing short release smoke; no heavy suite,
+new fake staff, provider activation or unsolicited messages. Three concept images
+are proposals, not production screenshots or authority to choose a redesign.
+Official function replacement semantics checked at
+https://www.postgresql.org/docs/current/sql-createfunction.html.
+Context7 was attempted but monthly quota was exhausted; official PostgreSQL
+documentation was read directly. Add a read-only Team Chat checkpoint to the
+existing real Admin production smoke so rollback also covers this changed page.

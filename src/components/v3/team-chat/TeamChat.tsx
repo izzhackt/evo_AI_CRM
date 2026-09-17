@@ -49,7 +49,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const forbidden = error === "forbidden";
   const needsHistoryRecovery = !forbidden && (transport === "error" || error !== null);
   const transportLabel = forbidden ? "Доступ к каналу закрыт"
-    : transport === "live" ? error ? "Соединение установлено" : "Сообщения появляются автоматически"
+    : transport === "live" ? error ? "Соединение установлено" : null
     : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
 
   const accept = useCallback((snapshot: TeamChatSnapshot) => {
@@ -213,11 +213,11 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function preference(input: Record<string, unknown>) {
+  async function markRead(messageId: string) {
     setBusy(true);
     try {
       const form = new FormData();
-      form.set("request_id", crypto.randomUUID()); form.set("channel", channel); form.set("input", JSON.stringify(input));
+      form.set("request_id", crypto.randomUUID()); form.set("channel", channel); form.set("input", JSON.stringify({ operation: "read", messageId }));
       const result = await teamChatCommandAction(TEAM_CHAT_INITIAL_ACTION, form);
       if (result.status !== "saved") { if (result.status !== "idle") reportFailure(result.status); return; }
       await refresh();
@@ -239,24 +239,20 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         {channels.map((item) => <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`}
           className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
           onClick={() => { if (item.key === channel) setPanel("messages"); }}>
-          <span># {TEAM_CHAT_LABELS[item.key]}{item.muted ? <span className={styles.muted}> · тихо</span> : null}</span>
+          <span># {TEAM_CHAT_LABELS[item.key]}</span>
           {item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
         </Link>)}
-        <p className={styles.channelHint}>Внутренняя переписка сотрудников EVO</p>
       </nav>
       <section className={styles.conversation} aria-label={`Канал ${TEAM_CHAT_LABELS[channel]}`}>
         <div className={styles.conversationHeader}>
           <button type="button" className={`${styles.secondary} ${styles.mobileBack}`} onClick={() => setPanel("channels")}>← Каналы</button>
           <h2># {TEAM_CHAT_LABELS[channel]}</h2>
-          {currentChannel ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => {
-            void preference({ operation: "mute", muted: !currentChannel.muted, expectedVersion: currentChannel.preferenceVersion });
-          })}>{currentChannel.muted ? "Включить уведомления" : "Приглушить"}</button> : null}
         </div>
-        <div className={styles.transport} role="status">
+        {transportLabel ? <div className={styles.transport} role="status">
           {transportLabel}
           {needsHistoryRecovery ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { void refresh(); })}>Обновить историю</button> : null}
           {transport === "error" && !forbidden ? <button type="button" className={styles.textButton} onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
-        </div>
+        </div> : null}
         {error ? <div role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[error]}</div> : null}
         {error === "forbidden" ? <a className={styles.secondary} href="/login">Войти снова</a> : <>
           <form className={styles.search} onSubmit={(event) => {
@@ -283,7 +279,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
           </div>
           <div className={styles.readActions}>
             {currentChannel?.firstUnreadId ? <button type="button" className={styles.textButton} onClick={() => openMessage(currentChannel.firstUnreadId!)}>К первому непрочитанному · {currentChannel.unreadCount}</button> : null}
-            {page.latestMessageId && currentChannel?.unreadCount ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { void preference({ operation: "read", messageId: page.latestMessageId }); })}>Отметить канал прочитанным</button> : null}
+            {page.latestMessageId && currentChannel?.unreadCount ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { if (page.latestMessageId) void markRead(page.latestMessageId); })}>Отметить канал прочитанным</button> : null}
             {newMessages || initialMessageId ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => startTransition(() => {
               void load({ channel, mode: "latest" }, (snapshot) => {
                 setMessages(snapshot.page.messages); setPage(snapshot.page); setSearch(null); setNewMessages(false);

@@ -1,5 +1,29 @@
 # EVO Launch Plan
 
+## Team chat cleanup and visual options — active 2026-09-18
+
+Owner approves direct production with light checks. This block removes the two
+explanatory chat strings and the mute feature; larger layout changes wait for
+the owner's selection from three visual concepts grounded in the current EVO UI.
+
+- [ ] Remove normal-success status copy, internal-chat hint, mute/unmute controls
+  and quiet-channel badges. Keep connection errors/recovery, live messages,
+  history, unread counts and mark-read behavior.
+- [ ] Remove mute commands server-side and the mention-notification mute filter
+  through one forward migration. Preserve messages, read cursors, receipts and
+  inert compatibility fields; no destructive schema cleanup or provider work.
+- [ ] Changed-file lint, narrow actual-function checks, independent review, and
+  the existing lightweight immutable release with rollback. Apply only the new
+  migration through the established operator path; no full DB replay.
+- [ ] Verify real authenticated production chat, absent removed controls/copy,
+  retained channel/history navigation and healthy accepted release. Do not send
+  staff messages or create accounts solely to manufacture acceptance evidence.
+- [ ] Show three distinct larger chat mockups; do not implement an unchosen
+  redesign. Use EVO branding, existing channels and uncluttered working space.
+
+Function replacement retains dependencies/permissions when signatures remain
+unchanged: https://www.postgresql.org/docs/current/sql-createfunction.html.
+
 ## Lightweight production release — completed 2026-09-18
 
 Owner explicitly approves replacing the heavy release prerequisite and deploying

@@ -9,7 +9,6 @@
 .channel { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-radius: 6px; padding: 10px; margin: 4px 0; color: var(--text); text-decoration: none; font-size: 14px; overflow-wrap: anywhere; }
 .channel:hover { background: var(--bg); }
 .selected { background: var(--bg); color: var(--accent-text); font-weight: 600; }
-.channelHint { font-size: 14px; line-height: 1.5; color: var(--text-3); margin: 24px 10px; }
 .unread { border-radius: 12px; background: var(--accent); color: var(--on-accent); min-width: 24px; padding: 2px 6px; text-align: center; font-size: 12px; }
 .conversation, .thread { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .thread { flex: 0 1 420px; border-left: 1px solid var(--border); }

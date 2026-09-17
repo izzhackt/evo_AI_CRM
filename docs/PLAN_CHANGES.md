@@ -28042,3 +28042,9 @@ belongs only to the chat workspace on the right. Size that workspace below the
 existing desktop/mobile header and preserve its own responsive back navigation.
 No change to other sections, global navigation or account controls is authorized
 by the chat design choice.
+
+The first final-head CI build/lint and scoped migration check passed. One existing
+release source assertion rejected the literal word `supabase` in the new
+read-only diff-selector paths. Correct that assertion to reject runtime commands,
+not harmless repository paths; retain the no-heavy-run intent. No production
+mutation occurred before this check was corrected.

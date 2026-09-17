@@ -123,6 +123,9 @@ jobs:
       - name: Install the locked Playwright Chromium shell runtime
         run: node_modules/.bin/playwright install --with-deps --only-shell chromium
 
+      - name: Install the browser-local certificate database utility
+        run: sudo apt-get install -y --no-install-recommends libnss3-tools
+
       - name: Test the V3 local PostgreSQL, migration, and browser contract
         timeout-minutes: 35
         env:

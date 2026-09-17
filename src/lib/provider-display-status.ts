@@ -24,7 +24,6 @@ type ProviderAvailability = Readonly<{
   status: "ready" | "configured" | "blocked";
   reason?:
     | "feature_disabled"
-    | "provider_not_authorized"
     | "configuration_missing"
     | "configuration_invalid";
 }>;

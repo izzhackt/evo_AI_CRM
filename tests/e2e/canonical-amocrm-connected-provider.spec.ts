@@ -863,7 +863,7 @@ test("disabled provider authority fails clearly in the real browser before any p
   await expect(
     panel.getByTestId("canonical-amocrm-provider-availability"),
   ).toContainText(
-    /Серверное разрешение провайдера не включено\.|Server-side provider authorization is disabled\.|Сервердик провайдер уруксаты өчүрүлгөн\./u,
+    /Функция отключена в приватном контуре EVO\.|The capability is disabled in the private EVO contour\.|Функция EVOнун жеке контурунда өчүрүлгөн\./u,
   );
   await expect(panel.getByTestId("canonical-amocrm-note-text")).toBeDisabled();
   await expect(panel.getByTestId("canonical-amocrm-sync")).toBeDisabled();

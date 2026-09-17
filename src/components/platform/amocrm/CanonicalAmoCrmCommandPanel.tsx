@@ -67,7 +67,6 @@ const COPY = {
     },
     blockedReasons: {
       feature_disabled: "Функция отключена в приватном контуре EVO.",
-      provider_not_authorized: "Серверное разрешение провайдера не включено.",
       configuration_missing: "Не заполнена обязательная конфигурация amoCRM.",
       configuration_invalid: "Конфигурация amoCRM некорректна.",
       routing_configuration_invalid: "Не настроен точный маршрут amoCRM.",
@@ -115,7 +114,6 @@ const COPY = {
     },
     blockedReasons: {
       feature_disabled: "Функция EVOнун жеке контурунда өчүрүлгөн.",
-      provider_not_authorized: "Провайдердин сервердик уруксаты күйгүзүлгөн эмес.",
       configuration_missing: "amoCRM үчүн милдеттүү конфигурация толтурулган эмес.",
       configuration_invalid: "amoCRM конфигурациясы туура эмес.",
       routing_configuration_invalid: "Так amoCRM маршруту коюлган эмес.",
@@ -162,7 +160,6 @@ const COPY = {
     },
     blockedReasons: {
       feature_disabled: "The capability is disabled in the private EVO contour.",
-      provider_not_authorized: "Server-side provider authorization is disabled.",
       configuration_missing: "Required amoCRM configuration is missing.",
       configuration_invalid: "The amoCRM configuration is invalid.",
       routing_configuration_invalid: "Exact amoCRM routing is not configured.",

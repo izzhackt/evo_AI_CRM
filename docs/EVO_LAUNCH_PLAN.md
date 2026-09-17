@@ -1,5 +1,42 @@
 # EVO Launch Plan
 
+## amoCRM connection simplification — active 2026-09-17
+
+Owner requests a more flexible connection without unnecessary rules. A bounded
+read-only check at14:37 UTC found that the current app lacks its amoCRM account
+URL/token binding and both enablement flags are false. The retired lead-agent
+is absent; retained OAuth credentials exist, but one real account GET returned
+401. No refresh or provider mutation was performed. This is a missing current
+binding plus rejected access token, not proof that flags caused the outage.
+
+- [x] Replace the duplicate `EVO_V2_AMOCRM_PROVIDER_AUTHORIZED` gate with the
+  single explicit `EVO_V2_AMOCRM_WRITES_ENABLED` switch (default0). Update every
+  active harness so its unauthorized mode still sets writes to0.
+- [x] Preserve staff permissions, account/routing discovery, private token
+  storage, idempotency and reconciliation. No automatic provider activation,
+  legacy-writer fallback, token refresh/rotation or customer writes.
+- [x] Scoped configuration/harness checks:38/38 pass; changed-file ESLint,
+  script syntax and whitespace checks pass. Independent exact-head review is
+  required before merge. No full release rerun or provider write was performed;
+  do not claim deployed or connected while the existing release blocker remains.
+- [ ] Separate follow-up: provision an explicitly approved current integration
+  credential, bind its private file read-only to the app (readable by runtime
+  UID1001), verify account access, discover the actual account's routing options
+  instead of asking the owner to locate technical IDs, then enable the single
+  switch for an agreed real operation. The tracked production Compose currently
+  has no token-file mount; an environment path alone does not provision one.
+
+The old OAuth file is not the current long-lived-token storage contract. Do not
+silently mount it or revive the retired worker. Official amoCRM supports private
+long-lived tokens without refresh logic; a current token still must authenticate
+against the exact account: [token documentation](https://www.amocrm.ru/developers/content/oauth/step-by-step),
+[account endpoint](https://www.amocrm.ru/developers/content/crm_platform/account-info).
+The documented current token-file path and `.env.amocrm` are absent from both
+the canonical local checkout and VPS checkout. This limited inventory does not
+claim that no credential could exist elsewhere. On upgrade, `WRITES_ENABLED=1`
+becomes the sole operator enablement decision; do not retain a value of1 while
+expecting the removed second flag to block execution. Current production has0.
+
 ## Current checkpoint — 2026-09-17 12:24 UTC
 
 - **Inbox dependency work complete:** PR811 merged; PR701/702 superseded.

@@ -18,7 +18,6 @@ export type CanonicalAmoCrmMissingConfiguration =
 
 export type CanonicalAmoCrmBlockedReason =
   | "feature_disabled"
-  | "provider_not_authorized"
   | "configuration_missing"
   | "configuration_invalid";
 
@@ -41,7 +40,6 @@ export type CanonicalAmoCrmProviderConfig =
 
 export type CanonicalAmoCrmConfigurationErrorCode =
   | "invalid_enabled_flag"
-  | "invalid_authorization_flag"
   | "invalid_base_url"
   | "invalid_token_file"
   | "invalid_timeout";
@@ -56,13 +54,10 @@ export class CanonicalAmoCrmConfigurationError extends Error {
   }
 }
 
-function flag(
-  value: string | undefined,
-  errorCode: "invalid_enabled_flag" | "invalid_authorization_flag",
-): boolean {
+function flag(value: string | undefined): boolean {
   if (value === undefined || value === "" || value === "0") return false;
   if (value === "1") return true;
-  throw new CanonicalAmoCrmConfigurationError(errorCode);
+  throw new CanonicalAmoCrmConfigurationError("invalid_enabled_flag");
 }
 
 function account(value: string): Readonly<{
@@ -147,19 +142,8 @@ function timeout(value: string | undefined): number {
 export function loadCanonicalAmoCrmProviderConfig(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): CanonicalAmoCrmProviderConfig {
-  if (!flag(environment.EVO_V2_AMOCRM_WRITES_ENABLED, "invalid_enabled_flag")) {
+  if (!flag(environment.EVO_V2_AMOCRM_WRITES_ENABLED)) {
     return Object.freeze({ status: "blocked", reason: "feature_disabled" });
-  }
-  if (
-    !flag(
-      environment.EVO_V2_AMOCRM_PROVIDER_AUTHORIZED,
-      "invalid_authorization_flag",
-    )
-  ) {
-    return Object.freeze({
-      status: "blocked",
-      reason: "provider_not_authorized",
-    });
   }
 
   const values = Object.freeze({

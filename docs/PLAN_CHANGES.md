@@ -27987,3 +27987,36 @@ Reuse unchanged local feature evidence, independently review the bounded diff,
 then run the real managed release once. PR820 is merged by its own task; root
 coordinates release. Current official GitHub workflow-run/manual-dispatch docs
 are linked in the launch plan; Context7 was quota-limited.
+
+## 2026-09-18 — Refresh obsolete university campus photographs
+
+Date: 2026-09-18, workspace timezone.
+Author: Codex.
+Change type: bounded content scope and real-image acceptance criteria.
+Affected plan section: University photo refresh; `docs/design/v3/university-photo-refresh-run-plan.md`.
+Reason: owner requests latest, high-quality university pictures on app.evoadmissions.com; the current registry includes 2005–2013 campus images and the historical APU/UCTI building.
+Decision: audit143 used image keys, replace obsolete/poor photographs with verified current campus photos while preserving keys, data, programs and Student authority. Keep genuine source/author/rights and distinguish capture date from publication/review dates. Direct official embeds stay remote; no unlicensed asset copying into public Git/Storage. Research agents own separate temporary country evidence; root owns registry, plans, integration and release. Existing shared renderer remains unless a concrete image presentation defect requires a narrow correction.
+Validation impact: real image bytes/dimensions/visual identity plus actual authorized Student rendering and image decoding; existing scoped real-catalogue checks, protected short PR checks and independent exact-head review. Use current lightweight managed release, no blanket full-suite replay or database migration. Retained and unresolved sources must be disclosed truthfully.
+Reviewer notes: pending exact-head independent review; no production/content change claimed by this plan entry.
+
+## 2026-09-18 — Retire the old APAC portrait-only image layout
+
+Date: 2026-09-18, workspace timezone.
+Author: Codex.
+Change type: small presentation correction within the photo refresh.
+Affected plan section: university-photo-refresh-run-plan.md, real rendering acceptance.
+Reason: the actual Student page with the new1024×768 APAC photograph renders it only235px wide inside a382px figure because the renderer hardcodes APAC's retired326×421 portrait geometry.
+Decision: remove this obsolete photo-key exception and display APAC through the same responsive image layout as the other campus photos. Preserve native lazy loading, asynchronous decode, alt text, no-referrer, source/license attribution and explicit load failure. Do not introduce another image service or proxy.
+Validation impact: actual APAC card/detail and mobile crop inspection plus changed-file ESLint and the existing real-catalogue rendering check. Installed Next image guidance and MDN img sizing/lazy-loading documentation were read; Context7 was attempted but monthly quota is exhausted. Official reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img.
+Reviewer notes: separate exact-head review must include this two-line special-case removal.
+
+## 2026-09-18 — Owner stops photo expansion and requests release of completed work
+
+Latest owner direction: stop further selection, save completed changes and put
+them in production. Freeze59 campus photo replacements, preserve38 retained
+photos and46 unresolved entries; no further source research. Exclude the HZNU
+replacement because actual Student embedding failed. Preserve existing photo
+there and keep the incomplete143-image/mobile sweep explicit. Reuse the scoped
+passing real-catalogue checks and completed source reviews; finish exact-head
+review, protected short checks and the existing lightweight release with real
+production smoke and rollback. No database/catalogue/provider mutation.

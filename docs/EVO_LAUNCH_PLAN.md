@@ -1,5 +1,22 @@
 # EVO Launch Plan
 
+## University photo refresh — frozen for release 2026-09-18
+
+Owner requests fresh, high-quality real university pictures on
+`app.evoadmissions.com`. Follow the [photo refresh plan](design/v3/university-photo-refresh-run-plan.md):
+audit all143 used photo keys, replace obsolete/poor images using verified current
+campus sources, preserve truthful dates/attribution and existing keys. JSON-only
+content refresh needs no schema, data or catalogue republication. Validate real
+Student rendering and image decoding, exact-head review and the accepted
+lightweight managed release. Record retained/unresolved sources honestly;
+providers and private Student data are outside this change.
+
+Latest owner direction stops further selection and requests saving/deploying
+the completed work. Freeze59 replacements; preserve38 retained and46 unresolved
+entries. Withdraw the HZNU candidate that failed real EVO embedding. See the
+[143-key source ledger](design/v3/references/2026-09-18-university-photo-audit.json).
+Do not claim all photos are recent or the interrupted full browser sweep passed.
+
 ## Lightweight production release — completed 2026-09-18
 
 Owner explicitly approves replacing the heavy release prerequisite and deploying

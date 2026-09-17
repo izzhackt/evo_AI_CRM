@@ -27942,3 +27942,27 @@ The connected harness child receives writes0 in its unauthorized mode even when
 the private runtime input contains1; both foundation launch branches retain the
 same off-by-default behavior. This is local contract evidence, not real amoCRM
 operation or deployment acceptance. Exact-head independent review precedes merge.
+
+### 2026-09-18 — focused case-opening fix and fast validation policy
+
+Owner explicitly replaces blanket heavy testing with real checks of the changed
+function and asks for an independent portal-design task. Keep that UI work
+separate. Production41394497 reproduces ERROR3116888569 opening the existing
+owner-approved persistent QA case. The compiled stack identifies `oneRow` in
+`getPlatformStudentCaseHandoffContext`; a real existing Admin password login and
+RPC return HTTP200 with zero handoff rows. No account or case mutation occurred.
+
+Before implementation: treat a successful empty handoff result as explicit
+absence, not a failed service or a fabricated handoff. Retain strict response
+validation and errors; cases linked to a canonical Sales lead must still have
+the matching handoff. Contract/file/route work remains available without showing
+invented Sales provenance or provider commands. No migration or new legacy shim.
+
+Use the persisted case with actual Auth and Supabase for the narrow regression
+and real route check; no synthetic new cases, mocked acceptance, full migration
+replay, external provider calls or unrelated Docs export-history investigation.
+AGENTS removes the old blanket full-release-test instruction; enforced workflow
+requirements remain a separate constraint, not permission to forge receipts.
+Official RPC/error behavior checked via
+https://supabase.com/docs/reference/javascript/rpc and
+https://docs.postgrest.org/en/stable/references/errors.html ; Context7 was quota-limited.

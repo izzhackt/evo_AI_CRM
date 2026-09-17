@@ -190,8 +190,10 @@ export function ProfileContractWorkspace({
   if (actor.presentationRole === "sales") return null;
   if (
     snapshot.workspace.organizationId !== organizationId ||
-    snapshot.handoff.organizationId !== organizationId ||
-    snapshot.workspace.studentCaseId !== snapshot.handoff.studentCaseId
+    (snapshot.handoff !== null && (
+      snapshot.handoff.organizationId !== organizationId ||
+      snapshot.workspace.studentCaseId !== snapshot.handoff.studentCaseId
+    ))
   ) {
     throw new Error("V3 contract workspace identity does not match the active case.");
   }
@@ -202,7 +204,7 @@ export function ProfileContractWorkspace({
       data-testid="v3-profile-contract-workspace"
       data-student-case-id={snapshot.workspace.studentCaseId}
     >
-      <HandoffContext handoff={snapshot.handoff} />
+      {snapshot.handoff && <HandoffContext handoff={snapshot.handoff} />}
       <ContractDraftReportWorkspace
         workspace={snapshot.workspace}
         actions={CONTRACT_ACTIONS}
@@ -210,11 +212,11 @@ export function ProfileContractWorkspace({
         result={result}
         retrySubjectId={retry?.subjectId}
       />
-      <ProfileAmoCrmCommandSection
+      {snapshot.handoff && <ProfileAmoCrmCommandSection
         organizationId={organizationId}
         actor={actor}
         handoff={snapshot.handoff}
-      />
+      />}
     </div>
   );
 }

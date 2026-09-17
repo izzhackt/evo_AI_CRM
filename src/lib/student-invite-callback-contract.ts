@@ -1,7 +1,9 @@
+import { PRODUCTION_STAFF_ORIGIN, PRODUCTION_STUDENT_ORIGIN } from "./platform-public-origin.ts";
+
 export const LOCAL_STUDENT_INVITE_CALLBACK_URL =
   "http://127.0.0.1:3000/auth/callback" as const;
 export const PRODUCTION_STUDENT_INVITE_CALLBACK_URL =
-  "https://evo-crm.72.62.119.112.sslip.io/auth/callback" as const;
+  `${PRODUCTION_STUDENT_ORIGIN}/auth/callback` as const;
 
 export const STUDENT_INVITE_CSRF_COOKIE = "evo_student_invite_csrf" as const;
 export const STUDENT_INVITE_CSRF_FIELD = "csrf_token" as const;
@@ -60,6 +62,14 @@ export function studentInviteCallbackUrl(
     throw new Error("Invalid local Student invite callback origin.");
   }
   return `${localCallbackOrigin}/auth/callback`;
+}
+
+export function staffInviteCallbackUrl(
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+  localCallbackOrigin?: string,
+): string {
+  if (nodeEnv === "production") return `${PRODUCTION_STAFF_ORIGIN}/auth/staff`;
+  return new URL("/auth/staff", studentInviteCallbackUrl(nodeEnv, localCallbackOrigin)).toString();
 }
 
 export function decodeStudentInviteCallbackQuery(

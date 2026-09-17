@@ -51,8 +51,10 @@ S2 добавляет редактируемые отделы и бизнес-р
 - Подтверждённый отказ Auth отображается в журнале. После исправления причины
   и паузы можно явно создать новый запрос. Таймаут или неизвестный результат
   не считается подтверждённым отказом и не открывает автоматический retry.
-- Проверить Supabase redirect allowlist: канонический origin + `/auth/staff`.
-  Новых env нет: origin переиспользует действующий callback-контракт.
+- Для кандидата нового доменного контракта проверить точные Supabase redirect
+  URLs: `https://crm.evoadmissions.com/auth/staff` для сотрудников и
+  `https://app.evoadmissions.com/auth/callback` для Student. Не использовать
+  общий wildcard и не направлять сотрудника на Student callback.
 - Шаблон приглашения/восстановления должен учитывать `{{ .RedirectTo }}`,
   а не направлять все письма на Student-only callback. Прямой вариант:
   `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite` и аналогичный
@@ -67,6 +69,24 @@ S2 добавляет редактируемые отделы и бизнес-р
 Стандартный Invite user использует `{{ .ConfirmationURL }}`; текущий staff callback
 поддерживает этот implicit flow, но настоящее письмо/вход ещё не проверены.
 Не менять общие шаблоны вслепую: ими пользуются также приглашения Student.
+
+Уточнение 17.09.2026 перед управляемой сменой доменов: свежий просмотр Dashboard
+снова показывает custom SMTP выключенным и Invite user с
+`{{ .ConfirmationURL }}`. Это наблюдение конфигурации, не проверка доставки.
+После готовности доверенного TLS оператор настраивает точные callback URLs
+выше и Site URL `https://crm.evoadmissions.com`. Для действующего Student
+token-hash контракта общий Invite должен вести на
+`{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite`; Staff Recovery — на
+`{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`. Так адрес,
+выбранный для конкретной аудитории, сохраняется, а не заменяется одним общим
+callback. Это не добавляет Student recovery в invite-only обработчик.
+Изменение ещё не подтверждено этим документом; фактический результат
+фиксируется в [launch plan](../EVO_LAUNCH_PLAN.md).
+
+Оба домена используют одно приложение, сохраняют публичный Host и host-only
+cookies. Старый sslip остаётся только на время pending cutover; после принятого
+релиза — GET-only переходы, без перенаправления auth POST. Порядок DNS/TLS,
+настройки Auth и managed release: [доменный runbook](../../deploy/README.md#canonical-domain-cutover).
 
 Для начала работы нужен настроенный SMTP — сервис отправки писем. Подключить
 действующие host, port, user/password и подтверждённый From-адрес в Dashboard,

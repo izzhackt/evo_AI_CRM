@@ -288,11 +288,18 @@
 
 - Target server: `hermes-vps` (`root@72.62.119.112` via SSH config).
 - Target path: `/opt/evo-crm`.
-- Current public CRM URL: `https://evo-crm.72.62.119.112.sslip.io`.
-- `crm.evoadmissions.com` is deferred until EVO controls working DNS. It is not
-  a release prerequisite and must not be configured as a parallel product
-  route. The current sslip hostname is the one production hostname and uses
-  Caddy automatic HTTPS.
+- Approved domain-cutover candidate: `https://crm.evoadmissions.com` for staff
+  and `https://app.evoadmissions.com` for Students, both on the same app. Treat
+  these as deployed only after the receipt in `docs/EVO_LAUNCH_PLAN.md` proves
+  DNS, trusted TLS, callbacks and exact managed-release acceptance.
+- Preserve the public Host through the edge and host-only auth cookies; no
+  wildcard cookie domain or origin bypass. Staff callback is exactly
+  `https://crm.evoadmissions.com/auth/staff`; Student callback is exactly
+  `https://app.evoadmissions.com/auth/callback`.
+- New release health is exactly `https://crm.evoadmissions.com/api/health`.
+  Keep the old sslip route only during the bounded pending cutover; after
+  acceptance use GET-only navigation redirects, never redirect auth POSTs or
+  retain sslip as an active app fallback. Follow `deploy/README.md` for order.
 - Production runs with `docker compose -f docker-compose.prod.yml` as project
   `evo-crm`.
 - The app container is `evo-crm-app-1`, image `evo-crm:latest`, private network

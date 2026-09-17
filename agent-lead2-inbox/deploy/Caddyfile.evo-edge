@@ -64,7 +64,7 @@
 	respond @reject_noncanonical_api 404
 }
 
-evo-crm.72.62.119.112.sslip.io {
+crm.evoadmissions.com, app.evoadmissions.com {
 	import evo_app
 	import evo_canonical_api_paths
 	request_body {
@@ -72,6 +72,31 @@ evo-crm.72.62.119.112.sslip.io {
 	}
 	encode zstd gzip
 	reverse_proxy evo-crm-app:3000
+}
+
+# Navigation from the retired technical hostname is not a second app origin.
+# In particular, never forward callback/form POSTs across hosts.
+(evo_retired_app) {
+	header {
+		-Server
+		Cache-Control "no-store"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+	}
+	route {
+		import evo_canonical_api_paths
+		@private path /api/internal /api/internal/* /api/readiness /api/readiness/* /admin /admin/* /metrics /metrics/* /api/public/website-leads /api/public/website-leads/*
+		respond @private 404
+		@mutation not method GET HEAD
+		respond @mutation 405
+		@student path /portal /portal/* /auth/callback /auth/callback/*
+		redir @student https://app.evoadmissions.com{uri} 308
+		redir https://crm.evoadmissions.com{uri} 308
+	}
+}
+
+evo-crm.72.62.119.112.sslip.io {
+	import evo_retired_app
 }
 
 # Existing VPS routes are intentionally part of the EVO edge source of truth.
@@ -157,4 +182,13 @@ olympiadai.72.62.119.112.sslip.io {
 
 evoadmissions.com, www.evoadmissions.com {
 	import evo_website
+}
+
+# Existing unrelated route observed on the live edge before this cutover.
+invite-bishkek-site.72.62.119.112.sslip.io {
+	encode zstd gzip
+	reverse_proxy invite-bishkek-site-caddy:80
+	header {
+		-Server
+	}
 }

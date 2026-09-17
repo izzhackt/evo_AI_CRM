@@ -1,5 +1,42 @@
 # EVO Launch Plan
 
+## Canonical staff and Student domains — active 2026-09-17
+
+Owner approved connecting `crm.evoadmissions.com` for employees and
+`app.evoadmissions.com` for students, including verification from the owner's
+current Mac network. This supersedes deferral of the custom CRM hostname.
+One existing application, Supabase project and authorization system remain;
+no new product/runtime, data copy or authentication bypass is permitted.
+
+- [x] Add only the two exact Spaceship A records to the existing VPS; preserve
+  apex/www, mail, MX/TXT, DNSSEC and nameservers.
+- [ ] Implement exact staff/Student auth callback origins, canonical entry
+  routing and required real Supabase URL configuration. Keep CSRF, role/RLS
+  checks and host-only sessions; do not use a wildcard redirect allowance.
+- [ ] Independently review the code/edge delta; pass scoped PR checks and the
+  existing exact-main release proof when application code changes.
+- [ ] Bootstrap the two HTTPS hosts on the existing Caddy edge, deploy through
+  the managed release, then finalize the edge without recreation. Preserve unrelated sites, the private
+  website receiver and every private API guard. Retire the old hostname as an
+  application entrypoint once both new hosts are proven; do not retain a second
+  active app origin as a fallback.
+- [ ] Verify authoritative/public DNS, real trusted HTTPS, staff/Student entry
+  routing, actual available login/session behavior, negative private-path gates
+  and unchanged marketing-site availability. Distinguish a real authenticated
+  journey from a login-page/health-only check; name missing credentials clearly.
+- [ ] Save exact source/release/edge/DNS evidence and update shared context.
+
+The owner takes over the real website-inquiry and Gmail-delivery checks; remove
+them from the agent's active checklist without reporting either as verified.
+Web-X billing clarification is separate from this cutover: do not cancel the
+domain, delete old hosting data or send support requests in this run.
+
+Preparation receipt: both exact A records are saved with TTL300 and read back
+as `72.62.119.112` from both authoritative Spaceship nameservers. Bootstrap and
+final configuration are separate: keep the old application proxy only during
+this bounded cutover, then retire it after canonical-domain release acceptance.
+No application/edge deployment or new-domain login is claimed by this receipt.
+
 ## EVO workspace consolidation — 2026-09-17
 
 Owner approved a common local `EVO/` parent with independent Platform and

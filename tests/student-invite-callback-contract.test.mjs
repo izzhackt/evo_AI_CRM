@@ -7,6 +7,7 @@ import {
   PRODUCTION_STUDENT_INVITE_CALLBACK_URL,
   STUDENT_INVITE_CSRF_COOKIE,
   decodeStudentInviteCallbackQuery,
+  staffInviteCallbackUrl,
   studentInviteCallbackUrl,
   validateStudentInviteCallbackPost,
 } from "../src/lib/student-invite-callback-contract.ts";
@@ -21,7 +22,7 @@ test("Student invite callbacks use only the frozen exact URLs", () => {
   );
   assert.equal(
     PRODUCTION_STUDENT_INVITE_CALLBACK_URL,
-    "https://evo-crm.72.62.119.112.sslip.io/auth/callback",
+    "https://app.evoadmissions.com/auth/callback",
   );
   assert.equal(
     studentInviteCallbackUrl("development"),
@@ -35,6 +36,16 @@ test("Student invite callbacks use only the frozen exact URLs", () => {
     studentInviteCallbackUrl("production"),
     PRODUCTION_STUDENT_INVITE_CALLBACK_URL,
   );
+});
+
+test("staff callbacks use their own fixed production origin and preserve scoped local origin", () => {
+  assert.equal(staffInviteCallbackUrl("production"), "https://crm.evoadmissions.com/auth/staff");
+  for (const origin of ["http://127.0.0.1:31457", "https://attacker.invalid", "", "http://localhost:3000"]) {
+    assert.equal(staffInviteCallbackUrl("production", origin), "https://crm.evoadmissions.com/auth/staff");
+  }
+  assert.equal(staffInviteCallbackUrl("test"), "http://127.0.0.1:3000/auth/staff");
+  assert.equal(staffInviteCallbackUrl("development", "http://127.0.0.1:31457"), "http://127.0.0.1:31457/auth/staff");
+  assert.throws(() => staffInviteCallbackUrl("development", "https://app.evoadmissions.com"));
 });
 
 test("callback query accepts exactly one SHA-224 token hash and type=invite", () => {
@@ -110,9 +121,9 @@ test("callback POST requires exact origin, effective host, CSRF and form", () =>
 
   const productionAccepted = validateStudentInviteCallbackPost({
     nodeEnv: "production",
-    origin: "https://evo-crm.72.62.119.112.sslip.io",
+    origin: "https://app.evoadmissions.com",
     host: "evo-crm-app:3000",
-    forwardedHost: "evo-crm.72.62.119.112.sslip.io",
+    forwardedHost: "app.evoadmissions.com",
     forwardedProto: "https",
     csrfCookie: CSRF_TOKEN,
     form: new Map([
@@ -130,8 +141,8 @@ test("callback POST requires exact origin, effective host, CSRF and form", () =>
 test("callback POST fails closed for cross-origin, ambiguous headers or CSRF", () => {
   const base = {
     nodeEnv: "production",
-    origin: "https://evo-crm.72.62.119.112.sslip.io",
-    host: "evo-crm.72.62.119.112.sslip.io",
+    origin: "https://app.evoadmissions.com",
+    host: "app.evoadmissions.com",
     forwardedHost: null,
     forwardedProto: null,
     csrfCookie: CSRF_TOKEN,
@@ -145,10 +156,12 @@ test("callback POST fails closed for cross-origin, ambiguous headers or CSRF", (
   for (const overrides of [
     { origin: null },
     { origin: "https://attacker.invalid" },
-    { origin: "https://user:pass@evo-crm.72.62.119.112.sslip.io" },
-    { origin: "https://evo-crm.72.62.119.112.sslip.io/path" },
+    { origin: "https://user:pass@app.evoadmissions.com" },
+    { origin: "https://app.evoadmissions.com/path" },
+    { origin: "https://crm.evoadmissions.com", host: "crm.evoadmissions.com" },
+    { origin: "https://evo-crm.72.62.119.112.sslip.io", host: "evo-crm.72.62.119.112.sslip.io" },
     { host: "attacker.invalid" },
-    { host: "evo-crm.72.62.119.112.sslip.io, attacker.invalid" },
+    { host: "app.evoadmissions.com, attacker.invalid" },
     { forwardedHost: "attacker.invalid" },
     { forwardedProto: "http" },
     { forwardedProto: "https,http" },

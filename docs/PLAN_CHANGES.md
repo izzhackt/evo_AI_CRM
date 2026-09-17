@@ -27531,3 +27531,62 @@ suite passed on Node22:163 passed/1 skipped, no failures (CFW
 `01a0ac71344d7400a34e14dce5e6ac2c`). No application build, browser/container run,
 provider operation or deployment was performed for this documentation slice.
 Independent exact-head review and publication are still pending at PR creation.
+
+## 2026-09-17 — Canonical employee and Student domain cutover
+
+Owner now explicitly requests `crm.evoadmissions.com` for employees and
+`app.evoadmissions.com` for students, with trusted HTTPS and access from the
+current Mac network. Custom-domain deferral is superseded. Keep the existing
+single Platform runtime/database/auth model; this does not authorize separate
+products, session sharing across all subdomains or authentication weakening.
+
+DNS-only is insufficient: the current production Student invite callback uses
+the sslip hostname and staff callbacks derive from that same origin. Introduce
+exact production callback origins for each audience and matching Supabase URL
+configuration. Preserve origin/CSRF/role/RLS checks, host-only cookies and all
+public API guards. Retire sslip as an active app origin after proven cutover;
+any old-address navigation must be a deliberate redirect, not a second runtime.
+
+Add only two A records in Spaceship, preserving all existing zone records and
+nameservers. Use Caddy's existing shared proxy/network and persistent certificate
+store, validate before graceful reload, preserve the bound config inode and
+all unrelated sites. Official references:
+[automatic HTTPS](https://caddyserver.com/docs/automatic-https),
+[graceful reload](https://caddyserver.com/docs/command-line#caddy-reload),
+[Supabase exact production redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls).
+Context7 lookup was attempted but its monthly quota is exhausted; current official
+documentation is the fallback research source, not a runtime fallback.
+
+Application changes require the existing scoped PR checks, independent exact-head
+review and exact-main managed-release proof. Record actual DNS/TLS/entrypoint and
+available authenticated-session evidence; no invented students or test claims.
+Do not alter network trust to bypass the Fortinet interception seen on sslip.
+
+The owner takes over website-inquiry acceptance and Gmail delivery. Remove those
+two items from the agent's active checklist, retain their last unverified status
+as history, and do not send an inquiry or email on the owner's behalf. Web-X
+hosting was described by the owner as a one-time payment; clarify renewal versus
+domain registration, but do not cancel/delete a service or contact support now.
+
+Pre-implementation audit refinement: migrate the strict managed-release health
+URL and browser origin to `https://crm.evoadmissions.com` in the same reviewed
+slice, preserving all exact-host, artifact, revision and receipt assertions.
+Keeping only sslip health would break the current browser proof, which derives
+its login origin from health. The old host is not retained as a runtime fallback.
+Bootstrap the two new edge hosts on the existing app first; keep the existing
+old route only during this single cutover so current callbacks and rollback
+remain usable. After the new release's canonical acceptance, replace its UI
+route with deliberate GET navigation redirects; never redirect callback POSTs.
+This bounded deployment phase ends in this run, not in an open-ended second app.
+
+Audience-aware application routing must avoid the staff-on-Student loop that an
+unconditional edge `/` to `/portal` redirect would create. Existing roles remain
+the authority; wrong-surface navigation goes to the appropriate canonical host.
+Do not share cookies with the marketing hostname or add a wildcard origin bypass.
+
+Live Caddy drift is legitimate unrelated-site work: source/mount hash
+`ac70ee8a09032ba8b5140dbc489f45862e40d1a853cf6fec320a00c9bfc3acb2`
+is the current canonical file plus the appended
+`invite-bishkek-site.72.62.119.112.sslip.io` route to
+`invite-bishkek-site-caddy:80`. Preserve and reconcile that exact block. No other
+project service is changed by this cutover.

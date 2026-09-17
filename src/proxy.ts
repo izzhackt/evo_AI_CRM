@@ -12,6 +12,7 @@ import {
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
+import { canonicalPlatformPageOrigin } from "@/lib/platform-public-origin";
 import {
   STUDENT_INVITE_CSRF_COOKIE,
   isStudentInviteCsrfToken,
@@ -259,6 +260,18 @@ export async function proxy(request: NextRequest) {
   }
   if (isConnectedPlatformPrivateApi(path)) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+
+  const canonicalOrigin = canonicalPlatformPageOrigin(request.headers.get("host"), path);
+  if (canonicalOrigin) {
+    // A callback/action body must never be forwarded to a different origin.
+    if (request.method !== "GET" && request.method !== "HEAD") return hiddenNotFound(id);
+    const target = new URL(canonicalOrigin);
+    target.pathname = path;
+    target.search = request.nextUrl.search;
+    const response = setResponseHeaders(NextResponse.redirect(target), id);
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return response;
   }
 
   // The exact staff acceptance page owns provider-token verification and

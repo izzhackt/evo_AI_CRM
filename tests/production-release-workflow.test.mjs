@@ -422,6 +422,26 @@ test("the release stays coarse-unarmed and admits only successful manual exact-m
   assert.match(deploy, /needs\.build\.result == 'success'/u);
 });
 
+test("production release health is pinned to the canonical staff domain", () => {
+  const guard = workflow.match(/^ +\[\[ "\$EVO_RELEASE_EXTERNAL_HEALTH_URL" == .* \]\]$/mu)?.[0];
+  assert.ok(guard, "actual production health guard must exist");
+  for (const [url, accepted] of [
+    ["https://crm.evoadmissions.com/api/health", true],
+    ["https://evo-crm.72.62.119.112.sslip.io/api/health", false],
+    ["https://app.evoadmissions.com/api/health", false],
+    ["http://crm.evoadmissions.com/api/health", false],
+    ["http://127.0.0.1:9/api/health", false],
+    ["https://crm.evoadmissions.com.attacker.invalid/api/health", false],
+    ["https://crm.evoadmissions.com/api/health?ok=1", false],
+  ]) {
+    const result = spawnSync("bash", ["-c", guard], {
+      env: { PATH: process.env.PATH, EVO_RELEASE_EXTERNAL_HEALTH_URL: url },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, accepted ? 0 : 1, url);
+  }
+});
+
 test("the fast-release suite includes workflow and browser proof contracts", () => {
   const command = packageJson.scripts?.["test:fast-release"] ?? "";
   assert.match(command, /tests\/production-release-workflow\.test\.mjs/u);

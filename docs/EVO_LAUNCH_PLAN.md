@@ -1,5 +1,32 @@
 # EVO Launch Plan
 
+## Current checkpoint — 2026-09-17 12:24 UTC
+
+- **Inbox dependency work complete:** PR811 merged; PR701/702 superseded.
+  The retired companion was not deployed or reactivated.
+- **Lightweight live integration check complete:** current readiness only;
+  WhatsApp pairing and amoCRM operations are not accepted. See next section.
+- **Portal performance code merged, not deployed.** Latest frozen-main
+  CI35219750669 at `1d0a64afa6f500448aa5aefb1cf98987601e3923` failed at
+  `COLD_EXPORT_HISTORY`; release35220644955 was skipped, arm remains false.
+  Production retains accepted `41394497fa61d37d543091e9b22f8b62902c09bb`.
+
+The new CSS proof passed all24 staff viewport/route combinations. TLS,18 staff
+scenarios, immutable Storage, isolated provider-surface checks and D2 draft/final
+generation/download/exact replay also passed. Both POSTs finished normally in
+this observation; that does not prove the intermittent cancellation fixed.
+The failure occurs while opening export history in a **new page of the same
+authenticated context**, not a new login. The log does not expose which history
+assertion failed; no workflow artifacts were retained. Cold-history downloads,
+ZIP acceptance and later negative-dev gates are not proven by this run.
+
+Next bounded task: expose a safe error category/substage for that existing cold
+history assertion, then fix the evidenced cause. Keep original persistence,
+historical-version, immutable-byte and access assertions. Do not rerun the same
+failed revision, invent a cause, weaken the gate or deploy around it. No further
+full run was dispatched in this lightweight-check pass. Fresh read-only ledger
+35219785624 matches170/170 with empty differences; no migration apply is needed.
+
 ## Lightweight live integration check — approved 2026-09-17
 
 Run in parallel with the already-running Portal release gate; no additional full

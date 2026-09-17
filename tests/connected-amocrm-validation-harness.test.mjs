@@ -657,6 +657,7 @@ test("routing approval is exact, private and fail-closed before an authorized ch
     "owner-executable-marker.json",
   );
   const childMarker = join(directory, "authorized-child.txt");
+  const disabledChildMarker = join(directory, "disabled-child.txt");
   const missingFile = join(directory, "missing.json");
 
   const invoke = (args) =>
@@ -698,7 +699,7 @@ test("routing approval is exact, private and fail-closed before an authorized ch
       process.execPath,
       "--input-type=module",
       "-e",
-      'import { writeFileSync } from "node:fs"; writeFileSync(process.argv[1], `${process.env.EVO_V2_AMOCRM_PROVIDER_AUTHORIZED}:${process.env.EVO_V2_AMOCRM_SALES_PIPELINE_ID}`);',
+      'import { writeFileSync } from "node:fs"; writeFileSync(process.argv[1], `${process.env.EVO_V2_AMOCRM_WRITES_ENABLED}:${process.env.EVO_V2_AMOCRM_SALES_PIPELINE_ID}`);',
       childMarker,
     );
     return invoke(args);
@@ -706,9 +707,11 @@ test("routing approval is exact, private and fail-closed before an authorized ch
 
   try {
     await Promise.all([
-      writeFile(runtimeFile, privateJson({ providerEnvironment: {} }), {
-        mode: 0o600,
-      }),
+      writeFile(
+        runtimeFile,
+        privateJson({ providerEnvironment: { EVO_V2_AMOCRM_WRITES_ENABLED: "1" } }),
+        { mode: 0o600 },
+      ),
       writeFile(contextFile, privateJson(routingContext()), { mode: 0o600 }),
       writeFile(discoveryFile, privateJson(ROUTING_APPROVAL), { mode: 0o600 }),
       writeFile(approvalFile, privateJson(ROUTING_APPROVAL), { mode: 0o600 }),
@@ -868,6 +871,26 @@ test("routing approval is exact, private and fail-closed before an authorized ch
       assert.match(rejected.stderr, new RegExp(errorCode, "u"));
       await assert.rejects(() => stat(childMarker), { code: "ENOENT" });
     }
+
+    const disabled = invoke([
+      "run-app",
+      "--runtime-file",
+      runtimeFile,
+      "--context-file",
+      contextFile,
+      "--provider-authorized",
+      "0",
+      "--",
+      process.execPath,
+      "--input-type=module",
+      "-e",
+      'import { writeFileSync } from "node:fs"; writeFileSync(process.argv[1], `${process.env.EVO_V2_AMOCRM_WRITES_ENABLED}:${process.env.EVO_V2_AMOCRM_SALES_PIPELINE_ID}`);',
+      disabledChildMarker,
+    ]);
+    assert.equal(disabled.status, 0, disabled.stderr);
+    assert.equal(disabled.stdout, "");
+    assert.equal(disabled.stderr, "");
+    assert.equal(await readFile(disabledChildMarker, "utf8"), "0:undefined");
 
     const started = runAuthorized(approvalFile);
     assert.equal(started.status, 0, started.stderr);

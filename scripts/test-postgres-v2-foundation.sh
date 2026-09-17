@@ -1211,8 +1211,7 @@ start_app() {
       EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
       EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
       EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-      EVO_V2_AMOCRM_WRITES_ENABLED=1 \
-      EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
+      EVO_V2_AMOCRM_WRITES_ENABLED="$amocrm_provider_authorized" \
       EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
       EVO_V2_AMOCRM_TOKEN_FILE="$amocrm_token_file" \
       EVO_V2_AMOCRM_SALES_PIPELINE_ID="$amocrm_sales_pipeline_id" \
@@ -1275,8 +1274,7 @@ start_app() {
       EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
       EVO_STAFF_AUTH_ADMISSIONS_EMAIL="$staff_admissions_email" \
       EVO_STAFF_AUTH_ADMISSIONS_PASSWORD="$staff_admissions_password" \
-      EVO_V2_AMOCRM_WRITES_ENABLED=1 \
-      EVO_V2_AMOCRM_PROVIDER_AUTHORIZED="$amocrm_provider_authorized" \
+      EVO_V2_AMOCRM_WRITES_ENABLED="$amocrm_provider_authorized" \
       EVO_V2_AMOCRM_BASE_URL="https://evo-v2-technical.amocrm.ru" \
       EVO_V2_AMOCRM_TOKEN_FILE="$amocrm_token_file" \
       EVO_V2_AMOCRM_SALES_PIPELINE_ID="$amocrm_sales_pipeline_id" \

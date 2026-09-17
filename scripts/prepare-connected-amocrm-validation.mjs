@@ -1408,7 +1408,6 @@ async function discoverProviderRouting(parsed) {
     {
       ...providerEnvironment,
       EVO_V2_AMOCRM_WRITES_ENABLED: "1",
-      EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "1",
     },
   );
   if (providerConfig.status !== "ready") fail("provider_config_not_ready");
@@ -1511,8 +1510,7 @@ function appEnvironment(runtime, context, providerAuthorized) {
     }
   }
   Object.assign(environment, providerEnvironment, {
-    EVO_V2_AMOCRM_WRITES_ENABLED: "1",
-    EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: providerAuthorized ? "1" : "0",
+    EVO_V2_AMOCRM_WRITES_ENABLED: providerAuthorized ? "1" : "0",
   });
   if (providerAuthorized) {
     const routing = record(context.routing, "context_file_invalid");

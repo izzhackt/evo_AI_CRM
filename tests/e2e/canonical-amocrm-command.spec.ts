@@ -33,7 +33,7 @@ if (
 
 const BLOCKED_COPY: Readonly<Record<ProofMode, RegExp>> = Object.freeze({
   "provider-not-authorized":
-    /Серверное разрешение провайдера не включено\.|Server-side provider authorization is disabled\.|Сервердик провайдер уруксаты өчүрүлгөн\./u,
+    /Функция отключена в приватном контуре EVO\.|The capability is disabled in the private EVO contour\.|Функция EVOнун жеке контурунда өчүрүлгөн\./u,
   "routing-missing":
     /Не настроен точный маршрут amoCRM\.|Exact amoCRM routing is not configured\.|amoCRM үчүн так маршрут конфигурацияланган эмес\./u,
   "token-missing":

@@ -27909,3 +27909,36 @@ request is complete as readiness evidence, with provider activation deferred.
 Production remains41394497 and disarmed; downstream35220644955 skipped. Fresh
 read-only ledger35219785624 at1d0a64afa has170/170 and empty differences. No
 schema changes, provider activation or production rollout occurred in this pass.
+
+### 2026-09-17 — simplify amoCRM enablement, not authentication
+
+Owner asks why the connection is unavailable and to remove unnecessary rules.
+At14:37 UTC the active app has no canonical account URL/token binding and both
+flags are false. Retained legacy OAuth materials exist, but the retired worker
+does not; one direct account GET returned401. No refresh, retry, activation or
+provider write occurred. Missing binding and rejected access must not be blamed
+on flags alone or presented as a working historical connection.
+
+Before coding, narrow this change to removing the duplicate
+EVO_V2_AMOCRM_PROVIDER_AUTHORIZED runtime gate. Keep one default-off
+EVO_V2_AMOCRM_WRITES_ENABLED switch; preserve the same unauthorized behavior in
+connected/local verification tooling by mapping its approved-execution boolean
+to that switch. Keep private tokens, exact account/routing verification, staff
+authority and idempotent explicit commands unchanged. Do not loosen the token
+parser to accept the frozen OAuth file, refresh/rotate old credentials, restore
+the old worker, or turn on production writes as an incidental consequence.
+
+Validate the changed contracts narrowly and obtain independent exact-head
+review. No unchanged full-suite run, schema change or production deploy belongs
+to this block. Current credential provisioning/read-only account proof and one
+agreed operation remain explicit follow-up work. Official behavior was checked
+against amoCRM token and account documentation linked in the launch plan;
+Context7 was unavailable because its monthly quota was exhausted.
+
+Implementation validation:38/38 scoped configuration, command-panel contract,
+display-status and connected-harness checks passed on Node22.23.1; changed-file
+ESLint, both changed JavaScript syntax checks, shell syntax and diff-check passed.
+The connected harness child receives writes0 in its unauthorized mode even when
+the private runtime input contains1; both foundation launch branches retain the
+same off-by-default behavior. This is local contract evidence, not real amoCRM
+operation or deployment acceptance. Exact-head independent review precedes merge.

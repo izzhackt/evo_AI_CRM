@@ -60,7 +60,6 @@ async function makePrivateTokenFile(prefix = "evo-v2-amocrm-") {
 function readyEnvironment(tokenFilePath) {
   return {
     EVO_V2_AMOCRM_WRITES_ENABLED: "1",
-    EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "1",
     EVO_V2_AMOCRM_BASE_URL: "https://evoadmissions.amocrm.ru",
     EVO_V2_AMOCRM_TOKEN_FILE: tokenFilePath,
   };
@@ -97,6 +96,16 @@ test("canonical amoCRM is disabled by default and ignores unrelated credentials"
     reason: "feature_disabled",
   });
 
+  for (const value of [undefined, "", "0"]) {
+    assert.deepEqual(
+      loadCanonicalAmoCrmProviderConfig({
+        ...readyEnvironment("data/secrets/v2-amocrm-token.json"),
+        EVO_V2_AMOCRM_WRITES_ENABLED: value,
+      }),
+      { status: "blocked", reason: "feature_disabled" },
+    );
+  }
+
   assert.deepEqual(
     loadCanonicalAmoCrmProviderConfig({
       AMO_BASE_URL: "https://unrelated.amocrm.ru",
@@ -109,18 +118,10 @@ test("canonical amoCRM is disabled by default and ignores unrelated credentials"
   );
 });
 
-test("canonical amoCRM requires standing authorization and every server-only value", () => {
+test("canonical amoCRM requires one enabled switch and every server-only value", () => {
   assert.deepEqual(
     loadCanonicalAmoCrmProviderConfig({
       EVO_V2_AMOCRM_WRITES_ENABLED: "1",
-    }),
-    { status: "blocked", reason: "provider_not_authorized" },
-  );
-
-  assert.deepEqual(
-    loadCanonicalAmoCrmProviderConfig({
-      EVO_V2_AMOCRM_WRITES_ENABLED: "1",
-      EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "1",
     }),
     {
       status: "blocked",
@@ -162,11 +163,10 @@ test("canonical amoCRM rejects malformed flags, unsafe hosts, and unsafe token p
   const { tokenFilePath } = await makePrivateTokenFile();
   const base = readyEnvironment(tokenFilePath);
   const cases = [
-    [{ ...base, EVO_V2_AMOCRM_WRITES_ENABLED: "true" }, "invalid_enabled_flag"],
-    [
-      { ...base, EVO_V2_AMOCRM_PROVIDER_AUTHORIZED: "yes" },
-      "invalid_authorization_flag",
-    ],
+    ...["true", "false", "yes", "2", " 1", "1 "].map((value) => [
+      { ...base, EVO_V2_AMOCRM_WRITES_ENABLED: value },
+      "invalid_enabled_flag",
+    ]),
     [{ ...base, EVO_V2_AMOCRM_BASE_URL: "http://evo.amocrm.ru" }, "invalid_base_url"],
     [{ ...base, EVO_V2_AMOCRM_BASE_URL: "https://amocrm.ru" }, "invalid_base_url"],
     [{ ...base, EVO_V2_AMOCRM_BASE_URL: "https://evo.amocrm.ru.evil.test" }, "invalid_base_url"],

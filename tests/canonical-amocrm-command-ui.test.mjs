@@ -150,6 +150,13 @@ test("the real local PostgreSQL harness proves the canonical amoCRM panel in Chr
 
   assert.match(harness, /canonical_amocrm_command_browser_assert\(\)/);
   assert.match(harness, /EVO_EXPECT_AMOCRM_BROWSER_MODE="provider-not-authorized"/);
+  assert.match(harness, /local amocrm_provider_authorized=0/u);
+  assert.equal(
+    harness.match(/EVO_V2_AMOCRM_WRITES_ENABLED="\$amocrm_provider_authorized"/gu)?.length,
+    2,
+    "configured and unavailable app modes must both preserve the explicit authorization boundary",
+  );
+  assert.doesNotMatch(harness, /EVO_V2_AMOCRM_WRITES_ENABLED=1/u);
   assert.match(
     harness,
     /EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID="\$supabase_sales_conversation_lead_id"/,

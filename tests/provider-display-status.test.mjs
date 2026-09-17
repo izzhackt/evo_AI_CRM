@@ -18,10 +18,6 @@ test("provider display status separates configuration from provider proof", () =
     "not_configured",
   );
   assert.equal(
-    providerDisplayStatus({ status: "blocked", reason: "provider_not_authorized" }),
-    "blocked",
-  );
-  assert.equal(
     providerDisplayStatus({ status: "blocked", reason: "configuration_invalid" }),
     "blocked",
   );

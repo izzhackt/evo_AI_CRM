@@ -1,5 +1,42 @@
 # EVO Launch Plan
 
+## Portal latency and Inbox dependency maintenance — active 2026-09-17
+
+Owner approved these two checklist items. This is a bounded performance and
+dependency run, not a redesign, provider activation or a second product launch.
+Keep the existing production database, permanent QA Student, staff accounts,
+private assessment authority and host-only sessions. Canonical dirty checkout
+is preserved; work starts from current GitHub main in isolated worktrees.
+
+- [ ] P1: measure real authenticated Student section transitions and inspect
+  server data/auth calls. Record before/after on the same execution path; browser
+  automation overhead is not application latency. Change only evidenced waste
+  (duplicate same-request reads or independent reads serialized unnecessarily).
+  No cross-request private-data/authority cache, auth bypass or weakened checks.
+- [ ] P2: inspect current Inbox lockfile, advisories and PR701/702 failures; apply
+  the smallest complete dependency correction and run actual install, audit,
+  scoped checks and build. Distinguish stale PR/alert state from unresolved code.
+  Inspect the deployed boundary read-only. Do not resurrect a retired companion,
+  modify WAHA sessions or recreate the shared edge to publish library updates.
+- [ ] P3: independently review exact diffs and plan freshness, publish/merge the
+  validated slices, and supersede obsolete dependency PRs with explicit evidence.
+  Run the production app's existing full gate once on the frozen release SHA;
+  use the managed release and verify accepted SHA/image/health/pending/disarm.
+  Repeat real Student navigation, own-case reads and staff-access denial.
+  If Inbox is not an active runtime, report repository remediation separately
+  rather than inventing a deployment or claiming provider acceptance.
+
+Real validation reuses the authorized QA identity; do not create test employees,
+new cases or assessment answers. No fixtures/mocks stand in for timings, auth,
+provider success or dependency audit. Missing real access is a named blocker.
+Retain persistent portal navigation and unsaved-answer protection. No DNS,
+email, website, business data or unrelated dependency-wide upgrades in scope.
+
+Implementation references: [React request-scoped cache](https://react.dev/reference/react/cache)
+and [Next.js caching model](https://nextjs.org/docs/app/guides/caching-without-cache-components).
+Context7 was attempted but its monthly quota was exhausted; consult official
+docs/advisories and the installed Next.js documentation instead.
+
 ## Real Student login and stable navigation — accepted 2026-09-17
 
 Owner requests retiring the Admin Student preview from CRM and using one

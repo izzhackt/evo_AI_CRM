@@ -27672,3 +27672,37 @@ GET for an existing session of the opposite host audience. Preserve origin/CSRF
 checks, live identity/authority, host-only cookies and all other route guards.
 Add focused regressions and independent review, then use the ordinary browser
 form to prove the candidate before release; repeat on accepted production.
+
+### 2026-09-17 — measured portal optimization and Inbox dependency remediation
+
+Owner approved speeding up Student transitions and resolving the separate Inbox
+dependency alerts/failed PR701/702. Preserve the accepted real Student login and
+all authorization boundaries. Start with real authenticated measurements; only
+remove demonstrated request duplication or serialized independent reads. A
+request-scoped React render cache is permissible if proved isolated; a shared
+private-data/authority cache is not. No authentication bypass or invented speedup.
+
+Dependency work is limited to the Inbox dependency graph and the minimum checks
+needed to validate it. Verify whether the companion is retired before any runtime
+action: updating frozen source does not authorize restarting that product, WAHA,
+or the shared proxy. Record source remediation separately from live app release.
+One independent review per slice, then one frozen-main full gate and managed app
+release if runtime code changed. Reuse the existing permanent QA Student without
+new customer facts, messages, assessment answers or accounts. No other checklist
+items, website/DNS/provider activation or broad security audit are added.
+
+Measured-scope refinement: the notification component refreshes route content
+immediately after its initial badge read on every operational route. Remove that
+redundant route-entry refresh, not automatic periodic/focus/online updates.
+Keep errors visible and ignore stale completions. Layout/page guard work may be
+deduplicated only within one React server render; independent application/visa
+queries may overlap without changing their validators or error behavior. Do not
+change proxy authentication order or cache private results between requests.
+
+Inbox diagnosis: both dependency PRs fail the path classifier (`UNKNOWN=true`)
+before their packages are checked; this is not evidence of dependency breakage.
+Add only the explicit Inbox dependency paths and risk-matched real validation
+lane needed for this slice. Preserve fail-closed unknown paths and all required
+PR contexts; a root-app build cannot stand in for an Inbox build. Read-only VPS
+inventory found no `evo-inbox` containers, so source maintenance must not revive
+the retired companion or alter shared edge/WAHA configuration.

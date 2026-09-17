@@ -17,7 +17,7 @@ export function PortalNotificationUpdates() {
     let running = false;
     const refreshPage = ["/portal", "/portal/documents", "/portal/applications", "/portal/payments", "/portal/notifications"].includes(pathname)
       || pathname.startsWith("/portal/notifications/");
-    async function update() {
+    async function update(refreshContent = true) {
       if (disposed || running || document.visibilityState !== "visible") return;
       running = true;
       try {
@@ -28,7 +28,7 @@ export function PortalNotificationUpdates() {
         setUnread(result.unread);
         // Refresh operational pages even when no notification was emitted (for
         // example, approval). Assessment runners keep their own save lifecycle.
-        if (refreshPage) {
+        if (refreshContent && refreshPage) {
           startTransition(() => router.refresh());
         }
       } catch {
@@ -43,7 +43,9 @@ export function PortalNotificationUpdates() {
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("focus", resume);
     window.addEventListener("online", resume);
-    void update();
+    // Route entry already fetched its content. Read the badge now, but only
+    // periodic/resume/manual updates need another operational-page render.
+    void update(false);
     return () => {
       disposed = true;
       retry.current = () => {};

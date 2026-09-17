@@ -823,47 +823,50 @@ export async function readStudentPortalApplications(
 ): Promise<StudentPortalApplications> {
   try {
     const client = await clientFor(dependencies);
-    const applications = await readRpcRows(
-      client,
-      "student_portal_applications_v2",
-      {},
-      normalizeApplication,
-      (row) => row.applicationId,
-    );
-    const visas = await readRpcRows(
-      client,
-      "student_portal_visa_cases_v2",
-      {},
-      normalizeVisa,
-      (row) => row.visaCaseId,
-    );
+    const [applications, visas] = await Promise.all([
+      readRpcRows(
+        client,
+        "student_portal_applications_v2",
+        {},
+        normalizeApplication,
+        (row) => row.applicationId,
+      ),
+      readRpcRows(
+        client,
+        "student_portal_visa_cases_v2",
+        {},
+        normalizeVisa,
+        (row) => row.visaCaseId,
+      ),
+    ]);
     if (visas.length > 1) return invalidShape();
 
-    const applicationRows = await Promise.all(applications.map(async (application) => {
-      const timeline = await readRpcRows(
-        client,
-        "student_portal_application_timeline_v1",
-        {
-          p_application_id: application.applicationId,
-          p_limit: TIMELINE_LIMIT,
-        },
-        normalizeApplicationTimelineEntry,
-      );
-      assertTimelineContinuity(timeline, application.status);
-      return Object.freeze({ ...application, timeline });
-    }));
-
-    let visa: StudentPortalVisa | null = null;
-    if (visas[0]) {
-      const timeline = await readRpcRows(
-        client,
-        "student_portal_visa_timeline_v1",
-        { p_visa_case_id: visas[0].visaCaseId, p_limit: TIMELINE_LIMIT },
-        normalizeVisaTimelineEntry,
-      );
-      assertTimelineContinuity(timeline, visas[0].status);
-      visa = Object.freeze({ ...visas[0], timeline });
-    }
+    const [applicationRows, visa] = await Promise.all([
+      Promise.all(applications.map(async (application) => {
+        const timeline = await readRpcRows(
+          client,
+          "student_portal_application_timeline_v1",
+          {
+            p_application_id: application.applicationId,
+            p_limit: TIMELINE_LIMIT,
+          },
+          normalizeApplicationTimelineEntry,
+        );
+        assertTimelineContinuity(timeline, application.status);
+        return Object.freeze({ ...application, timeline });
+      })),
+      (async (): Promise<StudentPortalVisa | null> => {
+        if (!visas[0]) return null;
+        const timeline = await readRpcRows(
+          client,
+          "student_portal_visa_timeline_v1",
+          { p_visa_case_id: visas[0].visaCaseId, p_limit: TIMELINE_LIMIT },
+          normalizeVisaTimelineEntry,
+        );
+        assertTimelineContinuity(timeline, visas[0].status);
+        return Object.freeze({ ...visas[0], timeline });
+      })(),
+    ]);
 
     return Object.freeze({
       applications: Object.freeze(applicationRows),

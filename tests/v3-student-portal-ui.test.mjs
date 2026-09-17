@@ -73,6 +73,43 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
   );
 });
 
+test("Student render guard deduplicates only through React request-local cache", () => {
+  const guard = source("src/lib/student-portal-guards.ts");
+  assert.match(guard, /import \{ cache \} from "react"/u);
+  assert.match(guard, /export const requireStudentPortalActor = cache\(async/u);
+  assert.match(guard, /const result = await resolveStudentPortalActor\(\)/u);
+  assert.match(guard, /result\.status === "authenticated"/u);
+  assert.match(guard, /redirect\(studentPortalGuardDestination\(result\) \?\? "\/login"\)/u);
+  assert.doesNotMatch(guard, /unstable_cache|use cache|new Map|setTimeout|setInterval/u);
+  assert.doesNotMatch(source("src/lib/student-portal-auth.ts"), /\bcache\(/u);
+});
+
+test("route entry reads the notification badge without a duplicate route refresh", () => {
+  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  assert.match(updates, /async function update\(refreshContent = true\)/u);
+  assert.match(updates, /const result = await loadStudentPortalNotificationState\(\);\s*if \(disposed\) return;/u);
+  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); return; \}/u);
+  assert.match(updates, /if \(refreshContent && refreshPage\) \{\s*startTransition\(\(\) => router\.refresh\(\)\)/u);
+  assert.match(updates, /void update\(false\);\s*return \(\) => \{\s*disposed = true;/u);
+  assert.match(updates, /retry\.current = \(\) => \{ void update\(\); \}/u);
+  assert.match(updates, /setInterval\(\(\) => \{ void update\(\); \}, 30_000\)/u);
+  assert.match(updates, /const resume = \(\) => \{ void update\(\); \}/u);
+  for (const event of ["visibilitychange", "focus", "online"]) {
+    assert.ok(updates.includes(`addEventListener("${event}", resume)`));
+    assert.ok(updates.includes(`removeEventListener("${event}", resume)`));
+  }
+});
+
+test("application and visa projections overlap without dropping validation", () => {
+  const reader = source("src/lib/v3/portal-source.ts").split("export async function readStudentPortalApplications(")[1].split("export async function readStudentPortalPayments(")[0];
+  assert.match(reader, /const \[applications, visas\] = await Promise\.all\(\[/u);
+  assert.match(reader, /const \[applicationRows, visa\] = await Promise\.all\(\[/u);
+  assert.match(reader, /if \(visas\.length > 1\) return invalidShape\(\)/u);
+  assert.match(reader, /assertTimelineContinuity\(timeline, application\.status\)/u);
+  assert.match(reader, /assertTimelineContinuity\(timeline, visas\[0\]\.status\)/u);
+  assert.match(reader, /return failClosed\(error\)/u);
+});
+
 test("Student preview implementation and staff entry are retired without removing the real portal", () => {
   for (const path of [
     "src/app/(portal-preview)/layout.tsx",

@@ -1,5 +1,71 @@
 # EVO Launch Plan
 
+## Portal latency and Inbox dependency maintenance — active 2026-09-17
+
+Owner approved these two checklist items. This is a bounded performance and
+dependency run, not a redesign, provider activation or a second product launch.
+Keep the existing production database, permanent QA Student, staff accounts,
+private assessment authority and host-only sessions. Canonical dirty checkout
+is preserved; work starts from current GitHub main in isolated worktrees.
+
+- [ ] P1: measure real authenticated Student section transitions and inspect
+  server data/auth calls. Record before/after on the same execution path; browser
+  automation overhead is not application latency. Change only evidenced waste
+  (duplicate same-request reads or independent reads serialized unnecessarily).
+  No cross-request private-data/authority cache, auth bypass or weakened checks.
+- [ ] P2: inspect current Inbox lockfile, advisories and PR701/702 failures; apply
+  the smallest complete dependency correction and run actual install, audit,
+  scoped checks and build. Distinguish stale PR/alert state from unresolved code.
+  Inspect the deployed boundary read-only. Do not resurrect a retired companion,
+  modify WAHA sessions or recreate the shared edge to publish library updates.
+- [ ] P3: independently review exact diffs and plan freshness, publish/merge the
+  validated slices, and supersede obsolete dependency PRs with explicit evidence.
+  Run the production app's existing full gate once on the frozen release SHA;
+  use the managed release and verify accepted SHA/image/health/pending/disarm.
+  Repeat real Student navigation, own-case reads and staff-access denial.
+  If Inbox is not an active runtime, report repository remediation separately
+  rather than inventing a deployment or claiming provider acceptance.
+
+Real validation reuses the authorized QA identity; do not create test employees,
+new cases or assessment answers. No fixtures/mocks stand in for timings, auth,
+provider success or dependency audit. Missing real access is a named blocker.
+Retain persistent portal navigation and unsaved-answer protection. No DNS,
+email, website, business data or unrelated dependency-wide upgrades in scope.
+
+Implementation references: [React request-scoped cache](https://react.dev/reference/react/cache)
+and [Next.js caching model](https://nextjs.org/docs/app/guides/caching-without-cache-components).
+Context7 was attempted but its monthly quota was exhausted; consult official
+docs/advisories and the installed Next.js documentation instead.
+
+Diagnosis: route-entry notification polling immediately calls `router.refresh`
+on operational pages, redundantly requesting fresh server content already being
+loaded. Preserve the initial badge read but refresh content only on subsequent
+timer/focus/online/manual updates, with stale-effect completion ignored. Also
+deduplicate the layout/page Student guard only within a React render request,
+and run independent application/visa list and timeline reads concurrently.
+Proxy authorization order and all RPC validators remain unchanged. Baseline
+Chrome observed real page responses around 0.9–1.74s and the extra route request;
+these are response-header observations, not completed-render percentiles.
+
+Portal candidate `95a3fd35` checkpoint: production build, scoped ESLint,
+typecheck and 19 source-contract checks passed; independent code review found
+no issues. Real Chrome reused the permanent QA Student against the existing
+database. Applications navigation before: GET at 0ms, badge POST at 28ms,
+redundant GET at 1975ms. Candidate: GET at 0ms, badge POST at 185ms, no second
+entry GET; the periodic POST at 30186ms and GET at 31457ms still occurred.
+The local candidate and public production have different network paths, so do
+not turn their response timings into a claimed percentage speedup. The rendered
+screen and shell passed; console errors came only from a Chrome extension.
+
+A separate real SDK-authenticated candidate probe confirmed two consecutive
+overview requests each execute one proxy authority read and one shared render
+authority read (not a retained result between requests). Application/visa list
+RPCs began in the same millisecond; own pages returned200, staff audit returned401,
+and a following anonymous request redirected to login. Only the probe's new
+session was signed out. No rows/accounts/assessment answers were changed. Empty
+QA applications prove the list-wave overlap, not live populated timeline paths.
+Production acceptance remains pending until the managed release completes.
+
 ## Real Student login and stable navigation — accepted 2026-09-17
 
 Owner requests retiring the Admin Student preview from CRM and using one

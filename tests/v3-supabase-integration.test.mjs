@@ -289,3 +289,24 @@ test("ordinary real foundation proof runs the fail-closed V3 browser gate", () =
   assert.match(foundation, /scripts\/v3-gate\/gate\.mjs/);
   assert.equal(manifest.scripts["test:v3:gate"], "node scripts/v3-gate/gate.mjs");
 });
+
+test("V3 style proof checks served and applied current-page CSS in dev and production", () => {
+  const styles = source("scripts/v3-gate/assert-styled.mjs");
+  const gate = source("scripts/v3-gate/gate.mjs");
+  assert.match(styles, /page\.locator\('link\[rel="stylesheet"\]\[href\]'\)/u);
+  assert.match(styles, /url\.origin === origin/u);
+  assert.match(styles, /url\.pathname\.startsWith\("\/_next\/static\/"\)/u);
+  assert.match(styles, /fetch\(url, \{ redirect: "error" \}\)/u);
+  assert.match(styles, /assert\.equal\(res\.status, 200/u);
+  assert.match(styles, /"text\/css", "stylesheet response is not CSS"/u);
+  assert.match(styles, /assert\.ok\(size > 0/u);
+  assert.match(styles, /link\.sheet\.cssRules\.length > 0/u);
+  assert.match(styles, /assert\.equal\(applied\.margin, "0px"/u);
+  assert.match(styles, /"rgb\(243, 243, 243\)"/u);
+  assert.match(styles, /applied\.world\.colorScheme, "light"/u);
+  assert.match(styles, /applied\.world\.accent, "#d70217"/u);
+  assert.match(styles, /document\.fonts\.check\('16px "Golos Text Variable"'\)/u);
+  assert.match(styles, /image\.complete && image\.naturalWidth > 0/u);
+  assert.doesNotMatch(styles, /bytes\s*[<>]|100_000|full sheet|base\}\/login/u);
+  assert.match(gate, /await assertStyled\(page, base, \{ v3: true \}\)/u);
+});

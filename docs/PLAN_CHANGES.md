@@ -27854,3 +27854,38 @@ run. Do not rerun 35215643933 or arm production on its failure.
 
 Source: [pinned Chromium NSS directory selection](https://github.com/chromium/chromium/blob/149.0.7827.55/crypto/nss_util.cc#L37-L63),
 [official Linux certificate management](https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/docs/linux/cert_management.md).
+
+### 2026-09-17 — owner adds lightweight current integration checks
+
+Owner asks to add WhatsApp/amoCRM verification to this run, but explicitly keep
+checks small and avoid wasting time. Inspect current real access and sanitized
+recent operation evidence in parallel with the existing Portal gate. Do not
+launch another full suite, create demo records, send unsolicited messages or
+broaden into provider activation. WhatsApp remains deferred until numbers and
+connection approval: current private service/session reads only, no QR/reset/
+reconnect/logout. Treat a current account/health read as reachability evidence,
+not proof of successful inbound/outbound business communications. Record exact
+missing evidence or owner prerequisites, without copying secrets or raw payloads.
+
+### 2026-09-17 — bounded integration results and production CSS proof
+
+Read-only integration pass at11:58 UTC: private authenticated WAHA health200/ok,
+crm_primary SCAN_QR_CODE; no QR retrieval or session mutation. Active CRM has
+no canonical amoCRM configuration, writes/provider authorization disabled,
+WAHA ingress disabled, no webhook HMAC and no enabled runtime binding. Account
+access and real incoming/outgoing operations are not proven. Message aggregate
+read was denied403; do not equate unavailable counts with no activity. Stop the
+small check here; provider configuration/pairing and authorized real traffic
+remain a later owner-approved connection step.
+
+PR815 full run35217820587 at7f475686 passed actual negative/positive browser
+TLS proof and18 staff scenarios, including original file downloads. The next
+failure is the styling guard's arbitrary100,000-character minimum: served CSS
+was77,438 characters and the check never reached computed styling. Do not lower
+the number or suppress styling validation. Use actual linked stylesheet success
+and rendered EVO theme/layout checks, consistent with the existing Student
+styling proof, independent of dev/prod minification. Preserve all subsequent
+accessibility, ownership, storage and response-body checks. A focused real
+browser/style check and independent review precede one new frozen-main full
+gate. No unchanged reruns, product/UI changes, auth bypass or provider writes.
+The original intermittent profile cancellation remains unresolved, not fixed.

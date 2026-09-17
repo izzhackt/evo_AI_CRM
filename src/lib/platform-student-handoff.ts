@@ -1367,7 +1367,7 @@ export async function getPlatformStudentCaseHandoffContext(
   actor: PlatformActor,
   studentCaseId: string,
   dependencies: PlatformStudentHandoffDependencies = {},
-): Promise<PlatformStudentCaseHandoffContext> {
+): Promise<PlatformStudentCaseHandoffContext | null> {
   try {
     const organizationId = requireActor(actor, "admissions.read");
     const normalizedStudentCaseId = inputUuid(studentCaseId);
@@ -1378,6 +1378,9 @@ export async function getPlatformStudentCaseHandoffContext(
       { get: true },
     );
     if (response.error) return failure(rpcErrorReason(response.error));
+    // A provisioned case need not originate from Sales. Only an actual empty
+    // RPC result means no handoff; malformed data and provider errors still fail.
+    if (Array.isArray(response.data) && response.data.length === 0) return null;
     return normalizePlatformStudentCaseHandoffContext(
       requireExactRecord(oneRow(response.data), STUDENT_CONTEXT_ROW_KEYS),
       organizationId,

@@ -150,7 +150,7 @@ type FullCaseData = Readonly<{
   profileFields: PlatformStudentProfileFieldsSnapshot | null;
   documents: PlatformCaseDocumentWorkspace | null;
   contract: PlatformCaseContractWorkspace | null;
-  handoff: PlatformStudentCaseHandoffContext;
+  handoff: PlatformStudentCaseHandoffContext | null;
   handoffAcknowledgement: HandoffAcknowledgement;
 }>;
 
@@ -535,8 +535,8 @@ async function loadFullCase(
     throw new Error("V3 profile contract workspace does not match the requested case.");
   }
   if (
-    handoff.studentCaseId !== studentCaseId ||
-    handoff.organizationId !== actor.organizationId
+    handoff && (handoff.studentCaseId !== studentCaseId ||
+    handoff.organizationId !== actor.organizationId)
   ) {
     throw new Error("V3 profile handoff context does not match the requested case.");
   }
@@ -648,7 +648,7 @@ async function readCaseProfile(
   }
 
   const data = await loadFullCase(actor, view.studentCase);
-  if (link && data.handoff.leadId !== link.leadId) {
+  if (link && data.handoff?.leadId !== link.leadId) {
     throw new Error("V3 profile handoff lead does not match the canonical case link.");
   }
   const profile: PersonProfile = {
@@ -715,7 +715,7 @@ async function readLeadProfile(
   const salesHandoffAcknowledgement = !fullCase && caseId && handoff.handedOffAt
     ? await getSalesHandoffAcknowledgement(actor, leadId, caseId)
     : null;
-  if (fullCase && fullCase.handoff.leadId !== lead.leadId) {
+  if (fullCase && fullCase.handoff?.leadId !== lead.leadId) {
     throw new Error("V3 profile handoff lead does not match the requested lead.");
   }
   const applications = fullCase?.applications ?? [];

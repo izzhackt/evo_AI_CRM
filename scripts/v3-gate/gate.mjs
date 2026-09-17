@@ -59,6 +59,7 @@ try {
         if (route === "/v3/main") {
           await page.getByText("Квалифицированы", { exact: true }).first().waitFor();
         }
+        await assertStyled(page, base, { v3: true });
         const axe = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
           .analyze();

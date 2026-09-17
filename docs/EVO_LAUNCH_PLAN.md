@@ -1,5 +1,31 @@
 # EVO Launch Plan
 
+## Lightweight live integration check — approved 2026-09-17
+
+Run in parallel with the already-running Portal release gate; no additional full
+suite, unchanged rerun, demo data or broad integration audit. Reuse current valid
+evidence and inspect only the actual configured services.
+
+- [x] amoCRM: inspect current authorization/configuration and attempt only
+  available read-only evidence. Active canonical CRM has no amoCRM configuration;
+  writes and provider authorization are disabled. An authenticated account read
+  could not be performed with current runtime access. Historical connection is
+  not proof of current operation.
+- [x] WhatsApp: authenticated private WAHA health returned200/ok; `crm_primary`
+  returned `SCAN_QR_CODE`, not `WORKING`, at 11:58 UTC on 2026-09-17. No QR or
+  session mutation was requested. CRM ingress is disabled, webhook HMAC absent,
+  and no enabled runtime binding was found.
+- [x] Record the small check without expanding scope: recent-message aggregate
+  reads were denied403, so incoming/outgoing operations are **unconfirmed**,
+  not zero. No further privileged access or provider activation was attempted.
+- [ ] Later, with approved connection details, restore current amoCRM access and
+  verify one agreed real operation; pair an agreed WhatsApp number only after
+  explicit connection approval, then verify authorized incoming/outgoing traffic.
+
+Health/configuration reads are not business acceptance. Keep credentials,
+phone numbers and raw messages private. Pairing and real traffic verification
+remain deferred; do not reconnect/reset/logout or message clients now.
+
 ## Student Profile response cancellation — active 2026-09-17
 
 Owner approved investigating the release blocker and completing the Portal
@@ -14,8 +40,9 @@ responses, retry a mutation blindly, activate providers or alter working cases.
   sequence, and a single green run does not prove an intermittent bug fixed.
 - [ ] Distinguish client cancellation, proof lifecycle and development-runtime
   behavior with actual request events and narrow official-source research.
-  Run only a justified one-variable experiment; production build/start is a
-  candidate comparison, not a presumed remedy or permission to weaken checks.
+  The approved production-build comparison also changes local Supabase HTTP
+  to TLS; these two factors prevent a causal claim about runtime alone. It is
+  not a presumed remedy or permission to weaken checks.
 - [ ] Independently review and merge the diagnostic change, then run the
   frozen-current-main full gate once. If red, retain the blocker and fix only
   an evidenced cause in a new reviewed candidate. If green, the already-reviewed
@@ -48,6 +75,27 @@ trust and real negative/positive TLS preflight without changing machine trust,
 HOME, product code, assertions or predecessor order. Observe one new reviewed
 exact-main run; do not reuse the failed run as release evidence. Ledger check
 35215849593 confirmed all170 versions match, so no schema apply is needed.
+
+PR815 completed run-owned browser trust. Run35217820587 at `7f475686` proved
+negative certificate rejection, positive browser/Node200 and all18 applicable
+staff scenarios, including the original Storage downloads. It then stopped at
+the old styling guard: 77,438 stylesheet characters were below its arbitrary
+100,000 threshold, before checking applied styles. This is not proof of broken
+CSS. Replace the size heuristic with runtime-independent actual stylesheet and
+rendered-theme integrity checks, following the existing Student styling proof;
+retain the original layout/accessibility and later business assertions. Run
+only the focused changed check before one reviewed exact-main release gate.
+Student Profile was not reached; production remains unchanged and disarmed.
+Fresh ledger35217974366 confirms170/170 versions and empty differences.
+
+Focused CSS-guard proof: the existing local production build
+`pf2fwmZqRVJAsmwIzDs40` first returned a real CSS404 and was correctly rejected.
+With its own matching static/public assets, anonymous login passed desktop,
+mobile and dark-system checks (HTTP200, loaded CSS/font/logo and applied theme;
+no POST, external request or page error). This reused older unchanged UI output,
+not the frozen CI build, and does not retroactively prove the77KB artifact.
+Owned temporary runtime was removed. Ten source-contract checks, scoped lint,
+syntax and whitespace checks passed; full exact-main gate remains required.
 
 Current [Next.js Playwright guidance](https://nextjs.org/docs/app/guides/testing/playwright)
 recommends a production build for realistic browser validation. Context7 was

@@ -27590,3 +27590,19 @@ is the current canonical file plus the appended
 `invite-bishkek-site.72.62.119.112.sslip.io` route to
 `invite-bishkek-site-caddy:80`. Preserve and reconcile that exact block. No other
 project service is changed by this cutover.
+
+### 2026-09-17 — canonical-domain cutover accepted
+
+PR806 / main `62b16ca8a12d8181ffbad03a000ca0695cb59689` completed full
+CI35166365096 and managed release35167122534. The server's accepted pointer,
+immutable receipt chain and healthy running image were read back before final
+edge retirement. Final Caddy hash `90f463bb3d578d37dde9f1fbbda4513a18eb94f7c9fa07197a7101741fb1a1ec`
+is loaded without recreating the edge; canonical health/browser proof now uses
+CRM, old-host navigation redirects to the proper audience and mutations fail
+closed. Supabase has exactly the two approved callback URLs and audience-aware
+Invite/Recovery templates. Existing credentials/roles/data were not changed.
+
+This is domain/release acceptance, not a new production Student business-case
+acceptance, SMTP-delivery claim or provider activation. The owner retains the
+inquiry/Gmail checks; no Web-X subscription action or hosting deletion occurred.
+Detailed immutable identities and limits are in the launch plan's dated receipt.

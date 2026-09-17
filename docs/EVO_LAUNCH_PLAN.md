@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Canonical staff and Student domains — active 2026-09-17
+## Canonical staff and Student domains — accepted 2026-09-17
 
 Owner approved connecting `crm.evoadmissions.com` for employees and
 `app.evoadmissions.com` for students, including verification from the owner's
@@ -10,21 +10,21 @@ no new product/runtime, data copy or authentication bypass is permitted.
 
 - [x] Add only the two exact Spaceship A records to the existing VPS; preserve
   apex/www, mail, MX/TXT, DNSSEC and nameservers.
-- [ ] Implement exact staff/Student auth callback origins, canonical entry
+- [x] Implement exact staff/Student auth callback origins, canonical entry
   routing and required real Supabase URL configuration. Keep CSRF, role/RLS
   checks and host-only sessions; do not use a wildcard redirect allowance.
-- [ ] Independently review the code/edge delta; pass scoped PR checks and the
+- [x] Independently review the code/edge delta; pass scoped PR checks and the
   existing exact-main release proof when application code changes.
-- [ ] Bootstrap the two HTTPS hosts on the existing Caddy edge, deploy through
+- [x] Bootstrap the two HTTPS hosts on the existing Caddy edge, deploy through
   the managed release, then finalize the edge without recreation. Preserve unrelated sites, the private
   website receiver and every private API guard. Retire the old hostname as an
   application entrypoint once both new hosts are proven; do not retain a second
   active app origin as a fallback.
-- [ ] Verify authoritative/public DNS, real trusted HTTPS, staff/Student entry
+- [x] Verify authoritative/public DNS, real trusted HTTPS, staff/Student entry
   routing, actual available login/session behavior, negative private-path gates
   and unchanged marketing-site availability. Distinguish a real authenticated
   journey from a login-page/health-only check; name missing credentials clearly.
-- [ ] Save exact source/release/edge/DNS evidence and update shared context.
+- [x] Save exact source/release/edge/DNS evidence and update shared context.
 
 The owner takes over the real website-inquiry and Gmail-delivery checks; remove
 them from the agent's active checklist without reporting either as verified.
@@ -35,7 +35,54 @@ Preparation receipt: both exact A records are saved with TTL300 and read back
 as `72.62.119.112` from both authoritative Spaceship nameservers. Bootstrap and
 final configuration are separate: keep the old application proxy only during
 this bounded cutover, then retire it after canonical-domain release acceptance.
-No application/edge deployment or new-domain login is claimed by this receipt.
+No application/edge deployment or new-domain login was claimed by that
+preparation receipt; the accepted result follows.
+
+### Accepted cutover receipt — 17 September, 00:43–00:45 UTC
+
+- [PR806](https://github.com/izzhackt/evo_AI_CRM/pull/806) merged as
+  `62b16ca8a12d8181ffbad03a000ca0695cb59689`, identical to independently reviewed
+  source head `63a1aaedcdbd82c3e0a4cc433c9e5fdfb39945bb`.
+  [Full CI35166365096](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35166365096)
+  and [managed release35167122534](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35167122534)
+  succeeded. No database/account migration was added for this change.
+- Server readback at 00:43:03 confirmed accepted release
+  `v3-r35167122534-a1-62b16ca8`, running healthy with 0 restarts and no pending
+  candidate. Pointer→acceptance record→env/Compose/browser snapshot hashes and
+  named/container-ID image identity matched. Image:
+  `sha256:3f3ecb543c6430727f66f9aa9ca03b80cb07143e1439e2306f6d2644f413f48e`.
+  Acceptance record SHA-256:
+  `5c9522bdaeea271e7fce3c69680f9d92053543ea34c460f96e20f3b90e08b2b1`;
+  browser receipt SHA-256:
+  `c26a075745877fa306fa8cfd762e803a4c433034637c71c6c99b569b1ea047f7`.
+  `EVO_PRODUCTION_RELEASE_ARMED=false` was explicitly restored/read back.
+- Final edge loaded at 00:43:23, SHA-256
+  `90f463bb3d578d37dde9f1fbbda4513a18eb94f7c9fa07197a7101741fb1a1ec`.
+  The real loaded configuration matched its adapted source in memory; same
+  edge container, 0 restarts, preserved unrelated routes/private website header.
+  All 24 public checks passed with normal TLS: both login/health endpoints 200,
+  private guards 404, cross-audience GET 307, wrong-audience POST 404, old-host
+  GET 308 to fixed audiences, old auth POST 405 and marketing homepage 200.
+- Supabase Dashboard readback: Site URL `https://crm.evoadmissions.com`; exactly
+  `https://crm.evoadmissions.com/auth/staff` and
+  `https://app.evoadmissions.com/auth/callback` in the redirect allowlist.
+  The old wildcard was removed. Invite and Recovery templates use RedirectTo
+  plus TokenHash and the appropriate invite/recovery type, reloaded and verified.
+  SMTP remains off; no invitation/recovery email was sent by this run.
+- On the owner's Mac, real Chrome displayed both new audience-specific login
+  screens and followed both navigation links correctly without bypassing TLS.
+  The production Admin browser smoke passed using normal existing credentials.
+  No production Student credentials were supplied/exercised for a new
+  authenticated Student journey; do not infer that business acceptance from the
+  public login screen or the isolated full-CI Student proof. Current Mac curl
+  still resets its TLS connection, whereas Chrome and VPS HTTPS checks pass;
+  no network/trust-store setting was changed.
+
+Both exact DNS A records retain TTL300 and resolve to 72.62.119.112 on both
+authoritative servers, public Google/Cloudflare resolvers and the Mac system
+resolver. The old technical hostname is now navigation-only, not a parallel
+application. Passwords, memberships, databases and provider credentials remain
+unchanged. The final documentation publication does not trigger another app release.
 
 ## EVO workspace consolidation — 2026-09-17
 

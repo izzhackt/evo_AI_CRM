@@ -288,18 +288,17 @@
 
 - Target server: `hermes-vps` (`root@72.62.119.112` via SSH config).
 - Target path: `/opt/evo-crm`.
-- Approved domain-cutover candidate: `https://crm.evoadmissions.com` for staff
-  and `https://app.evoadmissions.com` for Students, both on the same app. Treat
-  these as deployed only after the receipt in `docs/EVO_LAUNCH_PLAN.md` proves
-  DNS, trusted TLS, callbacks and exact managed-release acceptance.
+- Current public URLs: `https://crm.evoadmissions.com` for staff and
+  `https://app.evoadmissions.com` for Students, both on the same app. Domain
+  cutover was accepted on 2026-09-17; `docs/EVO_LAUNCH_PLAN.md` records the exact
+  release, DNS/TLS, edge and Auth proof. Real Student sign-in is not claimed.
 - Preserve the public Host through the edge and host-only auth cookies; no
   wildcard cookie domain or origin bypass. Staff callback is exactly
   `https://crm.evoadmissions.com/auth/staff`; Student callback is exactly
   `https://app.evoadmissions.com/auth/callback`.
-- New release health is exactly `https://crm.evoadmissions.com/api/health`.
-  Keep the old sslip route only during the bounded pending cutover; after
-  acceptance use GET-only navigation redirects, never redirect auth POSTs or
-  retain sslip as an active app fallback. Follow `deploy/README.md` for order.
+- Release health is exactly `https://crm.evoadmissions.com/api/health`.
+  The retired sslip origin uses GET-only navigation redirects; never redirect
+  auth POSTs or restore sslip as an active app fallback. See `deploy/README.md`.
 - Production runs with `docker compose -f docker-compose.prod.yml` as project
   `evo-crm`.
 - The app container is `evo-crm-app-1`, image `evo-crm:latest`, private network

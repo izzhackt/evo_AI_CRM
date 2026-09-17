@@ -27706,3 +27706,19 @@ lane needed for this slice. Preserve fail-closed unknown paths and all required
 PR contexts; a root-app build cannot stand in for an Inbox build. Read-only VPS
 inventory found no `evo-inbox` containers, so source maintenance must not revive
 the retired companion or alter shared edge/WAHA configuration.
+
+Release scheduling refinement: independently reviewed Portal PR810 was submitted
+first at frozen main `7ba78dfd409554051c150461e31e62f95d964238` while Inbox
+validation finished in parallel. Full CI35203650319 failed in the existing
+Student Profile draft response-body transport gate (`ERR_ABORTED`), so no app
+release occurred. The initiating cause is not established; do not weaken the
+gate or blindly retry. Production remains accepted source41394497, healthy,
+restarts0 and pending absent. Release arm was set/read back false.
+
+Reviewed Inbox PR811 was then merged independently as1954cab0; exact-head
+CI35203691579 passed, dependency audit and open Dependabot alerts are zero,
+and superseded PR701/702 are closed. The Inbox tree is excluded from the running
+CRM image; its package/CI-only remediation does not authorize reactivation of
+the retired companion. Portal production acceptance remains open. A bounded
+investigation of the pre-existing response cancellation needs its own agreed
+scope before further changes or a new exact-main release attempt.

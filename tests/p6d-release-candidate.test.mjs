@@ -23,7 +23,23 @@ const executableLegacy =
 
 test("active release authority has no executable legacy topology", async () => {
   for (const path of activeReleaseFiles) {
-    const value = await read(path);
+    let value = await read(path);
+    if (path === ".github/workflows/evo-fast-pr-checks.yml") {
+      const maintenance = value.match(/^  inbox_dependencies:\n[\s\S]*?(?=^  fast-checks:)/mu)?.[0];
+      assert.ok(maintenance, "the source-only dependency lane is explicit");
+      assert.doesNotMatch(maintenance, /secrets\.|docker|ssh|npm run (?:start|dev|seed|preflight)|continue-on-error/u);
+      // Permit only these two directory bindings, only inside the reviewed
+      // source-maintenance job. Every other legacy reference remains forbidden.
+      let directoryBindingsRemoved = maintenance;
+      for (const line of [
+        "        working-directory: agent-lead2-inbox\n",
+        "          cache-dependency-path: agent-lead2-inbox/package-lock.json\n",
+      ]) {
+        assert.equal(maintenance.split(line).length - 1, 1);
+        directoryBindingsRemoved = directoryBindingsRemoved.replace(line, "");
+      }
+      value = value.replace(maintenance, directoryBindingsRemoved);
+    }
     const executableLines = value
       .split(/\r?\n/u)
       .filter((line) => executableLegacy.test(line))
@@ -132,7 +148,10 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - migration_boundary/u);
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
-  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
+  const maintenance = fastPr.match(/^  inbox_dependencies:\n[\s\S]*?(?=^  fast-checks:)/mu)?.[0];
+  assert.ok(maintenance);
+  assert.equal((maintenance.match(/run: npm run typecheck/gu) ?? []).length, 1);
+  assert.doesNotMatch(fastPr.replace(maintenance, ""), /run: npm run typecheck/u);
   assert.doesNotMatch(fastPr, /test:database:local|test:security|test:unit|playwright|supabase/iu);
   assert.match(gate, /"Main CRM"/u);
   assert.doesNotMatch(gate, /"EVO Inbox"|"EVO Lead Agent"/u);

@@ -1786,7 +1786,15 @@ test("retired Inbox dependency maintenance runs in isolation without deployment 
   for (const command of ["npm ci --ignore-scripts", "npm audit --audit-level=low", "npm run typecheck", "npm run lint", "npm run build"]) {
     assert.ok(lane.includes(`run: ${command}`), command);
   }
-  assert.match(lane, /npm exec -- vitest run src\/lib\/themes\.test\.ts src\/lib\/whatsapp\/template-status-normalize\.test\.ts src\/lib\/ai\/chunk\.test\.ts/u);
+  for (const path of ["src/lib/themes.test.ts", "src/lib/whatsapp/template-status-normalize.test.ts", "src/lib/ai/chunk.test.ts"]) assert.ok(lane.includes(`"${path}"`));
+  assert.match(lane, /startVitest\("test", files,/u);
+  assert.match(lane, /config: false, watch: false, include: files/u);
+  assert.match(lane, /configFile: false, envFile: false/u);
+  assert.match(lane, /Object\.keys\(context\.config\.env\)\.length !== 0/u);
+  assert.match(lane, /modules\.length !== files\.length \|\| modules\.some\(\(module\) => !module\.ok\(\)\)/u);
+  assert.match(lane, /context\.state\.getUnhandledErrors\(\)\.length > 0/u);
+  assert.match(lane, /process\.exitCode = 1/u);
+  assert.match(lane, /finally \{\n\s+await context\?\.close\(\);/u);
   assert.doesNotMatch(lane, /secrets\.|docker|ssh|continue-on-error|npm test|ENCRYPTION_KEY|META_APP_SECRET/u);
 });
 

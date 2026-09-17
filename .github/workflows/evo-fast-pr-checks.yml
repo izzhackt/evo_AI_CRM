@@ -189,7 +189,31 @@ jobs:
         run: npm run lint
 
       - name: Test pure Inbox helpers without provider adapters
-        run: npm exec -- vitest run src/lib/themes.test.ts src/lib/whatsapp/template-status-normalize.test.ts src/lib/ai/chunk.test.ts
+        run: |
+          node --input-type=module <<'NODE'
+          import { startVitest } from "vitest/node";
+          const files = [
+            "src/lib/themes.test.ts",
+            "src/lib/whatsapp/template-status-normalize.test.ts",
+            "src/lib/ai/chunk.test.ts",
+          ];
+          let context;
+          try {
+            context = await startVitest("test", files,
+              { config: false, watch: false, include: files },
+              { configFile: false, envFile: false });
+            if (Object.keys(context.config.env).length !== 0) {
+              throw new Error("Pure helper tests must not inject environment values");
+            }
+            const modules = context.state.getTestModules();
+            if (modules.length !== files.length || modules.some((module) => !module.ok())
+              || context.state.getUnhandledErrors().length > 0) {
+              process.exitCode = 1;
+            }
+          } finally {
+            await context?.close();
+          }
+          NODE
 
       - name: Build Inbox with TypeScript authority
         run: npm run build

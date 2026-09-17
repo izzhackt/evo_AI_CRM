@@ -27758,3 +27758,13 @@ request, body assertion and all cleanup. This distinguishes a client-visible
 failure from a lost DevTools response body; READY still does not pass the gate.
 Only after independent review may one exact-main Linux observation use this
 additional diagnostic. Do not rerun an unchanged experiment until green.
+
+Release decision clarification before this observation: production remains
+disarmed during diagnosis. A red full gate blocks release and requires an
+evidenced correction on a new reviewed candidate. A green exact-main full gate
+can qualify the already-reviewed Portal performance change for the existing
+managed release, without inventing a product fix to an unreproduced failure.
+This supersedes the stronger "until a reviewed fix" wording above: all real
+release/acceptance checks still apply, while the prior intermittent cancellation
+remains an explicitly open diagnostic risk. Neither a cold/scoped pass nor
+the new UI enum replaces any original assertion or proves the cause resolved.

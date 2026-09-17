@@ -16,9 +16,12 @@ responses, retry a mutation blindly, activate providers or alter working cases.
   behavior with actual request events and narrow official-source research.
   Run only a justified one-variable experiment; production build/start is a
   candidate comparison, not a presumed remedy or permission to weaken checks.
-- [ ] Fix an evidenced cause, independently review the exact change and merge.
-  Then run the frozen-current-main release gate once, use the managed release,
-  verify accepted SHA/image/health/pending/disarm and real Student navigation.
+- [ ] Independently review and merge the diagnostic change, then run the
+  frozen-current-main full gate once. If red, retain the blocker and fix only
+  an evidenced cause in a new reviewed candidate. If green, the already-reviewed
+  Portal changes may use managed release with the unexplained intermittent
+  cancellation explicitly still open. Verify accepted SHA/image/health/pending/
+  disarm and real Student navigation; a green run is not a cancellation fix.
 
 The first profile-only run on `efd53076` passed against its owned local Auth,
 PostgreSQL and Storage: original draft/final POSTs finished, persisted exports

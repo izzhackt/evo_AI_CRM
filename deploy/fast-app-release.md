@@ -6,6 +6,25 @@ until its applicable release gates pass. This document does not configure a
 secret, arm a release, deploy, apply schema, or change provider, webhook,
 customer or production state.
 
+### September 18 lightweight release mode
+
+The owner replaces the blanket heavy prerequisite with exact-main admission,
+light release-control checks, one immutable downstream build and short real
+production smoke. `EVO platform CI` / `Main CRM` now identify this lightweight
+contract, not the former full Node/database/browser/dependency-audit proof.
+No staging, full migration replay or redundant upstream application build.
+Keep all provenance, schema-ledger readback, health, acceptance and rollback
+guards below. Do not interpret old full-suite receipts as new execution.
+
+After reviewed changes and protected short PR checks merge, freeze current
+`main`, arm the existing release variable, and dispatch `evo-platform-ci.yml`
+on `main` with `proof_revision` equal to that exact SHA. Its successful run
+automatically starts `EVO fast app release`. Do not advance main during this
+release. Observe the short real smoke and acceptance, verify the accepted SHA
+and no pending pointer, then set `EVO_PRODUCTION_RELEASE_ARMED=false`.
+On failure inspect the real checkpoint and rollback result; never rerun a heavy
+suite or fabricate a receipt to get the candidate accepted.
+
 ### September 9 Student/Admissions owner exception
 
 The owner authorizes this release without a new database/Storage export or its
@@ -208,9 +227,15 @@ Required secrets when #552 configures the lane:
   limited to `Variables: read`, exposed only to the two fresh guards; and
 - `EVO_PRODUCTION_SMOKE_ADMIN_EMAIL` and
   `EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD` — dedicated Admin smoke identity used
-  only to submit the Supabase Auth login form and then read `/v3/main` and
-  `/api/version`. It may not submit a business form, click a business mutation
-  control or exercise a provider.
+  only for normal Auth and read-only dashboard/version/case checks;
+- `EVO_PRODUCTION_SMOKE_CASE_ID` — existing owner-approved persistent QA case,
+  opened on its route and contract tabs, never created by a release;
+- `EVO_PRODUCTION_SMOKE_STUDENT_EMAIL` and
+  `EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD` — that existing QA Student's own
+  login for overview/documents navigation on `https://app.evoadmissions.com`.
+  No smoke may submit a business form, upload a document, create a new identity,
+  read another Student's private assessments or exercise a provider. Missing
+  inputs and failed real UI paths fail before the receipt and trigger rollback.
 
 Required non-secret variables:
 
@@ -374,7 +399,8 @@ proofs pass against the exact candidate: the digest-pinned private scanner is
 healthy; running app image ID/config digest and OCI revision labels; container
 health and restart-count policy; internal health;
 public external health; and an authenticated read-only V3 browser smoke that
-proves the V3 shell and canonical Supabase CRM view. Provider writes are not
+proves the V3 shell, canonical Supabase CRM view, case route/contract and isolated
+Student overview/documents navigation. Provider writes are not
 part of acceptance.
 
 Under the same server lock, `accept-candidate` re-verifies the complete pending

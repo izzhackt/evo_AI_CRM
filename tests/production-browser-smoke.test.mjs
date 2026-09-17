@@ -10,7 +10,6 @@ import test from "node:test";
 import {
   buildProductionSmokeReceipt,
   readProductionSmokeConfiguration,
-  runProductionBrowserSmoke,
   writeProductionSmokeReceipt,
 } from "../scripts/evo-production-browser-smoke.mjs";
 
@@ -26,6 +25,9 @@ function environment(receiptPath = "/tmp/evo-v3-browser-receipt.json") {
     EVO_RELEASE_EXTERNAL_HEALTH_URL: "https://crm.evoadmissions.com/api/health",
     EVO_PRODUCTION_SMOKE_ADMIN_EMAIL: "release-smoke@evo.invalid",
     EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD: "not-a-real-secret",
+    EVO_PRODUCTION_SMOKE_STUDENT_EMAIL: "student-smoke@evo.invalid",
+    EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD: "not-a-real-student-secret",
+    EVO_PRODUCTION_SMOKE_CASE_ID: "12345678-1234-1234-1234-123456789abc",
     EVO_PRODUCTION_SMOKE_RECEIPT: receiptPath,
     EVO_RELEASE_ID: "v3-r100-a2-aaaaaaaa",
     EVO_RELEASE_REPOSITORY: "izzhackt/evo_AI_CRM",
@@ -53,7 +55,8 @@ test("browser receipt is a deterministic closed identity without credentials", (
     result: "passed",
   });
   const serialized = JSON.stringify(receipt);
-  assert.doesNotMatch(serialized, /email|password|cookie|session|secret/iu);
+  assert.doesNotMatch(serialized, /email|password|cookie|session|secret|caseId/iu);
+  assert.equal(config.studentBaseUrl, "https://app.evoadmissions.com");
 });
 
 test("configuration is exact and rejects unsafe or normalized authority values", () => {
@@ -67,11 +70,20 @@ test("configuration is exact and rejects unsafe or normalized authority values",
     ["EVO_RELEASE_WORKFLOW_RUN_ATTEMPT", "02"],
     ["EVO_RELEASE_ARTIFACT_DIGEST", "b".repeat(64)],
     ["EVO_PRODUCTION_SMOKE_ADMIN_EMAIL", " release-smoke@evo.invalid"],
+    ["EVO_PRODUCTION_SMOKE_STUDENT_EMAIL", "release-smoke@evo.invalid"],
+    ["EVO_PRODUCTION_SMOKE_STUDENT_EMAIL", "student@example.invalid?bad value"],
+    ["EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD", ""],
+    ["EVO_PRODUCTION_SMOKE_CASE_ID", "12345678-1234-1234-1234-123456789abc&tab=money"],
     ["EVO_PRODUCTION_SMOKE_RECEIPT", "relative.json"],
   ]) {
     assert.throws(() =>
       readProductionSmokeConfiguration({ ...environment(), [name]: value }),
     );
+  }
+  for (const name of ["EVO_PRODUCTION_SMOKE_CASE_ID", "EVO_PRODUCTION_SMOKE_STUDENT_EMAIL", "EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD"]) {
+    const input = environment();
+    delete input[name];
+    assert.throws(() => readProductionSmokeConfiguration(input));
   }
 });
 
@@ -91,122 +103,30 @@ test("receipt writer creates one private file and refuses replacement", async ()
   }
 });
 
-test("smoke signs in, proves V3 admin operations and exact release metadata", async () => {
-  const calls = [];
-  let written;
-  let currentUrl = "https://crm.evoadmissions.com/login";
-  const role = {
-    async getAttribute(name) {
-      return name === "data-role" || name === "data-system-role" ? "admin" : null;
-    },
-  };
-  const visible = { async waitFor(options) { calls.push(["visible", options.state]); } };
-  const page = {
-    async goto(url) {
-      calls.push(["goto", url]);
-      return { ok: () => true };
-    },
-    locator(selector) {
-      return {
-        async fill(value) { calls.push(["fill", selector, value]); },
-        async click() { calls.push(["click", selector]); },
-      };
-    },
-    async waitForURL(url) { calls.push(["waitForURL", url]); currentUrl = url; },
-    url() { return currentUrl; },
-    getByTestId(id) {
-      calls.push(["testid", id]);
-      return id === "active-role" ? role : visible;
-    },
-    async evaluate() {
-      calls.push(["api-version"]);
-      return {
-        status: 200,
-        body: { status: "available", revision: REVISION, version: "r100.2-aaaaaaaa" },
-      };
-    },
-  };
-  const chromiumRuntime = {
-    async launch(options) {
-      calls.push(["launch", options.headless]);
-      return {
-        async newContext(options) {
-          calls.push(["context", options.acceptDownloads, options.serviceWorkers]);
-          return {
-            async newPage() { return page; },
-            async close() { calls.push(["context-close"]); },
-          };
-        },
-        async close() { calls.push(["browser-close"]); },
-      };
-    },
-  };
-
-  await runProductionBrowserSmoke({
-    environment: environment(),
-    chromiumRuntime,
-    async writeReceipt(path, receipt) { written = { path, receipt }; },
-  });
-
-  assert.equal(written.path, "/tmp/evo-v3-browser-receipt.json");
-  assert.equal(written.receipt.result, "passed");
-  assert.deepEqual(calls.slice(0, 3), [
-    ["launch", true],
-    ["context", false, "block"],
-    ["goto", "https://crm.evoadmissions.com/login"],
+test("source contract: receipt follows real case and isolated Student journeys", () => {
+  // These assertions inspect wiring only. Acceptance requires the real CLI on the deployed candidate.
+  assert.match(smokeSource, /const browser = await chromium\.launch\(/u);
+  assert.doesNotMatch(smokeSource, /chromiumRuntime|writeReceipt\s*=/u);
+  assert.equal((smokeSource.match(/await browser\.newContext\(/gu) ?? []).length, 2);
+  assert.match(smokeSource, /response\?\.status\(\) !== 200 \|\| page\.url\(\) !== url/u);
+  assert.match(smokeSource, /tab=route/u);
+  assert.match(smokeSource, /getByTestId\("admissions-route"\)/u);
+  assert.match(smokeSource, /tab=contract/u);
+  assert.match(smokeSource, /getAttribute\("data-student-case-id"\) !== configuration\.caseId/u);
+  assert.match(smokeSource, /signIn\(page, configuration\.studentBaseUrl, configuration\.studentEmail, configuration\.studentPassword, "\/portal"\)/u);
+  assert.match(smokeSource, /getByTestId\("student-portal-shell"\)/u);
+  assert.match(smokeSource, /\/portal\/documents/u);
+  assert.match(smokeSource, /Разделы кабинета/u);
+  assert.equal((smokeSource.match(/await verifyVersion\(page, configuration\)/gu) ?? []).length, 1);
+  assert.deepEqual([...smokeSource.matchAll(/checkpoint\("([a-z_]+)"\)/gu)].map((match) => match[1]), [
+    "admin_login", "case_route", "case_contract", "student_login", "student_overview", "student_documents", "student_navigation",
   ]);
-  assert.ok(calls.some(([kind, value]) => kind === "testid" && value === "v3-shell"));
-  assert.ok(
-    calls.some(([kind, value]) => kind === "testid" && value === "v3-operational-dashboard"),
-  );
-  assert.ok(calls.some(([kind]) => kind === "api-version"));
-  assert.deepEqual(calls.filter(([kind]) => kind === "click"), [
-    ["click", 'form[aria-labelledby="login-title"] button[type="submit"]'],
-  ]);
-  assert.deepEqual(calls.slice(-2), [["context-close"], ["browser-close"]]);
-});
-
-test("unsafe login redirects are rejected before credentials are filled", async () => {
-  for (const finalUrl of [
-    "https://attacker.invalid/login",
-    "https://crm.evoadmissions.com/unexpected",
-    "https://user:pass@crm.evoadmissions.com/login",
-    "https://evo-crm.72.62.119.112.sslip.io/login",
-    "https://app.evoadmissions.com/login",
-  ]) {
-    const calls = [];
-    const chromiumRuntime = {
-      async launch() {
-        return {
-          async newContext() {
-            return {
-              async newPage() {
-                return {
-                  async goto() { return { ok: () => true }; },
-                  url() { return finalUrl; },
-                  locator() {
-                    return { async fill() { calls.push("fill"); } };
-                  },
-                };
-              },
-              async close() { calls.push("context-close"); },
-            };
-          },
-          async close() { calls.push("browser-close"); },
-        };
-      },
-    };
-    await assert.rejects(runProductionBrowserSmoke({
-      environment: environment(),
-      chromiumRuntime,
-      async writeReceipt() { calls.push("receipt"); },
-    }), /login_origin_invalid/u);
-    assert.deepEqual(calls, ["context-close", "browser-close"]);
-  }
+  assert.ok(smokeSource.indexOf('"production_student_smoke_passed"') < smokeSource.indexOf("await writeProductionSmokeReceipt(configuration.receiptPath"));
+  assert.ok(smokeSource.indexOf('if (page.url() !== `${baseUrl}/login`)') < smokeSource.indexOf('page.locator("#staff-email").fill(email)'));
 });
 
 test("smoke has no business interaction or sensitive browser evidence path", () => {
-  assert.equal((smokeSource.match(/\.click\(\)/gu) ?? []).length, 1);
+  assert.equal((smokeSource.match(/\.click\(\)/gu) ?? []).length, 2);
   assert.match(smokeSource, /form\[aria-labelledby="login-title"\] button\[type="submit"\]/u);
   assert.doesNotMatch(smokeSource, /\.screenshot\(|tracing\.|storageState|\.cookies\(/u);
   assert.doesNotMatch(smokeSource, /waha|whatsapp|gemini|amocrm/iu);

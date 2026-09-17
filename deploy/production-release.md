@@ -74,6 +74,11 @@ during #552 makes that wrapper non-executable. V1 is never a permanent fallback.
 
 ### Automatic entry and schema boundary
 
+Since the owner's September18 fast-mode approval, the upstream `EVO platform CI`
+is lightweight admission/release-control validation, not a full-suite gate.
+The image builds once downstream; actual case and Student portal smoke plus
+rollback remain mandatory. See [the current fast-release contract](fast-app-release.md).
+
 After #552 explicitly arms the fail-closed circuit breaker, an operator manually
 starts `EVO platform CI` with `workflow_dispatch` for exact current `main`. A
 trusted successful same-repository completion starts the app-only release

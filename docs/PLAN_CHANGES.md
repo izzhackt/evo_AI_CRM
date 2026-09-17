@@ -27966,3 +27966,24 @@ requirements remain a separate constraint, not permission to forge receipts.
 Official RPC/error behavior checked via
 https://supabase.com/docs/reference/javascript/rpc and
 https://docs.postgrest.org/en/stable/references/errors.html ; Context7 was quota-limited.
+
+### 2026-09-18 — owner-approved lightweight production release
+
+Before implementation: the owner twice explicitly approves changing the release
+automation and publishing with light real checks, not a heavy test run. Replace
+the blanket full Node/database/browser/dependency-audit prerequisite in the
+existing exact-main manual `EVO platform CI` workflow. Its `Main CRM` job now
+means lightweight release-control validation, not the historical full proof.
+Keep the workflow identity so provenance continues to bind the actual upstream
+run and immutable build without inventing or relabelling old receipts.
+
+The downstream image build, live SHA/arm guards, artifact provenance, read-only
+migration ledger, host lock/health/rollback and acceptance remain. Extend the
+short authenticated production smoke to the fixed case and updated portal using
+only the existing owner-approved persistent QA identities/case. Private inputs
+are GitHub secrets, not source or logs. A failed/missing real path rolls back;
+no schema writes, provider actions, client messages, fake cases or full suites.
+Reuse unchanged local feature evidence, independently review the bounded diff,
+then run the real managed release once. PR820 is merged by its own task; root
+coordinates release. Current official GitHub workflow-run/manual-dispatch docs
+are linked in the launch plan; Context7 was quota-limited.

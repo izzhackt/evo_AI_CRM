@@ -1685,7 +1685,6 @@ test("workflow binds exact green main to one runner-built immutable release", ()
 test("active platform CI executes only the root successor product", () => {
   const workflow = readFileSync(".github/workflows/evo-platform-ci.yml", "utf8");
   const fastPr = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
-  const auditAllowlist = readFileSync("scripts/check-npm-audit-allowlist.mjs", "utf8");
   assert.match(workflow, /^  workflow_dispatch:$/mu);
   assert.match(workflow, /proof_revision:\n        description: Exact current main commit SHA to prove\./u);
   assert.doesNotMatch(workflow, /^  pull_request:|^  push:/mu);
@@ -1697,45 +1696,15 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(workflow, /exact\("EVO_WORKFLOW_SHA", env\.EVO_SHA\)/u);
   assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
-  assert.match(workflow, /^  crm_node_static:\n    name: Main CRM Node\/static$/mu);
-  assert.match(workflow, /^  crm_browser:\n    name: Main CRM database\/browser proof$/mu);
-  assert.equal((workflow.match(/run: npm run test:ci:node/gu) ?? []).length, 1);
-  assert.match(workflow, /run: npm run lint/u);
-  assert.match(workflow, /run: npm run build/u);
-  assert.doesNotMatch(workflow, /run: npm run typecheck|run: npm run test:security|run: npm run test:unit/u);
-  assert.match(workflow, /node_modules\/\.bin\/playwright install --with-deps --only-shell chromium/u);
-  assert.equal((workflow.match(/node_modules\/\.bin\/playwright install --with-deps --only-shell chromium/gu) ?? []).length, 1);
-  assert.doesNotMatch(workflow, /node_modules\/\.bin\/playwright install --with-deps chromium/u);
-  assert.doesNotMatch(workflow, /test:database:migration-boundaries|v3-managed-supabase-recovery-harness/u);
-  assert.match(workflow, /^  dependency_audit:\n    name: Dependency audit$/mu);
-  assert.match(workflow, /needs:\n      - main_admission\n      - crm_node_static\n      - crm_browser\n      - dependency_audit/u);
-  assert.match(workflow, /ADMISSION_RESULT: \$\{\{ needs\.main_admission\.result \}\}/u);
-  assert.match(workflow, /test "\$ADMISSION_RESULT" = "success"/u);
-  assert.match(workflow, /NODE_STATIC_RESULT: \$\{\{ needs\.crm_node_static\.result \}\}/u);
-  assert.match(workflow, /BROWSER_RESULT: \$\{\{ needs\.crm_browser\.result \}\}/u);
-  assert.match(workflow, /AUDIT_RESULT: \$\{\{ needs\.dependency_audit\.result \}\}/u);
-  assert.match(workflow, /test "\$NODE_STATIC_RESULT" = "success"/u);
-  assert.match(workflow, /test "\$BROWSER_RESULT" = "success"/u);
-  assert.match(workflow, /test "\$AUDIT_RESULT" = "success"/u);
-  assert.match(
-    workflow,
-    /name: Install pinned npm audit CLI\n        timeout-minutes: 4\n        env:\n          npm_config_audit: "false"\n          npm_config_fetch_retries: "0"\n          npm_config_fetch_timeout: "30000"\n          npm_config_fund: "false"[\s\S]*for attempt in 1 2 3; do[\s\S]*timeout 60s npm install --prefix "\$audit_prefix" npm@11\.19\.0 --ignore-scripts --no-audit --no-fund[\s\S]*test "\$\("\$audit_prefix\/node_modules\/\.bin\/npm" --version\)" = "11\.19\.0"[\s\S]*echo "\$audit_prefix\/node_modules\/\.bin" >> "\$GITHUB_PATH"[\s\S]*echo "EVO_NPM_BIN=\$audit_prefix\/node_modules\/\.bin\/npm" >> "\$GITHUB_ENV"/u,
-  );
-  assert.match(
-    workflow,
-    /name: Audit production dependencies[\s\S]*npm_config_fetch_retries: "0"\n          npm_config_fetch_timeout: "70000"[\s\S]*if ! test -x "\$EVO_NPM_BIN"; then[\s\S]*if "\$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then/u,
-  );
-  assert.match(
-    workflow,
-    /name: Audit development dependencies against the temporary allowlist[\s\S]*npm_config_fetch_retries: "0"\n          npm_config_fetch_timeout: "70000"[\s\S]*if node scripts\/check-npm-audit-allowlist\.mjs; then/u,
-  );
-  assert.match(auditAllowlist, /const npmBin = process\.env\.EVO_NPM_BIN\?\.trim\(\) \|\| "npm";/u);
-  assert.match(auditAllowlist, /spawnSync\(\n    npmBin,/u);
-  assert.doesNotMatch(auditAllowlist, /hasMeaningfulAuditError|empty npm audit placeholder/u);
-  assert.doesNotMatch(
-    workflow,
-    /npm exec --yes --package=npm@11\.19\.0/u,
-  );
+  assert.match(workflow, /^  crm:\n    name: Main CRM\n    needs: main_admission\n    runs-on: ubuntu-latest\n    timeout-minutes: 5$/mu);
+  assert.match(workflow, /bash -n scripts\/evo-fast-release\.sh/u);
+  assert.match(workflow, /node --check scripts\/evo-production-browser-smoke\.mjs/u);
+  assert.match(workflow, /node --check scripts\/fast-release-ledger-gate\.mjs/u);
+  assert.match(workflow, /name: Check scoped release source contracts\n        run: >-\n          node --test/u);
+  assert.match(workflow, /--test-name-pattern='\^\(CI and the exact-SHA gate require only the current root successor\|active platform CI executes only the root successor product\|workflow binds exact green main to one runner-built immutable release\)\$'/u);
+  assert.match(workflow, /tests\/p6d-release-candidate\.test\.mjs\n          tests\/fast-release-control\.test\.mjs/u);
+  assert.doesNotMatch(workflow, /crm_node_static|crm_browser|dependency_audit|test:ci:node|test:database:|npm run (?:lint|build|typecheck|test:security|test:unit)|npm (?:ci|install|audit)|playwright install|check-npm-audit-allowlist/u);
+  assert.doesNotMatch(workflow, /continue-on-error|always\(\)|secrets\./u);
   assert.doesNotMatch(workflow, /^  (?:inbox|lead-agent):/mu);
   assert.doesNotMatch(workflow, /EVO Inbox|EVO Lead Agent/u);
   assert.doesNotMatch(workflow, /Prepare P8|refs\/pull\/179|6ee93bd/u);

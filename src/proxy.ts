@@ -12,7 +12,11 @@ import {
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
-import { canonicalPlatformPageOrigin } from "@/lib/platform-public-origin";
+import {
+  canonicalPlatformPageOrigin,
+  shouldRenderPlatformLogin,
+  type PlatformLoginSessionState as SessionState,
+} from "@/lib/platform-public-origin";
 import {
   STUDENT_INVITE_CSRF_COOKIE,
   isStudentInviteCsrfToken,
@@ -20,14 +24,6 @@ import {
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
 import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
-
-type SessionState =
-  | "staff"
-  | "student"
-  | "authenticated_without_product"
-  | "invalid"
-  | "missing"
-  | "unavailable";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({ request: { headers: requestHeaders } });
@@ -308,20 +304,20 @@ export async function proxy(request: NextRequest) {
     if (!studentPortalApi) return blockedPlatformRoute(request, id);
   }
 
+  // A stale session must not redirect a new sign-in or refresh old cookies over
+  // its result. The action still verifies credentials, live authority and Origin.
+  if (path === "/login" && request.method === "POST") {
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+
   const session = await liveSessionState(request, requestHeaders);
   if (path === "/login") {
-    if (
-      session.state === "missing" ||
-      session.state === "invalid" ||
-      session.state === "unavailable"
-    ) {
-      return setResponseHeaders(session.response, id);
-    }
-    if (
-      session.state === "authenticated_without_product" &&
-      (request.nextUrl.searchParams.get("error") === "session_invalid" ||
-        request.nextUrl.searchParams.get("error") === "auth_unavailable")
-    ) {
+    if (shouldRenderPlatformLogin(
+      request.method,
+      request.headers.get("host"),
+      session.state,
+      request.nextUrl.searchParams.get("error"),
+    )) {
       return setResponseHeaders(session.response, id);
     }
     return redirectWithRefreshedCookies(request, session.response, id, "/");

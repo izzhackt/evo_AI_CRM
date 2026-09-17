@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { build } from "esbuild";
+import { NextRequest } from "next/server.js";
 
 import {
   FIXED_ROLE_ROUTES,
@@ -10,6 +14,7 @@ import {
   canonicalPlatformPageOrigin,
   platformAudienceForHost,
   platformAudienceHomeRoute,
+  shouldRenderPlatformLogin,
   PRODUCTION_STAFF_ORIGIN,
   PRODUCTION_STUDENT_ORIGIN,
 } from "../src/lib/platform-public-origin.ts";
@@ -27,6 +32,86 @@ import {
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
+
+test("login POST reaches credential verification for every previous session and host", () => {
+  for (const host of ["crm.evoadmissions.com", "app.evoadmissions.com", "localhost:3000", null]) {
+    for (const session of ["staff", "student", "missing", "invalid", "unavailable", "authenticated_without_product"]) {
+      assert.equal(shouldRenderPlatformLogin("POST", host, session, null), true, `${host}:${session}`);
+    }
+  }
+});
+
+test("login navigation permits opposite audience without changing same-audience or unknown-host redirects", () => {
+  for (const method of ["GET", "HEAD"]) {
+    assert.equal(shouldRenderPlatformLogin(method, "app.evoadmissions.com", "staff", null), true);
+    assert.equal(shouldRenderPlatformLogin(method, "crm.evoadmissions.com", "student", null), true);
+    assert.equal(shouldRenderPlatformLogin(method, "app.evoadmissions.com", "student", null), false);
+    assert.equal(shouldRenderPlatformLogin(method, "crm.evoadmissions.com", "staff", null), false);
+    for (const host of ["localhost:3000", "app.evoadmissions.com.attacker.invalid", null]) {
+      for (const session of ["staff", "student"]) assert.equal(shouldRenderPlatformLogin(method, host, session, null), false);
+    }
+    for (const host of ["crm.evoadmissions.com", "app.evoadmissions.com", "localhost:3000", null]) {
+      for (const session of ["missing", "invalid", "unavailable"]) {
+        assert.equal(shouldRenderPlatformLogin(method, host, session, null), true);
+      }
+      assert.equal(shouldRenderPlatformLogin(method, host, "authenticated_without_product", null), false);
+      assert.equal(shouldRenderPlatformLogin(method, host, "authenticated_without_product", "other"), false);
+      for (const error of ["session_invalid", "auth_unavailable"]) {
+        assert.equal(shouldRenderPlatformLogin(method, host, "authenticated_without_product", error), true);
+        for (const session of ["staff", "student"]) {
+          assert.equal(shouldRenderPlatformLogin(method, host, session, error),
+            shouldRenderPlatformLogin(method, host, session, null));
+        }
+      }
+    }
+  }
+  // This narrow change grants no new behavior to unrelated methods.
+  assert.equal(shouldRenderPlatformLogin("PUT", "app.evoadmissions.com", "staff", null), false);
+});
+
+test("real proxy forwards exact login POST unchanged while rejecting cross-audience action routes", async () => {
+  const bundled = await build({
+    entryPoints: [fileURLToPath(new URL("../src/proxy.ts", import.meta.url))],
+    bundle: true, packages: "external", platform: "node", format: "cjs", write: false,
+  });
+  const loaded = { exports: {} };
+  new Function("require", "module", "exports", bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
+  const { proxy } = loaded.exports;
+  for (const host of ["app.evoadmissions.com", "crm.evoadmissions.com", "localhost:3000"]) {
+    for (const actionHeader of [null, "routing-boundary-only"]) {
+      const headers = { host, origin: `https://${host}`, "x-forwarded-host": host,
+        cookie: "routing-boundary-not-a-session=1", "content-type": "application/x-www-form-urlencoded" };
+      if (actionHeader) headers["next-action"] = actionHeader;
+      const request = new NextRequest(`https://${host}/login`, {
+        method: "POST", headers, body: "routing-boundary-only=1",
+      });
+      const response = await proxy(request);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-middleware-next"), "1");
+      assert.equal(response.headers.get("location"), null);
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.ok(response.headers.get("x-request-id"));
+      assert.equal(response.cookies.getAll().length, 0);
+      for (const [name, value] of Object.entries(headers)) {
+        assert.equal(request.headers.get(name), value);
+        assert.equal(response.headers.get(`x-middleware-request-${name}`), value);
+      }
+      assert.equal(await request.text(), "routing-boundary-only=1");
+      assert.equal(request.method, "POST");
+    }
+  }
+  const denied = await proxy(new NextRequest("https://app.evoadmissions.com/auth/staff", {
+    method: "POST", headers: { host: "app.evoadmissions.com" }, body: "routing-boundary-only=1",
+  }));
+  assert.equal(denied.status, 404);
+  assert.equal(denied.headers.get("location"), null);
+  for (const path of ["/login/foo", "/loginish"]) {
+    const denied = await proxy(new NextRequest(`https://app.evoadmissions.com${path}`, {
+      method: "POST", headers: { host: "app.evoadmissions.com" }, body: "routing-boundary-only=1",
+    }));
+    assert.notEqual(denied.headers.get("x-middleware-next"), "1", path);
+  }
+});
 
 test("canonical audience hosts relocate only exact known pages, not API authority", () => {
   assert.equal(platformAudienceForHost("crm.evoadmissions.com"), "staff");

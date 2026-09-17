@@ -27657,3 +27657,18 @@ SMTP setup, real admissions data or provider integration work in this slice.
 
 Review the bounded operator script before execution. A persistent real Student
 login and browser acceptance remain mandatory before retiring preview in prod.
+
+### 2026-09-17 — login must accept an explicit account change
+
+The real QA Student lifecycle and fresh password/own-case authority checks passed.
+The first browser submission instead failed with an unexpected Server Action
+response, and refresh returned to the existing Admin CRM session. Current proxy
+redirects every authenticated `/login` request, including POST, before the normal
+password action can run. A staff session retained on the Student host also hides
+that host's login form. This is a routing defect, not permission to bypass auth.
+
+Allow exact login POST to reach existing password verification and permit login
+GET for an existing session of the opposite host audience. Preserve origin/CSRF
+checks, live identity/authority, host-only cookies and all other route guards.
+Add focused regressions and independent review, then use the ordinary browser
+form to prove the candidate before release; repeat on accepted production.

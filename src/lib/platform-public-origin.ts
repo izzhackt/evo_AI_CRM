@@ -8,6 +8,29 @@ export const PRODUCTION_STAFF_ORIGIN = "https://crm.evoadmissions.com" as const;
 export const PRODUCTION_STUDENT_ORIGIN = "https://app.evoadmissions.com" as const;
 
 export type PlatformAudience = "staff" | "student";
+export type PlatformLoginSessionState =
+  | PlatformAudience
+  | "authenticated_without_product"
+  | "invalid"
+  | "missing"
+  | "unavailable";
+
+/** A login response is routing only; the Server Action owns credential checks. */
+export function shouldRenderPlatformLogin(
+  method: string,
+  host: string | null,
+  session: PlatformLoginSessionState,
+  error: string | null,
+): boolean {
+  if (method === "POST") return true;
+  if (session === "missing" || session === "invalid" || session === "unavailable") return true;
+  const knownError = error === "session_invalid" || error === "auth_unavailable";
+  if (session === "authenticated_without_product" && knownError) return true;
+  if (method !== "GET" && method !== "HEAD") return false;
+  const audience = platformAudienceForHost(host);
+  return (audience === "student" && session === "staff")
+    || (audience === "staff" && session === "student");
+}
 
 /** Routing hints only: live authority and RLS remain the access boundary. */
 export function platformAudienceForHost(host: string | null): PlatformAudience | null {

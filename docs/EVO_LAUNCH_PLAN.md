@@ -18,11 +18,11 @@ synthetic provider success or general production seeding.
   obsolete route exceptions and implementation-only tests. Keep real Student
   portal, published catalogue and assessments; old preview URLs must not render
   a parallel portal or fall back to Admin impersonation.
-- [ ] Verify/improve real Student navigation: preserve shell and useful pending
+- [x] Verify/improve real Student navigation on the candidate: preserve shell and useful pending
   feedback; eliminate demonstrated duplicate work only. Keep current identity,
   role/RLS checks and assessment unsaved-change protection. Never cache private
   authority/data between users or requests to improve timings.
-- [ ] Provision exactly one permanent QA Student using confirmed owner-controlled
+- [x] Provision exactly one permanent QA Student using confirmed owner-controlled
   email and supported Auth/provisioning lifecycle. Reuse the existing Supabase
   project; keep the QA case out of working Sales reports and provider sends.
   Do not fabricate an invitation receipt or mutate auth.users directly. Missing
@@ -70,6 +70,39 @@ Auth operations; verify real Student authority and fresh password login.
 No direct auth.users changes, auto-confirm flags, fabricated timestamps,
 synthetic domain receipts, new staff account or new tenant are allowed.
 Independent operator-script review precedes any bounded production writes.
+
+17 September execution checkpoint: independently reviewed operator completed the
+bounded QA case bootstrap, real manual invite, real OTP acceptance and password
+setup. Fresh password authentication and own-case Student authority passed.
+Credentials and receipts remain in a protected ignored owner handoff; no email
+was sent, and no Sales/client/payment facts were created. This supersedes the
+pre-execution inventory above, not the still-open browser acceptance gate.
+
+The first normal browser sign-in exposed a separate existing-session bug:
+`/login` proxy redirects authenticated POST requests before the login action can
+read the submitted credentials. An existing staff session on the Student host
+then returns the browser to CRM. Extend this slice narrowly: let login POST reach
+the normal password action and show the intended host's login form when the
+existing session belongs to the other audience. Preserve CSRF/origin validation,
+real password verification, current authority checks and host-only cookies.
+Regression-test this boundary, then prove the candidate in a real browser before
+claiming the replacement workflow accepted. No session injection or auth bypass.
+
+Candidate checkpoint: real Chrome at loopback port 3114 used only publishable
+configuration against the existing database, not a second data source. Normal
+Student password login, account/case readback, saved assessment progress after
+reload (one QA answer), staff-page exclusion and normal logout passed. Shell
+remained visible during Payments/Documents/Applications/Universities/Tests
+transitions. Navigation observations are development observations, not production
+latency guarantees. Mobile menu at 390px opened without horizontal overflow.
+Old preview URL returns HTTP 404. The local process holds no service/provider key.
+
+Login-routing delta passed 39 focused tests, ESLint, normal typecheck and a
+second independent review (21 route tests independently rerun). Reviewed delta
+SHA-256: `f0f2b8506e2f76d4ee218237e2d520bf23143c12cf84a8059eb31946fcf1ae6e`.
+Production still runs the prior accepted source until managed release; repeat
+ordinary login on app with its retained staff session, section content/persistence,
+CRM preview absence, acceptance readback and disarm before closing this run.
 
 ## Canonical staff and Student domains — accepted 2026-09-17
 

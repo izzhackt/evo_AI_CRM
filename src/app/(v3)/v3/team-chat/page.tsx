@@ -32,9 +32,9 @@ export default async function TeamChatPage({ searchParams }: {
   // The promoted image has no build-time Supabase config. Serialize only the
   // validated public fields from this authenticated runtime request.
   const realtimeConfig = getSupabasePublicConfig();
-  return <PartShell title="Командный чат"><TeamChat key={`${actor.membershipId}:${channel}:${messageId ?? "latest"}`}
+  return <main className="flex h-[calc(100dvh-150px)] min-h-0 flex-col md:h-[calc(100dvh-64px)]" aria-label="Командный чат"><TeamChat key={`${actor.membershipId}:${channel}:${messageId ?? "latest"}`}
     initial={initial} channel={channel} organizationId={actor.organizationId} membershipId={actor.membershipId}
     realtimeConfig={realtimeConfig}
     canModerate={!isStaffPreview(actor) && staffHasPermission(actor, "team.chat.moderate")} initialMessageId={messageId} showChannelsInitially={params.channel === undefined} />
-  </PartShell>;
+  </main>;
 }

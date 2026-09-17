@@ -28007,3 +28007,38 @@ https://www.postgresql.org/docs/current/sql-createfunction.html.
 Context7 was attempted but monthly quota was exhausted; official PostgreSQL
 documentation was read directly. Add a read-only Team Chat checkpoint to the
 existing real Admin production smoke so rollback also covers this changed page.
+
+### 2026-09-18 — owner selects Messenger option2 before release
+
+The owner chose the second displayed generated image. Extend the same unmerged
+chat PR to its messenger layout and deploy once: compact route-scoped global
+navigation, channel list, spacious full-height chat bubbles and anchored composer.
+The visual reference contains illustrative conversations/previews; production
+must render only real authorized messages and real available channel metadata,
+not seed or fabricate the pictured examples. Keep original branding/icons and
+existing interaction/auth contracts. Verify the rendered result lightly on real
+data at desktop/mobile; update the design contract. Independent review also
+identified that migration156 modernizes chat permissions:171 must preserve those
+current staff_can_access gates, not restore old role-based141/142 definitions.
+
+### 2026-09-18 — avoid historical DB replay for the bounded171 change
+
+Inspection found the PR Migration boundary job still invokes the full historical
+PostgreSQL authorization replay (>2,000-line harness), contrary to the owner's
+explicit light-testing mode. The obsolete-head run was cancelled. Add a narrow
+fast path only when the exact base-to-head migration diff is the sole additive
+171 file; execute its real-file effective-function contract instead. Any other
+migration change retains the existing boundary path, not an invented green
+result. Name output as scoped source validation, not runtime acceptance. Actual
+SQL compilation, reviewed operator application of only171 and authenticated
+production smoke are separate evidence; existing required job identity remains.
+
+### 2026-09-18 — owner clarifies that the shared sidebar must not change
+
+The owner's latest correction supersedes the compact global navigation in the
+selected mockup. Keep AppShell exactly as current main: original left navigation,
+width, appearance and top utility bar on the chat route too. Messenger styling
+belongs only to the chat workspace on the right. Size that workspace below the
+existing desktop/mobile header and preserve its own responsive back navigation.
+No change to other sections, global navigation or account controls is authorized
+by the chat design choice.

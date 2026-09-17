@@ -1,6 +1,7 @@
 -- Retire team-channel muting without deleting messages, read cursors or receipts.
 -- Keep the inert preference columns and channel response shape for safe app rollback.
 -- PostgreSQL CREATE OR REPLACE retains existing function ownership and grants.
+-- Definitions retain migration 156's scoped recipient and moderation authority.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION platform.team_chat_command(
@@ -60,13 +61,9 @@ BEGIN
       IF recipient IS NULL OR NOT EXISTS (
         SELECT 1 FROM platform.organization_memberships m
         JOIN platform.profiles p ON p.id = m.profile_id
-        JOIN platform.role_bundle_versions b ON b.id = m.current_bundle_id AND b.role = m.current_role
         WHERE m.organization_id = p_organization_id AND m.id = recipient
-          AND m.status = 'active' AND p.status = 'active' AND b.status = 'published'
-          AND m.current_role IN ('admin', 'sales', 'curator')
-          AND (p_channel_key = 'general' OR m.current_role = 'admin'
-            OR (p_channel_key = 'sales' AND m.current_role = 'sales')
-            OR (p_channel_key = 'admissions' AND m.current_role = 'curator'))
+          AND platform_private.staff_can_access(p_organization_id, m.id,
+          'team.chat.' || p_channel_key, 'organization', p_organization_id)
       ) THEN RAISE EXCEPTION 'team_chat_recipient_forbidden' USING ERRCODE = '42501'; END IF;
     END LOOP;
   END IF;
@@ -83,7 +80,8 @@ BEGIN
     SELECT * INTO msg FROM platform.team_chat_messages m WHERE m.organization_id = p_organization_id
       AND m.channel_key = p_channel_key AND m.id = (p_input ->> 'messageId')::UUID FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'team_chat_not_found' USING ERRCODE = 'P0002'; END IF;
-    IF (operation = 'moderate' AND actor.platform_role <> 'admin')
+    IF (operation = 'moderate' AND NOT platform_private.staff_can_access(p_organization_id,
+      actor.membership_id, 'team.chat.moderate', 'organization', p_organization_id))
       OR (operation <> 'moderate' AND msg.author_membership_id <> actor.membership_id) THEN
       RAISE EXCEPTION 'team_chat_forbidden' USING ERRCODE = '42501';
     END IF;
@@ -144,11 +142,10 @@ BEGIN
     SELECT NEW.organization_id, m.id, 'message:' || NEW.id::TEXT || ':' || NEW.version::TEXT, 'chat_mention', NEW.id
     FROM platform.organization_memberships m JOIN platform.profiles p ON p.id = m.profile_id
     WHERE m.organization_id = NEW.organization_id AND m.status = 'active' AND p.status = 'active'
-      AND m.current_role IN ('admin','sales','curator') AND m.id IS DISTINCT FROM actor_membership
+      AND m.id IS DISTINCT FROM actor_membership
       AND m.id = ANY(NEW.mentioned_membership_ids) AND NOT (m.id = ANY(previous_mentions))
-      AND (NEW.channel_key = 'general' OR m.current_role = 'admin'
-        OR (NEW.channel_key = 'sales' AND m.current_role = 'sales')
-        OR (NEW.channel_key = 'admissions' AND m.current_role = 'curator'))
+      AND platform_private.staff_can_access(NEW.organization_id, m.id,
+      'team.chat.' || NEW.channel_key, 'organization', NEW.organization_id)
     ON CONFLICT (organization_id, recipient_membership_id, event_key) DO NOTHING;
   RETURN NEW;
 END $$;

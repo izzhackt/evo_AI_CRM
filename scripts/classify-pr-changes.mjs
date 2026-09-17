@@ -30,6 +30,11 @@ const DOCUMENT_ASSET_EXTENSIONS = new Set([
   ".svg",
   ".webp",
 ]);
+// Dependency maintenance does not reopen the retired companion's source tree.
+const INBOX_DEPENDENCY_PATHS = new Set([
+  "agent-lead2-inbox/package.json",
+  "agent-lead2-inbox/package-lock.json",
+]);
 const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
   ".env.example",
@@ -143,7 +148,8 @@ function isOrdinaryProsePath(path) {
 }
 
 function isKnownCodePath(path) {
-  return KNOWN_CODE_PATHS.has(path)
+  return INBOX_DEPENDENCY_PATHS.has(path)
+    || KNOWN_CODE_PATHS.has(path)
     || hasPrefix(path, KNOWN_CODE_PREFIXES)
     || /^playwright\..+\.config\.ts$/u.test(path);
 }
@@ -163,6 +169,8 @@ export function classifyChangedEntries(entries) {
     ...ordinaryProsePaths,
   ]);
   const strongPaths = paths.filter((path) => !knownLightweight.has(path));
+  const inboxDependencyPaths = paths.filter((path) => INBOX_DEPENDENCY_PATHS.has(path));
+  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path));
   const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path));
   const codeRequired = strongPaths.length > 0;
   const buildRequired = strongPaths.some(requiresProductionBuild) || unknownPaths.length > 0;
@@ -173,8 +181,9 @@ export function classifyChangedEntries(entries) {
     contracts: contractPaths.length > 0,
     migration_boundary: migrationBoundaryPaths.length > 0,
     code: codeRequired,
-    lint: codeRequired,
+    lint: rootCodePaths.length > 0,
     build: buildRequired,
+    inbox_dependencies: inboxDependencyPaths.length > 0,
     unknown: paths.length === 0 || unknownPaths.length > 0,
     paths,
     ordinary_prose_paths: ordinaryProsePaths,

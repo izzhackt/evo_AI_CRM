@@ -17,6 +17,7 @@ import { parse } from "smol-toml";
 import { PROFILE_FIELDS, PROFILE_GROUP_LABELS, PROFILE_REQUIRED_FIELD_KEYS } from "../../src/lib/student-profile-fields.ts";
 import { normalizeDocumentExportReceipt, normalizeDocumentExportWorkspaceV2 } from "../../src/lib/document-export-artifacts.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_PACKAGE_MAX_BYTES } from "../../src/lib/document-export-artifact-contract.ts";
+import { studentProfileFiles, studentProfileFileMessage } from "../../src/lib/v3/wording.ts";
 import { exportBucketMimeTypesValid, PackageProofError, provePersistedPackage } from "./document-package-browser-proof.mjs";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -132,15 +133,35 @@ export function profileBodyTransportCategory(error) {
   if (/Response body is unavailable for redirect responses/u.test(message)) return "REDIRECT_BODY_UNAVAILABLE";
   return /Protocol error/u.test(message) ? "OTHER_PROTOCOL_ERROR" : "OTHER_BODY_ERROR";
 }
+const EXPORT_UI_STATES = new Set(["READY", "UNKNOWN", "CREATING", "OTHER", "ABSENT", "UNAVAILABLE"]);
+export function profileExportUiState(messages) {
+  if (!Array.isArray(messages) || messages.some(value => typeof value !== "string") || messages.length > 1) return "UNAVAILABLE";
+  if (messages.length === 0) return "ABSENT";
+  for (const state of ["ready", "unknown", "creating"]) {
+    if (messages[0] === studentProfileFileMessage(state)) return state.toUpperCase();
+  }
+  return "OTHER";
+}
+async function readProfileExportUiState(page) {
+  try {
+    if (!page || page.isClosed()) return "UNAVAILABLE";
+    // Read only the export panel's own status, not nested form/history messages.
+    // allTextContents is immediate: no retry, action, or request is introduced.
+    const status = page.locator(`[aria-labelledby="student-profile-fields-title"] [aria-label=${JSON.stringify(studentProfileFiles.title)}] > [role="status"]`);
+    return profileExportUiState(await status.allTextContents());
+  } catch { return "UNAVAILABLE"; }
+}
 function safeBodyTransportDiagnostic(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)
     || !BODY_TRANSPORT_CATEGORIES.has(value.category)
     || !BODY_PROTOCOL_METHODS.includes(value.protocolMethod) || !REQUEST_FAILURE_CATEGORIES.has(value.requestFailure)
     || !Number.isSafeInteger(value.mainFrameNavigations) || value.mainFrameNavigations < 0
-    || ["requestFinished", "requestFailed", "pageAlive", "browserAlive"].some(key => typeof value[key] !== "boolean")) return null;
+    || ["requestFinished", "requestFailed", "pageAlive", "browserAlive"].some(key => typeof value[key] !== "boolean")
+    || (Object.hasOwn(value, "exportUiState") && !EXPORT_UI_STATES.has(value.exportUiState))) return null;
   return { category: value.category, protocolMethod: value.protocolMethod, requestFailure: value.requestFailure,
     requestFinished: value.requestFinished, requestFailed: value.requestFailed,
-    mainFrameNavigations: value.mainFrameNavigations, pageAlive: value.pageAlive, browserAlive: value.browserAlive };
+    mainFrameNavigations: value.mainFrameNavigations, pageAlive: value.pageAlive, browserAlive: value.browserAlive,
+    ...(Object.hasOwn(value, "exportUiState") ? { exportUiState: value.exportUiState } : {}) };
 }
 export function profileBodyTransportDiagnosticLine(snapshot) {
   const prefix = "STUDENT_PROFILE_FIELDS_BODY_TRANSPORT_DIAGNOSTIC:";
@@ -442,7 +463,7 @@ export async function writeFailureEvidence({ config, page, stage, error, http, b
   if (safeRuntime.length) snapshot.runtimeDiagnostics = safeRuntime;
   if (error?.code === "BODY_TRANSPORT") {
     const diagnostic = safeBodyTransportDiagnostic(error.transportDiagnostic);
-    if (diagnostic) snapshot.transportDiagnostic = diagnostic;
+    if (diagnostic) snapshot.transportDiagnostic = { ...diagnostic, exportUiState: await readProfileExportUiState(page) };
   }
   if (page && !page.isClosed()) {
     try {

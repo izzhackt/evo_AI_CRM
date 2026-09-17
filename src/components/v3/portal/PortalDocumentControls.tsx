@@ -30,6 +30,11 @@ export function PortalDocumentControls({
   const [state, setState] = useState<UploadState>({ status: "idle" });
   const [refreshing, startRefresh] = useTransition();
   const pending = state.status === "uploading" || refreshing;
+  const feedback = state.status === "uploading"
+    ? "Загружаем файл. Дождитесь подтверждения сохранения."
+    : state.status === "success"
+      ? `${state.message}${refreshing ? " Обновляем список документов…" : ""}`
+      : state.status === "error" ? state.message : "";
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,7 +97,7 @@ export function PortalDocumentControls({
   return (
     <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
       {allowUpload ? (
-        <form ref={formRef} onSubmit={upload} className="min-w-0 flex-1">
+        <form ref={formRef} onSubmit={upload} aria-busy={pending} className="min-w-0 flex-1">
           <label
             htmlFor={`portal-document-${documentSlotId}`}
             className="block text-xs font-semibold text-fg"
@@ -107,6 +112,7 @@ export function PortalDocumentControls({
               required
               accept="application/pdf,image/jpeg,image/png"
               disabled={pending}
+              aria-describedby={`portal-document-hint-${documentSlotId} portal-document-feedback-${documentSlotId}`}
               onChange={() => {
                 uploadIdempotencyKeyRef.current = null;
                 setState({ status: "idle" });
@@ -119,10 +125,12 @@ export function PortalDocumentControls({
               aria-disabled={pending}
               className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-nav bg-accent px-4 text-sm font-semibold text-on-accent transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {pending ? "Загружаем…" : "Загрузить"}
+              {state.status === "uploading"
+                ? "Загружаем файл…"
+                : refreshing ? "Обновляем список…" : state.status === "error" ? "Повторить загрузку" : "Загрузить"}
             </button>
           </div>
-          <p className="mt-1 text-xs text-fg-3">PDF, JPG или PNG, до 25 МБ.</p>
+          <p id={`portal-document-hint-${documentSlotId}`} className="mt-1 text-xs text-fg-3">PDF, JPG или PNG, до 25 МБ.</p>
         </form>
       ) : (
         <p className="text-sm text-fg-2">Принятый документ доступен только для скачивания.</p>
@@ -138,15 +146,15 @@ export function PortalDocumentControls({
         </a>
       ) : null}
 
-      {state.status === "success" || state.status === "error" ? (
-        <p
-          role={state.status === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className="w-full text-sm text-fg-2"
-        >
-          {state.message}
-        </p>
-      ) : null}
+      <p
+        id={`portal-document-feedback-${documentSlotId}`}
+        role={state.status === "error" ? "alert" : "status"}
+        aria-live="polite"
+        aria-atomic="true"
+        className={`min-h-6 w-full text-sm leading-6 ${state.status === "error" ? "text-danger" : "text-fg-2"}`}
+      >
+        {feedback}
+      </p>
     </div>
   );
 }

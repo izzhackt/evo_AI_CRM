@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 
@@ -19,6 +19,15 @@ const SECTIONS = [
   { href: "/portal/tests", label: "Тесты" },
 ] as const;
 
+function NavigationLabel({ label }: { label: string }) {
+  const { pending } = useLinkStatus();
+  return <>
+    <span>{label}</span>
+    <span className={styles.navigationHint} aria-hidden="true">{pending ? "…" : ""}</span>
+    <span className="sr-only" role="status">{pending ? `Открываем раздел «${label}»` : ""}</span>
+  </>;
+}
+
 export function PortalShell({
   children,
   displayName,
@@ -31,6 +40,8 @@ export function PortalShell({
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const navigationOpen = expandedForPath === pathname;
+  const currentSection = SECTIONS.find((section) => pathname === section.href
+    || (section.href !== "/portal" && pathname.startsWith(`${section.href}/`)));
 
   if (expandedForPath !== null && expandedForPath !== pathname) {
     setExpandedForPath(null);
@@ -99,6 +110,8 @@ export function PortalShell({
           </button>
         </header>
 
+        <p className={styles.mobileLocation}>{currentSection?.label ?? "Кабинет студента"}</p>
+
         <div
           id="portal-navigation-panel"
           className={styles.navigationPanel}
@@ -114,10 +127,10 @@ export function PortalShell({
                     <Link
                       href={href}
                       aria-current={active ? "page" : undefined}
-                      onClick={() => setExpandedForPath(null)}
+                      onClick={() => { if (active) setExpandedForPath(null); }}
                       className={styles.navigationLink}
                     >
-                      {section.label}
+                      <NavigationLabel label={section.label} />
                     </Link>
                   </li>
                 );

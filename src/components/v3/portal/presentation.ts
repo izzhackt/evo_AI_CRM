@@ -57,6 +57,15 @@ export function overviewStage(
   };
 }
 
+export function documentProgress(documents: readonly Pick<StudentPortalDocument, "status">[]) {
+  return {
+    approved: documents.filter((document) => document.status === "approved").length,
+    inReview: documents.filter((document) => document.status === "submitted").length,
+    corrections: documents.filter((document) => document.status === "correction_required" || document.status === "rejected").length,
+    missing: documents.filter((document) => document.status === "required").length,
+  };
+}
+
 export function studentActionDueLabel(
   action: Pick<StudentPortalDocumentAction, "dueAt">,
 ): string | null {

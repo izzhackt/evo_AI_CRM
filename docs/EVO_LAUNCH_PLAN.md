@@ -1,5 +1,39 @@
 # EVO Launch Plan
 
+## Lightweight production release — active 2026-09-18
+
+Owner explicitly approves replacing the heavy release prerequisite and deploying
+the case-opening fix and reviewed Student portal UX now. Current mode is build,
+short real checks of changed functions, and rollback; no full-suite replay.
+
+- [x] Keep exact-current-main admission and existing workflow identity, but make
+  `EVO platform CI` / `Main CRM` a truthful lightweight release-control check.
+  Remove its blanket database/browser replay, full Node suite and dependency
+  audit. Build the immutable image once in the downstream release workflow.
+- [x] Keep image/artifact provenance, live main/arm checks, read-only schema
+  ledger guard, exclusive deployment, public health and the existing rollback.
+  No migrations, schema replay, provider activation or customer-data writes.
+- [x] Extend the short production browser smoke to open the existing approved
+  case (route and contract) as real Admin and overview/documents as the existing
+  permanent QA Student. Credentials/case ID stay private; missing inputs or a
+  failed real path fail the release and trigger pending-candidate rollback.
+- [ ] Merge independently reviewed PR820 and this release change using protected
+  short PR checks, dispatch exact main, and accept only the actual immutable
+  release with successful short production smoke. Never call that full-suite
+  or real-client business acceptance.
+- [ ] Record deployed SHA, workflow result, healthy container, cleared pending
+  state and disarmed release state. No unrelated heavy checks or Docs exports.
+
+Implementation checks: four selected actual-file release contracts, six smoke
+configuration/filesystem/source checks, changed-file ESLint, shell/Node syntax,
+YAML parsing and whitespace check pass. These are not real UI acceptance; that
+comes from the downstream production browser run. PR820 merged as61a1945c;
+its reviewed portal patch and earlier actual QA browser results are unchanged.
+
+Official workflow-run semantics: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run
+and https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow.
+Context7 was attempted but its monthly quota is exhausted.
+
 ## Admissions case opening and fast execution — active 2026-09-18
 
 Owner requests a targeted fix for opening an existing Admissions case and

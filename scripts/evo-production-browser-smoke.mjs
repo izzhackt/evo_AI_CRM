@@ -14,6 +14,8 @@ const SAFE_RELEASE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/u;
 const SAFE_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const PRODUCTION_HEALTH_URL = "https://crm.evoadmissions.com/api/health";
+const STUDENT_ORIGIN = "https://app.evoadmissions.com";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function exactEnvironment(environment, name, pattern, code) {
   const value = environment[name];
@@ -53,6 +55,14 @@ export function readProductionSmokeConfiguration(environment = process.env) {
   if (typeof password !== "string" || password.length < 1 || password.length > 4096) {
     throw new Error("admin_password_invalid");
   }
+  const studentEmail = exactEnvironment(environment, "EVO_PRODUCTION_SMOKE_STUDENT_EMAIL", /^[^\s@]+@[^\s@]+$/u, "student_email_invalid");
+  if (studentEmail.length > 320 || studentEmail.toLowerCase() === email.toLowerCase()) {
+    throw new Error("student_email_invalid");
+  }
+  const studentPassword = environment.EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD;
+  if (typeof studentPassword !== "string" || studentPassword.length < 1 || studentPassword.length > 4096) {
+    throw new Error("student_password_invalid");
+  }
 
   const receiptPath = environment.EVO_PRODUCTION_SMOKE_RECEIPT;
   if (
@@ -68,6 +78,10 @@ export function readProductionSmokeConfiguration(environment = process.env) {
     baseUrl: parsedHealthUrl.origin,
     email,
     password,
+    studentEmail,
+    studentPassword,
+    studentBaseUrl: STUDENT_ORIGIN,
+    caseId: exactEnvironment(environment, "EVO_PRODUCTION_SMOKE_CASE_ID", UUID, "case_id_invalid"),
     receiptPath,
     releaseId: exactEnvironment(
       environment,
@@ -153,13 +167,47 @@ export async function writeProductionSmokeReceipt(path, receipt) {
   }
 }
 
-export async function runProductionBrowserSmoke({
-  environment = process.env,
-  chromiumRuntime = chromium,
-  writeReceipt = writeProductionSmokeReceipt,
-} = {}) {
+async function signIn(page, baseUrl, email, password, destination) {
+  const loginResponse = await page.goto(`${baseUrl}/login`, {
+    waitUntil: "domcontentloaded",
+    timeout: 30_000,
+  });
+  if (loginResponse?.status() !== 200) throw new Error("login_route_unavailable");
+  if (page.url() !== `${baseUrl}/login`) throw new Error("login_origin_invalid");
+  await page.locator("#staff-email").fill(email);
+  await page.locator("#staff-password").fill(password);
+  await Promise.all([
+    page.waitForURL(`${baseUrl}${destination}`, { waitUntil: "domcontentloaded", timeout: 30_000 }),
+    page.locator('form[aria-labelledby="login-title"] button[type="submit"]').click(),
+  ]);
+  if (page.url() !== `${baseUrl}${destination}`) throw new Error("authenticated_route_invalid");
+}
+
+async function visit(page, url) {
+  const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  if (response?.status() !== 200 || page.url() !== url) throw new Error("feature_route_unavailable");
+}
+
+async function verifyVersion(page, configuration) {
+  const result = await page.evaluate(async () => {
+    const response = await fetch("/api/version", {
+      cache: "no-store", credentials: "same-origin", redirect: "error",
+    });
+    return { status: response.status, body: await response.json() };
+  });
+  if (result.status !== 200 || result.body?.status !== "available"
+    || result.body?.revision !== configuration.revision || result.body?.version !== configuration.version) {
+    throw new Error("release_metadata_invalid");
+  }
+}
+
+function checkpoint(phase) {
+  process.stdout.write(`${JSON.stringify({ code: "production_browser_smoke_checkpoint", phase })}\n`);
+}
+
+export async function runProductionBrowserSmoke({ environment = process.env } = {}) {
   const configuration = readProductionSmokeConfiguration(environment);
-  const browser = await chromiumRuntime.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true });
 
   try {
     const context = await browser.newContext({
@@ -168,36 +216,10 @@ export async function runProductionBrowserSmoke({
     });
     try {
       const page = await context.newPage();
-      const loginResponse = await page.goto(`${configuration.baseUrl}/login`, {
-        waitUntil: "domcontentloaded",
-        timeout: 30_000,
-      });
-      if (!loginResponse?.ok()) throw new Error("login_route_unavailable");
-      const finalLoginUrl = new URL(page.url());
-      if (
-        finalLoginUrl.origin !== configuration.baseUrl ||
-        finalLoginUrl.username ||
-        finalLoginUrl.password ||
-        finalLoginUrl.pathname !== "/login" ||
-        finalLoginUrl.search ||
-        finalLoginUrl.hash
-      ) {
-        throw new Error("login_origin_invalid");
-      }
-
-      await page.locator("#staff-email").fill(configuration.email);
-      await page.locator("#staff-password").fill(configuration.password);
-      await Promise.all([
-        page.waitForURL(`${configuration.baseUrl}/v3/main`, {
-          waitUntil: "domcontentloaded",
-          timeout: 30_000,
-        }),
-        page.locator('form[aria-labelledby="login-title"] button[type="submit"]').click(),
-      ]);
-
-      if (new URL(page.url()).pathname !== "/v3/main") {
-        throw new Error("authenticated_route_invalid");
-      }
+      let runtimeError = false;
+      page.on("pageerror", () => { runtimeError = true; });
+      checkpoint("admin_login");
+      await signIn(page, configuration.baseUrl, configuration.email, configuration.password, "/v3/main");
       const shell = page.getByTestId("v3-shell");
       const activeRole = page.getByTestId("active-role");
       const operationalDashboard = page.getByTestId("v3-operational-dashboard");
@@ -210,30 +232,50 @@ export async function runProductionBrowserSmoke({
         throw new Error("admin_authority_invalid");
       }
 
-      const versionResult = await page.evaluate(async () => {
-        const response = await fetch("/api/version", {
-          cache: "no-store",
-          credentials: "same-origin",
-          redirect: "error",
-        });
-        return { status: response.status, body: await response.json() };
-      });
-      if (
-        versionResult.status !== 200 ||
-        versionResult.body?.status !== "available" ||
-        versionResult.body?.revision !== configuration.revision ||
-        versionResult.body?.version !== configuration.version
-      ) {
-        throw new Error("release_metadata_invalid");
+      await verifyVersion(page, configuration);
+      checkpoint("case_route");
+      await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=route`);
+      await page.getByTestId("admissions-route").waitFor({ state: "visible", timeout: 30_000 });
+      checkpoint("case_contract");
+      await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=contract`);
+      const contract = page.getByTestId("v3-profile-contract-workspace");
+      await contract.waitFor({ state: "visible", timeout: 30_000 });
+      if (await contract.getAttribute("data-student-case-id") !== configuration.caseId) {
+        throw new Error("case_identity_invalid");
       }
-
-      await writeReceipt(
-        configuration.receiptPath,
-        buildProductionSmokeReceipt(configuration),
-      );
+      if (runtimeError) throw new Error("staff_runtime_error");
+      process.stdout.write('{"ok":true,"code":"production_case_smoke_passed"}\n');
     } finally {
       await context.close();
     }
+    const studentContext = await browser.newContext({ acceptDownloads: false, serviceWorkers: "block" });
+    try {
+      const page = await studentContext.newPage();
+      let runtimeError = false;
+      page.on("pageerror", () => { runtimeError = true; });
+      checkpoint("student_login");
+      await signIn(page, configuration.studentBaseUrl, configuration.studentEmail, configuration.studentPassword, "/portal");
+      checkpoint("student_overview");
+      await page.getByTestId("student-portal-shell").waitFor({ state: "visible", timeout: 30_000 });
+      await page.getByRole("heading", { name: "Моё поступление", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      checkpoint("student_documents");
+      await visit(page, `${configuration.studentBaseUrl}/portal/documents`);
+      await page.getByRole("heading", { name: "Документы", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      await page.getByRole("heading", { name: /^(Список документов пока пуст|Чеклист)$/u }).waitFor({ state: "visible", timeout: 30_000 });
+      checkpoint("student_navigation");
+      await Promise.all([
+        page.waitForURL(`${configuration.studentBaseUrl}/portal`, { waitUntil: "domcontentloaded", timeout: 30_000 }),
+        page.getByRole("navigation", { name: "Разделы кабинета", exact: true }).locator('a[href="/portal"]').click(),
+      ]);
+      await page.getByRole("heading", { name: "Моё поступление", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      if (page.url() !== `${configuration.studentBaseUrl}/portal` || runtimeError) {
+        throw new Error("student_navigation_failed");
+      }
+      process.stdout.write('{"ok":true,"code":"production_student_smoke_passed"}\n');
+    } finally {
+      await studentContext.close();
+    }
+    await writeProductionSmokeReceipt(configuration.receiptPath, buildProductionSmokeReceipt(configuration));
   } finally {
     await browser.close();
   }

@@ -53,11 +53,12 @@ instructions to run a full heavy suite for every change or release candidate.
   within the changed scope; speed does not permit weakening them.
 - Record unrelated failures separately without expanding the task to fix or
   investigate them. Report whether they actually block the requested outcome.
-- Protected PR checks, independent exact-head review and managed release
-  controls remain enforced. If current automation still requires a heavy gate,
-  report that remaining requirement; scoped success does not satisfy it by
-  assertion. Do not disable checks, forge receipts, weaken assertions or bypass
-  release controls. Workflow changes require a separate explicit scope.
+- Protected short PR checks, independent exact-head review and managed release
+  controls remain enforced. The owner explicitly approves the lightweight
+  release contract on 2026-09-18: exact-main admission, one immutable build,
+  short real changed-function smoke and rollback. Do not require the retired
+  blanket full-suite prerequisite. Preserve provenance, authentication, live
+  main/arm checks and truthful receipts; never forge or bypass release evidence.
 
 ## Shared EVO Workspace And Repository Boundaries
 

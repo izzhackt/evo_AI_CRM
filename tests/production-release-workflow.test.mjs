@@ -624,7 +624,7 @@ test("control-token and Supabase guards are isolated and immediately precede mut
 
 test("candidate remains pending until authenticated read-only V3 proof and explicit acceptance", () => {
   const deployPending = stepIndex("Deploy exact candidate as pending");
-  const browser = stepIndex("Authenticated read-only V3 browser smoke");
+  const browser = stepIndex("Authenticated read-only case and Student portal smoke");
   const acceptGuard = stepIndex("Final live GitHub acceptance guard");
   const accept = stepIndex("Accept exact V3 candidate");
   assert.ok(deployPending < browser && browser < acceptGuard && acceptGuard < accept);
@@ -633,12 +633,17 @@ test("candidate remains pending until authenticated read-only V3 proof and expli
   assert.match(deployStep, /\.command == "deploy" and \.status == "pending"/u);
   assert.doesNotMatch(deployStep, /accept-candidate/u);
 
-  const browserStep = namedStep("Authenticated read-only V3 browser smoke");
+  const browserStep = namedStep("Authenticated read-only case and Student portal smoke");
   assert.match(browserStep, /EVO_PRODUCTION_SMOKE_ADMIN_EMAIL: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_ADMIN_EMAIL \}\}/u);
   assert.match(browserStep, /EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD \}\}/u);
+  assert.match(browserStep, /EVO_PRODUCTION_SMOKE_CASE_ID: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_CASE_ID \}\}/u);
+  assert.match(browserStep, /EVO_PRODUCTION_SMOKE_STUDENT_EMAIL: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_STUDENT_EMAIL \}\}/u);
+  assert.match(browserStep, /EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD \}\}/u);
   assert.match(browserStep, /scripts\/evo-production-browser-smoke\.mjs/u);
   assert.doesNotMatch(browserStep, /ssh|scp|WAHA|WHATSAPP|GEMINI|AMOCRM/u);
   assert.equal((workflow.match(/secrets\.EVO_PRODUCTION_SMOKE_ADMIN_(?:EMAIL|PASSWORD)/gu) ?? []).length, 2);
+  assert.equal((workflow.match(/secrets\.EVO_PRODUCTION_SMOKE_STUDENT_(?:EMAIL|PASSWORD)/gu) ?? []).length, 2);
+  assert.equal((workflow.match(/secrets\.EVO_PRODUCTION_SMOKE_CASE_ID/gu) ?? []).length, 1);
 
   const acceptStep = namedStep("Accept exact V3 candidate");
   assert.match(acceptStep, /browser-receipt\.json/u);

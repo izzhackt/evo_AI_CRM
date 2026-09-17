@@ -980,12 +980,15 @@ jobs:
           install -m 600 /dev/null /tmp/evo-production-release-evidence-dir
           printf '%s\n' "$EVO_RELEASE_EVIDENCE_ROOT/$EVO_RELEASE_ID" > /tmp/evo-production-release-evidence-dir
 
-      - name: Authenticated read-only V3 browser smoke
+      - name: Authenticated read-only case and Student portal smoke
         id: browser_smoke
         env:
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
           EVO_PRODUCTION_SMOKE_ADMIN_EMAIL: ${{ secrets.EVO_PRODUCTION_SMOKE_ADMIN_EMAIL }}
           EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD: ${{ secrets.EVO_PRODUCTION_SMOKE_ADMIN_PASSWORD }}
+          EVO_PRODUCTION_SMOKE_CASE_ID: ${{ secrets.EVO_PRODUCTION_SMOKE_CASE_ID }}
+          EVO_PRODUCTION_SMOKE_STUDENT_EMAIL: ${{ secrets.EVO_PRODUCTION_SMOKE_STUDENT_EMAIL }}
+          EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD: ${{ secrets.EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD }}
           EVO_PRODUCTION_SMOKE_RECEIPT: /tmp/evo-v3-browser-receipt.json
           EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
           EVO_RELEASE_REPOSITORY: ${{ github.repository }}

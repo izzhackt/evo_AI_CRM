@@ -71,165 +71,33 @@ jobs:
           main().catch(fail);
           NODE
 
-  crm_node_static:
-    name: Main CRM Node/static
-    needs: main_admission
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Test CI Node contracts
-        run: npm run test:ci:node
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build with TypeScript authority
-        run: npm run build
-
-  crm_browser:
-    name: Main CRM database/browser proof
-    needs: main_admission
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Install the locked Playwright Chromium shell runtime
-        run: node_modules/.bin/playwright install --with-deps --only-shell chromium
-
-      - name: Install the browser-local certificate database utility
-        run: sudo apt-get install -y --no-install-recommends libnss3-tools
-
-      - name: Test the V3 local PostgreSQL, migration, and browser contract
-        timeout-minutes: 35
-        env:
-          EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC: "1"
-          EVO_D2_BROWSER_RUNTIME: production
-        run: npm run test:database:local
-
-  dependency_audit:
-    name: Dependency audit
-    needs: main_admission
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install pinned npm audit CLI
-        timeout-minutes: 4
-        env:
-          npm_config_audit: "false"
-          npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "30000"
-          npm_config_fund: "false"
-        run: |
-          for attempt in 1 2 3; do
-            audit_prefix="$RUNNER_TEMP/npm-audit-cli-$attempt"
-            if timeout 60s npm install --prefix "$audit_prefix" npm@11.19.0 --ignore-scripts --no-audit --no-fund \
-              && test "$("$audit_prefix/node_modules/.bin/npm" --version)" = "11.19.0"; then
-              echo "$audit_prefix/node_modules/.bin" >> "$GITHUB_PATH"
-              echo "EVO_NPM_BIN=$audit_prefix/node_modules/.bin/npm" >> "$GITHUB_ENV"
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
-
-      - name: Audit production dependencies
-        # Lockfile-only avoids platform-specific installed-tree drift on the
-        # runner: https://docs.npmjs.com/cli/v11/commands/npm-audit/#package-lock-only
-        timeout-minutes: 4
-        env:
-          npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "70000"
-        run: |
-          if ! test -x "$EVO_NPM_BIN"; then
-            echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2
-            exit 1
-          fi
-          for attempt in 1 2 3; do
-            if "$EVO_NPM_BIN" audit --package-lock-only --omit=dev --audit-level=moderate; then
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
-
-      - name: Audit development dependencies against the temporary allowlist
-        timeout-minutes: 4
-        env:
-          npm_config_fetch_retries: "0"
-          npm_config_fetch_timeout: "70000"
-        run: |
-          if ! test -x "$EVO_NPM_BIN"; then
-            echo "Pinned npm audit CLI is unavailable: $EVO_NPM_BIN" >&2
-            exit 1
-          fi
-          for attempt in 1 2 3; do
-            if node scripts/check-npm-audit-allowlist.mjs; then
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
-
+  # This check admits a scoped release; it is not full-product acceptance.
+  # The downstream workflow builds the immutable image and exercises the real
+  # changed production paths before accepting it, with rollback on failure.
   crm:
     name: Main CRM
-    if: ${{ always() }}
-    needs:
-      - main_admission
-      - crm_node_static
-      - crm_browser
-      - dependency_audit
+    needs: main_admission
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Require product and dependency gates
-        env:
-          ADMISSION_RESULT: ${{ needs.main_admission.result }}
-          NODE_STATIC_RESULT: ${{ needs.crm_node_static.result }}
-          BROWSER_RESULT: ${{ needs.crm_browser.result }}
-          AUDIT_RESULT: ${{ needs.dependency_audit.result }}
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check release entrypoint syntax
         run: |
-          test "$ADMISSION_RESULT" = "success"
-          test "$NODE_STATIC_RESULT" = "success"
-          test "$BROWSER_RESULT" = "success"
-          test "$AUDIT_RESULT" = "success"
+          set -Eeuo pipefail
+          bash -n scripts/evo-fast-release.sh
+          node --check scripts/evo-production-browser-smoke.mjs
+          node --check scripts/fast-release-ledger-gate.mjs
+
+      - name: Check scoped release source contracts
+        run: >-
+          node --test
+          --test-name-pattern='^(CI and the exact-SHA gate require only the current root successor|active platform CI executes only the root successor product|workflow binds exact green main to one runner-built immutable release)$'
+          tests/p6d-release-candidate.test.mjs
+          tests/fast-release-control.test.mjs

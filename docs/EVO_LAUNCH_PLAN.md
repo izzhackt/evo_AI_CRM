@@ -47,6 +47,25 @@ Proxy authorization order and all RPC validators remain unchanged. Baseline
 Chrome observed real page responses around 0.9–1.74s and the extra route request;
 these are response-header observations, not completed-render percentiles.
 
+Portal candidate `95a3fd35` checkpoint: production build, scoped ESLint,
+typecheck and 19 source-contract checks passed; independent code review found
+no issues. Real Chrome reused the permanent QA Student against the existing
+database. Applications navigation before: GET at 0ms, badge POST at 28ms,
+redundant GET at 1975ms. Candidate: GET at 0ms, badge POST at 185ms, no second
+entry GET; the periodic POST at 30186ms and GET at 31457ms still occurred.
+The local candidate and public production have different network paths, so do
+not turn their response timings into a claimed percentage speedup. The rendered
+screen and shell passed; console errors came only from a Chrome extension.
+
+A separate real SDK-authenticated candidate probe confirmed two consecutive
+overview requests each execute one proxy authority read and one shared render
+authority read (not a retained result between requests). Application/visa list
+RPCs began in the same millisecond; own pages returned200, staff audit returned401,
+and a following anonymous request redirected to login. Only the probe's new
+session was signed out. No rows/accounts/assessment answers were changed. Empty
+QA applications prove the list-wave overlap, not live populated timeline paths.
+Production acceptance remains pending until the managed release completes.
+
 ## Real Student login and stable navigation — accepted 2026-09-17
 
 Owner requests retiring the Admin Student preview from CRM and using one

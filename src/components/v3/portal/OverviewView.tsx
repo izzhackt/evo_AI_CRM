@@ -46,7 +46,7 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
       <section className={styles.sheet} aria-labelledby="student-next-step">
         <header className={styles.band}>
           <h2 id="student-next-step">{overview ? "Ваш следующий шаг" : "План поступления"}</h2>
-          {primary ? <span>Что требуется от вас · {overview?.studentActions.length}</span> : null}
+          {primary ? <span>Что требуется от вас</span> : null}
         </header>
         {primary ? <div className={styles.expanded}>
           <div className={styles.actionHeading}><span className={styles.actionIcon} aria-hidden="true">↗</span><h3>{actionTitle(primary)}</h3></div>

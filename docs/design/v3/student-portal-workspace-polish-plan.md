@@ -102,3 +102,8 @@ validation evidence before merge. Prepare a separate PR for the coordinator.
 - 2026-09-18: Keep this as a portal-only slice and document local decisions here
   under the owner's parallel-work instruction. No product/schema/authority
   changes; release and shared-plan coordination remain in the source task.
+- 2026-09-18 independent review: removed the candidate overview action count.
+  Its projection includes at most one document plus payments, so its length is
+  not the total outstanding workload. Checklist progress still counts the full
+  document projection. Live393px skip-link check after scrolling focused
+  `portal-content`; heading top193px stayed below the sticky header bottom94px.

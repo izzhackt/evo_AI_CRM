@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Portal latency and Inbox dependency maintenance — active 2026-09-17
+## Portal latency and Inbox dependency maintenance — Inbox complete; portal release blocked 2026-09-17
 
 Owner approved these two checklist items. This is a bounded performance and
 dependency run, not a redesign, provider activation or a second product launch.
@@ -8,12 +8,12 @@ Keep the existing production database, permanent QA Student, staff accounts,
 private assessment authority and host-only sessions. Canonical dirty checkout
 is preserved; work starts from current GitHub main in isolated worktrees.
 
-- [ ] P1: measure real authenticated Student section transitions and inspect
+- [x] P1: measure real authenticated Student section transitions and inspect
   server data/auth calls. Record before/after on the same execution path; browser
   automation overhead is not application latency. Change only evidenced waste
   (duplicate same-request reads or independent reads serialized unnecessarily).
   No cross-request private-data/authority cache, auth bypass or weakened checks.
-- [ ] P2: inspect current Inbox lockfile, advisories and PR701/702 failures; apply
+- [x] P2: inspect current Inbox lockfile, advisories and PR701/702 failures; apply
   the smallest complete dependency correction and run actual install, audit,
   scoped checks and build. Distinguish stale PR/alert state from unresolved code.
   Inspect the deployed boundary read-only. Do not resurrect a retired companion,
@@ -64,7 +64,57 @@ RPCs began in the same millisecond; own pages returned200, staff audit returned4
 and a following anonymous request redirected to login. Only the probe's new
 session was signed out. No rows/accounts/assessment answers were changed. Empty
 QA applications prove the list-wave overlap, not live populated timeline paths.
-Production acceptance remains pending until the managed release completes.
+Portal code is merged in [PR #810](https://github.com/izzhackt/evo_AI_CRM/pull/810)
+as `7ba78dfd409554051c150461e31e62f95d964238`, but is **not deployed**.
+
+Inbox reviewed source `8894e83a493a8a6e0fa1abfeaa981c2e4e3e41d1`
+([PR #811](https://github.com/izzhackt/evo_AI_CRM/pull/811)) passed independent
+review and [its exact-head CI](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35203691579).
+Next.js/eslint-config-next are 16.3.5, Sharp 0.35.4, js-yaml 4.3.2 and
+Vitest/@vitest/mocker 4.1.11. Actual npm install, full dependency audit (zero
+vulnerabilities), typecheck and production build passed. Lint has no errors and
+11 existing warnings. Twelve pure helper tests run without the archived Vitest
+config or any dummy provider environment; classifier and release-policy checks
+also pass. PR811 is merged as `1954cab06525149bfeb5ad444e32194bd104bfdf`;
+superseded PR701/702 are closed. GitHub's open Dependabot alerts read back as
+zero after merge. The historical full Inbox suite is not a live acceptance gate:
+its three previously observed legacy topology/migration/bucket expectations
+remain outside this bounded dependency correction.
+
+Only the two Inbox package-manifest paths are newly admitted by the classifier.
+Their dedicated CI job must pass when selected; failed/cancelled/skipped jobs
+and unknown sibling paths still fail closed. No retired service is started.
+The production CRM image excludes `agent-lead2-inbox`; this archived-source
+maintenance does not require reactivating or deploying the old companion.
+
+Production release is blocked: full CI
+[35203650319](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35203650319)
+passed current-main admission, dependency audit and Node/static checks, but the
+database/browser gate failed in the existing Student Profile draft-save proof.
+It recorded `DRAFT_BODY_TRANSPORT`, `RESOURCE_DATA_MISSING`,
+`Network.getResponseBody`, `ERR_ABORTED`, requestFailed=true and no main-frame
+navigation; the page/browser remained alive. Earlier release runs recorded the
+same signature. This establishes a canceled response, not the initiating cause
+or a portal-performance regression. Do not suppress the assertion or blindly
+rerun until green. Diagnose that separate gate before the next release attempt.
+
+After this failure, the release arm was set to `false` and read back. Inbox was
+then merged independently. Read-only VPS verification confirms accepted source
+`41394497fa61d37d543091e9b22f8b62902c09bb`, release
+`v3-r35172861130-a1-41394497`, image
+`sha256:91218814ece4c411edddf80a49e233561304cd8c9942cdfb16ed8a92236dc058`,
+acceptance SHA256
+`30f2c74d79a2986b4ec85037ffe5d7de23484094786379b0d6db0cec6b24ff28`,
+healthy with zero restarts and no pending release. No production deployment,
+data change or post-release browser success is claimed for this run. The
+temporary candidate server was stopped; the owner's production tab stays open.
+
+Resume: agree the bounded Student Profile response-cancellation investigation,
+fix only an evidenced cause and obtain independent review. Fetch current main
+(which now includes Inbox maintenance), freeze its exact SHA, then run one full
+release gate and the managed release. Verify the accepted server receipt and
+repeat real Student navigation/own-case/staff-denial checks; disarm/read back.
+P3 stays open until this production acceptance, not merely a successful build.
 
 ## Real Student login and stable navigation — accepted 2026-09-17
 

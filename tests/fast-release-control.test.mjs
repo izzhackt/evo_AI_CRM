@@ -1751,7 +1751,7 @@ test("active platform CI executes only the root successor product", () => {
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Fast checks$/gmu) ?? []).length, 1);
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
   assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --github-output "\$GITHUB_OUTPUT"/u);
-  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "unknown"]) {
+  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "inbox_dependencies", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }
   assert.doesNotMatch(fastPr, /^  classification_guard:/mu);
@@ -1772,8 +1772,52 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - migration_boundary/u);
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
-  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
+  assert.equal((fastPr.match(/run: npm run typecheck/gu) ?? []).length, 1);
   assert.doesNotMatch(fastPr, /test:database:local|test:security|test:unit|playwright|supabase/iu);
+});
+
+test("retired Inbox dependency maintenance runs in isolation without deployment or provider fixtures", () => {
+  const workflow = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
+  const lane = workflow.split("  inbox_dependencies:\n    name: Inbox dependency maintenance\n")[1]?.split("\n  fast-checks:")[0];
+  assert.ok(lane);
+  assert.match(lane, /if: \$\{\{ needs\.changed-range\.outputs\.inbox_dependencies == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
+  assert.match(lane, /working-directory: agent-lead2-inbox/u);
+  assert.match(lane, /cache-dependency-path: agent-lead2-inbox\/package-lock\.json/u);
+  for (const command of ["npm ci --ignore-scripts", "npm audit --audit-level=low", "npm run typecheck", "npm run lint", "npm run build"]) {
+    assert.ok(lane.includes(`run: ${command}`), command);
+  }
+  for (const path of ["src/lib/themes.test.ts", "src/lib/whatsapp/template-status-normalize.test.ts", "src/lib/ai/chunk.test.ts"]) assert.ok(lane.includes(`"${path}"`));
+  assert.match(lane, /startVitest\("test", files,/u);
+  assert.match(lane, /config: false, watch: false, include: files/u);
+  assert.match(lane, /configFile: false, envDir: false/u);
+  assert.match(lane, /Object\.keys\(context\.config\.env \?\? \{\}\)\.length !== 0/u);
+  assert.match(lane, /modules\.length !== files\.length \|\| modules\.some\(\(module\) => !module\.ok\(\)\)/u);
+  assert.match(lane, /context\.state\.getUnhandledErrors\(\)\.length > 0/u);
+  assert.match(lane, /process\.exitCode = 1/u);
+  assert.match(lane, /finally \{\n\s+await context\?\.close\(\);/u);
+  assert.doesNotMatch(lane, /secrets\.|docker|ssh|continue-on-error|npm test|ENCRYPTION_KEY|META_APP_SECRET/u);
+});
+
+test("actual Fast checks shell requires selected Inbox maintenance to succeed", () => {
+  const workflow = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
+  const gate = workflow.split("      - name: Require selected fast PR checks\n")[1];
+  assert.ok(gate);
+  const script = gate.split("        run: |\n")[1].replace(/^          /gmu, "");
+  const env = {
+    PATH: process.env.PATH,
+    RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false",
+    CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped",
+    MIGRATION_BOUNDARY_RESULT: "skipped",
+    INBOX_DEPENDENCIES_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: "success",
+  };
+  const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
+  assert.equal(run({}), 0);
+  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
+    assert.notEqual(run({ INBOX_DEPENDENCIES_RESULT: result }), 0, result);
+  }
+  assert.equal(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_DEPENDENCIES_RESULT: "skipped" }), 0);
+  for (const required of ["", "unknown"]) assert.notEqual(run({ INBOX_DEPENDENCIES_REQUIRED: required }), 0);
+  assert.notEqual(run({ UNKNOWN: "true" }), 0);
 });
 
 test("actual OrbStack container transports and verifies sealed runtime image identity", {

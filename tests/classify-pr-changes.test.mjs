@@ -8,6 +8,46 @@ import {
 
 const nul = (...fields) => Buffer.from(`${fields.join("\0")}\0`, "utf8");
 
+test("only the retired Inbox manifests select its isolated dependency checks", () => {
+  for (const path of ["agent-lead2-inbox/package.json", "agent-lead2-inbox/package-lock.json"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.inbox_dependencies, true, path);
+    assert.equal(result.unknown, false, path);
+    assert.equal(result.code, true, path);
+    assert.equal(result.ordinary_docs, false, path);
+    assert.equal(result.lint, false, path);
+    assert.equal(result.build, false, path);
+  }
+  for (const path of ["agent-lead2-inbox/src/app/page.tsx", "agent-lead2-inbox/package.json.backup", "agent-lead2-inbox/nested/package.json"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.inbox_dependencies, false, path);
+    assert.equal(result.unknown, true, path);
+    assert.equal(result.build, true, path);
+  }
+});
+
+test("Inbox maintenance preserves stronger checks for mixed changes and both rename paths", () => {
+  const mixed = classifyNameStatus(nul("M", "agent-lead2-inbox/package-lock.json", "M", "src/app/page.tsx"));
+  assert.equal(mixed.inbox_dependencies, true);
+  assert.equal(mixed.lint, true);
+  assert.equal(mixed.build, true);
+  assert.equal(mixed.unknown, false);
+  const docs = classifyNameStatus(nul("M", "agent-lead2-inbox/package.json", "M", "docs/EVO_LAUNCH_PLAN.md"));
+  assert.equal(docs.inbox_dependencies, true);
+  assert.equal(docs.contracts, true);
+  assert.equal(docs.unknown, false);
+  for (const paths of [
+    ["agent-lead2-inbox/package.json", "agent-lead2-inbox/retired-package.json"],
+    ["agent-lead2-inbox/unreviewed.json", "agent-lead2-inbox/package-lock.json"],
+  ]) {
+    const renamed = classifyNameStatus(nul("R100", ...paths));
+    assert.equal(renamed.inbox_dependencies, true);
+    assert.equal(renamed.unknown, true);
+  }
+  assert.equal(classifyNameStatus(nul("M", "agent-lead2-inbox/deploy/Caddyfile.evo-edge")).inbox_dependencies, false);
+  assert.equal(classifyNameStatus(Buffer.alloc(0)).inbox_dependencies, false);
+});
+
 test("D4 native template runtime and server adapter remain code, not ordinary documentation", () => {
   for (const path of ["scripts/document-source/launcher.c", "scripts/university-template/inspect.mjs",
     "scripts/university-template/build.mjs", "scripts/university-template/test-harness.mjs",

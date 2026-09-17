@@ -24,6 +24,7 @@ jobs:
       code: ${{ steps.classify.outputs.code }}
       lint: ${{ steps.classify.outputs.lint }}
       build: ${{ steps.classify.outputs.build }}
+      inbox_dependencies: ${{ steps.classify.outputs.inbox_dependencies }}
       unknown: ${{ steps.classify.outputs.unknown }}
     steps:
       - name: Check out full history
@@ -55,10 +56,11 @@ jobs:
           CODE: ${{ steps.classify.outputs.code }}
           LINT: ${{ steps.classify.outputs.lint }}
           BUILD: ${{ steps.classify.outputs.build }}
+          INBOX_DEPENDENCIES: ${{ steps.classify.outputs.inbox_dependencies }}
           UNKNOWN: ${{ steps.classify.outputs.unknown }}
         run: |
           set -Eeuo pipefail
-          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$UNKNOWN"; do
+          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$UNKNOWN"; do
             case "$value" in
               true|false) ;;
               *)
@@ -151,6 +153,71 @@ jobs:
       - name: Test migration boundary
         run: npm run test:database:migration-boundaries
 
+  # Source-only maintenance of a retired companion; no deployment or credentials.
+  inbox_dependencies:
+    name: Inbox dependency maintenance
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.inbox_dependencies == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: agent-lead2-inbox
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: agent-lead2-inbox/package-lock.json
+
+      - name: Install locked Inbox dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Audit all installed Inbox dependencies
+        run: npm audit --audit-level=low
+
+      - name: Typecheck Inbox
+        run: npm run typecheck
+
+      - name: Lint Inbox
+        run: npm run lint
+
+      - name: Test pure Inbox helpers without provider adapters
+        run: |
+          node --input-type=module <<'NODE'
+          import { startVitest } from "vitest/node";
+          const files = [
+            "src/lib/themes.test.ts",
+            "src/lib/whatsapp/template-status-normalize.test.ts",
+            "src/lib/ai/chunk.test.ts",
+          ];
+          let context;
+          try {
+            context = await startVitest("test", files,
+              { config: false, watch: false, include: files },
+              { configFile: false, envDir: false });
+            if (Object.keys(context.config.env ?? {}).length !== 0) {
+              throw new Error("Pure helper tests must not inject environment values");
+            }
+            const modules = context.state.getTestModules();
+            if (modules.length !== files.length || modules.some((module) => !module.ok())
+              || context.state.getUnhandledErrors().length > 0) {
+              process.exitCode = 1;
+            }
+          } finally {
+            await context?.close();
+          }
+          NODE
+
+      - name: Build Inbox with TypeScript authority
+        run: npm run build
+
   fast-checks:
     name: Fast checks
     if: ${{ always() }}
@@ -160,6 +227,7 @@ jobs:
       - lint
       - build
       - migration_boundary
+      - inbox_dependencies
     runs-on: ubuntu-latest
     steps:
       - name: Require selected fast PR checks
@@ -171,11 +239,18 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
+          INBOX_DEPENDENCIES_REQUIRED: ${{ needs.changed-range.outputs.inbox_dependencies }}
+          INBOX_DEPENDENCIES_RESULT: ${{ needs.inbox_dependencies.result }}
         run: |
           set -Eeuo pipefail
           test "$RANGE_RESULT" = "success"
           test "$HAS_CHANGES" = "true"
           test "$UNKNOWN" = "false"
+          case "$INBOX_DEPENDENCIES_REQUIRED" in
+            true) test "$INBOX_DEPENDENCIES_RESULT" = "success" ;;
+            false) test "$INBOX_DEPENDENCIES_RESULT" = "skipped" ;;
+            *) exit 1 ;;
+          esac
           for result in "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
             case "$result" in
               success|skipped) ;;

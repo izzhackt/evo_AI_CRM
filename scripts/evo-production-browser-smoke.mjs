@@ -245,6 +245,22 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       }
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_case_smoke_passed"}\n');
+      checkpoint("team_chat");
+      await visit(page, `${configuration.baseUrl}/v3/team-chat`);
+      const channels = page.getByRole("navigation", { name: "Каналы команды", exact: true });
+      await channels.waitFor({ state: "visible", timeout: 30_000 });
+      await page.locator('[aria-label="История сообщений"]').waitFor({ state: "visible", timeout: 30_000 });
+      await page.getByRole("textbox", { name: "Сообщение в канал", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+      if (
+        await page.getByText("Сообщения появляются автоматически", { exact: true }).count() ||
+        await page.getByText("Внутренняя переписка сотрудников EVO", { exact: true }).count() ||
+        await page.getByRole("button", { name: /^(Приглушить|Включить уведомления)$/u }).count() ||
+        (await channels.innerText()).includes("· тихо")
+      ) {
+        throw new Error("team_chat_cleanup_incomplete");
+      }
+      if (runtimeError) throw new Error("staff_runtime_error");
+      process.stdout.write('{"ok":true,"code":"production_team_chat_smoke_passed"}\n');
     } finally {
       await context.close();
     }

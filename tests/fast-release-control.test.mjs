@@ -1742,7 +1742,9 @@ test("active platform CI executes only the root successor product", () => {
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
   assert.equal((fastPr.match(/run: npm run typecheck/gu) ?? []).length, 1);
-  assert.doesNotMatch(fastPr, /test:database:local|test:security|test:unit|playwright|supabase/iu);
+  // Inspect command invocations, not source paths such as supabase/migrations/.
+  assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
+  assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);
 });
 
 test("retired Inbox dependency maintenance runs in isolation without deployment or provider fixtures", () => {

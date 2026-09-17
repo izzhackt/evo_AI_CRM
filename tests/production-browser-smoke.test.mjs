@@ -119,10 +119,28 @@ test("source contract: receipt follows real case and isolated Student journeys",
   assert.match(smokeSource, /Разделы кабинета/u);
   assert.equal((smokeSource.match(/await verifyVersion\(page, configuration\)/gu) ?? []).length, 1);
   assert.deepEqual([...smokeSource.matchAll(/checkpoint\("([a-z_]+)"\)/gu)].map((match) => match[1]), [
-    "admin_login", "case_route", "case_contract", "student_login", "student_overview", "student_documents", "student_navigation",
+    "admin_login", "case_route", "case_contract", "team_chat", "student_login", "student_overview", "student_documents", "student_navigation",
   ]);
   assert.ok(smokeSource.indexOf('"production_student_smoke_passed"') < smokeSource.indexOf("await writeProductionSmokeReceipt(configuration.receiptPath"));
   assert.ok(smokeSource.indexOf('if (page.url() !== `${baseUrl}/login`)') < smokeSource.indexOf('page.locator("#staff-email").fill(email)'));
+});
+
+test("team chat checks the real read-only page before issuing the receipt", () => {
+  const chatCheck = smokeSource.split('checkpoint("team_chat");')[1]?.split("    } finally {")[0];
+  assert.ok(chatCheck);
+  assert.ok(chatCheck.includes('await visit(page, `${configuration.baseUrl}/v3/team-chat`);'));
+  for (const label of ["Каналы команды", "История сообщений", "Сообщение в канал"]) {
+    assert.ok(chatCheck.includes(label));
+  }
+  assert.equal((chatCheck.match(/\.waitFor\(\{ state: "visible"/gu) ?? []).length, 3);
+  assert.ok(chatCheck.includes('getByText("Сообщения появляются автоматически", { exact: true }).count()'));
+  assert.ok(chatCheck.includes('getByText("Внутренняя переписка сотрудников EVO", { exact: true }).count()'));
+  assert.ok(chatCheck.includes('getByRole("button", { name: /^(Приглушить|Включить уведомления)$/u }).count()'));
+  assert.ok(chatCheck.includes('(await channels.innerText()).includes("· тихо")'));
+  assert.match(chatCheck, /throw new Error\("team_chat_cleanup_incomplete"\)/u);
+  assert.match(chatCheck, /if \(runtimeError\) throw new Error\("staff_runtime_error"\)/u);
+  assert.doesNotMatch(chatCheck, /\.click\(|\.fill\(|\.press\(|\.request\./u);
+  assert.ok(smokeSource.indexOf('"production_team_chat_smoke_passed"') < smokeSource.indexOf("await writeProductionSmokeReceipt(configuration.receiptPath"));
 });
 
 test("smoke has no business interaction or sensitive browser evidence path", () => {

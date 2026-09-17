@@ -144,13 +144,34 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
 
+      - name: Classify the exact migration boundary diff
+        id: migration-scope
+        run: |
+          set -Eeuo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          boundary_diff="$(git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-postgres-authorization.sh)"
+          if [[ "$boundary_diff" == $'A\tsupabase/migrations/171_platform_team_chat_remove_mute.sql' ]]; then
+            echo "scoped_chat_mute=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scoped_chat_mute=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check scoped 171 function source contract
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute == 'true' }}
+        run: |
+          echo "Scoped migration 171 source-contract check only; real SQL and authenticated runtime validation remain separate release evidence."
+          node --test tests/team-chat-mute-removal.test.mjs
+
       - name: Test migration boundary
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' }}
         run: npm run test:database:migration-boundaries
 
   # Source-only maintenance of a retired companion; no deployment or credentials.

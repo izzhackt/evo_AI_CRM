@@ -4,6 +4,7 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import * as access from "../src/lib/platform-access.ts";
+import * as jsxRuntime from "react/jsx-runtime";
 
 function loadSource(path, imports = {}, globals = {}) {
   const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -78,6 +79,8 @@ test("chat connects with supplied public config in an env-free browser and keeps
     removeChannel() {},
   };
   const { TeamChat } = loadSource("src/components/v3/team-chat/TeamChat.tsx", {
+    "@/components/icons": loadSource("src/components/icons.tsx", { "react/jsx-runtime": jsxRuntime }),
+    "@/lib/platform-organization-time": loadSource("src/lib/platform-organization-time.ts"),
     "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": { default: "Link" },
     "react": { useState: (value) => [value, () => {}], useRef: (current) => ({ current }),
       useCallback: (callback) => callback, useEffect: (effect) => effects.push(effect), startTransition: (callback) => callback() },

@@ -1,5 +1,30 @@
 # EVO Launch Plan
 
+## Admissions case opening and fast execution — active 2026-09-18
+
+Owner requests a targeted fix for opening an existing Admissions case and
+scope-local real validation, not another heavy unrelated suite. Portal UX work
+runs independently in a separate task; no employee invites, provider activation,
+new clients, schema changes or fake Sales handoffs belong to this fix.
+
+- [x] Reproduce the actual production case error and isolate its read boundary:
+  digest3116888569 maps to `oneRow` in the Student handoff repository. The real
+  authenticated Admin RPC succeeds200 with zero Sales handoff rows.
+- [x] Replace blanket heavy-suite instructions in `AGENTS.md` with focused real
+  checks. Existing enforced automation is not bypassed or declared satisfied.
+- [x] Represent the legitimate absence of a Sales handoff explicitly. Keep
+  real RPC errors, malformed responses and mismatched linked-lead context fatal;
+  keep case permissions and all non-handoff case work intact.
+- [x] Real regression: existing Admin Auth + real Supabase on unchanged persisted
+  case. Before: production route500/digest3116888569, repository unavailable.
+  After: local candidate route/contract/anketa200 with actual case content,
+  contract workspace and partner-package section. Anonymous request307 to login.
+  Two directly affected source-contract checks, changed-file ESLint and diff
+  check pass. No case/file/account/provider writes and no full suite.
+- [ ] Review/publish the bounded patch. Production remains41394497; local
+  candidate evidence is not a deployment receipt. Do not silently rerun or
+  bypass the existing full release gate.
+
 ## amoCRM connection simplification — active 2026-09-17
 
 Owner requests a more flexible connection without unnecessary rules. A bounded

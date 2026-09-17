@@ -182,10 +182,10 @@ export type ProfileAdmissionsWorkspace = Readonly<{
   requestIds: ProfileAdmissionsRequestIds;
 }>;
 
-/** Canonical BW6 artifacts and the exact Sales-to-Admissions provenance. */
+/** Canonical BW6 artifacts; Sales provenance exists only for handed-off cases. */
 export type ProfileContractSnapshot = Readonly<{
   workspace: PlatformCaseContractWorkspace;
-  handoff: PlatformStudentCaseHandoffContext;
+  handoff: PlatformStudentCaseHandoffContext | null;
 }>;
 
 /** Bounded retry identity preserved across a fail-closed action redirect. */

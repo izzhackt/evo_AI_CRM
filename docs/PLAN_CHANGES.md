@@ -27889,3 +27889,23 @@ accessibility, ownership, storage and response-body checks. A focused real
 browser/style check and independent review precede one new frozen-main full
 gate. No unchanged reruns, product/UI changes, auth bypass or provider writes.
 The original intermittent profile cancellation remains unresolved, not fixed.
+
+### 2026-09-17 — CSS guard accepted; cold-history release blocker retained
+
+PR816 reviewed exact3a100b93 and merged as1d0a64afa. Fast CI35219485069 passed.
+One frozen-main full run35219750669 passed actual TLS,18 staff scenarios, all24
+V3 viewport/route style/layout/accessibility checks and immutable Storage proof.
+Isolated provider-surface checks passed; this is not live WhatsApp/amoCRM business
+acceptance. D2 draft/final POSTs completed normally, downloads and exact replay
+passed, then COLD_EXPORT_HISTORY failed. Its broad stage does not identify the
+failed history assertion. No uploaded artifact exists for the run; do not assert
+data loss, a specific transport failure, or a proven fix of the original
+intermittent cancellation. The fresh page shares the authenticated context.
+
+Do not repeat the same long run without new evidence. Record safe cold-history
+substage/error-category diagnosis as the next bounded work; retain original
+acceptance assertions and no release bypass. The current short integration
+request is complete as readiness evidence, with provider activation deferred.
+Production remains41394497 and disarmed; downstream35220644955 skipped. Fresh
+read-only ledger35219785624 at1d0a64afa has170/170 and empty differences. No
+schema changes, provider activation or production rollout occurred in this pass.

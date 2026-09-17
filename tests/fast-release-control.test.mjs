@@ -1789,8 +1789,8 @@ test("retired Inbox dependency maintenance runs in isolation without deployment 
   for (const path of ["src/lib/themes.test.ts", "src/lib/whatsapp/template-status-normalize.test.ts", "src/lib/ai/chunk.test.ts"]) assert.ok(lane.includes(`"${path}"`));
   assert.match(lane, /startVitest\("test", files,/u);
   assert.match(lane, /config: false, watch: false, include: files/u);
-  assert.match(lane, /configFile: false, envFile: false/u);
-  assert.match(lane, /Object\.keys\(context\.config\.env\)\.length !== 0/u);
+  assert.match(lane, /configFile: false, envDir: false/u);
+  assert.match(lane, /Object\.keys\(context\.config\.env \?\? \{\}\)\.length !== 0/u);
   assert.match(lane, /modules\.length !== files\.length \|\| modules\.some\(\(module\) => !module\.ok\(\)\)/u);
   assert.match(lane, /context\.state\.getUnhandledErrors\(\)\.length > 0/u);
   assert.match(lane, /process\.exitCode = 1/u);

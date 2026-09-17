@@ -201,8 +201,8 @@ jobs:
           try {
             context = await startVitest("test", files,
               { config: false, watch: false, include: files },
-              { configFile: false, envFile: false });
-            if (Object.keys(context.config.env).length !== 0) {
+              { configFile: false, envDir: false });
+            if (Object.keys(context.config.env ?? {}).length !== 0) {
               throw new Error("Pure helper tests must not inject environment values");
             }
             const modules = context.state.getTestModules();

@@ -33,6 +33,20 @@ d2_browser_runtime="${EVO_D2_BROWSER_RUNTIME-development}"
 if [[ "$d2_browser_runtime" == "production" ]]; then
   [[ "$#" == "0" || "$student_profile_fields_only" == "1" ]] \
     || fail "Production runtime comparison supports only the full or Student Profile proof"
+  [[ "$(uname -s)" == Linux || ( "$(uname -s)" == Darwin && "$student_profile_fields_only" == "1" ) ]] \
+    || fail "Full production browser comparison requires Linux run-local certificate trust"
+fi
+
+assert_no_legacy_browser_nss() {
+  # Chromium 149 selects legacy HOME/.pki/nssdb before XDG_DATA_HOME. Refuse
+  # that precedence; never relocate, mutate or replace a user's trust store.
+  [[ -n "${HOME:-}" && "$HOME" == /* && -d "$HOME" \
+    && ! -L "$HOME/.pki" && ! -e "$HOME/.pki/nssdb" && ! -L "$HOME/.pki/nssdb" ]] \
+    || fail "Run-local browser trust requires an absent legacy NSS database"
+}
+if [[ "$d2_browser_runtime" == "production" && "$(uname -s)" == Linux ]]; then
+  assert_no_legacy_browser_nss
+  command -v certutil >/dev/null 2>&1 || fail "Linux production browser comparison requires certutil from libnss3-tools"
 fi
 
 docker() {
@@ -150,6 +164,9 @@ production_app_root="$tmp_dir/production-app"
 production_build_id=""
 production_build_log="$tmp_dir/production-build.log"
 production_tls_log="$tmp_dir/production-tls.log"
+production_browser_xdg="$tmp_dir/browser-xdg"
+production_browser_trust_ready=0
+active_app_runtime=development
 waha_pid=""
 clamav_container_name=""
 clamav_signature_volume=""
@@ -1039,6 +1056,33 @@ EOF
   production_tls_pid=""
 }
 
+prepare_production_browser_trust() {
+  [[ "$(uname -s)" == Linux ]] || return 0
+  assert_no_legacy_browser_nss
+  [[ ! -e "$production_browser_xdg" && ! -L "$production_browser_xdg" ]] \
+    || fail "Run-local browser trust requires a fresh private NSS directory"
+  local database="$production_browser_xdg/pki/nssdb"
+  local trust_log="$tmp_dir/browser-trust.log"
+  mkdir -m 700 -p "$database"
+  certutil -N --empty-password -d "sql:$database" >"$trust_log" 2>&1 \
+    || fail "Run-local browser NSS initialization failed"
+  env XDG_DATA_HOME="$production_browser_xdg" \
+    "$node_bin" "$repo_root/scripts/support/verify-loopback-browser-trust.mjs" \
+    untrusted "$production_supabase_url" "$tmp_dir" \
+    || fail "The clean browser did not prove rejection of the run-local certificate"
+  # This one-run certificate has CA:TRUE and keyCertSign. C,, trusts this CA
+  # for TLS servers only, not mail/object signing; no private key is imported.
+  # https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/docs/linux/cert_management.md
+  certutil -A -d "sql:$database" -t 'C,,' -n evo-foundation-run-ca \
+    -i "$production_tls_cert" >>"$trust_log" 2>&1 \
+    || fail "Run-local browser CA import failed"
+  env XDG_DATA_HOME="$production_browser_xdg" NODE_EXTRA_CA_CERTS="$production_tls_cert" \
+    "$node_bin" "$repo_root/scripts/support/verify-loopback-browser-trust.mjs" \
+    trusted "$production_supabase_url" "$tmp_dir" \
+    || fail "The trusted browser and Node request context did not accept the actual Supabase health endpoint"
+  production_browser_trust_ready=1
+}
+
 prepare_production_app() {
   [[ ! -e "$production_app_root" && -z "$production_tls_pid" && -z "$production_build_id" ]] \
     || fail "The production comparison requires one fresh private build per foundation run"
@@ -1067,6 +1111,7 @@ prepare_production_app() {
     sleep 1
   done
   [[ "$code" == "200" ]] || fail "The production comparison Supabase HTTPS endpoint did not become ready"
+  prepare_production_browser_trust
 
   # Reuse E4's private source/dependency copy: never share .next, import .env,
   # or install dependencies. The proof control plane keeps its original HTTP URL.
@@ -1256,6 +1301,7 @@ start_app() {
     fi
     code="$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${app_port}/api/health" || true)"
     if [[ "$code" == "200" ]]; then
+      active_app_runtime="$runtime_mode"
       return
     fi
     sleep 2
@@ -1286,6 +1332,16 @@ assert_app_reachable() {
   done
   sed -n '1,200p' "$app_log" >&2
   fail "The application became unreachable before browser validation"
+}
+
+run_browser_proof() {
+  if [[ "$active_app_runtime" == production && "$(uname -s)" == Linux ]]; then
+    [[ "$production_browser_trust_ready" == "1" ]] || fail "Production browser trust was not verified"
+    assert_no_legacy_browser_nss
+    env XDG_DATA_HOME="$production_browser_xdg" NODE_EXTRA_CA_CERTS="$production_tls_cert" "$@"
+  else
+    "$@"
+  fi
 }
 
 supabase_staff_auth_browser_assert() {
@@ -1319,7 +1375,7 @@ supabase_staff_auth_browser_assert() {
     EVO_SUPABASE_DIRECT_PUBLISHABLE_KEY="$supabase_publishable_key" \
     SUPABASE_DB_URL="$supabase_database_url" \
     EVO_P4_ACCEPTANCE_RESULT_FILE="$p4_acceptance_result" \
-    "$node_bin" node_modules/@playwright/test/cli.js "${playwright_args[@]}"
+    run_browser_proof "$node_bin" node_modules/@playwright/test/cli.js "${playwright_args[@]}"
 }
 
 v3_browser_gate() {
@@ -1331,7 +1387,7 @@ v3_browser_gate() {
     EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
     EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
     SCRATCH="$v3_scratch" \
-    "$node_bin" scripts/v3-gate/gate.mjs
+    run_browser_proof "$node_bin" scripts/v3-gate/gate.mjs
 }
 
 verify_p4_admissions_storage_acceptance() {
@@ -1679,7 +1735,7 @@ canonical_amocrm_command_browser_assert() {
     EVO_SUPABASE_SALES_CONVERSATION_LEAD_ID="$supabase_sales_conversation_lead_id" \
     EVO_PLATFORM_COMMUNICATIONS_CONVERSATION_ID="$supabase_sales_conversation_id" \
     EVO_CANONICAL_STUDENT_CASE_ID="$student_case_id" \
-    "$node_bin" node_modules/@playwright/test/cli.js test \
+    run_browser_proof "$node_bin" node_modules/@playwright/test/cli.js test \
       tests/e2e/canonical-amocrm-command.spec.ts \
       --config=playwright.config.ts \
       --project=desktop-chromium
@@ -1709,7 +1765,7 @@ platform_provider_runtime_inventory_browser_assert() {
     EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
     EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
     EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
-    "$node_bin" node_modules/@playwright/test/cli.js test \
+    run_browser_proof "$node_bin" node_modules/@playwright/test/cli.js test \
       --config=playwright.platform-provider-runtime-inventory.config.ts
 
   [[ -s "$runtime_inventory_browser_evidence" ]] \
@@ -1741,7 +1797,7 @@ platform_communications_browser_assert() {
     EVO_PLATFORM_WAHA_RESULT_FILE="$waha_acceptance_result" \
     EVO_STAFF_AUTH_SALES_EMAIL="$staff_sales_email" \
     EVO_STAFF_AUTH_SALES_PASSWORD="$staff_sales_password" \
-    "$node_bin" node_modules/@playwright/test/cli.js "${playwright_args[@]}"
+    run_browser_proof "$node_bin" node_modules/@playwright/test/cli.js "${playwright_args[@]}"
 }
 
 assert_no_secret_or_payload_logs() {
@@ -1788,7 +1844,7 @@ student_profile_fields_browser_assert() {
     EVO_D2_STORAGE_SERVICE_KEY="$supabase_service_role_key" \
     EVO_STAFF_AUTH_ADMIN_EMAIL="$staff_admin_email" \
     EVO_STAFF_AUTH_ADMIN_PASSWORD="$staff_admin_password" \
-    "$node_bin" --experimental-strip-types scripts/lib/student-profile-fields-browser-proof.mjs \
+    run_browser_proof "$node_bin" --experimental-strip-types scripts/lib/student-profile-fields-browser-proof.mjs \
       >"$student_profile_fields_log" 2>&1; then
     local failure=""
     failure="$(grep -m 1 -E '^STUDENT_PROFILE_FIELDS_BROWSER_ERROR:[A-Z0-9_]+$' "$student_profile_fields_log" || true)"

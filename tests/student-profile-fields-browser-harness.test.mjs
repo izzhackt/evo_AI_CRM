@@ -510,6 +510,69 @@ test("production TLS cleanup checks its exact PID and listener before profile ac
   assert.match(harness, /if \[\[ "\$d2_browser_runtime" == "production" \]\]; then\n  trap 'exit 130' INT\n  trap 'exit 143' TERM/u);
 });
 
+test("Linux browser trust rejects unsupported or legacy stores before resources without changing HOME", () => {
+  const preflight = harness.slice(0, harness.indexOf('if ! mkdir "$supabase_lock_dir"'));
+  assert.match(preflight, /\[\[ "\$\(uname -s\)" == Linux \|\| \( "\$\(uname -s\)" == Darwin && "\$student_profile_fields_only" == "1" \) \]\]/u);
+  assert.match(preflight, /! -L "\$HOME\/\.pki" && ! -e "\$HOME\/\.pki\/nssdb" && ! -L "\$HOME\/\.pki\/nssdb"/u);
+  assert.match(preflight, /command -v certutil/u);
+  assert.doesNotMatch(harness, /(?:^|\s)(?:export\s+)?HOME=|(?:mv|rm|cp|mkdir)[^\n]*"\$HOME/u);
+  if (process.platform === "darwin") {
+    const result = spawnSync("bash", [new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url).pathname], {
+      encoding: "utf8", env: { ...process.env, EVO_D2_BROWSER_RUNTIME: "production" },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Full production browser comparison requires Linux run-local certificate trust/u);
+  }
+});
+
+test("Linux browser trust proves rejection before its one CA import and scopes both TLS consumers to six proof children", () => {
+  const prepare = harness.slice(harness.indexOf("prepare_production_browser_trust()"), harness.indexOf("\nprepare_production_app()"));
+  assert.match(prepare, /\[\[ ! -e "\$production_browser_xdg" && ! -L "\$production_browser_xdg" \]\]/u);
+  assert.match(prepare, /local database="\$production_browser_xdg\/pki\/nssdb"/u);
+  assert.match(prepare, /mkdir -m 700 -p "\$database"/u);
+  assert.match(prepare, /certutil -N --empty-password -d "sql:\$database"/u);
+  assert.equal((prepare.match(/certutil -A/gu) ?? []).length, 1);
+  assert.match(prepare, /certutil -A -d "sql:\$database" -t 'C,,' -n evo-foundation-run-ca/u);
+  assert.ok(prepare.indexOf('untrusted "$production_supabase_url" "$tmp_dir"') < prepare.indexOf("certutil -A"));
+  assert.ok(prepare.indexOf("certutil -A") < prepare.indexOf('trusted "$production_supabase_url" "$tmp_dir"', prepare.indexOf("certutil -A")));
+  assert.match(prepare, /env XDG_DATA_HOME="\$production_browser_xdg" NODE_EXTRA_CA_CERTS="\$production_tls_cert"/u);
+  const app = harness.slice(harness.indexOf("prepare_production_app()"), harness.indexOf("\nstart_app()"));
+  assert.ok(app.indexOf("prepare_production_browser_trust") < app.indexOf('mkdir -p "$production_app_root/supabase"'));
+  const wrapper = harness.slice(harness.indexOf("run_browser_proof()"), harness.indexOf("\nsupabase_staff_auth_browser_assert()"));
+  assert.match(wrapper, /"\$active_app_runtime" == production && "\$\(uname -s\)" == Linux/u);
+  assert.match(wrapper, /"\$production_browser_trust_ready" == "1"/u);
+  assert.match(wrapper, /env XDG_DATA_HOME="\$production_browser_xdg" NODE_EXTRA_CA_CERTS="\$production_tls_cert" "\$@"/u);
+  assert.equal((harness.match(/run_browser_proof "\$node_bin"/gu) ?? []).length, 6);
+  assert.match(harness, /EVO_SUPABASE_DIRECT_API_URL="\$supabase_api_url"/u);
+  const configuredApp = harness.slice(harness.indexOf("start_app()"), harness.indexOf("\nstop_app()"));
+  assert.doesNotMatch(configuredApp, /XDG_DATA_HOME/u);
+  assert.match(configuredApp, /active_app_runtime="\$runtime_mode"/u);
+});
+
+test("Linux browser trust preflight uses real pinned browser and Node health requests with safe fail-closed output", () => {
+  const helperUrl = new URL("../scripts/support/verify-loopback-browser-trust.mjs", import.meta.url);
+  const helper = readFileSync(helperUrl, "utf8");
+  assert.match(helper, /target\.protocol === "https:" && target\.hostname === "127\.0\.0\.1"/u);
+  assert.match(helper, /process\.env\.XDG_DATA_HOME === xdg/u);
+  assert.match(helper, /metadata\.isDirectory\(\) && !metadata\.isSymbolicLink\(\) && \(metadata\.mode & 0o077\) === 0/u);
+  assert.match(helper, /absent\(join\(legacyParent, "nssdb"\)\)/u);
+  assert.match(helper, /new URL\("\/auth\/v1\/health", target\)/u);
+  assert.match(helper, /chromium\.launch\(\{ headless: true \}\)/u);
+  assert.match(helper, /browser\.version\(\) === "149\.0\.7827\.55"/u);
+  assert.match(helper, /error\.message\.includes\("net::ERR_CERT_AUTHORITY_INVALID"\)/u);
+  assert.match(helper, /requireProof\(authorityRejected && !response\)/u);
+  assert.match(helper, /response\?\.status\(\) === 200 && response\.url\(\) === healthUrl && page\.url\(\) === healthUrl/u);
+  assert.match(helper, /context\.request\.get\(healthUrl, \{ timeout: 15_000, maxRedirects: 0 \}\)/u);
+  assert.match(helper, /apiResponse\.status\(\) === 200 && apiResponse\.url\(\) === healthUrl/u);
+  assert.match(helper, /await apiResponse\.dispose\(\)/u);
+  assert.match(helper, /await browser\.close\(\)/u);
+  assert.doesNotMatch(helper, /ignoreHTTPSErrors|ignore-certificate-errors|route\.fulfill|new Response|createServer|console\.(?:log|error)\(.*(?:error|origin)/u);
+  const result = spawnSync(process.execPath, [helperUrl.pathname, "invalid", "https://not-loopback.invalid", "/not-owned"], { encoding: "utf8" });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "EVO_BROWSER_TLS_PREFLIGHT_FAILED:SETUP\n");
+});
+
 test("local export bucket is checked before any synthetic business mutation", () => {
   const valid = { id: "platform-document-exports", public: false, file_size_limit: DOCUMENT_PACKAGE_MAX_BYTES, allowed_mime_types: [DOCUMENT_EXPORT_MIME, "application/pdf", DOCUMENT_PACKAGE_MIME] };
   assert.doesNotThrow(() => verifyDocumentExportBucket(valid));

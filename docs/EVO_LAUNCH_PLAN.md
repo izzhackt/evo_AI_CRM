@@ -39,6 +39,16 @@ production build/start comparison against the same isolated services, full
 post-provisioning predecessor order and unchanged assertions. Production stays
 disarmed; see the latest PLAN_CHANGES entry for mode and build-binding rules.
 
+The production profile-only proof passed locally on `6e4f22a8` (PR814), but
+full Linux run 35215643933 on `31df7111` stopped earlier at two staff Storage
+download assertions. These APIs redirect to Storage; Node-only TLS trust did
+not establish browser trust. No retained trace proves the timeout's precise
+cause, and Student Profile was not reached. Complete run-owned browser NSS
+trust and real negative/positive TLS preflight without changing machine trust,
+HOME, product code, assertions or predecessor order. Observe one new reviewed
+exact-main run; do not reuse the failed run as release evidence. Ledger check
+35215849593 confirmed all170 versions match, so no schema apply is needed.
+
 Current [Next.js Playwright guidance](https://nextjs.org/docs/app/guides/testing/playwright)
 recommends a production build for realistic browser validation. Context7 was
 attempted again; its monthly quota remains exhausted. The prior red/green logs

@@ -27821,3 +27821,36 @@ measured dependency tree is 783 MiB with 12 GiB available; use the existing
 Darwin copy-on-write pattern where supported, without a new dependency install.
 This prevents overwriting another development build. Certificate, proxy, copied
 application and server remain owned by the same bounded cleanup lifecycle.
+
+### 2026-09-17 — isolated browser certificate trust prerequisite
+
+Full Linux observation 35215643933 on 31df7111 failed before Student Profile:
+the staff Student-360 and company-file scenarios timed out waiting for actual
+downloads. The missing P4 acceptance file is downstream of the first failure.
+The profile cancellation was not reached or resolved. No trace was retained by
+that workflow, so do not call the observed timeout a proven certificate error.
+Static investigation confirms a missing prerequisite: both download APIs redirect
+the browser to signed Storage URLs, while the existing E4 pattern only trusts
+the run-local TLS certificate in Node. Earlier same-origin coverage was incomplete.
+
+Complete browser trust without disabling certificate validation or modifying
+machine trust. Pinned Chromium 149 supports a process-scoped XDG_DATA_HOME NSS
+database unless a legacy HOME/.pki/nssdb exists. On Linux, create a new private
+NSS database under the owned run directory, import only the one-run certificate,
+and pass its XDG location only to browser-proof child processes. Refuse an
+existing legacy database rather than moving, changing or deleting it; HOME is
+never overridden. Install the official Ubuntu NSS utility in the disposable CI
+runner only. Mac profile-only proof remains supported without changing Keychain;
+full production comparison on unsupported platforms must fail clearly.
+
+Before the unchanged browser sequence, use the actual owned Supabase health URL
+to prove that a clean browser rejects the certificate and a fresh browser with
+the run-local trusted database accepts it. This is a real transport preflight,
+not a provider substitute. Keep original UI/body/download assertions, predecessor
+order and origin allowlist unchanged; retain safe certificate-error categories
+only. Clean up the NSS directory with the same run-owned temporary tree.
+Independently review the new frozen head, then observe one new exact-main Linux
+run. Do not rerun 35215643933 or arm production on its failure.
+
+Source: [pinned Chromium NSS directory selection](https://github.com/chromium/chromium/blob/149.0.7827.55/crypto/nss_util.cc#L37-L63),
+[official Linux certificate management](https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/docs/linux/cert_management.md).

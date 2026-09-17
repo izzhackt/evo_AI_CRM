@@ -28081,3 +28081,9 @@ release source assertion rejected the literal word `supabase` in the new
 read-only diff-selector paths. Correct that assertion to reject runtime commands,
 not harmless repository paths; retain the no-heavy-run intent. No production
 mutation occurred before this check was corrected.
+
+The subsequent lightweight main check exposed the same legacy assertion copied
+in `p6d-release-candidate.test.mjs`; align that copy too and run the exact three
+main source checks locally. The release did not deploy an app, arm was returned
+to false, and successfully applied171 remains forward-compatible. This follow-up
+changes tests/documentation only, not runtime or another migration.

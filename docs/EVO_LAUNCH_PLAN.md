@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Real Student login and stable navigation — active 2026-09-17
+## Real Student login and stable navigation — accepted 2026-09-17
 
 Owner requests retiring the Admin Student preview from CRM and using one
 permanent, separate QA Student login on `https://app.evoadmissions.com` instead.
@@ -9,6 +9,37 @@ historical receipts. Existing Admin credentials, real students and their data
 remain unchanged. One explicitly requested test Student is allowed; this does
 not authorize a fake authentication path, universal test password, impersonation,
 synthetic provider success or general production seeding.
+
+Current accepted source: `41394497fa61d37d543091e9b22f8b62902c09bb` ([PR #808](https://github.com/izzhackt/evo_AI_CRM/pull/808)).
+Full CI [35172153854](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35172153854)
+and managed release [35172861130](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35172861130)
+passed. Release `v3-r35172861130-a1-41394497` is accepted on Hermes; running image
+`sha256:91218814ece4c411edddf80a49e233561304cd8c9942cdfb16ed8a92236dc058`
+matches the immutable record. Acceptance SHA-256:
+`30f2c74d79a2986b4ec85037ffe5d7de23484094786379b0d6db0cec6b24ff28`.
+Healthy, zero restarts, no pending-current record, both host health endpoints
+HTTP 200; release arm set and read back `false` after acceptance.
+
+Real production Chrome: an existing staff session on app now sees the Student
+login form; ordinary QA password sign-in reaches its own portal. All seven
+sections render, shell remains during transitions, saved QA assessment progress
+survives reload, logout and fresh login work. CRM remains signed in as Admin and
+has no Student-preview link; its separate staff-role preview is intentionally
+unchanged. Old `/preview/student/payments` returns HTTP 404. A separately reviewed
+process-only check used a genuine SDK-issued QA session: own `/portal` 200 then
+staff `/api/platform-audit/export` 401, with local-scope session cleanup confirmed.
+Chrome's extension blocked direct API navigation, so that browser attempt is
+not counted as HTTP denial proof.
+
+Handover: reuse this one permanent QA account and existing database. Owner's
+canonical local checkout contains ignored mode-0600 `.env.student-portal-qa.json`
+with the login/password; never commit or print it. Do not recreate the account,
+reset its password or restore preview as a convenience. The fictional case is
+visible in Admissions but has no Sales/client/payment facts. One English answer
+was saved only to prove persistence; this is not real-client business acceptance.
+Remaining network/server response time is not eliminated: observed browser
+section checks took roughly 1.5–3.6 seconds including tool overhead. This release
+removes the disappearing shell and broken login, not all latency or auth checks.
 
 - [x] Reproduce the reported transition in real authenticated Chrome. On the
   accepted production preview, Payments → Documents showed only the global
@@ -28,11 +59,11 @@ synthetic provider success or general production seeding.
   Do not fabricate an invitation receipt or mutate auth.users directly. Missing
   mailbox/provider/lifecycle access is a named blocker, not a success substitute.
   Store credentials only in an ignored 0600 owner handoff; never in code/logs/chat.
-- [ ] Real Student password login, refresh and section navigation on app; verify
+- [x] Real Student password login, refresh and section navigation on app; verify
   persistent shell, actual persisted test-student data, staff/private denial,
   sign-out, mobile usability and removal of preview from CRM. Record timings
   separately from authentication/functional proof; don't claim instant networking.
-- [ ] Scoped checks, independent exact-head review, PR merge, one frozen-main
+- [x] Scoped checks, independent exact-head review, PR merge, one frozen-main
   full gate and managed release; production readback and same real Student
   browser proof, then disarm and publish receipt. No unrelated provider/DNS work.
 
@@ -43,7 +74,7 @@ any account write. Keep the exact login only in the private operator handoff.
 The owner retains website-inquiry and Gmail-delivery checks from the prior run;
 those are not reopened by this narrowly requested Student login.
 
-Implementation checkpoint (not deployed): nine preview-only source files and
+Historical pre-release implementation checkpoint: nine preview-only source files and
 their dedicated test are removed; old preview paths are pre-auth 404 tombstones.
 The real Student layout already preserves PortalShell above its child loading
 boundary, so no unmeasured auth-cache or navigation rewrite was added. Scoped
@@ -55,8 +86,8 @@ at non-plan diff SHA-256
 Production read-only inventory on 17 September found no Student memberships,
 cases or provisioning receipts to reuse. Custom SMTP remains off; provider OTP
 expiry is 3600 seconds. A real manually delivered Supabase invite link is a
-supported alternative to email delivery, but not yet executed or proven here.
-Account setup and a real Student browser journey remain the release gate;
+supported alternative to email delivery, not yet executed at that checkpoint.
+Account setup and a real Student browser journey were the release gate;
 removing preview code is not itself proof of an operational replacement login.
 
 Approved narrow implementation path: operator creates one visibly fictional
@@ -100,7 +131,7 @@ Old preview URL returns HTTP 404. The local process holds no service/provider ke
 Login-routing delta passed 39 focused tests, ESLint, normal typecheck and a
 second independent review (21 route tests independently rerun). Reviewed delta
 SHA-256: `f0f2b8506e2f76d4ee218237e2d520bf23143c12cf84a8059eb31946fcf1ae6e`.
-Production still runs the prior accepted source until managed release; repeat
+At this pre-release checkpoint production still ran the prior accepted source; repeat
 ordinary login on app with its retained staff session, section content/persistence,
 CRM preview absence, acceptance readback and disarm before closing this run.
 

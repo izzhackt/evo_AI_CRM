@@ -127,6 +127,7 @@ jobs:
         timeout-minutes: 35
         env:
           EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC: "1"
+          EVO_D2_BROWSER_RUNTIME: production
         run: npm run test:database:local
 
   dependency_audit:

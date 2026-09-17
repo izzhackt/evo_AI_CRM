@@ -27,6 +27,14 @@ document_recognition_only=0
 university_template_ingress_only=0
 [[ "${1:-}" != "--university-template-ingress-only" ]] || university_template_ingress_only=1
 
+d2_browser_runtime="${EVO_D2_BROWSER_RUNTIME-development}"
+[[ "$d2_browser_runtime" == "development" || "$d2_browser_runtime" == "production" ]] \
+  || fail "EVO_D2_BROWSER_RUNTIME must be development or production"
+if [[ "$d2_browser_runtime" == "production" ]]; then
+  [[ "$#" == "0" || "$student_profile_fields_only" == "1" ]] \
+    || fail "Production runtime comparison supports only the full or Student Profile proof"
+fi
+
 docker() {
   if [[ "$university_template_ingress_only" == "1" ]]; then
     [[ -z "${DOCKER_HOST:-}" || "$DOCKER_HOST" == unix://* ]] || return 1
@@ -134,6 +142,14 @@ runtime_inventory_browser_evidence=""
 runtime_inventory_database_evidence=""
 next_dev_cache_reset=0
 app_pid=""
+production_tls_pid=""
+production_tls_port=""
+production_supabase_url=""
+production_tls_cert="$tmp_dir/supabase-local.crt"
+production_app_root="$tmp_dir/production-app"
+production_build_id=""
+production_build_log="$tmp_dir/production-build.log"
+production_tls_log="$tmp_dir/production-tls.log"
 waha_pid=""
 clamav_container_name=""
 clamav_signature_volume=""
@@ -364,6 +380,7 @@ EOF
       then failed=1; fi
     else failed=1; fi
   fi
+  if [[ -n "${production_tls_pid:-}" ]]; then stop_production_tls_proxy || failed=1; fi
   if [[ "$supabase_started" == "1" ]]; then
     if [[ "$student_profile_project_id" =~ ^evo-local-[0-9a-f]{16}$ ]]; then
       (cd "$repo_root" && npx --no-install supabase --workdir "$supabase_workdir" stop --no-backup) >/dev/null 2>&1 || failed=1
@@ -492,6 +509,8 @@ EOF
     fi
     exit "$original_status"
   fi
+  local production_tls_cleanup_failed=0
+  if [[ -n "$production_tls_pid" ]]; then stop_production_tls_proxy || production_tls_cleanup_failed=1; fi
   # Existing full/staff/admissions cleanup remains unchanged below.
   if [[ -n "$app_pid" ]]; then
     kill "$app_pid" >/dev/null 2>&1 || true
@@ -527,8 +546,14 @@ EOF
   if [[ "$runtime_inventory_cleanup" == "1" && -d "$runtime_inventory_evidence_dir" && "$runtime_inventory_evidence_dir" == "$runtime_inventory_expected_root/foundation-"* ]]; then
     rm -R -- "$runtime_inventory_evidence_dir"
   fi
+  # Full-mode cleanup must also verify the one newly owned TLS listener.
+  [[ "$production_tls_cleanup_failed" == "0" ]] || exit 1
 }
 trap cleanup EXIT
+if [[ "$d2_browser_runtime" == "production" ]]; then
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+fi
 
 runtime_inventory_sha="${EVO_PLATFORM_RUNTIME_INVENTORY_MAIN_SHA:-$(git -C "$repo_root" rev-parse HEAD)}"
 [[ "$runtime_inventory_sha" =~ ^[0-9a-f]{40}$ ]] \
@@ -992,12 +1017,84 @@ EOF
   fail "The isolated WAHA-shaped service did not become ready"
 }
 
+stop_production_tls_proxy() {
+  [[ -n "$production_tls_pid" ]] || return 0
+  [[ "$production_tls_pid" =~ ^[0-9]+$ ]] || return 1
+  if kill -0 "$production_tls_pid" >/dev/null 2>&1; then
+    kill "$production_tls_pid" >/dev/null 2>&1 || return 1
+    wait "$production_tls_pid" >/dev/null 2>&1 || true
+    if kill -0 "$production_tls_pid" >/dev/null 2>&1; then return 1; fi
+  fi
+  # Parent exit is not sufficient: the exact owned listener must be absent.
+  if ! "$node_bin" --input-type=module - "$production_tls_port" <<'EOF'
+import { createConnection } from "node:net";
+const port = Number(process.argv[2]);
+if (!Number.isInteger(port) || port < 1024 || port > 65535) process.exit(1);
+const socket = createConnection({ host: "127.0.0.1", port });
+socket.once("connect", () => { socket.destroy(); process.exitCode = 1; });
+socket.once("error", error => { process.exitCode = error.code === "ECONNREFUSED" ? 0 : 1; });
+socket.setTimeout(1500, () => { socket.destroy(); process.exitCode = 1; });
+EOF
+  then return 1; fi
+  production_tls_pid=""
+}
+
+prepare_production_app() {
+  [[ ! -e "$production_app_root" && -z "$production_tls_pid" && -z "$production_build_id" ]] \
+    || fail "The production comparison requires one fresh private build per foundation run"
+  production_tls_port="$(free_port)"
+  local tls_key="$tmp_dir/supabase-local.key"
+  if ! openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+    -subj '/CN=127.0.0.1' -addext 'subjectAltName=IP:127.0.0.1' \
+    -addext 'basicConstraints=critical,CA:TRUE' \
+    -addext 'keyUsage=critical,digitalSignature,keyCertSign,keyEncipherment' \
+    -addext 'extendedKeyUsage=serverAuth' \
+    -keyout "$tls_key" -out "$production_tls_cert" >"$production_tls_log" 2>&1; then
+    fail "The production comparison TLS certificate could not be created"
+  fi
+  chmod 600 "$tls_key" "$production_tls_cert"
+  production_supabase_url="https://127.0.0.1:${production_tls_port}"
+  "$node_bin" "$repo_root/scripts/support/e4-loopback-tls-proxy.mjs" \
+    "$supabase_api_url" "$production_tls_port" "$tls_key" "$production_tls_cert" >>"$production_tls_log" 2>&1 &
+  production_tls_pid=$!
+  local deadline=$((SECONDS + 30)) code=""
+  while (( SECONDS < deadline )); do
+    kill -0 "$production_tls_pid" >/dev/null 2>&1 \
+      || fail "The production comparison TLS proxy exited before readiness"
+    code="$(curl --silent --max-time 2 --cacert "$production_tls_cert" \
+      --output /dev/null --write-out '%{http_code}' "$production_supabase_url/auth/v1/health" || true)"
+    [[ "$code" == "200" ]] && break
+    sleep 1
+  done
+  [[ "$code" == "200" ]] || fail "The production comparison Supabase HTTPS endpoint did not become ready"
+
+  # Reuse E4's private source/dependency copy: never share .next, import .env,
+  # or install dependencies. The proof control plane keeps its original HTTP URL.
+  mkdir -p "$production_app_root/supabase"
+  cp -R "$repo_root/src" "$repo_root/public" "$repo_root/assets" "$production_app_root/"
+  cp -R "$repo_root/supabase/assessment-content" "$production_app_root/supabase/"
+  local config_file
+  for config_file in package.json package-lock.json tsconfig.json next.config.ts postcss.config.mjs; do
+    cp "$repo_root/$config_file" "$production_app_root/$config_file"
+  done
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    cp -cR "$repo_root/node_modules" "$production_app_root/node_modules"
+  else
+    cp -R "$repo_root/node_modules" "$production_app_root/node_modules"
+  fi
+}
+
 start_app() {
   local supabase_mode="${1:-configured}"
   local inbound_mode="${2:-configured}"
   local waha_mode="${3:-blocked}"
   local amocrm_mode="${4:-provider-not-authorized}"
   local audit_mode="${5:-enabled}"
+  local runtime_mode="${6:-development}"
+  [[ "$runtime_mode" == "development" || "$runtime_mode" == "production" ]] \
+    || fail "Unknown isolated app runtime mode"
+  [[ "$runtime_mode" != "production" || "$supabase_mode" == "configured" ]] \
+    || fail "Production comparison requires configured local Supabase"
   local -a audit_environment=("EVO_PLATFORM_P7A_AUDIT_ENABLED=1")
   local inbound_secret="$whatsapp_inbound_secret"
   local waha_rewrite_base_url=""
@@ -1038,13 +1135,20 @@ start_app() {
   elif [[ "$amocrm_mode" != "provider-not-authorized" ]]; then
     fail "Unknown isolated amoCRM harness mode: $amocrm_mode"
   fi
-  assert_next_dev_lock_available
-  reset_next_dev_cache_once
+  if [[ "$runtime_mode" == "production" ]]; then
+    prepare_production_app
+  else
+    assert_next_dev_lock_available
+    reset_next_dev_cache_once
+  fi
   : >"$app_log"
   if [[ "$supabase_mode" == "configured" ]]; then
-    env -u EVO_PLATFORM_GEMINI_API_KEY \
+    local app_supabase_url="$supabase_api_url"
+    [[ "$runtime_mode" != "production" ]] || app_supabase_url="$production_supabase_url"
+    local -a configured_environment=(-u EVO_PLATFORM_GEMINI_API_KEY
       "${audit_environment[@]}" \
-      NEXT_PUBLIC_SUPABASE_URL="$supabase_api_url" \
+      NODE_ENV="$runtime_mode" \
+      NEXT_PUBLIC_SUPABASE_URL="$app_supabase_url" \
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$supabase_publishable_key" \
       EVO_PLATFORM_SUPABASE_SECRET_KEY="$supabase_service_role_key" \
       EVO_PLATFORM_ORGANIZATION_ID="$platform_organization_id" \
@@ -1073,9 +1177,36 @@ start_app() {
       EVO_V2_AMOCRM_ADMISSIONS_PIPELINE_ID="$amocrm_admissions_pipeline_id" \
       EVO_V2_AMOCRM_ADMISSIONS_STATUS_ID="$amocrm_admissions_status_id" \
       EVO_V2_AMOCRM_ADMISSIONS_RESPONSIBLE_USER_ID="$amocrm_admissions_responsible_user_id" \
-      EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME="$amocrm_admissions_tag_name" \
-      "$node_bin" node_modules/next/dist/bin/next dev \
-        --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
+      EVO_V2_AMOCRM_ADMISSIONS_TAG_NAME="$amocrm_admissions_tag_name")
+    if [[ "$runtime_mode" == "production" ]]; then
+      configured_environment+=(NODE_EXTRA_CA_CERTS="$production_tls_cert" NEXT_TELEMETRY_DISABLED=1)
+      # Track the real build PID too; no server readiness timer includes build
+      # time, and a failed build can never fall back to an earlier artifact.
+      (cd "$production_app_root" && exec env "${configured_environment[@]}" \
+        "$node_bin" node_modules/next/dist/bin/next build) >"$production_build_log" 2>&1 &
+      app_pid=$!
+      if ! wait "$app_pid"; then
+        app_pid=""
+        fail "The production comparison build failed; inspect the private build log"
+      fi
+      app_pid=""
+      production_build_id="$(<"$production_app_root/.next/BUILD_ID")"
+      [[ "$production_build_id" =~ ^[A-Za-z0-9_-]{1,128}$ ]] \
+        || fail "The fresh production comparison build did not provide a safe build identity"
+      [[ -f "$production_app_root/.next/standalone/server.js" ]] \
+        || fail "The production comparison build did not produce its standalone server"
+      cp -R "$production_app_root/public" "$production_app_root/.next/standalone/public"
+      cp -R "$production_app_root/.next/static" "$production_app_root/.next/standalone/.next/static"
+      echo "EVO_D2_BROWSER_RUNTIME production BUILD_ID $production_build_id"
+      (cd "$production_app_root" && exec env "${configured_environment[@]}" \
+        HOSTNAME=127.0.0.1 PORT="$app_port" \
+        "$node_bin" .next/standalone/server.js) >"$app_log" 2>&1 &
+    else
+      echo "EVO_D2_BROWSER_RUNTIME development"
+      env "${configured_environment[@]}" \
+        "$node_bin" node_modules/next/dist/bin/next dev \
+          --hostname 127.0.0.1 --port "$app_port" >"$app_log" 2>&1 &
+    fi
   else
     env \
       -u NEXT_PUBLIC_SUPABASE_URL \
@@ -1086,6 +1217,7 @@ start_app() {
       -u EVO_PLATFORM_GEMINI_API_KEY \
       -u EVO_PLATFORM_P7A_AUDIT_ENABLED \
       -u SUPABASE_SERVICE_ROLE_KEY \
+      NODE_ENV=development \
       EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET="$inbound_secret" \
       EVO_TEST_WAHA_REWRITE_BASE_URL="$waha_rewrite_base_url" \
       EVO_CLAMD_HOST="$clamd_host" \
@@ -1779,7 +1911,7 @@ if [[ "$document_recognition_only" == "1" ]]; then
 fi
 
 if [[ "$student_profile_fields_only" == "1" ]]; then
-  start_app configured unavailable blocked provider-not-authorized enabled
+  start_app configured unavailable blocked provider-not-authorized enabled "$d2_browser_runtime"
   student_profile_fields_browser_assert
   assert_no_secret_or_payload_logs
   exit 0
@@ -1801,7 +1933,7 @@ start_app configured configured local-service
 provision_local_staff_and_fixtures
 # Provider owner configuration becomes available only after the real staff invitation.
 stop_app
-start_app configured configured local-service
+start_app configured configured local-service provider-not-authorized enabled "$d2_browser_runtime"
 if [[ "$admissions_workflow_only" == "1" ]]; then
   if ! supabase_staff_auth_browser_assert configured 'real contract, payment and handoff open one Supabase Student 360 with role-safe access|Admissions manages one real private company file through V3'; then
     EVO_ADMISSIONS_APP_LOG="$app_log" "$node_bin" --experimental-strip-types --input-type=module <<'EOF'

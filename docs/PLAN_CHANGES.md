@@ -27768,3 +27768,56 @@ This supersedes the stronger "until a reviewed fix" wording above: all real
 release/acceptance checks still apply, while the prior intermittent cancellation
 remains an explicitly open diagnostic risk. Neither a cold/scoped pass nor
 the new UI enum replaces any original assertion or proves the cause resolved.
+
+### 2026-09-17 — production-runtime differential after confirmed UI receipt
+
+The single newly instrumented Linux run 35212637934 on 9c9d2a4e failed at the
+same original draft POST body read. New evidence: exportUiState=READY while
+Chromium reports ERR_ABORTED after response headers, with no navigation and a
+live page/browser. The client reached its complete JSON/receipt validation;
+this is not evidence of a missing saved file or a Portal performance regression.
+Both WHATWG Streams and the pinned Chromium 149.0.7827.55 implementation make
+reader.cancel() a no-op after EOF. Do not alter the product reader on that theory.
+
+Proceed with the previously planned development-versus-production runtime
+comparison, preserving every original response-body, receipt, database, Storage,
+download, replay, and cold-history assertion. The observed development arm is
+the failed run above. Build against the newly created isolated local Supabase
+URL/key, never a prior managed-project build. Provisioning may keep its existing
+development runtime, then the existing post-provisioning restart selects the
+production build/start mode before the unchanged full predecessor sequence.
+Do not restart immediately before Student Profile. Later missing-configuration
+negative checks remain development-mode tests, since unsetting public variables
+cannot remove values inlined into a production client bundle.
+
+Implement a narrowly scoped explicit runtime selector in the existing foundation
+runner and record build identity/mode safely. Validate real profile execution
+locally, independently review, and use one new exact-main Linux comparison.
+No provider mock, new endpoint, product behavior, auth bypass, extra mutation,
+retry, assertion removal or response fallback is introduced. Production remains
+disarmed. A production-mode green establishes that mode's real contract, not
+the root cause of the development-mode cancellation.
+
+Primary sources: [Next.js browser-test guidance](https://nextjs.org/docs/app/guides/testing/playwright),
+[public environment build binding](https://nextjs.org/docs/app/guides/environment-variables),
+[closed stream cancellation](https://streams.spec.whatwg.org/#readable-stream-cancel),
+[pinned Chromium implementation](https://github.com/chromium/chromium/blob/149.0.7827.55/third_party/blink/renderer/core/streams/readable_stream.cc#L943-L955).
+
+Pre-implementation review found production rightly rejects HTTP Supabase
+origins. Reuse the existing E4 run-owned loopback TLS proxy/certificate pattern
+(`scripts/support/e4-loopback-tls-proxy.mjs`), with Node trust scoped to the
+candidate process and authenticated forwarding to the same owned local stack.
+Do not relax product HTTPS checks, spoof NODE_ENV, change machine trust, or
+ignore TLS errors. Include the proxy in PID cleanup and keep the original HTTP
+origin for harness ownership/control-plane checks. Consequently this is a
+development/HTTP versus production/trusted-local-TLS configuration comparison,
+not an isolated proof of runtime causation. If existing browser paths require
+additional trust configuration, stop rather than bypass certificate validation.
+
+Reuse E4's private run-owned application copy for the fresh standalone build,
+including exact source/runtime assets/configs and installed dependencies only.
+Exclude environment files, prior build output, Git metadata and evidence. The
+measured dependency tree is 783 MiB with 12 GiB available; use the existing
+Darwin copy-on-write pattern where supported, without a new dependency install.
+This prevents overwriting another development build. Certificate, proxy, copied
+application and server remain owned by the same bounded cleanup lifecycle.

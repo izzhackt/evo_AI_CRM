@@ -95,7 +95,8 @@ test("opt-in lifecycle CI output reprojects private file and preserves command a
     assert.ok(harness.includes('fail "The bounded real Student Profile browser proof failed; no live business acceptance is implied"'));
     const workflow = readFileSync(new URL("../.github/workflows/evo-platform-ci.yml", import.meta.url), "utf8");
     assert.equal((workflow.match(/EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC:/gu) ?? []).length, 1);
-    assert.match(workflow, /timeout-minutes: 35\n        env:\n          EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC: "1"\n        run: npm run test:database:local/u);
+    assert.equal((workflow.match(/EVO_D2_BROWSER_RUNTIME:/gu) ?? []).length, 1);
+    assert.match(workflow, /timeout-minutes: 35\n        env:\n          EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC: "1"\n          EVO_D2_BROWSER_RUNTIME: production\n        run: npm run test:database:local/u);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -433,8 +434,80 @@ test("cleanup for all other foundation modes remains byte-identical", () => {
   const marker = "  # Existing full/staff/admissions cleanup remains unchanged below.\n";
   const start = harness.indexOf(marker) + marker.length;
   assert.ok(start >= marker.length);
-  const body = harness.slice(start, harness.indexOf("\n}\ntrap cleanup EXIT", start));
+  const body = harness.slice(start, harness.indexOf("\n  # Full-mode cleanup must also verify", start));
   assert.equal(createHash("sha256").update(body).digest("hex"), "366d0877f9a5d2a199479edcaaf0523b5060e8eeec0dac169ef084dd58ac178d");
+});
+
+test("production runtime selector fails before resources and changes only the two configured proof starts", () => {
+  assert.ok(harness.indexOf('d2_browser_runtime="${EVO_D2_BROWSER_RUNTIME-development}"') < harness.indexOf('mkdir "$supabase_lock_dir"'));
+  for (const value of ["", "invalid", "Production"]) {
+    const result = spawnSync("bash", [new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url).pathname], {
+      encoding: "utf8", env: { ...process.env, EVO_D2_BROWSER_RUNTIME: value },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /EVO_D2_BROWSER_RUNTIME must be development or production/u);
+  }
+  const unsupported = spawnSync("bash", [new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url).pathname, "--staff-onboarding-only"], {
+    encoding: "utf8", env: { ...process.env, EVO_D2_BROWSER_RUNTIME: "production" },
+  });
+  assert.equal(unsupported.status, 1);
+  assert.match(unsupported.stderr, /supports only the full or Student Profile proof/u);
+  const starts = harness.split("\n").filter(line => /^\s*start_app /u.test(line));
+  assert.deepEqual(starts.filter(line => line.includes('"$d2_browser_runtime"')), [
+    '  start_app configured unavailable blocked provider-not-authorized enabled "$d2_browser_runtime"',
+    'start_app configured configured local-service provider-not-authorized enabled "$d2_browser_runtime"',
+  ]);
+  assert.match(harness, /start_app configured configured local-service\nprovision_local_staff_and_fixtures\n[^\n]*\nstop_app\nstart_app configured configured local-service provider-not-authorized enabled "\$d2_browser_runtime"/u);
+  assert.match(harness, /stop_app\nstart_app configured unavailable blocked provider-not-authorized disabled/u);
+  assert.match(harness, /stop_app\nstart_app unavailable/u);
+});
+
+test("production runtime builds one private current source against trusted real loopback TLS without browser bypass", () => {
+  const prepare = harness.slice(harness.indexOf("prepare_production_app()"), harness.indexOf("\nstart_app()"));
+  assert.match(prepare, /\[\[ ! -e "\$production_app_root" && -z "\$production_tls_pid" && -z "\$production_build_id" \]\]/u);
+  assert.match(prepare, /scripts\/support\/e4-loopback-tls-proxy\.mjs/u);
+  assert.match(prepare, /"\$supabase_api_url" "\$production_tls_port" "\$tls_key" "\$production_tls_cert"/u);
+  assert.match(prepare, /subjectAltName=IP:127\.0\.0\.1/u);
+  assert.match(prepare, /chmod 600 "\$tls_key" "\$production_tls_cert"/u);
+  assert.match(prepare, /curl --silent --max-time 2 --cacert "\$production_tls_cert"/u);
+  assert.match(prepare, /cp -R "\$repo_root\/src" "\$repo_root\/public" "\$repo_root\/assets" "\$production_app_root\/"/u);
+  assert.match(prepare, /supabase\/assessment-content/u);
+  assert.match(prepare, /cp -cR "\$repo_root\/node_modules"/u);
+  assert.match(prepare, /cp -R "\$repo_root\/node_modules"/u);
+  assert.doesNotMatch(prepare, /cp[^\n]*(?:\.env|\.next|\.git|\/output)|npm (?:ci|install)/u);
+  const start = harness.slice(harness.indexOf("start_app()"), harness.indexOf("\nstop_app()"));
+  assert.match(start, /local runtime_mode="\$\{6:-development\}"/u);
+  assert.match(start, /NODE_ENV="\$runtime_mode"/u);
+  assert.match(start, /NEXT_PUBLIC_SUPABASE_URL="\$app_supabase_url"/u);
+  assert.match(start, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="\$supabase_publishable_key"/u);
+  assert.match(start, /configured_environment\+=\(NODE_EXTRA_CA_CERTS="\$production_tls_cert" NEXT_TELEMETRY_DISABLED=1\)/u);
+  assert.equal((start.match(/node_modules\/next\/dist\/bin\/next build/gu) ?? []).length, 1);
+  assert.match(start, /app_pid=\$!\n      if ! wait "\$app_pid"; then/u);
+  assert.match(start, /production_build_id="\$\(<"\$production_app_root\/\.next\/BUILD_ID"\)"/u);
+  assert.match(start, /\^\[A-Za-z0-9_-\]\{1,128\}\$/u);
+  assert.match(start, /cp -R "\$production_app_root\/public" "\$production_app_root\/\.next\/standalone\/public"/u);
+  assert.match(start, /cp -R "\$production_app_root\/\.next\/static" "\$production_app_root\/\.next\/standalone\/\.next\/static"/u);
+  assert.match(start, /HOSTNAME=127\.0\.0\.1 PORT="\$app_port" \\\n        "\$node_bin" \.next\/standalone\/server\.js/u);
+  assert.ok(start.indexOf("next build") < start.indexOf("local deadline=$((SECONDS + 120))"));
+  assert.doesNotMatch(harness, /NODE_TLS_REJECT_UNAUTHORIZED|ignoreHTTPSErrors|ignore-certificate-errors|security add-trusted-cert/u);
+  const hook = harness.slice(harness.indexOf("student_profile_fields_browser_assert()"), harness.indexOf('\ncd "$repo_root"'));
+  assert.match(hook, /NEXT_PUBLIC_SUPABASE_URL="\$supabase_api_url"/u);
+  const runner = readFileSync(runnerUrl, "utf8");
+  assert.match(runner, /\[config\.appOrigin, config\.apiOrigin\]\.includes\(new URL\(route\.request\(\)\.url\(\)\)\.origin\)/u);
+});
+
+test("production TLS cleanup checks its exact PID and listener before profile acceptance or full success", () => {
+  const stop = harness.slice(harness.indexOf("stop_production_tls_proxy()"), harness.indexOf("\nprepare_production_app()"));
+  assert.match(stop, /kill "\$production_tls_pid"/u);
+  assert.match(stop, /wait "\$production_tls_pid"/u);
+  assert.match(stop, /"\$node_bin" --input-type=module - "\$production_tls_port"/u);
+  assert.match(stop, /error\.code === "ECONNREFUSED" \? 0 : 1/u);
+  const cleanup = harness.slice(harness.indexOf("student_profile_cleanup()"), harness.indexOf("student_profile_finalize_acceptance()"));
+  assert.match(cleanup, /stop_production_tls_proxy \|\| failed=1/u);
+  assert.ok(cleanup.indexOf("stop_production_tls_proxy") < cleanup.indexOf('rm -R -- "$tmp_dir"'));
+  assert.match(harness, /stop_production_tls_proxy \|\| production_tls_cleanup_failed=1/u);
+  assert.match(harness, /\[\[ "\$production_tls_cleanup_failed" == "0" \]\] \|\| exit 1/u);
+  assert.match(harness, /if \[\[ "\$d2_browser_runtime" == "production" \]\]; then\n  trap 'exit 130' INT\n  trap 'exit 143' TERM/u);
 });
 
 test("local export bucket is checked before any synthetic business mutation", () => {

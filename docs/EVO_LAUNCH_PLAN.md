@@ -31,6 +31,14 @@ The cancellation remains unreproduced locally, not fixed. The next Linux
 observation adds only a passive, enum-only export-panel status to the existing
 body-transport failure evidence; original failure and release gates remain.
 
+Update: that single Linux observation (35212637934, `9c9d2a4e`) reproduced the
+failure with `exportUiState=READY`: the application validated the successful
+receipt before the browser/network body inspection failed. Product stream
+cancellation is not established as the cause. Next is the documented bounded
+production build/start comparison against the same isolated services, full
+post-provisioning predecessor order and unchanged assertions. Production stays
+disarmed; see the latest PLAN_CHANGES entry for mode and build-binding rules.
+
 Current [Next.js Playwright guidance](https://nextjs.org/docs/app/guides/testing/playwright)
 recommends a production build for realistic browser validation. Context7 was
 attempted again; its monthly quota remains exhausted. The prior red/green logs

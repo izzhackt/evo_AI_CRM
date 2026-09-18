@@ -7,7 +7,7 @@ binding, so baseline document_slots never seed and staff add every item by
 hand. Journal: docs/PLAN_CHANGES.md (2026-09-18, «staff baseline-checklist
 seeding»).
 
-- [x] Migration 178: case-scoped staff RPCs — compatible-version listing and
+- [x] Migration 179: case-scoped staff RPCs — compatible-version listing and
   atomic seed-and-bind (route NULL-fill only, exact-match otherwise, 053
   seeding semantics, one-shot binding, request-id replay), gated by the same
   document.manage case-operator check as custom slots.
@@ -28,6 +28,12 @@ ProfileCaseDirectory regex already corrected in PR #840, untouched here.
 Not exercised: migration apply and live-auth browser checks (no Supabase
 credentials in this environment); apply follows the standard manual release
 step.
+
+Migration numbering correction: PR #841 already shipped the signup-conflict
+correction as 178 before PR #844 merged another 178 for this checklist. The
+checklist now uses 179; its executable SQL is unchanged. Preserve the existing
+178 source and production history. Apply only the missing checklist 179 after
+the corrected source is merged; do not repair or replay the applied 178.
 
 ## Admissions UX overhaul — active 2026-09-18
 

@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## EVO Docs discoverability and focused UX pass — active 2026-09-18
+## EVO Docs discoverability and focused UX pass — released 2026-09-18
 
 Owner requests a visible EVO Docs entry and one practical UX pass across the
 main staff screens. Reuse the existing case forms, uploads, generated artifacts
@@ -10,7 +10,20 @@ and partner ZIP workflow; do not resurrect the retired standalone Docs app.
 - [x] Add a clear Admissions → EVO Docs entry with existing case access rules.
 - [x] Link forms, files and ZIP work directly; retain the shared sidebar design.
 - [x] Correct concrete quiet-UI/mobile/navigation problems found in this pass.
-- [ ] Short real browser checks and managed production release; no blanket suite.
+- [x] Short real browser checks on current source as Admin and Admissions MY;
+  desktop 1440/mobile 390, scoped list → forms/files/ZIP and preserved context.
+- [x] Managed production release and post-release readback; no blanket suite.
+
+Current-source acceptance: real password sign-ins, existing authorized data,
+ZIP auto-open/toggle and navigation passed with zero runtime errors and no
+business writes. Typecheck, changed-file lint and all 16 navigation checks passed.
+Independent exact-head review approved `d184ea11` after the page-specific empty
+state copy fix; PR #833 merged as `d4594a0bf28b7bbc395d65a8cf0481c25198279a`.
+Production release 35302956533 accepted that revision. Exact accepted/running
+image and receipt hash match; healthy, zero restarts, no pending candidate,
+release armfalse. Ordinary production Admin and Admissions MY repeated the
+changed Docs and mobile paths successfully, without business writes. See the
+[UX receipt](design/v3/references/2026-09-18-docs-visible-ux-pass.md).
 
 The owner additionally authorizes one clearly labeled invented sale through the
 real sales form to prove handoff. Use a reserved non-deliverable email, no real
@@ -38,7 +51,7 @@ authorized synthetic sale passed the ordinary Sales Manager form → report
 readback → assigned curator login and case opening. Contract/payment remain
 unconfirmed, no amounts or outgoing messages. Test case is recorded in the
 staff activation plan; this is not real-customer acceptance. The separate Docs
-UX release remains pending.
+UX release is recorded above.
 
 ## Quiet UI and Admin role preview — released 2026-09-18
 

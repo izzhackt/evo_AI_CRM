@@ -23,6 +23,7 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
   curators?: readonly Readonly<{ membershipId: string; displayName: string }>[]; allowAdmissionsFilters?: boolean; docsMode?: boolean;
 }>) {
   const rows = docsMode ? directory.rows.filter(row => row.access === "full") : directory.rows;
+  const docsPageWithoutAccess = docsMode && directory.rows.length > 0 && rows.length === 0;
   const directoryHref = withDocsSection("/v3/profile", docsMode);
   return <details className="min-w-0 rounded-card border border-border bg-surface" data-testid="v3-student-case-directory" open={initiallyOpen}>
     <summary className="min-h-11 cursor-pointer px-4 py-4 text-base font-semibold text-fg marker:text-fg-3 sm:px-5">
@@ -64,7 +65,11 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
         </details> : null}
       </form>
       {params.invalid ? <p role="alert" className="rounded-nav border border-danger p-4 text-sm text-danger" data-testid="v3-student-case-filter-rejected">Не удалось применить фильтры. Проверьте запрос или сбросьте поиск.</p>
-        : rows.length === 0 ? <div className="space-y-2 py-8 text-center"><p className="font-medium text-fg">{params.active ? "По вашему запросу ничего не найдено." : "Пока нет доступных дел студентов."}</p><p className="text-sm text-fg-2">{params.active ? "Измените запрос или сбросьте фильтры." : "Здесь появятся дела после передачи из продаж."}</p>{allowAdmissionsFilters && !docsMode ? <p className="mx-auto max-w-xl text-sm leading-6 text-fg-2">Маршруты Китая и Малайзии находятся в деле студента на вкладке «Маршрут». Откройте дело и выберите маршрут. Кнопки стран выше только фильтруют рабочий список.</p> : null}</div>
+        : rows.length === 0 ? <div className="space-y-2 py-8 text-center">
+          <p className="font-medium text-fg">{docsPageWithoutAccess ? "На этой странице нет дел с доступом к документам." : params.active ? "По вашему запросу ничего не найдено." : "Пока нет доступных дел студентов."}</p>
+          <p className="text-sm text-fg-2">{docsPageWithoutAccess ? directory.hasNext && directory.nextCursor ? "Перейдите к следующим записям." : "Для работы с документами нужен полный доступ к делу." : params.active ? "Измените запрос или сбросьте фильтры." : "Здесь появятся дела после передачи из продаж."}</p>
+          {allowAdmissionsFilters && !docsMode ? <p className="mx-auto max-w-xl text-sm leading-6 text-fg-2">Маршруты Китая и Малайзии находятся в деле студента на вкладке «Маршрут». Откройте дело и выберите маршрут. Кнопки стран выше только фильтруют рабочий список.</p> : null}
+        </div>
         : <ul aria-label="Доступные дела студентов" className="divide-y divide-border">{rows.map((row) => {
           const href = row.access === "full" ? withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=${docsMode ? "anketa" : "route"}`, docsMode) : row.leadId ? `/v3/profile?id=${row.leadId}` : null;
           const issue = attention(row);

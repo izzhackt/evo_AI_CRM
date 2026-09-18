@@ -7,6 +7,7 @@ import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess
 import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
 import { readLeadSaleConditions } from "./lead-sale-conditions-source";
+import { readLeadCabinetCase } from "./lead-cabinet-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -482,6 +483,15 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
           randomUUID(),
         ]),
       ),
+      // «Партнёр и решение» (unified workflow S7): own per-application id,
+      // distinct from applicationDetails above (a different form, a
+      // different RPC).
+      partnerDetails: Object.fromEntries(
+        data.applications.map((application) => [
+          application.universityApplicationId,
+          randomUUID(),
+        ]),
+      ),
       createStops: Object.fromEntries(
         (data.finance?.obligations ?? []).map((obligation) => [
           obligation.paymentObligationId,
@@ -628,6 +638,9 @@ function fullCaseDetails(
     // lead link to attach it to (docs-intake origin or insufficient
     // sales.read), so it stays null here — see readLeadProfile below.
     saleConditions: null,
+    // Same scoping as saleConditions above: a full case already exists by
+    // definition on this branch, so there is nothing left to "prepare".
+    leadCabinetCase: null,
     contractSignedAt,
   };
 }
@@ -778,6 +791,11 @@ async function readLeadProfile(
   // later reads back through platform.create_sales_report_handoff. Scoped to
   // the lead-only branch — see the null case's own comment in fullCaseDetails.
   const saleConditions = fullCase ? null : await readLeadSaleConditions(actor, leadId);
+  // «Подготовить кабинет» (unified workflow S7): whether this lead already
+  // has a linked case — regardless of anketa (site/WhatsApp leads never have
+  // one) and regardless of admissions.read (a handed-off case the actor can't
+  // fully open still means "don't show the prepare button again").
+  const leadCabinetCase = fullCase ? null : await readLeadCabinetCase(actor, leadId);
   const details: ProfileDraft = fullCase
     ? fullCaseDetails(
         actor,
@@ -804,6 +822,7 @@ async function readLeadProfile(
         handoffAcknowledgement: null,
         salesHandoffAcknowledgement,
         saleConditions,
+        leadCabinetCase,
         contractSignedAt: gate.contractConfirmedAt
           ? formatDate(gate.contractConfirmedAt, true)
           : null,

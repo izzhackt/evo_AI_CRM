@@ -14,6 +14,7 @@ import {
   type LeadSaleConditions as LeadSaleConditionsSnapshot,
   type SaleConditionCurrency,
 } from "@/lib/lead-sale-conditions-contract";
+import { useSaleConditionsRevision } from "./LeadCardFieldsForm";
 
 const MESSAGES: Record<Exclude<SaveLeadSaleConditionsActionState["status"], "idle">, string> = {
   saved: "Сохранено.",
@@ -63,6 +64,13 @@ function draftFrom(conditions: LeadSaleConditionsSnapshot): Draft {
  * «Условия продажи» — unified workflow S2 (plan §5/§6). Filling this block
  * never adds a row to the sales report; the report reads these exact fields
  * back once a Sales rep chooses this lead and a curator and saves.
+ *
+ * This is one of FOUR sibling blocks (with «Пожелания»/«Образование»/
+ * «Условия» in `LeadCardFieldsForm.tsx`) sharing the same revisioned row —
+ * see `SaleConditionsRevisionProvider`'s doc comment there for why
+ * `expected_revision` comes from that shared context instead of this
+ * block's own `conditions.revision` prop, and why a save here no longer
+ * calls `router.refresh()`.
  */
 export function LeadSaleConditions({
   leadId,
@@ -76,6 +84,7 @@ export function LeadSaleConditions({
   readOnly?: boolean;
 }) {
   const router = useRouter();
+  const { revision, bump } = useSaleConditionsRevision();
   const [draft, setDraft] = useState(() => draftFrom(conditions));
   const [state, action, pending] = useActionState(
     saveLeadSaleConditionsAction,
@@ -84,14 +93,22 @@ export function LeadSaleConditions({
   const locked = readOnly || pending || state.status === "saved";
   const update = (key: keyof Draft, value: string) => setDraft((previous) => ({ ...previous, [key]: value }));
 
-  // A save changes the revision on the server; the parent re-fetches and
-  // remounts this component (key={`sale-conditions:${revision}`}), which
-  // resets `draft`/`state` naturally. Same pattern as GateActionForm.
-  // On "stale" we deliberately do NOT auto-refresh: the remount would wipe
-  // the user's unsaved draft. The explicit «Обновить» button below does it.
+  // No router.refresh()/remount on save: that used to remount all four
+  // sibling blocks (key={`…:${revision}`} in tabs.tsx), wiping whatever
+  // «Пожелания»/«Образование»/«Условия» had typed but not yet saved. We
+  // instead bump the shared revision context, so every block's next submit
+  // carries the fresh expected_revision; this block's own fields stay
+  // locked after its save (`locked` above) until the page is next
+  // refreshed. NOTE: the linked sales-register preview below
+  // (`conditions.linkedSalesRegister`) still reflects only the last SSR
+  // fetch and can go stale across saves until an explicit refresh —
+  // acceptable per review.
+  // On "stale"/"request_conflict" we deliberately do NOT auto-refresh
+  // either: that would wipe the user's own unsaved draft here. The explicit
+  // «Обновить» button below does it instead.
   useEffect(() => {
-    if (state.status === "saved") router.refresh();
-  }, [router, state.status, state.revision]);
+    if (state.status === "saved" && state.revision !== null) bump(state.revision);
+  }, [bump, state.status, state.revision]);
 
   const currencySelect = (value: string, onChange: (value: string) => void) => (
     <select value={value} disabled={locked} onChange={(event) => onChange(event.target.value)} className={cn(inputCls, "min-h-11 w-full")}>
@@ -123,7 +140,7 @@ export function LeadSaleConditions({
         </p>
         <form action={action} className="space-y-4" aria-busy={pending}>
           <input type="hidden" name="lead_id" value={leadId} />
-          <input type="hidden" name="expected_revision" value={conditions.revision} />
+          <input type="hidden" name="expected_revision" value={revision} />
           <input type="hidden" name="request_id" value={state.requestId} />
           <label className="block">
             <span className={labelCls}>Услуга/пакет</span>

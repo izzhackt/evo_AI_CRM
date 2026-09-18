@@ -24,12 +24,15 @@ import { StudentProfileFields } from "./StudentProfileFields";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
 import { ApplicationDecision, StudentApplicationAnswers } from "../admissions/StudentApplications";
 import type { StudentApplication } from "@/lib/student-application-contract";
+import type { LeadCabinetCase } from "@/lib/v3/lead-cabinet-source";
 import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
 } from "./ProfileAdmissionsWorkspace";
 import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
 import { LeadSaleConditions } from "./LeadSaleConditions";
+import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
+import { PrepareLeadCabinetAction } from "./PrepareLeadCabinetAction";
 import type {
   Fact,
   PersonProfile,
@@ -73,14 +76,25 @@ const tone = (s: string): PillTone => STATUS_TONE[s] ?? "neutral";
  * анкета never assigns a curator or direction, only opens the portal
  * cabinet. Admissions handoff stays a separate, later fact (Sales report).
  */
-function PlatformAccessCard({ application, requestId, readOnly }: {
+function PlatformAccessCard({ application, requestId, readOnly, leadId, leadCabinetCase, prepareRequestId }: {
   application: StudentApplication | null; requestId: string; readOnly: boolean;
+  /** «Подготовить кабинет» (unified workflow S7): for a lead with no анкета and no linked case. */
+  leadId: string; leadCabinetCase: LeadCabinetCase | null; prepareRequestId: string;
 }) {
   return (
     <Card eyebrow title="Доступ к платформе">
       <div className="space-y-3 px-4 py-3">
-        {application === null ? (
-          <p className="text-sm text-fg-2">Анкета в платформе не заполнена.</p>
+        {application === null && leadCabinetCase !== null ? (
+          <p className="text-sm text-fg-2">
+            Кабинет подготовлен.{" "}
+            <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(leadCabinetCase.studentCaseId)}&tab=anketa`}>
+              Открыть дело
+            </Link>
+          </p>
+        ) : application === null && readOnly ? (
+          <p className="text-sm text-fg-2">Анкета в платформе не заполнена. В режиме просмотра действия недоступны.</p>
+        ) : application === null ? (
+          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} />
         ) : application.status === "approved" ? (
           <p className="text-sm text-fg-2">
             Доступ открыт.{" "}
@@ -202,6 +216,9 @@ export function Overview({
             application={draft.studentApplication}
             requestId={requestIds.platformAccess}
             readOnly={isStaffPreview(actor)}
+            leadId={sales.lead.leadId}
+            leadCabinetCase={draft.leadCabinetCase}
+            prepareRequestId={requestIds.prepareLeadCabinet}
           />
 
           <ProfileSalesTransition
@@ -211,13 +228,41 @@ export function Overview({
           />
 
           {draft.saleConditions ? (
-            <LeadSaleConditions
-              key={`sale-conditions:${draft.saleConditions.revision}`}
-              leadId={draft.saleConditions.leadId}
-              conditions={draft.saleConditions}
-              requestId={requestIds.saleConditions}
-              readOnly={isStaffPreview(actor)}
-            />
+            // The four blocks below share ONE revisioned row
+            // (platform_private.lead_sale_conditions). They used to be keyed
+            // by revision (`key={`…:${revision}`}`) so a save in any one of
+            // them remounted all four via router.refresh() — which silently
+            // wiped whatever draft the OTHER three had typed but not yet
+            // saved. SaleConditionsRevisionProvider replaces that: mounted
+            // once here, it hands every block a shared, client-side
+            // expected_revision that a save bumps directly, with no refresh
+            // and no remount. See its doc comment in LeadCardFieldsForm.tsx.
+            <SaleConditionsRevisionProvider initialRevision={draft.saleConditions.revision}>
+              <LeadSaleConditions
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.saleConditions}
+                readOnly={isStaffPreview(actor)}
+              />
+              <LeadWishesCard
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.wishesCard}
+                readOnly={isStaffPreview(actor)}
+              />
+              <LeadEducationCard
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.educationCard}
+                readOnly={isStaffPreview(actor)}
+              />
+              <LeadConditionsCard
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.conditionsCard}
+                readOnly={isStaffPreview(actor)}
+              />
+            </SaleConditionsRevisionProvider>
           ) : null}
         </>
       ) : null}

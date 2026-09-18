@@ -43,28 +43,28 @@ export async function readAdmissionsSummary(actor: ActivePlatformActor, params: 
 }
 
 /**
- * Партнёр и решение по заявке — read-only (unified workflow S4, plan §11).
+ * Партнёр и решение по заявке — editable since unified workflow S7 (plan §8,
+ * §11; docs/PLAN_CHANGES.md «unified workflow S7»).
  *
  * A narrow projection of the SAME `staff_case_admissions_workspace_v1` RPC
- * the retired playbook editor used, scoped to just four `admissions_details`
- * keys (partnerContact, packageReference, decisionReference,
- * offerConditions). This is NOT a resurrection of the deleted
- * `AdmissionsWorkspace` type — stages, gates, case facts, playbook and visa
- * are ignored entirely here.
+ * the retired playbook editor used (read path kept, per the S7 task's own
+ * instruction) — `application.details` is the application's raw
+ * `admissions_details` JSONB, returned whole, so a write through the NEW
+ * migration-184 RPC below is visible here with no read-side change needed.
+ * This is NOT a resurrection of the deleted `AdmissionsWorkspace` type —
+ * stages, gates, case facts, playbook and visa are still ignored entirely.
  *
- * Read-only by deliberate decision, not by omission: the only write RPC for
- * this JSONB column (`update_application_admissions_details_v1`, migration
- * 137) hard-requires `admissions_playbook_version_id IS NOT NULL` on the
- * case (`admissions_related_command`'s own check — "Configure a country
- * playbook first"). That configuration path (`configure_case_admissions_v1`,
- * reachable only through the now-deleted `AdmissionsRoutePanel` "Выбрать
- * маршрут" editor, and CN/MY-only even when it existed) has no UI left after
- * this slice, so the write RPC would fail closed for every case going
- * forward — building an editable form on it would silently fail for the
- * whole product, not a narrow edge case. Making it genuinely usable would
- * need a new SQL RPC without that gate, which the task explicitly forbids
- * ("do NOT widen SQL"). Showing the historical facts read-only is the
- * honest option: real data, no invented success, no fabricated capability.
+ * Deliberately NEW key names (partnerContact, externalLink,
+ * decisionReference, decisionNote), not the legacy camelCase
+ * partnerContact/packageReference/decisionReference/offerConditions the
+ * retired playbook editor wrote: `platform.update_application_partner_details_v1`
+ * (migration 184) owns its own four snake_case keys
+ * (partner_contact/external_link/decision_reference/decision_note),
+ * independent of and coexisting with any historical playbook-era data still
+ * sitting in the same JSONB column. See migration 184's own header for why
+ * the S4-identified `admissions_playbook_version_id` requirement is gone —
+ * this RPC needs none — and for the one remaining known edge case (a rare,
+ * still playbook-bound ACTIVE legacy case).
  */
 function detailText(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -77,17 +77,21 @@ export async function readApplicationPartnerDetails(actor: ActivePlatformActor, 
   if (caseRow.id !== caseId || caseRow.organizationId !== actor.organizationId) return invalid();
   return list(row.applications).map((value) => {
     const app = record(value);
-    // admissions_details is NULL for an application that never had the old
-    // playbook editor touch it — the common case going forward. A missing or
-    // non-object value means "nothing recorded", not a malformed read.
+    // admissions_details is NULL for an application no one has ever
+    // annotated. A missing or non-object value means "nothing recorded",
+    // not a malformed read.
     const raw = app.details;
     const details = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
     return {
       applicationId: uuid(app.id),
-      partnerContact: detailText(details.partnerContact),
-      packageReference: detailText(details.packageReference),
-      decisionReference: detailText(details.decisionReference),
-      offerConditions: detailText(details.offerConditions),
+      version: str(app.version),
+      partnerContact: detailText(details.partner_contact),
+      externalLink: detailText(details.external_link),
+      decisionReference: detailText(details.decision_reference),
+      decisionNote: detailText(details.decision_note),
     };
   });
+}
+function str(value: unknown): string {
+  return typeof value === "string" && /^\d{1,19}$/.test(value) ? value : invalid();
 }

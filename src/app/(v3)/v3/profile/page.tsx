@@ -196,6 +196,10 @@ export default async function ProfilePart({
     handoff: randomUUID(),
     platformAccess: randomUUID(),
     saleConditions: randomUUID(),
+    prepareLeadCabinet: randomUUID(),
+    wishesCard: randomUUID(),
+    educationCard: randomUUID(),
+    conditionsCard: randomUUID(),
   };
   const contractResult = parseContractResult(params);
   const contractRetry = parseContractRetry(params, contractResult);

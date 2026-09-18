@@ -28301,3 +28301,13 @@ collision, preserve staff invite behavior, and retain the intermediate35-check
 receipt as historical evidence rather than relabeling it. No production Auth
 change has occurred. Sources: Supabase auth-admin-createuser docs and pinned
 v2.196.0 internal/api/admin.go plus internal/api/signup.go.
+
+### 2026-09-18 — narrow the added177 migration CI lane
+
+The existing PR workflow knows the scoped171/173–175/176 lanes but would send
+new177 through the retired blanket historical migration replay. Following the
+owner's fast-validation rule, add an exact-added177 lane only: transaction/RLS
+source boundary plus agreement between SQL hash and recorded current177 real
+rollback compilation. Actual local Auth/RPC/UI evidence remains separately
+identified; this source check does not claim to execute SQL. Every other
+migration diff retains its existing fail-closed path and required context.

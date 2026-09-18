@@ -174,6 +174,11 @@ jobs:
           else
             echo "scoped_retired_slot=false" >> "$GITHUB_OUTPUT"
           fi
+          if [[ "$boundary_diff" == $'A\tsupabase/migrations/177_platform_public_student_applications.sql' ]]; then
+            echo "scoped_student_intake=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scoped_student_intake=false" >> "$GITHUB_OUTPUT"
+          fi
           if [[ "$boundary_diff" == $'A\tsupabase/migrations/176_platform_docs_student_intake.sql' ]]; then
             echo "scoped_docs_intake=true" >> "$GITHUB_OUTPUT"
           else
@@ -193,7 +198,7 @@ jobs:
           node --test tests/staff-roles-sales-handoff-migrations.test.mjs
 
       - name: Test migration boundary
-        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' }}
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' }}
         run: npm run test:database:migration-boundaries
 
       - name: Check scoped Docs intake source boundary
@@ -209,6 +214,28 @@ jobs:
           assert.match(sql, /REVOKE ALL ON FUNCTION/i);
           assert.doesNotMatch(sql, /DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)|session_replication_role|ALTER\s+TABLE\s+auth\./i);
           console.log('Exact176 source boundary only; actual SQL compilation and rolled-back staff command proof are separate release evidence.');
+          NODE
+
+      - name: Check scoped public Student intake source boundary
+        if: ${{ steps.migration-scope.outputs.scoped_student_intake == 'true' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import assert from 'node:assert/strict';
+          const path = 'supabase/migrations/177_platform_public_student_applications.sql';
+          const sql = readFileSync(path, 'utf8');
+          const evidence = JSON.parse(readFileSync('docs/qa/student-public-onboarding-177-local-2026-09-18.json', 'utf8'));
+          assert.match(sql, /^BEGIN;/m);
+          assert.match(sql, /COMMIT;\s*$/);
+          assert.match(sql, /SECURITY DEFINER/i);
+          assert.match(sql, /REVOKE ALL ON FUNCTION/i);
+          assert.doesNotMatch(sql, /DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)|session_replication_role|ALTER\s+TABLE\s+auth\./i);
+          assert.equal(createHash('sha256').update(sql).digest('hex'), evidence.browserEvidence.sourceSha256[path]);
+          assert.equal(createHash('sha256').update(sql).digest('hex'), evidence.finalMigrationRollbackCompile.migrationSha256);
+          assert.equal(evidence.finalMigrationRollbackCompile.baseMigration, '176');
+          assert.equal(evidence.finalMigrationRollbackCompile.compiledMigration, '177');
+          console.log('Exact177 source boundary and recorded source hash only; real SQL rollback compilation and Auth/RPC/UI evidence remain separately recorded.');
           NODE
 
       - name: Check retired unused migration slot

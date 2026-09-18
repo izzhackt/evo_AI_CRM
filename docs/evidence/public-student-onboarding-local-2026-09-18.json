@@ -50,6 +50,21 @@
     "Production SMTP delivery",
     "Real customer acceptance",
     "Production deployment",
-    "New application with documents on the approved ownerless case"
-  ]
+    "New application with documents on the approved ownerless case",
+    "Next.js registration/confirmation server action integration with real Auth",
+    "Browser questionnaire and Admissions approval journey"
+  ],
+  "proofLevels": {
+    "realExecution": "Supabase Auth and direct SQL RPC calls on existing local QA",
+    "isolatedUnitTests": "16 production-function tests with injected Auth/RPC/Next dependencies; not integration or browser proof",
+    "fileHashes": "Snapshot of contemporaneous implementation, not a claim each module executed in the real RPC proof"
+  },
+  "correctedStaleDecisionCheck": {
+    "check": "stale_conflicting_decision_denied",
+    "payload": "valid_reject",
+    "expected": "40001",
+    "actual": "40001",
+    "passed": true,
+    "at": "2026-09-18T00:38:34.316Z"
+  }
 }

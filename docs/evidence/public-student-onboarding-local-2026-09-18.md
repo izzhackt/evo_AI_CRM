@@ -1,6 +1,6 @@
 # Public Student onboarding: scoped local proof
 
-Recorded on 2026-09-18. The [machine-readable receipt](public-student-onboarding-local-2026-09-18.json) binds 35 successful checks to the SHA-256 of the migration, contract, source adapter and action actually exercised. The repository HEAD alone does not identify the uncommitted implementation.
+Recorded on 2026-09-18. The [machine-readable receipt](public-student-onboarding-local-2026-09-18.json) records 35 successful direct Auth/RPC checks and hashes the contemporaneous migration, contract, source adapter and action. The live checks exercise Auth and SQL RPC behavior; they do not execute the Next.js actions or V3 adapters. Those modules have separate isolated unit tests with injected dependencies. The Next.js/browser journey remains unverified. The repository HEAD at the original run alone did not identify the then-uncommitted implementation.
 
 ## Environment and boundary
 
@@ -45,3 +45,7 @@ EVO_LOCAL_QA_DIR=/absolute/private/qa-directory node scripts/prove-public-studen
 The script uses real Auth and RPCs; its direct SQL calls are read-only state/grant evidence, never user impersonation. It writes tokens, sessions and the fictional Student password only to private local files. Do not commit those files or paste their contents into an issue, PR or chat. Console output and `receipt.json` contain check names only. The final approved QA identity remains available for the separate real UI journey; do not remove it without the run's cleanup authority.
 
 The original proof ran in three private checkpointed stages while correcting the migration. The checked-in harness consolidates those exact checks with parameterized local configuration and baseline-relative counts. It has not been rerun solely to manufacture a second green receipt; syntax validation is recorded separately above.
+
+## Review correction
+
+The initial stale-decision check accidentally included approval-only fields with a rejection payload, so it proved input rejection rather than revision conflict. On 2026-09-18 at 00:38:34 UTC the existing approved QA request was exercised once with a valid rejection payload (null direction and curator), a stale revision and a new request ID. The live RPC returned exactly `40001`. The reproduction now asserts that code; the correction is recorded in the JSON receipt. No new identity or state transition was needed.

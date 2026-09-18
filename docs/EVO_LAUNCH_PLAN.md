@@ -1,5 +1,22 @@
 # EVO Launch Plan
 
+## Unified workflow — released 2026-09-19
+
+Owner applied migrations 180-183 to iosckaqtovbbnssqcpde from main f2f64c8e
+(#849), ledger 001-183 confirmed. First release run 35389414703 deployed and
+then correctly rolled back on the browser proof: the smoke still waited for
+the route-tracker testid deleted by the pivot; during that window the prior
+app (97238e1e) ran against the new schema, so the replaced RPC surfaces
+(анкета approve, добавить продажу, директория, сводка) were degraded until
+the fix shipped. PR #850 repointed the smoke at the «Вузы и программы»
+anchor; exact-main CI and managed release 35390450281 passed on
+`f9a233c616e0438c837ed201ff66364468dbe516`. Accepted release
+`v3-r35390450281-a1-f9a233c6`; the running container reports the same OCI
+revision, healthy, zero restarts; public health 200 on both origins; release
+arm read back `false`. The automated proof covered admin login, case tabs,
+team chat and the student portal read-only path on the pivoted UI.
+
+
 ## Unified workflow — active 2026-09-18
 
 Owner plan docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md supersedes conflicting

@@ -28125,3 +28125,19 @@ the existing fallback. These checks are not database or business acceptance:
 compile the actual migrations against the current schema inside ROLLBACK,
 then verify authorized real account access and read-only report options after
 application. Do not invent sales or alter historical rows for a green check.
+
+### 2026-09-18 — retire the unused parallel migration slot172
+
+PR831 applied173–175, but managed release35296809755 stopped before SSH because
+the existing ledger gate requires contiguous source and production versions.
+The unrelated Student-signup draft had reserved172; it was never merged/applied
+to production and its owner has relinquished this slot and will use176+.
+Preserve applied173–175 and the exact contiguous-ledger guard. Add an explicit
+empty transaction at172 recording retirement of that unused reservation, not
+Student functionality, schema changes or fabricated business acceptance. Apply
+its exact reviewed source and ledger entry together; do not copy the draft or
+reuse its isolated QA evidence. The only additional light-CI path is this exact
+added file, with an assertion that its non-comment content is BEGIN/COMMIT only.
+Then release the newly reviewed exact main normally. The failed release did not
+replace the application; credentials and approved staff activation are real and
+verified independently. Arm was returned to false immediately after failure.

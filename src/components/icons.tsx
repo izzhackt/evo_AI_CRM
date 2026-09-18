@@ -8,6 +8,8 @@ export type IconName =
   | "file-check"
   | "plane"
   | "folder"
+  | "building"
+  | "book-open"
   | "message-circle"
   | "phone"
   | "message-square"
@@ -49,6 +51,10 @@ const PATHS: Record<IconName, string> = {
     '<path d="M17.8 19 14 16.1V21l-2-1-2 1v-4.9L6.2 19 5 17.5l5-5V7L3 3V1l9 4 9-4v2l-7 4v5.5l5 5Z"/>',
   folder:
     '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>',
+  building:
+    '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4"/><path d="M8 7h2"/><path d="M14 7h2"/><path d="M8 11h2"/><path d="M14 11h2"/><path d="M8 15h2"/><path d="M14 15h2"/>',
+  "book-open":
+    '<path d="M12 7c-1.8-1.3-4.2-2-7-2v13c2.8 0 5.2.7 7 2 1.8-1.3 4.2-2 7-2V5c-2.8 0-5.2.7-7 2Z"/><path d="M12 7v13"/>',
   "message-circle": '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   phone:
     '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/>',

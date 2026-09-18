@@ -6,26 +6,64 @@ import { ProfileAdmissionsWorkspacePanel } from "./ProfileAdmissionsWorkspace";
 import { ProfileHandoffAcknowledgement } from "./ProfileSalesTransition";
 import type { ProfileDraft } from "./types";
 import { PartnerPacketsPanel } from "./PartnerPacketsPanel";
-import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
 import { withDocsSection } from "./admissions-view";
 
+function retryHref(caseId: string, docsMode: boolean, packetsInitiallyOpen: boolean): string {
+  return withDocsSection(`/v3/profile?case=${caseId}&tab=route${packetsInitiallyOpen ? "&panel=packets#partner-packets" : ""}`, docsMode);
+}
+
+/**
+ * Вкладка «Маршрут» — независимые разделы, не одно чтение на всех.
+ *
+ * Этап и плейбук (`AdmissionsRoutePanel`), заявки/виза (уже в `draft.admissions`,
+ * без нового чтения) и пакеты партнёру (`PartnerPacketsPanel`) читаются и падают
+ * порознь: недоступный этап маршрута не гасит уже загруженные заявки, а
+ * недоступные пакеты не гасят этап. Раньше один `Promise.all` с одним `catch`
+ * превращал любой частичный сбой в пустую вкладку.
+ *
+ * При успешном чтении этапа канонические формы заявок/визы остаются внутри
+ * панели маршрута: открытый редактор этапа или идущий refresh блокируют их
+ * (fieldset), чтобы параллельная правка не ловила stale-version. Только при
+ * сбое чтения этапа раздел рендерится самостоятельно.
+ */
 export async function ProfileAdmissionsRoute({ actor, draft, studentName, docsMode = false, packetsInitiallyOpen = false }: { actor: ActivePlatformActor; draft: ProfileDraft; studentName: string; docsMode?: boolean; packetsInitiallyOpen?: boolean }) {
   const caseId = draft.admissions?.studentCaseId;
   if (!caseId || actor.presentationRole === "sales") return null;
-  const data = await Promise.all([readAdmissionsWorkspace(actor, caseId), readAdmissionsPlaybooks(actor)]).catch(() => null);
-  if (!data) return <section role="alert" className="space-y-3 rounded-card border border-border bg-surface p-5"><h3 className="font-semibold text-fg">Не удалось загрузить маршрут</h3><p className="text-sm text-fg-2">Проверьте доступ или повторите загрузку. Данные дела не изменены.</p><Link className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline" href={withDocsSection(`/v3/profile?case=${caseId}&tab=route${packetsInitiallyOpen ? "&panel=packets#partner-packets" : ""}`, docsMode)}>Повторить</Link></section>;
-    const [workspace, playbooks] = data;
-    const documents = draft.documents.flatMap((group) => group.kind === "active" ? group.items.map((item) => ({ id: item.id, name: item.name, applicationIds: item.caseLinkTargets.filter((target) => target.linked && target.kind === "university_application").map((target) => target.id) })) : []);
-    return <div className="space-y-5">
-      {draft.handoffAcknowledgement ? <ProfileHandoffAcknowledgement snapshot={draft.handoffAcknowledgement} /> : null}
+  const [workspace, playbooks] = await Promise.all([
+    readAdmissionsWorkspace(actor, caseId).catch(() => null),
+    readAdmissionsPlaybooks(actor).catch(() => []),
+  ]);
+  const documents = draft.documents.flatMap((group) => group.kind === "active" ? group.items.map((item) => ({ id: item.id, name: item.name, applicationIds: item.caseLinkTargets.filter((target) => target.linked && target.kind === "university_application").map((target) => target.id) })) : []);
+
+  const workspaceIntro = <>
+    <h3 className="font-semibold text-fg">Заявки, статусы и визовое дело</h3>
+    <p className="text-sm leading-6 text-fg-2">Создайте заявку или визовое дело здесь. Подтверждения партнёра и страны заполняются в этапе маршрута выше. Загруженные документы сами по себе не подтверждают подачу.</p>
+  </>;
+
+  return <div className="space-y-5">
+    {draft.handoffAcknowledgement ? <ProfileHandoffAcknowledgement snapshot={draft.handoffAcknowledgement} /> : null}
+
+    {workspace ? (
       <AdmissionsRoutePanel workspace={workspace} playbooks={playbooks} documents={documents} studentName={studentName}>
-      <details className="rounded-card border border-border bg-surface p-4 sm:p-5">
-        <summary className="min-h-11 cursor-pointer font-semibold text-fg">Заявки, статусы и визовое дело</summary>
-        <p className="my-3 text-sm leading-6 text-fg-2">Создайте заявку или визовое дело здесь. Подтверждения партнёра и страны заполняются в маршруте выше. Загруженные документы сами по себе не подтверждают подачу.</p>
-        <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
-      </details>
+        <section id="admissions-workspace" className="space-y-3">
+          {workspaceIntro}
+          <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
+        </section>
       </AdmissionsRoutePanel>
-      <PartnerPacketsPanel actor={actor} caseId={caseId} active={workspace.case.state === "active"} initiallyOpen={packetsInitiallyOpen} applications={workspace.applications.map(application => ({ id: application.id, name: `${application.institutionName} · ${application.programName}` }))} />
-      <CaseHelpWorkspace actor={actor} caseId={caseId} />
-    </div>;
+    ) : (
+      <>
+        <section role="alert" className="space-y-3 rounded-card border border-border bg-surface p-5">
+          <h3 className="font-semibold text-fg">Не удалось загрузить этап маршрута</h3>
+          <p className="text-sm text-fg-2">Заявки, виза и пакеты партнёру ниже читаются отдельно и могут быть доступны. Данные дела не изменены.</p>
+          <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline" href={retryHref(caseId, docsMode, packetsInitiallyOpen)}>Повторить</Link>
+        </section>
+        <section id="admissions-workspace" className="space-y-3">
+          {workspaceIntro}
+          <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
+        </section>
+      </>
+    )}
+
+    <PartnerPacketsPanel actor={actor} caseId={caseId} active={draft.admissions?.caseState === "active"} initiallyOpen={packetsInitiallyOpen} applications={(draft.admissions?.applications ?? []).map((application) => ({ id: application.universityApplicationId, name: `${application.institutionName} · ${application.programName}` }))} />
+  </div>;
 }

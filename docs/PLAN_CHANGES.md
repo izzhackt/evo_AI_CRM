@@ -28431,3 +28431,74 @@ claimed). Reviewer notes: must respect the 053 binding guard trigger and the
 177 public-application immutability trigger on student_cases (route updates
 are separate statements from the binding update; the RPC fails closed with a
 named error if a trigger forbids the update for a given case origin).
+
+### 2026-09-18 — admissions UX overhaul: unified workspace and design-system adoption
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: scope addition
+(UI/UX redesign slice). Affected plan section: new top-level launch-plan slice
+«Admissions UX overhaul»; touches staff (v3) shell, case workspace, dashboard,
+and Student Portal presentation layers only.
+
+Reason: the owner requested a full UX/UI rework of the platform with Admissions
+brought to a finished product: staff must do their whole daily student workflow
+inside the platform and students their part in the portal. The current UI has
+known composition gaps recorded in review notes: tasks invisible on the case
+card, case help buried in the Route tab, an all-or-nothing Route fetch, dead-end
+bare 404s outside the shell, one loading skeleton for eleven routes, duplicated
+shell markup on three pages, two incompatible Card components, unused ui.tsx
+primitives, sidebar icon collisions, and portal views split between two styling
+systems.
+
+Decision: one presentation-layer overhaul on branch
+`izzhackt/admissions-product-redesign` (worktree from main 39999cc2). Scope:
+(1) design-system adoption — one shared primitive set in `src/components/ui.tsx`
+used by all touched screens, single Card implementation, PartShell everywhere,
+in-shell not-found/error pages, loading skeletons for heavy routes, distinct
+sidebar icons; (2) case workspace — persistent case header (student, direction,
+curator, stage, next action, blocker), case tasks and case help surfaced on
+Overview, per-section degradation of the Route tab; (3) curator-first dashboard
+view on /v3/main for admissions-capability actors built from existing sources;
+(4) portal — PortalShell/Overview migrated off bespoke CSS modules onto the
+shared tokens, action queue without nested disclosures, notification deep links
+and bulk mark-as-read via the existing per-item RPC, upload progress feedback,
+explicit timezone labels. Constraints: no SQL migrations (177 stays reserved
+for PR830), no route/URL-contract changes, no new RPCs, quiet-UI and brand
+rules of DESIGN.md preserved, v3-brand-design test invariants preserved,
+Student assessment privacy untouched. Details in
+`docs/design/v3/admissions-ux-overhaul-run-plan.md`.
+
+Validation impact: per the 2026-09-18 fast-validation policy, scoped checks
+only: eslint, tsc, next build, `npm run test:brand-ui`, and the unit suites of
+touched contracts (portal presentation/tests where affected). The live-auth
+`test:v3:gate` browser pass and production smoke are not claimed; no live
+Supabase credentials exist in this environment and no production change is made
+by this slice. Reviewer notes: PR830 modifies `src/app/(v3)/v3/profile/page.tsx`
+and will need a rebase over this slice; the conflict surface is the same region
+already conflicting with #836.
+
+### 2026-09-18 — addendum: /v3/main route allowance for admissions and preview parity
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: scope
+clarification for the «Admissions UX overhaul» slice. Affected plan section:
+«Admissions UX overhaul» (this journal, earlier today).
+
+Reason: the slice's curator dashboard («Мой день») requires a real
+admissions-only actor to reach /v3/main at all; previously routeCapabilities
+allowed only sales/finance capabilities there, and the admissions fixed-role
+preview was likewise denied, so the admin preview would misrepresent the very
+screen this slice ships.
+
+Decision: routeCapabilities["/v3/main"] additionally accepts admissions.read
+(page-level allowance for data the actor's RPCs already authorize; RPC/RLS
+enforcement unchanged), the admissions fixed-role preview follows suit
+(ROUTE_CAPABILITY_ANY_OF and fixedRoleHomeRoute now point every fixed role at
+/v3/main), and the sales-report navigation item in preview mode requires the
+sales presentation capability instead of appearing for any previewed role.
+Pinned assertions in the role/navigation suites were updated to this contract
+in the same change.
+
+Validation impact: covered by the slice's scoped battery (fixed-role,
+scoped-staff-baseline, route-contract, navigation, supabase-staff-auth —
+all green). Reviewer notes: no SQL/RLS change; a curator's case list on
+«Мой день» comes from existing listPlatformStudentCases/readAdmissionsSummary
+reads scoped to their own membership.

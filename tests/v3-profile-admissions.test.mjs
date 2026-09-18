@@ -158,7 +158,7 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(adapter, /if \(leadProfile\) return leadProfile/u);
   assert.match(adapter, /leadId: link\?\.leadId \?\? null/u);
   assert.doesNotMatch(adapter, /if \(!link[^\n]*\) return null/u);
-  assert.match(workspace, /<Card id="applications" title="Заявки">/u);
+  assert.match(workspace, /<Card eyebrow id="applications" title="Заявки">/u);
   assert.match(workspace, /id="visa"[\s\S]*title="Виза"/u);
   assert.doesNotMatch(adapter, /actor\.authorityRole === "admin" && studentCase/u);
   assert.match(adapter, /listPlatformStudentCases/u);

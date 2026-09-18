@@ -4,6 +4,7 @@ import type {
   StudentPortalDocument,
   StudentPortalDocumentAction,
   StudentPortalEvoAction,
+  StudentPortalNotification,
   StudentPortalOverview,
   StudentPortalPayment,
   StudentPortalVisa,
@@ -153,4 +154,32 @@ export function paymentStatus(
 
 export function paymentCategory(payment: StudentPortalPayment): string | null {
   return paymentObligationCategory(payment.category);
+}
+
+export type PortalNotificationTarget = Readonly<{ href: string; label: string }>;
+
+/**
+ * One deep link per notification, derived from the durable `category` (and
+ * `case_help_answer`, the one event code with its own detail route). New
+ * category prefixes fall through to the overview rather than a dead end.
+ */
+export function portalNotificationTarget(
+  notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">,
+): PortalNotificationTarget {
+  if (notification.eventCode === "case_help_answer") {
+    return {
+      href: `/portal/notifications/${notification.notificationId}`,
+      label: "Прочитать ответ куратора",
+    };
+  }
+  if (notification.category.startsWith("document")) {
+    return { href: "/portal/documents", label: "Открыть документы" };
+  }
+  if (notification.category.startsWith("payment")) {
+    return { href: "/portal/payments", label: "Открыть оплату" };
+  }
+  if (notification.category.startsWith("application") || notification.category.startsWith("visa")) {
+    return { href: "/portal/applications", label: "Открыть заявки" };
+  }
+  return { href: "/portal", label: "Открыть поступление" };
 }

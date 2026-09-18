@@ -4,7 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Pipeline } from "@/components/v3/Pipeline";
-import { ManualLeadForm } from "@/components/v3/ManualLeadForm";
+import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
+import { PartShell } from "@/components/v3/PartShell";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
   PLATFORM_SALES_STAGES,
@@ -140,10 +141,11 @@ export default async function PipelinePart({
     ownerRows.some((row) => row.membershipId === query.owner);
 
   return (
-    <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
-        Воронка продаж
-      </h1>
+    <ManualLeadDisclosure>
+      <PartShell
+        title="Воронка продаж"
+        action={canCreateLead ? <ManualLeadTrigger /> : undefined}
+      >
       {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
         owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
 
@@ -273,7 +275,8 @@ export default async function PipelinePart({
           handedShowLatestHref={boardHref({ ...query, handed: "latest" })}
         />
       </div>
-    </main>
+      </PartShell>
+    </ManualLeadDisclosure>
   );
 }
 

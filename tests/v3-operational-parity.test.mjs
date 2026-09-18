@@ -13,10 +13,13 @@ test("both V3 role homes render the canonical role-scoped operational dashboard"
   const adapter = source("src/lib/v3/operations-source.ts");
   const overview = source("src/components/v3/OperationsOverview.tsx");
 
-  for (const page of [main, calendar]) {
-    assert.match(page, /readV3OperationalDashboard\(actor\)/u);
-    assert.match(page, /<OperationsOverview snapshot=\{operations\} \/>/u);
-  }
+  // Главная остаётся единственным местом с рабочим обзором: календарь на неё
+  // ссылается, а не рисует ту же сводку второй раз.
+  assert.match(main, /readV3OperationalDashboard\(actor\)/u);
+  assert.match(main, /<OperationsOverview snapshot=\{operations\} \/>/u);
+  assert.doesNotMatch(calendar, /OperationsOverview/u);
+  assert.match(calendar, /href="\/v3\/main"/u);
+  assert.match(calendar, /Сводка на Главной/u);
   assert.match(adapter, /readPlatformDashboardSnapshot\(actor\)/u);
   assert.match(adapter, /ActivePlatformActor/u);
   for (const key of ["sales", "clients", "tasks", "finance", "whatsapp"]) {
@@ -91,10 +94,10 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   const directoryLinks = source("src/components/v3/profile/admissions-view.ts");
   assert.match(directoryLinks, /case_before_at/u);
   assert.match(directoryLinks, /case_before_id/u);
-  assert.match(directory, /admissionsDirectoryHref\(params, directory\.nextCursor\)/u);
+  assert.match(directory, /admissionsDirectoryHref\(params, directory\.nextCursor, docsMode\)/u);
   assert.match(
     directory,
-    /row\.access === "full" \? `\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=route`/u,
+    /row\.access === "full" \? withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{docsMode \? "anketa" : "route"\}`, docsMode\)/u,
   );
   assert.match(directory, /row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null/u);
   assert.match(directory, /data-access=\{row\.access\}/u);

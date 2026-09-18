@@ -9,7 +9,6 @@ import {
   documentStatus,
   formatPortalTimestamp,
 } from "./presentation";
-import styles from "./DocumentsView.module.css";
 
 export function DocumentsView({
   documents,
@@ -30,19 +29,26 @@ export function DocumentsView({
   return (
     <PortalSection
       title="Чеклист"
-      description={`${documents.length} ${documentCountLabel(documents.length)} в вашем деле`}
+      description={`${documents.length} ${documentCountLabel(documents.length)} в вашем деле. Сроки указаны по времени Бишкека.`}
     >
-      <div className={styles.progress}>
-        <div className={styles.progressHeading}>
-          <p id="document-progress-label">Принято <strong>{approved} из {documents.length}</strong></p>
-          <p>{approved === documents.length ? "Все документы приняты" : "После проверки командой EVO"}</p>
+      <div className="border-b border-border p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-1 gap-x-4 text-sm">
+          <p id="document-progress-label" className="m-0 text-fg">Принято <strong className="font-semibold">{approved} из {documents.length}</strong></p>
+          <p className="m-0 text-fg-3">{approved === documents.length ? "Все документы приняты" : "После проверки командой EVO"}</p>
         </div>
-        <progress className={styles.progressBar} value={approved} max={documents.length} aria-labelledby="document-progress-label" />
-        <ul className={styles.counts} aria-label="Состояние документов">
-          {missing > 0 ? <li>Нужно добавить: <strong>{missing}</strong></li> : null}
-          {corrections > 0 ? <li>Нужны исправления: <strong>{corrections}</strong></li> : null}
-          {inReview > 0 ? <li>Ожидают проверки: <strong>{inReview}</strong></li> : null}
-        </ul>
+        <progress
+          className="mt-3 block h-2 w-full appearance-none overflow-hidden rounded-nav border-0 bg-surface-3 text-accent [&::-moz-progress-bar]:rounded-nav [&::-moz-progress-bar]:bg-accent [&::-webkit-progress-bar]:rounded-nav [&::-webkit-progress-bar]:bg-surface-3 [&::-webkit-progress-value]:rounded-nav [&::-webkit-progress-value]:bg-accent"
+          value={approved}
+          max={documents.length}
+          aria-labelledby="document-progress-label"
+        />
+        {missing > 0 || corrections > 0 || inReview > 0 ? (
+          <ul aria-label="Состояние документов" className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-fg-2">
+            {missing > 0 ? <li>Нужно добавить: <strong className="font-semibold">{missing}</strong></li> : null}
+            {corrections > 0 ? <li>Нужны исправления: <strong className="font-semibold">{corrections}</strong></li> : null}
+            {inReview > 0 ? <li>Ожидают проверки: <strong className="font-semibold">{inReview}</strong></li> : null}
+          </ul>
+        ) : null}
       </div>
       <ul className="divide-y divide-border">
         {documents.map((document) => {

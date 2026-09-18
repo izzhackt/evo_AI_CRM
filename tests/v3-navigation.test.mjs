@@ -25,7 +25,7 @@ function links(model) {
 const expectedRoleLinks = {
   admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
   sales: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
-  admissions: ["admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
+  admissions: ["home", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -97,7 +97,10 @@ test("summary is active only for one explicit summary value with no profile targ
 });
 
 test("forbidden and unknown paths never mark an unrelated link current", () => {
-  for (const href of ["/v3/main", "/v3/main?view=sales", "/v3/pipeline", "/v3/settings"]) {
+  // /v3/main is the admissions «Мой день» home now; only the sales report view
+  // and sales-only routes stay outside that role's navigation.
+  assert.equal(navigation("admissions", "/v3/main").activeId, "home");
+  for (const href of ["/v3/main?view=sales", "/v3/pipeline", "/v3/settings"]) {
     assert.equal(navigation("admissions", href).activeId, null, href);
   }
   for (const href of ["/v3/settings", "/v3/calendar"]) {

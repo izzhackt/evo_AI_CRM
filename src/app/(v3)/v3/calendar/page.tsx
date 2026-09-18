@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Card } from "@/components/ui";
 import { PartShell } from "@/components/v3/PartShell";
-import { OperationsOverview } from "@/components/v3/OperationsOverview";
 import { Calendar } from "@/components/v3/calendar/Calendar";
 import {
   calendarUndatedContinuationHref,
@@ -15,7 +16,6 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { parsePlatformAdmissionsUuid } from "@/lib/platform-admissions";
 import { parseCalendarUndatedTaskCursor } from "@/lib/v3/calendar-contract";
 import { readCalendarTaskTarget, readCalendarWorkspace, readNowMinutes, readToday } from "@/lib/v3/calendar-source";
-import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Календарь" };
@@ -77,10 +77,7 @@ export default async function CalendarPart({
   const requestedCursor = undatedCursorFromParams(params);
   const undatedCursor = target ? null : requestedCursor;
   const days = gridDays(view, day);
-  const [workspace, operations] = await Promise.all([
-    readCalendarWorkspace(actor, days[0], days[days.length - 1], undatedCursor, target),
-    readV3OperationalDashboard(actor),
-  ]);
+  const workspace = await readCalendarWorkspace(actor, days[0], days[days.length - 1], undatedCursor, target);
   const taskRequestIds = Object.fromEntries(
     workspace.tasks.map((task) => [
       task.id,
@@ -126,7 +123,15 @@ export default async function CalendarPart({
           taskRequestIds={taskRequestIds}
           basePath="/v3/calendar"
         />
-        <OperationsOverview snapshot={operations} />
+        <Card>
+          <Link
+            href="/v3/main"
+            className="flex min-h-11 items-center justify-between gap-3 text-sm font-semibold text-fg hover:text-accent-text"
+          >
+            Сводка на Главной
+            <span aria-hidden="true">→</span>
+          </Link>
+        </Card>
       </div>
     </PartShell>
   );

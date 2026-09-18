@@ -118,9 +118,18 @@ export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentN
   </div>;
 }
 
+/**
+ * Факты этапа — заголовок и таблица, не второй уровень аккордеона.
+ *
+ * Раньше каждая группа фактов была вложенным `<details>` внутри уже
+ * раскрываемого раздела маршрута — два уровня схлопывания подряд. Здесь
+ * группа всегда видна; раскрывается только сам раздел маршрута снаружи.
+ */
 function FactSection({ title, fields, values, action, documents }: { title: string; fields: readonly AdmissionsField[]; values: Record<string, string | undefined>; action: React.ReactNode; documents: readonly { id: string; name: string }[] }) {
   const shown = fields.filter((field) => values[field.key]);
-  return <details className="rounded-nav border border-border p-3"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg">{title}<span className="ml-2 font-normal text-fg-3">{shown.length ? `${shown.length} заполнено` : "не заполнено"}</span></summary>
-    {shown.length ? <dl className="my-3 grid gap-3 sm:grid-cols-2">{shown.map((field) => <div key={field.key} className="min-w-0"><dt className="text-xs text-fg-3">{field.label}</dt><dd className="mt-1 break-words whitespace-pre-wrap text-sm leading-6 text-fg">{field.key === "documentSlotIds" || field.key === "documentExceptionSlotIds" ? values[field.key]!.split(",").map((id) => documents.find((doc) => doc.id === id)?.name ?? "Недоступный пункт документа").join(", ") : admissionsValueLabel(values[field.key]!)}</dd></div>)}</dl> : <p className="my-3 text-sm text-fg-2">Подтверждений пока нет. Это не означает, что пункт выполнен или не требуется.</p>}{action}
-  </details>;
+  return <div className="rounded-nav border border-border p-3">
+    <h4 className="text-sm font-medium text-fg">{title}<span className="ml-2 font-normal text-fg-3">{shown.length ? `${shown.length} заполнено` : "не заполнено"}</span></h4>
+    {shown.length ? <dl className="mt-3 grid gap-3 sm:grid-cols-2">{shown.map((field) => <div key={field.key} className="min-w-0"><dt className="text-xs text-fg-3">{field.label}</dt><dd className="mt-1 break-words whitespace-pre-wrap text-sm leading-6 text-fg">{field.key === "documentSlotIds" || field.key === "documentExceptionSlotIds" ? values[field.key]!.split(",").map((id) => documents.find((doc) => doc.id === id)?.name ?? "Недоступный пункт документа").join(", ") : admissionsValueLabel(values[field.key]!)}</dd></div>)}</dl> : <p className="mt-3 text-sm text-fg-2">Подтверждений пока нет. Это не означает, что пункт выполнен или не требуется.</p>}
+    {action ? <div className="mt-3">{action}</div> : null}
+  </div>;
 }

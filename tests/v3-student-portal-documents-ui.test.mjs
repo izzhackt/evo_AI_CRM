@@ -21,13 +21,30 @@ test("Student document controls use the single private Portal API surface", () =
     controls,
     /`\/api\/portal\/document-versions\/\$\{encodeURIComponent\(documentVersionId\)\}\/download`/u,
   );
-  assert.match(controls, /method: "POST"/u);
+  assert.match(controls, /xhr\.open\(\s*"POST",/u);
   assert.match(controls, /response\.status !== 201/u);
   assert.match(controls, /exactUploadReceipt\(payload, documentSlotId\)/u);
   assert.match(controls, /formRef\.current\?\.reset\(\)/u);
   assert.match(controls, /router\.refresh\(\)/u);
   assert.doesNotMatch(controls, /request_id|requestId/u);
   assert.doesNotMatch(controls, /service_role|SUPABASE|createClient/u);
+});
+
+test("Student upload posts through XMLHttpRequest so upload progress is a real percentage", () => {
+  assert.match(controls, /new XMLHttpRequest\(\)/u);
+  assert.match(controls, /xhr\.upload\.onprogress = /u);
+  assert.match(controls, /event\.lengthComputable/u);
+  assert.match(
+    controls,
+    /Math\.round\(\(event\.loaded \/ event\.total\) \* 100\)/u,
+  );
+  assert.match(controls, /setRequestHeader\("Idempotency-Key", idempotencyKey\)/u);
+  // Four states: choosing (idle) -> uploading n% -> confirming -> receipt.
+  assert.match(controls, /status: "idle"/u);
+  assert.match(controls, /status: "uploading"; progress: number/u);
+  assert.match(controls, /status: "confirming"/u);
+  assert.match(controls, /status: "success"; message: string/u);
+  assert.doesNotMatch(controls, /await fetch\(/u);
 });
 
 test("Student upload is file-only, bounded and exposes accessible outcome state", () => {
@@ -52,7 +69,7 @@ test("Student upload reuses a hidden browser idempotency key until success or fi
     /uploadIdempotencyKeyRef\.current \?\? crypto\.randomUUID\(\)/u,
   );
   assert.match(controls, /uploadIdempotencyKeyRef\.current = idempotencyKey;/u);
-  assert.match(controls, /"Idempotency-Key": idempotencyKey/u);
+  assert.match(controls, /setRequestHeader\("Idempotency-Key", idempotencyKey\)/u);
 
   const uploadBody = controls.slice(
     controls.indexOf("  async function upload"),

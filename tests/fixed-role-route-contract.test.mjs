@@ -239,8 +239,10 @@ test("the active V3 route policy exposes each exact presentation interface", () 
   for (const route of ["/v3/main", "/v3/pipeline"]) {
     assert.equal(fixedRoleCanAccessRoute("admin", route), true, route);
     assert.equal(fixedRoleCanAccessRoute("sales", route), true, route);
-    assert.equal(fixedRoleCanAccessRoute("admissions", route), false, route);
   }
+  // «Мой день» gives admissions its own /v3/main dashboard; pipeline stays sales-only.
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/main"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/pipeline"), false);
 
   assert.equal(fixedRoleCanAccessRoute("admin", "/v3/calendar"), true);
   assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/calendar"), true);
@@ -318,7 +320,7 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
 test("root and V3 entry share the exact role-home policy", () => {
   assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admin" === "admin" ? null : "admin", permissionKeys: [] }), "/v3/main");
   assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "sales" === "admin" ? null : "sales", permissionKeys: [] }), "/v3/main");
-  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admissions" === "admin" ? null : "admissions", permissionKeys: [] }), "/v3/calendar");
+  assert.equal(platformHomeRoute({ systemRole: "admin", presentationRole: "admissions" === "admin" ? null : "admissions", permissionKeys: [] }), "/v3/main");
 
   for (const path of ["src/app/page.tsx", "src/app/(v3)/v3/page.tsx"]) {
     const entry = source(path);

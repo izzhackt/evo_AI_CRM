@@ -1,17 +1,52 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
+import { createContext, useActionState, useContext, useRef, useState } from "react";
 import { btnCls, inputCls, labelCls } from "@/components/ui";
 import { createManualLeadAction } from "@/lib/platform-manual-lead-actions";
 import { LEAD_DIRECTIONS, MANUAL_LEAD_SOURCES, type ManualLeadState } from "@/lib/platform-manual-lead-contract";
 
+type DisclosureState = Readonly<{ open: boolean; toggle: () => void }>;
+const ManualLeadDisclosureContext = createContext<DisclosureState | null>(null);
+
+/**
+ * Общее состояние открытия для кнопки в шапке экрана (`ManualLeadTrigger`,
+ * действие `PartShell`) и панели формы ниже (`ManualLeadForm`, в содержимом
+ * страницы) — один главный вход, а не собственная кнопка внутри списка.
+ */
+export function ManualLeadDisclosure({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [open, setOpen] = useState(false);
+  return (
+    <ManualLeadDisclosureContext.Provider value={{ open, toggle: () => setOpen((value) => !value) }}>
+      {children}
+    </ManualLeadDisclosureContext.Provider>
+  );
+}
+
+function useManualLeadDisclosure(): DisclosureState {
+  const ctx = useContext(ManualLeadDisclosureContext);
+  if (!ctx) throw new Error("ManualLeadTrigger/ManualLeadForm requires ManualLeadDisclosure");
+  return ctx;
+}
+
+export function ManualLeadTrigger() {
+  const { open, toggle } = useManualLeadDisclosure();
+  return (
+    <button type="button" className={btnCls} aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle}>
+      Добавить лида
+    </button>
+  );
+}
+
 export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[] }>) {
+  const { open } = useManualLeadDisclosure();
   const [requestId, setRequestId] = useState(props.requestId);
-  return <details className="mt-5 rounded-card border border-border bg-surface p-4">
-    <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-accent-text">Добавить лида</summary>
-    {props.owners.length ? <ManualLeadEditor key={requestId} {...props} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
-      : <p role="status" className="mt-3 text-sm text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
-  </details>;
+  if (!open) return null;
+  return (
+    <div id="manual-lead-panel" className="mt-5 rounded-card border border-border bg-surface p-4">
+      {props.owners.length ? <ManualLeadEditor key={requestId} {...props} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
+        : <p role="status" className="text-sm text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
+    </div>
+  );
 }
 function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void }>) {
   const frozen = useRef<FormData | null>(null);
@@ -32,7 +67,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
     invalid: "Проверьте имя, контакт и дату следующего действия.", forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
     request_conflict: "Запрос уже использован с другими данными. Сначала проверьте воронку.", unavailable: "Результат пока неизвестен. Данные сохранены в форме; безопасно повторите тот же запрос.",
   };
-  return <form action={action} className="mt-4 max-w-3xl space-y-4" aria-busy={pending}>
+  return <form action={action} className="max-w-3xl space-y-4" aria-busy={pending}>
     <input type="hidden" name="request_id" value={currentRequestId} />
     <fieldset disabled={locked} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">

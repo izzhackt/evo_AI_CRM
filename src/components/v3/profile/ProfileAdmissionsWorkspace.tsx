@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
 import { Pill, type PillTone } from "@/components/v3/Pill";
-import { btnCls, btnGhostCls, cn, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
   changePlatformUniversityApplicationAction,
   createPlatformUniversityApplicationAction,
@@ -39,7 +39,6 @@ import {
   visaStatus,
 } from "@/lib/v3/wording";
 
-import { Card } from "./Card";
 import { ApplicationUniversitySelector } from "./ApplicationUniversitySelector";
 import type { ProfileAdmissionsWorkspace } from "./types";
 
@@ -502,7 +501,7 @@ export function ProfileAdmissionsWorkspacePanel({
 
   return (
     <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
-      <Card id="applications" title="Заявки">
+      <Card eyebrow id="applications" title="Заявки">
         {workspace.applications.length === 0 ? (
           <p className="px-4 py-3 text-sm text-fg-3">Заявок пока нет.</p>
         ) : (
@@ -584,6 +583,7 @@ export function ProfileAdmissionsWorkspacePanel({
       </Card>
 
       <Card
+        eyebrow
         id="visa"
         title="Виза"
         aside={workspace.visa ? (
@@ -619,7 +619,7 @@ export function ProfileFinanceControls({
   const canRelease = workspace.caseState === "active" && !isStaffPreview(actor) && staffHasPermission(actor, "finance.stop.manage");
 
   return (
-    <Card title="Управление стопами">
+    <Card eyebrow title="Управление стопами">
       {workspace.finance.obligations.length === 0 ? (
         <p className="px-4 py-3 text-sm text-fg-3">
           Финансовых обязательств нет — ставить стоп не на что.

@@ -16,7 +16,7 @@ import type { PlatformContractMutationOutcome } from "@/lib/platform-contract-wo
 import type { PlatformStudentCaseHandoffContext } from "@/lib/platform-student-handoff";
 import { leadStage, source as sourceWord } from "@/lib/v3/wording";
 
-import { Card } from "./Card";
+import { Card } from "@/components/ui";
 import {
   ContractDraftReportWorkspace,
   type ContractDraftReportActions,
@@ -101,6 +101,7 @@ function HandoffContext({ handoff }: Readonly<{
 
   return (
     <Card
+      eyebrow
       title="Передача в Admissions"
       aside={<Pill tone={exceptional ? "warn" : "ok"}>{modeLabel}</Pill>}
     >

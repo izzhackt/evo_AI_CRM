@@ -4,15 +4,15 @@ import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { financeMoney, type FinanceEntryWorkspace as Workspace } from "@/lib/platform-finance-entry-contract";
 import { readFinanceEntryWorkspace } from "@/lib/v3/finance-entry-source";
 import { FinanceEntryForm } from "./FinanceEntryForms";
-import { Card } from "./Card";
+import { Card } from "@/components/ui";
 
 export async function FinanceEntryWorkspace({ caseId }: Readonly<{ caseId: string }>) {
   const actor = await requirePlatformStaffActor();
   if (isStaffPreview(actor)) return null;
   let workspace: Workspace;
   try { workspace = await readFinanceEntryWorkspace(actor, caseId); }
-  catch { return <Card title="Оплаты и возвраты"><p role="alert" className="px-4 py-3 text-sm text-fg-2">Финансовая история сейчас недоступна. Обновите страницу; новые операции пока остановлены.</p></Card>; }
-  return <Card title="Оплаты и возвраты"><div className="px-4 py-3">
+  catch { return <Card eyebrow title="Оплаты и возвраты"><p role="alert" className="px-4 py-3 text-sm text-fg-2">Финансовая история сейчас недоступна. Обновите страницу; новые операции пока остановлены.</p></Card>; }
+  return <Card eyebrow title="Оплаты и возвраты"><div className="px-4 py-3">
     {workspace.canCreate ? <FinanceEntryForm workspace={workspace} operation="obligation" requestId={randomUUID()} /> : null}
     {workspace.canRecord && workspace.obligations.length > 0 ? <>
       <FinanceEntryForm workspace={workspace} operation="payment" requestId={randomUUID()} />

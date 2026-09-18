@@ -46,7 +46,7 @@ test("fixed-role Admin preview remains distinct from the dynamic staff fixture",
   assert.equal(staffCanAccessRoute(admin, "/v3/calendar"), false);
   assert.equal(staffHomeRoute(admin), "/v3/main");
   const admissionsPreview = { ...admin, presentationRole: "admissions" };
-  assert.equal(staffCanAccessRoute(admissionsPreview, "/v3/main"), false);
+  assert.equal(staffCanAccessRoute(admissionsPreview, "/v3/main"), true);
   assert.equal(staffCanAccessRoute(admissionsPreview, "/v3/pipeline"), false);
-  assert.equal(staffHomeRoute(admissionsPreview), "/v3/calendar");
+  assert.equal(staffHomeRoute(admissionsPreview), "/v3/main");
 });

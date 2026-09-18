@@ -91,7 +91,8 @@ export function buildV3Navigation(
 ) {
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
-    && (link.id !== "sales-report" || isStaffPreview(actor) || staffCan(actor, "sales.report.read"))
+    && (link.id !== "sales-report"
+      || (isStaffPreview(actor) ? staffPresentationCan(actor, "sales.read") : staffCan(actor, "sales.report.read")))
     && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;

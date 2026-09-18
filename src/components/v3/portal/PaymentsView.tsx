@@ -24,7 +24,7 @@ export function PaymentsView({
   }
 
   return (
-    <PortalSection title="Начисления">
+    <PortalSection title="Начисления" description="Сроки указаны по времени Бишкека.">
       <ul className="divide-y divide-border">
         {payments.map((payment, index) => {
           const status = paymentStatus(payment);

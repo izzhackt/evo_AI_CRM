@@ -25,6 +25,7 @@ import {
   normalizeJournalFilters,
   type JournalFilters,
 } from "@/lib/v3/settings-journal-contract";
+import { settingsBlockedWahaDetail, settingsStatusWords } from "@/lib/v3/wording";
 
 export type { JournalFilters } from "@/lib/v3/settings-journal-contract";
 
@@ -74,14 +75,25 @@ const readProviderFacts = cache(
   },
 );
 
+function formatSettingsObservedAt(value: string | undefined): string {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || !Number.isFinite(parsed.valueOf())) return "Время проверки неизвестно.";
+  const date = new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Asia/Bishkek",
+  }).format(parsed);
+  return `Данные на ${date} (Бишкек).`;
+}
+
 function wahaState(facts: ProviderFacts): Integration {
-  const observed = facts.waha?.observedAt ?? "нет наблюдения";
+  const observed = formatSettingsObservedAt(facts.waha?.observedAt);
   if (facts.wahaDisplay === "ready") {
     return {
       name: "WhatsApp",
       state: "готова",
       ok: true,
-      detail: `crm_primary · WORKING · наблюдение ${observed}`,
+      detail: `Подключение подтверждено. ${observed}`,
     };
   }
   if (facts.wahaDisplay === "blocked") {
@@ -89,14 +101,14 @@ function wahaState(facts: ProviderFacts): Integration {
       name: "WhatsApp",
       state: "заблокирована",
       ok: false,
-      detail: `crm_primary · ${facts.waha?.status ?? "нет статуса"} · наблюдение ${observed}`,
+      detail: `${settingsBlockedWahaDetail(facts.waha?.status)} ${observed}`,
     };
   }
   return {
     name: "WhatsApp",
     state: "не подтверждена",
     ok: false,
-    detail: "для crm_primary нет сохранённого подтверждения состояния",
+    detail: "Нет данных о подключении.",
   };
 }
 
@@ -106,14 +118,16 @@ function geminiState(facts: ProviderFacts): Integration {
       name: "Gemini · предложения",
       state: "настроен, не проверен",
       ok: false,
-      detail: "ключ настроен; этот экран не выполняет provider call",
+      detail: "Работа сервиса ещё не проверена.",
     };
   }
   return {
     name: "Gemini · предложения",
     state: facts.geminiDisplay === "blocked" ? "заблокирован" : "не настроен",
     ok: false,
-    detail: "provider readiness закрыт конфигурацией",
+    detail: facts.geminiDisplay === "blocked"
+      ? "Параметры подключения некорректны."
+      : "Подключение не настроено.",
   };
 }
 
@@ -123,14 +137,14 @@ function amoState(facts: ProviderFacts): Integration {
       name: "amoCRM",
       state: "настроена, не проверена",
       ok: false,
-      detail: "маршруты и token file готовы; этот экран не пишет в amoCRM",
+      detail: "Синхронизация ещё не проверена.",
     };
   }
   return {
     name: "amoCRM",
     state: "заблокирована",
     ok: false,
-    detail: `command readiness: ${facts.amo.reason}`,
+    detail: settingsStatusWords.amoBlocked[facts.amo.reason],
   };
 }
 
@@ -147,8 +161,7 @@ const readOperationsReadiness = cache(loadPlatformOperationsReadiness);
 export async function readPlatformFact(): Promise<string> {
   const readiness = await readOperationsReadiness();
   const supabase = readiness.components.supabase;
-  const age = supabase.age_seconds === null ? "возраст неизвестен" : `${supabase.age_seconds} с`;
-  return `Supabase · ${supabase.status} · ${age} · наблюдение ${readiness.observed_at}`;
+  return `${settingsStatusWords.database[supabase.status]} · ${formatSettingsObservedAt(readiness.observed_at)}`;
 }
 
 export type Health = Readonly<{
@@ -179,7 +192,7 @@ export async function readHealth(
       state: whatsapp.state,
       detail: whatsapp.detail,
       tone: whatsapp.ok ? "ok" : "warn",
-      blocker: whatsapp.ok ? null : "Нет свежего сохранённого WORKING для crm_primary",
+      blocker: whatsapp.ok ? null : "Нужна актуальная проверка подключения.",
       where: whatsapp.ok ? null : "platform.staff_waha_session_health",
     },
     {
@@ -187,7 +200,9 @@ export async function readHealth(
       state: gemini.state,
       detail: gemini.detail,
       tone: gemini.ok ? "ok" : facts.geminiDisplay === "not_configured" ? "off" : "warn",
-      blocker: gemini.ok ? null : "Конфигурация не является реальной provider-проверкой",
+      blocker: gemini.ok ? null : facts.geminiDisplay === "configured_not_verified"
+        ? "Нужна проверка работы сервиса."
+        : "Нужно проверить настройки подключения.",
       where: gemini.ok ? null : "EVO_PLATFORM_GEMINI_API_KEY",
     },
     {
@@ -195,15 +210,17 @@ export async function readHealth(
       state: amo.state,
       detail: amo.detail,
       tone: amo.ok ? "ok" : "warn",
-      blocker: amo.ok ? null : "Нет подтверждённой готовности command path",
+      blocker: amo.ok ? null : facts.amo.status === "ready"
+        ? "Нужна проверка синхронизации."
+        : "Нужно проверить настройки синхронизации.",
       where: amo.ok ? null : "canonical amoCRM command readiness",
     },
     {
-      name: "Supabase",
-      state: supabase.status,
-      detail: `наблюдение ${readiness.observed_at}`,
+      name: "База данных",
+      state: settingsStatusWords.database[supabase.status],
+      detail: formatSettingsObservedAt(readiness.observed_at),
       tone: supabase.status === "ready" ? "ok" : "warn",
-      blocker: supabase.status === "ready" ? null : "Нет свежего operational readiness",
+      blocker: supabase.status === "ready" ? null : "Нужна актуальная проверка подключения к базе данных.",
       where: supabase.status === "ready" ? null : "EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED",
     },
   ];

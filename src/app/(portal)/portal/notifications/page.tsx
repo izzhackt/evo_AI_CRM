@@ -17,7 +17,7 @@ export default async function StudentPortalNotificationsPage() {
   return (
     <PortalPage
       title="Уведомления"
-      description="Важные изменения и сроки по вашему делу без внутренних комментариев команды."
+      description="Важные изменения и сроки по вашему поступлению."
     >
       <NotificationsView
         notifications={notifications}

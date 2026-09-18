@@ -16,7 +16,7 @@ export default async function StudentPortalPaymentsPage() {
   return (
     <PortalPage
       title="Оплата"
-      description="Опубликованные обязательства: сколько начислено, оплачено и осталось."
+      description="Сколько начислено, оплачено и осталось."
     >
       <PaymentsView payments={payments} />
     </PortalPage>

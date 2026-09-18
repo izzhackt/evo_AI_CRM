@@ -21,7 +21,7 @@ export function NotificationsView({
     return (
       <PortalEmptyState
         title="Новых уведомлений нет"
-        description="Безопасные обновления по вашему поступлению появятся здесь."
+        description="Здесь появятся важные изменения и сроки по вашему поступлению."
       />
     );
   }

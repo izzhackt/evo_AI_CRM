@@ -71,12 +71,12 @@ export function OperationsOverview({
         className="text-lg font-semibold text-fg"
         id="operations-overview-title"
       >
-        Операционная работа
+        Рабочий обзор
       </h2>
 
       {snapshot.cards.length === 0 ? (
         <p className="mt-4 rounded-card border border-border bg-surface px-4 py-8 text-center text-sm text-fg-3">
-          Для этой роли нет доступных операционных очередей.
+          Нет доступных разделов для обзора.
         </p>
       ) : (
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 @5xl:grid-cols-5">
@@ -109,7 +109,7 @@ export function OperationsOverview({
         <h3 className="text-sm font-semibold text-fg">Требует внимания</h3>
         {snapshot.attentionItems.length === 0 ? (
           <p className="mt-2 text-sm text-fg-3">
-            В доступных очередях срочных отклонений нет.
+            В доступных разделах ничего не требует срочного внимания.
           </p>
         ) : (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 @5xl:grid-cols-3">

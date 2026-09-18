@@ -20,7 +20,7 @@ export function DocumentsView({
     return (
       <PortalEmptyState
         title="Список документов пока пуст"
-        description="Когда команда EVO опубликует требования для вашего дела, они появятся здесь."
+        description="Здесь появится список документов, которые нужно предоставить команде EVO."
       />
     );
   }

@@ -18,7 +18,7 @@ function ActionDetails({ action }: { action: StudentPortalAction }) {
   const due = studentActionDueLabel(action);
   return <>
     <p className={styles.explanation}>{action.kind === "payment"
-      ? "Проверьте обязательство, оставшуюся сумму и указания команды EVO."
+      ? "Проверьте сумму, срок оплаты и указания команды EVO."
       : action.kind === "replace_document"
         ? "Откройте замечания к документу и загрузите исправленный файл."
         : "Откройте требование к документу и добавьте нужный файл."}</p>
@@ -27,7 +27,7 @@ function ActionDetails({ action }: { action: StudentPortalAction }) {
       <div><dt>{action.kind === "payment" ? "Осталось оплатить" : "Документ"}</dt><dd>{action.kind === "payment" ? formatPortalMoney(action.amountMinor, action.currency) : action.label}</dd></div>
     </dl>
     <Link className={`${styles.primaryAction} min-h-11`} href={actionHref(action)}>
-      {action.kind === "payment" ? "Посмотреть обязательство" : "Открыть документ"}<span aria-hidden="true">↗</span>
+      {action.kind === "payment" ? "Посмотреть начисление" : "Открыть документ"}<span aria-hidden="true">↗</span>
     </Link>
   </>;
 }
@@ -56,7 +56,7 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
           <h3>{overview ? "Сейчас действий от вас не требуется" : "План поступления пока не опубликован"}</h3>
           <p>{overview
             ? "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору."
-            : "Здесь появятся текущий этап, следующий шаг и контакт куратора, когда команда EVO закрепит их за вашим делом."}</p>
+            : "Команда EVO добавит сюда этапы поступления, следующий шаг и контакт куратора."}</p>
           <Link className={styles.exploreLink} href="/portal/universities">Изучить университеты <span aria-hidden="true">→</span></Link>
         </div>}
         {remaining.length ? <div className={styles.queue}>
@@ -66,9 +66,9 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
             <div className={styles.queueDetails}><ActionDetails action={action} /></div>
           </details>)}
         </div> : null}
-        <nav className={styles.sheetLinks} aria-label="Документы и обязательства">
+        <nav className={styles.sheetLinks} aria-label="Документы и оплата">
           <Link href="/portal/documents">Все документы <span aria-hidden="true">↗</span></Link>
-          <Link href="/portal/payments">Платёжные обязательства <span aria-hidden="true">↗</span></Link>
+          <Link href="/portal/payments">Все начисления <span aria-hidden="true">↗</span></Link>
         </nav>
       </section>
       {primary ? <p className={styles.queueHint}>Ближайший срок — первым. Подробности остальных действий можно раскрыть в списке.</p> : null}
@@ -81,12 +81,11 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
         <div className={styles.teamTaskBody}>
           <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
           {evoDue ? <p>Срок: {evoDue}</p> : null}
-          <p>Исполнитель этой задачи — команда EVO.</p>
         </div>
       </details> : <p className={styles.teamEmpty}>Нет опубликованной задачи команды EVO.</p>}
       <div className={styles.curator}>
         <p>Ваш куратор</p>
-        {overview?.curatorDisplayName ? <strong>{overview.curatorDisplayName}</strong> : <span>Куратор пока не назначен. Его имя появится здесь после назначения.</span>}
+        {overview?.curatorDisplayName ? <strong>{overview.curatorDisplayName}</strong> : <span>Куратор пока не назначен.</span>}
       </div>
       <div className={styles.helpCard}>
         <h3>Вопрос куратору</h3>

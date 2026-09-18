@@ -22,7 +22,8 @@ function summaryMetrics(summary: AdmissionsSummary): Metric[] {
     { label: "В работе", value: total("active"), insteadOfDelta: null },
     { label: "Есть просрочки", value: total("overdue"), insteadOfDelta: null },
     { label: "Ждём партнёра", value: total("awaiting_partner"), insteadOfDelta: null },
-    { label: "Передача не принята", value: total("awaiting_ack"), insteadOfDelta: null },
+    // Plan §7's own wording for the curator-facing state (matches admissions-view.ts's ATTENTION_LABELS.awaiting_ack).
+    { label: "Ожидает принятия", value: total("awaiting_ack"), insteadOfDelta: null },
   ];
 }
 

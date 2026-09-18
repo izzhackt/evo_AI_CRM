@@ -66,7 +66,8 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     id: "admissions",
     label: "Поступление",
     links: [
-      { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Рабочий список" },
+      // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
+      { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
       { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },
       { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
       {

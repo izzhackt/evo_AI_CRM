@@ -136,6 +136,8 @@ export type V3ProfileCaseDirectoryRow = Readonly<{
   admissionsDirection?: AdmissionsDirection | null;
   nextAction?: string | null;
   nextActionDueOn?: string | null;
+  /** S3 (plan §7): «Ожидает принятия»/«Нужно назначить куратора» row badges. [] for sales_summary rows. */
+  attentionFlags: readonly AdmissionsAttention[];
 }>;
 
 export type V3ProfileCaseDirectory = Readonly<{
@@ -919,6 +921,7 @@ function directoryRow(
       targetCountry: studentCase.targetCountry,
       targetDegree: studentCase.targetDegree,
       updatedAt: studentCase.handoffAt,
+      attentionFlags: [],
     });
   }
   if (presentationRole === "sales") {
@@ -938,6 +941,7 @@ function directoryRow(
       targetCountry: studentCase.targetCountry,
       targetDegree: studentCase.targetDegree,
       updatedAt: studentCase.handoffAt,
+      attentionFlags: [],
     });
   }
   const studentCase = item.studentCase;
@@ -959,6 +963,7 @@ function directoryRow(
     targetCountry: studentCase.targetCountry,
     targetDegree: studentCase.targetDegree,
     updatedAt: studentCase.updatedAt,
+    attentionFlags: studentCase.attentionFlags,
   });
 }
 

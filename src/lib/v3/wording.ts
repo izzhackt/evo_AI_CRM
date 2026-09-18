@@ -715,6 +715,7 @@ export function handoffAcknowledgementLabel(value: string): string | null {
   const labels: Record<string, string> = {
     accepted: "Дело принято куратором",
     clarification_requested: "Нужно уточнение от Sales",
+    declined: "Назначение отклонено куратором",
   };
   return Object.hasOwn(labels, value) ? labels[value] : null;
 }

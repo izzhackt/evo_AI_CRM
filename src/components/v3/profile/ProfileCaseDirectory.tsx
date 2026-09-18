@@ -8,6 +8,18 @@ const STATE_COPY = { active: "В работе", closed: "Закрыто", pendin
 const STATE_TONE: Record<keyof typeof STATE_COPY, PillTone> = { active: "ok", closed: "neutral", pending: "warn" };
 const INPUT = "min-h-11 min-w-0 w-full rounded-nav border border-control-edge bg-surface px-3 text-sm text-fg outline-none focus:border-accent";
 
+/**
+ * S3 (plan §7): a pending case with sale/handoff evidence (today: a declined
+ * curator assignment) is a distinct, actionable state — «Нужно назначить
+ * куратора» — not the plain «Ожидает начала» cabinet-before-sale state.
+ */
+function stateBadge(row: V3ProfileCaseDirectoryRow): Readonly<{ label: string; tone: PillTone }> {
+  if (row.state === "pending" && row.attentionFlags.includes("needs_curator")) {
+    return { label: ATTENTION_LABELS.needs_curator, tone: "danger" };
+  }
+  return { label: STATE_COPY[row.state], tone: STATE_TONE[row.state] };
+}
+
 function attention(row: V3ProfileCaseDirectoryRow): string | null {
   if (row.access !== "full") return "Только итог передачи";
   const needs = [
@@ -27,7 +39,8 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
   const directoryHref = withDocsSection("/v3/profile", docsMode);
   return <details className="min-w-0 rounded-card border border-border bg-surface" data-testid="v3-student-case-directory" open={initiallyOpen}>
     <summary className="min-h-11 cursor-pointer px-4 py-4 text-base font-semibold text-fg marker:text-fg-3 sm:px-5">
-      {docsMode ? "Студенты" : "Рабочий список"} <span className="ml-2 text-sm font-normal text-fg-2">{params.invalid ? "—" : `${rows.length} на этой странице`}</span>
+      {/* Plan §3: «Рабочий список» → «Студенты» everywhere, docs mode included. */}
+      Студенты <span className="ml-2 text-sm font-normal text-fg-2">{params.invalid ? "—" : `${rows.length} на этой странице`}</span>
     </summary>
     <div className="min-w-0 space-y-5 border-t border-border px-4 py-5 sm:px-5">
       {allowAdmissionsFilters ? <nav aria-label="Направления поступления" className="flex flex-wrap gap-2">
@@ -87,7 +100,11 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
                 <Link href={withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=documents`, true)} className="inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-medium text-fg-2 hover:bg-surface-2">Файлы</Link>
                 <Link href={withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=route&panel=packets#partner-packets`, true)} className="inline-flex min-h-11 items-center rounded-nav px-3 text-sm font-medium text-fg-2 hover:bg-surface-2">Пакет ZIP</Link>
               </nav> : <>
-              <div className="flex flex-wrap items-center gap-2"><Pill tone={STATE_TONE[row.state]}>{STATE_COPY[row.state]}</Pill><span className="text-sm text-fg-2">{row.operationalStage ? studentOperationalStage(row.operationalStage) : "Передано куратору"}</span></div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill tone={stateBadge(row).tone}>{stateBadge(row).label}</Pill>
+                {row.attentionFlags.includes("awaiting_ack") ? <Pill tone="warn">{ATTENTION_LABELS.awaiting_ack}</Pill> : null}
+                <span className="text-sm text-fg-2">{row.operationalStage ? studentOperationalStage(row.operationalStage) : "Передано куратору"}</span>
+              </div>
               {row.access === "full" ? <p className="break-words text-sm leading-6 text-fg"><span className="font-medium">Следующий шаг: </span>{row.nextAction ?? "нужно назначить"}{row.nextActionDueOn ? <time className="ml-2 whitespace-nowrap text-fg-2" dateTime={row.nextActionDueOn}>до {row.nextActionDueOn.split("-").reverse().join(".")}</time> : null}</p> : null}
               {issue ? <p className={`text-sm ${row.access === "full" ? "text-danger" : "text-fg-3"}`}>{issue}</p> : null}
               </>}

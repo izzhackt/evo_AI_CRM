@@ -403,9 +403,10 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
     : saved ? "Ответ сохранён." : null;
   const showResult = pending || message !== null;
   const current = snapshot.current;
+  const declining = decision === "declined";
   const unchanged = current?.decision === decision
     && current.clarification === (decision === "accepted" ? null : clarification.trim())
-    && current.agreedContactDate === (contactDate || null);
+    && (declining || current.agreedContactDate === (contactDate || null));
   return (
     <Card eyebrow title="Приём дела" id="handoff-acknowledgement">
       <div className="flex flex-col gap-3 p-4" data-testid="v3-handoff-acknowledgement">
@@ -418,6 +419,9 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
             <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => { setDecision("clarification_requested"); setOpen(true); }}>
               Нужно уточнить
             </button>
+            <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => { setDecision("declined"); setOpen(true); }}>
+              Отклонить
+            </button>
           </div>
         ) : null}
         {snapshot.canRespond && open && snapshot.assignmentEventId ? (
@@ -427,6 +431,11 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
             <input type="hidden" name="expected_acknowledgement_id" value={current?.acknowledgementId ?? ""} />
             <input type="hidden" name="request_id" value={state.requestId} />
             <input type="hidden" name="decision" value={decision} />
+            {declining ? (
+              <p className="text-sm text-fg-2">
+                Отклоняется назначение, а не студент: продажа и данные сохранятся.
+              </p>
+            ) : null}
             {decision === "clarification_requested" ? (
               <label className={labelCls}>
                 Что нужно уточнить у Sales
@@ -435,16 +444,30 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
                   onChange={(event) => setClarification(event.target.value)} disabled={pending}
                   aria-invalid={state.status === "invalid" || undefined} />
               </label>
+            ) : declining ? (
+              <label className={labelCls}>
+                Причина отклонения
+                <textarea name="clarification" required maxLength={1000} rows={3}
+                  className={cn(inputCls, "mt-1 min-h-24 resize-y")} value={clarification}
+                  onChange={(event) => setClarification(event.target.value)} disabled={pending}
+                  aria-invalid={state.status === "invalid" || undefined} />
+              </label>
             ) : <input type="hidden" name="clarification" value="" />}
-            <label className={labelCls}>
-              Согласованная дата контакта · необязательно
-              <input type="date" name="agreed_contact_date" className={cn(inputCls, "mt-1 min-h-11")}
-                min="0001-01-01" max="9999-12-31" value={contactDate}
-                onChange={(event) => setContactDate(event.target.value)} disabled={pending} />
-            </label>
+            {declining ? (
+              <input type="hidden" name="agreed_contact_date" value="" />
+            ) : (
+              <label className={labelCls}>
+                Согласованная дата контакта · необязательно
+                <input type="date" name="agreed_contact_date" className={cn(inputCls, "mt-1 min-h-11")}
+                  min="0001-01-01" max="9999-12-31" value={contactDate}
+                  onChange={(event) => setContactDate(event.target.value)} disabled={pending} />
+              </label>
+            )}
             <div className="flex flex-wrap gap-2">
               <button type="submit" disabled={pending || needsRefresh || unchanged} className={cn(btnCls, "min-h-11")}>
-                {pending ? "Сохраняем…" : unchanged ? "Уже сохранено" : decision === "accepted" ? "Подтвердить приём" : "Сохранить уточнение"}
+                {pending ? "Сохраняем…" : unchanged ? "Уже сохранено"
+                  : decision === "accepted" ? "Подтвердить приём"
+                  : declining ? "Отклонить назначение" : "Сохранить уточнение"}
               </button>
               <button type="button" disabled={pending} className={cn(btnGhostCls, "min-h-11")}
                 onClick={() => setOpen(false)}>Отмена</button>

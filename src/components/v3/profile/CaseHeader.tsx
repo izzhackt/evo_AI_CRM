@@ -7,11 +7,15 @@ import { personState } from "@/lib/v3/wording";
 import {
   ADMISSIONS_STAGES,
   ADMISSIONS_STAGE_LABELS,
+  type AdmissionsAttention,
   type AdmissionsStage,
   type AdmissionsWorkspace,
 } from "@/lib/platform-admissions-playbook-contract";
 import { readAdmissionsWorkspace } from "@/lib/v3/admissions-source";
+import { readCaseAttentionFlags } from "@/lib/platform-admissions";
+import type { StudentPortalCuratorOption } from "@/lib/server/student-portal-curator-options";
 
+import { AssignCaseCuratorForm } from "./AssignCaseCuratorForm";
 import { DIRECTION_LABELS } from "./admissions-view";
 import type { PersonProfile, ProfileDraft } from "./types";
 
@@ -68,10 +72,15 @@ export async function CaseHeader({
   actor,
   profile,
   draft,
+  curators = [],
+  assignCuratorRequestId,
 }: Readonly<{
   actor: ActivePlatformActor;
   profile: PersonProfile;
   draft: ProfileDraft;
+  /** Reused from the same `listStudentPortalActiveCurators` read the page already loads (S3, plan §7). */
+  curators?: readonly StudentPortalCuratorOption[];
+  assignCuratorRequestId: string;
 }>) {
   const caseId = draft.routeTarget.studentCaseId;
   if (!caseId) return null;
@@ -88,6 +97,13 @@ export async function CaseHeader({
   const blocker = activeBlocker(workspace);
   const canLinkCoverage = actor.systemRole === "admin" && !isStaffPreview(actor)
     && staffHasPermission(actor, "case.curator.assign");
+  // S3 (plan §7): «Admin выбирает другого куратора внутри того же дела» — a
+  // pending case reverted by a declined assignment (still carrying its sale)
+  // is a needs-curator case, read the same way the directory computes it,
+  // via a dedicated small RPC (182's staff_case_attention_flags_v1).
+  const canAssignCurator = canLinkCoverage
+    && (await readCaseAttentionFlags(actor, caseId).catch((): readonly AdmissionsAttention[] => []))
+      .includes("needs_curator");
 
   return (
     <section className="flex flex-col gap-3" data-testid="v3-case-header">
@@ -112,7 +128,7 @@ export async function CaseHeader({
         <HeaderFact
           label="Куратор"
           value={draft.responsible ?? "не назначен"}
-          action={canLinkCoverage ? (
+          action={canLinkCoverage && !canAssignCurator ? (
             <Link href="/v3/profile#curator-coverage" className="inline-flex min-h-11 items-center text-xs font-semibold text-accent underline underline-offset-4">
               Нагрузка кураторов
             </Link>
@@ -121,6 +137,16 @@ export async function CaseHeader({
         <HeaderFact label="Этап" value={stage} />
         <HeaderFact label="Следующий шаг" value={nextAction} meta={dueOn} />
       </dl>
+
+      {canAssignCurator ? (
+        <div className="rounded-card border border-border bg-surface px-4 py-3">
+          <AssignCaseCuratorForm
+            studentCaseId={caseId}
+            curators={curators}
+            requestId={assignCuratorRequestId}
+          />
+        </div>
+      ) : null}
 
       {blocker ? (
         <p className="v3-edge-danger flex flex-wrap items-start gap-2 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm leading-5 text-fg">

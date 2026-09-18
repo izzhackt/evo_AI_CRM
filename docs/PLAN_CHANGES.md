@@ -28910,3 +28910,217 @@ pending-case branch needs its own acceptance-queue surface (it has no
 программы». Historical sales_register rows (including ones created by the
 now-removed create-new-lead branch) remain valid data under unchanged
 constraints; nothing here rewrites past rows.
+
+## 2026-09-18 — unified workflow S3: передача и принятие дела
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S3.
+Affected plan section: «S3 Принятие дела» (plan §7; PLAN_CHANGES «план-контракт
+реализации», S1, S2 above).
+
+Reason: implement plan §7 — a curator sees «Ожидает принятия» and either
+«Принять дело» or «Отклонить»; declining reverts the ASSIGNMENT only (the
+sale, its data and files stay), and Admin picks another curator inside the
+same case, which the directory now surfaces as «Нужно назначить куратора».
+Also closes the S2-documented gap where `create_sales_report_handoff`'s
+pending-case-activation branch never produced `awaiting_ack` evidence.
+
+Decision: migration 182
+(supabase/migrations/182_platform_case_acceptance.sql, NOT applied — no
+Supabase credentials in this environment, matching every prior slice) —
+(a) `student_case_handoff_acknowledgements`'s decision CHECK gains
+`'declined'` (both auto-named CHECKs located and replaced via the same
+dynamic pg_constraint-lookup pattern 180 used); a decline reuses the existing
+`clarification` column as its required reason, bounded to 1-1000 chars
+(tighter than `clarification_requested`'s 1-2000, to fit the lifecycle-event
+`reason` column it is written into) — a second free-text column for the same
+fact would be a second source of truth, so the existing append-only ack table
+and its triggers are otherwise untouched, and historical accepted/
+clarification_requested rows stay valid. (b) `student_case_lifecycle_events`
+gains event_type `'declined'` (active→pending, the exact inverse of
+`'activated'`). (c) new shared predicate
+`platform_private.case_sale_or_handoff_evidence(org, case)` — true when
+either a `platform.sales_admissions_handoffs` row exists for the case OR a
+`platform_private.sales_register` row exists for its `canonical_lead_id`;
+used by BOTH signals below so they stay definitionally consistent. (d)
+`platform_private.admissions_attention_flags` (145) is widened: a `'pending'`
+case now returns `['needs_curator']` when that predicate holds (else `[]` —
+still nothing for a bare S1 «кабинет до продажи» case with no sale), and the
+existing `'awaiting_ack'` branch's own `EXISTS(sales_admissions_handoffs)`
+check is replaced by the same shared predicate — closing the S2 gap
+without touching 181's already-shipped `create_sales_report_handoff` (the
+task's own suggested smaller alternative). AWAITING-ACCEPTANCE PREDICATE
+CHOICE, documented in the migration header: `sales_register` has
+`UNIQUE(organization_id, lead_id)` and `student_cases` has
+`UNIQUE(organization_id, canonical_lead_id) WHERE state IN ('pending',
+'active')` (088), and every creation branch of `create_sales_report_handoff`
+inserts `sales_register` in the SAME transaction that activates the case —
+so a *pending* case can only carry this evidence once it has already been
+active once, i.e. only through the decline-revert this migration adds; no
+false positive against a never-handed-off historical pending case (docs-intake
+cases have no `canonical_lead_id` at all). (e) `private.respond_student_case_handoff`
+/ `platform.respond_student_case_handoff` (130, with 149's
+`is_eligible_staff_responsibility` patch folded in as the current baseline)
+are replaced whole: on a *fresh* `'declined'` response (never on a replayed
+one), after the ack row is inserted, the case is reverted — curator cleared,
+`state='pending'`, `handoff_at=NULL` — leaving `portal_activated_at` and every
+canonical/sale link (`canonical_lead_id`, `canonical_client_id`,
+`public_application_id`, `sales_register`, `sales_admissions_handoffs`)
+completely untouched (shape-legal since 180 relaxed the pending branch of
+`student_cases_state_shape_check`). The case's `record_scope` is bumped and
+its grants updated in the exact inverse of
+`assign_student_case_curator_authorized_e1`'s own `'assigned'` branch: the
+declining curator and the student are revoked, the responsible Sales owner
+regains the grant `private.platform_can_read_student_case`'s own `'pending'`
+branch already relies on, so the case is immediately visible to Sales/Admin
+again. The actor gate is UNCHANGED — still the current curator (or an
+eligible Admin acting as curator, 149) of the ACTIVE case; «Нужно уточнить»
+is untouched in spirit and code (same `clarification_requested` branch, no
+new form). (f) new RPC `platform.assign_case_curator_v1(org, request_id,
+case_id, curator_membership_id, reason)` — gate mirrors
+`platform_private.assign_student_case_curator_body`/117's own
+`private.assign_student_case_curator` exactly (`require_admin_actor` with
+`case.curator.assign`, the shared assignment-domain advisory lock, then
+`require_case_assignment_admin_locked`'s post-lock recheck), then calls
+`platform_private.replay_audit` itself FIRST (same `p_expected_after` shape
+`assign_student_case_curator_authorized_e1` uses for its own action
+`'case.curator.set'`) — a retried request after a real success would
+otherwise see the case already out of `'pending'` and fail closed on "Case
+does not need a curator assignment" instead of returning the original
+receipt; only a genuinely new request reaches the shape check. It then
+verifies the case is actually `state='pending'` AND sale/handoff-evidenced
+(the needs-curator shape, not just any pending cabinet case) before reusing
+`assign_student_case_curator_authorized_e1` — the same initial-assignment
+branch every other "approve a pending case with a curator" caller in this
+codebase already reuses (126/177/181). (g) new
+`platform.staff_case_attention_flags_v1(case_id)` — a tiny direct
+SECURITY DEFINER read (mirrors `admissions_direction_summary_v1`'s own style,
+no private wrapper), gated by `private.platform_can_read_student_case`, so
+CaseHeader can ask "does this case need a curator" without duplicating the
+predicate. (h) `platform.staff_student_case_page` (078/110, patched by
+137/149/176/177) is widened ADDITIVELY, in place, via `CREATE OR REPLACE`:
+Postgres allows appending trailing columns to an existing `RETURNS TABLE`
+this way, so — unlike 137's own patch, which changed the parameter list and
+needed `DROP FUNCTION` + re-`GRANT` — no drop or grant replay is needed here.
+`'needs_curator'` joins the `p_attention` allow-list (the WHERE clause
+filtering by it already worked for free, since it already called
+`admissions_attention_flags`); a new `attention_flags text[]` column
+(`access_mode='full'` rows only) feeds directory row badges without a second
+round trip per row. Every anchor uses dollar-quoted `replace()` arguments
+(`$a1$...$a1$` style) instead of 137/149's doubled-quote escaping, since a
+dollar-quoted literal needs no escaping for embedded SQL quotes — lower risk
+to write correctly without a live database to verify against. The new
+migration-pattern suite `tests/platform-case-acceptance-migration.test.mjs`
+pattern-matches every one of these anchors directly against the written SQL
+file (8/8 passing), which is the closest available substitute for actual
+execution in this environment.
+
+TS/UI: `src/lib/platform-handoff-acknowledgement.ts`'s `HandoffDecision`
+gains `'declined'`; `parseHandoffResponseInput`/`responseFields` require a
+reason for every non-`'accepted'` decision and bound it to 1000 chars
+specifically for `'declined'` (2000 stays for `'clarification_requested'`).
+`src/lib/v3/wording.ts`'s `handoffAcknowledgementLabel` gains a `'declined'`
+label. `src/components/v3/profile/ProfileSalesTransition.tsx`'s
+`ProfileHandoffAcknowledgement` gains a third «Отклонить» button reusing the
+EXACT SAME form/action as accept/clarify (plan §7's own constraint: no
+separate «форма запроса уточнений»/decline form) — opening it shows a quiet
+one-line confirm («Отклоняется назначение, а не студент: продажа и данные
+сохранятся.») and a required «Причина отклонения» textarea (`maxLength=1000`)
+instead of the contact-date field. `src/lib/platform-admissions-playbook-contract.ts`'s
+`ADMISSIONS_ATTENTION` gains `'needs_curator'`;
+`src/components/v3/profile/admissions-view.ts`'s `ATTENTION_LABELS` gains
+`needs_curator: "Нужно назначить куратора"` and renames `awaiting_ack` from
+"Передача ещё не принята" to plan §7's own exact phrase, «Ожидает принятия»
+(also applied to `src/components/v3/CuratorDay.tsx`'s "Мой день" metric,
+the OTHER place this same count was hand-labeled). `src/lib/platform-admissions.ts`
+gains `PlatformStudentCaseQueueRow.attentionFlags` (optional/lenient parse —
+`undefined`/`null` → `[]`, matching how `admissionsDirection`/`nextActionDueOn`
+are already handled for the single-case snapshot reader that never supplies
+these newer columns) and a new `readCaseAttentionFlags(actor, caseId)`
+repository read wrapping `staff_case_attention_flags_v1`.
+`src/lib/v3/profile-source.ts`'s `V3ProfileCaseDirectoryRow` carries
+`attentionFlags` through for the `'full'`/admin-or-curator branch; `[]` for
+both `'sales_summary'` branches (no per-row RPC call there today).
+`src/components/v3/profile/ProfileCaseDirectory.tsx` renders a
+`stateBadge()` override — a `'pending'` row with `needs_curator` shows
+«Нужно назначить куратора» (`danger` tone) instead of «Ожидает начала»
+— plus an «Ожидает принятия» pill alongside «В работе» when `awaiting_ack`
+is present; its own title («Рабочий список»/«Студенты» split by `docsMode`)
+now always reads «Студенты» (plan §3). `src/lib/v3/navigation.ts`'s
+`admissions-worklist` link label is renamed the same way (id kept for route
+stability); `tests/v3-navigation.test.mjs`/`tests/v3-operational-parity.test.mjs`
+updated to match — repo-wide `grep -rn "Рабочий список"` after the change
+returns only the two explanatory code comments left behind.
+
+New Admin-only surface: `src/lib/platform-case-curator-assignment-actions.ts`
+(`assignCaseCuratorAction`, gated the same way
+`manageCaseCoverageAction`/`platform-case-coverage-actions.ts` already gates
+`case.curator.assign` — the real RBAC permission, not the coarser
+`FixedRoleCapability` `requirePlatformMutationCapability` takes) and
+`src/components/v3/profile/AssignCaseCuratorForm.tsx` (a small client form:
+curator select + required reason, reusing the `StudentPortalCuratorOption`
+list/type `listStudentPortalActiveCurators` already provides — the "coverage
+or report form options source" the task pointed at). `CaseHeader.tsx` fetches
+`readCaseAttentionFlags` (short-circuited behind the same
+`actor.systemRole==='admin' && staffHasPermission(actor,'case.curator.assign')
+&& !isStaffPreview` gate `canLinkCoverage` already computed) and renders the
+form inline in the Куратор row instead of the «Нагрузка кураторов» link when
+the case needs one; `src/app/(v3)/v3/profile/page.tsx` passes the SAME
+`studentPortalCurators` array it already loads (its own fetch condition —
+`directory || caseState === "pending"` — already covered this exact
+scenario) plus a freshly minted `assignCuratorRequestId`.
+
+Known deviations (honest, not hidden): (1) `platform.admissions_direction_summary_v1`
+(the «Сводка по направлениям» widget) is deliberately left untouched — it has
+no `needs_curator` bucket, so a needs-curator case is invisible there (it
+never enumerates every possible attention flag, only a fixed named set the
+task did not ask this slice to extend; `tests/admissions-playbook.test.mjs`'s
+own exhaustive stock-shape assertion confirms nothing there was disturbed).
+(2) `AssignCaseCuratorForm` does not special-case an empty curator list (no
+active curators available) beyond the submit button's own
+`!curatorMembershipId` guard — no "Нет доступного куратора" message like
+`DocsCreateStudentForm`'s; a minor UX polish gap, not a functional one, left
+for a later pass. (3) `tests/platform-student-handoff.test.mjs` was checked
+per the task's own explicit list but needed NO change — it tests
+`src/lib/platform-student-handoff.ts` (the `handoff_lead_to_admissions` RPC
+wrapper), which this slice does not touch at all; it stays 8/8 and is
+reported here as verified-unaffected rather than silently skipped.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean), `npm run test:brand-ui` (5/5), and the pinned
+suites this slice touches: `tests/platform-handoff-acknowledgement.test.mjs`
+(9/9, 2 new), `tests/platform-admissions.test.mjs` (26/26, 2 new),
+`tests/v3-navigation.test.mjs` (16/16), `tests/v3-operational-parity.test.mjs`
+(3/3), `tests/platform-student-handoff.test.mjs` (8/8, unaffected — see
+deviation 3), `tests/v3-student-profile-fields.test.mjs` under plain
+`node --test` per its own designated flag (10/10), plus the new
+`tests/platform-case-acceptance-migration.test.mjs` (8/8, following
+180/181's own template). A broader sweep of every other test file
+referencing `profile-source.ts`/`ProfileCaseDirectory`/`CaseHeader`/
+`platform-admissions.ts`/`ProfileSalesTransition`/`admissions-view.ts`/
+`platform-admissions-playbook-contract.ts`/`platform-handoff-acknowledgement.ts`/
+`navigation.ts` (`admissions-playbook`, `fixed-role-settings-ui`,
+`p4-supabase-admissions-storage-legacy-cleanup`, `scoped-finance-read-contract`,
+`staff-metadata-feedback`, `staff-role-member-editor`,
+`student-portal-provisioning-ui`, `v3-admissions-support`, `v3-brand-design`,
+`v3-handoff-navigation`, `v3-profile-activity`, `v3-profile-admissions`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`)
+passed 79/81, with 2 pre-existing failures verified via `git stash` to
+reproduce identically on this branch's pre-slice tree and therefore unrelated
+to this slice: `tests/v3-handoff-navigation.test.mjs` (the same
+`react-dom/server` ESM/CJS interop crash S2's own entry already documented)
+and, newly observed here, `tests/staff-metadata-feedback.test.mjs` failing
+with the IDENTICAL `react-dom/server` interop error on a file this slice
+never touches. `tests/staff-roles-sales-handoff-migrations.test.mjs` (5/6 —
+the same pre-existing "173-175 boundary diff" failure S2's entry already
+documented, re-verified via `git stash` here) was also run per the task's own
+"grep for respond_student_case_handoff" instruction, confirming it holds no
+pins on that function. Migration 182 itself is NOT applied; no Supabase
+credentials exist in this environment, matching every prior slice's stated
+limitation.
+Reviewer notes: S4 («Вузы и программы») and later slices are untouched — no
+route/playbook/portal surfaces were touched here, per this task's own
+constraint. The `needs_curator`/`awaiting_ack` flags are additive to
+`admissions_attention_flags`'s existing return shape; a future slice reusing
+that array for a NEW purpose should keep both entries in mind rather than
+assuming the old fixed six-flag set.

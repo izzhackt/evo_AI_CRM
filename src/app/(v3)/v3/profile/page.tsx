@@ -283,7 +283,13 @@ export default async function ProfilePart({
                 docsMode={docsMode} packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
               caseHeader={view.details.routeTarget.studentCaseId ? (
                 <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку дела…</p>}>
-                  <CaseHeader actor={actor} profile={view.profile} draft={view.details} />
+                  <CaseHeader
+                    actor={actor}
+                    profile={view.profile}
+                    draft={view.details}
+                    curators={studentPortalCurators}
+                    assignCuratorRequestId={randomUUID()}
+                  />
                 </Suspense>
               ) : undefined}
               draft={view.details}

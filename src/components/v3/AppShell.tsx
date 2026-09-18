@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useRef, useState } from "react";
 
-import { type FixedRole } from "@/lib/fixed-role-policy";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission, staffHomeRoute } from "@/lib/platform-access";
 import {
@@ -24,7 +23,6 @@ import { roleTitle } from "@/lib/v3/wording";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
 import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 
-const FIXED_ROLES = ["admin", "sales", "admissions"] as const satisfies readonly FixedRole[];
 const LINK_ICONS = {
   home: "grid",
   pipeline: "funnel",
@@ -119,7 +117,6 @@ function Sidebar({
   const toggleRef = useRef<HTMLButtonElement>(null);
   const navigationId = useId();
   const { displayName, systemRole, presentationRole } = actor;
-  const previewing = isStaffPreview(actor);
   const accessLabel = presentationRole !== null ? roleTitle(presentationRole)
     : systemRole === "admin" ? "Администратор"
     : [...new Set(actor.assignments.map((assignment) => assignment.label))].join(", ") || "Права ещё не назначены";
@@ -194,46 +191,6 @@ function Sidebar({
               <NavigationLink link={navigation.settings} activeId={navigation.activeId} onNavigate={closeMobileNavigation} />
             </div>
           ) : null}
-          {systemRole === "admin" ? (
-            <section
-              className="border-t border-border px-3 py-2"
-              data-testid="staff-role-preview"
-            >
-              <details open={previewing}>
-                <summary className="min-h-11 cursor-pointer content-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-                  Предпросмотр роли
-                </summary>
-                <form
-                  action={selectStaffRolePreviewAction}
-                  className="mt-2 grid grid-cols-1 gap-2 pb-2 sm:grid-cols-3 md:grid-cols-1"
-                  data-testid="admin-role-preview"
-                >
-                  {FIXED_ROLES.map((role) => (
-                    <button
-                      key={role}
-                      type="submit"
-                      name="role"
-                      value={role}
-                      data-testid={`preview-role-${role}`}
-                      aria-pressed={(presentationRole ?? "admin") === role}
-                      className="min-h-11 rounded-nav border border-control-edge px-3 text-sm text-fg-2 transition-colors hover:bg-surface-2 aria-pressed:border-accent aria-pressed:bg-accent-weak aria-pressed:font-medium aria-pressed:text-accent-text"
-                    >
-                      {roleTitle(role)}
-                    </button>
-                  ))}
-                </form>
-              </details>
-              {previewing ? (
-                <p
-                  className="mt-2 px-2 pb-2 text-sm leading-5 text-accent"
-                  data-testid="preview-active"
-                >
-                  Администратор видит интерфейс роли «{accessLabel}».
-                </p>
-              ) : null}
-            </section>
-          ) : null}
-
           <div className="flex items-center gap-3 border-t border-border p-3 md:flex-col md:items-stretch md:gap-3 md:p-4">
             <p className="min-w-0 flex-1 text-sm text-fg-3">
               <span className="block truncate font-medium text-fg">{displayName}</span>
@@ -299,7 +256,17 @@ export function AppShell({
           }} className="inline-flex min-h-11 items-center gap-2 rounded-ctl bg-accent px-3 text-sm font-medium text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             <Icon name="plus" size={18} />Создать задачу
           </Link> : null}
-          {!previewing ? <StaffNotifications initialPage={initialNotifications} /> : <span className="text-sm text-fg-3">Уведомления скрыты в предпросмотре роли</span>}
+          {!previewing ? <StaffNotifications initialPage={initialNotifications} /> : (
+            <div className="flex w-full flex-wrap items-center justify-between gap-2" data-testid="preview-active">
+              <span className="text-sm text-fg-2">Интерфейс: {roleTitle(actor.presentationRole!)}</span>
+              <form action={selectStaffRolePreviewAction}>
+                <button type="submit" name="role" value="admin" data-testid="preview-role-admin"
+                  className="min-h-11 rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                  Вернуться к Администратору
+                </button>
+              </form>
+            </div>
+          )}
         </div>
         {children}
       </div>

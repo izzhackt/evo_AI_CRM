@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
 import { staffRolesAction } from "@/lib/staff-roles-actions";
+import { selectStaffRolePreviewAction } from "@/lib/staff-auth-actions";
+import { roleTitle } from "@/lib/v3/wording";
 import {
   STAFF_ROLES_INITIAL_STATE, type StaffEditableRole, type StaffRolePermission, type StaffRoleWorkspace,
 } from "@/lib/v3/staff-roles-contract";
@@ -238,8 +240,18 @@ export function StaffRolesSection({ workspace, selectedRoleId }: { workspace: St
   const visible = workspace.roles.filter((role) => (archived || role.status === "active") && `${role.label} ${role.description}`.toLocaleLowerCase("ru").includes(query.toLocaleLowerCase("ru").trim()));
   if (newRole) return <RoleEditor sourceRole={newRole === "new" ? undefined : newRole} permissions={workspace.permissions} onClose={() => setNewRole(null)} />;
   return <StaffRoleControls>
-    <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-md font-semibold">Роли и права</h3><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-md font-semibold">Роли и доступ</h3><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
     <p className="text-sm leading-6 text-fg-3">Роль задаёт действия. Область — свои записи, отдел или направление — выбирается при назначении сотруднику.</p>
+    <details className="border-b border-border pb-3" data-testid="staff-role-preview">
+      <summary className="min-h-11 cursor-pointer content-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+        Посмотреть интерфейс роли
+      </summary>
+      <p className="mt-2 text-sm leading-6 text-fg-3">Меняется только вид интерфейса. Вы остаётесь Администратором — это не вход за сотрудника.</p>
+      <form action={selectStaffRolePreviewAction} className="mt-3 flex flex-wrap gap-2" data-testid="admin-role-preview">
+        {(["sales", "admissions"] as const).map((role) => <button key={role} type="submit" name="role" value={role}
+          data-testid={`preview-role-${role}`} className={`${btnGhostCls} min-h-11`}>{roleTitle(role)}</button>)}
+      </form>
+    </details>
     <div className="grid min-w-0 gap-6 @4xl:grid-cols-[minmax(220px,.8fr)_minmax(0,1.2fr)]">
       <section aria-label="Список ролей" className={`${selectedRoleId ? "hidden @4xl:block" : "block"} min-w-0 space-y-3`}>
         <label className="grid gap-1.5 text-sm">Найти роль<input type="search" className={inputCls} value={query} onChange={(event) => setQuery(event.target.value)} /></label>

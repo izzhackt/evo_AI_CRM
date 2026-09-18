@@ -123,7 +123,7 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
     Список сотрудников недоступен. Проверьте подключение, сеанс администратора и применение миграции рабочего пространства.</p>;
   return <div className="space-y-5">
     <nav aria-label="Управление командой" className="flex flex-wrap gap-2 border-b border-border pb-3">
-      {([{ key: "people", label: "Сотрудники" }, { key: "roles", label: "Роли и права" }, { key: "departments", label: "Отделы" }] as const).map((entry) =>
+      {([{ key: "people", label: "Сотрудники" }, { key: "roles", label: "Роли и доступ" }, { key: "departments", label: "Отделы" }] as const).map((entry) =>
         <Link key={entry.key} href={`/v3/settings?section=staff&view=${entry.key}`} aria-current={view === entry.key ? "page" : undefined}
           className={`inline-flex min-h-11 items-center rounded-nav px-4 text-sm font-semibold ${view === entry.key
             ? "bg-accent-weak text-accent" : "text-fg-2 hover:bg-surface-2"}`}>{entry.label}</Link>)}

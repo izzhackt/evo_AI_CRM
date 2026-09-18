@@ -131,6 +131,12 @@ instructions to run a full heavy suite for every change or release candidate.
   Portal with native English/career-interest tests and implement China/Malaysia
   Admissions in EVO. Read root `DESIGN.md` before UI changes. Its original EVO
   brand accent supersedes historical monochrome-only design instructions.
+- The 2026-09-18 quiet-UI rule in `DESIGN.md` forbids permanent narration of
+  ordinary controls: keyboard hints, normal draft/connected captions and idle
+  character counters. Preserve behavior, accessible names, meaningful pending/
+  success feedback and actionable errors; show limit guidance when it blocks an
+  action. Put infrequent Admin tools in settings, with an obvious exit from an
+  active role-view mode. Do not generalize this into hiding business conditions.
 - Assessment answers/results are Student-owner private in this run, including
   denial on ordinary Admin/Curator product paths. Do not add staff tracking,
   test assignments or case-timeline projections. No invented CEFR certification.

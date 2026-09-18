@@ -1602,6 +1602,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const exactCaseLink = exactCaseRow.locator(`a[href="${directoryCaseHref}"]`);
   await expect(exactCaseLink).toHaveCount(1);
 
+  await page.goto("/v3/settings?section=staff&view=roles");
   await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
@@ -2741,6 +2742,7 @@ test("D2 media stays opaque and exact-case attach fails safely without source by
 
   await page.context().clearCookies();
   await signIn(page, "admin");
+  await page.goto("/v3/settings?section=staff&view=roles");
   await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-sales").click();
   await expectActiveRole(page, "sales", "admin");
@@ -3012,7 +3014,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectDirectRouteAllowed(page, "/v3/knowledge");
   await expectKnowledgeDocumentsAndSnippets(page);
   await expectExactSupabaseSalesRead(page, leadId);
-  await page.goto("/v3/settings");
+  await page.goto("/v3/settings?section=staff&view=roles");
   await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
 
   await page.locator('[data-testid="staff-role-preview"] summary').click();
@@ -3027,6 +3029,10 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expectKnowledgeSurface(page, { documents: false, snippets: true });
   await expectDirectRouteDenied(page, "/v3/settings");
 
+  await page.getByTestId("preview-role-admin").click();
+  await expectActiveRole(page, "admin", "admin");
+  await page.goto("/v3/settings?section=staff&view=roles");
+  await page.locator('[data-testid="staff-role-preview"] summary').click();
   await page.getByTestId("preview-role-admissions").click();
   await expectActiveRole(page, "admissions", "admin");
   await expect(page).toHaveURL(/\/v3\/calendar$/);

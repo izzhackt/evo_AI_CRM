@@ -64,6 +64,7 @@ function MountedTeamChatComposer({ channel, parentId = null, edit, participants,
     }
   }, initial.draft.retryInput ? { status: "unavailable" as const, requestId: initial.draft.requestId, messageId: null } : TEAM_CHAT_INITIAL_ACTION);
   const uncertain = state.status === "unavailable";
+  const bodyTooLong = Array.from(draft.body).length > 8000;
 
   function updateDraft(patch: Partial<Draft>) {
     const next = { ...draft, ...patch,
@@ -84,14 +85,15 @@ function MountedTeamChatComposer({ channel, parentId = null, edit, participants,
       <div className={styles.composerInput}>
       <textarea id={`${key}-body`} ref={textarea} value={draft.body} rows={1}
         readOnly={pending || uncertain} maxLength={16000}
-        placeholder="Напишите коллегам…" aria-describedby={draft.body || onCancel ? `${key}-hint` : undefined}
+        placeholder="Напишите коллегам…" aria-describedby={bodyTooLong ? `${key}-limit` : undefined}
+        aria-invalid={bodyTooLong || undefined}
         onChange={(event) => updateDraft({ body: event.target.value })}
         onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
         onKeyDown={(event) => {
           if (event.key === "Escape" && onCancel) { event.preventDefault(); onCancel(); }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.keyCode !== 229) {
             event.preventDefault();
-            if (!pending && draft.body.trim()) form.current?.requestSubmit();
+            if (!pending && !bodyTooLong && draft.body.trim()) form.current?.requestSubmit();
           }
         }} />
       <details className={styles.mentions}>
@@ -115,18 +117,17 @@ function MountedTeamChatComposer({ channel, parentId = null, edit, participants,
           {participants.length === 0 ? <p>Нет доступных участников.</p> : null}
         </div>
       </details>
-        <button className={styles.sendButton} type="submit" disabled={pending || !draft.body.trim() || Array.from(draft.body).length > 8000}
+        <button className={styles.sendButton} type="submit" disabled={pending || !draft.body.trim() || bodyTooLong}
           aria-label={pending ? "Отправляется…" : uncertain ? "Повторить тот же запрос" : edit ? "Сохранить" : "Отправить"}
           title={pending ? "Отправляется…" : uncertain ? "Повторить тот же запрос" : edit ? "Сохранить" : "Отправить"}>
           <Icon name={pending ? "clock" : edit ? "check" : "send"} size={22} />
         </button>
       </div>
-      {draft.body || onCancel ? <div className={styles.composerFooter}>
-        <span id={`${key}-hint`} className={styles.muted}>Enter — отправить · Shift+Enter — новая строка</span>
-        <span className={styles.muted}>{Array.from(draft.body).length}/8000</span>
-        {onCancel ? <button type="button" className={styles.secondary} onClick={onCancel} disabled={pending}>Отмена</button> : null}
+      {onCancel ? <div className={styles.composerFooter}>
+        <button type="button" className={styles.secondary} onClick={onCancel} disabled={pending}>Отмена</button>
       </div> : null}
-      <div aria-live="polite" className={styles.muted}>{pending ? "Ожидаем подтверждения сервера…" : draft.body ? "Черновик в этой вкладке" : state.status === "saved" ? edit ? "Сохранено" : "Отправлено" : null}</div>
+      {bodyTooLong ? <p id={`${key}-limit`} role="alert" className={styles.error}>Сократите сообщение до 8000 символов, чтобы отправить.</p> : null}
+      <div aria-live="polite" className={styles.muted}>{pending ? "Ожидаем подтверждения сервера…" : !draft.body && state.status === "saved" ? edit ? "Сохранено" : "Отправлено" : null}</div>
       {state.status !== "idle" && state.status !== "saved" ? <p role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[state.status]}</p> : null}
       {state.status === "conflict" && edit ? <p className={styles.muted}>Отмените правку, обновите историю и откройте изменение снова. Ваш черновик останется.</p> : null}
       {uncertain ? <p className={styles.muted}>Текст зафиксирован для безопасного повтора: сервер мог уже принять сообщение.</p> : null}

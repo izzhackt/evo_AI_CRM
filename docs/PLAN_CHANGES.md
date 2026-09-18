@@ -28087,3 +28087,15 @@ in `p6d-release-candidate.test.mjs`; align that copy too and run the exact three
 main source checks locally. The release did not deploy an app, arm was returned
 to false, and successfully applied171 remains forward-compatible. This follow-up
 changes tests/documentation only, not runtime or another migration.
+
+### 2026-09-18 — quiet composer and secondary Admin preview
+
+Owner approved moving role preview from the shared sidebar into role settings,
+with Admin-only access and an obvious return action. The mode remains a view of
+role UI, not employee impersonation or a permissions test. Preserve actual Admin
+authority and route protections. Owner additionally removes the normal chat
+keyboard hint, persistent character count and draft caption; retain the existing
+keyboard behavior, draft storage, limit, real feedback and actionable errors.
+Record this as a reusable quiet-UI principle. A single short UX pass may recommend
+other improvements, but does not authorize a broad redesign. Same light release
+path; no migration, provider work or new business-data writes.

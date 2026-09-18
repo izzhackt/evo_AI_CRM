@@ -28595,3 +28595,112 @@ performed with per-assertion reasoning (navigation, handoff, portal
 applications, playbook suites). Reviewer notes: PR #830/#841 flows are
 superseded by S1; historical rows (approved applications with cases, docs-
 intake cases, playbook facts) remain valid data under relaxed constraints.
+
+## 2026-09-18 — unified workflow S1: заявки и доступ
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S1.
+Affected plan section: «S1 Заявки и доступ» (this journal, previous entry).
+
+Reason: implement the first slice of the unified-workflow pivot — a public
+platform анкета now links the same canonical client/lead Website/WhatsApp
+already use, and approval only opens a portal-activated `state='pending'`
+cabinet (no curator, no direction, no active case). The old
+approve-into-Admissions-case path from migration 177 is superseded.
+
+Decision: migration 180
+(supabase/migrations/180_platform_unified_intake_access.sql, NOT applied —
+no Supabase credentials in this environment, per the task's own instruction)
+— (a) `student_applications` gains `canonical_lead_id`; the approved-shape
+CHECK now only requires `student_case_id` (`admissions_direction` stays
+legal but optional, so historical 177-approved rows remain valid); (b)
+`student_application_configuration` gains a nullable `intake_owner_membership_id`
+(left unset — no operational process sets it yet); (c)
+`submit_student_application_v1` keeps its exact questionnaire/upsert/PT409
+contract and additionally links (or reuses) the canonical client/lead via
+`create_or_link_client`/`create_or_link_lead` when an intake owner is
+configured; (d) `decide_student_application_v1` is dropped and recreated
+with direction/curator removed entirely (`(application_id, expected_revision,
+decision, reason, request_id)`); reject is unchanged; approve provisions the
+Student membership exactly as before, ensures the canonical lead exists
+(creating it — with the approving actor's own Sales membership as owner
+only when that actor actually holds the `sales` business role, else
+ownerless — only when submit-time linking was skipped), and opens a
+`state='pending'`, portal-activated, curator-less case linked to that lead
+(`responsible_sales_membership_id` = the lead's current owner, legally
+NULL); (e)/(f) `student_cases_intake_origin_check` and
+`student_cases_state_shape_check` are relaxed so a pending public-application
+case may carry `canonical_lead_id` and `portal_activated_at`; (g)
+`platform.staff_student_application_for_lead_v1` is a new small read for the
+lead-card block, gated by the same `private.platform_can_read_canonical_lead`
+the rest of the lead card already uses. Twelve portal-predicate functions
+(login/overview/notifications plus the upload/download chain's Student
+branches) are extended from `state IN ('active','closed')` to include
+`'pending'` via self-verifying anchor-count `pg_get_functiondef`+`replace`
+patches (same pattern as migration 156/177/178); five are deliberately left
+active/closed-only with one-line reasons in the migration header
+(`student_portal_finance_v2`, the retiring `student_portal_applications_v2`/
+`visa_cases_v2`/timeline family, `student_portal_messages`, staff-only
+readers, and the staff notification-creation actor).
+
+TS/UI: `src/lib/supabase/student-portal-authority.ts` accepts
+`case_state='pending'`; `src/lib/v3/portal-source.ts`'s overview normalizer
+was checked and already tolerates a null curator (no change needed).
+`src/lib/v3/student-application-source.ts`/`student-application-contract.ts`
+add `canonicalLeadId` and narrow `decideStudentApplication` to the new
+5-argument RPC. `src/components/v3/admissions/StudentApplications.tsx` drops
+`StudentApplicationsNav` and the combined queue/detail `StudentApplications`
+component (both retired); `ApplicationDecision` loses its direction/curator
+fields and is reused, unchanged in spirit, by both the new
+`src/app/(v3)/v3/requests/page.tsx` (Продажи → «Заявки»: filter pills
+Все/Сайт/Платформа/WhatsApp over pending platform applications plus recent
+website/WhatsApp leads, via the new `src/lib/v3/requests-source.ts`) and a
+new «Доступ к платформе» card on the lead-card Overview
+(`src/components/v3/profile/tabs.tsx`, wired through
+`src/lib/v3/profile-source.ts`'s lead branch). `/v3/admissions-requests` is
+now an unconditional redirect to `/v3/requests` and left the
+`FixedRoleRoute`/capability contracts (`fixed-role-policy.ts`,
+`platform-access.ts`) in favor of the new sales.read-gated route, while
+staying in the raw page allowlist (`platform-route-contract.ts`) so old
+links still resolve. Navigation (`src/lib/v3/navigation.ts`) reorders the
+Продажи group to Заявки, Inbox, Воронка, Отчёт продаж per plan §3.
+
+Known deviations (honest, not hidden): (1) the RPC's own staff authorization
+(`student_application_staff_org`/`..._can_manage`, unchanged — department-
+bound `profile.read.full`+`profile.manage`+`case.curator.assign`) is
+independent from the new page-level `sales.read` gate; a Sales member with
+page access but no matching department permission will see /v3/requests but
+get a forbidden result from the RPC. Expanding that permission matrix is
+explicitly out of scope for S1 (plan §3: «Подробную матрицу разрешений
+сейчас не расширяем»); the operational fix is ensuring the relevant staff
+hold the review-department role via existing tooling. (2) A future Sales
+report handoff (S2) creating an active case for a lead that already has a
+pending case from this slice will hit `student_cases_one_open_case_per_
+canonical_lead_idx` (from 088) as a hard unique-constraint failure rather
+than a graceful state transition; S2 must handle "approve a lead that
+already has a pending case" explicitly. (3) `/v3/requests`' lead rows reuse
+`readAllCanonicalSalesLeads` (unbounded up to its existing 4000-row safety
+cap) filtered on the server; this is not a paginated read and is a
+reasonable target for a later optimization pass, not S1.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean), `npm run test:brand-ui` (5/5), and every pinned
+suite plus a new source-pattern suite for migration 180
+(`tests/platform-unified-intake-access-migration.test.mjs`) — 125/125 across
+tests/student-public-application, tests/platform-admissions,
+tests/v3-profile-admissions, tests/student-portal-authority,
+tests/student-portal-auth, tests/v3-navigation,
+tests/fixed-role-route-contract, tests/supabase-staff-auth, the new
+migration suite and tests/v3-supabase-integration (whose exhaustive
+`src/lib/v3/*.ts` allowlist needed the new `requests-source.ts`, plus two
+already-missing pre-existing files, added in the same small fix). A broader
+~150-file regression sweep surfaced only pre-existing, unrelated failures
+(a `react-dom/server` named-export ESM/CJS interop issue reproducing
+identically on unmodified `main`, and one already-stale CI-output fixture) —
+verified via `git stash` against the pre-slice tree, not introduced here.
+Migration 180 itself is NOT applied; no Supabase credentials exist in this
+environment, matching every prior slice's stated limitation.
+Reviewer notes: S2 (Карточка Sales и продажа в отчёте) owns sale-condition
+storage and the narrowed `create_sales_report_handoff`; S3 owns the
+declined-assignment→pending revert; S6 owns the «Рабочий список»→«Студенты»
+and «Клиентские сообщения» renames — none of those are touched here.

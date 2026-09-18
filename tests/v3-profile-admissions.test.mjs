@@ -9,32 +9,34 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-test("public Student application queue renders complete answers, a deliberate assignment and versioned decision fields", async () => {
+// Unified workflow S1: the combined queue+decision StudentApplications/
+// StudentApplicationsNav components are retired (the queue moved to
+// /v3/requests under Продажи, and the case directory dropped its now
+// cross-role «Заявки» tab). StudentApplicationAnswers and the simplified,
+// direction/curator-free ApplicationDecision are the two pieces that
+// survive — reused by both /v3/requests and the lead-card «Доступ к
+// платформе» block — so this SSR probe now renders exactly those two.
+test("the public Student анкета answers and the access-only decision form render without direction/curator fields", async () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
   const compiled = await build({
     stdin: { contents: `
       import { createElement } from "react";
       import { renderToStaticMarkup } from "react-dom/server";
-      import { StudentApplications, StudentApplicationsNav } from "./src/components/v3/admissions/StudentApplications";
+      import { StudentApplicationAnswers, ApplicationDecision } from "./src/components/v3/admissions/StudentApplications";
       const application = {
         id: "11111111-1111-4111-8111-111111111111", revision: 3, status: "pending", email: "student@example.test",
-        submittedAt: "2026-09-18T09:00:00Z", decidedAt: null, decisionReason: null, studentCaseId: null, admissionsDirection: null,
+        submittedAt: "2026-09-18T09:00:00Z", decidedAt: null, decisionReason: null, studentCaseId: null,
+        admissionsDirection: null, canonicalLeadId: null,
         questionnaire: { firstName: "Тест", lastName: "Заявки", phone: "+996555000000", destinationCountries: ["CN", "MY"],
           intakeSeason: "autumn", intakeYear: 2027, educationLevel: "high_school", averageGrade: 4.5, gradeScale: "5",
           studyFields: ["Инженерия", "Дизайн"], studyLevels: ["bachelor", "foundation"], nationality: "KG",
           english: { mode: "self", level: "intermediate" }, tuitionBudget: "5000_10000", fundingSource: "family" }
       };
-      function render(item, readOnly = false) {
-        return renderToStaticMarkup(createElement(StudentApplications, {
-          queue: { applications: [item], curators: [{ membershipId: "22222222-2222-4222-8222-222222222222", displayName: "Куратор", directions: ["CN"] }], pendingCount: 7 },
-          selectedId: item.id, requestId: "33333333-3333-4333-8333-333333333333", readOnly
-        }));
-      }
       process.stdout.write(JSON.stringify({
-        pending: render(application), readOnly: render(application, true),
-        approved: render({ ...application, status: "approved", studentCaseId: "44444444-4444-4444-8444-444444444444" }),
-        rejected: render({ ...application, status: "rejected", decisionReason: "Уточните год поступления" }),
-        navigation: renderToStaticMarkup(createElement(StudentApplicationsNav, { current: "applications", pendingCount: 7 }))
+        answers: renderToStaticMarkup(createElement(StudentApplicationAnswers, { application })),
+        decision: renderToStaticMarkup(createElement(ApplicationDecision, {
+          application, requestId: "33333333-3333-4333-8333-333333333333",
+        })),
       }));
     `, resolveDir: root, sourcefile: "student-applications-ssr.tsx", loader: "tsx" },
     bundle: true, write: false, platform: "node", format: "cjs", target: "node22",
@@ -53,20 +55,20 @@ test("public Student application queue renders complete answers, a deliberate as
   assert.ifError(rendered.error);
   assert.equal(rendered.status, 0, rendered.stderr);
   const output = JSON.parse(rendered.stdout);
-  assert.match(output.pending, /Заполнено студентом/);
-  assert.match(output.pending, /Сведения требуют проверки/);
-  for (const answer of ["Китай, Малайзия", "Инженерия, Дизайн", "4.5 из 5", "самооценка", "student@example.test"]) assert.ok(output.pending.includes(answer), answer);
-  assert.match(output.pending, /name="expected_revision" value="3"/);
-  assert.match(output.pending, /name="request_id" value="33333333-3333-4333-8333-333333333333"/);
-  assert.match(output.pending, /name="reason" value=""/);
-  assert.match(output.pending, /<option value="" selected="">Выберите направление/);
-  assert.doesNotMatch(output.pending, /<option[^>]*>Куратор<\/option>/);
-  assert.match(output.pending, /<button type="submit" disabled=""/);
-  assert.doesNotMatch(output.readOnly, /<form/);
-  assert.doesNotMatch(output.approved, /<form/);
-  assert.match(output.approved, /\/v3\/profile\?case=44444444-4444-4444-8444-444444444444&amp;tab=anketa/);
-  assert.match(output.rejected, /Уточните год поступления/);
-  assert.match(output.navigation, /aria-label="7 на рассмотрении"/);
+  assert.match(output.answers, /Заполнено студентом/);
+  assert.match(output.answers, /Сведения требуют проверки/);
+  for (const answer of ["Китай, Малайзия", "Инженерия, Дизайн", "4.5 из 5", "самооценка", "student@example.test"]) assert.ok(output.answers.includes(answer), answer);
+  assert.match(output.decision, /name="expected_revision" value="3"/);
+  assert.match(output.decision, /name="request_id" value="33333333-3333-4333-8333-333333333333"/);
+  assert.match(output.decision, /name="reason" value=""/);
+  assert.match(output.decision, /Одобрить и открыть кабинет/);
+  // The direction/curator pickers are gone entirely (plan §4: access alone,
+  // never an Admissions assignment) — no leftover select, option or label.
+  // (The approved-status "Открыть дело" link now lives on the caller —
+  // tabs.tsx's PlatformAccessCard and the /v3/requests row — not on this
+  // form, which no longer branches on application.status at all.)
+  assert.doesNotMatch(output.decision, /Направление|Куратор|admissions_direction|curator_membership_id/);
+  assert.doesNotMatch(output.decision, /<select/);
 });
 
 test("application catalogue selector renders actual React with deliberate choice and no extra submitted fields", async () => {

@@ -1,5 +1,5 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
+import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Pill, type PillTone } from "@/components/v3/Pill";
@@ -21,7 +21,8 @@ import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
 import { LeadInterestSummary } from "./LeadInterestSummary";
 import { StudentProfileFields } from "./StudentProfileFields";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
-import { StudentApplicationAnswers } from "../admissions/StudentApplications";
+import { ApplicationDecision, StudentApplicationAnswers } from "../admissions/StudentApplications";
+import type { StudentApplication } from "@/lib/student-application-contract";
 import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
@@ -64,6 +65,46 @@ const STATUS_TONE: Record<string, PillTone> = {
   pending: "neutral", draft: "neutral", blocked: "danger", rejected: "danger",
 };
 const tone = (s: string): PillTone => STATUS_TONE[s] ?? "neutral";
+
+/**
+ * «Доступ к платформе» — unified workflow S1 (plan §4): approving a platform
+ * анкета never assigns a curator or direction, only opens the portal
+ * cabinet. Admissions handoff stays a separate, later fact (Sales report).
+ */
+function PlatformAccessCard({ application, requestId, readOnly }: {
+  application: StudentApplication | null; requestId: string; readOnly: boolean;
+}) {
+  return (
+    <Card eyebrow title="Доступ к платформе">
+      <div className="space-y-3 px-4 py-3">
+        {application === null ? (
+          <p className="text-sm text-fg-2">Анкета в платформе не заполнена.</p>
+        ) : application.status === "approved" ? (
+          <p className="text-sm text-fg-2">
+            Доступ открыт.{" "}
+            {application.studentCaseId ? (
+              <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(application.studentCaseId)}&tab=anketa`}>
+                Открыть дело
+              </Link>
+            ) : null}
+          </p>
+        ) : application.status === "rejected" ? (
+          <div className="space-y-1">
+            <p className="text-sm text-fg-2">Заявка на доступ отклонена.</p>
+            {application.decisionReason ? <p className="whitespace-pre-wrap break-words text-sm text-fg-3">{application.decisionReason}</p> : null}
+          </div>
+        ) : readOnly ? (
+          <p className="text-sm text-fg-2">Анкета ожидает решения. В режиме просмотра решения недоступны.</p>
+        ) : (
+          <>
+            <p className="text-sm text-fg-2">Анкета ожидает решения.</p>
+            <ApplicationDecision application={application} requestId={requestId} />
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 /* ------------------------------------------------------------------ Обзор */
 
@@ -129,6 +170,12 @@ export function Overview({
               ]}
             />
           </Card>
+
+          <PlatformAccessCard
+            application={draft.studentApplication}
+            requestId={requestIds.platformAccess}
+            readOnly={isStaffPreview(actor)}
+          />
 
           <ProfileSalesTransition
             actor={actor}

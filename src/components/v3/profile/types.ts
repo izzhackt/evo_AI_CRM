@@ -202,6 +202,8 @@ export type ProfileSalesRequestIds = Readonly<{
   firstPayment: string;
   override: string;
   handoff: string;
+  /** «Доступ к платформе» approve/reject on the lead card Overview (unified workflow S1). */
+  platformAccess: string;
 }>;
 
 export type Payment = Readonly<{

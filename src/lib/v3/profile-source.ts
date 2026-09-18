@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { loadProfileSalesContext } from "./profile-route-load";
-import { loadStudentApplicationForCase } from "./student-application-source";
+import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -760,6 +760,11 @@ async function readLeadProfile(
     timeline: studentCase ? caseTimeline(studentCase) : [],
   };
   const money = financeSummary(finance);
+  // «Доступ к платформе» (unified workflow S1): before Admissions takes over
+  // a full case, the lead card still needs to show/decide the linked platform
+  // анкета. staff_student_application_for_lead_v1 authorizes off the SAME
+  // canonical-lead read the rest of this branch already established.
+  const leadStudentApplication = fullCase ? null : await loadStudentApplicationForLead(leadId);
   const details: ProfileDraft = fullCase
     ? fullCaseDetails(
         actor,
@@ -776,7 +781,7 @@ async function readLeadProfile(
         person: [],
         study: [],
         profileFields: null,
-        studentApplication: null,
+        studentApplication: leadStudentApplication,
         profileFieldSources: [],
         documents: [],
         otherFiles: [],

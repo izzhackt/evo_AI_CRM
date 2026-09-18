@@ -342,6 +342,7 @@ const ROLE: Record<string, string> = {
 const SOURCE: Record<string, string> = {
   whatsapp: "WhatsApp",
   website: "сайт",
+  platform_application: "платформа",
   referral: "по рекомендации",
   office: "встреча в офисе",
   phone_call: "звонок",

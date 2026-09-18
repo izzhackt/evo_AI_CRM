@@ -19,7 +19,7 @@ function direction(value: unknown): value is AdmissionsDirection {
   return typeof value === "string" && (STUDENT_APPLICATION_DIRECTIONS as readonly string[]).includes(value);
 }
 export function decodeStudentApplication(value: unknown): StudentApplication {
-  if (!isStudentApplicationRecord(value) || Object.keys(value).sort().join(",") !== "admissions_direction,decided_at,decision_reason,email,id,questionnaire,revision,status,student_case_id,submitted_at") return fail();
+  if (!isStudentApplicationRecord(value) || Object.keys(value).sort().join(",") !== "admissions_direction,canonical_lead_id,decided_at,decision_reason,email,id,questionnaire,revision,status,student_case_id,submitted_at") return fail();
   const questionnaire = validateStudentApplicationDraft(value.questionnaire);
   const revision = Number(value.revision);
   if (!isStudentApplicationUuid(value.id) || !["pending", "approved", "rejected"].includes(String(value.status))
@@ -28,14 +28,19 @@ export function decodeStudentApplication(value: unknown): StudentApplication {
     || !date(value.submitted_at) || (value.decided_at !== null && !date(value.decided_at))
     || (value.decision_reason !== null && (typeof value.decision_reason !== "string" || value.decision_reason.length > 1000))
     || (value.student_case_id !== null && !isStudentApplicationUuid(value.student_case_id))
-    || (value.admissions_direction !== null && !direction(value.admissions_direction))) return fail();
+    || (value.admissions_direction !== null && !direction(value.admissions_direction))
+    // canonical_lead_id is unified-workflow provenance, not a decision fact: it
+    // may be set or null in any status (submit-time link, approval-time link,
+    // or still-unlinked when the configured owner is absent and no decision
+    // has created one yet).
+    || (value.canonical_lead_id !== null && !isStudentApplicationUuid(value.canonical_lead_id))) return fail();
   if ((value.status === "approved") !== (value.student_case_id !== null)
-    || (value.status === "pending") !== (value.decided_at === null)
-    || (value.status === "approved") !== (value.admissions_direction !== null)) return fail();
+    || (value.status === "pending") !== (value.decided_at === null)) return fail();
   return { id: value.id, status: value.status as StudentApplication["status"], revision, email: value.email,
     questionnaire, submittedAt: value.submitted_at, decidedAt: value.decided_at as string | null,
     decisionReason: value.decision_reason as string | null, studentCaseId: value.student_case_id as string | null,
-    admissionsDirection: value.admissions_direction as AdmissionsDirection | null };
+    admissionsDirection: value.admissions_direction as AdmissionsDirection | null,
+    canonicalLeadId: value.canonical_lead_id as string | null };
 }
 async function rpc(client: SupabaseClient, name: string, args?: Record<string, unknown>): Promise<unknown> {
   const result = await client.schema("platform").rpc(name, args);
@@ -83,13 +88,22 @@ export async function loadStudentApplicationForCase(caseId: string): Promise<Stu
   const data = await rpc(await createSupabaseServerClient(), "staff_student_application_for_case_v1", { p_student_case_id: caseId });
   return data === null ? null : decodeStudentApplication(data);
 }
+/** The lead-card «Доступ к платформе» block: the application linked to this canonical lead, if any. */
+export async function loadStudentApplicationForLead(leadId: string): Promise<StudentApplication | null> {
+  if (!isStudentApplicationUuid(leadId)) throw new StudentApplicationSourceError("invalid");
+  const data = await rpc(await createSupabaseServerClient(), "staff_student_application_for_lead_v1", { p_lead_id: leadId });
+  return data === null ? null : decodeStudentApplication(data);
+}
+/**
+ * Access-only decision (unified workflow S1): approval never assigns a
+ * direction or curator — it only opens the portal cabinet. Admissions still
+ * happens later, after a Sales report handoff (S2).
+ */
 export async function decideStudentApplication(input: {
-  applicationId: string; expectedRevision: number; decision: "approve" | "reject";
-  admissionsDirection: AdmissionsDirection | null; curatorMembershipId: string | null; reason: string; requestId: string;
+  applicationId: string; expectedRevision: number; decision: "approve" | "reject"; reason: string; requestId: string;
 }): Promise<StudentApplication> {
   return decodeStudentApplication(await rpc(await createSupabaseServerClient(), "decide_student_application_v1", {
     p_application_id: input.applicationId, p_expected_revision: input.expectedRevision, p_decision: input.decision,
-    p_admissions_direction: input.admissionsDirection, p_curator_membership_id: input.curatorMembershipId,
     p_reason: input.reason, p_request_id: input.requestId,
   }));
 }

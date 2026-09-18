@@ -12,6 +12,10 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/pipeline",
   "/v3/inbox",
   "/v3/profile",
+  "/v3/requests",
+  // Retired route (unified workflow S1, replaced by /v3/requests, gated by
+  // sales.read not admissions.read): kept connected so old bookmarks/links
+  // still resolve. The page itself is an unconditional redirect.
   "/v3/admissions-requests",
   "/v3/settings",
   "/v3/knowledge",

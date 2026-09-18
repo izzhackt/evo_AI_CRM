@@ -22,9 +22,13 @@ function links(model) {
   ];
 }
 
+// «Заявки» (unified-workflow S1) is sales.read-gated, so it joins admin/sales
+// at the FRONT of the Продажи group (plan §3 order: Заявки, Inbox, Воронка,
+// Отчёт продаж) and never reaches the admissions preview, which lacks
+// sales.read entirely — its list is unchanged from before this slice.
 const expectedRoleLinks = {
-  admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
-  sales: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
+  admin: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  sales: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
   admissions: ["home", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
 };
 
@@ -52,8 +56,9 @@ for (const role of ["admin", "sales", "admissions"]) {
 test("the two disclosure groups use the approved destinations and worklist remains available to Sales", () => {
   const model = navigation("admin");
   assert.equal(model.home?.label, "Главная");
+  // Order follows plan §3: Заявки, Inbox, Воронка, Отчёт продаж.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"], ["Клиентские сообщения", "/v3/inbox"]]],
+    ["Продажи", [["Заявки", "/v3/requests"], ["Клиентские сообщения", "/v3/inbox"], ["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
     ["Поступление", [["Рабочий список", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
@@ -100,7 +105,9 @@ test("forbidden and unknown paths never mark an unrelated link current", () => {
   // /v3/main is the admissions «Мой день» home now; only the sales report view
   // and sales-only routes stay outside that role's navigation.
   assert.equal(navigation("admissions", "/v3/main").activeId, "home");
-  for (const href of ["/v3/main?view=sales", "/v3/pipeline", "/v3/settings"]) {
+  // «Заявки» is sales.read-gated (unified workflow S1); admissions lacks that
+  // capability entirely, so it never becomes this preview's active link.
+  for (const href of ["/v3/main?view=sales", "/v3/pipeline", "/v3/settings", "/v3/requests"]) {
     assert.equal(navigation("admissions", href).activeId, null, href);
   }
   for (const href of ["/v3/settings", "/v3/calendar"]) {

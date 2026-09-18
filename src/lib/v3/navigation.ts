@@ -7,6 +7,7 @@ import { isStaffPreview, staffCan, staffCanAccessRoute, staffHasPermission, staf
 
 export type V3NavigationLinkId =
   | "home"
+  | "requests"
   | "pipeline"
   | "sales-report"
   | "admissions-worklist"
@@ -47,10 +48,18 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
   {
     id: "sales",
     label: "Продажи",
+    // Order follows plan §3: Заявки, Inbox, Воронка, Отчёт продаж. «Заявки»
+    // is the new unified intake queue (S1); its own route already requires
+    // sales.read, so — unlike inbox below — it needs no extra capability
+    // gate here. Inbox keeps its explicit sales.read gate: this entry only
+    // decides whether inbox shows INSIDE the Продажи group (its own route
+    // requires the broader messaging.read, shared with non-Sales roles that
+    // see inbox in the common section instead, filtered further down).
     links: [
+      { id: "requests", href: "/v3/requests", route: "/v3/requests", label: "Заявки" },
+      { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Клиентские сообщения", capability: "sales.read" },
       { id: "pipeline", href: "/v3/pipeline", route: "/v3/pipeline", label: "Воронка" },
       { id: "sales-report", href: "/v3/main?view=sales", route: "/v3/main", label: "Отчёт продаж" },
-      { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Клиентские сообщения", capability: "sales.read" },
     ],
   },
   {

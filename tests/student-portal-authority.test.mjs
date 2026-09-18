@@ -74,6 +74,35 @@ test("strict Student authority accepts one activated exact-case projection", () 
   );
 });
 
+// Unified workflow S1: a «кабинет до продажи» is a portal-activated
+// state='pending' case (no curator/direction yet). The decode contract must
+// accept it exactly like active/closed, since the portal login path is the
+// same object either way — only downstream screens branch on caseState.
+test("strict Student authority also accepts a portal-activated pending cabinet (unified workflow S1)", () => {
+  assert.deepEqual(
+    decodeVerifiedStudentPortalAuthority(
+      claims(),
+      [authorityRow()],
+      [portalCaseRow({ case_state: "pending" })],
+    ),
+    {
+      authUserId: AUTH_USER_ID,
+      profileId: PROFILE_ID,
+      membershipId: MEMBERSHIP_ID,
+      organizationId: ORGANIZATION_ID,
+      studentCaseId: CASE_ID,
+      displayName: "Айжан Тестова",
+      email: "student@example.com",
+      databaseRole: "student",
+      platformAccessVersion: 7,
+      platformBundleId: BUNDLE_ID,
+      platformBundleVersion: 3,
+      caseState: "pending",
+      portalActivatedAt: "2026-09-07T08:00:00.000Z",
+    },
+  );
+});
+
 test("Student authority never accepts staff roles or user_metadata as authority", () => {
   assert.equal(
     decodeVerifiedStudentPortalAuthority(
@@ -97,7 +126,12 @@ test("Student authority fails closed for missing, duplicate, inactive or malform
   for (const rows of [
     [],
     [portalCaseRow(), portalCaseRow({ case_id: PROFILE_ID })],
-    [portalCaseRow({ case_state: "pending" })],
+    // Every legal case_state still requires a live portal activation: a
+    // pending cabinet is not exempt from that rule (plan §4 — approval
+    // itself sets portal_activated_at; it is never left null for 'pending').
+    [portalCaseRow({ case_state: "pending", portal_activated_at: null })],
+    // Not one of the three canonical states, pending included.
+    [portalCaseRow({ case_state: "cancelled" })],
     [portalCaseRow({ portal_activated_at: null })],
     [portalCaseRow({ case_id: "not-a-uuid" })],
   ]) {

@@ -29,6 +29,9 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
 const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal",
   "/portal/documents",
+  // Retired screen (unified workflow S5): kept connected only so old
+  // bookmarks/notification links still resolve. The page itself is an
+  // unconditional redirect to /portal, same pattern as /v3/admissions-requests.
   "/portal/applications",
   "/portal/universities",
   "/portal/payments",

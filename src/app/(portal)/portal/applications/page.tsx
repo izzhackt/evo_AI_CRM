@@ -1,24 +1,12 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { ApplicationsView } from "@/components/v3/portal/ApplicationsView";
-import { PortalPage } from "@/components/v3/portal/PortalPage";
-import { readStudentPortalApplications } from "@/lib/v3/portal-source";
-
-export const dynamic = "force-dynamic";
-
-export const metadata: Metadata = {
-  title: "Заявки и виза — EVO Admissions",
-};
-
-export default async function StudentPortalApplicationsPage() {
-  const applications = await readStudentPortalApplications();
-
-  return (
-    <PortalPage
-      title="Заявки и виза"
-      description="Статусы университетских заявок, дедлайны и ход визового дела."
-    >
-      <ApplicationsView applications={applications} />
-    </PortalPage>
-  );
+// Unified workflow (S5): «Заявки и виза» is retired (plan §13 — the platform
+// no longer tracks university-application/visa stages as their own screen).
+// This route stays connected (platform-route-contract.ts) only so old
+// bookmarks and notification links still resolve, instead of a hidden 404
+// before the portal shell ever mounts; it performs no read of its own. Visa
+// files remain ordinary documents in «Документы» (a document requirement,
+// unrelated to this retired screen).
+export default function StudentPortalApplicationsRedirect() {
+  redirect("/portal");
 }

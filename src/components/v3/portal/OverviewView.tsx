@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import type { StudentPortalAction, StudentPortalOverview } from "@/lib/v3/portal-source";
+import { portalPendingCabinet } from "@/lib/v3/wording";
 import { PortalStatus } from "./PortalStatus";
-import { evoActionDueLabel, evoActionStatus, formatPortalMoney, overviewStage, studentActionDueLabel } from "./presentation";
+import { evoActionDueLabel, evoActionStatus, formatPortalMoney, studentActionDueLabel } from "./presentation";
 
 function actionTitle(action: StudentPortalAction): string {
   const verb = action.kind === "payment" ? "Оплата" : action.kind === "upload_document" ? "Загрузите документ" : "Замените документ";
@@ -43,10 +44,9 @@ function ActionRow({ action }: { action: StudentPortalAction }) {
   );
 }
 
-export function OverviewView({ overview }: { overview: StudentPortalOverview | null }) {
+export function OverviewView({ overview, pending = false }: { overview: StudentPortalOverview | null; pending?: boolean }) {
   const primary = overview?.studentAction ?? null;
   const remaining = overview?.studentActions.slice(1) ?? [];
-  const stage = overview ? overviewStage(overview) : null;
   const evoAction = overview?.evoAction ?? null;
   const evoDue = evoAction ? evoActionDueLabel(evoAction) : null;
   const evoStatus = evoAction ? evoActionStatus(evoAction) : null;
@@ -54,13 +54,6 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.9fr)_minmax(235px,1fr)]">
       <div className="min-w-0 space-y-4">
-        {stage ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-fg-3">
-            <p className="m-0">Текущий этап</p>
-            <PortalStatus label={stage.label} tone={stage.tone} />
-          </div>
-        ) : null}
-
         <section aria-labelledby="student-next-step" className="min-w-0 overflow-hidden rounded-card border border-border bg-surface">
           <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
             <h2 id="student-next-step" className="text-sm font-semibold text-fg">
@@ -167,13 +160,25 @@ export function OverviewView({ overview }: { overview: StudentPortalOverview | n
         )}
 
         <div className="mt-6 border-t border-border pt-5">
-          <p className="text-xs text-fg-3">Ваш куратор</p>
-          {overview?.curatorDisplayName ? (
+          <p className="text-xs text-fg-3">{pending ? portalPendingCabinet.heading : "Ваш куратор"}</p>
+          {pending ? (
+            <span className="mt-2 block text-xs leading-6 text-fg-3">{portalPendingCabinet.managerNotice}</span>
+          ) : overview?.curatorDisplayName ? (
             <strong className="mt-2 block break-words text-sm font-semibold text-fg">{overview.curatorDisplayName}</strong>
           ) : (
             <span className="mt-2 block text-xs leading-6 text-fg-3">Куратор пока не назначен.</span>
           )}
         </div>
+
+        {pending ? (
+          <div className="mt-6 rounded-card border border-border bg-surface p-5">
+            <h3 className="text-sm font-semibold text-accent-text">{portalPendingCabinet.applicationHeading}</h3>
+            <p className="mt-2 text-xs leading-6 text-fg-2">{portalPendingCabinet.applicationHint}</p>
+            <Link href="/apply/status" className="mt-2.5 flex min-h-11 items-center gap-3 text-xs font-semibold text-accent-text hover:underline hover:underline-offset-4">
+              {portalPendingCabinet.applicationLink} <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+        ) : null}
 
         <div className="mt-6 rounded-card border border-border bg-surface p-5">
           <h3 className="text-sm font-semibold text-accent-text">Вопрос куратору</h3>

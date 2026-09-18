@@ -17,10 +17,6 @@ const WCAG_TAGS = [
 const PORTAL_ROUTES = [
   { path: "/portal", expectedText: "Замените документ: Паспорт" },
   { path: "/portal/documents", expectedText: "Паспорт" },
-  {
-    path: "/portal/applications",
-    expectedText: "University of Browser Proof",
-  },
   { path: "/portal/payments", expectedText: "Сервисный сбор EVO" },
   {
     path: "/portal/notifications",
@@ -301,7 +297,7 @@ async function expectPortalGeometry(page: Page, context: string) {
   expect(geometry.nextError, `${context}: Next rendered an error boundary`).toBe(false);
 }
 
-test("all five Student Portal routes pass the real authenticated quality gate", async ({
+test("all four Student Portal routes pass the real authenticated quality gate", async ({
   page,
 }, testInfo) => {
   const browserErrors: string[] = [];
@@ -392,7 +388,7 @@ test("the compact mobile Portal menu supports keyboard navigation and dismissal"
   const close = page.getByRole("button", { name: "Закрыть", exact: true });
   await expect(close).toHaveAttribute("aria-expanded", "true");
   const navigation = page.getByRole("navigation", { name: "Разделы кабинета" });
-  await expect(navigation.getByRole("link")).toHaveCount(7);
+  await expect(navigation.getByRole("link")).toHaveCount(6);
   const notifications = navigation.locator('a[href="/portal/notifications"]');
   for (let press = 0; press < 8; press += 1) {
     await page.keyboard.press("Tab");

@@ -1063,6 +1063,19 @@ export const settingsStatusWords = {
 } as const;
 
 /**
+ * S1's «кабинет до продажи»: a portal-activated `state='pending'` case with
+ * no curator and no sale yet (plan §10, unified workflow S5). The overview
+ * must not name a non-existent curator or fabricate a stage for it.
+ */
+export const portalPendingCabinet = {
+  heading: "Сопровождение",
+  managerNotice: "Менеджер свяжется с вами.",
+  applicationHeading: "Ваша анкета",
+  applicationHint: "Анкета, которую вы отправили и одобрила команда EVO.",
+  applicationLink: "Открыть анкету",
+} as const;
+
+/**
  * Экраны-тупики оболочки: страница не найдена и неперехваченная ошибка
  * рендера. Один словарь на V3 и Student Portal — сообщение остаётся
  * человеческим и одинаковым в обоих мирах.

@@ -27,10 +27,14 @@ function filesUnder(path) {
     .sort();
 }
 
-test("the Student workspace preserves five portal pages, private tests and published universities", () => {
+test("the Student workspace preserves four portal pages, private tests and published universities", () => {
   const pageFiles = filesUnder("src/app/(portal)/portal/")
     .filter((path) => path.endsWith("/page.tsx") || path.endsWith("portal/page.tsx"));
 
+  // applications/page.tsx stays on disk (unified workflow S5): the route is
+  // kept connected only so old bookmarks/notification links still resolve,
+  // and its file is now an unconditional redirect to /portal, not a page
+  // with its own reader/view — see the "direct strict E2 result" test below.
   assert.deepEqual(pageFiles, [
     "src/app/(portal)/portal/applications/page.tsx",
     "src/app/(portal)/portal/documents/page.tsx",
@@ -51,7 +55,6 @@ test("the Student workspace preserves five portal pages, private tests and publi
     [
       "/portal",
       "/portal/documents",
-      "/portal/applications",
       "/portal/universities",
       "/portal/payments",
       "/portal/notifications",
@@ -100,16 +103,6 @@ test("route entry reads the notification badge without a duplicate route refresh
   }
 });
 
-test("application and visa projections overlap without dropping validation", () => {
-  const reader = source("src/lib/v3/portal-source.ts").split("export async function readStudentPortalApplications(")[1].split("export async function readStudentPortalPayments(")[0];
-  assert.match(reader, /const \[applications, visas\] = await Promise\.all\(\[/u);
-  assert.match(reader, /const \[applicationRows, visa\] = await Promise\.all\(\[/u);
-  assert.match(reader, /if \(visas\.length > 1\) return invalidShape\(\)/u);
-  assert.match(reader, /assertTimelineContinuity\(timeline, application\.status\)/u);
-  assert.match(reader, /assertTimelineContinuity\(timeline, visas\[0\]\.status\)/u);
-  assert.match(reader, /return failClosed\(error\)/u);
-});
-
 test("Student preview implementation and staff entry are retired without removing the real portal", () => {
   for (const path of [
     "src/app/(portal-preview)/layout.tsx",
@@ -141,7 +134,6 @@ test("every page passes the direct strict E2 result to its view", () => {
   const expected = [
     ["src/app/(portal)/portal/page.tsx", "readStudentPortalOverview", "overview", "OverviewView"],
     ["src/app/(portal)/portal/documents/page.tsx", "readStudentPortalDocuments", "documents", "DocumentsView"],
-    ["src/app/(portal)/portal/applications/page.tsx", "readStudentPortalApplications", "applications", "ApplicationsView"],
     ["src/app/(portal)/portal/payments/page.tsx", "readStudentPortalPayments", "payments", "PaymentsView"],
     ["src/app/(portal)/portal/notifications/page.tsx", "readStudentPortalNotifications", "notifications", "NotificationsView"],
   ];
@@ -155,6 +147,7 @@ test("every page passes the direct strict E2 result to its view", () => {
     if (resultName === "overview") {
       assert.match(page, /const \[overview, actor\] = await Promise\.all\(\[readStudentPortalOverview\(\), requireStudentPortalActor\(\)\]\)/u);
       assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student/u);
+      assert.match(page, /pending=\{actor\.caseState === "pending"\}/u);
     } else {
       assert.match(page, new RegExp(`const ${resultName} = await ${reader}\\(\\)`, "u"));
     }
@@ -164,6 +157,16 @@ test("every page passes the direct strict E2 result to its view", () => {
     );
     assert.doesNotMatch(page, /createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   }
+});
+
+test("the retired applications route is an unconditional redirect, not a view", () => {
+  const page = source("src/app/(portal)/portal/applications/page.tsx");
+  assert.match(page, /import \{ redirect \} from "next\/navigation"/u);
+  assert.match(page, /redirect\("\/portal"\)/u);
+  assert.doesNotMatch(
+    page,
+    /readStudentPortal|ApplicationsView|createClient|supabase|sqlite|drizzle|fixture|demo/iu,
+  );
 });
 
 test("overview names each actor from the canonical projection and links exact items", () => {
@@ -192,6 +195,35 @@ test("overview names each actor from the canonical projection and links exact it
     documents,
     /id=\{`document-\$\{document\.documentSlotId\}`\}/u,
   );
+});
+
+test("the overview never claims a mandatory stage, and a pending cabinet stays honest", () => {
+  const overview = source("src/components/v3/portal/OverviewView.tsx");
+  const presentation = source("src/components/v3/portal/presentation.ts");
+  const wording = source("src/lib/v3/wording.ts");
+  const portalPage = source("src/app/(portal)/portal/page.tsx");
+  const applyStatusPage = source("src/app/apply/status/page.tsx");
+
+  // Plan §10/S5: no invented mandatory stage pill, and no leftover helper.
+  assert.doesNotMatch(overview, /Текущий этап/u);
+  assert.doesNotMatch(overview, /overviewStage/u);
+  assert.doesNotMatch(presentation, /export function overviewStage/u);
+
+  // A pending, curator-less cabinet (S1's «кабинет до продажи») gets its own
+  // quiet, accurate copy instead of a fabricated curator or stage.
+  assert.match(overview, /pending\??: boolean/u);
+  assert.match(overview, /portalPendingCabinet/u);
+  assert.match(overview, /pending \? portalPendingCabinet\.heading : "Ваш куратор"/u);
+  assert.match(overview, /portalPendingCabinet\.managerNotice/u);
+  assert.match(overview, /href="\/apply\/status"/u);
+  assert.match(wording, /export const portalPendingCabinet = \{/u);
+  assert.match(portalPage, /pending=\{actor\.caseState === "pending"\}/u);
+
+  // /apply/status stays reachable for a pending cabinet instead of bouncing
+  // straight back to /portal (the only place the submitted анкета can be
+  // read once a portal case exists).
+  assert.match(applyStatusPage, /portal\.authority\.caseState === "pending"/u);
+  assert.match(applyStatusPage, /if \(!stillPending\) redirect\(destination\);/u);
 });
 
 test("migration 131 adds a v2 overview while preserving the rollback v1", () => {
@@ -241,7 +273,6 @@ test("views consume the exact E2 DTOs without an invented wrapper", () => {
   const expectedTypes = new Map([
     ["OverviewView.tsx", "StudentPortalOverview"],
     ["DocumentsView.tsx", "StudentPortalDocument"],
-    ["ApplicationsView.tsx", "StudentPortalApplications"],
     ["PaymentsView.tsx", "StudentPortalPayment"],
     ["NotificationsView.tsx", "StudentPortalNotification"],
   ]);
@@ -252,9 +283,11 @@ test("views consume the exact E2 DTOs without an invented wrapper", () => {
     assert.doesNotMatch(view, /Portal(?:Overview|Documents|Applications|Payments|Notifications)View/u);
   }
 
-  const applications = source("src/components/v3/portal/ApplicationsView.tsx");
+  assert.equal(
+    existsSync(new URL("../src/components/v3/portal/ApplicationsView.tsx", import.meta.url)),
+    false,
+  );
   const payments = source("src/components/v3/portal/PaymentsView.tsx");
-  assert.match(applications, /application\.isPrimary/u);
   assert.match(payments, /payment\.category/u);
   assert.match(payments, /payment\.refundedMinor/u);
   assert.doesNotMatch(payments, /paymentObligationId/u);
@@ -397,7 +430,6 @@ test("existing case portal views stay presentation-only and never render raw sta
   assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);
   assert.match(components, /<PortalStatus[\s\S]*label=/u);
   assert.match(components, /Что нужно исправить/u);
-  assert.match(components, /История статусов/u);
 });
 
 test("mark-read accepts one opaque handle and creates authority and replay data server-side", () => {
@@ -446,9 +478,12 @@ test("notifications deep-link by category, and bulk mark-read loops the existing
   assert.match(presentation, /notification\.eventCode === "case_help_answer"/u);
   assert.match(presentation, /notification\.category\.startsWith\("document"\)/u);
   assert.match(presentation, /notification\.category\.startsWith\("payment"\)/u);
-  assert.match(
+  // Retired screen (unified workflow S5): the never-emitted application/visa
+  // categories no longer get their own branch — they fall through to the
+  // same default overview link every other unknown category already uses.
+  assert.doesNotMatch(
     presentation,
-    /notification\.category\.startsWith\("application"\) \|\| notification\.category\.startsWith\("visa"\)/u,
+    /notification\.category\.startsWith\("application"\)|notification\.category\.startsWith\("visa"\)|Открыть заявки/u,
   );
 
   assert.match(notifications, /portalNotificationTarget\(notification\)/u);
@@ -578,15 +613,10 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
 });
 
 test("portal feedback and status markers reuse the shared restrained visual language", () => {
-  const applications = source("src/components/v3/portal/ApplicationsView.tsx");
   const documents = source("src/components/v3/portal/DocumentsView.tsx");
   const notifications = source("src/components/v3/portal/NotificationsView.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
-  assert.match(
-    applications,
-    /<PortalStatus label=\{item\.label\} tone="neutral" \/>/u,
-  );
   assert.match(
     notifications,
     /<PortalStatus label="Новое" tone="info" \/>/u,

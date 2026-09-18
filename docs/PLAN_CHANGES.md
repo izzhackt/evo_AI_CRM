@@ -29391,3 +29391,217 @@ then, not before. `readApplicationPartnerDetails`'s dependency on
 its four facts will read as empty for any case that never had a playbook
 configured — expected and honest, not a bug: those cases never had this
 data written in the first place.
+
+## 2026-09-18 — unified workflow S5: Портал одного дела
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S5.
+Affected plan section: «S5 Портал одного дела» (plan §10, §11, §13;
+PLAN_CHANGES «план-контракт реализации», S1-S4 above).
+
+Reason: implement plan §10/§13 — the portal's old «Заявки и виза» screen
+tracked university-application and visa stages the platform no longer
+tracks as their own process, and duplicated the mandatory-stage framing the
+CRM side already dropped in S4. The portal and CRM stay one case; a
+curator-less, portal-activated `state='pending'` cabinet (S1's «кабинет до
+продажи») must render truthfully instead of inventing a stage or a curator
+that do not exist yet.
+
+Decision — no new migration. Every SQL predicate this slice depends on was
+already extended for `state='pending'` by migration 180 (S1) or never
+gated on case state to begin with; investigation (documented per deliverable
+3, not guessed) confirmed each surface below already works, so migration
+184 was not created:
+- `platform.student_portal_overview_v2()` (131, extended by 180) already
+  accepts `'pending'`; a fresh pending case gets `operational_stage`'s table
+  default (`'contract_confirmed'`, 042) with null curator, student action
+  and EVO action — exactly the shape the removed stage pill would have
+  rendered dishonestly as "договор подтверждён". Removing the pill (below)
+  makes this a non-issue rather than a value worth relabeling.
+- `platform.student_portal_finance_v2()` (127) is still active/closed-only
+  by design (180's own header); for a pending case its base `WHERE
+  student_case.state IN ('active','closed')` returns zero rows, not an
+  error — an honestly empty payments list, matching plan §6 (no sale before
+  handoff means no obligations yet).
+- Assessments (`platform_private.require_student_assessment_actor_read`,
+  135) and case-help (`platform_private.require_case_operations_actor`,
+  146/156) both gate the Student branch on `(SELECT count(*) FROM
+  platform.student_portal_cases()) <> 1`, and `student_portal_cases()` (042)
+  delegates entirely to `private.platform_can_read_student_portal_case`,
+  the exact function 180 already extended to `state IN ('pending','active',
+  'closed')`. Both English/ORVIS tests and «Вопрос куратору» therefore
+  already work for a pending cabinet with zero code changes — verified by
+  reading the SQL, not assumed.
+- Document slots (`student_portal_documents`, upload/download chain) were
+  already extended for `'pending'` by 180 itself; DocumentsView is generic
+  over the row list and needed no change.
+- The «Виза» document group the task asked to verify is not a UI grouping
+  at all — `DocumentsView.tsx` renders a flat checklist keyed by
+  `requirementLabel`/`requirementKey` from `document_requirements` data,
+  unrelated to and unaffected by this slice; visa files stay ordinary
+  documents.
+
+Screen removal: `src/app/(portal)/portal/applications/page.tsx` no longer
+reads or renders anything — investigating `src/proxy.ts` (`isConnectedPlatformPage`
+→ `isConnectedStudentPortalPage`) showed the route gate runs BEFORE Next's
+own router, so simply deleting the page and dropping `/portal/applications`
+from `STUDENT_PORTAL_PAGE_ALLOWLIST` (`src/lib/platform-route-contract.ts`)
+would produce a hidden 404 outside the portal shell, not the friendlier
+`(portal)/not-found.tsx` — confirmed by `tests/fixed-role-route-contract.test.mjs`'s
+own existing assertion that `/portal/applications` stays connected. Redirect
+(the task's own "kinder for old notification links" choice) therefore keeps
+the route in the allowlist and replaces the page body with an unconditional
+`redirect("/portal")`, the same pattern S1 used for `/v3/admissions-requests`.
+`src/components/v3/portal/ApplicationsView.tsx` is deleted outright.
+`src/components/v3/portal/PortalShell.tsx` drops the «Заявки» nav entry
+(`SECTIONS` 7 → 6 items). `src/lib/v3/portal-source.ts` drops
+`readStudentPortalApplications`, its five normalizers/helpers
+(`normalizeApplication(TimelineEntry)`, `normalizeVisa(TimelineEntry)`,
+`assertTimelineContinuity` — verified unused elsewhere first), its five
+exported types (`StudentPortalApplication(s|TimelineEntry)`,
+`StudentPortalVisa(TimelineEntry)`) and the now-dead `TIMELINE_LIMIT`
+constant and `PLATFORM_APPLICATION_STATUSES`/`PLATFORM_VISA_STATUSES`
+imports (the underlying contract files stay — still used by the CRM side's
+kept visa-read path and application-status Pill, per S4). The
+`application`/`visa` branch in `portalNotificationTarget`
+(`src/components/v3/portal/presentation.ts`) — confirmed dead in the
+briefing, since no migration ever emits those categories — is removed
+without a replacement branch; both prefixes now fall through to the same
+default `/portal` link every other unknown category already used, per the
+task's "map to /portal fallback" option. `applicationStatusPresentation`/
+`visaStatusPresentation` (presentation.ts) are deleted with it (their only
+caller was the deleted view). `wording.ts`'s `VISA_STATUS`/`visaStatus` and
+`APPLICATION_STATUS`/`applicationStatus` dictionaries are deliberately kept
+untouched — `applicationStatus` is still used by `ApplicationDeadline.tsx`/
+`ProfileAdmissionsWorkspace.tsx`/`tabs.tsx` (CRM side), and pruning the
+now-unused `visaStatus` export was judged out of scope for a screen-removal
+slice (a small, harmless, generically-named wording lookup, not a
+type/route/predicate that could mislead).
+
+Overview without the mandatory stage: the «Текущий этап» pill and its
+`overviewStage()` helper (presentation.ts) are deleted — confirmed unused
+elsewhere first (`rg overviewStage`). `OverviewView.tsx` already led with
+the next-action queue post-redesign, so removing the pill needed no other
+layout change. `STUDENT_OPERATIONAL_STAGE`/`studentOperationalStage` in
+`wording.ts` stay — still consumed by the CRM staff directory
+(`CuratorDay.tsx`, `ProfileCaseDirectory.tsx`), matching the task's own
+"keep if still consumed elsewhere" instruction.
+
+Pending-cabinet honesty — three decisions:
+(1) **Overview/curator.** `OverviewView` takes a new optional `pending`
+prop (`src/app/(portal)/portal/page.tsx` passes `actor.caseState ===
+"pending"`, from the actor `requireStudentPortalActor()` already fetches).
+When pending, the «Ваш куратор» block is retitled «Сопровождение» with the
+quiet copy «Менеджер свяжется с вами.» instead of «Куратор пока не
+назначен.» — the latter implies a curator will eventually appear on this
+case, which is false for a pre-sale cabinet (curator assignment only
+happens after a sale, per S1/S3). New `portalPendingCabinet` dictionary in
+`wording.ts` holds this and the анкета copy below, quiet and Russian per
+plan §14.
+(2) **Анкета.** Investigated the task's suggested "smallest honest
+solution" (link `/apply/status` from the overview) and found it did NOT
+actually work as stated: `studentApplicationEntryRedirect`
+(`student-signup-runtime.ts`) bounces ANY portal-authenticated actor —
+pending included, since `readVerifiedStudentPortalAuthority` already
+accepts `'pending'` per S1 — straight back to `/portal` before the page
+ever reads the application. Fixing this required a real code change, made
+narrowly inside `src/app/apply/status/page.tsx` only (not the shared
+`studentApplicationEntryRedirect` helper, which stays byte-for-byte
+unchanged and keeps its 3 existing call sites and pinned test
+(`tests/student-public-application.test.mjs`, still 15/15) untouched): when
+the shared helper says "/portal", the page now additionally reads portal
+authority itself and only redirects if the case is NOT `'pending'`; a
+pending actor stays and sees their approved анкета via the existing,
+unmodified `own_student_application_v1` RPC (keyed purely by `auth.uid()`,
+no role/state gate — verified in migration 177/180) and the existing
+`ApplicationStatus` component, whose "Открыть кабинет" button already
+returns them to `/portal` independently (`refreshStudentApplicationAction`
+doesn't use `studentApplicationEntryRedirect` at all). The overview's new
+«Ваша анкета» card (pending only) links to `/apply/status`.
+(3) **Assessments/case-help.** Left fully as-is — see the "no new
+migration" section above; both already accept `'pending'` and needed no
+quiet-empty-state fallback because there was nothing to hide behind one.
+
+Tests: `tests/v3-student-portal-ui.test.mjs` — page-file list test retitled
+"four portal pages" (the applications page file stays on disk as a redirect
+stub, so the file list itself is unchanged; only the nav-hrefs assertion
+drops one entry); the "application and visa projections overlap" reader
+test is deleted (its subject no longer exists); the "every page passes the
+direct strict E2 result" table drops the applications row and gains a
+`pending={actor.caseState === "pending"}` assertion on the overview row,
+plus a new adjacent test asserting the applications route is a bare
+`redirect("/portal")` with no reader/view imports; "views consume the exact
+E2 DTOs" drops the `ApplicationsView`/`StudentPortalApplications` entry and
+asserts the file no longer exists; "existing case portal views stay
+presentation-only" drops its «История статусов» assertion (that text only
+ever existed in the deleted Timeline disclosure); "notifications deep-link
+by category" replaces the application/visa `match` with a `doesNotMatch`
+covering both the removed branch text and the removed "Открыть заявки"
+label; "portal feedback and status markers" drops its `ApplicationsView`
+read. New: "the overview never claims a mandatory stage, and a pending
+cabinet stays honest" — structural coverage for the stage-pill removal, the
+pending curator/анкета copy, the `portalPendingCabinet` dictionary, the
+`pending` prop wiring on the overview page, and the `/apply/status`
+pending-bypass condition. `tests/v3-student-portal-source.test.mjs` drops
+the `readStudentPortalApplications` import and its two dedicated tests plus
+the now-dead `APPLICATION_ROW`/`VISA_ROW`/`VISA_CASE_ID` fixtures
+(`APPLICATION_ID` stays — it was already reused generically for unrelated
+UUID fields elsewhere in the file before this slice).
+`tests/e2e/student-portal.spec.ts`: `PORTAL_ROUTES` drops the applications
+entry (4 routes now), the "all five... routes" test retitled "all four",
+and the mobile-menu link-count assertion drops from 7 to 6.
+`src/lib/platform-route-contract.ts` gains an explanatory comment on the
+kept `/portal/applications` allowlist entry; no behavioral change, so its
+own pinned assertions (`tests/fixed-role-route-contract.test.mjs`) needed
+no edits and still pass unmodified (22/22).
+
+Known deviations (honest, not hidden): (1) the operational-stage default
+(`'contract_confirmed'`) a fresh pending case's `student_portal_overview_v2`
+row still carries is never surfaced anywhere in the portal any more (the
+pill is gone) or read by this slice's new code — it remains a CRM-only
+concern (`studentOperationalStage`/`STUDENT_OPERATIONAL_STAGE` continues to
+apply to CRM case rows that do have real progress). (2) `/apply/status`'s
+pending-bypass duplicates one `getClaims`+`readVerifiedStudentPortalAuthority`
+round trip already performed inside `studentApplicationEntryRedirect` — an
+accepted, deliberate small cost to avoid touching a 3-call-site shared
+helper and its pinned tests for a low-traffic status page. (3) `visaStatus`/
+`VISA_STATUS` in `wording.ts` are now fully unused (their only caller was
+the deleted `ApplicationsView`/`presentation.ts` pair) but were left in
+place — pruning them was judged out of this slice's scope; a future pass
+may remove them if no CRM surface ever adopts them.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched file (clean), `npm run test:brand-ui` (5/5), and the pinned suites
+this slice touches: `tests/v3-student-portal-ui.test.mjs` (21/21, 6 updated,
+2 new), `tests/v3-student-portal-source.test.mjs` (7/7, 2 tests removed),
+`tests/v3-admissions-support.test.mjs` (1/1, unaffected). `tests/e2e/student-portal.spec.ts`
+was updated per the task's instruction but, like every prior slice, cannot
+be executed in this environment (no live Supabase/browser). A broader
+regression sweep confirmed no collateral damage: `tests/fixed-role-route-contract.test.mjs`
+(22/22 — specifically re-verifies `/portal/applications` stays a connected
+Student Portal route), `tests/student-portal-authority.test.mjs` (6/6),
+`tests/student-portal-auth.test.mjs` (5/5), `tests/v3-navigation.test.mjs`
+(16/16), `tests/v3-supabase-integration.test.mjs` (10/10 — its exhaustive
+`src/lib/v3/*.ts` allowlist needed no change since `portal-source.ts` still
+exists), `tests/student-public-application.test.mjs` (15/15 — proves the
+`/apply/status` change didn't disturb `studentApplicationEntryRedirect`'s 3
+call sites or the shared entry-redirect contract). `tests/v3-handoff-navigation.test.mjs`
+and `tests/staff-metadata-feedback.test.mjs` fail with the same pre-existing
+`react-dom/server` ESM/CJS interop error S2/S3/S4 already documented,
+re-verified via `git stash` to reproduce identically on this branch's
+pre-slice tree — unrelated to this slice, not fixed here. Migration 184 was
+NOT created — every predicate this slice depends on already accepted
+`'pending'` (see Decision above), so `supabase/migrations/` is untouched by
+this slice. Final repo-wide sweep — `rg 'readStudentPortalApplications|ApplicationsView'`
+across the whole tree outside `docs/` — returns only the two new
+`doesNotMatch`/`existsSync(...,false)` test assertions that verify these
+symbols are gone.
+
+Reviewer notes: S6 (Docs/наименования/Inbox↔карточка/сводка) is untouched —
+no Docs direct-intake removal, naming or Inbox↔card work happened here, per
+this task's own constraint. The universities portal page/catalog is
+untouched (plan §11 keeps «Вузы и программы»/«Университеты» as a real,
+ongoing surface, not part of the retired tracker). No staff-CRM screens
+were touched (S4 already did that work); assessments privacy is untouched
+(no new read/write path, no widened predicate — the existing pending-case
+support was discovered, not built).

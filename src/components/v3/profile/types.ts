@@ -26,6 +26,7 @@ import type {
 import type { DocumentGroup } from "./document-types";
 import type { PlatformStudentProfileFieldsSnapshot } from "@/lib/platform-student-profile-fields";
 import type { PlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
+import type { LeadSaleConditions } from "@/lib/lead-sale-conditions-contract";
 
 export type ProfileFieldSourceVersion = Readonly<{
   id: string; filename: string; versionNumber: number; downloadReady: boolean;
@@ -204,6 +205,8 @@ export type ProfileSalesRequestIds = Readonly<{
   handoff: string;
   /** «Доступ к платформе» approve/reject on the lead card Overview (unified workflow S1). */
   platformAccess: string;
+  /** «Условия продажи» save on the lead card Overview (unified workflow S2). */
+  saleConditions: string;
 }>;
 
 export type Payment = Readonly<{
@@ -251,6 +254,12 @@ export type ProfileDraft = Readonly<{
   contract: ProfileContractSnapshot | null;
   handoffAcknowledgement: (HandoffAcknowledgement & Readonly<{ requestId: string }>) | null;
   salesHandoffAcknowledgement: SalesHandoffAcknowledgement | null;
+  /**
+   * «Условия продажи» (unified workflow S2): populated only on the lead-only
+   * Overview branch (readLeadProfile without a loaded full case) — the block
+   * where заполнение условий happens before any report save. null elsewhere.
+   */
+  saleConditions: LeadSaleConditions | null;
   /**
    * Есть в модели, намеренно не рисуется.
    *

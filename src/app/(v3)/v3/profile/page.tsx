@@ -215,6 +215,7 @@ export default async function ProfilePart({
     override: randomUUID(),
     handoff: randomUUID(),
     platformAccess: randomUUID(),
+    saleConditions: randomUUID(),
   };
   const contractResult = parseContractResult(params);
   const contractRetry = parseContractRetry(params, contractResult);

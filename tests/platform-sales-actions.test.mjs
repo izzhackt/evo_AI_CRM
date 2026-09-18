@@ -68,3 +68,45 @@ test("platform Sales workflow action exposes only safe UI statuses and rotates r
   assert.match(actionSource, /version: receipt\.workflowVersion/);
   assert.match(actionSource, /changedAt: receipt\.changedAt/);
 });
+
+// Unified workflow S2 (plan §5/§6): «Условия продажи» lives on the lead
+// card. Saving it never adds a sales-report row — only
+// platform.create_sales_report_handoff (the report's own «Сохранить») does.
+test("saveLeadSaleConditionsAction keeps the exact reviewed card-block form boundary", () => {
+  for (const field of [
+    "lead_id",
+    "expected_revision",
+    "request_id",
+    "service_label",
+    "signing_date",
+    "service_cost_raw",
+    "service_cost_minor",
+    "service_cost_currency",
+    "paid_raw",
+    "paid_minor",
+    "paid_currency",
+    "payment_note",
+  ]) {
+    assert.match(actionSource, new RegExp(`"${field}"`));
+  }
+  assert.match(actionSource, /exactActionStringFields\(form, SALE_CONDITIONS_FORM_FIELDS\)/);
+  assert.match(actionSource, /await requirePlatformMutationCapability\("sales\.write", "\/v3\/profile"\)/);
+});
+
+test("saveLeadSaleConditionsAction is staff-bound, validates money pairs and revalidates only the exact lead route on success", () => {
+  assert.match(
+    actionSource,
+    /const \{ data, error \} = await client\.schema\("platform"\)\.rpc\("save_lead_sale_conditions_v1", \{[\s\S]*p_organization_id: actor\.organizationId,[\s\S]*p_request_id: requestId,[\s\S]*p_lead_id: leadId,[\s\S]*p_expected_revision: revision,[\s\S]*p_fields: payload,/,
+  );
+  assert.match(
+    actionSource,
+    /\(amount === null\) !== \(currencyValue === null\)/,
+  );
+  assert.match(actionSource, /revalidatePath\(`\/v3\/profile\?id=\$\{leadId\}`\)/);
+  assert.doesNotMatch(actionSource, /revalidatePath\("\/v3\/profile"\)/);
+  assert.match(actionSource, /error\.code === "PT409"\) return saleConditionsOutcome\(form, "stale"\)/);
+  assert.match(
+    actionSource,
+    /\(error\.code === "22023" \|\| error\.code === "23505"\) && \/request_id\/\.test\(error\.message\)\) \{\s*return saleConditionsOutcome\(form, "request_conflict"\);/,
+  );
+});

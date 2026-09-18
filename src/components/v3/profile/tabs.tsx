@@ -28,6 +28,7 @@ import {
   ProfileFinanceControls,
 } from "./ProfileAdmissionsWorkspace";
 import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
+import { LeadSaleConditions } from "./LeadSaleConditions";
 import type {
   Fact,
   PersonProfile,
@@ -180,9 +181,18 @@ export function Overview({
           <ProfileSalesTransition
             actor={actor}
             gate={sales.gate}
-            handoff={sales.handoff}
             requestIds={requestIds}
           />
+
+          {draft.saleConditions ? (
+            <LeadSaleConditions
+              key={`sale-conditions:${draft.saleConditions.revision}`}
+              leadId={draft.saleConditions.leadId}
+              conditions={draft.saleConditions}
+              requestId={requestIds.saleConditions}
+              readOnly={isStaffPreview(actor)}
+            />
+          ) : null}
         </>
       ) : null}
 

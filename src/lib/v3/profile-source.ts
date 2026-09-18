@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "../supabase/server";
 import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
+import { readLeadSaleConditions } from "./lead-sale-conditions-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -619,6 +620,10 @@ function fullCaseDetails(
       requestId: randomUUID(),
     },
     salesHandoffAcknowledgement: null,
+    // «Условия продажи» is a lead-card block (plan §5); this branch has no
+    // lead link to attach it to (docs-intake origin or insufficient
+    // sales.read), so it stays null here — see readLeadProfile below.
+    saleConditions: null,
     contractSignedAt,
   };
 }
@@ -765,6 +770,10 @@ async function readLeadProfile(
   // анкета. staff_student_application_for_lead_v1 authorizes off the SAME
   // canonical-lead read the rest of this branch already established.
   const leadStudentApplication = fullCase ? null : await loadStudentApplicationForLead(leadId);
+  // «Условия продажи» (unified workflow S2): the same card block the report
+  // later reads back through platform.create_sales_report_handoff. Scoped to
+  // the lead-only branch — see the null case's own comment in fullCaseDetails.
+  const saleConditions = fullCase ? null : await readLeadSaleConditions(actor, leadId);
   const details: ProfileDraft = fullCase
     ? fullCaseDetails(
         actor,
@@ -790,6 +799,7 @@ async function readLeadProfile(
         contract: null,
         handoffAcknowledgement: null,
         salesHandoffAcknowledgement,
+        saleConditions,
         contractSignedAt: gate.contractConfirmedAt
           ? formatDate(gate.contractConfirmedAt, true)
           : null,

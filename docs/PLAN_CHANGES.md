@@ -28704,3 +28704,209 @@ Reviewer notes: S2 (Карточка Sales и продажа в отчёте) ow
 storage and the narrowed `create_sales_report_handoff`; S3 owns the
 declined-assignment→pending revert; S6 owns the «Рабочий список»→«Студенты»
 and «Клиентские сообщения» renames — none of those are touched here.
+
+## 2026-09-18 — unified workflow S2: карточка Sales и продажа в отчёте
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S2.
+Affected plan section: «S2 Карточка Sales и продажа в отчёте» (plan §5, §6,
+§13; PLAN_CHANGES «план-контракт реализации» and the S1 entry above).
+
+Reason: implement the owner's last edit to §6 — sale conditions (service,
+date, sum, currency, payment note) are filled on the lead card and never
+re-entered when the sale is saved into the report; the report only chooses
+an existing lead and a curator. The card-side «Передача в Admissions» bypass
+(HandoffCard) is retired, since the only curator-handoff trigger left is a
+saved Sales report.
+
+Decision: migration 181
+(supabase/migrations/181_platform_lead_sale_conditions.sql, NOT applied — no
+Supabase credentials in this environment, matching every prior slice) —
+(a) new table `platform_private.lead_sale_conditions` (one mutable,
+revision-versioned row per lead — a current-state card block, not an
+append-only log) plus its own request-id receipt table
+(`lead_sale_conditions_requests`, append-only) and validator
+`platform_private.lead_sale_condition_fields()` mirroring
+`sales_register_fields()`'s (134) money-pair/currency (USD/EUR/KGS) and
+length/control-character conventions on the card's own key set
+(service_label, signing_date, service_cost_raw/minor/currency,
+paid_raw/minor/currency, payment_note — deliberately not 1:1 with the
+register's key set); (b) `platform.save_lead_sale_conditions_v1` — upsert
+with optimistic concurrency (`p_expected_revision`, 0 for the first save)
+gated by the same scoped check the old report-create path already used
+(`staff_can_access(...,'lead.sales.workflow.manage','lead',p_lead_id)`), a
+payload-bound fingerprint (actor+lead+revision+fields) for request-id
+replay, and a standard `platform.audit_events` write (action
+`lead.sale.conditions.save`); (c) `platform.staff_lead_sale_conditions_v1`
+— a read gated by `private.platform_can_read_canonical_lead` (the same
+lead-read authority the S1 «Доступ к платформе» block already uses),
+returning the conditions plus `linked_sales_register` (id/report_month/
+archived) so the card can render its «Продажа в отчёте за <месяц>» link
+without a second round trip; (d) `platform.create_sales_report_handoff` is
+narrowed: `DROP FUNCTION` on the old 8-argument creation signature
+(org/request/fields/reason/lead/curator/email/direction) and a fresh
+`CREATE FUNCTION` with `(p_organization_id, p_request_id, p_lead_id,
+p_curator_membership_id, p_report_month DATE DEFAULT NULL)` — the
+create-new-lead branch (and its `create_manual_sales_lead` call) is dropped
+entirely, since the report always «выбирает существующего лида». Inside:
+reads `lead_sale_conditions` for the chosen lead and requires
+`service_cost_minor` present, else `sale_conditions_missing` (22023) so the
+UI can link back to the card; maps the card's fields onto the register's own
+vocabulary explicitly (`service_label`→`program`, `payment_note`→`notes`,
+money/date fields pass through) plus `applicant_name`/`phone` read from the
+canonical client and `report_month` (provided or the current Bishkek month).
+Then the S1 flag (documented as a known deviation in S1's own entry above):
+if the lead already owns a `platform.student_cases` row in `state='pending'`
+linked by `canonical_lead_id` (the cabinet case S1's access approval opened),
+that case is activated in place via
+`platform_private.assign_student_case_curator_authorized_e1` (126/177 — the
+same authorized-actor curator-assignment path 177 already reuses for an
+analogous "approve into an existing case" flow); its own COALESCE on
+`handoff_at`/`portal_activated_at` preserves the S1 approval timestamp and
+only sets `handoff_at` now. That branch never inserts into
+`platform.sales_admissions_handoffs` (that table is the OTHER path's
+evidence — U6 handing off a lead that had no case yet), so 134's own AFTER
+INSERT trigger that seeds a placeholder pipeline row never fires; the
+already fully-populated `sales_register` row is inserted directly instead.
+The other, unchanged path (no pending case) still goes through
+`platform_private.handoff_lead_to_admissions` (088/134, mode
+`'sales_report'`) exactly as 174 did, whose trigger seeds the placeholder
+row that this function then updates with the real fields. Replay semantics:
+the existing `sales_report_handoff_requests` receipt table (174, schema
+unchanged) is reused; only the fingerprint's input shape narrows from 174's
+8-value shape to `(lead, curator, report_month)` — documented in the
+migration header as a fail-closed (never silently-wrong) boundary note, not
+an operational concern since request ids are per-submission random UUIDs.
+
+TS/UI: new `src/lib/lead-sale-conditions-contract.ts` (parsing, reusing
+`platform-sales-register-contract.ts`'s UUID/date/integer/currency helpers)
+and `src/lib/v3/lead-sale-conditions-source.ts` (`readLeadSaleConditions`,
+mirroring `loadStudentApplicationForLead`'s shape). `src/lib/platform-sales-actions.ts`
+gains `saveLeadSaleConditionsAction` (gated by
+`requirePlatformMutationCapability("sales.write", "/v3/profile")`, revalidates
+only ``/v3/profile?id=${leadId}`` — never the bare `/v3/profile` the file's
+own pinned test forbids). New `src/components/v3/profile/LeadSaleConditions.tsx`
+— a Card titled «Условия продажи», useActionState/request-id/expected_revision
+conventions matching `GateActionForm`, `router.refresh()`-on-save so the
+parent's `key={`sale-conditions:${revision}`}` remounts it with fresh state
+(same pattern as `GateActionForm`), and the linked-register link
+(`/v3/main?view=sales&year=&month=&record=`) when one exists. Wired into
+`src/components/v3/profile/tabs.tsx` Overview inside the existing
+`sales && staffPresentationCan(actor,"sales.read")` block (`readOnly` in
+staff preview, matching `PlatformAccessCard`'s convention rather than hiding
+the block outright); `src/lib/v3/profile-source.ts`'s `readLeadProfile`
+fetches it only on the lead-only branch (not `fullCaseDetails`, which sets
+`saleConditions: null` — a deliberate S2 scoping: the block belongs to the
+Sales-facing card before/around the report save, not the full-case Money
+tab, which is a different concept fed from finance events). `types.ts` gains
+`ProfileDraft.saleConditions` and `ProfileSalesRequestIds.saleConditions`;
+`page.tsx` mints the new request id.
+
+Report form (`src/components/v3/SalesRegisterForms.tsx` `SalesDraft`'s
+create branch): the "new student" mode (owner/email/direction inputs,
+`studentMode` toggle) is removed entirely; only the existing-lead search UX
+survives. Selecting a lead now also fetches a read-only conditions preview
+(new `readSalesReportConditionsPreviewAction` in
+`platform-sales-register-actions.ts`, wrapping `readLeadSaleConditions`) and
+shows either the parsed fields or, when `serviceCostMinor` is null, a
+«Заполнить условия в карточке» link to the lead card (submit stays disabled
+until conditions are confirmed present). `saveSalesRegisterAction`'s create
+path now submits only `lead_id`/`curator_membership_id`/`report_month`
+(hidden, defaulting to the report page's currently viewed month) and calls
+the narrowed RPC; a new `conditions_missing` UI status (mapped from the
+RPC's `sale_conditions_missing` error) replaces the retired
+`existing_student` status. Edit/archive/restore branches are byte-for-byte
+unchanged in behavior (still `manage_sales_register_v1`, still require a
+reason).
+
+Card-side bypass removal: `HandoffCard` and its `handoffInitialState` are
+deleted from `src/components/v3/profile/ProfileSalesTransition.tsx`;
+`ProfileSalesTransition` now takes `{actor, gate, requestIds}` (no `handoff`
+prop) and renders only `GateCard`, retitled «Договор и оплата» with an added
+line («оплата — отдельный факт: сумма продажи в условиях на карточке не
+делает её автоматически оплаченной»). `ProfileHandoffAcknowledgement` (S3)
+and `ProfileSalesHandoffAcknowledgement` (the curator-response summary — a
+different, read-only feature, unrelated to the write-side handoff form) are
+untouched. `src/lib/platform-student-handoff-actions.ts` drops
+`handoffPlatformLeadToAdmissionsAction`, `parseHandoffInput`,
+`handoffFailureState`, `HANDOFF_FORM_FIELDS`,
+`PlatformLeadAdmissionsHandoffActionState` and
+`createInitialPlatformLeadAdmissionsHandoffActionState` (verified dead via
+repo-wide grep first); `platform-student-handoff.ts` (the repository layer,
+`handoffPlatformLeadToAdmissions` and its SQL RPC
+`platform.handoff_lead_to_admissions`) is left untouched, since the narrowed
+`create_sales_report_handoff`'s own "no pending case" branch still calls it
+internally.
+
+Known deviations (honest, not hidden): (1) `service_label` maps onto the
+register's `program` column — the closest existing register field to
+«услуга/пакет» — since the report no longer collects `university`/
+`program`/`direction`/`intake`/`contract_number`/`manager_label`/
+`status_raw` at creation time; those stay editable later via the unchanged
+edit branch. (2) The pending-case-activation branch does not write a
+`platform.sales_admissions_handoffs` row (that table specifically evidences
+the *other* path — a lead with no prior case), so
+`platform.staff_student_case_handoff_context`/`staff_lead_admissions_handoff`
+return nothing for these cases; their own audit trail is the
+`student_case_lifecycle_events`/`student_case_assignment_events`/
+`audit_events` rows `assign_student_case_curator_authorized_e1` already
+writes. No UI in this repo currently reads those two RPCs outside
+`src/lib/platform-student-handoff.ts` itself, so this has no observed UI
+impact, but a future S3/S4 screen relying on that context for a
+pending-case-activated case would need to source it differently. (3) The
+lead card's new «Условия продажи» block only appears in the lead-only
+Overview branch (not once a full case is loaded) — a deliberate S2 scoping
+call, not an oversight; extending it to the case view is left to a later
+slice if needed. (4) The card's «Дата продажи» is left empty by default for
+a brand-new (never-saved) conditions row rather than prefilling today's
+date; plan §6's "для новой записи допустимо предзаполнить сегодняшний день"
+is worded as permissive (допустимо), not mandatory, and an honest empty
+field matches plan §14's "no fabricated success" rule better than a
+silently-assumed date.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file including the new/updated test files (clean),
+`npm run test:brand-ui` (5/5), and the pinned suites this slice touches:
+`tests/platform-sales-actions.test.mjs` (5/5, 2 new),
+`tests/platform-sales-register.test.mjs` (6/6, 2 new),
+`tests/platform-student-handoff.test.mjs` (8/8 — 1 test deleted since its
+target function no longer exists, 2 updated), `tests/v3-supabase-integration.test.mjs`
+(10/10 — not in the task's named list but directly pinned `ProfileSalesTransition.tsx`
+content and the exhaustive `src/lib/v3/*.ts` file allowlist, so left broken
+it would have been a real regression), `tests/staff-roles-sales-handoff-migrations.test.mjs`
+(5/6 — the one failure, "staff fast path accepts only the complete exact
+added 173–175 boundary diff", reproduces identically on this branch's
+pre-slice tree via `git stash`, so it is pre-existing CI-workflow-ledger
+breakage unrelated to S2, not fixed here), plus a new migration-pattern
+suite `tests/platform-lead-sale-conditions-migration.test.mjs` (10/10,
+following 180's own template) and `tests/v3-handoff-navigation.test.mjs`.
+That last suite's regexes were updated per the task's instruction even
+though the task described it as failing in this environment from a
+react-dom/server interop issue; the actual pre-slice breakage found here was
+narrower and unrelated to react-dom/server — the test eagerly compiled a
+`src/components/v3/profile/Card.tsx` that has not existed since before this
+slice (Card has lived in `@/components/ui`), crashing at module load
+regardless of `--conditions=react-server`, reproduced via `git stash`
+against the pre-slice tree. Dropping that dead compile call as part of the
+regex update made the suite pass cleanly (3/3) under plain `node --test` in
+this environment. `tests/platform-admissions.test.mjs` (24/24) and
+`tests/v3-navigation.test.mjs` (16/16) — both unaffected, run as required by
+the task. A broader sanity sweep of every other test file referencing
+`profile-source.ts`/`tabs.tsx`/`SalesRegisterForms`/`ProfileSalesTransition`/
+the sales/handoff action files (`platform-handoff-acknowledgement`,
+`v3-profile-contract`, `v3-profile-activity`, `v3-operational-parity`,
+`v3-profile-pipeline-notes`, `v3-profile-documents`, `v3-profile-admissions`,
+`v3-student-profile-fields`, `scoped-finance-read-contract`,
+`p4-supabase-admissions-storage-legacy-cleanup`) passed 63/63 (each run
+under its own designated node flags — `v3-student-profile-fields.test.mjs`
+specifically needs plain `node --test`, not `--conditions=react-server`,
+matching its own `test:student-profile-fields` script). Migration 181 itself
+is NOT applied; no Supabase credentials exist in this environment, matching
+every prior slice's stated limitation.
+Reviewer notes: S3 (Принятие дела) owns the declined-assignment→pending
+revert and should double-check whether a case activated by this slice's
+pending-case branch needs its own acceptance-queue surface (it has no
+`sales_admissions_handoffs` row — see deviation (2) above). S4 owns «Вузы и
+программы». Historical sales_register rows (including ones created by the
+now-removed create-new-lead branch) remain valid data under unchanged
+constraints; nothing here rewrites past rows.

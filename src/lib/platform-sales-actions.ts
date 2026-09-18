@@ -14,6 +14,9 @@ import {
   type PlatformSalesWorkflowMutationInput,
 } from "./platform-sales";
 import { exactActionStringFields } from "./server/action-form-fields";
+import { createSupabaseServerClient } from "./supabase/server";
+import { SALE_CONDITION_CURRENCIES, type SaleConditionCurrency } from "./lead-sale-conditions-contract";
+import { parseSalesDate, parseSalesInteger } from "./platform-sales-register-contract";
 
 const REQUEST_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -198,5 +201,135 @@ export async function updatePlatformSalesWorkflowAction(
       return failureState(form, error.reason, input.requestId);
     }
     return failureState(form, "unavailable", input.requestId);
+  }
+}
+
+/**
+ * «Условия продажи» (unified workflow S2, plan §5/§6): the lead-card block.
+ * Saving it never adds a row to the sales report — only the report's own
+ * «Сохранить» does that, reading these exact fields back through
+ * platform.create_sales_report_handoff.
+ */
+const SALE_CONDITIONS_FORM_FIELDS = [
+  "lead_id",
+  "expected_revision",
+  "request_id",
+  "service_label",
+  "signing_date",
+  "service_cost_raw",
+  "service_cost_minor",
+  "service_cost_currency",
+  "paid_raw",
+  "paid_minor",
+  "paid_currency",
+  "payment_note",
+] as const;
+
+export type SaveLeadSaleConditionsActionState = Readonly<{
+  status: PlatformSalesWorkflowActionStatus;
+  requestId: string;
+  leadId: string | null;
+  revision: string | null;
+}>;
+
+function saleConditionsOutcome(
+  form: FormData,
+  status: PlatformSalesWorkflowActionStatus,
+  revision?: string,
+): SaveLeadSaleConditionsActionState {
+  const requestIdValue = form.get("request_id");
+  const leadIdValue = form.get("lead_id");
+  return Object.freeze({
+    status,
+    requestId: status === "saved" || status === "request_conflict"
+      ? randomUUID()
+      : (typeof requestIdValue === "string" && REQUEST_UUID_PATTERN.test(requestIdValue)
+        ? requestIdValue.toLowerCase()
+        : randomUUID()),
+    leadId: typeof leadIdValue === "string" ? parsePlatformSalesUuid(leadIdValue) : null,
+    revision: revision ?? null,
+  });
+}
+
+export async function saveLeadSaleConditionsAction(
+  _previous: SaveLeadSaleConditionsActionState,
+  form: FormData,
+): Promise<SaveLeadSaleConditionsActionState> {
+  const actor = await requirePlatformMutationCapability("sales.write", "/v3/profile");
+  const fields = exactActionStringFields(form, SALE_CONDITIONS_FORM_FIELDS);
+  if (!fields) return saleConditionsOutcome(form, "invalid");
+  const leadId = parsePlatformSalesUuid(fields.get("lead_id"));
+  const requestIdValue = fields.get("request_id") ?? "";
+  const requestId = REQUEST_UUID_PATTERN.test(requestIdValue) ? requestIdValue.toLowerCase() : null;
+  const revision = parseSalesInteger(fields.get("expected_revision"));
+  if (!leadId || !requestId || revision === null) return saleConditionsOutcome(form, "invalid");
+
+  const serviceLabel = fields.get("service_label") ?? "";
+  const signingDateRaw = fields.get("signing_date") ?? "";
+  const paymentNote = fields.get("payment_note") ?? "";
+  const serviceCostRaw = fields.get("service_cost_raw") ?? "";
+  const paidRaw = fields.get("paid_raw") ?? "";
+  if (
+    serviceLabel.length > 300 ||
+    paymentNote.length > 2000 ||
+    serviceCostRaw.length > 300 ||
+    paidRaw.length > 300 ||
+    (signingDateRaw !== "" && !parseSalesDate(signingDateRaw))
+  ) {
+    return saleConditionsOutcome(form, "invalid");
+  }
+  const payload: Record<string, string | number | null> = {
+    service_label: serviceLabel,
+    signing_date: signingDateRaw === "" ? null : signingDateRaw,
+    payment_note: paymentNote,
+    service_cost_raw: serviceCostRaw,
+    paid_raw: paidRaw,
+  };
+  for (const prefix of ["service_cost", "paid"] as const) {
+    const minorValue = fields.get(`${prefix}_minor`) ?? "";
+    const amount = minorValue === "" ? null : parseSalesInteger(minorValue, 1_000_000_000_000);
+    const currencyValue = fields.get(`${prefix}_currency`) || null;
+    if (
+      (minorValue !== "" && amount === null) ||
+      (amount === null) !== (currencyValue === null) ||
+      (currencyValue !== null && !SALE_CONDITION_CURRENCIES.includes(currencyValue as SaleConditionCurrency))
+    ) {
+      return saleConditionsOutcome(form, "invalid");
+    }
+    payload[`${prefix}_minor`] = amount;
+    payload[`${prefix}_currency`] = currencyValue;
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const { data, error } = await client.schema("platform").rpc("save_lead_sale_conditions_v1", {
+      p_organization_id: actor.organizationId,
+      p_request_id: requestId,
+      p_lead_id: leadId,
+      p_expected_revision: revision,
+      p_fields: payload,
+    });
+    if (error) {
+      if (error.code === "42501") return saleConditionsOutcome(form, "forbidden");
+      if (error.code === "PT409") return saleConditionsOutcome(form, "stale");
+      if ((error.code === "22023" || error.code === "23505") && /request_id/.test(error.message)) {
+        return saleConditionsOutcome(form, "request_conflict");
+      }
+      return saleConditionsOutcome(form, error.code === "22023" ? "invalid" : "unavailable");
+    }
+    if (
+      !data ||
+      typeof data !== "object" ||
+      Array.isArray(data) ||
+      data.organization_id !== actor.organizationId ||
+      data.lead_id !== leadId ||
+      parseSalesInteger(data.revision) !== revision + 1
+    ) {
+      return saleConditionsOutcome(form, "unavailable");
+    }
+    revalidatePath(`/v3/profile?id=${leadId}`);
+    return saleConditionsOutcome(form, "saved", data.revision as string);
+  } catch {
+    return saleConditionsOutcome(form, "unavailable");
   }
 }

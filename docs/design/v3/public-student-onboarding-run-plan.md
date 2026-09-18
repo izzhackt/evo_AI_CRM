@@ -1,6 +1,10 @@
 # Публичная анкета и доступ студента EVO
 
-Дата: 2026-09-18. Статус: владелец выбрал регистрацию без подтверждения email и поручил завершить выпуск. Реализация адаптируется в draftPR830/миграции177; production пока не изменён.
+Дата: 2026-09-18. Статус: выпущено. PR #830 объединён как
+`1de14c0ad02b97b5b576060864574ee70e9e8508`, production177 применена,
+managed release `v3-r35340641026-a1-1de14c0a` принят. Полный новый Student
+signup/approval/relogin доказан локально; production проверен существующими
+Auth-аккаунтами и публичной формой без создания нового Student.
 
 ## Решение владельца
 
@@ -73,7 +77,7 @@
 Не копировать ApplyBoard assets, цифры подборов, проценты, scholarship/free-service
 обещания или фиктивную загрузку подбора.
 
-## Подтверждённая исходная точка
+## Историческая исходная точка
 
 Main7d6b61a0 после общего release600e11416. Публичная регистрация отсутствует;
 `/register` скрыт. Pending page сейчас только для приглашений. Portal guard
@@ -82,16 +86,17 @@ Main7d6b61a0 после общего release600e11416. Публичная рег
 заявки, не существующее состояние операционного дела.
 Live Auth GET18 сентября: disable_signup=true, email=true,
 mailer_autoconfirm=false; Google/Facebook/phone выключены. Dashboard подтвердил
-это. Перед запуском нужны включённая регистрация и проверенный производственный
-почтовый отправитель; последний документированный SMTP отключён. Не обещать
-отправку/получение писем, пока реальная доставка не проверена.
+это. Первоначальный план предполагал включение публичного signup и проверку
+SMTP; последующие решения ниже заменили этот контракт. Снимок не является
+доказательством email delivery или текущей проверки новой регистрации.
 
 Текущая активация не требует signup callback или SMTP. Существующие staff
 callback и Student invitation callback, host-only cookies сохраняются.
-Настройки signup применяются только после координации текущего выпуска Docs,
-с отдельным readback. SQL177 сам настройки Auth не меняет.
+Public Auth signup остаётся выключенным; новую identity создаёт только серверная
+action, затем выполняется обычный password login. Все production Auth settings
+сохранены. SQL177 сам настройки Auth не меняет.
 
-## Исполнение и проверка
+## Исторические проверки первоначального draft
 
 Отмеченные результаты ниже относятся к исходному draft до staff173–175.
 Они не доказывают новую177 и исправления интеграции, описанные в конце плана.
@@ -109,12 +114,21 @@ callback и Student invitation callback, host-only cookies сохраняютс�
   build/lint/contracts/migration boundary. Независимый exact-head review APPROVED.
 - Desktop/mobile и реальный Next/signup/email-delivery прогон отменён владельцем
   после этих проверок. Не отмечать его выполненным или успешным.
+
+## Завершение текущего выпуска
+
 - [x] Владелец выбрал регистрацию без подтверждения email.
-- [ ] Удалить confirmation path, включить согласованные Auth настройки и пройти
-  изменённый реальный Auth/RPC/UI путь в разрешённом QA scope.
-- [ ] Применить только проверенную новую миграцию установленным operator-путём,
-  затем один immutable lightweight release, real smoke, health/accepted SHA,
-  cleared pending и arm=false. Не повторять общий тяжёлый suite/backup вопрос.
+- [x] Удалён неопубликованный confirmation path; public signup закрыт,
+  server-only создание новой identity защищено валидацией и постоянным лимитом.
+- [x] Локально пройдены девять шагов, pending/запрет портала, существующий Admin
+  RPC approval, полный кабинет и повторный password login; отдельно 11 security checks.
+- [x] Независимо проверен `5323f23321505a27d0e70b6ce2fdd3c9aff04555`,
+  protected checks `35340251635` прошли; PR #830 объединён в main.
+- [x] Production177 применена, точный SQL hash и ledger001–177 прочитаны обратно.
+- [x] Upstream `35340610391` и managed `35340641026` прошли; accepted/running
+  image и receipt hashes совпали, healthy, 0 restarts, pending=false, arm=false.
+- [x] Production existing-Auth browser smoke и публичная форма проверены;
+  новый production Student и staff approval submission не выполнялись.
 
 Владение: root — план, публичный UI, Auth/routing, интеграция/проверка/release;
 worker schema — контракт, миграция и RPC adapters/actions; worker staff — очередь
@@ -258,7 +272,7 @@ Context718 сентября снова вернул quota exceeded; прочит
 он небезопасно пересекается с существующими неподтверждёнными приглашениями.
 
 
-## Текущая техническая проверка перед выпуском
+## Локальная техническая проверка
 
 Новый server-only signup пройден через реальный локальный UI: все девять шагов,
 новый аккаунт без письма, pending, запрет прямого /portal, одобрение существующим
@@ -269,7 +283,24 @@ login. Ответы сохранены в canonical profile; Sales client/lead �
 Исходные35 проверок приложения/Docs сохранены с прежними SHA; прежний способ
 создания Auth заменён и не выдаётся за текущую проверку.
 
-Полный итоговый SQL177 с hash55b821d1f2612d82208991a6f103b5686c1b120324286147b7b9a267967803f6
-успешно скомпилирован в транзакции на текущей production176 с ROLLBACK; постоянных
-записей нет, конфигурация intake найдена ровно одна. Auth settings не менялись.
-Подробности и ограничения: `docs/qa/student-public-onboarding-177-local-2026-09-18.json`.
+Перед применением полный итоговый SQL177 с SHA256
+`55b821d1f2612d82208991a6f103b5686c1b120324286147b7b9a267967803f6`
+скомпилирован на production176 в транзакции с ROLLBACK; эта предварительная
+проверка не оставила постоянных записей, конфигурация intake найдена ровно одна.
+Подробности: [локальный receipt](../../qa/student-public-onboarding-177-local-2026-09-18.json).
+
+## Принятый production release — 2026-09-18
+
+Миграция177 затем применена отдельно, ledger001–177 и тот же SQL hash подтверждены.
+Release `v3-r35340641026-a1-1de14c0a` принят на merge SHA
+`1de14c0ad02b97b5b576060864574ee70e9e8508`. Accepted/running image, acceptance
+и browser receipt hashes совпали; runtime healthy, 0 restarts, health обоих
+доменов доступен, pending=false, arm=false. Auth settings не изменены.
+
+Production browser smoke с существующим Auth прошёл. Отдельный CUA-прогон:
+анонимный корень → `/apply`, девять шагов до создания аккаунта, reload сохраняет
+шаг, mobile390 показывает элементы управления. Identity/consent не вводились,
+форма не отправлялась; новый Student не создавался, staff approval через форму
+не выполнялся. Полный signup → approval → relogin остаётся реальным локальным
+доказательством, а не production business acceptance. Точные hashes, operator
+recovery и границы: [production receipt](../../qa/student-public-onboarding-177-production-2026-09-18.json).

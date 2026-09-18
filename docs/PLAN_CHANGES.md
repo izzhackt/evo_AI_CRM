@@ -28311,3 +28311,29 @@ source boundary plus agreement between SQL hash and recorded current177 real
 rollback compilation. Actual local Auth/RPC/UI evidence remains separately
 identified; this source check does not claim to execute SQL. Every other
 migration diff retains its existing fail-closed path and required context.
+
+### 2026-09-18 — Student signup release accepted; evidence scopes preserved
+
+PR830 passed independent review at `5323f23321505a27d0e70b6ce2fdd3c9aff04555`
+and protected checks `35340251635`, then merged as
+`1de14c0ad02b97b5b576060864574ee70e9e8508`. Production177 was applied with
+SQL SHA256 `55b821d1f2612d82208991a6f103b5686c1b120324286147b7b9a267967803f6`;
+ledger001–177 was read back. The first operator attempt failed while inserting
+the ledger's SQL string and rolled back, with ledger176 confirmed. Corrected
+callback escaping preserved the SQL literal; the second application succeeded.
+Migration source was unchanged; the failed attempt is not recorded as applied.
+
+Upstream `35340610391` and managed `35340641026` passed. Accepted release
+`v3-r35340641026-a1-1de14c0a` matches the running image and receipt hashes;
+healthy, 0 restarts, both public health endpoints live, pending=false, arm=false.
+All Auth settings remain unchanged; public signup stays disabled and only the
+bounded server action creates a new identity before ordinary password login.
+
+Complete new signup, pending denial, existing Admin RPC approval and relogin
+passed locally, alongside 11 security-delta checks. Production existing-Auth
+browser smoke passed; CUA checked anonymous `/apply`, all nine steps to account
+creation, reload retention and mobile390 controls without identity, consent or
+submission. No new production Student or staff approval submission was made.
+Historical35/QA172 and rollback compilation retain their original scopes;
+production form visibility is not full production signup/customer acceptance.
+Exact evidence: [production receipt](qa/student-public-onboarding-177-production-2026-09-18.json).

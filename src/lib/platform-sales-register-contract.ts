@@ -23,6 +23,25 @@ export type SalesRegisterWorkspace = Readonly<{
   targets: readonly SalesRegisterTarget[]; managerLabels: readonly string[];
   ownerOptions: readonly Readonly<{ id: string; label: string }>[];
 }>;
+export type SalesRegisterIntakeOptions = Readonly<{
+  curators: readonly Readonly<{ id: string; label: string }>[];
+  leads: readonly Readonly<{ id: string; label: string; phone: string; ownerId: string }>[];
+}>;
+
+export function parseSalesRegisterIntakeOptions(raw: unknown, organizationId: string): SalesRegisterIntakeOptions {
+  const r = exact(raw, ["organization_id", "curators", "leads"]);
+  if (r.organization_id !== organizationId) fail();
+  return {
+    curators: array(r.curators, 1000).map(value => {
+      const row = exact(value, ["id", "label"]);
+      return { id: uuid(row.id), label: str(row.label, 300) };
+    }),
+    leads: array(r.leads, 30).map(value => {
+      const row = exact(value, ["id", "label", "phone", "owner_id"]);
+      return { id: uuid(row.id), label: str(row.label, 1000), phone: str(row.phone, 100), ownerId: uuid(row.owner_id) };
+    }),
+  };
+}
 
 export function parseSalesUuid(value: unknown): string | null {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value.toLowerCase() : null;

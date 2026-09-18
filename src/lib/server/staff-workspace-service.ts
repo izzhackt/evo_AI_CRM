@@ -1,4 +1,5 @@
 import "server-only";
+import { randomInt } from "node:crypto";
 import { resolvePlatformActor } from "@/lib/platform-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { staffInviteCallbackUrl } from "@/lib/student-invite-callback-contract";
@@ -42,6 +43,18 @@ export function staffAuthCallbackUrl(): string {
   );
 }
 
+function generateStaffPassword(): string {
+  const groups = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!@#$%&*+-=?"];
+  const alphabet = groups.join("");
+  const characters = groups.map((group) => group[randomInt(group.length)]);
+  while (characters.length < 12) characters.push(alphabet[randomInt(alphabet.length)]);
+  for (let index = characters.length - 1; index > 0; index--) {
+    const other = randomInt(index + 1);
+    [characters[index], characters[other]] = [characters[other], characters[index]];
+  }
+  return characters.join("");
+}
+
 export async function requestStaffAuth(form: FormData) {
   const { actor, client } = await staffAdminContext();
   const input = parseStaffAuthInput(form, actor.organizationId);
@@ -56,22 +69,23 @@ export async function requestStaffAuth(form: FormData) {
       if (claimObserved) throw new StaffAuthOutcomeUnknownError(requestId);
       authRpcFailure(result.error, requestId);
     }
-    try { return { ...parseStaffAuthResult(result.data, operation === "reconcile" ? undefined : operation), requestId }; }
+    try { return { ...parseStaffAuthResult(result.data, operation === "reconcile" ? undefined : operation), requestId,
+      oneTimePassword: undefined as string | undefined }; }
     catch { throw new StaffAuthOutcomeUnknownError(requestId); }
   };
   // Reconciliation never constructs a service client or sends another message.
   if (operation === "reconcile") return reconcile();
 
   // Configuration is checked before persisting a dispatch claim.
-  const redirectTo = staffAuthCallbackUrl();
+  const redirectTo = operation === "password" ? undefined : staffAuthCallbackUrl();
   const authClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
   const params = {
     p_organization_id: actor.organizationId, p_request_id: requestId, p_operation: operation,
-    p_email: input.operation === "invite" ? input.email : null,
-    p_display_name: input.operation === "invite" ? input.displayName : null,
+    p_email: input.operation !== "recovery" ? input.email : null,
+    p_display_name: input.operation !== "recovery" ? input.displayName : null,
     p_membership_id: input.operation === "recovery" ? input.membershipId : null,
-    p_assignments: input.operation === "invite" ? input.assignments : null,
-    p_no_access: input.operation === "invite" ? input.noAccess : false,
+    p_assignments: input.operation !== "recovery" ? input.assignments : null,
+    p_no_access: input.operation !== "recovery" ? input.noAccess : false,
     p_reason: input.reason,
     p_expected_access_version: input.operation === "recovery" ? input.expectedAccessVersion : null,
   };
@@ -80,9 +94,10 @@ export async function requestStaffAuth(form: FormData) {
   catch { throw new StaffAuthOutcomeUnknownError(requestId); }
   if (claim.error) authRpcFailure(claim.error, requestId);
   let receipt;
-  try { receipt = parseStaffAuthClaim(claim.data, requestId, input.operation === "invite" ? input.email : undefined); }
+  try { receipt = parseStaffAuthClaim(claim.data, requestId, input.operation !== "recovery" ? input.email : undefined); }
   catch { throw new StaffAuthOutcomeUnknownError(requestId); }
   claimObserved = true;
+  let oneTimePassword: string | undefined;
   if (receipt.dispatch) {
     let providerError: unknown = null;
     try {
@@ -92,7 +107,21 @@ export async function requestStaffAuth(form: FormData) {
       // Auth timestamp proves inbox delivery. Recovery timestamps are read back.
       // https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail
       // https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail
-      if (operation === "invite") {
+      if (operation === "password") {
+        // createUser does not send an email. Correlation is in protected app
+        // metadata, which the new user cannot change. Password stays in this
+        // request only; neither the ledger nor audit stores it.
+        // https://supabase.com/docs/reference/javascript/auth-admin-createuser
+        const password = generateStaffPassword();
+        const result = await authClient.auth.admin.createUser({
+          email: receipt.email, password, email_confirm: true,
+          user_metadata: { display_name: input.displayName },
+          app_metadata: { evo_staff_password_request_id: requestId },
+        });
+        providerError = result.error;
+        if (!result.error && result.data.user?.email?.toLowerCase() === receipt.email
+          && result.data.user.app_metadata.evo_staff_password_request_id === requestId) oneTimePassword = password;
+      } else if (operation === "invite") {
         const result = await authClient.auth.admin.inviteUserByEmail(receipt.email, {
           redirectTo, data: { evo_staff_invitation_request_id: requestId },
         });
@@ -119,7 +148,8 @@ export async function requestStaffAuth(form: FormData) {
       } catch { throw new StaffAuthOutcomeUnknownError(requestId); }
     }
   }
-  return reconcile();
+  const result = await reconcile();
+  return { ...result, oneTimePassword: result.status === "completed" ? oneTimePassword : undefined };
 }
 
 export async function readStaffAuthPreparation(form: FormData) {

@@ -55,8 +55,10 @@ export function LoginForm({
         <input
           id="staff-email"
           name="email"
-          type="email"
+          type="text"
           autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           required
           maxLength={320}
           aria-describedby={error ? "login-error" : undefined}

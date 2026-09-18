@@ -2,16 +2,20 @@
 import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { createSupabaseServerClient } from "./supabase/server";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { parseSalesDate, parseSalesInteger, parseSalesUuid, SALES_CURRENCIES } from "./platform-sales-register-contract";
+import { readSalesRegisterIntakeOptions } from "./v3/sales-register-source";
+import { refreshConfirmedSelfHandoffSession } from "./server/self-handoff-session";
 
 export type SalesRegisterActionState = Readonly<{
-  status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable";
+  status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable" | "existing_student" | "already_transferred";
   requestId: string; recordId: string | null;
 }>;
 const BASE = ["operation", "request_id", "record_id", "expected_version", "reason"] as const;
+const INTAKE = ["lead_id", "curator_membership_id", "email", "interest_direction"] as const;
 const EDIT = ["report_month", "signing_date", "applicant_name", "phone", "country", "university", "program", "direction", "intake",
   "contract_number", "manager_label", "status_raw", "owner_membership_id", "service_cost_raw", "service_cost_minor",
   "service_cost_currency", "paid_raw", "paid_minor", "paid_currency", "needs_review", "notes"] as const;
@@ -29,7 +33,7 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
   const operation = candidate(form, "operation");
   const isEdit = operation === "create" || operation === "update";
   if (!isEdit && operation !== "archive" && operation !== "restore") return outcome(form, "invalid");
-  const fields = exactActionStringFields(form, isEdit ? [...BASE, ...EDIT] : BASE);
+  const fields = exactActionStringFields(form, isEdit ? [...BASE, ...EDIT, ...(operation === "create" ? INTAKE : [])] : BASE);
   if (!fields) return outcome(form, "invalid");
   const requestId = parseSalesUuid(fields.get("request_id"));
   const recordId = fields.get("record_id") === "" ? null : parseSalesUuid(fields.get("record_id"));
@@ -38,6 +42,13 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
   if (!requestId || version === null || (operation === "create" ? recordId !== null || version !== 0 || fields.get("record_id") !== "" : !recordId || version < 1)
     || reason.length < 1 || reason.length > 1000) return outcome(form, "invalid");
   const payload: Record<string, string | number | boolean | null> = {};
+  const leadId = fields.get("lead_id") ? parseSalesUuid(fields.get("lead_id")) : null;
+  const curatorId = parseSalesUuid(fields.get("curator_membership_id"));
+  const email = fields.get("email")?.trim() || null;
+  const direction = fields.get("interest_direction") || null;
+  if (operation === "create" && (!staffHasPermission(actor, "lead.sales.workflow.manage") || !curatorId
+    || (fields.get("lead_id") !== "" && !leadId) || (email !== null && (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))
+    || (direction !== null && !["CN", "MY", "EU", "AE", "TR"].includes(direction)))) return outcome(form, "invalid");
   if (isEdit) {
     for (const key of EDIT) payload[key] = fields.get(key) ?? "";
     const month = parseSalesDate(payload.report_month);
@@ -59,14 +70,21 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
     if (typeof payload.applicant_name !== "string" || !payload.applicant_name.trim()
       || Object.values(payload).some(value => typeof value === "string" && (value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)))) return outcome(form, "invalid");
   }
+  let savedRecordId: string;
+  let needsLogin = false;
   try {
     const client = await createSupabaseServerClient();
-    const { data, error } = await client.schema("platform").rpc("manage_sales_register_v1", {
+    const { data, error } = operation === "create" ? await client.schema("platform").rpc("create_sales_report_handoff", {
+      p_organization_id: actor.organizationId, p_request_id: requestId, p_fields: payload, p_reason: reason,
+      p_lead_id: leadId, p_curator_membership_id: curatorId, p_email: email, p_interest_direction: direction,
+    }) : await client.schema("platform").rpc("manage_sales_register_v1", {
       p_organization_id: actor.organizationId, p_operation: operation, p_record_id: recordId,
       p_expected_version: version, p_fields: payload, p_reason: reason, p_request_id: requestId,
     });
     if (error) {
       if (error.code === "42501") return outcome(form, "forbidden");
+      if (error.message.includes("sales_register_existing_student")) return outcome(form, "existing_student");
+      if (error.message.includes("sales_register_already_transferred")) return outcome(form, "already_transferred");
       if (error.code === "PT409") return outcome(form, "stale");
       if ((error.code === "22023" || error.code === "23505") && /request_id/.test(error.message)) return outcome(form, "request_conflict");
       return outcome(form, error.code === "22023" ? "invalid" : "unavailable");
@@ -74,9 +92,32 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
     if (!data || typeof data !== "object" || Array.isArray(data) || data.organization_id !== actor.organizationId
       || data.operation !== operation || data.request_id !== requestId || !parseSalesUuid(data.record_id)
       || (recordId !== null && data.record_id !== recordId) || parseSalesInteger(data.version) !== version + 1) return outcome(form, "unavailable");
+    if (operation === "create") {
+      if (!parseSalesUuid(data.student_case_id) || data.curator_membership_id !== curatorId) return outcome(form, "unavailable");
+      // Assignment is already committed. Session recovery is not a reason to
+      // invite a second save of this sale.
+      if (actor.systemRole === "admin" && curatorId === actor.membershipId) {
+        needsLogin = !(await refreshConfirmedSelfHandoffSession(actor));
+      }
+      revalidatePath("/v3/admissions");
+      revalidatePath("/v3/tasks");
+      revalidatePath("/v3/profile");
+    }
     revalidatePath("/v3/main");
-    return outcome(form, "saved", data.record_id);
+    revalidatePath("/v3/pipeline");
+    savedRecordId = data.record_id;
   } catch { return outcome(form, "unavailable"); }
+  if (needsLogin) redirect("/login?error=session_invalid");
+  return outcome(form, "saved", savedRecordId);
+}
+
+export async function searchSalesRegisterStudentsAction(query: string) {
+  const actor = await requirePlatformStaffActor();
+  if (isStaffPreview(actor) || typeof query !== "string" || query.trim().length < 2) return { status: "invalid" as const, leads: [] };
+  try {
+    const options = await readSalesRegisterIntakeOptions(actor, query);
+    return { status: "ready" as const, leads: options.leads };
+  } catch { return { status: "unavailable" as const, leads: [] }; }
 }
 
 export async function saveSalesTargetAction(_previous: SalesRegisterActionState, form: FormData): Promise<SalesRegisterActionState> {

@@ -22,7 +22,7 @@ function PreparationForm({ preparation, workspace, organizationId, readPending, 
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState("");
   const [state, action, pending] = useStaffCommandForm(async (previous, form) => {
-    if (!onPrepareStart()) return { status: "error", message: "Сначала завершите проверку этого приглашения." };
+    if (!onPrepareStart()) return { status: "error", message: "Сначала завершите проверку этого запроса." };
     const result = await staffPreparePendingAccessAction(previous, form);
     if (result.outcome !== "unknown" && result.metadataOutcome !== "unknown") onPrepareFinish();
     return result;
@@ -42,12 +42,12 @@ function PreparationForm({ preparation, workspace, organizationId, readPending, 
       <label className="grid gap-1.5 text-sm">Причина изменения<input className={`${inputCls} min-h-11 w-full`} name="reason" required minLength={3} maxLength={500} value={reason}
         onChange={(event) => { setReason(event.target.value); setConfirmed(false); }} /></label>
       <label className="flex min-h-11 items-center gap-3 text-sm leading-6"><input type="checkbox" required name="rights_confirmed" value="yes" checked={confirmed}
-        onChange={(event) => setConfirmed(event.target.checked)} className="h-5 w-5 shrink-0" />Новые права для этого приглашения согласованы</label>
+        onChange={(event) => setConfirmed(event.target.checked)} className="h-5 w-5 shrink-0" />Новые права для этого запроса согласованы</label>
     </fieldset>
     <StaffCommandFeedback state={state} />
     {state.status !== "success" ? <button type="submit" className={`${btnCls} min-h-11`} formNoValidate={unknown}
       disabled={pending || readPending || (!unknown && (!valid || !confirmed))}>{pending ? "Сохраняем…" : unknown ? "Проверить сохранение прав" : "Сохранить подготовленные права"}</button>
-      : <p className="text-sm leading-6 text-fg-2">Теперь нажмите «Проверить без повторного письма» в этом запросе.</p>}
+      : <p className="text-sm leading-6 text-fg-2">Теперь нажмите «Проверить результат» в этом запросе.</p>}
   </form>;
 }
 
@@ -63,7 +63,7 @@ export function StaffPendingAccess({ requestId, workspace, organizationId, recon
       <button className={`${btnGhostCls} min-h-11`} disabled={pending || writeLocked || reconcileLocked}>{pending ? "Загружаем…" : "Загрузить текущее состояние"}</button>
     </form>
     <StaffCommandFeedback state={state} />
-    {state.preparation?.requestId === requestId ? state.preparation.operation === "invite" && state.preparation.status !== "completed" && state.preparation.status !== "rejected" && state.preparation.conflictCode !== "identity_already_linked"
+    {state.preparation?.requestId === requestId ? (state.preparation.operation === "invite" || state.preparation.operation === "password") && state.preparation.status !== "completed" && state.preparation.status !== "rejected" && state.preparation.conflictCode !== "identity_already_linked"
       ? <PreparationForm key={`${requestId}:${state.preparation.preparationVersion}`} preparation={state.preparation} workspace={workspace} organizationId={organizationId}
         readPending={pending || reconcileLocked} onWriteLocked={setWriteLocked} onPrepareStart={onPrepareStart} onPrepareFinish={onPrepareFinish} />
       : <p className="text-sm leading-6 text-fg-3">Подготовленные права этого запроса больше не редактируются.</p> : null}

@@ -89,7 +89,11 @@ export function Profile({
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
-  const tabs = tabsFor(profile.student, draft.access, draft.admissions !== null);
+  const tabs = tabsFor(profile.student, {
+    ...draft.access,
+    finance: draft.access.finance || (!isStaffPreview(actor) && !!sales?.handoff.caseId
+      && staffHasPermission(actor, "finance.event.confirm")),
+  }, draft.admissions !== null);
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
   if (current === "contract" && draft.contract === null) {
     throw new Error("V3 contract tab has no canonical contract workspace.");
@@ -212,7 +216,7 @@ export function Profile({
         />
       ) : null}
       {current === "money" ? (
-        <Money profile={profile} draft={draft} actor={actor} />
+        <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId} />
       ) : null}
       {current === "contract" && draft.contract ? (
         <ProfileContractWorkspace

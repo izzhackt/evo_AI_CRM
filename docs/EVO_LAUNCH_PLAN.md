@@ -1,5 +1,18 @@
 # EVO Launch Plan
 
+## Shared staff roles and report handoff — active 2026-09-18
+
+Owner approved all decisions in the [staff activation plan](design/v3/staff-sales-handoff-run-plan.md).
+Use reusable roles, department-head/own-record scope and immediate new-sale
+handoff to the selected curator. Do not alter historical reports or invent
+contract/payment confirmations. Permanent staff credentials remain private.
+
+- [ ] Shared roles, role-derived confirmation rights and independent directions.
+- [ ] Atomic new report sale → one canonical case → selected curator.
+- [ ] Permanent staff accounts, configured Admin login alias and encrypted delivery.
+- [ ] Scoped real checks, independent review, managed light production release.
+- [ ] Actual employee sign-in and effective-access readback.
+
 ## Quiet UI and Admin role preview — released 2026-09-18
 
 Owner approves moving the Admin-only role preview out of the shared sidebar

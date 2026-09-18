@@ -32,7 +32,7 @@ const COPY: Record<
     accessDenied: "Не удалось войти. Проверьте оба значения.",
     authUnavailable: "Сервис входа временно недоступен.",
     staffAccessDenied: "Аккаунт не имеет активного доступа к продукту EVO.",
-    email: "Email",
+    email: "Email или логин",
     intro:
       "Для сотрудников и студентов EVO.",
     password: "Пароль",
@@ -43,7 +43,7 @@ const COPY: Record<
     accessDenied: "Кирүү ишке ашкан жок. Эки маанини тең текшериңиз.",
     authUnavailable: "Кирүү кызматы убактылуу жеткиликсиз.",
     staffAccessDenied: "Аккаунтта EVO продуктусуна активдүү мүмкүнчүлүк жок.",
-    email: "Email",
+    email: "Email же логин",
     intro:
       "EVO кызматкерлери жана студенттери үчүн.",
     password: "Сырсөз",
@@ -54,7 +54,7 @@ const COPY: Record<
     accessDenied: "Access was not granted. Check both values.",
     authUnavailable: "The sign-in service is temporarily unavailable.",
     staffAccessDenied: "This account has no active access to EVO.",
-    email: "Email",
+    email: "Email or login",
     intro:
       "For EVO staff and students.",
     password: "Password",

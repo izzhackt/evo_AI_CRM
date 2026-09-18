@@ -93,7 +93,7 @@ function HandoffContext({ handoff }: Readonly<{
   handoff: PlatformStudentCaseHandoffContext;
 }>) {
   const exceptional = handoff.handoffMode === "exceptional_override";
-  const modeLabel = exceptional ? "Исключение Admin" : "Обычная передача";
+  const modeLabel = exceptional ? "Исключение Admin" : handoff.handoffMode === "sales_report" ? "Из отчёта продаж" : "Обычная передача";
   const salesStage = leadStage(handoff.salesContext.stageKey)
     ?? handoff.salesContext.stageKey;
   const salesSource = sourceWord(handoff.salesContext.sourceKey)

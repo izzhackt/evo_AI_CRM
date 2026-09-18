@@ -1,5 +1,5 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { staffPresentationCan } from "@/lib/platform-access";
+import { staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
@@ -262,11 +262,14 @@ export function Money({
   profile,
   draft,
   actor,
+  salesCaseId,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
   actor: ActivePlatformActor;
+  salesCaseId?: string | null;
 }) {
+  const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId;
   return (
     <div className="flex flex-col gap-4">
       {profile.financeStop ? (
@@ -333,7 +336,8 @@ export function Money({
       </Card>
 
       <ProfileFinanceControls actor={actor} workspace={draft.admissions} />
-      {draft.admissions && staffPresentationCan(actor, "admissions.read") ? <FinanceEntryWorkspace caseId={draft.admissions.studentCaseId} /> : null}
+      {financeCaseId && (staffPresentationCan(actor, "admissions.read") || staffHasPermission(actor, "finance.event.confirm"))
+        ? <FinanceEntryWorkspace caseId={financeCaseId} /> : null}
 
       <Card title="Договор">
         <FactList

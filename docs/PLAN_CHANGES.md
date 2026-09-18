@@ -28368,3 +28368,14 @@ to the actual rollback-compile and authenticated-RPC receipt. Mixed/modified
 boundary diffs retain the ordinary boundary gate. This is evidence binding, not
 a claim that CI executed production SQL. Existing action unit checks are updated
 for the verified-authority guard; real Auth/RPC and browser proof remain separate.
+
+### 2026-09-18 — Student signup retry correction accepted
+
+PR841 merged at0156d965ec1e320325f0d61d55380ca7b360287b after independent exact-head
+review and protected short checks35345373299. Forward178 source and ledger were
+verified; managed run35345749947 accepted the same revision after real authenticated
+smoke. Independent server readback verified revision/image, receipt hashes, health,
+zero restarts, pending=false and arm=false. Actual production browser /apply and
+/apply/status redirected the existing Student to its portal; the original failed
+tab was refreshed successfully. No duplicate application or new identity was
+created. Full scope and limits: docs/qa/student-signup-conflict-178-2026-09-18.md.

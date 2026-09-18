@@ -35,5 +35,29 @@ History, read cursors, permissions, threads and realtime are preserved.
 
 ## Production
 
-Release and authenticated smoke are in progress; do not treat this draft as
-production acceptance until exact runtime and accepted-pointer evidence is added.
+- [PR825](https://github.com/izzhackt/evo_AI_CRM/pull/825) aligns the duplicate
+  lightweight-main command guard; independently approved at
+  `07f7b1a860843e6453ee81565c6c68f7607bd8f5`. Exact three main checks passed
+  locally; [PR checks35288916248](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35288916248)
+  passed. Earlier main run35288769841 stopped before app deployment; its release
+  arm was disarmed before the correction. No production check was bypassed.
+- Combined release includes the separately reviewed [PR824](https://github.com/izzhackt/evo_AI_CRM/pull/824)
+  with59 university photo replacements. Its full image sweep remains incomplete;
+  this chat receipt does not claim all university images were visually verified.
+- Exact released revision: `600e11416e0dff7021167253400d9fe72ffd11cc`.
+- [Light main CI35289078479](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35289078479): success.
+- [Managed release35289102489](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35289102489): success.
+- Release ID: `v3-r35289102489-a1-600e1141`.
+- Image: `sha256:3967a807debd9ac5737a491e17c7828446070d2d2950048861b077f9040cd352`.
+- Acceptance record SHA256: `8a4e3cb8b3d6681b43a963e4721bb36ceddbd507eb7bdc7e383c1d876bb2db23`.
+- Actual authenticated Admin team-chat smoke passed at00:02:11 UTC; existing
+  Admin case and isolated Student portal journeys also passed. No staff messages,
+  accounts or client records created for proof. This is not notification-delivery
+  or WhatsApp/amoCRM acceptance.
+- Fresh SSH readback00:03:39 UTC confirmed live/accepted revision and image,
+  matching acceptance hash, healthy container,0 restarts and no pending pointer.
+  Both CRM and Student public HTTPS health endpoints returned200. Arm readbackfalse.
+- Optional post-release desktop Chrome tab reached the chat URL/title but control
+  reads timed out; no second manual production screenshot proof is claimed.
+  Local desktop/mobile visual checks and CI production browser evidence are
+  separately described above.

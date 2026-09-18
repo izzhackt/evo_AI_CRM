@@ -21,8 +21,8 @@ Visual contract: calm light EVO workspace, one red primary action, short labels,
 no explanatory banners or new sidebar design. Content order: title/action,
 essential fields, create/cancel. Interaction feedback: existing focus styles,
 disabled pending submit and actionable error; no ornamental animation.
-Migration176 is reserved for this slice; the separate unmerged Student-signup
-PR830 moves to177+, with no concurrent release or provider activation.
+Migration176 belongs to this accepted Docs slice. Student signup subsequently
+merged in PR830 with migration177; its accepted release is recorded below.
 An existing real-case/read-only check or rolled-back command is not evidence of
 a newly saved customer record. Report the exact verification scope honestly.
 Direct Docs origin permits no Sales owner; ordinary Sales-origin requirements
@@ -109,7 +109,7 @@ unconfirmed, no amounts or outgoing messages. Test case is recorded in the
 staff activation plan; this is not real-customer acceptance. The separate Docs
 UX release is recorded above.
 
-## Public Student onboarding and clear product copy — active 2026-09-18
+## Public Student onboarding and clear product copy — released 2026-09-18
 
 Owner requests a public questionnaire followed by account creation and Admissions
 approval. Full portal access starts only after approval (explicit confirmation).
@@ -126,15 +126,25 @@ A live Auth session submits the questionnaire, then Admissions approval
 alone activates the existing portal. SMTP is not required for this signup flow.
 An auto-confirmed Auth timestamp is not proof of mailbox ownership.
 
-The bounded12-file copy cleanup shipped in PR828, accepted `2908a0db`,
-release35292232876. Public signup remains draftPR830, migration177 unapplied.
-Docs owns the current release and migration176. Rebase onto accepted Docs176 and
-inspect its direct schema dependencies before Student merge/release; no concurrent
-production changes. Previous QA172 and review/CI remain historical, not proof of
-this no-email177 flow. Remove the unpublished signup-confirmation path, preserve
-existing invitations/staff Auth and validate the changed real Auth/RPC/UI path.
-Use scoped checks, independent exact-head review and the established lightweight
-managed release. No broad full-suite replay, new backup request or fake proof.
+The bounded12-file copy cleanup shipped earlier in PR828, accepted `2908a0db`,
+release35292232876. Student PR830 integrated accepted Docs176, independently
+reviewed `5323f23321505a27d0e70b6ce2fdd3c9aff04555`, passed protected checks
+`35340251635` and merged as `1de14c0ad02b97b5b576060864574ee70e9e8508`.
+Production177 and ledger001–177 are confirmed. Upstream `35340610391` and managed
+`35340641026` passed; release `v3-r35340641026-a1-1de14c0a` is accepted.
+Image/receipt hashes match server readback, runtime is healthy with 0 restarts,
+both domains' health is live, pending=false and arm=false. All Auth settings
+remain unchanged.
+
+Actual local QA completed nine-step signup, pending/portal denial, existing
+Admin RPC approval, full portal and password relogin; 11 security-delta checks
+also passed. Previous35/QA172 records remain historical. Production verification
+covered existing-Auth browser smoke and anonymous `/apply`: all nine steps to
+account creation, reload retention and visible mobile390 controls. No identity or
+consent was entered or submitted; no new production Student or staff approval
+submission was performed. Local business-path proof is not a production signup
+or real-customer acceptance claim. Exact release, migration and evidence hashes:
+[production receipt](qa/student-public-onboarding-177-production-2026-09-18.md).
 
 ## Quiet UI and Admin role preview — released 2026-09-18
 

@@ -30245,3 +30245,280 @@ local test:database:migration-boundaries run before push + smoke-anchor
 audit. Release via the standard owner-migration path. The two remaining S7
 cosmetic follow-ups (full-row card save vs partial merge; playbook-bound
 legacy partner-details fail-closed) stay documented and out of this slice.
+
+### 2026-09-19 — unified workflow S8 implementation: выдача приглашения для кабинетных дел
+
+Date: 2026-09-19. Author: Claude (Sonnet 5). Change type: implementation of
+the previously contracted S8 slice (this journal, previous entry) — the
+final documented gap of the unified-workflow plan. Affected plan section:
+«unified workflow S8» (previous entry); plan §4 of
+docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md.
+
+Decision — migration 185
+(supabase/migrations/185_platform_cabinet_invites.sql, NOT applied in this
+environment — no Supabase credentials, matching every prior slice — but
+validated end to end against a disposable OrbStack/Docker Postgres via
+`npm run test:database:migration-boundaries`, see Validation impact below):
+
+**Critical discovery before writing a single line:** migration 126's own
+`prepare_student_portal_provisioning` and `finalize_student_portal_authority`
+are NOT what 126's source file shows on disk — migrations 149
+(`is_eligible_staff_responsibility`) and 157 (scoped-staff-roles
+restructuring) already patched their LIVE bodies in place via the
+established `pg_get_functiondef` + exact-anchor + `EXECUTE` technique
+(the same idiom 137/156/176/177/180/181/182 use). 185 reconstructed the
+current live bodies by mechanically replaying every prior anchor/replacement
+pair (verified byte-for-byte against 149's and 157's own recorded DO blocks,
+via a scratch Python script, not by eye) before writing its OWN new anchors
+against THAT reconstruction — never a bare `CREATE OR REPLACE` with a
+hand-copied 126 body, which would have silently regressed both prior
+patches. `platform.authorize_student_portal_invite_reissue` and
+`platform_private.assert_student_portal_receipt_admin_e1` were confirmed
+untouched by any prior migration's DO block (grepped across every migration
+file) — the former is therefore a plain `CREATE OR REPLACE` below (safe,
+zero drift risk), and the latter (157's own `CREATE OR REPLACE` version) is
+left completely alone and simply CALLED by the new wrapper.
+
+(a) `case_shape`/`required_permission_keys`/`student_portal_receipts_shape_check`
+CHECKs widen to a third value, `'cabinet_pending'`. The first two are
+UNNAMED column-level CHECKs auto-named by Postgres — rather than guess the
+truncated auto-generated name, 185 discovers the real `conname` dynamically
+via `pg_constraint`/`pg_get_constraintdef` LIKE-matching (182's own
+`DO $ack_decision_shape$` idiom for exactly this situation), RAISEs on a
+missed match, then drops and re-adds under an explicit, readable name
+(`student_portal_receipts_case_shape_check`,
+`student_portal_receipts_permission_keys_check`). `required_permission_keys`
+for `cabinet_pending` is `ARRAY['lead.sales.workflow.manage']` ONLY —
+deliberately NOT `membership.provision`/`scope.manage` (`staff_system_only`
+= TRUE, 155:30/323 — a Sales bundle can never hold them; the SECURITY
+DEFINER body performs those effects itself). Every historical `normal_u6`/
+`legacy_pending` row stays legal under all three widened CHECKs.
+
+(b) Four new `platform_private` functions, one authority predicate reused
+everywhere it's needed (the task's own "pick ONE approach, apply it
+consistently" instruction): `resolve_student_portal_cabinet_lead_e1`
+(genuine-origin check: `source_key LIKE 'lead-cabinet:%' AND
+canonical_lead_id IS NOT NULL`); `require_student_portal_cabinet_actor_e1`
+(LIVE-session check via `current_actor_authority()`, admin-or-sales +
+`staff_can_access(...,'lead.sales.workflow.manage','lead',...)` — 180/184's
+own resource-scoped-permission-on-a-non-admin-actor precedent, cited in
+comments); `assert_student_portal_cabinet_membership_e1` (the STORED-
+membership variant — no live session at finalize time, service-role only —
+re-checks a specific `membership_id` via `staff_membership_identity`);
+`assert_student_portal_receipt_authority_e1` (the repointed assertion:
+`normal_u6`/`legacy_pending` `PERFORM assert_student_portal_receipt_admin_e1(...)
+; RETURN` — a pure delegate, byte-identical behavior; `cabinet_pending`
+re-resolves the lead from `receipt.student_case_id` EVERY call, live
+re-authorization, fail closed).
+
+**Assert approach chosen (the task's explicit either/or):** a NEW function,
+not an in-place branch of `assert_student_portal_receipt_admin_e1` — this
+keeps 157's own live definition completely untouched and reused, rather than
+re-implementing its bundle/scope re-verification logic a second time.
+
+**Family audit (every function in the receipt lifecycle, individually
+checked, not assumed):** `prepare_student_portal_provisioning` — TOUCHED
+(c, below). `claim_student_portal_invite`,
+`claim_student_portal_invite_reissue`, `record_student_portal_invite_success`,
+`record_student_portal_invite_failure`/`_unknown`,
+`reconcile_student_portal_invite` — NOT TOUCHED; all six are
+`GRANT ... TO service_role` only (no live actor, no `case_shape` reference
+anywhere in their bodies — read in full, not skimmed) and operate purely on
+receipt/attempt state. `finalize_student_portal_authority` — TOUCHED (d,
+below). One function ended up touched BEYOND the task's literal eight-name
+list, flagged as a deviation: `authorize_student_portal_invite_reissue` (e,
+below) — its `FOREACH ... require_admin_actor` loop hard-fails any
+non-admin regardless of which permission key is checked (155:810-819
+requires `system_role='admin'` before even inspecting the key), so without
+branching it, reissuing an invite for a `cabinet_pending` case would be
+silently admin-only — directly contradicting the slice's entire point
+(Sales must operate the cabinet case they prepared, not just its first
+dispatch).
+
+(c) `prepare_student_portal_provisioning`'s `cabinet_pending` branch:
+curator-required guard extended (`p_legacy_curator_membership_id` must be
+NULL, like `normal_u6`); `required_permissions` CASE gains a
+`cabinet_pending` arm; BOTH the pre-lock preflight and the post-lock repeat
+(the function's existing two-phase authority pattern) branch to the live
+actor check instead of `require_admin_actor`'s loop; a third
+shape-validation `ELSIF` verifies genuine cabinet origin
+(`source_key LIKE 'lead-cabinet:%'`, `canonical_lead_id` set AND matching
+the resolved lead, `pending`/no-curator/no-handoff/no-portal-activation/
+not-closed). The `normal_u6`/`legacy_pending` arms are reproduced
+byte-for-byte from the CURRENT (149+157-patched) live body inside their own
+untouched branches — verified by the anchor match itself (a drift there
+fails the whole migration closed, not silently).
+
+(d) `finalize_student_portal_authority`: its one call to
+`assert_student_portal_receipt_admin_e1` is repointed to
+`assert_student_portal_receipt_authority_e1`; a third state-shape branch
+mirrors `normal_u6`'s own condition (`pending`/curator IS NULL instead of
+`active`/curator IS NOT NULL); a third activation branch binds membership/
+org-scope via the EXISTING shared, shape-agnostic bind branch (unchanged —
+it has never referenced `case_shape` and already runs identically for
+`cabinet_pending`, verifying deliverable (e) with zero code), then
+`UPDATE ... SET portal_activated_at=occurred_at WHERE state='pending' AND
+current_curator_membership_id IS NULL AND portal_activated_at IS NULL AND
+closed_at IS NULL`, row_count-guarded exactly like `normal_u6`'s own sibling
+UPDATE — NO curator, NO state flip, NO handoff_at, ever (plan §4:
+«Одобрение анкеты или доступа не создаёт передачу в Admissions и не
+назначает куратора»).
+
+**Continuing/re-entry outcome (the task's explicit "prove or handle" gate):**
+PROVEN safe with no extra branch, not extended. `continuing_legacy_activation`
+stays FALSE for every shape but `legacy_pending` (it's set true only inside
+a guard that already fires closed for ANY other shape, including
+`cabinet_pending`, with zero code change — it tests inequality to
+`'legacy_pending'`, not membership in a fixed list). The one genuinely
+reachable re-entry case — bound but not yet activated, i.e. finalize
+committed the bind but the caller never learned the outcome and retries — is
+symmetric for `normal_u6` and `cabinet_pending` by construction: neither
+shape's state-shape branch references `continuing_legacy_activation` at all,
+because neither ever changes state/curator/handoff_at at finalize time, so
+the identical condition legally holds before AND during that re-entry;
+execution falls through to the existing (already shape-agnostic, apart from
+its own legacy-curator-specific final clause) `continuing_bound_case`
+verification block, confirms the prior bind's audit trail, and proceeds
+straight to the new activation UPDATE. Reissue-after-partial-DISPATCH-
+failure (the invite email attempt itself failing/expiring before finalize is
+ever reached — the other, and more common, meaning of "partial failure" in
+this family) is what (e) actually closes.
+
+(e) `authorize_student_portal_invite_reissue`: same two-phase branch as (c)
+(pre-lock preflight via `receipt_hint`, post-lock repeat via the now-locked
+`receipt` row, both widened with `case_shape`/`student_case_id` columns) —
+`cabinet_pending` uses the live actor check instead of the
+`required_permission_keys` FOREACH loop. Untouched by any prior migration's
+DO block, so a plain same-signature `CREATE OR REPLACE` is safe here (unlike
+(c)/(d)).
+
+(f) No new `p7a_safe_audit_actions` allowlist entries. Every audit action
+name the new code paths write is already allowlisted:
+`student.portal.authority.activate` (126, reused verbatim by the new
+`cabinet_pending` activation branch, unconditionally — not a new action),
+`membership.provision`/`membership.scope.organization.assign` (both written
+by the shared, untouched bind branch). Neither `prepare_student_portal_provisioning`
+nor `authorize_student_portal_invite_reissue` writes to `platform.audit_events`
+at all, for any shape.
+
+**Added beyond the task's literal deliverable list, same narrow necessity as
+S7's own `staff_lead_cabinet_case_v1` departure:**
+`platform.staff_student_case_cabinet_origin_v1(p_organization_id,
+p_student_case_id)` — a STABLE, read-gated (`private.platform_can_read_student_case`)
+companion read, `GRANT`ed to `authenticated`, that delegates to
+`resolve_student_portal_cabinet_lead_e1` (one authority predicate, one
+truth). Necessary because `StudentPortalAccessCard`'s existing
+`legacyPending = caseState === "pending"` check is WRONG for a cabinet
+case — both shapes share `caseState==='pending'`, and NO existing case read
+model exposes `source_key`/`canonical_lead_id` to the profile-source layer:
+the read RPC chain (`staff_student_case_read_snapshot` →
+`staff_student_case_page`, traced through migrations
+078/110/137/149/176/177/182) selects neither column, and widening an
+already seven-times-patched RPC for one boolean this migration's own domain
+already knows how to answer was rejected as disproportionate risk.
+
+TS/UI: `src/lib/student-portal-provisioning-actions.ts` gains
+`requireStudentPortalOrganization(organizationId, caseShape)`, which
+DELEGATES to the untouched `requireAdminOrganization` for `normal_u6`/
+`legacy_pending` (byte-identical decision, not reimplemented — mirroring the
+SQL side's own delegation pattern) and additionally accepts
+`staffCan(actor, "sales.write")` for `cabinet_pending` (the same coarse
+capability `prepareLeadCabinetAction`, migration 184's TS counterpart,
+already gates on). Both `caseShape` validation branches (prepare, reconcile)
+widen to three values and correctly require a NULL curator for BOTH
+`normal_u6` AND `cabinet_pending` (only `legacy_pending` may carry one).
+`authorizeStudentPortalReissueAction` gains a `case_shape` field (threaded
+through `student-portal-provisioning-form.ts`'s operation decoder too) — a
+UX-only pre-filter; the RPC's own resource-scoped check on the receipt's
+REAL, server-stored shape is the sole authority regardless of what the
+client claims. `student-portal-provisioning-admin-store.ts`'s `caseShape`
+union widens (receipt decode + prepare input). `StudentPortalAccessCard.tsx`
+becomes a genuine three-way discriminator: `caseState !== "pending" ?
+"normal_u6" : isCabinetCase ? "cabinet_pending" : "legacy_pending"` — NEVER
+derived from `caseState` alone (the exact bug the task named). The curator
+picker renders ONLY for `legacy_pending`; the card's `aside`/`forbidden`/
+`reissueAvailable` copy becomes shape-conditional ("Admin или Sales" vs
+"Только Admin"), honest about who can actually act. `isCabinetCase` is
+threaded from `src/lib/v3/profile-source.ts` (`admissionsWorkspace`/
+`fullCaseDetails` gain the parameter; both call sites —
+`readCaseProfile`/`readLeadProfile` — call the new
+`readStudentCaseCabinetOrigin` (`lead-cabinet-source.ts`, sibling to
+`readLeadCabinetCase`) ONLY when `state === 'pending'`, since it can never
+matter for `active`/`closed`) through `ProfileAdmissionsWorkspace` (`types.ts`,
+one new field) to `Profile.tsx`, whose render gate widens from bare
+`actor.systemRole === "admin"` to `actor.systemRole === "admin" ||
+(draft.admissions.isCabinetCase && staffCan(actor, "sales.write"))` — Sales
+can now see and operate the card for a cabinet case, exactly as plan §4
+requires, while every other case shape stays exactly as admin-only as
+before. Invite email dispatch machinery needed NO changes — Supabase Auth
+invite always runs under the service-role client
+(`student-portal-invite-runtime.ts:36-52`), independent of which role
+triggered it; verified by reading the file, not assumed.
+
+Validation impact: `npm run typecheck` (clean, exit 0), `npx eslint` on
+every touched/added file (clean, 0 errors/warnings), `npm run test:brand-ui`
+(5/5), the new migration-pattern suite
+`tests/platform-cabinet-invites-migration.test.mjs` (19/19, following
+182/184's own template — CHECK widening, both anchor-patch DO blocks'
+drift protection, every new private helper, the repointed assertion, both
+prepare/finalize `cabinet_pending` branches individually, the shared bind
+branch's shape-agnosticism, the reissue branch, the companion read, the p7a
+non-change, REVOKE/GRANT pairing — plus a mandatory control-character
+byte-scan of the migration file itself), and the full `test:e3` invite
+family (86/86, including 3 new/rewritten assertions in
+`student-portal-provisioning-ui.test.mjs` and 1 new behavioral test in
+`student-portal-provisioning-admin-store.test.mjs` exercising a real
+`cabinet_pending` prepare round-trip against a fake RPC client). A broader
+sweep of every other test file referencing `profile-source.ts`/`types.ts`/
+`Profile.tsx`/`StudentPortalAccessCard.tsx`/`lead-cabinet-source.ts`
+(`p4-supabase-admissions-storage-legacy-cleanup`, `platform-admissions`,
+`scoped-finance-read-contract`, `v3-profile-activity`,
+`v3-document-recognition-jobs`, `v3-profile-pipeline-notes`,
+`v3-profile-contract`, `v3-operational-parity`, `v3-profile-documents`,
+`v3-supabase-integration`, `v3-profile-admissions`) passed 82/83, with the
+one failure — `tests/v3-document-recognition-jobs.test.mjs` — verified
+pre-existing and unrelated: it fails at module load (`SyntaxError: Named
+export 'renderToStaticMarkup' not found`, the same CJS/ESM `react-dom/server`
+interop issue S2/S3/S4/S7's own entries already recorded) before any of its
+own assertions run, and the file is untouched by this slice.
+
+Full local boundary run (mandatory before finishing, per the task's own
+instruction): `npm run test:database:migration-boundaries` against a
+disposable Docker Postgres container — every migration 001-185 applied in
+order plus the full interleaved `supabase/tests/*.sql` RLS/authorization
+suite, ending in `authorization_policies.sql`/`authorization_inventory.sql`.
+**Exit code 0 on the first run** (no fix-and-rerun cycle needed) — the
+run's closing line reads "Verified disposable authorization database with
+public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d…", confirming migration
+185's two anchor-patch DO blocks matched their reconstructed live-body
+anchors exactly (no `student_portal_prepare_cabinet_source_drift`/
+`student_portal_finalize_cabinet_source_drift`), both dynamic
+constraint-name lookups found their targets (no
+`portal_receipts_case_shape_check_not_found`/
+`portal_receipts_permission_keys_check_not_found`), and every interleaved
+RLS/authorization assertion for migrations 001-184 stayed green under the
+widened schema.
+
+Smoke audit (mandatory, plan's own lesson from the 2026-09-19 release):
+`grep` of `getByTestId|getByText|getByRole|student-portal|case_shape` across
+`scripts/evo-production-browser-smoke.mjs` and
+`tests/production-browser-smoke.test.mjs` found exactly one relevant hit,
+`getByTestId("student-portal-shell")` — entirely on the STUDENT-facing
+`/portal` route (post-acceptance), never touched by this slice (no invite
+machinery, no `StudentPortalAccessCard`, no `case_shape` anywhere near it).
+The admin-session portion of the smoke script visits `/v3/profile?case=...`
+only at `tab=route` and `tab=contract` — never `tab=overview`, where
+`StudentPortalAccessCard` renders — and even if it did, that session
+authenticates as a genuine `system_role='admin'` actor, for whom the
+widened render gate (`actor.systemRole === "admin" || ...`) behaves exactly
+as before. Smoke anchors unaffected.
+
+Reviewer notes: the `authorize_student_portal_invite_reissue` deviation (one
+function touched beyond the task's literal eight-name list) is a discovered,
+necessary gap, not scope creep — without it, cabinet-case invite reissue
+would be silently admin-only, defeating the slice's own purpose; documented
+in both the migration header and here per the task's own instruction to
+report deviations honestly. The two remaining S7 cosmetic follow-ups
+(full-row card save vs partial merge; playbook-bound legacy partner-details
+fail-closed) remain untouched and out of this slice's scope, unchanged from
+the prior entry.

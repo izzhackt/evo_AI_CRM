@@ -1,6 +1,6 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { randomUUID } from "node:crypto";
-import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { isStaffPreview, staffCan, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
@@ -180,13 +180,18 @@ export function Profile({
             requestIds={requestIds}
             tabHref={hrefFor}
           />
-          {actor.systemRole === "admin" && !isStaffPreview(actor) && profile.student && draft.admissions ? (
+          {!isStaffPreview(actor) &&
+          profile.student &&
+          draft.admissions &&
+          (actor.systemRole === "admin" ||
+            (draft.admissions.isCabinetCase && staffCan(actor, "sales.write"))) ? (
             <StudentPortalAccessCard
               organizationId={organizationId}
               studentCaseId={draft.admissions.studentCaseId}
               email={profile.email}
               displayName={profile.person}
               caseState={draft.admissions.caseState}
+              isCabinetCase={draft.admissions.isCabinetCase}
               requestId={studentPortalProvisioningRequestId(
                 organizationId,
                 draft.admissions.studentCaseId,

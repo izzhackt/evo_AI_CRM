@@ -33,6 +33,7 @@ const DOCUMENT_ASSET_EXTENSIONS = new Set([
 // Reviewed proof receipts are documentation; arbitrary JSON remains unknown.
 const DOCUMENT_ASSET_PATHS = new Set([
   "docs/evidence/public-student-onboarding-local-2026-09-18.json",
+  "docs/qa/student-public-onboarding-177-local-2026-09-18.json",
 ]);
 // Dependency maintenance does not reopen the retired companion's source tree.
 const INBOX_DEPENDENCY_PATHS = new Set([

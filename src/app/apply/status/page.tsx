@@ -15,7 +15,7 @@ export default async function ApplicationStatusPage() {
   const application = await readOwnStudentApplication(client);
   if (!application) redirect("/apply");
   return <main className="min-h-dvh bg-bg px-5 pb-12 text-fg sm:px-8">
-    <header className="mx-auto flex max-w-4xl items-center py-7"><Link href="/apply/status"><EvoLogo width={146} /></Link></header>
+    <header className="mx-auto flex max-w-4xl items-center py-7"><Link href="/apply/status" className="rounded-ctl bg-white p-2"><EvoLogo width={146} /></Link></header>
     <div className="mx-auto max-w-4xl rounded-card border border-border bg-surface px-5 py-8 sm:p-10"><ApplicationStatus application={application} draftOwnerId={data.user.id} /></div>
   </main>;
 }

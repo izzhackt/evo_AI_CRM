@@ -9,19 +9,37 @@ export function isPasswordProvisionedStaff(user: Pick<User, "app_metadata">): bo
     && user.app_metadata.evo_staff_password_request_id.length > 0;
 }
 
+export function logStudentSignupFailure(stage: string, error?: unknown): void {
+  const details = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const code = typeof details.code === "string" && /^[A-Za-z0-9_]{1,64}$/.test(details.code) ? details.code : null;
+  const name = typeof details.name === "string" && /^[A-Za-z0-9_]{1,64}$/.test(details.name) ? details.name : null;
+  const status = typeof details.status === "number" && Number.isInteger(details.status) ? details.status : null;
+  console.warn(JSON.stringify({ event: "student_signup_rejected", stage, code, name, status }));
+}
+
 /**
- * Only a live Auth identity can claim its own questionnaire. With autoconfirm,
- * email_confirmed_at is an Auth state, not proof of mailbox ownership.
+ * Only a live Auth identity can claim its own questionnaire. Server-created
+ * accounts have an Auth confirmation timestamp, not proof of mailbox ownership.
  */
-export async function resumeStudentApplication(client: SupabaseClient): Promise<"saved" | "needs_draft" | "unverified"> {
+export async function resumeStudentApplication(client: SupabaseClient, expectedAuthUserId?: string): Promise<"saved" | "needs_draft" | "unverified"> {
   const { data, error } = await client.auth.getUser();
-  if (error || !data.user?.email_confirmed_at || !data.user.email || isPasswordProvisionedStaff(data.user)) return "unverified";
-  const existing = await readOwnStudentApplication(client);
+  if (error || !data.user?.email_confirmed_at || !data.user.email || isPasswordProvisionedStaff(data.user)
+    || (expectedAuthUserId !== undefined && data.user.id !== expectedAuthUserId)) {
+    logStudentSignupFailure("identity", error);
+    return "unverified";
+  }
+  let existing;
+  try { existing = await readOwnStudentApplication(client); }
+  catch (readError) { logStudentSignupFailure("read_application", readError); throw readError; }
   if (existing) return "saved";
   const draft = validateStudentApplicationDraft(data.user.user_metadata?.[STUDENT_APPLICATION_METADATA_KEY]);
   if (!draft) return "needs_draft";
-  await submitStudentApplication(client, draft);
+  try { await submitStudentApplication(client, draft); }
+  catch (submitError) { logStudentSignupFailure("submit_application", submitError); throw submitError; }
   // The committed business row wins even if metadata cleanup is interrupted.
-  await client.auth.updateUser({ data: { [STUDENT_APPLICATION_METADATA_KEY]: null } });
+  try {
+    const cleanup = await client.auth.updateUser({ data: { [STUDENT_APPLICATION_METADATA_KEY]: null } });
+    if (cleanup.error) logStudentSignupFailure("metadata_cleanup", cleanup.error);
+  } catch (cleanupError) { logStudentSignupFailure("metadata_cleanup", cleanupError); }
   return "saved";
 }

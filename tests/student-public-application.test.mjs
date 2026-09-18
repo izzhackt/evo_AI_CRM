@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { NextRequest, NextResponse } from "next/server.js";
+import { createClient } from "@supabase/supabase-js";
 import * as contract from "../src/lib/student-application-contract.ts";
 import * as callback from "../src/lib/student-invite-callback-contract.ts";
 import * as routes from "../src/lib/platform-route-contract.ts";
@@ -47,6 +48,13 @@ function compile(path, dependencies = {}) {
   return compiledModule.exports;
 }
 const fields = compile("src/lib/server/action-form-fields.ts");
+// New-account creation is exercised by the real Auth/RPC acceptance harness.
+// Retained local action tests use this production helper without an Auth stub;
+// they stop before its service access or cover already-authenticated applicants.
+const backendConfig = compile("src/lib/server/platform-supabase-backend-config.ts");
+const backendClient = compile("src/lib/server/platform-supabase-service-client.ts", {
+  "@supabase/supabase-js": { createClient },
+});
 
 // Execute production functions; Auth/repository calls are observed boundaries,
 // not a substitute for real signup, session or database acceptance.
@@ -58,7 +66,6 @@ function harness(options = {}) {
   let identityIndex = 0;
   const client = { auth: {
     async getUser() { calls.push(["getUser"]); return responses[Math.min(identityIndex++, responses.length - 1)]; },
-    async signUp(input) { calls.push(["signUp", input]); return options.signup ?? { data: { user: { id: "obfuscated-existing-user", identities: [] }, session: null }, error: null }; },
     async updateUser(input) { calls.push(["updateUser", input]); return options.cleanup ?? { data: {}, error: null }; },
     async refreshSession() { calls.push(["refreshSession"]); return { error: options.refreshError ?? null }; },
     async getClaims() { calls.push(["getClaims"]); return options.claims ?? { data: { claims: { sub: USER } }, error: null }; },
@@ -70,11 +77,18 @@ function harness(options = {}) {
   const runtime = compile("src/lib/server/student-signup-runtime.ts", {
     "../student-application-contract": contract, "../v3/student-application-source": source,
   });
+  const publicRegistration = compile("src/lib/server/student-public-registration.ts", {
+    "../student-application-contract": contract,
+    "./platform-supabase-backend-config": backendConfig,
+    "./platform-supabase-service-client": backendClient,
+    "./student-signup-runtime": runtime,
+  });
   const actions = compile("src/lib/student-signup-actions.ts", {
     "next/headers": { headers: async () => requestHeaders },
     "next/navigation": { redirect: (destination) => { throw Object.assign(new Error("redirect"), { destination }); } },
     "next/cache": { revalidatePath: (path) => calls.push(["revalidate", path]) },
     "./server/action-form-fields": fields, "./server/student-signup-runtime": runtime,
+    "./server/student-public-registration": publicRegistration,
     "./student-application-contract": contract, "./student-invite-callback-contract": callback,
     "./supabase/server": { createSupabaseServerClient: async () => { calls.push(["client"]); return client; } },
     "./supabase/student-portal-authority": { readVerifiedStudentPortalAuthority: async (received, claims) => { assert.equal(received, client); calls.push(["portalAuthority", claims]); return options.authority ?? { status: "unauthenticated" }; } },
@@ -116,45 +130,11 @@ test("official English scores use their own scales and increments without conver
   assert.equal(contract.validateStudentApplicationDraft(draft({ english: { mode: "self", level: "C1" } })), null);
 });
 
-test("anonymous signup carries only the untrusted questionnaire in metadata and never trusts its returned user id", async () => {
-  const run = harness();
-  assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration({ email: " Student@Example.Test " })), { status: "unavailable" });
-  const input = run.calls.find(([name]) => name === "signUp")[1];
-  assert.equal(input.email, EMAIL);
-  assert.equal(input.password, PASSWORD);
-  assert.deepEqual(input.options.data, { [contract.STUDENT_APPLICATION_METADATA_KEY]: draft() });
-  assert.equal(JSON.stringify(input.options.data).includes(PASSWORD), false);
-  assert.equal(Object.hasOwn(input.options, "emailRedirectTo"), false);
-  assert.deepEqual(callNames(run), ["client", "getUser", "signUp"]);
-});
-
-test("an obfuscated signup response without a session cannot create a case or application", async () => {
-  const run = harness({ signup: { data: { user: identity({ id: "duplicate-obfuscated-id", identities: [] }), session: null }, error: null } });
-  for (let attempt = 0; attempt < 2; attempt++) assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
-  assert.equal(callNames(run).filter((name) => name === "signUp").length, 2);
-  assert.equal(callNames(run).includes("submit"), false);
-  assert.equal(callNames(run).includes("updateUser"), false);
-});
-
-test("signup response sessions still require a fresh valid Auth identity before application persistence", async () => {
-  for (const liveUser of [null, identity({ email_confirmed_at: null })]) {
-    const run = harness({ identities: [verified(null), verified(liveUser)], signup: { data: { user: identity(), session: { access_token: "synthetic-untrusted-response" } }, error: null } });
-    assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
-    assert.deepEqual(callNames(run), ["client", "getUser", "signUp", "getUser"]);
-  }
-  const liveDraft = draft({ firstName: "Подтверждённый" });
-  const run = harness({ identities: [verified(null), verified(identity({ user_metadata: { [contract.STUDENT_APPLICATION_METADATA_KEY]: liveDraft } }))],
-    signup: { data: { user: identity({ id: "not-authority", user_metadata: { role: "admin" } }), session: {} }, error: null } });
-  await assert.rejects(run.registerStudentAction({ status: "idle" }, registration()), redirectsTo("/apply/status"));
-  assert.deepEqual(run.calls.find(([name]) => name === "submit"), ["submit", liveDraft]);
-});
-
 test("authenticated applicants submit revisioned drafts without creating another Auth account", async () => {
   const run = harness({ identities: [verified()] });
   await assert.rejects(run.registerStudentAction({ status: "idle" }, registration({ password: "", expected_revision: "3" })), redirectsTo("/apply/status"));
   assert.deepEqual(run.calls.find(([name]) => name === "submit"), ["submit", draft(), 3]);
   assert.deepEqual(run.calls.find(([name]) => name === "updateUser"), ["updateUser", { data: { [contract.STUDENT_APPLICATION_METADATA_KEY]: null } }]);
-  assert.equal(callNames(run).includes("signUp"), false);
   for (const user of [identity({ email_confirmed_at: null }), identity({ email: "different@example.test" })]) {
     const blocked = harness({ identities: [verified(user)] });
     assert.deepEqual(await blocked.registerStudentAction({ status: "idle" }, registration()), { status: "conflict" });
@@ -179,16 +159,11 @@ test("invalid origin, duplicate fields and injected identity never reach Auth", 
   assert.deepEqual(run.calls, []);
 });
 
-test("registration reports password, rate limit and uncertain Auth failures without claiming persistence", async () => {
+test("registration rejects a short password before service access and stops on uncertain identity", async () => {
   const short = harness();
   assert.deepEqual(await short.registerStudentAction({ status: "idle" }, registration({ password: "short" })), { status: "password" });
-  assert.equal(callNames(short).includes("signUp"), false);
-  for (const [error, status] of [[{ status: 429 }, "rate_limit"], [{ code: "weak_password" }, "password"], [{ code: "user_already_exists" }, "conflict"], [{ code: "email_exists" }, "conflict"], [{ message: "private provider failure" }, "unavailable"]]) {
-    const run = harness({ signup: { data: {}, error } });
-    assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status });
-    assert.equal(callNames(run).includes("submit"), false);
-  }
-  const broken = harness({ identities: [{ data: { user: null }, error: { name: "AuthRetryableFetchError", message: "private details" } }] });
+  assert.deepEqual(callNames(short), ["client", "getUser"]);
+  const broken = harness({ identities: [{ data: { user: null }, error: new Error("Auth unavailable") }] });
   assert.deepEqual(await broken.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
   assert.deepEqual(callNames(broken), ["client", "getUser"]);
 });

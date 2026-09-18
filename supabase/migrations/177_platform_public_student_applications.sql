@@ -3,6 +3,51 @@
 -- Student authority before a successful atomic approval.
 BEGIN;
 
+-- Privileged Auth creation is available only through the bounded server action.
+-- Public Auth signup stays disabled, preserving existing invited identities.
+CREATE TABLE platform_private.student_signup_limits (
+ bucket TEXT PRIMARY KEY,
+ window_start TIMESTAMPTZ NOT NULL,
+ attempts INTEGER NOT NULL CHECK(attempts BETWEEN 1 AND 101)
+);
+ALTER TABLE platform_private.student_signup_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_private.student_signup_limits FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON platform_private.student_signup_limits FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;
+
+CREATE FUNCTION platform.reserve_student_signup_attempt_v1(p_email TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $$
+DECLARE email TEXT; attempts INTEGER; email_bucket TEXT;
+BEGIN
+ IF auth.role() IS DISTINCT FROM 'service_role' THEN
+  RAISE EXCEPTION 'student_signup_forbidden' USING ERRCODE='42501';
+ END IF;
+ email:=lower(btrim(p_email));
+ IF email IS NULL OR length(email) NOT BETWEEN 3 AND 254
+  OR email !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
+  OR email ~ '[[:cntrl:]]' THEN
+  RAISE EXCEPTION 'student_signup_invalid' USING ERRCODE='22023';
+ END IF;
+ -- Global cap also bounds the number of retained email buckets.
+ INSERT INTO platform_private.student_signup_limits AS limits VALUES('global',statement_timestamp(),1)
+ ON CONFLICT(bucket) DO UPDATE SET
+  attempts=CASE WHEN limits.window_start<=statement_timestamp()-INTERVAL '1 hour' THEN 1 ELSE least(limits.attempts+1,101) END,
+  window_start=CASE WHEN limits.window_start<=statement_timestamp()-INTERVAL '1 hour' THEN statement_timestamp() ELSE limits.window_start END
+ RETURNING limits.attempts INTO attempts;
+ IF attempts>100 THEN RETURN FALSE; END IF;
+ DELETE FROM platform_private.student_signup_limits WHERE bucket<>'global'
+  AND window_start<statement_timestamp()-INTERVAL '1 day';
+ email_bucket:='email:'||encode(sha256(convert_to(email,'UTF8')),'hex');
+ INSERT INTO platform_private.student_signup_limits AS limits VALUES(email_bucket,statement_timestamp(),1)
+ ON CONFLICT(bucket) DO UPDATE SET
+  attempts=CASE WHEN limits.window_start<=statement_timestamp()-INTERVAL '1 hour' THEN 1 ELSE least(limits.attempts+1,101) END,
+  window_start=CASE WHEN limits.window_start<=statement_timestamp()-INTERVAL '1 hour' THEN statement_timestamp() ELSE limits.window_start END
+ RETURNING limits.attempts INTO attempts;
+ RETURN attempts<=5;
+END $$;
+REVOKE ALL ON FUNCTION platform.reserve_student_signup_attempt_v1(TEXT) FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION platform.reserve_student_signup_attempt_v1(TEXT) TO service_role;
+
+
 CREATE FUNCTION platform_private.student_application_questionnaire_valid(q JSONB)
 RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE SET search_path='' AS $$
 DECLARE item JSONB; e JSONB; score NUMERIC; maximum NUMERIC; minimum NUMERIC; step NUMERIC;

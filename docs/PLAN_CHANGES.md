@@ -28281,3 +28281,23 @@ membership on Docs cases: a later explicit invitation remains possible. Public
 signup never claims an existing Docs case by name/email.177 must assert the
 already-updated176 Sales read joins instead of patching them twice; retain the
 separate Sales-summary inner joins and all case authorization.
+
+### 2026-09-18 — isolate no-email signup from existing invited identities
+
+Independent review of head3ae83038 found that globally enabling public signup
+with autoconfirm reuses existing unconfirmed invited Auth identities and issues
+a session without proving their password. Preserve the owner's no-email choice
+by keeping public Auth signup disabled and all global confirmation settings
+unchanged. Only the origin-checked server action may create a NEW confirmed
+identity through the existing backend-only Auth admin client. Duplicate or
+uncertain creation never updates, confirms, resets or adopts an existing user.
+Normal password sign-in establishes the applicant's cookie session; only that
+live identity may call the existing pending-application RPC. Privileged creation
+is bounded by durable service-only global and normalized-email rate buckets in
+177. The service client never creates Student membership/case or approves access.
+
+Validate the actual new creation/login path and duplicate unconfirmed-invitation
+collision, preserve staff invite behavior, and retain the intermediate35-check
+receipt as historical evidence rather than relabeling it. No production Auth
+change has occurred. Sources: Supabase auth-admin-createuser docs and pinned
+v2.196.0 internal/api/admin.go plus internal/api/signup.go.

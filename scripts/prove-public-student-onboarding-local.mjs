@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import assert from 'node:assert/strict';
 // Scope-local real Auth/RPC proof. Requires explicit owner-authorized isolated QA.
 // No staff creation, password reset, migration execution, database reset or provider call.
@@ -15,27 +15,46 @@ for (const endpoint of [cfg.url, cfg.mailpit]) {
 assert.match(cfg.dbContainer, /^supabase_db_evo-[a-z0-9-]+$/);
 assert.equal(execFileSync('orb', ['status'], {encoding:'utf8'}).trim(), 'Running');
 assert.equal(execFileSync('docker', ['context', 'show'], {encoding:'utf8'}).trim(), 'orbstack');
-try { readFileSync(dir + '/student-credentials.json'); throw new Error('QA directory already has a Student; reuse recorded evidence or choose an explicitly authorized fresh run.'); }
-catch (error) { if (error.code !== 'ENOENT') throw error; }
+const deltaOnly=process.argv.includes('--resume-secure-registration-delta');
+if (!deltaOnly) {
+  for (const checkpoint of ['student-credentials.json','student-creation-attempt.json']) {
+    try { readFileSync(dir + '/' + checkpoint); throw new Error('QA directory already has a Student or a creation attempt; resume its checkpoint instead of creating another identity.'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+}
 
 const saved=(file,data)=>writeFileSync(dir+'/'+file,JSON.stringify(data,null,2),{mode:0o600});
-const db=(q)=>JSON.parse(execFileSync('docker',['exec',cfg.dbContainer,'psql','-U','postgres','-d','postgres','-X','-Atc',q],{encoding:'utf8'}).trim());
+const db=(q)=>{const value=execFileSync('docker',['exec',cfg.dbContainer,'psql','-U','postgres','-d','postgres','-X','-Atc',q],{encoding:'utf8'}).trim();return value?JSON.parse(value):null;};
 const client=()=>createClient(cfg.url,cfg.publishableKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
-const checks=[];const pass=(s)=>{checks.push(s);console.log('PASS '+s);saved('receipt.json',{scope:'local existing Supabase and real Auth; not production SMTP or customer acceptance',checks})};
+assert.ok(cfg.serviceRoleKey,'private_local_service_role_key_required');
+const service=createClient(cfg.url,cfg.serviceRoleKey,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+const checks=[];const pass=(s)=>{checks.push(s);console.log('PASS '+s);saved(deltaOnly?'secure-registration-delta-receipt.json':'secure-registration-receipt.json',{scope:'local existing Supabase and real Auth; not production or browser acceptance',contract:'public signup disabled; server-only createUser; ordinary password sign-in',harnessSha256:createHash('sha256').update(readFileSync(new URL(import.meta.url))).digest('hex'),checks})};
 async function mail(email){for(let i=0;i<20;i++){const list=await(await fetch(cfg.mailpit+'/api/v1/messages')).json();const m=list.messages.find(m=>m.To?.some(t=>t.Address===email));if(m){const details=await(await fetch(cfg.mailpit+'/api/v1/message/'+m.ID)).json();return details;}await new Promise(r=>setTimeout(r,500));}throw new Error('MAIL_NOT_RECEIVED');}
 function hash(m){const html=m.HTML||m.Text||'';const link=html.match(/https?:[^\s"<>]*token(?:_hash)?=[^\s"<>]+/);assert.ok(link,'mail_has_confirmation_link');const u=new URL(link[0].replaceAll('&amp;','&'));return u.searchParams.get('token_hash')||u.searchParams.get('token');}
 const rawRpc=async(c,n,args)=>c.schema('platform').rpc(n,args);
 async function rpc(c,n,args){let r=await rawRpc(c,n,args);if(r.error){console.error('RPC_ERROR',n,r.error.code,r.error.message);throw new Error('RPC_FAILED_'+n);}return r.data;}
 async function otp(role){const staff=db(`SELECT row_to_json(x) FROM (SELECT u.email,m.id AS membership_id,m.organization_id FROM platform.organization_memberships m JOIN platform.profiles p ON p.id=m.profile_id JOIN auth.users u ON u.id=p.auth_user_id WHERE m.current_role='${role}' AND m.status='active' LIMIT 1)x`);const c=client();const r=await c.auth.signInWithOtp({email:staff.email,options:{shouldCreateUser:false}});assert.equal(r.error,null,'existing_staff_otp_requested');const m=await mail(staff.email);const v=await c.auth.verifyOtp({token_hash:hash(m),type:'magiclink'});assert.equal(v.error,null,'existing_staff_otp_verified');saved(role+'-session.json',{...staff,session:v.data.session});return{c,staff};}
 const ledger=db("SELECT json_agg(version ORDER BY version) FROM supabase_migrations.schema_migrations");assert.deepEqual(ledger,Array.from({length:177},(_,i)=>String(i+1).padStart(3,'0')),'canonical_ledger_through_177_required');
+const settingsResponse=await fetch(cfg.url+'/auth/v1/settings',{headers:{apikey:cfg.publishableKey}});
+assert.equal(settingsResponse.status,200);assert.equal((await settingsResponse.json()).disable_signup,true,'public_auth_signup_must_remain_disabled');
+pass('public_auth_signup_setting_disabled');
+
+if (deltaOnly) {
+  await secureRegistrationDelta();
+} else {
 const admin=await otp('admin');pass('existing_admin_auth_otp_without_staff_creation');
 const sales=await otp('sales');pass('existing_sales_auth_otp_without_staff_creation');
 const student=client();const email='public-onboarding-'+randomUUID()+'@student.local.test';const password=randomUUID()+'Aa1!';
 const baseline=db("SELECT json_build_object('requests',(SELECT count(*) FROM platform_private.student_applications),'cases',(SELECT count(*) FROM platform.student_cases WHERE public_application_id IS NOT NULL))");
 let draft={"schemaVersion": 1, "requestId": randomUUID(), "firstName": "QA", "lastName": "Student", "phone": "+996555000123", "destinationCountries": ["CN", "MY"], "intakeSeason": "autumn", "intakeYear": 2027, "educationLevel": "high_school", "averageGrade": 4.5, "gradeScale": "5", "studyFields": ["Engineering", "Economics"], "studyLevels": ["bachelor", "foundation"], "nationality": "KG", "english": {"mode": "exam", "exam": "toefl", "score": 5.5}, "tuitionBudget": "5000_10000", "fundingSource": "family", "consent": true, "consentVersion": "2026-09-18"};
-const signup=await student.auth.signUp({email,password,options:{data:{student_application_draft:draft}}});
-if(signup.error){console.error('SIGNUP_ERROR',signup.error.code);throw new Error('SIGNUP_FAILED');}assert.ok(signup.data.session);assert.ok(signup.data.user?.id);saved('student-credentials.json',{email,password,userId:signup.data.user.id,draft});saved('student-session.json',signup.data.session);pass('canonical_signup_returns_session_without_confirmation_email');
-const current=await student.auth.getUser();assert.equal(current.error,null);assert.equal(current.data.user?.id,signup.data.user.id);assert.ok(current.data.user?.email_confirmed_at);pass('real_auth_identity_after_signup_auto_confirmed_not_mailbox_verified');
+assert.equal(await rpc(service,'reserve_student_signup_attempt_v1',{p_email:email}),true,'server_signup_attempt_reserved');
+saved('student-creation-attempt.json',{email,password,draft});
+const created=await service.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{student_application_draft:draft}});
+if(created.error){console.error('SIGNUP_ERROR',created.error.code);throw new Error('SERVER_ACCOUNT_CREATION_FAILED');}assert.ok(created.data.user?.id);
+saved('student-credentials.json',{email,password,userId:created.data.user.id,draft});
+const signup=await student.auth.signInWithPassword({email,password});assert.equal(signup.error,null);assert.ok(signup.data.session);assert.equal(signup.data.user?.id,created.data.user.id);
+saved('student-session.json',signup.data.session);pass('server_created_account_password_signin_returns_session_without_confirmation_email');
+const current=await student.auth.getUser();assert.equal(current.error,null);assert.equal(current.data.user?.id,signup.data.user.id);assert.ok(current.data.user?.email_confirmed_at);pass('real_auth_identity_is_server_confirmed_not_mailbox_verified');
 const delivered=await(await fetch(cfg.mailpit+'/api/v1/messages')).json();assert.ok(!delivered.messages.some(m=>m.To?.some(t=>t.Address===email)));pass('signup_does_not_send_confirmation_email');
 assert.equal(await rpc(student,'own_student_application_v1'),null);pass('authenticated_account_initially_has_no_application');
 const submitted=await rpc(student,'submit_student_application_v1',{p_request_id:draft.requestId,p_questionnaire:draft,p_expected_revision:0});assert.equal(submitted.status,'pending');assert.equal(submitted.revision,1);saved('application-private.json',submitted);pass('account_questionnaire_persisted_pending');
@@ -75,4 +94,77 @@ const rawTable=await student.schema('platform_private').from('student_applicatio
 const counts=db(`SELECT json_build_object('linked_clients',(SELECT count(*) FROM platform.clients WHERE normalized_email=(SELECT normalized_email FROM platform_private.student_applications WHERE id='${app.id}')),'canonical_lead_null',(SELECT canonical_lead_id IS NULL FROM platform.student_cases WHERE id='${app.student_case_id}'),'public_requests',(SELECT count(*) FROM platform_private.student_applications),'case_links',(SELECT count(*) FROM platform.student_cases WHERE public_application_id IS NOT NULL))`);assert.equal(counts.linked_clients,0);assert.equal(counts.canonical_lead_null,true);assert.equal(counts.public_requests,baseline.requests+1);assert.equal(counts.case_links,baseline.cases+1);pass('public_approval_does_not_create_sales_client_or_lead');
 console.log('LOCAL_NARROW_PROOF_COMPLETE '+checks.length);
 
+}
+}
+
+async function secureRegistrationDelta(){
+  const creds=JSON.parse(readFileSync(dir+'/student-credentials.json'));
+  const priorApplication=JSON.parse(readFileSync(dir+'/application-private.json'));
+  const student=client();
+  const signedIn=await student.auth.signInWithPassword({email:creds.email,password:creds.password});
+  assert.equal(signedIn.error,null);assert.equal(signedIn.data.user?.id,creds.userId);assert.ok(signedIn.data.session);
+  saved('secure-student-session.json',signedIn.data.session);pass('existing_approved_qa_student_password_signin_without_new_identity');
+  const current=await student.auth.getUser();assert.equal(current.error,null);assert.equal(current.data.user?.id,creds.userId);
+  pass('existing_student_live_identity_verified_after_password_signin');
+  const application=await rpc(student,'own_student_application_v1');
+  assert.equal(application.id,priorApplication.id);assert.equal(application.status,'approved');assert.equal(application.student_case_id,priorApplication.student_case_id);
+  pass('existing_approved_application_and_case_preserved');
+  const portal=await rpc(student,'student_portal_cases');assert.ok(portal.some(c=>c.case_id===application.student_case_id&&c.case_state==='active'));
+  pass('existing_approved_student_portal_still_readable');
+
+  let quota;
+  try {quota=JSON.parse(readFileSync(dir+'/secure-quota-checkpoint.json'));}
+  catch(error){if(error.code!=='ENOENT')throw error;quota={email:'quota-'+randomUUID()+'@student.local.test',allowed:0,denied:false};saved('secure-quota-checkpoint.json',quota);}
+  for(const [label,c] of [['anonymous',client()],['student',student]]){
+    const denied=await rawRpc(c,'reserve_student_signup_attempt_v1',{p_email:quota.email});assert.ok(denied.error);assert.equal(denied.error.code,'42501');
+    pass(label+'_signup_reservation_rpc_denied');
+  }
+  while(quota.allowed<5){assert.equal(await rpc(service,'reserve_student_signup_attempt_v1',{p_email:quota.email}),true);quota.allowed++;saved('secure-quota-checkpoint.json',quota);}
+  if(!quota.denied){assert.equal(await rpc(service,'reserve_student_signup_attempt_v1',{p_email:quota.email}),false);quota.denied=true;saved('secure-quota-checkpoint.json',quota);}
+  pass('service_only_email_quota_allows_five_then_denies_sixth');
+
+  let probe;
+  try {probe=JSON.parse(readFileSync(dir+'/secure-collision-checkpoint.json'));}
+  catch(error){
+    if(error.code!=='ENOENT')throw error;
+    const existing=db("SELECT row_to_json(x) FROM (SELECT u.id AS user_id,u.email FROM auth.users u JOIN platform.profiles p ON p.auth_user_id=u.id JOIN platform.organization_memberships m ON m.profile_id=p.id WHERE m.current_role='student' AND u.email_confirmed_at IS NULL AND NOT EXISTS(SELECT 1 FROM platform.organization_memberships s WHERE s.profile_id=p.id AND s.current_role<>'student') ORDER BY u.created_at LIMIT 1)x");
+    probe=existing?{email:existing.email,userId:existing.user_id,created:false}:{email:'unconfirmed-collision-'+randomUUID()+'@student.local.test',password:randomUUID()+'Aa1!',created:true,creationAttempted:false};
+    saved('secure-collision-checkpoint.json',probe);
+  }
+  if(!probe.userId){
+    if(probe.creationAttempted){
+      const observed=db(`SELECT row_to_json(x) FROM (SELECT id FROM auth.users WHERE email=${sqlText(probe.email)} AND email_confirmed_at IS NULL AND raw_user_meta_data->>'local_qa_collision_probe'='true')x`);
+      assert.ok(observed,'creation_outcome_uncertain_do_not_create_another_identity');probe.userId=observed.id;
+    }else{
+      probe.creationAttempted=true;saved('secure-collision-checkpoint.json',probe);
+      const created=await service.auth.admin.createUser({email:probe.email,password:probe.password,email_confirm:false,user_metadata:{local_qa_collision_probe:true}});
+      assert.equal(created.error,null);assert.ok(created.data.user?.id);assert.ok(!created.data.user.email_confirmed_at);probe.userId=created.data.user.id;
+    }
+    saved('secure-collision-checkpoint.json',probe);
+  }
+  const before=collisionState(probe.userId);
+  assert.equal(before.email_confirmed,false);assert.equal(before.staff_memberships,0);
+  if(probe.created){assert.equal(before.profiles,0);assert.equal(before.memberships,0);}
+  saved('secure-collision-before.json',before);
+  const attemptedPassword=randomUUID()+'Aa1!';
+  const duplicate=await service.auth.admin.createUser({email:probe.email,password:attemptedPassword,email_confirm:true,user_metadata:{local_qa_collision_attempt:true}});
+  assert.ok(['email_exists','user_already_exists'].includes(duplicate.error?.code),'duplicate_identity_must_be_rejected_explicitly');assert.equal(duplicate.data.user,null);
+  assert.deepEqual(collisionState(probe.userId),before);pass('unconfirmed_duplicate_create_user_rejected_without_auth_or_role_changes');
+  const publicAttempt=await client().auth.signUp({email:probe.email,password:attemptedPassword});
+  assert.equal(publicAttempt.error?.code,'signup_disabled');assert.equal(publicAttempt.data.user,null);assert.equal(publicAttempt.data.session,null);
+  assert.deepEqual(collisionState(probe.userId),before);pass('public_signup_disabled_cannot_confirm_or_replace_existing_unconfirmed_identity');
+  const finalApplication=await rpc(student,'own_student_application_v1');assert.equal(finalApplication.id,application.id);assert.equal(finalApplication.revision,application.revision);
+  pass('security_delta_keeps_existing_approved_student_application_unchanged');
+  saved('secure-registration-delta-effects.json',{newStaffIdentities:0,retainedUnconfirmedNonstaffProbe:probe.created,existingApprovedStudentReused:true,globalHundredPerHourLimitExhaustionTested:false});
+  console.log('LOCAL_SECURE_REGISTRATION_DELTA_COMPLETE '+checks.length);
+}
+
+function sqlText(value){return "'"+String(value).replaceAll("'","''")+"'";}
+function collisionState(userId){
+  assert.match(userId,/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  return db(`SELECT json_build_object('auth_digest',md5(to_jsonb(u)::text),'email_confirmed',u.email_confirmed_at IS NOT NULL,
+    'identity_digest',(SELECT md5(coalesce(string_agg(to_jsonb(i)::text,'' ORDER BY i.id),'')) FROM auth.identities i WHERE i.user_id=u.id),
+    'profiles',(SELECT count(*) FROM platform.profiles p WHERE p.auth_user_id=u.id),
+    'memberships',(SELECT count(*) FROM platform.organization_memberships m JOIN platform.profiles p ON p.id=m.profile_id WHERE p.auth_user_id=u.id),
+    'staff_memberships',(SELECT count(*) FROM platform.organization_memberships m JOIN platform.profiles p ON p.id=m.profile_id WHERE p.auth_user_id=u.id AND m.current_role<>'student')) FROM auth.users u WHERE u.id=${sqlText(userId)}`);
 }

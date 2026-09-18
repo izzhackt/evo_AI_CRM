@@ -118,9 +118,11 @@ Reuse existing Supabase Auth, Admissions and Student profile; preserve private
 assessments. Include bounded settings/CRM/Portal copy cleanup. No invented
 matching claims or invented email-delivery proof. The owner now explicitly
 selects signup **without email confirmation** and asks to complete the release.
-Enable canonical email/password signup with `disable_signup=false` and
-`mailer_autoconfirm=true`; do not alter other Auth methods or unverified-login
-settings. A live Auth session submits the questionnaire, then Admissions approval
+Keep public Auth signup disabled and global confirmation settings unchanged.
+A bounded server action creates only a new identity via Auth admin.createUser
+with email_confirm=true, then uses normal password login. Durable service-only
+rate buckets limit creation; duplicate identities are never updated or adopted.
+A live Auth session submits the questionnaire, then Admissions approval
 alone activates the existing portal. SMTP is not required for this signup flow.
 An auto-confirmed Auth timestamp is not proof of mailbox ownership.
 

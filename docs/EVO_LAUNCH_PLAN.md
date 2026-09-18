@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## University photo refresh — frozen for release 2026-09-18
+## University photo refresh — released59, scope closed 2026-09-18
 
 Owner requests fresh, high-quality real university pictures on
 `app.evoadmissions.com`. Follow the [photo refresh plan](design/v3/university-photo-refresh-run-plan.md):
@@ -16,6 +16,11 @@ the completed work. Freeze59 replacements; preserve38 retained and46 unresolved
 entries. Withdraw the HZNU candidate that failed real EVO embedding. See the
 [143-key source ledger](design/v3/references/2026-09-18-university-photo-audit.json).
 Do not claim all photos are recent or the interrupted full browser sweep passed.
+
+The owner-frozen59 replacements shipped with chat in accepted revision600e11416,
+release35289102489. The photo task additionally verified real Student AGH and
+INTI cards after release, including decoded1280×964 and2560×1440 images.
+Further selection remains stopped; the full143/mobile sweep is not claimed.
 
 ## Team chat Messenger — completed 2026-09-18
 

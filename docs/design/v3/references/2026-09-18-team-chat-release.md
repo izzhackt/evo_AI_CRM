@@ -44,6 +44,9 @@ History, read cursors, permissions, threads and realtime are preserved.
 - Combined release includes the separately reviewed [PR824](https://github.com/izzhackt/evo_AI_CRM/pull/824)
   with59 university photo replacements. Its full image sweep remains incomplete;
   this chat receipt does not claim all university images were visually verified.
+  The photo task separately confirmed live existing QA Student AGH and INTI cards:
+  updated captions/sources, decoded1280×964 and2560×1440 respectively, plus visual
+  confirmation of the INTI pool card. No complete143-image/mobile sweep is claimed.
 - Exact released revision: `600e11416e0dff7021167253400d9fe72ffd11cc`.
 - [Light main CI35289078479](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35289078479): success.
 - [Managed release35289102489](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35289102489): success.

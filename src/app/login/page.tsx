@@ -111,7 +111,9 @@ export default async function LoginPage({
       ? "accessDenied"
       : error === "auth_unavailable"
         ? "authUnavailable"
-        : null;
+        : error === "staffAccessDenied"
+          ? "staffAccessDenied"
+          : null;
 
   return (
     <main className="flex min-h-dvh flex-col bg-bg px-4 py-6 sm:px-6">
@@ -132,6 +134,7 @@ export default async function LoginPage({
           <div className="mt-6">
             <LoginForm labels={copy} initialError={initialError} />
           </div>
+          {audience !== "staff" && <a href="/apply" className="mt-5 flex min-h-11 items-center justify-center rounded-ctl border border-control-edge px-4 text-sm font-semibold text-fg">{locale === "en" ? "Create a student account" : locale === "ky" ? "Студенттик аккаунт түзүү" : "Создать аккаунт студента"}</a>}
           {audienceCopy && (
             <a
               href={`${audience === "staff" ? PRODUCTION_STUDENT_ORIGIN : PRODUCTION_STAFF_ORIGIN}/login`}

@@ -5,6 +5,9 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { loadProfileSalesContext } from "./profile-route-load";
+import { loadStudentApplicationForCase } from "./student-application-source";
+import type { StudentApplication } from "@/lib/student-application-contract";
+import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
@@ -148,6 +151,7 @@ type FullCaseData = Readonly<{
   finance: PlatformCaseFinanceControl | null;
   studentProfile: PlatformStudentProfileSnapshot | null;
   profileFields: PlatformStudentProfileFieldsSnapshot | null;
+  studentApplication: StudentApplication | null;
   documents: PlatformCaseDocumentWorkspace | null;
   contract: PlatformCaseContractWorkspace | null;
   handoff: PlatformStudentCaseHandoffContext | null;
@@ -429,7 +433,8 @@ function profileFacts(
   return {
     person: [
       { label: "Дата рождения", value: studentProfile.dateOfBirth },
-      { label: "Гражданство", value: studentProfile.citizenshipCountry },
+      { label: "Гражданство", value: studentProfile.citizenshipCountry && /^[A-Z]{2}$/.test(studentProfile.citizenshipCountry)
+        ? countryLabel(studentProfile.citizenshipCountry) : studentProfile.citizenshipCountry },
       { label: "Страна проживания", value: studentProfile.residencyCountry },
       { label: "Язык общения", value: studentProfile.communicationLanguage },
       {
@@ -505,6 +510,7 @@ async function loadFullCase(
     handoff,
     handoffAcknowledgement,
     profileFields,
+    studentApplication,
   ] = await Promise.all([
     listPlatformApplicationsForStudentCase(actor, studentCaseId, { pageSize: 100 }),
     getPlatformCaseVisa(actor, studentCaseId),
@@ -518,6 +524,9 @@ async function loadFullCase(
     getHandoffAcknowledgement(actor, studentCaseId),
     access.studentProfile && staffHasPermission(actor, "profile.read.full")
       ? getPlatformStudentProfileFields(actor, studentCaseId)
+      : null,
+    access.studentProfile && staffHasPermission(actor, "profile.read.full")
+      ? loadStudentApplicationForCase(studentCaseId)
       : null,
   ]);
   const { documents, contract } = sections;
@@ -543,6 +552,7 @@ async function loadFullCase(
   return {
     ...sections,
     profileFields,
+    studentApplication,
     studentCase,
     applications: applicationsPage.rows,
     visa,
@@ -587,6 +597,7 @@ function fullCaseDetails(
       ? { ...data.profileFields, canInitialize: false, canReview: false, canExport: false }
       : data.profileFields,
     profileFieldSources: profileFieldSourceVersions(data.documents, data.profileFields, isStaffPreview(actor)),
+    studentApplication: data.studentApplication,
     routeTarget,
     responsible,
     provider: null,
@@ -765,6 +776,7 @@ async function readLeadProfile(
         person: [],
         study: [],
         profileFields: null,
+        studentApplication: null,
         profileFieldSources: [],
         documents: [],
         otherFiles: [],

@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { resumeStudentApplication } from "./server/student-signup-runtime";
 import { redirect } from "next/navigation";
 
 import { canAdminSelectEffectiveRole } from "./fixed-role-policy";
@@ -63,7 +64,7 @@ export async function loginStaffAction(
     return "accessDenied";
   }
 
-  let redirectTarget: "/" | "/portal" | "/auth/account-pending" | null = null;
+  let redirectTarget: "/" | "/portal" | "/auth/account-pending" | "/apply" | "/apply/status" | null = null;
   try {
     const client = await createSupabaseServerClient();
     const { error: signInError } = await client.auth.signInWithPassword({
@@ -119,9 +120,13 @@ export async function loginStaffAction(
         ) {
           redirectTarget = "/auth/account-pending";
         } else {
-          logStaffAuthFailure("authority", null);
-          await client.auth.signOut({ scope: "local" });
-          return "staffAccessDenied";
+          const application = await resumeStudentApplication(client);
+          if (application === "unverified") {
+            logStaffAuthFailure("authority", null);
+            await client.auth.signOut({ scope: "local" });
+            return "staffAccessDenied";
+          }
+          redirectTarget = application === "saved" ? "/apply/status" : "/apply";
         }
       }
     }

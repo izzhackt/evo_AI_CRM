@@ -88,6 +88,7 @@ export type PlatformStudentCaseQueueRow = Readonly<{
   nextAction: string | null;
   admissionsDirection?: AdmissionsDirection | null;
   nextActionDueOn?: string | null;
+  /** Direct Docs intake and public applications may have no Sales owner. */
   responsibleSalesDisplayName: string | null;
   currentCuratorDisplayName: string | null;
   appliedOzoWorkflowContractVersionId: string | null;

@@ -182,7 +182,10 @@ test("source wiring keeps canonical absence separate from an unrequested section
   const profile = read("src/components/v3/profile/Profile.tsx");
   assert.match(profile, /current === "anketa"/);
   assert.match(profile, /fieldsReadOnly=\{isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "profile\.manage"\)\}/);
-  assert.match(read("src/components/v3/profile/tabs.tsx"), /if \(!draft\.profileFields\) return caseFacts/);
+  assert.match(adapter, /access\.studentProfile && staffHasPermission\(actor, "profile\.read\.full"\)\s*\? loadStudentApplicationForCase\(studentCaseId\)\s*: null/);
+  const tabs = read("src/components/v3/profile/tabs.tsx");
+  assert.match(tabs, /draft\.studentApplication \? <StudentApplicationAnswers application=\{draft\.studentApplication\}/);
+  assert.match(tabs, /if \(!draft\.profileFields\) return <div[^>]*>\{studentAnswers\}\{caseFacts\}<\/div>/);
 });
 
 test("safe outcome wording offers explicit recovery and never returns unknown domain keys", () => {

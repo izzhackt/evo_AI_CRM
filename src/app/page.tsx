@@ -6,7 +6,9 @@ import { resolvePlatformActor } from "@/lib/platform-auth";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
 import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-session";
 import { resolveStudentPortalActor } from "@/lib/student-portal-auth";
-import { platformAudienceHomeRoute } from "@/lib/platform-public-origin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
+import { platformAudienceForHost, platformAudienceHomeRoute } from "@/lib/platform-public-origin";
 
 async function resolveEvoHomeRoute(): Promise<string> {
   const host = (await headers()).get("host");
@@ -31,7 +33,7 @@ async function resolveEvoHomeRoute(): Promise<string> {
     return "/login?error=auth_unavailable";
   }
   if (staff.status === "anonymous" && student.status === "anonymous") {
-    return "/login";
+    return platformAudienceForHost(host) === "student" ? "/apply" : "/login";
   }
 
   try {
@@ -50,6 +52,14 @@ async function resolveEvoHomeRoute(): Promise<string> {
   } catch {
     return "/login?error=auth_unavailable";
   }
+  try {
+    const client = await createSupabaseServerClient();
+    const { data, error } = await client.auth.getUser();
+    if (!error && data.user?.email_confirmed_at) {
+      const application = await readOwnStudentApplication(client);
+      return platformAudienceHomeRoute(host, "student", application ? "/apply/status" : "/apply");
+    }
+  } catch { return "/login?error=auth_unavailable"; }
   return "/login?error=session_invalid";
 }
 

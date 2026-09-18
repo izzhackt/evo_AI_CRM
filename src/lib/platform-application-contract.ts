@@ -387,6 +387,7 @@ export type PlatformApplicationQueueRow = Readonly<{
   latestEvidenceReference: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Direct Docs intake and public applications may have no Sales owner. */
   responsibleSalesDisplayName: string | null;
   currentCuratorDisplayName: string | null;
   documentCount: number;

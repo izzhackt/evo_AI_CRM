@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { expectedMigrationVersions } from "../scripts/fast-release-ledger-gate.mjs";
+import { fileURLToPath } from "node:url";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const paths = [
@@ -19,10 +21,20 @@ test("staff fast path accepts only the complete exact added 173–175 boundary d
   assert.ok(workflow.includes('if [[ "$boundary_diff" == "$staff_diff" ]]; then'));
   assert.ok(workflow.includes('git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-postgres-authorization.sh'));
   assert.match(workflow, /echo "scoped_staff_handoff=true" >> "\$GITHUB_OUTPUT"\n\s+else\n\s+echo "scoped_staff_handoff=false"/u);
-  assert.ok(workflow.includes("if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' }}"));
+  assert.ok(workflow.includes("if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' }}"));
   assert.match(workflow, /run: npm run test:database:migration-boundaries/u);
   assert.ok(workflow.includes("if [[ \"$boundary_diff\" == $'A\\tsupabase/migrations/171_platform_team_chat_remove_mute.sql' ]]; then"));
   assert.match(workflow, /node --test tests\/staff-roles-sales-handoff-migrations\.test\.mjs/u);
+});
+
+test("retired172 has no operations and keeps the actual source ledger contiguous", () => {
+  const path = "supabase/migrations/172_reserved_student_signup_slot.sql";
+  const sql = source(path).replace(/--[^\n]*/gu, "").replace(/\s+/gu, " ").trim();
+  assert.equal(sql, "BEGIN; COMMIT;");
+  assert.ok(workflow.includes(`if [[ "$boundary_diff" == $'A\\t${path}' ]]; then`));
+  assert.match(workflow, /echo "scoped_retired_slot=true" >> "\$GITHUB_OUTPUT"\n\s+else\n\s+echo "scoped_retired_slot=false"/u);
+  const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
+  assert.ok(versions.includes("172") && versions.includes("175"));
 });
 
 test("all three migrations are transactional and fail closed on source drift", () => {

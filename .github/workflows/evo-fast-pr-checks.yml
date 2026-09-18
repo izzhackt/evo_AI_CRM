@@ -169,6 +169,11 @@ jobs:
           else
             echo "scoped_staff_handoff=false" >> "$GITHUB_OUTPUT"
           fi
+          if [[ "$boundary_diff" == $'A\tsupabase/migrations/172_reserved_student_signup_slot.sql' ]]; then
+            echo "scoped_retired_slot=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scoped_retired_slot=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check scoped 171 function source contract
         if: ${{ steps.migration-scope.outputs.scoped_chat_mute == 'true' }}
@@ -183,8 +188,12 @@ jobs:
           node --test tests/staff-roles-sales-handoff-migrations.test.mjs
 
       - name: Test migration boundary
-        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' }}
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' }}
         run: npm run test:database:migration-boundaries
+
+      - name: Check retired unused migration slot
+        if: ${{ steps.migration-scope.outputs.scoped_retired_slot == 'true' }}
+        run: node --test tests/staff-roles-sales-handoff-migrations.test.mjs
 
   # Source-only maintenance of a retired companion; no deployment or credentials.
   inbox_dependencies:

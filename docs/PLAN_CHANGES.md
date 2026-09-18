@@ -28379,3 +28379,55 @@ zero restarts, pending=false and arm=false. Actual production browser /apply and
 /apply/status redirected the existing Student to its portal; the original failed
 tab was refreshed successfully. No duplicate application or new identity was
 created. Full scope and limits: docs/qa/student-signup-conflict-178-2026-09-18.md.
+
+### 2026-09-18 — staff baseline-checklist seeding for docs-intake cases
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: scope addition
+(forward migration 178 + Documents-tab affordance). Affected plan section: new
+launch-plan slice «Docs-intake baseline checklist»; follows the accepted
+Docs direct student intake (176/#836).
+
+Reason: a case born from platform.create_docs_student has target_degree NULL
+and no country-requirement binding, so platform.apply_country_requirement_version
+(migration 053) — the only seeder of baseline document_slots — can never run
+for it: the RPC requires an exact route match and, by design, an Admin actor
+with country.requirement.manage. Staff today add every checklist item manually
+via create_custom_document_slot. The read side
+(staff_country_requirement_versions_for_case, profile.read.full) already lets
+staff see applicable versions but nothing lets them apply one, and no TS path
+sets target_degree/program_direction on a case at all
+(platform.set_student_case_route from 042 has no caller).
+
+Decision: migration 178 adds two case-scoped staff RPCs gated by the same
+platform_private.require_case_operator(…, 'document.manage') check that
+guards custom checklist slots (migration 108):
+platform.staff_case_baseline_checklist_options(org, case) returns approved
+country_requirement_versions with active document_requirements that are
+compatible with the case (each non-NULL case route field must equal the
+version's; empty once applied_country_requirement_version_id is set), and
+platform.seed_case_baseline_checklist(org, request_id, case, version_id)
+atomically: locks the case, validates the chosen version is approved and
+compatible, fills only the NULL route fields (a differing non-NULL value is an
+error — the RPC never rewrites an established route), seeds baseline slots
+with the same INSERT…ON CONFLICT DO NOTHING semantics as 053, verifies the
+seeded count, then performs the one-shot binding of
+applied_country_requirement_version_id (the 053 immutability trigger allows
+NULL→value only). Replay is request-id idempotent per the existing pattern.
+The Admin editorial surface of 053 (create/approve/retire versions and the
+admin apply RPC) is unchanged; version choice in the new path is explicit from
+a server-filtered list — no silent "latest" guessing, because the binding is
+permanent. UI: an «Применить базовый чек-лист» form on the case Documents tab
+(ProfileDocumentsClient), rendered only when options exist, following the
+existing useActionState/request-id/refresh conventions; the Docs create-student
+form stays minimal per the accepted 176 scope. The new server action lives in
+src/lib/platform-document-checklist-actions.ts beside the custom-slot actions.
+
+Validation impact: scoped checks — eslint/tsc/build, extended
+tests/platform-document-checklist-actions and tests/v3-profile-documents
+structural suites. Migration 178 SQL is source-reviewed here; actual apply and
+a bounded real-command check remain part of the existing manual release step
+(no live Supabase credentials in this environment — stated honestly, not
+claimed). Reviewer notes: must respect the 053 binding guard trigger and the
+177 public-application immutability trigger on student_cases (route updates
+are separate statements from the binding update; the RPC fails closed with a
+named error if a trigger forbids the update for a given case origin).

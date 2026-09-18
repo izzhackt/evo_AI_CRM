@@ -94,6 +94,16 @@ export type DocumentGroup = ActiveDocumentGroup | RemovedDocumentGroup;
 
 export type DocumentUploadAccess = "allowed" | "forbidden" | "closed";
 
+/**
+ * One approved country requirement version a staff operator could apply to
+ * seed this case's baseline checklist. Server-formatted so the client only
+ * ever renders an opaque label, never composes route/version text itself.
+ */
+export type BaselineChecklistOption = Readonly<{
+  countryRequirementVersionId: string;
+  label: string;
+}>;
+
 /** Server presentation hints; every HTTP/RPC repeats current exact-case authority. */
 export type DocumentRecognitionAccess = Readonly<{
   studentCaseId: string;

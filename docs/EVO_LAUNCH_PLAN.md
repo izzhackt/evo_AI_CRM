@@ -1,5 +1,35 @@
 # EVO Launch Plan
 
+## Docs-intake baseline checklist — active 2026-09-18
+
+A docs-intake case (176) is born without target_degree or a country-requirement
+binding, so baseline document_slots never seed and staff add every item by
+hand. Journal: docs/PLAN_CHANGES.md (2026-09-18, «staff baseline-checklist
+seeding»).
+
+- [x] Migration 178: case-scoped staff RPCs — compatible-version listing and
+  atomic seed-and-bind (route NULL-fill only, exact-match otherwise, 053
+  seeding semantics, one-shot binding, request-id replay), gated by the same
+  document.manage case-operator check as custom slots.
+- [x] Server action + row-validated read in the existing checklist-actions
+  conventions; «Применить базовый чек-лист» form on the Documents tab shown
+  only when applicable versions exist.
+- [x] Scoped validation: eslint, tsc, build, extended checklist-action and
+  profile-documents suites; migration source-reviewed, apply deferred to the
+  standard manual release step.
+
+Receipts (2026-09-18): implementation commit on
+izzhackt/docs-intake-baseline-checklist; adversarial review closed three
+verified findings (post-lock re-authorization per 053's pattern, read/write
+playbook route-lock parity, bound-case form state). Checks: eslint clean, tsc
+clean, next build compiled, checklist/profile-documents suites 17/17,
+test:brand-ui 4/5 — the one failure is the pre-existing main-side
+ProfileCaseDirectory regex already corrected in PR #840, untouched here.
+Not exercised: migration apply and live-auth browser checks (no Supabase
+credentials in this environment); apply follows the standard manual release
+step.
+
+
 ## Direct student creation in EVO Docs — released 2026-09-18
 
 Owner requests **Добавить студента** directly in Docs and immediate production

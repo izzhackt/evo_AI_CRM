@@ -1,5 +1,20 @@
 # EVO Launch Plan
 
+## Unified workflow S8 — active 2026-09-19
+
+Final plan gap (§4): invite dispatch for cabinet cases. Journal entry
+2026-09-19 «unified workflow S8».
+
+- [ ] Migration 185: cabinet_pending receipt shape (no curator ever;
+  acceptance sets portal_activated_at only, case stays pending), Sales-or-
+  admin authority scoped to the linked lead, every receipt assertion call
+  site repointed consistently.
+- [ ] UI: three-way shape discriminator on the access card; Sales can
+  dispatch cabinet invites; admin flows for the two existing shapes intact.
+- [ ] Validation: scoped suites, S8 migration suite, full local boundary run,
+  smoke audit; release via the owner-migration path.
+
+
 ## Unified workflow S7 — released 2026-09-19
 
 Owner applied migration 184 from main 28e8373f (#852), ledger 001-184

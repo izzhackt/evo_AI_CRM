@@ -30205,3 +30205,43 @@ only cases that both (i) still carry `admissions_playbook_version_id` and
 (ii) are `state='active'` — a shrinking, already-frozen population since S4;
 `readApplicationPartnerDetails`'s own S4-era comment about empty facts for
 never-configured cases stays accurate unchanged.
+
+### 2026-09-19 — unified workflow S8: выдача приглашения для кабинетных дел
+
+Date: 2026-09-19. Author: Fable (Claude Code). Change type: final gap of the
+unified-workflow plan (§4 «выдаём персональное приглашение» for site/WhatsApp
+leads). Affected plan section: «Unified workflow» / S7 follow-up.
+
+Reason: prepare_lead_cabinet_v1 (184) creates the cabinet case, but the 126
+invite family knows only normal_u6 (active+curator) and legacy_pending
+(nominates a curator at prepare and, on acceptance, assigns it and flips the
+case active) — dispatching an invite for a curator-less cabinet case is
+impossible without corrupting business state, and the whole family is
+admin-only through staff_system_only permissions that a Sales bundle can
+never hold.
+
+Decision — migration 185: a third case shape `cabinet_pending` in the
+provisioning receipts (no curator ever: legacy_curator_membership_id IS NULL;
+prepare requires the genuine cabinet origin — source_key 'lead-cabinet:%',
+canonical_lead_id present, pending/no-curator/no-portal-activation).
+Acceptance binds the auth user/membership to the case exactly as normal_u6
+does and sets ONLY portal_activated_at — state stays 'pending' with no
+curator until a real sale assigns one (plan §4: одобрение доступа не создаёт
+передачу и не назначает куратора). Authority for cabinet_pending receipts:
+admin, OR sales authorized via staff_can_access(...,
+'lead.sales.workflow.manage', lead) on the receipt's linked lead — the same
+resource-scoped SECURITY DEFINER pattern 180's decide and 184's prepare
+already use (cited precedent); admin-only paths for the two existing shapes
+are untouched, and every receipt-lifecycle assertion call site is repointed
+consistently (the largest diff surface, per the spec). TS: the caseShape
+union and actions gating grow the third literal; StudentPortalAccessCard
+becomes a real three-way discriminator so a cabinet case never renders the
+legacy curator picker, with accurate non-admin copy. No email machinery
+changes (Supabase Auth invite runs under the service-role client regardless
+of the triggering role).
+
+Validation impact: scoped suites + the S8 migration-pattern suite + a full
+local test:database:migration-boundaries run before push + smoke-anchor
+audit. Release via the standard owner-migration path. The two remaining S7
+cosmetic follow-ups (full-row card save vs partial merge; playbook-bound
+legacy partner-details fail-closed) stay documented and out of this slice.

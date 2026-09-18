@@ -2,8 +2,8 @@
 
 **Historical receipt only.** This proof covers the original draft Student
 migration172 before staff migrations173–175. Main172 is now a retired no-op;
-the current Student migration176 adds department-scoped review integration.
-Neither176 nor its accompanying staff-signup guard has been executed by this
+the current Student migration177 adds department-scoped review integration.
+Neither177 nor its accompanying staff-signup guard has been executed by this
 receipt. The JSON and its original paths/hashes remain unchanged. Further
 manual/browser/SQL checks were waived by the owner; no new success is claimed.
 
@@ -31,7 +31,7 @@ This is technical proof on local Supabase, not production SMTP delivery, custome
 
 The original run used draft migration172. A future run of the current source
 requires an existing healthy local Supabase with the actual canonical ledger
-through176 (retired172, staff173–175, Student176); the old QA172 cannot be
+through177 (retired172, staff173–175, accepted Docs176, Student177); the old QA172 cannot be
 relabelled as that environment. No new run is authorized by these instructions.
 Use only owner-authorized bounded fictional Student QA with real existing QA
 Admin, Sales and another Student, the custom access-token hook enabled, email

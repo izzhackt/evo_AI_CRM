@@ -28236,3 +28236,14 @@ without active product access must not enter the Student signup continuation.
 All work stays in the draft; no production Auth/secret/migration change, new
 test run or claim that the integrated176 journey has passed. The owner's choice
 between email confirmation and the explained no-email option is still pending.
+
+### 2026-09-18 — reserve176 for direct Docs Student creation
+
+The concurrent owner-requested Docs Add student slice reserves176. Student
+signup PR830 is still unmerged and unapplied, so move its unchanged SQL from176
+to177 and update active references only. Historical QA172 receipts and earlier
+decision entries remain unchanged. Before any eventual Student release, rebase
+onto the accepted Docs176 and inspect its direct schema dependencies; the draft
+must not be deployed across a missing176. This coordination changes no Auth,
+SMTP, product behavior or production state. Do not merge/deploy concurrently
+with the Docs release; the email-confirmation decision remains pending.

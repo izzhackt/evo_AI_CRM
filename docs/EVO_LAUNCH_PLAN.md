@@ -125,13 +125,15 @@ The bounded 12-file copy cleanup shipped separately in PR828 as accepted revisio
 `2908a0dbf2b3c829b687ecfbc0e0aa63e1be98be`, release `35292232876`. Real
 Admin/Student smoke passed; running/accepted image and evidence hashes match,
 health200, pending absent and release armfalse. Public signup remains in draft
-PR830. Its SQL is now migration176, following staff release `99ac5aa3` with the
-retired no-op172 and staff migrations173–175. Migration176 has not been applied.
+PR830. Its SQL is now migration177, following staff release `99ac5aa3` with the
+retired no-op172 and staff migrations173–175. Migration177 has not been applied.
+Docs reserves176 for its separate direct Student creation. Before release,
+rebase this draft onto accepted Docs176 and inspect direct schema dependencies.
 The draft integrates department-scoped Admissions review and prevents
 password-provisioned staff from continuing Student signup without staff access.
 Latest owner direction waives further manual/browser and email-delivery checks.
 Prior review/CI and local QA172 remain historical evidence only; they do not
-prove the newly integrated176 implementation. Do not rerun those checks or claim
+prove the newly integrated177 implementation. Do not rerun those checks or claim
 this integration passed. Keep current production Auth settings unchanged while
 the email-confirmation choice is pending; Gmail credentials are required only
 if that email flow is retained. Admissions approval remains required.

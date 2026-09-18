@@ -184,7 +184,6 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
           <button type="submit" disabled={pending || !loaded} className="min-h-12 rounded-ctl bg-accent px-6 font-semibold text-on-accent transition-colors hover:bg-accent-2 disabled:opacity-60">{pending ? "Сохраняем…" : step === 8 ? signedInEmail ? "Отправить анкету" : "Создать аккаунт" : "Продолжить"}</button>
         </footer>
       </form>
-      <p className="mt-5 text-center text-xs leading-5 text-fg-2">{signedInEmail ? "Данные будут сохранены в вашей заявке." : "Черновик сохраняется в этой вкладке. После регистрации анкета будет доступна в аккаунте."}</p>
     </div>}
   </main>;
 }

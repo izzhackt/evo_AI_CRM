@@ -28529,3 +28529,69 @@ Supabase CLI:178 rows, range001–178, version178 named
 platform_student_application_conflict_codes, and both new checklist RPCs absent.
 This confirms179 is the only missing change. Protected checks and independent
 exact-head review remain in place; the application release stays with Claude.
+
+### 2026-09-18 — unified workflow: план-контракт реализации
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: product pivot
+(supersedes conflicting earlier decisions). Affected plan section: new
+top-level slice «Unified workflow»; supersedes the mandatory admissions
+route/visa/arrival tracker scope, the public-application approve-into-case
+flow (177), the Docs direct student intake UI (#836) and the card-side
+Admissions handoff path, per docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md
+(owner plan; its §17 links are reference-only and were not fetched).
+
+Reason: owner's consolidated Google-Doc decisions: one person — one card; all
+inquiries flow through Продажи; the only curator handoff trigger is saving a
+sale in the report; Admissions keeps анкета/документы/вузы/пакет without
+mandatory stage, submission, visa or arrival tracking; the portal and CRM work
+on the same single case; Docs keeps its document functions but stops creating
+students directly.
+
+Decision — architecture mappings (per plan §1's integrity-not-rewrite rule):
+(1) «Кабинет до продажи» is stored as the SAME canonical chain
+client → lead → student_cases row in state='pending' with portal_activated_at
+set and no curator/direction; portal authority and portal read models accept
+pending cases; product-wise this is a card with cabinet access, not Admissions
+work. Approval of the platform анкета therefore creates/links the canonical
+lead (same create_or_link path the website and WhatsApp already use) and the
+pending case — never a curator, direction or active case.
+(2) Отклонение назначения куратором reverts the case to state='pending'
+(curator and handoff cleared — legal under student_cases_state_shape_check)
+plus an explicit needs-curator surface in «Студенты»; Admin reassigns inside
+the case via the existing assign_student_case_curator initial-assignment
+branch. Продажа, данные и файлы не трогаются.
+(3) Условия продажи live on the card in a new 1:1 lead-scoped store; «Добавить
+продажу» in the report narrows to выбор лида и куратора with a read-only
+preview, and the handoff RPC copies the card conditions into the register row.
+(4) «Маршрут» tab becomes «Вузы и программы» (the ?tab=route URL value is
+kept, label and content change): university/program/partner selection from the
+existing university_applications model without submission/visa/arrival
+tracking; the playbook stage panel, stage editor, message templates, visa-case
+CRUD and portal «Заявки и виза» screen are retired from the UI. Saved rows,
+files and history stay in the database untouched.
+(5) EVO Docs: direct student creation UI removed (migration 176 SQL and its
+data stay); the Docs section keeps search, Анкета и формы, Файлы, Пакет ZIP.
+(6) Naming/nav per plan §3: Продажи{Заявки, Inbox, Воронка, Отчёт продаж},
+Admissions{Студенты, EVO Docs, Университеты, Сводка}; «Рабочий список» →
+«Студенты»; equal Sales capabilities inside Продаж (authorization boundaries
+preserved). Документные статусы получают подписи «Не загружен / На проверке /
+Нужно исправить / Принят»; серверный enum не меняется, «Отклонён» остаётся
+пятой честной подписью.
+
+Slice order (each its own PR; release to production once at the end):
+S1 Заявки и доступ (migration 180: анкета→lead on submit, access-only
+approve, pending-portal authority, Sales-gated queue at Продажи→Заявки);
+S2 Карточка Sales и продажа в отчёте (181: lead_sales_card + narrowed
+create_sales_report_handoff, card blocks, removal of the card-side handoff
+path); S3 Принятие дела (182: declined decision → pending revert, admin
+reassign UI, directory states); S4 Admissions detracking («Вузы и
+программы»); S5 Портал одного дела (screen removal, pending-cabinet views);
+S6 Docs/наименования/Inbox↔карточка/сводка. Validation per the fast policy:
+scoped lint/tsc/build plus the pinned suites each slice touches; migration
+apply remains the owner's manual step before the final release.
+
+Validation impact: extensive pinned-test updates are expected and will be
+performed with per-assertion reasoning (navigation, handoff, portal
+applications, playbook suites). Reviewer notes: PR #830/#841 flows are
+superseded by S1; historical rows (approved applications with cases, docs-
+intake cases, playbook facts) remain valid data under relaxed constraints.

@@ -9,21 +9,32 @@ reserved for PR830), no URL-contract changes, no new RPCs. Plan details:
 docs/design/v3/admissions-ux-overhaul-run-plan.md; journal entry in
 docs/PLAN_CHANGES.md (2026-09-18).
 
-- [ ] Foundation: one shared primitive set adopted from src/components/ui.tsx,
+- [x] Foundation: one shared primitive set adopted from src/components/ui.tsx,
   single Card implementation, PartShell on every staff route, in-shell
   not-found/error pages, loading skeletons for heavy routes, distinct sidebar
   icons, quiet-UI and v3-brand-design invariants preserved.
-- [ ] Case workspace: persistent case header (student, direction, curator,
+- [x] Case workspace: persistent case header (student, direction, curator,
   stage, next action, blocker), case tasks and case help visible on Overview,
   Route tab degrades per-section instead of blanking.
-- [ ] Curator dashboard: admissions-first view of /v3/main from existing
+- [x] Curator dashboard: admissions-first view of /v3/main from existing
   sources (my students, deadlines, overdue, blockers) without new backend.
-- [ ] Portal: shared-token styling replaces bespoke CSS modules, flat action
+- [x] Portal: shared-token styling replaces bespoke CSS modules, flat action
   queue with due dates, notification deep links and bulk mark-as-read over the
   existing per-item RPC, upload progress, explicit timezone labels.
-- [ ] Scoped validation: eslint, tsc, next build, test:brand-ui, touched unit
+- [x] Scoped validation: eslint, tsc, next build, test:brand-ui, touched unit
   suites; honest report of what was not exercised (no live-auth browser gate in
   this environment).
+
+Receipts (2026-09-18): commits e9060538 (staff), bd5dc12f (portal), d2330a1c
+(verified review fixes). Checks on d2330a1c: npm run lint clean, npm run
+typecheck clean, npm run build compiled, test:brand-ui 5/5, affected
+role/navigation/profile/portal suites 117/117. Known pre-existing failure not
+introduced here: tests/v3-handoff-navigation.test.mjs fails on base 39999cc2
+in this environment (react-dom/server named-export import under
+--conditions=react-server). Not exercised: live-auth test:v3:gate browser pass
+and production smoke (no live Supabase credentials in this environment);
+production is unchanged by this slice. Addendum in PLAN_CHANGES.md covers the
+/v3/main admissions route allowance and preview parity.
 
 
 ## Direct student creation in EVO Docs — active 2026-09-18

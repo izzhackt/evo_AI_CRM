@@ -28233,3 +28233,30 @@ Supabase credentials exist in this environment and no production change is made
 by this slice. Reviewer notes: PR830 modifies `src/app/(v3)/v3/profile/page.tsx`
 and will need a rebase over this slice; the conflict surface is the same region
 already conflicting with #836.
+
+### 2026-09-18 — addendum: /v3/main route allowance for admissions and preview parity
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: scope
+clarification for the «Admissions UX overhaul» slice. Affected plan section:
+«Admissions UX overhaul» (this journal, earlier today).
+
+Reason: the slice's curator dashboard («Мой день») requires a real
+admissions-only actor to reach /v3/main at all; previously routeCapabilities
+allowed only sales/finance capabilities there, and the admissions fixed-role
+preview was likewise denied, so the admin preview would misrepresent the very
+screen this slice ships.
+
+Decision: routeCapabilities["/v3/main"] additionally accepts admissions.read
+(page-level allowance for data the actor's RPCs already authorize; RPC/RLS
+enforcement unchanged), the admissions fixed-role preview follows suit
+(ROUTE_CAPABILITY_ANY_OF and fixedRoleHomeRoute now point every fixed role at
+/v3/main), and the sales-report navigation item in preview mode requires the
+sales presentation capability instead of appearing for any previewed role.
+Pinned assertions in the role/navigation suites were updated to this contract
+in the same change.
+
+Validation impact: covered by the slice's scoped battery (fixed-role,
+scoped-staff-baseline, route-contract, navigation, supabase-staff-auth —
+all green). Reviewer notes: no SQL/RLS change; a curator's case list on
+«Мой день» comes from existing listPlatformStudentCases/readAdmissionsSummary
+reads scoped to their own membership.

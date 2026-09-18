@@ -1,5 +1,36 @@
 # EVO Launch Plan
 
+## Quiet UI and Admin role preview — active 2026-09-18
+
+Owner approves moving the Admin-only role preview out of the shared sidebar
+into Settings → Roles and access, and requests one bounded UX audit. Additional
+direction removes the chat keyboard hint, always-visible character count and
+normal draft caption. This is a small UI release, not an authorization redesign.
+
+- [x] Put «Посмотреть интерфейс роли» in role settings, Admin only. Keep an
+  obvious «Вернуться к Администратору» action while preview is active, including
+  routes where role settings are unavailable. Preserve actual server authority.
+- [x] Remove normal composer helper captions/count; retain Enter/Shift+Enter,
+  draft persistence, send/save feedback, errors and the 8,000-character limit.
+  Explain the limit only when it prevents sending. Do not change global shell
+  styling or create new staff messages for acceptance.
+- [x] Record the quiet-UI principle in DESIGN.md and agent guidance: everyday
+  controls should explain themselves; show actionable exceptions/context, not
+  permanent technical narration. Preserve accessible labels and real feedback.
+- [x] One short current-screen UX pass; record prioritized findings and visual
+  proof limitations. Other redesigns are recommendations, not implied approval.
+- [ ] Scoped real UI checks, changed-file lint, independent review and the
+  established light production release with rollback. No migrations, staging,
+  provider activation or broad test replay.
+
+Implementation and scoped real-browser observations are recorded in the
+[quiet-UI pass](design/v3/references/2026-09-18-quiet-ui-pass.md). Production
+deployment remains pending until an accepted release is recorded below.
+
+Visual thesis: existing calm EVO workspace, less peripheral text. Content:
+business work first, rare Admin tools in settings. Interaction: familiar chat
+input and a clearly reversible role-view mode, without changing permissions.
+
 ## University photo refresh — released59, scope closed 2026-09-18
 
 Owner requests fresh, high-quality real university pictures on

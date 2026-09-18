@@ -70,7 +70,6 @@
 .sendButton:hover:not(:disabled) { background: var(--accent-text); }
 .composer > [aria-live]:empty { display: none; }
 .composerFooter { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.composerFooter > span:first-child { flex: 1 1 130px; }
 .label { display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-2); }
 .label input { display: block; width: 100%; margin-top: 6px; }
 .muted { color: var(--text-3); font-size: 13px; line-height: 1.5; }

@@ -88,7 +88,13 @@ test("the V3 shell renders assigned permissions and a protected Admin preview", 
     if (actor.permissionKeys[0] === "catalog.read") assert.deepEqual(links.map((link) => link.route), ["/v3/universities"]);
   }
   assert.match(shellSource, /systemRole === "admin"/);
-  assert.match(shellSource, /data-testid="staff-role-preview"/);
+  assert.doesNotMatch(shellSource, /data-testid="staff-role-preview"/);
+  const roleSettingsSource = readFileSync(new URL("../src/components/v3/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
+  assert.match(roleSettingsSource, /data-testid="staff-role-preview"/);
+  assert.match(roleSettingsSource, /Посмотреть интерфейс роли/);
+  assert.match(roleSettingsSource, /action=\{selectStaffRolePreviewAction\}/);
+  assert.match(shellSource, /data-testid="preview-role-admin"/);
+  assert.match(shellSource, /Вернуться к Администратору/);
   assert.match(shellSource, /selectStaffRolePreviewAction/);
   assert.match(shellSource, /logoutStaffAction/);
   assert.match(shellSource, /data-testid="staff-logout"/);

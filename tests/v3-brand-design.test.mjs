@@ -51,10 +51,12 @@ test("original logo bytes are preserved and statically imported outside auth rou
   assert.match(component, /height: "auto"/u);
 });
 
-test("brand shell retains native disclosure, visible preview status and reduced motion", () => {
+test("role settings retain native disclosure and shell retains visible preview exit", () => {
   const shell = read("src/components/v3/AppShell.tsx");
-  assert.match(shell, /<details open=\{previewing\}>/u);
-  assert.match(shell, /<\/details>[\s\S]*?data-testid="preview-active"/u);
+  const roleSettings = read("src/components/v3/settings/StaffRolesSection.tsx");
+  assert.match(roleSettings, /<details[^>]*data-testid="staff-role-preview"/u);
+  assert.doesNotMatch(shell, /data-testid="staff-role-preview"/u);
+  assert.match(shell, /data-testid="preview-active"[\s\S]*data-testid="preview-role-admin"/u);
   assert.match(css, /@media\s*\(prefers-reduced-motion: reduce\)/u);
   assert.match(css, /scroll-behavior: auto !important/u);
   assert.match(read("src/app/globals.css"), /--text-base:\s*16px/u);

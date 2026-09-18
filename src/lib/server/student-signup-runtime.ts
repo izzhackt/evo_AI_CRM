@@ -9,7 +9,10 @@ export function isPasswordProvisionedStaff(user: Pick<User, "app_metadata">): bo
     && user.app_metadata.evo_staff_password_request_id.length > 0;
 }
 
-/** Only a live verified Auth identity can claim its own questionnaire. */
+/**
+ * Only a live Auth identity can claim its own questionnaire. With autoconfirm,
+ * email_confirmed_at is an Auth state, not proof of mailbox ownership.
+ */
 export async function resumeStudentApplication(client: SupabaseClient): Promise<"saved" | "needs_draft" | "unverified"> {
   const { data, error } = await client.auth.getUser();
   if (error || !data.user?.email_confirmed_at || !data.user.email || isPasswordProvisionedStaff(data.user)) return "unverified";

@@ -12,7 +12,6 @@ import * as requestIds from "../src/lib/request-id.ts";
 
 const REQUEST = "10000000-0000-4000-8000-000000000001";
 const USER = "10000000-0000-4000-8000-000000000002";
-const CSRF = "10000000-0000-4000-8000-000000000003";
 const EMAIL = "student@example.test";
 const PASSWORD = randomUUID();
 
@@ -50,7 +49,7 @@ function compile(path, dependencies = {}) {
 const fields = compile("src/lib/server/action-form-fields.ts");
 
 // Execute production functions; Auth/repository calls are observed boundaries,
-// not a substitute for real signup, email delivery or database acceptance.
+// not a substitute for real signup, session or database acceptance.
 function harness(options = {}) {
   const calls = [];
   const callbackUrl = new URL(callback.studentInviteCallbackUrl(process.env.NODE_ENV, process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN));
@@ -61,8 +60,6 @@ function harness(options = {}) {
     async getUser() { calls.push(["getUser"]); return responses[Math.min(identityIndex++, responses.length - 1)]; },
     async signUp(input) { calls.push(["signUp", input]); return options.signup ?? { data: { user: { id: "obfuscated-existing-user", identities: [] }, session: null }, error: null }; },
     async updateUser(input) { calls.push(["updateUser", input]); return options.cleanup ?? { data: {}, error: null }; },
-    async exchangeCodeForSession(code) { calls.push(["exchangeCode", code]); return { error: options.exchangeError ?? null }; },
-    async verifyOtp(input) { calls.push(["verifyOtp", input]); return { error: options.exchangeError ?? null }; },
     async refreshSession() { calls.push(["refreshSession"]); return { error: options.refreshError ?? null }; },
     async getClaims() { calls.push(["getClaims"]); return options.claims ?? { data: { claims: { sub: USER } }, error: null }; },
   } };
@@ -74,7 +71,7 @@ function harness(options = {}) {
     "../student-application-contract": contract, "../v3/student-application-source": source,
   });
   const actions = compile("src/lib/student-signup-actions.ts", {
-    "next/headers": { headers: async () => requestHeaders, cookies: async () => ({ get: () => ({ value: options.csrf ?? CSRF }), delete: (key) => calls.push(["deleteCookie", key]) }) },
+    "next/headers": { headers: async () => requestHeaders },
     "next/navigation": { redirect: (destination) => { throw Object.assign(new Error("redirect"), { destination }); } },
     "next/cache": { revalidatePath: (path) => calls.push(["revalidate", path]) },
     "./server/action-form-fields": fields, "./server/student-signup-runtime": runtime,
@@ -121,28 +118,28 @@ test("official English scores use their own scales and increments without conver
 
 test("anonymous signup carries only the untrusted questionnaire in metadata and never trusts its returned user id", async () => {
   const run = harness();
-  assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration({ email: " Student@Example.Test " })), { status: "check_email" });
+  assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration({ email: " Student@Example.Test " })), { status: "unavailable" });
   const input = run.calls.find(([name]) => name === "signUp")[1];
   assert.equal(input.email, EMAIL);
   assert.equal(input.password, PASSWORD);
   assert.deepEqual(input.options.data, { [contract.STUDENT_APPLICATION_METADATA_KEY]: draft() });
   assert.equal(JSON.stringify(input.options.data).includes(PASSWORD), false);
-  assert.equal(new URL(input.options.emailRedirectTo).searchParams.get("flow"), "signup");
+  assert.equal(Object.hasOwn(input.options, "emailRedirectTo"), false);
   assert.deepEqual(callNames(run), ["client", "getUser", "signUp"]);
 });
 
-test("duplicate email registration remains non-enumerating and cannot create a case or application", async () => {
+test("an obfuscated signup response without a session cannot create a case or application", async () => {
   const run = harness({ signup: { data: { user: identity({ id: "duplicate-obfuscated-id", identities: [] }), session: null }, error: null } });
-  for (let attempt = 0; attempt < 2; attempt++) assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status: "check_email" });
+  for (let attempt = 0; attempt < 2; attempt++) assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
   assert.equal(callNames(run).filter((name) => name === "signUp").length, 2);
   assert.equal(callNames(run).includes("submit"), false);
   assert.equal(callNames(run).includes("updateUser"), false);
 });
 
-test("signup response sessions still require a fresh confirmed identity before application persistence", async () => {
+test("signup response sessions still require a fresh valid Auth identity before application persistence", async () => {
   for (const liveUser of [null, identity({ email_confirmed_at: null })]) {
     const run = harness({ identities: [verified(null), verified(liveUser)], signup: { data: { user: identity(), session: { access_token: "synthetic-untrusted-response" } }, error: null } });
-    assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status: "check_email" });
+    assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
     assert.deepEqual(callNames(run), ["client", "getUser", "signUp", "getUser"]);
   }
   const liveDraft = draft({ firstName: "Подтверждённый" });
@@ -152,7 +149,7 @@ test("signup response sessions still require a fresh confirmed identity before a
   assert.deepEqual(run.calls.find(([name]) => name === "submit"), ["submit", liveDraft]);
 });
 
-test("confirmed signed-in applicants submit revisioned drafts without creating another Auth account", async () => {
+test("authenticated applicants submit revisioned drafts without creating another Auth account", async () => {
   const run = harness({ identities: [verified()] });
   await assert.rejects(run.registerStudentAction({ status: "idle" }, registration({ password: "", expected_revision: "3" })), redirectsTo("/apply/status"));
   assert.deepEqual(run.calls.find(([name]) => name === "submit"), ["submit", draft(), 3]);
@@ -186,7 +183,7 @@ test("registration reports password, rate limit and uncertain Auth failures with
   const short = harness();
   assert.deepEqual(await short.registerStudentAction({ status: "idle" }, registration({ password: "short" })), { status: "password" });
   assert.equal(callNames(short).includes("signUp"), false);
-  for (const [error, status] of [[{ status: 429 }, "rate_limit"], [{ code: "weak_password" }, "password"], [{ message: "private provider failure" }, "unavailable"]]) {
+  for (const [error, status] of [[{ status: 429 }, "rate_limit"], [{ code: "weak_password" }, "password"], [{ code: "user_already_exists" }, "conflict"], [{ code: "email_exists" }, "conflict"], [{ message: "private provider failure" }, "unavailable"]]) {
     const run = harness({ signup: { data: {}, error } });
     assert.deepEqual(await run.registerStudentAction({ status: "idle" }, registration()), { status });
     assert.equal(callNames(run).includes("submit"), false);
@@ -196,7 +193,7 @@ test("registration reports password, rate limit and uncertain Auth failures with
   assert.deepEqual(callNames(broken), ["client", "getUser"]);
 });
 
-test("resume requires live email confirmation before any RPC and routes verified orphans to a real draft", async () => {
+test("resume requires live Auth eligibility before any RPC and routes authenticated orphans to a real draft", async () => {
   for (const response of [verified(null), verified(identity({ email_confirmed_at: null })), verified(identity({ email: null })), { data: { user: identity() }, error: new Error("unverified transport") }]) {
     const run = harness({ identities: [response] });
     assert.equal(await run.resume(), "unverified");
@@ -228,26 +225,6 @@ test("a saved request wins over stale metadata and retry never resubmits or gran
   const cleanupFailure = harness({ identities: [verified()], cleanup: { data: null, error: { message: "metadata update unavailable" } } });
   assert.equal(await cleanupFailure.resume(), "saved");
   assert.equal(callNames(cleanupFailure).filter((name) => name === "submit").length, 1);
-});
-
-test("confirmation enforces CSRF and fresh identity for both PKCE and email token paths", async () => {
-  const code = "c".repeat(32), hash = "a".repeat(64);
-  for (const input of [form({ csrf_token: "wrong", code, token_hash: "" }), form({ csrf_token: CSRF, code, token_hash: hash })]) {
-    const run = harness();
-    assert.deepEqual(await run.confirmStudentSignupAction({ status: "idle" }, input), { status: "invalid" });
-    assert.deepEqual(run.calls, []);
-  }
-  for (const input of [form({ csrf_token: CSRF, code, token_hash: "" }), form({ csrf_token: CSRF, code: "", token_hash: hash })]) {
-    const run = harness({ identities: [verified()], existing: { status: "pending" } });
-    await assert.rejects(run.confirmStudentSignupAction({ status: "idle" }, input), redirectsTo("/apply/status"));
-    assert.ok(callNames(run).indexOf("getUser") < callNames(run).indexOf("readOwn"));
-    assert.deepEqual(run.calls.at(-1), ["deleteCookie", callback.STUDENT_INVITE_CSRF_COOKIE]);
-  }
-  const orphan = harness({ identities: [verified(identity({ user_metadata: {} }))] });
-  await assert.rejects(orphan.confirmStudentSignupAction({ status: "idle" }, form({ csrf_token: CSRF, code, token_hash: "" })), redirectsTo("/apply"));
-  const expired = harness({ exchangeError: { message: "expired" } });
-  assert.deepEqual(await expired.confirmStudentSignupAction({ status: "idle" }, form({ csrf_token: CSRF, code, token_hash: "" })), { status: "expired" });
-  assert.equal(callNames(expired).includes("getUser"), false);
 });
 
 test("approval status alone cannot enter the portal without refreshed verified Student authority", async () => {
@@ -329,7 +306,7 @@ test("actual proxy forwards rotated cookies to the browser and downstream reques
 
 test("actual callback proxy establishes CSRF before authority and never refreshes stale Auth over a new callback", async () => {
   const run = proxyHarness();
-  const request = publicRequest("/auth/callback?flow=signup&code=synthetic-code", { cookie: "sb-test-auth-token=expired-cookie" });
+  const request = publicRequest(`/auth/callback?token_hash=${"a".repeat(64)}&type=invite`, { cookie: "sb-test-auth-token=expired-cookie" });
   const response = await run.proxy(request);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("x-middleware-next"), "1");

@@ -1,18 +1,17 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { isPasswordProvisionedStaff, resumeStudentApplication } from "./server/student-signup-runtime";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "./student-application-contract";
-import { isStudentInviteCsrfToken, STUDENT_INVITE_CSRF_COOKIE, studentInviteCallbackUrl } from "./student-invite-callback-contract";
+import { studentInviteCallbackUrl } from "./student-invite-callback-contract";
 import { createSupabaseServerClient } from "./supabase/server";
 import { readVerifiedStudentPortalAuthority } from "./supabase/student-portal-authority";
 import { readOwnStudentApplication, submitStudentApplication } from "./v3/student-application-source";
 
-export type StudentSignupState = { status: "idle" | "check_email" | "invalid" | "password" | "unavailable" | "rate_limit" | "conflict" };
-export type StudentConfirmationState = { status: "idle" | "expired" | "invalid" | "unavailable" };
+export type StudentSignupState = { status: "idle" | "invalid" | "password" | "unavailable" | "rate_limit" | "conflict" };
 
 async function validStudentOrigin(): Promise<boolean> {
   const h = await headers();
@@ -52,48 +51,22 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
       if (password.length < 12 || password.length > 128) return { status: "password" };
       const { data, error } = await client.auth.signUp({
         email, password,
-        options: {
-          emailRedirectTo: `${studentInviteCallbackUrl(process.env.NODE_ENV, process.env.EVO_STUDENT_INVITE_LOCAL_ORIGIN)}?flow=signup`,
-          data: { [STUDENT_APPLICATION_METADATA_KEY]: draft },
-        },
+        options: { data: { [STUDENT_APPLICATION_METADATA_KEY]: draft } },
       });
       if (error) {
         if (error.status === 429) return { status: "rate_limit" };
         if (error.code === "weak_password") return { status: "password" };
+        if (error.code === "user_already_exists" || error.code === "email_exists") return { status: "conflict" };
         return { status: "unavailable" };
       }
-      // signUp may return an obfuscated user for an existing email. Never bind
-      // application ownership to that response or claim an email was delivered.
-      if (data.session) saved = await resumeStudentApplication(client) === "saved";
+      // Autoconfirm must establish a session. A missing session or obfuscated
+      // user is not account authority and cannot submit an application.
+      if (!data.session) return { status: "unavailable" };
+      saved = await resumeStudentApplication(client) === "saved";
     }
   } catch { return { status: "unavailable" }; }
   if (saved) redirect("/apply/status");
-  return { status: "check_email" };
-}
-
-export async function confirmStudentSignupAction(_previous: StudentConfirmationState, form: FormData): Promise<StudentConfirmationState> {
-  if (!await validStudentOrigin()) return { status: "invalid" };
-  const fields = exactActionStringFields(form, ["csrf_token", "code", "token_hash"]);
-  const store = await cookies();
-  const csrf = store.get(STUDENT_INVITE_CSRF_COOKIE)?.value;
-  if (!fields || !isStudentInviteCsrfToken(csrf) || csrf !== fields.get("csrf_token")) return { status: "invalid" };
-  const code = fields.get("code")!;
-  const hash = fields.get("token_hash")!;
-  if ((!code && !hash) || (code && hash) || (code && !/^[a-zA-Z0-9_-]{20,512}$/.test(code))
-    || (hash && !/^[a-f0-9]{56,64}$/.test(hash))) return { status: "invalid" };
-  let destination = "/apply";
-  try {
-    const client = await createSupabaseServerClient();
-    const { error } = code
-      ? await client.auth.exchangeCodeForSession(code)
-      : await client.auth.verifyOtp({ token_hash: hash, type: "signup" });
-    if (error) return { status: "expired" };
-    const status = await resumeStudentApplication(client);
-    if (status === "unverified") return { status: "invalid" };
-    if (status === "saved") destination = "/apply/status";
-    store.delete(STUDENT_INVITE_CSRF_COOKIE);
-  } catch { return { status: "unavailable" }; }
-  redirect(destination);
+  return { status: "unavailable" };
 }
 
 export async function refreshStudentApplicationAction(): Promise<StudentSignupState> {

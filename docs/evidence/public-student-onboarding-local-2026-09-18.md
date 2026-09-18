@@ -35,7 +35,7 @@ through177 (retired172, staff173–175, accepted Docs176, Student177); the old Q
 relabelled as that environment. No new run is authorized by these instructions.
 Use only owner-authorized bounded fictional Student QA with real existing QA
 Admin, Sales and another Student, the custom access-token hook enabled, email
-signup enabled, autoconfirm disabled and local Mailpit. This harness does not
+signup enabled, autoconfirm enabled and local Mailpit (existing QA sign-in only). This harness does not
 set up infrastructure, seed staff or apply migrations; it also does not replace
 coverage of the newly added department-manager and protected staff-marker paths.
 
@@ -59,7 +59,7 @@ EVO_LOCAL_QA_DIR=/absolute/private/qa-directory node scripts/prove-public-studen
 
 The script uses real Auth and RPCs; its direct SQL calls are read-only state/grant evidence, never user impersonation. It writes tokens, sessions and the fictional Student password only to private local files. Do not commit those files or paste their contents into an issue, PR or chat. Console output and `receipt.json` contain check names only. The final approved QA identity remains available for the separate real UI journey; do not remove it without the run's cleanup authority.
 
-The original proof ran in three private checkpointed stages while correcting the migration. The checked-in harness consolidates those exact checks with parameterized local configuration and baseline-relative counts. It has not been rerun solely to manufacture a second green receipt; syntax validation is recorded separately above.
+The original proof ran in three private checkpointed stages while correcting the migration. The current harness now exercises the owner-selected no-confirmation signup and requires the canonical ledger through177. Its original receipt is still historical; a new real run must record its own source hashes and results. Do not present the old Mailpit-confirmation receipt as no-email proof.
 
 ## Review correction
 

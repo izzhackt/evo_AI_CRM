@@ -1,4 +1,4 @@
--- Public questionnaire -> verified Auth identity -> Admissions decision.
+-- Public questionnaire -> authenticated account -> Admissions decision.
 -- No anonymous business writes, synthetic invitation, Sales/payment facts or
 -- Student authority before a successful atomic approval.
 BEGIN;
@@ -127,10 +127,22 @@ REVOKE ALL ON platform_private.student_application_configuration,platform_privat
 
 ALTER TABLE platform.student_cases
  ADD COLUMN public_application_id UUID UNIQUE,
- ALTER COLUMN responsible_sales_membership_id DROP NOT NULL,
+ DROP CONSTRAINT student_cases_direct_docs_origin_check,
  ADD CONSTRAINT student_cases_public_application_fkey FOREIGN KEY(organization_id,public_application_id)
  REFERENCES platform_private.student_applications(organization_id,id),
- ADD CONSTRAINT student_cases_sales_or_public_application CHECK(responsible_sales_membership_id IS NOT NULL OR public_application_id IS NOT NULL);
+ ADD CONSTRAINT student_cases_intake_origin_check CHECK(
+  responsible_sales_membership_id IS NOT NULL
+  OR (
+   public_application_id IS NULL
+   AND source_key IS NOT DISTINCT FROM ('docs-intake:'||id::TEXT)
+   AND canonical_client_id IS NOT NULL AND canonical_lead_id IS NULL
+  )
+  OR (
+   public_application_id IS NOT NULL
+   AND source_key IS NOT DISTINCT FROM ('public_student_application:'||public_application_id::TEXT)
+   AND student_membership_id IS NOT NULL AND canonical_lead_id IS NULL
+  )
+ );
 CREATE TRIGGER student_cases_public_application_immutable BEFORE UPDATE ON platform.student_cases
  FOR EACH ROW EXECUTE FUNCTION platform_private.protect_domain_identity('public_application_id');
 -- A public application has no Sales scope to revoke. Keep the existing audited
@@ -149,24 +161,29 @@ BEGIN
  EXECUTE body;
 END $patch$;
 
--- These are the two live read projections that join the historical Sales
--- owner. RLS/case scopes remain unchanged; ownerless public cases stay visible.
+-- Docs176 already made the full-authority Sales joins nullable. Assert that
+-- exact shape without rewriting the same functions, including the separate
+-- case-summary inner joins that still require an actual Sales owner.
 DO $sales_projection$
-DECLARE signature TEXT; body TEXT; anchor TEXT;
+DECLARE signature TEXT; body TEXT; anchor TEXT; expected_inner INTEGER;
+ inner_joins INTEGER; left_joins INTEGER;
 BEGIN
  FOREACH signature IN ARRAY ARRAY[
   'platform.staff_student_case_page(integer,timestamp with time zone,uuid,platform.student_case_state,text,uuid,text,uuid,text)',
   'private.platform_staff_application_page(integer,timestamp with time zone,uuid,platform.application_status,uuid,uuid)'
  ] LOOP
-  body:=pg_get_functiondef(signature::regprocedure);
+  body:=pg_get_functiondef(to_regprocedure(signature));
+  IF body IS NULL THEN RAISE EXCEPTION 'student_application_sales_projection_source_drift: %',signature; END IF;
+  expected_inner:=CASE WHEN signature LIKE 'platform.staff_student_case_page%' THEN 1 ELSE 0 END;
   FOREACH anchor IN ARRAY ARRAY['JOIN platform.organization_memberships AS sales_membership','JOIN platform.profiles AS sales_profile'] LOOP
-   IF (length(body)-length(replace(body,anchor,'')))/length(anchor)<>(CASE WHEN signature LIKE 'platform.staff_student_case_page%' THEN 2 ELSE 1 END) OR strpos(body,'LEFT '||anchor)>0 THEN
-    RAISE EXCEPTION 'student_application_sales_projection_source_drift'; END IF;
-   -- The first case branch is the full-authority view. Keep the separate
-   -- historical Sales-summary branch tied to its actual Sales owner.
-   body:=overlay(body placing 'LEFT '||anchor from strpos(body,anchor) for length(anchor));
+   SELECT count(*) FILTER(WHERE btrim(line,E' \t\r')=anchor),
+    count(*) FILTER(WHERE btrim(line,E' \t\r')='LEFT '||anchor)
+   INTO inner_joins,left_joins FROM unnest(string_to_array(body,E'\n')) AS lines(line);
+   IF inner_joins<>expected_inner OR left_joins<>1
+    OR (length(body)-length(replace(body,anchor,'')))/length(anchor)<>expected_inner+1
+    OR strpos(body,anchor)<>strpos(body,'LEFT '||anchor)+5 THEN
+    RAISE EXCEPTION 'student_application_sales_projection_source_drift: %',signature; END IF;
   END LOOP;
-  EXECUTE body;
  END LOOP;
 END $sales_projection$;
 
@@ -182,14 +199,14 @@ RETURNS JSONB LANGUAGE SQL STABLE SECURITY DEFINER SET search_path='' AS $$
  'decision_reason',a.decision_reason,'student_case_id',a.student_case_id,'admissions_direction',a.admissions_direction)
  FROM platform_private.student_applications a WHERE a.id=p_id
 $$;
-CREATE FUNCTION platform_private.student_application_verified_email()
+CREATE FUNCTION platform_private.student_application_account_email()
 RETURNS TEXT LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 DECLARE email TEXT;
 BEGIN
  IF auth.uid() IS NULL OR auth.role() IS DISTINCT FROM 'authenticated' THEN RAISE EXCEPTION 'student_application_forbidden' USING ERRCODE='42501'; END IF;
  SELECT lower(btrim(u.email)) INTO email FROM auth.users u WHERE u.id=auth.uid() AND u.email_confirmed_at IS NOT NULL
  AND (u.banned_until IS NULL OR u.banned_until<=statement_timestamp()) AND COALESCE(u.is_anonymous,FALSE)=FALSE;
- IF email IS NULL OR length(email) NOT BETWEEN 3 AND 320 THEN RAISE EXCEPTION 'student_application_email_unverified' USING ERRCODE='42501'; END IF;
+ IF email IS NULL OR length(email) NOT BETWEEN 3 AND 320 THEN RAISE EXCEPTION 'student_application_auth_unavailable' USING ERRCODE='42501'; END IF;
  RETURN email;
 END $$;
 -- Pending requests have a durable review department, but no invented case owner.
@@ -242,7 +259,7 @@ CREATE FUNCTION platform.own_student_application_v1()
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 DECLARE application_id UUID;
 BEGIN
- PERFORM platform_private.student_application_verified_email();
+ PERFORM platform_private.student_application_account_email();
  SELECT a.id INTO application_id FROM platform_private.student_applications a WHERE a.auth_user_id=auth.uid();
  RETURN platform_private.student_application_json(application_id);
 END $$;
@@ -252,7 +269,7 @@ RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $
 DECLARE email TEXT; org UUID; app platform_private.student_applications%ROWTYPE;
  receipt platform_private.student_application_receipts%ROWTYPE; payload JSONB;
 BEGIN
- email:=platform_private.student_application_verified_email();
+ email:=platform_private.student_application_account_email();
  IF p_request_id IS NULL OR p_expected_revision IS NULL OR p_expected_revision<0
  OR NOT platform_private.student_application_questionnaire_valid(p_questionnaire)
  OR (p_questionnaire->>'requestId')::UUID<>p_request_id THEN RAISE EXCEPTION 'student_application_invalid' USING ERRCODE='22023'; END IF;
@@ -438,7 +455,7 @@ END $$;
 
 REVOKE ALL ON FUNCTION platform_private.student_application_questionnaire_valid(JSONB),platform_private.student_application_direction(TEXT),
  platform_private.student_application_has_review_permission(UUID,UUID,TEXT,TEXT),
- platform_private.student_application_json(UUID),platform_private.student_application_verified_email(),platform_private.student_application_can_manage(UUID,TEXT),
+ platform_private.student_application_json(UUID),platform_private.student_application_account_email(),platform_private.student_application_can_manage(UUID,TEXT),
  platform_private.student_application_visible(UUID,JSONB),platform_private.student_application_staff_org()
  FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;
 REVOKE ALL ON FUNCTION platform.own_student_application_v1(),platform.submit_student_application_v1(UUID,JSONB,BIGINT),
@@ -448,5 +465,5 @@ REVOKE ALL ON FUNCTION platform.own_student_application_v1(),platform.submit_stu
 GRANT EXECUTE ON FUNCTION platform.own_student_application_v1(),platform.submit_student_application_v1(UUID,JSONB,BIGINT),
  platform.staff_student_application_pending_count_v1(),platform.staff_student_applications_v1(),platform.staff_student_application_for_case_v1(UUID),
  platform.decide_student_application_v1(UUID,BIGINT,TEXT,TEXT,UUID,TEXT,UUID) TO authenticated;
-COMMENT ON TABLE platform_private.student_applications IS 'Canonical self-reported public Student application. Verified Auth owns submission; Admissions approval alone grants existing portal authority. Questionnaire remains source evidence, not staff-confirmed profile facts.';
+COMMENT ON TABLE platform_private.student_applications IS 'Canonical self-reported public Student application. Authenticated account owns submission; mailbox ownership is not verified; Admissions approval alone grants existing portal authority. Questionnaire remains source evidence, not staff-confirmed profile facts.';
 COMMIT;

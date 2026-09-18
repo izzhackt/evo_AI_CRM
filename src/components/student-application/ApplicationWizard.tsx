@@ -140,10 +140,10 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   const years = Array.from({ length: 7 }, (_, i) => year + i);
   const options = (keys: readonly string[]) => keys.map((key) => <option key={key} value={key}>{LABELS[key] ?? key}</option>);
   const select = (key: keyof WizardState, label: string, keys: readonly string[]) => <label className="grid gap-2 text-sm font-medium text-fg-2">{label}<select className={INPUT} value={String(values[key])} onChange={(event) => update(key, event.target.value)} required><option value="">Выберите</option>{options(keys)}</select></label>;
-  const stepCopy = step === 0 || step === 3 || step === 4 ? "Можно выбрать несколько вариантов." : step === 7 ? "Только обучение за один год, без проживания." : step === 8 ? "После подтверждения email команда EVO рассмотрит вашу анкету." : "";
+  const stepCopy = step === 0 || step === 3 || step === 4 ? "Можно выбрать несколько вариантов." : step === 7 ? "Только обучение за один год, без проживания." : step === 8 ? "Команда EVO рассмотрит анкету. Полный кабинет откроется после одобрения." : "";
   const serverError = result.status === "password" ? "Используйте пароль от 12 до 128 символов."
     : result.status === "rate_limit" ? "Слишком много попыток. Попробуйте немного позже."
-      : result.status === "conflict" ? "Откройте свою анкету или войдите с нужным email."
+      : result.status === "conflict" ? "Не удалось создать аккаунт с этим email. Если аккаунт уже есть, войдите."
         : result.status === "invalid" ? "Проверьте заполненные поля и отправьте ещё раз."
           : result.status === "unavailable" ? "Не удалось завершить регистрацию. Ответы сохранены в этой вкладке. Попробуйте позже." : "";
   return <main className="min-h-dvh bg-bg text-fg" data-testid="public-student-application">
@@ -151,12 +151,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
       <Link href="/apply" aria-label="EVO Admissions — начало анкеты"><EvoLogo width={146} /></Link>
       <Link href={signedInEmail ? "/apply/status" : "/login"} className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 underline-offset-4 hover:underline">{signedInEmail ? "Моя заявка" : "Уже есть аккаунт? Войти"}</Link>
     </header>
-    {result.status === "check_email" ? <section className="mx-auto max-w-xl px-5 py-14 sm:py-24">
-      <p className="text-sm font-medium text-accent-text">Последний шаг</p><h1 className="mt-4 text-3xl font-semibold tracking-tight">Подтвердите ваш email</h1>
-      <p className="mt-5 text-base leading-7 text-fg-2">Откройте ссылку в письме, чтобы отправить анкету на рассмотрение. Проверьте также папку «Спам».</p>
-      <p className="mt-3 text-sm leading-6 text-fg-2">Если аккаунт с этим адресом уже есть, войдите с вашим паролем.</p>
-      <Link href="/login" className="mt-8 inline-flex min-h-12 items-center rounded-ctl bg-accent px-6 font-semibold text-on-accent">Перейти ко входу</Link>
-    </section> : <div className="mx-auto max-w-4xl px-4 pb-10 pt-3 sm:px-8 sm:pt-8">
+    <div className="mx-auto max-w-4xl px-4 pb-10 pt-3 sm:px-8 sm:pt-8">
       <div className="mb-6 flex items-center justify-between gap-4 text-sm"><span className="font-medium text-fg-2">{STEPS[step]}</span><span aria-live="polite" className="text-fg-2">Шаг {step + 1} из 9</span></div>
       <div role="progressbar" aria-label="Заполнение анкеты" aria-valuemin={0} aria-valuemax={9} aria-valuenow={step + 1} className="mb-8 flex gap-1.5">{STEPS.map((label, i) => <span key={label} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-accent" : "bg-border"}`} />)}</div>
       <form ref={form} action={action} onSubmit={submit} className="rounded-card border border-border bg-surface px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-10">
@@ -178,12 +173,12 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
             {step === 8 && <div className="space-y-5"><div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">Имя<input required className={INPUT} autoComplete="given-name" maxLength={60} value={values.firstName} onChange={(e) => update("firstName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Фамилия<input required className={INPUT} autoComplete="family-name" maxLength={60} value={values.lastName} onChange={(e) => update("lastName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Телефон с кодом страны<input required className={INPUT} type="tel" autoComplete="tel" maxLength={40} placeholder="+996 …" value={values.phone} onChange={(e) => update("phone", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Email<input required className={INPUT} name="email" type="email" autoComplete="email" maxLength={254} defaultValue={signedInEmail ?? ""} readOnly={Boolean(signedInEmail)} /></label></div>{signedInEmail ? <input name="password" type="hidden" value="" /> : <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">Пароль<div className="flex gap-2"><input required className={INPUT} name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={12} maxLength={128} aria-describedby="password-hint" /><button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="min-h-12 rounded-ctl px-2 text-sm text-accent-text">{showPassword ? "Скрыть" : "Показать"}</button></div><span id="password-hint" className="text-sm font-normal text-fg-2">Не менее 12 символов.</span></label>}<label className="flex cursor-pointer items-start gap-3 border-t border-border pt-5 text-sm leading-6 text-fg-2"><input type="checkbox" required checked={values.consent} onChange={(e) => update("consent", e.target.checked)} className="mt-1 size-5 shrink-0 accent-accent" /><span>Согласен передать анкету команде EVO для рассмотрения заявки и связи со мной по вопросам поступления.</span></label></div>}
           </div>
         </div>
-        {(error || serverError) && <p role="alert" className="mt-6 rounded-ctl bg-danger-weak p-3 text-sm leading-6 text-danger">{error || serverError}</p>}
+        {(error || serverError) && <p role="alert" className="mt-6 rounded-ctl bg-danger-weak p-3 text-sm leading-6 text-danger">{error || serverError}{!error && result.status === "conflict" && <> <Link href="/login" className="font-medium underline underline-offset-4">Перейти ко входу</Link></>}</p>}
         <footer className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-5">
           <button type="button" disabled={step === 0 || pending} onClick={() => changeStep(step - 1)} className="min-h-12 rounded-ctl px-4 font-medium text-fg-2 hover:bg-surface-2 disabled:invisible">Назад</button>
           <button type="submit" disabled={pending || !loaded} className="min-h-12 rounded-ctl bg-accent px-6 font-semibold text-on-accent transition-colors hover:bg-accent-2 disabled:opacity-60">{pending ? "Сохраняем…" : step === 8 ? signedInEmail ? "Отправить анкету" : "Создать аккаунт" : "Продолжить"}</button>
         </footer>
       </form>
-    </div>}
+    </div>
   </main>;
 }

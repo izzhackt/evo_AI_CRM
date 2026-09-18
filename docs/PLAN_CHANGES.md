@@ -28247,3 +28247,37 @@ onto the accepted Docs176 and inspect its direct schema dependencies; the draft
 must not be deployed across a missing176. This coordination changes no Auth,
 SMTP, product behavior or production state. Do not merge/deploy concurrently
 with the Docs release; the email-confirmation decision remains pending.
+
+### 2026-09-18 — owner approves signup without email confirmation and completion
+
+The owner explicitly selects «Без подтверждения email» and asks to finish the
+public signup release. Use canonical Supabase email/password signup with email
+confirmation disabled: a real Auth session saves the questionnaire as pending,
+and only the existing Admissions approval opens the full portal. SMTP is not a
+prerequisite for this flow. Remove the unpublished signup-confirmation UI/action
+instead of maintaining a second Student signup path. Preserve unrelated staff
+and Student-invitation Auth paths, host-only cookies and protected staff metadata.
+An Auth auto-confirmed timestamp is not proof of email ownership; source answers
+remain self-reported and must never auto-link an existing case by email alone.
+
+Use scope-local real Auth/database/UI checks for this changed path and existing
+release controls; no blanket regression suite or fabricated passing receipts.
+The earlier waiver of additional manual checks does not turn the old172 proof
+into current177 acceptance. Reuse the authorized isolated Student QA only within
+its existing boundaries. Coordinate the new Auth settings, main merge,177 and
+managed release after the independent Docs176 release finishes. The owner also
+asked about a shared-checkout Git warning: inspect only; never stash/switch or
+commit unrelated active changes as part of this signup release.
+
+### 2026-09-18 — preserve Docs176 and public177 case provenance together
+
+Inspection of the actual pending Docs176 found two direct collisions: its
+ownerless-case constraint excludes public approval, while draft177 excludes
+Docs intake; both also patch the same Sales read projections. In177 replace the
+Docs constraint with one union: real Sales owner, exact durable Docs source with
+canonical client/no lead/no public request, or exact public source with request
+FK, Student membership and no invented lead. Do not permanently forbid Student
+membership on Docs cases: a later explicit invitation remains possible. Public
+signup never claims an existing Docs case by name/email.177 must assert the
+already-updated176 Sales read joins instead of patching them twice; retain the
+separate Sales-summary inner joins and all case authorization.

@@ -116,27 +116,23 @@ approval. Full portal access starts only after approval (explicit confirmation).
 Follow [the active onboarding contract](design/v3/public-student-onboarding-run-plan.md).
 Reuse existing Supabase Auth, Admissions and Student profile; preserve private
 assessments. Include bounded settings/CRM/Portal copy cleanup. No invented
-matching claims or invented email-delivery proof. Preserve the
-pending-to-approved authority. Email confirmation was an implementation
-assumption; the owner has now asked why SMTP is needed. The no-email alternative
-was explained, but no Auth-setting change has been approved or made.
+matching claims or invented email-delivery proof. The owner now explicitly
+selects signup **without email confirmation** and asks to complete the release.
+Enable canonical email/password signup with `disable_signup=false` and
+`mailer_autoconfirm=true`; do not alter other Auth methods or unverified-login
+settings. A live Auth session submits the questionnaire, then Admissions approval
+alone activates the existing portal. SMTP is not required for this signup flow.
+An auto-confirmed Auth timestamp is not proof of mailbox ownership.
 
-The bounded 12-file copy cleanup shipped separately in PR828 as accepted revision
-`2908a0dbf2b3c829b687ecfbc0e0aa63e1be98be`, release `35292232876`. Real
-Admin/Student smoke passed; running/accepted image and evidence hashes match,
-health200, pending absent and release armfalse. Public signup remains in draft
-PR830. Its SQL is now migration177, following staff release `99ac5aa3` with the
-retired no-op172 and staff migrations173–175. Migration177 has not been applied.
-Docs reserves176 for its separate direct Student creation. Before release,
-rebase this draft onto accepted Docs176 and inspect direct schema dependencies.
-The draft integrates department-scoped Admissions review and prevents
-password-provisioned staff from continuing Student signup without staff access.
-Latest owner direction waives further manual/browser and email-delivery checks.
-Prior review/CI and local QA172 remain historical evidence only; they do not
-prove the newly integrated177 implementation. Do not rerun those checks or claim
-this integration passed. Keep current production Auth settings unchanged while
-the email-confirmation choice is pending; Gmail credentials are required only
-if that email flow is retained. Admissions approval remains required.
+The bounded12-file copy cleanup shipped in PR828, accepted `2908a0db`,
+release35292232876. Public signup remains draftPR830, migration177 unapplied.
+Docs owns the current release and migration176. Rebase onto accepted Docs176 and
+inspect its direct schema dependencies before Student merge/release; no concurrent
+production changes. Previous QA172 and review/CI remain historical, not proof of
+this no-email177 flow. Remove the unpublished signup-confirmation path, preserve
+existing invitations/staff Auth and validate the changed real Auth/RPC/UI path.
+Use scoped checks, independent exact-head review and the established lightweight
+managed release. No broad full-suite replay, new backup request or fake proof.
 
 ## Quiet UI and Admin role preview — released 2026-09-18
 

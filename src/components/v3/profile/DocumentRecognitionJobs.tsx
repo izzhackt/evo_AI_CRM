@@ -8,7 +8,7 @@ import { documentRecognitionCopy as copy, documentRecognitionState, documentReco
   documentRecognitionError } from "@/lib/v3/wording";
 import type { DocumentRecognitionAccess } from "./document-types";
 
-const button = "min-h-11 rounded-control border border-border px-3 py-2 text-sm text-fg disabled:cursor-not-allowed disabled:opacity-60";
+const button = "min-h-11 rounded-ctl border border-border px-3 py-2 text-sm text-fg disabled:cursor-not-allowed disabled:opacity-60";
 const retryable = (job: DocumentRecognitionJob) => ["failed", "generation_unknown", "cancelled", "publication_blocked"].includes(job.state);
 const subscribe = () => () => {};
 const clientSnapshot = () => true;

@@ -118,6 +118,7 @@ export function ApplicationsView({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+      <p className="text-xs text-fg-3 lg:col-span-2">Дедлайны и история указаны по времени Бишкека.</p>
       <PortalSection title="Заявки в университеты">
         {hasApplications ? (
           <ul className="divide-y divide-border">

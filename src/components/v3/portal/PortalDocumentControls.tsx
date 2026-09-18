@@ -9,9 +9,43 @@ const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 type UploadState =
   | Readonly<{ status: "idle" }>
-  | Readonly<{ status: "uploading" }>
+  | Readonly<{ status: "uploading"; progress: number }>
+  | Readonly<{ status: "confirming" }>
   | Readonly<{ status: "success"; message: string }>
   | Readonly<{ status: "error"; message: string }>;
+
+/**
+ * Real upload percentage needs the bytes-sent event `fetch` does not expose
+ * for request bodies, so the POST itself stays XHR. Everything else —
+ * headers, credentials, response shape — matches the previous `fetch` call.
+ */
+function postDocumentVersion(
+  documentSlotId: string,
+  formData: FormData,
+  idempotencyKey: string,
+  onProgress: (percent: number) => void,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(
+      "POST",
+      `/api/portal/document-slots/${encodeURIComponent(documentSlotId)}/versions`,
+    );
+    xhr.responseType = "json";
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("Idempotency-Key", idempotencyKey);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      resolve({ status: xhr.status, body: xhr.response });
+    };
+    xhr.onerror = () => reject(new Error("document_upload_network_error"));
+    xhr.send(formData);
+  });
+}
 
 export function PortalDocumentControls({
   documentSlotId,
@@ -29,12 +63,14 @@ export function PortalDocumentControls({
   const uploadIdempotencyKeyRef = useRef<string | null>(null);
   const [state, setState] = useState<UploadState>({ status: "idle" });
   const [refreshing, startRefresh] = useTransition();
-  const pending = state.status === "uploading" || refreshing;
+  const pending = state.status === "uploading" || state.status === "confirming" || refreshing;
   const feedback = state.status === "uploading"
-    ? "Загружаем файл. Дождитесь подтверждения сохранения."
-    : state.status === "success"
-      ? `${state.message}${refreshing ? " Обновляем список документов…" : ""}`
-      : state.status === "error" ? state.message : "";
+    ? `Загружаем файл: ${state.progress}%.`
+    : state.status === "confirming"
+      ? "Файл отправлен. Ждём подтверждение сохранения."
+      : state.status === "success"
+        ? `${state.message}${refreshing ? " Обновляем список документов…" : ""}`
+        : state.status === "error" ? state.message : "";
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,21 +83,20 @@ export function PortalDocumentControls({
       return;
     }
 
-    setState({ status: "uploading" });
+    setState({ status: "uploading", progress: 0 });
     try {
       const idempotencyKey =
         uploadIdempotencyKeyRef.current ?? crypto.randomUUID();
       uploadIdempotencyKeyRef.current = idempotencyKey;
-      const response = await fetch(
-        `/api/portal/document-slots/${encodeURIComponent(documentSlotId)}/versions`,
-        {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Idempotency-Key": idempotencyKey,
-          },
-          body: formData,
-          credentials: "same-origin",
+      const response = await postDocumentVersion(
+        documentSlotId,
+        formData,
+        idempotencyKey,
+        (percent) => {
+          setState((current) => {
+            if (current.status !== "uploading" && current.status !== "confirming") return current;
+            return percent >= 100 ? { status: "confirming" } : { status: "uploading", progress: percent };
+          });
         },
       );
       if (response.status !== 201) {
@@ -69,7 +104,7 @@ export function PortalDocumentControls({
         return;
       }
 
-      const payload: unknown = await response.json();
+      const payload: unknown = response.body;
       const receipt = exactUploadReceipt(payload, documentSlotId);
       if (!receipt) {
         setState({
@@ -126,10 +161,20 @@ export function PortalDocumentControls({
               className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-nav bg-accent px-4 text-sm font-semibold text-on-accent transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
             >
               {state.status === "uploading"
-                ? "Загружаем файл…"
-                : refreshing ? "Обновляем список…" : state.status === "error" ? "Повторить загрузку" : "Загрузить"}
+                ? `Загружаем файл… ${state.progress}%`
+                : state.status === "confirming"
+                  ? "Подтверждаем сохранение…"
+                  : refreshing ? "Обновляем список…" : state.status === "error" ? "Повторить загрузку" : "Загрузить"}
             </button>
           </div>
+          {state.status === "uploading" || state.status === "confirming" ? (
+            <progress
+              value={state.status === "uploading" ? state.progress : 100}
+              max={100}
+              aria-hidden="true"
+              className="mt-2 block h-1.5 w-full max-w-xs appearance-none overflow-hidden rounded-nav border-0 bg-surface-3 text-accent [&::-moz-progress-bar]:rounded-nav [&::-moz-progress-bar]:bg-accent [&::-webkit-progress-bar]:rounded-nav [&::-webkit-progress-bar]:bg-surface-3 [&::-webkit-progress-value]:rounded-nav [&::-webkit-progress-value]:bg-accent"
+            />
+          ) : null}
           <p id={`portal-document-hint-${documentSlotId}`} className="mt-1 text-xs text-fg-3">PDF, JPG или PNG, до 25 МБ.</p>
         </form>
       ) : (

@@ -8,6 +8,7 @@ import {
 } from "@/components/v3/FileManager";
 import { KnowledgeReplySnippetSection } from "@/components/v3/reply-snippets/KnowledgeReplySnippetSection";
 import { KnowledgeWorkspaceTabs } from "@/components/v3/reply-snippets/KnowledgeWorkspaceTabs";
+import { PartShell } from "@/components/v3/PartShell";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { loadV3KnowledgeSurface } from "@/lib/v3/knowledge-surface";
 import {
@@ -127,52 +128,46 @@ export default async function KnowledgePart({
   ];
 
   return (
-    <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
-        База знаний
-      </h1>
-
-      <div className="mt-6">
-        <KnowledgeWorkspaceTabs
-          requestedTab={requestedTab}
-          documents={documentSurface === null ? null : (
-            <div data-testid="v3-knowledge-documents">
-              {!studentDocuments.complete ? (
-                <p
-                  role="alert"
-                  data-testid="v3-knowledge-student-documents-limited"
-                  className="v3-edge-warn mb-4 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm text-fg-2"
-                >
-                  Документов студентов больше безопасного окна этого экрана. Здесь они
-                  не показаны частично: откройте документы нужного студента в разделе «Студенты».
-                  Раздел «Компания» продолжает работать полностью.
-                </p>
-              ) : null}
-              <FileManager
-                folders={folders}
-                files={files}
-                canManage={surface.canManageCompanyFiles}
-                canUpload={surface.canUploadCompanyFiles}
-                createFolderRequestId={randomUUID()}
-                createFileRequestId={randomUUID()}
-              />
-            </div>
-          )}
-          snippets={surface.canReadSnippets ? (
-            <KnowledgeReplySnippetSection
-              items={surface.snippets.map((snippet) => ({
-                snippet,
-                canMutate: v3CanMutateReplySnippet(actor, snippet),
-                updateRequestId: randomUUID(),
-                archiveRequestId: randomUUID(),
-              }))}
-              canManage={surface.canManageSnippets}
-              availableAudiences={v3ReplySnippetAudiences(actor)}
-              createRequestId={randomUUID()}
+    <PartShell title="База знаний">
+      <KnowledgeWorkspaceTabs
+        requestedTab={requestedTab}
+        documents={documentSurface === null ? null : (
+          <div data-testid="v3-knowledge-documents">
+            {!studentDocuments.complete ? (
+              <p
+                role="alert"
+                data-testid="v3-knowledge-student-documents-limited"
+                className="v3-edge-warn mb-4 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm text-fg-2"
+              >
+                Документов студентов больше безопасного окна этого экрана. Здесь они
+                не показаны частично: откройте документы нужного студента в разделе «Студенты».
+                Раздел «Компания» продолжает работать полностью.
+              </p>
+            ) : null}
+            <FileManager
+              folders={folders}
+              files={files}
+              canManage={surface.canManageCompanyFiles}
+              canUpload={surface.canUploadCompanyFiles}
+              createFolderRequestId={randomUUID()}
+              createFileRequestId={randomUUID()}
             />
-          ) : null}
-        />
-      </div>
-    </main>
+          </div>
+        )}
+        snippets={surface.canReadSnippets ? (
+          <KnowledgeReplySnippetSection
+            items={surface.snippets.map((snippet) => ({
+              snippet,
+              canMutate: v3CanMutateReplySnippet(actor, snippet),
+              updateRequestId: randomUUID(),
+              archiveRequestId: randomUUID(),
+            }))}
+            canManage={surface.canManageSnippets}
+            availableAudiences={v3ReplySnippetAudiences(actor)}
+            createRequestId={randomUUID()}
+          />
+        ) : null}
+      />
+    </PartShell>
   );
 }

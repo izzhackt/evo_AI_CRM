@@ -2,6 +2,7 @@ import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Badge, Card, EmptyState } from "@/components/ui";
 import { PartShell } from "@/components/v3/PartShell";
 import { StaffTaskForm, StaffTaskStatusForm } from "@/components/v3/tasks/StaffTaskForm";
 import { TaskComposer } from "@/components/v3/tasks/TaskComposer";
@@ -98,25 +99,29 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   if (selected) return <PartShell title="Рабочая задача" width="narrow">
     <Link href="/v3/tasks" className="inline-flex min-h-11 items-center text-sm text-fg-2 underline">← К задачам</Link>
     <section className="space-y-5 border-t border-border py-5">
-      <h2 className="break-words text-xl font-semibold">{selected.title}</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="break-words text-xl font-semibold">{selected.title}</h2>
+        <Badge value={selected.status} label={taskStatus(selected.status) ?? selected.status} />
+      </div>
       {taskContext?.leadId ? <Link href={`/v3/tasks?lead=${taskContext.leadId}`} className="inline-flex min-h-11 items-center text-sm underline">Открыть связанного лида и его задачи</Link> : null}
       {contextUnavailable ? <p role="alert" className="text-sm text-danger">Не удалось загрузить связь с лидом и результаты. Обновите страницу.</p> : null}
       {selectedSourceHref ? <Link href={selectedSourceHref} className="inline-flex min-h-11 items-center text-sm underline">Открыть исходное обсуждение</Link> : null}
       {selected.sourceMessageId && !selectedSourceHref ? <p className="text-sm text-fg-3">{sourceUnavailable ? "Не удалось проверить исходное обсуждение. Обновите страницу." : "Исходное обсуждение недоступно для вашей роли."}</p> : null}
-      <dl className="grid gap-3 text-sm sm:grid-cols-2">
-        <div><dt className="text-fg-2">Исполнитель</dt><dd>{selected.assigneeDisplayName}</dd></div>
-        <div><dt className="text-fg-2">Создатель</dt><dd>{selected.creatorDisplayName}</dd></div>
-        <div><dt className="text-fg-2">Срок · Бишкек</dt><dd><Deadline dueOn={selected.dueOn} dueAt={selected.dueAt} status={selected.status} now={now} /></dd></div>
-      </dl>
+      <Card eyebrow title="Сведения" bodyClassName="px-4 py-3">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div><dt className="text-fg-2">Исполнитель</dt><dd>{selected.assigneeDisplayName}</dd></div>
+          <div><dt className="text-fg-2">Создатель</dt><dd>{selected.creatorDisplayName}</dd></div>
+          <div><dt className="text-fg-2">Срок · Бишкек</dt><dd><Deadline dueOn={selected.dueOn} dueAt={selected.dueAt} status={selected.status} now={now} /></dd></div>
+        </dl>
+      </Card>
       {selected.description ? <p className="whitespace-pre-wrap break-words text-sm leading-6">{selected.description}</p> : null}
-      {taskContext?.outcomes.length ? <section aria-label="Результаты выполнения" className="space-y-3 border-t border-border pt-4">
-        <h3 className="text-sm font-semibold">Результаты выполнения</h3>
+      {taskContext?.outcomes.length ? <Card eyebrow title="Результаты выполнения" bodyClassName="space-y-3 px-4 py-3">
         {taskContext.outcomes.map((outcome) => <article key={outcome.requestId} className="border-l-2 border-border pl-3">
           <p className="whitespace-pre-wrap break-words text-sm">{outcome.note}</p>
           <p className="mt-1 text-xs text-fg-2">{outcome.author} · <time dateTime={outcome.createdAt}>{new Date(outcome.createdAt).toLocaleDateString("ru-RU", { timeZone: "Asia/Bishkek" })}</time></p>
         </article>)}
         {taskContext.truncated ? <p className="text-sm text-fg-2">Показаны последние 30 результатов; полная история сохранена.</p> : null}
-      </section> : null}
+      </Card> : null}
       {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.complete") ? <StaffTaskStatusForm key={`status:${selected.id}`} task={selected} requestId={randomUUID()} /> : null}
     </section>
     {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.edit") ? <details className="border-t border-border py-3">
@@ -133,7 +138,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       <p className="text-sm text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
       {sourceLead.canOpenPipeline ? <Link href={sourceLead.clientDisplayName === "Имя клиента не указано" ? "/v3/pipeline" : `/v3/pipeline?q=${encodeURIComponent(sourceLead.clientDisplayName)}`} className="inline-flex min-h-11 items-center text-sm underline">Открыть в воронке</Link> : null}
       <h3 className="text-sm font-semibold">Связанные рабочие задачи</h3>
-      {leadTasks?.rows.length ? <ul className="divide-y divide-border">{leadTasks.rows.map((task) => <li key={task.id}><Link href={`/v3/tasks?task=${task.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="break-words underline">{task.title}</span><span className="text-fg-2">{taskStatus(task.status)}</span></Link></li>)}</ul> : <p className="text-sm text-fg-2">Нет доступных связанных задач. Можно создать первую ниже.</p>}
+      {leadTasks?.rows.length ? <ul className="divide-y divide-border">{leadTasks.rows.map((task) => <li key={task.id}><Link href={`/v3/tasks?task=${task.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="break-words underline">{task.title}</span><Badge value={task.status} label={taskStatus(task.status) ?? task.status} /></Link></li>)}</ul> : <EmptyState text="Нет доступных связанных задач. Можно создать первую ниже." />}
       {leadTasks?.truncated ? <p className="text-sm text-fg-2">Показаны последние 50 задач. Остальные доступны в общем списке.</p> : null}
     </section> : null}
     {sourceMessage ? <section className="mb-4 rounded-card border border-border bg-surface p-4" aria-label="Исходное сообщение">
@@ -164,15 +169,20 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <Link key={value} href={href({ status: value })} aria-current={status === value ? "page" : undefined} className={`inline-flex min-h-11 items-center px-2 text-sm ${status === value ? "font-semibold text-accent-text" : "text-fg-2"}`}>{label}</Link>)}</nav>
     </div> : <p className="mb-4 text-sm text-fg-2">Доступные задачи по студентам. Изменения открываются в календаре.</p>}
     <p className="mb-2 text-sm text-fg-2">Сроки указаны по времени Бишкека.</p>
-    {workspace.tasks.length === 0 ? <p role="status" className="border-y border-border py-8 text-sm text-fg-2">{cursor || caseCursor ? "В этой части списка задач нет." : "Задач по выбранному фильтру пока нет."}</p> : <ul className="divide-y divide-border border-y border-border">
+    {workspace.tasks.length === 0 ? <div role="status"><EmptyState text={cursor || caseCursor ? "В этой части списка задач нет." : "Задач по выбранному фильтру пока нет."} /></div> : <Card bodyClassName="p-0">
+      <ul className="divide-y divide-border">
       {workspace.tasks.map((item) => <li key={`${item.kind}:${item.kind === "staff" ? item.task.id : item.task.caseTaskId}`}>
-        <Link href={taskHref(item)} className="flex min-h-11 flex-col gap-3 px-1 py-4 hover:bg-surface-2 sm:flex-row sm:items-start sm:justify-between">
+        <Link href={taskHref(item)} className="flex min-h-11 flex-col gap-3 px-4 py-4 hover:bg-surface-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0"><p className="break-words text-sm font-semibold">{item.task.title}</p>
             <p className="mt-1 break-words text-sm text-fg-2">{item.kind === "case" ? `По студенту · ${item.task.studentDisplayName}` : "Рабочая задача"} · {item.task.assigneeDisplayName}</p></div>
-          <div className="shrink-0 text-sm sm:text-right"><p>{taskStatus(item.task.status)}</p><p className="mt-1"><Deadline dueOn={item.task.dueOn} dueAt={item.task.dueAt} status={item.task.status} now={now} /></p></div>
+          <div className="flex shrink-0 flex-col items-start gap-1.5 text-sm sm:items-end">
+            <Badge value={item.task.status} label={taskStatus(item.task.status) ?? item.task.status} />
+            <Deadline dueOn={item.task.dueOn} dueAt={item.task.dueAt} status={item.task.status} now={now} />
+          </div>
         </Link>
       </li>)}
-    </ul>}
+      </ul>
+    </Card>}
     <nav aria-label="Страницы задач" className="mt-4 flex flex-wrap gap-4">
       {cursor || caseCursor ? <Link href={href({})} className="inline-flex min-h-11 items-center text-sm underline">К началу списка</Link> : null}
       {nextHref ? <Link href={nextHref} className="inline-flex min-h-11 items-center text-sm text-accent-text underline">Следующие задачи →</Link> : null}

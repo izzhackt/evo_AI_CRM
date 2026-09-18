@@ -13,7 +13,7 @@ function compact(values: Record<string, string | undefined>): Record<string, str
 function fieldValues(values: Record<string, string>, fields: readonly AdmissionsField[]): Record<string, string> { return Object.fromEntries(fields.flatMap((field) => values[field.key]?.trim() ? [[field.key, values[field.key].trim()]] : [])); }
 const META = "Следующий шаг и маршрут";
 
-export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentName, children }: { workspace: AdmissionsWorkspace; playbooks: AdmissionsPlaybook[]; documents: readonly { id: string; name: string; applicationIds: readonly string[] }[]; studentName: string; children?: React.ReactNode }) {
+export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentName }: { workspace: AdmissionsWorkspace; playbooks: AdmissionsPlaybook[]; documents: readonly { id: string; name: string; applicationIds: readonly string[] }[]; studentName: string }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -110,17 +110,21 @@ export function AdmissionsRoutePanel({ workspace, playbooks, documents, studentN
     {workspace.playbook ? <><AdmissionsMessageTemplates playbook={workspace.playbook} stage={current.stage} studentName={studentName} /><details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg-2">Источники и ограничения маршрута</summary><ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-fg-2">{workspace.playbook.content.limitations.map((item) => <li key={item}>{item}</li>)}</ul>{workspace.playbook.content.sources.map((source) => <p key={source.id} className="mt-3 text-xs leading-5 text-fg-3">{source.url ? <a href={source.url} target="_blank" rel="noreferrer" className="underline">{source.title}</a> : source.title} · проверено {source.reviewedOn}. {source.scope}</p>)}</details></> : null}
     {current.playbookVersionId && editable ? <details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg-2">Вернуться на этап или прекратить работу</summary><p className="mt-2 text-sm text-fg-2">Потребуется основание. Подтверждения и история сохранятся; закрытие без прибытия не считается успехом.</p><div className="mt-3 flex flex-wrap gap-2">{ADMISSIONS_STAGES.slice(0, Math.max(index, 0)).map((stage) => <button key={stage} type="button" className={ADMISSIONS_BUTTON} disabled={!!editor} onClick={() => start({ kind: "transition", stage, outcome: "active" })}>{ADMISSIONS_STAGE_LABELS[stage]}</button>)}<button type="button" className={ADMISSIONS_BUTTON} disabled={!!editor} onClick={() => start({ kind: "transition", stage: ADMISSIONS_STAGES[Math.max(index, 0)], outcome: "cancelled" })}>Закрыть без прибытия</button></div></details> : null}
     {workspace.events.length ? <details className="rounded-card border border-border bg-surface p-4 sm:p-5"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg-2">История маршрута</summary><ol className="mt-3 space-y-3">{workspace.events.map((event) => <li key={event.id} className="text-sm leading-6 text-fg-2"><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleDateString("ru-RU", { timeZone: "Asia/Bishkek" })}</time> · {ADMISSIONS_STAGE_LABELS[event.stage as AdmissionsStage] ?? (event.outcome === "arrived" ? "Прибытие" : "Изменение маршрута")} — {event.reason}</li>)}</ol></details> : null}
-    {children ? <fieldset disabled={!!editor || refreshing} className="min-w-0" aria-busy={refreshing}>
-      <legend className="sr-only">Заявки, статусы и визовое дело</legend>
-      {editor || refreshing ? <p role="status" className="mb-3 text-sm text-fg-2">Сначала завершите редактирование маршрута и дождитесь обновления дела.</p> : null}
-      {children}
-    </fieldset> : null}
   </div>;
 }
 
+/**
+ * Факты этапа — заголовок и таблица, не второй уровень аккордеона.
+ *
+ * Раньше каждая группа фактов была вложенным `<details>` внутри уже
+ * раскрываемого раздела маршрута — два уровня схлопывания подряд. Здесь
+ * группа всегда видна; раскрывается только сам раздел маршрута снаружи.
+ */
 function FactSection({ title, fields, values, action, documents }: { title: string; fields: readonly AdmissionsField[]; values: Record<string, string | undefined>; action: React.ReactNode; documents: readonly { id: string; name: string }[] }) {
   const shown = fields.filter((field) => values[field.key]);
-  return <details className="rounded-nav border border-border p-3"><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg">{title}<span className="ml-2 font-normal text-fg-3">{shown.length ? `${shown.length} заполнено` : "не заполнено"}</span></summary>
-    {shown.length ? <dl className="my-3 grid gap-3 sm:grid-cols-2">{shown.map((field) => <div key={field.key} className="min-w-0"><dt className="text-xs text-fg-3">{field.label}</dt><dd className="mt-1 break-words whitespace-pre-wrap text-sm leading-6 text-fg">{field.key === "documentSlotIds" || field.key === "documentExceptionSlotIds" ? values[field.key]!.split(",").map((id) => documents.find((doc) => doc.id === id)?.name ?? "Недоступный пункт документа").join(", ") : admissionsValueLabel(values[field.key]!)}</dd></div>)}</dl> : <p className="my-3 text-sm text-fg-2">Подтверждений пока нет. Это не означает, что пункт выполнен или не требуется.</p>}{action}
-  </details>;
+  return <div className="rounded-nav border border-border p-3">
+    <h4 className="text-sm font-medium text-fg">{title}<span className="ml-2 font-normal text-fg-3">{shown.length ? `${shown.length} заполнено` : "не заполнено"}</span></h4>
+    {shown.length ? <dl className="mt-3 grid gap-3 sm:grid-cols-2">{shown.map((field) => <div key={field.key} className="min-w-0"><dt className="text-xs text-fg-3">{field.label}</dt><dd className="mt-1 break-words whitespace-pre-wrap text-sm leading-6 text-fg">{field.key === "documentSlotIds" || field.key === "documentExceptionSlotIds" ? values[field.key]!.split(",").map((id) => documents.find((doc) => doc.id === id)?.name ?? "Недоступный пункт документа").join(", ") : admissionsValueLabel(values[field.key]!)}</dd></div>)}</dl> : <p className="mt-3 text-sm text-fg-2">Подтверждений пока нет. Это не означает, что пункт выполнен или не требуется.</p>}
+    {action ? <div className="mt-3">{action}</div> : null}
+  </div>;
 }

@@ -2,9 +2,10 @@ import Link from "next/link";
 import type { StudentPortalNotification } from "@/lib/v3/portal-source";
 
 import { PortalEmptyState, PortalSection } from "./PortalPage";
+import { PortalMarkAllReadButton } from "./PortalMarkAllReadButton";
 import { PortalNotificationReadButton } from "./PortalNotificationReadButton";
 import { PortalStatus } from "./PortalStatus";
-import { formatPortalTimestamp } from "./presentation";
+import { formatPortalTimestamp, portalNotificationTarget } from "./presentation";
 
 export type MarkPortalNotificationReadAction = (
   formData: FormData,
@@ -13,9 +14,11 @@ export type MarkPortalNotificationReadAction = (
 export function NotificationsView({
   notifications,
   markReadAction,
+  markAllReadAction,
 }: {
   notifications: readonly StudentPortalNotification[];
   markReadAction: MarkPortalNotificationReadAction;
+  markAllReadAction: MarkPortalNotificationReadAction;
 }) {
   if (notifications.length === 0) {
     return (
@@ -26,13 +29,24 @@ export function NotificationsView({
     );
   }
 
+  const hasUnread = notifications.some((notification) => notification.readAt === null);
+
   return (
-    <PortalSection title="Все уведомления">
+    <PortalSection
+      title="Все уведомления"
+      description="Время и сроки указаны по времени Бишкека."
+      action={hasUnread ? (
+        <form action={markAllReadAction}>
+          <PortalMarkAllReadButton />
+        </form>
+      ) : null}
+    >
       <ul className="divide-y divide-border" aria-live="polite">
         {notifications.map((notification) => {
           const unread = notification.readAt === null;
           const createdLabel = formatPortalTimestamp(notification.createdAt);
           const dueLabel = formatPortalTimestamp(notification.dueAt);
+          const target = portalNotificationTarget(notification);
 
           return (
             <li
@@ -75,12 +89,12 @@ export function NotificationsView({
                       ) : null}
                     </p>
                   ) : null}
-                  {notification.eventCode === "case_help_answer" ? (
-                    <Link href={`/portal/notifications/${notification.notificationId}`}
-                      className="mt-2 inline-flex min-h-11 items-center font-medium text-accent-text underline">
-                      Прочитать ответ куратора
-                    </Link>
-                  ) : null}
+                  <Link
+                    href={target.href}
+                    className="mt-2 inline-flex min-h-11 items-center font-medium text-accent-text underline underline-offset-4"
+                  >
+                    {target.label}
+                  </Link>
                 </div>
 
                 {unread ? (

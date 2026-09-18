@@ -67,7 +67,9 @@ test("directory filters reset native form state when applied URL filters change"
   assert.match(directory, /<form\s+key=\{JSON\.stringify\(params\)\}/u);
   assert.match(directory, /defaultValue=\{params\.query\}/u);
   assert.match(directory, /defaultValue=\{params\.state \?\? ""\}/u);
-  assert.match(directory, /<a\s[^>]*href="\/v3\/profile"\s*>\s*Сбросить\s*<\/a>/u);
+  // Since #836 the reset link preserves the chosen section (docs vs worklist).
+  assert.match(directory, /const directoryHref = withDocsSection\("\/v3\/profile", docsMode\);/u);
+  assert.match(directory, /<a\s[^>]*href=\{directoryHref\}\s*>\s*Сбросить\s*<\/a>/u);
 });
 
 test("sales table scroll regions contain absolutely positioned screen-reader labels", () => {

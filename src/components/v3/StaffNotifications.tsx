@@ -73,7 +73,7 @@ export function StaffNotifications({ initialPage }: { initialPage: StaffNotifica
         {count && count !== "0" ? <span className="rounded-full bg-accent px-2 text-xs text-on-accent">{BigInt(count) > BigInt(99) ? "99+" : count}</span> : null}
       </button>
       {open ? <section id={id} aria-label="Уведомления сотрудников" aria-busy={busy}
-        className="absolute end-0 top-full z-40 mt-2 max-h-[70dvh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 shadow-lg">
+        className="absolute end-0 top-full z-40 mt-2 max-h-[70dvh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 shadow-evo-lg">
         <div className="flex items-center justify-between gap-3"><h2 className="font-semibold text-fg">Уведомления</h2>
           <button type="button" className={CONTROL} disabled={busy} onClick={() => { setBusy(true); void load(); }}>Обновить</button></div>
         <p className="mt-2 text-sm text-fg-3">Задачи и упоминания. Время — Бишкек.</p>

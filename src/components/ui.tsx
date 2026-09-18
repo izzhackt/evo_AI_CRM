@@ -75,28 +75,65 @@ export function Badge({ value, label, className }: { value: string; label: strin
   );
 }
 
+/**
+ * Единственная карточка V3: hairline-рамка, `--surface`, радиус 10.
+ *
+ * Два режима заголовка:
+ * - обычный (по умолчанию) — `h2` полужирным, действие справа, тень попап-уровня;
+ *   для главных панелей экрана.
+ * - `eyebrow` — уменьшенная заглавная подпись без тени (бывший
+ *   `profile/Card.tsx`); для плотных рабочих панелей в кейсе, где заголовок —
+ *   это ярлык раздела, а не отдельный визуальный блок. В этом режиме тело не
+ *   получает своих отступов: строки и таблицы внутри сами отвечают за
+ *   отступы до края рамки.
+ *
+ * `id` — якорь для перехода на раздел (например, `#applications`).
+ */
 export function Card({
+  id,
   title,
-  action,
+  aside,
+  eyebrow = false,
   children,
   className,
   bodyClassName,
 }: {
+  id?: string;
   title?: string;
-  action?: ReactNode;
+  aside?: ReactNode;
+  eyebrow?: boolean;
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
 }) {
+  const hasHeader = Boolean(title || aside);
+  const body = eyebrow && bodyClassName === undefined
+    ? children
+    : <div className={cn(!eyebrow && "px-5 py-4", bodyClassName)}>{children}</div>;
+
   return (
-    <section className={cn("min-w-0 rounded-card border border-border bg-surface shadow-evo", className)}>
-      {(title || action) && (
-        <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-          {title && <h2 className="text-base font-semibold text-fg">{title}</h2>}
-          {action}
-        </header>
+    <section
+      id={id}
+      className={cn(
+        "min-w-0 scroll-mt-4 rounded-card border border-border bg-surface",
+        !eyebrow && "shadow-evo",
+        className,
       )}
-      <div className={cn("px-5 py-4", bodyClassName)}>{children}</div>
+    >
+      {hasHeader ? (
+        eyebrow ? (
+          <h3 className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-2xs font-semibold uppercase tracking-wide text-fg-2">
+            {title}
+            {aside ? <span className="font-normal normal-case tracking-normal">{aside}</span> : null}
+          </h3>
+        ) : (
+          <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+            {title && <h2 className="text-base font-semibold text-fg">{title}</h2>}
+            {aside}
+          </header>
+        )
+      ) : null}
+      {body}
     </section>
   );
 }
@@ -112,17 +149,16 @@ export function StatCard({
   value: number | string;
   href?: string;
   meta?: string;
-  tone?: "neutral" | "primary" | "accent" | "info" | "warning" | "danger" | "success";
+  tone?: Tone;
 }) {
-  const stripe = {
+  const stripe: Record<Tone, string> = {
     neutral: "bg-border-strong",
-    primary: "bg-accent",
     accent: "bg-accent",
     info: "bg-info",
-    warning: "bg-warn",
+    warn: "bg-warn",
     danger: "bg-danger",
-    success: "bg-ok",
-  }[tone];
+    ok: "bg-ok",
+  };
   const inner = (
     <div
       className={cn(
@@ -130,7 +166,7 @@ export function StatCard({
         href && "hover:-translate-y-0.5 hover:border-control-edge hover:shadow-evo-lg motion-reduce:hover:translate-y-0",
       )}
     >
-      <span className={cn("absolute inset-y-0 left-0 w-[3px]", stripe)} aria-hidden="true" />
+      <span className={cn("absolute inset-y-0 left-0 w-[3px]", stripe[tone])} aria-hidden="true" />
       <div className="font-mono text-3xl font-semibold leading-none text-fg">{value}</div>
       <div className="mt-2 text-xs font-medium text-fg-2">{label}</div>
       {meta && <div className="mt-1.5 text-xs leading-4 text-fg-3">{meta}</div>}
@@ -147,17 +183,25 @@ export function StatCard({
 
 export function PageHeader({
   title,
+  count,
   description,
   action,
 }: {
   title: string;
+  /** Размер того, что показано рядом с заголовком. null/undefined — считать нечего. */
+  count?: number | null;
   description?: string;
   action?: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-fg">{title}</h1>
+        <h1 className="flex flex-wrap items-baseline gap-2.5 text-2xl font-semibold tracking-[-0.02em] text-fg">
+          {title}
+          {typeof count === "number" ? (
+            <span className="font-mono text-xl font-normal tabular-nums text-fg-3">{count}</span>
+          ) : null}
+        </h1>
         {description && <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
@@ -185,6 +229,35 @@ export const filterBarCls =
 
 export const labelCls = "mb-1 block text-xs font-medium text-fg-2";
 
-export function EmptyState({ text }: { text: string }) {
-  return <p className="py-6 text-center text-sm text-fg-3">{text}</p>;
+export function EmptyState({
+  title,
+  text,
+  action,
+}: {
+  title?: string;
+  text: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
+      {title ? <p className="text-sm font-semibold text-fg">{title}</p> : null}
+      <p className="text-sm text-fg-3">{text}</p>
+      {action ? <div className="mt-1">{action}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Заготовка загрузки: прямоугольник, эхо будущей формы блока (строка текста,
+ * карточка, ряд таблицы). `prefers-reduced-motion` гасит пульсацию глобально
+ * через `.v3-world`; здесь дублируем `motion-reduce:` на случай использования
+ * вне мира V3.
+ */
+export function SkeletonBlock({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn("animate-pulse rounded-card bg-surface-2 motion-reduce:animate-none", className)}
+    />
+  );
 }

@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 /**
- * Шапка обзора: название рабочей страницы слева, период справа.
- * Фирменный блок находится в общей навигации, поэтому здесь не повторяется.
+ * Переключатель периода под заголовком «Обзор» (заголовок — в `PartShell`,
+ * чтобы на странице был ровно один `h1`).
  *
  * ПЕРЕКЛЮЧАТЕЛЬ ПЕРИОДА — ССЫЛКИ, А НЕ КНОПКИ С СОСТОЯНИЕМ. Период живёт в
  * адресе, поэтому экран можно переслать целиком и вернуться к прошлому
@@ -38,11 +38,7 @@ export function MainHeader({
 }) {
   return (
     <header className="flex flex-col gap-4 border-b border-border pb-4">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.02em] text-fg">
-          Обзор
-        </h1>
-
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
         {/* Пять названий не помещаются в 393px, поэтому полоса прокручивается.
             Прокручиваемой области нужен клавиатурный доступ (SC 2.1.1) и
             собственное имя. */}

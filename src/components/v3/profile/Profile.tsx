@@ -66,9 +66,12 @@ export function Profile({
   tab,
   hrefFor,
   admissionsRoute,
+  caseHeader,
 }: {
   profile: PersonProfile;
   admissionsRoute?: React.ReactNode;
+  /** Сводка дела над вкладками для `?case=`-целей; заменяет обычную шапку профиля. */
+  caseHeader?: React.ReactNode;
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
@@ -116,23 +119,25 @@ export function Profile({
       data-lead-id={profile.leadId}
       data-testid="v3-profile"
     >
-      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="min-w-0 text-xl font-semibold tracking-[-0.02em] text-fg">
-          {profile.person}
-        </h2>
-        <p className="text-sm text-fg-3">{state}</p>
-        {profile.financeStop ? (
-          <Pill tone="danger">финансовый стоп</Pill>
-        ) : null}
-        {!isStaffPreview(actor) && staffHasPermission(actor, "task.manage") && draft.admissions ? (
-          <Link
-            href={`/v3/tasks?create=case&case=${encodeURIComponent(draft.admissions.studentCaseId)}`}
-            className="ms-auto inline-flex min-h-11 items-center rounded-control border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          >
-            Создать задачу по студенту
-          </Link>
-        ) : null}
-      </header>
+      {caseHeader ?? (
+        <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="min-w-0 text-xl font-semibold tracking-[-0.02em] text-fg">
+            {profile.person}
+          </h2>
+          <p className="text-sm text-fg-3">{state}</p>
+          {profile.financeStop ? (
+            <Pill tone="danger">финансовый стоп</Pill>
+          ) : null}
+          {!isStaffPreview(actor) && staffHasPermission(actor, "task.manage") && draft.admissions ? (
+            <Link
+              href={`/v3/tasks?create=case&case=${encodeURIComponent(draft.admissions.studentCaseId)}`}
+              className="ms-auto inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              Создать задачу по студенту
+            </Link>
+          ) : null}
+        </header>
+      )}
 
       {/* Полоса вкладок прокручивается на узком экране: названия разделов не
           помещаются в 393px, а переносить их в две строки — терять шапку. */}

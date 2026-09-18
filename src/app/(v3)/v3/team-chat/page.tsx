@@ -1,5 +1,6 @@
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { notFound } from "next/navigation";
+import { Card } from "@/components/ui";
 import { PartShell } from "@/components/v3/PartShell";
 import { TeamChat } from "@/components/v3/team-chat/TeamChat";
 import { requireV3PageActor } from "@/lib/platform-guards";
@@ -24,10 +25,10 @@ export default async function TeamChatPage({ searchParams }: {
   try { initial = await readV3TeamChat(actor, { channel, mode: messageId ? "message" : "latest", messageId }); }
   catch (error) { failure = error instanceof TeamChatReadError ? error.status : "unavailable"; }
   if (!initial) {
-    return <PartShell title="Командный чат"><div className="rounded-[10px] border border-line bg-surface p-6">
+    return <PartShell title="Командный чат"><Card>
       <p role="alert">{TEAM_CHAT_FAILURE_COPY[failure]}</p>
-      <a className="mt-4 inline-flex min-h-11 items-center text-[var(--accent-text)] underline" href={`/v3/team-chat?channel=${channel}`}>Обновить канал</a>
-    </div></PartShell>;
+      <a className="mt-4 inline-flex min-h-11 items-center text-accent-text underline" href={`/v3/team-chat?channel=${channel}`}>Обновить канал</a>
+    </Card></PartShell>;
   }
   // The promoted image has no build-time Supabase config. Serialize only the
   // validated public fields from this authenticated runtime request.

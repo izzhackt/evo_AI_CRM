@@ -30,12 +30,12 @@ const LINK_ICONS = {
   "admissions-worklist": "users",
   "evo-docs": "folder",
   "admissions-summary": "plane",
-  universities: "folder",
+  universities: "building",
   inbox: "message-square",
   calendar: "calendar",
   tasks: "check-square",
   "team-chat": "message-circle",
-  knowledge: "folder",
+  knowledge: "book-open",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
 

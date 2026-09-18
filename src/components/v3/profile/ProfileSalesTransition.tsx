@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
-import { btnCls, btnGhostCls, cn, inputCls, labelCls } from "@/components/ui";
+import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
   handoffPlatformLeadToAdmissionsAction,
@@ -24,7 +24,6 @@ import type {
   PlatformStudentHandoffMode,
 } from "@/lib/platform-student-handoff";
 
-import { Card } from "./Card";
 import type { HandoffAcknowledgement, HandoffDecision, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import { respondToHandoffAction, type HandoffResponseActionState } from "@/lib/platform-handoff-acknowledgement-actions";
 import { handoffAcknowledgementLabel } from "@/lib/v3/wording";
@@ -265,6 +264,7 @@ function GateCard({
 
   return (
     <Card
+      eyebrow
       title="Договор и первый платёж"
       aside={<Pill tone={gateStatus.tone}>{gateStatus.label}</Pill>}
     >
@@ -389,7 +389,7 @@ function HandoffCard({
   if (caseId) {
     const refreshed = handoff.caseId !== null;
     return (
-      <Card title="Передача в Admissions" aside={<Pill tone="ok">передан</Pill>}>
+      <Card eyebrow title="Передача в Admissions" aside={<Pill tone="ok">передан</Pill>}>
         <div className="space-y-3 p-4" data-testid="v3-sales-handoff-completed">
           {refreshed ? (
             <>
@@ -435,6 +435,7 @@ function HandoffCard({
 
   return (
     <Card
+      eyebrow
       title="Передача в Admissions"
       aside={<Pill tone={handoffStatus.tone}>{handoffStatus.label}</Pill>}
     >
@@ -577,7 +578,7 @@ function HandoffResponseSummary({ current }: { current: SalesHandoffAcknowledgem
 }
 
 export function ProfileSalesHandoffAcknowledgement({ snapshot }: { snapshot: SalesHandoffAcknowledgement }) {
-  return <Card title="Приём дела" id="handoff-acknowledgement">
+  return <Card eyebrow title="Приём дела" id="handoff-acknowledgement">
     <div className="flex flex-col gap-3 p-4" data-testid="v3-sales-handoff-acknowledgement">
       <HandoffResponseSummary current={snapshot.current} />
     </div>
@@ -612,7 +613,7 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
     && current.clarification === (decision === "accepted" ? null : clarification.trim())
     && current.agreedContactDate === (contactDate || null);
   return (
-    <Card title="Приём дела" id="handoff-acknowledgement">
+    <Card eyebrow title="Приём дела" id="handoff-acknowledgement">
       <div className="flex flex-col gap-3 p-4" data-testid="v3-handoff-acknowledgement">
         <HandoffResponseSummary current={current} />
         {snapshot.canRespond && !open ? (

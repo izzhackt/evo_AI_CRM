@@ -1,6 +1,7 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
   allDayDate,
@@ -13,7 +14,9 @@ import {
   source as sourceWord,
 } from "@/lib/v3/wording";
 
-import { Card } from "./Card";
+import { Card } from "@/components/ui";
+import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
+import { CaseTasksPanel } from "./CaseTasksPanel";
 import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
 import { LeadInterestSummary } from "./LeadInterestSummary";
 import { StudentProfileFields } from "./StudentProfileFields";
@@ -107,6 +110,7 @@ export function Overview({
       {sales && staffPresentationCan(actor, "sales.read") ? (
         <>
           <Card
+            eyebrow
             title="Sales"
             aside={stage ? <Pill tone="neutral">{stage}</Pill> : undefined}
           >
@@ -140,6 +144,18 @@ export function Overview({
         <ProfileSalesHandoffAcknowledgement snapshot={draft.salesHandoffAcknowledgement} />
       ) : null}
 
+      {draft.admissions ? (
+        <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем задачи по делу…</p>}>
+          <CaseTasksPanel actor={actor} caseId={draft.admissions.studentCaseId} />
+        </Suspense>
+      ) : null}
+
+      {draft.admissions && actor.presentationRole !== "sales" ? (
+        <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем обращения студента…</p>}>
+          <CaseHelpWorkspace actor={actor} caseId={draft.admissions.studentCaseId} />
+        </Suspense>
+      ) : null}
+
       {(!profile.student || draft.access.finance) ? <a
         href={tabHref("money")}
         className={`flex flex-col gap-0.5 rounded-card border bg-surface px-4 py-3 hover:border-control-edge ${
@@ -165,7 +181,7 @@ export function Overview({
       {draft.admissions ? (
         <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
       ) : (
-        <Card title="Заявка">
+        <Card eyebrow title="Заявка">
           {application ? (
             <>
               <p className="flex flex-wrap items-center gap-2 px-4 pt-3 text-sm">
@@ -192,7 +208,7 @@ export function Overview({
         </Card>
       )}
 
-      <Card title="Коротко">
+      <Card eyebrow title="Коротко">
         <FactList
           facts={[
             { label: "Ответственный", value: draft.responsible },
@@ -213,7 +229,7 @@ export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, docume
 }) {
   const caseFacts = (
     <div className="grid gap-4 @4xl:grid-cols-2">
-      <Card title="Человек">
+      <Card eyebrow title="Человек">
         {/* Телефон и почта — настоящие: они единственные, что модель знает про
             человека кроме имени. Поэтому без пунктира.
             Обёртки <dl> здесь нет: FactList рисует свой, и вложенный список
@@ -229,14 +245,14 @@ export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, docume
         </div>
       </Card>
 
-      <Card title="Учёба и планы">
+      <Card eyebrow title="Учёба и планы">
         {profile.leadId ? <LeadInterestSummary leadId={profile.leadId} /> : null}
         <FactList facts={draft.study} />
       </Card>
 
       {profile.qualification ? (
         <div className="lg:col-span-2">
-          <Card title="Что выяснили при квалификации">
+          <Card eyebrow title="Что выяснили при квалификации">
             <p className="px-4 py-3 text-sm leading-6 text-fg">{profile.qualification}</p>
           </Card>
         </div>
@@ -279,7 +295,7 @@ export function Money({
         </p>
       ) : null}
 
-      <Card title="Бюджет">
+      <Card eyebrow title="Бюджет">
         {draft.budget ? (
           <div className="px-4 py-3">
             <p className="flex flex-wrap items-baseline gap-2">
@@ -313,7 +329,7 @@ export function Money({
         )}
       </Card>
 
-      <Card title="План платежей">
+      <Card eyebrow title="План платежей">
         <ul>
           {draft.payments.map((payment) => (
             <li
@@ -339,7 +355,7 @@ export function Money({
       {financeCaseId && (staffPresentationCan(actor, "admissions.read") || staffHasPermission(actor, "finance.event.confirm"))
         ? <FinanceEntryWorkspace caseId={financeCaseId} /> : null}
 
-      <Card title="Договор">
+      <Card eyebrow title="Договор">
         <FactList
           facts={[
             {
@@ -363,7 +379,7 @@ export function Money({
 export function History({ profile }: { profile: PersonProfile }) {
   return (
     <div className="grid gap-4 @4xl:grid-cols-2">
-      <Card title="Что происходило">
+      <Card eyebrow title="Что происходило">
         <div
           role="group"
           aria-label="История изменений"
@@ -413,7 +429,7 @@ export function History({ profile }: { profile: PersonProfile }) {
           непуста ровно тогда, когда та панель есть, и карточка здесь
           повторяла её второй раз. `profile.visa` остаётся в модели и
           намеренно не рисуется в истории. */}
-      <Card title="Как он к нам пришёл">
+      <Card eyebrow title="Как он к нам пришёл">
         <FactList
           facts={[
             { label: "Откуда", value: sourceWord(profile.source) ?? "неизвестно" },

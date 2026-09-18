@@ -2,13 +2,11 @@
 
 import { useActionState, useState } from "react";
 
-import { btnCls, inputCls, labelCls } from "@/components/ui";
+import { btnCls, Card, inputCls, labelCls } from "@/components/ui";
 import {
   manageStudentPortalAccessAction,
   type StudentPortalAccessActionState,
 } from "@/lib/student-portal-provisioning-actions";
-
-import { Card } from "./Card";
 
 type CuratorOption = Readonly<{
   membershipId: string;
@@ -84,7 +82,7 @@ export function StudentPortalAccessCard({
     Boolean(state.attemptId && state.inviteKind);
 
   return (
-    <Card title="Доступ студента к порталу" aside="Только Admin">
+    <Card eyebrow title="Доступ студента к порталу" aside="Только Admin">
       <div className="space-y-4 p-4 text-sm text-fg-2">
         <p>
           Приглашение привязано к этому делу, email и одному Auth ID. Действующее

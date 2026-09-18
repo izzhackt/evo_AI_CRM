@@ -1,11 +1,16 @@
 import { Funnel } from "@/components/v3/Funnel";
+import { CuratorDay } from "@/components/v3/CuratorDay";
 import { MainHeader, type PeriodChoice } from "@/components/v3/MainHeader";
 import { MetricCard } from "@/components/v3/MetricCard";
 import { OperationsOverview } from "@/components/v3/OperationsOverview";
+import { PartShell } from "@/components/v3/PartShell";
 import { TrendChart } from "@/components/v3/TrendChart";
 import { SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
 import { SalesReportNavigation } from "@/components/v3/SalesReportNavigation";
+import { isStaffPreview, staffCan, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { listPlatformStudentCases } from "@/lib/platform-admissions";
+import { readAdmissionsSummary } from "@/lib/v3/admissions-source";
 import {
   PERIODS,
   periodLabel,
@@ -13,6 +18,7 @@ import {
   resolvePeriod,
 } from "@/lib/v3/funnel-source";
 import { readV3OperationalDashboard } from "@/lib/v3/operations-source";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "V3 · Главная" };
@@ -31,8 +37,32 @@ export default async function MainPart({
     return <SalesRegisterView actor={actor} query={query} />;
   }
   if (!canReadSales) {
+    // Ниже мы уже знаем canReadReport === false, иначе выше был бы возврат:
+    // это ровно условие «есть Admissions, нет отчёта продаж» из плана.
+    const canReadAdmissions = staffPresentationCan(actor, "admissions.read");
+    if (canReadAdmissions) {
+      const [casesResult, summaryResult] = await Promise.allSettled([
+        listPlatformStudentCases(actor, { curatorMembershipId: actor.membershipId, state: "active", pageSize: 30 }),
+        readAdmissionsSummary(actor, { curatorMembershipId: actor.membershipId }),
+      ]);
+      const casesPage = casesResult.status === "fulfilled" ? casesResult.value : null;
+      const cases = (casesPage?.rows ?? [])
+        .filter((row) => row.access === "full")
+        .map((row) => row.studentCase);
+      return (
+        <PartShell title="Мой день" count={casesPage ? cases.length : null}>
+          <CuratorDay
+            cases={cases}
+            casesUnavailable={casesResult.status === "rejected"}
+            hasMore={casesPage?.hasNext ?? false}
+            summary={summaryResult.status === "fulfilled" ? summaryResult.value : null}
+            summaryUnavailable={summaryResult.status === "rejected"}
+          />
+        </PartShell>
+      );
+    }
     const operations = await readV3OperationalDashboard(actor);
-    return <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6"><h1 className="mb-5 text-2xl font-semibold">Рабочий обзор</h1><OperationsOverview snapshot={operations} /></main>;
+    return <PartShell title="Рабочий обзор"><OperationsOverview snapshot={operations} /></PartShell>;
   }
   const period = resolvePeriod(query);
   const [{ figures, trend }, operations] = await Promise.all([
@@ -56,7 +86,7 @@ export default async function MainPart({
   }));
 
   return (
-    <main className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
+    <PartShell title="Обзор">
       {canReadReport ? <SalesReportNavigation sales={false} /> : null}
       {/*
         Приветствия по имени здесь пока нет.
@@ -172,8 +202,6 @@ export default async function MainPart({
       )}
 
       <OperationsOverview snapshot={operations} />
-    </main>
+    </PartShell>
   );
 }
-import { isStaffPreview, staffCan, staffPresentationCan } from "@/lib/platform-access";
-import { redirect } from "next/navigation";

@@ -1,5 +1,3 @@
-import styles from "./PortalShell.module.css";
-
 export function PortalPage({
   title,
   description,
@@ -10,17 +8,17 @@ export function PortalPage({
   children: React.ReactNode;
 }) {
   return (
-    <main className={styles.page}>
-      <header className={styles.pageHeader}>
-        <p className={styles.pageEyebrow}>
+    <main className="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6 sm:py-10">
+      <header className="max-w-[820px]">
+        <p className="text-xs font-medium uppercase tracking-[0.08em] text-fg-3">
           Кабинет студента
         </p>
-        <h1 className={styles.pageTitle}>
+        <h1 className="mt-2 text-[27px] font-semibold leading-[1.2] tracking-[-0.03em] text-fg sm:text-[32px]">
           {title}
         </h1>
-        <p className={styles.pageDescription}>{description}</p>
+        <p className="mt-2 max-w-[74ch] text-sm leading-6 text-fg-3">{description}</p>
       </header>
-      <div className={styles.pageBody}>{children}</div>
+      <div className="mt-6 min-w-0">{children}</div>
     </main>
   );
 }
@@ -45,19 +43,24 @@ export function PortalEmptyState({
 export function PortalSection({
   title,
   description,
+  action,
   children,
 }: {
   title: string;
   description?: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className="rounded-card border border-border bg-surface">
-      <header className="border-b border-border px-4 py-4 sm:px-5">
-        <h2 className="break-words text-md font-semibold text-fg">{title}</h2>
-        {description ? (
-          <p className="mt-1 text-sm leading-5 text-fg-3">{description}</p>
-        ) : null}
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
+        <div className="min-w-0">
+          <h2 className="break-words text-md font-semibold text-fg">{title}</h2>
+          {description ? (
+            <p className="mt-1 text-sm leading-5 text-fg-3">{description}</p>
+          ) : null}
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </header>
       {children}
     </section>

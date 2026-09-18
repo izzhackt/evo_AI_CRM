@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { Pill } from "@/components/v3/Pill";
 
-import { Card } from "./Card";
+import { Card } from "@/components/ui";
 import type {
   ActiveDocumentGroup,
   DocumentGroup,
@@ -45,7 +45,7 @@ export function Documents({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="Чеклист" aside={<Pill>{present}/{total}</Pill>}>
+      <Card eyebrow title="Чеклист" aside={<Pill>{present}/{total}</Pill>}>
         <ProfileDocumentsClient
           groups={activeGroups}
           historyGroups={historyGroups}

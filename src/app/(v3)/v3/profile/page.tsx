@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
+import { CaseHeader } from "@/components/v3/profile/CaseHeader";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
 import { DocsCreateStudentForm } from "@/components/v3/profile/DocsCreateStudentForm";
@@ -278,6 +279,11 @@ export default async function ProfilePart({
               profile={view.profile}
               admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person}
                 docsMode={docsMode} packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
+              caseHeader={view.details.routeTarget.studentCaseId ? (
+                <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку дела…</p>}>
+                  <CaseHeader actor={actor} profile={view.profile} draft={view.details} />
+                </Suspense>
+              ) : undefined}
               draft={view.details}
               sales={view.sales}
               actor={actor}

@@ -1,6 +1,6 @@
 # Публичная анкета и доступ студента EVO
 
-Дата: 2026-09-18. Статус: реализация и локальная Auth/RPC проверка выполнены; browser и production activation остаются открыты.
+Дата: 2026-09-18. Статус: реализация, review и CI выполнены; дополнительные проверки отменены владельцем. Публикация ожидает настоящего SMTP-доступа.
 
 ## Решение владельца
 
@@ -9,6 +9,12 @@
 до одобрения Admissions доступны только собственная анкета и её статус; полный
 кабинет открывается после одобрения. Также убрать из настроек и основных экранов
 лишний технический/повторяющийся текст, сохраняя нужные действия и ошибки.
+
+Позднее владелец попросил продолжить без дополнительных проверок и выбрал
+корпоративный Gmail как отправителя. Не повторять ручной/browser/email-delivery
+прогон. Это явно не пройденная приёмка и не отключение подтверждения email либо
+одобрения Admissions. Использовать уже полученные review/CI результаты;
+существующий механизм выпуска сохраняет свои автоматические ограничения.
 
 ## Контракт продукта
 
@@ -94,11 +100,13 @@ Student callback endpoint; staff callback и host-only cookie boundary сохр�
 - [x] Короткие проверки изменённых функций и lint/type/build по scope.
 - [x] Независимый review реализации `b24b19b75e0baad5d73524e092284848d94f32d6`
   против `2908a0dbf2b3c829b687ecfbc0e0aa63e1be98be`: APPROVED для draft PR.
-- [ ] Desktop/mobile browser и защищённые PR checks на окончательном head.
-- [ ] До публичного запуска проверить актуальный SMTP/signup, реальный signup →
-  подтверждение → pending → отказ прямого portal/API → Admissions approval →
-  новый вход → свой кабинет/профиль. Использовать разрешённую ограниченную QA
-  личность; email receipt нельзя подменять admin autoconfirm.
+- [x] Защищённые PR checks на `db80bd85` прошли: `35292813009`, включая
+  build/lint/contracts/migration boundary. Независимый exact-head review APPROVED.
+- Desktop/mobile и реальный Next/signup/email-delivery прогон отменён владельцем
+  после этих проверок. Не отмечать его выполненным или успешным.
+- [ ] Настроить настоящий SMTP выбранного отправителя, сохранить подтверждение
+  email, существующие callback origins и активировать signup. Адрес не заменяет
+  SMTP credential; не использовать admin autoconfirm или фиктивный отправитель.
 - [ ] Применить только проверенную новую миграцию установленным operator-путём,
   затем один immutable lightweight release, real smoke, health/accepted SHA,
   cleared pending и arm=false. Не повторять общий тяжёлый suite/backup вопрос.
@@ -177,3 +185,21 @@ worker schema — контракт, миграция и RPC adapters/actions; wo
   healthy,0 restarts,pending absent,CRM/app health200. Release arm прочитан false.
   Это выпуск 12 файлов текста; migration172 и публичная регистрация не включены.
   Отдельная визуальная приёмка всех settings экранов остаётся непроверенной.
+
+## Продолжение: выбран Gmail, дополнительных проверок не запускать
+
+Официальные инструкции Google/Supabase требуют пароль приложения Google при
+включённой двухэтапной проверке. Подготовлены SMTP host `smtp.gmail.com`, port587,
+sender name `EVO Admissions`; выбранные владельцем email/username хранятся только
+в частном operator draft. Обычный пароль Google не заменяет app password.
+В проверенных `.env*` проекта и `/opt/evo-crm` SMTP/Gmail credentials отсутствуют.
+Dashboard повторно прочитать не удалось из-за сбоя browser-control; текущая
+конфигурация custom SMTP не объявляется подтверждённой. Требуется доступ к уже
+настроенному SMTP либо безопасно сохранённый пароль приложения. Никаких писем,
+проверочных аккаунтов, изменений production Auth или migration172 в этом
+продолжении не выполнялось.
+
+- https://support.google.com/accounts/answer/185833 — Google app passwords.
+- https://supabase.com/docs/guides/troubleshooting/using-google-smtp-with-supabase-custom-smtp-ZZzU4Y
+  — Gmail custom SMTP. Context7 снова недоступен из-за monthly quota;
+  официальные инструкции прочитаны напрямую.

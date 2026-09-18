@@ -28207,3 +28207,15 @@ public request. Live signup is currently disabled; real SMTP/signup validation
 is required before public activation, never replaced by admin autoconfirm.
 Scoped real checks and independent review precede the existing lightweight
 immutable release. No heavy full-suite replay or new backup request.
+
+### 2026-09-18 — owner waives additional onboarding checks and selects Gmail
+
+After implementation review and protected CI passed on `db80bd85`, the owner
+explicitly asks to proceed without further checks and supplies the EVO Gmail
+sender. Remove the additional manual/browser/email-delivery acceptance pause;
+record those paths as unverified, never passed. Reuse prior real evidence and
+retain the existing release mechanism. This does not disable email ownership
+confirmation or Admissions approval. Configure the selected real SMTP transport;
+an address alone is insufficient and no app password is present in the checked
+project/server environment files. Request the existing credential location or
+user-completed Google app-password setup without collecting secrets in chat.

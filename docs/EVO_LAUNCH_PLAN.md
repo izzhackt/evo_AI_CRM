@@ -116,15 +116,19 @@ approval. Full portal access starts only after approval (explicit confirmation).
 Follow [the active onboarding contract](design/v3/public-student-onboarding-run-plan.md).
 Reuse existing Supabase Auth, Admissions and Student profile; preserve private
 assessments. Include bounded settings/CRM/Portal copy cleanup. No invented
-matching claims, provider enablement or email-delivery proof. Real signup/SMTP
-and pending-to-approved authority are release acceptance gates.
+matching claims or invented email-delivery proof. Configure the owner-selected
+real SMTP transport and preserve the proven pending-to-approved authority.
 
 The bounded 12-file copy cleanup shipped separately in PR828 as accepted revision
 `2908a0dbf2b3c829b687ecfbc0e0aa63e1be98be`, release `35292232876`. Real
 Admin/Student smoke passed; running/accepted image and evidence hashes match,
 health200, pending absent and release armfalse. Public signup remains in draft
-PR830: migration172 is not in production; SMTP and actual Next/browser acceptance
-are still open.
+PR830: migration172 is not in production. Latest owner direction waives further
+manual/browser and email-delivery checks and chooses the EVO Gmail sender.
+Reuse completed review/CI evidence without claiming the unexecuted journey
+passed. Actual SMTP credentials/configuration are still required; a sender
+address alone cannot authenticate to Gmail. Keep email confirmation and
+Admissions approval unchanged; do not substitute admin autoconfirm.
 
 ## Quiet UI and Admin role preview — released 2026-09-18
 

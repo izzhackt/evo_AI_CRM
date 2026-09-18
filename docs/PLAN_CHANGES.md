@@ -29904,3 +29904,46 @@ The stale «Маршрут» empty-state copy in ProfileCaseDirectory.tsx, recor
 there as left for a follow-up, was in fact fixed by the orchestrator inside
 the same commit b016b25b (the entry was written before that inline fix
 landed). No follow-up remains; the live copy reads «Вузы и программы…».
+
+### 2026-09-19 — unified workflow S7: карточные блоки, приглашение, партнёрские факты
+
+Date: 2026-09-19. Author: Fable (Claude Code). Change type: follow-up slice
+closing the three recorded partial items of the unified-workflow pivot.
+Affected plan section: «Unified workflow» (released 2026-09-19); plan §4, §5,
+§8 of docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md.
+
+Reason: the released pivot delivered «Условия продажи», but plan §5's other
+card blocks (Пожелания, Образование, Условия) remained direction-interest +
+анкета + заметки; §4's personal cabinet invite covered platform анкеты only
+(site/WhatsApp leads without an account had no path); §8's partner
+contact/link/decision facts were read-only because the sole write RPC
+required an admissions playbook binding.
+
+Decision — migration 184:
+(1) The lead card store (platform_private.lead_sale_conditions, 181) becomes
+the general card-fields store: the allowlist validator gains the Пожелания
+(countries, study fields, education level, intake year/season, universities
+of interest), Образование (current education, grade/course, grades, english
+level, certificates) and Условия (budget minor+currency+period, scholarship,
+constraints note) key families with the same shape/length/currency rules;
+save/read RPCs unchanged in signature (fields payload widens). UI: three
+quiet collapsible card blocks beside «Условия продажи», progressive fill per
+§5 («заполняем постепенно»).
+(2) platform.prepare_lead_cabinet_v1: for a lead without a linked account it
+creates the same canonical pending, portal-activated, curator-less case the
+анкета approval creates (S1 shape), gated like the lead sales workflow
+writes; the existing case-bound invite provisioning then issues the personal
+invite. If the dispatch surface stays admin-gated after inspection, that is
+recorded as the standing gate, not silently widened.
+(3) platform.update_application_partner_details_v1: writes exactly the
+partner/decision fact keys (partner contact, external link, decision
+reference, decision note) on university_applications.admissions_details with
+optimistic concurrency and replay, gated by the same application-manage case
+scope as the kept application CRUD — no playbook binding required. The S4
+read-only block becomes an editable form.
+
+Validation impact: scoped lint/tsc/build + touched suites + a full local
+test:database:migration-boundaries run via OrbStack BEFORE push, and an
+explicit audit of scripts/evo-production-browser-smoke.mjs anchors against
+the changed UI (both lessons from the 2026-09-19 release). Release follows
+the standard owner-migration + managed-release path.

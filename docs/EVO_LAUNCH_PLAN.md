@@ -1,5 +1,19 @@
 # EVO Launch Plan
 
+## Unified workflow S7 — active 2026-09-19
+
+Closes the three recorded partial items of the released pivot (journal entry
+2026-09-19 «unified workflow S7»).
+
+- [ ] Migration 184: card-fields allowlist widened (Пожелания/Образование/
+  Условия), prepare_lead_cabinet_v1 for site/WhatsApp leads, editable partner
+  facts RPC without a playbook binding.
+- [ ] UI: three progressive card blocks, «Пригласить в кабинет» on the access
+  block, partner-facts form on «Вузы и программы».
+- [ ] Validation: scoped checks + full local migration-boundary run + smoke
+  anchor audit before push; release via the standard owner-migration path.
+
+
 ## Unified workflow — released 2026-09-19
 
 Owner applied migrations 180-183 to iosckaqtovbbnssqcpde from main f2f64c8e

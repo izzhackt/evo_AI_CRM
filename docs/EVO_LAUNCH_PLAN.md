@@ -1,5 +1,21 @@
 # EVO Launch Plan
 
+## Unified workflow S7 — released 2026-09-19
+
+Owner applied migration 184 from main 28e8373f (#852), ledger 001-184
+confirmed. The pre-release no-degradation claim was wrong and is corrected
+here: staff_lead_sale_conditions_v1 was widened to 32 keys while the prior
+app validated 15, so lead cards and the sale-conditions preview could error
+in the window between apply and release — the owner flagged it and the
+release went out immediately. Exact-main CI and managed release 35399135860
+passed on `28e8373f6f0816cfa1890da28f03e1531e58103a`; accepted release
+`v3-r35399135860-a1-28e8373f`; running container reports the same revision,
+healthy, zero restarts; public health 200 on both origins; arm read back
+`false`. Follow-up discipline recorded: a widened read-RPC return shape is a
+compatibility change for the strict client validators — release immediately
+after apply, or version the RPC.
+
+
 ## Unified workflow S7 — active 2026-09-19
 
 Closes the three recorded partial items of the released pivot (journal entry

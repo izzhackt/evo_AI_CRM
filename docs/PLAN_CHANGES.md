@@ -29895,3 +29895,12 @@ own top-level "план-контракт" entry names one remaining step after S
 `EVO_LAUNCH_PLAN.md` per item 7 above, since migration apply and release
 are the owner's manual actions, not something this or any prior slice
 performed.
+
+### 2026-09-18 — поправка к записи S6
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: correction.
+Affected plan section: «unified workflow S6», known deviations item (1).
+The stale «Маршрут» empty-state copy in ProfileCaseDirectory.tsx, recorded
+there as left for a follow-up, was in fact fixed by the orchestrator inside
+the same commit b016b25b (the entry was written before that inline fix
+landed). No follow-up remains; the live copy reads «Вузы и программы…».

@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exactActionStringFields } from "./server/action-form-fields";
-import { resumeStudentApplication } from "./server/student-signup-runtime";
+import { isPasswordProvisionedStaff, resumeStudentApplication } from "./server/student-signup-runtime";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "./student-application-contract";
 import { isStudentInviteCsrfToken, STUDENT_INVITE_CSRF_COOKIE, studentInviteCallbackUrl } from "./student-invite-callback-contract";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -43,7 +43,8 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
     const { data: identity, error: identityError } = await client.auth.getUser();
     if (identityError && identityError.name !== "AuthSessionMissingError") return { status: "unavailable" };
     if (identity.user) {
-      if (!identity.user.email_confirmed_at || identity.user.email?.toLowerCase() !== email) return { status: "conflict" };
+      if (!identity.user.email_confirmed_at || identity.user.email?.toLowerCase() !== email
+        || isPasswordProvisionedStaff(identity.user)) return { status: "conflict" };
       await submitStudentApplication(client, draft, revision);
       await client.auth.updateUser({ data: { [STUDENT_APPLICATION_METADATA_KEY]: null } });
       saved = true;

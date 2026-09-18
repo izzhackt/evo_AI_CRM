@@ -111,7 +111,9 @@ export default async function LoginPage({
       ? "accessDenied"
       : error === "auth_unavailable"
         ? "authUnavailable"
-        : null;
+        : error === "staffAccessDenied"
+          ? "staffAccessDenied"
+          : null;
 
   return (
     <main className="flex min-h-dvh flex-col bg-bg px-4 py-6 sm:px-6">

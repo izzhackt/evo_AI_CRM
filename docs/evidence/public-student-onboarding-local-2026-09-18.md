@@ -1,5 +1,12 @@
 # Public Student onboarding: scoped local proof
 
+**Historical receipt only.** This proof covers the original draft Student
+migration172 before staff migrations173–175. Main172 is now a retired no-op;
+the current Student migration176 adds department-scoped review integration.
+Neither176 nor its accompanying staff-signup guard has been executed by this
+receipt. The JSON and its original paths/hashes remain unchanged. Further
+manual/browser/SQL checks were waived by the owner; no new success is claimed.
+
 Recorded on 2026-09-18. The [machine-readable receipt](public-student-onboarding-local-2026-09-18.json) records 35 successful direct Auth/RPC checks and hashes the contemporaneous migration, contract, source adapter and action. The live checks exercise Auth and SQL RPC behavior; they do not execute the Next.js actions or V3 adapters. Those modules have separate isolated unit tests with injected dependencies. The Next.js/browser journey remains unverified. The repository HEAD at the original run alone did not identify the then-uncommitted implementation.
 
 ## Environment and boundary
@@ -22,7 +29,15 @@ This is technical proof on local Supabase, not production SMTP delivery, custome
 
 ## Reproduction
 
-Run only with owner-authorized bounded fictional Student QA, using an existing healthy local Supabase at migration 172 with real existing QA Admin, Sales and another Student, the custom access-token hook enabled, email signup enabled, autoconfirm disabled and local Mailpit. This harness does not set up infrastructure, seed staff or apply migrations.
+The original run used draft migration172. A future run of the current source
+requires an existing healthy local Supabase with the actual canonical ledger
+through176 (retired172, staff173–175, Student176); the old QA172 cannot be
+relabelled as that environment. No new run is authorized by these instructions.
+Use only owner-authorized bounded fictional Student QA with real existing QA
+Admin, Sales and another Student, the custom access-token hook enabled, email
+signup enabled, autoconfirm disabled and local Mailpit. This harness does not
+set up infrastructure, seed staff or apply migrations; it also does not replace
+coverage of the newly added department-manager and protected staff-marker paths.
 
 Create a private directory (mode `0700`) and `qa-config.json` (mode `0600`) outside Git:
 

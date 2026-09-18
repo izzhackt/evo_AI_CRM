@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
 import { PRODUCTION_STAFF_ORIGIN } from "@/lib/platform-public-origin";
+import { isPasswordProvisionedStaff } from "@/lib/server/student-signup-runtime";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: { absolute: "Начните поступление | EVO Admissions" }, description: "Расскажите о ваших планах и создайте личный аккаунт EVO." };
@@ -25,6 +26,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
     const staff = await readVerifiedPlatformAuthority(client, claims.claims);
     if (staff.status === "authenticated") redirect(`${PRODUCTION_STAFF_ORIGIN}/`);
     if (staff.status === "unavailable") throw new Error("Student registration is unavailable.");
+    if (isPasswordProvisionedStaff(data.user)) redirect(`${PRODUCTION_STAFF_ORIGIN}/login?error=staffAccessDenied`);
     const application = await readOwnStudentApplication(client);
     if (application && (application.status !== "rejected" || query.edit !== "1")) redirect("/apply/status");
     email = data.user.email ?? null;

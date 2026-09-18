@@ -28219,3 +28219,20 @@ confirmation or Admissions approval. Configure the selected real SMTP transport;
 an address alone is insufficient and no app password is present in the checked
 project/server environment files. Request the existing credential location or
 user-completed Google app-password setup without collecting secrets in chat.
+
+### 2026-09-18 — integrate unpublished Student intake after staff release
+
+Staff release99ac5aa3 occupies001–175, including the explicit retired172 slot.
+Rebase draftPR830 and move its actual Student SQL to176; historical local QA172
+and its receipt remain historical, never proof of the new ledger or role model.
+Preserve the new staff Admin alias, password provisioning and finance controls.
+Pending public applications belong to the existing Admissions department, so
+bind that department in the private application configuration and evaluate the
+same three published permissions against that department for its managers.
+Do not grant access from a role label or allow own-record staff to claim all
+unassigned requests. Curator options and approval must also respect the actor's
+actual assignment scope for the chosen curator. Password-provisioned staff
+without active product access must not enter the Student signup continuation.
+All work stays in the draft; no production Auth/secret/migration change, new
+test run or claim that the integrated176 journey has passed. The owner's choice
+between email confirmation and the explained no-email option is still pending.

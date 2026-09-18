@@ -67,12 +67,20 @@ END $$;
 CREATE TABLE platform_private.student_application_configuration (
  singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton),
  organization_id UUID NOT NULL REFERENCES platform.organizations(id),
+ review_department_id UUID NOT NULL,
+ FOREIGN KEY (organization_id,review_department_id)
+  REFERENCES platform.staff_departments(organization_id,id) ON DELETE RESTRICT,
  enabled BOOLEAN NOT NULL DEFAULT TRUE
 );
--- A standalone clone with no organization, or a multi-tenant installation,
--- fails closed until an operator binds the intended existing organization.
-INSERT INTO platform_private.student_application_configuration(singleton,organization_id)
- SELECT TRUE,min(id::TEXT)::UUID FROM platform.organizations WHERE status='active' HAVING count(*)=1;
+-- Bind the existing review department once; its label never grants authority.
+-- Missing/ambiguous organization or active department leaves intake unconfigured.
+WITH single_organization AS (
+ SELECT min(id::TEXT)::UUID AS id FROM platform.organizations WHERE status='active' HAVING count(*)=1
+)
+INSERT INTO platform_private.student_application_configuration(singleton,organization_id,review_department_id)
+ SELECT TRUE,o.id,min(d.id::TEXT)::UUID FROM single_organization o
+ JOIN platform.staff_departments d ON d.organization_id=o.id AND d.status='active' AND d.name='Отдел сопровождения'
+ GROUP BY o.id HAVING count(*)=1;
 
 CREATE TABLE platform_private.student_applications (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -184,12 +192,35 @@ BEGIN
  IF email IS NULL OR length(email) NOT BETWEEN 3 AND 320 THEN RAISE EXCEPTION 'student_application_email_unverified' USING ERRCODE='42501'; END IF;
  RETURN email;
 END $$;
+-- Pending requests have a durable review department, but no invented case owner.
+-- Keep the existing Admin/organization/direction matcher; add only the exact
+-- department context with the same live identity/published-role checks as155.
+CREATE FUNCTION platform_private.student_application_has_review_permission(
+ p_org UUID,p_membership_id UUID,p_permission_key TEXT,p_direction TEXT)
+RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path='' AS $$
+ SELECT platform_private.staff_context_can_access(p_org,p_membership_id,p_permission_key,'student_case',NULL,NULL,NULL,p_direction)
+ OR EXISTS(
+  SELECT 1 FROM platform_private.staff_membership_identity(p_org,p_membership_id) i
+  JOIN platform.permission_definitions d ON d.permission_key=p_permission_key
+  JOIN platform_private.student_application_configuration c ON c.organization_id=p_org
+  JOIN platform.staff_departments department ON department.organization_id=c.organization_id
+   AND department.id=c.review_department_id AND department.status='active'
+  JOIN platform.staff_role_assignments a ON a.organization_id=p_org AND a.membership_id=i.membership_id
+   AND a.revoked_at IS NULL AND a.scope_kind='department' AND a.scope_key=department.id::TEXT
+  JOIN platform.staff_role_definitions r ON r.organization_id=a.organization_id AND r.id=a.role_id
+   AND r.status='active' AND r.current_bundle_id=a.bundle_id
+  JOIN platform.role_bundle_versions b ON b.id=a.bundle_id AND b.status='published'
+  JOIN platform.role_bundle_permissions bp ON bp.bundle_id=a.bundle_id AND bp.permission_key=p_permission_key
+  WHERE 'student_case'=ANY(d.staff_resource_kinds) AND a.scope_kind=ANY(d.staff_scope_kinds)
+   AND platform_private.staff_has_permission(p_org,p_membership_id,p_permission_key)
+ )
+$$;
 CREATE FUNCTION platform_private.student_application_can_manage(p_org UUID,p_direction TEXT)
 RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path='' AS $$
  SELECT EXISTS(SELECT 1 FROM platform.current_actor_authority() a WHERE a.organization_id=p_org AND a.platform_role IS DISTINCT FROM 'student'
- AND platform_private.staff_context_can_access(p_org,a.membership_id,'profile.read.full','student_case',NULL,NULL,NULL,p_direction)
- AND platform_private.staff_context_can_access(p_org,a.membership_id,'profile.manage','student_case',NULL,NULL,NULL,p_direction)
- AND platform_private.staff_context_can_access(p_org,a.membership_id,'case.curator.assign','student_case',NULL,NULL,NULL,p_direction))
+ AND platform_private.student_application_has_review_permission(p_org,a.membership_id,'profile.read.full',p_direction)
+ AND platform_private.student_application_has_review_permission(p_org,a.membership_id,'profile.manage',p_direction)
+ AND platform_private.student_application_has_review_permission(p_org,a.membership_id,'case.curator.assign',p_direction))
 $$;
 CREATE FUNCTION platform_private.student_application_visible(p_org UUID,q JSONB)
 RETURNS BOOLEAN LANGUAGE SQL STABLE SECURITY DEFINER SET search_path='' AS $$
@@ -268,9 +299,10 @@ BEGIN
 END $$;
 CREATE FUNCTION platform.staff_student_applications_v1()
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
-DECLARE org UUID; applications JSONB; curators JSONB;
+DECLARE org UUID; actor_membership_id UUID; applications JSONB; curators JSONB;
 BEGIN
  org:=platform_private.student_application_staff_org();
+ SELECT a.membership_id INTO actor_membership_id FROM platform.current_actor_authority() a WHERE a.organization_id=org;
  SELECT COALESCE(jsonb_agg(platform_private.student_application_json(a.id) ORDER BY (a.status='pending') DESC,CASE WHEN a.status='pending' THEN a.submitted_at END ASC,a.submitted_at DESC,a.id),'[]'::JSONB)
  INTO applications FROM (SELECT * FROM platform_private.student_applications a WHERE a.organization_id=org
  AND platform_private.student_application_visible(org,a.questionnaire)
@@ -281,6 +313,7 @@ BEGIN
  FROM platform.organization_memberships m JOIN platform_private.staff_membership_identity(org,m.id) i ON TRUE
  CROSS JOIN unnest(ARRAY['CN','MY','EUROPE','AE','TR']) d
  WHERE m.organization_id=org AND platform_private.student_application_can_manage(org,d)
+ AND platform_private.staff_context_can_access(org,actor_membership_id,'case.curator.assign','student_case',NULL,m.id,NULL,d)
  AND platform_private.staff_context_can_access(org,m.id,'case.read.full','student_case',NULL,m.id,NULL,d)
  AND platform_private.staff_context_can_access(org,m.id,'task.manage','student_case',NULL,m.id,NULL,d)
  GROUP BY i.membership_id,i.display_name ORDER BY i.display_name,i.membership_id LIMIT 100) x;
@@ -322,6 +355,7 @@ BEGIN
  SELECT * INTO app FROM platform_private.student_applications a WHERE a.organization_id=org AND a.id=p_application_id FOR UPDATE;
  IF app.id IS NULL OR NOT platform_private.student_application_visible(org,app.questionnaire) THEN RAISE EXCEPTION 'student_application_forbidden' USING ERRCODE='42501'; END IF;
  IF p_decision='approve' AND (NOT platform_private.student_application_can_manage(org,p_admissions_direction)
+ OR NOT platform_private.staff_context_can_access(org,actor.membership_id,'case.curator.assign','student_case',NULL,p_curator_membership_id,NULL,p_admissions_direction)
  OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(app.questionnaire->'destinationCountries') c WHERE platform_private.student_application_direction(c)=p_admissions_direction)) THEN
   RAISE EXCEPTION 'student_application_forbidden' USING ERRCODE='42501'; END IF;
  SELECT * INTO receipt FROM platform_private.student_application_receipts r WHERE r.request_id=p_request_id;
@@ -403,6 +437,7 @@ BEGIN
 END $$;
 
 REVOKE ALL ON FUNCTION platform_private.student_application_questionnaire_valid(JSONB),platform_private.student_application_direction(TEXT),
+ platform_private.student_application_has_review_permission(UUID,UUID,TEXT,TEXT),
  platform_private.student_application_json(UUID),platform_private.student_application_verified_email(),platform_private.student_application_can_manage(UUID,TEXT),
  platform_private.student_application_visible(UUID,JSONB),platform_private.student_application_staff_org()
  FROM PUBLIC,anon,authenticated,service_role,supabase_auth_admin;

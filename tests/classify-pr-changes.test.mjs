@@ -142,7 +142,7 @@ test("onboarding evidence preserves the union of application, migration, contrac
     "A", script,
     "M", "docs/EVO_LAUNCH_PLAN.md",
     "A", "src/lib/student-signup-actions.ts",
-    "A", "supabase/migrations/172_platform_public_student_applications.sql",
+    "A", "supabase/migrations/176_platform_public_student_applications.sql",
   ));
   assert.equal(result.unknown, false);
   assert.equal(result.ordinary_docs, false);

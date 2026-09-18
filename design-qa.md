@@ -4,7 +4,7 @@ Date: 2026-09-18. Scope: PR #823 chat workspace only; the shared AppShell is
 byte-for-byte unchanged from main. The owner's latest instruction overrides the
 compact global rail shown in the selected concept.
 
-final result: passed (bounded local visual check; production release pending)
+final result: passed (bounded local visual check; production release accepted)
 
 - Reference: selected `exec-6b49d307-cca2-42b2-9b9f-ee304ef3c0f2.png` (1487×1058).
   Compared with the actual authenticated `/v3/team-chat` at localhost:3102 in
@@ -31,6 +31,12 @@ final result: passed (bounded local visual check; production release pending)
 - Changed-file ESLint and14 focused source/runtime-harness checks passed; these
   are separate from the real browser observations above. Production has its own
   read-only authenticated chat smoke and accepted-release verification.
+
+Production addendum: release35289102489 accepted revision600e11416; real Admin
+chat smoke passed at2026-09-18 00:02:11 UTC. The additional desktop Chrome tab
+opened with the correct chat title/URL, but browser-control reads timed out, so
+no post-release desktop screenshot comparison is claimed. The local visual
+evidence above and the successful production browser smoke are distinct proof.
 
 ---
 

@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## University photo refresh — frozen for release 2026-09-18
+## University photo refresh — released59, scope closed 2026-09-18
 
 Owner requests fresh, high-quality real university pictures on
 `app.evoadmissions.com`. Follow the [photo refresh plan](design/v3/university-photo-refresh-run-plan.md):
@@ -17,28 +17,33 @@ entries. Withdraw the HZNU candidate that failed real EVO embedding. See the
 [143-key source ledger](design/v3/references/2026-09-18-university-photo-audit.json).
 Do not claim all photos are recent or the interrupted full browser sweep passed.
 
-## Team chat cleanup and visual options — active 2026-09-18
+The owner-frozen59 replacements shipped with chat in accepted revision600e11416,
+release35289102489. The photo task additionally verified real Student AGH and
+INTI cards after release, including decoded1280×964 and2560×1440 images.
+Further selection remains stopped; the full143/mobile sweep is not claimed.
+
+## Team chat Messenger — completed 2026-09-18
 
 Owner approves direct production with light checks. This block removes the two
 explanatory chat strings and the mute feature. After seeing all three grounded
 visual concepts, the owner selected option2 (Messenger) during this run.
 
-- [ ] Remove normal-success status copy, internal-chat hint, mute/unmute controls
+- [x] Remove normal-success status copy, internal-chat hint, mute/unmute controls
   and quiet-channel badges. Keep connection errors/recovery, live messages,
   history, unread counts and mark-read behavior.
-- [ ] Remove mute commands server-side and the mention-notification mute filter
+- [x] Remove mute commands server-side and the mention-notification mute filter
   through one forward migration. Preserve messages, read cursors, receipts and
   inert compatibility fields; no destructive schema cleanup or provider work.
-- [ ] Changed-file lint, narrow actual-function checks, independent review, and
+- [x] Changed-file lint, narrow actual-function checks, independent review, and
   the existing lightweight immutable release with rollback. Apply only the new
   migration through the established operator path; no full DB replay.
   The PR migration job uses a narrowly gated source-contract path for sole
   additive171, not the historical full DB harness or a claim of runtime proof.
-- [ ] Verify real authenticated production chat, absent removed controls/copy,
+- [x] Verify real authenticated production chat, absent removed controls/copy,
   retained channel/history navigation and healthy accepted release. Do not send
   staff messages or create accounts solely to manufacture acceptance evidence.
 - [x] Show three distinct larger chat mockups; owner selected the second image.
-- [ ] Implement selected Messenger only inside the chat workspace: unchanged
+- [x] Implement selected Messenger only inside the chat workspace: unchanged
   global left navigation and top utility bar, channel list and full-height
   conversation below the existing header; neutral incoming/soft-red own
   bubbles, fixed accessible composer, original EVO branding. Use only existing
@@ -46,8 +51,16 @@ visual concepts, the owner selected option2 (Messenger) during this run.
   Preserve responsive channel/back navigation, threads, search, message actions,
   drafts, permissions and realtime. The shared shell stays identical on every
   page, including chat, per the owner's subsequent explicit correction.
-- [ ] Short real browser visual check of desktop/mobile and channel/thread
+- [x] Short real browser visual check of desktop/mobile and channel/thread
   navigation; no full suite. Deploy together with mute removal, not twice.
+
+Accepted production revision `600e11416e0dff7021167253400d9fe72ffd11cc` includes
+PR823 chat, separately reviewed PR824 university photos and PR825 source-check
+correction. Migration171 is applied; actual authenticated production chat and
+existing case/Student smoke passed. Healthy, pending absent, release arm false.
+See the [release receipt](design/v3/references/2026-09-18-team-chat-release.md).
+Local desktop/mobile visual proof passed; the optional post-release desktop
+Chrome control timed out, so it is not claimed as a second visual acceptance.
 
 Function replacement retains dependencies/permissions when signatures remain
 unchanged: https://www.postgresql.org/docs/current/sql-createfunction.html.

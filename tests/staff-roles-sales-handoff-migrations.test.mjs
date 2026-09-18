@@ -41,8 +41,10 @@ test("shared role templates keep scoped confirmation and dormant future roles", 
   for (const slug of ["sales", "sales-manager", "admissions", "admissions-manager", "marketing", "accountant"]) {
     assert.ok(roles.includes(`('${slug}',`));
   }
-  assert.match(roles, /expected_scope:=CASE WHEN spec\.slug='sales-manager' THEN 'department'/u);
-  assert.match(roles, /'admissions-manager'\) THEN 'organization' ELSE 'own' END/u);
+  assert.match(roles, /expected_scope:=CASE WHEN spec\.slug IN \('sales-manager','admissions-manager'\) THEN 'department'/u);
+  assert.match(roles, /WHEN spec\.slug IN \('sales-common','admissions-common'\) THEN 'organization' ELSE 'own' END/u);
+  assert.match(roles, /role_id:=gen_random_uuid\(\);/u);
+  assert.doesNotMatch(roles, /role_id\s*:=\s*md5\(/u);
   assert.match(roles, /CASE WHEN cardinality\(keys\)=0 THEN 'archived' ELSE 'active' END/u);
   assert.match(roles, /staff_validate_permission_keys\(to_jsonb\(keys\)\)/u);
   assert.match(roles, /staff_can_access\(actor\.organization_id,actor\.membership_id,/u);

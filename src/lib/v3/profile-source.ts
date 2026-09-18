@@ -812,7 +812,12 @@ async function readLeadProfile(
   return {
     profile,
     details,
-    sales: { lead, gate, handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)) },
+    sales: {
+      lead,
+      gate,
+      handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)),
+      linkedConversations: lead.linkedConversations,
+    },
   };
 }
 

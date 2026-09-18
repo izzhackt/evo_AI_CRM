@@ -307,16 +307,21 @@ test("the single wording module maps every Student status exposed by E2", () => 
     ["completed", "поступление завершено"],
     ["closed", "дело закрыто"],
   ]);
+  // S6 (plan §9): document slot status becomes «Не загружен / На проверке /
+  // Нужно исправить / Принят» (Pill-only presentation, so capitalized);
+  // «Отклонён» stays as the fifth, honest state the plan's list doesn't
+  // prohibit. Review decision keeps the same three words lowercase — it is
+  // also read mid-sentence in ProfileDocumentsClient.tsx.
   const documentStatuses = new Map([
-    ["required", "требуется"],
-    ["submitted", "отправлен"],
-    ["approved", "принят"],
-    ["correction_required", "нужно исправить"],
-    ["rejected", "отклонён"],
+    ["required", "Не загружен"],
+    ["submitted", "На проверке"],
+    ["approved", "Принят"],
+    ["correction_required", "Нужно исправить"],
+    ["rejected", "Отклонён"],
   ]);
   const reviewDecisions = new Map([
     ["approved", "принят"],
-    ["correction_required", "возвращён на исправление"],
+    ["correction_required", "нужно исправить"],
     ["rejected", "отклонён"],
   ]);
   const paymentStatuses = new Map([

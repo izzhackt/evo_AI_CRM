@@ -13,6 +13,7 @@ import {
   role as roleWord,
   source as sourceWord,
 } from "@/lib/v3/wording";
+import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 
 import { Card } from "@/components/ui";
 import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
@@ -170,6 +171,31 @@ export function Overview({
                 { label: "Срок", value: profile.nextActionAt },
               ]}
             />
+            {/*
+             * Card ↔ chat link (plan §4/§12): only when a linked conversation
+             * already exists, and only for actors who can actually open
+             * Inbox (messaging.read — the route's own gate, symmetric with
+             * v3InboxProfileHref's reverse-direction check on the inbox
+             * page). The lead read already carries this (see types.ts).
+             */}
+            {sales.linkedConversations.length > 0 && staffPresentationCan(actor, "messaging.read") ? (
+              <div className="flex flex-col gap-1 border-t border-border px-4 py-2.5">
+                {sales.linkedConversations.map((conversation) => (
+                  <Link
+                    key={conversation.conversationId}
+                    href={buildV3InboxHref({
+                      conversationId: conversation.conversationId,
+                      filters: { query: null, waitingOnly: false },
+                    })}
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
+                  >
+                    {sales.linkedConversations.length > 1
+                      ? `Открыть переписку в Inbox — ${conversation.subject}`
+                      : "Открыть переписку в Inbox"}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </Card>
 
           <PlatformAccessCard

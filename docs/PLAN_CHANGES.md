@@ -29605,3 +29605,293 @@ ongoing surface, not part of the retired tracker). No staff-CRM screens
 were touched (S4 already did that work); assessments privacy is untouched
 (no new read/write path, no widened predicate — the existing pending-case
 support was discovered, not built).
+
+## 2026-09-18 — unified workflow S6: Docs, наименования и связки
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S6 —
+the final slice. Affected plan section: «S6 Docs и наименования» (plan §3,
+§4, §9, §12, §13, §14; PLAN_CHANGES «план-контракт реализации», S1-S5
+above).
+
+Reason: close the four remaining plan items S1-S5 deliberately left
+untouched — direct student creation via EVO Docs (plan §13, the last
+Продажи-bypass still standing after S1-S5 closed the others), the
+«Клиентские сообщения» → Inbox rename (plan §3/§14, explicitly deferred to
+S6 by S2's own reviewer note), honest five-state document status labels
+(plan §9), and a card→chat link using data the lead read already carries
+but never surfaced (plan §4/§12) — plus the DESIGN.md/EVO_LAUNCH_PLAN.md
+bookkeeping every prior slice deferred to the slice that closes the plan.
+
+### 1. Remove direct student creation via EVO Docs (plan §13)
+
+Deleted whole files: `src/components/v3/profile/DocsCreateStudentForm.tsx`,
+`src/lib/platform-docs-student-actions.ts`, `src/lib/v3/docs-student-source.ts`.
+Migration176 SQL and its data are untouched, per the task's own constraint
+(no SQL changes in this slice) and per plan §13's own rule («не удаляем
+сохранённых людей, файлы, продажи и историю»): historical docs-intake cases
+created through the old form remain valid data, same as S1's treatment of
+pre-existing approved-application cases.
+
+`src/app/(v3)/v3/profile/page.tsx`: removed the `DocsCreateStudentForm` and
+`canCreateDocsStudent`/`readDocsStudentOptions` imports, the `canAddStudent`/
+`createStudentHref` consts, the entire `?section=docs&new=student` branch
+(the dedicated "Добавить студента" screen), the "Добавить студента" Link in
+the docs-mode toolbar, and the `createStudentHref` prop passed to
+`ProfileCaseDirectory`. The toolbar `<div>` that held both the "Добавить
+студента" and "Университеты и бланки" links now renders only when the
+`catalog.import.manage` condition holds — previously it could render an
+empty flex row when neither link's condition was true; collapsing the two
+independent conditions into one removed that dead markup as a side effect,
+not a separate change.
+
+`src/components/v3/profile/ProfileCaseDirectory.tsx`: dropped the
+`createStudentHref` prop and its two consumers (the empty-state "Добавить
+студента" link is gone). The docs-mode empty-state copy — previously
+"Добавьте студента, чтобы начать работу с документами." when the caller
+had create rights, or a generic "Здесь появятся доступные вам дела
+студентов." otherwise — is now the single quiet line the task specified:
+"Студенты появляются после продажи в отчёте." for every docs-mode empty
+state, matching the non-docs branch's existing "Здесь появятся дела после
+передачи из продаж." — both branches now say the same thing about the same
+fact (plan §14 rule 1: same destination reads the same everywhere), rather
+than docs mode implying a second, Docs-only way to add a student.
+
+Verified `?section=docs&new=student` now falls through to the plain
+`ProfileCaseDirectory` render (no dead-end, no 404): the removed `if` block
+was the only special-case branch keyed off `params.new`, and the rest of
+`ProfilePart` never reads that key. `rg` sweep (`DocsCreateStudentForm|
+docs-student-source|platform-docs-student-actions|canCreateDocsStudent|
+readDocsStudentOptions|createDocsStudentAction|new=student|createStudentHref|
+canAddStudent` across the whole tree) returns only one hit, in
+`docs/EVO_LAUNCH_PLAN.md`'s existing PR #836 production-acceptance receipt
+("Entry: `/v3/profile?section=docs&new=student`.") — left untouched as an
+append-only historical record of what that release verified, per this
+file's own convention (same treatment S1-S5 gave prior release receipts).
+`tests/v3-supabase-integration.test.mjs`'s adapter-file allowlist did list
+`docs-student-source.ts` in both the full `src/lib/v3/*.ts` list and the
+`*-source.ts` subset; both arrays are updated to drop it (10/10 still
+passes — confirmed no other file in that directory was affected).
+
+### 2. Naming: «Клиентские сообщения» → «Inbox» (plan §3/§14)
+
+`src/lib/v3/navigation.ts`: both `inbox` link definitions (the Продажи-group
+entry at the old :60 and the common-section entry at the old :76) now use
+`label: "Inbox"`. Route, id and capability gate (`sales.read` on the
+Продажи-group entry) are unchanged — only the label moved, matching plan
+§14 rule 5 (clear, consistent names) and plan §3's own diagram, which
+already spells this destination "Inbox" in the target nav tree.
+
+Scope of the rename is the exact string «Клиентские сообщения», per the
+task's own instruction to find it by `rg 'Клиентские сообщения' src`. That
+sweep returned exactly the two `navigation.ts` lines (now fixed) plus two
+`docs/` hits (`PLAN_CHANGES.md`'s own S2 reviewer note and
+`docs/design/v3/team-workspace-run-plan.md`, an unrealized future-chat
+plan document) — both left as historical/planning text, not live UI.
+Deliberately NOT renamed: the inbox page's own title/heading text
+("Входящие" — `src/app/(v3)/v3/inbox/page.tsx`,
+`src/app/(v3)/v3/inbox/loading.tsx`, its `<title>` metadata, and the
+`access-denied` route-label map). "Входящие" is a different existing
+Russian word, not a match for the literal string the task asked to rename,
+and retitling the page itself would be a second, unrequested naming
+decision beyond "rename the nav label" — left as a follow-up judgment call
+for a future pass, not a deviation from this task since it was never in
+scope.
+
+`tests/v3-navigation.test.mjs`: the two label arrays that pinned
+"Клиентские сообщения" (the admissions-preview common-links assertion and
+the Продажи group's ordered `[label, href]` list) now expect "Inbox", with
+an inline comment recording the S6/plan §3 reasoning at each site.
+
+### 3. Card ↔ chat link (plan §4/§12) — implemented, no new SQL
+
+Implemented using an existing, already-fetched field that was never wired
+to the UI. `platform-sales.ts`'s `getPlatformSalesLead` (backing
+`readLeadProfile` in `profile-source.ts`) already calls
+`staff_sales_lead_detail`, whose response `linkedConversations` field
+(`PlatformSalesLinkedConversation[]`: `conversationId`, `subject`, `queue`,
+`status`, `updatedAt`) was normalized and returned but never read by any
+UI component (confirmed by `rg linkedConversation src` before this slice —
+every hit was inside `platform-sales.ts` itself). No new RPC, no new
+migration, no widened read — the smallest honest read the task asked for.
+
+`src/components/v3/profile/types.ts`: `ProfileSalesSnapshot` gains a
+`linkedConversations: readonly PlatformSalesLinkedConversation[]` field
+(type-only import from `platform-sales.ts`, the same pattern
+`Pipeline.tsx` already uses for `PlatformSalesLeadLatestNote`). Deliberately
+NOT widened via `sales.lead`'s own type (`PlatformSalesWorkflowLead`,
+structurally a narrower projection that `PlatformSalesLeadDetail` already
+satisfies at runtime) — an explicit field says what the card actually reads
+instead of relying on an accidental structural superset.
+
+`src/lib/v3/profile-source.ts`: the single construction site (inside
+`readLeadProfile`, previously `sales: { lead, gate, handoff }`) now also
+copies `linkedConversations: lead.linkedConversations` through. This is the
+ONLY site that builds a `ProfileSalesSnapshot` in the whole tree (verified
+by grep) — `readCaseProfile`'s early-return path stays `sales: null`,
+unaffected.
+
+`src/components/v3/profile/tabs.tsx` (`Overview`, the sales-branch Card):
+renders "Открыть переписку в Inbox" (or, if a lead ever carries more than
+one linked conversation, one link per conversation suffixed with its
+subject to disambiguate) using the existing `buildV3InboxHref` — previously
+consumed only inside `inbox-source.ts`, now also imported here — building
+`/v3/inbox?conversation=<id>`. Gated on
+`staffPresentationCan(actor, "messaging.read")`, the same capability
+`/v3/inbox`'s own route guard requires (`fixed-role-policy.ts`:
+`"/v3/inbox": ["messaging.read"]`) — symmetric with `v3InboxProfileHref`'s
+reverse-direction check on the inbox page, which gates the "back to
+lead/case" link on `sales.read`/`admissions.read` (the profile route's own
+requirement). An actor who cannot open Inbox never sees a link that would
+404/redirect them there.
+
+Outcome: implemented, not a deviation. The link is scoped to the lead-based
+Sales-card branch (`sales && staffPresentationCan(actor, "sales.read")`),
+matching plan §4's "Открыть переписку в Inbox, если переписка существует"
+placement inside the lead card.
+
+### 4. Document status labels (plan §9)
+
+`src/lib/v3/wording.ts`'s `DOCUMENT_SLOT_STATUS` (previously lowercase
+"требуется"/"отправлен"/"принят"/"нужно исправить"/"отклонён") becomes
+"Не загружен" / "На проверке" / "Принят" / "Нужно исправить" / "Отклонён" —
+required/submitted/approved/correction_required exactly as the task quoted
+from plan §9, capitalized to match this dictionary's only call sites, both
+inside `<Pill>`/badge components (`ProfileDocumentsClient.tsx`'s document
+row and `portal/presentation.ts`'s `documentStatus`, itself only ever
+rendered through `<PortalStatus>`, a `<Pill>` wrapper) — the same
+capitalization convention already used by this file's other Pill-only
+dictionaries (e.g. `STATE_COPY` in `ProfileCaseDirectory.tsx`: "В работе",
+"Закрыто"). `rejected` keeps "Отклонён": the plan's four-item list names
+the common path, not an exhaustive prohibition — the server enum keeps its
+fifth, honest state, per the task's own framing of this as the already-
+decided orchestrator call.
+
+`DOCUMENT_REVIEW_DECISION` is synced to the same three words
+(`correction_required` moves from "возвращён на исправление" to "нужно
+исправить", matching the slot status's wording) but stays LOWERCASE,
+deliberately not capitalized like the slot dictionary above: unlike
+`documentSlotStatus`, `documentReviewDecision` is read mid-sentence in
+`ProfileDocumentsClient.tsx` ("Документ {decision} · {date}" → "Документ
+принят · 12.09.2026"); a mid-sentence capital there would misread as a
+typo, not emphasis. Its other two call sites
+(`portal/presentation.ts`'s `documentReviewLabel`, rendered as a
+standalone `<dd>` value in `DocumentsView.tsx`) read naturally in
+lowercase too, so no second dictionary was needed.
+
+Verified no duplicated literals: `rg` for the old and new label strings
+across `src/components/v3/portal/DocumentsView.tsx` and
+`ProfileDocumentsClient.tsx` found no independent copies — both consume
+`documentSlotStatus`/`documentReviewDecision` from the single `wording.ts`
+dictionary (`portal/presentation.ts` re-exports them as
+`documentStatus`/`documentReviewLabel`, itself just a thin Pill-tone
+wrapper, not a second source of truth).
+
+`tests/v3-student-portal-ui.test.mjs`'s "the single wording module maps
+every Student status exposed by E2" test pinned both old dictionaries
+verbatim; both `Map`s are updated to the new label sets with an inline
+comment recording the capitalization split and its reasoning.
+
+### 5. DESIGN.md refresh
+
+"## Навигация отделов — утверждённый вариант 2 (2026-09-10)": added a dated
+2026-09-18 note (not a deletion — the original heading and its date stay,
+per this file's own convention of marking supersession rather than erasing
+history) pointing at plan §3 and the item list itself is updated to the
+target composition: Продажи{Заявки, Inbox, Воронка, Отчёт продаж},
+Поступление{Студенты, EVO Docs, Университеты, Сводка по направлениям}. The
+group's own Russian sidebar label stays "Поступление" — plan §3's ASCII
+diagram uses "Admissions" as a shorthand section name in the plan document
+itself, not an instruction to rename the live sidebar heading, and
+`navigation.ts`'s group id/label were already "Поступление" before this
+slice.
+
+"## Поступление: одно рабочее пространство": added a dated 2026-09-18 note
+at the top stating that the unified-workflow plan (§8/§11/§13) supersedes
+the mandatory China/Malaysia stage-by-stage tracker, submission/decision/
+visa/arrival tracking, and the seven-stage-per-country checklist described
+below it — the section body itself is left intact as historical record of
+the prior scope, per this file's append-only convention (same treatment
+this file already gave the retired `/preview/student` plan on
+2026-09-17).
+
+### 6. Sales equal capabilities (plan §3) — no code change
+
+Plan §3: "Все сотрудники Sales имеют одинаковые возможности внутри
+Продаж... Подробную матрицу разрешений сейчас не расширяем." Chosen
+interpretation, recorded here rather than in code: the split capability
+keys (`sales.read`, `sales.report.read`, `messaging.read`, etc.) stay
+exactly as they are — equal access inside Продажи is delivered by the
+shared role bundles #831 already grants every Sales member (every Sales
+membership already carries the same permission-key set), not by collapsing
+the capability keys themselves into one. The permission matrix is data
+(role-to-permission-key assignment, provisioned per organization), not
+code — changing it is an operational/role-provisioning action, not a
+slice deliverable, and plan §3's own text explicitly declines to expand
+the matrix ("не расширяем"). No file in `src/lib/fixed-role-policy.ts` or
+elsewhere changed for this item.
+
+### 7. EVO_LAUNCH_PLAN.md checkboxes
+
+`docs/EVO_LAUNCH_PLAN.md`'s "Unified workflow — active 2026-09-18" section:
+S1-S6 checkboxes marked `[x]` with one-line commit-SHA receipts (S1:
+a223bbd9/51c6c68e; S2: 2bb0e65c/e266aa78; S3: 0394c113/65172df2; S4:
+83908ef9/86aff708; S5: 99d0dfdb; S6: this change, uncommitted at authoring
+time — the orchestrator fills in the SHA once committed, per the task's own
+instruction). The final "Финальная проверка слайсов, применение миграций
+владельцем и один управляемый релиз" checkbox is left open — that step is
+the owner's manual migration-apply and release action, not part of any
+slice's code.
+
+### Known deviations (honest, not hidden)
+
+(1) The stale "Маршруты Китая и Малайзии находятся в деле студента на
+вкладке «Маршрут»." copy in `ProfileCaseDirectory.tsx`'s non-docs empty
+state — a leftover from S4 renaming that tab to «Вузы и программы» — was
+noticed while editing the adjacent line but left unfixed: it is not one of
+this slice's seven deliverables, and fixing unrelated stale copy while
+already touching this exact file risked scope creep beyond what the task
+specified. Flagged separately for a follow-up, not silently carried
+forward as if unnoticed.
+(2) The inbox page's own "Входящие" title/heading (distinct from the
+"Клиентские сообщения" string the rename targeted) was deliberately left
+alone — see item 2 above. If a future pass wants the destination to read
+"Inbox" everywhere including its own page chrome, that is a separate,
+larger-surface naming decision this task did not authorize.
+
+### Validation impact
+
+`npm run typecheck` (clean). `npx eslint` on every changed file (clean, 0
+warnings). Pinned suites the task named: `tests/v3-navigation.test.mjs`,
+`tests/v3-operational-parity.test.mjs`, `tests/v3-profile-documents.test.mjs`,
+`tests/v3-student-portal-ui.test.mjs`, `tests/v3-supabase-integration.test.mjs`
+— run together, 57/57 pass (2 tests updated in `v3-navigation.test.mjs`, 1
+Map pair updated in `v3-student-portal-ui.test.mjs`, 2 array entries
+dropped in `v3-supabase-integration.test.mjs`). `npm run test:brand-ui`
+(5/5). Broader regression sweep for collateral damage on every file this
+slice touched or that references them: `tests/v3-inbox-integration.test.mjs`,
+`tests/v3-profile-activity.test.mjs`, `tests/v3-brand-design.test.mjs`,
+`tests/v3-profile-contract.test.mjs`, `tests/v3-admissions-support.test.mjs`,
+`tests/v3-inbox-profile-link.test.mjs`, `tests/student-portal-provisioning-ui.test.mjs`,
+`tests/p4-supabase-admissions-storage-legacy-cleanup.test.mjs`,
+`tests/platform-admissions.test.mjs`, `tests/v3-profile-admissions.test.mjs`,
+`tests/v3-profile-pipeline-notes.test.mjs` (75/75 combined),
+`tests/platform-sales-read.test.mjs` (45/45, confirms `getPlatformSalesLead`/
+`PlatformSalesLeadDetail` shape is unchanged), `tests/fixed-role-route-contract.test.mjs`,
+`tests/student-portal-authority.test.mjs`, `tests/student-portal-auth.test.mjs`
+all pass. `tests/v3-handoff-navigation.test.mjs` and
+`tests/staff-metadata-feedback.test.mjs` fail with the same pre-existing
+`react-dom/server` named-export ESM/CJS interop error every prior slice
+(S2-S5) already documented — re-verified via `git stash` against this
+slice's own pre-change tree, reproducing identically, confirming it is
+unrelated to this slice. `rg` sweeps for every deleted/renamed name (see
+sections 1-2 above) return zero unexpected hits. No SQL/migration files
+touched — this slice made no database changes, per its own constraint.
+
+Reviewer notes: this is the final code slice. `docs/PLAN_CHANGES.md`'s
+own top-level "план-контракт" entry names one remaining step after S1-S6:
+"Финальная проверка слайсов, применение миграций владельцем и один
+управляемый релиз с честной квитанцией" — left open in
+`EVO_LAUNCH_PLAN.md` per item 7 above, since migration apply and release
+are the owner's manual actions, not something this or any prior slice
+performed.

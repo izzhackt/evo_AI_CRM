@@ -239,17 +239,24 @@ const STUDENT_OPERATIONAL_STAGE: Record<string, string> = {
 
 const CUSTOM_STUDENT_OPERATIONAL_STAGE = "индивидуальный этап сопровождения";
 
+// Plan §9: «Не загружен / На проверке / Нужно исправить / Принят». The
+// server enum keeps its fifth, honest state («Отклонён») — the plan's list
+// names the common path, not an exhaustive prohibition (unified workflow S6).
 const DOCUMENT_SLOT_STATUS: Record<PlatformDocumentSlotStatus, string> = {
-  required: "требуется",
-  submitted: "отправлен",
-  approved: "принят",
-  correction_required: "нужно исправить",
-  rejected: "отклонён",
+  required: "Не загружен",
+  submitted: "На проверке",
+  approved: "Принят",
+  correction_required: "Нужно исправить",
+  rejected: "Отклонён",
 };
 
+// Same three words as the slot status above («принят» / «нужно исправить» /
+// «отклонён»), lowercase: this dictionary is also read mid-sentence
+// («Документ принят · …» in ProfileDocumentsClient.tsx), where a
+// mid-sentence capital would misread as a typo, not emphasis.
 const DOCUMENT_REVIEW_DECISION: Record<PlatformDocumentReviewDecision, string> = {
   approved: "принят",
-  correction_required: "возвращён на исправление",
+  correction_required: "нужно исправить",
   rejected: "отклонён",
 };
 

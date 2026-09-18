@@ -31,7 +31,7 @@ import {
 } from "./ProfileAdmissionsWorkspace";
 import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
 import { LeadSaleConditions } from "./LeadSaleConditions";
-import { LeadConditionsCard, LeadEducationCard, LeadWishesCard } from "./LeadCardFieldsForm";
+import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { PrepareLeadCabinetAction } from "./PrepareLeadCabinetAction";
 import type {
   Fact,
@@ -228,43 +228,41 @@ export function Overview({
           />
 
           {draft.saleConditions ? (
-            <LeadSaleConditions
-              key={`sale-conditions:${draft.saleConditions.revision}`}
-              leadId={draft.saleConditions.leadId}
-              conditions={draft.saleConditions}
-              requestId={requestIds.saleConditions}
-              readOnly={isStaffPreview(actor)}
-            />
-          ) : null}
-
-          {draft.saleConditions ? (
-            <LeadWishesCard
-              key={`wishes:${draft.saleConditions.revision}`}
-              leadId={draft.saleConditions.leadId}
-              conditions={draft.saleConditions}
-              requestId={requestIds.wishesCard}
-              readOnly={isStaffPreview(actor)}
-            />
-          ) : null}
-
-          {draft.saleConditions ? (
-            <LeadEducationCard
-              key={`education:${draft.saleConditions.revision}`}
-              leadId={draft.saleConditions.leadId}
-              conditions={draft.saleConditions}
-              requestId={requestIds.educationCard}
-              readOnly={isStaffPreview(actor)}
-            />
-          ) : null}
-
-          {draft.saleConditions ? (
-            <LeadConditionsCard
-              key={`conditions:${draft.saleConditions.revision}`}
-              leadId={draft.saleConditions.leadId}
-              conditions={draft.saleConditions}
-              requestId={requestIds.conditionsCard}
-              readOnly={isStaffPreview(actor)}
-            />
+            // The four blocks below share ONE revisioned row
+            // (platform_private.lead_sale_conditions). They used to be keyed
+            // by revision (`key={`…:${revision}`}`) so a save in any one of
+            // them remounted all four via router.refresh() — which silently
+            // wiped whatever draft the OTHER three had typed but not yet
+            // saved. SaleConditionsRevisionProvider replaces that: mounted
+            // once here, it hands every block a shared, client-side
+            // expected_revision that a save bumps directly, with no refresh
+            // and no remount. See its doc comment in LeadCardFieldsForm.tsx.
+            <SaleConditionsRevisionProvider initialRevision={draft.saleConditions.revision}>
+              <LeadSaleConditions
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.saleConditions}
+                readOnly={isStaffPreview(actor)}
+              />
+              <LeadWishesCard
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.wishesCard}
+                readOnly={isStaffPreview(actor)}
+              />
+              <LeadEducationCard
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.educationCard}
+                readOnly={isStaffPreview(actor)}
+              />
+              <LeadConditionsCard
+                leadId={draft.saleConditions.leadId}
+                conditions={draft.saleConditions}
+                requestId={requestIds.conditionsCard}
+                readOnly={isStaffPreview(actor)}
+              />
+            </SaleConditionsRevisionProvider>
           ) : null}
         </>
       ) : null}

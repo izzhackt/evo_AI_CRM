@@ -115,13 +115,15 @@ test("prepare_lead_cabinet_v1 gates on the same scoped lead-workflow permission 
 
 test("prepare_lead_cabinet_v1 refuses a lead that already has a case or an already-existing Student membership", () => {
   const fn = sql.slice(sql.indexOf("CREATE FUNCTION platform.prepare_lead_cabinet_v1("), sql.indexOf("-- Companion read"));
-  assert.match(fn, /sc\.state IN \('pending','active'\)\) THEN\s*RAISE EXCEPTION 'lead_cabinet_case_exists' USING ERRCODE='PT409'/u);
+  assert.match(fn, // Review fix: the guard is CLIENT-scoped — any pending/active case of the
+  // same person (via canonical_client_id or any sibling lead) blocks a second cabinet.
+  /sc\.canonical_client_id=client_id_value[\s\S]*?l2\.client_id=client_id_value\)\)\) THEN\s*RAISE EXCEPTION 'lead_cabinet_case_exists' USING ERRCODE='PT409'/u);
   assert.match(fn, /m\."current_role"='student'\) THEN\s*RAISE EXCEPTION 'lead_cabinet_membership_exists' USING ERRCODE='PT409'/u);
 });
 
 test("prepare_lead_cabinet_v1 creates the S1 pending, curator-less shape and leaves portal_activated_at unset", () => {
   const fn = sql.slice(sql.indexOf("CREATE FUNCTION platform.prepare_lead_cabinet_v1("), sql.indexOf("-- Companion read"));
-  assert.match(fn, /INSERT INTO platform\.student_cases\(id,organization_id,responsible_sales_membership_id,source_key,student_display_name,\s*operational_stage,state,current_scope_id,current_scope_version,canonical_lead_id\)/u);
+  assert.match(fn, /INSERT INTO platform\.student_cases\(id,organization_id,responsible_sales_membership_id,source_key,student_display_name,\s*operational_stage,state,current_scope_id,current_scope_version,canonical_lead_id,canonical_client_id\)/u);
   assert.match(fn, /'intake_review','pending',scope_id,1,p_lead_id/u);
   // No student_membership_id and no portal_activated_at column in the INSERT
   // list at all — deliberately deferred (see migration header).

@@ -339,8 +339,16 @@ BEGIN
     FOR UPDATE OF l,c;
   IF NOT FOUND THEN RAISE EXCEPTION 'lead_cabinet_forbidden' USING ERRCODE='42501'; END IF;
 
+  -- One person — one card (plan §1): the guard is CLIENT-scoped, not
+  -- lead-scoped — the same person may own several leads (site + WhatsApp),
+  -- and a cabinet prepared from any of them must block the rest. The
+  -- clients-row FOR UPDATE above serializes concurrent prepares.
   IF EXISTS(SELECT 1 FROM platform.student_cases sc
-      WHERE sc.organization_id=p_organization_id AND sc.canonical_lead_id=p_lead_id AND sc.state IN ('pending','active')) THEN
+      WHERE sc.organization_id=p_organization_id AND sc.state IN ('pending','active')
+        AND (sc.canonical_client_id=client_id_value
+          OR sc.canonical_lead_id IN (
+            SELECT l2.id FROM platform.leads l2
+            WHERE l2.organization_id=p_organization_id AND l2.client_id=client_id_value))) THEN
     RAISE EXCEPTION 'lead_cabinet_case_exists' USING ERRCODE='PT409'; END IF;
   IF client_email IS NOT NULL AND EXISTS(
       SELECT 1 FROM auth.users u JOIN platform.profiles p ON p.auth_user_id=u.id
@@ -351,9 +359,9 @@ BEGIN
   INSERT INTO platform.record_scopes(id,organization_id,scope_kind,scope_key,scope_version)
     VALUES(scope_id,p_organization_id,'student_case',new_case,1);
   INSERT INTO platform.student_cases(id,organization_id,responsible_sales_membership_id,source_key,student_display_name,
-    operational_stage,state,current_scope_id,current_scope_version,canonical_lead_id)
+    operational_stage,state,current_scope_id,current_scope_version,canonical_lead_id,canonical_client_id)
   VALUES(new_case,p_organization_id,owner_id,'lead-cabinet:'||p_lead_id::TEXT,client_name,
-    'intake_review','pending',scope_id,1,p_lead_id)
+    'intake_review','pending',scope_id,1,p_lead_id,client_id_value)
   RETURNING * INTO changed;
 
   result:=replay_shape||jsonb_build_object('student_case_id',changed.id,'state',changed.state::TEXT);
@@ -373,7 +381,15 @@ BEGIN
   IF p_lead_id IS NULL OR NOT private.platform_can_read_canonical_lead(p_organization_id,p_lead_id) THEN
     RAISE EXCEPTION 'lead_cabinet_forbidden' USING ERRCODE='42501'; END IF;
   SELECT sc.id,sc.state INTO found_case FROM platform.student_cases sc
-    WHERE sc.organization_id=p_organization_id AND sc.canonical_lead_id=p_lead_id
+    WHERE sc.organization_id=p_organization_id
+      AND (sc.canonical_lead_id=p_lead_id
+        OR sc.canonical_client_id=(SELECT l.client_id FROM platform.leads l
+            WHERE l.organization_id=p_organization_id AND l.id=p_lead_id)
+        OR sc.canonical_lead_id IN (
+          SELECT l2.id FROM platform.leads l2
+          WHERE l2.organization_id=p_organization_id AND l2.client_id=(
+            SELECT l.client_id FROM platform.leads l
+            WHERE l.organization_id=p_organization_id AND l.id=p_lead_id)))
     ORDER BY sc.created_at DESC LIMIT 1;
   IF NOT FOUND THEN RETURN NULL; END IF;
   RETURN jsonb_build_object('student_case_id',found_case.id,'state',found_case.state::TEXT);
@@ -448,12 +464,18 @@ BEGIN
     p_university_application_id,'Обновлены партнёрские и решенческие факты заявки',replay_shape);
   IF replayed IS NOT NULL THEN RETURN replayed; END IF;
 
+  PERFORM 1 FROM platform.student_cases
+    WHERE organization_id=p_organization_id AND id=p_student_case_id FOR UPDATE;
   SELECT * INTO application_row FROM platform.university_applications
     WHERE organization_id=p_organization_id AND id=p_university_application_id AND student_case_id=p_student_case_id
     FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'University application is unavailable' USING ERRCODE='42501'; END IF;
   IF application_row.version<>p_expected_version OR application_row.version=9223372036854775807 THEN
     RAISE EXCEPTION 'admissions_version_conflict' USING ERRCODE='PT409'; END IF;
+  -- Re-check live authority after the case+application locks, exactly as
+  -- 118's details-update path does: a concurrent curator reassignment or
+  -- scope change between the first check and the locks must fail closed.
+  SELECT * INTO actor FROM platform_private.require_case_operator(p_organization_id,target_student_case_id,'application.manage');
 
   -- jsonb concat: every OTHER existing key (legacy playbook-era camelCase
   -- facts, or anything else already stored) is preserved untouched.

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
-import { btnCls, cn } from "@/components/ui";
+import { btnCls, btnGhostCls, cn } from "@/components/ui";
 import {
   prepareLeadCabinetAction,
   type PrepareLeadCabinetActionState,
@@ -16,6 +16,16 @@ const MESSAGES: Record<Exclude<PrepareLeadCabinetActionState["status"], "idle" |
   conflict: "Кабинет уже подготовлен или для этого человека уже есть аккаунт. Обновите карточку.",
   unavailable: "Подготовка не подтверждена. Проверьте подключение и повторите.",
 };
+
+// Review fix: "invalid"/"conflict"/"unavailable" each tell the user to
+// refresh (see MESSAGES above) but previously rendered no way to do it —
+// "forbidden" is excluded: a permission gap, where a refresh changes
+// nothing.
+const REFRESH_ON_STATUS = new Set<PrepareLeadCabinetActionState["status"]>([
+  "invalid",
+  "conflict",
+  "unavailable",
+]);
 
 /**
  * «Подготовить кабинет» (unified workflow S7, plan §4): for a site/WhatsApp
@@ -57,7 +67,14 @@ export function PrepareLeadCabinetAction({ leadId, requestId }: Readonly<{ leadI
         {pending ? "Готовим…" : "Подготовить кабинет"}
       </button>
       {state.status !== "idle" && state.status !== "saved" ? (
-        <p role="alert" className="text-sm text-fg-2">{MESSAGES[state.status]}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p role="alert" className="text-sm text-fg-2">{MESSAGES[state.status]}</p>
+          {REFRESH_ON_STATUS.has(state.status) ? (
+            <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => router.refresh()}>
+              Обновить
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </form>
   );

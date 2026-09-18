@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { createContext, useActionState, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
@@ -18,19 +18,60 @@ import {
 
 /**
  * Shared plumbing for the three progressive-fill card blocks unified
- * workflow S7 adds beside «Условия продажи» (`LeadSaleConditions.tsx`,
- * untouched) — «Пожелания», «Образование», «Условия». All four blocks read
- * and write the SAME revision-versioned row (`platform_private.
- * lead_sale_conditions`, migration 181/184): `save_lead_sale_conditions_v1`
- * still replaces the row whole on every save (181, unchanged in this slice),
- * so every block submits the FULL 26-key set — its own edited slice as
- * visible fields, every other key as a hidden passthrough carrying the
- * OTHER blocks' current, unedited values. A save (any block) bumps the
- * shared revision; the parent (`tabs.tsx`) remounts every block via
- * `key={`…:${revision}`}`, matching `LeadSaleConditions.tsx`'s own
- * documented pattern, so a block edited right after another's save always
- * starts from fresh data — never a stale overwrite of a sibling block.
+ * workflow S7 adds beside «Условия продажи» (`LeadSaleConditions.tsx`) —
+ * «Пожелания», «Образование», «Условия». All four blocks read and write the
+ * SAME revision-versioned row (`platform_private.lead_sale_conditions`,
+ * migration 181/184): `save_lead_sale_conditions_v1` still replaces the row
+ * whole on every save (181, unchanged in this slice), so every block
+ * submits the FULL 26-key set — its own edited slice as visible fields,
+ * every other key as a hidden passthrough carrying the OTHER blocks'
+ * current, unedited values.
+ *
+ * Post-review fix: a save used to bump the shared revision by calling
+ * `router.refresh()`, which made the parent (`tabs.tsx`) remount every one
+ * of the four blocks via `key={`…:${revision}`}` — including the THREE that
+ * were not saved. That silently wiped whatever a sibling block had typed
+ * but not yet submitted. `SaleConditionsRevisionProvider` below replaces
+ * that: mounted once around all four blocks, it holds the shared
+ * `expected_revision` value client-side. Each block reads it from context
+ * (not from its own `conditions.revision` prop, which is only the page's
+ * last SSR snapshot) and, on its own saved result, calls `bump` with the
+ * action's returned revision — no refresh, no remount, sibling drafts
+ * untouched. The trade-off: `conditions` itself (every OTHER field these
+ * blocks read for their hidden passthrough / initial draft, and the linked
+ * sales-register preview in `LeadSaleConditions.tsx`) still reflects only
+ * the last SSR fetch and can go stale across saves until an explicit
+ * refresh — acceptable per review, and why the "stale"/"request_conflict"
+ * outcomes below keep their own explicit «Обновить» button instead of
+ * auto-refreshing.
  */
+
+type SaleConditionsRevisionState = Readonly<{ revision: string; bump: (next: string) => void }>;
+const SaleConditionsRevisionContext = createContext<SaleConditionsRevisionState | null>(null);
+
+/** Mounted once in `tabs.tsx` around all four sibling card blocks — see the doc comment above. */
+export function SaleConditionsRevisionProvider({
+  initialRevision,
+  children,
+}: Readonly<{ initialRevision: number; children: ReactNode }>) {
+  const [revision, setRevision] = useState(() => String(initialRevision));
+  return (
+    <SaleConditionsRevisionContext.Provider value={{ revision, bump: setRevision }}>
+      {children}
+    </SaleConditionsRevisionContext.Provider>
+  );
+}
+
+/** Exported for `LeadSaleConditions.tsx`, the fourth sibling block. */
+export function useSaleConditionsRevision(): SaleConditionsRevisionState {
+  const ctx = useContext(SaleConditionsRevisionContext);
+  if (!ctx) {
+    throw new Error(
+      "LeadSaleConditions/LeadWishesCard/LeadEducationCard/LeadConditionsCard require SaleConditionsRevisionProvider",
+    );
+  }
+  return ctx;
+}
 
 const MESSAGES: Record<Exclude<SaveLeadSaleConditionsActionState["status"], "idle">, string> = {
   saved: "Сохранено.",
@@ -75,18 +116,24 @@ function allFieldValues(conditions: LeadSaleConditionsSnapshot): Record<string, 
 
 function useCardFieldsAction(requestId: string) {
   const router = useRouter();
+  const { revision, bump } = useSaleConditionsRevision();
   const [state, action, pending] = useActionState(
     saveLeadSaleConditionsAction,
     { status: "idle", requestId, leadId: null, revision: null } as SaveLeadSaleConditionsActionState,
   );
-  // Same pattern as LeadSaleConditions.tsx: the parent remounts this block on
-  // a fresh revision, which naturally resets local draft/state; a "stale"
-  // result deliberately does NOT auto-refresh (would wipe the unsaved draft)
-  // — the explicit «Обновить» button below does it instead.
+  // No router.refresh()/remount on save (see the doc comment above): bump
+  // the shared context revision instead, so every block's NEXT submit
+  // carries the fresh expected_revision without touching a sibling's
+  // in-progress draft. This block's own fields stay locked after its save
+  // (`locked` below) until the page is next refreshed — saving is still an
+  // honest, terminal action for the fields that were just submitted.
+  // A "stale"/"request_conflict" result deliberately does NOT auto-refresh
+  // either (would wipe THIS block's own unsaved draft) — the explicit
+  // «Обновить» button below does it instead.
   useEffect(() => {
-    if (state.status === "saved") router.refresh();
-  }, [router, state.status, state.revision]);
-  return { state, action, pending, router };
+    if (state.status === "saved" && state.revision !== null) bump(state.revision);
+  }, [bump, state.status, state.revision]);
+  return { state, action, pending, router, revision };
 }
 
 function HiddenPassthrough({ values, own }: Readonly<{ values: Record<string, string>; own: ReadonlySet<string> }>) {
@@ -139,7 +186,7 @@ function SimpleFieldsCard({
   leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly: boolean;
   title: string; testId: string; fields: readonly SimpleField[];
 }>) {
-  const { state, action, pending, router } = useCardFieldsAction(requestId);
+  const { state, action, pending, router, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((field) => [field.key, base[field.key]])));
@@ -151,7 +198,7 @@ function SimpleFieldsCard({
       <div className="space-y-4 p-4" data-testid={testId}>
         <form action={action} className="space-y-4" aria-busy={pending}>
           <input type="hidden" name="lead_id" value={leadId} />
-          <input type="hidden" name="expected_revision" value={conditions.revision} />
+          <input type="hidden" name="expected_revision" value={revision} />
           <input type="hidden" name="request_id" value={state.requestId} />
           {fields.map((field) => (
             <label key={field.key} className="block">
@@ -260,7 +307,7 @@ const BUDGET_PERIOD_LABEL: Record<ConditionsBudgetPeriod, string> = { year: "в 
 export function LeadConditionsCard({
   leadId, conditions, requestId, readOnly = false,
 }: Readonly<{ leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly?: boolean }>) {
-  const { state, action, pending, router } = useCardFieldsAction(requestId);
+  const { state, action, pending, router, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
   const [budgetAmount, setBudgetAmount] = useState(() => decimal(base.conditions_budget_minor));
   const [budgetCurrency, setBudgetCurrency] = useState(() => base.conditions_budget_currency);
@@ -275,7 +322,7 @@ export function LeadConditionsCard({
       <div className="space-y-4 p-4" data-testid="v3-lead-conditions">
         <form action={action} className="space-y-4" aria-busy={pending}>
           <input type="hidden" name="lead_id" value={leadId} />
-          <input type="hidden" name="expected_revision" value={conditions.revision} />
+          <input type="hidden" name="expected_revision" value={revision} />
           <input type="hidden" name="request_id" value={state.requestId} />
           <div className="grid gap-3 @2xl:grid-cols-2">
             <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">

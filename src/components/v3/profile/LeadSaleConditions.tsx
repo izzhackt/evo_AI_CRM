@@ -19,7 +19,7 @@ const MESSAGES: Record<Exclude<SaveLeadSaleConditionsActionState["status"], "idl
   saved: "Сохранено.",
   invalid: "Проверьте поля, суммы и валюту.",
   forbidden: "Нет доступа к этому действию.",
-  stale: "Условия изменил другой сотрудник. Ваш ввод сохранён. Обновите и сравните изменения.",
+  stale: "Условия изменил другой сотрудник. Введённое здесь не потеряно, но «Обновить» заменит его актуальными значениями.",
   request_conflict: "Этот запрос уже использован. Обновите карточку перед повтором.",
   unavailable: "Сохранение не подтверждено. Проверьте подключение и повторите.",
 };
@@ -87,8 +87,10 @@ export function LeadSaleConditions({
   // A save changes the revision on the server; the parent re-fetches and
   // remounts this component (key={`sale-conditions:${revision}`}), which
   // resets `draft`/`state` naturally. Same pattern as GateActionForm.
+  // On "stale" we deliberately do NOT auto-refresh: the remount would wipe
+  // the user's unsaved draft. The explicit «Обновить» button below does it.
   useEffect(() => {
-    if (state.status === "saved" || state.status === "stale") router.refresh();
+    if (state.status === "saved") router.refresh();
   }, [router, state.status, state.revision]);
 
   const currencySelect = (value: string, onChange: (value: string) => void) => (

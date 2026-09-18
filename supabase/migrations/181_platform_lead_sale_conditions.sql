@@ -340,6 +340,24 @@ BEGIN
   SELECT * INTO pending_case FROM platform.student_cases sc
     WHERE sc.organization_id=p_organization_id AND sc.canonical_lead_id=p_lead_id AND sc.state='pending' FOR UPDATE;
   IF FOUND THEN
+    -- The cabinet case snapshotted responsible_sales at approval time; the
+    -- lead may have been reassigned since. Per-case sales scoping (155:
+    -- case.read.summary / document.read.sales / finance.read.summary /
+    -- communication.read.summary) keys off responsible_sales_membership_id,
+    -- so sync it to the CURRENT lead owner who is actually recording the sale
+    -- — the same invariant handoff_lead_to_admissions enforces by rejection
+    -- (088 'admissions_handoff_existing_case_conflict'), resolved here by
+    -- update because the sale itself names the authoritative owner.
+    IF pending_case.responsible_sales_membership_id IS DISTINCT FROM owner_id THEN
+      UPDATE platform.student_cases sc SET responsible_sales_membership_id=owner_id
+        WHERE sc.organization_id=p_organization_id AND sc.id=pending_case.id;
+      INSERT INTO platform.audit_events(organization_id,actor_kind,actor_profile_id,actor_principal,action,resource_type,resource_id,before_state,after_state,reason,request_id)
+        VALUES(p_organization_id,'user',actor.profile_id,'auth:'||actor.auth_user_id::TEXT,'case.sales.owner.sync','student_case',pending_case.id,
+          jsonb_build_object('responsible_sales_membership_id',pending_case.responsible_sales_membership_id),
+          jsonb_build_object('responsible_sales_membership_id',owner_id),
+          'Sales owner synced to the lead''s current owner at sale recording',
+          public.uuid_generate_v5(p_request_id,'sales-report:owner-sync'));
+    END IF;
     PERFORM platform_private.assign_student_case_curator_authorized_e1(p_organization_id,pending_case.id,p_curator_membership_id,
       command_reason,public.uuid_generate_v5(p_request_id,'sales-report:assign'),actor.profile_id,actor.membership_id,actor.auth_user_id);
     case_id:=pending_case.id;
@@ -381,5 +399,27 @@ COMMENT ON TABLE platform_private.lead_sale_conditions IS
   'Unified workflow S2: one mutable sale-conditions block per lead card (revision-versioned), filling it never adds a report row.';
 COMMENT ON FUNCTION platform.create_sales_report_handoff(UUID,UUID,UUID,UUID,DATE) IS
   'S2 narrow report save: choose an existing lead + curator; register fields are built from the lead card conditions.';
+
+-- Admin audit journal allowlist: expose the new owner-sync action (same
+-- rename-and-replace pattern as 179).
+ALTER FUNCTION platform_private.p7a_safe_audit_actions()
+  RENAME TO p7a_safe_audit_actions_pre_lead_sale_conditions;
+CREATE FUNCTION platform_private.p7a_safe_audit_actions()
+RETURNS TEXT[]
+LANGUAGE SQL
+IMMUTABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT pg_catalog.array_agg(DISTINCT allowed.action ORDER BY allowed.action)
+  FROM pg_catalog.unnest(
+    platform_private.p7a_safe_audit_actions_pre_lead_sale_conditions()
+      || ARRAY['case.sales.owner.sync']::TEXT[]
+  ) AS allowed(action)
+$$;
+REVOKE ALL ON FUNCTION
+  platform_private.p7a_safe_audit_actions_pre_lead_sale_conditions(),
+  platform_private.p7a_safe_audit_actions()
+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 COMMIT;

@@ -184,13 +184,11 @@ export function StudentProfileExportHistory(props: Props) {
 
   return <div className="space-y-3 border-y border-border py-4" aria-label={words.title}>
     <h4 className="text-sm font-semibold">{words.title}</h4>
-    <p className="text-sm leading-6 text-fg-2">{words.explanation}</p>
     <p className={`text-sm font-semibold ${props.ready ? "text-ok" : "text-fg"}`}>{props.ready ? words.ready : words.notReady}</p>
     <div className="flex flex-wrap gap-2">
       <button type="button" className={PRIMARY} disabled={creationBlocked || Boolean(props.finalBlocker)} onClick={() => void generate("final")}>{words.createFinal}</button>
       <button type="button" className={BUTTON} disabled={creationBlocked || Boolean(props.draftBlocker)} onClick={() => void generate("draft")}>{words.createDraft}</button>
     </div>
-    <p className="text-sm leading-6 text-fg-2">{words.draftExplanation}</p>
     <p role="status" aria-live="polite" className="text-sm leading-6 text-fg-2">{studentProfileFileMessage(hint)}</p>
     {unresolvedCommand ? <button type="button" className={BUTTON} disabled={props.busy || retryBlocked || !canExport}
       onClick={() => void retry()}>{words.retry}</button> : null}

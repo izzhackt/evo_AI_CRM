@@ -3,13 +3,14 @@ import {
   type FixedRoleRoute,
 } from "../fixed-role-policy.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
-import { isStaffPreview, staffCan, staffCanAccessRoute, staffPresentationCan } from "../platform-access.ts";
+import { isStaffPreview, staffCan, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "../platform-access.ts";
 
 export type V3NavigationLinkId =
   | "home"
   | "pipeline"
   | "sales-report"
   | "admissions-worklist"
+  | "evo-docs"
   | "admissions-summary"
   | "universities"
   | "inbox"
@@ -57,6 +58,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     label: "Поступление",
     links: [
       { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Рабочий список" },
+      { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },
       { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
       {
         id: "admissions-summary",
@@ -90,6 +92,7 @@ export function buildV3Navigation(
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
     && (link.id !== "sales-report" || isStaffPreview(actor) || staffCan(actor, "sales.report.read"))
+    && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))
     && (!link.capability || staffPresentationCan(actor, link.capability));
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
@@ -112,7 +115,9 @@ export function buildV3Navigation(
   } else if (pathname === "/v3/profile") {
     // Explicit targets (including malformed/empty ones) render a profile or
     // its error state, never the directory summary. Match the page contract.
-    candidate = isSingleValue(query, "section", "summary")
+    candidate = isSingleValue(query, "section", "docs") && links.some(link => link.id === "evo-docs")
+      ? "evo-docs"
+      : isSingleValue(query, "section", "summary")
       && !query.has("case") && !query.has("id")
       && staffPresentationCan(actor, "admissions.read")
       ? "admissions-summary"

@@ -1,17 +1,44 @@
 # EVO Launch Plan
 
-## Shared staff roles and report handoff — active 2026-09-18
+## EVO Docs discoverability and focused UX pass — active 2026-09-18
+
+Owner requests a visible EVO Docs entry and one practical UX pass across the
+main staff screens. Reuse the existing case forms, uploads, generated artifacts
+and partner ZIP workflow; do not resurrect the retired standalone Docs app.
+
+- [x] Capture the actual staff screens, including document entry points.
+- [x] Add a clear Admissions → EVO Docs entry with existing case access rules.
+- [x] Link forms, files and ZIP work directly; retain the shared sidebar design.
+- [x] Correct concrete quiet-UI/mobile/navigation problems found in this pass.
+- [ ] Short real browser checks and managed production release; no blanket suite.
+
+The owner additionally authorizes one clearly labeled invented sale through the
+real sales form to prove handoff. Use a reserved non-deliverable email, no real
+phone, no payment/contract confirmations and no customer communication. Record
+its identity and outcome separately; never present it as real business data.
+
+## Shared staff roles and report handoff — released 2026-09-18
 
 Owner approved all decisions in the [staff activation plan](design/v3/staff-sales-handoff-run-plan.md).
 Use reusable roles, department-head/own-record scope and immediate new-sale
 handoff to the selected curator. Do not alter historical reports or invent
 contract/payment confirmations. Permanent staff credentials remain private.
 
-- [ ] Shared roles, role-derived confirmation rights and independent directions.
-- [ ] Atomic new report sale → one canonical case → selected curator.
-- [ ] Permanent staff accounts, configured Admin login alias and encrypted delivery.
-- [ ] Scoped real checks, independent review, managed light production release.
-- [ ] Actual employee sign-in and effective-access readback.
+- [x] Shared roles, role-derived confirmation rights and independent directions.
+- [x] Atomic new report sale → one canonical case → selected curator implemented.
+- [x] Permanent staff accounts, configured Admin login alias and encrypted delivery.
+- [x] Scoped real checks, independent review, managed light production release.
+- [x] Actual employee sign-in and effective-access readback.
+
+PR831/832 shipped as accepted `99ac5aa3d76b14dfed4b0d12d30a5f46fb46a651`,
+release35300843417. Exact running image matches the accepted receipt; healthy,
+zero restarts, no pending release, armfalse. Five real password sign-ins and
+role scopes passed; old209 sales rows unchanged. Subsequently one explicitly
+authorized synthetic sale passed the ordinary Sales Manager form → report
+readback → assigned curator login and case opening. Contract/payment remain
+unconfirmed, no amounts or outgoing messages. Test case is recorded in the
+staff activation plan; this is not real-customer acceptance. The separate Docs
+UX release remains pending.
 
 ## Quiet UI and Admin role preview — released 2026-09-18
 

@@ -28141,3 +28141,20 @@ added file, with an assertion that its non-comment content is BEGIN/COMMIT only.
 Then release the newly reviewed exact main normally. The failed release did not
 replace the application; credentials and approved staff activation are real and
 verified independently. Arm was returned to false immediately after failure.
+
+### 2026-09-18 — visible EVO Docs and owner-authorized test sale
+
+Owner asks for a practical UX pass and a more discoverable EVO Docs workspace.
+Current functionality is split across case questionnaire/forms, documents,
+route partner packets and university template administration. Add an Admissions
+entry into the existing case directory and direct task links, preserving role
+authority, canonical data and the shared shell. Do not create a second Docs
+application or grant template-management rights to ordinary curators.
+Inspect actual screens first and keep changes bounded to concrete usability
+issues, following DESIGN.md and current W3C consistent-navigation/reflow guidance.
+The owner explicitly authorizes one invented test sale through the real form:
+clear test label, reserved non-deliverable contact, no payment confirmation or
+outbound communication. This supersedes the earlier no-fake-sale acceptance
+restriction only for this single scoped check. Record its disposition separately
+from the unchanged historical209 rows. Root owns docs/release/browser proof;
+the Docs worker owns the assigned navigation/UI files after capture approval.

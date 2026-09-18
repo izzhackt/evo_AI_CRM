@@ -228,7 +228,7 @@ export function Pipeline({
                 <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-surface-2 px-3.5 pb-2 pt-3">
                   <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-fg">
                     <span className="truncate">{stage.title}</span>
-                    {stage.gate ? <Pill tone="solid">гейт</Pill> : null}
+                    {stage.gate ? <Pill tone="solid">Есть условия</Pill> : null}
                   </h3>
                   <span className="shrink-0 font-mono text-2xs text-fg-3">
                     {inStage.length}

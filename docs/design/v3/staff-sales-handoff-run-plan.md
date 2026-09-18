@@ -1,7 +1,8 @@
 # Shared staff roles and immediate report handoff
 
 Active, owner-confirmed 2026-09-18. Parent: [EVO_LAUNCH_PLAN](../../EVO_LAUNCH_PLAN.md).
-Implementation complete; release and actual account activation remain pending.
+Released, real accounts activated and authorized synthetic handoff checked.
+The separate Docs discoverability UX slice is tracked in the parent plan.
 Never publish the private roster.
 
 ## Approved contract
@@ -37,8 +38,8 @@ Never publish the private roster.
    server-only provider calls and login alias. Inventory identities before writes.
 4. Integrate: changed-file checks, actual Auth/DB/UI paths, independent exact-head
    review, protected short checks and managed release. No heavy blanket suite.
-   Student-signup draft migration172 belongs to another task; never apply its
-   draft silently. Coordinate numbering/application before release.
+   Student-signup draft never shipped at172. PR832 retired that slot with an
+   explicit no-op; that separate task must use176+ and fresh evidence.
 
 ## UX and acceptance
 
@@ -48,12 +49,14 @@ captions or sidebar redesign. No new decorative design system.
 
 - Role publication updates current assignees; revoked rights do not persist.
 - New sale is all-or-nothing, validates curator/tenant, handles retry and leaves
-  existing history unchanged. Use real database commands, no mock/fake sales.
+  existing history unchanged. Use real database commands. Owner subsequently
+  approved one clearly labeled invented sale for the real browser handoff path;
+  no outbound messages or payment confirmations, no historical-row mutation.
 - Real staff can sign in, reach their work and cannot access unrelated records,
   account administration or Student-private assessments without authority.
 - Admin alias and email resolve the same authorized account.
-- Record exact migration/release/health evidence. Missing real sale input is an
-  explicit acceptance gap, not permission to invent a customer.
+- Record exact migration/release/health evidence. The approved test sale proves
+  only the exercised application path, not real customer acceptance.
 
 ## Integration evidence — 2026-09-18
 
@@ -68,9 +71,34 @@ captions or sidebar redesign. No new decorative design system.
 - Existing Admin identity and 209 historical report rows inventoried read-only.
   Approved credentials prepared only in the encrypted access vault. No Auth
   account was changed by compilation or password preparation.
-- Still required: independent frozen-head review, protected short PR checks,
-  exact migration application, actual account/RPC checks and managed release.
-  Record final receipts in this run's GitHub PR; never put credentials there.
+- PR831/832 independently reviewed on exact heads, short protected checks passed.
+  Actual migrations173–175 applied transactionally; subsequently exact no-op172
+  executed with its truthful source ledger entry. Actual live ledger001–175
+  passes the unchanged gate; no unshipped Student-signup schema was installed.
+- Existing Admin identity preserved while changing the approved email/password;
+  four real staff accounts created through Admin-authorized reconciliation.
+  All five real password sign-ins and expected role scopes passed. Employee
+  access to Admin and Student-private areas denied. Three approved curators are
+  present in real intake options for both Admin and Sales Manager.
+- Managed release35300843417 accepted revision
+  `99ac5aa3d76b14dfed4b0d12d30a5f46fb46a651`. Running immutable image matches the
+  accepted receipt; healthy, zero restarts, no pending candidate, release armfalse.
+  Historical209 report rows unchanged before the authorized test-sale check.
+  [Safe production receipt](https://github.com/izzhackt/evo_AI_CRM/pull/831#issuecomment-5724468946).
+- Real ordinary Admin form sign-in (`admin`) and staff directory passed. New
+  sale form exposes the approved curator choices on desktop and mobile390.
+  The owner's earlier rejected credential pair was not reproduced; no further
+  password rotation or Auth bypass was performed.
+- At 2026-09-18 03:12 UTC, one owner-authorized synthetic sale was saved through
+  the actual Sales Manager form and read back from the report. The selected
+  curator signed in separately, found the assigned case and opened it. Contract
+  stayed unconfirmed; first payment stayed unreceived. All monetary inputs were
+  blank, email uses reserved example.invalid, no phone or messages. No duplicate
+  submission or edits to the historical209 rows. Browser runtime errors:0.
+  Synthetic record `4fa56665-bdf3-4cd2-b116-8ac8fff202dd`, case
+  `1df570fe-27df-4eb2-b3ca-5bcdb82d3a63`, labeled
+  `ТЕСТ EVO — передача куратору 18.09`. It remains explicitly test data, not
+  a real sale or business acceptance; do not create a replacement on retry.
 
 ## Research
 

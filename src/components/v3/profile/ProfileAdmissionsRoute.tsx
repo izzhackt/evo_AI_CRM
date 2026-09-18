@@ -7,12 +7,13 @@ import { ProfileHandoffAcknowledgement } from "./ProfileSalesTransition";
 import type { ProfileDraft } from "./types";
 import { PartnerPacketsPanel } from "./PartnerPacketsPanel";
 import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
+import { withDocsSection } from "./admissions-view";
 
-export async function ProfileAdmissionsRoute({ actor, draft, studentName }: { actor: ActivePlatformActor; draft: ProfileDraft; studentName: string }) {
+export async function ProfileAdmissionsRoute({ actor, draft, studentName, docsMode = false, packetsInitiallyOpen = false }: { actor: ActivePlatformActor; draft: ProfileDraft; studentName: string; docsMode?: boolean; packetsInitiallyOpen?: boolean }) {
   const caseId = draft.admissions?.studentCaseId;
   if (!caseId || actor.presentationRole === "sales") return null;
   const data = await Promise.all([readAdmissionsWorkspace(actor, caseId), readAdmissionsPlaybooks(actor)]).catch(() => null);
-  if (!data) return <section role="alert" className="space-y-3 rounded-card border border-border bg-surface p-5"><h3 className="font-semibold text-fg">Не удалось загрузить маршрут</h3><p className="text-sm text-fg-2">Проверьте доступ или повторите загрузку. Данные дела не изменены.</p><Link className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline" href={`/v3/profile?case=${caseId}&tab=route`}>Повторить</Link></section>;
+  if (!data) return <section role="alert" className="space-y-3 rounded-card border border-border bg-surface p-5"><h3 className="font-semibold text-fg">Не удалось загрузить маршрут</h3><p className="text-sm text-fg-2">Проверьте доступ или повторите загрузку. Данные дела не изменены.</p><Link className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline" href={withDocsSection(`/v3/profile?case=${caseId}&tab=route${packetsInitiallyOpen ? "&panel=packets#partner-packets" : ""}`, docsMode)}>Повторить</Link></section>;
     const [workspace, playbooks] = data;
     const documents = draft.documents.flatMap((group) => group.kind === "active" ? group.items.map((item) => ({ id: item.id, name: item.name, applicationIds: item.caseLinkTargets.filter((target) => target.linked && target.kind === "university_application").map((target) => target.id) })) : []);
     return <div className="space-y-5">
@@ -24,7 +25,7 @@ export async function ProfileAdmissionsRoute({ actor, draft, studentName }: { ac
         <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} />
       </details>
       </AdmissionsRoutePanel>
-      <PartnerPacketsPanel actor={actor} caseId={caseId} active={workspace.case.state === "active"} applications={workspace.applications.map(application => ({ id: application.id, name: `${application.institutionName} · ${application.programName}` }))} />
+      <PartnerPacketsPanel actor={actor} caseId={caseId} active={workspace.case.state === "active"} initiallyOpen={packetsInitiallyOpen} applications={workspace.applications.map(application => ({ id: application.id, name: `${application.institutionName} · ${application.programName}` }))} />
       <CaseHelpWorkspace actor={actor} caseId={caseId} />
     </div>;
 }

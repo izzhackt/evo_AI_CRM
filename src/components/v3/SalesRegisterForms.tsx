@@ -110,7 +110,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
 
   return <div className="space-y-6">
     <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
-    <h2 className="text-xl font-semibold">{recordId ? "Запись продажи" : "Новая продажа"}</h2>
+    <h1 className="text-2xl font-semibold tracking-tight">{recordId ? "Запись продажи" : "Новая продажа"}</h1>
     {record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Открыть профиль студента</Link> : null}
     {record?.archived ? <p className="text-sm text-fg-2">Эта запись в архиве и не входит в рабочие итоги. Для редактирования сначала восстановите её.</p> : null}
     <form action={action} aria-busy={pending} className="space-y-6" data-testid="sales-register-form">
@@ -164,10 +164,10 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
           {!intakeOptions ? <p role="alert" className="text-sm text-fg-2">Не удалось загрузить кураторов. Обновите страницу перед сохранением.</p> : null}
         </div> : null}
         <div className="grid gap-5 sm:grid-cols-2">
-          <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+          <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
             <label><span className={labelCls}>Стоимость услуг</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.cost} onChange={e => update("cost", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("service_cost_currency")}
           </div>{record?.serviceCostRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.serviceCostRaw}</p> : null}</div>
-          <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+          <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
             <label><span className={labelCls}>Оплачено по записи</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid} onChange={e => update("paid", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("paid_currency")}
           </div>{record?.paidRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.paidRaw}</p> : null}</div>
         </div>

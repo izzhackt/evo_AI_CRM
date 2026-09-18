@@ -422,7 +422,7 @@ export function History({ profile }: { profile: PersonProfile }) {
               label: "Передан",
               value: profile.handoff
                 ? profile.handoff.override
-                  ? `${profile.handoff.at} · в обход гейта`
+                  ? `${profile.handoff.at} · с исключением из условий`
                   : profile.handoff.at
                 : null,
             },

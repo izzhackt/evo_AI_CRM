@@ -130,9 +130,10 @@ test("staff_student_case_page gains needs_curator in the attention allow-list an
   assert.match(patch, /admissions_direction text, next_action_due_on date, admissions_version bigint, attention_flags text\[\]\)/u);
   assert.match(patch, /'visas','arrivals','awaiting_ack','needs_curator'\)\)/u);
   assert.match(patch, /CASE WHEN page\.access_mode = 'full' THEN platform_private\.admissions_attention_flags\(page\.student_case_id\) END/u);
-  // No DROP FUNCTION / re-GRANT dance for this one (unlike 137's own
-  // parameter-list change) — an additive RETURNS TABLE change survives
-  // CREATE OR REPLACE in place.
-  assert.doesNotMatch(patch, /DROP FUNCTION/u);
+  // PostgreSQL refuses return-type changes under CREATE OR REPLACE (an added
+  // RETURNS TABLE column counts), so the patch drops, recreates and replays
+  // the 110-era grants for the unchanged signature.
+  assert.match(patch, /DROP FUNCTION platform\.staff_student_case_page/u);
+  assert.match(patch, /GRANT EXECUTE ON FUNCTION platform\.staff_student_case_page[\s\S]*TO authenticated/u);
   assert.match(patch, /RAISE EXCEPTION 'staff_student_case_page_source_anchor_drift'/u);
 });

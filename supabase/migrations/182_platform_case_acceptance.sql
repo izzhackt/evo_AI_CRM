@@ -573,8 +573,10 @@ GRANT EXECUTE ON FUNCTION platform.staff_case_attention_flags_v1(UUID) TO authen
 -- ---------------------------------------------------------------------------
 -- h) staff_student_case_page (078/110/137/149/176/177): p_attention gains
 --    'needs_curator'; a new attention_flags column feeds directory badges.
---    Additive RETURNS TABLE change -> CREATE OR REPLACE in place, no DROP,
---    no grant replay (unlike 137's own parameter-list change).
+--    PostgreSQL refuses ANY return-type change under CREATE OR REPLACE,
+--    including an added RETURNS TABLE column, so the definition is captured
+--    first, the function dropped, the widened definition executed, and the
+--    exact 110-era REVOKE/GRANT pair replayed for the unchanged signature.
 -- ---------------------------------------------------------------------------
 DO $s3_directory$
 DECLARE original TEXT; body TEXT;
@@ -607,7 +609,10 @@ BEGIN
   THEN
     RAISE EXCEPTION 'staff_student_case_page_source_anchor_drift';
   END IF;
+  EXECUTE 'DROP FUNCTION platform.staff_student_case_page(integer,timestamptz,uuid,platform.student_case_state,text,uuid,text,uuid,text)';
   EXECUTE body;
+  EXECUTE 'REVOKE ALL ON FUNCTION platform.staff_student_case_page(integer,timestamptz,uuid,platform.student_case_state,text,uuid,text,uuid,text) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION platform.staff_student_case_page(integer,timestamptz,uuid,platform.student_case_state,text,uuid,text,uuid,text) TO authenticated';
 END
 $s3_directory$;
 

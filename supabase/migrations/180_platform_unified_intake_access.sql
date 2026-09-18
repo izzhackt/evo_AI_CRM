@@ -49,7 +49,8 @@
 --   platform.student_portal_overview_v2()            (own inline predicate)
 --   platform_private.live_student_portal_recipient    (overdue-notification
 --     recipient resolution)
---   private.platform_can_upload_reserved_document
+--   (private.platform_can_upload_reserved_document was dropped by 115 —
+--    the scan-admission chain below is the live student upload gate)
 --   platform.admit_student_document_upload_scan
 --   private.grant_student_portal_document_download
 --   private.grant_document_download_pre_e5             (Student branch only;
@@ -108,7 +109,11 @@ BEGIN
   JOIN pg_class rel ON rel.oid=con.conrelid
   JOIN pg_namespace ns ON ns.oid=rel.relnamespace
   WHERE ns.nspname='platform_private' AND rel.relname='student_applications' AND con.contype='c'
-    AND pg_get_constraintdef(con.oid) LIKE '%student_case_id IS NOT NULL AND admissions_direction IS NOT NULL))%';
+    -- pg_get_constraintdef normalizes the expression (each condition gains
+    -- its own parentheses), so match on the stable column co-mention: the
+    -- decision-shape CHECK is the only table CHECK naming both columns.
+    AND pg_get_constraintdef(con.oid) LIKE '%student_case_id%'
+    AND pg_get_constraintdef(con.oid) LIKE '%decided_at%';
   IF old_name IS NULL THEN RAISE EXCEPTION 'student_application_decision_shape_check_not_found'; END IF;
   EXECUTE format('ALTER TABLE platform_private.student_applications DROP CONSTRAINT %I',old_name);
 END
@@ -458,18 +463,6 @@ SELECT pg_temp.evo_u8_portal_pending_replace(
 
 -- Upload/download chain (Student branch only; Admin/Curator branches, which
 -- a pending case cannot satisfy anyway, are untouched).
-SELECT pg_temp.evo_u8_portal_pending_replace(
-  'private.platform_can_upload_reserved_document(text,text)',
-  $$        OR (
-          membership."current_role" = 'student'
-          AND student_case.state IN ('active', 'closed')
-          AND student_case.student_membership_id = membership.id
-          AND student_case.portal_activated_at IS NOT NULL$$,
-  $$        OR (
-          membership."current_role" = 'student'
-          AND student_case.state IN ('pending', 'active', 'closed')
-          AND student_case.student_membership_id = membership.id
-          AND student_case.portal_activated_at IS NOT NULL$$);
 
 SELECT pg_temp.evo_u8_portal_pending_replace(
   'platform.admit_student_document_upload_scan(uuid,uuid,uuid)',

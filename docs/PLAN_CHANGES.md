@@ -28529,3 +28529,1378 @@ Supabase CLI:178 rows, range001–178, version178 named
 platform_student_application_conflict_codes, and both new checklist RPCs absent.
 This confirms179 is the only missing change. Protected checks and independent
 exact-head review remain in place; the application release stays with Claude.
+
+### 2026-09-18 — unified workflow: план-контракт реализации
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: product pivot
+(supersedes conflicting earlier decisions). Affected plan section: new
+top-level slice «Unified workflow»; supersedes the mandatory admissions
+route/visa/arrival tracker scope, the public-application approve-into-case
+flow (177), the Docs direct student intake UI (#836) and the card-side
+Admissions handoff path, per docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md
+(owner plan; its §17 links are reference-only and were not fetched).
+
+Reason: owner's consolidated Google-Doc decisions: one person — one card; all
+inquiries flow through Продажи; the only curator handoff trigger is saving a
+sale in the report; Admissions keeps анкета/документы/вузы/пакет without
+mandatory stage, submission, visa or arrival tracking; the portal and CRM work
+on the same single case; Docs keeps its document functions but stops creating
+students directly.
+
+Decision — architecture mappings (per plan §1's integrity-not-rewrite rule):
+(1) «Кабинет до продажи» is stored as the SAME canonical chain
+client → lead → student_cases row in state='pending' with portal_activated_at
+set and no curator/direction; portal authority and portal read models accept
+pending cases; product-wise this is a card with cabinet access, not Admissions
+work. Approval of the platform анкета therefore creates/links the canonical
+lead (same create_or_link path the website and WhatsApp already use) and the
+pending case — never a curator, direction or active case.
+(2) Отклонение назначения куратором reverts the case to state='pending'
+(curator and handoff cleared — legal under student_cases_state_shape_check)
+plus an explicit needs-curator surface in «Студенты»; Admin reassigns inside
+the case via the existing assign_student_case_curator initial-assignment
+branch. Продажа, данные и файлы не трогаются.
+(3) Условия продажи live on the card in a new 1:1 lead-scoped store; «Добавить
+продажу» in the report narrows to выбор лида и куратора with a read-only
+preview, and the handoff RPC copies the card conditions into the register row.
+(4) «Маршрут» tab becomes «Вузы и программы» (the ?tab=route URL value is
+kept, label and content change): university/program/partner selection from the
+existing university_applications model without submission/visa/arrival
+tracking; the playbook stage panel, stage editor, message templates, visa-case
+CRUD and portal «Заявки и виза» screen are retired from the UI. Saved rows,
+files and history stay in the database untouched.
+(5) EVO Docs: direct student creation UI removed (migration 176 SQL and its
+data stay); the Docs section keeps search, Анкета и формы, Файлы, Пакет ZIP.
+(6) Naming/nav per plan §3: Продажи{Заявки, Inbox, Воронка, Отчёт продаж},
+Admissions{Студенты, EVO Docs, Университеты, Сводка}; «Рабочий список» →
+«Студенты»; equal Sales capabilities inside Продаж (authorization boundaries
+preserved). Документные статусы получают подписи «Не загружен / На проверке /
+Нужно исправить / Принят»; серверный enum не меняется, «Отклонён» остаётся
+пятой честной подписью.
+
+Slice order (each its own PR; release to production once at the end):
+S1 Заявки и доступ (migration 180: анкета→lead on submit, access-only
+approve, pending-portal authority, Sales-gated queue at Продажи→Заявки);
+S2 Карточка Sales и продажа в отчёте (181: lead_sales_card + narrowed
+create_sales_report_handoff, card blocks, removal of the card-side handoff
+path); S3 Принятие дела (182: declined decision → pending revert, admin
+reassign UI, directory states); S4 Admissions detracking («Вузы и
+программы»); S5 Портал одного дела (screen removal, pending-cabinet views);
+S6 Docs/наименования/Inbox↔карточка/сводка. Validation per the fast policy:
+scoped lint/tsc/build plus the pinned suites each slice touches; migration
+apply remains the owner's manual step before the final release.
+
+Validation impact: extensive pinned-test updates are expected and will be
+performed with per-assertion reasoning (navigation, handoff, portal
+applications, playbook suites). Reviewer notes: PR #830/#841 flows are
+superseded by S1; historical rows (approved applications with cases, docs-
+intake cases, playbook facts) remain valid data under relaxed constraints.
+
+## 2026-09-18 — unified workflow S1: заявки и доступ
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S1.
+Affected plan section: «S1 Заявки и доступ» (this journal, previous entry).
+
+Reason: implement the first slice of the unified-workflow pivot — a public
+platform анкета now links the same canonical client/lead Website/WhatsApp
+already use, and approval only opens a portal-activated `state='pending'`
+cabinet (no curator, no direction, no active case). The old
+approve-into-Admissions-case path from migration 177 is superseded.
+
+Decision: migration 180
+(supabase/migrations/180_platform_unified_intake_access.sql, NOT applied —
+no Supabase credentials in this environment, per the task's own instruction)
+— (a) `student_applications` gains `canonical_lead_id`; the approved-shape
+CHECK now only requires `student_case_id` (`admissions_direction` stays
+legal but optional, so historical 177-approved rows remain valid); (b)
+`student_application_configuration` gains a nullable `intake_owner_membership_id`
+(left unset — no operational process sets it yet); (c)
+`submit_student_application_v1` keeps its exact questionnaire/upsert/PT409
+contract and additionally links (or reuses) the canonical client/lead via
+`create_or_link_client`/`create_or_link_lead` when an intake owner is
+configured; (d) `decide_student_application_v1` is dropped and recreated
+with direction/curator removed entirely (`(application_id, expected_revision,
+decision, reason, request_id)`); reject is unchanged; approve provisions the
+Student membership exactly as before, ensures the canonical lead exists
+(creating it — with the approving actor's own Sales membership as owner
+only when that actor actually holds the `sales` business role, else
+ownerless — only when submit-time linking was skipped), and opens a
+`state='pending'`, portal-activated, curator-less case linked to that lead
+(`responsible_sales_membership_id` = the lead's current owner, legally
+NULL); (e)/(f) `student_cases_intake_origin_check` and
+`student_cases_state_shape_check` are relaxed so a pending public-application
+case may carry `canonical_lead_id` and `portal_activated_at`; (g)
+`platform.staff_student_application_for_lead_v1` is a new small read for the
+lead-card block, gated by the same `private.platform_can_read_canonical_lead`
+the rest of the lead card already uses. Twelve portal-predicate functions
+(login/overview/notifications plus the upload/download chain's Student
+branches) are extended from `state IN ('active','closed')` to include
+`'pending'` via self-verifying anchor-count `pg_get_functiondef`+`replace`
+patches (same pattern as migration 156/177/178); five are deliberately left
+active/closed-only with one-line reasons in the migration header
+(`student_portal_finance_v2`, the retiring `student_portal_applications_v2`/
+`visa_cases_v2`/timeline family, `student_portal_messages`, staff-only
+readers, and the staff notification-creation actor).
+
+TS/UI: `src/lib/supabase/student-portal-authority.ts` accepts
+`case_state='pending'`; `src/lib/v3/portal-source.ts`'s overview normalizer
+was checked and already tolerates a null curator (no change needed).
+`src/lib/v3/student-application-source.ts`/`student-application-contract.ts`
+add `canonicalLeadId` and narrow `decideStudentApplication` to the new
+5-argument RPC. `src/components/v3/admissions/StudentApplications.tsx` drops
+`StudentApplicationsNav` and the combined queue/detail `StudentApplications`
+component (both retired); `ApplicationDecision` loses its direction/curator
+fields and is reused, unchanged in spirit, by both the new
+`src/app/(v3)/v3/requests/page.tsx` (Продажи → «Заявки»: filter pills
+Все/Сайт/Платформа/WhatsApp over pending platform applications plus recent
+website/WhatsApp leads, via the new `src/lib/v3/requests-source.ts`) and a
+new «Доступ к платформе» card on the lead-card Overview
+(`src/components/v3/profile/tabs.tsx`, wired through
+`src/lib/v3/profile-source.ts`'s lead branch). `/v3/admissions-requests` is
+now an unconditional redirect to `/v3/requests` and left the
+`FixedRoleRoute`/capability contracts (`fixed-role-policy.ts`,
+`platform-access.ts`) in favor of the new sales.read-gated route, while
+staying in the raw page allowlist (`platform-route-contract.ts`) so old
+links still resolve. Navigation (`src/lib/v3/navigation.ts`) reorders the
+Продажи group to Заявки, Inbox, Воронка, Отчёт продаж per plan §3.
+
+Known deviations (honest, not hidden): (1) the RPC's own staff authorization
+(`student_application_staff_org`/`..._can_manage`, unchanged — department-
+bound `profile.read.full`+`profile.manage`+`case.curator.assign`) is
+independent from the new page-level `sales.read` gate; a Sales member with
+page access but no matching department permission will see /v3/requests but
+get a forbidden result from the RPC. Expanding that permission matrix is
+explicitly out of scope for S1 (plan §3: «Подробную матрицу разрешений
+сейчас не расширяем»); the operational fix is ensuring the relevant staff
+hold the review-department role via existing tooling. (2) A future Sales
+report handoff (S2) creating an active case for a lead that already has a
+pending case from this slice will hit `student_cases_one_open_case_per_
+canonical_lead_idx` (from 088) as a hard unique-constraint failure rather
+than a graceful state transition; S2 must handle "approve a lead that
+already has a pending case" explicitly. (3) `/v3/requests`' lead rows reuse
+`readAllCanonicalSalesLeads` (unbounded up to its existing 4000-row safety
+cap) filtered on the server; this is not a paginated read and is a
+reasonable target for a later optimization pass, not S1.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean), `npm run test:brand-ui` (5/5), and every pinned
+suite plus a new source-pattern suite for migration 180
+(`tests/platform-unified-intake-access-migration.test.mjs`) — 125/125 across
+tests/student-public-application, tests/platform-admissions,
+tests/v3-profile-admissions, tests/student-portal-authority,
+tests/student-portal-auth, tests/v3-navigation,
+tests/fixed-role-route-contract, tests/supabase-staff-auth, the new
+migration suite and tests/v3-supabase-integration (whose exhaustive
+`src/lib/v3/*.ts` allowlist needed the new `requests-source.ts`, plus two
+already-missing pre-existing files, added in the same small fix). A broader
+~150-file regression sweep surfaced only pre-existing, unrelated failures
+(a `react-dom/server` named-export ESM/CJS interop issue reproducing
+identically on unmodified `main`, and one already-stale CI-output fixture) —
+verified via `git stash` against the pre-slice tree, not introduced here.
+Migration 180 itself is NOT applied; no Supabase credentials exist in this
+environment, matching every prior slice's stated limitation.
+Reviewer notes: S2 (Карточка Sales и продажа в отчёте) owns sale-condition
+storage and the narrowed `create_sales_report_handoff`; S3 owns the
+declined-assignment→pending revert; S6 owns the «Рабочий список»→«Студенты»
+and «Клиентские сообщения» renames — none of those are touched here.
+
+## 2026-09-18 — unified workflow S2: карточка Sales и продажа в отчёте
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S2.
+Affected plan section: «S2 Карточка Sales и продажа в отчёте» (plan §5, §6,
+§13; PLAN_CHANGES «план-контракт реализации» and the S1 entry above).
+
+Reason: implement the owner's last edit to §6 — sale conditions (service,
+date, sum, currency, payment note) are filled on the lead card and never
+re-entered when the sale is saved into the report; the report only chooses
+an existing lead and a curator. The card-side «Передача в Admissions» bypass
+(HandoffCard) is retired, since the only curator-handoff trigger left is a
+saved Sales report.
+
+Decision: migration 181
+(supabase/migrations/181_platform_lead_sale_conditions.sql, NOT applied — no
+Supabase credentials in this environment, matching every prior slice) —
+(a) new table `platform_private.lead_sale_conditions` (one mutable,
+revision-versioned row per lead — a current-state card block, not an
+append-only log) plus its own request-id receipt table
+(`lead_sale_conditions_requests`, append-only) and validator
+`platform_private.lead_sale_condition_fields()` mirroring
+`sales_register_fields()`'s (134) money-pair/currency (USD/EUR/KGS) and
+length/control-character conventions on the card's own key set
+(service_label, signing_date, service_cost_raw/minor/currency,
+paid_raw/minor/currency, payment_note — deliberately not 1:1 with the
+register's key set); (b) `platform.save_lead_sale_conditions_v1` — upsert
+with optimistic concurrency (`p_expected_revision`, 0 for the first save)
+gated by the same scoped check the old report-create path already used
+(`staff_can_access(...,'lead.sales.workflow.manage','lead',p_lead_id)`), a
+payload-bound fingerprint (actor+lead+revision+fields) for request-id
+replay, and a standard `platform.audit_events` write (action
+`lead.sale.conditions.save`); (c) `platform.staff_lead_sale_conditions_v1`
+— a read gated by `private.platform_can_read_canonical_lead` (the same
+lead-read authority the S1 «Доступ к платформе» block already uses),
+returning the conditions plus `linked_sales_register` (id/report_month/
+archived) so the card can render its «Продажа в отчёте за <месяц>» link
+without a second round trip; (d) `platform.create_sales_report_handoff` is
+narrowed: `DROP FUNCTION` on the old 8-argument creation signature
+(org/request/fields/reason/lead/curator/email/direction) and a fresh
+`CREATE FUNCTION` with `(p_organization_id, p_request_id, p_lead_id,
+p_curator_membership_id, p_report_month DATE DEFAULT NULL)` — the
+create-new-lead branch (and its `create_manual_sales_lead` call) is dropped
+entirely, since the report always «выбирает существующего лида». Inside:
+reads `lead_sale_conditions` for the chosen lead and requires
+`service_cost_minor` present, else `sale_conditions_missing` (22023) so the
+UI can link back to the card; maps the card's fields onto the register's own
+vocabulary explicitly (`service_label`→`program`, `payment_note`→`notes`,
+money/date fields pass through) plus `applicant_name`/`phone` read from the
+canonical client and `report_month` (provided or the current Bishkek month).
+Then the S1 flag (documented as a known deviation in S1's own entry above):
+if the lead already owns a `platform.student_cases` row in `state='pending'`
+linked by `canonical_lead_id` (the cabinet case S1's access approval opened),
+that case is activated in place via
+`platform_private.assign_student_case_curator_authorized_e1` (126/177 — the
+same authorized-actor curator-assignment path 177 already reuses for an
+analogous "approve into an existing case" flow); its own COALESCE on
+`handoff_at`/`portal_activated_at` preserves the S1 approval timestamp and
+only sets `handoff_at` now. That branch never inserts into
+`platform.sales_admissions_handoffs` (that table is the OTHER path's
+evidence — U6 handing off a lead that had no case yet), so 134's own AFTER
+INSERT trigger that seeds a placeholder pipeline row never fires; the
+already fully-populated `sales_register` row is inserted directly instead.
+The other, unchanged path (no pending case) still goes through
+`platform_private.handoff_lead_to_admissions` (088/134, mode
+`'sales_report'`) exactly as 174 did, whose trigger seeds the placeholder
+row that this function then updates with the real fields. Replay semantics:
+the existing `sales_report_handoff_requests` receipt table (174, schema
+unchanged) is reused; only the fingerprint's input shape narrows from 174's
+8-value shape to `(lead, curator, report_month)` — documented in the
+migration header as a fail-closed (never silently-wrong) boundary note, not
+an operational concern since request ids are per-submission random UUIDs.
+
+TS/UI: new `src/lib/lead-sale-conditions-contract.ts` (parsing, reusing
+`platform-sales-register-contract.ts`'s UUID/date/integer/currency helpers)
+and `src/lib/v3/lead-sale-conditions-source.ts` (`readLeadSaleConditions`,
+mirroring `loadStudentApplicationForLead`'s shape). `src/lib/platform-sales-actions.ts`
+gains `saveLeadSaleConditionsAction` (gated by
+`requirePlatformMutationCapability("sales.write", "/v3/profile")`, revalidates
+only ``/v3/profile?id=${leadId}`` — never the bare `/v3/profile` the file's
+own pinned test forbids). New `src/components/v3/profile/LeadSaleConditions.tsx`
+— a Card titled «Условия продажи», useActionState/request-id/expected_revision
+conventions matching `GateActionForm`, `router.refresh()`-on-save so the
+parent's `key={`sale-conditions:${revision}`}` remounts it with fresh state
+(same pattern as `GateActionForm`), and the linked-register link
+(`/v3/main?view=sales&year=&month=&record=`) when one exists. Wired into
+`src/components/v3/profile/tabs.tsx` Overview inside the existing
+`sales && staffPresentationCan(actor,"sales.read")` block (`readOnly` in
+staff preview, matching `PlatformAccessCard`'s convention rather than hiding
+the block outright); `src/lib/v3/profile-source.ts`'s `readLeadProfile`
+fetches it only on the lead-only branch (not `fullCaseDetails`, which sets
+`saleConditions: null` — a deliberate S2 scoping: the block belongs to the
+Sales-facing card before/around the report save, not the full-case Money
+tab, which is a different concept fed from finance events). `types.ts` gains
+`ProfileDraft.saleConditions` and `ProfileSalesRequestIds.saleConditions`;
+`page.tsx` mints the new request id.
+
+Report form (`src/components/v3/SalesRegisterForms.tsx` `SalesDraft`'s
+create branch): the "new student" mode (owner/email/direction inputs,
+`studentMode` toggle) is removed entirely; only the existing-lead search UX
+survives. Selecting a lead now also fetches a read-only conditions preview
+(new `readSalesReportConditionsPreviewAction` in
+`platform-sales-register-actions.ts`, wrapping `readLeadSaleConditions`) and
+shows either the parsed fields or, when `serviceCostMinor` is null, a
+«Заполнить условия в карточке» link to the lead card (submit stays disabled
+until conditions are confirmed present). `saveSalesRegisterAction`'s create
+path now submits only `lead_id`/`curator_membership_id`/`report_month`
+(hidden, defaulting to the report page's currently viewed month) and calls
+the narrowed RPC; a new `conditions_missing` UI status (mapped from the
+RPC's `sale_conditions_missing` error) replaces the retired
+`existing_student` status. Edit/archive/restore branches are byte-for-byte
+unchanged in behavior (still `manage_sales_register_v1`, still require a
+reason).
+
+Card-side bypass removal: `HandoffCard` and its `handoffInitialState` are
+deleted from `src/components/v3/profile/ProfileSalesTransition.tsx`;
+`ProfileSalesTransition` now takes `{actor, gate, requestIds}` (no `handoff`
+prop) and renders only `GateCard`, retitled «Договор и оплата» with an added
+line («оплата — отдельный факт: сумма продажи в условиях на карточке не
+делает её автоматически оплаченной»). `ProfileHandoffAcknowledgement` (S3)
+and `ProfileSalesHandoffAcknowledgement` (the curator-response summary — a
+different, read-only feature, unrelated to the write-side handoff form) are
+untouched. `src/lib/platform-student-handoff-actions.ts` drops
+`handoffPlatformLeadToAdmissionsAction`, `parseHandoffInput`,
+`handoffFailureState`, `HANDOFF_FORM_FIELDS`,
+`PlatformLeadAdmissionsHandoffActionState` and
+`createInitialPlatformLeadAdmissionsHandoffActionState` (verified dead via
+repo-wide grep first); `platform-student-handoff.ts` (the repository layer,
+`handoffPlatformLeadToAdmissions` and its SQL RPC
+`platform.handoff_lead_to_admissions`) is left untouched, since the narrowed
+`create_sales_report_handoff`'s own "no pending case" branch still calls it
+internally.
+
+Known deviations (honest, not hidden): (1) `service_label` maps onto the
+register's `program` column — the closest existing register field to
+«услуга/пакет» — since the report no longer collects `university`/
+`program`/`direction`/`intake`/`contract_number`/`manager_label`/
+`status_raw` at creation time; those stay editable later via the unchanged
+edit branch. (2) The pending-case-activation branch does not write a
+`platform.sales_admissions_handoffs` row (that table specifically evidences
+the *other* path — a lead with no prior case), so
+`platform.staff_student_case_handoff_context`/`staff_lead_admissions_handoff`
+return nothing for these cases; their own audit trail is the
+`student_case_lifecycle_events`/`student_case_assignment_events`/
+`audit_events` rows `assign_student_case_curator_authorized_e1` already
+writes. No UI in this repo currently reads those two RPCs outside
+`src/lib/platform-student-handoff.ts` itself, so this has no observed UI
+impact, but a future S3/S4 screen relying on that context for a
+pending-case-activated case would need to source it differently. (3) The
+lead card's new «Условия продажи» block only appears in the lead-only
+Overview branch (not once a full case is loaded) — a deliberate S2 scoping
+call, not an oversight; extending it to the case view is left to a later
+slice if needed. (4) The card's «Дата продажи» is left empty by default for
+a brand-new (never-saved) conditions row rather than prefilling today's
+date; plan §6's "для новой записи допустимо предзаполнить сегодняшний день"
+is worded as permissive (допустимо), not mandatory, and an honest empty
+field matches plan §14's "no fabricated success" rule better than a
+silently-assumed date.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file including the new/updated test files (clean),
+`npm run test:brand-ui` (5/5), and the pinned suites this slice touches:
+`tests/platform-sales-actions.test.mjs` (5/5, 2 new),
+`tests/platform-sales-register.test.mjs` (6/6, 2 new),
+`tests/platform-student-handoff.test.mjs` (8/8 — 1 test deleted since its
+target function no longer exists, 2 updated), `tests/v3-supabase-integration.test.mjs`
+(10/10 — not in the task's named list but directly pinned `ProfileSalesTransition.tsx`
+content and the exhaustive `src/lib/v3/*.ts` file allowlist, so left broken
+it would have been a real regression), `tests/staff-roles-sales-handoff-migrations.test.mjs`
+(5/6 — the one failure, "staff fast path accepts only the complete exact
+added 173–175 boundary diff", reproduces identically on this branch's
+pre-slice tree via `git stash`, so it is pre-existing CI-workflow-ledger
+breakage unrelated to S2, not fixed here), plus a new migration-pattern
+suite `tests/platform-lead-sale-conditions-migration.test.mjs` (10/10,
+following 180's own template) and `tests/v3-handoff-navigation.test.mjs`.
+That last suite's regexes were updated per the task's instruction even
+though the task described it as failing in this environment from a
+react-dom/server interop issue; the actual pre-slice breakage found here was
+narrower and unrelated to react-dom/server — the test eagerly compiled a
+`src/components/v3/profile/Card.tsx` that has not existed since before this
+slice (Card has lived in `@/components/ui`), crashing at module load
+regardless of `--conditions=react-server`, reproduced via `git stash`
+against the pre-slice tree. Dropping that dead compile call as part of the
+regex update made the suite pass cleanly (3/3) under plain `node --test` in
+this environment. `tests/platform-admissions.test.mjs` (24/24) and
+`tests/v3-navigation.test.mjs` (16/16) — both unaffected, run as required by
+the task. A broader sanity sweep of every other test file referencing
+`profile-source.ts`/`tabs.tsx`/`SalesRegisterForms`/`ProfileSalesTransition`/
+the sales/handoff action files (`platform-handoff-acknowledgement`,
+`v3-profile-contract`, `v3-profile-activity`, `v3-operational-parity`,
+`v3-profile-pipeline-notes`, `v3-profile-documents`, `v3-profile-admissions`,
+`v3-student-profile-fields`, `scoped-finance-read-contract`,
+`p4-supabase-admissions-storage-legacy-cleanup`) passed 63/63 (each run
+under its own designated node flags — `v3-student-profile-fields.test.mjs`
+specifically needs plain `node --test`, not `--conditions=react-server`,
+matching its own `test:student-profile-fields` script). Migration 181 itself
+is NOT applied; no Supabase credentials exist in this environment, matching
+every prior slice's stated limitation.
+Reviewer notes: S3 (Принятие дела) owns the declined-assignment→pending
+revert and should double-check whether a case activated by this slice's
+pending-case branch needs its own acceptance-queue surface (it has no
+`sales_admissions_handoffs` row — see deviation (2) above). S4 owns «Вузы и
+программы». Historical sales_register rows (including ones created by the
+now-removed create-new-lead branch) remain valid data under unchanged
+constraints; nothing here rewrites past rows.
+
+## 2026-09-18 — unified workflow S3: передача и принятие дела
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S3.
+Affected plan section: «S3 Принятие дела» (plan §7; PLAN_CHANGES «план-контракт
+реализации», S1, S2 above).
+
+Reason: implement plan §7 — a curator sees «Ожидает принятия» and either
+«Принять дело» or «Отклонить»; declining reverts the ASSIGNMENT only (the
+sale, its data and files stay), and Admin picks another curator inside the
+same case, which the directory now surfaces as «Нужно назначить куратора».
+Also closes the S2-documented gap where `create_sales_report_handoff`'s
+pending-case-activation branch never produced `awaiting_ack` evidence.
+
+Decision: migration 182
+(supabase/migrations/182_platform_case_acceptance.sql, NOT applied — no
+Supabase credentials in this environment, matching every prior slice) —
+(a) `student_case_handoff_acknowledgements`'s decision CHECK gains
+`'declined'` (both auto-named CHECKs located and replaced via the same
+dynamic pg_constraint-lookup pattern 180 used); a decline reuses the existing
+`clarification` column as its required reason, bounded to 1-1000 chars
+(tighter than `clarification_requested`'s 1-2000, to fit the lifecycle-event
+`reason` column it is written into) — a second free-text column for the same
+fact would be a second source of truth, so the existing append-only ack table
+and its triggers are otherwise untouched, and historical accepted/
+clarification_requested rows stay valid. (b) `student_case_lifecycle_events`
+gains event_type `'declined'` (active→pending, the exact inverse of
+`'activated'`). (c) new shared predicate
+`platform_private.case_sale_or_handoff_evidence(org, case)` — true when
+either a `platform.sales_admissions_handoffs` row exists for the case OR a
+`platform_private.sales_register` row exists for its `canonical_lead_id`;
+used by BOTH signals below so they stay definitionally consistent. (d)
+`platform_private.admissions_attention_flags` (145) is widened: a `'pending'`
+case now returns `['needs_curator']` when that predicate holds (else `[]` —
+still nothing for a bare S1 «кабинет до продажи» case with no sale), and the
+existing `'awaiting_ack'` branch's own `EXISTS(sales_admissions_handoffs)`
+check is replaced by the same shared predicate — closing the S2 gap
+without touching 181's already-shipped `create_sales_report_handoff` (the
+task's own suggested smaller alternative). AWAITING-ACCEPTANCE PREDICATE
+CHOICE, documented in the migration header: `sales_register` has
+`UNIQUE(organization_id, lead_id)` and `student_cases` has
+`UNIQUE(organization_id, canonical_lead_id) WHERE state IN ('pending',
+'active')` (088), and every creation branch of `create_sales_report_handoff`
+inserts `sales_register` in the SAME transaction that activates the case —
+so a *pending* case can only carry this evidence once it has already been
+active once, i.e. only through the decline-revert this migration adds; no
+false positive against a never-handed-off historical pending case (docs-intake
+cases have no `canonical_lead_id` at all). (e) `private.respond_student_case_handoff`
+/ `platform.respond_student_case_handoff` (130, with 149's
+`is_eligible_staff_responsibility` patch folded in as the current baseline)
+are replaced whole: on a *fresh* `'declined'` response (never on a replayed
+one), after the ack row is inserted, the case is reverted — curator cleared,
+`state='pending'`, `handoff_at=NULL` — leaving `portal_activated_at` and every
+canonical/sale link (`canonical_lead_id`, `canonical_client_id`,
+`public_application_id`, `sales_register`, `sales_admissions_handoffs`)
+completely untouched (shape-legal since 180 relaxed the pending branch of
+`student_cases_state_shape_check`). The case's `record_scope` is bumped and
+its grants updated in the exact inverse of
+`assign_student_case_curator_authorized_e1`'s own `'assigned'` branch: the
+declining curator and the student are revoked, the responsible Sales owner
+regains the grant `private.platform_can_read_student_case`'s own `'pending'`
+branch already relies on, so the case is immediately visible to Sales/Admin
+again. The actor gate is UNCHANGED — still the current curator (or an
+eligible Admin acting as curator, 149) of the ACTIVE case; «Нужно уточнить»
+is untouched in spirit and code (same `clarification_requested` branch, no
+new form). (f) new RPC `platform.assign_case_curator_v1(org, request_id,
+case_id, curator_membership_id, reason)` — gate mirrors
+`platform_private.assign_student_case_curator_body`/117's own
+`private.assign_student_case_curator` exactly (`require_admin_actor` with
+`case.curator.assign`, the shared assignment-domain advisory lock, then
+`require_case_assignment_admin_locked`'s post-lock recheck), then calls
+`platform_private.replay_audit` itself FIRST (same `p_expected_after` shape
+`assign_student_case_curator_authorized_e1` uses for its own action
+`'case.curator.set'`) — a retried request after a real success would
+otherwise see the case already out of `'pending'` and fail closed on "Case
+does not need a curator assignment" instead of returning the original
+receipt; only a genuinely new request reaches the shape check. It then
+verifies the case is actually `state='pending'` AND sale/handoff-evidenced
+(the needs-curator shape, not just any pending cabinet case) before reusing
+`assign_student_case_curator_authorized_e1` — the same initial-assignment
+branch every other "approve a pending case with a curator" caller in this
+codebase already reuses (126/177/181). (g) new
+`platform.staff_case_attention_flags_v1(case_id)` — a tiny direct
+SECURITY DEFINER read (mirrors `admissions_direction_summary_v1`'s own style,
+no private wrapper), gated by `private.platform_can_read_student_case`, so
+CaseHeader can ask "does this case need a curator" without duplicating the
+predicate. (h) `platform.staff_student_case_page` (078/110, patched by
+137/149/176/177) is widened ADDITIVELY, in place, via `CREATE OR REPLACE`:
+Postgres allows appending trailing columns to an existing `RETURNS TABLE`
+this way, so — unlike 137's own patch, which changed the parameter list and
+needed `DROP FUNCTION` + re-`GRANT` — no drop or grant replay is needed here.
+`'needs_curator'` joins the `p_attention` allow-list (the WHERE clause
+filtering by it already worked for free, since it already called
+`admissions_attention_flags`); a new `attention_flags text[]` column
+(`access_mode='full'` rows only) feeds directory row badges without a second
+round trip per row. Every anchor uses dollar-quoted `replace()` arguments
+(`$a1$...$a1$` style) instead of 137/149's doubled-quote escaping, since a
+dollar-quoted literal needs no escaping for embedded SQL quotes — lower risk
+to write correctly without a live database to verify against. The new
+migration-pattern suite `tests/platform-case-acceptance-migration.test.mjs`
+pattern-matches every one of these anchors directly against the written SQL
+file (8/8 passing), which is the closest available substitute for actual
+execution in this environment.
+
+TS/UI: `src/lib/platform-handoff-acknowledgement.ts`'s `HandoffDecision`
+gains `'declined'`; `parseHandoffResponseInput`/`responseFields` require a
+reason for every non-`'accepted'` decision and bound it to 1000 chars
+specifically for `'declined'` (2000 stays for `'clarification_requested'`).
+`src/lib/v3/wording.ts`'s `handoffAcknowledgementLabel` gains a `'declined'`
+label. `src/components/v3/profile/ProfileSalesTransition.tsx`'s
+`ProfileHandoffAcknowledgement` gains a third «Отклонить» button reusing the
+EXACT SAME form/action as accept/clarify (plan §7's own constraint: no
+separate «форма запроса уточнений»/decline form) — opening it shows a quiet
+one-line confirm («Отклоняется назначение, а не студент: продажа и данные
+сохранятся.») and a required «Причина отклонения» textarea (`maxLength=1000`)
+instead of the contact-date field. `src/lib/platform-admissions-playbook-contract.ts`'s
+`ADMISSIONS_ATTENTION` gains `'needs_curator'`;
+`src/components/v3/profile/admissions-view.ts`'s `ATTENTION_LABELS` gains
+`needs_curator: "Нужно назначить куратора"` and renames `awaiting_ack` from
+"Передача ещё не принята" to plan §7's own exact phrase, «Ожидает принятия»
+(also applied to `src/components/v3/CuratorDay.tsx`'s "Мой день" metric,
+the OTHER place this same count was hand-labeled). `src/lib/platform-admissions.ts`
+gains `PlatformStudentCaseQueueRow.attentionFlags` (optional/lenient parse —
+`undefined`/`null` → `[]`, matching how `admissionsDirection`/`nextActionDueOn`
+are already handled for the single-case snapshot reader that never supplies
+these newer columns) and a new `readCaseAttentionFlags(actor, caseId)`
+repository read wrapping `staff_case_attention_flags_v1`.
+`src/lib/v3/profile-source.ts`'s `V3ProfileCaseDirectoryRow` carries
+`attentionFlags` through for the `'full'`/admin-or-curator branch; `[]` for
+both `'sales_summary'` branches (no per-row RPC call there today).
+`src/components/v3/profile/ProfileCaseDirectory.tsx` renders a
+`stateBadge()` override — a `'pending'` row with `needs_curator` shows
+«Нужно назначить куратора» (`danger` tone) instead of «Ожидает начала»
+— plus an «Ожидает принятия» pill alongside «В работе» when `awaiting_ack`
+is present; its own title («Рабочий список»/«Студенты» split by `docsMode`)
+now always reads «Студенты» (plan §3). `src/lib/v3/navigation.ts`'s
+`admissions-worklist` link label is renamed the same way (id kept for route
+stability); `tests/v3-navigation.test.mjs`/`tests/v3-operational-parity.test.mjs`
+updated to match — repo-wide `grep -rn "Рабочий список"` after the change
+returns only the two explanatory code comments left behind.
+
+New Admin-only surface: `src/lib/platform-case-curator-assignment-actions.ts`
+(`assignCaseCuratorAction`, gated the same way
+`manageCaseCoverageAction`/`platform-case-coverage-actions.ts` already gates
+`case.curator.assign` — the real RBAC permission, not the coarser
+`FixedRoleCapability` `requirePlatformMutationCapability` takes) and
+`src/components/v3/profile/AssignCaseCuratorForm.tsx` (a small client form:
+curator select + required reason, reusing the `StudentPortalCuratorOption`
+list/type `listStudentPortalActiveCurators` already provides — the "coverage
+or report form options source" the task pointed at). `CaseHeader.tsx` fetches
+`readCaseAttentionFlags` (short-circuited behind the same
+`actor.systemRole==='admin' && staffHasPermission(actor,'case.curator.assign')
+&& !isStaffPreview` gate `canLinkCoverage` already computed) and renders the
+form inline in the Куратор row instead of the «Нагрузка кураторов» link when
+the case needs one; `src/app/(v3)/v3/profile/page.tsx` passes the SAME
+`studentPortalCurators` array it already loads (its own fetch condition —
+`directory || caseState === "pending"` — already covered this exact
+scenario) plus a freshly minted `assignCuratorRequestId`.
+
+Known deviations (honest, not hidden): (1) `platform.admissions_direction_summary_v1`
+(the «Сводка по направлениям» widget) is deliberately left untouched — it has
+no `needs_curator` bucket, so a needs-curator case is invisible there (it
+never enumerates every possible attention flag, only a fixed named set the
+task did not ask this slice to extend; `tests/admissions-playbook.test.mjs`'s
+own exhaustive stock-shape assertion confirms nothing there was disturbed).
+(2) `AssignCaseCuratorForm` does not special-case an empty curator list (no
+active curators available) beyond the submit button's own
+`!curatorMembershipId` guard — no "Нет доступного куратора" message like
+`DocsCreateStudentForm`'s; a minor UX polish gap, not a functional one, left
+for a later pass. (3) `tests/platform-student-handoff.test.mjs` was checked
+per the task's own explicit list but needed NO change — it tests
+`src/lib/platform-student-handoff.ts` (the `handoff_lead_to_admissions` RPC
+wrapper), which this slice does not touch at all; it stays 8/8 and is
+reported here as verified-unaffected rather than silently skipped.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean), `npm run test:brand-ui` (5/5), and the pinned
+suites this slice touches: `tests/platform-handoff-acknowledgement.test.mjs`
+(9/9, 2 new), `tests/platform-admissions.test.mjs` (26/26, 2 new),
+`tests/v3-navigation.test.mjs` (16/16), `tests/v3-operational-parity.test.mjs`
+(3/3), `tests/platform-student-handoff.test.mjs` (8/8, unaffected — see
+deviation 3), `tests/v3-student-profile-fields.test.mjs` under plain
+`node --test` per its own designated flag (10/10), plus the new
+`tests/platform-case-acceptance-migration.test.mjs` (8/8, following
+180/181's own template). A broader sweep of every other test file
+referencing `profile-source.ts`/`ProfileCaseDirectory`/`CaseHeader`/
+`platform-admissions.ts`/`ProfileSalesTransition`/`admissions-view.ts`/
+`platform-admissions-playbook-contract.ts`/`platform-handoff-acknowledgement.ts`/
+`navigation.ts` (`admissions-playbook`, `fixed-role-settings-ui`,
+`p4-supabase-admissions-storage-legacy-cleanup`, `scoped-finance-read-contract`,
+`staff-metadata-feedback`, `staff-role-member-editor`,
+`student-portal-provisioning-ui`, `v3-admissions-support`, `v3-brand-design`,
+`v3-handoff-navigation`, `v3-profile-activity`, `v3-profile-admissions`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`)
+passed 79/81, with 2 pre-existing failures verified via `git stash` to
+reproduce identically on this branch's pre-slice tree and therefore unrelated
+to this slice: `tests/v3-handoff-navigation.test.mjs` (the same
+`react-dom/server` ESM/CJS interop crash S2's own entry already documented)
+and, newly observed here, `tests/staff-metadata-feedback.test.mjs` failing
+with the IDENTICAL `react-dom/server` interop error on a file this slice
+never touches. `tests/staff-roles-sales-handoff-migrations.test.mjs` (5/6 —
+the same pre-existing "173-175 boundary diff" failure S2's entry already
+documented, re-verified via `git stash` here) was also run per the task's own
+"grep for respond_student_case_handoff" instruction, confirming it holds no
+pins on that function. Migration 182 itself is NOT applied; no Supabase
+credentials exist in this environment, matching every prior slice's stated
+limitation.
+Reviewer notes: S4 («Вузы и программы») and later slices are untouched — no
+route/playbook/portal surfaces were touched here, per this task's own
+constraint. The `needs_curator`/`awaiting_ack` flags are additive to
+`admissions_attention_flags`'s existing return shape; a future slice reusing
+that array for a NEW purpose should keep both entries in mind rather than
+assuming the old fixed six-flag set.
+
+## 2026-09-18 — unified workflow S4: Admissions без обязательного маршрута
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S4.
+Affected plan section: «S4 Admissions без обязательного маршрута» (plan §8,
+§11, §12, §13; PLAN_CHANGES «план-контракт реализации», S1, S2, S3 above).
+
+Reason: implement plan §8's «единое дело, а не обязательный маршрут» — the
+mandatory country-route/playbook stage tracker (seven fixed stages, gated
+transitions, message templates) and the visa-case CRUD form are retired;
+«Маршрут» becomes «Вузы и программы» (university/program/partner selection,
+no submission/visa/arrival tracking); the direction summary keeps only
+counts still actually tracked (plan §12).
+
+Deleted whole files: `src/components/v3/profile/ProfileAdmissionsRoute.tsx`,
+`AdmissionsRoutePanel.tsx`, `AdmissionsRouteEditor.tsx`,
+`AdmissionsMessageTemplates.tsx`, `src/lib/platform-admissions-playbook-command.ts`,
+`src/lib/platform-admissions-playbook-actions.ts` — the whole stage-transition/
+playbook-configuration/message-template command layer, superseded by nothing
+(plan §13: this is removal, not replacement). Also deleted
+`tests/e2e/admissions.spec.ts` (497 lines): a live-browser Playwright spec
+that drove exactly this deleted UI end to end (stage transitions, the
+`data-testid="admissions-route"` panel, visa-case create/update, message
+template clipboard copy) and imported the now-deleted `AdmissionsWorkspace`
+type, hard-breaking `npm run typecheck`. It is not part of the fast unit
+suite this task's CHECKS name, this environment cannot run or validate live
+Playwright specs against Supabase anyway, and rewriting ~500 lines of E2E
+coverage for a much lighter read-only replacement feature is disproportionate
+scope for this slice — deletion (not a rewrite left broken) is the honest
+option.
+
+Decision — migration 183
+(supabase/migrations/183_platform_admissions_summary_pruning.sql, NOT
+applied — no Supabase credentials in this environment, matching every prior
+slice) replaces `platform.admissions_direction_summary_v1` (137, unchanged
+since — confirmed unmodified across 145/149/156/176/177/178/180/181/182) via
+a single `CREATE OR REPLACE FUNCTION` on the SAME 4-argument signature (no
+`DROP FUNCTION`/re-grant needed, the same in-place-amend pattern 145/182
+already used for `platform_private.admissions_attention_flags`'s own body
+rewrites). `stock` keeps only `active`/`overdue`/`awaiting_ack` (unchanged
+meaning) plus S3's `needs_curator`; dropped: `awaiting_partner`, `submitted`,
+`decisions`, `visas`, `arrivals`, `cancelled`, `arrived` and the whole
+`periodArrivals` CTE (a "closed, confirmed-arrived-this-month" metric for a
+tracker this slice retires). The per-case flag computation itself
+(`platform_private.admissions_attention_flags`) is UNTOUCHED — the
+«Студенты» directory's own `p_attention` filter chips still return the full
+flag set; only this one AGGREGATE reader narrows what it reports.
+`p_period_from`/`p_period_to` stay accepted (changing the signature would
+need `DROP FUNCTION` + re-grant for no benefit) and still validated, but are
+no longer reflected in the JSON result — no `periodFrom`/`periodTo`/
+`periodArrivals` keys; the TS side stops sending them. New migration-pattern
+suite `tests/platform-admissions-summary-migration.test.mjs` (5/5) pattern-
+matches the rewritten function body directly against the written SQL file.
+
+TS/UI: `src/lib/platform-admissions-playbook-contract.ts` is pruned to just
+`ADMISSIONS_DIRECTIONS`/`AdmissionsDirection` (still used everywhere),
+`ADMISSIONS_ATTENTION`/`AdmissionsAttention` (S3's directory attention
+flags — unrelated to the route tracker, kept whole) and a narrowed
+`AdmissionsSummary` interface (`stock` only, matching migration 183).
+Deleted entirely: `ADMISSIONS_STAGES`/`ADMISSIONS_STAGE_LABELS`,
+`AdmissionsOutcome`, `ADMISSIONS_CASE_FIELDS`/`ADMISSIONS_APPLICATION_FIELDS`/
+`ADMISSIONS_VISA_FIELDS`/`AdmissionsField`/`admissionsVisaFields`/
+`validateAdmissionsFields`, `AdmissionsPlaybook`/`AdmissionsWorkspace`/
+`AdmissionsMutationReceipt` — nothing kept uses them once the route/playbook
+UI and the visa CRUD form are gone (verified: the partner-detail read below
+needed none of this machinery). `src/lib/v3/admissions-source.ts` keeps
+exactly the four named exports the task specified
+(`AdmissionsSourceError`, `admissionsRpc`, `normalizeAdmissionsSummary`,
+`readAdmissionsSummary` — the last narrowed to `{direction,
+curatorMembershipId}`, no more period args) plus ONE new addition,
+`readApplicationPartnerDetails` (see below) — a deliberate, documented
+departure from a literal "exactly these four" reading, made because the
+alternative (a whole new `src/lib/v3/*-source.ts` adapter file) would have
+required updating `tests/v3-supabase-integration.test.mjs`'s exhaustive
+per-file allowlist for zero benefit; a Server Action still needed its own
+new `"use server"` file regardless (Next.js requirement), so only the READ
+side was added here.
+
+`CaseHeader.tsx` no longer fetches the (deleted) route workspace: `stageLabel`,
+`activeBlocker`, the «Этап» `HeaderFact` and the blocker banner are gone
+(header grid drops from 4 to 3 columns — Направление/Куратор/Следующий шаг).
+Direction now comes from `draft.admissions.direction`, a new field on
+`ProfileAdmissionsWorkspace` (types.ts) populated in
+`admissionsWorkspace()` (profile-source.ts) from
+`data.studentCase.admissionsDirection` — a column `staff_student_case_page`
+already returns (137), so this needed no new read, just threading an
+already-fetched value through. `nextAction`/`nextActionDueOn` now always use
+the `profile.nextAction`/`profile.nextActionAt` fallback the old code already
+had for a failed workspace read (that failure path is now the only path).
+
+New tab: `src/components/v3/profile/UniversityProgramsTab.tsx` replaces
+`ProfileAdmissionsRoute.tsx`, wired via a renamed `Profile.tsx` prop
+(`admissionsRoute` → `universityProgramsTab`, no test pinned the old name).
+The `TABS` key stays `"route"` (types.ts) — the `?tab=route` URL contract
+survives (`tests/v3-operational-parity.test.mjs`'s literal, `CuratorDay.tsx`'s
+link) — only the title changes to «Вузы и программы». The new tab composes
+the KEPT `ProfileAdmissionsWorkspacePanel` (applications Card — untouched
+create/details actions in `platform-admissions-actions.ts`) and the
+re-parented `PartnerPacketsPanel`, each reading and failing independently, as
+before.
+
+Status-editing removal (plan §11's product decision): `ApplicationStatusForm`
+is deleted outright (was the only caller of
+`changePlatformUniversityApplicationAction`, left untouched in
+`platform-admissions-actions.ts` since other callers may still exist — verified
+none do inside this component, and the action itself is out of this task's
+file list). `ApplicationCreateForm`'s status `<select>` is also removed — a
+newly added university/program is simply "being considered", so the same
+default it already used (`"preparation"`) is now a hidden, unedited field
+instead of a visible picker. The `university_applications.status` column,
+existing rows and `PLATFORM_APPLICATION_STATUSES` all stay; the status Pill
+next to each application (`applicationStatus(application.status)`) keeps
+showing it read-only, per the task's own allowance.
+
+Visa-case CRUD removal (plan §11): the «Виза» Card and `VisaForm` are deleted
+from `ProfileAdmissionsWorkspace.tsx`; `upsertPlatformCaseVisaAction` and its
+private helpers (`visaFailureState`, `VISA_FIELDS`,
+`PlatformCaseVisaActionState`) are deleted from
+`platform-case-operations-actions.ts` (surgical — `createPlatformFinanceStopFactorAction`/
+`resolvePlatformFinanceStopFactorAction` and their shared helpers are
+untouched, confirmed by a clean `npm run typecheck`+`eslint` afterward).
+**Scope clarification versus the task's literal file list**:
+`PLATFORM_VISA_STATUSES`/`PlatformVisaStatus`/`PlatformCaseVisa` in
+`platform-case-operations-contract.ts` are NOT deleted — investigation
+found them load-bearing well beyond the deleted form: the read-only
+`getPlatformCaseVisa`/`normalizePlatformCaseVisa` (`platform-case-operations.ts`,
+feeds `PersonProfile.visa`, already-established as "kept in the model,
+deliberately not rendered" per `tabs.tsx`'s own pre-existing comment), the
+staff visa QUEUE (`platform-admissions-workspace.ts`, an unrelated org-wide
+worklist), and the PORTAL's visa history (`portal-source.ts` — explicitly
+out of scope, "no portal changes (S5)"). Deleting the shared enum/type would
+have broken all three to satisfy a form that no longer exists; `types.ts`'s
+`ProfileAdmissionsWorkspace.visa`/`workspace.requestIds` similarly keep the
+`visa: PlatformCaseVisa | null` field (same "kept, unrendered" treatment as
+`profile.visa` — its own explanatory comment in `tabs.tsx` is updated to say
+so) while the now-pointless `requestIds.visa` UUID (pure per-render
+scaffolding, zero data-loss risk either way) is removed. Visa rows and files
+stay in the database untouched; visa files remain ordinary documents (the
+documents tab's own «Виза» group comes from document *requirements*, a
+completely separate mechanism, confirmed unaffected).
+
+**Partner-fields outcome: read-only, not editable — with a stronger reason
+than anticipated.** The task allowed either outcome depending on where the
+write allowlist lives. Investigation found the SQL-side field allowlist
+(`platform_private.admissions_field_schema`/`admissions_validate_fields`,
+137) is genuinely independent of the deleted TS command layer — so by the
+letter of the task's own test, editable looked achievable. But the SAME RPC
+family (`platform_private.admissions_related_command`, wrapped by
+`platform.update_application_admissions_details_v1`) hard-requires
+`c.admissions_playbook_version_id IS NOT NULL` ("Configure a country
+playbook first") before it will write `admissions_details` at all. That
+configuration path (`configure_case_admissions_v1`) was reachable ONLY
+through the just-deleted `AdmissionsRoutePanel` "Выбрать маршрут" editor,
+and even when it existed it was CN/MY-only (playbooks never existed for
+EUROPE/AE/TR). After this slice there is no UI left to ever set that column,
+so the write RPC would fail closed for essentially every case going
+forward — building an editable form on it would not be a narrow edge case,
+it would silently fail for the whole product. Making it genuinely usable
+would need a new SQL RPC without that gate, which the task explicitly
+forbids ("do NOT widen SQL"). Read-only is therefore the correct choice, not
+just the cautious one. New `readApplicationPartnerDetails` in
+`admissions-source.ts` re-reads the same `staff_case_admissions_workspace_v1`
+RPC the deleted editor used, scoped to four kept keys — `partnerContact`,
+`packageReference` (section «Партнёр и ссылки»), `decisionReference`,
+`offerConditions` (section «Решение университета», matching plan §11's exact
+labels). `ApplicationPartnerFacts` (`ProfileAdmissionsWorkspace.tsx`) renders
+them per application with no edit control, and renders nothing at all when
+every field is empty (the common case for any application never touched by
+the old editor). `ProfileAdmissionsWorkspacePanel` gains an optional
+`partnerDetails` prop (default `[]`); `UniversityProgramsTab` is the only
+caller that populates it — the SAME panel is also still rendered on the
+Overview tab (`tabs.tsx`, pre-existing duplication, unrelated to this slice)
+where it intentionally gets no partner facts, keeping Overview lean per
+plan principle #3.
+
+Summary panel/CuratorDay: `AdmissionsSummaryPanel.tsx` drops the "Месяц
+прибытия" period picker and its «Ждём партнёра»/«Прибыли за месяц» metrics
+entirely (nothing left to compute them from); a new «Нужно назначить
+куратора» metric (S3's `needs_curator`) takes the freed slot, both as an
+org-wide `Metric` tile and a per-direction column in the expandable report.
+`CuratorDay.tsx`'s "Мой день" metrics make the same swap. The
+`admissionsReportPeriod` calendar-month utility (`src/lib/admissions-report-period.ts`)
+is kept and still unit-tested (now in `tests/admissions-summary.test.mjs`)
+per the task's explicit instruction, even though no UI calls it any more
+after this slice — a deliberate decision (it is a generically useful, already
+correct pure function, not route/playbook-specific), not an oversight.
+
+Tests: `tests/admissions-playbook.test.mjs` is deleted; its three
+still-relevant assertions (`normalizeAdmissionsSummary`,
+`admissionsReportPeriod`, `buildPlatformStudentCasePageRpcArguments`/
+`normalizePlatformStudentCaseQueueRow`) move to new
+`tests/admissions-summary.test.mjs`, updated for the narrowed
+`AdmissionsSummary` shape. `tests/v3-profile-admissions.test.mjs`: the visa
+Card assertion (`id="visa"[\s\S]*title="Виза"`) is replaced with
+`doesNotMatch` guards; the big action/field/outcome test drops
+`upsertPlatformCaseVisaAction`/`visa_case_id`/`PLATFORM_APPLICATION_STATUSES`/
+`PLATFORM_VISA_STATUSES` assertions, adds `doesNotMatch` guards for the
+retired status-editing UI, and adds assertions for the new
+`ApplicationPartnerFacts` block (present, form-free, correctly sliced
+between `ApplicationDetailsForm` and `FinanceStopCreateForm` now that
+`VisaForm`/`ApplicationStatusForm` no longer exist as slice boundaries).
+`tests/platform-case-operations.test.mjs`: **not** what the task's own
+inventory suggested ("retire visa normalizer tests, keep finance-stop") —
+investigation found this file's visa coverage targets
+`normalizePlatformCaseVisa`, the READ path proven load-bearing above, not
+the deleted CRUD action (which this file never tested in the first place;
+that coverage lived in `v3-profile-admissions.test.mjs`, updated instead).
+The one real change needed here is the client-import-hygiene test noticing
+`ProfileAdmissionsWorkspace.tsx` no longer imports anything from
+`platform-case-operations-contract.ts` (the deleted visa import was the only
+one) — updated to assert that directly rather than leave a false pin.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean, zero warnings after removing one file-local
+helper — `optionalOperationText` in `platform-case-operations-actions.ts` —
+left orphaned by the visa-action deletion), `npm run test:brand-ui` (5/5),
+and the pinned suites this slice touches: `tests/v3-operational-parity.test.mjs`
+(3/3), `tests/platform-admissions.test.mjs` (unaffected, all passing),
+`tests/v3-admissions-support.test.mjs` (unaffected, all passing),
+`tests/platform-admissions-tasks.test.mjs` (unaffected, all passing),
+`tests/admissions-summary.test.mjs` (3/3, new), `tests/v3-profile-admissions.test.mjs`
+(7/7), `tests/platform-case-operations.test.mjs` (9/9, 1 updated),
+`tests/v3-supabase-integration.test.mjs` (unaffected — no new `src/lib/v3/*.ts`
+file was added, so its exhaustive allowlist needed no change), plus the new
+`tests/platform-admissions-summary-migration.test.mjs` (5/5). A broader
+sweep of every other test file referencing `profile-source.ts`/`tabs.tsx`/
+`admissions-view.ts`/`CaseHeader.tsx`/`ProfileAdmissionsWorkspace.tsx`/
+`platform-admissions.ts`/`CuratorDay.tsx`/`Profile.tsx`/`types.ts`/
+`page.tsx`/`AdmissionsSummaryPanel`/`platform-case-operations-contract`/
+`platform-admissions-playbook-contract`/`UniversityProgramsTab` (
+`p4-supabase-admissions-storage-legacy-cleanup`, `scoped-finance-read-contract`,
+`staff-metadata-feedback`, `staff-role-member-editor`,
+`student-portal-provisioning-ui`, `v3-document-recognition-jobs`,
+`v3-handoff-navigation`, `v3-navigation`, `v3-profile-activity`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`,
+`v3-student-profile-fields`) passed 74/77, with 3 pre-existing failures
+verified via `git stash` to reproduce identically on this branch's pre-slice
+tree and therefore unrelated to this slice: `tests/v3-handoff-navigation.test.mjs`
+and `tests/staff-metadata-feedback.test.mjs` (the same `react-dom/server`
+ESM/CJS interop crash S2/S3's own entries already documented) and, newly
+observed here, `tests/v3-document-recognition-jobs.test.mjs` failing with the
+IDENTICAL error on a file this slice never touches (re-verified via
+`git stash` here). `tests/v3-student-profile-fields.test.mjs` was run under
+plain `node --test` per its own designated flag (10/10). Migration 183
+itself is NOT applied; no Supabase credentials exist in this environment,
+matching every prior slice's stated limitation. Final repo-wide check —
+`rg 'AdmissionsRoutePanel|readAdmissionsWorkspace|ADMISSIONS_STAGE_LABELS|
+AdmissionsMessageTemplates|VisaForm|upsertPlatformCaseVisa' src tests` —
+returns only kept-by-design hits: one explanatory doc-comment in
+`admissions-source.ts` naming the deleted `AdmissionsRoutePanel` for
+context, and the new `doesNotMatch` test assertions in
+`v3-profile-admissions.test.mjs` that verify these symbols are gone.
+
+Reviewer notes: S5 («Портал одного дела») and S6 are untouched — no portal
+surfaces, Docs direct-intake removal or naming/Inbox↔card work happened
+here, per this task's own constraint. The visa read path
+(`getPlatformCaseVisa`/`normalizePlatformCaseVisa`/`PlatformCaseVisa`) is
+now the LAST live consumer keeping `platform-case-operations-contract.ts`'s
+visa types un-prunable from the CRM side; a future slice that also retires
+the staff visa queue and/or `PersonProfile.visa` could revisit deleting them
+then, not before. `readApplicationPartnerDetails`'s dependency on
+`staff_case_admissions_workspace_v1` (and therefore on
+`admissions_playbook_version_id` existing at all on old CN/MY cases) means
+its four facts will read as empty for any case that never had a playbook
+configured — expected and honest, not a bug: those cases never had this
+data written in the first place.
+
+## 2026-09-18 — unified workflow S5: Портал одного дела
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S5.
+Affected plan section: «S5 Портал одного дела» (plan §10, §11, §13;
+PLAN_CHANGES «план-контракт реализации», S1-S4 above).
+
+Reason: implement plan §10/§13 — the portal's old «Заявки и виза» screen
+tracked university-application and visa stages the platform no longer
+tracks as their own process, and duplicated the mandatory-stage framing the
+CRM side already dropped in S4. The portal and CRM stay one case; a
+curator-less, portal-activated `state='pending'` cabinet (S1's «кабинет до
+продажи») must render truthfully instead of inventing a stage or a curator
+that do not exist yet.
+
+Decision — no new migration. Every SQL predicate this slice depends on was
+already extended for `state='pending'` by migration 180 (S1) or never
+gated on case state to begin with; investigation (documented per deliverable
+3, not guessed) confirmed each surface below already works, so migration
+184 was not created:
+- `platform.student_portal_overview_v2()` (131, extended by 180) already
+  accepts `'pending'`; a fresh pending case gets `operational_stage`'s table
+  default (`'contract_confirmed'`, 042) with null curator, student action
+  and EVO action — exactly the shape the removed stage pill would have
+  rendered dishonestly as "договор подтверждён". Removing the pill (below)
+  makes this a non-issue rather than a value worth relabeling.
+- `platform.student_portal_finance_v2()` (127) is still active/closed-only
+  by design (180's own header); for a pending case its base `WHERE
+  student_case.state IN ('active','closed')` returns zero rows, not an
+  error — an honestly empty payments list, matching plan §6 (no sale before
+  handoff means no obligations yet).
+- Assessments (`platform_private.require_student_assessment_actor_read`,
+  135) and case-help (`platform_private.require_case_operations_actor`,
+  146/156) both gate the Student branch on `(SELECT count(*) FROM
+  platform.student_portal_cases()) <> 1`, and `student_portal_cases()` (042)
+  delegates entirely to `private.platform_can_read_student_portal_case`,
+  the exact function 180 already extended to `state IN ('pending','active',
+  'closed')`. Both English/ORVIS tests and «Вопрос куратору» therefore
+  already work for a pending cabinet with zero code changes — verified by
+  reading the SQL, not assumed.
+- Document slots (`student_portal_documents`, upload/download chain) were
+  already extended for `'pending'` by 180 itself; DocumentsView is generic
+  over the row list and needed no change.
+- The «Виза» document group the task asked to verify is not a UI grouping
+  at all — `DocumentsView.tsx` renders a flat checklist keyed by
+  `requirementLabel`/`requirementKey` from `document_requirements` data,
+  unrelated to and unaffected by this slice; visa files stay ordinary
+  documents.
+
+Screen removal: `src/app/(portal)/portal/applications/page.tsx` no longer
+reads or renders anything — investigating `src/proxy.ts` (`isConnectedPlatformPage`
+→ `isConnectedStudentPortalPage`) showed the route gate runs BEFORE Next's
+own router, so simply deleting the page and dropping `/portal/applications`
+from `STUDENT_PORTAL_PAGE_ALLOWLIST` (`src/lib/platform-route-contract.ts`)
+would produce a hidden 404 outside the portal shell, not the friendlier
+`(portal)/not-found.tsx` — confirmed by `tests/fixed-role-route-contract.test.mjs`'s
+own existing assertion that `/portal/applications` stays connected. Redirect
+(the task's own "kinder for old notification links" choice) therefore keeps
+the route in the allowlist and replaces the page body with an unconditional
+`redirect("/portal")`, the same pattern S1 used for `/v3/admissions-requests`.
+`src/components/v3/portal/ApplicationsView.tsx` is deleted outright.
+`src/components/v3/portal/PortalShell.tsx` drops the «Заявки» nav entry
+(`SECTIONS` 7 → 6 items). `src/lib/v3/portal-source.ts` drops
+`readStudentPortalApplications`, its five normalizers/helpers
+(`normalizeApplication(TimelineEntry)`, `normalizeVisa(TimelineEntry)`,
+`assertTimelineContinuity` — verified unused elsewhere first), its five
+exported types (`StudentPortalApplication(s|TimelineEntry)`,
+`StudentPortalVisa(TimelineEntry)`) and the now-dead `TIMELINE_LIMIT`
+constant and `PLATFORM_APPLICATION_STATUSES`/`PLATFORM_VISA_STATUSES`
+imports (the underlying contract files stay — still used by the CRM side's
+kept visa-read path and application-status Pill, per S4). The
+`application`/`visa` branch in `portalNotificationTarget`
+(`src/components/v3/portal/presentation.ts`) — confirmed dead in the
+briefing, since no migration ever emits those categories — is removed
+without a replacement branch; both prefixes now fall through to the same
+default `/portal` link every other unknown category already used, per the
+task's "map to /portal fallback" option. `applicationStatusPresentation`/
+`visaStatusPresentation` (presentation.ts) are deleted with it (their only
+caller was the deleted view). `wording.ts`'s `VISA_STATUS`/`visaStatus` and
+`APPLICATION_STATUS`/`applicationStatus` dictionaries are deliberately kept
+untouched — `applicationStatus` is still used by `ApplicationDeadline.tsx`/
+`ProfileAdmissionsWorkspace.tsx`/`tabs.tsx` (CRM side), and pruning the
+now-unused `visaStatus` export was judged out of scope for a screen-removal
+slice (a small, harmless, generically-named wording lookup, not a
+type/route/predicate that could mislead).
+
+Overview without the mandatory stage: the «Текущий этап» pill and its
+`overviewStage()` helper (presentation.ts) are deleted — confirmed unused
+elsewhere first (`rg overviewStage`). `OverviewView.tsx` already led with
+the next-action queue post-redesign, so removing the pill needed no other
+layout change. `STUDENT_OPERATIONAL_STAGE`/`studentOperationalStage` in
+`wording.ts` stay — still consumed by the CRM staff directory
+(`CuratorDay.tsx`, `ProfileCaseDirectory.tsx`), matching the task's own
+"keep if still consumed elsewhere" instruction.
+
+Pending-cabinet honesty — three decisions:
+(1) **Overview/curator.** `OverviewView` takes a new optional `pending`
+prop (`src/app/(portal)/portal/page.tsx` passes `actor.caseState ===
+"pending"`, from the actor `requireStudentPortalActor()` already fetches).
+When pending, the «Ваш куратор» block is retitled «Сопровождение» with the
+quiet copy «Менеджер свяжется с вами.» instead of «Куратор пока не
+назначен.» — the latter implies a curator will eventually appear on this
+case, which is false for a pre-sale cabinet (curator assignment only
+happens after a sale, per S1/S3). New `portalPendingCabinet` dictionary in
+`wording.ts` holds this and the анкета copy below, quiet and Russian per
+plan §14.
+(2) **Анкета.** Investigated the task's suggested "smallest honest
+solution" (link `/apply/status` from the overview) and found it did NOT
+actually work as stated: `studentApplicationEntryRedirect`
+(`student-signup-runtime.ts`) bounces ANY portal-authenticated actor —
+pending included, since `readVerifiedStudentPortalAuthority` already
+accepts `'pending'` per S1 — straight back to `/portal` before the page
+ever reads the application. Fixing this required a real code change, made
+narrowly inside `src/app/apply/status/page.tsx` only (not the shared
+`studentApplicationEntryRedirect` helper, which stays byte-for-byte
+unchanged and keeps its 3 existing call sites and pinned test
+(`tests/student-public-application.test.mjs`, still 15/15) untouched): when
+the shared helper says "/portal", the page now additionally reads portal
+authority itself and only redirects if the case is NOT `'pending'`; a
+pending actor stays and sees their approved анкета via the existing,
+unmodified `own_student_application_v1` RPC (keyed purely by `auth.uid()`,
+no role/state gate — verified in migration 177/180) and the existing
+`ApplicationStatus` component, whose "Открыть кабинет" button already
+returns them to `/portal` independently (`refreshStudentApplicationAction`
+doesn't use `studentApplicationEntryRedirect` at all). The overview's new
+«Ваша анкета» card (pending only) links to `/apply/status`.
+(3) **Assessments/case-help.** Left fully as-is — see the "no new
+migration" section above; both already accept `'pending'` and needed no
+quiet-empty-state fallback because there was nothing to hide behind one.
+
+Tests: `tests/v3-student-portal-ui.test.mjs` — page-file list test retitled
+"four portal pages" (the applications page file stays on disk as a redirect
+stub, so the file list itself is unchanged; only the nav-hrefs assertion
+drops one entry); the "application and visa projections overlap" reader
+test is deleted (its subject no longer exists); the "every page passes the
+direct strict E2 result" table drops the applications row and gains a
+`pending={actor.caseState === "pending"}` assertion on the overview row,
+plus a new adjacent test asserting the applications route is a bare
+`redirect("/portal")` with no reader/view imports; "views consume the exact
+E2 DTOs" drops the `ApplicationsView`/`StudentPortalApplications` entry and
+asserts the file no longer exists; "existing case portal views stay
+presentation-only" drops its «История статусов» assertion (that text only
+ever existed in the deleted Timeline disclosure); "notifications deep-link
+by category" replaces the application/visa `match` with a `doesNotMatch`
+covering both the removed branch text and the removed "Открыть заявки"
+label; "portal feedback and status markers" drops its `ApplicationsView`
+read. New: "the overview never claims a mandatory stage, and a pending
+cabinet stays honest" — structural coverage for the stage-pill removal, the
+pending curator/анкета copy, the `portalPendingCabinet` dictionary, the
+`pending` prop wiring on the overview page, and the `/apply/status`
+pending-bypass condition. `tests/v3-student-portal-source.test.mjs` drops
+the `readStudentPortalApplications` import and its two dedicated tests plus
+the now-dead `APPLICATION_ROW`/`VISA_ROW`/`VISA_CASE_ID` fixtures
+(`APPLICATION_ID` stays — it was already reused generically for unrelated
+UUID fields elsewhere in the file before this slice).
+`tests/e2e/student-portal.spec.ts`: `PORTAL_ROUTES` drops the applications
+entry (4 routes now), the "all five... routes" test retitled "all four",
+and the mobile-menu link-count assertion drops from 7 to 6.
+`src/lib/platform-route-contract.ts` gains an explanatory comment on the
+kept `/portal/applications` allowlist entry; no behavioral change, so its
+own pinned assertions (`tests/fixed-role-route-contract.test.mjs`) needed
+no edits and still pass unmodified (22/22).
+
+Known deviations (honest, not hidden): (1) the operational-stage default
+(`'contract_confirmed'`) a fresh pending case's `student_portal_overview_v2`
+row still carries is never surfaced anywhere in the portal any more (the
+pill is gone) or read by this slice's new code — it remains a CRM-only
+concern (`studentOperationalStage`/`STUDENT_OPERATIONAL_STAGE` continues to
+apply to CRM case rows that do have real progress). (2) `/apply/status`'s
+pending-bypass duplicates one `getClaims`+`readVerifiedStudentPortalAuthority`
+round trip already performed inside `studentApplicationEntryRedirect` — an
+accepted, deliberate small cost to avoid touching a 3-call-site shared
+helper and its pinned tests for a low-traffic status page. (3) `visaStatus`/
+`VISA_STATUS` in `wording.ts` are now fully unused (their only caller was
+the deleted `ApplicationsView`/`presentation.ts` pair) but were left in
+place — pruning them was judged out of this slice's scope; a future pass
+may remove them if no CRM surface ever adopts them.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched file (clean), `npm run test:brand-ui` (5/5), and the pinned suites
+this slice touches: `tests/v3-student-portal-ui.test.mjs` (21/21, 6 updated,
+2 new), `tests/v3-student-portal-source.test.mjs` (7/7, 2 tests removed),
+`tests/v3-admissions-support.test.mjs` (1/1, unaffected). `tests/e2e/student-portal.spec.ts`
+was updated per the task's instruction but, like every prior slice, cannot
+be executed in this environment (no live Supabase/browser). A broader
+regression sweep confirmed no collateral damage: `tests/fixed-role-route-contract.test.mjs`
+(22/22 — specifically re-verifies `/portal/applications` stays a connected
+Student Portal route), `tests/student-portal-authority.test.mjs` (6/6),
+`tests/student-portal-auth.test.mjs` (5/5), `tests/v3-navigation.test.mjs`
+(16/16), `tests/v3-supabase-integration.test.mjs` (10/10 — its exhaustive
+`src/lib/v3/*.ts` allowlist needed no change since `portal-source.ts` still
+exists), `tests/student-public-application.test.mjs` (15/15 — proves the
+`/apply/status` change didn't disturb `studentApplicationEntryRedirect`'s 3
+call sites or the shared entry-redirect contract). `tests/v3-handoff-navigation.test.mjs`
+and `tests/staff-metadata-feedback.test.mjs` fail with the same pre-existing
+`react-dom/server` ESM/CJS interop error S2/S3/S4 already documented,
+re-verified via `git stash` to reproduce identically on this branch's
+pre-slice tree — unrelated to this slice, not fixed here. Migration 184 was
+NOT created — every predicate this slice depends on already accepted
+`'pending'` (see Decision above), so `supabase/migrations/` is untouched by
+this slice. Final repo-wide sweep — `rg 'readStudentPortalApplications|ApplicationsView'`
+across the whole tree outside `docs/` — returns only the two new
+`doesNotMatch`/`existsSync(...,false)` test assertions that verify these
+symbols are gone.
+
+Reviewer notes: S6 (Docs/наименования/Inbox↔карточка/сводка) is untouched —
+no Docs direct-intake removal, naming or Inbox↔card work happened here, per
+this task's own constraint. The universities portal page/catalog is
+untouched (plan §11 keeps «Вузы и программы»/«Университеты» as a real,
+ongoing surface, not part of the retired tracker). No staff-CRM screens
+were touched (S4 already did that work); assessments privacy is untouched
+(no new read/write path, no widened predicate — the existing pending-case
+support was discovered, not built).
+
+## 2026-09-18 — unified workflow S6: Docs, наименования и связки
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S6 —
+the final slice. Affected plan section: «S6 Docs и наименования» (plan §3,
+§4, §9, §12, §13, §14; PLAN_CHANGES «план-контракт реализации», S1-S5
+above).
+
+Reason: close the four remaining plan items S1-S5 deliberately left
+untouched — direct student creation via EVO Docs (plan §13, the last
+Продажи-bypass still standing after S1-S5 closed the others), the
+«Клиентские сообщения» → Inbox rename (plan §3/§14, explicitly deferred to
+S6 by S2's own reviewer note), honest five-state document status labels
+(plan §9), and a card→chat link using data the lead read already carries
+but never surfaced (plan §4/§12) — plus the DESIGN.md/EVO_LAUNCH_PLAN.md
+bookkeeping every prior slice deferred to the slice that closes the plan.
+
+### 1. Remove direct student creation via EVO Docs (plan §13)
+
+Deleted whole files: `src/components/v3/profile/DocsCreateStudentForm.tsx`,
+`src/lib/platform-docs-student-actions.ts`, `src/lib/v3/docs-student-source.ts`.
+Migration176 SQL and its data are untouched, per the task's own constraint
+(no SQL changes in this slice) and per plan §13's own rule («не удаляем
+сохранённых людей, файлы, продажи и историю»): historical docs-intake cases
+created through the old form remain valid data, same as S1's treatment of
+pre-existing approved-application cases.
+
+`src/app/(v3)/v3/profile/page.tsx`: removed the `DocsCreateStudentForm` and
+`canCreateDocsStudent`/`readDocsStudentOptions` imports, the `canAddStudent`/
+`createStudentHref` consts, the entire `?section=docs&new=student` branch
+(the dedicated "Добавить студента" screen), the "Добавить студента" Link in
+the docs-mode toolbar, and the `createStudentHref` prop passed to
+`ProfileCaseDirectory`. The toolbar `<div>` that held both the "Добавить
+студента" and "Университеты и бланки" links now renders only when the
+`catalog.import.manage` condition holds — previously it could render an
+empty flex row when neither link's condition was true; collapsing the two
+independent conditions into one removed that dead markup as a side effect,
+not a separate change.
+
+`src/components/v3/profile/ProfileCaseDirectory.tsx`: dropped the
+`createStudentHref` prop and its two consumers (the empty-state "Добавить
+студента" link is gone). The docs-mode empty-state copy — previously
+"Добавьте студента, чтобы начать работу с документами." when the caller
+had create rights, or a generic "Здесь появятся доступные вам дела
+студентов." otherwise — is now the single quiet line the task specified:
+"Студенты появляются после продажи в отчёте." for every docs-mode empty
+state, matching the non-docs branch's existing "Здесь появятся дела после
+передачи из продаж." — both branches now say the same thing about the same
+fact (plan §14 rule 1: same destination reads the same everywhere), rather
+than docs mode implying a second, Docs-only way to add a student.
+
+Verified `?section=docs&new=student` now falls through to the plain
+`ProfileCaseDirectory` render (no dead-end, no 404): the removed `if` block
+was the only special-case branch keyed off `params.new`, and the rest of
+`ProfilePart` never reads that key. `rg` sweep (`DocsCreateStudentForm|
+docs-student-source|platform-docs-student-actions|canCreateDocsStudent|
+readDocsStudentOptions|createDocsStudentAction|new=student|createStudentHref|
+canAddStudent` across the whole tree) returns only one hit, in
+`docs/EVO_LAUNCH_PLAN.md`'s existing PR #836 production-acceptance receipt
+("Entry: `/v3/profile?section=docs&new=student`.") — left untouched as an
+append-only historical record of what that release verified, per this
+file's own convention (same treatment S1-S5 gave prior release receipts).
+`tests/v3-supabase-integration.test.mjs`'s adapter-file allowlist did list
+`docs-student-source.ts` in both the full `src/lib/v3/*.ts` list and the
+`*-source.ts` subset; both arrays are updated to drop it (10/10 still
+passes — confirmed no other file in that directory was affected).
+
+### 2. Naming: «Клиентские сообщения» → «Inbox» (plan §3/§14)
+
+`src/lib/v3/navigation.ts`: both `inbox` link definitions (the Продажи-group
+entry at the old :60 and the common-section entry at the old :76) now use
+`label: "Inbox"`. Route, id and capability gate (`sales.read` on the
+Продажи-group entry) are unchanged — only the label moved, matching plan
+§14 rule 5 (clear, consistent names) and plan §3's own diagram, which
+already spells this destination "Inbox" in the target nav tree.
+
+Scope of the rename is the exact string «Клиентские сообщения», per the
+task's own instruction to find it by `rg 'Клиентские сообщения' src`. That
+sweep returned exactly the two `navigation.ts` lines (now fixed) plus two
+`docs/` hits (`PLAN_CHANGES.md`'s own S2 reviewer note and
+`docs/design/v3/team-workspace-run-plan.md`, an unrealized future-chat
+plan document) — both left as historical/planning text, not live UI.
+Deliberately NOT renamed: the inbox page's own title/heading text
+("Входящие" — `src/app/(v3)/v3/inbox/page.tsx`,
+`src/app/(v3)/v3/inbox/loading.tsx`, its `<title>` metadata, and the
+`access-denied` route-label map). "Входящие" is a different existing
+Russian word, not a match for the literal string the task asked to rename,
+and retitling the page itself would be a second, unrequested naming
+decision beyond "rename the nav label" — left as a follow-up judgment call
+for a future pass, not a deviation from this task since it was never in
+scope.
+
+`tests/v3-navigation.test.mjs`: the two label arrays that pinned
+"Клиентские сообщения" (the admissions-preview common-links assertion and
+the Продажи group's ordered `[label, href]` list) now expect "Inbox", with
+an inline comment recording the S6/plan §3 reasoning at each site.
+
+### 3. Card ↔ chat link (plan §4/§12) — implemented, no new SQL
+
+Implemented using an existing, already-fetched field that was never wired
+to the UI. `platform-sales.ts`'s `getPlatformSalesLead` (backing
+`readLeadProfile` in `profile-source.ts`) already calls
+`staff_sales_lead_detail`, whose response `linkedConversations` field
+(`PlatformSalesLinkedConversation[]`: `conversationId`, `subject`, `queue`,
+`status`, `updatedAt`) was normalized and returned but never read by any
+UI component (confirmed by `rg linkedConversation src` before this slice —
+every hit was inside `platform-sales.ts` itself). No new RPC, no new
+migration, no widened read — the smallest honest read the task asked for.
+
+`src/components/v3/profile/types.ts`: `ProfileSalesSnapshot` gains a
+`linkedConversations: readonly PlatformSalesLinkedConversation[]` field
+(type-only import from `platform-sales.ts`, the same pattern
+`Pipeline.tsx` already uses for `PlatformSalesLeadLatestNote`). Deliberately
+NOT widened via `sales.lead`'s own type (`PlatformSalesWorkflowLead`,
+structurally a narrower projection that `PlatformSalesLeadDetail` already
+satisfies at runtime) — an explicit field says what the card actually reads
+instead of relying on an accidental structural superset.
+
+`src/lib/v3/profile-source.ts`: the single construction site (inside
+`readLeadProfile`, previously `sales: { lead, gate, handoff }`) now also
+copies `linkedConversations: lead.linkedConversations` through. This is the
+ONLY site that builds a `ProfileSalesSnapshot` in the whole tree (verified
+by grep) — `readCaseProfile`'s early-return path stays `sales: null`,
+unaffected.
+
+`src/components/v3/profile/tabs.tsx` (`Overview`, the sales-branch Card):
+renders "Открыть переписку в Inbox" (or, if a lead ever carries more than
+one linked conversation, one link per conversation suffixed with its
+subject to disambiguate) using the existing `buildV3InboxHref` — previously
+consumed only inside `inbox-source.ts`, now also imported here — building
+`/v3/inbox?conversation=<id>`. Gated on
+`staffPresentationCan(actor, "messaging.read")`, the same capability
+`/v3/inbox`'s own route guard requires (`fixed-role-policy.ts`:
+`"/v3/inbox": ["messaging.read"]`) — symmetric with `v3InboxProfileHref`'s
+reverse-direction check on the inbox page, which gates the "back to
+lead/case" link on `sales.read`/`admissions.read` (the profile route's own
+requirement). An actor who cannot open Inbox never sees a link that would
+404/redirect them there.
+
+Outcome: implemented, not a deviation. The link is scoped to the lead-based
+Sales-card branch (`sales && staffPresentationCan(actor, "sales.read")`),
+matching plan §4's "Открыть переписку в Inbox, если переписка существует"
+placement inside the lead card.
+
+### 4. Document status labels (plan §9)
+
+`src/lib/v3/wording.ts`'s `DOCUMENT_SLOT_STATUS` (previously lowercase
+"требуется"/"отправлен"/"принят"/"нужно исправить"/"отклонён") becomes
+"Не загружен" / "На проверке" / "Принят" / "Нужно исправить" / "Отклонён" —
+required/submitted/approved/correction_required exactly as the task quoted
+from plan §9, capitalized to match this dictionary's only call sites, both
+inside `<Pill>`/badge components (`ProfileDocumentsClient.tsx`'s document
+row and `portal/presentation.ts`'s `documentStatus`, itself only ever
+rendered through `<PortalStatus>`, a `<Pill>` wrapper) — the same
+capitalization convention already used by this file's other Pill-only
+dictionaries (e.g. `STATE_COPY` in `ProfileCaseDirectory.tsx`: "В работе",
+"Закрыто"). `rejected` keeps "Отклонён": the plan's four-item list names
+the common path, not an exhaustive prohibition — the server enum keeps its
+fifth, honest state, per the task's own framing of this as the already-
+decided orchestrator call.
+
+`DOCUMENT_REVIEW_DECISION` is synced to the same three words
+(`correction_required` moves from "возвращён на исправление" to "нужно
+исправить", matching the slot status's wording) but stays LOWERCASE,
+deliberately not capitalized like the slot dictionary above: unlike
+`documentSlotStatus`, `documentReviewDecision` is read mid-sentence in
+`ProfileDocumentsClient.tsx` ("Документ {decision} · {date}" → "Документ
+принят · 12.09.2026"); a mid-sentence capital there would misread as a
+typo, not emphasis. Its other two call sites
+(`portal/presentation.ts`'s `documentReviewLabel`, rendered as a
+standalone `<dd>` value in `DocumentsView.tsx`) read naturally in
+lowercase too, so no second dictionary was needed.
+
+Verified no duplicated literals: `rg` for the old and new label strings
+across `src/components/v3/portal/DocumentsView.tsx` and
+`ProfileDocumentsClient.tsx` found no independent copies — both consume
+`documentSlotStatus`/`documentReviewDecision` from the single `wording.ts`
+dictionary (`portal/presentation.ts` re-exports them as
+`documentStatus`/`documentReviewLabel`, itself just a thin Pill-tone
+wrapper, not a second source of truth).
+
+`tests/v3-student-portal-ui.test.mjs`'s "the single wording module maps
+every Student status exposed by E2" test pinned both old dictionaries
+verbatim; both `Map`s are updated to the new label sets with an inline
+comment recording the capitalization split and its reasoning.
+
+### 5. DESIGN.md refresh
+
+"## Навигация отделов — утверждённый вариант 2 (2026-09-10)": added a dated
+2026-09-18 note (not a deletion — the original heading and its date stay,
+per this file's own convention of marking supersession rather than erasing
+history) pointing at plan §3 and the item list itself is updated to the
+target composition: Продажи{Заявки, Inbox, Воронка, Отчёт продаж},
+Поступление{Студенты, EVO Docs, Университеты, Сводка по направлениям}. The
+group's own Russian sidebar label stays "Поступление" — plan §3's ASCII
+diagram uses "Admissions" as a shorthand section name in the plan document
+itself, not an instruction to rename the live sidebar heading, and
+`navigation.ts`'s group id/label were already "Поступление" before this
+slice.
+
+"## Поступление: одно рабочее пространство": added a dated 2026-09-18 note
+at the top stating that the unified-workflow plan (§8/§11/§13) supersedes
+the mandatory China/Malaysia stage-by-stage tracker, submission/decision/
+visa/arrival tracking, and the seven-stage-per-country checklist described
+below it — the section body itself is left intact as historical record of
+the prior scope, per this file's append-only convention (same treatment
+this file already gave the retired `/preview/student` plan on
+2026-09-17).
+
+### 6. Sales equal capabilities (plan §3) — no code change
+
+Plan §3: "Все сотрудники Sales имеют одинаковые возможности внутри
+Продаж... Подробную матрицу разрешений сейчас не расширяем." Chosen
+interpretation, recorded here rather than in code: the split capability
+keys (`sales.read`, `sales.report.read`, `messaging.read`, etc.) stay
+exactly as they are — equal access inside Продажи is delivered by the
+shared role bundles #831 already grants every Sales member (every Sales
+membership already carries the same permission-key set), not by collapsing
+the capability keys themselves into one. The permission matrix is data
+(role-to-permission-key assignment, provisioned per organization), not
+code — changing it is an operational/role-provisioning action, not a
+slice deliverable, and plan §3's own text explicitly declines to expand
+the matrix ("не расширяем"). No file in `src/lib/fixed-role-policy.ts` or
+elsewhere changed for this item.
+
+### 7. EVO_LAUNCH_PLAN.md checkboxes
+
+`docs/EVO_LAUNCH_PLAN.md`'s "Unified workflow — active 2026-09-18" section:
+S1-S6 checkboxes marked `[x]` with one-line commit-SHA receipts (S1:
+a223bbd9/51c6c68e; S2: 2bb0e65c/e266aa78; S3: 0394c113/65172df2; S4:
+83908ef9/86aff708; S5: 99d0dfdb; S6: this change, uncommitted at authoring
+time — the orchestrator fills in the SHA once committed, per the task's own
+instruction). The final "Финальная проверка слайсов, применение миграций
+владельцем и один управляемый релиз" checkbox is left open — that step is
+the owner's manual migration-apply and release action, not part of any
+slice's code.
+
+### Known deviations (honest, not hidden)
+
+(1) The stale "Маршруты Китая и Малайзии находятся в деле студента на
+вкладке «Маршрут»." copy in `ProfileCaseDirectory.tsx`'s non-docs empty
+state — a leftover from S4 renaming that tab to «Вузы и программы» — was
+noticed while editing the adjacent line but left unfixed: it is not one of
+this slice's seven deliverables, and fixing unrelated stale copy while
+already touching this exact file risked scope creep beyond what the task
+specified. Flagged separately for a follow-up, not silently carried
+forward as if unnoticed.
+(2) The inbox page's own "Входящие" title/heading (distinct from the
+"Клиентские сообщения" string the rename targeted) was deliberately left
+alone — see item 2 above. If a future pass wants the destination to read
+"Inbox" everywhere including its own page chrome, that is a separate,
+larger-surface naming decision this task did not authorize.
+
+### Validation impact
+
+`npm run typecheck` (clean). `npx eslint` on every changed file (clean, 0
+warnings). Pinned suites the task named: `tests/v3-navigation.test.mjs`,
+`tests/v3-operational-parity.test.mjs`, `tests/v3-profile-documents.test.mjs`,
+`tests/v3-student-portal-ui.test.mjs`, `tests/v3-supabase-integration.test.mjs`
+— run together, 57/57 pass (2 tests updated in `v3-navigation.test.mjs`, 1
+Map pair updated in `v3-student-portal-ui.test.mjs`, 2 array entries
+dropped in `v3-supabase-integration.test.mjs`). `npm run test:brand-ui`
+(5/5). Broader regression sweep for collateral damage on every file this
+slice touched or that references them: `tests/v3-inbox-integration.test.mjs`,
+`tests/v3-profile-activity.test.mjs`, `tests/v3-brand-design.test.mjs`,
+`tests/v3-profile-contract.test.mjs`, `tests/v3-admissions-support.test.mjs`,
+`tests/v3-inbox-profile-link.test.mjs`, `tests/student-portal-provisioning-ui.test.mjs`,
+`tests/p4-supabase-admissions-storage-legacy-cleanup.test.mjs`,
+`tests/platform-admissions.test.mjs`, `tests/v3-profile-admissions.test.mjs`,
+`tests/v3-profile-pipeline-notes.test.mjs` (75/75 combined),
+`tests/platform-sales-read.test.mjs` (45/45, confirms `getPlatformSalesLead`/
+`PlatformSalesLeadDetail` shape is unchanged), `tests/fixed-role-route-contract.test.mjs`,
+`tests/student-portal-authority.test.mjs`, `tests/student-portal-auth.test.mjs`
+all pass. `tests/v3-handoff-navigation.test.mjs` and
+`tests/staff-metadata-feedback.test.mjs` fail with the same pre-existing
+`react-dom/server` named-export ESM/CJS interop error every prior slice
+(S2-S5) already documented — re-verified via `git stash` against this
+slice's own pre-change tree, reproducing identically, confirming it is
+unrelated to this slice. `rg` sweeps for every deleted/renamed name (see
+sections 1-2 above) return zero unexpected hits. No SQL/migration files
+touched — this slice made no database changes, per its own constraint.
+
+Reviewer notes: this is the final code slice. `docs/PLAN_CHANGES.md`'s
+own top-level "план-контракт" entry names one remaining step after S1-S6:
+"Финальная проверка слайсов, применение миграций владельцем и один
+управляемый релиз с честной квитанцией" — left open in
+`EVO_LAUNCH_PLAN.md` per item 7 above, since migration apply and release
+are the owner's manual actions, not something this or any prior slice
+performed.
+
+### 2026-09-18 — поправка к записи S6
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: correction.
+Affected plan section: «unified workflow S6», known deviations item (1).
+The stale «Маршрут» empty-state copy in ProfileCaseDirectory.tsx, recorded
+there as left for a follow-up, was in fact fixed by the orchestrator inside
+the same commit b016b25b (the entry was written before that inline fix
+landed). No follow-up remains; the live copy reads «Вузы и программы…».

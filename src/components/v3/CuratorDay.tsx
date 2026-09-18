@@ -16,13 +16,17 @@ import { allDayDate, studentOperationalStage } from "@/lib/v3/wording";
  */
 
 function summaryMetrics(summary: AdmissionsSummary): Metric[] {
-  const total = (key: "active" | "overdue" | "awaiting_partner" | "awaiting_ack") =>
+  const total = (key: "active" | "overdue" | "awaiting_ack" | "needs_curator") =>
     summary.stock.reduce((sum, row) => sum + row[key], 0);
   return [
     { label: "В работе", value: total("active"), insteadOfDelta: null },
     { label: "Есть просрочки", value: total("overdue"), insteadOfDelta: null },
-    { label: "Ждём партнёра", value: total("awaiting_partner"), insteadOfDelta: null },
-    { label: "Передача не принята", value: total("awaiting_ack"), insteadOfDelta: null },
+    // Unified workflow S4 (plan §12): «Ждём партнёра» is retired along with
+    // submission/decision/visa/arrival tracking; «Нужно назначить куратора»
+    // (S3's needs_curator) takes its place.
+    { label: "Нужно назначить куратора", value: total("needs_curator"), insteadOfDelta: null },
+    // Plan §7's own wording for the curator-facing state (matches admissions-view.ts's ATTENTION_LABELS.awaiting_ack).
+    { label: "Ожидает принятия", value: total("awaiting_ack"), insteadOfDelta: null },
   ];
 }
 

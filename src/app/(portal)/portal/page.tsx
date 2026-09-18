@@ -20,7 +20,7 @@ export default async function StudentPortalOverviewPage() {
       title="Моё поступление"
       description="Ваш следующий шаг и работа команды — под рукой."
     >
-      <OverviewView overview={overview} />
+      <OverviewView overview={overview} pending={actor.caseState === "pending"} />
       <div id="case-help" className="mt-8 scroll-mt-20"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </PortalPage>
   );

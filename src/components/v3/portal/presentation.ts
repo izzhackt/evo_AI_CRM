@@ -1,24 +1,18 @@
 import type { PillTone } from "@/components/v3/Pill";
 import type {
-  StudentPortalApplication,
   StudentPortalDocument,
   StudentPortalDocumentAction,
   StudentPortalEvoAction,
   StudentPortalNotification,
-  StudentPortalOverview,
   StudentPortalPayment,
-  StudentPortalVisa,
 } from "@/lib/v3/portal-source";
 import {
   allDayDate,
-  applicationStatus,
   documentReviewDecision,
   documentSlotStatus,
   paymentObligationCategory,
   paymentObligationStatus,
-  studentOperationalStage,
   taskStatus,
-  visaStatus,
 } from "@/lib/v3/wording";
 
 export type PortalStatusPresentation = Readonly<{
@@ -47,15 +41,6 @@ export function formatPortalMoney(amountMinor: number, currency: string): string
     currency,
     maximumFractionDigits: 2,
   }).format(amountMinor / 100);
-}
-
-export function overviewStage(
-  overview: StudentPortalOverview,
-): PortalStatusPresentation {
-  return {
-    label: studentOperationalStage(overview.operationalStage),
-    tone: "neutral",
-  };
 }
 
 export function documentProgress(documents: readonly Pick<StudentPortalDocument, "status">[]) {
@@ -113,32 +98,6 @@ export function documentReviewLabel(
   return documentReviewDecision(document.reviewDecision);
 }
 
-export function applicationStatusPresentation(
-  application: StudentPortalApplication,
-): PortalStatusPresentation {
-  const tone: PillTone = application.status === "enrolled" || application.status === "offer"
-    ? "ok"
-    : application.status === "rejected"
-      ? "danger"
-      : application.status === "submitted" || application.status === "under_review"
-        ? "info"
-        : "neutral";
-  return { label: applicationStatus(application.status), tone };
-}
-
-export function visaStatusPresentation(
-  visa: StudentPortalVisa,
-): PortalStatusPresentation {
-  const tone: PillTone = visa.status === "approved"
-    ? "ok"
-    : visa.status === "rejected"
-      ? "danger"
-      : visa.status === "submitted" || visa.status === "appointment"
-        ? "info"
-        : "neutral";
-  return { label: visaStatus(visa.status), tone };
-}
-
 export function paymentStatus(
   payment: StudentPortalPayment,
 ): PortalStatusPresentation {
@@ -160,8 +119,11 @@ export type PortalNotificationTarget = Readonly<{ href: string; label: string }>
 
 /**
  * One deep link per notification, derived from the durable `category` (and
- * `case_help_answer`, the one event code with its own detail route). New
- * category prefixes fall through to the overview rather than a dead end.
+ * `case_help_answer`, the one event code with its own detail route). The
+ * `application`/`visa` categories the retired «Заявки и виза» screen used
+ * (S5) never existed in any emitted notification, and every other unknown
+ * or new category prefix falls through to the overview rather than a dead
+ * end (`/portal/applications` itself now only redirects there too).
  */
 export function portalNotificationTarget(
   notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">,
@@ -177,9 +139,6 @@ export function portalNotificationTarget(
   }
   if (notification.category.startsWith("payment")) {
     return { href: "/portal/payments", label: "Открыть оплату" };
-  }
-  if (notification.category.startsWith("application") || notification.category.startsWith("visa")) {
-    return { href: "/portal/applications", label: "Открыть заявки" };
   }
   return { href: "/portal", label: "Открыть поступление" };
 }

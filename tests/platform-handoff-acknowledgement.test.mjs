@@ -40,6 +40,21 @@ test("clarification is concrete bounded prose; surrounding Unicode spaces normal
   assert.ok(parseHandoffResponseInput({ ...value, clarification: "😀".repeat(2000) }));
 });
 
+test("S3: declined requires a reason (reusing the clarification field), bounded tighter than clarification_requested", () => {
+  const value = { ...input(), decision: "declined", clarification: " Продажа уже подтверждена другим отделом. " };
+  const parsed = parseHandoffResponseInput(value);
+  assert.equal(parsed.decision, "declined");
+  assert.equal(parsed.clarification, "Продажа уже подтверждена другим отделом.");
+  for (const clarification of [null, " ", " ", "a"]) {
+    assert.equal(parseHandoffResponseInput({ ...value, clarification }), null);
+  }
+  // 1000 chars is the declined ceiling (matches the lifecycle-event `reason`
+  // column's own limit, 182); clarification_requested still allows 2000.
+  assert.ok(parseHandoffResponseInput({ ...value, clarification: "a".repeat(1000) }));
+  assert.equal(parseHandoffResponseInput({ ...value, clarification: "a".repeat(1001) }), null);
+  assert.ok(parseHandoffResponseInput({ ...input(), decision: "clarification_requested", clarification: "a".repeat(2000) }));
+});
+
 test("safe projection is exact, tenant-bound and cannot respond without assignment", () => {
   const row = { organization_id: organizationId, student_case_id: studentCaseId,
     assignment_event_id: assignmentEventId, can_respond: false, current: null };
@@ -98,4 +113,16 @@ test("form keeps controlled input on errors and uses real authority not role pre
   assert.match(actions, /exactActionStringFields\(form, FIELDS\)/);
   assert.match(actions, /isStaffPreview\(actor\)/);
   assert.match(actions, /await respondToHandoff\(actor, input\)/);
+});
+
+test("S3: «Отклонить» reuses the same form/action, with a required reason and a quiet confirm line", () => {
+  const form = read("src/components/v3/profile/ProfileSalesTransition.tsx");
+  const body = form.slice(form.indexOf("export function ProfileHandoffAcknowledgement"));
+  assert.match(body, /setDecision\("declined"\); setOpen\(true\); \}\}>\s*\n\s*Отклонить/);
+  assert.match(body, /Отклоняется назначение, а не студент: продажа и данные сохранятся\./);
+  assert.match(body, /Причина отклонения/);
+  // Decline does not spawn a separate «форма запроса уточнений» — same
+  // form/action as accept and clarify (plan §7's own explicit constraint).
+  assert.equal((body.match(/<form action=\{action\}/g) ?? []).length, 1);
+  assert.doesNotMatch(body, /respondToDeclineAction|declineHandoffAction/);
 });

@@ -48,10 +48,10 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
     || (staffCan(actor, "admissions.read") && staffHasPermission(actor, "task.create"));
   const routeCapabilities: Record<FixedRoleRoute, readonly StaffCapability[]> = {
     "/v3/main": ["sales.read", "sales.report.read", "finance.read", "admissions.read"],
+    "/v3/requests": ["sales.read"],
     "/v3/pipeline": ["sales.read"],
     "/v3/inbox": ["messaging.read"],
     "/v3/profile": ["dashboard.read"],
-    "/v3/admissions-requests": ["admissions.read"],
     "/v3/calendar": ["admissions.read"],
     "/v3/tasks": ["tasks.read"],
     "/v3/team-chat": ["chat.read"],

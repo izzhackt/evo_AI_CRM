@@ -65,11 +65,12 @@ export function Profile({
   contractRetry,
   tab,
   hrefFor,
-  admissionsRoute,
+  universityProgramsTab,
   caseHeader,
 }: {
   profile: PersonProfile;
-  admissionsRoute?: React.ReactNode;
+  /** «Вузы и программы» (unified workflow S4) — replaces the old «Маршрут» tab content. */
+  universityProgramsTab?: React.ReactNode;
   /** Сводка дела над вкладками для `?case=`-целей; заменяет обычную шапку профиля. */
   caseHeader?: React.ReactNode;
   /** Canonical projections not represented directly in `PersonProfile`. */
@@ -168,7 +169,7 @@ export function Profile({
         </ul>
       </nav>
 
-      {current === "route" ? admissionsRoute : null}
+      {current === "route" ? universityProgramsTab : null}
       {current === "overview" ? (
         <div className="space-y-4">
           <Overview

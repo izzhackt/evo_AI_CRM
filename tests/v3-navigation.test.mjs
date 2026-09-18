@@ -22,9 +22,13 @@ function links(model) {
   ];
 }
 
+// «Заявки» (unified-workflow S1) is sales.read-gated, so it joins admin/sales
+// at the FRONT of the Продажи group (plan §3 order: Заявки, Inbox, Воронка,
+// Отчёт продаж) and never reaches the admissions preview, which lacks
+// sales.read entirely — its list is unchanged from before this slice.
 const expectedRoleLinks = {
-  admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
-  sales: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
+  admin: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  sales: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
   admissions: ["home", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
 };
 
@@ -34,10 +38,12 @@ for (const role of ["admin", "sales", "admissions"]) {
     assert.deepEqual(links(model).map((link) => link.id), expectedRoleLinks[role]);
     assert.ok(links(model).every((link) => fixedRoleCanAccessRoute(role, link.route)));
     assert.ok(model.groups.every((group) => group.links.length > 0));
+    // S6 (plan §3/§14): the inbox link label is «Inbox» everywhere, sidebar
+    // included — «Клиентские сообщения» is retired.
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
       ? ["Задачи", "Командный чат", "База знаний"]
       : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний"]
-      : ["Задачи", "Командный чат", "Клиентские сообщения", "Календарь", "База знаний"]);
+      : ["Задачи", "Командный чат", "Inbox", "Календарь", "База знаний"]);
   });
 
   test(`Admin presentation preview of ${role} follows that role, not Admin authority`, () => {
@@ -52,9 +58,11 @@ for (const role of ["admin", "sales", "admissions"]) {
 test("the two disclosure groups use the approved destinations and worklist remains available to Sales", () => {
   const model = navigation("admin");
   assert.equal(model.home?.label, "Главная");
+  // Order follows plan §3: Заявки, Inbox, Воронка, Отчёт продаж. Label is
+  // «Inbox» (S6, plan §3/§14) — «Клиентские сообщения» is retired.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
-    ["Продажи", [["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"], ["Клиентские сообщения", "/v3/inbox"]]],
-    ["Поступление", [["Рабочий список", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
+    ["Продажи", [["Заявки", "/v3/requests"], ["Inbox", "/v3/inbox"], ["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
+    ["Поступление", [["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
@@ -100,7 +108,9 @@ test("forbidden and unknown paths never mark an unrelated link current", () => {
   // /v3/main is the admissions «Мой день» home now; only the sales report view
   // and sales-only routes stay outside that role's navigation.
   assert.equal(navigation("admissions", "/v3/main").activeId, "home");
-  for (const href of ["/v3/main?view=sales", "/v3/pipeline", "/v3/settings"]) {
+  // «Заявки» is sales.read-gated (unified workflow S1); admissions lacks that
+  // capability entirely, so it never becomes this preview's active link.
+  for (const href of ["/v3/main?view=sales", "/v3/pipeline", "/v3/settings", "/v3/requests"]) {
     assert.equal(navigation("admissions", href).activeId, null, href);
   }
   for (const href of ["/v3/settings", "/v3/calendar"]) {

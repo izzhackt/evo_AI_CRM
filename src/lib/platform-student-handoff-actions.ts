@@ -3,29 +3,23 @@
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { requirePlatformMutationCapability } from "./platform-guards";
 import {
-  handoffPlatformLeadToAdmissions,
   mutatePlatformLeadAdmissionsGate,
   parsePlatformStudentHandoffUuid,
   PlatformStudentHandoffRepositoryError,
   type PlatformLeadAdmissionsGateAction,
   type PlatformLeadAdmissionsGateMutationInput,
-  type PlatformLeadAdmissionsHandoffInput,
-  type PlatformLeadAdmissionsHandoffReceipt,
-  type PlatformStudentHandoffMode,
 } from "./platform-student-handoff";
 import { exactActionStringFields } from "./server/action-form-fields";
-import { refreshConfirmedSelfHandoffSession } from "./server/self-handoff-session";
 
 const REQUEST_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const POSTGRES_BIGINT_MAX = "9223372036854775807";
 const CONTROL_CHARACTER_PATTERN =
-  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 const GATE_FORM_FIELDS = [
   "lead_id",
   "expected_gate_version",
@@ -36,14 +30,6 @@ const GATE_FORM_FIELDS = [
   "due_date",
   "received_date",
   "evidence_reference",
-  "reason",
-] as const;
-const HANDOFF_FORM_FIELDS = [
-  "lead_id",
-  "expected_gate_version",
-  "request_id",
-  "admissions_owner_membership_id",
-  "handoff_mode",
   "reason",
 ] as const;
 
@@ -62,15 +48,6 @@ export type PlatformLeadAdmissionsGateActionState = Readonly<{
   requestId: string;
   leadId: string | null;
   gateVersion: string | null;
-  changedAt: string | null;
-}>;
-
-export type PlatformLeadAdmissionsHandoffActionState = Readonly<{
-  status: PlatformStudentHandoffActionStatus;
-  requestId: string;
-  leadId: string | null;
-  gateVersion: string | null;
-  studentCaseId: string | null;
   changedAt: string | null;
 }>;
 
@@ -140,12 +117,6 @@ function gateAction(value: string): PlatformLeadAdmissionsGateAction | null {
   return value === "confirm_contract" ||
       value === "confirm_first_payment" ||
       value === "override_gate"
-    ? value
-    : null;
-}
-
-function studentHandoffMode(value: string): PlatformStudentHandoffMode | null {
-  return value === "normal" || value === "exceptional_override"
     ? value
     : null;
 }
@@ -220,39 +191,6 @@ function parseGateInput(
   });
 }
 
-function parseHandoffInput(
-  form: FormData,
-): PlatformLeadAdmissionsHandoffInput | null {
-  const fields = exactActionStringFields(form, HANDOFF_FORM_FIELDS);
-  if (!fields) return null;
-  const leadId = parsePlatformStudentHandoffUuid(field(fields, "lead_id"));
-  const expectedGateVersion = version(field(fields, "expected_gate_version"));
-  const parsedRequestId = requestId(field(fields, "request_id"));
-  const admissionsOwnerMembershipId = parsePlatformStudentHandoffUuid(
-    field(fields, "admissions_owner_membership_id"),
-  );
-  const handoffMode = studentHandoffMode(field(fields, "handoff_mode"));
-  const reason = optionalText(field(fields, "reason"), 1000);
-  if (
-    !leadId ||
-    !expectedGateVersion ||
-    !parsedRequestId ||
-    !admissionsOwnerMembershipId ||
-    !handoffMode ||
-    !reason
-  ) {
-    return null;
-  }
-  return Object.freeze({
-    leadId,
-    expectedGateVersion,
-    requestId: parsedRequestId,
-    admissionsOwnerMembershipId,
-    handoffMode,
-    reason,
-  });
-}
-
 function submittedRequestId(form: FormData): string | null {
   for (const key of ["request_id", "_1_request_id"]) {
     const values = form.getAll(key);
@@ -301,41 +239,12 @@ function gateFailureState(
   });
 }
 
-function handoffFailureState(
-  form: FormData,
-  status: Exclude<PlatformStudentHandoffActionStatus, "idle" | "saved">,
-  verified?: PlatformLeadAdmissionsHandoffInput,
-): PlatformLeadAdmissionsHandoffActionState {
-  return Object.freeze({
-    status,
-    requestId: nextRequestId(
-      status,
-      verified?.requestId ?? submittedRequestId(form),
-    ),
-    leadId: verified?.leadId ?? submittedLeadId(form),
-    gateVersion: null,
-    studentCaseId: null,
-    changedAt: null,
-  });
-}
-
 export async function createInitialPlatformLeadAdmissionsGateActionState(): Promise<PlatformLeadAdmissionsGateActionState> {
   return Object.freeze({
     status: "idle" as const,
     requestId: randomUUID(),
     leadId: null,
     gateVersion: null,
-    changedAt: null,
-  });
-}
-
-export async function createInitialPlatformLeadAdmissionsHandoffActionState(): Promise<PlatformLeadAdmissionsHandoffActionState> {
-  return Object.freeze({
-    status: "idle" as const,
-    requestId: randomUUID(),
-    leadId: null,
-    gateVersion: null,
-    studentCaseId: null,
     changedAt: null,
   });
 }
@@ -367,49 +276,4 @@ export async function mutatePlatformLeadAdmissionsGateAction(
     }
     return gateFailureState(form, "unavailable", input);
   }
-}
-
-export async function handoffPlatformLeadToAdmissionsAction(
-  _previous: PlatformLeadAdmissionsHandoffActionState,
-  form: FormData,
-): Promise<PlatformLeadAdmissionsHandoffActionState> {
-  // Reading Sales never grants a handoff write: the canonical RPC checks its
-  // exact handoff permission, scope, current gate and business-state flags.
-  const actor = await requirePlatformMutationCapability("sales.read", "/v3/pipeline");
-  const input = parseHandoffInput(form);
-  if (!input) return handoffFailureState(form, "invalid");
-
-  let receipt: PlatformLeadAdmissionsHandoffReceipt;
-  try {
-    receipt = await handoffPlatformLeadToAdmissions(actor, input);
-  } catch (error) {
-    if (error instanceof PlatformStudentHandoffRepositoryError) {
-      return handoffFailureState(form, error.reason, input);
-    }
-    return handoffFailureState(form, "unavailable", input);
-  }
-
-  // The receipt is committed. Self-assignment bumps this Admin's access version;
-  // session recovery must never become a retryable handoff failure.
-  if (
-    actor.systemRole === "admin" &&
-    receipt.admissionsOwnerMembershipId === actor.membershipId &&
-    !(await refreshConfirmedSelfHandoffSession(actor))
-  ) {
-    redirect("/login?error=session_invalid");
-  }
-
-  revalidatePath("/v3/pipeline");
-  revalidatePath(`/v3/profile?id=${receipt.leadId}`);
-  if (receipt.caseId) {
-    revalidatePath(`/v3/profile?case=${receipt.caseId}`);
-  }
-  return Object.freeze({
-    status: "saved" as const,
-    requestId: randomUUID(),
-    leadId: receipt.leadId,
-    gateVersion: receipt.gateVersion,
-    studentCaseId: receipt.caseId,
-    changedAt: receipt.changedAt,
-  });
 }

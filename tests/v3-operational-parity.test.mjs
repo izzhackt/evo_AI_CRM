@@ -119,7 +119,7 @@ test("the student directory stays discoverable from navigation and both inbox qu
     const group = navigation.groups.find((item) => item.id === "admissions");
     assert.equal(group?.label, "Поступление");
     assert.equal(group?.active, true);
-    assert.ok(group.links.some((link) => link.href === "/v3/profile" && link.label === "Рабочий список"));
+    assert.ok(group.links.some((link) => link.href === "/v3/profile" && link.label === "Студенты"));
   }
   assert.match(inbox, /v3InboxProfileHref\(/u);
 });

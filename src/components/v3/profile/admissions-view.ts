@@ -6,7 +6,12 @@ export const DIRECTION_LABELS: Record<AdmissionsDirection | "unknown", string> =
 };
 export const ATTENTION_LABELS: Record<AdmissionsAttention, string> = {
   overdue: "Есть просрочки", awaiting_partner: "Ждём партнёра", submitted: "Подано в университет",
-  decisions: "Решения университета", visas: "Визовые дела", arrivals: "Поездка и прибытие", awaiting_ack: "Передача ещё не принята",
+  decisions: "Решения университета", visas: "Визовые дела", arrivals: "Поездка и прибытие",
+  // Plan §7's own wording for the curator-facing state: «Ожидает принятия».
+  awaiting_ack: "Ожидает принятия",
+  // S3 (plan §7): a pending case with sale/handoff evidence after a declined
+  // assignment — Admin needs to pick a new curator inside the same case.
+  needs_curator: "Нужно назначить куратора",
 };
 export function withDocsSection(href: string, docsMode: boolean): string {
   if (!docsMode) return href;

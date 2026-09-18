@@ -5,7 +5,8 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { loadProfileSalesContext } from "./profile-route-load";
-import { loadStudentApplicationForCase } from "./student-application-source";
+import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
+import { readLeadSaleConditions } from "./lead-sale-conditions-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -135,6 +136,8 @@ export type V3ProfileCaseDirectoryRow = Readonly<{
   admissionsDirection?: AdmissionsDirection | null;
   nextAction?: string | null;
   nextActionDueOn?: string | null;
+  /** S3 (plan §7): «Ожидает принятия»/«Нужно назначить куратора» row badges. [] for sales_summary rows. */
+  attentionFlags: readonly AdmissionsAttention[];
 }>;
 
 export type V3ProfileCaseDirectory = Readonly<{
@@ -459,6 +462,9 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
   return {
     studentCaseId: data.studentCase.studentCaseId,
     caseState: data.studentCase.state,
+    // Unified workflow S4: CaseHeader used to fetch this separately via the
+    // now-deleted route workspace read; the case DTO already carries it.
+    direction: data.studentCase.admissionsDirection ?? null,
     applications: data.applications,
     visa: data.visa,
     finance: data.finance,
@@ -476,7 +482,6 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
           randomUUID(),
         ]),
       ),
-      visa: randomUUID(),
       createStops: Object.fromEntries(
         (data.finance?.obligations ?? []).map((obligation) => [
           obligation.paymentObligationId,
@@ -619,6 +624,10 @@ function fullCaseDetails(
       requestId: randomUUID(),
     },
     salesHandoffAcknowledgement: null,
+    // «Условия продажи» is a lead-card block (plan §5); this branch has no
+    // lead link to attach it to (docs-intake origin or insufficient
+    // sales.read), so it stays null here — see readLeadProfile below.
+    saleConditions: null,
     contractSignedAt,
   };
 }
@@ -760,6 +769,15 @@ async function readLeadProfile(
     timeline: studentCase ? caseTimeline(studentCase) : [],
   };
   const money = financeSummary(finance);
+  // «Доступ к платформе» (unified workflow S1): before Admissions takes over
+  // a full case, the lead card still needs to show/decide the linked platform
+  // анкета. staff_student_application_for_lead_v1 authorizes off the SAME
+  // canonical-lead read the rest of this branch already established.
+  const leadStudentApplication = fullCase ? null : await loadStudentApplicationForLead(leadId);
+  // «Условия продажи» (unified workflow S2): the same card block the report
+  // later reads back through platform.create_sales_report_handoff. Scoped to
+  // the lead-only branch — see the null case's own comment in fullCaseDetails.
+  const saleConditions = fullCase ? null : await readLeadSaleConditions(actor, leadId);
   const details: ProfileDraft = fullCase
     ? fullCaseDetails(
         actor,
@@ -776,7 +794,7 @@ async function readLeadProfile(
         person: [],
         study: [],
         profileFields: null,
-        studentApplication: null,
+        studentApplication: leadStudentApplication,
         profileFieldSources: [],
         documents: [],
         otherFiles: [],
@@ -785,6 +803,7 @@ async function readLeadProfile(
         contract: null,
         handoffAcknowledgement: null,
         salesHandoffAcknowledgement,
+        saleConditions,
         contractSignedAt: gate.contractConfirmedAt
           ? formatDate(gate.contractConfirmedAt, true)
           : null,
@@ -793,7 +812,12 @@ async function readLeadProfile(
   return {
     profile,
     details,
-    sales: { lead, gate, handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)) },
+    sales: {
+      lead,
+      gate,
+      handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)),
+      linkedConversations: lead.linkedConversations,
+    },
   };
 }
 
@@ -904,6 +928,7 @@ function directoryRow(
       targetCountry: studentCase.targetCountry,
       targetDegree: studentCase.targetDegree,
       updatedAt: studentCase.handoffAt,
+      attentionFlags: [],
     });
   }
   if (presentationRole === "sales") {
@@ -923,6 +948,7 @@ function directoryRow(
       targetCountry: studentCase.targetCountry,
       targetDegree: studentCase.targetDegree,
       updatedAt: studentCase.handoffAt,
+      attentionFlags: [],
     });
   }
   const studentCase = item.studentCase;
@@ -944,6 +970,7 @@ function directoryRow(
     targetCountry: studentCase.targetCountry,
     targetDegree: studentCase.targetDegree,
     updatedAt: studentCase.updatedAt,
+    attentionFlags: studentCase.attentionFlags,
   });
 }
 

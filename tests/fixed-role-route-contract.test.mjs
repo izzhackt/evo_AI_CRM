@@ -255,6 +255,24 @@ test("the active V3 route policy exposes each exact presentation interface", () 
   assert.equal(fixedRoleCanAccessRoute("admin", "/v3/settings"), true);
   assert.equal(fixedRoleCanAccessRoute("sales", "/v3/settings"), false);
   assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
+
+  // Unified workflow S1: «Заявки» is Продажи-only (sales.read), replacing the
+  // retired /v3/admissions-requests (admissions.read). Admissions has no
+  // sales.read at all, so it stays denied even though the intake queue used
+  // to live in its own worklist.
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/requests"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/requests"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/requests"), false);
+});
+
+test("the retired /v3/admissions-requests route stays connected for old links but leaves the fixed-role capability contract", () => {
+  // "keep the route so old links work" (unified workflow S1): the page itself
+  // is an unconditional redirect to /v3/requests and no longer needs its own
+  // FixedRoleRoute/capability entry — isConnectedPlatformPage covers the
+  // proxy allowlist, which is the only gate that still matters for it.
+  assert.equal(isConnectedPlatformPage("/v3/admissions-requests"), true);
+  assert.equal(FIXED_ROLE_ROUTES.includes("/v3/admissions-requests"), false);
+  assert.equal(FIXED_ROLE_ROUTES.includes("/v3/requests"), true);
 });
 
 test("university routes admit only catalogue, management and bounded detail paths", () => {

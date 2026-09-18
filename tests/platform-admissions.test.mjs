@@ -279,6 +279,17 @@ test("builds mutually exclusive text and exact-id Student Case RPC filters", () 
   );
 });
 
+test("S3: needs_curator joins the attention filter allow-list", () => {
+  assert.deepEqual(
+    buildPlatformStudentCasePageRpcArguments({ pageSize: 25, attention: "needs_curator" }),
+    { p_limit: 26, p_attention: "needs_curator" },
+  );
+  assert.throws(
+    () => buildPlatformStudentCasePageRpcArguments({ attention: "not_a_flag" }),
+    PlatformAdmissionsRepositoryError,
+  );
+});
+
 test("GET pagination RPCs do not serialize absent filters as literal null", async () => {
   const requests = [];
   const client = createClient(
@@ -479,6 +490,22 @@ test("nullable Sales owner never accepts a missing or malformed projection", () 
   }
   assert.throws(() => normalizePlatformStudentCaseQueueRow(caseRow({ responsible_sales_display_name: null }), CASE_ID), PlatformAdmissionsRepositoryError);
   assert.throws(() => normalizePlatformApplicationQueueRow(applicationRow({ responsible_sales_display_name: null }), CASE_ID), PlatformAdmissionsRepositoryError);
+});
+
+test("S3: attention_flags is optional (older/summary rows) and validated against the known set", () => {
+  assert.deepEqual(normalizePlatformStudentCaseQueueRow(caseRow()).attentionFlags, []);
+  assert.deepEqual(normalizePlatformStudentCaseQueueRow(caseRow({ attention_flags: null })).attentionFlags, []);
+  assert.deepEqual(
+    normalizePlatformStudentCaseQueueRow(caseRow({ attention_flags: ["needs_curator"] })).attentionFlags,
+    ["needs_curator"],
+  );
+  assert.deepEqual(
+    normalizePlatformStudentCaseQueueRow(caseRow({ attention_flags: ["awaiting_ack", "overdue"] })).attentionFlags,
+    ["awaiting_ack", "overdue"],
+  );
+  for (const malformed of ["needs_curator", 1, {}, ["not_a_flag"], Array(9).fill("overdue")]) {
+    assert.throws(() => normalizePlatformStudentCaseQueueRow(caseRow({ attention_flags: malformed })), PlatformAdmissionsRepositoryError);
+  }
 });
 
 test("workflow, case and application DTOs accept the exact reviewed projection", () => {

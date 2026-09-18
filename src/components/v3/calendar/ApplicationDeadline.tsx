@@ -12,7 +12,12 @@ import {
 } from "./types";
 
 function applicationHref(deadline: CalendarApplicationDeadline): string {
-  return `/v3/profile?case=${encodeURIComponent(deadline.studentCaseId)}&tab=route#${deadline.status === null ? "admissions-visa" : "admissions-applications"}`;
+  // Application deadlines open «Вузы и программы» (the kept #applications
+  // card); visa-expiry deadlines open the documents tab — visa papers live
+  // there since the visa tracker retired (plan §11).
+  return deadline.status === null
+    ? `/v3/profile?case=${encodeURIComponent(deadline.studentCaseId)}&tab=documents`
+    : `/v3/profile?case=${encodeURIComponent(deadline.studentCaseId)}&tab=route#applications`;
 }
 
 export function ApplicationDeadlineChip({

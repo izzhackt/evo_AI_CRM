@@ -239,17 +239,24 @@ const STUDENT_OPERATIONAL_STAGE: Record<string, string> = {
 
 const CUSTOM_STUDENT_OPERATIONAL_STAGE = "индивидуальный этап сопровождения";
 
+// Plan §9: «Не загружен / На проверке / Нужно исправить / Принят». The
+// server enum keeps its fifth, honest state («Отклонён») — the plan's list
+// names the common path, not an exhaustive prohibition (unified workflow S6).
 const DOCUMENT_SLOT_STATUS: Record<PlatformDocumentSlotStatus, string> = {
-  required: "требуется",
-  submitted: "отправлен",
-  approved: "принят",
-  correction_required: "нужно исправить",
-  rejected: "отклонён",
+  required: "Не загружен",
+  submitted: "На проверке",
+  approved: "Принят",
+  correction_required: "Нужно исправить",
+  rejected: "Отклонён",
 };
 
+// Same three words as the slot status above («принят» / «нужно исправить» /
+// «отклонён»), lowercase: this dictionary is also read mid-sentence
+// («Документ принят · …» in ProfileDocumentsClient.tsx), where a
+// mid-sentence capital would misread as a typo, not emphasis.
 const DOCUMENT_REVIEW_DECISION: Record<PlatformDocumentReviewDecision, string> = {
   approved: "принят",
-  correction_required: "возвращён на исправление",
+  correction_required: "нужно исправить",
   rejected: "отклонён",
 };
 
@@ -342,6 +349,7 @@ const ROLE: Record<string, string> = {
 const SOURCE: Record<string, string> = {
   whatsapp: "WhatsApp",
   website: "сайт",
+  platform_application: "платформа",
   referral: "по рекомендации",
   office: "встреча в офисе",
   phone_call: "звонок",
@@ -714,6 +722,7 @@ export function handoffAcknowledgementLabel(value: string): string | null {
   const labels: Record<string, string> = {
     accepted: "Дело принято куратором",
     clarification_requested: "Нужно уточнение от Sales",
+    declined: "Назначение отклонено куратором",
   };
   return Object.hasOwn(labels, value) ? labels[value] : null;
 }
@@ -1058,6 +1067,19 @@ export const settingsStatusWords = {
     routing_configuration_invalid: "Правила передачи данных настроены некорректно.",
     token_unavailable: "Доступ к аккаунту amoCRM не подтверждён.",
   },
+} as const;
+
+/**
+ * S1's «кабинет до продажи»: a portal-activated `state='pending'` case with
+ * no curator and no sale yet (plan §10, unified workflow S5). The overview
+ * must not name a non-existent curator or fabricate a stage for it.
+ */
+export const portalPendingCabinet = {
+  heading: "Сопровождение",
+  managerNotice: "Менеджер свяжется с вами.",
+  applicationHeading: "Ваша анкета",
+  applicationHint: "Анкета, которую вы отправили и одобрила команда EVO.",
+  applicationLink: "Открыть анкету",
 } as const;
 
 /**

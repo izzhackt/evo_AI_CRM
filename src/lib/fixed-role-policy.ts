@@ -23,10 +23,10 @@ export type FixedRole = StaffRole;
 
 export const FIXED_ROLE_ROUTES = [
   "/v3/main",
+  "/v3/requests",
   "/v3/pipeline",
   "/v3/inbox",
   "/v3/profile",
-  "/v3/admissions-requests",
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",
@@ -66,10 +66,10 @@ type RouteCapabilityRequirement = readonly [
 
 const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/main": ["sales.read", "admissions.read"],
+  "/v3/requests": ["sales.read"],
   "/v3/pipeline": ["sales.read"],
   "/v3/inbox": ["messaging.read"],
   "/v3/profile": ["dashboard.read"],
-  "/v3/admissions-requests": ["admissions.read"],
   "/v3/calendar": ["admissions.read"],
   "/v3/tasks": ["team.read"],
   "/v3/team-chat": ["team.read"],

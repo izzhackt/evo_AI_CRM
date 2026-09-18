@@ -1,5 +1,5 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
+import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Pill, type PillTone } from "@/components/v3/Pill";
@@ -13,6 +13,7 @@ import {
   role as roleWord,
   source as sourceWord,
 } from "@/lib/v3/wording";
+import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 
 import { Card } from "@/components/ui";
 import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
@@ -21,12 +22,14 @@ import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
 import { LeadInterestSummary } from "./LeadInterestSummary";
 import { StudentProfileFields } from "./StudentProfileFields";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
-import { StudentApplicationAnswers } from "../admissions/StudentApplications";
+import { ApplicationDecision, StudentApplicationAnswers } from "../admissions/StudentApplications";
+import type { StudentApplication } from "@/lib/student-application-contract";
 import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
 } from "./ProfileAdmissionsWorkspace";
 import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
+import { LeadSaleConditions } from "./LeadSaleConditions";
 import type {
   Fact,
   PersonProfile,
@@ -64,6 +67,46 @@ const STATUS_TONE: Record<string, PillTone> = {
   pending: "neutral", draft: "neutral", blocked: "danger", rejected: "danger",
 };
 const tone = (s: string): PillTone => STATUS_TONE[s] ?? "neutral";
+
+/**
+ * «Доступ к платформе» — unified workflow S1 (plan §4): approving a platform
+ * анкета never assigns a curator or direction, only opens the portal
+ * cabinet. Admissions handoff stays a separate, later fact (Sales report).
+ */
+function PlatformAccessCard({ application, requestId, readOnly }: {
+  application: StudentApplication | null; requestId: string; readOnly: boolean;
+}) {
+  return (
+    <Card eyebrow title="Доступ к платформе">
+      <div className="space-y-3 px-4 py-3">
+        {application === null ? (
+          <p className="text-sm text-fg-2">Анкета в платформе не заполнена.</p>
+        ) : application.status === "approved" ? (
+          <p className="text-sm text-fg-2">
+            Доступ открыт.{" "}
+            {application.studentCaseId ? (
+              <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(application.studentCaseId)}&tab=anketa`}>
+                Открыть дело
+              </Link>
+            ) : null}
+          </p>
+        ) : application.status === "rejected" ? (
+          <div className="space-y-1">
+            <p className="text-sm text-fg-2">Заявка на доступ отклонена.</p>
+            {application.decisionReason ? <p className="whitespace-pre-wrap break-words text-sm text-fg-3">{application.decisionReason}</p> : null}
+          </div>
+        ) : readOnly ? (
+          <p className="text-sm text-fg-2">Анкета ожидает решения. В режиме просмотра решения недоступны.</p>
+        ) : (
+          <>
+            <p className="text-sm text-fg-2">Анкета ожидает решения.</p>
+            <ApplicationDecision application={application} requestId={requestId} />
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 /* ------------------------------------------------------------------ Обзор */
 
@@ -128,14 +171,54 @@ export function Overview({
                 { label: "Срок", value: profile.nextActionAt },
               ]}
             />
+            {/*
+             * Card ↔ chat link (plan §4/§12): only when a linked conversation
+             * already exists, and only for actors who can actually open
+             * Inbox (messaging.read — the route's own gate, symmetric with
+             * v3InboxProfileHref's reverse-direction check on the inbox
+             * page). The lead read already carries this (see types.ts).
+             */}
+            {sales.linkedConversations.length > 0 && staffPresentationCan(actor, "messaging.read") ? (
+              <div className="flex flex-col gap-1 border-t border-border px-4 py-2.5">
+                {sales.linkedConversations.map((conversation) => (
+                  <Link
+                    key={conversation.conversationId}
+                    href={buildV3InboxHref({
+                      conversationId: conversation.conversationId,
+                      filters: { query: null, waitingOnly: false },
+                    })}
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
+                  >
+                    {sales.linkedConversations.length > 1
+                      ? `Открыть переписку в Inbox — ${conversation.subject}`
+                      : "Открыть переписку в Inbox"}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </Card>
+
+          <PlatformAccessCard
+            application={draft.studentApplication}
+            requestId={requestIds.platformAccess}
+            readOnly={isStaffPreview(actor)}
+          />
 
           <ProfileSalesTransition
             actor={actor}
             gate={sales.gate}
-            handoff={sales.handoff}
             requestIds={requestIds}
           />
+
+          {draft.saleConditions ? (
+            <LeadSaleConditions
+              key={`sale-conditions:${draft.saleConditions.revision}`}
+              leadId={draft.saleConditions.leadId}
+              conditions={draft.saleConditions}
+              requestId={requestIds.saleConditions}
+              readOnly={isStaffPreview(actor)}
+            />
+          ) : null}
         </>
       ) : null}
 
@@ -426,12 +509,13 @@ export function History({ profile }: { profile: PersonProfile }) {
       </Card>
 
       {/* Визовых вех здесь больше нет, и номеров при них тоже. Веха — это
-          состояние, а не шаг инструкции, поэтому нумерация врала; а сама виза
-          — не история, а текущее положение дела. Она живёт своей секцией
-          «Виза» рядом с «Заявками» в панели приёмной (обзор): `profile.visa`
-          непуста ровно тогда, когда та панель есть, и карточка здесь
-          повторяла её второй раз. `profile.visa` остаётся в модели и
-          намеренно не рисуется в истории. */}
+          состояние, а не шаг инструкции, поэтому нумерация врала. Unified
+          workflow S4 (plan §11): визовое дело как отдельная сущность со
+          статусами убрано целиком — визовая карточка, которая раньше стояла
+          рядом с «Заявками» в панели приёмной, тоже удалена, файлы остаются
+          обычными документами группы «Виза». `profile.visa` остаётся в
+          модели (реальное чтение `getPlatformCaseVisa`, не выдумка) и
+          намеренно нигде не рисуется — ни здесь, ни в панели приёмной. */}
       <Card eyebrow title="Как он к нам пришёл">
         <FactList
           facts={[

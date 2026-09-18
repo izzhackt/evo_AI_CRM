@@ -1,7 +1,7 @@
 import { staffCan } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 
-export type HandoffDecision = "accepted" | "clarification_requested";
+export type HandoffDecision = "accepted" | "clarification_requested" | "declined";
 export type HandoffResponse = Readonly<{
   acknowledgementId: string;
   decision: HandoffDecision;
@@ -81,22 +81,26 @@ export function parseHandoffResponseInput(value: unknown): HandoffResponseInput 
     const agreedContactDate = row.agreedContactDate === null ? null : handoffContactDate(row.agreedContactDate);
     if (!studentCaseId || !assignmentEventId || typeof row.requestId !== "string"
       || !REQUEST_UUID.test(row.requestId)
-      || (decision !== "accepted" && decision !== "clarification_requested")
+      || (decision !== "accepted" && decision !== "clarification_requested" && decision !== "declined")
       || (decision === "accepted" && clarification !== null)
-      || (decision === "clarification_requested" && !clarification)
-      || (clarification !== null && ([...clarification].length > 2000 || CONTROLS.test(clarification)))
+      || (decision !== "accepted" && !clarification)
+      // declined reuses the same free-text field as the required reason,
+      // bounded tighter (1000) to fit the lifecycle-event `reason` column
+      // the RPC writes it into (130/182).
+      || (clarification !== null && ([...clarification].length > (decision === "declined" ? 1000 : 2000) || CONTROLS.test(clarification)))
       || (row.agreedContactDate !== null && agreedContactDate === null)) return null;
     return Object.freeze({ studentCaseId, assignmentEventId, expectedAcknowledgementId,
       decision, clarification, agreedContactDate, requestId: row.requestId.toLowerCase() });
   } catch { return null; }
 }
 function responseFields(row: Record<string, unknown>): NonNullable<SalesHandoffAcknowledgement["current"]> {
-  if (row.decision !== "accepted" && row.decision !== "clarification_requested") return fail();
+  if (row.decision !== "accepted" && row.decision !== "clarification_requested" && row.decision !== "declined") return fail();
   const clarification = row.clarification;
+  const clarificationLimit = row.decision === "declined" ? 1000 : 2000;
   if ((row.decision === "accepted" && clarification !== null)
-    || (row.decision === "clarification_requested" && (typeof clarification !== "string"
+    || (row.decision !== "accepted" && (typeof clarification !== "string"
       || !clarification.trim() || clarification.trim() !== clarification
-      || [...clarification].length > 2000 || CONTROLS.test(clarification)))) return fail();
+      || [...clarification].length > clarificationLimit || CONTROLS.test(clarification)))) return fail();
   const agreedContactDate = row.agreed_contact_date === null ? null : handoffContactDate(row.agreed_contact_date);
   if (row.agreed_contact_date !== null && agreedContactDate === null) return fail();
   return Object.freeze({ decision: row.decision, clarification: clarification as string | null, agreedContactDate });

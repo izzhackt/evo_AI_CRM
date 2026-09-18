@@ -5,16 +5,12 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
-import { StudentApplicationsNav } from "@/components/v3/admissions/StudentApplications";
-import { loadStudentApplicationPendingCount } from "@/lib/v3/student-application-source";
 import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHeader } from "@/components/v3/profile/CaseHeader";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
-import { DocsCreateStudentForm } from "@/components/v3/profile/DocsCreateStudentForm";
-import { btnCls, btnGhostCls } from "@/components/ui";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
-import { ProfileAdmissionsRoute } from "@/components/v3/profile/ProfileAdmissionsRoute";
+import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
 import { AdmissionsSummaryPanel } from "@/components/v3/profile/AdmissionsSummaryPanel";
 import { CuratorCoveragePanel } from "@/components/v3/profile/CuratorCoveragePanel";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
@@ -36,7 +32,6 @@ import {
 } from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
-import { canCreateDocsStudent, readDocsStudentOptions } from "@/lib/v3/docs-student-source";
 import {
   listStudentPortalActiveCurators,
   type StudentPortalCuratorOption,
@@ -53,16 +48,6 @@ import {
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "EVO · Поступление" };
-
-async function AdmissionsApplicationNavigation() {
-  let pendingCount: number | null = null;
-  try {
-    pendingCount = await loadStudentApplicationPendingCount();
-  } catch {
-    // Preserve the queue link without presenting a failed count as zero.
-  }
-  return <StudentApplicationsNav current="cases" pendingCount={pendingCount} />;
-}
 
 type ProfileSearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
@@ -137,23 +122,6 @@ export default async function ProfilePart({
     && staffPresentationCan(actor, "admissions.read")
     && (isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"));
   const directoryHref = withDocsSection("/v3/profile", docsMode);
-  const canAddStudent = docsMode && !isStaffPreview(actor) && canCreateDocsStudent(actor);
-  const createStudentHref = "/v3/profile?section=docs&new=student";
-  if (docsMode && singleSearchParam(params.new) === "student" && params.id === undefined && params.case === undefined) {
-    let options: Awaited<ReturnType<typeof readDocsStudentOptions>> | null = null;
-    if (canAddStudent) {
-      try { options = await readDocsStudentOptions(actor); } catch { /* Explain the failed read without inventing curator options. */ }
-    }
-    return <PartShell title="Добавить студента" width="narrow">
-      <div className="space-y-6">
-        <Link href={directoryHref} className={`${btnGhostCls} min-h-11`}>← К EVO Docs</Link>
-        {!canAddStudent ? <p role="alert" className="text-sm text-fg-2">Нет доступа к добавлению студентов. Попросите администратора проверить роль.</p>
-          : !options ? <div className="space-y-3"><p role="alert" className="text-sm text-fg-2">Не удалось загрузить кураторов. Обновите страницу, чтобы повторить.</p><a href={createStudentHref} className={`${btnGhostCls} min-h-11`}>Повторить</a></div>
-          : options.curators.length === 0 ? <p role="alert" className="text-sm text-fg-2">Нет доступного куратора. Администратор может настроить доступ сотрудников в разделе команды.</p>
-          : <DocsCreateStudentForm requestId={randomUUID()} curators={options.curators} defaultCuratorMembershipId={options.defaultCuratorMembershipId} />}
-      </div>
-    </PartShell>;
-  }
 
   // Lead and Student Case are different canonical identities. A requested
   // value is never substituted with the first picker row, and the two query
@@ -226,6 +194,8 @@ export default async function ProfilePart({
     firstPayment: randomUUID(),
     override: randomUUID(),
     handoff: randomUUID(),
+    platformAccess: randomUUID(),
+    saleConditions: randomUUID(),
   };
   const contractResult = parseContractResult(params);
   const contractRetry = parseContractRetry(params, contractResult);
@@ -251,17 +221,11 @@ export default async function ProfilePart({
   return (
     <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Поступление"}>
       <div className="space-y-6">
-        {docsMode && directory ? <div className="flex flex-wrap items-center justify-between gap-3">
-          {canAddStudent ? <Link href={createStudentHref} className={`${btnCls} min-h-11`}>Добавить студента</Link> : null}
-          {!isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link> : null}
+        {docsMode && directory && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link>
         </div> : null}
-        {!docsMode && directory && staffPresentationCan(actor, "admissions.read") ? (
-          <Suspense fallback={<StudentApplicationsNav current="cases" pendingCount={null} />}>
-            <AdmissionsApplicationNavigation />
-          </Suspense>
-        ) : null}
         {!docsMode && directory && staffPresentationCan(actor, "admissions.read") ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
-          <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} expanded={singleSearchParam(params.section) === "summary"} />
+          <AdmissionsSummaryPanel actor={actor} params={directoryParams} expanded={singleSearchParam(params.section) === "summary"} />
         </Suspense> : null}
         {directory ? (
           <ProfileCaseDirectory
@@ -271,7 +235,6 @@ export default async function ProfilePart({
             curators={studentPortalCurators}
             allowAdmissionsFilters={staffPresentationCan(actor, "admissions.read")}
             docsMode={docsMode}
-            createStudentHref={canAddStudent ? createStudentHref : undefined}
           />
         ) : null}
         {!docsMode && directory && staffHasPermission(actor, "case.curator.assign") && !isStaffPreview(actor) ? (
@@ -294,11 +257,17 @@ export default async function ProfilePart({
               key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
                 view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
               profile={view.profile}
-              admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person}
-                docsMode={docsMode} packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
+              universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details}
+                packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
               caseHeader={view.details.routeTarget.studentCaseId ? (
                 <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку дела…</p>}>
-                  <CaseHeader actor={actor} profile={view.profile} draft={view.details} />
+                  <CaseHeader
+                    actor={actor}
+                    profile={view.profile}
+                    draft={view.details}
+                    curators={studentPortalCurators}
+                    assignCuratorRequestId={randomUUID()}
+                  />
                 </Suspense>
               ) : undefined}
               draft={view.details}

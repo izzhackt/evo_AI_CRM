@@ -12,7 +12,13 @@ export type VerifiedStudentPortalAuthority = Readonly<{
   platformAccessVersion: number;
   platformBundleId: string;
   platformBundleVersion: number;
-  caseState: "active" | "closed";
+  /**
+   * Unified workflow (S1): a portal cabinet can be activated before a sale —
+   * 'pending' with portal_activated_at set (public анкета approval, plan §4).
+   * No curator/direction exist yet in that state; the portal UI must not
+   * assume either.
+   */
+  caseState: "pending" | "active" | "closed";
   portalActivatedAt: string;
 }>;
 
@@ -112,7 +118,7 @@ export function decodeVerifiedStudentPortalAuthority(
     authority.platform_role !== "student" ||
     accessVersion === null ||
     !isUuid(portalCase?.case_id) ||
-    (portalCase.case_state !== "active" && portalCase.case_state !== "closed") ||
+    (portalCase.case_state !== "pending" && portalCase.case_state !== "active" && portalCase.case_state !== "closed") ||
     portalActivatedAt === null
   ) {
     return null;

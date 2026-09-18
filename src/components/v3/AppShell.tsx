@@ -25,6 +25,7 @@ import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-c
 
 const LINK_ICONS = {
   home: "grid",
+  requests: "file-check",
   pipeline: "funnel",
   "sales-report": "bar-chart",
   "admissions-worklist": "users",

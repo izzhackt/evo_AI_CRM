@@ -7,6 +7,7 @@ import { isStaffPreview, staffCan, staffCanAccessRoute, staffHasPermission, staf
 
 export type V3NavigationLinkId =
   | "home"
+  | "requests"
   | "pipeline"
   | "sales-report"
   | "admissions-worklist"
@@ -47,17 +48,26 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
   {
     id: "sales",
     label: "Продажи",
+    // Order follows plan §3: Заявки, Inbox, Воронка, Отчёт продаж. «Заявки»
+    // is the new unified intake queue (S1); its own route already requires
+    // sales.read, so — unlike inbox below — it needs no extra capability
+    // gate here. Inbox keeps its explicit sales.read gate: this entry only
+    // decides whether inbox shows INSIDE the Продажи group (its own route
+    // requires the broader messaging.read, shared with non-Sales roles that
+    // see inbox in the common section instead, filtered further down).
     links: [
+      { id: "requests", href: "/v3/requests", route: "/v3/requests", label: "Заявки" },
+      { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Inbox", capability: "sales.read" },
       { id: "pipeline", href: "/v3/pipeline", route: "/v3/pipeline", label: "Воронка" },
       { id: "sales-report", href: "/v3/main?view=sales", route: "/v3/main", label: "Отчёт продаж" },
-      { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Клиентские сообщения", capability: "sales.read" },
     ],
   },
   {
     id: "admissions",
     label: "Поступление",
     links: [
-      { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Рабочий список" },
+      // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
+      { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
       { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },
       { id: "universities", href: "/v3/universities", route: "/v3/universities", label: "Университеты" },
       {
@@ -73,7 +83,7 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
 const COMMON: readonly V3NavigationLink[] = [
   { id: "tasks", href: "/v3/tasks", route: "/v3/tasks", label: "Задачи" },
   { id: "team-chat", href: "/v3/team-chat", route: "/v3/team-chat", label: "Командный чат" },
-  { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Клиентские сообщения" },
+  { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Inbox" },
   { id: "calendar", href: "/v3/calendar", route: "/v3/calendar", label: "Календарь" },
   { id: "knowledge", href: "/v3/knowledge", route: "/v3/knowledge", label: "База знаний" },
 ];

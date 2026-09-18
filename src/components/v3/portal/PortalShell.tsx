@@ -10,7 +10,6 @@ import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 const SECTIONS = [
   { href: "/portal", label: "Поступление" },
   { href: "/portal/documents", label: "Документы" },
-  { href: "/portal/applications", label: "Заявки" },
   { href: "/portal/universities", label: "Университеты" },
   { href: "/portal/payments", label: "Оплата" },
   { href: "/portal/notifications", label: "Уведомления" },

@@ -1,0 +1,70 @@
+/**
+ * «Условия продажи» — unified workflow S2 (plan §5, §6): sale conditions live
+ * on the lead card. Filling them in never adds a row to the sales report; the
+ * report later reads the same fields through this exact shape (read-only
+ * preview) and copies them into the register row server-side.
+ */
+import { SALES_CURRENCIES, parseSalesDate, parseSalesInteger, parseSalesUuid, type SalesCurrency } from "./platform-sales-register-contract";
+
+export const SALE_CONDITION_CURRENCIES = SALES_CURRENCIES;
+export type SaleConditionCurrency = SalesCurrency;
+
+export type LinkedSalesRegisterRow = Readonly<{ id: string; reportMonth: string; archived: boolean }>;
+
+export type LeadSaleConditions = Readonly<{
+  leadId: string; organizationId: string; revision: number;
+  serviceLabel: string; signingDate: string | null;
+  serviceCostRaw: string; serviceCostMinor: number | null; serviceCostCurrency: SaleConditionCurrency | null;
+  paidRaw: string; paidMinor: number | null; paidCurrency: SaleConditionCurrency | null;
+  paymentNote: string; updatedByMembershipId: string | null; updatedAt: string | null;
+  linkedSalesRegister: LinkedSalesRegisterRow | null;
+}>;
+
+function fail(): never { throw new Error("Sale conditions are unavailable."); }
+function record(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fail();
+  return value as Record<string, unknown>;
+}
+function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
+  const result = record(value);
+  if (Object.keys(result).length !== keys.length || Object.keys(result).some(key => !keys.includes(key))) fail();
+  return result;
+}
+function str(value: unknown, max = 2000): string {
+  return typeof value === "string" && [...value].length <= max
+    && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value) ? value : fail();
+}
+function num(value: unknown, max = Number.MAX_SAFE_INTEGER): number { return parseSalesInteger(value, max) ?? fail(); }
+function uuid(value: unknown): string { return parseSalesUuid(value) ?? fail(); }
+function date(value: unknown): string { return parseSalesDate(value) ?? fail(); }
+function currency(value: unknown): SaleConditionCurrency {
+  return SALE_CONDITION_CURRENCIES.includes(value as SaleConditionCurrency) ? value as SaleConditionCurrency : fail();
+}
+
+export function parseLeadSaleConditions(raw: unknown, organizationId: string): LeadSaleConditions {
+  const r = exact(raw, ["organization_id", "lead_id", "revision", "service_label", "signing_date",
+    "service_cost_raw", "service_cost_minor", "service_cost_currency", "paid_raw", "paid_minor", "paid_currency",
+    "payment_note", "updated_by_membership_id", "updated_at", "linked_sales_register"]);
+  if (r.organization_id !== organizationId) fail();
+  const revision = num(r.revision); if (revision < 0) fail();
+  const serviceCostMinor = r.service_cost_minor === null ? null : num(r.service_cost_minor, 1_000_000_000_000);
+  const serviceCostCurrency = r.service_cost_currency === null ? null : currency(r.service_cost_currency);
+  const paidMinor = r.paid_minor === null ? null : num(r.paid_minor, 1_000_000_000_000);
+  const paidCurrency = r.paid_currency === null ? null : currency(r.paid_currency);
+  if ((serviceCostMinor === null) !== (serviceCostCurrency === null) || (paidMinor === null) !== (paidCurrency === null)) fail();
+  const linked = r.linked_sales_register === null ? null : (() => {
+    const l = exact(r.linked_sales_register, ["id", "report_month", "archived"]);
+    if (typeof l.archived !== "boolean") fail();
+    return { id: uuid(l.id), reportMonth: date(l.report_month), archived: l.archived as boolean };
+  })();
+  return {
+    leadId: uuid(r.lead_id), organizationId, revision,
+    serviceLabel: str(r.service_label, 300), signingDate: r.signing_date === null ? null : date(r.signing_date),
+    serviceCostRaw: str(r.service_cost_raw, 300), serviceCostMinor, serviceCostCurrency,
+    paidRaw: str(r.paid_raw, 300), paidMinor, paidCurrency,
+    paymentNote: str(r.payment_note, 2000),
+    updatedByMembershipId: r.updated_by_membership_id === null ? null : uuid(r.updated_by_membership_id),
+    updatedAt: r.updated_at === null ? null : str(r.updated_at, 64),
+    linkedSalesRegister: linked,
+  };
+}

@@ -1,0 +1,220 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
+
+import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
+import {
+  saveLeadSaleConditionsAction,
+  type SaveLeadSaleConditionsActionState,
+} from "@/lib/platform-sales-actions";
+import {
+  SALE_CONDITION_CURRENCIES,
+  type LeadSaleConditions as LeadSaleConditionsSnapshot,
+  type SaleConditionCurrency,
+} from "@/lib/lead-sale-conditions-contract";
+
+const MESSAGES: Record<Exclude<SaveLeadSaleConditionsActionState["status"], "idle">, string> = {
+  saved: "Сохранено.",
+  invalid: "Проверьте поля, суммы и валюту.",
+  forbidden: "Нет доступа к этому действию.",
+  stale: "Условия изменил другой сотрудник. Введённое здесь не потеряно, но «Обновить» заменит его актуальными значениями.",
+  request_conflict: "Этот запрос уже использован. Обновите карточку перед повтором.",
+  unavailable: "Сохранение не подтверждено. Проверьте подключение и повторите.",
+};
+
+const MONTH_LABEL = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "Asia/Bishkek" });
+
+function decimal(minor: number | null): string {
+  return minor === null ? "" : `${Math.floor(minor / 100)}.${String(minor % 100).padStart(2, "0")}`;
+}
+function toMinor(value: string): string {
+  if (value.trim() === "") return "";
+  const normalized = value.trim().replace(",", ".");
+  if (!/^\d{1,11}(\.\d{1,2})?$/.test(normalized)) return "invalid";
+  const [whole, cents = ""] = normalized.split(".");
+  return String(BigInt(whole) * BigInt(100) + BigInt(cents.padEnd(2, "0")));
+}
+function reportMonthLabel(reportMonth: string): string {
+  const parsed = new Date(`${reportMonth}T00:00:00Z`);
+  return Number.isFinite(parsed.valueOf()) ? MONTH_LABEL.format(parsed) : reportMonth;
+}
+function reportHref(reportMonth: string, recordId: string): string {
+  const [year, month] = reportMonth.split("-");
+  return `/v3/main?view=sales&year=${year}&month=${Number(month)}&record=${recordId}`;
+}
+
+type Draft = Readonly<{
+  serviceLabel: string; signingDate: string; costAmount: string; costCurrency: string;
+  paidAmount: string; paidCurrency: string; paymentNote: string;
+}>;
+
+function draftFrom(conditions: LeadSaleConditionsSnapshot): Draft {
+  return {
+    serviceLabel: conditions.serviceLabel, signingDate: conditions.signingDate ?? "",
+    costAmount: decimal(conditions.serviceCostMinor), costCurrency: conditions.serviceCostCurrency ?? "",
+    paidAmount: decimal(conditions.paidMinor), paidCurrency: conditions.paidCurrency ?? "",
+    paymentNote: conditions.paymentNote,
+  };
+}
+
+/**
+ * «Условия продажи» — unified workflow S2 (plan §5/§6). Filling this block
+ * never adds a row to the sales report; the report reads these exact fields
+ * back once a Sales rep chooses this lead and a curator and saves.
+ */
+export function LeadSaleConditions({
+  leadId,
+  conditions,
+  requestId,
+  readOnly = false,
+}: {
+  leadId: string;
+  conditions: LeadSaleConditionsSnapshot;
+  requestId: string;
+  readOnly?: boolean;
+}) {
+  const router = useRouter();
+  const [draft, setDraft] = useState(() => draftFrom(conditions));
+  const [state, action, pending] = useActionState(
+    saveLeadSaleConditionsAction,
+    { status: "idle", requestId, leadId, revision: null } as SaveLeadSaleConditionsActionState,
+  );
+  const locked = readOnly || pending || state.status === "saved";
+  const update = (key: keyof Draft, value: string) => setDraft((previous) => ({ ...previous, [key]: value }));
+
+  // A save changes the revision on the server; the parent re-fetches and
+  // remounts this component (key={`sale-conditions:${revision}`}), which
+  // resets `draft`/`state` naturally. Same pattern as GateActionForm.
+  // On "stale" we deliberately do NOT auto-refresh: the remount would wipe
+  // the user's unsaved draft. The explicit «Обновить» button below does it.
+  useEffect(() => {
+    if (state.status === "saved") router.refresh();
+  }, [router, state.status, state.revision]);
+
+  const currencySelect = (value: string, onChange: (value: string) => void) => (
+    <select value={value} disabled={locked} onChange={(event) => onChange(event.target.value)} className={cn(inputCls, "min-h-11 w-full")}>
+      <option value="">Не указана</option>
+      {SALE_CONDITION_CURRENCIES.map((code: SaleConditionCurrency) => (
+        <option key={code} value={code}>{code}</option>
+      ))}
+    </select>
+  );
+
+  return (
+    <Card eyebrow title="Условия продажи" id="sale-conditions">
+      <div className="space-y-4 p-4" data-testid="v3-lead-sale-conditions">
+        {conditions.linkedSalesRegister ? (
+          <p className="text-sm text-fg-2" data-testid="v3-lead-sale-conditions-linked">
+            Продажа в отчёте за {reportMonthLabel(conditions.linkedSalesRegister.reportMonth)}
+            {": "}
+            <Link
+              href={reportHref(conditions.linkedSalesRegister.reportMonth, conditions.linkedSalesRegister.id)}
+              className="font-semibold text-accent underline underline-offset-4"
+            >
+              открыть запись
+            </Link>
+            {conditions.linkedSalesRegister.archived ? " · в архиве" : ""}
+          </p>
+        ) : null}
+        <p className="text-xs text-fg-3">
+          Заполнение этих полей не добавляет продажу в отчёт. Отчёт сохраняется отдельно: «Продажи → Отчёт продаж → Добавить продажу».
+        </p>
+        <form action={action} className="space-y-4" aria-busy={pending}>
+          <input type="hidden" name="lead_id" value={leadId} />
+          <input type="hidden" name="expected_revision" value={conditions.revision} />
+          <input type="hidden" name="request_id" value={state.requestId} />
+          <label className="block">
+            <span className={labelCls}>Услуга/пакет</span>
+            <input
+              name="service_label"
+              value={draft.serviceLabel}
+              onChange={(event) => update("serviceLabel", event.target.value)}
+              maxLength={300}
+              disabled={locked}
+              className={cn(inputCls, "min-h-11 w-full")}
+            />
+          </label>
+          <label className="block max-w-60">
+            <span className={labelCls}>Дата продажи</span>
+            <input
+              type="date"
+              name="signing_date"
+              value={draft.signingDate}
+              onChange={(event) => update("signingDate", event.target.value)}
+              min="1900-01-01"
+              max="2100-12-31"
+              disabled={locked}
+              className={cn(inputCls, "min-h-11 w-full font-mono text-sm")}
+            />
+          </label>
+          <div className="grid gap-3 @2xl:grid-cols-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+              <label>
+                <span className={labelCls}>Сумма</span>
+                <input
+                  inputMode="decimal"
+                  pattern="[0-9]+([.,][0-9]{1,2})?"
+                  value={draft.costAmount}
+                  onChange={(event) => update("costAmount", event.target.value)}
+                  disabled={locked}
+                  className={cn(inputCls, "min-h-11 w-full")}
+                />
+              </label>
+              {currencySelect(draft.costCurrency, (value) => update("costCurrency", value))}
+            </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+              <label>
+                <span className={labelCls}>Оплачено</span>
+                <input
+                  inputMode="decimal"
+                  pattern="[0-9]+([.,][0-9]{1,2})?"
+                  value={draft.paidAmount}
+                  onChange={(event) => update("paidAmount", event.target.value)}
+                  disabled={locked}
+                  className={cn(inputCls, "min-h-11 w-full")}
+                />
+              </label>
+              {currencySelect(draft.paidCurrency, (value) => update("paidCurrency", value))}
+            </div>
+          </div>
+          <p className="text-xs text-fg-3">Сумма продажи и полученная оплата — разные факты; оплата хранится отдельно.</p>
+          <label className="block">
+            <span className={labelCls}>Заметка об оплате</span>
+            <textarea
+              name="payment_note"
+              value={draft.paymentNote}
+              onChange={(event) => update("paymentNote", event.target.value)}
+              maxLength={2000}
+              rows={2}
+              disabled={locked}
+              className={cn(inputCls, "w-full")}
+            />
+          </label>
+          <input type="hidden" name="service_cost_raw" value={draft.costAmount} />
+          <input type="hidden" name="service_cost_minor" value={toMinor(draft.costAmount)} />
+          <input type="hidden" name="service_cost_currency" value={draft.costCurrency} />
+          <input type="hidden" name="paid_raw" value={draft.paidAmount} />
+          <input type="hidden" name="paid_minor" value={toMinor(draft.paidAmount)} />
+          <input type="hidden" name="paid_currency" value={draft.paidCurrency} />
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={locked} className={cn(btnCls, "min-h-11")}>
+              {pending ? "Сохраняем…" : "Сохранить условия"}
+            </button>
+            {state.status !== "idle" ? (
+              <p role={state.status === "saved" ? "status" : "alert"} className="text-sm text-fg-2">
+                {MESSAGES[state.status]}
+              </p>
+            ) : null}
+          </div>
+          {state.status === "stale" || state.status === "request_conflict" ? (
+            <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => router.refresh()}>
+              Обновить карточку
+            </button>
+          ) : null}
+        </form>
+      </div>
+    </Card>
+  );
+}

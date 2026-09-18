@@ -29,6 +29,7 @@ import type { DocumentGroup } from "./document-types";
 import type { PlatformStudentProfileFieldsSnapshot } from "@/lib/platform-student-profile-fields";
 import type { PlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
 import type { LeadSaleConditions } from "@/lib/lead-sale-conditions-contract";
+import type { LeadCabinetCase } from "@/lib/v3/lead-cabinet-source";
 
 export type ProfileFieldSourceVersion = Readonly<{
   id: string; filename: string; versionNumber: number; downloadReady: boolean;
@@ -180,19 +181,23 @@ export type ProfileAdmissionsRequestIds = Readonly<{
   applicationDetails: Readonly<Record<string, string>>;
   createStops: Readonly<Record<string, string>>;
   resolveStops: Readonly<Record<string, string>>;
+  /** «Партнёр и решение» save per application (unified workflow S7). */
+  partnerDetails: Readonly<Record<string, string>>;
 }>;
 
 /**
- * Партнёр и решение — read-only facts kept from the retired playbook editor
- * (unified workflow S4, plan §11). See `readApplicationPartnerDetails` in
- * `src/lib/v3/admissions-source.ts` for why this is read-only, not a form.
+ * Партнёр и решение — editable since unified workflow S7 (plan §8, §11). See
+ * `readApplicationPartnerDetails` in `src/lib/v3/admissions-source.ts` for
+ * the key rename (a NEW, independent vocabulary — not the retired playbook
+ * editor's camelCase keys) and the migration-184 write RPC.
  */
 export type ApplicationPartnerDetails = Readonly<{
   applicationId: string;
+  version: string;
   partnerContact: string | null;
-  packageReference: string | null;
+  externalLink: string | null;
   decisionReference: string | null;
-  offerConditions: string | null;
+  decisionNote: string | null;
 }>;
 
 export type ProfileAdmissionsWorkspace = Readonly<{
@@ -238,6 +243,18 @@ export type ProfileSalesRequestIds = Readonly<{
   platformAccess: string;
   /** «Условия продажи» save on the lead card Overview (unified workflow S2). */
   saleConditions: string;
+  /** «Подготовить кабинет» on the lead card «Доступ к платформе» (unified workflow S7). */
+  prepareLeadCabinet: string;
+  /**
+   * «Пожелания» / «Образование» / «Условия» (unified workflow S7): own
+   * request ids, distinct from `saleConditions` above — all four blocks
+   * write the same row, so sharing one id risks a same-user, same-instant
+   * double-submit reusing an already-consumed request id before the
+   * post-save `router.refresh()` remounts every block with fresh state.
+   */
+  wishesCard: string;
+  educationCard: string;
+  conditionsCard: string;
 }>;
 
 export type Payment = Readonly<{
@@ -291,6 +308,12 @@ export type ProfileDraft = Readonly<{
    * where заполнение условий happens before any report save. null elsewhere.
    */
   saleConditions: LeadSaleConditions | null;
+  /**
+   * «Подготовить кабинет» (unified workflow S7): populated only on the
+   * lead-only Overview branch, same scoping as `saleConditions` above. null
+   * on a full case (a case already exists by definition there).
+   */
+  leadCabinetCase: LeadCabinetCase | null;
   /**
    * Есть в модели, намеренно не рисуется.
    *

@@ -29947,3 +29947,261 @@ test:database:migration-boundaries run via OrbStack BEFORE push, and an
 explicit audit of scripts/evo-production-browser-smoke.mjs anchors against
 the changed UI (both lessons from the 2026-09-19 release). Release follows
 the standard owner-migration + managed-release path.
+
+### 2026-09-19 — unified workflow S7 implementation: карточные блоки, приглашение, партнёрские факты
+
+Date: 2026-09-19. Author: Claude (Sonnet 5). Change type: implementation of
+the previously contracted S7 follow-up slice (this journal, previous entry).
+Affected plan section: «unified workflow S7» (previous entry); plan §4, §5,
+§8 of docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md.
+
+Decision — migration 184
+(supabase/migrations/184_platform_card_fields_and_partner_details.sql, NOT
+applied in this environment — no Supabase credentials, matching every prior
+slice — but validated end to end against a disposable OrbStack Postgres via
+`npm run test:database:migration-boundaries`, see Validation impact below):
+
+(a) `platform_private.lead_sale_condition_fields()` (181) widens from 9 keys
+to 26 across four card-block families — Пожелания (wishes_countries,
+wishes_study_fields, wishes_education_level, wishes_intake_year,
+wishes_intake_season, wishes_universities), Образование (education_current,
+education_grade, education_marks, education_english,
+education_certificates) and Условия (conditions_budget_raw/minor/currency,
+conditions_budget_period, conditions_scholarship, conditions_note) join the
+original service_label/signing_date/service_cost_*/paid_*/payment_note set.
+Same 181 conventions: control-character guard, per-key bounded lengths,
+USD/EUR/KGS money pairs (now three: service_cost, paid, conditions_budget).
+Every 181 key stays legal, and the function still accepts a payload
+containing only a subset of the 26 keys (any absent key normalizes to
+blank/NULL) — a historical row saved before this migration remains valid
+input. `platform.save_lead_sale_conditions_v1` (181) is byte-for-byte
+unchanged: same signature, same full-row-replace semantics. This turned out
+to require ALSO touching `platform_private.lead_sale_conditions_row` and
+`platform.staff_lead_sale_conditions_v1` (both same-signature `CREATE OR
+REPLACE`, not in the task's literal three-part list, but a direct,
+unavoidable consequence of (a)): without it, a historical row or a
+never-saved lead would read back missing the 17 new keys, breaking the TS
+contract's exact-key parser. Both now reuse the validator itself as a
+defaults source (`lead_sale_condition_fields('{}')` already returns a full
+26-key object) instead of hand-listing 26 keys twice. Because the row is
+replaced whole (never merged) on every save, each of the four UI card blocks
+submits the FULL 26-key set on its own independent submit — its own edited
+slice as visible fields, the other three blocks' current, unedited values as
+hidden passthrough fields (`src/components/v3/profile/LeadCardFieldsForm.tsx`'s
+`allFieldValues()`/`HiddenPassthrough`). Each block also got its OWN
+server-minted request id (`wishesCard`/`educationCard`/`conditionsCard` in
+`ProfileSalesRequestIds`, distinct from `saleConditions`) rather than sharing
+one: sharing would let a same-user, same-instant double-submit across two
+blocks reuse an already-consumed request id before the post-save
+`router.refresh()` remounts every block with fresh state — a real, narrow
+race the task didn't call out but the existing `lead_sale_conditions_requests`
+fingerprint-replay mechanism (181, unchanged) would otherwise surface as a
+confusing "request already used" error for a legitimate second edit.
+
+(b) `platform.prepare_lead_cabinet_v1(p_organization_id, p_request_id,
+p_lead_id)`: gated by `platform_private.staff_can_access(...,
+'lead.sales.workflow.manage','lead',p_lead_id)`, the same scoped permission
+every other lead-sales-workflow write already uses. Refuses with a named
+error (`lead_cabinet_case_exists`, PT409) when the lead already owns a
+pending/active case, and (`lead_cabinet_membership_exists`, PT409) when an
+active Student membership already exists for a profile whose `auth.users`
+email matches the lead's client email — "one person, one card" (plan §1).
+Creates the case in the exact S1 shape (`state='pending'`, curator NULL,
+`canonical_lead_id` set, `responsible_sales_membership_id` = the lead's
+current owner, legally NULL for an ownerless lead exactly as 180 already
+allows) via the generic `platform_private.replay_audit` +
+`platform.audit_events` idiom (118/126/137's style, not 181's own dedicated
+receipt-table style, since this needed no new schema). Extended
+`student_cases_intake_origin_check` with a fourth disjunct for the new
+`'lead-cabinet:'||lead_id` source-key shape (`student_membership_id IS
+NULL`, since no account exists yet) — every existing disjunct from 180 stays
+byte-for-byte legal.
+
+**Deliberate, documented departure from the literal S7 contract wording**
+("portal_activated_at=now"): investigation of migration 126 (case-bound
+invite provisioning) found that setting `portal_activated_at` at prepare
+time is impossible without ALSO having a Student membership already bound —
+`student_cases_portal_membership_shape_check` (088, untouched) requires it,
+and a site/WhatsApp lead has no account yet at prepare time (unlike the S1
+анкета flow, where the applicant already has a confirmed `auth.users` row
+and freshly-provisioned membership BEFORE the case INSERT). `prepare_lead_cabinet_v1`
+therefore only prepares the case — `portal_activated_at` stays NULL, deferred
+to whenever an account actually gets bound.
+
+**Invite-gate outcome (the task's own required decision, made explicit, not
+hidden):** migration 126 defines exactly two case shapes for its
+admin-gated invite provisioning — `normal_u6` (an ACTIVE case with a curator
+already assigned) and `legacy_pending` (a PENDING, curator-less case at
+prepare time, but `finalize_student_portal_authority`'s own
+`continuing_legacy_activation` branch assigns the supplied
+`legacy_curator_membership_id` as the case's curator AND flips the case to
+`state='active'` the instant the invite is accepted). Reusing
+`legacy_pending` for a cabinet-prepared case would therefore silently assign
+a curator and hand the case to Admissions on invite acceptance — exactly
+what plan §4 forbids ("Одобрение анкеты или доступа не создаёт передачу в
+Admissions и не назначает куратора"). Neither shape fits "stays pending,
+curator-less, until a real Sales report handoff" (S2's
+`create_sales_report_handoff` is already the correct, existing trigger for
+that transition). Dispatch is admin-gated today
+(`platform_private.require_admin_actor` inside
+`prepare_student_portal_provisioning`) and that gate is correctly kept, but
+wiring `StudentPortalAccessCard` against a cabinet-prepared case would need
+a THIRD 126 case shape that does not exist — a schema/trigger change to a
+different migration's domain, out of scope here, left as a follow-up. The
+UI (`PrepareLeadCabinetAction.tsx`) therefore only creates the case and
+shows the case link plus the quiet line «Приглашение отправляет
+администратор из дела» — honest about both facts (admin-gated, AND not yet
+wired for this specific case shape), never a fabricated capability.
+
+Added beyond the task's literal three-part list, same narrow necessity as
+S4's own `readApplicationPartnerDetails` departure: `platform.
+staff_lead_cabinet_case_v1(p_organization_id, p_lead_id)` — a STABLE read
+gated identically to `staff_lead_sale_conditions_v1` (181), returning the
+lead's linked case (any state) or NULL. Without it the «Подготовить
+кабинет» button could never learn a cabinet already exists after a page
+reload — a lead-cabinet case has no `student_applications` row (site/WhatsApp
+leads never filled an анкета), so the existing
+`staff_student_application_for_lead_v1` read (S1) stays NULL forever for
+this population, and plan §4's "для уже открытого доступа показываем «Доступ
+открыт», а не повторное одобрение" applies here just as much as to the
+анкета path.
+
+(c) `platform.update_application_partner_details_v1(p_organization_id,
+p_request_id, p_student_case_id, p_university_application_id,
+p_expected_version, p_fields)`: allowlists exactly four NEW keys —
+`partner_contact`, `external_link` (`^https://[^\s<>"]{1,1990}$` shape
+check), `decision_reference`, `decision_note` — merged (`||`, preserving
+every other existing key) into `university_applications.admissions_details`,
+with optimistic concurrency and `replay_audit`-based request-id replay.
+Gated by `platform_private.require_domain_actor(...,'application.manage')`
+(cheap preliminary check) THEN `platform_private.require_case_operator(...,
+'application.manage')` on the application's OWN `student_case_id` — the
+exact double-check pattern `private.platform_update_university_application_details`
+(118) already uses for the kept "details" CRUD action, the strongest of the
+two kept application-CRUD SQL gates. NO `admissions_playbook_version_id`
+requirement — closing the exact gap S4's own entry identified.
+
+Deliberately NEW key names (snake_case), not the retired playbook editor's
+camelCase `partnerContact`/`packageReference`/`decisionReference`/
+`offerConditions`: an independent vocabulary that coexists in the same JSONB
+column via the merge, with no risk of silently reinterpreting historical
+playbook-era data under new semantics. **Known, narrow limitation, not
+fixed here, out of scope:** the pre-existing `admissions_guard_related`
+trigger (137) only skips its own `admissions_field_schema` validation when
+`admissions_playbook_version_id IS NULL` — true for every case going
+forward since S4 removed the only UI that could ever set it. For the small
+remaining population of ACTIVE, still playbook-bound legacy CN/MY cases,
+that trigger's `admissions_validate_fields` call requires every key present
+in the merged `admissions_details` to appear in `admissions_field_schema`
+with a non-empty value; our four new, often-blank, schema-unlisted keys do
+not qualify, so a write through this RPC fails closed there. Widening 137's
+own global field-schema/trigger semantics for optional, sparsely-filled keys
+is a different migration's contract and is left as a follow-up — the same
+population S4's own entry already flagged as an edge case, not a new gap
+this slice introduces.
+
+TS/UI: `src/lib/lead-sale-conditions-contract.ts` widens `LeadSaleConditions`
+and `parseLeadSaleConditions` to the 26 keys (exact-key parser, so migration
+184's `staff_lead_sale_conditions_v1` shape and this parser must — and do —
+match exactly). `src/lib/platform-sales-actions.ts`'s
+`saveLeadSaleConditionsAction` widens `SALE_CONDITIONS_FORM_FIELDS` and its
+validation loops to the 26 keys (unchanged gate/RPC/error-mapping) and gains
+`prepareLeadCabinetAction` (new, narrow: `lead_id`+`request_id` only, calls
+`prepare_lead_cabinet_v1`, maps PT409→"conflict", revalidates
+`` /v3/profile?id=${leadId} ``). New `src/lib/v3/lead-cabinet-source.ts`
+(`readLeadCabinetCase`, mirroring `lead-sale-conditions-source.ts`'s
+conventions) — added to `tests/v3-supabase-integration.test.mjs`'s
+exhaustive `src/lib/v3/*.ts` allowlist (both the full file list and the
+`-source.ts` adapter sublist), matching S1's precedent for `requests-source.ts`.
+New `src/components/v3/profile/LeadCardFieldsForm.tsx` (shared plumbing:
+`allFieldValues`, `useCardFieldsAction`, `HiddenPassthrough`, `StatusRow`,
+`SimpleFieldsCard` — used by the exported `LeadWishesCard`/`LeadEducationCard`;
+`LeadConditionsCard` is a bespoke sibling for the money+period fields) and
+`src/components/v3/profile/PrepareLeadCabinetAction.tsx`. `tabs.tsx`:
+`PlatformAccessCard` gains `leadId`/`leadCabinetCase`/`prepareRequestId`
+props and a third branch (anketa null + no cabinet case → `PrepareLeadCabinetAction`);
+the three new card blocks render beside `LeadSaleConditions` inside the
+existing `draft.saleConditions ?` guard, each keyed by
+`` `<name>:${draft.saleConditions.revision}` `` so any block's save remounts
+every block with fresh data (same pattern `LeadSaleConditions` already
+documents). `src/lib/v3/profile-source.ts`'s `readLeadProfile` fetches
+`leadCabinetCase` on the lead-only branch only (`fullCase ? null : ...`,
+matching `saleConditions`'s own scoping) and `admissionsWorkspace()` mints a
+new `requestIds.partnerDetails` per-application map.
+`src/lib/v3/admissions-source.ts`'s `readApplicationPartnerDetails` keeps
+its read path (same `staff_case_admissions_workspace_v1` RPC, per the task's
+own instruction) but now decodes the new snake_case keys plus `version`
+(needed for the new form's optimistic concurrency) instead of the retired
+camelCase ones. `src/lib/platform-admissions-actions.ts` gains
+`updateApplicationPartnerDetailsAction` (same `application.manage` gate,
+`applicationText`/`applicationFailureState` conventions as the kept CRUD
+actions, plus a client-side `HTTPS_LINK_PATTERN` mirroring the SQL check).
+`ProfileAdmissionsWorkspace.tsx`'s `ApplicationPartnerFacts` becomes a form
+when `canWriteApplications`, a plain read-only fact list otherwise (matching
+every other write control on that panel) — the call site now keys it by
+`` `partner-${id}-${version}` `` so a save remounts it with the fresh
+version, matching `ApplicationDetailsForm`'s own pattern.
+
+Validation impact: `npm run typecheck` (clean, exit 0), `npx eslint` on
+every touched/added file (clean, exit 0), `npm run test:brand-ui` (5/5), the
+new migration-pattern suite `tests/platform-card-fields-migration.test.mjs`
+(14/14, following 181/180's own template) plus extensions to
+`tests/platform-sales-actions.test.mjs` (7/7, 2 new) and
+`tests/v3-profile-admissions.test.mjs` (7/7, rewritten for the new editable
+form) and `tests/v3-supabase-integration.test.mjs` (10/10, allowlist
+updated), all under `node --conditions=react-server --experimental-strip-types --test`.
+A broader sweep of every other test file referencing `tabs.tsx`/
+`profile-source.ts`/`ProfileAdmissionsWorkspace.tsx`/`types.ts`/
+`platform-admissions-actions.ts`/`platform-sales-actions.ts`/`page.tsx`/
+`LeadSaleConditions.tsx`/`lead-sale-conditions-contract.ts`/
+`admissions-source.ts` (`admissions-summary`, `p4-supabase-admissions-storage-legacy-cleanup`,
+`platform-admissions`, `platform-case-operations`, `scoped-finance-read-contract`,
+`student-portal-provisioning-ui`, `v3-admissions-support`,
+`v3-handoff-navigation`, `v3-operational-parity`, `v3-profile-activity`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`)
+passed 84/85, with the one failure —
+`tests/v3-handoff-navigation.test.mjs` — verified pre-existing and unrelated:
+`git status`/`git stash` show this file untouched by this slice, and it
+fails at module load (`SyntaxError: Named export 'renderToStaticMarkup' not
+found` from a CJS/ESM `react-dom/server` interop issue) before any of its
+own assertions run — the identical, previously-documented environment issue
+S2/S3/S4's own entries already recorded. `tests/v3-student-profile-fields.test.mjs`
+was run under plain `node --test` per its own designated flag (10/10).
+
+Full local boundary run (mandatory before finishing, per the task's own
+instruction): `npm run test:database:migration-boundaries` against a
+disposable OrbStack Postgres container — every migration 001-184 applied in
+order plus the full interleaved `supabase/tests/*.sql` RLS/authorization
+suite, ending in `authorization_policies.sql`/`authorization_inventory.sql`.
+**Exit code 0** on the first run (no fix-and-rerun cycle needed); the final
+inventory listing confirms all three new functions
+(`prepare_lead_cabinet_v1`, `staff_lead_cabinet_case_v1`,
+`update_application_partner_details_v1`) registered with `search_path=""`
+alongside every other platform function, and the run's closing line reads
+"Verified disposable authorization database with
+public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d…".
+
+Smoke audit (mandatory, plan's own lesson from the 2026-09-19 release):
+`rg "getByTestId|getByText|getByRole" scripts/evo-production-browser-smoke.mjs
+tests/production-browser-smoke.test.mjs` against every anchor near the
+changed files found exactly one relevant hit,
+`getByTestId("v3-universities-programs")` (the outer wrapper `<div>` in
+`UniversityProgramsTab.tsx`) — its `data-testid` was not touched; the new
+`ApplicationPartnerFacts` form and the three new lead-card blocks are purely
+additive content nested well inside already-stable containers. Smoke
+anchors unaffected.
+
+Reviewer notes: (a)'s "each block submits the full 26-key set" design is a
+direct consequence of NOT touching `save_lead_sale_conditions_v1`'s
+full-row-replace semantics, per the task's own narrow scope for part (a); a
+future slice wanting a true partial-merge save (so a block's own submit
+touches only its own keys server-side) would need to revisit that RPC's
+UPDATE, not just the validator. (b)'s invite-dispatch gap (no third 126 case
+shape for a permanently curator-less, portal-eligible case) is real, open
+follow-up work — flagged in both the migration header and here, not solved
+by this slice, per its own explicit scope boundary ("do not widen auth
+surfaces silently"). (c)'s playbook-bound-legacy-case limitation affects
+only cases that both (i) still carry `admissions_playbook_version_id` and
+(ii) are `state='active'` — a shrinking, already-frozen population since S4;
+`readApplicationPartnerDetails`'s own S4-era comment about empty facts for
+never-configured cases stays accurate unchanged.

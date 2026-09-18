@@ -73,6 +73,18 @@ const CHANGE_APPLICATION_FIELDS = [
   "request_id",
   "expected_version",
 ] as const;
+/** «Партнёр и решение» (unified workflow S7): partner_contact/external_link/decision_reference/decision_note. */
+const PARTNER_DETAILS_FIELDS = [
+  "application_id",
+  "student_case_id",
+  "request_id",
+  "expected_version",
+  "partner_contact",
+  "external_link",
+  "decision_reference",
+  "decision_note",
+] as const;
+const HTTPS_LINK_PATTERN = /^https:\/\/[^\s<>"]{1,1990}$/;
 
 export type PlatformUniversityApplicationActionState = Readonly<{
   status: PlatformAdmissionsActionStatus;
@@ -630,5 +642,89 @@ export async function changePlatformUniversityApplicationAction(
       applicationId,
       requestId,
     );
+  }
+}
+
+/**
+ * «Партнёр и решение» (unified workflow S7, plan §8/§11): editable since this
+ * slice — `platform.update_application_partner_details_v1` (migration 184)
+ * needs no admissions_playbook_version_id, unlike the retired 137 write
+ * path. Gated identically to the kept create/details CRUD above
+ * (application.manage), same request-id/expected-version conventions.
+ */
+export async function updateApplicationPartnerDetailsAction(
+  _previous: PlatformUniversityApplicationActionState,
+  form: FormData,
+): Promise<PlatformUniversityApplicationActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "application.manage")) {
+    return applicationFailureState(form, "forbidden");
+  }
+  const fields = exactActionStringFields(form, PARTNER_DETAILS_FIELDS);
+  if (!fields) return applicationFailureState(form, "invalid");
+
+  const applicationId = applicationUuid(applicationField(fields, "application_id"));
+  const studentCaseId = applicationUuid(applicationField(fields, "student_case_id"));
+  const requestId = applicationUuid(applicationField(fields, "request_id"));
+  const expectedVersion = applicationVersion(
+    applicationField(fields, "expected_version"),
+    false,
+  );
+  const partnerContact = applicationText(applicationField(fields, "partner_contact"), 0, 300);
+  const externalLink = applicationText(applicationField(fields, "external_link"), 0, 2_000);
+  const decisionReference = applicationText(applicationField(fields, "decision_reference"), 0, 300);
+  const decisionNote = applicationText(applicationField(fields, "decision_note"), 0, 2_000);
+  if (
+    !applicationId || !studentCaseId || !requestId || !expectedVersion ||
+    partnerContact === null || externalLink === null ||
+    decisionReference === null || decisionNote === null ||
+    (externalLink !== "" && !HTTPS_LINK_PATTERN.test(externalLink))
+  ) {
+    return applicationFailureState(form, "invalid", applicationId, requestId);
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const response = await client.schema("platform").rpc(
+      "update_application_partner_details_v1",
+      {
+        p_organization_id: actor.organizationId,
+        p_request_id: requestId,
+        p_student_case_id: studentCaseId,
+        p_university_application_id: applicationId,
+        p_expected_version: expectedVersion,
+        p_fields: {
+          partner_contact: partnerContact,
+          external_link: externalLink,
+          decision_reference: decisionReference,
+          decision_note: decisionNote,
+        },
+      },
+    );
+    if (response.error) {
+      return applicationFailureState(
+        form,
+        applicationErrorStatus(response.error),
+        applicationId,
+        requestId,
+      );
+    }
+    const data = response.data;
+    if (
+      !isRecord(data) ||
+      applicationUuid(String(data.university_application_id ?? "")) !== applicationId ||
+      typeof data.version !== "string"
+    ) {
+      return applicationFailureState(form, "unavailable", applicationId, requestId);
+    }
+    revalidateApplication(studentCaseId);
+    return Object.freeze({
+      status: "saved" as const,
+      requestId: randomUUID(),
+      universityApplicationId: applicationId,
+      version: data.version,
+    });
+  } catch {
+    return applicationFailureState(form, "unavailable", applicationId, requestId);
   }
 }

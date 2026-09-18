@@ -247,18 +247,28 @@ test("V3 profile actions use canonical versioned server commands and honest outc
     false,
   );
 
-  // New read-only «Партнёр и ссылки» / «Решение университета» facts (plan
-  // §11 labels), one per application, no edit control.
+  // «Партнёр и решение» is editable since unified workflow S7 (plan §8/§11):
+  // platform.update_application_partner_details_v1 (migration 184) needs no
+  // admissions_playbook_version_id, unlike the retired 137 write path.
   assert.match(controls, /function ApplicationPartnerFacts/u);
-  assert.match(controls, /Партнёр и ссылки/u);
-  assert.match(controls, /Решение университета/u);
+  assert.match(controls, /Партнёр и решение/u);
   const partnerFacts = controls.slice(
     controls.indexOf("function ApplicationPartnerFacts"),
     controls.indexOf("function FinanceStopCreateForm"),
   );
-  assert.doesNotMatch(partnerFacts, /<form|useActionState/u);
+  assert.match(partnerFacts, /<form action=\{action\}/u);
+  assert.match(partnerFacts, /useActionState\(\s*updateApplicationPartnerDetailsAction/u);
+  assert.match(partnerFacts, /name="partner_contact"/u);
+  assert.match(partnerFacts, /name="external_link"/u);
+  assert.match(partnerFacts, /name="decision_reference"/u);
+  assert.match(partnerFacts, /name="decision_note"/u);
+  assert.match(partnerFacts, /name="student_case_id" value=\{workspace\.studentCaseId\}/u);
+  // Read-only fallback (no `application.manage`) stays a plain fact list.
+  assert.match(partnerFacts, /if \(!canWrite\) \{/u);
+  assert.doesNotMatch(partnerFacts, /packageReference|offerConditions/u);
   assert.match(controls, /partnerDetails\?: readonly ApplicationPartnerDetails\[\]/u);
   assert.match(controls, /<ApplicationPartnerFacts/u);
+  assert.match(controls, /canWrite=\{canWriteApplications\}/u);
 
   const detailsForm = controls.slice(
     controls.indexOf("function ApplicationDetailsForm"),

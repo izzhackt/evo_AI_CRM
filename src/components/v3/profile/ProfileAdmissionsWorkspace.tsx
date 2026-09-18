@@ -5,12 +5,13 @@ import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
   createPlatformUniversityApplicationAction,
+  updateApplicationPartnerDetailsAction,
   updatePlatformUniversityApplicationDetailsAction,
   type PlatformUniversityApplicationActionState,
 } from "@/lib/platform-admissions-actions";
@@ -260,53 +261,122 @@ function ApplicationDetailsForm({
 }
 
 /**
- * Партнёр и решение — read-only (unified workflow S4, plan §11). Facts a
- * curator recorded through the retired playbook editor stay visible next to
- * the application they belong to; there is no edit control here (see
+ * Партнёр и решение — editable since unified workflow S7 (plan §8/§11).
+ * `platform.update_application_partner_details_v1` (migration 184) needs no
+ * admissions_playbook_version_id, unlike the retired 137 write path — see
  * `readApplicationPartnerDetails` in `src/lib/v3/admissions-source.ts` for
- * why). Renders nothing when every field is empty — a quiet card, not a
- * permanent "nothing here" placeholder.
+ * the full history. Read-only fallback stays for staff without
+ * `application.manage`, matching every other write control on this panel
+ * (`canWriteApplications`); renders nothing when every field is empty AND
+ * the actor cannot write — a quiet card, never a permanent placeholder.
  */
-function ApplicationPartnerFacts({ details }: Readonly<{ details: ApplicationPartnerDetails | undefined }>) {
-  if (!details) return null;
-  const partner = [
-    { label: "Контакт партнёра", value: details.partnerContact },
-    { label: "Ссылка на переданный пакет", value: details.packageReference },
-  ].filter((fact) => fact.value);
-  const decision = [
-    { label: "Номер / ссылка решения", value: details.decisionReference },
-    { label: "Условия предложения", value: details.offerConditions },
-  ].filter((fact) => fact.value);
-  if (partner.length === 0 && decision.length === 0) return null;
+function ApplicationPartnerFacts({
+  workspace, application, details, canWrite,
+}: Readonly<{
+  workspace: ProfileAdmissionsWorkspace;
+  application: PlatformApplicationQueueRow;
+  details: ApplicationPartnerDetails | undefined;
+  canWrite: boolean;
+}>) {
+  const initialState: PlatformUniversityApplicationActionState = {
+    status: "idle",
+    requestId: workspace.requestIds.partnerDetails[application.universityApplicationId],
+    universityApplicationId: application.universityApplicationId,
+    version: details?.version ?? application.version,
+  };
+  const [state, action, pending] = useActionState(
+    updateApplicationPartnerDetailsAction,
+    initialState,
+  );
+  useCanonicalRefresh(state.status);
+  const locked = !canWrite || pending || state.status === "saved" || state.status === "stale";
+  const [draft, setDraft] = useState({
+    partnerContact: details?.partnerContact ?? "",
+    externalLink: details?.externalLink ?? "",
+    decisionReference: details?.decisionReference ?? "",
+    decisionNote: details?.decisionNote ?? "",
+  });
+
+  if (!canWrite) {
+    const facts = [
+      { label: "Контакт партнёра", value: details?.partnerContact ?? null },
+      { label: "Ссылка", value: details?.externalLink ?? null },
+      { label: "Номер / ссылка решения", value: details?.decisionReference ?? null },
+      { label: "Заметка о решении", value: details?.decisionNote ?? null },
+    ].filter((fact) => fact.value);
+    if (facts.length === 0) return null;
+    return (
+      <div className="mt-3 rounded-nav border border-border p-3">
+        <h4 className="text-sm font-medium text-fg">Партнёр и решение</h4>
+        <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+          {facts.map((fact) => (
+            <div key={fact.label} className="min-w-0">
+              <dt className="text-xs text-fg-3">{fact.label}</dt>
+              <dd className="mt-0.5 break-words text-sm text-fg">{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  }
+
   return (
-    <div className="mt-3 space-y-3">
-      {partner.length > 0 ? (
-        <div className="rounded-nav border border-border p-3">
-          <h4 className="text-sm font-medium text-fg">Партнёр и ссылки</h4>
-          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
-            {partner.map((fact) => (
-              <div key={fact.label} className="min-w-0">
-                <dt className="text-xs text-fg-3">{fact.label}</dt>
-                <dd className="mt-0.5 break-words text-sm text-fg">{fact.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      ) : null}
-      {decision.length > 0 ? (
-        <div className="rounded-nav border border-border p-3">
-          <h4 className="text-sm font-medium text-fg">Решение университета</h4>
-          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
-            {decision.map((fact) => (
-              <div key={fact.label} className="min-w-0">
-                <dt className="text-xs text-fg-3">{fact.label}</dt>
-                <dd className="mt-0.5 break-words text-sm text-fg">{fact.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      ) : null}
-    </div>
+    <form action={action} className="mt-3 space-y-3 rounded-nav border border-border p-3" aria-busy={pending}>
+      <h4 className="text-sm font-medium text-fg">Партнёр и решение</h4>
+      <input type="hidden" name="application_id" value={application.universityApplicationId} />
+      <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
+      <input type="hidden" name="request_id" value={state.requestId} />
+      <input type="hidden" name="expected_version" value={state.version ?? application.version} />
+      <fieldset disabled={locked} className="grid gap-3 sm:grid-cols-2">
+        <label>
+          <span className={labelCls}>Контакт партнёра</span>
+          <input
+            name="partner_contact"
+            maxLength={300}
+            value={draft.partnerContact}
+            onChange={(event) => setDraft((previous) => ({ ...previous, partnerContact: event.target.value }))}
+            className={inputCls}
+          />
+        </label>
+        <label>
+          <span className={labelCls}>Ссылка</span>
+          <input
+            name="external_link"
+            type="url"
+            maxLength={2000}
+            placeholder="https://…"
+            value={draft.externalLink}
+            onChange={(event) => setDraft((previous) => ({ ...previous, externalLink: event.target.value }))}
+            className={inputCls}
+          />
+        </label>
+        <label>
+          <span className={labelCls}>Номер / ссылка решения</span>
+          <input
+            name="decision_reference"
+            maxLength={300}
+            value={draft.decisionReference}
+            onChange={(event) => setDraft((previous) => ({ ...previous, decisionReference: event.target.value }))}
+            className={inputCls}
+          />
+        </label>
+        <label className="sm:col-span-2">
+          <span className={labelCls}>Заметка о решении</span>
+          <textarea
+            name="decision_note"
+            maxLength={2000}
+            rows={2}
+            value={draft.decisionNote}
+            onChange={(event) => setDraft((previous) => ({ ...previous, decisionNote: event.target.value }))}
+            className={inputCls}
+          />
+        </label>
+        <button type="submit" className={btnGhostCls} disabled={locked}>
+          {pending ? "Сохраняем…" : "Сохранить"}
+        </button>
+      </fieldset>
+      <StateBanner status={state.status} />
+    </form>
   );
 }
 
@@ -421,7 +491,7 @@ export function ProfileAdmissionsWorkspacePanel({
 }: Readonly<{
   actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
-  /** Read-only «Партнёр и ссылки» / «Решение университета» facts, keyed by application (unified workflow S4). */
+  /** «Партнёр и решение» facts, keyed by application — editable since unified workflow S7 (plan §8/§11). */
   partnerDetails?: readonly ApplicationPartnerDetails[];
 }>) {
   if (!workspace) return null;
@@ -474,7 +544,14 @@ export function ProfileAdmissionsWorkspacePanel({
                   </p>
                 ) : null}
                 <ApplicationPartnerFacts
+                  key={`partner-${application.universityApplicationId}-${
+                    partnerDetails.find((item) => item.applicationId === application.universityApplicationId)?.version
+                      ?? application.version
+                  }`}
+                  workspace={workspace}
+                  application={application}
                   details={partnerDetails.find((item) => item.applicationId === application.universityApplicationId)}
+                  canWrite={canWriteApplications}
                 />
                 {canWriteApplications ? (
                   <details className="mt-3">

@@ -111,6 +111,11 @@ UX release is recorded above.
 
 ## Public Student onboarding and clear product copy — released 2026-09-18
 
+Active follow-up: fix existing Student re-registration routing and non-retryable
+business conflicts after the owner-reported Saving timeout. Forward migration178;
+keep all identity/Admissions guards and global Auth settings. See the latest
+PLAN_CHANGES entry. No new Student/case is required for this correction.
+
 Owner requests a public questionnaire followed by account creation and Admissions
 approval. Full portal access starts only after approval (explicit confirmation).
 Follow [the active onboarding contract](design/v3/public-student-onboarding-run-plan.md).

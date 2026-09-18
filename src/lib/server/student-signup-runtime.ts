@@ -1,5 +1,8 @@
 import "server-only";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { PRODUCTION_STAFF_ORIGIN } from "../platform-public-origin";
+import { readVerifiedPlatformAuthority } from "../supabase/platform-authority";
+import { readVerifiedStudentPortalAuthority } from "../supabase/student-portal-authority";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "../student-application-contract";
 import { readOwnStudentApplication, submitStudentApplication } from "../v3/student-application-source";
 
@@ -7,6 +10,19 @@ import { readOwnStudentApplication, submitStudentApplication } from "../v3/stude
 export function isPasswordProvisionedStaff(user: Pick<User, "app_metadata">): boolean {
   return typeof user.app_metadata?.evo_staff_password_request_id === "string"
     && user.app_metadata.evo_staff_password_request_id.length > 0;
+}
+
+/** Route existing access using current Auth claims and database authority. */
+export async function studentApplicationEntryRedirect(client: SupabaseClient, user: User): Promise<string | null> {
+  const { data, error } = await client.auth.getClaims();
+  if (error || !data?.claims || data.claims.sub !== user.id) throw new Error("Student registration is unavailable.");
+  const staff = await readVerifiedPlatformAuthority(client, data.claims);
+  if (staff.status === "authenticated") return `${PRODUCTION_STAFF_ORIGIN}/`;
+  if (staff.status === "unavailable") throw new Error("Student registration is unavailable.");
+  if (isPasswordProvisionedStaff(user)) return `${PRODUCTION_STAFF_ORIGIN}/login?error=staffAccessDenied`;
+  const portal = await readVerifiedStudentPortalAuthority(client, data.claims);
+  if (portal.status === "unavailable") throw new Error("Student registration is unavailable.");
+  return portal.status === "authenticated" ? "/portal" : null;
 }
 
 export function logStudentSignupFailure(stage: string, error?: unknown): void {

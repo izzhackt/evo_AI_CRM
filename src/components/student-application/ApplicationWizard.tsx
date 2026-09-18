@@ -79,6 +79,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   const [fieldSearch, setFieldSearch] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
   const [result, action, pending] = useActionState(registerStudentAction, { status: "idle" } as const);
   const heading = useRef<HTMLHeadingElement>(null);
   const moved = useRef(false);
@@ -96,7 +97,11 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
         }
         const saved = raw ? restoredState(raw, initialState(requestId, draft)) : null;
         if (saved) { setValues(saved.values); setStep(saved.step); }
-        if (raw) setSubmittedEmail(String(JSON.parse(raw).submittedEmail ?? "").slice(0, 254));
+        if (raw) {
+          const stored = JSON.parse(raw);
+          setSubmittedEmail(String(stored.submittedEmail ?? "").slice(0, 254));
+          setAccountEmail(String(stored.accountEmail ?? stored.submittedEmail ?? "").slice(0, 254));
+        }
       } catch { /* The form still works when browser storage is disabled. */ }
     }
     setLoaded(true);
@@ -104,9 +109,9 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   useEffect(() => {
     if (!loaded) return;
     try {
-      sessionStorage.setItem(storageKey, JSON.stringify({ values, step, submittedEmail }));
+      sessionStorage.setItem(storageKey, JSON.stringify({ values, step, submittedEmail, accountEmail }));
     } catch { /* No false server-save claim is made for a local draft. */ }
-  }, [loaded, values, step, submittedEmail, storageKey]);
+  }, [loaded, values, step, submittedEmail, accountEmail, storageKey]);
   useEffect(() => { if (moved.current) heading.current?.focus(); }, [step]);
   function update<K extends keyof WizardState>(key: K, value: WizardState[K]) { setValues((old) => ({ ...old, [key]: value })); setError(""); }
   function toggle(key: "destinationCountries" | "studyFields" | "studyLevels", value: string) {
@@ -136,6 +141,13 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
     else if (!validateStep()) event.preventDefault();
     else setSubmittedEmail(String(new FormData(event.currentTarget).get("email") ?? "").trim().toLowerCase());
   }
+  function preserveAnswers(event: FormEvent<HTMLFormElement>) {
+    // A returned action error still resolves the action and triggers React's
+    // native form reset. Retain answers; passwords stay out of draft storage.
+    event.preventDefault();
+    const password = event.currentTarget.elements.namedItem("password");
+    if (password instanceof HTMLInputElement) password.value = "";
+  }
   const exam = ENGLISH_EXAMS[values.englishExam as keyof typeof ENGLISH_EXAMS] ?? ENGLISH_EXAMS.ielts;
   const years = Array.from({ length: 7 }, (_, i) => year + i);
   const options = (keys: readonly string[]) => keys.map((key) => <option key={key} value={key}>{LABELS[key] ?? key}</option>);
@@ -155,12 +167,12 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
     <div className="mx-auto max-w-4xl px-4 pb-10 pt-3 sm:px-8 sm:pt-8">
       <div className="mb-6 flex items-center justify-between gap-4 text-sm"><span className="font-medium text-fg-2">{STEPS[step]}</span><span aria-live="polite" className="text-fg-2">Шаг {step + 1} из 9</span></div>
       <div role="progressbar" aria-label="Заполнение анкеты" aria-valuemin={0} aria-valuemax={9} aria-valuenow={step + 1} className="mb-8 flex gap-1.5">{STEPS.map((label, i) => <span key={label} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-accent" : "bg-border"}`} />)}</div>
-      <form ref={form} action={action} onSubmit={submit} className="rounded-card border border-border bg-surface px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-10">
+      <form ref={form} action={action} onSubmit={submit} onReset={preserveAnswers} className="rounded-card border border-border bg-surface px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-10">
         <input name="questionnaire" type="hidden" value={JSON.stringify(questionnaire(values))} />
         <input name="expected_revision" type="hidden" value={expectedRevision} />
         {step !== 8 && <><input name="email" type="hidden" value={signedInEmail ?? ""} /><input name="password" type="hidden" value="" /></>}
         <div key={step} className="page-in min-h-[340px] motion-reduce:animate-none">
-          <h1 tabIndex={-1} ref={heading} className="max-w-xl text-2xl font-semibold leading-tight tracking-tight outline-none sm:text-3xl">{step === 8 && signedInEmail ? "Проверьте контактные данные" : QUESTIONS[step]}</h1>
+          <h1 tabIndex={-1} ref={heading} className="max-w-xl text-2xl font-semibold leading-tight tracking-tight outline-none sm:text-3xl">{step === 8 && signedInEmail ? "Контактные данные" : QUESTIONS[step]}</h1>
           {stepCopy && <p className="mt-3 text-sm leading-6 text-fg-2">{stepCopy}</p>}
           <div className="mt-7 space-y-5">
             {step === 0 && <div className="grid gap-3 sm:grid-cols-3">{STUDENT_APPLICATION_COUNTRIES.map((country) => <Choice key={country} selected={values.destinationCountries.includes(country)} onClick={() => toggle("destinationCountries", country)}><span className="flex items-center gap-3"><span aria-hidden="true" className="text-2xl">{String.fromCodePoint(...[...country].map((c) => c.charCodeAt(0) + 127397))}</span>{LABELS[country]}</span></Choice>)}</div>}
@@ -171,7 +183,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
             {step === 5 && <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">Страна гражданства<select required className={INPUT} value={values.nationality} onChange={(e) => update("nationality", e.target.value)}><option value="">Выберите страну</option>{NATIONALITY_COUNTRIES.map((code) => ({ code, name: countryLabel(code) })).sort((a, b) => a.name.localeCompare(b.name, "ru")).map(({ code, name }) => <option key={code} value={code}>{name}</option>)}</select></label>}
             {step === 6 && <div className="max-w-xl space-y-6"><fieldset><legend className="mb-3 text-sm font-medium text-fg-2">Есть результат языкового экзамена?</legend><div className="grid gap-3 sm:grid-cols-2"><Choice selected={values.englishMode === "exam"} onClick={() => update("englishMode", "exam")}>Да, есть результат</Choice><Choice selected={values.englishMode === "self"} onClick={() => update("englishMode", "self")}>Нет, пока не сдавал</Choice></div></fieldset>{values.englishMode === "exam" && <div className="grid gap-5 sm:grid-cols-2">{select("englishExam", "Экзамен и шкала", Object.keys(ENGLISH_EXAMS))}<label className="grid gap-2 text-sm font-medium text-fg-2">Общий результат<input required className={INPUT} type="number" min={exam.min} max={exam.max} step={exam.step} value={values.englishScore} onChange={(e) => update("englishScore", e.target.value)} inputMode="decimal" /></label></div>}{values.englishMode === "self" && select("englishLevel", "Как вы оцениваете свой английский?", ["beginner", "intermediate", "advanced", "fluent"])}</div>}
             {step === 7 && <div className="max-w-xl space-y-5">{select("tuitionBudget", "Обучение в год, USD", STUDENT_APPLICATION_TUITION_BUDGETS)}{select("fundingSource", "Источник финансирования", STUDENT_APPLICATION_FUNDING_SOURCES)}</div>}
-            {step === 8 && <div className="space-y-5"><div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">Имя<input required className={INPUT} autoComplete="given-name" maxLength={60} value={values.firstName} onChange={(e) => update("firstName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Фамилия<input required className={INPUT} autoComplete="family-name" maxLength={60} value={values.lastName} onChange={(e) => update("lastName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Телефон с кодом страны<input required className={INPUT} type="tel" autoComplete="tel" maxLength={40} placeholder="+996 …" value={values.phone} onChange={(e) => update("phone", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Email<input required className={INPUT} name="email" type="email" autoComplete="email" maxLength={254} defaultValue={signedInEmail ?? ""} readOnly={Boolean(signedInEmail)} /></label></div>{signedInEmail ? <input name="password" type="hidden" value="" /> : <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">Пароль<div className="flex gap-2"><input required className={INPUT} name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={12} maxLength={72} aria-describedby="password-hint" /><button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="min-h-12 rounded-ctl px-2 text-sm text-accent-text">{showPassword ? "Скрыть" : "Показать"}</button></div><span id="password-hint" className="text-sm font-normal text-fg-2">Не менее 12 символов.</span></label>}<label className="flex cursor-pointer items-start gap-3 border-t border-border pt-5 text-sm leading-6 text-fg-2"><input type="checkbox" required checked={values.consent} onChange={(e) => update("consent", e.target.checked)} className="mt-1 size-5 shrink-0 accent-accent" /><span>Согласен передать анкету команде EVO для рассмотрения заявки и связи со мной по вопросам поступления.</span></label></div>}
+            {step === 8 && <div className="space-y-5"><div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">Имя<input required className={INPUT} autoComplete="given-name" maxLength={60} value={values.firstName} onChange={(e) => update("firstName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Фамилия<input required className={INPUT} autoComplete="family-name" maxLength={60} value={values.lastName} onChange={(e) => update("lastName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Телефон с кодом страны<input required className={INPUT} type="tel" autoComplete="tel" maxLength={40} placeholder="+996 …" value={values.phone} onChange={(e) => update("phone", e.target.value)} /></label>{signedInEmail ? <div className="grid content-start gap-2 text-sm font-medium text-fg-2"><span>Email аккаунта</span><p className="break-all py-3 text-base font-normal text-fg">{signedInEmail}</p><input name="email" type="hidden" value={signedInEmail} /></div> : <label className="grid gap-2 text-sm font-medium text-fg-2">Email<input required className={INPUT} name="email" type="email" autoComplete="email" maxLength={254} value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} /></label>}</div>{signedInEmail ? <input name="password" type="hidden" value="" /> : <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">Пароль<div className="flex gap-2"><input required className={INPUT} name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={12} maxLength={72} aria-describedby="password-hint" /><button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="min-h-12 rounded-ctl px-2 text-sm text-accent-text">{showPassword ? "Скрыть" : "Показать"}</button></div><span id="password-hint" className="text-sm font-normal text-fg-2">Не менее 12 символов.</span></label>}<label className="flex cursor-pointer items-start gap-3 border-t border-border pt-5 text-sm leading-6 text-fg-2"><input type="checkbox" required checked={values.consent} onChange={(e) => update("consent", e.target.checked)} className="mt-1 size-5 shrink-0 accent-accent" /><span>Согласен передать анкету команде EVO для рассмотрения заявки и связи со мной по вопросам поступления.</span></label></div>}
           </div>
         </div>
         {(error || serverError) && <p role="alert" className="mt-6 rounded-ctl bg-danger-weak p-3 text-sm leading-6 text-danger">{error || serverError}{!error && result.status === "conflict" && <> <Link href="/login" className="font-medium underline underline-offset-4">Перейти ко входу</Link></>}</p>}

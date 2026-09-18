@@ -74,8 +74,22 @@ function harness(options = {}) {
     async readOwnStudentApplication(received) { assert.equal(received, client); calls.push(["readOwn"]); if (options.readError) throw options.readError; return options.existing ?? null; },
     async submitStudentApplication(...args) { assert.equal(args[0], client); calls.push(["submit", ...args.slice(1)]); if (options.submitError) throw options.submitError; return { id: REQUEST, status: "pending" }; },
   };
+  const portalAuthority = {
+    readVerifiedStudentPortalAuthority: async (received, claims) => {
+      assert.equal(received, client); calls.push(["portalAuthority", claims]);
+      return options.authority ?? { status: "invalid", authority: null };
+    },
+  };
   const runtime = compile("src/lib/server/student-signup-runtime.ts", {
     "../student-application-contract": contract, "../v3/student-application-source": source,
+    "../platform-public-origin": origins,
+    "../supabase/platform-authority": {
+      readVerifiedPlatformAuthority: async (received, claims) => {
+        assert.equal(received, client); calls.push(["staffAuthority", claims]);
+        return options.staffAuthority ?? { status: "invalid", authority: null };
+      },
+    },
+    "../supabase/student-portal-authority": portalAuthority,
   });
   const publicRegistration = compile("src/lib/server/student-public-registration.ts", {
     "../student-application-contract": contract,
@@ -91,10 +105,10 @@ function harness(options = {}) {
     "./server/student-public-registration": publicRegistration,
     "./student-application-contract": contract, "./student-invite-callback-contract": callback,
     "./supabase/server": { createSupabaseServerClient: async () => { calls.push(["client"]); return client; } },
-    "./supabase/student-portal-authority": { readVerifiedStudentPortalAuthority: async (received, claims) => { assert.equal(received, client); calls.push(["portalAuthority", claims]); return options.authority ?? { status: "unauthenticated" }; } },
+    "./supabase/student-portal-authority": portalAuthority,
     "./v3/student-application-source": source,
   });
-  return { ...actions, resume: () => runtime.resumeStudentApplication(client), calls };
+  return { ...actions, resume: () => runtime.resumeStudentApplication(client), entryRedirect: (user = identity()) => runtime.studentApplicationEntryRedirect(client, user), calls };
 }
 const callNames = (run) => run.calls.map(([name]) => name);
 const verified = (user = identity()) => ({ data: { user }, error: null });
@@ -138,7 +152,50 @@ test("authenticated applicants submit revisioned drafts without creating another
   for (const user of [identity({ email_confirmed_at: null }), identity({ email: "different@example.test" })]) {
     const blocked = harness({ identities: [verified(user)] });
     assert.deepEqual(await blocked.registerStudentAction({ status: "idle" }, registration()), { status: "conflict" });
-    assert.deepEqual(callNames(blocked), ["client", "getUser"]);
+    assert.deepEqual(callNames(blocked), user.email_confirmed_at
+      ? ["client", "getUser", "getClaims", "staffAuthority", "portalAuthority"]
+      : ["client", "getUser"]);
+  }
+});
+
+test("verified existing Student access leaves application entry and stale forms before any submission", async () => {
+  const entry = harness({ authority: { status: "authenticated" } });
+  assert.equal(await entry.entryRedirect(), "/portal");
+  assert.deepEqual(callNames(entry), ["getClaims", "staffAuthority", "portalAuthority"]);
+  for (const email of [EMAIL, "stale-form@example.test"]) {
+    const stale = harness({ identities: [verified()], authority: { status: "authenticated" } });
+    await assert.rejects(stale.registerStudentAction({ status: "idle" }, registration({ email })), redirectsTo("/portal"));
+    assert.deepEqual(callNames(stale), ["client", "getUser", "getClaims", "staffAuthority", "portalAuthority"]);
+  }
+});
+
+test("application entry and stale submissions fail closed on unavailable or mismatched authority", async () => {
+  for (const options of [
+    { claims: { data: null, error: null } },
+    { claims: { data: { claims: { sub: REQUEST } }, error: null } },
+    { claims: { data: { claims: { sub: USER } }, error: new Error("Claims unavailable") } },
+    { staffAuthority: { status: "unavailable" } },
+    { authority: { status: "unavailable" } },
+  ]) {
+    const entry = harness(options);
+    await assert.rejects(entry.entryRedirect(), /Student registration is unavailable/);
+    const stale = harness({ ...options, identities: [verified()] });
+    assert.deepEqual(await stale.registerStudentAction({ status: "idle" }, registration()), { status: "unavailable" });
+    assert.equal(callNames(stale).includes("submit"), false);
+    assert.equal(callNames(stale).includes("updateUser"), false);
+  }
+});
+
+test("staff authority and protected staff identities retain their staff destinations", async () => {
+  for (const [user, options, destination] of [
+    [identity(), { staffAuthority: { status: "authenticated" } }, `${origins.PRODUCTION_STAFF_ORIGIN}/`],
+    [identity({ app_metadata: { evo_staff_password_request_id: REQUEST } }), {}, `${origins.PRODUCTION_STAFF_ORIGIN}/login?error=staffAccessDenied`],
+  ]) {
+    const entry = harness(options);
+    assert.equal(await entry.entryRedirect(user), destination);
+    const stale = harness({ ...options, identities: [verified(user)] });
+    await assert.rejects(stale.registerStudentAction({ status: "idle" }, registration()), redirectsTo(destination));
+    assert.deepEqual(callNames(stale), ["client", "getUser", "getClaims", "staffAuthority"]);
   }
 });
 

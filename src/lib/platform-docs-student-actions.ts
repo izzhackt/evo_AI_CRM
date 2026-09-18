@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePlatformStaffActor } from "./platform-guards";
+import { isStaffPreview } from "./platform-access";
 import { parseSalesUuid } from "./platform-sales-register-contract";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { canCreateDocsStudent, createDocsStudent, DocsStudentSourceError } from "./v3/docs-student-source";
@@ -20,7 +21,7 @@ export async function createDocsStudentAction(previous: DocsStudentActionState, 
   const failed = (status: DocsStudentActionState["status"]): DocsStudentActionState => ({
     status, requestId: requestId ?? parseSalesUuid(previous.requestId) ?? randomUUID(),
   });
-  if (!canCreateDocsStudent(actor)) return failed("denied");
+  if (isStaffPreview(actor) || !canCreateDocsStudent(actor)) return failed("denied");
   if (!fields || !requestId) return failed("invalid");
   const displayName = fields.get("display_name")!.trim();
   const curatorMembershipId = parseSalesUuid(fields.get("curator_membership_id"));

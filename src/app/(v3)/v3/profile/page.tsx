@@ -124,7 +124,7 @@ export default async function ProfilePart({
     && staffPresentationCan(actor, "admissions.read")
     && (isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"));
   const directoryHref = withDocsSection("/v3/profile", docsMode);
-  const canAddStudent = docsMode && canCreateDocsStudent(actor);
+  const canAddStudent = docsMode && !isStaffPreview(actor) && canCreateDocsStudent(actor);
   const createStudentHref = "/v3/profile?section=docs&new=student";
   if (docsMode && singleSearchParam(params.new) === "student" && params.id === undefined && params.case === undefined) {
     let options: Awaited<ReturnType<typeof readDocsStudentOptions>> | null = null;

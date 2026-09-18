@@ -179,7 +179,8 @@ test("overview names each actor from the canonical projection and links exact it
     overview,
     /\/portal\/documents#document-\$\{action\.documentSlotId\}/u,
   );
-  assert.match(overview, /<details/u);
+  // Overview is a flat action queue now: no nested <details> disclosure.
+  assert.doesNotMatch(overview, /<details/u);
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
   assert.match(
     overview,
@@ -435,6 +436,46 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   );
 });
 
+test("notifications deep-link by category, and bulk mark-read loops the existing single action", () => {
+  const presentation = source("src/components/v3/portal/presentation.ts");
+  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const notificationsPage = source("src/app/(portal)/portal/notifications/page.tsx");
+  const markAll = source("src/components/v3/portal/PortalMarkAllReadButton.tsx");
+
+  assert.match(presentation, /export function portalNotificationTarget/u);
+  assert.match(presentation, /notification\.eventCode === "case_help_answer"/u);
+  assert.match(presentation, /notification\.category\.startsWith\("document"\)/u);
+  assert.match(presentation, /notification\.category\.startsWith\("payment"\)/u);
+  assert.match(
+    presentation,
+    /notification\.category\.startsWith\("application"\) \|\| notification\.category\.startsWith\("visa"\)/u,
+  );
+
+  assert.match(notifications, /portalNotificationTarget\(notification\)/u);
+  assert.match(notifications, /href=\{target\.href\}/u);
+  assert.match(notifications, /<PortalMarkAllReadButton \/>/u);
+  assert.match(notifications, /form action=\{markAllReadAction\}/u);
+
+  assert.match(markAll, /^"use client";/u);
+  assert.match(markAll, /useFormStatus/u);
+
+  assert.match(
+    notificationsPage,
+    /async function markAllStudentPortalNotificationsReadAction/u,
+  );
+  assert.match(notificationsPage, /"use server";/u);
+  assert.match(
+    notificationsPage,
+    /if \(notification\.readAt !== null\) continue;/u,
+  );
+  assert.match(
+    notificationsPage,
+    /await markStudentPortalNotificationReadAction\(form\);/u,
+  );
+  // No new RPC: the loop calls the same exported action the per-item button uses.
+  assert.doesNotMatch(notificationsPage, /\.schema\(|\.rpc\(/u);
+});
+
 test("notification command IDs replay per verified Student actor and notification", () => {
   const actor = {
     authUserId: "10000000-0000-4000-8000-000000000001",
@@ -509,13 +550,25 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
     .map(source)
     .join("\n");
 
-  const styles = source("src/components/v3/portal/PortalShell.module.css");
+  // Token-based Tailwind now, no CSS modules: responsive hooks and 44px
+  // targets live as utility classes directly on the shell/view markup.
+  for (const removed of [
+    "PortalShell.module.css",
+    "OverviewView.module.css",
+    "DocumentsView.module.css",
+  ]) {
+    assert.equal(
+      existsSync(new URL(`../src/components/v3/portal/${removed}`, import.meta.url)),
+      false,
+      removed,
+    );
+  }
   assert.match(shell, /aria-expanded=\{navigationOpen\}/u);
   assert.match(shell, /aria-controls="portal-navigation-panel"/u);
   assert.match(shell, /href="#portal-content"/u);
   assert.match(shell, /event\.key === "Escape"/u);
-  assert.match(styles, /@media/iu);
-  assert.match(styles, /min-height: 44px/u);
+  assert.match(shell, /md:hidden/u);
+  assert.match(shell, /min-h-11/u);
   assert.match(shell, /aria-label="Навигация по разделам кабинета"/u);
   assert.match(shell, /tabIndex=\{-1\}/u);
   assert.match(shell, /menuButton/u);

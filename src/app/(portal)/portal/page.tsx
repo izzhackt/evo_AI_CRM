@@ -21,7 +21,7 @@ export default async function StudentPortalOverviewPage() {
       description="Ваш следующий шаг и работа команды — под рукой."
     >
       <OverviewView overview={overview} />
-      <div className="mt-8"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
+      <div id="case-help" className="mt-8 scroll-mt-20"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </PortalPage>
   );
 }

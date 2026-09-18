@@ -1,3 +1,5 @@
+import { SkeletonBlock } from "@/components/ui";
+
 export default function StudentPortalLoading() {
   return (
     <main
@@ -5,12 +7,12 @@ export default function StudentPortalLoading() {
       aria-busy="true"
       aria-label="Загружаем кабинет студента"
     >
-      <div className="h-3 w-28 rounded bg-surface-3" />
-      <div className="mt-3 h-8 w-56 max-w-full rounded bg-surface-3" />
-      <div className="mt-3 h-4 w-[520px] max-w-full rounded bg-surface-3" />
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <div className="h-48 rounded-card border border-border bg-surface" />
-        <div className="h-48 rounded-card border border-border bg-surface" />
+      <SkeletonBlock className="h-3 w-28" />
+      <SkeletonBlock className="mt-3 h-8 w-56 max-w-full" />
+      <SkeletonBlock className="mt-3 h-11 w-64 max-w-full" />
+      <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <SkeletonBlock className="h-80" />
+        <SkeletonBlock className="h-80" />
       </div>
       <p role="status" className="mt-5 text-sm text-fg-2">Загружаем данные… Можно перейти в другой раздел.</p>
     </main>

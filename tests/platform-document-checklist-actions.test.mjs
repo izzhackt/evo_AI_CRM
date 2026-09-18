@@ -19,11 +19,16 @@ test("document checklist actions expose one stable useActionState contract", () 
     actionSource,
     /export type PlatformDocumentCaseLinkActionState = Readonly<\{[\s\S]*status: PlatformAdmissionsActionStatus;[\s\S]*requestId: string;[\s\S]*documentSlotId: string \| null;[\s\S]*targetKind: PlatformDocumentSlotCaseLinkTargetKind \| null;[\s\S]*targetId: string \| null;[\s\S]*version: string \| null;/,
   );
+  assert.match(
+    actionSource,
+    /export type PlatformCaseBaselineChecklistActionState = Readonly<\{[\s\S]*status: PlatformAdmissionsActionStatus;[\s\S]*requestId: string;[\s\S]*countryRequirementVersionId: string \| null;[\s\S]*seededCount: number \| null;/,
+  );
   for (const actionName of [
     "createPlatformCustomDocumentSlotAction",
     "changePlatformDocumentSlotMetadataAction",
     "removePlatformDocumentSlotAction",
     "setPlatformDocumentCaseLinkAction",
+    "applyCaseBaselineChecklistAction",
   ]) {
     assert.match(
       actionSource,
@@ -36,6 +41,10 @@ test("document checklist actions expose one stable useActionState contract", () 
   );
   assert.equal(
     actionSource.match(/_previous: PlatformDocumentCaseLinkActionState/g)?.length,
+    1,
+  );
+  assert.equal(
+    actionSource.match(/_previous: PlatformCaseBaselineChecklistActionState/g)?.length,
     1,
   );
 });
@@ -52,6 +61,7 @@ test("document checklist actions reject unknown fields and invalid bounded input
     "target_id",
     "enabled",
     "request_id",
+    "country_requirement_version_id",
   ]) {
     assert.match(actionSource, new RegExp(`"${field}"`));
   }
@@ -70,6 +80,10 @@ test("document checklist actions reject unknown fields and invalid bounded input
   assert.match(
     actionSource,
     /exactActionStringFields\(form, SET_SLOT_CASE_LINK_FIELDS\)/,
+  );
+  assert.match(
+    actionSource,
+    /exactActionStringFields\(form, APPLY_BASELINE_CHECKLIST_FIELDS\)/,
   );
   assert.match(actionSource, /parsePlatformAdmissionsUuid\(value\)/);
   assert.match(actionSource, /caseLinkTargetKind\(field\(fields, "target_kind"\)\)/);
@@ -93,7 +107,7 @@ test("all mutations are staff-bound and permission authorization fails closed", 
   assert.equal(
     actionSource.match(/const actor = await requirePlatformStaffActor\(\);/g)
       ?.length,
-    4,
+    5,
   );
   assert.equal(
     actionSource.match(
@@ -107,13 +121,19 @@ test("all mutations are staff-bound and permission authorization fails closed", 
     )?.length,
     1,
   );
+  assert.equal(
+    actionSource.match(
+      /if \(isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "document\.manage"\)\) \{\s*return baselineChecklistFailureState\(form, "forbidden"\);\s*\}/g,
+    )?.length,
+    1,
+  );
   assert.doesNotMatch(
     actionSource,
     /service[_-]?role|DATABASE_URL|adminClient|bypass|fallback/i,
   );
 });
 
-test("actions call only the four reviewed platform RPCs with exact arguments", () => {
+test("actions call only the five reviewed platform RPCs with exact arguments", () => {
   assert.match(
     actionSource,
     /\.rpc\(\s*"create_custom_document_slot",\s*\{\s*p_organization_id: actor\.organizationId,\s*p_student_case_id: studentCaseId,\s*p_label: label,\s*p_group_label: groupLabel,\s*p_request_id: requestId,\s*\}/,
@@ -130,7 +150,11 @@ test("actions call only the four reviewed platform RPCs with exact arguments", (
     actionSource,
     /\.rpc\(\s*"set_document_slot_case_link",\s*\{\s*p_organization_id: actor\.organizationId,\s*p_student_case_id: studentCaseId,\s*p_document_slot_id: documentSlotId,\s*p_target_kind: targetKind,\s*p_target_id: targetId,\s*p_enabled: enabled,\s*p_expected_version: expectedVersion,\s*p_reason: reason,\s*p_request_id: requestId,\s*\}/,
   );
-  assert.equal(actionSource.match(/\.schema\("platform"\)\.rpc\(/g)?.length, 4);
+  assert.match(
+    actionSource,
+    /\.rpc\(\s*"seed_case_baseline_checklist",\s*\{\s*p_organization_id: actor\.organizationId,\s*p_request_id: requestId,\s*p_student_case_id: studentCaseId,\s*p_country_requirement_version_id: countryRequirementVersionId,\s*\}/,
+  );
+  assert.equal(actionSource.match(/\.schema\("platform"\)\.rpc\(/g)?.length, 5);
 });
 
 test("database errors map to safe UI statuses without leaking provider details", () => {
@@ -138,6 +162,10 @@ test("database errors map to safe UI statuses without leaking provider details",
   assert.match(
     actionSource,
     /code === "PT409" && message === "document_slot_version_conflict"[\s\S]*return "stale"/,
+  );
+  assert.match(
+    actionSource,
+    /code === "PT409" && message === "case_already_bound"[\s\S]*return "stale"/,
   );
   assert.match(
     actionSource,
@@ -152,6 +180,11 @@ test("database errors map to safe UI statuses without leaking provider details",
   assert.equal(actionSource.match(/\} catch \{\s*return failureState\(/g)?.length, 3);
   assert.equal(
     actionSource.match(/\} catch \{\s*return caseLinkFailureState\(/g)?.length,
+    1,
+  );
+  assert.equal(
+    actionSource.match(/\} catch \{\s*return baselineChecklistFailureState\(/g)
+      ?.length,
     1,
   );
   assert.doesNotMatch(
@@ -185,11 +218,11 @@ test("versioned mutations validate identity, expected version, increment and aud
   assert.equal(
     actionSource.match(/data\.organization_id !== actor\.organizationId/g)
       ?.length,
-    4,
+    5,
   );
   assert.equal(
     actionSource.match(/data\.student_case_id !== studentCaseId/g)?.length,
-    4,
+    5,
   );
   assert.equal(
     actionSource.match(/data\.document_slot_id !== documentSlotId/g)?.length,
@@ -208,11 +241,36 @@ test("versioned mutations validate identity, expected version, increment and aud
   assert.match(actionSource, /!isTimestamp\(data\.changed_at\)/);
   assert.match(actionSource, /!isTimestamp\(data\.removed_at\)/);
   assert.match(actionSource, /data\.removal_reason !== reason/);
-  assert.equal(actionSource.match(/data\.request_id !== requestId/g)?.length, 4);
+  assert.equal(actionSource.match(/data\.request_id !== requestId/g)?.length, 5);
   assert.equal(
     actionSource.match(/return failureState\(form, "unavailable", documentSlotId, requestId\)/g)
       ?.length,
     5,
+  );
+});
+
+test("baseline checklist action validates exact receipt before reporting saved", () => {
+  assert.match(
+    actionSource,
+    /hasExactKeys\(data, \[\s*"organization_id", "student_case_id", "country_requirement_version_id",\s*"request_id", "target_country", "target_degree", "program_direction",\s*"checklist_version", "seeded_count",\s*\]\)/,
+  );
+  for (const check of [
+    "data.organization_id !== actor.organizationId",
+    "data.student_case_id !== studentCaseId",
+    "data.country_requirement_version_id !== countryRequirementVersionId",
+    "data.request_id !== requestId",
+    "data.checklist_version !== checklistVersion",
+    "data.seeded_count !== seededCount",
+  ]) {
+    assert.ok(actionSource.includes(check), `missing receipt check: ${check}`);
+  }
+  assert.match(
+    actionSource,
+    /seededCount = isRecord\(data\) && typeof data\.seeded_count === "string"\s*\?\s*version\(data\.seeded_count\)\s*:\s*null/,
+  );
+  assert.match(
+    actionSource,
+    /seededCount: Number\(seededCount\)/,
   );
 });
 
@@ -243,10 +301,10 @@ test("only verified successes invalidate the two retained V3 checklist views", (
   assert.doesNotMatch(actionSource, /revalidatePath\(`\/clients\//);
   assert.match(actionSource, /revalidatePath\("\/v3\/profile"\)/);
   assert.match(actionSource, /revalidatePath\("\/v3\/knowledge"\)/);
-  assert.equal(actionSource.match(/revalidateChecklist\(\);/g)?.length, 4);
+  assert.equal(actionSource.match(/revalidateChecklist\(\);/g)?.length, 5);
   assert.equal(
     actionSource.match(/status: "saved" as const,[\s\S]*?requestId: randomUUID\(\)/g)
       ?.length,
-    4,
+    5,
   );
 });

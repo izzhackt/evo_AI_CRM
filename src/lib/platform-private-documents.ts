@@ -1,4 +1,4 @@
-import { staffCan } from "./platform-access.ts";
+import { staffCan, staffHasPermission } from "./platform-access.ts";
 import type { PlatformActor } from "./platform-auth";
 
 const UUID_PATTERN =
@@ -144,6 +144,22 @@ export type PlatformDocumentQueueRow = Readonly<{
 export type PlatformDocumentQueue = Readonly<{
   rows: readonly PlatformDocumentQueueRow[];
   hasMore: boolean;
+}>;
+
+/**
+ * One approved, requirement-backed country requirement version a case could
+ * still be seeded from. Only listed while the case's own
+ * applied_country_requirement_version_id is NULL; empty afterward because the
+ * binding is immutable.
+ */
+export type PlatformCaseBaselineChecklistOption = Readonly<{
+  countryRequirementVersionId: string;
+  targetCountry: string;
+  targetDegree: string;
+  programDirection: string | null;
+  checklistVersion: number;
+  requirementCount: number;
+  approvedAt: string;
 }>;
 
 type RpcResponse = Readonly<{ data: unknown; error: unknown }>;
@@ -681,6 +697,50 @@ function requireDocumentReader(actor: PlatformActor): string {
   return requiredUuid(actor.organizationId);
 }
 
+/**
+ * The baseline-checklist options list is only useful to a staff member who
+ * could also apply one, so it is gated on the exact same permission as
+ * platform.seed_case_baseline_checklist rather than the broader
+ * "documents.read" capability.
+ */
+function requireDocumentManager(actor: PlatformActor): string {
+  if (!staffHasPermission(actor, "document.manage")) {
+    return invalidShape();
+  }
+  return requiredUuid(actor.organizationId);
+}
+
+export function normalizePlatformCaseBaselineChecklistOption(
+  value: unknown,
+): PlatformCaseBaselineChecklistOption {
+  if (
+    !isRecord(value)
+    || !exact(value, [
+      "country_requirement_version_id",
+      "target_country",
+      "target_degree",
+      "program_direction",
+      "checklist_version",
+      "requirement_count",
+      "approved_at",
+    ])
+  ) {
+    return invalidShape();
+  }
+  return Object.freeze({
+    countryRequirementVersionId: requiredUuid(
+      value.country_requirement_version_id,
+    ),
+    targetCountry: requiredText(value.target_country, 120),
+    targetDegree: requiredText(value.target_degree, 160),
+    // program_direction is a nullable route field (053 matches it NULL-safely).
+    programDirection: optionalText(value.program_direction, 200),
+    checklistVersion: integer(value.checklist_version, 1),
+    requirementCount: integer(value.requirement_count, 1),
+    approvedAt: requiredTimestamp(value.approved_at),
+  });
+}
+
 async function getPlatformClient() {
   const { createSupabaseServerClient } = await import("./supabase/server");
   return createSupabaseServerClient();
@@ -736,6 +796,33 @@ export async function listPlatformDocumentQueue(
       rows: Object.freeze(rows.slice(0, pageSize)),
       hasMore: rows.length > pageSize,
     });
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+export async function listCaseBaselineChecklistOptions(
+  actor: PlatformActor,
+  studentCaseId: string,
+  dependencies: PlatformPrivateDocumentsDependencies = {},
+): Promise<readonly PlatformCaseBaselineChecklistOption[]> {
+  try {
+    const organizationId = requireDocumentManager(actor);
+    const parsedStudentCaseId = requiredUuid(studentCaseId);
+    const client = dependencies.client ?? await getPlatformClient();
+    const response = await client.schema("platform").rpc(
+      "staff_case_baseline_checklist_options",
+      {
+        p_organization_id: organizationId,
+        p_student_case_id: parsedStudentCaseId,
+      },
+      { get: true },
+    );
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+    const options = response.data.map(normalizePlatformCaseBaselineChecklistOption);
+    const ids = options.map((option) => option.countryRequirementVersionId);
+    if (new Set(ids).size !== ids.length) return invalidShape();
+    return Object.freeze(options);
   } catch (error) {
     return failClosed(error);
   }

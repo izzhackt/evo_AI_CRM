@@ -207,6 +207,7 @@ export function Profile({
           groups={draft.documents}
           uploadAccess={uploadAccess}
           studentCaseId={draft.admissions?.studentCaseId ?? null}
+          actor={actor}
           recognition={!isStaffPreview(actor) && ["admin", "staff"].includes(actor.systemRole)
             && draft.admissions && ["case.read.full", "profile.read.full", "document.read.full"].every(key => staffHasPermission(actor, key))
             ? { studentCaseId: draft.admissions.studentCaseId, profileRevision: draft.profileFields?.profile?.revision ?? null,

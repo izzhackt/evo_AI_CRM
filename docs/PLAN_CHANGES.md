@@ -28189,3 +28189,47 @@ canonical client and case, not a fictional Sales lead or report row. Relevant
 case/application readers and DTOs accept the absent Sales name; permission
 predicates and existing lifecycle/assignment audit remain unchanged. The direct
 case becomes assigned/active without a sales handoff or portal activation.
+
+### 2026-09-18 — admissions UX overhaul: unified workspace and design-system adoption
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: scope addition
+(UI/UX redesign slice). Affected plan section: new top-level launch-plan slice
+«Admissions UX overhaul»; touches staff (v3) shell, case workspace, dashboard,
+and Student Portal presentation layers only.
+
+Reason: the owner requested a full UX/UI rework of the platform with Admissions
+brought to a finished product: staff must do their whole daily student workflow
+inside the platform and students their part in the portal. The current UI has
+known composition gaps recorded in review notes: tasks invisible on the case
+card, case help buried in the Route tab, an all-or-nothing Route fetch, dead-end
+bare 404s outside the shell, one loading skeleton for eleven routes, duplicated
+shell markup on three pages, two incompatible Card components, unused ui.tsx
+primitives, sidebar icon collisions, and portal views split between two styling
+systems.
+
+Decision: one presentation-layer overhaul on branch
+`izzhackt/admissions-product-redesign` (worktree from main 39999cc2). Scope:
+(1) design-system adoption — one shared primitive set in `src/components/ui.tsx`
+used by all touched screens, single Card implementation, PartShell everywhere,
+in-shell not-found/error pages, loading skeletons for heavy routes, distinct
+sidebar icons; (2) case workspace — persistent case header (student, direction,
+curator, stage, next action, blocker), case tasks and case help surfaced on
+Overview, per-section degradation of the Route tab; (3) curator-first dashboard
+view on /v3/main for admissions-capability actors built from existing sources;
+(4) portal — PortalShell/Overview migrated off bespoke CSS modules onto the
+shared tokens, action queue without nested disclosures, notification deep links
+and bulk mark-as-read via the existing per-item RPC, upload progress feedback,
+explicit timezone labels. Constraints: no SQL migrations (177 stays reserved
+for PR830), no route/URL-contract changes, no new RPCs, quiet-UI and brand
+rules of DESIGN.md preserved, v3-brand-design test invariants preserved,
+Student assessment privacy untouched. Details in
+`docs/design/v3/admissions-ux-overhaul-run-plan.md`.
+
+Validation impact: per the 2026-09-18 fast-validation policy, scoped checks
+only: eslint, tsc, next build, `npm run test:brand-ui`, and the unit suites of
+touched contracts (portal presentation/tests where affected). The live-auth
+`test:v3:gate` browser pass and production smoke are not claimed; no live
+Supabase credentials exist in this environment and no production change is made
+by this slice. Reviewer notes: PR830 modifies `src/app/(v3)/v3/profile/page.tsx`
+and will need a rebase over this slice; the conflict surface is the same region
+already conflicting with #836.

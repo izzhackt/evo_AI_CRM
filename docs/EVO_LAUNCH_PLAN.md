@@ -1,5 +1,31 @@
 # EVO Launch Plan
 
+## Admissions UX overhaul — active 2026-09-18
+
+Owner requests a full UX/UI rework bringing Admissions to a finished product:
+staff run their whole daily student workflow in the platform, students complete
+their part in the portal. Presentation layer only; no SQL migrations (177 stays
+reserved for PR830), no URL-contract changes, no new RPCs. Plan details:
+docs/design/v3/admissions-ux-overhaul-run-plan.md; journal entry in
+docs/PLAN_CHANGES.md (2026-09-18).
+
+- [ ] Foundation: one shared primitive set adopted from src/components/ui.tsx,
+  single Card implementation, PartShell on every staff route, in-shell
+  not-found/error pages, loading skeletons for heavy routes, distinct sidebar
+  icons, quiet-UI and v3-brand-design invariants preserved.
+- [ ] Case workspace: persistent case header (student, direction, curator,
+  stage, next action, blocker), case tasks and case help visible on Overview,
+  Route tab degrades per-section instead of blanking.
+- [ ] Curator dashboard: admissions-first view of /v3/main from existing
+  sources (my students, deadlines, overdue, blockers) without new backend.
+- [ ] Portal: shared-token styling replaces bespoke CSS modules, flat action
+  queue with due dates, notification deep links and bulk mark-as-read over the
+  existing per-item RPC, upload progress, explicit timezone labels.
+- [ ] Scoped validation: eslint, tsc, next build, test:brand-ui, touched unit
+  suites; honest report of what was not exercised (no live-auth browser gate in
+  this environment).
+
+
 ## Direct student creation in EVO Docs — active 2026-09-18
 
 Owner requests **Добавить студента** directly in Docs and immediate production

@@ -35,10 +35,8 @@ export default async function RequestsPage({
   const filter = parseRequestSourceFilter(typeof params.source === "string" ? params.source : undefined);
   const readOnly = isStaffPreview(actor);
 
-  let queue;
-  try {
-    queue = await loadRequestsQueue(actor);
-  } catch {
+  const queue = await loadRequestsQueue(actor);
+  if (queue.applicationsUnavailable && queue.leadsUnavailable) {
     return (
       <PartShell title="Заявки">
         <div role="alert" className="space-y-2 text-sm text-fg-2">
@@ -109,6 +107,12 @@ export default async function RequestsPage({
             ))}
           </ul>
         )}
+        {queue.applicationsUnavailable ? (
+          <p role="alert" className="text-sm text-fg-2">Анкеты платформы недоступны вашей роли — показаны только обращения с сайта и WhatsApp.</p>
+        ) : null}
+        {queue.leadsUnavailable ? (
+          <p role="alert" className="text-sm text-fg-2">Обращения с сайта и WhatsApp сейчас недоступны — показаны только анкеты платформы. <a href="/v3/requests" className="font-semibold text-accent hover:underline">Повторить</a></p>
+        ) : null}
         {queue.truncated ? (
           <p className="text-sm text-fg-2">Показаны недавние обращения с сайта и WhatsApp; более старые не подгружены.</p>
         ) : null}

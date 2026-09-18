@@ -28158,3 +28158,34 @@ outbound communication. This supersedes the earlier no-fake-sale acceptance
 restriction only for this single scoped check. Record its disposition separately
 from the unchanged historical209 rows. Root owns docs/release/browser proof;
 the Docs worker owns the assigned navigation/UI files after capture approval.
+
+### 2026-09-18 — direct staff student creation from EVO Docs
+
+Owner identifies the missing Add student action and requests immediate
+production delivery without a heavy test run. Add a short form and one atomic
+canonical case command, independent of sales, contracts, payments, Student Auth
+and invitations. This is a staff Docs intake path, not public signup or a second
+student database. Require normal eligible staff authority; bind curator access,
+organization and case scope; make retries idempotent and preserve Student-private
+boundaries. Name is required; curator defaults to current eligible employee;
+direction may remain unspecified. Open the created case questionnaire directly.
+No new fake persisted students/sales are needed for acceptance: use the actual
+changed form and bounded real command validation with rollback where applicable.
+Keep one immutable production build, independent exact-head review, protected
+short checks and acceptance/rollback controls. Student-signup PR830 remains draft
+and its owner relinquished unmerged176 for this slice, reserving177+ instead.
+
+The exact additive176 change gets a scoped CI source-boundary check, matching
+the already accepted171/173–175 fast-mode pattern. Any other SQL/harness diff
+retains the general boundary gate. This does not claim SQL runtime proof: actual
+176 compilation and authenticated command behavior are checked on the current
+schema in a rolled-back transaction before apply. Protected checks and the
+managed contiguous-ledger verification remain unchanged.
+
+Current schema requires a Sales owner even when no lead exists. Direct Docs
+intake therefore needs an explicit origin that permits an absent Sales owner,
+while retaining the requirement for existing Sales-origin cases. Create the
+canonical client and case, not a fictional Sales lead or report row. Relevant
+case/application readers and DTOs accept the absent Sales name; permission
+predicates and existing lifecycle/assignment audit remain unchanged. The direct
+case becomes assigned/active without a sales handoff or portal activation.

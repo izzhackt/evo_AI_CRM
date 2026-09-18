@@ -387,7 +387,7 @@ export type PlatformApplicationQueueRow = Readonly<{
   latestEvidenceReference: string | null;
   createdAt: string;
   updatedAt: string;
-  responsibleSalesDisplayName: string;
+  responsibleSalesDisplayName: string | null;
   currentCuratorDisplayName: string | null;
   documentCount: number;
   openDocumentCount: number;

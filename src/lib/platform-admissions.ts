@@ -88,7 +88,7 @@ export type PlatformStudentCaseQueueRow = Readonly<{
   nextAction: string | null;
   admissionsDirection?: AdmissionsDirection | null;
   nextActionDueOn?: string | null;
-  responsibleSalesDisplayName: string;
+  responsibleSalesDisplayName: string | null;
   currentCuratorDisplayName: string | null;
   appliedOzoWorkflowContractVersionId: string | null;
   overdueTaskCount: number;
@@ -506,7 +506,7 @@ export function normalizePlatformStudentCaseQueueRow(
     nextAction: optionalText(value.next_action, 1000),
     admissionsDirection: value.admissions_direction == null ? null : oneOf(value.admissions_direction, ADMISSIONS_DIRECTIONS),
     nextActionDueOn: value.next_action_due_on == null ? null : optionalDate(value.next_action_due_on),
-    responsibleSalesDisplayName: requiredText(
+    responsibleSalesDisplayName: optionalText(
       value.responsible_sales_display_name,
       200,
     ),
@@ -631,7 +631,7 @@ export function normalizePlatformApplicationQueueRow(
     ),
     createdAt: requiredTimestamp(value.created_at),
     updatedAt: requiredTimestamp(value.updated_at),
-    responsibleSalesDisplayName: requiredText(
+    responsibleSalesDisplayName: optionalText(
       value.responsible_sales_display_name,
       200,
     ),

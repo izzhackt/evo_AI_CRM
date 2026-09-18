@@ -174,6 +174,11 @@ jobs:
           else
             echo "scoped_retired_slot=false" >> "$GITHUB_OUTPUT"
           fi
+          if [[ "$boundary_diff" == $'A\tsupabase/migrations/176_platform_docs_student_intake.sql' ]]; then
+            echo "scoped_docs_intake=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scoped_docs_intake=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check scoped 171 function source contract
         if: ${{ steps.migration-scope.outputs.scoped_chat_mute == 'true' }}
@@ -188,8 +193,23 @@ jobs:
           node --test tests/staff-roles-sales-handoff-migrations.test.mjs
 
       - name: Test migration boundary
-        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' }}
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' }}
         run: npm run test:database:migration-boundaries
+
+      - name: Check scoped Docs intake source boundary
+        if: ${{ steps.migration-scope.outputs.scoped_docs_intake == 'true' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const sql = readFileSync('supabase/migrations/176_platform_docs_student_intake.sql', 'utf8');
+          assert.match(sql, /^BEGIN;/m);
+          assert.match(sql, /COMMIT;\s*$/);
+          assert.match(sql, /SECURITY DEFINER/i);
+          assert.match(sql, /REVOKE ALL ON FUNCTION/i);
+          assert.doesNotMatch(sql, /DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)|session_replication_role|ALTER\s+TABLE\s+auth\./i);
+          console.log('Exact176 source boundary only; actual SQL compilation and rolled-back staff command proof are separate release evidence.');
+          NODE
 
       - name: Check retired unused migration slot
         if: ${{ steps.migration-scope.outputs.scoped_retired_slot == 'true' }}

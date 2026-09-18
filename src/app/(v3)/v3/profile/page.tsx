@@ -8,6 +8,7 @@ import { PartShell } from "@/components/v3/PartShell";
 import { Profile } from "@/components/v3/profile/Profile";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirectory";
+import { withDocsSection } from "@/components/v3/profile/admissions-view";
 import { ProfileAdmissionsRoute } from "@/components/v3/profile/ProfileAdmissionsRoute";
 import { AdmissionsSummaryPanel } from "@/components/v3/profile/AdmissionsSummaryPanel";
 import { CuratorCoveragePanel } from "@/components/v3/profile/CuratorCoveragePanel";
@@ -116,6 +117,10 @@ export default async function ProfilePart({
   const actor = await requireV3PageActor("/v3/profile");
   const params = await searchParams;
   const directoryParams = parseV3ProfileCaseDirectoryParams(params);
+  const docsMode = singleSearchParam(params.section) === "docs"
+    && staffPresentationCan(actor, "admissions.read")
+    && (isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"));
+  const directoryHref = withDocsSection("/v3/profile", docsMode);
 
   // Lead and Student Case are different canonical identities. A requested
   // value is never substituted with the first picker row, and the two query
@@ -181,8 +186,8 @@ export default async function ProfilePart({
     Boolean(view?.details.admissions),
   );
   const hrefFor = (next: string) => view
-    ? buildV3ProfileHref(view.details.routeTarget, next)
-    : "/v3/profile";
+    ? withDocsSection(buildV3ProfileHref(view.details.routeTarget, next), docsMode)
+    : directoryHref;
   const requestIds = {
     contract: randomUUID(),
     firstPayment: randomUUID(),
@@ -192,10 +197,10 @@ export default async function ProfilePart({
   const contractResult = parseContractResult(params);
   const contractRetry = parseContractRetry(params, contractResult);
   const notesOlderHref = view?.notes.page.nextCursor
-    ? buildProfileNotesHref(view.details.routeTarget, view.notes.page.nextCursor)
+    ? withDocsSection(buildProfileNotesHref(view.details.routeTarget, view.notes.page.nextCursor), docsMode)
     : null;
   const notesLatestHref = view && noteCursor
-    ? buildProfileNotesHref(view.details.routeTarget)
+    ? withDocsSection(buildProfileNotesHref(view.details.routeTarget), docsMode)
     : null;
   let studentPortalCurators: readonly StudentPortalCuratorOption[] = [];
   let studentPortalCuratorsAvailable = true;
@@ -211,9 +216,12 @@ export default async function ProfilePart({
   }
 
   return (
-    <PartShell title={view ? "Профиль" : "Поступление"}>
+    <PartShell title={docsMode ? "EVO Docs" : view ? "Профиль" : "Поступление"}>
       <div className="space-y-6">
-        {directory && staffPresentationCan(actor, "admissions.read") ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
+        {docsMode && directory && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? (
+          <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link>
+        ) : null}
+        {!docsMode && directory && staffPresentationCan(actor, "admissions.read") ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
           <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} expanded={singleSearchParam(params.section) === "summary"} />
         </Suspense> : null}
         {directory ? (
@@ -223,9 +231,10 @@ export default async function ProfilePart({
             params={directoryParams}
             curators={studentPortalCurators}
             allowAdmissionsFilters={staffPresentationCan(actor, "admissions.read")}
+            docsMode={docsMode}
           />
         ) : null}
-        {directory && staffHasPermission(actor, "case.curator.assign") && !isStaffPreview(actor) ? (
+        {!docsMode && directory && staffHasPermission(actor, "case.curator.assign") && !isStaffPreview(actor) ? (
           <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем нагрузку кураторов…</p>}>
             <CuratorCoveragePanel actor={actor} params={params} />
           </Suspense>
@@ -234,9 +243,9 @@ export default async function ProfilePart({
           <>
             <Link
               className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
-              href="/v3/profile"
+              href={directoryHref}
             >
-              К списку поступления
+              {docsMode ? "К списку EVO Docs" : "К списку поступления"}
             </Link>
             {view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
               <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
@@ -245,7 +254,8 @@ export default async function ProfilePart({
               key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
                 view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
               profile={view.profile}
-              admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person} /> : undefined}
+              admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person}
+                docsMode={docsMode} packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
               draft={view.details}
               sales={view.sales}
               actor={actor}
@@ -263,7 +273,7 @@ export default async function ProfilePart({
               hrefFor={hrefFor}
             />
           </>
-        ) : (
+        ) : docsMode && !invalidIdentityShape && !missing ? null : (
           <p className="border-t border-border px-4 py-5 text-sm leading-relaxed text-fg-2">
             {invalidIdentityShape
               ? "Ссылка на профиль некорректна. Найдите студента через поиск."
@@ -273,7 +283,7 @@ export default async function ProfilePart({
                   ? "Выберите студента в результатах поиска, чтобы открыть его профиль."
                   : "Здесь вы сможете открыть профиль студента: документы, заявки и задачи по поступлению."}
             {invalidIdentityShape || missing ? (
-              <Link href="/v3/profile" className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
+              <Link href={directoryHref} className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
                 Найти студента
               </Link>
             ) : null}

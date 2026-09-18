@@ -225,12 +225,11 @@ export function PartnerPacketWorkspace({ caseId, active, applications, workspace
       const draftBlocker = partnerPacketZipBlocker(packet, "draft", workspace.maxArchiveBytes);
       const finalBlocker = partnerPacketZipBlocker(packet, "final", workspace.maxArchiveBytes);
       return <li key={packet.id} className="rounded-ctl border border-border p-3"><details><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg">{packet.applicationName} · {new Date(packet.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Bishkek" })}</summary>
-        <p className="my-2 text-xs text-fg-3">{words.preparedBy}: {packet.createdBy}. ID: {packet.id}</p><DownloadPacketManifest packet={packet} />
+        <DownloadPacketManifest packet={packet} />
         <ul className="mt-3 divide-y divide-border">{packet.files.map(file => <li key={file.versionId} className="py-3 text-sm"><p className="break-words text-fg">{file.name} · {words.version} {file.versionNo}</p><a className="inline-flex min-h-11 items-center font-medium text-accent-text underline" href={`/api/v2/document-versions/${file.versionId}/download`}>{words.originalDownload}</a></li>)}
           {packet.generatedExports.map(file => <li key={file.id} className="break-words py-3 text-sm text-fg">{generatedLabel(file)}</li>)}</ul>
         <div className="my-3 flex flex-wrap gap-2"><button className={BUTTON} type="button" disabled={!active || creationBlocked || Boolean(draftBlocker)} onClick={() => generate(packet, "draft")}>{words.createDraft}</button><button className={SECONDARY} type="button" disabled={!active || creationBlocked || Boolean(finalBlocker)} onClick={() => generate(packet, "final")}>{words.createFinal}</button></div>
         {draftBlocker || finalBlocker ? <p className="text-sm leading-6 text-fg-2">{draftBlocker ?? finalBlocker}</p> : null}
-        <p className="text-xs leading-5 text-fg-3">{words.privacy}</p>
       </details></li>;
     })}</ul>}</div>
     <div className="space-y-3"><h4 className="font-medium text-fg">{words.history}</h4>

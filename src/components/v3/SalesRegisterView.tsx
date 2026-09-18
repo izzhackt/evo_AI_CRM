@@ -64,13 +64,12 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
 
   return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
     <SalesReportNavigation sales />
-    <header className="flex flex-wrap items-start justify-between gap-4">
+    {!editing || !canManage ? <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Отчёт продаж</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-2">Продажи за выбранный период. Откройте запись, чтобы посмотреть детали или внести изменения.</p>
       </div>
       {!editing && workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
-    </header>
+    </header> : null}
 
     {editing && canManage ? <div className="mt-6 max-w-[860px]">
       <SalesRegisterForm key={query.record ?? "new"} record={workspace?.selected ?? null}
@@ -130,7 +129,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : "В выбранном периоде записей нет."}</p>
           <p className="text-sm text-fg-2">{offset > 0 ? "Вернитесь к началу списка." : "Выберите другой месяц или весь год в фильтрах выше."}</p>
         </div> : <div className="mt-6">
-          <p id="sales-table-help" className="mb-3 text-xs text-fg-2">Откройте продажу для просмотра деталей. Таблицу можно прокручивать по горизонтали.</p>
+          <p id="sales-table-help" className="sr-only">Таблицу можно прокручивать по горизонтали.</p>
           <div role="region" aria-label="Записи продаж" aria-describedby="sales-table-help" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <table className="w-full min-w-[960px] text-left text-sm">
               <caption className="sr-only">Продажи выбранного периода</caption>

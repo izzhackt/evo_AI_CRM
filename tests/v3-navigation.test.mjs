@@ -6,6 +6,7 @@ import {
   fixedRoleCanAccessRoute,
 } from "../src/lib/fixed-role-policy.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
+import { admissionsDirectoryHref, withDocsSection } from "../src/components/v3/profile/admissions-view.ts";
 
 function navigation(role, href = "/v3/main") {
   const url = new URL(href, "https://navigation.test");
@@ -22,9 +23,9 @@ function links(model) {
 }
 
 const expectedRoleLinks = {
-  admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  admin: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
   sales: ["home", "pipeline", "sales-report", "inbox", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
-  admissions: ["admissions-worklist", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
+  admissions: ["admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -53,7 +54,7 @@ test("the two disclosure groups use the approved destinations and worklist remai
   assert.equal(model.home?.label, "Главная");
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
     ["Продажи", [["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"], ["Клиентские сообщения", "/v3/inbox"]]],
-    ["Поступление", [["Рабочий список", "/v3/profile"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
+    ["Поступление", [["Рабочий список", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);
@@ -105,6 +106,41 @@ test("forbidden and unknown paths never mark an unrelated link current", () => {
   for (const role of ["admin", "sales", "admissions"]) {
     assert.equal(navigation(role, "/v3/unknown").activeId, null);
   }
+});
+
+test("Docs keeps its own navigation context for directory and case routes", () => {
+  for (const role of ["admin", "admissions"]) {
+    for (const href of ["/v3/profile?section=docs", "/v3/profile?section=docs&direction=MY", "/v3/profile?case=record&tab=anketa&section=docs", "/v3/profile?case=record&tab=route&panel=packets&section=docs#partner-packets"]) {
+      assert.equal(navigation(role, href).activeId, "evo-docs", href);
+    }
+    assert.equal(navigation(role, "/v3/profile?section=docs&section=docs").activeId, "admissions-worklist");
+  }
+  assert.equal(navigation("sales", "/v3/profile?section=docs").activeId, "admissions-worklist");
+});
+
+test("Docs presentation requires profile read authority and does not expose it to summary-only staff", () => {
+  const actor = { systemRole: "staff", presentationRole: null, platformAccessVersion: 1, assignments: [], permissionKeys: ["lead.read", "case.read.summary"] };
+  const url = new URL("https://navigation.test/v3/profile?section=docs");
+  assert.equal(links(buildV3Navigation(actor, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), false);
+  assert.equal(links(buildV3Navigation({ ...actor, permissionKeys: ["case.read.full"] }, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), false);
+  assert.equal(links(buildV3Navigation({ ...actor, permissionKeys: ["case.read.full", "profile.read.full"] }, url.pathname, url.searchParams)).some(link => link.id === "evo-docs"), true);
+});
+
+test("Docs links preserve filters, cursor, selected case, tab and ZIP anchor", () => {
+  const params = { query: "Student", direction: "MY", state: "active", curatorMembershipId: "curator", attention: "awaiting_ack" };
+  const cursor = { sortAt: "2026-09-18T00:00:00Z", id: "case" };
+  const directory = new URL(admissionsDirectoryHref(params, cursor, true), "https://navigation.test");
+  assert.equal(directory.searchParams.get("section"), "docs");
+  assert.equal(directory.searchParams.get("case_q"), "Student");
+  assert.equal(directory.searchParams.get("direction"), "MY");
+  assert.equal(directory.searchParams.get("case_before_id"), "case");
+  const zip = new URL(withDocsSection("/v3/profile?case=case&tab=route&panel=packets#partner-packets", true), "https://navigation.test");
+  assert.equal(zip.searchParams.get("case"), "case");
+  assert.equal(zip.searchParams.get("tab"), "route");
+  assert.equal(zip.searchParams.get("panel"), "packets");
+  assert.equal(zip.searchParams.get("section"), "docs");
+  assert.equal(zip.hash, "#partner-packets");
+  assert.equal(withDocsSection("/v3/profile?tab=anketa", false), "/v3/profile?tab=anketa");
 });
 
 test("university details keep the catalogue and Admissions section active", () => {

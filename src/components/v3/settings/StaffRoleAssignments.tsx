@@ -47,7 +47,7 @@ function StaffMemberAccessEditor({ member: initial, workspace, organizationId, m
   const change = (clientId: string, patch: Partial<Row>) => setRows((current) => current.map((row) => row.clientId === clientId ? { ...row, ...patch } : row));
   const initialScope = (kind: StaffScopeKind) => ({ kind, key: kind === "own" ? null : kind === "organization" ? organizationId : "", resourceKind: null });
   return <div className="space-y-5">
-    {initial.systemRole === "admin" ? <p className="text-sm leading-6 text-fg-2">У администратора широкий системный доступ. Чувствительные действия требуют отдельных личных разрешений; личные тесты студентов остаются закрытыми.</p> : null}
+    {initial.systemRole === "admin" ? <p className="text-sm leading-6 text-fg-2">У администратора полный рабочий доступ, включая подтверждение договоров и платежей. Обход условий передачи требует отдельного разрешения; личные тесты студентов остаются закрытыми.</p> : null}
     <StaffRoleCommandForm label={`${mode === "assignments" ? "Назначения" : "Доступ администратора"}: ${initial.displayName}`}
       submitLabel={mode === "assignments" ? "Сохранить назначения" : initial.systemRole === "admin" ? "Снять доступ Admin" : "Назначить администратором"}
       onComplete={onComplete}>
@@ -102,7 +102,7 @@ function StaffMemberAccessEditor({ member: initial, workspace, organizationId, m
         {!roles.length ? <p className="text-sm text-fg-3">Сначала создайте и опубликуйте роль.</p> : null}
         <label className="grid gap-1.5 text-sm">Причина изменения<input className={inputCls} name="reason" required maxLength={500} /></label>
         </> : <>
-          <p className="text-sm leading-6 text-fg-3">Широкий системный доступ к работе сотрудников не заменяет личные разрешения чувствительных действий и не открывает личные тесты студентов. Последнего активного администратора нельзя отключить.</p>
+          <p className="text-sm leading-6 text-fg-3">Полный рабочий доступ включает подтверждение договоров и платежей. Обход условий передачи требует отдельного разрешения и не открывает личные тесты студентов. Последнего активного администратора нельзя отключить.</p>
           <input type="hidden" name="enabled" value={initial.systemRole === "admin" ? "false" : "true"} />
           <label className="grid gap-1.5 text-sm">Причина<input className={inputCls} name="reason" required maxLength={500} /></label>
           <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" name="confirm_admin" value="yes" required />Я подтверждаю изменение доступа администратора</label>

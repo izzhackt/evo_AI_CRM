@@ -127,8 +127,8 @@ _Avoid_: amoCRM master record, dual-write authority, legacy writer fallback
 
 **Supabase Staff Identity**:
 A real Supabase Auth user linked to one active EVO staff profile, organization
-membership and published role bundle. The database value `curator` maps to the
-single human-facing Admissions Manager interface; Admin may preview Sales or
+membership and live assignments to published shared role bundles. Legacy database
+role names do not decide scoped staff authority. Admin may preview Sales or
 Admissions presentation without changing the underlying identity or authority.
 _Avoid_: local role selector, client-only role, development-gate fallback
 
@@ -296,26 +296,30 @@ permanent compatibility layers.
 _Avoid_: renamed companion app, three products, dual backend, shared production-and-test database
 
 **Platform Business Role**:
-For the first pilot, one of `sales`, the existing canonical admissions role
-(human-facing Admissions Manager), or `admin` (Director/Admin). Sensitive
-capabilities such as contract and first-payment confirmation are explicit
-individual permissions. Finance remains an internal module rather than a staff
-role; Student Portal identity follows in a later approved milestone. `/visa`
-remains a module, not a separate role.
-_Avoid_: five-role first pilot, shared administrator login, job-title permission
+A reusable set of employee rights: Admin, Sales Manager, Sales, Admissions
+Manager or Admissions. Heads oversee their department; ordinary staff work with
+assigned records. Admin and Sales Manager confirm contracts/payments; Marketing
+and Accountant are dormant future roles.
+_Avoid_: per-person permission copies, shared administrator login, job-title permission
+
+**Staff Direction**:
+An employee's admissions responsibility, independent of role, such as China,
+Malaysia, Europe or UAE. The Admissions head oversees all directions.
+_Avoid_: country-specific permission role, job-title permission
 
 **Admin Assignment**:
-The Admin-only action that assigns or reassigns a student's Curator. It requires
-a reason and an audit record containing the previous and new assignment.
-Only Admin may invite or block staff accounts.
+The audited assignment or reassignment of a student's Curator by Admin or an
+authorized Admissions head within the permitted department. Initial selection
+also belongs to the atomic new-sale handoff; it is not a general reassignment
+grant for Sales. Only Admin may create, invite or block staff accounts.
 _Avoid_: client profile update, silent reassignment
 
 **Sales-to-Curator Handoff**:
-The accountable transfer after EVO records both a confirmed contract and the
-first mandatory payment. The handoff creates or updates one Student Case,
-preserves provenance, assigns Admissions ownership and creates starter work.
-A Director/Admin override requires a reason and immutable audit evidence.
-_Avoid_: chat-inferred gate, copied conversation, amoCRM-stage-only handoff
+The accountable transfer of a new sale to its selected curator, creating or
+reusing one Student Case and starter work. New report entries transfer immediately;
+contract/payment confirmations remain separate truthful facts. Historical report
+rows do not imply a new handoff.
+_Avoid_: payment inferred from report totals, duplicate student, historical backfill
 
 **Root WhatsApp Interim Scope**:
 Historical containment rule for the root CRM's existing SQLite `wa_*`

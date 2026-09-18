@@ -28099,3 +28099,29 @@ keyboard behavior, draft storage, limit, real feedback and actionable errors.
 Record this as a reusable quiet-UI principle. A single short UX pass may recommend
 other improvements, but does not authorize a broad redesign. Same light release
 path; no migration, provider work or new business-data writes.
+
+### 2026-09-18 — shared roles and immediate report-to-curator handoff
+
+Owner confirms six decisions: Admissions head oversees all directions and
+personally China; ordinary employees see own records; Admin and Sales Manager
+confirm contracts/payments via role; new sales transfer immediately while
+evidence may remain pending; old report history stays untouched; Admin retains
+its identity with approved recovery email and `admin` alias. Four permanent
+employee accounts and unique 12-character passwords are privately authorized.
+No real names, roster emails or passwords belong in this public repository.
+
+Current handoff-to-report automation cannot safely be composed with manual
+report-save as two calls. Add one atomic canonical creation/handoff command,
+preserve history edits/imports and duplicate protection. Use Admin-authenticated
+password provisioning and truthful reconciliation, not fabricated email-delivery
+receipts. Scope and real-check requirements are in the staff activation plan.
+
+### 2026-09-18 — bounded staff migration checks in fast mode
+
+Keep the required migration check, but give only the exact additive 173–175
+staff-role/report/password migration set a scoped source-contract path, like
+the existing isolated 171 path. Any other migration/test-harness change keeps
+the existing fallback. These checks are not database or business acceptance:
+compile the actual migrations against the current schema inside ROLLBACK,
+then verify authorized real account access and read-only report options after
+application. Do not invent sales or alter historical rows for a green check.

@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import type { SalesRegisterWorkspace } from "@/lib/platform-sales-register-contract";
-import { readSalesRegisterWorkspace } from "@/lib/v3/sales-register-source";
+import type { SalesRegisterWorkspace, SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
+import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions } from "@/lib/v3/sales-register-source";
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
@@ -37,13 +37,15 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   const canImport = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.import");
   const checkFinanceAccess = staffHasPermission(actor, "finance.read.full") && !isStaffPreview(actor);
   let workspace: SalesRegisterWorkspace | null = null;
+  let intakeOptions: SalesRegisterIntakeOptions | null = null;
   let cash: MonthlyPaymentSummaryRead | Readonly<{ status: "unavailable" }> | null = null;
   if (valid) {
-    [workspace, cash] = await Promise.all([
+    [workspace, cash, intakeOptions] = await Promise.all([
       readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record, archived: query.archived === "true",
         manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null }).catch(() => null),
       checkFinanceAccess && month ? readMonthlyPaymentSummary(actor, year, month)
         .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
+      query.new === "true" && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
     ]);
   }
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
@@ -74,7 +76,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
       <SalesRegisterForm key={query.record ?? "new"} record={workspace?.selected ?? null}
         recordId={query.record ?? null} reportMonth={reportMonth} ownerOptions={workspace?.ownerOptions ?? []}
         canChooseOwner={canManage} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={href()} readUnavailable={!workspace}
-        ownMembershipId={actor.membershipId} ownLabel={actor.displayName} />
+        ownMembershipId={actor.membershipId} ownLabel={actor.displayName} intakeOptions={intakeOptions} />
     </div> : <>
       <form method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-end gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
         <input type="hidden" name="view" value="sales" />

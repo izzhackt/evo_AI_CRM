@@ -163,6 +163,12 @@ jobs:
           else
             echo "scoped_chat_mute=false" >> "$GITHUB_OUTPUT"
           fi
+          staff_diff=$'A\tsupabase/migrations/173_platform_staff_business_roles.sql\nA\tsupabase/migrations/174_platform_sales_report_handoff.sql\nA\tsupabase/migrations/175_platform_staff_password_onboarding.sql'
+          if [[ "$boundary_diff" == "$staff_diff" ]]; then
+            echo "scoped_staff_handoff=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scoped_staff_handoff=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check scoped 171 function source contract
         if: ${{ steps.migration-scope.outputs.scoped_chat_mute == 'true' }}
@@ -170,8 +176,14 @@ jobs:
           echo "Scoped migration 171 source-contract check only; real SQL and authenticated runtime validation remain separate release evidence."
           node --test tests/team-chat-mute-removal.test.mjs
 
+      - name: Check scoped staff migration source contracts
+        if: ${{ steps.migration-scope.outputs.scoped_staff_handoff == 'true' }}
+        run: |
+          echo "Exact added migrations 173–175 source-contract checks only; real SQL rollback compilation and authenticated runtime validation remain separate release evidence."
+          node --test tests/staff-roles-sales-handoff-migrations.test.mjs
+
       - name: Test migration boundary
-        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' }}
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' }}
         run: npm run test:database:migration-boundaries
 
   # Source-only maintenance of a retired companion; no deployment or credentials.

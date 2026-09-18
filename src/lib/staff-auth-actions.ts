@@ -48,7 +48,11 @@ export async function loginStaffAction(
   _previousState: StaffLoginActionState,
   form: FormData,
 ): Promise<StaffLoginActionState> {
-  const email = submittedValue(form, "email").trim();
+  const login = submittedValue(form, "email").trim();
+  const usesAdminAlias = login.toLowerCase() === "admin";
+  const email = usesAdminAlias
+    ? (process.env.EVO_STAFF_ADMIN_LOGIN_EMAIL ?? "").trim().toLowerCase()
+    : login;
   const password = submittedValue(form, "password");
   if (
     email.length === 0 ||
@@ -82,6 +86,14 @@ export async function loginStaffAction(
       client,
       claimsData.claims,
     );
+    // The alias only selects a configured Auth email. The password and current
+    // protected Admin identity are still verified by Supabase and the database.
+    if (usesAdminAlias && (staffAuthority.status !== "authenticated"
+      || staffAuthority.authority.systemRole !== "admin"
+      || claimsData.claims.email?.toLowerCase() !== email)) {
+      await client.auth.signOut({ scope: "local" });
+      return staffAuthority.status === "unavailable" ? "authUnavailable" : "accessDenied";
+    }
     if (staffAuthority.status === "authenticated") {
       redirectTarget = "/";
     } else if (staffAuthority.status === "unavailable") {

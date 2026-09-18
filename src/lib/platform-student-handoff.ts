@@ -30,6 +30,7 @@ const HANDOFF_STARTER_TASK_SOURCE_KEYS = [
 export const PLATFORM_STUDENT_HANDOFF_MODES = [
   "normal",
   "exceptional_override",
+  "sales_report",
 ] as const;
 export type PlatformStudentHandoffMode =
   (typeof PLATFORM_STUDENT_HANDOFF_MODES)[number];
@@ -1031,7 +1032,7 @@ export function normalizePlatformStudentCaseHandoffContext(
     leadId,
     workflowVersion,
   );
-  if (salesContext.stageKey !== "qualified") return failure("unavailable");
+  if (normalizedHandoffMode !== "sales_report" && salesContext.stageKey !== "qualified") return failure("unavailable");
   const starterTasks = normalizeBoundedArray(
     row.starter_tasks,
     MAX_HANDOFF_STARTER_TASKS,

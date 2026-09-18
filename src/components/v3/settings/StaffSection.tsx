@@ -13,7 +13,7 @@ import { DepartmentsSection } from "./DepartmentsSection";
 import { StaffRolesSection } from "./StaffRolesSection";
 import { StaffRoleAssignments } from "./StaffRoleAssignments";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
-import { StaffInviteForm } from "./StaffInviteForm";
+import { StaffInviteForm, StaffPasswordForm } from "./StaffInviteForm";
 import { StaffPendingAccess } from "./StaffPendingAccess";
 import { StaffDisclosure } from "./StaffDisclosure";
 import { useStaffCommandForm, StaffCommandFeedback as Feedback } from "./useStaffCommandForm";
@@ -98,16 +98,16 @@ function RequestRow({ request, workspace, organizationId }: { request: StaffAuth
     }
   }, STAFF_WORKSPACE_INITIAL_STATE);
   return <li className="space-y-2 border-b border-border py-4 last:border-0">
-    <p className="break-words text-sm font-medium">{request.displayName} · {request.operation === "invite" ? "Приглашение" : "Восстановление входа"}</p>
-    <p className="text-sm text-fg-3">{request.status === "completed" ? "Зарегистрировано в сервисе входа; доставка письма не подтверждена"
+    <p className="break-words text-sm font-medium">{request.displayName} · {request.operation === "password" ? "Создание аккаунта" : request.operation === "invite" ? "Приглашение" : "Восстановление входа"}</p>
+    <p className="text-sm text-fg-3">{request.status === "completed" ? request.operation === "password" ? "Аккаунт создан; пароль повторно не показывается" : "Зарегистрировано в сервисе входа; доставка письма не подтверждена"
       : request.status === "rejected" ? `${staffAuthRejectionMessage(request.rejectionCode)} Изменений в Auth не обнаружено. Проверьте причину отказа перед новым запросом.`
       : "Требуется проверка результата; повторная отправка заблокирована"}</p>
     <p className="text-xs text-fg-3">{new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Dubai" })} (Dubai)</p>
     {request.status !== "completed" && request.status !== "rejected" ? <form action={action}>
       <input type="hidden" name="operation" value="reconcile" /><input type="hidden" name="request_id" value={request.requestId} />
-      <button className={`${btnGhostCls} min-h-11`} disabled={pending || operation === "prepare"}>{pending ? "Проверяем…" : "Проверить без повторного письма"}</button>
+      <button className={`${btnGhostCls} min-h-11`} disabled={pending || operation === "prepare"}>{pending ? "Проверяем…" : "Проверить результат"}</button>
     </form> : null}<Feedback state={state} />
-    {request.operation === "invite" && request.status !== "completed" && request.status !== "rejected"
+    {(request.operation === "invite" || request.operation === "password") && request.status !== "completed" && request.status !== "rejected"
       ? <StaffPendingAccess requestId={request.requestId} workspace={workspace} organizationId={organizationId}
         reconcileLocked={operation === "reconcile"} onPrepareStart={onPrepareStart} onPrepareFinish={onPrepareFinish} /> : null}
   </li>;
@@ -131,6 +131,9 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-md font-semibold">Сотрудники · {data.members.length}</h3>
+        <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="font-medium text-accent">
+          <div className="pt-3"><StaffPasswordForm workspace={roles} organizationId={organizationId} /></div>
+        </StaffDisclosure>
         <StaffDisclosure label="Пригласить сотрудника" className="w-full" buttonClassName="font-medium text-accent">
           <div className="pt-3"><StaffInviteForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>
@@ -156,10 +159,10 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
         </div>
       </div>
     </>}
-    <StaffDisclosure label={`Журнал приглашений · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="font-semibold">
-      <p className="mt-2 text-sm leading-6 text-fg-3">Проверка сверяет результат с сервисом входа. Она не отправляет новое письмо. Если результат не подтверждается, администратору нужно проверить настройки Auth и почты.</p>
+    <StaffDisclosure label={`Журнал доступа · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="font-semibold">
+      <p className="mt-2 text-sm leading-6 text-fg-3">Проверка сверяет результат с сервисом входа. Повторное создание аккаунта или отправка письма не выполняются.</p>
       {data.requests.length ? <ul>{data.requests.map((request) => <RequestRow key={request.requestId} request={request} workspace={roles} organizationId={organizationId} />)}</ul>
-        : <p className="mt-3 text-sm text-fg-3">Приглашений и запросов восстановления пока нет.</p>}
+        : <p className="mt-3 text-sm text-fg-3">Запросов доступа пока нет.</p>}
     </StaffDisclosure>
   </div>;
 }

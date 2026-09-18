@@ -12,7 +12,7 @@ export type StaffDepartment = Readonly<{
   status: "active" | "archived"; version: number; memberCount: number;
 }>;
 export type StaffAuthRequest = Readonly<{
-  requestId: string; operation: "invite" | "recovery"; displayName: string;
+  requestId: string; operation: "invite" | "recovery" | "password"; displayName: string;
   status: "dispatching" | "reconciliation_required" | "completed" | "rejected"; createdAt: string;
   rejectionCode: string | null;
 }>;
@@ -28,6 +28,7 @@ export type StaffWorkspaceActionState = Readonly<{
   outcome?: "unknown";
   requestId?: string;
   conflictCode?: string;
+  oneTimePassword?: string;
 }>;
 export const STAFF_WORKSPACE_INITIAL_STATE: StaffWorkspaceActionState = { status: "idle", message: "" };
 export const STAFF_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,7 +51,7 @@ export type StaffAuthPreparation = Readonly<{
 }>;
 export type StaffAuthInput = Readonly<{ requestId: string }> & (
   | Readonly<{ operation: "reconcile" }>
-  | Readonly<{ operation: "invite"; email: string; displayName: string; assignments: readonly StaffInviteAssignmentInput[]; noAccess: boolean; reason: string }>
+  | Readonly<{ operation: "invite" | "password"; email: string; displayName: string; assignments: readonly StaffInviteAssignmentInput[]; noAccess: boolean; reason: string }>
   | Readonly<{ operation: "recovery"; membershipId: string; expectedAccessVersion: number; reason: string }>
 );
 export type StaffPendingAccessInput = Readonly<{
@@ -81,7 +82,7 @@ function rows(value: unknown, maximum = 100): unknown[] { return Array.isArray(v
 function code(value: unknown): string | null {
   return value === null ? null : typeof value === "string" && /^[a-z][a-z0-9_]{0,99}$/u.test(value) ? value : invalid();
 }
-function operation(value: unknown): StaffAuthRequest["operation"] { return value === "invite" || value === "recovery" ? value : invalid(); }
+function operation(value: unknown): StaffAuthRequest["operation"] { return value === "invite" || value === "recovery" || value === "password" ? value : invalid(); }
 function status(value: unknown): StaffAuthRequest["status"] {
   return value === "dispatching" || value === "reconciliation_required" || value === "completed" || value === "rejected" ? value : invalid();
 }
@@ -124,7 +125,7 @@ export function parseStaffAuthPreparation(value: unknown, expected?: Readonly<{ 
   if (result.status === "completed" && result.targetMembershipId === null) return invalid();
   if ((result.noAccess && assignments.length > 0) || (result.preparationVersion === 0 && assignments.length > 0)) return invalid();
   if (result.operation === "recovery" && (result.preparationVersion !== 0 || result.noAccess || assignments.length > 0 || !result.targetMembershipId)) return invalid();
-  if (result.operation === "invite" && result.preparationVersion > 0 && !result.noAccess && !assignments.some((entry) => entry.permissionKeys.length > 0)) return invalid();
+  if ((result.operation === "invite" || result.operation === "password") && result.preparationVersion > 0 && !result.noAccess && !assignments.some((entry) => entry.permissionKeys.length > 0)) return invalid();
   return result;
 }
 function field(form: FormData, name: string, maximum = 160): string {
@@ -156,7 +157,7 @@ export function parseStaffAuthInput(form: FormData, organizationId?: string): St
   const reason = field(form, "reason", 500);
   if (action === "recovery") return { operation: action, requestId, reason,
     membershipId: uuid(field(form, "membership_id", 36)), expectedAccessVersion: formVersion(form, "expected_version") };
-  if (action !== "invite") return invalid();
+  if (action !== "invite" && action !== "password") return invalid();
   const email = field(form, "email", 320).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)) return invalid();
   return { operation: action, requestId, reason, email, displayName: field(form, "display_name", 160), ...accessInput(form, organizationId) };

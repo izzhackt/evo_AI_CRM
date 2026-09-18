@@ -69,7 +69,7 @@ export async function readStaffWorkspace(actor: ActivePlatformActor): Promise<St
             jobTitle: row.job_title === null ? null : text(row.job_title), directions } };
       }),
       requests: (history.data ?? []).map((row: Record<string, unknown>): StaffAuthRequest => {
-        if ((row.operation !== "invite" && row.operation !== "recovery")
+        if ((row.operation !== "invite" && row.operation !== "recovery" && row.operation !== "password")
           || !["dispatching", "reconciliation_required", "completed", "rejected"].includes(String(row.status))) {
           throw new Error("Unexpected staff request state.");
         }

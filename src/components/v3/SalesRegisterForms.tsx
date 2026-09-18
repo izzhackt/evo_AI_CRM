@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import {
   saveSalesRegisterAction, saveSalesTargetAction, importSalesRegisterAction,
+  searchSalesRegisterStudentsAction,
   type SalesRegisterActionState,
 } from "@/lib/platform-sales-register-actions";
-import { SALES_CURRENCIES, type SalesRegisterRow, type SalesRegisterTarget } from "@/lib/platform-sales-register-contract";
+import { SALES_CURRENCIES, type SalesRegisterRow, type SalesRegisterTarget, type SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
 
 const MESSAGES: Record<Exclude<SalesRegisterActionState["status"], "idle">, string> = {
   saved: "Сохранено в платформе.", invalid: "Проверьте поля, суммы, валюту и причину изменения.",
@@ -16,6 +17,8 @@ const MESSAGES: Record<Exclude<SalesRegisterActionState["status"], "idle">, stri
   stale: "Запись изменил другой сотрудник. Ваш ввод сохранён. Обновите данные и сравните изменения.",
   request_conflict: "Этот запрос уже использован. Проверьте запись перед повтором.",
   unavailable: "Сохранение не подтверждено. Проверьте подключение и актуальную запись перед повтором.",
+  existing_student: "Студент с таким телефоном или почтой уже есть. Выберите его через поиск существующих студентов.",
+  already_transferred: "Этот студент уже передан куратору. Откройте существующую продажу в отчёте.",
 };
 type Draft = Record<string, string>;
 const FIELD_LABELS: Record<string, string> = {
@@ -51,6 +54,7 @@ type FormProps = Readonly<{
   record: SalesRegisterRow | null; recordId: string | null; reportMonth: string;
   ownerOptions: readonly Readonly<{ id: string; label: string }>[]; canChooseOwner: boolean;
   ownMembershipId: string; ownLabel: string; requestId: string; archiveRequestId: string; backHref: string; readUnavailable: boolean;
+  intakeOptions?: SalesRegisterIntakeOptions | null;
 }>;
 
 export function SalesRegisterForm(props: FormProps) {
@@ -59,11 +63,20 @@ export function SalesRegisterForm(props: FormProps) {
   if (props.recordId && !lastRead) return <div className="space-y-4"><p role="alert" className="text-sm text-fg-2">Запись недоступна. Возможно, она была переназначена или соединение прервалось.</p><Link href={props.backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link></div>;
   return <SalesDraft {...props} record={lastRead} readUnavailable={props.readUnavailable || Boolean(props.recordId && !props.record)} />;
 }
-function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwner, ownMembershipId, ownLabel, requestId, archiveRequestId, backHref, readUnavailable }: FormProps) {
+function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwner, ownMembershipId, ownLabel, requestId, archiveRequestId, backHref, readUnavailable, intakeOptions }: FormProps) {
   const router = useRouter();
   const [base, setBase] = useState({ version: record?.version ?? 0, values: fields(record, reportMonth, ownMembershipId, ownLabel) });
   const [draft, setDraft] = useState(base.values);
   const [reason, setReason] = useState("");
+  const [studentMode, setStudentMode] = useState<"new" | "existing">("new");
+  const [leadId, setLeadId] = useState("");
+  const [curatorId, setCuratorId] = useState("");
+  const [email, setEmail] = useState("");
+  const [interestDirection, setInterestDirection] = useState("");
+  const [studentQuery, setStudentQuery] = useState("");
+  const [studentResults, setStudentResults] = useState<SalesRegisterIntakeOptions["leads"]>([]);
+  const [searchStatus, setSearchStatus] = useState<"idle" | "ready" | "invalid" | "unavailable">("idle");
+  const [searchPending, startSearch] = useTransition();
   const [state, action, pending] = useActionState(async (previous: SalesRegisterActionState & { submittedVersion: number }, form: FormData) => ({
     ...await saveSalesRegisterAction(previous, form), submittedVersion: base.version,
   }), { status: "idle", requestId, recordId, submittedVersion: base.version } as SalesRegisterActionState & { submittedVersion: number });
@@ -80,12 +93,14 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   };
   const changed = Boolean(record && record.version !== base.version);
   const locked = pending || status === "saved";
-  const canSubmit = !locked && !readUnavailable && !changed && status !== "stale" && !record?.archived;
+  const canSubmit = !locked && !readUnavailable && !changed && status !== "stale" && !record?.archived
+    && (Boolean(recordId) || (Boolean(intakeOptions) && Boolean(curatorId) && (studentMode === "new" || Boolean(leadId))));
   const update = (key: string, value: string) => setDraft(previous => ({ ...previous, [key]: value }));
   const wire: Draft = { ...draft, report_month: `${draft.report_month}-01`, service_cost_minor: minor(draft.cost), paid_minor: minor(draft.paid) };
   delete wire.cost; delete wire.paid;
   const input = (key: string, type = "text", required = false, maxLength = 200) => <label key={key} className="block min-w-0"><span className={labelCls}>{FIELD_LABELS[key]}</span>
     <input type={type} value={draft[key]} onChange={event => update(key, event.target.value)} required={required} maxLength={maxLength}
+      readOnly={!recordId && studentMode === "existing" && ["applicant_name", "phone"].includes(key)}
       min={type === "month" ? "1900-01" : type === "date" ? "1900-01-01" : undefined}
       max={type === "month" ? "2100-12" : type === "date" ? "2100-12-31" : undefined}
       className={`${inputCls} min-h-11 w-full`} /></label>;
@@ -96,16 +111,58 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   return <div className="space-y-6">
     <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
     <h2 className="text-xl font-semibold">{recordId ? "Запись продажи" : "Новая продажа"}</h2>
-    {record?.sourceKind === "pipeline" && record.leadId ? <p className="text-sm text-fg-3">Добавлена после передачи из воронки. <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center underline underline-offset-4">Открыть профиль</Link></p> : null}
+    {record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Открыть профиль студента</Link> : null}
     {record?.archived ? <p className="text-sm text-fg-2">Эта запись в архиве и не входит в рабочие итоги. Для редактирования сначала восстановите её.</p> : null}
     <form action={action} aria-busy={pending} className="space-y-6" data-testid="sales-register-form">
       <input type="hidden" name="operation" value={recordId ? "update" : "create"} />
       <input type="hidden" name="record_id" value={recordId ?? ""} />
       <input type="hidden" name="expected_version" value={base.version} />
       <input type="hidden" name="request_id" value={state.requestId} />
+      {!recordId ? <>
+        <input type="hidden" name="lead_id" value={studentMode === "existing" ? leadId : ""} />
+        <input type="hidden" name="curator_membership_id" value={curatorId} />
+        <input type="hidden" name="email" value={studentMode === "new" ? email : ""} />
+        <input type="hidden" name="interest_direction" value={studentMode === "new" ? interestDirection : ""} />
+      </> : null}
       {Object.entries(wire).map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />)}
       <fieldset disabled={locked || record?.archived} className="space-y-6">
+        {!recordId ? <div className="space-y-4">
+          <label className="block"><span className={labelCls}>Студент</span><select value={studentMode} onChange={e => {
+            setStudentMode(e.target.value as "new" | "existing"); setLeadId("");
+            setDraft(previous => ({ ...previous, applicant_name: "", phone: "", owner_membership_id: ownMembershipId }));
+          }} className={`${inputCls} min-h-11 w-full`}>
+            <option value="new">Новый студент</option><option value="existing">Уже есть в CRM</option>
+          </select></label>
+          {studentMode === "existing" ? <div className="space-y-3">
+            <label className="block"><span className={labelCls}>Имя или телефон</span><div className="flex gap-2">
+              <input value={studentQuery} disabled={searchPending} onChange={e => { setStudentQuery(e.target.value); setLeadId(""); setStudentResults([]); setSearchStatus("idle"); }} maxLength={200} className={`${inputCls} min-h-11 min-w-0 flex-1`} />
+              <button type="button" disabled={searchPending || studentQuery.trim().length < 2} className={`${btnGhostCls} min-h-11`} onClick={() => startSearch(async () => {
+                const result = await searchSalesRegisterStudentsAction(studentQuery);
+                setStudentResults(result.leads); setSearchStatus(result.status); setLeadId("");
+              })}>{searchPending ? "Ищем…" : "Найти"}</button>
+            </div></label>
+            {searchStatus === "ready" && studentResults.length > 0 ? <label className="block"><span className={labelCls}>Выберите студента</span><select value={leadId} required onChange={e => {
+              const lead = studentResults.find(item => item.id === e.target.value); setLeadId(lead?.id ?? "");
+              if (lead) setDraft(previous => ({ ...previous, applicant_name: lead.label, phone: lead.phone, owner_membership_id: lead.ownerId }));
+            }} className={`${inputCls} min-h-11 w-full`}>
+              <option value="">Выберите студента</option>{studentResults.map(lead => <option key={lead.id} value={lead.id}>{lead.label}{lead.phone ? ` · ${lead.phone}` : ""}</option>)}
+            </select></label> : null}
+            {searchStatus === "ready" && studentResults.length === 0 ? <p role="status" className="text-sm text-fg-2">Непереданных студентов не найдено. Уточните имя или телефон.</p> : null}
+            {searchStatus === "unavailable" ? <p role="alert" className="text-sm text-fg-2">Поиск недоступен. Попробуйте ещё раз.</p> : null}
+          </div> : null}
+        </div> : null}
         <div className="grid gap-4 sm:grid-cols-2">{input("applicant_name", "text", true, 300)}{input("phone", "tel")}{input("report_month", "month", true)}{input("signing_date", "date")}</div>
+        {!recordId ? <div className="grid gap-4 sm:grid-cols-2">
+          {studentMode === "new" ? <label><span className={labelCls}>Email студента</span><input type="email" value={email} required={!draft.phone.trim()} onChange={e => setEmail(e.target.value)} maxLength={320} className={`${inputCls} min-h-11 w-full`} /></label> : null}
+          <label><span className={labelCls}>Куратор</span><select value={curatorId} required onChange={e => setCuratorId(e.target.value)} className={`${inputCls} min-h-11 w-full`}>
+            <option value="">Выберите куратора</option>{intakeOptions?.curators.map(curator => <option value={curator.id} key={curator.id}>{curator.label}</option>)}
+          </select></label>
+          {studentMode === "new" ? <label><span className={labelCls}>Направление поступления</span><select value={interestDirection} onChange={e => setInterestDirection(e.target.value)} className={`${inputCls} min-h-11 w-full`}>
+            <option value="">Пока не выбрано</option><option value="CN">Китай</option><option value="MY">Малайзия</option><option value="EU">Европа</option><option value="AE">ОАЭ</option><option value="TR">Турция</option>
+          </select></label> : null}
+          {intakeOptions && intakeOptions.curators.length === 0 ? <p role="alert" className="text-sm text-fg-2">Нет доступного куратора. Администратор может назначить роль сотруднику в настройках команды.</p> : null}
+          {!intakeOptions ? <p role="alert" className="text-sm text-fg-2">Не удалось загрузить кураторов. Обновите страницу перед сохранением.</p> : null}
+        </div> : null}
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
             <label><span className={labelCls}>Стоимость услуг</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.cost} onChange={e => update("cost", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("service_cost_currency")}
@@ -116,8 +173,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
         </div>
         <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми. Это отчётная запись, а не подтверждение платежа.</p>
         <div className="grid gap-4 sm:grid-cols-2">{input("manager_label", "text", false, 300)}
-          {canChooseOwner ? <label><span className={labelCls}>Ответственный в платформе</span><select value={draft.owner_membership_id} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
-            <option value="">Пока не назначен — доступ только Admin</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}
+          {canChooseOwner ? <label><span className={labelCls}>Ответственный за продажу</span><select value={draft.owner_membership_id} required={!recordId} disabled={!recordId && studentMode === "existing"} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
+            <option value="">{recordId ? "Не назначен" : "Выберите сотрудника"}</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}
           </select></label> : null}
         </div>
         <details><summary className="cursor-pointer py-3 text-sm font-medium">Программа и договор</summary><div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -138,7 +195,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
         }}>Сверил изменения, продолжить с моим вводом</button>
       </div> : null}
       {status === "stale" || status === "unavailable" || readUnavailable ? <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Обновить данные без сброса ввода</button> : null}
-      <div className="flex flex-wrap gap-3"><button type="submit" disabled={!canSubmit} className={`${btnCls} min-h-11`}>{pending ? "Сохраняем…" : "Сохранить продажу"}</button><Link href={backHref} className={`${btnGhostCls} min-h-11`}>{status === "saved" ? "Готово — к отчёту" : "Отмена"}</Link></div>
+      <div className="flex flex-wrap gap-3"><button type="submit" disabled={!canSubmit} className={`${btnCls} min-h-11`}>{pending ? "Сохраняем…" : recordId ? "Сохранить продажу" : "Сохранить и передать куратору"}</button><Link href={backHref} className={`${btnGhostCls} min-h-11`}>{status === "saved" ? "Готово — к отчёту" : "Отмена"}</Link></div>
     </form>
     {record ? <details className="border-t border-border pt-3"><summary className="cursor-pointer py-3 text-sm font-medium">Источник и архив</summary>
       {record.sourceSheet ? <p className="my-3 text-sm text-fg-3">Импорт: {record.sourceSheet}, строка {record.sourceRow}. Исходный файл не изменён.</p> : null}

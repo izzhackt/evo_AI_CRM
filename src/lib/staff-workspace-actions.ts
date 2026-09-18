@@ -10,7 +10,7 @@ function requestIdFrom(form: FormData): string | undefined {
 }
 function unknownAuthOutcome(requestId?: string): StaffWorkspaceActionState {
   return { status: "error", outcome: "unknown", requestId,
-    message: "Результат требует сверки. Откройте этот запрос в журнале и нажмите «Проверить». Повторное письмо не отправляется." };
+    message: "Результат требует сверки. Откройте этот запрос в журнале и нажмите «Проверить». Создание аккаунта или отправка письма повторно не выполняются." };
 }
 
 export async function staffAuthAction(_previous: StaffWorkspaceActionState, form: FormData): Promise<StaffWorkspaceActionState> {
@@ -21,10 +21,15 @@ export async function staffAuthAction(_previous: StaffWorkspaceActionState, form
     revalidatePath("/v3/settings");
     if (result.status === "rejected") return {
       status: "error", retryAllowed: true, requestId: result.requestId,
-      message: `${staffAuthRejectionMessage(result.rejectionCode)} Отправка не подтверждена, изменений в Auth не обнаружено. После устранения причины можно явно отправить новый запрос.`,
+      message: `${staffAuthRejectionMessage(result.rejectionCode)} Изменений в Auth не обнаружено. После устранения причины можно явно создать новый запрос.`,
     };
     return result.status === "completed"
-      ? { status: "success", requestId: result.requestId, message: result.operation === "invite"
+      ? { status: "success", requestId: result.requestId, ...(result.oneTimePassword ? { oneTimePassword: result.oneTimePassword } : {}),
+        message: result.operation === "password"
+        ? result.oneTimePassword
+          ? "Аккаунт создан с выбранными правами. Сохраните пароль: он показывается только сейчас."
+          : "Аккаунт создан. Первоначальный пароль повторно не показывается; если он не был сохранён, используйте восстановление входа."
+        : result.operation === "invite"
         ? "Приглашение зарегистрировано в сервисе входа, аккаунт подключён с подтверждёнными настройками доступа. Доставка письма и первый вход пока не подтверждены."
         : "Запрос восстановления зарегистрирован в сервисе входа. Доставка письма пока не подтверждена." }
       : { ...unknownAuthOutcome(result.requestId), ...(result.conflictCode ? { conflictCode: result.conflictCode } : {}) };

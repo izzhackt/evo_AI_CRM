@@ -462,6 +462,9 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
   return {
     studentCaseId: data.studentCase.studentCaseId,
     caseState: data.studentCase.state,
+    // Unified workflow S4: CaseHeader used to fetch this separately via the
+    // now-deleted route workspace read; the case DTO already carries it.
+    direction: data.studentCase.admissionsDirection ?? null,
     applications: data.applications,
     visa: data.visa,
     finance: data.finance,
@@ -479,7 +482,6 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
           randomUUID(),
         ]),
       ),
-      visa: randomUUID(),
       createStops: Object.fromEntries(
         (data.finance?.obligations ?? []).map((obligation) => [
           obligation.paymentObligationId,

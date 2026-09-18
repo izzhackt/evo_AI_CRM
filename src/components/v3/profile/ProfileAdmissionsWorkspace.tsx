@@ -10,13 +10,11 @@ import { useActionState, useEffect } from "react";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
-  changePlatformUniversityApplicationAction,
   createPlatformUniversityApplicationAction,
   updatePlatformUniversityApplicationDetailsAction,
   type PlatformUniversityApplicationActionState,
 } from "@/lib/platform-admissions-actions";
 import {
-  PLATFORM_APPLICATION_STATUSES,
   platformApplicationCountryEditOptions,
   platformApplicationDegreeEditOptions,
   type PlatformApplicationQueueRow,
@@ -24,11 +22,8 @@ import {
 import {
   createPlatformFinanceStopFactorAction,
   resolvePlatformFinanceStopFactorAction,
-  upsertPlatformCaseVisaAction,
-  type PlatformCaseVisaActionState,
   type PlatformFinanceStopFactorActionState,
 } from "@/lib/platform-case-operations-actions";
-import { PLATFORM_VISA_STATUSES } from "@/lib/platform-case-operations-contract";
 import {
   allDayDate,
   applicationStatus,
@@ -36,15 +31,13 @@ import {
   degree as applicationDegree,
   financeBlockedAction,
   financeBlockedActionOptions,
-  visaStatus,
 } from "@/lib/v3/wording";
 
 import { ApplicationUniversitySelector } from "./ApplicationUniversitySelector";
-import type { ProfileAdmissionsWorkspace } from "./types";
+import type { ApplicationPartnerDetails, ProfileAdmissionsWorkspace } from "./types";
 
 type ActionStatus =
   | PlatformUniversityApplicationActionState["status"]
-  | PlatformCaseVisaActionState["status"]
   | PlatformFinanceStopFactorActionState["status"];
 
 const STATUS_COPY: Record<Exclude<ActionStatus, "idle">, string> = {
@@ -184,19 +177,16 @@ function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmis
       <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
       <input type="hidden" name="request_id" value={state.requestId} />
       <input type="hidden" name="expected_version" value="0" />
+      {/* Unified workflow S4 (plan §11): no submission-status editing UI —
+          a newly added university/program is simply "being considered", not
+          submitted anywhere. The status column stays a required DB field, so
+          a fixed default is still submitted, just never as a visible picker. */}
+      <input type="hidden" name="status" value="preparation" />
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
         <ApplicationUniversitySelector key={workspace.studentCaseId} />
         <label>
           <span className={labelCls}>Программа</span>
           <input name="program_name" required maxLength={300} className={inputCls} />
-        </label>
-        <label>
-          <span className={labelCls}>Статус</span>
-          <select name="status" defaultValue="preparation" className={inputCls}>
-            {PLATFORM_APPLICATION_STATUSES.map((status) => (
-              <option key={status} value={status}>{applicationStatus(status) ?? "—"}</option>
-            ))}
-          </select>
         </label>
         <PrimaryApplicationField defaultChecked={false} />
         <label>
@@ -215,63 +205,6 @@ function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmis
         </label>
         <button type="submit" className={btnCls} disabled={locked}>
           {pending ? "Сохраняем…" : "Добавить заявку"}
-        </button>
-      </fieldset>
-      <StateBanner status={state.status} />
-    </form>
-  );
-}
-
-function ApplicationStatusForm({
-  workspace,
-  application,
-}: Readonly<{
-  workspace: ProfileAdmissionsWorkspace;
-  application: PlatformApplicationQueueRow;
-}>) {
-  const initialState: PlatformUniversityApplicationActionState = {
-    status: "idle",
-    requestId: workspace.requestIds.applications[application.universityApplicationId],
-    universityApplicationId: application.universityApplicationId,
-    version: application.version,
-  };
-  const [state, action, pending] = useActionState(
-    changePlatformUniversityApplicationAction,
-    initialState,
-  );
-  useCanonicalRefresh(state.status);
-  const locked = pending || state.status === "saved" || state.status === "stale";
-
-  return (
-    <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
-      <input type="hidden" name="application_id" value={application.universityApplicationId} />
-      <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
-      <input type="hidden" name="request_id" value={state.requestId} />
-      <input type="hidden" name="expected_version" value={state.version ?? application.version} />
-      <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
-        <label>
-          <span className={labelCls}>Статус</span>
-          <select name="status" defaultValue={application.status} className={inputCls}>
-            {PLATFORM_APPLICATION_STATUSES.map((status) => (
-              <option key={status} value={status}>{applicationStatus(status) ?? "—"}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
-          <input
-            name="evidence_reference"
-            defaultValue={application.latestEvidenceReference ?? ""}
-            maxLength={1000}
-            className={inputCls}
-          />
-        </label>
-        <label className="md:col-span-2">
-          <span className={labelCls}>Заметка</span>
-          <textarea name="note" rows={2} maxLength={1000} className={inputCls} />
-        </label>
-        <button type="submit" className={btnGhostCls} disabled={locked}>
-          {pending ? "Сохраняем…" : "Сохранить статус"}
         </button>
       </fieldset>
       <StateBanner status={state.status} />
@@ -326,60 +259,54 @@ function ApplicationDetailsForm({
   );
 }
 
-function VisaForm({ workspace }: Readonly<{ workspace: ProfileAdmissionsWorkspace }>) {
-  const initialState: PlatformCaseVisaActionState = {
-    status: "idle",
-    requestId: workspace.requestIds.visa,
-    visaCaseId: workspace.visa?.visaCaseId ?? null,
-    version: workspace.visa?.version ?? null,
-  };
-  const [state, action, pending] = useActionState(upsertPlatformCaseVisaAction, initialState);
-  useCanonicalRefresh(state.status);
-  const locked = pending || state.status === "saved" || state.status === "stale";
-
+/**
+ * Партнёр и решение — read-only (unified workflow S4, plan §11). Facts a
+ * curator recorded through the retired playbook editor stay visible next to
+ * the application they belong to; there is no edit control here (see
+ * `readApplicationPartnerDetails` in `src/lib/v3/admissions-source.ts` for
+ * why). Renders nothing when every field is empty — a quiet card, not a
+ * permanent "nothing here" placeholder.
+ */
+function ApplicationPartnerFacts({ details }: Readonly<{ details: ApplicationPartnerDetails | undefined }>) {
+  if (!details) return null;
+  const partner = [
+    { label: "Контакт партнёра", value: details.partnerContact },
+    { label: "Ссылка на переданный пакет", value: details.packageReference },
+  ].filter((fact) => fact.value);
+  const decision = [
+    { label: "Номер / ссылка решения", value: details.decisionReference },
+    { label: "Условия предложения", value: details.offerConditions },
+  ].filter((fact) => fact.value);
+  if (partner.length === 0 && decision.length === 0) return null;
   return (
-    <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
-      <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
-      <input type="hidden" name="visa_case_id" value={workspace.visa?.visaCaseId ?? ""} />
-      <input type="hidden" name="request_id" value={state.requestId} />
-      <input
-        type="hidden"
-        name="expected_version"
-        value={state.version ?? workspace.visa?.version ?? "0"}
-      />
-      <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
-        <label>
-          <span className={labelCls}>Статус</span>
-          <select
-            name="status"
-            defaultValue={workspace.visa?.status ?? "not_started"}
-            className={inputCls}
-          >
-            {PLATFORM_VISA_STATUSES.map((status) => (
-              <option key={status} value={status}>{visaStatus(status) ?? "—"}</option>
+    <div className="mt-3 space-y-3">
+      {partner.length > 0 ? (
+        <div className="rounded-nav border border-border p-3">
+          <h4 className="text-sm font-medium text-fg">Партнёр и ссылки</h4>
+          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+            {partner.map((fact) => (
+              <div key={fact.label} className="min-w-0">
+                <dt className="text-xs text-fg-3">{fact.label}</dt>
+                <dd className="mt-0.5 break-words text-sm text-fg">{fact.value}</dd>
+              </div>
             ))}
-          </select>
-        </label>
-        <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
-          <input name="evidence_reference" required maxLength={2000} className={inputCls} />
-        </label>
-        <label className="md:col-span-2">
-          <span className={labelCls}>Заметка</span>
-          <textarea
-            name="note"
-            rows={2}
-            defaultValue={workspace.visa?.note ?? ""}
-            maxLength={4000}
-            className={inputCls}
-          />
-        </label>
-        <button type="submit" className={btnCls} disabled={locked}>
-          {pending ? "Сохраняем…" : workspace.visa ? "Обновить визу" : "Создать визовое дело"}
-        </button>
-      </fieldset>
-      <StateBanner status={state.status} />
-    </form>
+          </dl>
+        </div>
+      ) : null}
+      {decision.length > 0 ? (
+        <div className="rounded-nav border border-border p-3">
+          <h4 className="text-sm font-medium text-fg">Решение университета</h4>
+          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+            {decision.map((fact) => (
+              <div key={fact.label} className="min-w-0">
+                <dt className="text-xs text-fg-3">{fact.label}</dt>
+                <dd className="mt-0.5 break-words text-sm text-fg">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -490,14 +417,16 @@ function FinanceStopResolveForm({
 export function ProfileAdmissionsWorkspacePanel({
   actor,
   workspace,
+  partnerDetails = [],
 }: Readonly<{
   actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
+  /** Read-only «Партнёр и ссылки» / «Решение университета» facts, keyed by application (unified workflow S4). */
+  partnerDetails?: readonly ApplicationPartnerDetails[];
 }>) {
   if (!workspace) return null;
   const canWrite = workspace.caseState === "active" && !isStaffPreview(actor);
   const canWriteApplications = canWrite && staffHasPermission(actor, "application.manage");
-  const canWriteVisa = canWrite && staffHasPermission(actor, "visa.manage");
 
   return (
     <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
@@ -544,18 +473,9 @@ export function ProfileAdmissionsWorkspacePanel({
                     {application.latestEvidenceReference}
                   </p>
                 ) : null}
-                {canWriteApplications ? (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-sm font-medium text-accent">
-                      Изменить статус
-                    </summary>
-                    <ApplicationStatusForm
-                      key={`status-${application.universityApplicationId}-${application.version}`}
-                      workspace={workspace}
-                      application={application}
-                    />
-                  </details>
-                ) : null}
+                <ApplicationPartnerFacts
+                  details={partnerDetails.find((item) => item.applicationId === application.universityApplicationId)}
+                />
                 {canWriteApplications ? (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-accent">
@@ -580,28 +500,6 @@ export function ProfileAdmissionsWorkspacePanel({
             <ApplicationCreateForm workspace={workspace} />
           </details>
         ) : null}
-      </Card>
-
-      <Card
-        eyebrow
-        id="visa"
-        title="Виза"
-        aside={workspace.visa ? (
-          <Pill tone={statusTone(workspace.visa.status)}>
-            {visaStatus(workspace.visa.status) ?? "—"}
-          </Pill>
-        ) : undefined}
-      >
-        {!workspace.visa ? (
-          <p className="px-4 pt-3 text-sm text-fg-3">Визовое дело ещё не создано.</p>
-        ) : null}
-        {workspace.visa?.note ? (
-          <p className="px-4 pt-3 text-sm text-fg-3">{workspace.visa.note}</p>
-        ) : null}
-        {canWriteVisa ? <div className="px-4 py-3"><VisaForm
-          key={`visa-${workspace.studentCaseId}-${workspace.visa?.visaCaseId ?? "new"}-${workspace.visa?.version ?? 0}`}
-          workspace={workspace}
-        /></div> : null}
       </Card>
     </div>
   );

@@ -161,7 +161,13 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(adapter, /leadId: link\?\.leadId \?\? null/u);
   assert.doesNotMatch(adapter, /if \(!link[^\n]*\) return null/u);
   assert.match(workspace, /<Card eyebrow id="applications" title="Заявки">/u);
-  assert.match(workspace, /id="visa"[\s\S]*title="Виза"/u);
+  // Unified workflow S4 (plan §11): the visa-case CRUD Card is retired —
+  // no separate visa case, mandatory statuses or CRM-side visa workflow.
+  // Visa rows/files stay in the database untouched; nothing renders them
+  // as a Card here any more (see tests/platform-case-operations.test.mjs
+  // for the still-live, unrelated READ path this does not touch).
+  assert.doesNotMatch(workspace, /id="visa"/u);
+  assert.doesNotMatch(workspace, /title="Виза"/u);
   assert.doesNotMatch(adapter, /actor\.authorityRole === "admin" && studentCase/u);
   assert.match(adapter, /listPlatformStudentCases/u);
   assert.match(adapter, /getPlatformStudentCaseView/u);
@@ -175,20 +181,25 @@ test("V3 profile actions use canonical versioned server commands and honest outc
 
   for (const action of [
     "createPlatformUniversityApplicationAction",
-    "changePlatformUniversityApplicationAction",
     "updatePlatformUniversityApplicationDetailsAction",
-    "upsertPlatformCaseVisaAction",
     "createPlatformFinanceStopFactorAction",
     "resolvePlatformFinanceStopFactorAction",
   ]) {
     assert.match(controls, new RegExp(`${action}`));
   }
+  // Unified workflow S4 (plan §11): submission-status editing
+  // (changePlatformUniversityApplicationAction, ApplicationStatusForm) and
+  // visa-case CRUD (upsertPlatformCaseVisaAction) are retired from this tab.
+  assert.doesNotMatch(controls, /changePlatformUniversityApplicationAction/u);
+  assert.doesNotMatch(controls, /upsertPlatformCaseVisaAction/u);
+  assert.doesNotMatch(controls, /function ApplicationStatusForm/u);
+  assert.doesNotMatch(controls, /function VisaForm/u);
+  assert.doesNotMatch(controls, /Изменить статус|Сохранить статус|Создать визовое дело|Обновить визу/u);
   for (const field of [
     "student_case_id",
     "request_id",
     "expected_version",
     "application_id",
-    "visa_case_id",
     "payment_obligation_id",
     "stop_factor_id",
     "is_primary",
@@ -198,6 +209,11 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   ]) {
     assert.match(controls, new RegExp(`name="${field}"`));
   }
+  // visa_case_id and the status picker's own name="status" (a <select>) are
+  // gone with the forms that submitted them; the create form's hidden,
+  // never-edited default is checked separately below.
+  assert.doesNotMatch(controls, /name="visa_case_id"/u);
+  assert.doesNotMatch(controls, /<select name="status"/u);
   for (const outcome of [
     "saved",
     "invalid",
@@ -218,17 +234,35 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(controls, /data-primary=\{application\.isPrimary \? "true" : "false"\}/u);
   assert.match(controls, /details-\$\{application\.universityApplicationId\}-\$\{application\.version\}/u);
   assert.match(controls, /router\.refresh\(\)/u);
-  assert.match(controls, /PLATFORM_APPLICATION_STATUSES\.map/u);
-  assert.match(controls, /PLATFORM_VISA_STATUSES\.map/u);
+  // Status still displays read-only, as secondary metadata (task's own
+  // allowance) — the DB column and PLATFORM_APPLICATION_STATUSES-backed
+  // label function stay; only the editable <select> is gone.
+  assert.match(controls, /Pill tone=\{statusTone\(application\.status\)\}/u);
+  assert.match(controls, /applicationStatus\(application\.status\)/u);
+  assert.doesNotMatch(controls, /PLATFORM_APPLICATION_STATUSES/u);
+  assert.doesNotMatch(controls, /PLATFORM_VISA_STATUSES/u);
   assert.doesNotMatch(controls, /createSupabase|supabase\.from|localStorage|sessionStorage/u);
   assert.equal(
     existsSync(new URL("../src/components/v3/profile/ProfileAdmissionsActions.ts", import.meta.url)),
     false,
   );
 
+  // New read-only «Партнёр и ссылки» / «Решение университета» facts (plan
+  // §11 labels), one per application, no edit control.
+  assert.match(controls, /function ApplicationPartnerFacts/u);
+  assert.match(controls, /Партнёр и ссылки/u);
+  assert.match(controls, /Решение университета/u);
+  const partnerFacts = controls.slice(
+    controls.indexOf("function ApplicationPartnerFacts"),
+    controls.indexOf("function FinanceStopCreateForm"),
+  );
+  assert.doesNotMatch(partnerFacts, /<form|useActionState/u);
+  assert.match(controls, /partnerDetails\?: readonly ApplicationPartnerDetails\[\]/u);
+  assert.match(controls, /<ApplicationPartnerFacts/u);
+
   const detailsForm = controls.slice(
     controls.indexOf("function ApplicationDetailsForm"),
-    controls.indexOf("function VisaForm"),
+    controls.indexOf("function ApplicationPartnerFacts"),
   );
   assert.match(detailsForm, /name="application_id"/u);
   assert.doesNotMatch(detailsForm, /name="student_case_id"/u);
@@ -237,10 +271,11 @@ test("V3 profile actions use canonical versioned server commands and honest outc
 
   const createForm = controls.slice(
     controls.indexOf("function ApplicationCreateForm"),
-    controls.indexOf("function ApplicationStatusForm"),
+    controls.indexOf("function ApplicationDetailsForm"),
   );
   assert.match(createForm, /<ApplicationCountryField \/>/u);
   assert.match(createForm, /<ApplicationDegreeField \/>/u);
+  assert.match(createForm, /name="status" value="preparation"/u);
   assert.match(controls, /<select name="country"/u);
   assert.match(controls, /<select name="degree"/u);
   assert.match(controls, /platformApplicationCountryEditOptions\(defaultValue \|\| null\)/u);

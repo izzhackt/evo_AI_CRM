@@ -4,45 +4,13 @@ import Link from "next/link";
 
 import { Pill } from "@/components/v3/Pill";
 import { personState } from "@/lib/v3/wording";
-import {
-  ADMISSIONS_STAGES,
-  ADMISSIONS_STAGE_LABELS,
-  type AdmissionsAttention,
-  type AdmissionsStage,
-  type AdmissionsWorkspace,
-} from "@/lib/platform-admissions-playbook-contract";
-import { readAdmissionsWorkspace } from "@/lib/v3/admissions-source";
+import type { AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
 import { readCaseAttentionFlags } from "@/lib/platform-admissions";
 import type { StudentPortalCuratorOption } from "@/lib/server/student-portal-curator-options";
 
 import { AssignCaseCuratorForm } from "./AssignCaseCuratorForm";
 import { DIRECTION_LABELS } from "./admissions-view";
 import type { PersonProfile, ProfileDraft } from "./types";
-
-function formatDueOn(value: string | null): string | null {
-  if (!value) return null;
-  const parts = value.split("-");
-  return parts.length === 3 ? parts.reverse().join(".") : value;
-}
-
-function stageLabel(workspace: AdmissionsWorkspace | null): string | null {
-  if (!workspace) return null;
-  const { case: current } = workspace;
-  if (current.outcome === "arrived") return "Прибытие подтверждено";
-  if (current.outcome === "cancelled") return "Дело закрыто без прибытия";
-  if (current.state === "pending") return "Дело ожидает активации";
-  const index = ADMISSIONS_STAGES.indexOf(current.stage as AdmissionsStage);
-  if (index < 0) return "Маршрут не выбран";
-  return `${index + 1}/${ADMISSIONS_STAGES.length} · ${ADMISSIONS_STAGE_LABELS[current.stage as AdmissionsStage]}`;
-}
-
-function activeBlocker(workspace: AdmissionsWorkspace | null): string | null {
-  if (!workspace) return null;
-  const gate = workspace.gates.find((item) => item.stage === workspace.case.stage);
-  if (!gate || gate.ready || gate.blockers.length === 0) return null;
-  const [first, ...rest] = gate.blockers;
-  return rest.length > 0 ? `${first} и ещё ${rest.length}` : first;
-}
 
 function HeaderFact({ label, value, meta, action }: Readonly<{
   label: string; value: string; meta?: string | null; action?: React.ReactNode;
@@ -62,11 +30,14 @@ function HeaderFact({ label, value, meta, action }: Readonly<{
 /**
  * Шапка дела — сводка над вкладками для `?case=`-целей.
  *
- * Имя и состояние человека, направление, куратор, текущий этап маршрута,
- * следующий шаг и активный блокер — одним взглядом, без перехода на вкладку
- * «Маршрут». Маршрут читается отдельным запросом с собственным `try/catch`:
- * если он недоступен, шапка не пропадает, а показывает то, что уже загружено
- * для страницы (имя, куратор, следующий шаг из канонического профиля).
+ * Имя и состояние человека, направление, куратор и следующий шаг — одним
+ * взглядом. Unified workflow S4 (plan §8): «Обзор» больше не несёт
+ * обязательный индикатор этапов поступления, поэтому эта шапка больше не
+ * читает отдельный маршрут-воркспейс и не показывает «Этап» или блокер
+ * текущего этапа — их источник (маршрут/плейбук/gates) удалён вместе с
+ * вкладкой «Маршрут». Направление берётся из уже загруженного `draft.admissions`
+ * (заполняется из того же DTO дела, что и раньше читало
+ * `staff_case_admissions_workspace_v1` — profile-source.ts's `admissionsWorkspace()`).
  */
 export async function CaseHeader({
   actor,
@@ -84,17 +55,14 @@ export async function CaseHeader({
 }>) {
   const caseId = draft.routeTarget.studentCaseId;
   if (!caseId) return null;
-  const workspace = await readAdmissionsWorkspace(actor, caseId).catch(() => null);
   const state = personState({
     hasCase: profile.student,
     caseStatus: profile.caseStatus,
     leadStage: profile.stage,
   });
-  const direction = workspace?.case.direction ? DIRECTION_LABELS[workspace.case.direction] : "Не выбрано";
-  const stage = stageLabel(workspace) ?? "Недоступно";
-  const nextAction = (workspace?.case.nextAction ?? profile.nextAction) || "Не назначено";
-  const dueOn = workspace ? formatDueOn(workspace.case.nextActionDueOn) : profile.nextActionAt;
-  const blocker = activeBlocker(workspace);
+  const direction = draft.admissions?.direction ? DIRECTION_LABELS[draft.admissions.direction] : "Не выбрано";
+  const nextAction = profile.nextAction || "Не назначено";
+  const dueOn = profile.nextActionAt;
   const canLinkCoverage = actor.systemRole === "admin" && !isStaffPreview(actor)
     && staffHasPermission(actor, "case.curator.assign");
   // S3 (plan §7): «Admin выбирает другого куратора внутри того же дела» — a
@@ -123,7 +91,7 @@ export async function CaseHeader({
         ) : null}
       </div>
 
-      <dl className="grid gap-x-6 gap-y-3 rounded-card border border-border bg-surface px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="grid gap-x-6 gap-y-3 rounded-card border border-border bg-surface px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
         <HeaderFact label="Направление" value={direction} />
         <HeaderFact
           label="Куратор"
@@ -134,7 +102,6 @@ export async function CaseHeader({
             </Link>
           ) : undefined}
         />
-        <HeaderFact label="Этап" value={stage} />
         <HeaderFact label="Следующий шаг" value={nextAction} meta={dueOn} />
       </dl>
 
@@ -146,13 +113,6 @@ export async function CaseHeader({
             requestId={assignCuratorRequestId}
           />
         </div>
-      ) : null}
-
-      {blocker ? (
-        <p className="v3-edge-danger flex flex-wrap items-start gap-2 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm leading-5 text-fg">
-          <Pill tone="danger">блокер</Pill>
-          <span className="min-w-0 flex-1">{blocker}</span>
-        </p>
       ) : null}
     </section>
   );

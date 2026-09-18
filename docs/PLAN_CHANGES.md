@@ -29124,3 +29124,270 @@ constraint. The `needs_curator`/`awaiting_ack` flags are additive to
 `admissions_attention_flags`'s existing return shape; a future slice reusing
 that array for a NEW purpose should keep both entries in mind rather than
 assuming the old fixed six-flag set.
+
+## 2026-09-18 — unified workflow S4: Admissions без обязательного маршрута
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S4.
+Affected plan section: «S4 Admissions без обязательного маршрута» (plan §8,
+§11, §12, §13; PLAN_CHANGES «план-контракт реализации», S1, S2, S3 above).
+
+Reason: implement plan §8's «единое дело, а не обязательный маршрут» — the
+mandatory country-route/playbook stage tracker (seven fixed stages, gated
+transitions, message templates) and the visa-case CRUD form are retired;
+«Маршрут» becomes «Вузы и программы» (university/program/partner selection,
+no submission/visa/arrival tracking); the direction summary keeps only
+counts still actually tracked (plan §12).
+
+Deleted whole files: `src/components/v3/profile/ProfileAdmissionsRoute.tsx`,
+`AdmissionsRoutePanel.tsx`, `AdmissionsRouteEditor.tsx`,
+`AdmissionsMessageTemplates.tsx`, `src/lib/platform-admissions-playbook-command.ts`,
+`src/lib/platform-admissions-playbook-actions.ts` — the whole stage-transition/
+playbook-configuration/message-template command layer, superseded by nothing
+(plan §13: this is removal, not replacement). Also deleted
+`tests/e2e/admissions.spec.ts` (497 lines): a live-browser Playwright spec
+that drove exactly this deleted UI end to end (stage transitions, the
+`data-testid="admissions-route"` panel, visa-case create/update, message
+template clipboard copy) and imported the now-deleted `AdmissionsWorkspace`
+type, hard-breaking `npm run typecheck`. It is not part of the fast unit
+suite this task's CHECKS name, this environment cannot run or validate live
+Playwright specs against Supabase anyway, and rewriting ~500 lines of E2E
+coverage for a much lighter read-only replacement feature is disproportionate
+scope for this slice — deletion (not a rewrite left broken) is the honest
+option.
+
+Decision — migration 183
+(supabase/migrations/183_platform_admissions_summary_pruning.sql, NOT
+applied — no Supabase credentials in this environment, matching every prior
+slice) replaces `platform.admissions_direction_summary_v1` (137, unchanged
+since — confirmed unmodified across 145/149/156/176/177/178/180/181/182) via
+a single `CREATE OR REPLACE FUNCTION` on the SAME 4-argument signature (no
+`DROP FUNCTION`/re-grant needed, the same in-place-amend pattern 145/182
+already used for `platform_private.admissions_attention_flags`'s own body
+rewrites). `stock` keeps only `active`/`overdue`/`awaiting_ack` (unchanged
+meaning) plus S3's `needs_curator`; dropped: `awaiting_partner`, `submitted`,
+`decisions`, `visas`, `arrivals`, `cancelled`, `arrived` and the whole
+`periodArrivals` CTE (a "closed, confirmed-arrived-this-month" metric for a
+tracker this slice retires). The per-case flag computation itself
+(`platform_private.admissions_attention_flags`) is UNTOUCHED — the
+«Студенты» directory's own `p_attention` filter chips still return the full
+flag set; only this one AGGREGATE reader narrows what it reports.
+`p_period_from`/`p_period_to` stay accepted (changing the signature would
+need `DROP FUNCTION` + re-grant for no benefit) and still validated, but are
+no longer reflected in the JSON result — no `periodFrom`/`periodTo`/
+`periodArrivals` keys; the TS side stops sending them. New migration-pattern
+suite `tests/platform-admissions-summary-migration.test.mjs` (5/5) pattern-
+matches the rewritten function body directly against the written SQL file.
+
+TS/UI: `src/lib/platform-admissions-playbook-contract.ts` is pruned to just
+`ADMISSIONS_DIRECTIONS`/`AdmissionsDirection` (still used everywhere),
+`ADMISSIONS_ATTENTION`/`AdmissionsAttention` (S3's directory attention
+flags — unrelated to the route tracker, kept whole) and a narrowed
+`AdmissionsSummary` interface (`stock` only, matching migration 183).
+Deleted entirely: `ADMISSIONS_STAGES`/`ADMISSIONS_STAGE_LABELS`,
+`AdmissionsOutcome`, `ADMISSIONS_CASE_FIELDS`/`ADMISSIONS_APPLICATION_FIELDS`/
+`ADMISSIONS_VISA_FIELDS`/`AdmissionsField`/`admissionsVisaFields`/
+`validateAdmissionsFields`, `AdmissionsPlaybook`/`AdmissionsWorkspace`/
+`AdmissionsMutationReceipt` — nothing kept uses them once the route/playbook
+UI and the visa CRUD form are gone (verified: the partner-detail read below
+needed none of this machinery). `src/lib/v3/admissions-source.ts` keeps
+exactly the four named exports the task specified
+(`AdmissionsSourceError`, `admissionsRpc`, `normalizeAdmissionsSummary`,
+`readAdmissionsSummary` — the last narrowed to `{direction,
+curatorMembershipId}`, no more period args) plus ONE new addition,
+`readApplicationPartnerDetails` (see below) — a deliberate, documented
+departure from a literal "exactly these four" reading, made because the
+alternative (a whole new `src/lib/v3/*-source.ts` adapter file) would have
+required updating `tests/v3-supabase-integration.test.mjs`'s exhaustive
+per-file allowlist for zero benefit; a Server Action still needed its own
+new `"use server"` file regardless (Next.js requirement), so only the READ
+side was added here.
+
+`CaseHeader.tsx` no longer fetches the (deleted) route workspace: `stageLabel`,
+`activeBlocker`, the «Этап» `HeaderFact` and the blocker banner are gone
+(header grid drops from 4 to 3 columns — Направление/Куратор/Следующий шаг).
+Direction now comes from `draft.admissions.direction`, a new field on
+`ProfileAdmissionsWorkspace` (types.ts) populated in
+`admissionsWorkspace()` (profile-source.ts) from
+`data.studentCase.admissionsDirection` — a column `staff_student_case_page`
+already returns (137), so this needed no new read, just threading an
+already-fetched value through. `nextAction`/`nextActionDueOn` now always use
+the `profile.nextAction`/`profile.nextActionAt` fallback the old code already
+had for a failed workspace read (that failure path is now the only path).
+
+New tab: `src/components/v3/profile/UniversityProgramsTab.tsx` replaces
+`ProfileAdmissionsRoute.tsx`, wired via a renamed `Profile.tsx` prop
+(`admissionsRoute` → `universityProgramsTab`, no test pinned the old name).
+The `TABS` key stays `"route"` (types.ts) — the `?tab=route` URL contract
+survives (`tests/v3-operational-parity.test.mjs`'s literal, `CuratorDay.tsx`'s
+link) — only the title changes to «Вузы и программы». The new tab composes
+the KEPT `ProfileAdmissionsWorkspacePanel` (applications Card — untouched
+create/details actions in `platform-admissions-actions.ts`) and the
+re-parented `PartnerPacketsPanel`, each reading and failing independently, as
+before.
+
+Status-editing removal (plan §11's product decision): `ApplicationStatusForm`
+is deleted outright (was the only caller of
+`changePlatformUniversityApplicationAction`, left untouched in
+`platform-admissions-actions.ts` since other callers may still exist — verified
+none do inside this component, and the action itself is out of this task's
+file list). `ApplicationCreateForm`'s status `<select>` is also removed — a
+newly added university/program is simply "being considered", so the same
+default it already used (`"preparation"`) is now a hidden, unedited field
+instead of a visible picker. The `university_applications.status` column,
+existing rows and `PLATFORM_APPLICATION_STATUSES` all stay; the status Pill
+next to each application (`applicationStatus(application.status)`) keeps
+showing it read-only, per the task's own allowance.
+
+Visa-case CRUD removal (plan §11): the «Виза» Card and `VisaForm` are deleted
+from `ProfileAdmissionsWorkspace.tsx`; `upsertPlatformCaseVisaAction` and its
+private helpers (`visaFailureState`, `VISA_FIELDS`,
+`PlatformCaseVisaActionState`) are deleted from
+`platform-case-operations-actions.ts` (surgical — `createPlatformFinanceStopFactorAction`/
+`resolvePlatformFinanceStopFactorAction` and their shared helpers are
+untouched, confirmed by a clean `npm run typecheck`+`eslint` afterward).
+**Scope clarification versus the task's literal file list**:
+`PLATFORM_VISA_STATUSES`/`PlatformVisaStatus`/`PlatformCaseVisa` in
+`platform-case-operations-contract.ts` are NOT deleted — investigation
+found them load-bearing well beyond the deleted form: the read-only
+`getPlatformCaseVisa`/`normalizePlatformCaseVisa` (`platform-case-operations.ts`,
+feeds `PersonProfile.visa`, already-established as "kept in the model,
+deliberately not rendered" per `tabs.tsx`'s own pre-existing comment), the
+staff visa QUEUE (`platform-admissions-workspace.ts`, an unrelated org-wide
+worklist), and the PORTAL's visa history (`portal-source.ts` — explicitly
+out of scope, "no portal changes (S5)"). Deleting the shared enum/type would
+have broken all three to satisfy a form that no longer exists; `types.ts`'s
+`ProfileAdmissionsWorkspace.visa`/`workspace.requestIds` similarly keep the
+`visa: PlatformCaseVisa | null` field (same "kept, unrendered" treatment as
+`profile.visa` — its own explanatory comment in `tabs.tsx` is updated to say
+so) while the now-pointless `requestIds.visa` UUID (pure per-render
+scaffolding, zero data-loss risk either way) is removed. Visa rows and files
+stay in the database untouched; visa files remain ordinary documents (the
+documents tab's own «Виза» group comes from document *requirements*, a
+completely separate mechanism, confirmed unaffected).
+
+**Partner-fields outcome: read-only, not editable — with a stronger reason
+than anticipated.** The task allowed either outcome depending on where the
+write allowlist lives. Investigation found the SQL-side field allowlist
+(`platform_private.admissions_field_schema`/`admissions_validate_fields`,
+137) is genuinely independent of the deleted TS command layer — so by the
+letter of the task's own test, editable looked achievable. But the SAME RPC
+family (`platform_private.admissions_related_command`, wrapped by
+`platform.update_application_admissions_details_v1`) hard-requires
+`c.admissions_playbook_version_id IS NOT NULL` ("Configure a country
+playbook first") before it will write `admissions_details` at all. That
+configuration path (`configure_case_admissions_v1`) was reachable ONLY
+through the just-deleted `AdmissionsRoutePanel` "Выбрать маршрут" editor,
+and even when it existed it was CN/MY-only (playbooks never existed for
+EUROPE/AE/TR). After this slice there is no UI left to ever set that column,
+so the write RPC would fail closed for essentially every case going
+forward — building an editable form on it would not be a narrow edge case,
+it would silently fail for the whole product. Making it genuinely usable
+would need a new SQL RPC without that gate, which the task explicitly
+forbids ("do NOT widen SQL"). Read-only is therefore the correct choice, not
+just the cautious one. New `readApplicationPartnerDetails` in
+`admissions-source.ts` re-reads the same `staff_case_admissions_workspace_v1`
+RPC the deleted editor used, scoped to four kept keys — `partnerContact`,
+`packageReference` (section «Партнёр и ссылки»), `decisionReference`,
+`offerConditions` (section «Решение университета», matching plan §11's exact
+labels). `ApplicationPartnerFacts` (`ProfileAdmissionsWorkspace.tsx`) renders
+them per application with no edit control, and renders nothing at all when
+every field is empty (the common case for any application never touched by
+the old editor). `ProfileAdmissionsWorkspacePanel` gains an optional
+`partnerDetails` prop (default `[]`); `UniversityProgramsTab` is the only
+caller that populates it — the SAME panel is also still rendered on the
+Overview tab (`tabs.tsx`, pre-existing duplication, unrelated to this slice)
+where it intentionally gets no partner facts, keeping Overview lean per
+plan principle #3.
+
+Summary panel/CuratorDay: `AdmissionsSummaryPanel.tsx` drops the "Месяц
+прибытия" period picker and its «Ждём партнёра»/«Прибыли за месяц» metrics
+entirely (nothing left to compute them from); a new «Нужно назначить
+куратора» metric (S3's `needs_curator`) takes the freed slot, both as an
+org-wide `Metric` tile and a per-direction column in the expandable report.
+`CuratorDay.tsx`'s "Мой день" metrics make the same swap. The
+`admissionsReportPeriod` calendar-month utility (`src/lib/admissions-report-period.ts`)
+is kept and still unit-tested (now in `tests/admissions-summary.test.mjs`)
+per the task's explicit instruction, even though no UI calls it any more
+after this slice — a deliberate decision (it is a generically useful, already
+correct pure function, not route/playbook-specific), not an oversight.
+
+Tests: `tests/admissions-playbook.test.mjs` is deleted; its three
+still-relevant assertions (`normalizeAdmissionsSummary`,
+`admissionsReportPeriod`, `buildPlatformStudentCasePageRpcArguments`/
+`normalizePlatformStudentCaseQueueRow`) move to new
+`tests/admissions-summary.test.mjs`, updated for the narrowed
+`AdmissionsSummary` shape. `tests/v3-profile-admissions.test.mjs`: the visa
+Card assertion (`id="visa"[\s\S]*title="Виза"`) is replaced with
+`doesNotMatch` guards; the big action/field/outcome test drops
+`upsertPlatformCaseVisaAction`/`visa_case_id`/`PLATFORM_APPLICATION_STATUSES`/
+`PLATFORM_VISA_STATUSES` assertions, adds `doesNotMatch` guards for the
+retired status-editing UI, and adds assertions for the new
+`ApplicationPartnerFacts` block (present, form-free, correctly sliced
+between `ApplicationDetailsForm` and `FinanceStopCreateForm` now that
+`VisaForm`/`ApplicationStatusForm` no longer exist as slice boundaries).
+`tests/platform-case-operations.test.mjs`: **not** what the task's own
+inventory suggested ("retire visa normalizer tests, keep finance-stop") —
+investigation found this file's visa coverage targets
+`normalizePlatformCaseVisa`, the READ path proven load-bearing above, not
+the deleted CRUD action (which this file never tested in the first place;
+that coverage lived in `v3-profile-admissions.test.mjs`, updated instead).
+The one real change needed here is the client-import-hygiene test noticing
+`ProfileAdmissionsWorkspace.tsx` no longer imports anything from
+`platform-case-operations-contract.ts` (the deleted visa import was the only
+one) — updated to assert that directly rather than leave a false pin.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean, zero warnings after removing one file-local
+helper — `optionalOperationText` in `platform-case-operations-actions.ts` —
+left orphaned by the visa-action deletion), `npm run test:brand-ui` (5/5),
+and the pinned suites this slice touches: `tests/v3-operational-parity.test.mjs`
+(3/3), `tests/platform-admissions.test.mjs` (unaffected, all passing),
+`tests/v3-admissions-support.test.mjs` (unaffected, all passing),
+`tests/platform-admissions-tasks.test.mjs` (unaffected, all passing),
+`tests/admissions-summary.test.mjs` (3/3, new), `tests/v3-profile-admissions.test.mjs`
+(7/7), `tests/platform-case-operations.test.mjs` (9/9, 1 updated),
+`tests/v3-supabase-integration.test.mjs` (unaffected — no new `src/lib/v3/*.ts`
+file was added, so its exhaustive allowlist needed no change), plus the new
+`tests/platform-admissions-summary-migration.test.mjs` (5/5). A broader
+sweep of every other test file referencing `profile-source.ts`/`tabs.tsx`/
+`admissions-view.ts`/`CaseHeader.tsx`/`ProfileAdmissionsWorkspace.tsx`/
+`platform-admissions.ts`/`CuratorDay.tsx`/`Profile.tsx`/`types.ts`/
+`page.tsx`/`AdmissionsSummaryPanel`/`platform-case-operations-contract`/
+`platform-admissions-playbook-contract`/`UniversityProgramsTab` (
+`p4-supabase-admissions-storage-legacy-cleanup`, `scoped-finance-read-contract`,
+`staff-metadata-feedback`, `staff-role-member-editor`,
+`student-portal-provisioning-ui`, `v3-document-recognition-jobs`,
+`v3-handoff-navigation`, `v3-navigation`, `v3-profile-activity`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`,
+`v3-student-profile-fields`) passed 74/77, with 3 pre-existing failures
+verified via `git stash` to reproduce identically on this branch's pre-slice
+tree and therefore unrelated to this slice: `tests/v3-handoff-navigation.test.mjs`
+and `tests/staff-metadata-feedback.test.mjs` (the same `react-dom/server`
+ESM/CJS interop crash S2/S3's own entries already documented) and, newly
+observed here, `tests/v3-document-recognition-jobs.test.mjs` failing with the
+IDENTICAL error on a file this slice never touches (re-verified via
+`git stash` here). `tests/v3-student-profile-fields.test.mjs` was run under
+plain `node --test` per its own designated flag (10/10). Migration 183
+itself is NOT applied; no Supabase credentials exist in this environment,
+matching every prior slice's stated limitation. Final repo-wide check —
+`rg 'AdmissionsRoutePanel|readAdmissionsWorkspace|ADMISSIONS_STAGE_LABELS|
+AdmissionsMessageTemplates|VisaForm|upsertPlatformCaseVisa' src tests` —
+returns only kept-by-design hits: one explanatory doc-comment in
+`admissions-source.ts` naming the deleted `AdmissionsRoutePanel` for
+context, and the new `doesNotMatch` test assertions in
+`v3-profile-admissions.test.mjs` that verify these symbols are gone.
+
+Reviewer notes: S5 («Портал одного дела») and S6 are untouched — no portal
+surfaces, Docs direct-intake removal or naming/Inbox↔card work happened
+here, per this task's own constraint. The visa read path
+(`getPlatformCaseVisa`/`normalizePlatformCaseVisa`/`PlatformCaseVisa`) is
+now the LAST live consumer keeping `platform-case-operations-contract.ts`'s
+visa types un-prunable from the CRM side; a future slice that also retires
+the staff visa queue and/or `PersonProfile.visa` could revisit deleting them
+then, not before. `readApplicationPartnerDetails`'s dependency on
+`staff_case_admissions_workspace_v1` (and therefore on
+`admissions_playbook_version_id` existing at all on old CN/MY cases) means
+its four facts will read as empty for any case that never had a playbook
+configured — expected and honest, not a bug: those cases never had this
+data written in the first place.

@@ -15,6 +15,7 @@ import type {
   PlatformStudentCaseHandoffContext,
 } from "@/lib/platform-student-handoff";
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
+import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type {
   PlatformCaseContractWorkspace,
   PlatformContractRetryOperation,
@@ -170,15 +171,38 @@ export type ProfileAdmissionsRequestIds = Readonly<{
   createApplication: string;
   applications: Readonly<Record<string, string>>;
   applicationDetails: Readonly<Record<string, string>>;
-  visa: string;
   createStops: Readonly<Record<string, string>>;
   resolveStops: Readonly<Record<string, string>>;
+}>;
+
+/**
+ * Партнёр и решение — read-only facts kept from the retired playbook editor
+ * (unified workflow S4, plan §11). See `readApplicationPartnerDetails` in
+ * `src/lib/v3/admissions-source.ts` for why this is read-only, not a form.
+ */
+export type ApplicationPartnerDetails = Readonly<{
+  applicationId: string;
+  partnerContact: string | null;
+  packageReference: string | null;
+  decisionReference: string | null;
+  offerConditions: string | null;
 }>;
 
 export type ProfileAdmissionsWorkspace = Readonly<{
   studentCaseId: string;
   caseState: "pending" | "active" | "closed";
+  /** Unified workflow S4: the case DTO's own direction, replacing CaseHeader's deleted route-workspace read. */
+  direction: AdmissionsDirection | null;
   applications: readonly PlatformApplicationQueueRow[];
+  /**
+   * Kept in the model, intentionally not rendered (unified workflow S4): the
+   * visa-case CRUD Card is retired (plan §11 — no separate visa case,
+   * mandatory statuses or CRM-side workflow), but `getPlatformCaseVisa`
+   * stays a real, load-bearing read elsewhere (portal history, the staff
+   * visa queue in `platform-admissions-workspace.ts`). Same treatment as
+   * `PersonProfile.visa` — see tabs.tsx's comment above «Как он к нам
+   * пришёл».
+   */
   visa: PlatformCaseVisa | null;
   finance: PlatformCaseFinanceControl | null;
   requestIds: ProfileAdmissionsRequestIds;
@@ -273,7 +297,9 @@ export type ProfileDraft = Readonly<{
 
 export const TABS = [
   { key: "overview", title: "Обзор" },
-  { key: "route", title: "Маршрут" },
+  // The URL contract (?tab=route) is pinned by tests/v3-operational-parity.test.mjs
+  // and CuratorDay's link — only the visible title changes (plan §8/§13).
+  { key: "route", title: "Вузы и программы" },
   { key: "anketa", title: "Анкета" },
   { key: "documents", title: "Документы" },
   { key: "money", title: "Деньги" },

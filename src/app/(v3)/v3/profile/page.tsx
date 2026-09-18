@@ -12,7 +12,7 @@ import { ProfileCaseDirectory } from "@/components/v3/profile/ProfileCaseDirecto
 import { DocsCreateStudentForm } from "@/components/v3/profile/DocsCreateStudentForm";
 import { btnCls, btnGhostCls } from "@/components/ui";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
-import { ProfileAdmissionsRoute } from "@/components/v3/profile/ProfileAdmissionsRoute";
+import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
 import { AdmissionsSummaryPanel } from "@/components/v3/profile/AdmissionsSummaryPanel";
 import { CuratorCoveragePanel } from "@/components/v3/profile/CuratorCoveragePanel";
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
@@ -246,7 +246,7 @@ export default async function ProfilePart({
           {!isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link> : null}
         </div> : null}
         {!docsMode && directory && staffPresentationCan(actor, "admissions.read") ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
-          <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} expanded={singleSearchParam(params.section) === "summary"} />
+          <AdmissionsSummaryPanel actor={actor} params={directoryParams} expanded={singleSearchParam(params.section) === "summary"} />
         </Suspense> : null}
         {directory ? (
           <ProfileCaseDirectory
@@ -279,8 +279,8 @@ export default async function ProfilePart({
               key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
                 view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
               profile={view.profile}
-              admissionsRoute={tab === "route" ? <ProfileAdmissionsRoute actor={actor} draft={view.details} studentName={view.profile.person}
-                docsMode={docsMode} packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
+              universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details}
+                packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"} /> : undefined}
               caseHeader={view.details.routeTarget.studentCaseId ? (
                 <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку дела…</p>}>
                   <CaseHeader

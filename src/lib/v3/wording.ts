@@ -1041,3 +1041,32 @@ export const applicationUniversitySelector = {
     unavailable: "Не удалось загрузить каталог. Повторите поиск.",
   },
 } as const;
+
+export const settingsStatusWords = {
+  database: {
+    ready: "доступна",
+    failed: "ошибка подключения",
+    unavailable: "состояние недоступно",
+    missing: "нет данных",
+    unverified: "не проверена",
+    stale: "проверка устарела",
+  },
+  amoBlocked: {
+    feature_disabled: "Синхронизация отключена.",
+    configuration_missing: "Подключение не настроено.",
+    configuration_invalid: "Параметры подключения некорректны.",
+    routing_configuration_invalid: "Правила передачи данных настроены некорректно.",
+    token_unavailable: "Доступ к аккаунту amoCRM не подтверждён.",
+  },
+} as const;
+
+export function settingsBlockedWahaDetail(status: string | undefined): string {
+  switch (status) {
+    case "WORKING": return "Актуальность проверки подключения не подтверждена.";
+    case "SCAN_QR_CODE": return "Требуется подключение WhatsApp по QR-коду.";
+    case "STARTING": return "Подключение запускается.";
+    case "STOPPED": return "Подключение остановлено.";
+    case "FAILED": return "Ошибка подключения.";
+    default: return "Состояние подключения не подтверждено.";
+  }
+}

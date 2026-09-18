@@ -17,14 +17,14 @@ export function PaymentsView({
   if (payments.length === 0) {
     return (
       <PortalEmptyState
-        title="Платёжных обязательств пока нет"
-        description="Когда обязательство будет опубликовано для вашего дела, оно появится здесь."
+        title="Начислений пока нет"
+        description="Здесь появятся суммы и сроки оплаты."
       />
     );
   }
 
   return (
-    <PortalSection title="Платёжные обязательства">
+    <PortalSection title="Начисления">
       <ul className="divide-y divide-border">
         {payments.map((payment, index) => {
           const status = paymentStatus(payment);

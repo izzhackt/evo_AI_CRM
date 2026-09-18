@@ -28,7 +28,7 @@ export function Card({
   );
 }
 
-/** Тихая строка-объяснение под карточкой. Здесь их много, и это правильно. */
+/** Краткое пояснение к правилам или состоянию. */
 function Note({ children }: { children: React.ReactNode }) {
   return (
     <p className="border-t border-border bg-surface-2 px-4 py-2.5 text-2xs leading-4 text-fg-3">
@@ -65,28 +65,19 @@ export function StateSection({ health }: { health: readonly Health[] }) {
         ))}
       </ul>
 
-      {/*
-        Не «чего не хватает», а «что меняется не отсюда». Тупик без адреса
-        бесполезен: рядом с каждым пунктом стоит файл или переменная, где это
-        на самом деле лежит.
-      */}
-      <Card title="Требует человека на сервере" aside={<Pill tone="warn">{blocked.length}</Pill>}>
+      <Card title="Требует внимания" aside={<Pill tone="warn">{blocked.length}</Pill>}>
         <ul>
           {blocked.map((item) => (
             <li
               key={item.name}
-              className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 @4xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)_minmax(0,240px)]"
+              className="grid gap-x-4 gap-y-1 border-b border-border px-4 py-3 last:border-b-0 @4xl:grid-cols-[minmax(0,200px)_minmax(0,1fr)]"
             >
               <span className="text-sm font-semibold text-fg">{item.name}</span>
               <span className="text-2xs leading-4 text-fg-2">{item.blocker}</span>
-              <span className="break-all font-mono text-2xs text-fg-3">{item.where}</span>
             </li>
           ))}
         </ul>
-        <Note>
-          Ни один из этих переключателей нельзя нажать отсюда. Флаги живут в файлах окружения
-          на сервере с правами 0600, и документация прямо запрещает менять их из браузера.
-        </Note>
+        <Note>Для настройки подключений обратитесь к техническому специалисту.</Note>
       </Card>
     </div>
   );
@@ -113,24 +104,18 @@ export function IntegrationsSection({
           >
             <dl>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
-                <dt className="w-40 shrink-0 text-2xs text-fg-3">По факту работы</dt>
+                <dt className="w-40 shrink-0 text-2xs text-fg-3">Подробности</dt>
                 <dd className="min-w-0 flex-1 text-sm text-fg">{item.detail}</dd>
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
-                <dt className="w-40 shrink-0 text-2xs text-fg-3">Чтобы включить</dt>
+                <dt className="w-40 shrink-0 text-2xs text-fg-3">Что требуется</dt>
                 <dd className="min-w-0 flex-1 text-sm text-fg">{item.blocker}</dd>
-              </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-4 py-2.5">
-                <dt className="w-40 shrink-0 text-2xs text-fg-3">Где это лежит</dt>
-                <dd className="min-w-0 flex-1 break-all font-mono text-2xs text-fg-2">
-                  {item.where}
-                </dd>
               </div>
             </dl>
           </Card>
         ))}
 
-      <Card title="Счётчики" aside={<Pill>{integrations.length}</Pill>}>
+      <Card title="Подключения" aside={<Pill>{integrations.length}</Pill>}>
         <ul>
           {integrations.map((one) => (
             <li
@@ -142,10 +127,6 @@ export function IntegrationsSection({
             </li>
           ))}
         </ul>
-        <Note>
-          Состояние читается по факту работы, а не по галочке «включено»: галочка может стоять
-          у того, что ни разу ничего не сделало.
-        </Note>
       </Card>
     </div>
   );
@@ -211,11 +192,11 @@ export function JournalSection({
       {/* Фильтры — ссылки: адрес несёт выбор, поэтому отфильтрованный журнал
           можно переслать и вернуться назад кнопкой браузера. */}
       <nav aria-label="Фильтры журнала" className="flex flex-col gap-2">
-        <p className="text-2xs uppercase tracking-wide text-fg-3">Что за объект</p>
+        <p className="text-2xs uppercase tracking-wide text-fg-3">Тип записи</p>
         <ul className="flex flex-wrap gap-1.5">
           <li>
             <Link href={hrefFor({})} className={chip(!active.objectType)}>
-              любой
+              Все
             </Link>
           </li>
           {facets.objectTypes.map((type) => {
@@ -355,16 +336,15 @@ export function JournalSection({
           </p>
         ) : null}
         <Note>
-          Сотрудники входят через личные учётные записи Supabase Auth. Этот безопасный журнал
-          намеренно показывает категорию актора — сотрудник, сервис или система — без раскрытия
-          персональных данных на экране.
+          Для событий указан тип участника: сотрудник, сервис или система.
+          Личные данные участников не показываются.
         </Note>
       </Card>
     </div>
   );
 }
 
-/* ------------------------------------------------- Документы и гейты */
+/* --------------------------------------------- Документы и передача */
 
 export function DocumentsSection({ gates }: { gates: GateFacts }) {
   return (
@@ -372,10 +352,9 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
       <Card title="Правила загрузки">
         <ul>
           {[
-            ["Разрешённые типы", "PDF, JPEG, PNG — проверяется по первым байтам файла, а не по расширению"],
-            ["Предельный размер", "25 MiB"],
-            ["Где лежат", "В закрытом bucket platform-documents в Supabase Storage"],
-            ["Кто видит", "Доступ дают серверная авторизация и RLS; публичного чтения нет"],
+            ["Разрешённые типы", "PDF, JPEG, PNG"],
+            ["Предельный размер", "25 МиБ"],
+            ["Кто видит", "Только пользователи с нужными правами. Публичного доступа нет."],
           ].map(([k, v]) => (
             <li
               key={k}
@@ -387,24 +366,22 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
           ))}
         </ul>
         <Note>
-          Это не настройки, а свойства системы: изменение любого из них — правка кода и выкат.
-          Скачивание закрыто, пока integrity не подтверждён и malware-проверка не имеет статуса
-          clean. Реальный scanner-provider остаётся отдельным проверяемым release-гейтом.
+          Скачивание доступно после проверки целостности и безопасности файла.
         </Note>
       </Card>
 
-      <Card title="Гейт передачи в приёмную">
+      <Card title="Условия передачи в приёмную">
         <p className="px-4 py-3 text-sm leading-6 text-fg">
-          Передача открывается только после подтверждённых договора <em>и</em> первого платежа.
-          Обойти гейт может только администратор и только с указанной причиной. Если доказательств
-          по одному лиду несколько, побеждает последнее по времени.
+          Передать в приёмную можно после подтверждения договора <em>и</em> первого платежа.
+          Исключение может подтвердить только администратор с указанием причины.
+          Учитывается последнее подтверждение по лиду.
         </p>
         <ul className="grid gap-px bg-border @lg:grid-cols-4">
           {[
             ["Передач", gates.handoffs],
-            ["В обход гейта", gates.overrides],
-            ["Оснований", gates.evidence],
-            ["Активных фин. стопов", gates.financeStops],
+            ["Исключений", gates.overrides],
+            ["Подтверждений", gates.evidence],
+            ["Финансовых стопов", gates.financeStops],
           ].map(([label, n]) => (
             <li key={String(label)} className="bg-surface px-4 py-3">
               <span className="block text-2xs text-fg-3">{label}</span>
@@ -413,8 +390,8 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
           ))}
         </ul>
         <Note>
-          Финансовый стоп блокирует ровно две вещи: подачу заявки в вуз и визовую веху «Подача».
-          Поставить его может приёмная, снять — только администратор.
+          Финансовый стоп блокирует подачу заявки в вуз и этап визы «Подача».
+          Установить его может приёмная, снять — только администратор.
         </Note>
       </Card>
     </div>
@@ -437,19 +414,14 @@ export function PlatformSection({ platform }: { platform: string }) {
             <dd className="min-w-0 flex-1 text-sm text-fg">только для чтения</dd>
           </div>
         </dl>
-        <Note>
-          Все флаги живут в файлах окружения на сервере с правами 0600. Менять их из браузера
-          документация прямо запрещает, поэтому на этом экране нет ни одного переключателя —
-          кроме смены эффективной роли, которая относится к входу, а не к продукту.
-        </Note>
       </Card>
 
-      <Card title="Чего честно нет">
+      <Card title="Требует внимания">
         <ul>
           {[
-            ["Доставки алертов", "Ни пейджера, ни webhook, ни почты, ни дежурства. Эскалация — разговор с человеком."],
-            ["Проверенного восстановления", "Бэкап существует ≠ восстановление проверено. Учение не проводилось."],
-            ["Утверждённых RPO и RTO", "Целевые время и объём потери предложены, но владельцем не утверждены."],
+            ["Автоматические оповещения", "Не подключены. При сбое свяжитесь с техническим специалистом."],
+            ["Восстановление данных", "Восстановление из резервной копии не проверено."],
+            ["План восстановления", "Допустимая потеря данных и время восстановления не согласованы."],
           ].map(([what, why]) => (
             <li
               key={what}
@@ -460,10 +432,6 @@ export function PlatformSection({ platform }: { platform: string }) {
             </li>
           ))}
         </ul>
-        <Note>
-          Показывать это зелёным было бы враньём. Строка «нет доказательства» полезнее галочки,
-          которая ничего не проверяла.
-        </Note>
       </Card>
     </div>
   );

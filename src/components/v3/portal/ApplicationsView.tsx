@@ -111,7 +111,7 @@ export function ApplicationsView({
     return (
       <PortalEmptyState
         title="Заявок пока нет"
-        description="Опубликованные университетские заявки и визовое дело появятся здесь."
+        description="Здесь появятся ваши заявки в университеты и информация о визе."
       />
     );
   }

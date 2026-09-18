@@ -17,7 +17,7 @@ export const SECTIONS = [
   { key: "state", title: "Состояние", admin: false },
   { key: "integrations", title: "Интеграции", admin: false },
   { key: "journal", title: "Журнал действий", admin: true },
-  { key: "documents", title: "Документы и гейты", admin: false },
+  { key: "documents", title: "Документы и передача", admin: false },
   { key: "platform", title: "Платформа", admin: true },
 ] as const;
 

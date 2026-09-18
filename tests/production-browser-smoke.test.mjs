@@ -110,7 +110,7 @@ test("source contract: receipt follows real case and isolated Student journeys",
   assert.equal((smokeSource.match(/await browser\.newContext\(/gu) ?? []).length, 2);
   assert.match(smokeSource, /response\?\.status\(\) !== 200 \|\| page\.url\(\) !== url/u);
   assert.match(smokeSource, /tab=route/u);
-  assert.match(smokeSource, /getByTestId\("admissions-route"\)/u);
+  assert.match(smokeSource, /getByTestId\("v3-universities-programs"\)/u);
   assert.match(smokeSource, /tab=contract/u);
   assert.match(smokeSource, /getAttribute\("data-student-case-id"\) !== configuration\.caseId/u);
   assert.match(smokeSource, /signIn\(page, configuration\.studentBaseUrl, configuration\.studentEmail, configuration\.studentPassword, "\/portal"\)/u);

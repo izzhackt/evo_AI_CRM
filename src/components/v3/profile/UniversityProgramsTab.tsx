@@ -38,7 +38,7 @@ export async function UniversityProgramsTab({
   const partnerDetails = await readApplicationPartnerDetails(actor, caseId).catch(() => []);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-testid="v3-universities-programs">
       {draft.handoffAcknowledgement ? <ProfileHandoffAcknowledgement snapshot={draft.handoffAcknowledgement} /> : null}
 
       <section id="admissions-workspace" className="space-y-3">

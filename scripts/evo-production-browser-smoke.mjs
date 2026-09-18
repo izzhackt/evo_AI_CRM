@@ -235,7 +235,8 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       await verifyVersion(page, configuration);
       checkpoint("case_route");
       await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=route`);
-      await page.getByTestId("admissions-route").waitFor({ state: "visible", timeout: 30_000 });
+      // «Вузы и программы» replaced the route tracker at the same URL (S4).
+      await page.getByTestId("v3-universities-programs").waitFor({ state: "visible", timeout: 30_000 });
       checkpoint("case_contract");
       await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=contract`);
       const contract = page.getByTestId("v3-profile-contract-workspace");

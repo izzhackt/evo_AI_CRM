@@ -50,7 +50,10 @@ reviewed exact-head PR; do not turn a local or VPS checkout into private
 authority.
 
 The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
-keeps document work inside Platform. The current accepted runtime is recorded
+keeps document work inside Platform. Staff open **Admissions → EVO Docs** to
+choose an accessible student and jump to **Анкета и формы**, **Файлы** or
+**Пакет ZIP**. This is the existing case workspace, not a second Docs app.
+The current accepted runtime is recorded
 in the [launch plan](docs/EVO_LAUNCH_PLAN.md). At the earlier `r72.1-35868e75`
 checkpoint, application catalogue selection and contract workspace recovery were released,
 with exact-main CI, accepted server receipt and ordinary Admin tunnel readback
@@ -77,8 +80,11 @@ acceptance, USTC and extra polish are deferred, not pilot-release blockers;
 isolated proof is not real-client acceptance. S2 roles/onboarding and D2 profile work
 from the [earlier `05585020` release](docs/design/v3/references/2026-09-13-staff-docs-s2-d2-release.md)
 remain deployed; see the [Admin guide](docs/design/v3/staff-admin-guide.md).
-Actual employee invite/first login and a chosen client document flow remain
-separate follow-ups, not claims of complete business readiness.
+The [staff activation plan](docs/design/v3/staff-sales-handoff-run-plan.md)
+records permanent staff accounts, real password sign-in checks and the single
+owner-authorized synthetic sale → curator handoff. Employee-led onboarding,
+email invitation delivery and a chosen real-client document flow are not
+implied by those checks.
 
 The September11 [university completion run](docs/design/v3/university-catalog-completion-run-plan.md)
 is accepted in `892558b2`: **143 institutions across15 countries, 251 selected

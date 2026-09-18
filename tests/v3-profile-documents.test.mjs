@@ -170,3 +170,49 @@ test("V3 profile renders removed checklist history as a separate read-only proje
     /createPlatformCustomDocumentSlotAction|changePlatformDocumentSlotMetadataAction|removePlatformDocumentSlotAction|request_id|<form/u,
   );
 });
+
+test("V3 profile offers staff a one-time baseline checklist seed above the custom-item form", () => {
+  const wrapper = source("src/components/v3/profile/Documents.tsx");
+  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  const types = source("src/components/v3/profile/document-types.ts");
+  const privateDocuments = source("src/lib/platform-private-documents.ts");
+  const actions = source("src/lib/platform-document-checklist-actions.ts");
+
+  assert.match(wrapper, /listCaseBaselineChecklistOptions\(actor, studentCaseId\)/u);
+  assert.match(wrapper, /baselineOptions=\{baselineOptions\}/u);
+  assert.match(wrapper, /baselineChecklistRequestId=\{baselineChecklistRequestId\}/u);
+  assert.match(wrapper, /uploadAccess === "allowed" && studentCaseId/u);
+
+  assert.match(types, /export type BaselineChecklistOption = Readonly<\{/u);
+  assert.match(
+    privateDocuments,
+    /export function normalizePlatformCaseBaselineChecklistOption/u,
+  );
+  assert.match(
+    privateDocuments,
+    /export async function listCaseBaselineChecklistOptions/u,
+  );
+
+  assert.match(actions, /export async function applyCaseBaselineChecklistAction/u);
+  assert.match(client, /applyCaseBaselineChecklistAction/u);
+  assert.match(client, /function ApplyBaselineChecklist/u);
+  assert.match(client, /data-testid="v3-document-baseline-checklist"/u);
+  assert.match(client, /name="country_requirement_version_id"/u);
+  assert.match(client, /Применить базовый чек-лист/u);
+  assert.match(
+    client,
+    /Привязка версии требований выполняется один раз; страна и степень дела будут зафиксированы\./u,
+  );
+
+  const applyComponent = client.slice(
+    client.indexOf("function ApplyBaselineChecklist"),
+    client.indexOf("function CreateChecklistItem"),
+  );
+  assert.match(applyComponent, /name="student_case_id"/u);
+  assert.match(applyComponent, /name="request_id"/u);
+  assert.match(applyComponent, /options\.map/u);
+
+  const baselineRenderCall = client.indexOf("<ApplyBaselineChecklist");
+  const createCallSite = client.indexOf("<CreateChecklistItem");
+  assert.ok(baselineRenderCall > 0 && baselineRenderCall < createCallSite);
+});

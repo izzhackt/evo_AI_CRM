@@ -179,6 +179,11 @@ jobs:
           else
             echo "scoped_student_intake=false" >> "$GITHUB_OUTPUT"
           fi
+          if [[ "$boundary_diff" == $'A\tsupabase/migrations/178_platform_student_application_conflict_codes.sql' ]]; then
+            echo "scoped_student_conflicts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scoped_student_conflicts=false" >> "$GITHUB_OUTPUT"
+          fi
           if [[ "$boundary_diff" == $'A\tsupabase/migrations/176_platform_docs_student_intake.sql' ]]; then
             echo "scoped_docs_intake=true" >> "$GITHUB_OUTPUT"
           else
@@ -198,7 +203,7 @@ jobs:
           node --test tests/staff-roles-sales-handoff-migrations.test.mjs
 
       - name: Test migration boundary
-        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' }}
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' && steps.migration-scope.outputs.scoped_student_conflicts != 'true' }}
         run: npm run test:database:migration-boundaries
 
       - name: Check scoped Docs intake source boundary
@@ -236,6 +241,28 @@ jobs:
           assert.equal(evidence.finalMigrationRollbackCompile.baseMigration, '176');
           assert.equal(evidence.finalMigrationRollbackCompile.compiledMigration, '177');
           console.log('Exact177 source boundary and recorded source hash only; real SQL rollback compilation and Auth/RPC/UI evidence remain separately recorded.');
+          NODE
+
+      - name: Check scoped Student conflict source and evidence binding
+        if: ${{ steps.migration-scope.outputs.scoped_student_conflicts == 'true' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import assert from 'node:assert/strict';
+          const sql = readFileSync('supabase/migrations/178_platform_student_application_conflict_codes.sql', 'utf8');
+          const receipt = readFileSync('docs/qa/student-signup-conflict-178-2026-09-18.md', 'utf8');
+          const blocks = [...receipt.matchAll(/^```json\r?\n([\s\S]*?)^```[ \t]*$/gm)];
+          assert.equal(blocks.length, 1, 'Expected exactly one JSON evidence block');
+          const evidence = JSON.parse(blocks[0][1]);
+          assert.equal(createHash('sha256').update(sql).digest('hex'), evidence.migrationSha256);
+          assert.equal(evidence.productionRollbackCompile.functions, 2);
+          assert.equal(evidence.productionRollbackCompile.authorityUnchanged, true);
+          assert.equal(evidence.productionRollbackCompile.onlyCodesChanged, true);
+          assert.equal(evidence.localAuthenticatedRpc.status, 409);
+          assert.equal(evidence.localAuthenticatedRpc.code, 'PT409');
+          assert.equal(evidence.localAuthenticatedRpc.stateUnchanged, true);
+          console.log('Exact added178 source/evidence binding only; CI did not execute SQL or authenticated RPC. Real rollback compilation and local RPC results are separately recorded.');
           NODE
 
       - name: Check retired unused migration slot

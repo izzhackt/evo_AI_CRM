@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { exactActionStringFields } from "./server/action-form-fields";
-import { isPasswordProvisionedStaff, logStudentSignupFailure, resumeStudentApplication } from "./server/student-signup-runtime";
+import { logStudentSignupFailure, resumeStudentApplication, studentApplicationEntryRedirect } from "./server/student-signup-runtime";
 import { createPublicStudentAccount } from "./server/student-public-registration";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "./student-application-contract";
 import { studentInviteCallbackUrl } from "./student-invite-callback-contract";
@@ -38,6 +38,7 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
   if (!draft || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
     || !Number.isSafeInteger(revision) || revision < 0) return { status: "invalid" };
   let saved = false;
+  let destination: string | null = null;
   let stage = "identity";
   try {
     const client = await createSupabaseServerClient();
@@ -47,15 +48,19 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
       return { status: "unavailable" };
     }
     if (identity.user) {
-      if (!identity.user.email_confirmed_at || identity.user.email?.toLowerCase() !== email
-        || isPasswordProvisionedStaff(identity.user)) return { status: "conflict" };
-      stage = "submit_application";
-      await submitStudentApplication(client, draft, revision);
-      try {
-        const cleanup = await client.auth.updateUser({ data: { [STUDENT_APPLICATION_METADATA_KEY]: null } });
-        if (cleanup.error) logStudentSignupFailure("metadata_cleanup", cleanup.error);
-      } catch (cleanupError) { logStudentSignupFailure("metadata_cleanup", cleanupError); }
-      saved = true;
+      if (!identity.user.email_confirmed_at) return { status: "conflict" };
+      stage = "entry_authority";
+      destination = await studentApplicationEntryRedirect(client, identity.user);
+      if (!destination) {
+        if (identity.user.email?.toLowerCase() !== email) return { status: "conflict" };
+        stage = "submit_application";
+        await submitStudentApplication(client, draft, revision);
+        try {
+          const cleanup = await client.auth.updateUser({ data: { [STUDENT_APPLICATION_METADATA_KEY]: null } });
+          if (cleanup.error) logStudentSignupFailure("metadata_cleanup", cleanup.error);
+        } catch (cleanupError) { logStudentSignupFailure("metadata_cleanup", cleanupError); }
+        saved = true;
+      }
     } else {
       const created = await createPublicStudentAccount(email, password, draft);
       if (created.status !== "created") return { status: created.status };
@@ -74,6 +79,7 @@ export async function registerStudentAction(_previous: StudentSignupState, form:
       saved = await resumeStudentApplication(client, created.authUserId) === "saved";
     }
   } catch (error) { logStudentSignupFailure(stage, error); return { status: "unavailable" }; }
+  if (destination) redirect(destination);
   if (saved) redirect("/apply/status");
   return { status: "unavailable" };
 }

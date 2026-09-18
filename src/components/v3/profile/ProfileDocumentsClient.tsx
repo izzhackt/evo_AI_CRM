@@ -6,10 +6,12 @@ import { useActionState, useEffect, useState, type FormEvent } from "react";
 import { Pill } from "@/components/v3/Pill";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import {
+  applyCaseBaselineChecklistAction,
   changePlatformDocumentSlotMetadataAction,
   createPlatformCustomDocumentSlotAction,
   removePlatformDocumentSlotAction,
   setPlatformDocumentCaseLinkAction,
+  type PlatformCaseBaselineChecklistActionState,
   type PlatformDocumentCaseLinkActionState,
   type PlatformDocumentChecklistActionState,
 } from "@/lib/platform-document-checklist-actions";
@@ -20,6 +22,7 @@ import { DocumentRecognitionJobs } from "./DocumentRecognitionJobs";
 
 import type {
   ActiveDocumentGroup,
+  BaselineChecklistOption,
   DocumentCaseLinkTarget,
   DocumentItem,
   DocumentUploadAccess,
@@ -329,6 +332,70 @@ function CaseLinkTargetForm({
   );
 }
 
+function ApplyBaselineChecklist({
+  studentCaseId,
+  options,
+  requestId,
+}: Readonly<{
+  studentCaseId: string;
+  options: readonly BaselineChecklistOption[];
+  requestId: string;
+}>) {
+  const initialState: PlatformCaseBaselineChecklistActionState = {
+    status: "idle",
+    requestId,
+    countryRequirementVersionId: options[0]?.countryRequirementVersionId ?? null,
+    seededCount: null,
+  };
+  const [state, action, pending] = useActionState(
+    applyCaseBaselineChecklistAction,
+    initialState,
+  );
+  // "stale" here means case_already_bound — a permanent state: refresh brings
+  // in the seeded checklist (and this form disappears with it).
+  useRefreshAfterSave(state.status === "stale" ? "saved" : state.status);
+  const locked = pending || state.status === "saved" || state.status === "stale";
+
+  return (
+    <form
+      action={action}
+      className="grid gap-3 border-b border-border bg-surface-2 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+      aria-busy={pending}
+      data-testid="v3-document-baseline-checklist"
+    >
+      <input type="hidden" name="student_case_id" value={studentCaseId} />
+      <input type="hidden" name="request_id" value={state.requestId || requestId} />
+      <label>
+        <span className={labelCls}>Базовый чек-лист</span>
+        <select
+          required
+          name="country_requirement_version_id"
+          className={inputCls}
+          disabled={locked}
+        >
+          {options.map((option) => (
+            <option
+              key={option.countryRequirementVersionId}
+              value={option.countryRequirementVersionId}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" className={btnCls} disabled={locked}>
+        {pending ? "Применяем…" : "Применить базовый чек-лист"}
+      </button>
+      <p className="text-xs text-fg-3 md:col-span-2">
+        Привязка версии требований выполняется один раз; страна и степень дела будут зафиксированы.
+      </p>
+      <div className="md:col-span-2">
+        <ChecklistFeedback state={state} />
+      </div>
+    </form>
+  );
+}
+
 function CreateChecklistItem({
   studentCaseId,
   requestId,
@@ -545,6 +612,8 @@ export function ProfileDocumentsClient({
   uploadAccess,
   studentCaseId,
   createRequestId,
+  baselineOptions = [],
+  baselineChecklistRequestId = null,
   recognition = null,
 }: Readonly<{
   groups: readonly ActiveDocumentGroup[];
@@ -552,6 +621,8 @@ export function ProfileDocumentsClient({
   uploadAccess: DocumentUploadAccess;
   studentCaseId: string | null;
   createRequestId: string | null;
+  baselineOptions?: readonly BaselineChecklistOption[];
+  baselineChecklistRequestId?: string | null;
   recognition?: DocumentRecognitionAccess | null;
 }>) {
   const router = useRouter();
@@ -612,6 +683,16 @@ export function ProfileDocumentsClient({
 
       {recognition ? <div className="px-4"><DocumentRecognitionJobs key={recognition.studentCaseId}
         access={recognition} sourceVersionId={null} sourceReady={false} /></div> : null}
+
+      {uploadAccess === "allowed" && studentCaseId && baselineChecklistRequestId &&
+        baselineOptions.length > 0 ? (
+          <ApplyBaselineChecklist
+            key={baselineChecklistRequestId}
+            studentCaseId={studentCaseId}
+            options={baselineOptions}
+            requestId={baselineChecklistRequestId}
+          />
+        ) : null}
 
       {uploadAccess === "allowed" && studentCaseId && createRequestId ? (
         <CreateChecklistItem

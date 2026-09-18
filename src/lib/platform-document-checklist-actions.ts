@@ -52,6 +52,11 @@ const SET_SLOT_CASE_LINK_FIELDS = [
   "reason",
   "request_id",
 ] as const;
+const APPLY_BASELINE_CHECKLIST_FIELDS = [
+  "student_case_id",
+  "country_requirement_version_id",
+  "request_id",
+] as const;
 
 export type PlatformDocumentChecklistActionState = Readonly<{
   status: PlatformAdmissionsActionStatus;
@@ -67,6 +72,13 @@ export type PlatformDocumentCaseLinkActionState = Readonly<{
   targetKind: PlatformDocumentSlotCaseLinkTargetKind | null;
   targetId: string | null;
   version: string | null;
+}>;
+
+export type PlatformCaseBaselineChecklistActionState = Readonly<{
+  status: PlatformAdmissionsActionStatus;
+  requestId: string;
+  countryRequirementVersionId: string | null;
+  seededCount: number | null;
 }>;
 
 type ChecklistStringFields = ReadonlyMap<string, string>;
@@ -173,6 +185,9 @@ function errorStatus(error: unknown): Exclude<
   if (code === "PT409" && message === "document_slot_version_conflict") {
     return "stale";
   }
+  if (code === "PT409" && message === "case_already_bound") {
+    return "stale";
+  }
   if ((code === "22023" || code === "23505") && /request_id/i.test(message)) {
     return "request_conflict";
   }
@@ -215,6 +230,23 @@ function caseLinkFailureState(
     targetKind,
     targetId,
     version: null,
+  });
+}
+
+function baselineChecklistFailureState(
+  form: FormData,
+  status: Exclude<PlatformAdmissionsActionStatus, "idle" | "saved">,
+  countryRequirementVersionId: string | null = null,
+  verifiedRequestId?: string | null,
+): PlatformCaseBaselineChecklistActionState {
+  const requestId = verifiedRequestId ?? submittedRequestId(form);
+  return Object.freeze({
+    status,
+    requestId: status === "stale" || status === "request_conflict"
+      ? randomUUID()
+      : (requestId ?? randomUUID()),
+    countryRequirementVersionId,
+    seededCount: null,
   });
 }
 
@@ -572,5 +604,102 @@ export async function removePlatformDocumentSlotAction(
     });
   } catch {
     return failureState(form, "unavailable", documentSlotId, requestId);
+  }
+}
+
+export async function applyCaseBaselineChecklistAction(
+  _previous: PlatformCaseBaselineChecklistActionState,
+  form: FormData,
+): Promise<PlatformCaseBaselineChecklistActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "document.manage")) {
+    return baselineChecklistFailureState(form, "forbidden");
+  }
+  const fields = exactActionStringFields(form, APPLY_BASELINE_CHECKLIST_FIELDS);
+  if (!fields) return baselineChecklistFailureState(form, "invalid");
+
+  const studentCaseId = uuid(field(fields, "student_case_id"));
+  const countryRequirementVersionId = uuid(
+    field(fields, "country_requirement_version_id"),
+  );
+  const requestId = uuid(field(fields, "request_id"));
+  if (!studentCaseId || !countryRequirementVersionId || !requestId) {
+    return baselineChecklistFailureState(
+      form,
+      "invalid",
+      countryRequirementVersionId,
+      requestId,
+    );
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const response = await client.schema("platform").rpc(
+      "seed_case_baseline_checklist",
+      {
+        p_organization_id: actor.organizationId,
+        p_request_id: requestId,
+        p_student_case_id: studentCaseId,
+        p_country_requirement_version_id: countryRequirementVersionId,
+      },
+    );
+    if (response.error) {
+      return baselineChecklistFailureState(
+        form,
+        errorStatus(response.error),
+        countryRequirementVersionId,
+        requestId,
+      );
+    }
+    const data = response.data;
+    const seededCount = isRecord(data) && typeof data.seeded_count === "string"
+      ? version(data.seeded_count)
+      : null;
+    const checklistVersion = isRecord(data) &&
+        typeof data.checklist_version === "string"
+      ? version(data.checklist_version)
+      : null;
+    if (
+      !isRecord(data) || !seededCount || !checklistVersion ||
+      !hasExactKeys(data, [
+        "organization_id", "student_case_id", "country_requirement_version_id",
+        "request_id", "target_country", "target_degree", "program_direction",
+        "checklist_version", "seeded_count",
+      ]) ||
+      data.organization_id !== actor.organizationId ||
+      data.student_case_id !== studentCaseId ||
+      data.country_requirement_version_id !== countryRequirementVersionId ||
+      data.request_id !== requestId ||
+      typeof data.target_country !== "string" || data.target_country.length === 0 ||
+      typeof data.target_degree !== "string" || data.target_degree.length === 0 ||
+      // program_direction is a nullable route field: JSON null is a valid value.
+      (data.program_direction !== null && (
+        typeof data.program_direction !== "string" ||
+        data.program_direction.length === 0
+      )) ||
+      data.checklist_version !== checklistVersion ||
+      data.seeded_count !== seededCount
+    ) {
+      return baselineChecklistFailureState(
+        form,
+        "unavailable",
+        countryRequirementVersionId,
+        requestId,
+      );
+    }
+    revalidateChecklist();
+    return Object.freeze({
+      status: "saved" as const,
+      requestId: randomUUID(),
+      countryRequirementVersionId,
+      seededCount: Number(seededCount),
+    });
+  } catch {
+    return baselineChecklistFailureState(
+      form,
+      "unavailable",
+      countryRequirementVersionId,
+      requestId,
+    );
   }
 }

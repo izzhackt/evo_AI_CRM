@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Quiet UI and Admin role preview — active 2026-09-18
+## Quiet UI and Admin role preview — released 2026-09-18
 
 Owner approves moving the Admin-only role preview out of the shared sidebar
 into Settings → Roles and access, and requests one bounded UX audit. Additional
@@ -19,13 +19,17 @@ normal draft caption. This is a small UI release, not an authorization redesign.
   permanent technical narration. Preserve accessible labels and real feedback.
 - [x] One short current-screen UX pass; record prioritized findings and visual
   proof limitations. Other redesigns are recommendations, not implied approval.
-- [ ] Scoped real UI checks, changed-file lint, independent review and the
+- [x] Scoped real UI checks, changed-file lint, independent review and the
   established light production release with rollback. No migrations, staging,
   provider activation or broad test replay.
 
 Implementation and scoped real-browser observations are recorded in the
-[quiet-UI pass](design/v3/references/2026-09-18-quiet-ui-pass.md). Production
-deployment remains pending until an accepted release is recorded below.
+[quiet-UI pass](design/v3/references/2026-09-18-quiet-ui-pass.md). PR827 shipped
+as accepted revision `4e6a452c19ee8a3ab7f7cb84fe842ea53b4eece7`, release
+`v3-r35291480338-a1-4e6a452c`. Live/accepted image and acceptance hash match;
+container healthy,0 restarts, pending absent, CRM/app health200, armfalse.
+Separate Admissions-preview transition remains unconfirmed after browser-control
+interruption; the full Sales-preview/denied-page/Admin-return path passed.
 
 Visual thesis: existing calm EVO workspace, less peripheral text. Content:
 business work first, rare Admin tools in settings. Interaction: familiar chat

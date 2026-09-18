@@ -45,7 +45,24 @@ Admin-сессия, текущая production-версия; новая прав�
 
 Scoped lint и 11 существующих source/pure проверок пройдены отдельно; это не
 замена браузерной проверки. Полный E2E/DB replay не запускался.
-Release и точный принятый SHA фиксируются отдельно после фактической выкладки.
+## Production: принято
+
+- [PR827](https://github.com/izzhackt/evo_AI_CRM/pull/827), независимое review
+  exact commit `d703a06947389ac05607da810611ebbc3d5f2fef`: approved.
+- [PR checks35291283290](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35291283290):
+  сборка, lint и существующие release contracts прошли; DB replay не запускался.
+- Main/released SHA: `4e6a452c19ee8a3ab7f7cb84fe842ea53b4eece7`.
+- [Light main CI35291454396](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35291454396)
+  и [managed release35291480338](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35291480338): success.
+- Release ID: `v3-r35291480338-a1-4e6a452c`.
+- Image: `sha256:a9da90ac10abdb6f7308d533d1e42da95b242568f63d6fbd755fbf2bce38548b`.
+- Acceptance SHA256: `9969df2da9a404dc3215bb6620e64fb1ca1f9d0b082a21da404dceacd60aad02`.
+- SSH readback00:35:34 UTC: live/accepted revision совпадают, container healthy,
+ 0 restarts, pending отсутствует, CRM и app health200. Файл acceptance проверен
+  по SHA256; `EVO_PRODUCTION_RELEASE_ARMED` перечитан как false.
+- Новые миграции не требовались. Общие production read-only проверки входят в
+  release; ручной отдельный production role-preview проход не заявляется.
+  Локальный вспомогательный сервер3102 остановлен; чужие серверы не затронуты.
 
 ## Принцип и источники
 

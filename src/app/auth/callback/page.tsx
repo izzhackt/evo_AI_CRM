@@ -14,7 +14,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Принять приглашение | EVO Admissions",
+  title: "Подтвердить аккаунт | EVO Admissions",
   robots: { index: false, follow: false },
 };
 
@@ -25,7 +25,8 @@ type CallbackSearchParams = Promise<
 export default async function StudentInviteCallbackPage({
   searchParams,
 }: Readonly<{ searchParams: CallbackSearchParams }>) {
-  const invite = decodeStudentInviteCallbackQuery(await searchParams);
+  const query = await searchParams;
+  const invite = decodeStudentInviteCallbackQuery(query);
   const csrfToken = (await cookies()).get(STUDENT_INVITE_CSRF_COOKIE)?.value;
   const canVerify = invite !== null && isStudentInviteCsrfToken(csrfToken);
 

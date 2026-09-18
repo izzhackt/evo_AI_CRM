@@ -39,6 +39,8 @@ production is unchanged by this slice. Addendum in PLAN_CHANGES.md covers the
 
 ## Direct student creation in EVO Docs — active 2026-09-18
 
+## Direct student creation in EVO Docs — released 2026-09-18
+
 Owner requests **Добавить студента** directly in Docs and immediate production
 delivery. A document workspace must not require a sale or Student login first.
 
@@ -49,17 +51,17 @@ delivery. A document workspace must not require a sale or Student login first.
   staff authority. Default the eligible curator to the current employee;
   preserve organization/own-scope rules and idempotent retry. No new Docs data
   store, sale, money/contract confirmation, Auth account or invitation.
-- [ ] Independently review the exact change, build and check only the changed
+- [x] Independently review the exact change, build and check only the changed
   real path; do not run a blanket suite or seed more test sales/students.
-- [ ] Apply the forward migration and ship through the existing short managed
+- [x] Apply the forward migration and ship through the existing short managed
   release; verify accepted runtime and the actual Docs entry/form on production.
 
 Visual contract: calm light EVO workspace, one red primary action, short labels,
 no explanatory banners or new sidebar design. Content order: title/action,
 essential fields, create/cancel. Interaction feedback: existing focus styles,
 disabled pending submit and actionable error; no ornamental animation.
-Migration176 is reserved for this slice; the separate unmerged Student-signup
-PR830 moves to177+, with no concurrent release or provider activation.
+Migration176 belongs to this accepted Docs slice. Student signup subsequently
+merged in PR830 with migration177; its accepted release is recorded below.
 An existing real-case/read-only check or rolled-back command is not evidence of
 a newly saved customer record. Report the exact verification scope honestly.
 Direct Docs origin permits no Sales owner; ordinary Sales-origin requirements
@@ -75,7 +77,23 @@ rejection and denial of an unrelated curator passed. No durable student/client,
 sale, Auth account or invitation was created. This is real SQL command evidence,
 not a newly saved customer or a completed browser submission. Migration source
 SHA256: `6d2aa086eaa62fd29f9c6f5c67ea237b25e5da9398c9dfe261b709843a1c9fa3`.
-Production apply/release/form readback are pending at this checkpoint.
+Independent review approved `80561d85066b02e0b0d3043d177eedb12a62225b`;
+[PR #836](https://github.com/izzhackt/evo_AI_CRM/pull/836) merged as
+`39999cc28e9438fac6bce07d197c52a592ec6c96`. Migration176 applied and its ledger
+entry/source hash read back. Exact-main CI35338243745 and managed release
+35338268320 passed. Accepted release `v3-r35338268320-a1-39999cc2` matches the
+running image `sha256:5f01af84ce86d7a15f38f593e3201e0aeea8d76d527960a172913860434682b2`.
+Acceptance record SHA256 `0fad6ab37b2fb7ac120db1e655aaead3f533be977e219dcff1cd4aaac535e510`
+and browser receipt SHA256 `4c5e816702e57aff547cd79ffa5d8ac3ccb15df5d75995ca86c506d1c706e96b`
+match server files. Runtime healthy, zero restarts, public health live, no pending
+candidate; release arm read back `false`.
+
+Actual production Admin and Admissions MY password sign-ins opened Docs →
+Добавить студента, loaded real scoped curator options/defaults and returned via
+Cancel; desktop1440/mobile390 passed with zero runtime errors. No form was
+submitted, and no durable example student was added. Save behavior is supported
+by the real transactional SQL proof above, not a persisted browser submission.
+Entry: `/v3/profile?section=docs&new=student`.
 
 ## EVO Docs discoverability and focused UX pass — released 2026-09-18
 
@@ -129,6 +147,43 @@ readback → assigned curator login and case opening. Contract/payment remain
 unconfirmed, no amounts or outgoing messages. Test case is recorded in the
 staff activation plan; this is not real-customer acceptance. The separate Docs
 UX release is recorded above.
+
+## Public Student onboarding and clear product copy — released 2026-09-18
+
+Owner requests a public questionnaire followed by account creation and Admissions
+approval. Full portal access starts only after approval (explicit confirmation).
+Follow [the active onboarding contract](design/v3/public-student-onboarding-run-plan.md).
+Reuse existing Supabase Auth, Admissions and Student profile; preserve private
+assessments. Include bounded settings/CRM/Portal copy cleanup. No invented
+matching claims or invented email-delivery proof. The owner now explicitly
+selects signup **without email confirmation** and asks to complete the release.
+Keep public Auth signup disabled and global confirmation settings unchanged.
+A bounded server action creates only a new identity via Auth admin.createUser
+with email_confirm=true, then uses normal password login. Durable service-only
+rate buckets limit creation; duplicate identities are never updated or adopted.
+A live Auth session submits the questionnaire, then Admissions approval
+alone activates the existing portal. SMTP is not required for this signup flow.
+An auto-confirmed Auth timestamp is not proof of mailbox ownership.
+
+The bounded12-file copy cleanup shipped earlier in PR828, accepted `2908a0db`,
+release35292232876. Student PR830 integrated accepted Docs176, independently
+reviewed `5323f23321505a27d0e70b6ce2fdd3c9aff04555`, passed protected checks
+`35340251635` and merged as `1de14c0ad02b97b5b576060864574ee70e9e8508`.
+Production177 and ledger001–177 are confirmed. Upstream `35340610391` and managed
+`35340641026` passed; release `v3-r35340641026-a1-1de14c0a` is accepted.
+Image/receipt hashes match server readback, runtime is healthy with 0 restarts,
+both domains' health is live, pending=false and arm=false. All Auth settings
+remain unchanged.
+
+Actual local QA completed nine-step signup, pending/portal denial, existing
+Admin RPC approval, full portal and password relogin; 11 security-delta checks
+also passed. Previous35/QA172 records remain historical. Production verification
+covered existing-Auth browser smoke and anonymous `/apply`: all nine steps to
+account creation, reload retention and visible mobile390 controls. No identity or
+consent was entered or submitted; no new production Student or staff approval
+submission was performed. Local business-path proof is not a production signup
+or real-customer acceptance claim. Exact release, migration and evidence hashes:
+[production receipt](qa/student-public-onboarding-177-production-2026-09-18.md).
 
 ## Quiet UI and Admin role preview — released 2026-09-18
 

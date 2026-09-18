@@ -12,6 +12,7 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/pipeline",
   "/v3/inbox",
   "/v3/profile",
+  "/v3/admissions-requests",
   "/v3/settings",
   "/v3/knowledge",
   "/v3/calendar",
@@ -37,6 +38,7 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
   "/auth/callback",
   "/auth/set-password",
   "/auth/account-pending",
+  "/apply/status",
 ]);
 
 const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -181,4 +183,9 @@ export function isConnectedPlatformApi(path: string): boolean {
     UNIVERSITY_TEMPLATE_SOURCE_PATH.test(path) ||
     isConnectedPlatformPrivateApi(path)
   );
+}
+
+/** Public Student intake only; the status route still verifies its own identity. */
+export function isPublicStudentApplicationPage(path: string): boolean {
+  return path === "/apply";
 }

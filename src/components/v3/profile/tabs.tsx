@@ -21,6 +21,7 @@ import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
 import { LeadInterestSummary } from "./LeadInterestSummary";
 import { StudentProfileFields } from "./StudentProfileFields";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
+import { StudentApplicationAnswers } from "../admissions/StudentApplications";
 import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
@@ -259,8 +260,10 @@ export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, docume
       ) : null}
     </div>
   );
-  if (!draft.profileFields) return caseFacts;
+  const studentAnswers = draft.studentApplication ? <StudentApplicationAnswers application={draft.studentApplication} /> : null;
+  if (!draft.profileFields) return <div className="min-w-0 space-y-5">{studentAnswers}{caseFacts}</div>;
   return <div className="min-w-0 space-y-5">
+    {studentAnswers}
     <StudentProfileFields key={draft.profileFields.studentCaseId} snapshot={draft.profileFields} requestId={fieldsRequestId}
       applications={profile.applications.map(({ id, institution, program }) => ({ id, institution, program }))}
       readOnly={fieldsReadOnly} sourceVersions={draft.profileFieldSources} documentsHref={documentsHref} />

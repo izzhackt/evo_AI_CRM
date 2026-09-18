@@ -5,6 +5,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
+import { StudentApplicationsNav } from "@/components/v3/admissions/StudentApplications";
+import { loadStudentApplicationPendingCount } from "@/lib/v3/student-application-source";
 import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHeader } from "@/components/v3/profile/CaseHeader";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
@@ -51,6 +53,16 @@ import {
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "EVO · Поступление" };
+
+async function AdmissionsApplicationNavigation() {
+  let pendingCount: number | null = null;
+  try {
+    pendingCount = await loadStudentApplicationPendingCount();
+  } catch {
+    // Preserve the queue link without presenting a failed count as zero.
+  }
+  return <StudentApplicationsNav current="cases" pendingCount={pendingCount} />;
+}
 
 type ProfileSearchParams = Readonly<
   Record<string, string | readonly string[] | undefined>
@@ -243,6 +255,11 @@ export default async function ProfilePart({
           {canAddStudent ? <Link href={createStudentHref} className={`${btnCls} min-h-11`}>Добавить студента</Link> : null}
           {!isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage") ? <Link href="/v3/universities" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">Университеты и бланки</Link> : null}
         </div> : null}
+        {!docsMode && directory && staffPresentationCan(actor, "admissions.read") ? (
+          <Suspense fallback={<StudentApplicationsNav current="cases" pendingCount={null} />}>
+            <AdmissionsApplicationNavigation />
+          </Suspense>
+        ) : null}
         {!docsMode && directory && staffPresentationCan(actor, "admissions.read") ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем сводку поступления…</p>}>
           <AdmissionsSummaryPanel actor={actor} params={directoryParams} period={singleSearchParam(params.period)} expanded={singleSearchParam(params.section) === "summary"} />
         </Suspense> : null}

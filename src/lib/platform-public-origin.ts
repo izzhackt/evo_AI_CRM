@@ -1,5 +1,6 @@
 import {
   isConnectedPlatformPage,
+  isPublicStudentApplicationPage,
   isConnectedStudentAuthPage,
   isConnectedStudentPortalPage,
 } from "./platform-route-contract.ts";
@@ -43,7 +44,7 @@ export function platformAudienceForHost(host: string | null): PlatformAudience |
 export function canonicalPlatformPageOrigin(host: string | null, path: string): string | null {
   const audience = platformAudienceForHost(host);
   if (!audience || path === "/" || path === "/login") return null;
-  const studentPage = isConnectedStudentAuthPage(path) || isConnectedStudentPortalPage(path);
+  const studentPage = isPublicStudentApplicationPage(path) || isConnectedStudentAuthPage(path) || isConnectedStudentPortalPage(path);
   if (audience === "staff" && studentPage) return PRODUCTION_STUDENT_ORIGIN;
   if (audience === "student" && !studentPage && isConnectedPlatformPage(path)) {
     return PRODUCTION_STAFF_ORIGIN;

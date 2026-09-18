@@ -18,6 +18,7 @@ import {
   normalizePlatformApplicationQueueRow,
   normalizePlatformOpWorkflowContract,
   normalizePlatformStudentCaseSnapshot,
+  normalizePlatformStudentCaseQueueRow,
   normalizePlatformStudentCaseLeadLink,
   parsePlatformAdmissionsCursor,
   parsePlatformAdmissionsUuid,
@@ -449,6 +450,35 @@ test("Platform route contract admits only the retained V3 product pages", () => 
   ]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
+});
+
+test("public intake cases and university applications preserve an absent Sales owner", () => {
+  const withoutSales = { responsible_sales_display_name: null };
+  const queueRow = normalizePlatformStudentCaseQueueRow(caseRow(withoutSales), ORGANIZATION_ID);
+  assert.equal(queueRow.responsibleSalesDisplayName, null);
+  assert.equal(queueRow.currentCuratorDisplayName, "Curator User");
+  const snapshot = normalizePlatformStudentCaseSnapshot({
+    ...caseRow(withoutSales),
+    student_case_op_handoff_id: null, op_workflow_contract_version_id: null,
+    approved_commercial_fields: null, unresolved_questions: null, promises: null,
+    handoff_next_step: null, handoff_due_at: null, handoff_responsible_role: null, handoff_created_at: null,
+  }, ORGANIZATION_ID);
+  assert.equal(snapshot.responsibleSalesDisplayName, null);
+  assert.equal(snapshot.handoff, null);
+  const application = normalizePlatformApplicationQueueRow(applicationRow(withoutSales), ORGANIZATION_ID);
+  assert.equal(application.responsibleSalesDisplayName, null);
+  assert.equal(application.studentCaseId, CASE_ID);
+  assert.equal(normalizePlatformStudentCaseQueueRow(caseRow()).responsibleSalesDisplayName, "Sales User");
+  assert.equal(normalizePlatformApplicationQueueRow(applicationRow()).responsibleSalesDisplayName, "Sales User");
+});
+
+test("nullable Sales owner never accepts a missing or malformed projection", () => {
+  for (const malformed of [undefined, "", " ", 42, {}, "x".repeat(201)]) {
+    assert.throws(() => normalizePlatformStudentCaseQueueRow(caseRow({ responsible_sales_display_name: malformed })), PlatformAdmissionsRepositoryError);
+    assert.throws(() => normalizePlatformApplicationQueueRow(applicationRow({ responsible_sales_display_name: malformed })), PlatformAdmissionsRepositoryError);
+  }
+  assert.throws(() => normalizePlatformStudentCaseQueueRow(caseRow({ responsible_sales_display_name: null }), CASE_ID), PlatformAdmissionsRepositoryError);
+  assert.throws(() => normalizePlatformApplicationQueueRow(applicationRow({ responsible_sales_display_name: null }), CASE_ID), PlatformAdmissionsRepositoryError);
 });
 
 test("workflow, case and application DTOs accept the exact reviewed projection", () => {

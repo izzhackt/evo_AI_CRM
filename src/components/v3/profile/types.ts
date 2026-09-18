@@ -1,4 +1,5 @@
 import type { FixedRole } from "@/lib/fixed-role-policy";
+import type { StudentApplication } from "@/lib/student-application-contract";
 import type {
   PlatformApplicationQueueRow,
   PlatformStudentCaseView,
@@ -224,6 +225,7 @@ export type ProfileDraft = Readonly<{
   study: readonly Fact[];
   /** null means this section was not authorized/loaded, not an absent profile. */
   profileFields: PlatformStudentProfileFieldsSnapshot | null;
+  studentApplication: StudentApplication | null;
   profileFieldSources: readonly ProfileFieldSourceVersion[];
   /** Канонический чеклист документов этого дела. */
   documents: readonly DocumentGroup[];

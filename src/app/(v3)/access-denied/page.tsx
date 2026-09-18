@@ -15,6 +15,7 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/main": "Главная",
   "/v3/pipeline": "Воронка продаж",
   "/v3/inbox": "Входящие",
+  "/v3/admissions-requests": "Заявки на поступление",
   "/v3/profile": "Студенты",
   "/v3/calendar": "Календарь",
   "/v3/tasks": "Задачи",

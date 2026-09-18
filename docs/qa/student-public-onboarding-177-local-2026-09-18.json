@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-18T11:16:39.258642+00:00",
+  "scope": "Existing isolated local Supabase, actual Auth and platform RPCs; technical QA only.",
+  "sourceCommit": "3ae830383f0b20cc7559fc751471cb2b601adf36",
+  "environment": {
+    "containerRuntime": "OrbStack",
+    "dockerContext": "orbstack",
+    "nodeVersion": "22.23.1",
+    "authSignupEnabled": true,
+    "authMailerAutoconfirm": true,
+    "mailboxOwnershipVerified": false,
+    "credentialsAndPrivateAccountValuesIncluded": false
+  },
+  "migrations": [
+    {
+      "version": "176",
+      "filename": "176_platform_docs_student_intake.sql",
+      "sha256": "6d2aa086eaa62fd29f9c6f5c67ea237b25e5da9398c9dfe261b709843a1c9fa3",
+      "path": "supabase/migrations/176_platform_docs_student_intake.sql"
+    },
+    {
+      "version": "177",
+      "filename": "177_platform_public_student_applications.sql",
+      "sha256": "2fda3fd51cd7885578cee881dfe301b62273bdcef3168f1eb48799cdddf0fa1a",
+      "path": "supabase/migrations/177_platform_public_student_applications.sql"
+    }
+  ],
+  "migrationLedger": {
+    "firstVersion": "001",
+    "lastVersion": "177",
+    "count": 177,
+    "complete": true,
+    "application": "Canonical pending migrations applied once through Supabase CLI; no reset or reseed."
+  },
+  "harness": {
+    "path": "scripts/prove-public-student-onboarding-local.mjs",
+    "sha256": "e27c5fc0ac6b841978cf56fb020b79f9a2b39e4089285f602083e5c2ddb2187d",
+    "invocations": 1,
+    "exitCode": 0,
+    "passedChecks": 35,
+    "checks": [
+      "existing_admin_auth_otp_without_staff_creation",
+      "existing_sales_auth_otp_without_staff_creation",
+      "canonical_signup_returns_session_without_confirmation_email",
+      "real_auth_identity_after_signup_auto_confirmed_not_mailbox_verified",
+      "signup_does_not_send_confirmation_email",
+      "authenticated_account_initially_has_no_application",
+      "account_questionnaire_persisted_pending",
+      "same_submission_idempotent",
+      "same_request_changed_payload_denied",
+      "pending_application_creates_no_membership_or_case",
+      "pending_user_portal_rpc_denied",
+      "pending_student_admissions_queue_denied",
+      "sales_admissions_queue_denied",
+      "anonymous_submission_denied",
+      "admin_queue_real_count_and_explicit_eligible_curators",
+      "unselected_direction_approval_denied",
+      "admissions_rejection_persists_without_portal_access",
+      "rejected_same_identity_resubmission_reuses_request_with_version",
+      "approval_atomic_membership_case_curator_and_profile",
+      "approval_replay_no_duplicate_case",
+      "stale_conflicting_decision_denied",
+      "approved_student_refreshes_canonical_auth_claims",
+      "approved_student_real_portal_rpc_visible",
+      "approved_ownerless_case_readable_by_staff",
+      "approved_profile_preserves_self_reported_multiselect_source",
+      "readback_one_membership_one_case_self_reported_profile_needs_review",
+      "canonical_profile_snapshot_displays_human_readable_self_reported_values",
+      "approved_case_section_authority_resolves",
+      "approved_case_empty_application_page_reads_without_nullable_owner_error",
+      "approved_student_staff_questionnaire_path_denied",
+      "sales_staff_questionnaire_path_denied",
+      "existing_other_student_cannot_read_new_application_or_case",
+      "other_student_cannot_replay_owner_submission_receipt",
+      "raw_private_application_table_unavailable_to_authenticated_client",
+      "public_approval_does_not_create_sales_client_or_lead"
+    ]
+  },
+  "harnessDataEffects": {
+    "newFictionalStudentAuthAccounts": 1,
+    "newStaffIdentities": 0,
+    "newApprovedPublicApplications": 1,
+    "newPublicStudentCases": 1,
+    "publicApprovalCreatesSalesClientOrLead": false,
+    "qaAccountAndCaseRetained": true
+  },
+  "docsIntakeCompatibility": {
+    "method": "Existing Admin Auth session calls docs_student_intake_options and create_docs_student, then staff_student_case_page and exact database readback after migration177.",
+    "status": "passed",
+    "checks": [
+      "existing_admin_auth_session_used",
+      "docs_intake_options_returned_eligible_existing_curator",
+      "create_docs_student_real_rpc_after_177_succeeded",
+      "staff_case_read_returns_nullable_sales_owner",
+      "exact_docs_origin_client_and_no_public_application_readback"
+    ],
+    "newFictionalDocsClients": 1,
+    "newFictionalDocsCases": 1,
+    "newAuthOrStaffIdentities": 0,
+    "retained": true,
+    "cleanup": "Retained as authorized local QA; no delete or append-only bypass.",
+    "constraintReadback": {
+      "docs_origin_preserved": true,
+      "public_application_absent": true,
+      "canonical_client_present": true,
+      "sales_owner_absent": true,
+      "canonical_lead_absent": true,
+      "student_membership_absent": true,
+      "state": "active",
+      "request_receipts": 1
+    }
+  },
+  "limits": [
+    "No production migration, Auth-setting change, provider delivery or deployment is claimed.",
+    "No Next.js action or browser UI acceptance is included in this receipt.",
+    "Autoconfirm provides an authenticated account, not verified ownership of the supplied mailbox.",
+    "The Admissions decision was exercised with an existing Admin session; department-manager authority is not independently demonstrated by this harness.",
+    "Aggregate data effects describe these bounded operations only; other separately authorized UI QA is outside this receipt."
+  ],
+  "historicalEvidence": {
+    "path": "docs/evidence/public-student-onboarding-local-2026-09-18.json",
+    "sha256": "796f18ff158237d09d813c15acad1ea491869e0a32168f792dde5c0c87f833b8",
+    "unchanged": true,
+    "scope": "Historical migration172 local evidence remains separate and is not relabeled as current proof."
+  },
+  "supersededRegistrationMechanism": "Intermediate global-autoconfirm flow rejected by independent review before publication. Application/Docs RPC evidence remains scoped to recorded source; secure server-only registration requires separate current proof.",
+  "secureRegistrationDelta": {
+    "recordedAt": "2026-09-18T11:26:55.549385+00:00",
+    "status": "passed",
+    "supersedesIntermediateSignupContract": true,
+    "historicalPredecessor": "The unchanged top-level harness and environment describe the earlier intermediate public-signup-enabled run. They are historical evidence, not acceptance of the current registration contract.",
+    "contract": "Public Auth signup stays disabled. The server alone creates a new confirmed identity with admin.createUser; the browser receives its session through ordinary password sign-in. Duplicate identities are never updated.",
+    "environment": {
+      "publicAuthSignupEnabled": false,
+      "originalAuthEnvironmentRestored": true,
+      "globalAutoconfirmChanged": false,
+      "productionChanged": false
+    },
+    "harness": {
+      "path": "scripts/prove-public-student-onboarding-local.mjs",
+      "sha256": "a12bfc87405fb07dec33dd8beea956c62d532229c438f89b2cad7f96fc7eed88",
+      "mode": "--resume-secure-registration-delta",
+      "passedChecks": 11,
+      "checks": [
+        "public_auth_signup_setting_disabled",
+        "existing_approved_qa_student_password_signin_without_new_identity",
+        "existing_student_live_identity_verified_after_password_signin",
+        "existing_approved_application_and_case_preserved",
+        "existing_approved_student_portal_still_readable",
+        "anonymous_signup_reservation_rpc_denied",
+        "student_signup_reservation_rpc_denied",
+        "service_only_email_quota_allows_five_then_denies_sixth",
+        "unconfirmed_duplicate_create_user_rejected_without_auth_or_role_changes",
+        "public_signup_disabled_cannot_confirm_or_replace_existing_unconfirmed_identity",
+        "security_delta_keeps_existing_approved_student_application_unchanged"
+      ],
+      "existingApprovedStudentReused": true
+    },
+    "runHistory": [
+      {
+        "attempt": 1,
+        "result": "Stopped after 8 checks because the harness parsed an empty optional database row as JSON. No collision-probe identity had been created."
+      },
+      {
+        "attempt": 2,
+        "result": "11 checks passed after the harness fix; the saved quota checkpoint was reused, and the existing approved Student was retained."
+      }
+    ],
+    "databaseProvenance": {
+      "kind": "cumulative local delta, not a fresh final177 replay",
+      "original177Sha256": "2fda3fd51cd7885578cee881dfe301b62273bdcef3168f1eb48799cdddf0fa1a",
+      "rateLimitDeltaSha256": "4327d34863e0bd91bd155b9d7ebb849c39b8980bba0005017bfa503b6b48271b",
+      "current177Sha256": "55b821d1f2612d82208991a6f103b5686c1b120324286147b7b9a267967803f6",
+      "ledger177Rewritten": false,
+      "schemaCacheReloadNotified": true
+    },
+    "dataEffects": {
+      "newStaffIdentities": 0,
+      "newStudentMemberships": 0,
+      "retainedUnconfirmedNonstaffAuthProbes": 1,
+      "existingApprovedApplicationUnchanged": true,
+      "existingUnconfirmedCollisionTargetAuthAndIdentityDigestsUnchanged": true
+    },
+    "limits": [
+      "The complete final177 migration was not replayed from176 in this local delta.",
+      "The global100-per-hour limit was not exhausted; the five-per-email allowance and sixth-attempt denial were exercised.",
+      "The delta directly exercises local Auth and RPCs. It does not itself establish Next.js helper, browser UI, production or deployment acceptance.",
+      "No private email, phone, UUID, password, token, key, session or local artifact path is included."
+    ]
+  },
+  "uiSignupMailObservation": {
+    "observedAt": "2026-09-18T11:27:34.499923+00:00",
+    "scope": "Read-only local Mailpit enumeration for the exact owner-selected UI QA recipient.",
+    "allMailboxPagesScanned": true,
+    "messagesForExactUiQaRecipient": 0,
+    "confirmationEmailsForExactUiQaRecipient": 0
+  },
+  "finalMigrationRollbackCompile": {
+    "evidenceSource": "Reported by the coordinating task that executed this check.",
+    "baseMigration": "176",
+    "compiledMigration": "177",
+    "migrationSha256": "55b821d1f2612d82208991a6f103b5686c1b120324286147b7b9a267967803f6",
+    "environment": "Existing production database at176, within an explicitly rolled-back transaction.",
+    "result": "Complete final177 SQL compiled; intake configuration count was1; transaction rolled back with no durable writes.",
+    "durableMigrationApplied": false,
+    "deploymentClaimed": false
+  },
+  "browserEvidence": {
+    "recordedAt": "2026-09-18T11:28:17.569105+00:00",
+    "environment": "Existing isolated local Supabase, Next dev on loopback, CUA in-app browser",
+    "sourceSha256": {
+      "src/lib/student-signup-actions.ts": "cbe2126dd53bb553cc3f42998714230789f65d890aee7ca151a273b572d77d85",
+      "src/lib/server/student-public-registration.ts": "fa44e8a2082611a64cb5a60ce08e0b0fd2505353ff5e61043716853075ba5ecb",
+      "src/lib/server/student-signup-runtime.ts": "4e0f078694f81a0fc385896f8b204848d10af51532b56ead544cf1a56d85c091",
+      "src/components/student-application/ApplicationWizard.tsx": "9dcd527f2680fc106dc139d05df5c14fe7a8d8a7c0a3e6666ec4974b77c71b25",
+      "src/app/apply/status/page.tsx": "c3cad2c1e73fe971138ab2642040f1e13a2030ba0410243479bf2af8c099634a",
+      "supabase/migrations/177_platform_public_student_applications.sql": "55b821d1f2612d82208991a6f103b5686c1b120324286147b7b9a267967803f6"
+    },
+    "checks": [
+      "all_nine_questionnaire_steps_completed_through_UI",
+      "draft_survives_reload_without_password",
+      "server_only_new_Auth_creation_and_password_login",
+      "status_pending_with_persisted_questionnaire",
+      "direct_portal_navigation_denied_before_approval",
+      "same_application_approved_by_existing_Admin_real_RPC",
+      "refresh_status_opens_full_portal_after_approval",
+      "logout_and_ordinary_password_login_return_to_portal",
+      "mobile_390x844_status_readable_without_horizontal_overflow",
+      "original_logo_readable_on_dark_surface_after_white_background_fix"
+    ],
+    "fixedObservedFailure": "Auth rejected a 78-byte password with bcrypt error before creating an identity. UTF-8 72-byte guard now runs before rate/Auth calls; successful UI registration used a shorter generated password.",
+    "limitations": [
+      "Technical fictional Student QA; not real-customer acceptance.",
+      "Staff approval ran through existing Admin Auth RPC, not the staff browser form.",
+      "Production registration remains unpublished at this record."
+    ]
+  }
+}

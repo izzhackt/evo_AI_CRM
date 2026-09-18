@@ -28190,6 +28190,154 @@ case/application readers and DTOs accept the absent Sales name; permission
 predicates and existing lifecycle/assignment audit remain unchanged. The direct
 case becomes assigned/active without a sales handoff or portal activation.
 
+
+## 2026-09-18 — Public Student questionnaire and Admissions approval
+
+Owner supplied a nine-step structural reference and requested implementation in
+EVO plus concise settings and key product copy. Owner explicitly confirmed that
+full Student portal opens only after Admissions approval. The new
+[run plan](design/v3/public-student-onboarding-run-plan.md) defines public apply,
+verified email signup, authenticated pending request, transactional approval,
+canonical profile persistence with self-reported provenance, and scoped copy
+cleanup. Pending is not operational case state or active Student membership.
+No fake invite receipts, sales/contract facts, automatic staff grants, private
+assessment sharing or invented program-matching marketing are permitted.
+One forward migration may allow absent Sales ownership only for a durably linked
+public request. Live signup is currently disabled; real SMTP/signup validation
+is required before public activation, never replaced by admin autoconfirm.
+Scoped real checks and independent review precede the existing lightweight
+immutable release. No heavy full-suite replay or new backup request.
+
+### 2026-09-18 — owner waives additional onboarding checks and selects Gmail
+
+After implementation review and protected CI passed on `db80bd85`, the owner
+explicitly asks to proceed without further checks and supplies the EVO Gmail
+sender. Remove the additional manual/browser/email-delivery acceptance pause;
+record those paths as unverified, never passed. Reuse prior real evidence and
+retain the existing release mechanism. This does not disable email ownership
+confirmation or Admissions approval. Configure the selected real SMTP transport;
+an address alone is insufficient and no app password is present in the checked
+project/server environment files. Request the existing credential location or
+user-completed Google app-password setup without collecting secrets in chat.
+
+### 2026-09-18 — integrate unpublished Student intake after staff release
+
+Staff release99ac5aa3 occupies001–175, including the explicit retired172 slot.
+Rebase draftPR830 and move its actual Student SQL to176; historical local QA172
+and its receipt remain historical, never proof of the new ledger or role model.
+Preserve the new staff Admin alias, password provisioning and finance controls.
+Pending public applications belong to the existing Admissions department, so
+bind that department in the private application configuration and evaluate the
+same three published permissions against that department for its managers.
+Do not grant access from a role label or allow own-record staff to claim all
+unassigned requests. Curator options and approval must also respect the actor's
+actual assignment scope for the chosen curator. Password-provisioned staff
+without active product access must not enter the Student signup continuation.
+All work stays in the draft; no production Auth/secret/migration change, new
+test run or claim that the integrated176 journey has passed. The owner's choice
+between email confirmation and the explained no-email option is still pending.
+
+### 2026-09-18 — reserve176 for direct Docs Student creation
+
+The concurrent owner-requested Docs Add student slice reserves176. Student
+signup PR830 is still unmerged and unapplied, so move its unchanged SQL from176
+to177 and update active references only. Historical QA172 receipts and earlier
+decision entries remain unchanged. Before any eventual Student release, rebase
+onto the accepted Docs176 and inspect its direct schema dependencies; the draft
+must not be deployed across a missing176. This coordination changes no Auth,
+SMTP, product behavior or production state. Do not merge/deploy concurrently
+with the Docs release; the email-confirmation decision remains pending.
+
+### 2026-09-18 — owner approves signup without email confirmation and completion
+
+The owner explicitly selects «Без подтверждения email» and asks to finish the
+public signup release. Use canonical Supabase email/password signup with email
+confirmation disabled: a real Auth session saves the questionnaire as pending,
+and only the existing Admissions approval opens the full portal. SMTP is not a
+prerequisite for this flow. Remove the unpublished signup-confirmation UI/action
+instead of maintaining a second Student signup path. Preserve unrelated staff
+and Student-invitation Auth paths, host-only cookies and protected staff metadata.
+An Auth auto-confirmed timestamp is not proof of email ownership; source answers
+remain self-reported and must never auto-link an existing case by email alone.
+
+Use scope-local real Auth/database/UI checks for this changed path and existing
+release controls; no blanket regression suite or fabricated passing receipts.
+The earlier waiver of additional manual checks does not turn the old172 proof
+into current177 acceptance. Reuse the authorized isolated Student QA only within
+its existing boundaries. Coordinate the new Auth settings, main merge,177 and
+managed release after the independent Docs176 release finishes. The owner also
+asked about a shared-checkout Git warning: inspect only; never stash/switch or
+commit unrelated active changes as part of this signup release.
+
+### 2026-09-18 — preserve Docs176 and public177 case provenance together
+
+Inspection of the actual pending Docs176 found two direct collisions: its
+ownerless-case constraint excludes public approval, while draft177 excludes
+Docs intake; both also patch the same Sales read projections. In177 replace the
+Docs constraint with one union: real Sales owner, exact durable Docs source with
+canonical client/no lead/no public request, or exact public source with request
+FK, Student membership and no invented lead. Do not permanently forbid Student
+membership on Docs cases: a later explicit invitation remains possible. Public
+signup never claims an existing Docs case by name/email.177 must assert the
+already-updated176 Sales read joins instead of patching them twice; retain the
+separate Sales-summary inner joins and all case authorization.
+
+### 2026-09-18 — isolate no-email signup from existing invited identities
+
+Independent review of head3ae83038 found that globally enabling public signup
+with autoconfirm reuses existing unconfirmed invited Auth identities and issues
+a session without proving their password. Preserve the owner's no-email choice
+by keeping public Auth signup disabled and all global confirmation settings
+unchanged. Only the origin-checked server action may create a NEW confirmed
+identity through the existing backend-only Auth admin client. Duplicate or
+uncertain creation never updates, confirms, resets or adopts an existing user.
+Normal password sign-in establishes the applicant's cookie session; only that
+live identity may call the existing pending-application RPC. Privileged creation
+is bounded by durable service-only global and normalized-email rate buckets in
+177. The service client never creates Student membership/case or approves access.
+
+Validate the actual new creation/login path and duplicate unconfirmed-invitation
+collision, preserve staff invite behavior, and retain the intermediate35-check
+receipt as historical evidence rather than relabeling it. No production Auth
+change has occurred. Sources: Supabase auth-admin-createuser docs and pinned
+v2.196.0 internal/api/admin.go plus internal/api/signup.go.
+
+### 2026-09-18 — narrow the added177 migration CI lane
+
+The existing PR workflow knows the scoped171/173–175/176 lanes but would send
+new177 through the retired blanket historical migration replay. Following the
+owner's fast-validation rule, add an exact-added177 lane only: transaction/RLS
+source boundary plus agreement between SQL hash and recorded current177 real
+rollback compilation. Actual local Auth/RPC/UI evidence remains separately
+identified; this source check does not claim to execute SQL. Every other
+migration diff retains its existing fail-closed path and required context.
+
+### 2026-09-18 — Student signup release accepted; evidence scopes preserved
+
+PR830 passed independent review at `5323f23321505a27d0e70b6ce2fdd3c9aff04555`
+and protected checks `35340251635`, then merged as
+`1de14c0ad02b97b5b576060864574ee70e9e8508`. Production177 was applied with
+SQL SHA256 `55b821d1f2612d82208991a6f103b5686c1b120324286147b7b9a267967803f6`;
+ledger001–177 was read back. The first operator attempt failed while inserting
+the ledger's SQL string and rolled back, with ledger176 confirmed. Corrected
+callback escaping preserved the SQL literal; the second application succeeded.
+Migration source was unchanged; the failed attempt is not recorded as applied.
+
+Upstream `35340610391` and managed `35340641026` passed. Accepted release
+`v3-r35340641026-a1-1de14c0a` matches the running image and receipt hashes;
+healthy, 0 restarts, both public health endpoints live, pending=false, arm=false.
+All Auth settings remain unchanged; public signup stays disabled and only the
+bounded server action creates a new identity before ordinary password login.
+
+Complete new signup, pending denial, existing Admin RPC approval and relogin
+passed locally, alongside 11 security-delta checks. Production existing-Auth
+browser smoke passed; CUA checked anonymous `/apply`, all nine steps to account
+creation, reload retention and mobile390 controls without identity, consent or
+submission. No new production Student or staff approval submission was made.
+Historical35/QA172 and rollback compilation retain their original scopes;
+production form visibility is not full production signup/customer acceptance.
+Exact evidence: [production receipt](qa/student-public-onboarding-177-production-2026-09-18.md).
+
 ### 2026-09-18 — admissions UX overhaul: unified workspace and design-system adoption
 
 Date: 2026-09-18. Author: Fable (Claude Code). Change type: scope addition

@@ -88,10 +88,18 @@ test("respond_student_case_handoff: declined reverts to pending, preserving port
   // there is no new curator on a decline).
   assert.match(fn, /'declined', 'active', 'pending',/u);
   assert.doesNotMatch(fn, /INSERT INTO platform\.student_case_assignment_events/u);
-  // Scope bookkeeping mirrors assign_student_case_curator_authorized_e1's own
-  // 'assigned' branch, in reverse: curator + student revoked, Sales regains.
+  // Scope bookkeeping: the declining curator is revoked, Sales regains, and
+  // the STUDENT is re-granted on the new scope — their access is invariant
+  // across scope bumps (plan §7: отклоняется назначение, не доступ студента).
   assert.match(fn, /actor\.actor_membership_id,\s*\n\s*previous_scope\.id, previous_scope\.scope_version, FALSE,/u);
   assert.match(fn, /target_case\.responsible_sales_membership_id,\s*\n\s*new_scope_id, new_scope_version, TRUE,/u);
+  assert.match(fn, /target_case\.student_membership_id,\s*\n\s*new_scope_id, new_scope_version, TRUE,/u);
+  assert.doesNotMatch(fn, /target_case\.student_membership_id,\s*\n\s*previous_scope\.id, previous_scope\.scope_version, FALSE,/u);
+  // Decline is refused while a coverage substitution is open (133): the
+  // substitute is not the handoff recipient and 'return' would become
+  // impossible after a revert to pending.
+  assert.match(fn, /handoff_decline_coverage_open/u);
+  assert.match(fn, /case_curator_coverages coverage[\s\S]*?returned_at IS NULL/u);
   assert.match(fn, /CASE p_decision\s*\n\s*WHEN 'accepted' THEN 'case\.handoff\.acknowledge'\s*\n\s*WHEN 'clarification_requested' THEN 'case\.handoff\.clarification'\s*\n\s*ELSE 'case\.handoff\.decline'/u);
 });
 

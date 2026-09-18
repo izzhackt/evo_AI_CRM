@@ -340,6 +340,19 @@ BEGIN
     ) RETURNING * INTO response;
 
     IF p_decision = 'declined' THEN
+      -- A curator holding the case through an open coverage substitution
+      -- (133) is not the handoff recipient: declining here would orphan the
+      -- open coverage row (its 'return' needs the active case + substitute
+      -- owner) and permanently block future coverage on the case. Fail
+      -- closed; the substitute ends the substitution via coverage return.
+      IF EXISTS (
+        SELECT 1 FROM platform_private.case_curator_coverages coverage
+        WHERE coverage.organization_id = p_organization_id
+          AND coverage.student_case_id = p_student_case_id
+          AND coverage.returned_at IS NULL
+      ) THEN
+        RAISE EXCEPTION 'handoff_decline_coverage_open' USING ERRCODE = '22023';
+      END IF;
       -- Plan §7: revert the ASSIGNMENT, never the sale or the case data.
       -- state_shape_check (088, relaxed by 180) allows a pending case to
       -- keep portal_activated_at — it is simply left out of this SET clause,
@@ -368,27 +381,29 @@ BEGIN
         new_scope_id, p_organization_id, 'student_case', p_student_case_id, new_scope_version, TRUE
       );
 
-      -- Inverse of assign_student_case_curator_authorized_e1's own 'assigned'
-      -- branch: revoke exactly who that branch grants (curator + student),
-      -- grant back exactly who it revokes (the responsible Sales owner), so
-      -- the case is immediately visible to Sales/Admin again while pending.
+      -- The curator loses access (revoked on the retiring scope); the Sales
+      -- owner regains it on the new scope. The STUDENT's access is invariant
+      -- across every scope change — assign_student_case_curator_authorized_e1
+      -- re-grants the student unconditionally on each bump, and decline must
+      -- do the same: plan §7 — «Отклоняется назначение куратору, а не
+      -- студент, доступ или продажа».
       PERFORM platform_private.append_scope_event(
         p_organization_id, actor.actor_membership_id,
         previous_scope.id, previous_scope.scope_version, FALSE,
         'user', actor.actor_profile_id, normalized_clarification, p_request_id
       );
-      IF target_case.student_membership_id IS NOT NULL THEN
-        PERFORM platform_private.append_scope_event(
-          p_organization_id, target_case.student_membership_id,
-          previous_scope.id, previous_scope.scope_version, FALSE,
-          'user', actor.actor_profile_id, normalized_clarification, p_request_id
-        );
-      END IF;
       PERFORM platform_private.append_scope_event(
         p_organization_id, target_case.responsible_sales_membership_id,
         new_scope_id, new_scope_version, TRUE,
         'user', actor.actor_profile_id, normalized_clarification, p_request_id
       );
+      IF target_case.student_membership_id IS NOT NULL THEN
+        PERFORM platform_private.append_scope_event(
+          p_organization_id, target_case.student_membership_id,
+          new_scope_id, new_scope_version, TRUE,
+          'user', actor.actor_profile_id, normalized_clarification, p_request_id
+        );
+      END IF;
 
       UPDATE platform.student_cases
       SET current_curator_membership_id = NULL,

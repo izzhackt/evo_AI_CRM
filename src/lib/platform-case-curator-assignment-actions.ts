@@ -99,8 +99,12 @@ export async function assignCaseCuratorAction(
       if (error.code === "22023" && /already used/i.test(error.message)) {
         return outcome("request_conflict", previous.requestId);
       }
+      // 55000 = the case is no longer awaiting a curator (someone assigned
+      // one concurrently, or the state changed) — that is staleness, not a
+      // form-input problem.
+      if (error.code === "55000") return outcome("stale", previous.requestId);
       return outcome(
-        error.code === "22023" || error.code === "55000" ? "invalid" : "unavailable",
+        error.code === "22023" ? "invalid" : "unavailable",
         previous.requestId,
       );
     }

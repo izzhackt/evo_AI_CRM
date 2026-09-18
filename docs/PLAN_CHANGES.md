@@ -28502,3 +28502,30 @@ scoped-staff-baseline, route-contract, navigation, supabase-staff-auth —
 all green). Reviewer notes: no SQL/RLS change; a curator's case list on
 «Мой день» comes from existing listPlatformStudentCases/readAdmissionsSummary
 reads scoped to their own membership.
+
+
+### 2026-09-18 — preserve deployed 178 and renumber the pending checklist to 179
+
+The owner requested application of the pending baseline-checklist migration so
+Claude can continue the Admissions redesign release. Fresh main09f6bcdc contains
+two178 files: PR841 added the signup-conflict correction first and its published
+production receipt records accepted001–178; PR844 subsequently used178 again for
+the baseline checklist. The release ledger guard correctly rejects this duplicate
+before contacting Supabase. Applying the original command cannot fix that source
+collision.
+
+Decision: preserve178_platform_student_application_conflict_codes.sql and its
+history, and rename only the pending checklist to179_platform_case_baseline_checklist.sql.
+Only the filename comment changes inside its SQL; executable statements and
+permissions remain unchanged. Correct the active launch-plan reference while
+retaining earlier entries as historical evidence. No ledger repair, replay of178,
+automatic application of unrelated migrations, or release-controller change.
+
+Validation: exercise the actual expectedMigrationVersions parser against the
+repository migration directory, compare the renamed SQL with the old file after
+the one filename-comment substitution, verify deployed178 source bytes remain
+unchanged, and run git diff --check. The real target iosckaqtovbbnssqcpde was then read through the already-authorized
+Supabase CLI:178 rows, range001–178, version178 named
+platform_student_application_conflict_codes, and both new checklist RPCs absent.
+This confirms179 is the only missing change. Protected checks and independent
+exact-head review remain in place; the application release stays with Claude.

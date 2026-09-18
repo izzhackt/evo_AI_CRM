@@ -1,5 +1,5 @@
 -- ============================================================
--- 178_platform_case_baseline_checklist.sql
+-- 179_platform_case_baseline_checklist.sql
 --
 -- platform.create_docs_student (176) creates a case with target_degree,
 -- program_direction and applied_country_requirement_version_id all NULL.

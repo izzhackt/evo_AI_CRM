@@ -303,4 +303,4 @@ Production browser smoke с существующим Auth прошёл. Отде
 форма не отправлялась; новый Student не создавался, staff approval через форму
 не выполнялся. Полный signup → approval → relogin остаётся реальным локальным
 доказательством, а не production business acceptance. Точные hashes, operator
-recovery и границы: [production receipt](../../qa/student-public-onboarding-177-production-2026-09-18.json).
+recovery и границы: [production receipt](../../qa/student-public-onboarding-177-production-2026-09-18.md).

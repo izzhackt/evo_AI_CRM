@@ -28336,4 +28336,4 @@ creation, reload retention and mobile390 controls without identity, consent or
 submission. No new production Student or staff approval submission was made.
 Historical35/QA172 and rollback compilation retain their original scopes;
 production form visibility is not full production signup/customer acceptance.
-Exact evidence: [production receipt](qa/student-public-onboarding-177-production-2026-09-18.json).
+Exact evidence: [production receipt](qa/student-public-onboarding-177-production-2026-09-18.md).

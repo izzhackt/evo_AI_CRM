@@ -144,7 +144,7 @@ account creation, reload retention and visible mobile390 controls. No identity o
 consent was entered or submitted; no new production Student or staff approval
 submission was performed. Local business-path proof is not a production signup
 or real-customer acceptance claim. Exact release, migration and evidence hashes:
-[production receipt](qa/student-public-onboarding-177-production-2026-09-18.json).
+[production receipt](qa/student-public-onboarding-177-production-2026-09-18.md).
 
 ## Quiet UI and Admin role preview — released 2026-09-18
 

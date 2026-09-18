@@ -1,3 +1,8 @@
+# Public Student onboarding production receipt — 2026-09-18
+
+Accepted release and observed verification scope. No credentials or private account data.
+
+```json
 {
   "schemaVersion": 1,
   "recordedAt": "2026-09-18T11:45:06Z",
@@ -88,3 +93,4 @@
     "No provider activation or unrelated workspace changes were performed."
   ]
 }
+```

@@ -91,8 +91,10 @@ Student callback endpoint; staff callback и host-only cookie boundary сохр�
   QA контуре; не добавлять staff identities, не засорять продажи.
 - [x] Публичная анкета, signup/confirmation, восстановление, pending реализованы; UI приёмка ещё открыта.
 - [x] Admissions очередь/решение и ответы в карточке; уборка текста реализованы.
-- [ ] Короткие проверки изменённых функций, lint/type/build по scope, desktop/mobile
-  browser, независимый exact-head review, защищённые PR checks.
+- [x] Короткие проверки изменённых функций и lint/type/build по scope.
+- [x] Независимый review реализации `b24b19b75e0baad5d73524e092284848d94f32d6`
+  против `2908a0dbf2b3c829b687ecfbc0e0aa63e1be98be`: APPROVED для draft PR.
+- [ ] Desktop/mobile browser и защищённые PR checks на окончательном head.
 - [ ] До публичного запуска проверить актуальный SMTP/signup, реальный signup →
   подтверждение → pending → отказ прямого portal/API → Admissions approval →
   новый вход → свой кабинет/профиль. Использовать разрешённую ограниченную QA
@@ -145,7 +147,8 @@ worker schema — контракт, миграция и RPC adapters/actions; wo
 - Предварительное независимое review нашло и привело к исправлению:
   отсутствие Sales owner исключало публичное дело из INNER JOIN read projections;
   публичный `/apply` пропускал cookie refresh; авторизованный черновик терялся
-  после reload. Final exact-head review ещё требуется.
+  после reload. Final review реализации на `b24b19b7` APPROVED; новые изменения
+  CI-классификатора также требуют независимой проверки перед публикацией head.
 - Локальная форма отвечает HTTP 200 с реальным QA Supabase config. Визуальная
   проверка не засчитана: Chrome-команды зависают, инструмент сообщает locked Mac;
   запрошена разблокировка. HTTP/сборка не заменяют browser acceptance.
@@ -160,6 +163,17 @@ worker schema — контракт, миграция и RPC adapters/actions; wo
   новый Auth access version и реальный portal RPC. Подтверждены nullable Sales
   read projections, профиль со статусом needs_review, изоляция другого Student
   и отсутствие фиктивного Sales клиента/лида. Production SMTP это не доказывает.
-- Тексты отделены в PR #828 (`189799a6cef0f13e136df365b7951cf6cccb4875`),
-  независимый exact-head review APPROVED. Это позволяет выпустить уборку текста
-  отдельно от пока заблокированного публичного signup.
+- Регистрация сохранена в draft PR #830; migration172 остаётся только в ветке
+  и локальном QA. Первая CI попытка `35292465410` остановилась на неизвестном
+  документальном JSON-отчёте. Добавлен его точный путь без расширения glob:
+  classifier20/20 прошли, действительный range сохраняет обязательные contracts,
+  migration boundary, lint и build. Неизвестные/пустые ranges всё ещё fail closed.
+- Тексты выпущены отдельно через PR #828. Exact head `4883d90d` получил
+  независимый APPROVED и защищённый CI `35292049272`. Merge/current main
+  `2908a0dbf2b3c829b687ecfbc0e0aa63e1be98be` прошёл lightweight CI `35292204474`
+  и release `35292232876`; accepted release `v3-r35292232876-a1-2908a0db`.
+  Реальный Admin/Student browser smoke пройден. SSH readback подтвердил совпадение
+  running/accepted revision/image и обоих хешей acceptance/browser receipt,
+  healthy,0 restarts,pending absent,CRM/app health200. Release arm прочитан false.
+  Это выпуск 12 файлов текста; migration172 и публичная регистрация не включены.
+  Отдельная визуальная приёмка всех settings экранов остаётся непроверенной.

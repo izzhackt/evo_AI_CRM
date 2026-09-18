@@ -119,6 +119,13 @@ assessments. Include bounded settings/CRM/Portal copy cleanup. No invented
 matching claims, provider enablement or email-delivery proof. Real signup/SMTP
 and pending-to-approved authority are release acceptance gates.
 
+The bounded 12-file copy cleanup shipped separately in PR828 as accepted revision
+`2908a0dbf2b3c829b687ecfbc0e0aa63e1be98be`, release `35292232876`. Real
+Admin/Student smoke passed; running/accepted image and evidence hashes match,
+health200, pending absent and release armfalse. Public signup remains in draft
+PR830: migration172 is not in production; SMTP and actual Next/browser acceptance
+are still open.
+
 ## Quiet UI and Admin role preview — released 2026-09-18
 
 Owner approves moving the Admin-only role preview out of the shared sidebar

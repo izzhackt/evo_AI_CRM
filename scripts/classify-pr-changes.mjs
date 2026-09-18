@@ -30,6 +30,10 @@ const DOCUMENT_ASSET_EXTENSIONS = new Set([
   ".svg",
   ".webp",
 ]);
+// Reviewed proof receipts are documentation; arbitrary JSON remains unknown.
+const DOCUMENT_ASSET_PATHS = new Set([
+  "docs/evidence/public-student-onboarding-local-2026-09-18.json",
+]);
 // Dependency maintenance does not reopen the retired companion's source tree.
 const INBOX_DEPENDENCY_PATHS = new Set([
   "agent-lead2-inbox/package.json",
@@ -144,7 +148,7 @@ function isOrdinaryProsePath(path) {
     || path.startsWith("presentations/")
     || path.startsWith("specs/")
   ) && DOCUMENT_ASSET_EXTENSIONS.has(extension);
-  return (isRootProse || isDocumentationAsset) && !isContractPath(path);
+  return (isRootProse || isDocumentationAsset || DOCUMENT_ASSET_PATHS.has(path)) && !isContractPath(path);
 }
 
 function isKnownCodePath(path) {

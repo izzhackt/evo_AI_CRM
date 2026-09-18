@@ -106,6 +106,54 @@ test("authoritative contracts request only the contract lane", () => {
   assert.equal(result.build, false);
 });
 
+test("the exact onboarding proof receipt is documentary without accepting arbitrary JSON", () => {
+  const receipt = "docs/evidence/public-student-onboarding-local-2026-09-18.json";
+  const result = classifyNameStatus(nul("A", receipt));
+  assert.equal(result.has_changes, true);
+  assert.equal(result.ordinary_docs, true);
+  assert.equal(result.unknown, false);
+  assert.equal(result.code, false);
+  assert.equal(result.lint, false);
+  assert.equal(result.build, false);
+  assert.deepEqual(result.ordinary_prose_paths, [receipt]);
+  for (const path of [
+    "docs/evidence/unreviewed.json",
+    "docs/evidence/public-student-onboarding-local-2026-09-19.json",
+    `${receipt}.backup`,
+    "docs/evidence/nested/public-student-onboarding-local-2026-09-18.json",
+  ]) {
+    assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
+    for (const paths of [[receipt, path], [path, receipt]]) {
+      assert.equal(classifyNameStatus(nul("R100", ...paths)).unknown, true, paths.join(" -> "));
+    }
+  }
+});
+
+test("onboarding evidence preserves the union of application, migration, contract and proof-script checks", () => {
+  const script = "scripts/prove-public-student-onboarding-local.mjs";
+  const scriptOnly = classifyNameStatus(nul("A", script));
+  assert.equal(scriptOnly.unknown, false);
+  assert.equal(scriptOnly.code, true);
+  assert.equal(scriptOnly.lint, true);
+  assert.equal(scriptOnly.ordinary_docs, false);
+  const result = classifyNameStatus(nul(
+    "A", "docs/evidence/public-student-onboarding-local-2026-09-18.json",
+    "A", "docs/evidence/public-student-onboarding-local-2026-09-18.md",
+    "A", script,
+    "M", "docs/EVO_LAUNCH_PLAN.md",
+    "A", "src/lib/student-signup-actions.ts",
+    "A", "supabase/migrations/172_platform_public_student_applications.sql",
+  ));
+  assert.equal(result.unknown, false);
+  assert.equal(result.ordinary_docs, false);
+  assert.equal(result.contracts, true);
+  assert.equal(result.migration_boundary, true);
+  assert.equal(result.code, true);
+  assert.equal(result.lint, true);
+  assert.equal(result.build, true);
+  assert.deepEqual(result.unknown_paths, []);
+});
+
 test("empty changed range fails closed", () => {
   const result = classifyNameStatus(Buffer.alloc(0));
   assert.equal(result.has_changes, false);

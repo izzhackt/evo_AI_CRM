@@ -28189,3 +28189,21 @@ canonical client and case, not a fictional Sales lead or report row. Relevant
 case/application readers and DTOs accept the absent Sales name; permission
 predicates and existing lifecycle/assignment audit remain unchanged. The direct
 case becomes assigned/active without a sales handoff or portal activation.
+
+
+## 2026-09-18 — Public Student questionnaire and Admissions approval
+
+Owner supplied a nine-step structural reference and requested implementation in
+EVO plus concise settings and key product copy. Owner explicitly confirmed that
+full Student portal opens only after Admissions approval. The new
+[run plan](design/v3/public-student-onboarding-run-plan.md) defines public apply,
+verified email signup, authenticated pending request, transactional approval,
+canonical profile persistence with self-reported provenance, and scoped copy
+cleanup. Pending is not operational case state or active Student membership.
+No fake invite receipts, sales/contract facts, automatic staff grants, private
+assessment sharing or invented program-matching marketing are permitted.
+One forward migration may allow absent Sales ownership only for a durably linked
+public request. Live signup is currently disabled; real SMTP/signup validation
+is required before public activation, never replaced by admin autoconfirm.
+Scoped real checks and independent review precede the existing lightweight
+immutable release. No heavy full-suite replay or new backup request.

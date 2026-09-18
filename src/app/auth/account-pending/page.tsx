@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { StudentAccountPending } from "@/components/StudentAccountPending";
 import { EvoMark } from "@/components/platform/brand/EvoMark";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
@@ -23,6 +24,9 @@ export default async function StudentAccountPendingPage() {
   ) {
     redirect("/login?error=auth_unavailable");
   }
+
+  const application = await readOwnStudentApplication();
+  if (application) redirect("/apply/status");
 
   let inviteSession;
   try {

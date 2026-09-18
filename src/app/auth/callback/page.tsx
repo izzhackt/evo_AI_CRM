@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 
+import { SignupConfirmation } from "@/components/student-application/SignupConfirmation";
+import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { StudentInviteCallback } from "@/components/StudentInviteCallback";
 import { EvoMark } from "@/components/platform/brand/EvoMark";
 import { btnGhostCls } from "@/components/ui";
@@ -14,7 +16,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Принять приглашение | EVO Admissions",
+  title: "Подтвердить аккаунт | EVO Admissions",
   robots: { index: false, follow: false },
 };
 
@@ -25,9 +27,20 @@ type CallbackSearchParams = Promise<
 export default async function StudentInviteCallbackPage({
   searchParams,
 }: Readonly<{ searchParams: CallbackSearchParams }>) {
-  const invite = decodeStudentInviteCallbackQuery(await searchParams);
+  const query = await searchParams;
+  const invite = decodeStudentInviteCallbackQuery(query);
   const csrfToken = (await cookies()).get(STUDENT_INVITE_CSRF_COOKIE)?.value;
   const canVerify = invite !== null && isStudentInviteCsrfToken(csrfToken);
+  if (query.flow === "signup") {
+    const code = typeof query.code === "string" ? query.code : "";
+    const hash = typeof query.token_hash === "string" && query.type === "signup" ? query.token_hash : "";
+    const valid = isStudentInviteCsrfToken(csrfToken) && Boolean(code || hash);
+    return <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10"><section className="w-full max-w-md rounded-card border border-border bg-surface p-7 sm:p-9">
+      <EvoLogo width={146} /><h1 className="mt-8 text-2xl font-semibold text-fg">Подтвердите ваш email</h1>
+      <p className="mt-3 text-sm leading-6 text-fg-2">После подтверждения анкета поступит на рассмотрение команде EVO.</p>
+      {valid ? <SignupConfirmation csrfToken={csrfToken} code={code} tokenHash={hash} /> : <p role="alert" className="mt-5 text-sm text-danger">Ссылка неполная. Откройте её из исходного письма.</p>}
+    </section></main>;
+  }
 
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-4 py-10">

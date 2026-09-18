@@ -9,6 +9,66 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+test("public Student application queue renders complete answers, a deliberate assignment and versioned decision fields", async () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const compiled = await build({
+    stdin: { contents: `
+      import { createElement } from "react";
+      import { renderToStaticMarkup } from "react-dom/server";
+      import { StudentApplications, StudentApplicationsNav } from "./src/components/v3/admissions/StudentApplications";
+      const application = {
+        id: "11111111-1111-4111-8111-111111111111", revision: 3, status: "pending", email: "student@example.test",
+        submittedAt: "2026-09-18T09:00:00Z", decidedAt: null, decisionReason: null, studentCaseId: null, admissionsDirection: null,
+        questionnaire: { firstName: "Тест", lastName: "Заявки", phone: "+996555000000", destinationCountries: ["CN", "MY"],
+          intakeSeason: "autumn", intakeYear: 2027, educationLevel: "high_school", averageGrade: 4.5, gradeScale: "5",
+          studyFields: ["Инженерия", "Дизайн"], studyLevels: ["bachelor", "foundation"], nationality: "KG",
+          english: { mode: "self", level: "intermediate" }, tuitionBudget: "5000_10000", fundingSource: "family" }
+      };
+      function render(item, readOnly = false) {
+        return renderToStaticMarkup(createElement(StudentApplications, {
+          queue: { applications: [item], curators: [{ membershipId: "22222222-2222-4222-8222-222222222222", displayName: "Куратор", directions: ["CN"] }], pendingCount: 7 },
+          selectedId: item.id, requestId: "33333333-3333-4333-8333-333333333333", readOnly
+        }));
+      }
+      process.stdout.write(JSON.stringify({
+        pending: render(application), readOnly: render(application, true),
+        approved: render({ ...application, status: "approved", studentCaseId: "44444444-4444-4444-8444-444444444444" }),
+        rejected: render({ ...application, status: "rejected", decisionReason: "Уточните год поступления" }),
+        navigation: renderToStaticMarkup(createElement(StudentApplicationsNav, { current: "applications", pendingCount: 7 }))
+      }));
+    `, resolveDir: root, sourcefile: "student-applications-ssr.tsx", loader: "tsx" },
+    bundle: true, write: false, platform: "node", format: "cjs", target: "node22",
+    packages: "external", jsx: "automatic", logLevel: "silent",
+    plugins: [{ name: "server-action-boundary", setup(builder) {
+      builder.onResolve({ filter: /student-application-actions$/ }, () => ({ path: "decision-action", namespace: "test" }));
+      builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "test" }));
+      builder.onLoad({ filter: /.*/, namespace: "test" }, ({ path }) => ({ contents: path === "navigation"
+        ? "export function useRouter() { return { refresh() { throw new Error('SSR must not navigate'); } }; }"
+        : "export async function decideStudentApplicationAction() { throw new Error('SSR must not decide'); }" }));
+    } }],
+  });
+  const childEnv = { ...process.env, NODE_OPTIONS: "" };
+  delete childEnv.NODE_TEST_CONTEXT;
+  const rendered = spawnSync(process.execPath, ["--input-type=commonjs"], { cwd: root, input: compiled.outputFiles[0].text, encoding: "utf8", env: childEnv, timeout: 30_000, maxBuffer: 1024 * 1024 });
+  assert.ifError(rendered.error);
+  assert.equal(rendered.status, 0, rendered.stderr);
+  const output = JSON.parse(rendered.stdout);
+  assert.match(output.pending, /Заполнено студентом/);
+  assert.match(output.pending, /Сведения требуют проверки/);
+  for (const answer of ["Китай, Малайзия", "Инженерия, Дизайн", "4.5 из 5", "самооценка", "student@example.test"]) assert.ok(output.pending.includes(answer), answer);
+  assert.match(output.pending, /name="expected_revision" value="3"/);
+  assert.match(output.pending, /name="request_id" value="33333333-3333-4333-8333-333333333333"/);
+  assert.match(output.pending, /name="reason" value=""/);
+  assert.match(output.pending, /<option value="" selected="">Выберите направление/);
+  assert.doesNotMatch(output.pending, /<option[^>]*>Куратор<\/option>/);
+  assert.match(output.pending, /<button type="submit" disabled=""/);
+  assert.doesNotMatch(output.readOnly, /<form/);
+  assert.doesNotMatch(output.approved, /<form/);
+  assert.match(output.approved, /\/v3\/profile\?case=44444444-4444-4444-8444-444444444444&amp;tab=anketa/);
+  assert.match(output.rejected, /Уточните год поступления/);
+  assert.match(output.navigation, /aria-label="7 на рассмотрении"/);
+});
+
 test("application catalogue selector renders actual React with deliberate choice and no extra submitted fields", async () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
   const compiled = await build({

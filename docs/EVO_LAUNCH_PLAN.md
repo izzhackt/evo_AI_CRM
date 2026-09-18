@@ -109,6 +109,16 @@ unconfirmed, no amounts or outgoing messages. Test case is recorded in the
 staff activation plan; this is not real-customer acceptance. The separate Docs
 UX release is recorded above.
 
+## Public Student onboarding and clear product copy — active 2026-09-18
+
+Owner requests a public questionnaire followed by account creation and Admissions
+approval. Full portal access starts only after approval (explicit confirmation).
+Follow [the active onboarding contract](design/v3/public-student-onboarding-run-plan.md).
+Reuse existing Supabase Auth, Admissions and Student profile; preserve private
+assessments. Include bounded settings/CRM/Portal copy cleanup. No invented
+matching claims, provider enablement or email-delivery proof. Real signup/SMTP
+and pending-to-approved authority are release acceptance gates.
+
 ## Quiet UI and Admin role preview — released 2026-09-18
 
 Owner approves moving the Admin-only role preview out of the shared sidebar

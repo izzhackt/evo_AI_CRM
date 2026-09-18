@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   isConnectedPlatformApi,
+  isPublicStudentApplicationPage,
   isConnectedPlatformPrivateApi,
   isConnectedPlatformPage,
   isConnectedStudentAuthPage,
@@ -14,6 +15,7 @@ import {
 import { requestId } from "@/lib/request-id";
 import {
   canonicalPlatformPageOrigin,
+  platformAudienceForHost,
   shouldRenderPlatformLogin,
   type PlatformLoginSessionState as SessionState,
 } from "@/lib/platform-public-origin";
@@ -148,6 +150,7 @@ function hasSupabaseSessionCookie(request: NextRequest): boolean {
 async function liveSessionState(
   request: NextRequest,
   requestHeaders: Headers,
+  refreshOnly = false,
 ): Promise<Readonly<{ state: SessionState; response: NextResponse }>> {
   let response = nextResponse(requestHeaders);
 
@@ -168,6 +171,7 @@ async function liveSessionState(
           for (const { name, value } of cookiesToSet) {
             request.cookies.set(name, value);
           }
+          requestHeaders.set("cookie", request.cookies.toString());
           response = nextResponse(requestHeaders);
           for (const { name, value, options } of cookiesToSet) {
             response.cookies.set(name, value, options);
@@ -183,6 +187,8 @@ async function liveSessionState(
         response,
       };
     }
+
+    if (refreshOnly) return { state: "authenticated_without_product", response };
 
     const authority = await readVerifiedPlatformAuthority(client, data.claims);
     if (authority.status === "authenticated") {
@@ -270,6 +276,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+
   // The exact staff acceptance page owns provider-token verification and
   // password updates. It must also open before the first staff session exists.
   if (path === "/auth/staff") {
@@ -300,6 +307,16 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  if (isPublicStudentApplicationPage(path)) {
+    if (!["GET", "HEAD", "POST"].includes(request.method)) return hiddenNotFound(id);
+    if (hasSupabaseSessionCookie(request)) {
+      const session = await liveSessionState(request, requestHeaders, true);
+      return setResponseHeaders(session.response, id);
+    }
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+
+
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
     if (!studentPortalApi) return blockedPlatformRoute(request, id);
   }
@@ -324,6 +341,9 @@ export async function proxy(request: NextRequest) {
   }
 
   if (session.state === "missing") {
+    if (path === "/" && platformAudienceForHost(request.headers.get("host")) === "student") {
+      return redirectWithRefreshedCookies(request, session.response, id, "/apply");
+    }
     return accessDeniedResponse(request, session.response, id, null);
   }
   if (session.state === "invalid") {

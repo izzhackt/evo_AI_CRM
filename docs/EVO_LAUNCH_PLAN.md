@@ -1,5 +1,45 @@
 # EVO Launch Plan
 
+## Direct student creation in EVO Docs — active 2026-09-18
+
+Owner requests **Добавить студента** directly in Docs and immediate production
+delivery. A document workspace must not require a sale or Student login first.
+
+- [x] Add a visible Docs header/empty-state action and a short existing-style
+  form: student name, curator and optional direction; preserve entered values
+  on validation failure and open the new case's questionnaire after success.
+- [x] Create one canonical case and its access scope atomically using actual
+  staff authority. Default the eligible curator to the current employee;
+  preserve organization/own-scope rules and idempotent retry. No new Docs data
+  store, sale, money/contract confirmation, Auth account or invitation.
+- [ ] Independently review the exact change, build and check only the changed
+  real path; do not run a blanket suite or seed more test sales/students.
+- [ ] Apply the forward migration and ship through the existing short managed
+  release; verify accepted runtime and the actual Docs entry/form on production.
+
+Visual contract: calm light EVO workspace, one red primary action, short labels,
+no explanatory banners or new sidebar design. Content order: title/action,
+essential fields, create/cancel. Interaction feedback: existing focus styles,
+disabled pending submit and actionable error; no ornamental animation.
+Migration176 is reserved for this slice; the separate unmerged Student-signup
+PR830 moves to177+, with no concurrent release or provider activation.
+An existing real-case/read-only check or rolled-back command is not evidence of
+a newly saved customer record. Report the exact verification scope honestly.
+Direct Docs origin permits no Sales owner; ordinary Sales-origin requirements
+remain. Nullable Sales labels are handled in existing case/application readers.
+Implementation follows [Supabase function authority](https://supabase.com/docs/guides/database/functions)
+and [Next.js server actions](https://nextjs.org/docs/app/getting-started/mutating-data).
+
+Source checkpoint: scoped ESLint and TypeScript pass. Actual migration176
+compiled against managed175; actual Admin/MY password JWT claims were used for
+the bounded SQL command check inside one transaction ending with ROLLBACK.
+Own creation, Admin assignment, full case read, exact retry, changed-payload
+rejection and denial of an unrelated curator passed. No durable student/client,
+sale, Auth account or invitation was created. This is real SQL command evidence,
+not a newly saved customer or a completed browser submission. Migration source
+SHA256: `6d2aa086eaa62fd29f9c6f5c67ea237b25e5da9398c9dfe261b709843a1c9fa3`.
+Production apply/release/form readback are pending at this checkpoint.
+
 ## EVO Docs discoverability and focused UX pass — released 2026-09-18
 
 Owner requests a visible EVO Docs entry and one practical UX pass across the

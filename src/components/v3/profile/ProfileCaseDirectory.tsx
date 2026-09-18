@@ -18,9 +18,9 @@ function attention(row: V3ProfileCaseDirectoryRow): string | null {
   return needs.length ? needs.join(" · ") : null;
 }
 
-export function ProfileCaseDirectory({ directory, initiallyOpen, params, curators = [], allowAdmissionsFilters = true, docsMode = false }: Readonly<{
+export function ProfileCaseDirectory({ directory, initiallyOpen, params, curators = [], allowAdmissionsFilters = true, docsMode = false, createStudentHref }: Readonly<{
   directory: V3ProfileCaseDirectory; initiallyOpen: boolean; params: V3ProfileCaseDirectoryParams;
-  curators?: readonly Readonly<{ membershipId: string; displayName: string }>[]; allowAdmissionsFilters?: boolean; docsMode?: boolean;
+  curators?: readonly Readonly<{ membershipId: string; displayName: string }>[]; allowAdmissionsFilters?: boolean; docsMode?: boolean; createStudentHref?: string;
 }>) {
   const rows = docsMode ? directory.rows.filter(row => row.access === "full") : directory.rows;
   const docsPageWithoutAccess = docsMode && directory.rows.length > 0 && rows.length === 0;
@@ -67,7 +67,8 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
       {params.invalid ? <p role="alert" className="rounded-nav border border-danger p-4 text-sm text-danger" data-testid="v3-student-case-filter-rejected">Не удалось применить фильтры. Проверьте запрос или сбросьте поиск.</p>
         : rows.length === 0 ? <div className="space-y-2 py-8 text-center">
           <p className="font-medium text-fg">{docsPageWithoutAccess ? "На этой странице нет дел с доступом к документам." : params.active ? "По вашему запросу ничего не найдено." : "Пока нет доступных дел студентов."}</p>
-          <p className="text-sm text-fg-2">{docsPageWithoutAccess ? directory.hasNext && directory.nextCursor ? "Перейдите к следующим записям." : "Для работы с документами нужен полный доступ к делу." : params.active ? "Измените запрос или сбросьте фильтры." : "Здесь появятся дела после передачи из продаж."}</p>
+          <p className="text-sm text-fg-2">{docsPageWithoutAccess ? directory.hasNext && directory.nextCursor ? "Перейдите к следующим записям." : "Для работы с документами нужен полный доступ к делу." : params.active ? "Измените запрос или сбросьте фильтры." : docsMode ? createStudentHref ? "Добавьте студента, чтобы начать работу с документами." : "Здесь появятся доступные вам дела студентов." : "Здесь появятся дела после передачи из продаж."}</p>
+          {docsMode && createStudentHref && !params.active && !docsPageWithoutAccess ? <Link href={createStudentHref} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline underline-offset-4">Добавить студента</Link> : null}
           {allowAdmissionsFilters && !docsMode ? <p className="mx-auto max-w-xl text-sm leading-6 text-fg-2">Маршруты Китая и Малайзии находятся в деле студента на вкладке «Маршрут». Откройте дело и выберите маршрут. Кнопки стран выше только фильтруют рабочий список.</p> : null}
         </div>
         : <ul aria-label="Доступные дела студентов" className="divide-y divide-border">{rows.map((row) => {

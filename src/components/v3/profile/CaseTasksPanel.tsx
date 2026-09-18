@@ -40,7 +40,7 @@ export async function CaseTasksPanel({
   const createLink = canCreate ? (
     <Link
       href={`/v3/tasks?create=case&case=${encodeURIComponent(caseId)}`}
-      className="text-xs font-semibold text-accent hover:underline"
+      className="inline-flex min-h-11 items-center text-xs font-semibold text-accent hover:underline"
     >
       Создать задачу
     </Link>

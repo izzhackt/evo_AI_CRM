@@ -113,7 +113,7 @@ export async function CaseHeader({
           label="Куратор"
           value={draft.responsible ?? "не назначен"}
           action={canLinkCoverage ? (
-            <Link href="/v3/profile#curator-coverage" className="text-xs font-semibold text-accent underline underline-offset-4">
+            <Link href="/v3/profile#curator-coverage" className="inline-flex min-h-11 items-center text-xs font-semibold text-accent underline underline-offset-4">
               Нагрузка кураторов
             </Link>
           ) : undefined}

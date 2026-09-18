@@ -31,7 +31,7 @@ function useManualLeadDisclosure(): DisclosureState {
 export function ManualLeadTrigger() {
   const { open, toggle } = useManualLeadDisclosure();
   return (
-    <button type="button" className={btnCls} aria-expanded={open} onClick={toggle}>
+    <button type="button" className={btnCls} aria-expanded={open} aria-controls="manual-lead-panel" onClick={toggle}>
       Добавить лида
     </button>
   );
@@ -42,7 +42,7 @@ export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: str
   const [requestId, setRequestId] = useState(props.requestId);
   if (!open) return null;
   return (
-    <div className="mt-5 rounded-card border border-border bg-surface p-4">
+    <div id="manual-lead-panel" className="mt-5 rounded-card border border-border bg-surface p-4">
       {props.owners.length ? <ManualLeadEditor key={requestId} {...props} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
         : <p role="status" className="text-sm text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
     </div>

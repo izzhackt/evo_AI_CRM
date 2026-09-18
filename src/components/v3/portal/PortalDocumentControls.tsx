@@ -64,8 +64,10 @@ export function PortalDocumentControls({
   const [state, setState] = useState<UploadState>({ status: "idle" });
   const [refreshing, startRefresh] = useTransition();
   const pending = state.status === "uploading" || state.status === "confirming" || refreshing;
+  // Процент остаётся только визуальным: живая область с ним объявляла бы
+  // каждый тик прогресса.
   const feedback = state.status === "uploading"
-    ? `Загружаем файл: ${state.progress}%.`
+    ? "Загружаем файл…"
     : state.status === "confirming"
       ? "Файл отправлен. Ждём подтверждение сохранения."
       : state.status === "success"
@@ -161,7 +163,7 @@ export function PortalDocumentControls({
               className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-nav bg-accent px-4 text-sm font-semibold text-on-accent transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
             >
               {state.status === "uploading"
-                ? `Загружаем файл… ${state.progress}%`
+                ? <>Загружаем файл… <span aria-hidden="true">{state.progress}%</span></>
                 : state.status === "confirming"
                   ? "Подтверждаем сохранение…"
                   : refreshing ? "Обновляем список…" : state.status === "error" ? "Повторить загрузку" : "Загрузить"}

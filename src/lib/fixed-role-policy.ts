@@ -64,7 +64,7 @@ type RouteCapabilityRequirement = readonly [
 ];
 
 const ROUTE_CAPABILITY_ANY_OF = {
-  "/v3/main": ["sales.read"],
+  "/v3/main": ["sales.read", "admissions.read"],
   "/v3/pipeline": ["sales.read"],
   "/v3/inbox": ["messaging.read"],
   "/v3/profile": ["dashboard.read"],
@@ -109,7 +109,10 @@ export function fixedRoleCanAccessRoute(
 export function fixedRoleHomeRoute(
   role: FixedRole,
 ): "/v3/main" | "/v3/calendar" {
-  return role === "admissions" ? "/v3/calendar" : "/v3/main";
+  // Every fixed role now has a home dashboard on /v3/main («Мой день» for
+  // admissions), matching real-staff routeCapabilities.
+  void role;
+  return "/v3/main";
 }
 
 export function canAdminSelectEffectiveRole(

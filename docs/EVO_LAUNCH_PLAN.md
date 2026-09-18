@@ -111,10 +111,11 @@ UX release is recorded above.
 
 ## Public Student onboarding and clear product copy — released 2026-09-18
 
-Active follow-up: fix existing Student re-registration routing and non-retryable
-business conflicts after the owner-reported Saving timeout. Forward migration178;
-keep all identity/Admissions guards and global Auth settings. See the latest
-PLAN_CHANGES entry. No new Student/case is required for this correction.
+Existing Student re-registration correction is released: PR #841, runtime
+`0156d965`, migration 178, accepted run `35345749947`. Both intake routes now
+open the verified existing portal; terminal conflicts return immediately.
+Actual browser and server readback passed; release is disarmed with no pending
+candidate. [Scoped evidence and limits](qa/student-signup-conflict-178-2026-09-18.md).
 
 Owner requests a public questionnaire followed by account creation and Admissions
 approval. Full portal access starts only after approval (explicit confirmation).

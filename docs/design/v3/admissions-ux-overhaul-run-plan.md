@@ -176,7 +176,7 @@ Files: `src/app/(portal)/**`, `src/components/v3/portal/**`.
    date, amount when relevant, and a direct link (document → documents page,
    payment → payments) — no nested `<details>`. Order stays earliest-due-first.
 3. Notifications: presentation-only deep-link mapping by `eventCode` category
-   (document events → `/portal/documents`, application/visa → 
+   (document events → `/portal/documents`, application/visa →
    `/portal/applications`, payment → `/portal/payments`, case-help → existing
    detail route); «Отметить все прочитанными» server action that loops the
    existing per-item `mark_own_student_portal_notification_read_v2` action

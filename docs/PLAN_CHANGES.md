@@ -28338,6 +28338,48 @@ Historical35/QA172 and rollback compilation retain their original scopes;
 production form visibility is not full production signup/customer acceptance.
 Exact evidence: [production receipt](qa/student-public-onboarding-177-production-2026-09-18.md).
 
+### 2026-09-18 — Stop existing Student signup conflict retries
+
+Owner reports the signed-in final questionnaire step remains Saving and returns
+an unavailable error. Production evidence: the selected existing Student has one
+membership and no public application; Supabase logs show 4,800
+`student_application_identity_conflict` events with SQLSTATE40001 from one failed
+submission window. This is a domain conflict incorrectly labeled as a transient
+serialization failure. Supabase documents repeated PostgREST transactions for
+that code: https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b.
+
+Fix only this onboarding boundary: forward migration178 changes the deliberate
+business-conflict codes in the public submit/review RPCs to PT409; preserve every
+identity, membership, idempotency, revision and Admissions authorization guard.
+Existing fully authorized Students must reach their existing portal from apply,
+status and stale submitted forms; pending applicants remain pending. Show the
+signed-in email as account identity rather than a misleading editable input,
+and retain submitted form state on failure. Do not create another case or
+membership, change Auth settings or reinterpret QA as customer acceptance.
+
+Validate the actual affected account read-only route and real Auth/RPC conflict
+response with no duplicate writes, plus local current onboarding evidence only
+where the change affects it. Stop only a conclusively identified looping signup
+backend if still active. Review exact head, short protected checks, migration
+readback and the existing managed release remain required; no broad suite.
+
+Exact-added178 uses the existing short migration lane with a source hash bound
+to the actual rollback-compile and authenticated-RPC receipt. Mixed/modified
+boundary diffs retain the ordinary boundary gate. This is evidence binding, not
+a claim that CI executed production SQL. Existing action unit checks are updated
+for the verified-authority guard; real Auth/RPC and browser proof remain separate.
+
+### 2026-09-18 — Student signup retry correction accepted
+
+PR841 merged at0156d965ec1e320325f0d61d55380ca7b360287b after independent exact-head
+review and protected short checks35345373299. Forward178 source and ledger were
+verified; managed run35345749947 accepted the same revision after real authenticated
+smoke. Independent server readback verified revision/image, receipt hashes, health,
+zero restarts, pending=false and arm=false. Actual production browser /apply and
+/apply/status redirected the existing Student to its portal; the original failed
+tab was refreshed successfully. No duplicate application or new identity was
+created. Full scope and limits: docs/qa/student-signup-conflict-178-2026-09-18.md.
+
 ### 2026-09-18 — staff baseline-checklist seeding for docs-intake cases
 
 Date: 2026-09-18. Author: Fable (Claude Code). Change type: scope addition

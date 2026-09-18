@@ -5,9 +5,7 @@ import { ApplicationWizard } from "@/components/student-application/ApplicationW
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "@/lib/student-application-contract";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
-import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
-import { PRODUCTION_STAFF_ORIGIN } from "@/lib/platform-public-origin";
-import { isPasswordProvisionedStaff } from "@/lib/server/student-signup-runtime";
+import { studentApplicationEntryRedirect } from "@/lib/server/student-signup-runtime";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: { absolute: "Начните поступление | EVO Admissions" }, description: "Расскажите о ваших планах и создайте личный аккаунт EVO." };
@@ -21,12 +19,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   let email = null;
   let revision = 0;
   if (data.user?.email_confirmed_at) {
-    const { data: claims } = await client.auth.getClaims();
-    if (!claims?.claims) throw new Error("Student registration is unavailable.");
-    const staff = await readVerifiedPlatformAuthority(client, claims.claims);
-    if (staff.status === "authenticated") redirect(`${PRODUCTION_STAFF_ORIGIN}/`);
-    if (staff.status === "unavailable") throw new Error("Student registration is unavailable.");
-    if (isPasswordProvisionedStaff(data.user)) redirect(`${PRODUCTION_STAFF_ORIGIN}/login?error=staffAccessDenied`);
+    const destination = await studentApplicationEntryRedirect(client, data.user);
+    if (destination) redirect(destination);
     const application = await readOwnStudentApplication(client);
     if (application && (application.status !== "rejected" || query.edit !== "1")) redirect("/apply/status");
     email = data.user.email ?? null;

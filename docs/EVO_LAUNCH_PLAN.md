@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Direct student creation in EVO Docs — active 2026-09-18
+## Direct student creation in EVO Docs — released 2026-09-18
 
 Owner requests **Добавить студента** directly in Docs and immediate production
 delivery. A document workspace must not require a sale or Student login first.
@@ -12,9 +12,9 @@ delivery. A document workspace must not require a sale or Student login first.
   staff authority. Default the eligible curator to the current employee;
   preserve organization/own-scope rules and idempotent retry. No new Docs data
   store, sale, money/contract confirmation, Auth account or invitation.
-- [ ] Independently review the exact change, build and check only the changed
+- [x] Independently review the exact change, build and check only the changed
   real path; do not run a blanket suite or seed more test sales/students.
-- [ ] Apply the forward migration and ship through the existing short managed
+- [x] Apply the forward migration and ship through the existing short managed
   release; verify accepted runtime and the actual Docs entry/form on production.
 
 Visual contract: calm light EVO workspace, one red primary action, short labels,
@@ -38,7 +38,23 @@ rejection and denial of an unrelated curator passed. No durable student/client,
 sale, Auth account or invitation was created. This is real SQL command evidence,
 not a newly saved customer or a completed browser submission. Migration source
 SHA256: `6d2aa086eaa62fd29f9c6f5c67ea237b25e5da9398c9dfe261b709843a1c9fa3`.
-Production apply/release/form readback are pending at this checkpoint.
+Independent review approved `80561d85066b02e0b0d3043d177eedb12a62225b`;
+[PR #836](https://github.com/izzhackt/evo_AI_CRM/pull/836) merged as
+`39999cc28e9438fac6bce07d197c52a592ec6c96`. Migration176 applied and its ledger
+entry/source hash read back. Exact-main CI35338243745 and managed release
+35338268320 passed. Accepted release `v3-r35338268320-a1-39999cc2` matches the
+running image `sha256:5f01af84ce86d7a15f38f593e3201e0aeea8d76d527960a172913860434682b2`.
+Acceptance record SHA256 `0fad6ab37b2fb7ac120db1e655aaead3f533be977e219dcff1cd4aaac535e510`
+and browser receipt SHA256 `4c5e816702e57aff547cd79ffa5d8ac3ccb15df5d75995ca86c506d1c706e96b`
+match server files. Runtime healthy, zero restarts, public health live, no pending
+candidate; release arm read back `false`.
+
+Actual production Admin and Admissions MY password sign-ins opened Docs →
+Добавить студента, loaded real scoped curator options/defaults and returned via
+Cancel; desktop1440/mobile390 passed with zero runtime errors. No form was
+submitted, and no durable example student was added. Save behavior is supported
+by the real transactional SQL proof above, not a persisted browser submission.
+Entry: `/v3/profile?section=docs&new=student`.
 
 ## EVO Docs discoverability and focused UX pass — released 2026-09-18
 

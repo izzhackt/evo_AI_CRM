@@ -1,5 +1,18 @@
 # EVO Launch Plan
 
+## Admissions UX overhaul + baseline checklist — released 2026-09-18
+
+Owner-directed release of merged #840 (UX overhaul), #844 (staff baseline
+checklist seeding) and #845 (migration renumbered to 179 after a number
+collision; applied by the owner as 179, ledger 001-179 confirmed before the
+release). Exact-main CI 35358251790 and managed release 35358286475 passed on
+`97238e1e89b9be8c9d751ac230e44a57aed49d12`. Accepted release
+`v3-r35358286475-a1-97238e1e`; running app container reports the same OCI
+revision, healthy, zero restarts; public health 200 on crm and app origins;
+release arm read back `false`. Migration application itself was the owner's
+separate manual action, not part of this automated run.
+
+
 ## Docs-intake baseline checklist — active 2026-09-18
 
 A docs-intake case (176) is born without target_degree or a country-requirement

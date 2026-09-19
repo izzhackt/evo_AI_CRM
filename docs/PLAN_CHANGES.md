@@ -30680,3 +30680,43 @@ Coordination after concurrent PR #857: incident186 is allocated to the reviewed
 portal retry fix in #858; the original OTH planned186–190 numbers are provisional
 and must be rebased onto the next free main slots before those migrations merge.
 No OTH migration SQL existed on main at this integration checkpoint.
+
+## 2026-09-19 - Approve public self-serve product scope and resolve the duplicate ADR identifier
+
+Date: 2026-09-19, workspace timezone.
+Author: Codex, implementing the owner's explicit documentation request.
+Change type: product audience, delivery order, and documentation identifiers.
+Affected documents: `PRODUCT.md`, `docs/EVO_LAUNCH_PLAN.md`, and the knowledge
+authority ADR formerly numbered 0014.
+
+Reason: the owner approved a product for independent prospective students and
+EVO clients, then explicitly requested removal of the obsolete staff-only /
+no-self-serve constraint from `PRODUCT.md` and separation of the duplicate
+ADR 0014 identifiers.
+
+Decision:
+- Replace the staff-only audience restriction with independent prospective
+  students, EVO clients, and the existing staff team. Both student audiences
+  receive the shared university/program discovery, English preparation and
+  career-interest features. Clients additionally receive their authorized case,
+  curator, documents, tasks and communication. Invitations and later service
+  enrollment preserve the same account, saved choices and learning progress.
+- Complete the web product first, prioritizing desktop workflows for both
+  student audiences and staff, including full client/curator document work.
+  Then deliver the agreed functionality on iPhone, including accompaniment.
+- Record this as approved target scope, not implemented or deployed capability.
+  Detailed implementation, mobile technology and commercial terms remain
+  separate decisions. Existing authentication, organization/case access and
+  Student-private assessment boundaries remain enforced. No runtime, schema,
+  provider, production or active staff/incident scope changes are authorized
+  by this documentation amendment.
+- Keep `0014-unified-evo-platform-target-architecture.md` as ADR 0014; its
+  existing architecture references retain their meaning. Rename the knowledge
+  authority decision to `0029-resolve-knowledge-by-authority-order.md`, update
+  its heading and the knowledge-specific launch-plan reference. The decision
+  text and original decision date remain unchanged.
+
+Validation: review the documentation diff, run `git diff --check`, verify ADR
+identifier uniqueness and changed local link targets, and obtain independent
+review of the exact committed head. No product tests or production actions are
+needed for this prose-only amendment; protected PR checks remain applicable.

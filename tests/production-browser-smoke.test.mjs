@@ -119,7 +119,9 @@ test("source contract: receipt follows real case and isolated Student journeys",
   assert.match(smokeSource, /Разделы кабинета/u);
   assert.equal((smokeSource.match(/await verifyVersion\(page, configuration\)/gu) ?? []).length, 1);
   assert.deepEqual([...smokeSource.matchAll(/checkpoint\("([a-z_]+)"\)/gu)].map((match) => match[1]), [
-    "admin_login", "case_route", "case_contract", "team_chat", "student_login", "student_overview", "student_documents", "student_navigation",
+    // OTH-1: «Воронка поступления» checkpoint added right after case_contract,
+    // mirroring that checkpoint's own visit()+getByTestId()+runtimeError shape.
+    "admin_login", "case_route", "case_contract", "admissions_pipeline", "team_chat", "student_login", "student_overview", "student_documents", "student_navigation",
   ]);
   assert.ok(smokeSource.indexOf('"production_student_smoke_passed"') < smokeSource.indexOf("await writeProductionSmokeReceipt(configuration.receiptPath"));
   assert.ok(smokeSource.indexOf('if (page.url() !== `${baseUrl}/login`)') < smokeSource.indexOf('page.locator("#staff-email").fill(email)'));

@@ -10,6 +10,7 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3",
   "/v3/main",
   "/v3/pipeline",
+  "/v3/admissions-pipeline",
   "/v3/inbox",
   "/v3/profile",
   "/v3/requests",

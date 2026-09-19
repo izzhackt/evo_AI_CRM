@@ -32034,3 +32034,115 @@ KB-0 measured evidence (2026-09-19): 6,570 source files; 6,568 hashed, 2 key fil
 Coordination request posted to https://github.com/izzhackt/evo_AI_CRM/pull/899#issuecomment-5744697374 : Fable keeps schema/release ownership; next migration number requires acknowledgment. No apply/arm operation was performed.
 
 Read-only inventory validation: first 73 real files stopped with explicit incomplete status; resume completed. A second actual process was terminated with SIGTERM after 107 completed rows; its on-disk journal resumed to exit 0 and all 6,570 source records matched the first inventory exactly. No synthetic files or copied stand-ins were used; source bytes remained read-only. `git diff --check` passed. This proves inventory resumption only, not the later Storage import/export path.
+
+
+## 2026-09-19 — PORT iOS волна 8: сопровождение на iPhone (документы, оплата, уведомления, задания)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal iOS session), iOS-паритет разделов сопровождения против
+ПРИМЕНЁННЫХ read-контрактов PORT-5d (миграции 043→153, ledger в проде);
+план §2 (урезанный iPhone с web-only документами НЕ соответствует заданию),
+§6 «Сопровождение», ADR 0030 §2/§3.
+Change type: iOS UI + клиентский bearer-транспорт документов; без миграций,
+без изменений веб-кода. Первый коммит — только эта запись.
+Affected plan section: PORT-5a/5b/5d (iPhone-часть), дизайн-контракт
+«iPhone: Моё поступление».
+
+Decision:
+- (a) ДОКУМЕНТЫ (чтение): тот же RPC, что у веба —
+  `platform.student_portal_documents()` (128:675-694; правки статусной
+  машины 108). Слот показывает requirement_label, instructions, статус
+  (5 значений document_slot_status), deadline, next_action, последнюю
+  версию (version_no/original_filename/submitted_at — «истории версий»
+  отдельного RPC у веба НЕТ: version_no и есть счётчик, iOS показывает
+  ровно то же и ничего не изобретает), review_decision + rework_reason.
+  Ко-ограничения NULL-полей версии/решения — как в веб-нормализаторе
+  (portal-source.ts): фикстуры их фиксируют.
+- (b) ДОКУМЕНТЫ (upload/download, bearer-контракт): вебовые route
+  handler'ы, авторизация `Authorization: Bearer <access token текущей
+  Supabase-сессии>` (ADR 0030 §3; серверная часть строится ПАРАЛЛЕЛЬНО в
+  ветке izzhackt/portal-8-bearer-documents — iOS кодируется по контракту и
+  честно помечает live-прогон как not-exercised):
+  - POST `{base}/api/portal/document-slots/{slotId}/versions`,
+    multipart/form-data с РОВНО одной частью `file` (pdf|jpeg|png, ≤25MB),
+    заголовки Accept: application/json и `Idempotency-Key: <UUID>` (handler
+    требует UUID — route-handlers.ts:1160). Семантика ключа зеркалит
+    PortalDocumentControls.tsx: ключ ЗАМОРОЖЕН на попытку, ретрай шлёт ТОТ
+    ЖЕ ключ, выбор другого файла и успех сбрасывают его. Ответ 201
+    `{document:{documentSlotId,documentVersionId,versionNumber,
+    originalFilename,declaredMimeType,byteSize}}` (route-handlers.ts:
+    1461-1473); ошибки мапятся как в вебе: 400/415 файл, 403 доступ,
+    409 конфликт/скан, 413 размер, 422 malware, 429 rate limit, иначе
+    «недоступно». Процент загрузки веб получает из XHR; iOS в этой волне
+    показывает честное неопределённое состояние «Загрузка…» без процентов.
+  - GET `{base}/api/portal/document-versions/{versionId}/download` с тем же
+    Bearer; студенческий policy отвечает 302 + Location на подписанный URL
+    (route-handlers.ts:175-179, 1579-1594). URLSession-делегат СНИМАЕТ
+    Authorization при cross-host redirect; файл скачивается во временный
+    каталог и открывается QuickLook-превью.
+- (c) База URL кабинета: новый конфиг-ключ `PORTAL_WEB_BASE_URL` там же,
+  где живёт SUPABASE_URL (Local.xcconfig → Info.plist через project.yml);
+  пустое/отсутствующее значение (в т.ч. обрезанный xcconfig-артефакт без
+  хоста) → дефолт `https://app.evoadmissions.com` (план §2 «app.evoadmissions
+  .com»). Документируется в ios/README.md + placeholder в
+  Local.xcconfig.example ($()-экранирование `//`). Сам Local.xcconfig не
+  читается и не изменяется.
+- (d) ОПЛАТА: тот же RPC `platform.student_portal_finance_v2()`
+  (127:472-485; overdue NULL-safe патчем 189:242-257). Null-семантика 189
+  СОХРАНЕНА: due_at NULL = «без срока» — строка срока не рисуется вовсе,
+  никаких выдуманных дефолтов; next_action NULL — блока «Следующий шаг»
+  нет. Суммы в minor units → те же 4 строки веба (к оплате / оплачено /
+  осталось / возвращено-если->0), статус из derived_status (4 значения
+  obligation_status), категория evo_service_fee|third_party_cost.
+- (e) УВЕДОМЛЕНИЯ: `platform.student_portal_notifications_v2()`
+  (153:97-106, cap 500) + пер-элементное
+  `mark_own_student_portal_notification_read_v2(p_notification_id,
+  p_request_id)` (153:210; receipt jsonb 153:314-318
+  {notification_id,is_read,read_at}). request_id — ДЕТЕРМИНИРОВАННЫЙ
+  UUIDv5, бит-в-бит формула веба (student-portal-notification-command-id.ts:
+  namespace 73f89df8-d811-5352-9a97-a87652d591c1, имя
+  notification-read:org:case:membership:authUser:notification): один студент
+  + одно уведомление = одна replay-safe команда, ретрай и mark-all safe при
+  частичном сбое. «Прочитать все» = цикл той же одиночной RPC по
+  непрочитанным — ровно как веб (notifications/page.tsx:21-30, «no new
+  RPC»). Навигация по категории — зеркало portalNotificationTarget
+  (presentation.ts): category document* → экран «Документы», payment* →
+  «Оплата», eventCode case_help_answer → у веба отдельная страница ответа
+  (readStudentHelpReply) — на iPhone этого экрана в волне 8 НЕТ, пункт
+  честно раскрывает detail-текст уведомления и говорит, что полный ответ —
+  в веб-кабинете (это НЕ мёртвая ссылка); прочие категории — без ссылки
+  (объект — сам хаб). «message → чат»: категорий сообщений в эмитируемом
+  контракте уведомлений НЕ существует (проекции 069/108/153) — веб их тоже
+  никуда не ведёт; чат доступен из хаба.
+- (f) ЗАДАНИЯ/следующие действия: `platform.student_portal_overview_v2()`
+  (131:17-30, single-row; ко-ограничения NULL-групп student_action/
+  evo_action — как в normalizeStudentPortalOverview). Читается ТОЛЬКО на
+  чтение в MyAdmissionView: главный шаг + очередь действий (слияние
+  document-action с payment-действиями по правилу веба portal-source.ts:
+  674-691 — outstanding>0 и статус не cancelled/waived, сортировка «раньше
+  срок — выше», без срока — в конец, стабильные ничьи), колонка EVO
+  (evo_action + куратор). Контракт волны 7 сохраняется: task-карточек в
+  чате НЕТ.
+- (g) MyAdmissionView становится хабом: статус кейса → Документы / Оплата /
+  Уведомления / Сообщения + очередь действий. Строка-отсрочка
+  admission_next_wave («…в веб-кабинете») УДАЛЯЕТСЯ для этих разделов.
+- (h) RU/KY: каждый новый ключ в String Catalog сразу с ru И ky (дисциплина
+  270/270); accessibilityLabel на всех новых интерактивных элементах;
+  Dynamic Type — системные текстовые стили, без фиксированных размеров.
+
+Что НЕ строится в этой волне (честные границы): страница полного ответа
+case-help на iPhone; история версий документов сверх version_no (у веба её
+нет); процент upload-прогресса; push-уведомления (план §14); никакие
+web/SQL-изменения (bearer-серверная часть — параллельная ветка
+izzhackt/portal-8-bearer-documents).
+
+Validation plan: xcodebuild build И xcodebuild test (iPhone 17 Pro),
+отдельными командами с отдельными exit-кодами и строкой «Executed N tests»
+из ПОЛНОГО лога; декодер-фикстуры, написанные руками по SQL 131/127+189/
+128/153 с построчными ссылками; юниты чистых политик: замороженный
+Idempotency-Key (ретрай/смена файла/успех), UUIDv5-паритет request_id
+(векторы посчитаны референсной реализацией), mark-all только по
+непрочитанным, null-семантика оплаты (без срока — без строки), слияние и
+сортировка очереди действий. Live upload/download НЕ прогоняются до merge
+и релиза PORT-8a (серверного bearer ещё нет в main); live sign-in в этой
+сессии не выполняется — пост-логин экраны перечисляются как not-exercised.

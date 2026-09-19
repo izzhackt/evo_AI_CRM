@@ -1,5 +1,41 @@
 # EVO Launch Plan
 
+## Portal release v3-r35452266156-a1-b7052637 accepted 2026-09-19
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree, so the
+  schema-ledger apply step was skipped by design.
+- [x] Release from exact main `b7052637d48c812ba37c68c5b9016615b59c55e0`.
+  Web delta is #896 (PORT-6a: KY for the four re-skinned assisted screens —
+  142 pairs, closing the debt named in the previous receipt — plus 8 a11y
+  fixes and a static axe gate; RU smoke anchors byte-pinned). iOS deltas
+  #893 (wave 5: favorites, profile, consultation, learning-read, incl. the
+  live-found language save-button fix) and #897 (wave 7: lesson runner with
+  server-receipt verdicts and frozen idempotent retries, review runner,
+  case-chat thread honoring contract §6 — no task cards, NULL-label
+  document cards — consultation parity, +56 RU/KY keys, 71/71 tests) ride
+  in the repo only; no store/TestFlight release exists yet, so the
+  container ships the web delta. CI run 35452248717 green on the exact
+  merge SHA; release run 35452266156 accepted; container `evo-crm-app-1`
+  on hermes-vps carries the exact OCI revision (healthy); `/api/health`
+  live; accepted pointer `v3-r35452266156-a1-b7052637` with
+  acceptance-record sha256 recorded; `EVO_PRODUCTION_RELEASE_ARMED`
+  returned to `false` at 15:42 UTC.
+- Independent exact-head reviews: #896 confirmed earlier this cycle; #897
+  PASS 8/8 on head `c252d529` (build+test reproduced twice, secrets scan
+  clean, §6 and read-only live-check claims verified against code and SQL).
+  The reviewer's one non-blocking note — the wave-7 PLAN_CHANGES entry
+  predicted a SignIn-only screenshot while the final validation was a wider
+  but still read-only six-screen pass — is closed by an append-only
+  PLAN_CHANGES entry in this receipt PR. Cross-session protocol observed
+  (ping before arm acknowledged by the peer session, accepted + disarm
+  confirmed back).
+- Not claimed: live post-release web render of the KY assisted screens
+  (no live credentials in the agent session); KY texts still await the
+  owner's native-speaker proofread (standing PORT-6 item); iOS runner
+  write-paths were never exercised against production (decoder fixtures
+  and policy units only).
+
 ## Portal release v3-r35446304360-a1-50c932c6 accepted 2026-09-19
 
 - [x] Migration 200 (student side of the per-case chat over OTH-5's 191

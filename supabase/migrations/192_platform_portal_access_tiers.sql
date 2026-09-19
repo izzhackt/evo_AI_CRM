@@ -58,14 +58,14 @@
 --   platform_private.live_student_portal_recipient(uuid,uuid).
 BEGIN;
 
-CREATE FUNCTION pg_temp.evo_p195_assisted_gate_replace(p_signature TEXT, p_before TEXT, p_after TEXT, p_expected INTEGER DEFAULT 1)
+CREATE FUNCTION pg_temp.evo_p192_assisted_gate_replace(p_signature TEXT, p_before TEXT, p_after TEXT, p_expected INTEGER DEFAULT 1)
 RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE body TEXT; occurrences INTEGER;
 BEGIN
   SELECT pg_get_functiondef(p_signature::regprocedure) INTO body;
   occurrences := (length(body) - length(replace(body, p_before, ''))) / length(p_before);
   IF occurrences <> p_expected THEN
-    RAISE EXCEPTION 'evo_p195_assisted_gate_anchor_mismatch: % (% instead of %)', p_signature, occurrences, p_expected;
+    RAISE EXCEPTION 'evo_p192_assisted_gate_anchor_mismatch: % (% instead of %)', p_signature, occurrences, p_expected;
   END IF;
   EXECUTE replace(body, p_before, p_after);
 END
@@ -76,7 +76,7 @@ $$;
 --    Staff-ветка (ELSE) не меняется — существующие треды читаемы куратору и
 --    админу на кейсе в любом состоянии.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'platform_private.require_case_operations_actor(uuid,boolean)',
   $$    IF NOT FOUND OR (p_case_id IS NOT NULL AND p_case_id <> c.id) THEN
       RAISE EXCEPTION 'Case access denied' USING ERRCODE = '42501';
@@ -97,7 +97,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
 --    случайности «у pending-кейса нет слотов». Общий кейс-гейт
 --    platform_can_read_student_portal_case остаётся pending-eligible.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'platform.student_portal_documents()',
   $$  WHERE slot.removed_at IS NULL
     AND private.platform_can_read_student_portal_case($$,
@@ -116,7 +116,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
 --    дословные p_after из 180, состояние списков возвращается к
 --    ('active','closed')). Admin/Curator ветки не затрагиваются.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'platform.admit_student_document_upload_scan(uuid,uuid,uuid)',
   $$    AND student_case.state IN ('pending', 'active', 'closed')
     AND student_case.student_membership_id IS NOT DISTINCT FROM
@@ -127,7 +127,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
       actor.actor_membership_id
     AND student_case.portal_activated_at IS NOT NULL$$);
 
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'private.grant_student_portal_document_download(uuid,uuid,uuid)',
   $$    AND student_case.state IN ('pending', 'active', 'closed')
     AND student_case.student_membership_id IS NOT DISTINCT FROM
@@ -140,7 +140,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
 
 -- Два вхождения (предварительная проверка + перепроверка после блокировок);
 -- каждое правится собственным якорем по локальному алиасу, как в 180.
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'private.grant_document_download_pre_e5(uuid,uuid,text,integer,uuid)',
   $$      OR (
         actor.actor_role IS NOT DISTINCT FROM 'student'
@@ -154,7 +154,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
         AND student_case.student_membership_id IS NOT DISTINCT FROM
           actor.actor_membership_id
         AND student_case.portal_activated_at IS NOT NULL$$);
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'private.grant_document_download_pre_e5(uuid,uuid,text,integer,uuid)',
   $$    OR (
       actor.actor_role IS NOT DISTINCT FROM 'student'
@@ -169,7 +169,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
         actor.actor_membership_id
       AND case_row.portal_activated_at IS NOT NULL$$);
 
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'private.consume_document_download_grant_pre_e5(uuid,uuid)',
   $$      OR (membership."current_role" = 'student'
         AND download_grant.grantee_role = 'student'
@@ -180,7 +180,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
         AND student_case.state IN ('active', 'closed') AND student_case.student_membership_id = membership.id
         AND student_case.portal_activated_at IS NOT NULL$$);
 
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'platform.reserve_document_upload_after_ingress_scan(uuid,uuid,uuid,text,text,bigint,text,text,text,text,text,text,timestamp with time zone,uuid)',
   $$      OR (
         actor.actor_role IS NOT DISTINCT FROM 'student'
@@ -195,7 +195,7 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
           actor.actor_membership_id
         AND student_case.portal_activated_at IS NOT NULL$$);
 
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'platform.preflight_document_upload(uuid,uuid,text,text,bigint,text,uuid)',
   $$      OR (
         actor.actor_role IS NOT DISTINCT FROM 'student'
@@ -210,14 +210,14 @@ SELECT pg_temp.evo_p195_assisted_gate_replace(
           actor.actor_membership_id
         AND student_case.portal_activated_at IS NOT NULL$$);
 
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'platform_private.require_document_storage_actor(uuid,uuid,text)',
   $$    OR (a.actor_role IS NOT DISTINCT FROM 'student' AND c.state IN ('pending','active','closed')
       AND c.student_membership_id=a.actor_membership_id AND c.portal_activated_at IS NOT NULL$$,
   $$    OR (a.actor_role IS NOT DISTINCT FROM 'student' AND c.state IN ('active','closed')
       AND c.student_membership_id=a.actor_membership_id AND c.portal_activated_at IS NOT NULL$$);
 
-SELECT pg_temp.evo_p195_assisted_gate_replace(
+SELECT pg_temp.evo_p192_assisted_gate_replace(
   'platform_private.require_current_upload_reservation(uuid,uuid,text)',
   $$      AND c.student_membership_id = m.id AND c.state IN ('pending', 'active', 'closed') AND c.portal_activated_at IS NOT NULL$$,
   $$      AND c.student_membership_id = m.id AND c.state IN ('active', 'closed') AND c.portal_activated_at IS NOT NULL$$);

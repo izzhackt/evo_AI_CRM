@@ -2513,12 +2513,12 @@ SQL
       -f /workspace/supabase/tests/platform_case_chat.sql
   fi
 
-  # Migration 195 separates the portal access tiers (PORT-1a): the Student
+  # Migration 192 separates the portal access tiers (PORT-1a): the Student
   # branch of case-help operations and every Student document path now
   # require state IN ('active','closed'), while the shared pending-eligible
   # case gate (overview/notifications/catalog/assessments) is untouched.
   # Exercise the boundary at its own checkpoint, same style as 185.
-  if [[ "$(basename "$migration")" == 195_* ]]; then
+  if [[ "$(basename "$migration")" == 192_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_portal_access_tiers.sql

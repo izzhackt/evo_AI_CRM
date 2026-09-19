@@ -33,7 +33,8 @@
 - OTH-3 (189) делает `payment_obligations.due_at`/`next_action` nullable и
   точечно правит `src/lib/v3/portal-source.ts` и `PaymentsView.tsx` —
   редизайн оплат в PORT-5 обязан сохранить null-семантику.
-- Файлы, которые до merge OTH-1/OTH-4 меняем только после ребейза и аддитивно:
+- OTH-1 (187) уже в main; файлы, которые до merge остальной цепочки OTHER
+  (OTH-2…OTH-5) меняем только после ребейза и аддитивно:
   `src/lib/v3/navigation.ts`, `src/lib/v3/wording.ts`,
   `src/lib/platform-route-contract.ts`, `src/lib/fixed-role-policy.ts`,
   `src/lib/platform-access.ts`, `src/components/v3/AppShell.tsx`,

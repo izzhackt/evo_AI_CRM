@@ -132,16 +132,16 @@ export function PortalDocumentControls({
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+    <div className="pt-doc-controls">
       {allowUpload ? (
-        <form ref={formRef} onSubmit={upload} aria-busy={pending} className="min-w-0 flex-1">
+        <form ref={formRef} onSubmit={upload} aria-busy={pending} className="pt-doc-upload">
           <label
             htmlFor={`portal-document-${documentSlotId}`}
-            className="block text-xs font-semibold text-fg"
+            className="pt-field-label"
           >
             Загрузить новый файл
           </label>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="pt-doc-upload-row">
             <input
               id={`portal-document-${documentSlotId}`}
               name="file"
@@ -154,13 +154,13 @@ export function PortalDocumentControls({
                 uploadIdempotencyKeyRef.current = null;
                 setState({ status: "idle" });
               }}
-              className="min-h-11 min-w-0 flex-1 rounded-nav border border-control-edge bg-surface px-3 py-2 text-sm text-fg file:me-3 file:rounded-nav file:border-0 file:bg-surface-2 file:px-3 file:py-1 file:font-medium file:text-fg disabled:cursor-not-allowed disabled:opacity-60"
+              className="pt-input pt-doc-file"
             />
             <button
               type="submit"
               disabled={pending}
               aria-disabled={pending}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-nav bg-accent px-4 text-sm font-semibold text-on-accent transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+              className="pt-btn"
             >
               {state.status === "uploading"
                 ? <>Загружаем файл… <span aria-hidden="true">{state.progress}%</span></>
@@ -174,19 +174,19 @@ export function PortalDocumentControls({
               value={state.status === "uploading" ? state.progress : 100}
               max={100}
               aria-hidden="true"
-              className="mt-2 block h-1.5 w-full max-w-xs appearance-none overflow-hidden rounded-nav border-0 bg-surface-3 text-accent [&::-moz-progress-bar]:rounded-nav [&::-moz-progress-bar]:bg-accent [&::-webkit-progress-bar]:rounded-nav [&::-webkit-progress-bar]:bg-surface-3 [&::-webkit-progress-value]:rounded-nav [&::-webkit-progress-value]:bg-accent"
+              className="pt-progress pt-doc-progress"
             />
           ) : null}
-          <p id={`portal-document-hint-${documentSlotId}`} className="mt-1 text-xs text-fg-3">PDF, JPG или PNG, до 25 МБ.</p>
+          <p id={`portal-document-hint-${documentSlotId}`} className="pt-doc-hint">PDF, JPG или PNG, до 25 МБ.</p>
         </form>
       ) : (
-        <p className="text-sm text-fg-2">Принятый документ доступен только для скачивания.</p>
+        <p className="pt-doc-locked">Принятый документ доступен только для скачивания.</p>
       )}
 
       {documentVersionId ? (
         <a
           href={`/api/portal/document-versions/${encodeURIComponent(documentVersionId)}/download`}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-nav border border-control-edge bg-surface px-4 text-sm font-semibold text-fg transition-colors hover:bg-surface-2"
+          className="pt-btn-ghost pt-doc-download"
           aria-label={`Скачать ${originalFilename ?? "последний файл"}`}
         >
           Скачать последний файл
@@ -198,7 +198,7 @@ export function PortalDocumentControls({
         role={state.status === "error" ? "alert" : "status"}
         aria-live="polite"
         aria-atomic="true"
-        className={`min-h-6 w-full text-sm leading-6 ${state.status === "error" ? "text-danger" : "text-fg-2"}`}
+        className={`pt-doc-feedback ${state.status === "error" ? "pt-doc-feedback-error" : ""}`}
       >
         {feedback}
       </p>

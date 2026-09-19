@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
-import { NotificationsView } from "@/components/v3/portal/NotificationsView";
-import { PortalPage } from "@/components/v3/portal/PortalPage";
+import { NotificationsView } from "@/components/portal/admission/NotificationsView";
 import { markStudentPortalNotificationReadAction } from "@/lib/student-portal-actions";
 import { readStudentPortalNotifications } from "@/lib/v3/portal-source";
 
@@ -31,15 +30,17 @@ export default async function StudentPortalNotificationsPage() {
   const notifications = await readStudentPortalNotifications();
 
   return (
-    <PortalPage
-      title="Уведомления"
-      description="Важные изменения и сроки по вашему поступлению."
-    >
+    <main className="pt-page">
+      <header className="pt-page-header">
+        <p className="pt-page-kicker">Кабинет студента</p>
+        <h1 className="pt-page-title">Уведомления</h1>
+        <p className="pt-page-lead">Важные изменения и сроки по вашему поступлению.</p>
+      </header>
       <NotificationsView
         notifications={notifications}
         markReadAction={markStudentPortalNotificationReadAction}
         markAllReadAction={markAllStudentPortalNotificationsReadAction}
       />
-    </PortalPage>
+    </main>
   );
 }

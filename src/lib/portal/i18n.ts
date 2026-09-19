@@ -618,9 +618,20 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
   differenceLink: "Кураторго суроону ачуу",
 };
 
+const admissionRu = {
+  kicker: "Сопровождение",
+  messagesNote: "Переписка с командой по делу — в разделе «Сообщения».",
+};
+
+const admissionKy = {
+  kicker: "Коштоо",
+  messagesNote: "Иш боюнча команда менен кат алышуу — «Билдирүүлөр» бөлүмүндө.",
+};
+
 /** Все портальные словари, по неймспейсам. Экспорт — для контракт-теста. */
 export const PORTAL_DICTIONARIES = {
   shell: { ru: shellRu, ky: shellKy },
+  admission: { ru: admissionRu, ky: admissionKy },
   messages: { ru: messagesRu, ky: messagesKy },
   universities: { ru: universitiesRu, ky: universitiesKy },
   favorites: { ru: favoritesRu, ky: favoritesKy },

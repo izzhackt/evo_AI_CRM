@@ -1,6 +1,5 @@
 import type { StudentPortalPayment } from "@/lib/v3/portal-source";
 
-import { PortalEmptyState, PortalSection } from "./PortalPage";
 import { PortalStatus } from "./PortalStatus";
 import {
   formatPortalMoney,
@@ -9,6 +8,11 @@ import {
   paymentStatus,
 } from "./presentation";
 
+/**
+ * «Оплата» в Атласе (PORT-5d): те же начисления из E2 DTO, mono-цифры,
+ * null-семантика 189 сохранена (dueAt: null = «без срока» — строка срока
+ * просто не рисуется; nextAction: null — блока «Следующий шаг» нет).
+ */
 export function PaymentsView({
   payments,
 }: {
@@ -16,16 +20,22 @@ export function PaymentsView({
 }) {
   if (payments.length === 0) {
     return (
-      <PortalEmptyState
-        title="Начислений пока нет"
-        description="Здесь появятся суммы и сроки оплаты."
-      />
+      <section className="pt-adm-empty">
+        <h2 className="pt-section-title">Начислений пока нет</h2>
+        <p className="pt-adm-empty-body">Здесь появятся суммы и сроки оплаты.</p>
+      </section>
     );
   }
 
   return (
-    <PortalSection title="Начисления" description="Сроки указаны по времени Бишкека.">
-      <ul className="divide-y divide-border">
+    <section className="pt-card">
+      <header className="pt-card-header">
+        <div className="pt-card-header-main">
+          <h2 className="pt-card-title">Начисления</h2>
+          <p className="pt-card-note">Сроки указаны по времени Бишкека.</p>
+        </div>
+      </header>
+      <ul className="pt-adm-list">
         {payments.map((payment, index) => {
           const status = paymentStatus(payment);
           const category = paymentCategory(payment);
@@ -34,18 +44,18 @@ export function PaymentsView({
           return (
             <li
               key={`${payment.category}:${payment.dueAt}:${payment.label}:${index}`}
-              className="px-4 py-5 sm:px-5"
+              className="pt-pay-item"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="pt-pay-item-head">
                 <div>
-                  <h3 className="text-sm font-semibold leading-6 text-fg">
+                  <h3 className="pt-pay-item-title">
                     {payment.label}
                   </h3>
                   {category ? (
-                    <p className="mt-1 text-xs text-fg-3">{category}</p>
+                    <p className="pt-pay-item-meta">{category}</p>
                   ) : null}
                   {dueLabel ? (
-                    <p className="mt-1 text-xs text-fg-3">
+                    <p className="pt-pay-item-meta">
                       Срок: <time dateTime={payment.dueAt ?? undefined}>{dueLabel}</time>
                     </p>
                   ) : null}
@@ -53,29 +63,29 @@ export function PaymentsView({
                 <PortalStatus label={status.label} tone={status.tone} />
               </div>
 
-              <dl className="mt-5 grid grid-cols-1 gap-4 border-t border-border pt-4 sm:grid-cols-3">
-                <div>
-                  <dt className="text-xs text-fg-3">К оплате</dt>
-                  <dd className="mt-1 font-mono text-sm font-semibold tabular-nums text-fg">
+              <dl className="pt-pay-amounts">
+                <div className="pt-pay-amount">
+                  <dt>К оплате</dt>
+                  <dd className="pt-data">
                     {formatPortalMoney(payment.amountMinor, payment.currency)}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-fg-3">Оплачено</dt>
-                  <dd className="mt-1 font-mono text-sm font-semibold tabular-nums text-fg">
+                <div className="pt-pay-amount">
+                  <dt>Оплачено</dt>
+                  <dd className="pt-data">
                     {formatPortalMoney(payment.paidMinor, payment.currency)}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs text-fg-3">Осталось</dt>
-                  <dd className="mt-1 font-mono text-sm font-semibold tabular-nums text-fg">
+                <div className="pt-pay-amount">
+                  <dt>Осталось</dt>
+                  <dd className="pt-data">
                     {formatPortalMoney(payment.outstandingMinor, payment.currency)}
                   </dd>
                 </div>
                 {payment.refundedMinor > 0 ? (
-                  <div>
-                    <dt className="text-xs text-fg-3">Возвращено</dt>
-                    <dd className="mt-1 font-mono text-sm font-semibold tabular-nums text-fg">
+                  <div className="pt-pay-amount">
+                    <dt>Возвращено</dt>
+                    <dd className="pt-data">
                       {formatPortalMoney(payment.refundedMinor, payment.currency)}
                     </dd>
                   </div>
@@ -83,8 +93,8 @@ export function PaymentsView({
               </dl>
 
               {payment.nextAction ? (
-                <p className="mt-4 rounded-nav bg-surface-2 px-3 py-3 text-sm leading-6 text-fg-2">
-                  <span className="font-semibold text-fg">Следующий шаг:</span>{" "}
+                <p className="pt-next-step">
+                  <span className="pt-next-step-label">Следующий шаг:</span>{" "}
                   {payment.nextAction}
                 </p>
               ) : null}
@@ -92,6 +102,6 @@ export function PaymentsView({
           );
         })}
       </ul>
-    </PortalSection>
+    </section>
   );
 }

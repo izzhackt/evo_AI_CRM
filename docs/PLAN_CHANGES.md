@@ -31638,3 +31638,62 @@ Reviewer notes: pending independent review on the exact PR head; ветка
 izzhackt/portal-5c-chat от origin/main (28758dd6). Поверх этого slice
 стекуется PORT-5d (редизайн «Моё поступление» в Атласе, без миграции) —
 отдельная запись ниже перед его кодированием.
+
+## 2026-09-19 — PORT-5d: «Моё поступление» в Атласе (без миграции)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §7 (полный редизайн UX/UI) и
+дизайн-контракт `docs/design/portal/design-contract.md` §7 «Моё поступление»
+(«обзор/документы/оплата/вопрос куратору в новом визуале; функциональные
+контракты не меняются») и правило изоляции («замена src/components/v3/portal/*
+по мере переноса экранов, replace-don't-layer»).
+Change type: UI-scope fixation before coding; без миграций; stacked поверх
+izzhackt/portal-5c-chat (PORT-5c, PR #892).
+Affected plan section: PORT-5/PORT-2 (перенос последних v3-экранов портала в
+Атлас), дизайн-контракт §7.
+
+Decision:
+- (a) OverviewView/DocumentsView/PaymentsView/NotificationsView переносятся
+  из `src/components/v3/portal/` в `src/components/portal/admission/` на
+  pt-токены (replace-don't-layer: старые файлы удаляются этим же slice,
+  все импорты обновлены). Вместе с ними — их собственные опоры:
+  presentation.ts (портальный слой над доменными статусами v3/wording —
+  разрешённое исключение дизайн-контракта), PortalStatus (pt-пилюля),
+  PortalDocumentControls, PortalNotificationReadButton,
+  PortalMarkAllReadButton; страница «Ответ куратора»
+  (/portal/notifications/[id]) тоже переводится — иначе presentation и
+  кнопка прочтения остались бы жить в двух мирах. Имена компонентов
+  сохраняются — меняются путь и разметка.
+- (b) Функциональные контракты и данные НЕ меняются: те же читатели
+  `src/lib/v3/portal-source.ts` (E2 DTO), те же server actions прочтения
+  уведомлений, тот же XHR-upload с Idempotency-Key и exact-receipt; вся
+  null-семантика 189 сохраняется (`dueAt: null` = «без срока» → «Не
+  указан»/строка срока не рисуется; `nextAction: null` → блок «Следующий
+  шаг» не рисуется) — проверено чтением кода обеих сторон.
+- (c) Смоук-якоря production — байт-в-байт: заголовки «Моё поступление»,
+  «Документы», варианты заголовков документов («Чеклист» | «Список
+  документов пока пуст»), testid `student-portal-shell`, nav «Разделы
+  кабинета». Смоук-скрипт и его контракт-тест НЕ трогаются; после переноса
+  прогоняется `node --test tests/production-browser-smoke.test.mjs`.
+- (d) Пины структурных тестов обновляются осознанно (пути v3/portal →
+  portal/admission, pt-классы вместо tailwind-утилит):
+  v3-student-portal-ui, v3-student-portal-documents-ui. Что остаётся в
+  v3-мире сознательно (вне объёма): PortalPage/PortalEmptyState для
+  экранов тестов (assessments), PortalNotificationUpdates в layout,
+  assessments/* — их перенос принадлежит следующим slice'ам.
+- (e) Локализация RU/KY этих четырёх экранов сознательно НЕ входит в slice:
+  редизайн обязан сохранить функциональные контракты и смоук-якоря
+  байт-в-байт; тексты остаются сегодняшними русскими строками, KY-слой
+  «Моего поступления» — отдельная работа с собственными словарями доменных
+  статусов (named limitation, фиксируется и в PR).
+
+Validation impact: `npm run typecheck`; `npm run build` (код возврата);
+`npm run test:brand-ui`; `npm run test:frontend` (обновлённые пины);
+`node --test tests/production-browser-smoke.test.mjs`; `git diff --check`.
+Миграционная цепочка не меняется (P200-прогон выполнен в PORT-5c).
+Живой аутентифицированный рендер в этой сессии не выполняется — честно
+фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; ветка
+izzhackt/portal-5d-atlas stacked поверх izzhackt/portal-5c-chat — ретаргет
+после merge базы делает координатор.

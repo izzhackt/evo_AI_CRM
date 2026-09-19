@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+// PORT-5d: «Документы» живут в Атласе (src/components/portal/admission/) —
+// пути обновлены вместе с переносом, функциональные пины прежние.
 const controls = await readFile(
-  new URL("../src/components/v3/portal/PortalDocumentControls.tsx", import.meta.url),
+  new URL("../src/components/portal/admission/PortalDocumentControls.tsx", import.meta.url),
   "utf8",
 );
 const documents = await readFile(
-  new URL("../src/components/v3/portal/DocumentsView.tsx", import.meta.url),
+  new URL("../src/components/portal/admission/DocumentsView.tsx", import.meta.url),
   "utf8",
 );
 

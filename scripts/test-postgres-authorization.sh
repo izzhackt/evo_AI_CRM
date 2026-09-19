@@ -2599,6 +2599,24 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_portal_consultation_requests.sql
   fi
+
+  # Migration 198 adds the learning and professions engine (PORT-4a):
+  # immutable versioned content (platform_private.learning_modules/lessons/
+  # exercises, profession_cards) behind Student-only RPCs with the
+  # case-INDEPENDENT 148/195/196 catalogue guard, per-exercise server-side
+  # grading with instant разбор of the answered exercise only, the
+  # server-computed mistake bank and the review RPC family. Learning state
+  # is staff-invisible by standing decision (plan §6): the suite proves
+  # 42501 for admin/sales/curator, peer and foreign Students, plus content
+  # immutability and no audit projection. Exercised at its own checkpoint,
+  # same convention as 185/192-196. The seed migration 199 carries its own
+  # in-migration consistency assertions (P199 markers) and needs no
+  # separate checkpoint file here.
+  if [[ "$(basename "$migration")" == 198_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_learning_engine.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -1,5 +1,26 @@
 # EVO Launch Plan
 
+## Public product audience and delivery order — approved 2026-09-19
+
+The owner replaces the staff-only / no-self-serve restriction in
+[`PRODUCT.md`](../PRODUCT.md). The target serves independent prospective
+students and EVO clients through the same shared discovery and preparation
+features. Clients also receive their authorized case, curator, documents,
+tasks and communication; invitations and later service enrollment preserve
+the same account, saved choices and learning progress.
+
+Delivery order: complete the web product first, prioritizing desktop workflows
+for both student audiences and staff, including client/curator document work;
+then deliver the agreed functionality on iPhone, including accompaniment.
+This records product scope only. It does not change runtime access, implement
+signup or learning, choose a mobile stack or pricing, or authorize a deployment.
+Existing authentication, organization/case access and private assessment
+boundaries remain enforced. Detailed portal implementation planning follows
+separately; the active staff and incident scopes below are unchanged.
+
+The matching 2026-09-19 entry in [`PLAN_CHANGES.md`](PLAN_CHANGES.md) records
+the owner decision and the documentation-only validation boundary.
+
 ## Portal identity retry incident — resolved and released 2026-09-19
 
 Owner approved the production fix and termination of the two confirmed looping
@@ -5072,7 +5093,8 @@ OpenAI API or storing an API key.
    Codex-plan usage rather than OpenAI API billing.
 10. Keep the client-facing Obsidian vault outside direct ingestion. Only
     reviewed outputs may be promoted there under the knowledge authority rules
-    in `AGENTS.md`, `CONTEXT.md`, and ADR 0014.
+    in `AGENTS.md`, `CONTEXT.md`, and
+    [ADR 0029](adr/0029-resolve-knowledge-by-authority-order.md).
 
 ### Delivery blocks
 

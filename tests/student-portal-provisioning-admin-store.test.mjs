@@ -170,6 +170,39 @@ test("S8: prepare round-trips the cabinet_pending shape (curator-less, no legacy
   ]);
 });
 
+test("Migration 194: PT409 business conflicts map exactly like the legacy 40001", async () => {
+  const fake = fakeClient([
+    { data: null, error: { code: "PT409", message: "portal_case_already_bound" } },
+    { data: null, error: { code: "PT409", message: "portal_case_already_reserved" } },
+    { data: null, error: { code: "PT409", message: "unlisted_backend_detail" } },
+    { data: null, error: { code: "PT400", message: "portal_case_already_bound" } },
+  ]);
+  const store = createStudentPortalProvisioningAdminStore(fake.client);
+  const prepareInput = {
+    organizationId: ORG_ID,
+    studentCaseId: CASE_ID,
+    email: "student@example.com",
+    displayName: "Student",
+    caseShape: "normal_u6",
+    legacyCuratorMembershipId: null,
+    reason: "Prepare",
+    requestId: REQUEST_ID,
+  };
+  assert.deepEqual(await store.prepare(prepareInput), {
+    status: "blocked",
+    code: "portal_case_already_bound",
+  });
+  assert.deepEqual(await store.prepare(prepareInput), {
+    status: "blocked",
+    code: "portal_case_already_reserved",
+  });
+  assert.deepEqual(await store.prepare(prepareInput), {
+    status: "blocked",
+    code: "provisioning_conflict",
+  });
+  assert.deepEqual(await store.prepare(prepareInput), { status: "unavailable" });
+});
+
 test("Admin store exposes only bounded conflicts and rejects malformed JSON", async () => {
   const fake = fakeClient([
     { data: null, error: { code: "40001", message: "portal_invite_not_expired" } },

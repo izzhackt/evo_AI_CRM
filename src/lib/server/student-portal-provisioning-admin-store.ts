@@ -108,7 +108,15 @@ function timestamp(value: unknown): string | null {
 
 function safeConflict(error: unknown): string | null {
   const value = record(error);
-  if (value?.code !== "40001" || typeof value.message !== "string") return null;
+  // Migration 194 moves the invite family's business conflicts from the
+  // retryable SQLSTATE 40001 to PT409 (the 178/186 convention); 40001 stays
+  // accepted for the transition window around the migration apply.
+  if (
+    (value?.code !== "40001" && value?.code !== "PT409") ||
+    typeof value?.message !== "string"
+  ) {
+    return null;
+  }
   return SAFE_CODES.has(value.message) ? value.message : "provisioning_conflict";
 }
 

@@ -30631,6 +30631,34 @@ Gmail displayed `Message sent`. The destination business Gmail is not signed in
 in that browser, so receipt is unverified. This is not a Supabase invitation,
 signup confirmation or reply-path acceptance; no test identity was created.
 
+## 2026-09-19 — Stop the portal identity business-conflict retry storm
+
+The owner approved a narrow production correction after the read-only Supabase
+audit: Pro quotas have ample capacity, but CPU is 99–100%. The five-minute
+02:21–02:26 UTC log window contained 29,894 `portal_identity_conflict` events
+from `resolve_student_portal_invite_identity` line 16, SQLSTATE `40001`,
+PostgREST 14.5. Both error PIDs were matched to their live backend-start times.
+The code incorrectly labels a missing invite receipt as a serialization failure.
+[Supabase's current guidance](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b)
+confirms that this causes infinite retries in PostgREST 14.
+
+Scope: forward186 for this RPC and its directly reachable acceptance helper
+(three plus two business errors), and synchronized server error mapping;
+preserve signature, service-role restriction, identity checks and response shape.
+Review the exact diff, use protected short checks and the managed release path,
+then stop only the two freshly re-identified looping backends. Do not restart the
+whole project, buy compute, modify accounts, weaken Auth/RLS, or repair unrelated
+providers. Real post-change proof must show a prompt conflict response on an
+existing authorized identity, the disappearance of the error storm and measured
+CPU change. Existing production failure evidence replaces deliberately triggering
+another runaway pre-fix request. No synthetic records or mock acceptance.
+
+The exact added186 migration receives a narrow CI source/evidence binding gate,
+following178, instead of the retired blanket authorization suite. Real production
+rollback compilation and its existing-identity conflict result are source-hash
+bound in `docs/qa/portal-identity-conflict-186-2026-09-19.md`; CI does not claim to
+execute that SQL. All other migration diffs retain their existing boundary gate.
+
 ## 2026-09-19 - Adopt the Other staff-UX plan (funnel board, tasks and notifications, case chat, contract and payments, universities, quiet interface)
 
 Date: 2026-09-19, workspace timezone.
@@ -30647,3 +30675,8 @@ Decision: six slices, merged in order OTH-0..OTH-5; migrations 186-190 stay owne
 - OTH-5 case chat (migration 190): a new per-case thread model patterned on `team_chat` (messages with parent quote and object link-cards to case documents/tasks, receipts idempotency, realtime invalidate signal), a per-thread await state (`needs_reply`/`awaiting_student`/none with explicit «Ответ не требуется»), a new staff notification kind, a two-pane `/v3/messages` screen plus the same thread opened from the case, and «Обсудить» actions on documents/tasks. `case_help_requests` is not converted; the student side is an explicit dependency of the separate portal plan, and the staff side is never claimed as a finished two-way scenario.
 Validation impact: per slice — targeted node suites with pinned regexes updated deliberately; a local OrbStack `npm run test:database:migration-boundaries` run before pushing any migration; new privilege-boundary SQL suites hooked at the matching migration checkpoint of `scripts/test-postgres-authorization.sh` for 186/188/190; `scripts/evo-production-browser-smoke.mjs` anchors audited before each release (the `?tab=contract` testid and `v3-universities-programs` anchors are preserved; a curator-board checkpoint is added with OTH-1). Releases follow the owner-applied-migration path; widened read RPCs are versioned to avoid degradation windows.
 Reviewer notes: adversarial review per slice on the exact PR head.
+
+Coordination after concurrent PR #857: incident186 is allocated to the reviewed
+portal retry fix in #858; the original OTH planned186–190 numbers are provisional
+and must be rebased onto the next free main slots before those migrations merge.
+No OTH migration SQL existed on main at this integration checkpoint.

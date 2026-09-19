@@ -1,11 +1,35 @@
 # EVO Launch Plan
 
+## Portal identity retry incident — active 2026-09-19
+
+Owner approved the production fix and termination of the two confirmed looping
+database backends. No compute/plan upgrade, data deletion or Auth policy change.
+Live baseline: CPU 99–100%; 29,894 `portal_identity_conflict` / SQLSTATE `40001`
+events in five minutes, correlated to two PostgREST 14.5 backends. Official
+Supabase guidance identifies custom `40001` as an infinite-transaction-retry
+trigger in PostgREST 14. Preserve the existing identity denial, not the retry.
+
+- [ ] Forward migration replaces the incident RPC's business-conflict SQLSTATE
+  with a non-retryable error, preserving signature, grants and all identity checks.
+- [ ] Update the server error mapping and directly affected assertions together.
+- [ ] Independent exact-head review, protected short checks, managed app release;
+  apply only the reviewed forward migration and keep the migration ledger exact.
+- [ ] Revalidate PID and backend-start identity before terminating only the two
+  confirmed loops; no project-wide restart.
+- [ ] Prove the real negative RPC path returns promptly, staff/student entry
+  still behaves correctly, error storm stops and CPU falls. No fake accounts,
+  synthetic production records, broad suites or unrelated provider actions.
+
 ## Other staff UX — active 2026-09-19
 
 Owner plan `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` (staff CRM only; portal/app
 and «Обзор руководителя» are excluded by the owner). Journal entry 2026-09-19
 «Adopt the Other staff-UX plan». Slices merge in order; migrations 186-190 are
 owner-applied, releases follow immediately after apply.
+
+Allocation update: incident PR #858 consumes migration186 before OTH-1. The
+186–190 numbers below are the original plan, not reserved slots: reallocate
+unmerged OTH migrations from the next free main slot before implementation/apply.
 
 - [ ] OTH-0: plan committed; the 11 inventoried explanatory paragraphs removed
   from 8 staff components; removals pinned by `tests/v3-quiet-interface.test.mjs`.

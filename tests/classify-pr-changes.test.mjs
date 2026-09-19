@@ -319,3 +319,21 @@ test("native iOS client sources are known code with lint but no Node production 
     assert.equal(result.unknown, false, path);
   }
 });
+
+test("portal content drafts under docs/design/portal/content are ordinary docs", () => {
+  for (const path of [
+    "docs/design/portal/content/professions-draft.json",
+    "docs/design/portal/content/english-module-1-notes.md",
+  ]) {
+    const result = classifyNameStatus(nul("A", path));
+    assert.equal(result.ordinary_docs, true, path);
+    assert.equal(result.code, false, path);
+    assert.equal(result.unknown, false, path);
+  }
+  for (const path of [
+    "docs/design/portal/content/rogue.bin",
+    "docs/design/portal/other.json",
+  ]) {
+    assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
+  }
+});

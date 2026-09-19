@@ -42,6 +42,10 @@ targets:
       # src/lib, чтобы iOS и веб не расходились.
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources
+      # Гео-библиотека кампусов (волна 9b) — тот же single-source паттерн:
+      # bundle-ресурс из src/lib, ключ photoKey → проверенная координата.
+      - path: ../src/lib/university-geo-library.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: "EVO admissions"
@@ -81,6 +85,9 @@ targets:
       - path: EVOAdmissions/Services/PortalModels.swift
       - path: EVOAdmissions/Services/AssessmentModels.swift
       - path: EVOAdmissions/Services/UniversityPhotoLibrary.swift
+      - path: EVOAdmissions/Services/UniversityGeoLibrary.swift
+      - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
+      - path: EVOAdmissions/Services/UniversityMapPolicy.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift
       - path: EVOAdmissions/Services/FavoritesModels.swift
       - path: EVOAdmissions/Services/PortalProfileModels.swift
@@ -95,6 +102,8 @@ targets:
       - path: EVOAdmissions/Services/ApplicationIntakePolicy.swift
       - path: EVOAdmissions/Services/ApplicationIntakeTransfer.swift
       - path: ../src/lib/university-photo-library.json
+        buildPhase: resources
+      - path: ../src/lib/university-geo-library.json
         buildPhase: resources
     settings:
       base:

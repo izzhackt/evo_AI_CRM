@@ -67,7 +67,8 @@ enum AccessTier {
 }
 
 /// Mirrors the JSONB shape returned by `platform.student_university_catalog()`
-/// (supabase/migrations/148_platform_university_catalog_publication.sql):
+/// (supabase/migrations/148_platform_university_catalog_publication.sql,
+/// levels extended by 151_platform_university_catalog_completion.sql):
 /// `{ items: [{ id, version, publishedAt, content }], nextOffset }`.
 struct UniversityCatalogPage: Decodable {
     let items: [UniversityCatalogItem]
@@ -76,11 +77,90 @@ struct UniversityCatalogPage: Decodable {
 
 struct UniversityCatalogItem: Decodable, Identifiable {
     let id: UUID
+    let version: Int64
+    /// Postgres timestamptz rendered into JSONB; kept as the raw string —
+    /// see `PostgresTimestamp` for display parsing.
+    let publishedAt: String
     let content: UniversityContent
 }
 
+/// Full published card content validated by
+/// `platform_private.valid_university_content` (148/150/151). All dates are
+/// `YYYY-MM-DD` strings, `startMonth` is `YYYY-MM`, `deadlineTime` is `HH:mm`.
 struct UniversityContent: Decodable {
     let name: String
     let country: String
     let city: String?
+    let overview: String
+    let websiteUrl: String
+    let sourceUrl: String
+    let verifiedOn: String
+    let notes: String
+    let photoKey: String?
+    let programs: [UniversityProgram]
+}
+
+struct UniversityProgram: Decodable, Identifiable {
+    let id: String
+    let title: String
+    /// 151: language|foundation|diploma|bachelor|master|doctorate.
+    let level: String
+    let duration: String?
+    let language: String?
+    let summary: String
+    let sourceUrl: String
+    let intakes: [UniversityIntake]
+}
+
+struct UniversityIntake: Decodable {
+    let label: String
+    let startDate: String?
+    let startMonth: String?
+    let applicationDeadline: String?
+    let deadlineTime: String?
+    let timezone: String?
+    let status: String
+    let note: String
+    let sourceUrl: String
+    let verifiedOn: String
+}
+
+/// Intake status for display. Same computation as the web portal's
+/// `universityIntakeStatusKey` (src/lib/portal/universities.ts): a published
+/// deadline that has passed in the intake's own timezone reads as closed even
+/// when the source still says `open`.
+enum UniversityIntakeDisplayStatus: String {
+    case closed
+    case needsConfirmation
+    case open
+    case announced
+    case unclear
+}
+
+func universityIntakeDisplayStatus(
+    _ intake: UniversityIntake,
+    now: Date = Date()
+) -> UniversityIntakeDisplayStatus {
+    let calendarFormatter = DateFormatter()
+    calendarFormatter.locale = Locale(identifier: "en_US_POSIX")
+    calendarFormatter.timeZone = intake.timezone.flatMap(TimeZone.init(identifier:))
+        ?? TimeZone(identifier: "UTC")
+    calendarFormatter.dateFormat = "yyyy-MM-dd"
+    let day = calendarFormatter.string(from: now)
+    calendarFormatter.dateFormat = "HH:mm"
+    let minute = calendarFormatter.string(from: now)
+
+    if intake.status == "closed" {
+        return .closed
+    }
+    if let deadline = intake.applicationDeadline {
+        if deadline < day { return .closed }
+        if deadline == day, let time = intake.deadlineTime, time < minute { return .closed }
+    }
+    switch intake.status {
+    case "needs_reconfirmation": return .needsConfirmation
+    case "open": return .open
+    case "announced": return .announced
+    default: return .unclear
+    }
 }

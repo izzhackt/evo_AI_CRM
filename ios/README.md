@@ -31,18 +31,42 @@ source of truth for structural changes.
   `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` from `Info.plist`, fails loudly
   with `fatalError` if either is missing/empty).
 - **`Services/SupabaseService`** — the shared `SupabaseClient`, schema
-  `platform`, wrapping `current_actor_authority()`, `student_portal_cases()`
-  and `student_university_catalog()`.
+  `platform`, wrapping `current_actor_authority()`, `student_portal_cases()`,
+  `student_university_catalog()` (list pages + single card by
+  `p_institution_id`) and the private-assessment RPCs of migration 135
+  (`student_assessments_v1`, `student_assessment_attempt_v1`,
+  `start/save/complete_student_assessment_…_v1` with client `request_id`
+  idempotency).
 - **`Services/SessionRouter`** — drives navigation from Supabase auth state
   (`authStateChanges`) plus the authority/case RPCs: signedOut →
   authenticating → resolvingAccess → `active(PortalSession)` /
   `accessPending` / `networkError`.
+- **`Services/PortalModels` / `AssessmentModels`** — Codable mirrors of the
+  SQL return shapes (migrations 148/150/151 and 135). Timestamps from JSONB
+  stay raw strings, parsed for display by `Services/PostgresTimestamp`.
+- **`Services/UniversityPhotoLibrary`** — decodes the bundled
+  `src/lib/university-photo-library.json` (the SAME file the web renders,
+  wired in `project.yml`, not a copy): photoKey → url + CC attribution.
 - **`Views/`** — `SignInView`, `AccessPendingView`, `NetworkErrorView`,
-  `TabShell` (tabs by access tier), `HomeView`, `UniversitiesView`,
-  `PlaceholderView` for the not-yet-built tabs.
+  `TabShell` (tabs by access tier), `HomeView`, `UniversitiesView` (paged
+  list) + `UniversityDetailView` (card with photo attribution, facts,
+  programs and intake statuses), `TestsView` + `AssessmentRunnerView`
+  (one question per screen, debounced autosave, retry with the same
+  `request_id`, revision-conflict reload, save-and-exit protection) +
+  `AssessmentResultView` (bands/topics/feedback, ORVIS scales — no CEFR),
+  `ProfileView` (name, email, honest access line, app version, sign out),
+  `PlaceholderView` for «Моё поступление».
 - **`Resources/Localizable.xcstrings`** — String Catalog, `ru` base, complete
   `ky` for every string. `developmentLanguage: ru` in `project.yml` so the
   simulator (device locale `en`) still falls back to `ru`, not raw keys.
+- **`EVOAdmissionsTests/`** — hostless XCTest bundle: decoder tests against
+  fixtures hand-written from the SQL contracts (migrations 135/148/150/151;
+  each fixture cites its source lines), the shared intake-status logic and
+  the real photo library. `xcodebuild … test` runs them without launching
+  the app or touching the network.
+
+Privacy rule carried from the plan: assessment answers/results are never
+printed, logged or embedded in error messages anywhere in this target.
 
 ### Session persistence (verified, not assumed)
 
@@ -74,7 +98,28 @@ App Store step (plan §13), not made here.
   more-than-one case routes to `AccessPendingView` in v1; the case-less
   application flow is explicitly out of scope for PORT-2 (plan/ADR 0030).
 
-## What was verified for this PR (real device/simulator, no mocks)
+## What was verified for the catalog/tests/profile slice (real simulator, no mocks)
+
+- `xcodebuild … build` and `xcodebuild … test` for `iPhone 17 Pro`
+  (iOS 26.5 simulator) — succeeded; 18 unit tests, 0 failures.
+- App installed and launched on the simulator; `SignInView` renders the real
+  `ru` catalog (`docs/tests-catalog-signin.png`) and, relaunched with
+  `-AppleLanguages (ky)`, the real `ky` catalog
+  (`docs/tests-catalog-signin-ky.png`).
+- Codable decoders exercised against fixtures hand-written from the SQL
+  return shapes of migrations 135 and 148/150/151 (sources cited inside each
+  test file), plus the real bundled photo library (144 entries, url +
+  attribution present for every key).
+- **Not exercised without an account** (no test credentials exist for this
+  project; none were invented, no mock API was added): live
+  `student_university_catalog` list/card responses, live
+  `student_assessments_v1` catalogue, a real runner session
+  (start/autosave/complete/interrupt-resume), the result screen against a
+  live graded attempt, ProfileView with a live session email, and TabShell
+  routing for approved/assisted tiers. These are implemented against the
+  documented RPC contracts and covered at the decoder level only.
+
+## Foundation-slice verification (kept for history)
 
 - `xcodebuild … build` for `iPhone 17 Pro` (iOS 26.5 simulator) — succeeded.
 - App installed and launched on the simulator; `SignInView` renders with the

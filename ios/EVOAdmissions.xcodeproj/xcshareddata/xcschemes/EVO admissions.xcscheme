@@ -21,6 +21,20 @@
                ReferencedContainer = "container:EVOAdmissions.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "AADCEF0749FEFF6F4EFE0D9C"
+               BuildableName = "EVOAdmissionsTests.xctest"
+               BlueprintName = "EVOAdmissionsTests"
+               ReferencedContainer = "container:EVOAdmissions.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -39,6 +53,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "AADCEF0749FEFF6F4EFE0D9C"
+               BuildableName = "EVOAdmissionsTests.xctest"
+               BlueprintName = "EVOAdmissionsTests"
+               ReferencedContainer = "container:EVOAdmissions.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

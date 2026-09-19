@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
+
 import { DocumentsView } from "@/components/portal/admission/DocumentsView";
 import { readStudentPortalDocuments } from "@/lib/v3/portal-source";
 
@@ -20,7 +23,7 @@ export default async function StudentPortalDocumentsPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">Сопровождение</p>
+        <p className="pt-page-kicker">{getPortalStrings("admission", getLocale()).kicker}</p>
         <h1 className="pt-page-title">Документы</h1>
         <p className="pt-page-lead">Что нужно предоставить, что уже принято и что требуется исправить.</p>
       </header>

@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
+
 import type { StudentPortalAction, StudentPortalOverview } from "@/lib/v3/portal-source";
 import { portalPendingCabinet } from "@/lib/v3/wording";
 import { PortalStatus } from "./PortalStatus";
@@ -48,6 +51,7 @@ function ActionRow({ action }: { action: StudentPortalAction }) {
  * (dueAt: null = «без срока» → «Не указан»).
  */
 export function OverviewView({ overview, pending = false }: { overview: StudentPortalOverview | null; pending?: boolean }) {
+  const admissionStrings = getPortalStrings("admission", getLocale());
   const primary = overview?.studentAction ?? null;
   const remaining = overview?.studentActions.slice(1) ?? [];
   const evoAction = overview?.evoAction ?? null;
@@ -188,7 +192,7 @@ export function OverviewView({ overview, pending = false }: { overview: StudentP
           </Link>
           {pending ? null : (
             <>
-              <p className="pt-adm-aside-card-text">Переписка с командой по делу — в разделе «Сообщения».</p>
+              <p className="pt-adm-aside-card-text">{admissionStrings.messagesNote}</p>
               <Link href="/portal/messages" className="pt-link">
                 Открыть сообщения <span aria-hidden="true">↗</span>
               </Link>

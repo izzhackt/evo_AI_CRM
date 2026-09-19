@@ -46,6 +46,9 @@ const EXPECTED_SURFACES = [
   "tests-runner",
   "tests-results",
   "professions-and-profile-forms",
+  // PORT-9c: «Главная» кабинета — оба tier'а.
+  "home-approved",
+  "home-assisted",
 ] as const;
 
 test("static render produces every expected portal surface", () => {

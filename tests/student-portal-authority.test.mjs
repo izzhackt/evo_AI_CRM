@@ -69,6 +69,9 @@ test("strict Student authority accepts one activated exact-case projection", () 
       platformBundleId: BUNDLE_ID,
       platformBundleVersion: 3,
       caseState: "active",
+      // PORT-1a: the decode derives the portal access tier from case_state
+      // (active/closed → 'assisted'); the deepEqual pin grows with it.
+      accessTier: "assisted",
       portalActivatedAt: "2026-09-07T08:00:00.000Z",
     },
   );
@@ -98,6 +101,8 @@ test("strict Student authority also accepts a portal-activated pending cabinet (
       platformBundleId: BUNDLE_ID,
       platformBundleVersion: 3,
       caseState: "pending",
+      // PORT-1a: a portal-activated pending cabinet is the «одобрен» tier.
+      accessTier: "approved",
       portalActivatedAt: "2026-09-07T08:00:00.000Z",
     },
   );

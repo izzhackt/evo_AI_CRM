@@ -77,7 +77,26 @@ Evidence, exact hashes and limits: [incident receipt](qa/portal-identity-conflic
 No fake accounts, synthetic production records, compute purchase, broad suites
 or unrelated provider actions are part of this incident response.
 
-## Other staff UX — merged 2026-09-19; awaiting owner apply of 187-191 + release
+## Other staff UX — RELEASED 2026-09-19 as v3-r35425913124-a1-ad0b5267
+
+Migrations 187-191 were applied to iosckaqtovbbnssqcpde via the
+owner-delegated Management API path (per-migration object probes + ledger
+rows verified; final ledger tail 187-191 on top of 186). The first release
+attempt (v3-r35425318843-a1-bebe5df9) was HONESTLY ROLLED BACK by the
+pipeline: a Next.js route-slug collision from OTH-3
+(api/v2/payment-receipts mixing [paymentEventId]/[studentCaseId]) passes
+`next build` but kills every request at runtime; diagnosed by running the
+exact candidate image with its candidate env in an isolated container on
+Hermes, fixed in #875 (download route moved to payment-receipt-files/…)
+with a new route-walk guard `tests/next-route-slug-consistency.test.mjs`
+(red on the broken layout, green after). Second run 35425913124 accepted:
+container on Hermes reports revision ad0b5267 (healthy), accepted pointer
+updated with the acceptance record, crm health 200, arm read back false.
+Prod never degraded: the rollback restored the prior accepted release, and
+every 187-191 reader was engineered for the apply→release window. The
+release also carries the portal session's migration-free #867/#868.
+
+## Other staff UX — merged 2026-09-19 (receipts)
 
 All six slices of `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` are merged to
 main (5fbb1b08). Per the allocation update below-noted in the previous
@@ -116,10 +135,9 @@ this release).
   documents/tasks, await states with explicit «Ответ не требуется», board
   «Нужен ответ» pill, curator notifications (ids only); the student side
   stays an explicit portal-plan dependency, never claimed done.
-- [ ] Owner applies migrations 187-191 in order
-  (`npx supabase@2.116.0 migration up --db-url $EVO_SUPABASE_DB_URL`),
-  then the managed release runs immediately and this section gets its
-  acceptance record.
+- [x] Migrations 187-191 applied (Management API, delegated path); release
+  v3-r35425913124-a1-ad0b5267 accepted; arm disarmed. Rollback of the first
+  attempt and the slug-collision fix are recorded above and in #875.
 
 ## Auth email — SMTP and templates saved, delivery pending, 2026-09-19
 

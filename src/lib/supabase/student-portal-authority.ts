@@ -19,6 +19,15 @@ export type VerifiedStudentPortalAuthority = Readonly<{
    * assume either.
    */
   caseState: "pending" | "active" | "closed";
+  /**
+   * PORT-1a (PORT-0 «Решение: модель доступа»): the single checkable tier
+   * boundary for web and iPhone instead of scattered `caseState === 'pending'`
+   * checks. Derived, never stored: 'approved' = a portal-activated pending
+   * cabinet (обзор, каталог, тесты, уведомления, профиль); 'assisted' =
+   * active/closed сопровождение (плюс документы и case-help — migration 195
+   * enforces the same boundary in PostgreSQL).
+   */
+  accessTier: "approved" | "assisted";
   portalActivatedAt: string;
 }>;
 
@@ -137,6 +146,7 @@ export function decodeVerifiedStudentPortalAuthority(
     platformBundleId: bundleId,
     platformBundleVersion: bundleVersion,
     caseState: portalCase.case_state,
+    accessTier: portalCase.case_state === "pending" ? "approved" : "assisted",
     portalActivatedAt,
   });
 }

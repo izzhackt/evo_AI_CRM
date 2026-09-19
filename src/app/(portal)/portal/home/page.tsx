@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { HomeView } from "@/components/portal/home/HomeView";
-import type { PortalAccessTier } from "@/components/portal/Shell";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { readLearningModules } from "@/lib/portal/learning-source";
@@ -35,8 +34,9 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function StudentPortalHomePage() {
   const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
-  // Та же локальная семантика tier'а, что в layout (до серверного PORT-1a).
-  const tier: PortalAccessTier = actor.caseState === "pending" ? "approved" : "assisted";
+  // PORT-1a: единственная проверяемая граница уровня доступа — серверный
+  // actor.accessTier, без повторной локальной деривации из caseState.
+  const tier = actor.accessTier;
   const strings = getPortalStrings("home", locale);
 
   const [overviewResult, modules, assessments, favoritesResult] = await Promise.all([

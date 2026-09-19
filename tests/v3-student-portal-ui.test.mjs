@@ -203,8 +203,10 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   const homeRu = PORTAL_DICTIONARIES.home.ru;
 
   assert.match(page, /requireStudentPortalActor\(\)/u);
-  // Та же локальная семантика tier'а, что в layout (до серверного PORT-1a).
-  assert.match(page, /actor\.caseState === "pending" \? "approved" : "assisted"/u);
+  // PORT-1a: граница уровня доступа — серверный accessTier authority, не
+  // повторная scattered-деривация из caseState (review #907, finding A).
+  assert.match(page, /const tier = actor\.accessTier;/u);
+  assert.doesNotMatch(page, /caseState === "pending"/u);
 
   // Только существующие read model — никаких новых RPC и обёрточных DTO.
   for (const reader of [

@@ -32413,3 +32413,305 @@ to the already supported `docs/schemas/knowledge/` prefix. The existing classifi
 continues to require code lint/build and release contracts; no CI guard is changed
 or bypassed. These remain unnumbered proposals, not ledger migrations. Migration
 numbering and schema/release coordination are still required before delivery.
+
+## 2026-09-20 — PORT-9a: анкета, статус заявки и инвайт на iPhone (append-only)
+
+Волна 9a плана `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` (§2 «Регистрация»/«Приглашения», §5 оба пути, §10 PORT-1) в ветке
+izzhackt/portal-ios-wave9-anketa от origin/main (5ab34127). Закрывает
+аудит-разрыв «на iPhone есть только SignInView»: нативная анкета, создание
+аккаунта в конце, статус заявки, resubmit и invite-путь. Без миграций;
+серверная логика регистрации/одобрения и email_confirm-семантика не меняются.
+
+### Решение 1 — что НЕ становится новым endpoint'ом
+
+`platform.own_student_application_v1` и `platform.submit_student_application_v1`
+уже `GRANT EXECUTE TO authenticated` (177:506-512, 180:353-361; 193 меняет
+только тела). По ADR 0030 («никакого универсального bearer-гейтвея, оба
+клиента вызывают один контракт») iPhone вызывает их напрямую через PostgREST
+тем же путём, что и все волны 4-8: статус заявки, отправка анкеты signed-in
+пользователем и resubmit после отказа — это НЕ новые route handler'ы, а те же
+RPC с теми же definer-гейтами (identity-conflict 193(f), PT409, advisory
+locks). Новые HTTP-обёртки над ними дублировали бы существующую поверхность —
+осознанно отклонено.
+
+### Решение 2 — два узких route handler'а (ADR 0030 «Решение» п.3)
+
+1. **POST `/api/portal/registration`** (анонимный; создание аккаунта в конце
+   анкеты — единственный шаг, который клиентским ключом не воспроизводится:
+   `auth.admin.createUser`). Тонкий адаптер над ТЕМИ ЖЕ функциями веб-мастера
+   (`src/lib/student-signup-actions.ts` / `src/lib/server/student-public-registration.ts`):
+   - тело — только `application/json` (иначе 415), exact-ключи
+     `{questionnaire, email, password}` (дисциплина exactActionStringFields),
+     стрим-чтение с потолком 16 KiB и сериализованная анкета ≤ 12000 символов
+     (зеркало student-signup-actions.ts:32);
+   - email нормализуется как в action (trim+lowercase, ≤254, тот же regex);
+     анкета — `validateStudentApplicationDraft` (единственный валидатор);
+   - вызывает `createPublicStudentAccount(email, password, draft)` БЕЗ
+     изменений: та же `reserve_student_signup_attempt_v1` (глобально 100/час +
+     5/час на email, 177:8-48), тот же bcrypt-байтовый потолок, те же коды;
+   - ответ `{status}` — байт-в-байт статусы StudentSignupState:
+     201 created / 400 invalid|password|password_too_long / 409 conflict /
+     429 rate_limit / 503 unavailable. iPhone маппит их на существующие
+     `server.*`-строки словаря apply;
+   - CSRF/Origin-проверка веб-action защищает cookie-сессионную двойственность
+     формы (signed-in ветку). Endpoint cookies не читает и не пишет и
+     signed-in ветки не имеет, поэтому Origin-гейт заменяется контрактом
+     «только JSON + exact-ключи»; анти-abuse остаётся ТЕМ ЖЕ DB-постом
+     (bucket-RPC + Supabase 429). Идемпотентность создания — как на вебе:
+     дубликат email всегда отвергается admin.createUser (conflict), повтор
+     submit'а после входа идемпотентен по requestId анкеты в самой RPC.
+2. **POST `/api/portal/invite-acceptance`** (bearer; нативное потребление
+   инвайта «не выходя из приложения», ADR 0030 п.3(б)). Токен из письма
+   приложение потребляет само (`auth.verifyOTP(token_hash, type=invite)` — тот
+   же Auth-вызов, что у веб-callback'а, student-invite-callback-runtime.ts:27-30);
+   отметка получения receipt'а — service-role-only RPC, поэтому нужен узкий
+   handler:
+   - Authorization: Bearer → `createSupabaseBearerServerClient(token)` +
+     `auth.getClaims(token)` (паттерн PORT-8a, student-portal-auth.ts:122);
+     resolveStudentPortalBearerActor не переиспользуется целиком осознанно —
+     он требует портальную authority, которой у account-pending приглашённого
+     ещё нет;
+   - claims → `normalizeStudentInviteIdentity` →
+     `resolveStudentInviteReceiptIdentity(identity, createTrustedStudentInviteReceiptStore(), markAccepted=true)`
+     — РОВНО те же функции и тот же m126/186/193-seam, что у веб-callback'а
+     (student-invite-session.ts:38-93, student-invite-session-runtime.ts:13-18);
+     web-CSRF-cookie-церемония заменяется bearer'ом (cookies не участвуют);
+   - ответ: 200 `{status:"accepted", intakeFlow, accountPending, displayName}`
+     / 401 `{status:"authentication_required"}` / 409 `{status:"mismatch"}`
+     / 503 `{status:"unavailable"}`. Повтор идемпотентен: accept_e1 срабатывает
+     только если receipt ещё не accepted (126:2876-2884), затем тот же ответ.
+   - Установка пароля приглашённого — нативный `auth.updateUser({password})`
+     (та же операция, что set-password action, student-portal-auth-actions.ts:128),
+     границы длины 12..4096 зеркалятся в клиенте.
+
+Прокси/route-contract: `/api/portal/registration` (POST) добавляется как
+public-intake pass-through (класс `/api/public/website-leads`: handler владеет
+своей границей); `/api/portal/invite-acceptance` (POST) добавляется в
+`isConnectedStudentPortalApi` — существующий bearer-precedence проход PORT-8a
+покрывает его; без bearer-заголовка handler честно отвечает 401. Пины
+tests/fixed-role-route-contract.test.mjs обновляются в том же коммите.
+
+### Решение 3 — iOS: маршрутизация, wizard, статус, инвайт
+
+- **SessionRouter** заменяет «безликий» accessPending честными состояниями:
+  `needsApplication` (анкета) и `applicationStatus(StudentApplication)`.
+  Таблица решений (чистая политика, юнит-тесты):
+  - authority есть и не student → accessPending (staff-аккаунту в этом
+    приложении делать нечего — как сегодня);
+  - authority student: 1 кейс → active; >1 → accessPending (multi-case v1 не
+    поддержан — как сегодня); 0 кейсов → анкетный маршрут (приглашённый до
+    approve: membership привязан finalize'ом, но activation нет — 193(d));
+  - authority нет → анкетный маршрут;
+  - анкетный маршрут: не подтверждён email или стоит staff-маркер
+    `evo_staff_password_request_id` (student-signup-runtime.ts:10-13) →
+    accessPending; `own_student_application_v1` != null → applicationStatus;
+    null → resume-политика (зеркало resumeStudentApplication:40-61): валидный
+    draft в user_metadata → `submit_student_application_v1(requestId, draft, 0)`
+    → очистка metadata → applicationStatus; иначе → needsApplication.
+- **Анкета (ApplicationWizardView)** — те же 9 шагов STEP_KEYS и тот же
+  порядок валидационных сообщений (ApplicationWizard.tsx:135-149), канон
+  значений — RU-строки контракта (направления обучения — RU-текст, KY только
+  подпись, как PORT-8c); валидация draft'а зеркалит
+  `validateStudentApplicationDraft` правило-в-правило (телефон, диапазоны
+  экзаменов, год 2026-2036, балл ≤ шкалы, exact-состав ключей, consentVersion
+  2026-09-18). Анонимный режим: финальный шаг = контакты+email+пароль+согласие
+  → POST registration → `signIn(email, password)` → router-resume отправляет
+  draft из metadata (тот же путь, что веб-resume — идемпотентно по requestId).
+  Signed-in режим (приглашённый, resume, resubmit): email read-only, без
+  пароля, кнопка «Отправить анкету» → прямая RPC с expectedRevision (0 или
+  revision отклонённой заявки). Черновик — UserDefaults без пароля (аналог
+  sessionStorage веба), чистится при показе статуса, как ApplicationStatus.tsx.
+- **Статус (ApplicationStatusView)** — зеркало /apply/status: заголовок/лид по
+  статусу, причина отказа, «Исправить анкету» (rejected → wizard с
+  draft=questionnaire, expectedRevision=revision), «Обновить статус»/«Открыть
+  кабинет» = `auth.refreshSession()` + повторный resolve (семантика
+  refreshStudentApplicationAction), «Выйти», список ответов из 12 строк
+  (localizedAnswers: подписи answer.*, значения opt.*/шаблоны gradeOf,
+  englishExamAnswer/englishSelfAnswer, страны — Locale.localizedString с
+  ky-фолбэком на RU, как localizedCountryLabel).
+- **Инвайт (InviteEntryView)**: письмо ведёт на web-callback
+  (`…/auth/callback?token_hash=<56hex>&type=invite`, supabase/templates/invite.html:6);
+  приложение принимает ВСТАВЛЕННУЮ ссылку или сам token_hash, парсинг зеркалит
+  decodeStudentInviteCallbackQuery (ровно 2 параметра, 56-hex, type=invite) →
+  verifyOTP → POST invite-acceptance → установка пароля → anketa_v1 +
+  accountPending → wizard с префиллом имени (invitedNamePrefill,
+  apply/page.tsx:18-25). Приглашённый, прошедший callback на вебе, просто
+  входит по email+паролю — тот же анкетный маршрут; префилл добирается
+  оппортунистическим invite-acceptance (mismatch = «не приглашённый», не
+  ошибка; сетевой сбой префилла анкету не блокирует — та же позиция, что
+  try/catch на /apply). Signed-out экран получает «Подать анкету» рядом со
+  входом.
+- **RU/KY**: все новые строки в Localizable.xcstrings обеими локалями; RU
+  зеркалит словарь apply байт-в-байт там, где строка существует на вебе
+  (шаблоны {step}/{limit} переносятся в формат-строки), iOS-специфичные строки
+  (вставка ссылки, ошибки RPC-submit) — новые ключи с обеими локалями.
+  accessibilityLabel на всех новых контролах; вёрстка на системных шрифтах
+  (Dynamic Type), без фиксированных высот.
+
+### Валидация
+
+Веб (каждая команда отдельно, echo exit-кода): `npx tsc --noEmit` (через
+`npm run typecheck`), `npx eslint <затронутые пути>`, `npm run build`
+(`next build` + worker-бандлы), `node --conditions=react-server
+--experimental-strip-types --test tests/student-portal-intake-routes.test.mjs
+tests/student-public-application.test.mjs tests/fixed-role-route-contract.test.mjs
+tests/ci-node-test-suite.test.mjs`, `git diff --check`. Новый тест-файл
+tests/student-portal-intake-routes.test.mjs встаёт в test:u1/test:u7/
+test:unit:core; пины ci-node-test-suite (occurrenceCount/uniqueFileCount/
+duplicateCount/групповые length) обновляются в том же коммите.
+iOS: `xcodegen generate`, `xcodebuild build` и `xcodebuild test`
+(iPhone 17 Pro simulator) отдельными командами с индивидуальными exit-кодами
+и «Executed N tests» из полного лога. Тесты: decoder-фикстуры
+(own_student_application_v1 — exact-состав ключей student-application-source.ts:22,
+варианты english; draft round-trip — DRAFT_KEYS contract:52; ответы
+registration/invite-acceptance) и policy-юниты (parity валидации анкеты
+построчно с контрактом, порядок шаговых сообщений, resubmit-ревизия, таблица
+решений router'а, парсинг invite-ссылки, префилл имени, resume-политика).
+
+### Честные ограничения
+
+- Живая регистрация в production не прогоняется (реальные аккаунты не
+  создаются); уверенность — из переиспользования нетронутых серверных функций,
+  route-юнитов на DI-зависимостях и policy/decoder-parity тестов. Живой
+  инвайт-путь end-to-end (реальное письмо → verifyOTP → acceptance) не
+  прогоняется по той же причине.
+- Bearer-путь invite-acceptance зависит от релиза веб-кабинета; до деплоя
+  iOS-поток честно упирается в 404 (тот же временной зазор, что PORT-8a).
+- KY-строки написаны агентом и ждут вычитки носителем.
+- Оппортунистический префилл приглашённого требует сети до веб-кабинета;
+  без неё анкета работает, но без префилла и с PT409-конфликтом на submit,
+  если receipt ещё не accepted (крайний случай: токен потреблён, приложение
+  умерло до acceptance; повторный вход чинит — acceptance вызывается заново).
+
+## 2026-09-20 — PORT-9d: подготовка managed-хранения фото вузов (append-only)
+
+Контекст: план §6 «Каталог и материалы» требует «управляемое хранение при
+разрешённых правах, не случайные hotlink»; port-0-contracts.md (раздел «фото»)
+обещал миграцию фото каталога с hotlink Wikimedia на Supabase Storage ещё в
+PORT-3 — аудит подтвердил, что это не сделано:
+src/lib/university-photo-library.json (144 записи) целиком hotlink
+(87 — Wikimedia, 57 — официальные сайты вузов). Этот slice готовит миграцию
+кодом и манифестом; сам production-upload выполняет координатор позже.
+
+### Решение: право на копирование — фильтр отбора
+
+- Копировать байты в наше хранилище можно только там, где лицензия это
+  разрешает. Явный allowlist точных строк лицензий библиотеки: CC BY 3.0 /
+  3.0 pl / 4.0, CC BY-SA 2.0 / 2.5 / 3.0 / 4.0, CC0, FAL, Public domain
+  (все три варианта записи). Это 87 записей — ровно тот «Wikimedia + CC»
+  объём, который обещал port-0.
+- 57 записей «Official-source embedding / All rights reserved / supplier…»
+  НЕ мигрируют: право на перенос байтов не заявлено, embedding с
+  официального источника — осознанная правовая позиция PORT-3a. В манифесте
+  они помечаются status="ineligible" с причиной — честно видимы, не
+  выброшены. Неизвестная строка лицензии по умолчанию ineligible.
+
+### Решение: bucket и схема URL
+
+- Bucket: `portal-university-photos`, public-read (фото каталога — публичный
+  контент), file_size_limit 20 MiB, allowed_mime_types: image/avif,
+  image/gif, image/jpeg, image/png, image/webp (только растровые; SVG
+  запрещён намеренно). Создание — только через Storage API в --apply по
+  идиоме scripts/configure-university-template-storage.mjs (точный GET →
+  создание лишь при отсутствии → readback; существующий bucket с другими
+  настройками — конфликт, не перезапись). Без миграций и без RPC.
+- Путь объекта: `<photoKey>.<ext>`, ext выводится из проверенного
+  content-type скачанного оригинала и фиксируется в манифесте
+  (objectPath). Публичный URL:
+  `https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/object/public/portal-university-photos/<objectPath>`.
+- База URL — константа в коде (prod-проект iosckaqtovbbnssqcpde, как в
+  storage-скриптах репозитория): фото-библиотека — repo-контент, не зависящий
+  от окружения; сегодняшние hotlink точно так же указывают на внешние
+  фиксированные хосты. Новых env для рантайма не вводится.
+
+### Решение: pipeline-скрипт scripts/portal/migrate-university-photos.mjs
+
+- Три режима, по умолчанию офлайн-«plan» (идиома
+  configure-university-template-storage.mjs: план без сети и без кредов).
+  - `--plan` (и запуск без аргументов): без сети; читает библиотеку,
+    делит записи на eligible/ineligible, проверяет полноту метаданных
+    (path/license/licenseUrl/author/title/caption/sourceUrl непустые) —
+    неполная запись валит план с exit 1.
+  - `--check`: сеть, строго read-only: скачивает каждый eligible-оригинал,
+    проверяет HTTP 200 + image/* content-type + вменяемый размер
+    (1 KiB…20 MiB), считает sha256 и пишет манифест
+    scripts/portal/university-photos-manifest.json: photoKey → sourceUrl
+    (hotlink), pageUrl (страница-источник), sha256, bytes, contentType,
+    objectPath, license, licenseUrl, attribution (=author библиотеки,
+    байт-в-байт), status (verified|ineligible|failed), reason, migrated.
+    Сбой скачивания — честная запись status="failed" с причиной, не молча
+    выброшенная. Повторный --check сохраняет migrated=true записи, только
+    если sha256 и objectPath не изменились (дрейф оригинала честно
+    сбрасывает флаг с пометкой).
+  - `--apply` (координатор, позже): создаёт bucket при отсутствии,
+    пере-скачивает eligible-оригиналы, сверяет sha256 с манифестом
+    (расхождение — failed "content_drifted", без загрузки), загружает байты
+    (upsert=false; существующий объект сверяется по хешу публичного URL),
+    после readback ставит migrated=true и переписывает манифест.
+- Env-контракт --apply (и только его): NEXT_PUBLIC_SUPABASE_URL (ровно
+  https://iosckaqtovbbnssqcpde.supabase.co) + EVO_PLATFORM_SUPABASE_SECRET_KEY
+  (sb_secret_* или service-role JWT) через существующий
+  getPlatformSupabaseBackendConfig; env отсутствует/чужой проект — отказ до
+  какой-либо сети. Кредов в файлах/коде нет; plan и check работают без
+  кредов вовсе.
+
+### Решение: переключение кода (fallback-семантика)
+
+- Единый helper src/lib/university-photo-url.ts: managed-URL возвращается
+  только когда запись манифеста существует, status="verified",
+  migrated===true и objectPath задан; во всех остальных случаях — прежний
+  hotlink из библиотеки; неизвестный photoKey → null. Оба рендера
+  (портальный PhotoFigure и staff UniversityPhoto) берут src через helper;
+  атрибуция (caption, автор→источник, лицензия→licenseUrl, пометка о
+  кадрировании) не меняется ни байтом.
+- Коммитится манифест после реального --check с migrated=false у всех
+  записей: поведение сайта в этом PR не меняется вовсе. Переключение на
+  managed-URL — это последующий коммит манифеста с migrated=true после
+  --apply координатора (то есть обычный code-deploy, не runtime-тумблер);
+  до него сайт продолжает служить hotlink.
+
+### Тесты и валидация
+
+- Новый tests/university-photo-storage.test.mjs (канонические флаги
+  --conditions=react-server --experimental-strip-types): helper —
+  migrated/не-migrated/отсутствующий ключ/точная база URL; схема манифеста —
+  полнота полей, ключи ⊆ библиотеки, sha256-формат, license/attribution
+  байт-в-байт равны библиотеке, ineligible ⊂ allowlist-дополнение; скрипт —
+  офлайн-план без сети, отказ --apply без env, bucket-идиома на фикстурах
+  fetchImpl (по образцу tests/configure-university-template-storage.test.mjs).
+  Файл добавляется в test:frontend — пины ci-node-test-suite
+  (occurrenceCount/uniqueFileCount) обновляются в том же коммите.
+- Валидация slice: tsc, eslint, next build, новые тесты, git diff --check;
+  реальные --plan и --check прогоняются в сессии, их фактические счётчики
+  (ok/failed/ineligible) фиксируются в PR честно.
+
+### Честные ограничения
+
+- --apply в этой сессии НЕ выполняется: production-bucket не создан, байты
+  не загружены, сайт до прогона координатора служит прежние hotlink.
+- Перепроверка лицензий из port-0 автоматизирована на уровне метаданных
+  (строка лицензии + полнота атрибуции); содержательная сверка страницы
+  Commons остаётся ручной обязанностью прогона координатора.
+- 57 official-source записей остаются hotlink намеренно — до отдельного
+  решения о правах (запрос разрешения вузов или замена на CC-фото), это
+  не входит в slice.
+- Сбои скачивания в --check фиксируются в манифесте как failed и не
+  мигрируют; их починка (замена источника) — контентная работа вне slice.
+
+## 2026-09-20 — PORT-9d: выполнен --apply переноса фото вузов (координатор)
+
+Координатор выполнил scripts/portal/migrate-university-photos.mjs --apply
+против production (ключ получен из Management API в память процесса, на
+диск и в вывод не попадал; канонические node-флаги --conditions=react-server).
+Результат: bucketStatus=created_and_verified (бакет
+portal-university-photos создан этим прогоном), uploaded=87, failures=0,
+alreadyMigrated=0, totals migrated=87/144 (57 официальных источников
+остаются hotlink по лицензии — как решено в PORT-9d). Спот-чек публичных
+URL: peking-university.jpg и university-of-rome-tor-vergata.png отвечают
+HTTP 200 с верными content-type и байтами, совпадающими с манифестом.
+Этот коммит-флип манифеста — единственное кодовое изменение; сайт начнёт
+отдавать managed-URL после релиза, содержащего этот флип. Ручная
+ре-верификация лицензий на Commons-страницах, названная в PORT-9d,
+выполнена ревьюером #909 спот-чеками (6 записей в обе стороны через
+extmetadata API); полная построчная ре-верификация остаётся честным
+ограничением.

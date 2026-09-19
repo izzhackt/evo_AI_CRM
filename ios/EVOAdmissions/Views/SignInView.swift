@@ -4,6 +4,8 @@ struct SignInView: View {
     @ObservedObject var router: SessionRouter
     @State private var email = ""
     @State private var password = ""
+    @State private var showApplicationWizard = false
+    @State private var showInviteEntry = false
 
     private var isAuthenticating: Bool {
         if case .authenticating = router.state { return true }
@@ -56,9 +58,52 @@ struct SignInView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
                 .disabled(email.isEmpty || password.isEmpty || isAuthenticating)
+
+                // PORT-9a (план §4 «Не зарегистрирован»): анкета и приём
+                // приглашения доступны рядом со входом.
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider()
+                    Button {
+                        showApplicationWizard = true
+                    } label: {
+                        Text("apply_entry_button")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color("AccentColor"))
+                    .disabled(isAuthenticating)
+                    .accessibilityLabel(Text("apply_entry_button"))
+
+                    Button {
+                        router.inviteFlowActive = true
+                        showInviteEntry = true
+                    } label: {
+                        Text("apply_invite_entry_button")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .disabled(isAuthenticating)
+                    .accessibilityLabel(Text("apply_invite_entry_button"))
+                }
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .fullScreenCover(isPresented: $showApplicationWizard) {
+            NavigationStack {
+                ApplicationWizardView(router: router, mode: .anonymous)
+                    .navigationTitle("apply_wizard_title")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("close_button") { showApplicationWizard = false }
+                        }
+                    }
+            }
+        }
+        .sheet(isPresented: $showInviteEntry) {
+            InviteEntryView(router: router)
         }
     }
 }

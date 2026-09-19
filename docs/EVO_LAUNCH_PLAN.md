@@ -18,6 +18,47 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 - The candidate implements Admin library, existing CRM dossiers, protected records, resumable import, reconciliation and ZIP export. Details and actual evidence: [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).
 - Production schema, key provisioning, release, real UI acceptance, control batch, complete import and downloaded ZIP verification remain open. Zero source entries have been imported into CRM. Fable retains schema/release coordination until explicit handoff.
 
+## Portal release v3-r35469103571-a1-b047e663 accepted 2026-09-20
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree, and
+  the released delta touches no `supabase/migrations/` files.
+- [x] Release from exact main `b047e663ebcd72c7fa599f276f532abcd9b5cc3e`
+  (wave 9). Web/shared deltas: #907 (PORT-9c: «Главная» кабинета at
+  /portal/home in «Атлас» — continue-lesson/test from real attempt
+  state, favorites with nearest open/announced intakes, анкета-status
+  card for approved, case next-actions first for assisted; /portal root
+  and the production smoke path byte-frozen; «новое в каталоге»
+  honestly omitted — the catalog exposes no first-published signal) and
+  the web half of #908 (two narrow intake endpoints: anonymous
+  registration delegating to the unchanged createPublicStudentAccount
+  with the same rate buckets and анкета validation, and bearer-only
+  invite acceptance over the PORT-8a transport reusing the exact web
+  callback seam). iOS half of #908 rides in the repo (9-step native
+  анкета wizard with rule-for-rule contract parity, application status
+  screen, invite flow, honest SessionRouter states, +188 RU/KY pairs,
+  115/115 tests) — this release is what makes the phone flow live,
+  since the endpoints now exist in production. CI run 35469083620
+  green on the exact merge SHA; release run 35469103571 accepted;
+  container `evo-crm-app-1` on hermes-vps carries the exact OCI
+  revision (healthy); `/api/health` live; accepted pointer
+  `v3-r35469103571-a1-b047e663` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 21:07 UTC.
+- Independent exact-head reviews, each PASS with reproduced validation:
+  #907 10/10 (no new RPCs, smoke-path safety, honest data blocks, axe
+  19/19; its finding A — a third copy of the tier derivation instead
+  of actor.accessTier — was fixed pre-merge and delta-confirmed);
+  #908 hostile security review 11/11 (registration parity incl. the
+  cannot-create-account-with-invalid-анкета trace, invite identity
+  binding in migration 126 SQL, proxy scoping, PostgREST GRANTs read
+  from migrations 177/180, 66/66 web + 115/115 iOS reproduced; three
+  non-blocking vocabulary/side-effect notes recorded in the review
+  comment). Cross-session protocol observed both ways.
+- Not claimed: no live registration or invite acceptance has been run
+  against production (no real accounts created); the wave-9a phone
+  flow is enabled by this release but not yet exercised end-to-end;
+  KY texts still await the owner's native-speaker proofread.
+
 ## Portal release v3-r35465491203-a1-5ab34127 accepted 2026-09-19
 
 - [x] No migrations this cycle: Management API readback before arm

@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { UNIVERSITY_PHOTOS, type UniversityContent } from "@/lib/platform-university-catalog";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
+import { universityPhotoUrl } from "@/lib/university-photo-url";
 
 export type PhotoFigureStrings = Pick<
   PortalStrings<"universities">,
@@ -28,7 +29,9 @@ export function PhotoFigure({
 }) {
   const [failed, setFailed] = useState(false);
   const photo = content.photoKey ? UNIVERSITY_PHOTOS[content.photoKey] : null;
-  if (!photo || failed) {
+  // PORT-9d: managed-URL после migrated=true в манифесте, иначе прежний hotlink.
+  const src = universityPhotoUrl(content.photoKey) ?? photo?.path ?? null;
+  if (!photo || src === null || failed) {
     return (
       <div className={`pt-photo-empty${large ? " pt-photo-empty-large" : ""}`}>
         {failed ? strings.photoFailed : strings.photoMissing}
@@ -38,7 +41,7 @@ export function PhotoFigure({
   return (
     <figure className="pt-photo">
       <img
-        src={photo.path}
+        src={src}
         alt={photo.caption}
         width={1280}
         height={850}

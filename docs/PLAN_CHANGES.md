@@ -32541,3 +32541,118 @@ registration/invite-acceptance) и policy-юниты (parity валидации 
   без неё анкета работает, но без префилла и с PT409-конфликтом на submit,
   если receipt ещё не accepted (крайний случай: токен потреблён, приложение
   умерло до acceptance; повторный вход чинит — acceptance вызывается заново).
+
+## 2026-09-20 — PORT-9d: подготовка managed-хранения фото вузов (append-only)
+
+Контекст: план §6 «Каталог и материалы» требует «управляемое хранение при
+разрешённых правах, не случайные hotlink»; port-0-contracts.md (раздел «фото»)
+обещал миграцию фото каталога с hotlink Wikimedia на Supabase Storage ещё в
+PORT-3 — аудит подтвердил, что это не сделано:
+src/lib/university-photo-library.json (144 записи) целиком hotlink
+(87 — Wikimedia, 57 — официальные сайты вузов). Этот slice готовит миграцию
+кодом и манифестом; сам production-upload выполняет координатор позже.
+
+### Решение: право на копирование — фильтр отбора
+
+- Копировать байты в наше хранилище можно только там, где лицензия это
+  разрешает. Явный allowlist точных строк лицензий библиотеки: CC BY 3.0 /
+  3.0 pl / 4.0, CC BY-SA 2.0 / 2.5 / 3.0 / 4.0, CC0, FAL, Public domain
+  (все три варианта записи). Это 87 записей — ровно тот «Wikimedia + CC»
+  объём, который обещал port-0.
+- 57 записей «Official-source embedding / All rights reserved / supplier…»
+  НЕ мигрируют: право на перенос байтов не заявлено, embedding с
+  официального источника — осознанная правовая позиция PORT-3a. В манифесте
+  они помечаются status="ineligible" с причиной — честно видимы, не
+  выброшены. Неизвестная строка лицензии по умолчанию ineligible.
+
+### Решение: bucket и схема URL
+
+- Bucket: `portal-university-photos`, public-read (фото каталога — публичный
+  контент), file_size_limit 20 MiB, allowed_mime_types: image/avif,
+  image/gif, image/jpeg, image/png, image/webp (только растровые; SVG
+  запрещён намеренно). Создание — только через Storage API в --apply по
+  идиоме scripts/configure-university-template-storage.mjs (точный GET →
+  создание лишь при отсутствии → readback; существующий bucket с другими
+  настройками — конфликт, не перезапись). Без миграций и без RPC.
+- Путь объекта: `<photoKey>.<ext>`, ext выводится из проверенного
+  content-type скачанного оригинала и фиксируется в манифесте
+  (objectPath). Публичный URL:
+  `https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/object/public/portal-university-photos/<objectPath>`.
+- База URL — константа в коде (prod-проект iosckaqtovbbnssqcpde, как в
+  storage-скриптах репозитория): фото-библиотека — repo-контент, не зависящий
+  от окружения; сегодняшние hotlink точно так же указывают на внешние
+  фиксированные хосты. Новых env для рантайма не вводится.
+
+### Решение: pipeline-скрипт scripts/portal/migrate-university-photos.mjs
+
+- Три режима, по умолчанию офлайн-«plan» (идиома
+  configure-university-template-storage.mjs: план без сети и без кредов).
+  - `--plan` (и запуск без аргументов): без сети; читает библиотеку,
+    делит записи на eligible/ineligible, проверяет полноту метаданных
+    (path/license/licenseUrl/author/title/caption/sourceUrl непустые) —
+    неполная запись валит план с exit 1.
+  - `--check`: сеть, строго read-only: скачивает каждый eligible-оригинал,
+    проверяет HTTP 200 + image/* content-type + вменяемый размер
+    (1 KiB…20 MiB), считает sha256 и пишет манифест
+    scripts/portal/university-photos-manifest.json: photoKey → sourceUrl
+    (hotlink), pageUrl (страница-источник), sha256, bytes, contentType,
+    objectPath, license, licenseUrl, attribution (=author библиотеки,
+    байт-в-байт), status (verified|ineligible|failed), reason, migrated.
+    Сбой скачивания — честная запись status="failed" с причиной, не молча
+    выброшенная. Повторный --check сохраняет migrated=true записи, только
+    если sha256 и objectPath не изменились (дрейф оригинала честно
+    сбрасывает флаг с пометкой).
+  - `--apply` (координатор, позже): создаёт bucket при отсутствии,
+    пере-скачивает eligible-оригиналы, сверяет sha256 с манифестом
+    (расхождение — failed "content_drifted", без загрузки), загружает байты
+    (upsert=false; существующий объект сверяется по хешу публичного URL),
+    после readback ставит migrated=true и переписывает манифест.
+- Env-контракт --apply (и только его): NEXT_PUBLIC_SUPABASE_URL (ровно
+  https://iosckaqtovbbnssqcpde.supabase.co) + EVO_PLATFORM_SUPABASE_SECRET_KEY
+  (sb_secret_* или service-role JWT) через существующий
+  getPlatformSupabaseBackendConfig; env отсутствует/чужой проект — отказ до
+  какой-либо сети. Кредов в файлах/коде нет; plan и check работают без
+  кредов вовсе.
+
+### Решение: переключение кода (fallback-семантика)
+
+- Единый helper src/lib/university-photo-url.ts: managed-URL возвращается
+  только когда запись манифеста существует, status="verified",
+  migrated===true и objectPath задан; во всех остальных случаях — прежний
+  hotlink из библиотеки; неизвестный photoKey → null. Оба рендера
+  (портальный PhotoFigure и staff UniversityPhoto) берут src через helper;
+  атрибуция (caption, автор→источник, лицензия→licenseUrl, пометка о
+  кадрировании) не меняется ни байтом.
+- Коммитится манифест после реального --check с migrated=false у всех
+  записей: поведение сайта в этом PR не меняется вовсе. Переключение на
+  managed-URL — это последующий коммит манифеста с migrated=true после
+  --apply координатора (то есть обычный code-deploy, не runtime-тумблер);
+  до него сайт продолжает служить hotlink.
+
+### Тесты и валидация
+
+- Новый tests/university-photo-storage.test.mjs (канонические флаги
+  --conditions=react-server --experimental-strip-types): helper —
+  migrated/не-migrated/отсутствующий ключ/точная база URL; схема манифеста —
+  полнота полей, ключи ⊆ библиотеки, sha256-формат, license/attribution
+  байт-в-байт равны библиотеке, ineligible ⊂ allowlist-дополнение; скрипт —
+  офлайн-план без сети, отказ --apply без env, bucket-идиома на фикстурах
+  fetchImpl (по образцу tests/configure-university-template-storage.test.mjs).
+  Файл добавляется в test:frontend — пины ci-node-test-suite
+  (occurrenceCount/uniqueFileCount) обновляются в том же коммите.
+- Валидация slice: tsc, eslint, next build, новые тесты, git diff --check;
+  реальные --plan и --check прогоняются в сессии, их фактические счётчики
+  (ok/failed/ineligible) фиксируются в PR честно.
+
+### Честные ограничения
+
+- --apply в этой сессии НЕ выполняется: production-bucket не создан, байты
+  не загружены, сайт до прогона координатора служит прежние hotlink.
+- Перепроверка лицензий из port-0 автоматизирована на уровне метаданных
+  (строка лицензии + полнота атрибуции); содержательная сверка страницы
+  Commons остаётся ручной обязанностью прогона координатора.
+- 57 official-source записей остаются hotlink намеренно — до отдельного
+  решения о правах (запрос разрешения вузов или замена на CC-фото), это
+  не входит в slice.
+- Сбои скачивания в --check фиксируются в манифесте как failed и не
+  мигрируют; их починка (замена источника) — контентная работа вне slice.

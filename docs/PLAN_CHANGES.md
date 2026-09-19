@@ -31753,3 +31753,15 @@ Validation impact: xcodebuild build И test (exit-коды, полные лог�
 Reviewer notes: pending independent review on the exact PR head; ветка
 izzhackt/portal-ios-wave5 от origin/main, конфликтов с веб-ветками нет
 (изменения только в ios/ и этой записи).
+
+Correction (2026-09-19, после ребейза на main поверх #892/#894): заявление
+выше о нулевых конфликтах с веб-ветками не подтвердилось — ребейз дал два
+реальных конфликта: точка дописывания этой же записи в PLAN_CHANGES.md
+(тривиальный, обе стороны просто дописывали в конец файла) и общие пины в
+`tests/ci-node-test-suite.test.mjs` (обе ветки независимо дедуплицировали
+один и тот же задвоенный assert uniqueFileCount, но зафиксировали разные
+числа). Оба разрешены взятием структуры main-стороны с последующим
+пересчётом пяти пинов по факту (`node --test
+tests/ci-node-test-suite.test.mjs`, 10/10, exit 0): occurrenceCount/
+uniqueFileCount 345/206 (CI), bounded.files.length 174, occurrenceCount/
+uniqueFileCount 243/201 (unit).

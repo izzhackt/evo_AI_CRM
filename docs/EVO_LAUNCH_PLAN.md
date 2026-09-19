@@ -1,5 +1,30 @@
 # EVO Launch Plan
 
+## Portal release v3-r35441505162-a1-a6e41aa9 accepted 2026-09-19
+
+- [x] Migrations 197 (portal consultation requests into the staff Заявки
+  queue on the existing lead.read permission; one-open-per-member; never
+  attaches test results), 198 (learning/professions engine per the 135
+  reference architecture: immutable versioned content, private attempts
+  with mistake bank, server-only grading, staff-invisible progress) and
+  199 (seeded content v1: module en-m1-start — 12 lessons / 99 exercises,
+  and 24 profession cards, generated from the merged drafts with a
+  sha256-stamped drift-checked pipeline) applied before the release;
+  Management API readback: ledger tail `…195-199` equals the repo tree.
+- [x] Release from exact main `a6e41aa975827ce5fe2a5e2ec01db24392be92e3`
+  (#886 консультация, #887 движок, #888 сиды, #889 разделы «Английский» и
+  «Профессии», #890 hotfix route-allowlist для /portal/favorites и
+  /portal/profile — прод-дефект релиза d1b64849, найден независимым review
+  и подтверждён живым чеком). Release run 35441505162 accepted; container
+  carries the exact revision; `/api/health` live; ARMED back to `false`.
+- Independent exact-head reviews on all five PRs; the engine review
+  reconstructed all patched function bodies and hunted the key-projection
+  leak (none found); rebase deltas re-confirmed, incl. a full content
+  delta-review of the #889 union rebase after two seam repairs (CSS brace
+  loss and a TS closing-brace loss were caught by real build/test runs).
+- Not claimed: live authenticated journeys on the new screens; KY native
+  proofread remains the named PORT-6 step.
+
 ## Portal release v3-r35435007516-a1-d1b64849 accepted 2026-09-19
 
 - [x] Migrations 195 (student-owned university favorites: set/list/by-ids

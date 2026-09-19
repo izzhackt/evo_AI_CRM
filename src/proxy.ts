@@ -10,6 +10,7 @@ import {
   isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
   isDirectPlatformStaffAssistantApi,
+  isPublicStudentRegistrationApi,
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
@@ -261,6 +262,12 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
   if (isConnectedPlatformPrivateApi(path)) {
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+  // PORT-9a: the anonymous анкета registration intake. The handler owns its
+  // whole boundary (exact-JSON contract + the migration-177 signup rate
+  // limit); no session state is consulted, cookies are never refreshed here.
+  if (isPublicStudentRegistrationApi(path, request.method)) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 

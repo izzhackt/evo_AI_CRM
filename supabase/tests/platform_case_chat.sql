@@ -322,12 +322,14 @@ SELECT pg_temp.p191_assert(
 -- (7) Read cursor bump: read alone never clears an await mark (set here first
 -- to prove the two are independent), and case_chat_read_page_v1 reports it.
 -- ===========================================================================
+-- max(sequence_id) is read as superuser: the table grants nothing to
+-- authenticated (all access is via the RPCs).
+SELECT max(sequence_id)::TEXT AS p191_max_sequence FROM platform.case_chat_messages
+  WHERE organization_id = pg_temp.p191_id(1) AND student_case_id = pg_temp.p191_id(501) \gset
 SET LOCAL request.jwt.claims TO :'p191_curator_a';
 SET LOCAL ROLE authenticated;
 SELECT platform.case_chat_command(pg_temp.p191_id(1), pg_temp.p191_id(501), pg_temp.p191_id(908),
   jsonb_build_object('mode', 'set_await', 'state', 'needs_reply'))::TEXT AS p191_await_needs_reply \gset
-SELECT max(sequence_id)::TEXT AS p191_max_sequence FROM platform.case_chat_messages
-  WHERE organization_id = pg_temp.p191_id(1) AND student_case_id = pg_temp.p191_id(501) \gset
 SELECT platform.case_chat_command(pg_temp.p191_id(1), pg_temp.p191_id(501), pg_temp.p191_id(909),
   jsonb_build_object('mode', 'read', 'sequenceId', :'p191_max_sequence'))::TEXT AS p191_read_bump \gset
 SELECT platform.case_chat_read_page_v1(pg_temp.p191_id(1), pg_temp.p191_id(501))::TEXT AS p191_page_after_read \gset

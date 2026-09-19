@@ -428,8 +428,8 @@ function CaseChatThreadView({
 
 function threadRowBadges(row: CaseChatThreadRow) {
   const badges: { tone: PillTone; text: string }[] = [];
-  if (row.awaitState === "needs_reply") badges.push({ tone: "danger", text: caseChatAwaitState("needs_reply") });
-  else if (row.awaitState === "awaiting_student") badges.push({ tone: "warn", text: "Ждём студента" });
+  if (row.awaitState === "needs_reply") badges.push({ tone: "danger", text: caseChatAwaitState("needs_reply") ?? "Нужен ответ" });
+  else if (row.awaitState === "awaiting_student") badges.push({ tone: "warn", text: caseChatAwaitState("awaiting_student") ?? "Ждём студента" });
   if (row.unread) badges.push({ tone: "info", text: "Непрочитанное" });
   return badges;
 }

@@ -2563,6 +2563,23 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_university_favorites.sql
   fi
+
+  # Migration 196 adds the portal profile surface (PORT-5a):
+  # student_profiles.portal_language (NOT NULL DEFAULT 'ru', ru/ky) behind
+  # get_own_portal_profile_v1/set_own_portal_language_v1 (Student-only, the
+  # 148/195 catalogue guard, case-state-independent; a legacy profile-less
+  # case gets the minimal D2a row) plus platform_private.
+  # account_deletion_requests behind request_account_deletion_v1 (idempotent
+  # by request_id, one OPEN request per member) and the admin-only
+  # staff_account_deletion_requests_v1. The suite proves own-only get/set,
+  # untouched defaults on existing rows, per-member ledger isolation, the
+  # admin queue, and staff/anon/service_role denials. Exercised at its own
+  # checkpoint, same convention as 185/192-195.
+  if [[ "$(basename "$migration")" == 196_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_profile_language.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

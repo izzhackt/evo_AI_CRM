@@ -31137,3 +31137,86 @@ tests/ci-node-test-suite.test.mjs обновляются в том же комм
 экрана в этой сессии не выполняется (нет разрешённого студенческого
 аккаунта) — фиксируется честно в PR.
 Reviewer notes: pending independent review on the exact PR head.
+
+## 2026-09-19 — PORT-5a: профиль портала, язык и запрос удаления аккаунта (миграция 196)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 «Профиль», §13 (Apple
+Account deletion §5.1.1(v)) и решение PORT-0 «Локализация» («язык —
+персистентное поле профиля в БД (синхронизация между веб и iPhone), cookie
+остаётся быстрым request-time умолчанием»); дизайн-контракт §6 «Профиль».
+Change type: architecture and scope fixation for PORT-5a before coding;
+allocates migration number 196 (следующий после 195 из PORT-3b; сверено с
+main и открытыми PR — чужих 196 нет).
+Affected plan section: PORT-5 (профиль — независимая от OTH-блокеров часть),
+план §6 «Профиль», §8.5, §13; PORT-0 «Локализация».
+
+Reason: профиль — общая возможность обоих tier'ов, до сих пор без экрана;
+язык портала живёт только в cookie и не синхронизируется между устройствами
+(план §8.8); инициирование удаления аккаунта обязательно для канала App
+Store (план §13) и должно быть реальным серверным запросом, а не кнопкой
+«напишите нам».
+
+Decision:
+- (a) Миграция `196_platform_portal_profile_language.sql`:
+  `platform.student_profiles` получает `portal_language TEXT NOT NULL
+  DEFAULT 'ru' CHECK (portal_language IN ('ru','ky'))`. Проверено по
+  042/053/159/180/193: профиль 1:1 с делом (UNIQUE(organization_id,
+  student_case_id)), оба intake-пути (публичная анкета 180 и приглашение
+  193) создают/дозаполняют строку профиля; legacy cabinet-кейс может не
+  иметь строки (193 явно обрабатывает profile-less case) — RPC обязаны
+  переживать её отсутствие: чтение отдаёт честный default 'ru', запись
+  создаёт минимальную строку профиля без выдуманных фактов (паттерн D2a
+  159: профиль может существовать без фактов; consent_status
+  'not_recorded', никакие анкетные поля не изобретаются). Обновление языка
+  идёт через штатный revision-guard 053 (revision+1) — язык является частью
+  канонического профиля, staff-редакторы получают честный optimistic-conflict.
+- (b) RPC (SECURITY DEFINER, search_path='', GRANT EXECUTE TO authenticated;
+  студенческий guard — как у каталога 148: student + portal.read.self,
+  case-независимый; собственный кейс резолвится как в student_portal_cases —
+  portal_activated_at IS NOT NULL, state IN ('pending','active','closed')):
+  `platform.get_own_portal_profile_v1()` → {displayName, email,
+  portalLanguage, caseState, deletionRequestedAt} (последнее поле — чтобы
+  экран честно показывал состояние «запрос отправлен» после перезагрузки;
+  дополнение к согласованной четвёрке полей, зафиксировано здесь);
+  `platform.set_own_portal_language_v1(p_language)` — student-only, 22023 на
+  не-ru/ky; `platform.request_account_deletion_v1(p_request_id)` — новая
+  таблица `platform_private.account_deletion_requests` (membership-scoped,
+  status requested/acknowledged, RLS+REVOKE ALL как 148/195), идемпотентно
+  по request_id И не более одного открытого запроса на участника
+  (частичный уникальный индекс по status='requested'; повтор с новым
+  request_id возвращает исходный открытый запрос, не второй ряд);
+  `platform.staff_account_deletion_requests_v1()` — только admin
+  (role='admin' + organization.read), отдаёт запросы своей организации с
+  display_name и привязкой к делу.
+- (c) Web: экран `/portal/profile` по дизайн-контракту §6 — данные
+  (имя/email read-only), язык RU/KY (персист через RPC И обновление cookie
+  `locale` в ТОМ ЖЕ server action — setLocaleAction-семантика), ссылка на
+  личные результаты тестов (/portal/tests), выход, «Удалить аккаунт» с
+  честным описанием последствий и состоянием «запрос отправлен —
+  обрабатывается командой» (без обещаний сроков), повтор идемпотентен
+  (стабильный request_id на попытку). Профиль в Shell-нав обоих tier'ов.
+  RU/KY — новый неймспейс profile. Staff: компактная строка-бейдж
+  «запрошено удаление аккаунта» в шапке карточки клиента
+  (`CaseHeader.tsx`, аддитивно через Pill; только admin видит — чтение
+  через admin-only RPC, отказ тихо скрывает бейдж), staff-UI не
+  перестраивается.
+- (d) Boundary-тест `supabase/tests/platform_portal_profile_language.sql` на
+  чекпоинте 196 (конвенция 185/192—195): set/get языка только своё (staff
+  запись/чтение — 42501; второй студент изолирован); существующие строки
+  профиля не затронуты (default 'ru'); legacy-студент без строки профиля
+  получает рабочий путь (создание минимальной строки); запрос удаления
+  идемпотентен по request_id, один открытый на участника, staff-admin
+  читает, sales/curator — 42501; anon/service_role отклонены.
+
+Validation impact: полная цепочка 001–196 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с полным логом и grep
+маркеров P196 (и сохранности P191–P195); `npm run typecheck`;
+`npm run build`; `npm run test:brand-ui`; портальные node-тесты (portal-i18n
+ky-полнота нового неймспейса, новый tests/portal-profile.test.mjs,
+обновлённые пины v3-student-portal-ui и ci-node-test-suite в одном коммите
+с составом test:frontend); `git diff --check`. Живой аутентифицированный
+рендер экрана в этой сессии не выполняется — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head; PR идёт
+stacked поверх izzhackt/portal-3b-favorites (base до merge #883 — эта ветка).

@@ -59,8 +59,8 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 340); // актуализировано под текущий состав сьюта (+1 здесь: tests/portal-university-favorites.test.mjs, PORT-3b)
-  assert.equal(plan.uniqueFileCount, 201); // актуализировано вместе с occurrenceCount выше
+  assert.equal(plan.occurrenceCount, 341); // актуализировано под текущий состав сьюта (+1 здесь: tests/portal-profile.test.mjs, PORT-5a)
+  assert.equal(plan.uniqueFileCount, 202); // актуализировано вместе с occurrenceCount выше
   assert.equal(plan.duplicateCount, 139);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.equal(new Set(plan.files).size, plan.files.length);
@@ -108,7 +108,7 @@ test("CI Node suite runs the former security and unit surface once", () => {
   const plain = plan.groups.find((group) => !group.stripTypes);
   const bounded = plan.groups.find((group) => group.stripTypes && group.concurrency === 4);
   const serial = plan.groups.find((group) => group.stripTypes && group.concurrency === 1);
-  assert.equal(bounded.files.length, 169); // актуализировано вместе с пинами выше
+  assert.equal(bounded.files.length, 170); // актуализировано вместе с пинами выше
   assert.equal(serial.files.length, 21);
   assert.deepEqual(special.conditions, ["react-server"]);
   assert.deepEqual(plain.files, ["tests/clean-next-dev-types.test.mjs", "tests/v3-trend-chart.test.mjs",
@@ -127,8 +127,8 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 238); // актуализировано под текущий состав unit-плана (+1: tests/portal-university-favorites.test.mjs, PORT-3b)
-  assert.equal(plan.uniqueFileCount, 196); // актуализировано вместе с occurrenceCount выше
+  assert.equal(plan.occurrenceCount, 239); // актуализировано под текущий состав unit-плана (+1: tests/portal-profile.test.mjs, PORT-5a)
+  assert.equal(plan.uniqueFileCount, 197); // актуализировано вместе с occurrenceCount выше
   assert.equal(plan.duplicateCount, 42);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));

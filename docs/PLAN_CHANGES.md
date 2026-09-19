@@ -32404,3 +32404,12 @@ tests/ci-node-test-suite.test.mjs; 9. git diff --check.
   структурные пины и неизменность серверных контрактов (только существующие
   RPC-чтения).
 - KY-строки написаны агентом и ждут вычитки носителем языка.
+
+### 2026-09-20 — KB: SQL draft location recognized by protected checks
+
+Fast checks on `441492b7` correctly failed closed: four proposed SQL files under
+`docs/design/knowledge` were unknown code paths. Move these unchanged SQL drafts
+to the already supported `docs/schemas/knowledge/` prefix. The existing classifier
+continues to require code lint/build and release contracts; no CI guard is changed
+or bypassed. These remain unnumbered proposals, not ledger migrations. Migration
+numbering and schema/release coordination are still required before delivery.

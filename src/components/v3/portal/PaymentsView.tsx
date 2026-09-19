@@ -46,7 +46,7 @@ export function PaymentsView({
                   ) : null}
                   {dueLabel ? (
                     <p className="mt-1 text-xs text-fg-3">
-                      Срок: <time dateTime={payment.dueAt}>{dueLabel}</time>
+                      Срок: <time dateTime={payment.dueAt ?? undefined}>{dueLabel}</time>
                     </p>
                   ) : null}
                 </div>

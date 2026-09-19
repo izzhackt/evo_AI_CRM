@@ -16,6 +16,7 @@ import {
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 
 import { Card } from "@/components/ui";
+import { CaseAgreementBlock } from "./CaseAgreementBlock";
 import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
 import { CaseTasksPanel } from "./CaseTasksPanel";
 import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
@@ -410,15 +411,32 @@ export function Money({
   draft,
   actor,
   salesCaseId,
+  saleConditionsHref,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
   actor: ActivePlatformActor;
   salesCaseId?: string | null;
+  saleConditionsHref: string;
 }) {
   const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId;
   return (
     <div className="flex flex-col gap-4">
+      {/*
+       * OTH-3 «Договор и оплата»: one unified block, replacing the split
+       * money/contract surfaces (188_platform_case_agreement). Renders
+       * first, before the admin ledger tools below — it is the card's
+       * primary money surface now. Renders nothing on its own when there is
+       * no case yet or the read RPC refuses (no fake empty state).
+       */}
+      {financeCaseId ? (
+        <CaseAgreementBlock
+          actor={actor}
+          studentCaseId={financeCaseId}
+          saleConditionsHref={saleConditionsHref}
+        />
+      ) : null}
+
       {profile.financeStop ? (
         <p className="v3-edge-danger flex flex-wrap items-start gap-2 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm leading-5 text-fg">
           <Pill tone="danger">финансовый стоп</Pill>
@@ -485,22 +503,6 @@ export function Money({
       <ProfileFinanceControls actor={actor} workspace={draft.admissions} />
       {financeCaseId && (staffPresentationCan(actor, "admissions.read") || staffHasPermission(actor, "finance.event.confirm"))
         ? <FinanceEntryWorkspace caseId={financeCaseId} /> : null}
-
-      <Card eyebrow title="Договор">
-        <FactList
-          facts={[
-            {
-              label: "Подписан",
-              value: profile.handoff
-                ? `${profile.handoff.at} · договор и первый платёж подтверждены`
-                : null,
-            },
-          ]}
-        />
-        {profile.handoff ? null : (
-          <p className="px-4 py-3 text-sm text-fg-3">Договор ещё не подтверждён.</p>
-        )}
-      </Card>
     </div>
   );
 }

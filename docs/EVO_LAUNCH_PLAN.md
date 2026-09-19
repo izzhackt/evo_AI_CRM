@@ -1,5 +1,27 @@
 # EVO Launch Plan
 
+## Portal release v3-r35431481983-a1-0667c001 accepted 2026-09-19
+
+- [x] Migrations 193 (invited intake unification: `intake_flow='anketa_v1'`
+  invites route through the анкета and staff approval; approve reuses the
+  invite-bound case; fixes the latent 180 defect where any ordinary анкета
+  approve would raise 55000 on 042's BEFORE INSERT guard) and 194 (35
+  business-code retags 40001→PT409 in prepare/authorize-reissue/finalize —
+  the 186 infinite-retry class; readback asserts zero residual 40001)
+  applied to production via the schema-ledger workflow; Management API
+  readback: live ledger tail `…190-194` equals the repo tree.
+- [x] Release from exact main `0667c001781372a36ebf3f7cef383e3e37552034`
+  (#877 + #879 + receipt/docs); CI 35431469620 green, release 35431481983
+  accepted, container `evo-crm-app-1` carries the exact OCI revision,
+  `/api/health` live, accepted pointer recorded, ARMED returned to `false`.
+- Independent exact-head reviews: #877 approve with the 180-defect claim
+  independently confirmed (live full-chain run by the reviewer); #879 approve
+  with all three function bodies reconstructed and all 35 sites recounted.
+  Cross-session protocol observed (ping both ways, main frozen during runs).
+- Known transient window (accepted, coordinated): between the 194 apply and
+  this acceptance, a staff re-invite conflict would surface a generic error
+  text on the old app; behaviour was unaffected.
+
 ## Portal release v3-r35428426080-a1-03fb983f accepted 2026-09-19
 
 - [x] Migration 192 (portal access tiers) applied to production BEFORE the

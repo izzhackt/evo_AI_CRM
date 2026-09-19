@@ -22,6 +22,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
   const view: View = ["trash", "review", "archive", "inbox"].includes(params.get("view") ?? "") ? params.get("view") as View : "list";
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [folders, setFolders] = useState<KnowledgeItem[]>([]);
+  const [folderRevision, setFolderRevision] = useState<number | null>(null);
   const [page, setPage] = useState<KnowledgePage | null>(null);
   const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -74,7 +75,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
         if (next.hasMore && (!next.nextCursor || next.nextCursor.id === cursor?.id)) throw new Error("Не удалось загрузить все папки.");
         cursor = next.nextCursor;
       } while (cursor && !stopped);
-      if (!stopped) setFolders(result);
+      if (!stopped) { setFolders(result); setFolderRevision(refresh); }
     })().catch((cause) => { if (!stopped) setError(cause.message); });
     return () => { stopped = true; };
   }, [refresh]);
@@ -190,7 +191,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
           {view === "trash" ? <button type="button" disabled={busy} onClick={() => void mutate("restore")}>Восстановить</button> : <>
             {selected.size === 1 && <button type="button" onClick={() => { if (chosen[0]?.kind === "secret") { router.push(href({ area: "secrets", item: chosen[0].id })); return; } setName(chosen[0]?.title ?? ""); setDialog("rename"); }}>Переименовать</button>}
             <button type="button" onClick={() => { setTargetFolder(""); setDialog("move"); }}>Переместить</button>
-            {chosen.every((item) => item.area === "clients" && !item.client_case_id && !item.archived_at) && <button type="button" disabled={busy} onClick={() => setAssignCase(true)}>Привязать к делу</button>}
+            {chosen.every((item) => item.area === "clients" && !item.client_case_id && !item.archived_at) && <button type="button" disabled={busy || folderRevision !== refresh} onClick={() => setAssignCase(true)}>Привязать к делу</button>}
             <button type="button" disabled={busy} onClick={() => void mutate(view === "archive" ? "unarchive" : "archive")}>{view === "archive" ? "Вернуть из архива" : "Архивировать"}</button>
             <button type="button" disabled={busy} onClick={() => void mutate("trash")}>В корзину</button>
           </>}
@@ -210,7 +211,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
         </div>
       </section>
     </div>
-    {assignCase && <KnowledgeAssignCase items={chosen} folders={folders} onClose={() => setAssignCase(false)} onSaved={reload} />}
+    {assignCase && folderRevision === refresh && <KnowledgeAssignCase items={chosen} folders={folders} onClose={() => setAssignCase(false)} onSaved={reload} />}
     <dialog ref={dialogRef} className={styles.dialog} onCancel={() => setDialog(null)}>
       <form onSubmit={submitDialog}><h2>{dialog === "move" ? "Переместить" : dialog === "rename" ? "Переименовать" : dialog === "folder" ? "Новая папка" : "Новая страница"}</h2>
         {dialog === "move" ? <label>Папка<select value={targetFolder} onChange={(event) => setTargetFolder(event.target.value)}><option value="">Входящие</option>{folders.filter((folder) => folder.area === area && !selected.has(folder.id)).map((folder) => <option key={folder.id} value={folder.id}>{folder.title}</option>)}</select></label> : <label>Название<input autoFocus required maxLength={240} value={name} onChange={(event) => setName(event.target.value)} /></label>}

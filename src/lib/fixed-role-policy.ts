@@ -78,7 +78,7 @@ const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/team-chat": ["team.read"],
   "/v3/messages": ["admissions.read"],
   "/v3/universities": ["sales.read", "admissions.read"],
-  "/v3/knowledge": ["documents.read", "messaging.read"],
+  "/v3/knowledge": ["admin.preview"],
   "/v3/settings": ["admin.preview"],
 } as const satisfies Record<FixedRoleRoute, RouteCapabilityRequirement>;
 

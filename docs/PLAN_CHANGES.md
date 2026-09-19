@@ -32267,3 +32267,20 @@ tests/ci-node-test-suite.test.mjs (состав suite не меняется — 
 - KY-тексты написаны агентом и ждут вычитки носителем языка.
 - Контент инструментов (вопросы/разборы/метаданные) остаётся RU из БД;
   перевод контента — отдельная контентная работа, не UI-слайс.
+
+## 2026-09-19 — KB-1/2: изолированный контракт Admin-библиотеки
+
+KB-0 merged as PR #902 (`7610579df`); exact-head independent review and protected short checks passed. The next slice adds the knowledge domain under `platform_private` with only explicitly granted Admin RPCs; no direct table grants, separate organization/scope-bounded blob identities, immutable page snapshots, optimistic versions and idempotent request receipts. It does not replace existing case documents/chat or the company-file authority.
+
+Names and current page text are searchable; raw files and encrypted payloads are opaque. Inbox is the absence of a parent in an area; review and trash are filters over the existing location. Folder cycles and cross-boundary moves are rejected. Page restores create a new immutable version. Source identities are unique and never overwrite a subsequently edited imported page.
+
+Measured 50 MiB Storage object limit and 2.27 GB source containers require 8 MiB immutable parts in private Supabase Storage. A file is published only after the server reads every stored part and verifies the entire SHA-256 and length. Client-declared hashes alone are not proof. Download/export reconstruct original bytes in order. Existing case-file malware/provenance controls remain unchanged; library raw containers are opaque attachments without active previews or claimed full-file malware scans.
+
+Schema source initially lives in `docs/design/knowledge/schema.sql` pending coordinator numbering; it is not an applied migration. Before shipping it is moved once to the assigned forward migration, reviewed and applied by the shared coordinator. The UI/API remains unpublished until its real database path is available. Shared route/navigation changes will be restricted to the new Admin boundary after Fable's acknowledgment. No key provisioning or runtime release is implied by this entry.
+
+### 2026-09-20 — KB: sealed records, canonical dossier projections and source filing
+
+- SOPS records use private versioned ciphertext and access facts without values; no plaintext fields are persisted in the generic node/index/receipt domain. Existing local vault decryption was verified process-only; production key and binary remain absent until coordinated provisioning.
+- Dossiers reuse the real case, document workspace, chat pagination and activity readers. Source files are not cloned and client identity is not recreated. Full export still needs canonical-source snapshots before acceptance.
+- Private metadata filing plan covers all 6,570 source entries; 436 approved/working general Markdown pages are editable, other originals remain files, 32 protected sources have a separate encrypted import, and two backup key files remain outside the library. Candidate/approval provenance is preserved; no AI bundle publication occurs.
+- Import checks source size/hash, resumes existing blobs/nodes, preserves user-edited pages and maps unambiguous local links to stable material IDs. Source originals remain immutable. SQL stays unnumbered until coordinator confirmation.

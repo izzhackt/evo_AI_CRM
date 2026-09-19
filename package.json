@@ -75,6 +75,7 @@
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@google/genai": "2.16.0",
     "@napi-rs/canvas": "1.0.9",
+    "@noble/hashes": "2.4.0",
     "@pdf-lib/fontkit": "1.1.1",
     "@supabase/ssr": "0.12.0",
     "@supabase/supabase-js": "^2.111.0",
@@ -88,9 +89,12 @@
     "postgres": "3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
     "server-only": "0.0.1",
     "sharp": "0.35.4",
-    "three": "^0.185.0"
+    "three": "^0.185.0",
+    "yazl": "3.3.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
@@ -99,6 +103,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/yazl": "3.3.1",
     "ajv": "^8.18.0",
     "esbuild": "^0.28.2",
     "eslint": "^9",

@@ -41,6 +41,7 @@ export function staffPresentationCan(actor: ActivePlatformActor, capability: Fix
     ? fixedRoleCan(actor.presentationRole, capability) : staffCan(actor, capability);
 }
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
+  if (route === "/v3/knowledge") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
   if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage");
   if (route === "/v3/tasks") return staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create")

@@ -194,6 +194,7 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 export function isConnectedPlatformApi(path: string): boolean {
   return (
+    /^\/api\/v3\/knowledge\/(?:list|command|item|blob|download|exports|clients|secrets|source)(?:\/[0-9a-z-]+){0,2}$/.test(path) ||
     path === PLATFORM_AUDIT_EXPORT_PATH ||
     PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||

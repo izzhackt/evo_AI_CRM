@@ -229,6 +229,12 @@ export function TaskDetailPanel({ data, closeHref, day }: Readonly<{ data: Panel
         </div>
         {description ? <p className="whitespace-pre-wrap break-words text-sm leading-6 text-fg-2">{description}</p> : null}
 
+        {data.kind === "case" ? (
+          <Link href={`/v3/messages?case=${data.caseId}&attach=case_task:${data.task.id}`} className="inline-flex min-h-11 items-center text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit">
+            Обсудить
+          </Link>
+        ) : null}
+
         {data.kind === "staff" && data.extra ? <div className="space-y-2 text-sm">
           {data.extra.leadHref ? <Link href={data.extra.leadHref} className="inline-flex min-h-11 items-center underline">Открыть связанного лида</Link> : null}
           {data.extra.sourceHref ? <Link href={data.extra.sourceHref} className="inline-flex min-h-11 items-center underline">Открыть исходное обсуждение</Link>

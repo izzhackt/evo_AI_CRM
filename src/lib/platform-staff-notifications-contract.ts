@@ -4,7 +4,8 @@ export type StaffNotificationKind =
   | "chat_mention"
   | "case_help"
   | "case_task_assigned"
-  | "task_due";
+  | "task_due"
+  | "case_message";
 export type StaffNotification = Readonly<{
   id: string;
   kind: StaffNotificationKind;
@@ -90,6 +91,9 @@ export function decodeStaffNotifications(value: unknown): StaffNotificationPage 
       else if (isStaffNotificationId(row.case_task_id) && isStaffNotificationId(row.student_case_id)) {
         href = `/v3/tasks?task=${row.case_task_id}&kind=case&case=${row.student_case_id}`;
       } else return fail();
+    } else if (row.kind === "case_message") {
+      if (!isStaffNotificationId(row.student_case_id)) return fail();
+      href = `/v3/messages?case=${row.student_case_id}`;
     } else return fail();
     return {
       id: row.id, kind: row.kind, createdAt: row.created_at, readAt: row.read_at, href,

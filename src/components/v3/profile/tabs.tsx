@@ -275,6 +275,16 @@ export function Overview({
       ) : null}
 
       {draft.admissions ? (
+        <Link
+          href={`/v3/messages?case=${draft.admissions.studentCaseId}`}
+          className="flex min-h-11 items-center justify-between rounded-card border border-border bg-surface px-4 py-3 text-sm font-medium text-fg hover:border-control-edge"
+        >
+          Переписка
+          <span aria-hidden="true" className="text-fg-3">→</span>
+        </Link>
+      ) : null}
+
+      {draft.admissions ? (
         <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем задачи по делу…</p>}>
           <CaseTasksPanel actor={actor} caseId={draft.admissions.studentCaseId} caseName={profile.person} />
         </Suspense>

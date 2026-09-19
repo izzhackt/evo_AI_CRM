@@ -16,7 +16,7 @@ import {
   type AdmissionsPipelineStage,
   type AdmissionsPipelineTab,
 } from "@/lib/platform-admissions-pipeline-contract";
-import { admissionsPipelineStage, admissionsPipelineTab, country as countryLabel } from "@/lib/v3/wording";
+import { admissionsPipelineStage, admissionsPipelineTab, caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
 
 /** Full sentences only — «saved» needs none, it is silent. */
 const MESSAGES: Record<Exclude<MoveCasePipelineActionStatus, "saved">, string> = {
@@ -146,10 +146,15 @@ function BoardCard({
           {showCurator && row.currentCuratorDisplayName ? (
             <p className="mt-0.5 truncate text-2xs text-fg-3">{row.currentCuratorDisplayName}</p>
           ) : null}
-          {row.awaitingAck || row.overdue ? (
+          {row.awaitingAck || row.overdue || row.needsReply ? (
             <p className="mt-1.5 flex flex-wrap gap-1.5">
               {row.awaitingAck ? <Pill tone="warn">Ожидает принятия</Pill> : null}
               {row.overdue ? <Pill tone="danger">Просрочено</Pill> : null}
+              {row.needsReply ? (
+                <Link href={`/v3/messages?case=${row.studentCaseId}`} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+                  <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill>
+                </Link>
+              ) : null}
             </p>
           ) : null}
         </div>

@@ -56,6 +56,7 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
     "/v3/calendar": ["admissions.read"],
     "/v3/tasks": ["tasks.read"],
     "/v3/team-chat": ["chat.read"],
+    "/v3/messages": ["admissions.read"],
     "/v3/universities": ["catalog.read"],
     "/v3/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
     "/v3/settings": ["admin.preview"],

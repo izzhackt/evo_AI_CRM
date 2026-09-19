@@ -29,6 +29,7 @@ const LINK_ICONS = {
   pipeline: "funnel",
   "sales-report": "bar-chart",
   "admissions-pipeline": "funnel",
+  messages: "message-square",
   "admissions-worklist": "users",
   "evo-docs": "folder",
   "admissions-summary": "plane",

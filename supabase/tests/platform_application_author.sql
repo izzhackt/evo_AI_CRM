@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- Current-boundary acceptance for migration 189 (OTH-4 «Uni & knowledge
+-- Current-boundary acceptance for migration 190 (OTH-4 «Uni & knowledge
 -- base»). The synthetic organization, identities and case exist only inside
 -- this rolled-back transaction -- same convention as
 -- platform_university_application_geography.sql (118) and
@@ -16,7 +16,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   IF p_condition IS DISTINCT FROM TRUE THEN
-    RAISE EXCEPTION 'Migration 189 assertion failed: %', p_message;
+    RAISE EXCEPTION 'Migration 190 assertion failed: %', p_message;
   END IF;
 END
 $$;

@@ -908,7 +908,7 @@ export async function listPlatformApplications(
     const cursor = options?.cursor ?? null;
     // OTH-4: v2 adds created_by_membership_id/created_by_display_name. The
     // old staff_application_page (118) stays live, untouched, for old app
-    // code between migration 189 applying and this release deploying.
+    // code between migration 190 applying and this release deploying.
     const response = await client.schema("platform").rpc(
       "staff_application_page_v2",
       compactPlatformAdmissionsGetRpcArguments({

@@ -1,5 +1,5 @@
 -- ============================================================
--- 189_platform_application_author_and_optional_program.sql
+-- 190_platform_application_author_and_optional_program.sql
 --
 -- OTH-4 «Uni & knowledge base» (Other staff-UX plan).
 -- docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge base»

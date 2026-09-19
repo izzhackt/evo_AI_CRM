@@ -2489,11 +2489,11 @@ SQL
       -f /workspace/supabase/tests/platform_case_agreement.sql
   fi
 
-  # Migration 189 (OTH-4 «Uni & knowledge base»): optional program_name plus
+  # Migration 190 (OTH-4 «Uni & knowledge base»): optional program_name plus
   # the new author-attribution v2 read RPCs. Same own-checkpoint convention
   # as 185 above -- exercised against the full current-boundary schema, not
   # the migration-189-era snapshot alone.
-  if [[ "$(basename "$migration")" == 189_* ]]; then
+  if [[ "$(basename "$migration")" == 190_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_application_author.sql

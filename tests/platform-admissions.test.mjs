@@ -491,7 +491,7 @@ test("public intake cases and university applications preserve an absent Sales o
 });
 
 test("application rows decode a NULL program_name (optional program, OTH-4)", () => {
-  // Migration 189 makes program_name nullable; the read path must accept it
+  // Migration 190 makes program_name nullable; the read path must accept it
   // or a single program-less application takes down the whole case page.
   const application = normalizePlatformApplicationQueueRow(
     applicationRow({ program_name: null }),

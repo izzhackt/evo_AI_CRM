@@ -321,6 +321,17 @@ export async function proxy(request: NextRequest) {
     if (!studentPortalApi) return blockedPlatformRoute(request, id);
   }
 
+  // PORT-8a (ADR 0030 «Решение» п. 2): the two student document APIs accept
+  // the native bearer transport. A PRESENT Authorization header selects it —
+  // the handler verifies the token with Supabase Auth and repeats the full
+  // Student authority chain fail-closed (401/403), and the cookie session is
+  // then never consulted, so no cookie refresh runs here. Requests without
+  // the header keep the cookie gate below unchanged (same pattern as
+  // isDirectPlatformStaffAssistantApi: the exact route owns its boundary).
+  if (studentPortalApi && request.headers.has("authorization")) {
+    return setResponseHeaders(nextResponse(requestHeaders), id);
+  }
+
   // A stale session must not redirect a new sign-in or refresh old cookies over
   // its result. The action still verifies credentials, live authority and Origin.
   if (path === "/login" && request.method === "POST") {

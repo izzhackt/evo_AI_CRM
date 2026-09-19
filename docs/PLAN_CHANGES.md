@@ -32267,3 +32267,108 @@ tests/ci-node-test-suite.test.mjs (состав suite не меняется — 
 - KY-тексты написаны агентом и ждут вычитки носителем языка.
 - Контент инструментов (вопросы/разборы/метаданные) остаётся RU из БД;
   перевод контента — отдельная контентная работа, не UI-слайс.
+
+## 2026-09-20 — PORT-9c: «Главная» кабинета в «Атласе» (web, append-only)
+
+Контекст: дизайн-контракт (docs/design/portal/design-contract.md §«Карта
+экранов» п.1) описывает «Главную» — «продолжить» (урок/тест/анкета-статус),
+избранное с ближайшими интейками, новое в каталоге; assisted — ближайшие
+действия дела первым блоком. Аудит показал, что экран не был построен:
+корень /portal рендерит «Моё поступление» (PORT-5d). План §6 «Главная»:
+самостоятельному — сохранённые варианты и продолжение обучения, клиенту —
+также ближайшие действия своего дела; без вымышленных процентов готовности.
+
+### Решение по маршрутизации
+
+- «Главная» живёт на новом маршруте `/portal/home`; корень `/portal`
+  остаётся «Моим поступлением» без изменений. Причина — замороженные
+  смоук-якоря production (scripts/evo-production-browser-smoke.mjs,
+  студенческая фаза): вход обязан завершиться точно на
+  `app.evoadmissions.com/portal` (waitForURL), там же байт-в-байт заголовок
+  «Моё поступление», и клик по `a[href="/portal"]` в nav «Разделы кабинета»
+  снова обязан показать тот же заголовок. Перенос «Моего поступления» с
+  корня сломал бы все три проверки; смена якорей разрешена только вместе со
+  смоук-скриптом в одном PR и не входит в этот slice.
+- Навигация Shell: первым пунктом обоих tier'ов добавляется «Главная» →
+  `/portal/home` (ключ shell."nav.home", RU/KY); остальные пункты, включая
+  «Поступление» → `/portal`, не меняются — смоук-путь к якорям сохранён.
+- `/portal/home` вносится в STUDENT_PORTAL_PAGE_ALLOWLIST
+  (src/lib/platform-route-contract.ts) в этом же PR — урок hotfix'а
+  release-3 (экран без allowlist невидим за прокси); пин — в
+  tests/fixed-role-route-contract.test.mjs (список portalRoutes).
+
+### Состав блоков и их источники (никаких новых RPC и миграций)
+
+- approved и assisted (общие discovery-блоки):
+  - «Продолжить занятия»: readLearningModules (движок 198) — урок с
+    draftAttemptId («Продолжить»), иначе первый непройденный по orderIndex
+    («Начать»), иначе честное «модуль пройден» со входом в раздел; ссылка —
+    /portal/english/lesson/{id}. Сбой чтения — честная плашка, не пустота.
+  - «Продолжить тест»: readStudentAssessments (E2, student-assessment-source)
+    — инструмент с draftAttemptId и прогрессом answered/total («Продолжить»
+    → assessmentPath(key)?attempt=), иначе вход в /portal/tests. Тот же
+    честный сбой.
+  - «Избранное с ближайшими интейками»: student_university_favorites_v1 +
+    student_university_catalog_by_ids_v1 (миграция 195, PORT-3b), первые 4
+    записи в порядке избранного; «ближайший набор» — существующий помощник
+    nearestUniversityIntake (только open/announced — непроверенные даты не
+    факт). Пустое состояние — честное, со входом в каталог; сбой — честная
+    плашка favorites.unavailable.
+  - approved дополнительно: карточка «Ваша анкета» → /apply/status
+    (actor.caseState === "pending"; строки admission.pendingApplication* —
+    «честный статус анкеты/доступа» из дизайн-контракта).
+- assisted первым блоком: «Ближайшие действия дела» — readStudentPortalOverview
+  (та же модель, что OverviewView «Моего поступления»): главный шаг
+  (документ/оплата с реальным сроком и суммой), счётчик остальных, вход в
+  «Моё поступление» и в разделы сопровождения (Документы/Оплата/Сообщения).
+  overview=null — честное «действий сейчас нет»; сбой RPC — честная плашка.
+
+### Честные пропуски
+
+- «Новое в каталоге» НЕ строится: честного сигнала новизны в read model нет.
+  `publishedAt` каталога — это reviewed_at ТЕКУЩЕЙ версии публикации
+  (миграция 148): любая правка карточки поднимает версию и дату, то есть
+  «новое» показывало бы «недавно отредактированное». Даты первой публикации
+  RPC не отдаёт, сортировка каталога — по имени. Блок появится, когда
+  появится честный признак (отдельная серверная работа, не этот slice).
+- «Продолжить анкету» для незавершённой регистрации не входит: на /portal
+  попадают только аккаунты с делом; статус анкеты покрыт карточкой
+  «Ваша анкета».
+
+### UI, i18n, a11y, тесты
+
+- Вью — src/components/portal/home/HomeView.tsx (presentation-only, без
+  useEffect; точные E2/портальные DTO без обёрток), страница —
+  src/app/(portal)/portal/home/page.tsx (чтения — Promise.all, каждый
+  источник со своим честным fallback'ом). Стили — существующие pt-классы
+  (pt-card/pt-empty/pt-btn/pt-chip/pt-data) плюс небольшой набор pt-home-*
+  в portal.css, light+dark, узкий экран, reduced-motion наследуется.
+- Словарь: новый неймспейс home (RU+KY, строгая полнота ловится
+  tests/portal-i18n.test.mjs автоматически) + ключ shell."nav.home";
+  повторно используются существующие строки admission/english/tests/
+  favorites/universities, где смысл идентичен, — без дублей.
+- A11y: статический axe-гейт получает поверхности `home-approved` и
+  `home-assisted` (tests/e2e/portal-static-render.cjs + EXPECTED_SURFACES в
+  tests/e2e/portal-accessibility.spec.ts), light+dark.
+- Пины: tests/v3-student-portal-ui.test.mjs — список pageFiles получает
+  home/page.tsx, список href Shell — "/portal/home"; добавляются структурные
+  пины «Главной» в том же файле. Новые тест-файлы не создаются — пины
+  ci-node-test-suite (occurrenceCount/uniqueFileCount) не меняются;
+  tests/fixed-role-route-contract.test.mjs дополняется маршрутом.
+
+### План валидации (каждая команда отдельно, exit-код echo, без чейна с push)
+
+1. npx tsc --noEmit; 2. npx eslint (затронутые пути); 3. npx next build;
+4. node --test tests/portal-i18n.test.mjs; 5. node --test
+tests/v3-student-portal-ui.test.mjs; 6. node --test
+tests/fixed-role-route-contract.test.mjs; 7. npx playwright test
+-c playwright.portal-accessibility.config.ts; 8. node --test
+tests/ci-node-test-suite.test.mjs; 9. git diff --check.
+
+### Честные ограничения
+
+- Живой production-прогон и реальный Supabase-путь «Главной» в этой сессии
+  не выполняются; уверенность — статический axe-рендер реальных компонентов,
+  структурные пины и неизменность серверных контрактов (только существующие
+  RPC-чтения).
+- KY-строки написаны агентом и ждут вычитки носителем языка.

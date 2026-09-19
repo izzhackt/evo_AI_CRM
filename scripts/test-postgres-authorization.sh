@@ -2462,6 +2462,16 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_pipeline_board.sql
   fi
+
+  # Migration 188 adds case-task assignment notifications, the v2 enriched
+  # notification page, mark-all-read and the lazily-materialized due-tomorrow
+  # reminder (OTH-2). Same convention as 185 above: exercised at its own
+  # checkpoint against the full current-boundary schema.
+  if [[ "$(basename "$migration")" == 188_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_notifications_v2.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

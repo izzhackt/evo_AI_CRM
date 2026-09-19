@@ -275,7 +275,7 @@ export function Overview({
 
       {draft.admissions ? (
         <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем задачи по делу…</p>}>
-          <CaseTasksPanel actor={actor} caseId={draft.admissions.studentCaseId} />
+          <CaseTasksPanel actor={actor} caseId={draft.admissions.studentCaseId} caseName={profile.person} />
         </Suspense>
       ) : null}
 

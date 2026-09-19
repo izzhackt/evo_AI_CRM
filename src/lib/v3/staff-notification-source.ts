@@ -16,7 +16,7 @@ export async function readStaffNotifications(cursor: StaffNotificationCursor | n
 export async function readStaffNotificationsForActor(actor: ActivePlatformActor, cursor: StaffNotificationCursor | null = null) {
   if (isStaffPreview(actor)) throw new Error("staff_notifications_preview_unavailable");
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.schema("platform").rpc("staff_notifications_page", {
+  const { data, error } = await supabase.schema("platform").rpc("staff_notifications_page_v2", {
     p_organization_id: actor.organizationId,
     p_before_at: cursor?.at ?? null,
     p_before_id: cursor?.id ?? null,
@@ -33,4 +33,14 @@ export async function markStaffNotificationRead(id: string) {
     p_organization_id: actor.organizationId, p_notification_id: id,
   });
   if (error || !data || data.id !== id || data.read !== true) throw new Error("staff_notifications_unavailable");
+}
+
+export async function markAllStaffNotificationsRead() {
+  const actor = await requirePlatformStaffActor();
+  if (isStaffPreview(actor)) throw new Error("staff_notifications_preview_unavailable");
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.schema("platform").rpc("mark_all_staff_notifications_read", {
+    p_organization_id: actor.organizationId,
+  });
+  if (error || !data || typeof data.marked !== "string") throw new Error("staff_notifications_unavailable");
 }

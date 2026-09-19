@@ -7,7 +7,7 @@ export const metadata = { title: "Страница не найдена · EVO" }
 /**
  * Тупик внутри Student Portal: срабатывает на `notFound()`, брошенный внутри
  * этой группы маршрутов — рендерится внутри `(portal)/layout.tsx`, то есть
- * внутри `PortalShell`, а не голым экраном фреймворка без выхода.
+ * внутри портального `Shell`, а не голым экраном фреймворка без выхода.
  * Стиль повторяет `portal/error.tsx`.
  */
 export default function StudentPortalNotFound() {

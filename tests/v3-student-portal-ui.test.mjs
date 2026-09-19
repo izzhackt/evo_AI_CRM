@@ -49,7 +49,11 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/universities/page.tsx",
   ]);
 
-  const shell = source("src/components/v3/portal/PortalShell.tsx");
+  // PORT-2: the shell moved to src/components/portal/Shell.tsx (replace-don't-
+  // layer, design contract docs/design/portal/design-contract.md). The section
+  // list keeps exactly today's six real routes; assisted-only sections carry a
+  // tiers gate instead of disappearing from the source.
+  const shell = source("src/components/portal/Shell.tsx");
   assert.deepEqual(
     [...shell.matchAll(/href: "([^"]+)"/gu)].map((match) => match[1]),
     [
@@ -65,10 +69,13 @@ test("the Student workspace preserves four portal pages, private tests and publi
 
 test("the portal uses the Student guard and never mounts the staff shell", () => {
   const layout = source("src/app/(portal)/layout.tsx");
-  const shell = source("src/components/v3/portal/PortalShell.tsx");
+  // PORT-2: the layout mounts the new portal Shell and derives the access
+  // tier from caseState with the exact semantics PORT-1a will move server-side.
+  const shell = source("src/components/portal/Shell.tsx");
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
-  assert.match(layout, /<PortalShell displayName=\{actor\.displayName\}>/u);
+  assert.match(layout, /<Shell displayName=\{actor\.displayName\} accessTier=\{accessTier\} locale=\{locale\}>/u);
+  assert.match(layout, /actor\.caseState === "pending" \? "approved" : "assisted"/u);
   assert.match(shell, /logoutStudentPortalAction/u);
   assert.doesNotMatch(
     `${layout}\n${shell}`,
@@ -119,7 +126,8 @@ test("Student preview implementation and staff entry are retired without removin
   assert.doesNotMatch(staffShell, /student-portal-preview|\/preview\/student|Предпросмотр кабинета студента/u);
   assert.match(staffShell, /selectStaffRolePreviewAction/u);
   for (const path of [
-    "src/components/v3/portal/PortalShell.tsx",
+    // PORT-2: the live shell lives in src/components/portal/Shell.tsx now.
+    "src/components/portal/Shell.tsx",
     "src/components/v3/portal/OverviewView.tsx",
   ]) assert.doesNotMatch(source(path), /preview/u, path);
   for (const path of [
@@ -584,15 +592,21 @@ test("portal includes honest empty, loading and failure states", () => {
 // This is deliberately structural. The cumulative E5 integration gate must
 // still exercise 393px, forced-dark and axe against real Supabase-backed pages.
 test("markup keeps responsive hooks and semantic navigation for the later browser gate", () => {
-  const shell = source("src/components/v3/portal/PortalShell.tsx");
+  // PORT-2: the shell is src/components/portal/Shell.tsx styled by --pt-*
+  // tokens in src/app/(portal)/portal.css (design contract
+  // docs/design/portal/design-contract.md). The mobile hamburger panel became
+  // a fixed bottom tab bar, so the aria-expanded/menu-button pins retired with
+  // it; responsive hooks, 44px targets and both themes now live in the CSS
+  // file, and the production smoke anchors stay byte-for-byte in the TSX.
+  const shell = source("src/components/portal/Shell.tsx");
+  const portalCss = source("src/app/(portal)/portal.css");
   const components = filesUnder("src/components/v3/portal/")
     .filter((path) => path.endsWith(".tsx"))
     .map(source)
     .join("\n");
 
-  // Token-based Tailwind now, no CSS modules: responsive hooks and 44px
-  // targets live as utility classes directly on the shell/view markup.
   for (const removed of [
+    "PortalShell.tsx",
     "PortalShell.module.css",
     "OverviewView.module.css",
     "DocumentsView.module.css",
@@ -603,17 +617,17 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
       removed,
     );
   }
-  assert.match(shell, /aria-expanded=\{navigationOpen\}/u);
-  assert.match(shell, /aria-controls="portal-navigation-panel"/u);
-  assert.match(shell, /href="#portal-content"/u);
-  assert.match(shell, /event\.key === "Escape"/u);
-  assert.match(shell, /md:hidden/u);
-  assert.match(shell, /min-h-11/u);
-  assert.match(shell, /aria-label="Навигация по разделам кабинета"/u);
-  assert.match(shell, /tabIndex=\{-1\}/u);
-  assert.match(shell, /menuButton/u);
-  assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);
+  assert.match(shell, /data-testid="student-portal-shell"/u);
   assert.match(shell, /aria-label="Разделы кабинета"/u);
+  assert.match(shell, /href="#portal-content"/u);
+  assert.match(shell, /tabIndex=\{-1\}/u);
+  assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);
+  assert.doesNotMatch(shell, /className="[^"]*\b(?:bg|text|border)-(?:surface|fg|accent|border)/u);
+  assert.match(portalCss, /@media \(min-width: 768px\)/u);
+  assert.match(portalCss, /@media \(max-width: 767px\)/u);
+  assert.match(portalCss, /min-height: 44px/u);
+  assert.match(portalCss, /@media \(prefers-color-scheme: dark\)/u);
+  assert.match(portalCss, /@media \(prefers-reduced-motion: reduce\)/u);
   assert.match(components, /sm:grid-cols-2|sm:grid-cols-3/u);
 });
 

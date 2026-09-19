@@ -10,7 +10,10 @@ import {
   createStudentPortalDocumentDownloadHandler,
   createStudentPortalDocumentUploadHandler,
   selectPrivateDocumentUploadTransport,
+  selectStudentPortalDocumentRouteDependencies,
+  studentPortalDocumentRouteTransport,
 } from "../src/lib/server/platform-document-storage-route-handlers.ts";
+import { resolveStudentPortalBearerActor } from "../src/lib/student-portal-auth.ts";
 import { ClamdScanError } from "../src/lib/server/clamd-malware-scanner.ts";
 
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -171,6 +174,7 @@ function uploadRequest({
   browserRequestId = true,
   idempotencyKey = REQUEST_IDS[0],
   bytes = BYTES,
+  authorization = null,
 } = {}) {
   const form = new FormData();
   form.set("file", new Blob([bytes], { type: mimeType }), "proof.pdf");
@@ -179,7 +183,10 @@ function uploadRequest({
   return new Request("http://app.test/api/v2/document-slots/x/versions", {
     method: "POST",
     body: form,
-    headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    headers: {
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      ...(authorization ? { Authorization: authorization } : {}),
+    },
   });
 }
 
@@ -1606,4 +1613,294 @@ test("active document routes have no filesystem, Drizzle, public bucket or legac
   assert.match(source, /createStudentPortalDocumentDownloadHandler/u);
   assert.match(source, /student_document_download/u);
   assert.match(source, /"Cache-Control": "no-store"/u);
+});
+
+// PORT-8a (ADR 0030 «Решение» п. 2): bearer transport of the two Student
+// document routes. Presence of the Authorization header selects it; the
+// cookie session is never a continuation of a rejected bearer credential.
+
+const BEARER_TOKEN =
+  "eyJhbGciOiJFUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJzdHVkZW50In0.dGVzdC1zaWduYXR1cmU";
+
+function bearerClaims() {
+  return {
+    sub: ACTOR.authUserId,
+    email: "student@example.test",
+    platform_bundle_id: ACTOR.platformBundleId,
+    platform_bundle_version: ACTOR.platformBundleVersion,
+  };
+}
+
+function bearerSupabaseClient({
+  role = "student",
+  claimsError = null,
+  claimsValue = bearerClaims(),
+} = {}) {
+  const authCalls = [];
+  const rpcCalls = [];
+  return {
+    authCalls,
+    rpcCalls,
+    client: {
+      auth: {
+        async getClaims(jwt) {
+          authCalls.push(jwt);
+          return claimsError
+            ? { data: null, error: claimsError }
+            : { data: { claims: claimsValue }, error: null };
+        },
+      },
+      schema(schema) {
+        assert.equal(schema, "platform");
+        return {
+          async rpc(name) {
+            rpcCalls.push(name);
+            if (name === "current_actor_authority") {
+              return {
+                data: [{
+                  auth_user_id: ACTOR.authUserId,
+                  profile_id: ACTOR.profileId,
+                  membership_id: ACTOR.membershipId,
+                  organization_id: ORGANIZATION_ID,
+                  display_name: "Айжан Тестова",
+                  platform_role: role,
+                  platform_access_version: ACTOR.platformAccessVersion,
+                }],
+                error: null,
+              };
+            }
+            if (name === "student_portal_cases") {
+              return {
+                data: [{
+                  case_id: CASE_ID,
+                  case_state: "active",
+                  portal_activated_at: AT,
+                }],
+                error: null,
+              };
+            }
+            throw new Error(`Unexpected bearer RPC: ${name}`);
+          },
+        };
+      },
+    },
+  };
+}
+
+function bearerAuthorize(bearer, token = BEARER_TOKEN) {
+  return createStudentDocumentAuthorizationFactory(() =>
+    resolveStudentPortalBearerActor(token, {
+      createClient: async () => bearer.client,
+    }));
+}
+
+test("Student document transport takes a present Authorization header over any cookie", () => {
+  const plain = new Request("http://app.test/api/portal/x", {
+    headers: { cookie: "sb-test-auth-token=abc" },
+  });
+  assert.deepEqual(studentPortalDocumentRouteTransport(plain), {
+    transport: "cookie",
+  });
+
+  for (const header of [`Bearer ${BEARER_TOKEN}`, `bearer ${BEARER_TOKEN}`]) {
+    const withBearerAndCookie = new Request("http://app.test/api/portal/x", {
+      headers: {
+        Authorization: header,
+        cookie: "sb-test-auth-token=abc",
+      },
+    });
+    assert.deepEqual(studentPortalDocumentRouteTransport(withBearerAndCookie), {
+      transport: "bearer",
+      accessToken: BEARER_TOKEN,
+    });
+  }
+
+  for (const header of [
+    "Basic dXNlcjpwYXNz",
+    "Bearer",
+    "Bearer ",
+    "Bearer not-a-jwt",
+    "Bearer a.b",
+    `Bearer ${BEARER_TOKEN} trailing`,
+    `Bearer  ${BEARER_TOKEN}`,
+    `Bearer x.${"a".repeat(16400)}.y`,
+  ]) {
+    assert.deepEqual(
+      studentPortalDocumentRouteTransport(
+        new Request("http://app.test/api/portal/x", {
+          headers: { Authorization: header },
+        }),
+      ),
+      { transport: "invalid_bearer" },
+      JSON.stringify(header.slice(0, 24)),
+    );
+  }
+});
+
+test("missing bearer keeps the exact cookie dependencies object", () => {
+  const cookieRequest = () => new Request("http://app.test/api/portal/x");
+  const first = selectStudentPortalDocumentRouteDependencies(cookieRequest());
+  const second = selectStudentPortalDocumentRouteDependencies(cookieRequest());
+  assert.equal(first, second);
+
+  const bearerSelected = selectStudentPortalDocumentRouteDependencies(
+    new Request("http://app.test/api/portal/x", {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    }),
+  );
+  assert.notEqual(bearerSelected, first);
+  assert.notEqual(bearerSelected.authorize, first.authorize);
+  assert.notEqual(bearerSelected.createUserClient, first.createUserClient);
+});
+
+test("Student bearer upload resolves the same authority chain and the unchanged storage engine", async () => {
+  const upload = uploadDependencies({
+    scanOutcomes: [
+      { result: SCAN_PROOF },
+      { result: STORED_SCAN_PROOF },
+    ],
+  });
+  const bearer = bearerSupabaseClient();
+  const response = await createStudentPortalDocumentUploadHandler({
+    ...upload.dependencies,
+    authorize: bearerAuthorize(bearer),
+  })(
+    uploadRequest({
+      browserRequestId: false,
+      authorization: `Bearer ${BEARER_TOKEN}`,
+    }),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+
+  assert.equal(response.status, 201);
+  const body = await response.json();
+  assert.deepEqual(body.document.documentVersionId, VERSION_ID);
+  assert.doesNotMatch(
+    JSON.stringify(body),
+    new RegExp(`${CASE_ID}|${SHA256}|${OBJECT_NAME}|platform-documents`, "u"),
+  );
+  // The token itself was verified by Supabase Auth, and the authority came
+  // from the same RPC chain the cookie path uses.
+  assert.deepEqual(bearer.authCalls, [BEARER_TOKEN]);
+  assert.deepEqual(bearer.rpcCalls, [
+    "current_actor_authority",
+    "student_portal_cases",
+  ]);
+  assert.equal(
+    upload.calls.some(([, name]) => name === "admit_student_document_upload_scan"),
+    true,
+  );
+  assert.equal(
+    upload.calls.find(([, name]) =>
+      name === "reserve_document_upload_after_ingress_scan")[2].p_actor_auth_user_id,
+    ACTOR.authUserId,
+  );
+});
+
+test("Student bearer download authorizes from the token and keeps the no-store 302", async () => {
+  const download = downloadDependencies();
+  const bearer = bearerSupabaseClient();
+  const response = await createStudentPortalDocumentDownloadHandler({
+    ...download.dependencies,
+    authorize: bearerAuthorize(bearer),
+  })(
+    new Request("http://app.test/api/portal/document-versions/x/download", {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    }),
+    { params: Promise.resolve({ versionId: VERSION_ID }) },
+  );
+
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.match(
+    response.headers.get("location"),
+    /^http:\/\/127\.0\.0\.1:54321\/storage\/v1\/object\/sign\/platform-documents\//u,
+  );
+  assert.deepEqual(bearer.authCalls, [BEARER_TOKEN]);
+  assert.equal(
+    download.calls.some(([, name]) =>
+      name === "grant_student_portal_document_download"),
+    true,
+  );
+});
+
+test("present-but-invalid bearer is a 401 with no authority RPC and no cookie continuation", async () => {
+  // Supabase Auth rejects the token (bad signature/expired): the resolver
+  // reports a rejected credential, never an anonymous session.
+  const rejected = bearerSupabaseClient({
+    claimsError: { name: "AuthInvalidJwtError", message: "invalid JWT" },
+  });
+  const upload = uploadDependencies();
+  const uploadResponse = await createStudentPortalDocumentUploadHandler({
+    ...upload.dependencies,
+    authorize: bearerAuthorize(rejected),
+  })(
+    uploadRequest({
+      browserRequestId: false,
+      authorization: `Bearer ${BEARER_TOKEN}`,
+    }),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+  assert.equal(uploadResponse.status, 401);
+  assert.deepEqual(await uploadResponse.json(), {
+    error: "authentication_required",
+  });
+  assert.deepEqual(rejected.rpcCalls, []);
+  assert.equal(upload.calls.length, 0);
+
+  // Default wiring: a malformed present header selects the bearer transport
+  // and fails closed before any Supabase or cookie machinery runs. The same
+  // request without the header would enter the cookie path instead (503 in
+  // this environment because no cookie session infrastructure exists here).
+  for (const authorization of [
+    "Basic dXNlcjpwYXNz",
+    "Bearer not-a-jwt",
+    `Bearer x.${"a".repeat(16400)}.y`,
+  ]) {
+    const response = await createStudentPortalDocumentUploadHandler()(
+      uploadRequest({ browserRequestId: false, authorization }),
+      { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+    );
+    assert.equal(response.status, 401, authorization.slice(0, 16));
+    assert.deepEqual(await response.json(), {
+      error: "authentication_required",
+    });
+
+    const downloadResponse = await createStudentPortalDocumentDownloadHandler()(
+      new Request("http://app.test/api/portal/document-versions/x/download", {
+        headers: { Authorization: authorization },
+      }),
+      { params: Promise.resolve({ versionId: VERSION_ID }) },
+    );
+    assert.equal(downloadResponse.status, 401, authorization.slice(0, 16));
+    assert.deepEqual(await downloadResponse.json(), {
+      error: "authentication_required",
+    });
+  }
+
+  const cookiePathResponse = await createStudentPortalDocumentUploadHandler()(
+    uploadRequest({ browserRequestId: false }),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+  assert.equal(cookiePathResponse.status, 503);
+  assert.deepEqual(await cookiePathResponse.json(), {
+    error: "platform_unavailable",
+  });
+});
+
+test("bearer token of a user without Student membership is rejected like a non-student cookie", async () => {
+  const staffBearer = bearerSupabaseClient({ role: "admin" });
+  const download = downloadDependencies();
+  const response = await createStudentPortalDocumentDownloadHandler({
+    ...download.dependencies,
+    authorize: bearerAuthorize(staffBearer),
+  })(
+    new Request("http://app.test/api/portal/document-versions/x/download", {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    }),
+    { params: Promise.resolve({ versionId: VERSION_ID }) },
+  );
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: "authentication_required" });
+  assert.equal(download.calls.length, 0);
 });

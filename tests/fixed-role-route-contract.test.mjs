@@ -567,3 +567,30 @@ test("only the canonical WhatsApp inbound and private recovery routes enter the 
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
 });
+
+test("proxy hands a present-Authorization student document request to its fail-closed handler", () => {
+  const proxy = source("src/proxy.ts");
+
+  // PORT-8a (ADR 0030 «Решение» п. 2): the bearer pass-through exists exactly
+  // once, is scoped to the two connected student document APIs, and returns
+  // straight to the handler without running the cookie session gate.
+  const passThroughPattern =
+    /if \(studentPortalApi && request\.headers\.has\("authorization"\)\) \{[^{}]*return setResponseHeaders\(nextResponse\(requestHeaders\), id\);\s*\}/u;
+  assert.match(proxy, passThroughPattern);
+  assert.equal(proxy.split('request.headers.has("authorization")').length, 2);
+
+  const bearerBranch = proxy.search(passThroughPattern);
+  const cookieSessionGate = proxy.indexOf(
+    "const session = await liveSessionState(request, requestHeaders);",
+  );
+  const studentApiCookieBranch = proxy.indexOf("if (studentPortalApi)");
+  assert.ok(cookieSessionGate >= 0);
+  assert.ok(
+    bearerBranch >= 0 && bearerBranch < cookieSessionGate,
+    "a present Authorization header must never reach the cookie session gate",
+  );
+  assert.ok(
+    studentApiCookieBranch > cookieSessionGate,
+    "requests without the header keep the unchanged cookie gate",
+  );
+});

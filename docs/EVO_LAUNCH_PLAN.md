@@ -334,14 +334,16 @@ staff and incident scopes below remain unchanged. The plan carries forward the
 owner's delegated release workflow, subject to real credentials and release
 controls; this documentation change itself performs no deployment or migration.
 
-- [ ] PORT-0: current-main inventory, contracts and parallel worktree allocation.
-- [ ] PORT-1: approved access, shared data/API authority and account continuity.
-- [ ] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
-- [ ] PORT-3: university discovery, map, comparison and saved choices on both clients.
-- [ ] PORT-4: professions, private assessments and English learning on both clients.
-- [ ] PORT-5: full client accompaniment and consultation requests on both clients.
-- [ ] PORT-6: scoped integration, content completion and final UX pass.
-- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff.
+- [x] PORT-0: current-main inventory, contracts and parallel worktree allocation.
+- [x] PORT-1: approved access, shared data/API authority and account continuity.
+- [x] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
+- [x] PORT-3: university discovery, map, comparison and saved choices on both clients.
+- [x] PORT-4: professions, private assessments and English learning on both clients.
+- [x] PORT-5: full client accompaniment and consultation requests on both clients.
+- [x] PORT-6: scoped integration, content completion and final UX pass. (кроме вычитки KY носителем — владельческий пункт)
+- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff. (владельческие внешние шаги: Apple Developer/подпись/TestFlight/store; агентская часть — done: review-аккаунт, документация)
+
+Финальные документы: [ведомость](EVO_PORTAL_FINAL_LEDGER_2026-09-20.md) · [handover и передача Astra](EVO_PORTAL_HANDOVER_2026-09-20.md).
 
 These checkboxes describe planned work, not existing feature readiness. Existing
 authentication, organization/case access and private assessment boundaries remain

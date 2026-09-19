@@ -22,6 +22,7 @@ const shellRu = {
   account: "Ваш аккаунт",
   logout: "Выйти",
   openingSection: "Открываем раздел «{label}»",
+  "nav.home": "Главная",
   "nav.overview": "Поступление",
   "nav.documents": "Документы",
   "nav.messages": "Сообщения",
@@ -44,6 +45,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   account: "Сиздин аккаунт",
   logout: "Чыгуу",
   openingSection: "«{label}» бөлүмүн ачып жатабыз",
+  "nav.home": "Башкы бет",
   "nav.overview": "Тапшыруу",
   "nav.documents": "Документтер",
   "nav.messages": "Билдирүүлөр",
@@ -1553,9 +1555,62 @@ const applyKy: Readonly<Record<ApplyKey, string>> = {
   "field.Языки и гуманитарные науки": "Тилдер жана гуманитардык илимдер",
 };
 
+/**
+ * «Главная» кабинета (PORT-9c, дизайн-контракт §«Карта экранов» п.1).
+ * Строки действий дела, уроков, тестов и избранного переиспользуются из
+ * неймспейсов admission/english/tests/favorites/universities — здесь только
+ * собственные тексты экрана.
+ */
+const homeRu = {
+  kicker: "Кабинет студента",
+  title: "Главная",
+  leadApproved: "Продолжение уроков, тесты и сохранённые университеты.",
+  leadAssisted: "Ближайшие действия дела, уроки и сохранённые университеты.",
+  caseHeading: "Ближайшие действия дела",
+  caseUnavailable: "Не удалось загрузить действия по делу. Обновите страницу.",
+  caseMore: "Ещё действий: {count}",
+  caseOpenAdmission: "Открыть «Моё поступление»",
+  caseSectionsAria: "Разделы сопровождения",
+  continueHeading: "Продолжить",
+  lessonsDoneTitle: "Модуль пройден",
+  lessonsDoneBody: "Можно повторить ошибки или пройти любой урок ещё раз.",
+  openEnglish: "К урокам",
+  testsEntryTitle: "Английский и карта интересов",
+  testsEntryBody: "Результаты видите только вы.",
+  openTests: "К тестам",
+  testsUnavailable: "Не удалось загрузить тесты. Обновите страницу. Ваши результаты не потеряны.",
+  applicationKicker: "Анкета",
+  favoritesAll: "Всё избранное",
+} as const;
+
+type HomeKey = keyof typeof homeRu;
+
+const homeKy: Readonly<Record<HomeKey, string>> = {
+  kicker: "Студенттин кабинети",
+  title: "Башкы бет",
+  leadApproved: "Сабактарды улантуу, тесттер жана сакталган университеттер.",
+  leadAssisted: "Иш боюнча жакынкы аракеттер, сабактар жана сакталган университеттер.",
+  caseHeading: "Иш боюнча жакынкы аракеттер",
+  caseUnavailable: "Иш боюнча аракеттер жүктөлгөн жок. Баракты жаңыртыңыз.",
+  caseMore: "Дагы аракеттер: {count}",
+  caseOpenAdmission: "«Менин тапшыруум» бөлүмүн ачуу",
+  caseSectionsAria: "Коштоо бөлүмдөрү",
+  continueHeading: "Улантуу",
+  lessonsDoneTitle: "Модуль өтүлдү",
+  lessonsDoneBody: "Каталарды кайталоого же каалаган сабакты дагы бир жолу өтүүгө болот.",
+  openEnglish: "Сабактарга",
+  testsEntryTitle: "Англис тили жана кызыгуулар картасы",
+  testsEntryBody: "Жыйынтыктарды сиз гана көрөсүз.",
+  openTests: "Тесттерге",
+  testsUnavailable: "Тесттер жүктөлгөн жок. Баракты жаңыртыңыз. Жыйынтыктарыңыз жоголгон жок.",
+  applicationKicker: "Анкета",
+  favoritesAll: "Бардык тандалмалар",
+};
+
 /** Все портальные словари, по неймспейсам. Экспорт — для контракт-теста. */
 export const PORTAL_DICTIONARIES = {
   shell: { ru: shellRu, ky: shellKy },
+  home: { ru: homeRu, ky: homeKy },
   admission: { ru: admissionRu, ky: admissionKy },
   messages: { ru: messagesRu, ky: messagesKy },
   universities: { ru: universitiesRu, ky: universitiesKy },

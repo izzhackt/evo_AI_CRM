@@ -422,3 +422,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## CRM Knowledge Base delivery — 2026-09-19
+
+- The owner requested full implementation of `docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md`, including real local-source import, sorting and export. CRM becomes the Admin knowledge workplace only after verified import/read/export; the four local roots remain unchanged source archives.
+- CRM «Клиентская база» means dossiers backed by existing CRM identities/cases. The historical local «Клиентская база знаний ЭВО» contains general approved AI knowledge; import it into internal topics preserving its provenance/approval, never into personal dossiers by name alone. AI publication/bundles remain a separate authority.
+- Astra owns the knowledge scope. Fable retains Portal/App and the current schema/release coordinator role until an explicit handoff. No parallel schema apply, migration-number claim or arm/disarm. Shared changes are small, isolated and reviewed against fresh main.
+- Private inventory, migration state, files and export receipts stay outside this public repository. SOPS ciphertext stays separate; decryption/signing keys never enter knowledge storage or exports.

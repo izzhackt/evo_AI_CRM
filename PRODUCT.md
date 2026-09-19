@@ -198,3 +198,11 @@ server-authorised integration rather than a second source of truth.
   This owner decision supersedes the former optional-Kyrgyz rule for the portal.
 - Staff CRM locale scope remains unchanged: Russian is the working language,
   English the secondary surface; this portal plan does not relocalize the CRM.
+
+## Approved Admin knowledge workplace — 2026-09-19
+
+The CRM knowledge library is Admin-only across pages, search, APIs and export. Pages, files and nested folders share a file-manager interface. It includes autosave with conflict protection, versions, trash/restore, source-preserving import and portable export. Existing staff case-document and reply-snippet rights remain unchanged.
+
+CRM «Клиентская база» projects actual client cases and their existing documents/chat/history without a second client identity or independently editable file copy. Local general client-AI knowledge instead belongs in internal topics with preserved approval/provenance. SOPS protects secret records separately; no raw material or personal dossier is implicitly published to AI.
+
+The owner requested migration and sorting of all four local source roots, retaining originals as an archive. CRM becomes the workplace after real read/edit/download/export and inventory reconciliation. These are acceptance criteria, not a completion claim. See [the full contract](docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md).

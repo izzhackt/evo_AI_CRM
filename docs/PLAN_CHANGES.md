@@ -32016,3 +32016,21 @@ Honest limits: живой iOS-аплоад и реальный Supabase bearer-�
 юнитами с инжектированными клиентами и локальной сборкой. Живое
 подтверждение остаётся на iOS-слайс.
 Reviewer notes: pending independent review on the exact PR head.
+
+## 2026-09-19 — KB-0: источник, полномочия и исполнимый перенос
+
+Owner request: implement the full CRM Knowledge Base plan, including all four local roots, sorting and export. Base: `6a2a7829dfec98dd7a1accf0b94813db75b9365d`; isolated worktree `evo-crm-knowledge-implementation`, branch `izzhackt/crm-knowledge-implementation`. The preserved canonical checkout is not modified.
+
+First slice: product/context/agent terminology plus a reusable read-only, resumable inventory tool. It streams SHA-256 without extracting raw text, records every source location and boundary, detects changed/unreadable files, does not follow symlinks, writes private 0600 state outside Git and emits only aggregate counts. Secret key material is explicitly retained outside library/archive exports; encrypted vault/backups remain in the secret boundary. Mapping is a proposal derived from existing group metadata, not an approval or claim-resolution engine.
+
+The measured source includes multi-gigabyte archive containers; the library must support source-preserving streamed/chunked transfer under the actual Storage limit, with manifest/reassembly and final full-file hash verification. No file-size truncation, rename of original containers, public uploads or byte-loss fallback is allowed. Final runtime architecture and migration number will be recorded after live capacity and coordinator confirmation.
+
+Fable retains shared schema apply and release/arm ownership. PR #899 currently owns the common document bearer/auth handlers; KB will reuse the merged contract. This slice changes no runtime/Auth/Storage/RLS or production data. A migration number is not reserved by this entry. Runtime and import completion remain open.
+
+Official references checked on 2026-09-19: Supabase Storage access control (service keys bypass RLS; new operations need explicit Admin/object authorization), SOPS (encrypted files require a real key mechanism), Next.js Route Handlers (Web Request/Response streaming). Context7 returned quota exceeded; direct official docs and installed Next.js docs used: https://supabase.com/docs/guides/storage/security/access-control , https://getsops.io/docs/ , https://nextjs.org/docs/app/api-reference/file-conventions/route .
+
+KB-0 measured evidence (2026-09-19): 6,570 source files; 6,568 hashed, 2 key files explicitly retained outside import/export; 5,960 unique boundary-scoped blobs and 608 duplicate locations. Raw source is 10,391,040,670 bytes; largest archive 2,266,114,496 bytes. Managed read-only query returned ledger tail 195–200 and Storage fileSizeLimit=52,428,800 bytes. Python TLS trust failed locally; system curl with normal TLS verification succeeded using the existing Keychain token process-only. No TLS bypass or credential copy. Private full inventory is outside Git with mode 0600. Runtime data import count remains zero.
+
+Coordination request posted to https://github.com/izzhackt/evo_AI_CRM/pull/899#issuecomment-5744697374 : Fable keeps schema/release ownership; next migration number requires acknowledgment. No apply/arm operation was performed.
+
+Read-only inventory validation: first 73 real files stopped with explicit incomplete status; resume completed. A second actual process was terminated with SIGTERM after 107 completed rows; its on-disk journal resumed to exit 0 and all 6,570 source records matched the first inventory exactly. No synthetic files or copied stand-ins were used; source bytes remained read-only. `git diff --check` passed. This proves inventory resumption only, not the later Storage import/export path.

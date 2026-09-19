@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 
 import { NotificationsView } from "@/components/portal/admission/NotificationsView";
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
 import { markStudentPortalNotificationReadAction } from "@/lib/student-portal-actions";
 import { readStudentPortalNotifications } from "@/lib/v3/portal-source";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Уведомления — EVO Admissions",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("admission", await getLocale());
+  return { title: `${strings.notificationsTitle} — EVO Admissions` };
+}
 
 /**
  * Loops the existing single-item action over every unread id — no new RPC.
@@ -27,19 +30,21 @@ async function markAllStudentPortalNotificationsReadAction(): Promise<void> {
 }
 
 export default async function StudentPortalNotificationsPage() {
-  const notifications = await readStudentPortalNotifications();
+  const [notifications, locale] = await Promise.all([readStudentPortalNotifications(), getLocale()]);
+  const strings = getPortalStrings("admission", locale);
 
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">Кабинет студента</p>
-        <h1 className="pt-page-title">Уведомления</h1>
-        <p className="pt-page-lead">Важные изменения и сроки по вашему поступлению.</p>
+        <p className="pt-page-kicker">{strings.kickerCabinet}</p>
+        <h1 className="pt-page-title">{strings.notificationsTitle}</h1>
+        <p className="pt-page-lead">{strings.notificationsLead}</p>
       </header>
       <NotificationsView
         notifications={notifications}
         markReadAction={markStudentPortalNotificationReadAction}
         markAllReadAction={markAllStudentPortalNotificationsReadAction}
+        locale={locale}
       />
     </main>
   );

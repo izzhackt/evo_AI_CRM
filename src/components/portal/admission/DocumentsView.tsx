@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/i18n-data";
+import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 
 import { PortalDocumentControls } from "./PortalDocumentControls";
@@ -11,21 +13,24 @@ import {
 
 /**
  * «Документы» в Атласе (PORT-5d): чек-лист со счётчиком принятых, честными
- * статусами и прежним XHR-путём загрузки/скачивания. Смоук-якоря сохранены
- * байт-в-байт: заголовки «Чеклист» и «Список документов пока пуст».
+ * статусами и прежним XHR-путём загрузки/скачивания. PORT-6a: строки — из
+ * неймспейса admission (RU+KY); смоук-якоря сохранены байт-в-байт в
+ * RU-словаре: заголовки «Чеклист» и «Список документов пока пуст».
  */
 export function DocumentsView({
   documents,
+  locale,
 }: {
   documents: readonly StudentPortalDocument[];
+  locale: Locale;
 }) {
+  const strings = getPortalStrings("admission", locale);
+
   if (documents.length === 0) {
     return (
       <section className="pt-adm-empty">
-        <h2 className="pt-section-title">Список документов пока пуст</h2>
-        <p className="pt-adm-empty-body">
-          Здесь появится список документов, которые нужно предоставить команде EVO.
-        </p>
+        <h2 className="pt-section-title">{strings.documentsEmptyTitle}</h2>
+        <p className="pt-adm-empty-body">{strings.documentsEmptyBody}</p>
       </section>
     );
   }
@@ -36,19 +41,28 @@ export function DocumentsView({
     <section className="pt-card">
       <header className="pt-card-header">
         <div className="pt-card-header-main">
-          <h2 className="pt-card-title">Чеклист</h2>
+          <h2 className="pt-card-title">{strings.checklistHeading}</h2>
           <p className="pt-card-note">
-            {documents.length} {documentCountLabel(documents.length)} в вашем деле. Сроки указаны по времени Бишкека.
+            {formatPortalString(strings.documentsCountLine, {
+              count: String(documents.length),
+              noun: documentCountNoun(documents.length, strings),
+            })}
           </p>
         </div>
       </header>
       <div className="pt-doc-summary">
         <div className="pt-doc-summary-row">
           <p id="document-progress-label" className="pt-doc-summary-count">
-            Принято <strong>{approved} из {documents.length}</strong>
+            {strings.acceptedLabel}{" "}
+            <strong>
+              {formatPortalString(strings.acceptedShare, {
+                approved: String(approved),
+                total: String(documents.length),
+              })}
+            </strong>
           </p>
           <p className="pt-card-note">
-            {approved === documents.length ? "Все документы приняты" : "После проверки командой EVO"}
+            {approved === documents.length ? strings.acceptedAll : strings.acceptedAfterReview}
           </p>
         </div>
         <progress
@@ -58,17 +72,17 @@ export function DocumentsView({
           aria-labelledby="document-progress-label"
         />
         {missing > 0 || corrections > 0 || inReview > 0 ? (
-          <ul aria-label="Состояние документов" className="pt-doc-summary-facts">
-            {missing > 0 ? <li>Нужно добавить: <strong>{missing}</strong></li> : null}
-            {corrections > 0 ? <li>Нужны исправления: <strong>{corrections}</strong></li> : null}
-            {inReview > 0 ? <li>Ожидают проверки: <strong>{inReview}</strong></li> : null}
+          <ul aria-label={strings.docFactsAria} className="pt-doc-summary-facts">
+            {missing > 0 ? <li>{strings.docMissingTerm} <strong>{missing}</strong></li> : null}
+            {corrections > 0 ? <li>{strings.docCorrectionsTerm} <strong>{corrections}</strong></li> : null}
+            {inReview > 0 ? <li>{strings.docInReviewTerm} <strong>{inReview}</strong></li> : null}
           </ul>
         ) : null}
       </div>
       <ul className="pt-adm-list">
         {documents.map((document) => {
-          const status = documentStatus(document);
-          const reviewLabel = documentReviewLabel(document);
+          const status = documentStatus(document, strings);
+          const reviewLabel = documentReviewLabel(document, strings);
           const deadlineLabel = formatPortalTimestamp(document.deadline);
           const submittedLabel = formatPortalTimestamp(document.submittedAt);
 
@@ -95,7 +109,7 @@ export function DocumentsView({
               <dl className="pt-facts pt-doc-item-facts">
                 {deadlineLabel ? (
                   <div className="pt-fact">
-                    <dt>Срок</dt>
+                    <dt>{strings.deadlineTerm}</dt>
                     <dd>
                       <time dateTime={document.deadline ?? undefined}>
                         {deadlineLabel}
@@ -105,7 +119,7 @@ export function DocumentsView({
                 ) : null}
                 {document.originalFilename ? (
                   <div className="pt-fact">
-                    <dt>Последний файл</dt>
+                    <dt>{strings.lastFileTerm}</dt>
                     <dd>
                       {document.originalFilename}
                       {submittedLabel ? (
@@ -121,7 +135,7 @@ export function DocumentsView({
                 ) : null}
                 {reviewLabel ? (
                   <div className="pt-fact">
-                    <dt>Решение EVO</dt>
+                    <dt>{strings.decisionTerm}</dt>
                     <dd>{reviewLabel}</dd>
                   </div>
                 ) : null}
@@ -130,11 +144,11 @@ export function DocumentsView({
               {document.reworkReason ? (
                 <div
                   role="note"
-                  aria-label="Что нужно исправить"
+                  aria-label={strings.reworkTitle}
                   className="pt-doc-rework"
                 >
                   <p className="pt-doc-rework-title">
-                    Что нужно исправить
+                    {strings.reworkTitle}
                   </p>
                   <p className="pt-doc-rework-body">
                     {document.reworkReason}
@@ -144,7 +158,7 @@ export function DocumentsView({
 
               {document.nextAction ? (
                 <p className="pt-next-step">
-                  <span className="pt-next-step-label">Следующий шаг:</span>{" "}
+                  <span className="pt-next-step-label">{strings.nextStepLabel}</span>{" "}
                   {document.nextAction}
                 </p>
               ) : null}
@@ -154,6 +168,7 @@ export function DocumentsView({
                 documentVersionId={document.documentVersionId}
                 originalFilename={document.originalFilename}
                 allowUpload={document.status !== "approved"}
+                locale={locale}
               />
             </li>
           );
@@ -163,11 +178,16 @@ export function DocumentsView({
   );
 }
 
-function documentCountLabel(count: number): string {
+/**
+ * Русская форма слова «документ» рядом с числом; в KY-словаре все три ключа
+ * сознательно совпадают — киргизское существительное после числительного
+ * не меняет форму.
+ */
+function documentCountNoun(count: number, strings: PortalStrings<"admission">): string {
   const mod100 = count % 100;
   const mod10 = count % 10;
-  if (mod100 >= 11 && mod100 <= 14) return "документов";
-  if (mod10 === 1) return "документ";
-  if (mod10 >= 2 && mod10 <= 4) return "документа";
-  return "документов";
+  if (mod100 >= 11 && mod100 <= 14) return strings["docNoun.many"];
+  if (mod10 === 1) return strings["docNoun.one"];
+  if (mod10 >= 2 && mod10 <= 4) return strings["docNoun.few"];
+  return strings["docNoun.many"];
 }

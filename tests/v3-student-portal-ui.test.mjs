@@ -10,6 +10,11 @@ import {
   studentOperationalStage,
 } from "../src/lib/v3/wording.ts";
 import { studentPortalNotificationReadRequestId } from "../src/lib/server/student-portal-notification-command-id.ts";
+import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
+
+// PORT-6a: строки экранов сопровождения живут в неймспейсе admission;
+// структурные пины ниже проверяют ключи в TSX и русские значения в словаре.
+const admissionRu = PORTAL_DICTIONARIES.admission.ru;
 
 const ROOT = new URL("../", import.meta.url);
 
@@ -168,13 +173,16 @@ test("every page passes the direct strict E2 result to its view", () => {
       page,
       new RegExp(`import \\{ ${reader} \\} from "@/lib/v3/portal-source"`, "u"),
     );
+    // PORT-6a: страницы дополнительно читают locale (тем же Promise.all) и
+    // передают его view — RU/KY словарь admission резолвится на сервере.
     if (resultName === "overview") {
-      assert.match(page, /const \[overview, actor\] = await Promise\.all\(\[readStudentPortalOverview\(\), requireStudentPortalActor\(\)\]\)/u);
+      assert.match(page, /const \[overview, actor, locale\] = await Promise\.all\(\[readStudentPortalOverview\(\), requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
       assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student/u);
       assert.match(page, /pending=\{actor\.caseState === "pending"\}/u);
     } else {
-      assert.match(page, new RegExp(`const ${resultName} = await ${reader}\\(\\)`, "u"));
+      assert.match(page, new RegExp(`const \\[${resultName}, locale\\] = await Promise\\.all\\(\\[${reader}\\(\\), getLocale\\(\\)\\]\\)`, "u"));
     }
+    assert.match(page, new RegExp(`<${component}[\\s\\S]*locale=\\{locale\\}`, "u"));
     assert.match(
       page,
       new RegExp(`<${component}[\\s\\S]*${resultName}=\\{${resultName}\\}`, "u"),
@@ -201,8 +209,12 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /overview\?\.studentAction/u);
   assert.match(overview, /overview\?\.evoAction/u);
   assert.doesNotMatch(overview, /overview\.nextAction/u);
-  assert.match(overview, /Что требуется от вас/u);
-  assert.match(overview, /Что делает EVO/u);
+  // PORT-6a: строки — ключи admission-словаря; RU-значения остались
+  // байт-в-байт прежними (проверяется по словарю, не по TSX).
+  assert.match(overview, /strings\.nextStepNote/u);
+  assert.match(overview, /strings\.evoHeading/u);
+  assert.equal(admissionRu.nextStepNote, "Что требуется от вас");
+  assert.equal(admissionRu.evoHeading, "Что делает EVO");
   assert.match(
     overview,
     /\/portal\/documents#document-\$\{action\.documentSlotId\}/u,
@@ -210,11 +222,13 @@ test("overview names each actor from the canonical projection and links exact it
   // Overview is a flat action queue now: no nested <details> disclosure.
   assert.doesNotMatch(overview, /<details/u);
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
-  assert.match(
-    overview,
-    /Сейчас нет действий по документам и оплате/u,
+  assert.match(overview, /strings\.calmDoneLead/u);
+  assert.equal(
+    admissionRu.calmDoneLead,
+    "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору.",
   );
-  assert.match(overview, /Нет опубликованной задачи команды EVO/u);
+  assert.match(overview, /strings\.evoEmpty/u);
+  assert.equal(admissionRu.evoEmpty, "Нет опубликованной задачи команды EVO.");
   // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
   assert.match(overview, /pt-btn/u);
   assert.match(
@@ -237,10 +251,18 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
 
   // A pending, curator-less cabinet (S1's «кабинет до продажи») gets its own
   // quiet, accurate copy instead of a fabricated curator or stage.
+  // PORT-6a: словарь pending-кабинета переехал из wording.portalPendingCabinet
+  // в admission.pending* (RU байт-в-байт тот же — проверено ниже по значениям),
+  // потому что этим экранам нужен KY, а staff-словарь не локализуется.
   assert.match(overview, /pending\??: boolean/u);
-  assert.match(overview, /portalPendingCabinet/u);
-  assert.match(overview, /pending \? portalPendingCabinet\.heading : "Ваш куратор"/u);
-  assert.match(overview, /portalPendingCabinet\.managerNotice/u);
+  assert.match(overview, /pending \? strings\.pendingHeading : strings\.curatorHeading/u);
+  assert.match(overview, /strings\.pendingManagerNotice/u);
+  assert.equal(admissionRu.pendingHeading, "Сопровождение");
+  assert.equal(admissionRu.pendingManagerNotice, "Менеджер свяжется с вами.");
+  assert.equal(admissionRu.pendingApplicationHeading, "Ваша анкета");
+  assert.equal(admissionRu.pendingApplicationHint, "Анкета, которую вы отправили и одобрила команда EVO.");
+  assert.equal(admissionRu.pendingApplicationLink, "Открыть анкету");
+  assert.equal(admissionRu.curatorHeading, "Ваш куратор");
   assert.match(overview, /href="\/apply\/status"/u);
   assert.match(wording, /export const portalPendingCabinet = \{/u);
   assert.match(portalPage, /pending=\{actor\.caseState === "pending"\}/u);
@@ -473,7 +495,10 @@ test("existing case portal views stay presentation-only and never render raw sta
   assert.match(updates, /loadStudentPortalNotificationState/u);
   assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);
   assert.match(components, /<PortalStatus[\s\S]*label=/u);
-  assert.match(components, /Что нужно исправить/u);
+  // PORT-6a: подпись «Что нужно исправить» — ключ admission.reworkTitle,
+  // RU-значение прежнее байт-в-байт.
+  assert.match(components, /strings\.reworkTitle/u);
+  assert.equal(admissionRu.reworkTitle, "Что нужно исправить");
 });
 
 test("mark-read accepts one opaque handle and creates authority and replay data server-side", () => {
@@ -496,7 +521,9 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   assert.doesNotMatch(action, /form\.get\("request_id"\)|auth_user_id|organization_id|student_case_id/iu);
   assert.match(notifications, /form action=\{markReadAction\}/u);
   assert.match(notifications, /name="notification_id"/u);
-  assert.match(notifications, /<PortalNotificationReadButton \/>/u);
+  // PORT-6a: кнопка получает locale и берёт подписи из admission-словаря
+  // (RU байт-в-байт прежние — проверено по словарю ниже).
+  assert.match(notifications, /<PortalNotificationReadButton locale=\{locale\} \/>/u);
   assert.doesNotMatch(notifications, /onClick|fetch\(|useState/u);
   assert.match(submit, /^"use client";/u);
   assert.match(submit, /useFormStatus/u);
@@ -504,8 +531,10 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   assert.match(submit, /aria-disabled=\{pending\}/u);
   assert.match(
     submit,
-    /pending \? "Отмечаем…" : "Отметить прочитанным"/u,
+    /pending \? strings\.marking : strings\.markRead/u,
   );
+  assert.equal(admissionRu.marking, "Отмечаем…");
+  assert.equal(admissionRu.markRead, "Отметить прочитанным");
   assert.match(
     browser,
     /const markReadSubmission = notification\.locator\('form button\[type="submit"\]'\);[\s\S]*await markReadSubmission\.click\(\);[\s\S]*await expect\(markReadSubmission\)\.toHaveCount\(0\)/u,
@@ -530,9 +559,10 @@ test("notifications deep-link by category, and bulk mark-read loops the existing
     /notification\.category\.startsWith\("application"\)|notification\.category\.startsWith\("visa"\)|Открыть заявки/u,
   );
 
-  assert.match(notifications, /portalNotificationTarget\(notification\)/u);
+  // PORT-6a: цели уведомлений локализуемы — helper получает admission-словарь.
+  assert.match(notifications, /portalNotificationTarget\(notification, strings\)/u);
   assert.match(notifications, /href=\{target\.href\}/u);
-  assert.match(notifications, /<PortalMarkAllReadButton \/>/u);
+  assert.match(notifications, /<PortalMarkAllReadButton locale=\{locale\} \/>/u);
   assert.match(notifications, /form action=\{markAllReadAction\}/u);
 
   assert.match(markAll, /^"use client";/u);
@@ -620,8 +650,11 @@ test("portal includes honest empty, loading and failure states", () => {
 
   assert.match(components, /PortalEmptyState/u);
   // PORT-5d: пустые состояния Атласа — честный заголовок + следующий шаг.
+  // PORT-6a: смоук-якорь «Список документов пока пуст» живёт RU-значением
+  // ключа admission.documentsEmptyTitle (смоук-аккаунт — language=ru).
   assert.match(admission, /pt-adm-empty/u);
-  assert.match(admission, /Список документов пока пуст/u);
+  assert.match(admission, /strings\.documentsEmptyTitle/u);
+  assert.equal(admissionRu.documentsEmptyTitle, "Список документов пока пуст");
   assert.match(loading, /aria-busy="true"/u);
   assert.match(error, /role="alert"/u);
   assert.match(error, /Попробуйте ещё раз или откройте другой раздел через меню/u);
@@ -675,16 +708,20 @@ test("portal feedback and status markers reuse the shared restrained visual lang
   const notifications = source("src/components/portal/admission/NotificationsView.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
+  // PORT-6a: «Новое» — ключ admission.statusNew (RU байт-в-байт прежний).
   assert.match(
     notifications,
-    /<PortalStatus label="Новое" tone="info" \/>/u,
+    /<PortalStatus label=\{strings\.statusNew\} tone="info" \/>/u,
   );
+  assert.equal(admissionRu.statusNew, "Новое");
   assert.doesNotMatch(
     `${documents}\n${notifications}\n${error}`,
     /border-danger|bg-danger-weak|rounded-\[5px\] bg-info-weak/u,
   );
   assert.match(documents, /role="note"/u);
-  assert.match(documents, /aria-label="Что нужно исправить"/u);
+  // PORT-6a: aria-label локализуется тем же ключом admission.reworkTitle,
+  // что и видимый заголовок блока.
+  assert.match(documents, /aria-label=\{strings\.reworkTitle\}/u);
 });
 
 test("the Student portal structural contract is registered exactly once", () => {

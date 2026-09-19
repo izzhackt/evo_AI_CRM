@@ -1,9 +1,11 @@
 /**
- * Презентационные помощники «Моего поступления» (PORT-5d, дизайн-контракт §7).
- * Перенос src/components/v3/portal/presentation.ts в портальный мир Атласа:
- * логика и данные НЕ меняются — только дом компонентов. Доменные статусы
- * читаются из src/lib/v3/wording.ts через этот файл (разрешённое исключение
- * дизайн-контракта: «доменные статусы через локализуемый портальный слой»).
+ * Презентационные помощники «Моего поступления» (PORT-5d → PORT-6a,
+ * дизайн-контракт §7). Доменные статусы больше не читаются из staff-словаря
+ * src/lib/v3/wording.ts напрямую: они живут в портальном неймспейсе
+ * `admission` (src/lib/portal/i18n.ts, RU-значения байт-в-байт равны
+ * staff-словарю — закреплено в tests/portal-i18n.test.mjs) и потому
+ * локализуемы на KY. Из wording.ts остаётся только allDayDate — чистое
+ * форматирование даты, не словарь.
  */
 import type {
   StudentPortalDocument,
@@ -12,20 +14,33 @@ import type {
   StudentPortalNotification,
   StudentPortalPayment,
 } from "@/lib/v3/portal-source";
-import {
-  allDayDate,
-  documentReviewDecision,
-  documentSlotStatus,
-  paymentObligationCategory,
-  paymentObligationStatus,
-  taskStatus,
-} from "@/lib/v3/wording";
+import type { PortalStrings } from "@/lib/portal/i18n";
+import { allDayDate } from "@/lib/v3/wording";
+
+type AdmissionStrings = PortalStrings<"admission">;
+
+/**
+ * Честный lookup доменного значения: неожиданный runtime-ключ — это
+ * «статус недоступен», не пустота и не исключение (прежняя семантика
+ * lookup() из wording.ts).
+ */
+function domainLabel(
+  strings: AdmissionStrings,
+  prefix: "docStatus" | "reviewDecision" | "payStatus" | "payCategory" | "taskStatus",
+  value: string | null | undefined,
+): string | null {
+  if (value == null) return null;
+  const key = `${prefix}.${value}`;
+  return Object.hasOwn(strings, key)
+    ? (strings as Readonly<Record<string, string>>)[key]
+    : null;
+}
 
 /** Тональности статус-пилюли Атласа (соответствуют прежним PillTone). */
 export type PortalStatusTone = "neutral" | "info" | "ok" | "warn" | "danger";
 
 export type PortalStatusPresentation = Readonly<{
-  label: string | null;
+  label: string;
   tone: PortalStatusTone;
 }>;
 
@@ -75,9 +90,10 @@ export function evoActionDueLabel(action: StudentPortalEvoAction): string | null
 
 export function evoActionStatus(
   action: StudentPortalEvoAction,
+  strings: AdmissionStrings,
 ): PortalStatusPresentation {
   return {
-    label: taskStatus(action.status),
+    label: domainLabel(strings, "taskStatus", action.status) ?? strings.statusUnavailable,
     tone: action.status === "blocked"
       ? "warn"
       : action.status === "in_progress"
@@ -88,6 +104,7 @@ export function evoActionStatus(
 
 export function documentStatus(
   document: StudentPortalDocument,
+  strings: AdmissionStrings,
 ): PortalStatusPresentation {
   const tone: PortalStatusTone = document.status === "approved"
     ? "ok"
@@ -98,17 +115,22 @@ export function documentStatus(
         : document.status === "submitted"
           ? "info"
           : "neutral";
-  return { label: documentSlotStatus(document.status), tone };
+  return {
+    label: domainLabel(strings, "docStatus", document.status) ?? strings.statusUnavailable,
+    tone,
+  };
 }
 
 export function documentReviewLabel(
   document: StudentPortalDocument,
+  strings: AdmissionStrings,
 ): string | null {
-  return documentReviewDecision(document.reviewDecision);
+  return domainLabel(strings, "reviewDecision", document.reviewDecision);
 }
 
 export function paymentStatus(
   payment: StudentPortalPayment,
+  strings: AdmissionStrings,
 ): PortalStatusPresentation {
   const tone: PortalStatusTone = payment.status === "paid"
     ? "ok"
@@ -117,11 +139,17 @@ export function paymentStatus(
       : payment.status === "partially_paid"
         ? "warn"
         : "neutral";
-  return { label: paymentObligationStatus(payment.status), tone };
+  return {
+    label: domainLabel(strings, "payStatus", payment.status) ?? strings.statusUnavailable,
+    tone,
+  };
 }
 
-export function paymentCategory(payment: StudentPortalPayment): string | null {
-  return paymentObligationCategory(payment.category);
+export function paymentCategory(
+  payment: StudentPortalPayment,
+  strings: AdmissionStrings,
+): string | null {
+  return domainLabel(strings, "payCategory", payment.category);
 }
 
 export type PortalNotificationTarget = Readonly<{ href: string; label: string }>;
@@ -136,18 +164,19 @@ export type PortalNotificationTarget = Readonly<{ href: string; label: string }>
  */
 export function portalNotificationTarget(
   notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">,
+  strings: AdmissionStrings,
 ): PortalNotificationTarget {
   if (notification.eventCode === "case_help_answer") {
     return {
       href: `/portal/notifications/${notification.notificationId}`,
-      label: "Прочитать ответ куратора",
+      label: strings.targetReply,
     };
   }
   if (notification.category.startsWith("document")) {
-    return { href: "/portal/documents", label: "Открыть документы" };
+    return { href: "/portal/documents", label: strings.targetDocuments };
   }
   if (notification.category.startsWith("payment")) {
-    return { href: "/portal/payments", label: "Открыть оплату" };
+    return { href: "/portal/payments", label: strings.targetPayments };
   }
-  return { href: "/portal", label: "Открыть поступление" };
+  return { href: "/portal", label: strings.targetOverview };
 }

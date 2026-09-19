@@ -1,4 +1,7 @@
 import Link from "next/link";
+
+import type { Locale } from "@/lib/i18n-data";
+import { getPortalStrings } from "@/lib/portal/i18n";
 import type { StudentPortalNotification } from "@/lib/v3/portal-source";
 
 import { PortalMarkAllReadButton } from "./PortalMarkAllReadButton";
@@ -13,23 +16,26 @@ export type MarkPortalNotificationReadAction = (
 /**
  * «Уведомления» в Атласе (PORT-5d): те же события и server actions прочтения;
  * непрочитанные подсвечены, каждый пункт ведёт к реальному доступному объекту.
+ * PORT-6a: строки — из неймспейса admission (RU байт-в-байт, KY полный).
  */
 export function NotificationsView({
   notifications,
   markReadAction,
   markAllReadAction,
+  locale,
 }: {
   notifications: readonly StudentPortalNotification[];
   markReadAction: MarkPortalNotificationReadAction;
   markAllReadAction: MarkPortalNotificationReadAction;
+  locale: Locale;
 }) {
+  const strings = getPortalStrings("admission", locale);
+
   if (notifications.length === 0) {
     return (
       <section className="pt-adm-empty">
-        <h2 className="pt-section-title">Новых уведомлений нет</h2>
-        <p className="pt-adm-empty-body">
-          Здесь появятся важные изменения и сроки по вашему поступлению.
-        </p>
+        <h2 className="pt-section-title">{strings.notificationsEmptyTitle}</h2>
+        <p className="pt-adm-empty-body">{strings.notificationsEmptyBody}</p>
       </section>
     );
   }
@@ -40,21 +46,27 @@ export function NotificationsView({
     <section className="pt-card">
       <header className="pt-card-header">
         <div className="pt-card-header-main">
-          <h2 className="pt-card-title">Все уведомления</h2>
-          <p className="pt-card-note">Время и сроки указаны по времени Бишкека.</p>
+          <h2 className="pt-card-title">{strings.notificationsHeading}</h2>
+          <p className="pt-card-note">{strings.notificationsTimeNote}</p>
         </div>
         {hasUnread ? (
           <form action={markAllReadAction}>
-            <PortalMarkAllReadButton />
+            <PortalMarkAllReadButton locale={locale} />
           </form>
         ) : null}
       </header>
-      <ul className="pt-adm-list" aria-live="polite">
+      {/*
+        A11y (PORT-6a): aria-live снят со всего списка — server action
+        перерисовывает <ul> целиком, и live-область заставляла скринридер
+        зачитывать весь список заново после каждого «прочитано». Сама кнопка
+        уже объявляет своё состояние собственным aria-live-спаном.
+      */}
+      <ul className="pt-adm-list">
         {notifications.map((notification) => {
           const unread = notification.readAt === null;
           const createdLabel = formatPortalTimestamp(notification.createdAt);
           const dueLabel = formatPortalTimestamp(notification.dueAt);
-          const target = portalNotificationTarget(notification);
+          const target = portalNotificationTarget(notification, strings);
 
           return (
             <li
@@ -68,7 +80,7 @@ export function NotificationsView({
                       {notification.subjectLabel}
                     </h3>
                     {unread ? (
-                      <PortalStatus label="Новое" tone="info" />
+                      <PortalStatus label={strings.statusNew} tone="info" />
                     ) : null}
                   </div>
                   {notification.detail ? (
@@ -81,11 +93,12 @@ export function NotificationsView({
                       {createdLabel ? (
                         <time dateTime={notification.createdAt}>{createdLabel}</time>
                       ) : (
-                        "Дата недоступна"
+                        strings.dateUnavailable
                       )}
                       {dueLabel ? (
                         <>
-                          {" · Срок: "}
+                          {" · "}
+                          {strings.dueTerm}{" "}
                           <time dateTime={notification.dueAt ?? undefined}>
                             {dueLabel}
                           </time>
@@ -105,7 +118,7 @@ export function NotificationsView({
                       name="notification_id"
                       value={notification.notificationId}
                     />
-                    <PortalNotificationReadButton />
+                    <PortalNotificationReadButton locale={locale} />
                   </form>
                 ) : null}
               </div>

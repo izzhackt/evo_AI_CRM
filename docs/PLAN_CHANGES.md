@@ -31956,3 +31956,63 @@ Validation impact: сейчас только документация, diff revi
 production-записи, миграции и релиз этим изменением не выполняются.
 Будущая реализация использует scope-local реальные проверки и независимое
 review точного head по Fast Execution, без blanket full-suite gate.
+
+
+## 2026-09-19 — PORT-8a: bearer-путь к двум документным эндпойнтам (web)
+
+Date: 2026-09-19, workspace timezone.
+Author: Claude (Fable 5), slice PORT-8a.
+Change type: architecture (серверный транспорт документов для iOS).
+Affected plan section: `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §8
+(общие данные и архитектура, файлы), ADR 0030 «Решение» п. 2.
+Reason: ADR 0030 принял точечный bearer-резолвер актора только там, где
+сегодня cookie-only HTTP — два документных route handler'а. Без него iOS
+не может загружать и скачивать документы дела.
+Decision:
+- (a) Объём: РОВНО два handler'а — POST
+  `/api/portal/document-slots/[documentSlotId]/versions` и GET
+  `/api/portal/document-versions/[versionId]/download`. Никакие другие
+  эндпойнты bearer не получают. Staff-хендлеры тех же фабрик не меняются.
+- (b) Прецеденс: если заголовок `Authorization` ПРИСУТСТВУЕТ (любое
+  значение), запрос обрабатывается bearer-транспортом; cookie-сессия при
+  этом не читается вовсе. Заголовка нет — cookie-путь без изменений
+  (байт-в-байт та же цепочка зависимостей, что сегодня).
+- (c) Никакого отката к cookie: присутствующий, но невалидный/просроченный
+  bearer (не-Bearer схема, не-JWT форма, неверная подпись, exp) даёт 401
+  `{"error":"authentication_required"}` — существующая форма ошибки
+  хендлеров. У invalid-bearer зависимостей `createUserClient` намеренно
+  бросает исключение (защита в глубину от любого cookie-пути).
+- (d) Верификация токена — только Supabase: `auth.getClaims(<jwt>)`
+  (JWKS/WebCrypto либо серверная проверка `getUser`), без самодельной
+  проверки JWT. Затем ТА ЖЕ цепочка полномочия, что и у cookie-пути:
+  `readVerifiedStudentPortalAuthority` → RPC `current_actor_authority` +
+  `student_portal_cases` на клиенте, чьи PostgREST-вызовы несут этот же
+  токен (`createClient` c публичным ключом и заголовком Authorization).
+  Downstream-хореография grant→consume→sign, admissions/preflight RPC,
+  scan-admission и идемпотентность не меняются; user-RPC вызовы идут от
+  bearer-клиента (auth.uid() из токена). Не-student токен отклоняется той
+  же семантикой, что не-student cookie (401), чужой slot/version — теми же
+  403 от RPC.
+- (e) Proxy: сегодня `src/proxy.ts` cookie-гейтит оба маршрута ДО
+  handler'ов (bearer-запрос умирал бы на 401 в proxy). Добавляется узкий
+  pass-through ровно для `isConnectedStudentPortalApi`-путей с
+  присутствующим `Authorization`: proxy пропускает запрос к handler'у,
+  который сам fail-closed верифицирует токен и полномочие (паттерн
+  isDirectPlatformStaffAssistantApi «handler владеет своей границей»).
+  Cookie-запросы браузера (без Authorization) проходят прежний гейт без
+  изменений. Это часть той же границы двух маршрутов, не новый эндпойнт.
+- (f) Без service-role на новом пути (используются только уже существующие
+  service-шаги хендлеров), без миграций, без новых зависимостей.
+Validation impact: `npm run typecheck`, `npm run lint`, `npx next build`,
+целевые node-тесты (`tests/platform-document-storage-route-handlers.test.mjs`,
+`tests/student-portal-auth.test.mjs`, `tests/fixed-role-route-contract.test.mjs`)
+— каждый отдельной командой с проверенным exit-кодом. Новые тесты
+добавляются в существующие файлы (пины ci-node-test-suite не меняются):
+bearer принят → авторизован; присутствующий невалидный bearer → 401 без
+cookie-отката; без bearer + cookie → прежний путь; токен не-student →
+отклонён; парсер заголовка и proxy pass-through — source/юнит-пины.
+Honest limits: живой iOS-аплоад и реальный Supabase bearer-токен в этой
+сессии не прогоняются (нет согласованного входа/окружения); верификация —
+юнитами с инжектированными клиентами и локальной сборкой. Живое
+подтверждение остаётся на iOS-слайс.
+Reviewer notes: pending independent review on the exact PR head.

@@ -31429,3 +31429,56 @@ ci-node-test-suite без изменений); `git diff --check`. Живой
 Reviewer notes: pending independent review on the exact PR head; slice B
 (199, сид из драфтов) и slice C (веб-UI) идут stacked поверх этой ветки,
 ретаргет после merge базы — задача координатора.
+
+## 2026-09-19 — PORT-4b: сид контента обучения и профессий (миграция 199)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal content/engine session), продолжение PORT-4a
+(миграция 198) по плану §6 и решениям PORT-0; источники —
+`docs/design/portal/content/english-module-1-draft.json` (12 уроков,
+99 заданий) и `professions-draft.json` (24 карточки), оба merged.
+Change type: content seed pipeline fixation before coding; занимает
+номер 199 (следующий в Portal-цепочке за 198; сверено с ledger 001–196 и
+конвенцией «197+ — Portal»).
+Affected plan section: PORT-4, план §6 «Английский»/«Профессии», §8.6.
+
+Reason: движок 198 без контента пуст; драфты должны стать immutable-сидом
+тем же конвейером, что и assessment-контент (версионируемый JSON →
+генератор → sha256-штампованная миграция + режим --check), а не ручным SQL.
+
+Decision:
+- (a) `scripts/generate-portal-learning-seed.mjs` — зеркало
+  `generate-student-assessment-seed.mjs`: читает ОБА драфта, валидирует
+  состав (12 уроков / 99 заданий: 70 choice, 10 matching, 13 short_answer,
+  6 reading; урок 12 — ровно 10 заданий с source_lesson; RU/KY-парность
+  каждого `*_ru`; «Верно…»/«Туура:» только у верного варианта; 24 карточки,
+  каждая шкала ORVIS основная ровно у 3; поля зарплат/работодателей
+  отсутствуют) и генерирует `199_platform_learning_content_v1.sql` с
+  sha256-заголовками источников; `--check` сверяет байт-в-байт, `--write`
+  перегенерирует НЕприменённую миграцию. Детерминированные UUID строк
+  выводятся из ключей контента (sha256), поэтому регенерация стабильна.
+- (b) Контент version = '1.0.0' (черновой «0.1.0-draft» остаётся статусом
+  файла-источника), module_key `en-m1-start`; KY-поля обязательны; после
+  применения 199 источники и миграция не редактируются — новая версия
+  контента = новый forward-номер (правило assessment-конвейера).
+- (c) Ассерты консистентности ВНУТРИ миграции (DO-блок после INSERT'ов:
+  количества, уникальность ключей, покрытие шкал) + маркеры
+  P199_LEARNING_CONTENT_SEED_START/ASSERTED для grep полного лога прогона;
+  отдельный checkpoint-файл в test-postgres-authorization.sh не нужен.
+- (d) Проверки контента — `scripts/test-portal-learning-content.mjs`
+  (node:test, зеркало `test-student-assessment-content.mjs`: состав, KY,
+  сид байт-в-байт, только platform_private-INSERT'ы) + раздел
+  «Generation and checks» в `docs/design/portal/content/README.md`.
+  Wiring — ровно как у assessment-проверки: standalone-скрипты по README
+  (assessment-проверка сознательно не входит в package.json/CI — зеркалим
+  фактическую конвенцию, состав node-сьюта не меняется, пины
+  ci-node-test-suite не трогаются).
+
+Validation impact: `node scripts/generate-portal-learning-seed.mjs --check`
+зелёный; `node scripts/test-portal-learning-content.mjs` зелёный; полная
+цепочка 001–199 через `scripts/test-postgres-authorization.sh` с ПОЛНЫМ
+логом и grep маркеров P198 и P199; `npm run typecheck`; `npm run build`;
+`npm run test:brand-ui`; `git diff --check`.
+Reviewer notes: pending independent review on the exact PR head; ветка
+stacked поверх izzhackt/portal-4-engine — ретаргет после merge базы делает
+координатор.

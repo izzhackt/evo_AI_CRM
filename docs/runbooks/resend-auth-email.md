@@ -2,9 +2,10 @@
 
 Для оператора EVO. Статус на 2026-09-19: **настройка и проверка PENDING**.
 Владелец разрешил отправку, переадресацию и подтверждение Student email.
-Вход в Resend и Spaceship выполнен; sending domain создан, но ещё не Verified.
-Ожидаются DNS-подтверждение, ключ отправки и настройка SMTP. DNS, Auth и шаблоны
-не менялись; API-ключ не создан, тестовые письма не отправлялись.
+Домен Resend Verified, DNS опубликован, ограниченный sending key создан.
+Секрет пока только в открытом одноразовом окне Resend: он не сохранён в хранилище
+или Supabase. Настройка SMTP передана владельцу; Auth и шаблоны не изменены,
+тестовые письма не отправлялись.
 
 ## Проверенное исходное состояние
 
@@ -14,17 +15,27 @@
 - DNS: `launch1.spaceship.net`, `launch2.spaceship.net`; корневые MX —
   `mx1.efwd.spaceship.net` и `mx2.efwd.spaceship.net`, оба priority 0.
   SPF: `v=spf1 include:spf.efwd.spaceship.net ~all`.
-  Новые записи Resend ещё не добавлены. Spaceship UI подтвердил существующую
+  Три новые записи Resend опубликованы с TTL 30 минут и прочитаны через
+  `dig @launch1.spaceship.net`; прочие записи, включая корневые MX, сохранены.
+  Spaceship UI подтвердил существующую
   переадресацию всего домена на `evoadmissions@gmail.com`; доставка не проверена.
 - Resend: `evoadmissions.com`, ID `cd385aca-2e64-4f9e-b89b-3419980552ec`,
-  регион `eu-west-1`, домен не Verified. Dashboard требует TXT `resend._domainkey`
-  с показанным там публичным ключом, CNAME `rsend` → `rsend-euw1.forge.rmta.net`
-  и CNAME `send` → `send.forge.rmta.net`. Это текущая схема провайдера,
+  регион `eu-west-1`, UI показал Verified 19 сентября в 05:47 по локальному отображению.
+  Опубликованы TXT `resend._domainkey` с показанным в dashboard публичным ключом,
+  CNAME `rsend` → `rsend-euw1.forge.rmta.net` и CNAME `send` → `send.forge.rmta.net`.
+  Это текущая схема провайдера,
   а не старый вариант sending MX/TXT; полный DKIM-ключ в этот документ не копировать.
+- Resend Receiving выключен. В UI tracking metrics показывает `Configure`,
+  tracking subdomain не настроен; это наблюдение UI, не API-readback флагов.
+- Ключ `EVO Supabase SMTP`, ID `ad074c41-0171-47d1-a035-37ee814293af`, создан:
+  Sending access ограничен `evoadmissions.com`. Строка ключа и одноразовое окно
+  подтверждают создание, но не сохранение секрета или работоспособность SMTP.
 - Supabase: SMTP-поля не настроены, пароль отсутствует, email limit 2/час;
   `disable_signup=true`, `mailer_autoconfirm=false`. Site URL —
   `https://crm.evoadmissions.com`; allowlist содержит только
   `https://crm.evoadmissions.com/auth/staff` и `https://app.evoadmissions.com/auth/callback`.
+  Management API после подготовки браузерной формы снова вернул SMTP-поля `null`:
+  введённые name/host/port ещё не сохранены. Настройка Auth остаётся прежней.
 - Live Invite и Confirm signup — английские. Invite сохраняет `RedirectTo`
   и `TokenHash`; Confirm использует `ConfirmationURL`. Русский локальный
   [Invite](../../supabase/templates/invite.html) не равен опубликованному шаблону.
@@ -32,20 +43,22 @@
 ## Порядок настройки — всё ещё PENDING
 
 - [x] Войти в Resend и Spaceship; создать sending domain и прочитать его записи.
-- [ ] В Resend открыть существующий Domains → `evoadmissions.com`, не создавать повторно.
-  Скопировать актуальные TXT/CNAME из dashboard и добавить в Spaceship: не угадывать
-  значения, selector, регион, имя sending-subdomain или количество записей.
-  Сохранить корневые MX/SPF переадресации, A/AAAA и nameservers; не включать
-  Resend Receiving, не переносить DNS на Cloudflare. Дождаться Verified.
+- [x] Опубликовать актуальные TXT/CNAME из dashboard, перечитать authoritative DNS,
+  дождаться Verified. Не повторять эти записи и не создавать домен заново;
+  сохранить корневые MX/SPF, A/AAAA и nameservers, не включать Resend Receiving.
 - [x] Проверить в Spaceship существующую доменную переадресацию на business Gmail.
 - [ ] Проверить доставку именно `evo@evoadmissions.com` → `evoadmissions@gmail.com`;
   не заменять уже настроенную доменную переадресацию без необходимости.
-- [ ] Создать отдельный Resend sending key с минимальными доступными правами.
-  Сохранить только в защищённом хранилище и SMTP Supabase: не в Git, чате или логах.
+- [x] Создать отдельный Resend sending key, ограниченный доменом.
+- [ ] Владелец копирует секрет из открытого одноразового окна и сохраняет его
+  в защищённом хранилище и SMTP Supabase, не в Git, чате или логах.
+  Наличие ключа в списке не означает, что его значение удастся прочитать повторно.
 - [ ] Supabase → Authentication → Email → SMTP Settings: sender
   `evo@evoadmissions.com`, name `EVO Admissions`, host `smtp.resend.com`,
   port `465`, username `resend`, password — созданный API key. Включить custom
   SMTP, выставить email limit `100`/час и перечитать сохранённые настройки без секрета.
+  Форма подготовлена с name/host/port; владельцу переданы ввод Sender email,
+  username `resend`, password из Resend и Save. Сохранение ещё не подтверждено.
   Resend Free допускает 100 писем/день и 3000/месяц; лимит Supabase этого не отменяет.
   Платный тариф без отдельного разрешения не подключать.
 - [ ] Сохранить русские тексты после проверки ссылок обеих аудиторий.

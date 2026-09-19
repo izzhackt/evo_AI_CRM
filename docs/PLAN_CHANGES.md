@@ -30600,3 +30600,14 @@ domain-wide forwarding to the business Gmail, not actual delivery. Resend now
 requires DKIM TXT plus `rsend` and `send` CNAMEs, not the older sending MX/TXT
 recipe; copy the current dashboard values and preserve apex forwarding MX/SPF.
 No DNS, API-key, SMTP/Auth/template changes or test emails have occurred yet.
+
+Later same-day progress supersedes that pending DNS/key status: the exact DKIM
+TXT and two CNAMEs were published with TTL 30 minutes and read back from
+`launch1.spaceship.net`; apex forwarding MX/SPF and other records stayed intact.
+Resend UI shows Verified (19 September, 05:47 local display); Receiving stays off.
+The domain-restricted `EVO Supabase SMTP` sending key was created, but its secret
+remains only in the open one-time dialog, not archived or configured in Supabase.
+SMTP form preparation is not activation: subsequent Management API readback
+still shows null SMTP fields, rate 2/hour, signup disabled and autoconfirm false.
+Secret transfer and Save were handed to the owner. Templates, `/apply`
+confirmation implementation and all real mail/reply checks remain pending.

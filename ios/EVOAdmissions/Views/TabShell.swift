@@ -17,7 +17,10 @@ struct TabShell: View {
                 .tabItem { Label("tab_home", systemImage: "house.fill") }
 
             if session.accessTier == .assisted {
-                PlaceholderView(titleKey: "tab_my_admission")
+                // Статус кейса + «Сообщения» (миграция 200); остальные
+                // разделы сопровождения — следующая волна, экран говорит
+                // об этом честно.
+                MyAdmissionView(session: session)
                     .tabItem { Label("tab_my_admission", systemImage: "briefcase.fill") }
             }
 

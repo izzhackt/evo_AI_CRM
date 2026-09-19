@@ -293,6 +293,148 @@ final class SupabaseService {
             .value
     }
 
+    // MARK: - Learning runner (supabase/migrations/198, writes + review)
+
+    /// `platform.start_learning_lesson_v1(p_lesson_id, p_request_id)`
+    /// (198:862-865) — returns the attempt payload; идемпотентно по
+    /// request_id, а существующий draft просто возвращается (198:777-788).
+    func startLearningLesson(lessonId: UUID, requestId: UUID) async throws -> LearningAttemptSnapshot {
+        struct Params: Encodable, Sendable {
+            let p_lesson_id: UUID
+            let p_request_id: UUID
+        }
+        return try await client
+            .rpc(
+                "start_learning_lesson_v1",
+                params: Params(p_lesson_id: lessonId, p_request_id: requestId)
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.save_learning_answer_v1` (198:866-870) — вердикт и разбор
+    /// приходят В ОТВЕТЕ сохранения (receipt 198:819-825); повтор с тем же
+    /// request_id и тем же payload возвращает исходный receipt (input_hash,
+    /// 198:763-776), поэтому retry обязан слать ЗАМОРОЖЕННЫЙ снимок.
+    func saveLearningAnswer(
+        attemptId: UUID,
+        expectedRevision: Int64,
+        exerciseId: UUID,
+        answer: LearningAnswer,
+        requestId: UUID
+    ) async throws -> LearningSaveReceipt {
+        struct Params: Encodable, Sendable {
+            let p_attempt_id: UUID
+            let p_expected_revision: Int64
+            let p_exercise_id: UUID
+            let p_answer: LearningAnswer
+            let p_request_id: UUID
+        }
+        return try await client
+            .rpc(
+                "save_learning_answer_v1",
+                params: Params(
+                    p_attempt_id: attemptId,
+                    p_expected_revision: expectedRevision,
+                    p_exercise_id: exerciseId,
+                    p_answer: answer,
+                    p_request_id: requestId
+                )
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.complete_learning_lesson_v1` (198:871-875) — «урок пройден»
+    /// = отвечено каждое упражнение (198:832-834); result_snapshot приходит
+    /// в payload'е (198:845-852).
+    func completeLearningLesson(
+        attemptId: UUID,
+        expectedRevision: Int64,
+        requestId: UUID
+    ) async throws -> LearningAttemptSnapshot {
+        struct Params: Encodable, Sendable {
+            let p_attempt_id: UUID
+            let p_expected_revision: Int64
+            let p_request_id: UUID
+        }
+        return try await client
+            .rpc(
+                "complete_learning_lesson_v1",
+                params: Params(
+                    p_attempt_id: attemptId,
+                    p_expected_revision: expectedRevision,
+                    p_request_id: requestId
+                )
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.learning_review_v1(p_module_id)` — банк ошибок модуля,
+    /// cap 20, новые первыми (198:965-1002).
+    func learningReview(moduleId: UUID) async throws -> LearningReviewResponse {
+        struct Params: Encodable, Sendable { let p_module_id: UUID }
+        return try await client
+            .rpc("learning_review_v1", params: Params(p_module_id: moduleId))
+            .execute()
+            .value
+    }
+
+    /// `platform.learning_review_check_v1(p_exercise_id, p_answer)` —
+    /// stateless-проверка упражнения СОБСТВЕННОГО банка ошибок; ничего не
+    /// пишет (198:1004-1032), поэтому request-ledger'а у неё нет.
+    func checkLearningReviewAnswer(
+        exerciseId: UUID,
+        answer: LearningAnswer
+    ) async throws -> LearningReviewCheck {
+        struct Params: Encodable, Sendable {
+            let p_exercise_id: UUID
+            let p_answer: LearningAnswer
+        }
+        return try await client
+            .rpc(
+                "learning_review_check_v1",
+                params: Params(p_exercise_id: exerciseId, p_answer: answer)
+            )
+            .execute()
+            .value
+    }
+
+    // MARK: - Case chat, student side (supabase/migrations/200)
+
+    /// `platform.portal_case_chat_page_v1(p_before_sequence_id)`
+    /// (200:137-210) — страница 30 сообщений СВОЕГО треда, before-курсор;
+    /// параметры не адресуют кейс (гейт 192 сам находит единственный свой).
+    func portalCaseChatPage(beforeSequenceId: Int64? = nil) async throws -> PortalCaseChatPage {
+        struct Params: Encodable, Sendable { let p_before_sequence_id: Int64? }
+        return try await client
+            .rpc(
+                "portal_case_chat_page_v1",
+                params: Params(p_before_sequence_id: beforeSequenceId)
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.portal_case_chat_post_v1(p_request_id, p_body)`
+    /// (200:49-132) — идемпотентно по request_id: повтор той же пары
+    /// (request_id, body) возвращает исходный receipt (fingerprint
+    /// 200:80-90); другой body с тем же request_id — PT409.
+    func postPortalCaseChatMessage(requestId: UUID, body: String) async throws -> PortalCaseChatPostReceipt {
+        struct Params: Encodable, Sendable {
+            let p_request_id: UUID
+            let p_body: String
+        }
+        return try await client
+            .rpc(
+                "portal_case_chat_post_v1",
+                params: Params(p_request_id: requestId, p_body: body)
+            )
+            .execute()
+            .value
+    }
+
     /// `platform.profession_cards_v1()` — compact grid rows (198:1038-1051).
     func professionCards() async throws -> ProfessionCardsResponse {
         try await client

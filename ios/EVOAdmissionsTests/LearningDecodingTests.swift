@@ -11,8 +11,8 @@ import XCTest
 ///   latestCompleted}`; theory blocks per validator 198:221-234
 /// - `learning_exercise_public` — 198:519-561 (allowlist projection; answer
 ///   keys and explains NEVER appear)
-/// - attempt payload — 198:701-722 (`answers` deliberately not decoded by
-///   the read slice; fixture keeps it to prove tolerant decoding).
+/// - attempt payload — 198:701-722 (the `answers` map decodes through the
+///   runner-slice types; see LearningRunnerDecodingTests for its shapes).
 final class LearningDecodingTests: XCTestCase {
     func testDecodesModuleMapWithProgress() throws {
         // Module/lesson keys and titles mirror the 199 seed

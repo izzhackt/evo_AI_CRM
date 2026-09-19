@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// Вкладка «Английский» (миграции 198/199, READ-слой): карта модуля с
-/// собственным прогрессом и просмотр урока (цель, теория, состав заданий).
-/// Прохождение уроков (start/save/complete) на iPhone — отдельный слайс;
-/// экран урока честно говорит об этом, ничего не имитируя.
+/// Вкладка «Английский» (миграции 198/199): карта модуля с собственным
+/// прогрессом, просмотр урока (цель, теория) и вход в раннер уроков
+/// (`LessonRunnerView`) и повторение ошибок (`ReviewRunnerView`).
 @MainActor
 final class EnglishViewModel: ObservableObject {
     @Published var modules: [LearningModule] = []
@@ -85,6 +84,20 @@ struct EnglishView: View {
                     ForEach(module.lessons) { lesson in
                         NavigationLink(value: lesson.lessonId) {
                             LessonRow(lesson: lesson)
+                        }
+                    }
+
+                    // Повторение ошибок модуля (198: learning_review_v1) —
+                    // пустой банк показывает честное пустое состояние.
+                    NavigationLink {
+                        ReviewRunnerView(moduleId: module.moduleId)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("english_review_entry")
+                                .font(.subheadline.weight(.medium))
+                            Text("english_review_lead")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
@@ -179,9 +192,9 @@ private struct LessonRow: View {
     }
 }
 
-/// Экран урока (learning_lesson_v1): цель, теория с примерами и состав
-/// заданий. Раннер уроков на iPhone — следующий слайс, о чём экран говорит
-/// явно; ключи ответов сервер в эту проекцию не кладёт вовсе (198:519-561).
+/// Экран урока (learning_lesson_v1): цель, теория с примерами и вход в
+/// раннер (начать / продолжить черновик / пройти ещё раз); ключи ответов
+/// сервер в эту проекцию не кладёт вовсе (198:519-561).
 @MainActor
 final class LessonContentViewModel: ObservableObject {
     @Published var lesson: LearningLessonResponse?
@@ -211,6 +224,7 @@ struct LessonContentView: View {
     let lessonId: UUID
 
     @StateObject private var model = LessonContentViewModel()
+    @State private var showsRunner = false
 
     var body: some View {
         Group {
@@ -273,39 +287,62 @@ struct LessonContentView: View {
                     TheoryBlockView(block: block)
                 }
 
-                // Честная граница слайса: контент читается, раннер — позже.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(String(
-                        format: String(localized: "english_exercises_count"),
-                        response.lesson.exercises.count
-                    ))
-                    .font(.subheadline.weight(.medium))
-                    Text("english_runner_coming")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                // Вход в раннер (LessonRunnerView, миграция 198): начать,
+                // продолжить черновик или пройти ещё раз.
+                if !response.lesson.exercises.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(String(
+                            format: String(localized: "english_exercises_count"),
+                            response.lesson.exercises.count
+                        ))
+                        .font(.subheadline.weight(.medium))
 
-                if let draft = response.draft {
-                    Text(String(
-                        format: String(localized: "english_draft_note"),
-                        draft.answeredCount, draft.exercisesTotal
-                    ))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                }
-                if let completed = response.latestCompleted, let result = completed.result {
-                    Text(String(
-                        format: String(localized: "english_last_result"),
-                        result.correctCount, result.exercisesTotal
-                    ))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                        if let draft = response.draft {
+                            Text(String(
+                                format: String(localized: "english_draft_note"),
+                                draft.answeredCount, draft.exercisesTotal
+                            ))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        }
+                        if let completed = response.latestCompleted, let result = completed.result {
+                            Text(String(
+                                format: String(localized: "english_last_result"),
+                                result.correctCount, result.exercisesTotal
+                            ))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        }
+
+                        Button {
+                            showsRunner = true
+                        } label: {
+                            Group {
+                                if response.draft != nil {
+                                    Text("english_continue_lesson")
+                                } else if response.latestCompleted != nil {
+                                    Text("english_repeat_lesson")
+                                } else {
+                                    Text("english_start_lesson")
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color("AccentColor"))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
                 }
             }
             .padding(20)
+        }
+        .fullScreenCover(isPresented: $showsRunner, onDismiss: {
+            // Черновик/результат изменились в раннере — перечитываем урок.
+            Task { await model.load(lessonId: lessonId) }
+        }) {
+            LessonRunnerView(response: response)
         }
         .navigationTitle(AppLocale.pick(
             ru: response.lesson.metadata.titleRu,

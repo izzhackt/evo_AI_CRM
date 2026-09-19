@@ -35,6 +35,23 @@
         }
       }
     },
+    "admission_next_wave" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документтер, төлөм жана билдирмелер кийинки жаңыртууда болот. Азыр алар веб-кабинетте жеткиликтүү."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документы, оплата и уведомления появятся в следующем обновлении. Сейчас они доступны в веб-кабинете."
+          }
+        }
+      }
+    },
     "attempt_answered_of" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -494,6 +511,108 @@
         }
       }
     },
+    "english_answer_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жооп берүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответить"
+          }
+        }
+      }
+    },
+    "english_completion_heading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабак өтүлдү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Урок пройден"
+          }
+        }
+      }
+    },
+    "english_completion_mistakes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ката кеткен тапшырмалар: %ld. Алар кайталоого кошулду."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заданий с ошибками: %ld. Они добавлены в повторение."
+          }
+        }
+      }
+    },
+    "english_completion_no_mistakes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык тапшырмалар туура чечилди."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все задания решены верно."
+          }
+        }
+      }
+    },
+    "english_continue_lesson" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Улантуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить"
+          }
+        }
+      }
+    },
+    "english_correct_answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туура жооп: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правильный ответ: %@"
+          }
+        }
+      }
+    },
     "english_draft_note" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -545,6 +664,91 @@
         }
       }
     },
+    "english_error_conflict" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аракет башка түзмөктө өзгөрдү. Сакталган аракетти жүктөңүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попытка изменилась на другом устройстве. Загрузите сохранённую попытку."
+          }
+        }
+      }
+    },
+    "english_error_denied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабак жеткиликсиз. Кабинетке кайра кириңиз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Урок недоступен. Войдите в кабинет заново."
+          }
+        }
+      }
+    },
+    "english_error_invalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жооп кабыл алынган жок. Толтурууну текшерип, кайталаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответ не принят. Проверьте заполнение и повторите."
+          }
+        }
+      }
+    },
+    "english_error_unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сактоо ырасталган жок. Жооп экранда калды — кайталаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подтвердить сохранение. Ответ остался на экране — повторите."
+          }
+        }
+      }
+    },
+    "english_exercise_counter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$ld ичинен %1$ld-тапшырма"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задание %1$ld из %2$ld"
+          }
+        }
+      }
+    },
     "english_exercises_count" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -558,6 +762,108 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Заданий: %ld"
+          }
+        }
+      }
+    },
+    "english_exit_blocked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жооптун сакталышын күтүңүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дождитесь сохранения ответа."
+          }
+        }
+      }
+    },
+    "english_exit_dirty_message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Толтурулган жооп жөнөтүлгөн жок жана жоголот."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заполненный ответ не отправлен и будет потерян."
+          }
+        }
+      }
+    },
+    "english_exit_dirty_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жооп жөнөтүлгөн жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответ не отправлен"
+          }
+        }
+      }
+    },
+    "english_exit_discard" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жөнөтпөй чыгуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выйти без отправки"
+          }
+        }
+      }
+    },
+    "english_finish_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабакты аяктоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить урок"
+          }
+        }
+      }
+    },
+    "english_finish_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аяктагандан кийин бул аракеттин жоопторун өзгөртүүгө болбойт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "После завершения ответы этой попытки нельзя изменить."
           }
         }
       }
@@ -613,6 +919,57 @@
         }
       }
     },
+    "english_matching_empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жупту тандаңыз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите пару"
+          }
+        }
+      }
+    },
+    "english_matching_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ар бир сөз айкашы үчүн оң мамычадан жупту тандаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для каждого выражения выберите пару из правой колонки."
+          }
+        }
+      }
+    },
+    "english_next_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кийинки"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Далее"
+          }
+        }
+      }
+    },
     "english_progress" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -630,19 +987,257 @@
         }
       }
     },
-    "english_runner_coming" : {
+    "english_reading_passage" : {
       "extractionState" : "manual",
       "localizations" : {
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сабактарды iPhone'до өтүү — кийинки жаңыртууда. Азырынча тапшырмаларды веб-кабинетте аткарса болот."
+            "value" : "Текст"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Прохождение уроков на iPhone — в следующем обновлении. Сейчас задания можно пройти в веб-кабинете."
+            "value" : "Текст"
+          }
+        }
+      }
+    },
+    "english_reload_confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жергиликтүү киргизүү сакталган аракет менен алмаштырылат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Локальный ввод будет заменён сохранённой попыткой"
+          }
+        }
+      }
+    },
+    "english_reload_draft" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сакталган аракетти жүктөө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузить сохранённую попытку"
+          }
+        }
+      }
+    },
+    "english_repeat_lesson" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дагы бир жолу өтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пройти ещё раз"
+          }
+        }
+      }
+    },
+    "english_review_done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Талданды: %2$ld ичинен %1$ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разобрано: %1$ld из %2$ld"
+          }
+        }
+      }
+    },
+    "english_review_empty_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аякталган сабактарда ката кеткен тапшырмалар ушул жерде чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появятся задания, решённые с ошибкой в завершённых уроках."
+          }
+        }
+      }
+    },
+    "english_review_empty_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Азырынча кайталай турган нерсе жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторять пока нечего"
+          }
+        }
+      }
+    },
+    "english_review_entry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каталарды кайталоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить ошибки"
+          }
+        }
+      }
+    },
+    "english_review_item_from" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%ld-сабак"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Урок %ld"
+          }
+        }
+      }
+    },
+    "english_review_lead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ката кеткен тапшырмаларга жаңы аракет. Жооп дароо текшерилет."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новая попытка тех заданий, где были ошибки. Ответ проверяется сразу."
+          }
+        }
+      }
+    },
+    "english_review_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каталарды кайталоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторение ошибок"
+          }
+        }
+      }
+    },
+    "english_saving" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сактап жатабыз…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохраняем…"
+          }
+        }
+      }
+    },
+    "english_short_answer_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Баш тамга, ашыкча боштуктар жана аягындагы чекит текшерүүгө таасир этпейт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Регистр, лишние пробелы и точка в конце не влияют на проверку."
+          }
+        }
+      }
+    },
+    "english_short_answer_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сиздин жооп"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваш ответ"
+          }
+        }
+      }
+    },
+    "english_start_lesson" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабакты баштоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать урок"
           }
         }
       }
@@ -749,6 +1344,23 @@
         }
       }
     },
+    "english_to_completion" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабактын жыйынтыгына"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "К итогу урока"
+          }
+        }
+      }
+    },
     "english_unavailable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -762,6 +1374,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось загрузить уроки. Повторите. Ваш прогресс не потерян."
+          }
+        }
+      }
+    },
+    "english_verdict_correct" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верно"
+          }
+        }
+      }
+    },
+    "english_verdict_wrong" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туура эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверно"
           }
         }
       }
@@ -1102,6 +1748,295 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Следующий шаг"
+          }
+        }
+      }
+    },
+    "messages_attachment_document" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ: %@"
+          }
+        }
+      }
+    },
+    "messages_awaiting_you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EVO командасы жообуңузду күтүп жатат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Команда EVO ждёт вашего ответа."
+          }
+        }
+      }
+    },
+    "messages_composer_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Билдирүү жазыңыз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Напишите сообщение"
+          }
+        }
+      }
+    },
+    "messages_empty_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EVO командасына жазыңыз — билдирүү жообу менен бирге ушул жерде чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Напишите команде EVO — сообщение появится здесь вместе с ответом."
+          }
+        }
+      }
+    },
+    "messages_empty_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Азырынча билдирүү жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщений пока нет"
+          }
+        }
+      }
+    },
+    "messages_limit_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2000 белгиге чейин."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "До 2000 символов."
+          }
+        }
+      }
+    },
+    "messages_load_earlier" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мурункуларын көрсөтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать более ранние"
+          }
+        }
+      }
+    },
+    "messages_load_earlier_error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мурунку билдирүүлөрдү жүктөө мүмкүн болгон жок. Кайталаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить более ранние сообщения. Повторите."
+          }
+        }
+      }
+    },
+    "messages_quoted_prefix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Буга жооп: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В ответ на: %@"
+          }
+        }
+      }
+    },
+    "messages_refresh_error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кат алышууну жаңыртуу мүмкүн болгон жок."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось обновить переписку."
+          }
+        }
+      }
+    },
+    "messages_section_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ишиңиз боюнча EVO командасы менен кат алышуу."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переписка с командой EVO по вашему делу."
+          }
+        }
+      }
+    },
+    "messages_send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жөнөтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправить"
+          }
+        }
+      }
+    },
+    "messages_send_error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Билдирүү жөнөтүлгөн жок. Кайталаңыз — текст сакталды."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщение не отправлено. Повторите — текст сохранён."
+          }
+        }
+      }
+    },
+    "messages_sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жөнөтүп жатабыз…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправляем…"
+          }
+        }
+      }
+    },
+    "messages_sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Билдирүү жөнөтүлдү."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщение отправлено."
+          }
+        }
+      }
+    },
+    "messages_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Билдирүүлөр"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщения"
+          }
+        }
+      }
+    },
+    "messages_unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Билдирүүлөрдү жүктөө мүмкүн болгон жок. Кат алышуу жоголгон жок."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить сообщения. Переписка не потеряна."
           }
         }
       }
@@ -2717,23 +3652,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Есть несохранённые ответы"
-          }
-        }
-      }
-    },
-    "section_in_progress" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Бөлүм иштелип жатат"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Раздел в разработке"
           }
         }
       }

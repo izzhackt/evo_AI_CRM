@@ -31,7 +31,21 @@ export function DeleteAccountRequest({
   const [pending, startTransition] = useTransition();
 
   if (requestedAt !== null) {
-    return <p role="status" className="pt-profile-deletion-state">{strings.deleteRequested}</p>;
+    // A11y (PORT-6a): успех размонтирует кнопку, на которой стоял фокус, —
+    // без переноса он молча падал на <body>. Фокусируем статус только когда
+    // запрос отправлен в этой сессии (не при серверном рендере состояния).
+    return (
+      <p
+        role="status"
+        tabIndex={-1}
+        ref={(node) => {
+          if (node && requestedAt !== initialRequestedAt) node.focus();
+        }}
+        className="pt-profile-deletion-state"
+      >
+        {strings.deleteRequested}
+      </p>
+    );
   }
 
   return (

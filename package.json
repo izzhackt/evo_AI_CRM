@@ -45,6 +45,7 @@
     "test:document-export-artifacts": "node --conditions=react-server --experimental-strip-types --test tests/document-export-artifacts.test.mjs tests/configure-document-export-storage.test.mjs && node --test tests/document-export-client.test.mjs",
     "test:brand-ui": "node --test tests/v3-brand-design.test.mjs",
     "test:a11y": "playwright test --config=playwright.accessibility.config.ts",
+    "test:a11y:portal": "playwright test --config=playwright.portal-accessibility.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:staff-auth": "playwright test --config=playwright.supabase-staff-auth.config.ts",

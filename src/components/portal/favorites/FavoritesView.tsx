@@ -62,7 +62,15 @@ function CompareTable({
   now: Date;
 }) {
   return (
-    <div className="pt-compare-scroll">
+    // A11y (PORT-6a, WCAG 2.1.1): таблица шире контейнера и скроллится по
+    // горизонтали; tabIndex + role="region" с именем делают прокрутку
+    // достижимой с клавиатуры (ячейки таблицы не фокусируемы сами по себе).
+    <div
+      className="pt-compare-scroll"
+      tabIndex={0}
+      role="region"
+      aria-label={strings.compareHeading}
+    >
       <table className="pt-compare-table">
         <caption className="pt-sr-only">{strings.compareHeading}</caption>
         <thead>

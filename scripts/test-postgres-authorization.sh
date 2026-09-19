@@ -2523,6 +2523,18 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_portal_access_tiers.sql
   fi
+
+  # Migration 193 unifies the invited intake (PORT-1b): new invites carry
+  # intake_flow='anketa_v1' — finalize binds the membership WITHOUT
+  # activating the portal, the accepted user passes the same public анкета,
+  # and approval reuses the invite's case instead of provisioning a second
+  # one. Legacy receipts (DEFAULT 'legacy') keep the pre-193 behaviour.
+  # Exercise the boundary at its own checkpoint, same style as 185/192.
+  if [[ "$(basename "$migration")" == 193_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_invited_intake_unification.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

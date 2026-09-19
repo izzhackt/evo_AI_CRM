@@ -30922,3 +30922,119 @@ https-sourceUrl, отсутствие дублей), `git diff --check`. Жив�
 креденшелов) — фиксируется честно в PR.
 Reviewer notes: pending independent review on the exact PR head; smoke-якоря
 (/portal, /portal/documents) не затрагиваются.
+## 2026-09-19 — PORT-1b: приглашённый проходит ту же анкету и одобрение (миграция 193)
+
+Date: 2026-09-19, workspace timezone.
+Author: Claude (Fable 5), ветка `izzhackt/portal-1b-intake-unification`
+(изначально stacked поверх `izzhackt/portal-1-access`; после перенумерования
+195→192 и merge #869 в main база PR — `main`).
+Change type: scope + architecture слайса PORT-1 (доступ), контракт миграции 193.
+Affected plan section: `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §2
+(«Приглашения»), §5 «Новый клиент по приглашению» (+ строка edge cases), §10
+PORT-1; `docs/design/portal/port-0-contracts.md` «Решение: модель доступа».
+
+Reason: план §2/§5 требует, чтобы приглашённый клиент проходил ТУ ЖЕ анкету и
+staff-одобрение — приглашение связывает его с существующей записью, но не
+обходит анкету. Сегодня (126/185) принятый инвайт активирует портал сразу на
+finalize: membership+bind+`portal_activated_at` ставятся ещё при отправке
+письма, и после установки пароля пользователь попадает прямо в кабинет.
+
+Decision (зафиксировано координатором; реализация, не пере-обсуждение):
+
+1. **Маркер потока в receipt, граница совместимости — временнАя.** Миграция
+   193 добавляет `platform_private.student_portal_provisioning_receipts.intake_flow`
+   (`'legacy'` DEFAULT | `'anketa_v1'`). Dispatch-RPC
+   (`prepare_student_portal_provisioning`) начинает ставить `'anketa_v1'`
+   для НОВЫХ приглашений; все существующие receipt получают `'legacy'` через
+   DEFAULT и работают по-старому. Оба активированных прод-кейса (active, по
+   сверке PORT-0) не затрагиваются: у них нет нового маркера, их связи и
+   доступ сохраняются. Sales UI не меняется.
+   Осознанное отклонение: `case_shape='legacy_pending'` продолжает получать
+   `'legacy'` (закреплено CHECK-ом) — смысл этой legacy-формы в назначении
+   куратора в момент принятия инвайта; прогонять её через анкету значило бы
+   молча отложить назначение куратора, которое форма обязана выполнить.
+   Unified workflow такие receipt больше не готовит (184/185 заменили путь
+   кабинетом), Sales UI их не создаёт.
+2. **anketa_v1-инвайт больше не активирует портал на finalize.**
+   `finalize_student_portal_authority` для `intake_flow='anketa_v1'`
+   выполняет прежний bind (membership, org-scope, exact-case-scope,
+   `student_membership_id`) и выходит ДО активации: `portal_activated_at`
+   не ставится, receipt остаётся `invite_succeeded` (account_pending). Это
+   закрывает «прямой вход в кабинет» на уровне БД, а не только роутера:
+   `student_portal_cases()`/authority честно пусты до одобрения анкеты.
+3. **Редирект-политика в существующем guard-слое.** Для принявших инвайт
+   anketa_v1 БЕЗ поданной анкеты состояние account-pending ведёт в `/apply`
+   (вместо «доступ готовится»): корневой диспетчер `src/app/page.tsx`,
+   страница `/auth/account-pending` и `setStudentPortalPasswordAction`.
+   `resolve_student_portal_invite_identity` дополнительно возвращает
+   `intake_flow` и `student_display_name` (данные самого пользователя) —
+   `/apply` предзаполняет имя из receipt; email уже виден из сессии. Телефон
+   лида пользователю сегодня не виден — не предзаполняется.
+4. **`submit_student_application_v1`:** если у `auth.uid()` есть accepted
+   invite receipt c `intake_flow='anketa_v1'`, анкета связывается с кейсом
+   инвайта: новая nullable-колонка
+   `platform_private.student_applications.invited_case_id` (+FK, +CHECK
+   совместимости: approved ⇒ `student_case_id=invited_case_id`);
+   `canonical_lead_id` берётся у кейса (никогда не создаётся второй
+   client/lead — «один человек — одна карточка»). Invite-bound membership
+   исключается из identity-conflict-гейта; ЛЮБОЕ другое membership — прежний
+   PT409. Идемпотентность не меняется: advisory-локи + receipts + PT409,
+   без 40001 (урок 186).
+5. **`decide_student_application_v1` approve при `invited_case_id`
+   ПЕРЕИСПОЛЬЗУЕТ кейс** (по образцу 185): без нового membership/lead/case;
+   `portal_activated_at` ставится guarded-UPDATE-ом если NULL; state/curator/
+   handoff не трогаются; свежие данные анкеты сохраняются в
+   `student_profiles` (INSERT для кейса без профиля — кабинет 184 профиль не
+   создаёт; UPDATE summary-полей без bump revision для существующего);
+   invite receipt завершается (`authority_activated`). Чужой auth к чужому
+   инвайт-кейсу — 42501. Поведение обычных (не-invite) анкет не меняется:
+   исходная ветка сохранена байт-в-байт внутри ELSE.
+6. **Техника** — anchor-replace живых тел (pg_get_functiondef + якорь +
+   EXECUTE, образец 180/192), fail-loud при несовпадении якоря. Последние
+   определения проверены: submit/decide — 180 (181–192 их не трогали);
+   prepare/finalize — 185; resolve — 186 (PT409-патч).
+7. **TS-классификация занятого email при dispatch**
+   (`student-portal-invite-auth-provider.ts`): вместо одноразмерного
+   `portal_invite_already_accepted` — точные коды через service-role admin
+   lookup по email: `existing_staff_account` (защищённый staff-маркер
+   `app_metadata`), `already_accepted_invite` (`invited_at` установлен),
+   `existing_student_account` (остальные). Старый код остаётся fallback-ом
+   при недоступном lookup. Staff-wording — аддитивно в `wording.ts`.
+8. **Edge cases определёнными состояниями:** повторное приглашение при
+   поданной анкете → `portal_case_already_bound`/`portal_case_already_reserved`
+   без дублей receipt; занятый email при dispatch → классификация п.7;
+   просроченная ссылка → существующий reissue-путь 185 (193 его не меняет);
+   повторное одобрение → PT409 через receipt-replay; прерванная анкета →
+   существующий draft-резюм; invite-контекст переживает резюм по построению —
+   `invited_case_id` выводится сервером из receipt самого пользователя при
+   КАЖДОМ (пере)submit, а не из клиентского черновика.
+
+Что НЕ меняется: email-scope (`email_confirm:true` в /apply — отдельный
+согласованный контур, Auth не перенастраивается), Sales UI подготовки
+кабинета/инвайта, старые (legacy) receipt и оба прод-аккаунта, reissue-путь
+185, RLS/grants семейства 126; ветка обычной анкеты сохраняется как
+контракт — с единственной починкой скрытого дефекта 180 (см. ниже).
+
+Validation impact: `npm run test:database:migration-boundaries` с новым
+чекпоинт-тестом `supabase/tests/platform_invited_intake_unification.sql`
+(193, wiring как у 192): (i) anketa_v1-инвайт → submit связывает анкету с
+кейсом, портал до одобрения закрыт; (ii) approve переиспользует кейс —
+count(student_cases) не растёт, `portal_activated_at` установлен, профиль
+обновлён; (iii) legacy-инвайт по-старому (bind без анкеты); (iv) обычная
+анкета — прежнее поведение (новый кейс); (v) replay decide → PT409-receipt;
+(vi) чужой auth → 42501. Плюс TS-юнит на классификацию email, typecheck,
+целевые node-тесты invite-семейства, `npm run build`, `git diff --check`.
+Обнаруженный и исправленный скрытый дефект (validation finding): ветка ОБЫЧНОГО
+approve в 180-м `decide_student_application_v1` вставляет новый кейс сразу с
+`portal_activated_at`, а BEFORE INSERT-триггер 042
+(`guard_student_case_transition`, никем после 042 не патченный) требует
+`portal_activated_at IS NULL` на INSERT — то есть одобрение обычной анкеты
+всегда падало бы 55000. Никогда не проявлялось: в production 0 анкет, и до
+этого слайса ни один DB-тест не вызывал decide. Найдено чекпоинт-тестом (iv)
+на реальной базе. Минимальная починка в 193 (отдельный якорь в том же
+DO-блоке): INSERT без `portal_activated_at` + сразу же guarded UPDATE
+(`WHERE portal_activated_at IS NULL`) — путь, которым 185 уже легально
+активирует pending-кейс; триггер 042 не ослабляется.
+
+Reviewer notes: обычный merge в main; base PR — `main` (PORT-1a/192 уже в
+main как #869, перенумерованная 195→192).

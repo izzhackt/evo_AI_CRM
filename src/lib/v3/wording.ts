@@ -1154,3 +1154,23 @@ export function settingsBlockedWahaDetail(status: string | undefined): string {
     default: return "Состояние подключения не подтверждено.";
   }
 }
+
+/**
+ * PORT-1b (193): точная классификация занятого email при отправке
+ * приглашения в портал (вместо одноразмерного
+ * `portal_invite_already_accepted`, который остаётся честным fallback-ом,
+ * когда admin-lookup недоступен).
+ */
+export function studentPortalInviteFailure(value: string): string | null {
+  const labels: Record<string, string> = {
+    already_accepted_invite:
+      "Приглашение для этого email уже принято: аккаунт создан по инвайту. Повторная отправка не выполняется.",
+    existing_student_account:
+      "Этот email уже принадлежит студенческому аккаунту (регистрация через анкету). Новое приглашение на него не отправляется.",
+    existing_staff_account:
+      "Этот email принадлежит аккаунту сотрудника. Для студенческого доступа нужен другой email.",
+    portal_invite_already_accepted:
+      "Email уже занят существующим аккаунтом; его тип подтвердить не удалось. Письмо не отправлено.",
+  };
+  return labels[value] ?? null;
+}

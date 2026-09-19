@@ -29,23 +29,41 @@ function errorCode(error: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function isOccupiedEmailError(error: unknown): boolean {
+  const status = numericStatus(error);
+  if (status === null || status < 400 || status >= 500) return false;
+  const code = errorCode(error);
+  return code === "email_exists" || code === "email_address_exists";
+}
+
 function classifyInviteError(error: unknown): StudentPortalProviderInviteResult {
   const status = numericStatus(error);
   if (status === null || status < 400 || status >= 500) {
     return { status: "unknown", code: "provider_outcome_unknown" };
   }
 
-  const code = errorCode(error);
-  if (code === "email_exists" || code === "email_address_exists") {
-    return {
-      status: "definite_failure",
-      code: "portal_invite_already_accepted",
-    };
-  }
-  if (status === 429 || code === "over_email_send_rate_limit") {
+  if (status === 429 || errorCode(error) === "over_email_send_rate_limit") {
     return { status: "definite_failure", code: "provider_rate_limited" };
   }
   return { status: "definite_failure", code: "provider_rejected" };
+}
+
+/**
+ * PORT-1b: exact occupied-email classification instead of the one-size
+ * `portal_invite_already_accepted`. The lookup runs against the trusted
+ * Admin API only; when it cannot answer, the legacy code stays the honest
+ * fallback (the email IS occupied — only the kind is unknown).
+ */
+function classifyOccupiedEmail(user: Record<string, unknown> | null): string {
+  if (user === null) return "portal_invite_already_accepted";
+  const staffMarker = record(user.app_metadata)?.evo_staff_password_request_id;
+  if (typeof staffMarker === "string" && staffMarker.length > 0) {
+    return "existing_staff_account";
+  }
+  if (timestampOrNull(user.invited_at) !== null) {
+    return "already_accepted_invite";
+  }
+  return "existing_student_account";
 }
 
 function timestampOrNull(value: unknown): string | null {
@@ -96,6 +114,43 @@ function decodeAuthUser(value: unknown): StudentPortalAuthUserResult {
 export function createStudentPortalInviteAuthProvider(
   client: Pick<SupabaseClient, "auth">,
 ): StudentPortalInviteAuthProvider {
+  async function findRawUserByExactEmail(
+    normalizedEmail: string,
+  ): Promise<Readonly<{ status: "found" | "missing" | "unavailable"; user: Record<string, unknown> | null }>> {
+    try {
+      let match: Record<string, unknown> | null = null;
+      for (let page = 1; page <= LIST_USERS_MAX_PAGES; page += 1) {
+        const { data, error } = await client.auth.admin.listUsers({
+          page,
+          perPage: LIST_USERS_PAGE_SIZE,
+        });
+        if (error || !Array.isArray(data.users)) {
+          return { status: "unavailable", user: null };
+        }
+        for (const candidate of data.users) {
+          if (normalizeEmail(candidate.email) !== normalizedEmail) continue;
+          const raw = record(candidate);
+          if (raw === null || match !== null) {
+            return { status: "unavailable", user: null };
+          }
+          match = raw;
+        }
+        const nextPage = record(data)?.nextPage;
+        if (nextPage === null || data.users.length < LIST_USERS_PAGE_SIZE) {
+          return match !== null
+            ? { status: "found", user: match }
+            : { status: "missing", user: null };
+        }
+        if (nextPage !== page + 1) {
+          return { status: "unavailable", user: null };
+        }
+      }
+      return { status: "unavailable", user: null };
+    } catch {
+      return { status: "unavailable", user: null };
+    }
+  }
+
   return Object.freeze({
     async inviteUserByEmail(input): Promise<StudentPortalProviderInviteResult> {
       try {
@@ -103,7 +158,21 @@ export function createStudentPortalInviteAuthProvider(
           input.email,
           { redirectTo: input.redirectTo },
         );
-        if (error) return classifyInviteError(error);
+        if (error) {
+          if (isOccupiedEmailError(error)) {
+            const normalized = normalizeEmail(input.email);
+            const occupant = normalized === null
+              ? { status: "unavailable" as const, user: null }
+              : await findRawUserByExactEmail(normalized);
+            return {
+              status: "definite_failure",
+              code: classifyOccupiedEmail(
+                occupant.status === "found" ? occupant.user : null,
+              ),
+            };
+          }
+          return classifyInviteError(error);
+        }
 
         const user = record(data)?.user;
         const authUserId = record(user)?.id;
@@ -135,36 +204,12 @@ export function createStudentPortalInviteAuthProvider(
       if (expectedEmail !== normalizedEmail) {
         return { status: "unavailable", user: null };
       }
-      try {
-        let match: StudentPortalAuthUserResult | null = null;
-        for (let page = 1; page <= LIST_USERS_MAX_PAGES; page += 1) {
-          const { data, error } = await client.auth.admin.listUsers({
-            page,
-            perPage: LIST_USERS_PAGE_SIZE,
-          });
-          if (error || !Array.isArray(data.users)) {
-            return { status: "unavailable", user: null };
-          }
-          for (const candidate of data.users) {
-            if (normalizeEmail(candidate.email) !== expectedEmail) continue;
-            const decoded = decodeAuthUser(candidate);
-            if (decoded.status !== "found" || match !== null) {
-              return { status: "unavailable", user: null };
-            }
-            match = decoded;
-          }
-          const nextPage = record(data)?.nextPage;
-          if (nextPage === null || data.users.length < LIST_USERS_PAGE_SIZE) {
-            return match ?? { status: "missing", user: null };
-          }
-          if (nextPage !== page + 1) {
-            return { status: "unavailable", user: null };
-          }
-        }
-        return { status: "unavailable", user: null };
-      } catch {
-        return { status: "unavailable", user: null };
-      }
+      const raw = await findRawUserByExactEmail(expectedEmail);
+      if (raw.status !== "found") return { status: raw.status, user: null };
+      const decoded = decodeAuthUser(raw.user);
+      return decoded.status === "found"
+        ? decoded
+        : { status: "unavailable", user: null };
     },
   });
 }

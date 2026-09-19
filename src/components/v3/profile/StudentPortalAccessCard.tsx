@@ -7,6 +7,7 @@ import {
   manageStudentPortalAccessAction,
   type StudentPortalAccessActionState,
 } from "@/lib/student-portal-provisioning-actions";
+import { studentPortalInviteFailure } from "@/lib/v3/wording";
 
 type CuratorOption = Readonly<{
   membershipId: string;
@@ -136,7 +137,9 @@ export function StudentPortalAccessCard({
               ? forbiddenCopy
               : state.status === "reissueAvailable"
                 ? reissueAvailableCopy
-                : STATE_COPY[state.status]}
+                : state.status === "inviteFailed" && state.code
+                  ? studentPortalInviteFailure(state.code) ?? STATE_COPY[state.status]
+                  : STATE_COPY[state.status]}
             {state.code ? ` Код: ${state.code}.` : ""}
           </p>
         ) : null}

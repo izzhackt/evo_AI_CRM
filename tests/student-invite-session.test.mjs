@@ -30,6 +30,8 @@ const MATCH = {
   inviteDeliveryStatus: "accepted",
   accountPending: true,
   authorityActivated: false,
+  intakeFlow: "legacy",
+  displayName: null,
 };
 
 test("verified invite session normalizes exact Auth identity and reads the private receipt", async () => {

@@ -77,33 +77,49 @@ Evidence, exact hashes and limits: [incident receipt](qa/portal-identity-conflic
 No fake accounts, synthetic production records, compute purchase, broad suites
 or unrelated provider actions are part of this incident response.
 
-## Other staff UX — active 2026-09-19
+## Other staff UX — merged 2026-09-19; awaiting owner apply of 187-191 + release
 
-Owner plan `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` (staff CRM only; portal/app
-and «Обзор руководителя» are excluded by the owner). Journal entry 2026-09-19
-«Adopt the Other staff-UX plan». Slices merge in order; migrations 186-190 are
-owner-applied, releases follow immediately after apply.
+All six slices of `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` are merged to
+main (5fbb1b08). Per the allocation update below-noted in the previous
+revision, the chain was renumbered 187-191 mid-flight: the parallel portal
+session shipped 186_platform_student_invite_conflict_codes first; ranges
+were agreed by cross-session message (OTH = 187-191 plus buffer 192-194,
+portal >= 195) and recorded in PLAN_CHANGES. Every migration slice passed
+the full local OrbStack boundary run (001->191, five new privilege suites
+at their checkpoints) and a full `npm run build` before its PR, plus two
+adversarial review lenses per slice with every confirmed finding fixed
+pre-merge. Remaining: owner applies migrations 187-191 in order, the
+managed release follows immediately (the portal session holds its 195
+until then; main also carries its migration-free #867/#868, which ride
+this release).
 
-Allocation update: incident PR #858 consumes migration186 before OTH-1. The
-186–190 numbers below are the original plan, not reserved slots: reallocate
-unmerged OTH migrations from the next free main slot before implementation/apply.
-
-- [ ] OTH-0: plan committed; the 11 inventoried explanatory paragraphs removed
-  from 8 staff components; removals pinned by `tests/v3-quiet-interface.test.mjs`.
-- [ ] OTH-1: «Воронка поступления» board — `pipeline_stage` + move RPC
-  (migration 186), `/v3/admissions-pipeline`, drag plus «Переместить в…»,
-  «Убрать из воронки»; curator `/v3/main` redirects to the board.
-- [ ] OTH-2: unified task composer (no upfront type choice) + task side panel;
-  notifications v2 — enriched rows, «Прочитать всё», case-task assignment,
-  due-tomorrow reminders (migration 187).
-- [ ] OTH-3: «Договор и оплата» on the unified card — contract files, tranches
-  on the canonical ledger, receipt files, computed оплачено/осталось
-  (migration 188).
-- [ ] OTH-4: «Добавить вуз» dialog from the case, optional program, author
-  attribution, submission marking (migration 189).
-- [ ] OTH-5: per-case staff chat — threads, quotes, «Обсудить» link-cards,
-  await states, notifications (migration 190); the student side stays an
-  explicit portal-plan dependency.
+- [x] OTH-0 (#857): plan committed; 11 explanatory paragraphs removed from
+  8 staff components; pinned by `tests/v3-quiet-interface.test.mjs`.
+- [x] OTH-1 (#861, migration 187): «Воронка поступления» board —
+  `pipeline_stage` + `move_case_pipeline_v1`, `/v3/admissions-pipeline`,
+  drag plus «Переместить в…», «Убрать из воронки»; «Мой день» retired.
+- [x] OTH-2 (#865, migration 188): unified task composer + task side panel;
+  notifications v2 (enriched rows, «Прочитать всё», case-task assignment
+  notifications, lazy due-tomorrow reminders; the old page RPC excludes the
+  new kinds, so the deployed app stays safe between apply and release).
+- [x] OTH-3 (#866, migration 189): «Договор и оплата» — contract files,
+  tranches on the canonical ledger (the 043 immutability/transition guards
+  replaced by a tranche-aware guard: money columns freeze once paid),
+  receipt files, оплачено/осталось from payments only; NULL-safe overdue
+  live-patches in 107/127 readers protect the deployed app from apply to
+  release; follow-up #870 fixed the missed canonical adapter pin.
+- [x] OTH-4 (#862, migration 190): «Добавить вуз» dialog over the case,
+  optional program, author attribution via _v2 readers (live-body
+  reconstruction incl. 176's LEFT JOIN patch), submission marking exposed.
+- [x] OTH-5 (#871, migration 191): per-case staff chat — /v3/messages
+  two-pane screen, same-case quotes, «Обсудить» link-cards to case
+  documents/tasks, await states with explicit «Ответ не требуется», board
+  «Нужен ответ» pill, curator notifications (ids only); the student side
+  stays an explicit portal-plan dependency, never claimed done.
+- [ ] Owner applies migrations 187-191 in order
+  (`npx supabase@2.116.0 migration up --db-url $EVO_SUPABASE_DB_URL`),
+  then the managed release runs immediately and this section gets its
+  acceptance record.
 
 ## Auth email — SMTP and templates saved, delivery pending, 2026-09-19
 

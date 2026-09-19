@@ -30840,3 +30840,14 @@ Validation: prose-only изменение — просмотр диффа, `git 
 независимое review точного head; защищённые PR-проверки. Runtime-тесты,
 миграции и production-действия к этому PR не относятся; сверки production
 выполнялись read-only через Management API и зафиксированы выше.
+
+## 2026-09-19 - Other staff-UX chain renumbered to 187-191; tranche-aware payment_obligations guards
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Claude).
+Change type: merge order, architecture correction, and receipts.
+Affected plan section: «Other staff UX» slices of docs/EVO_LAUNCH_PLAN.md; the 2026-09-19 adoption entry above (its 186-190 numbering is superseded).
+Reason: (1) a parallel portal session shipped 186_platform_student_invite_conflict_codes to main and production while OTH-1 was in review, colliding with the adopted numbering; (2) implementing OTH-3's editable-until-paid tranches collided with migration 043's design of payment_obligations as fully immutable facts (identity trigger froze label/amount/currency/due_at forever; transition guard rejected any UPDATE without a totals change) — discovered by the live-Postgres boundary run, not reviewable from source alone.
+Decision: (1) migration ranges agreed with the portal session by cross-session message: OTH = 187 (board), 188 (notifications v2), 189 (case agreement), 190 (application author/optional program), 191 (case chat), buffer 192-194 stays with this chain; portal starts at 195; release-arm protocol: the session whose merge is last in queue owns the release, with a mandatory cross-session ping before any arm. (2) Migration 189 deliberately replaces both 043 payment_obligations update guards with platform_private.guard_payment_obligation_update: id/org/case/category/creator/created_at frozen forever, amount/currency frozen once total_paid_minor or total_refunded_minor is non-zero, label/due_at/next_action editable, archived_at one-way and unpaid-only, and no-op updates still rejected — the paid-money immutability the 043 design protected survives; only the unpaid-tranche window opens, exactly what the plan's «Деньги и договоры» requires.
+Validation impact: all five migration slices passed the full local OrbStack boundary run on the final 001->191 chain; per-slice adversarial reviews (two lenses) with every confirmed finding fixed pre-merge are recorded in the PR descriptions (#857, #861, #865, #866, #862, #871, follow-up #870). Release: owner applies 187-191 in order, managed release immediately after.
+Reviewer notes: per-slice reviews executed pre-merge on the exact heads; production acceptance record follows the release.

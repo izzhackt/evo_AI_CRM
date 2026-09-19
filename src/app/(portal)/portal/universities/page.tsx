@@ -13,6 +13,7 @@ import { getLocale } from "@/lib/i18n";
 import { parseUniversityFilters, type UniversityPage } from "@/lib/platform-university-catalog";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentUniversitiesComplete } from "@/lib/portal/university-catalog-reader";
+import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { universityGeo } from "@/lib/portal/university-geo";
 import { universityCountryLabel, type UniversityMapPin } from "@/lib/portal/universities";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
@@ -49,6 +50,15 @@ export default async function UniversitiesPage({
   const pins: UniversityMapPin[] = [];
   let missing = 0;
   let failed = false;
+  // Состояние избранного — отдельное чтение: его сбой не роняет каталог,
+  // toggle честно скрывается вместо ложного «не сохранено» (PORT-3b).
+  let favoriteIds: readonly string[] | null = null;
+  try {
+    favoriteIds = (await readStudentUniversityFavorites())
+      .map((favorite) => favorite.institutionId);
+  } catch {
+    favoriteIds = null;
+  }
   try {
     if (view === "map") {
       for (const item of await readStudentUniversitiesComplete(actor, filters)) {
@@ -107,6 +117,7 @@ export default async function UniversitiesPage({
           strings={strings}
           locale={locale}
           now={now}
+          favoriteIds={favoriteIds}
         />
       ) : null}
     </main>

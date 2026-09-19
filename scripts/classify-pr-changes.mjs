@@ -31,6 +31,10 @@ const DOCUMENT_ASSET_EXTENSIONS = new Set([
   ".webp",
 ]);
 // Reviewed proof receipts are documentation; arbitrary JSON remains unknown.
+// Versioned portal content drafts (professions, lessons) are editorial
+// documentation until a seed-generator slice turns them into migrations.
+const CONTENT_DRAFT_PREFIX = "docs/design/portal/content/";
+const CONTENT_DRAFT_EXTENSIONS = new Set([".json", ".md"]);
 const DOCUMENT_ASSET_PATHS = new Set([
   "docs/evidence/public-student-onboarding-local-2026-09-18.json",
   "docs/qa/student-public-onboarding-177-local-2026-09-18.json",
@@ -153,7 +157,9 @@ function isOrdinaryProsePath(path) {
     || path.startsWith("presentations/")
     || path.startsWith("specs/")
   ) && DOCUMENT_ASSET_EXTENSIONS.has(extension);
-  return (isRootProse || isDocumentationAsset || DOCUMENT_ASSET_PATHS.has(path)) && !isContractPath(path);
+  const isContentDraft = path.startsWith(CONTENT_DRAFT_PREFIX)
+    && CONTENT_DRAFT_EXTENSIONS.has(extension);
+  return (isRootProse || isDocumentationAsset || isContentDraft || DOCUMENT_ASSET_PATHS.has(path)) && !isContractPath(path);
 }
 
 function isKnownCodePath(path) {

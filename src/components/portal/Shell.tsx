@@ -33,14 +33,15 @@ import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 export type PortalAccessTier = "approved" | "assisted";
 
 /**
- * Честная навигация: только реально существующие сегодня разделы.
- * Профессии/Английский/Избранное/Профиль появятся в PORT-3/4 вместе со своими
- * маршрутами — мёртвых пунктов меню не выставляем.
+ * Честная навигация: только реально существующие сегодня разделы
+ * (Избранное — PORT-3b). Профессии/Английский/Профиль появятся в PORT-4/5
+ * вместе со своими маршрутами — мёртвых пунктов меню не выставляем.
  */
 const SECTIONS = [
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
   { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"] },
+  { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },
   { href: "/portal/payments", key: "nav.payments", tiers: ["assisted"] },
   { href: "/portal/notifications", key: "nav.notifications", tiers: ["assisted"] },
   { href: "/portal/tests", key: "nav.tests", tiers: ["approved", "assisted"] },
@@ -69,6 +70,8 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.documents": "M6 2.5h5.5L15 6v11.5H6zM11.5 2.5V6H15M8.2 9.5h3.6M8.2 12.5h3.6",
     // Университеты: здание с колоннами.
     "nav.universities": "M3 8l7-4.5L17 8M4.5 8v7M8 8v7M12 8v7M15.5 8v7M3 15h14",
+    // Избранное: сердечко.
+    "nav.favorites": "M10 16.1 4.4 10.7a3.6 3.6 0 0 1 0-5.2 3.7 3.7 0 0 1 5.2 0l.4.4.4-.4a3.7 3.7 0 0 1 5.2 0 3.6 3.6 0 0 1 0 5.2z",
     // Оплата: карта.
     "nav.payments": "M3 5.5h14v9H3zM3 8.5h14M5.5 11.5h3",
     // Уведомления: колокольчик.

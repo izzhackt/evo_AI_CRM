@@ -18,6 +18,60 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 - The candidate implements Admin library, existing CRM dossiers, protected records, resumable import, reconciliation and ZIP export. Details and actual evidence: [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).
 - Production schema, key provisioning, release, real UI acceptance, control batch, complete import and downloaded ZIP verification remain open. Zero source entries have been imported into CRM. The owner explicitly transferred KB schema/release coordination to Astra; Fable was notified in #912. Forward migrations 201–204 are reserved; application is not yet claimed.
 
+## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
+
+- [x] Ledger this cycle: the production ledger gained migrations
+  201-204 (`platform_knowledge_*`, the Astra knowledge plan) — applied
+  OUTSIDE the portal coordinator's schema-ledger workflow and without a
+  pre-apply ping, which deviates from the cross-plan coordination
+  protocol recorded in this file's KB section; noted here honestly.
+  Both the coordinator and the peer session independently re-read the
+  ledger via the Management API before arm: count=204, min=001,
+  max=204 — contiguity intact, repo tree tail equals the live tail, so
+  the release gate was satisfied and no apply step was needed.
+- [x] Release from exact main `fd25b1ac9a3a4f7c31b7747b81bcba6e1c1fa8a9`.
+  Five commits since the previous release: #909 (PORT-9d prep:
+  photo-migration pipeline, manifest, URL-resolution switch), #910
+  (previous receipt), #911 (manifest flip after the coordinator ran
+  --apply: bucket `portal-university-photos` created and verified,
+  87/87 uploads with zero failures, public URLs spot-checked with
+  sha256 matches by two independent reviewers — this release makes the
+  catalog serve managed photo URLs; 57 official-source photos stay
+  hotlinks by license), #906 (Astra: Admin knowledge library, sealed
+  import, canonical exports — includes a Dockerfile change; the peer
+  session verified sops v3.13.2 is pinned by sha256 checksum for both
+  architectures, and the built image passed browser smoke and the
+  acceptance guard), and #912 (iOS wave 9b: catalog search/filters
+  with exact RPC parameter parity, MapKit map fed only by the repo geo
+  library with honest no-coordinates disclosure, app icon regenerated
+  byte-identically from the official brand asset, a11y pass 16+5
+  labels/traits/ScaledMetric across waves 1-7; 139/139 tests).
+  CI run 35473582066 green on the exact merge SHA; release run
+  35473599531 accepted; container `evo-crm-app-1` on hermes-vps
+  carries the exact OCI revision (healthy); `/api/health` live;
+  accepted pointer `v3-r35473599531-a1-fd25b1ac` with
+  acceptance-record sha256 recorded; `EVO_PRODUCTION_RELEASE_ARMED`
+  returned to `false` at 22:37 UTC.
+- Independent exact-head reviews, each PASS: #909 9/9 + #911 flip
+  delta-review (set-equality of the 87 flips, 5 reviewer-chosen public
+  URLs with sha256 matches); #912 11/11 with one medium finding (a
+  filter/collect race leaving stale map pins under new filter chips)
+  fixed pre-merge via a generation-counter gate with three
+  deterministic unit tests and delta-confirmed. Every merge-race
+  rebase carried patch-id --stable proofs.
+- Open item handed to Astra/the owner: #906's
+  `deploy/knowledge/*.service|*.timer` are HOST-side systemd units not
+  contained in the image — until someone installs and enables them on
+  hermes-vps the knowledge-maintenance job simply does not run (no
+  degradation of anything else). Who installs them is not decided in
+  the portal plan.
+- Not claimed: live authenticated render of managed photos in the
+  production catalog (no credentials in the agent session — the
+  managed URLs themselves return HTTP 200 with manifest-matching
+  bytes); live filtered-RPC run and manual VoiceOver pass on iOS
+  (static parity and attributes only); KY texts still await the
+  owner's native-speaker proofread.
+
 ## Portal release v3-r35469103571-a1-b047e663 accepted 2026-09-20
 
 - [x] No migrations this cycle: Management API readback before arm

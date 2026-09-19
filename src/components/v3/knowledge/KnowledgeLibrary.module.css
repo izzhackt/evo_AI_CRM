@@ -18,6 +18,7 @@
 .branch { padding-left: 14px; }
 .active { background: #fff0f1; color: var(--accent-text, #b50013) !important; }
 .special { border-top: 1px solid var(--border, #dedede); padding-top: 14px; margin-top: 24px; }
+.sectionHeading { font-size: 18px; font-weight: 600; margin: 0; }
 .contents { min-width: 0; padding: 20px; }
 .toolbar,.editorBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .breadcrumb { flex: 1; font-size: 14px; min-width: 140px; overflow-wrap: anywhere; }

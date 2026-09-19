@@ -27,28 +27,43 @@ export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
   }
   async function run() {
     if (!plan) return;
+    const importPlan = plan;
     setRunning(true); stop.current = false; setFailures([]); setError("");
     try { await prepareKnowledgeStructure(folders.current); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось подготовить папки."); setRunning(false); return; }
     let done = 0; let reused = 0; let failed = 0;
     const normal = plan.entries.filter((entry) => entry.action === "import");
     const max = limit === "all" ? normal.length : Math.max(1, Number(limit));
-    for (const entry of normal.slice(0, max)) {
-      if (stop.current) break;
-      try {
-        const file = files.get(entry.relativePath);
-        if (!file) throw new Error("Исходник отсутствует в выбранной папке.");
-        const result = await importKnowledgeFile(file, entry, plan.inventorySha256, folders.current, plan.entries,
-          (bytes) => setStatus(`${done} из ${max} · ${entry.title} · ${entry.bytes ? Math.round(bytes / entry.bytes * 100) : 100}%`));
-        if (result.reused) reused++;
-        done++; setStatus(`Проверено ${done} из ${max}, ранее перенесено ${reused}`);
-      } catch (cause) {
-        failed++;
-        setFailures((current) => [...current, { path: entry.relativePath, reason: cause instanceof Error ? cause.message : "Перенос не выполнен." }]);
-        // Connection/auth failures should not repeat thousands of failing requests.
-        if (failed >= 3) { stop.current = true; break; }
+    const batch = normal.slice(0, max); let cursor = 0;
+    // Different files can use the network concurrently; identical blobs take turns.
+    const blobTurns = new Map<string, Promise<void>>();
+    async function worker() {
+      while (!stop.current && cursor < batch.length) {
+        const entry = batch[cursor++];
+        const key = JSON.stringify([entry.area, entry.sha256, entry.bytes]);
+        const previous = blobTurns.get(key) ?? Promise.resolve();
+        let release!: () => void;
+        const turn = new Promise<void>((resolve) => { release = resolve; });
+        const tail = previous.then(() => turn); blobTurns.set(key, tail);
+        await previous;
+        try {
+          if (stop.current) return;
+          const file = files.get(entry.relativePath);
+          if (!file) throw new Error("Исходник отсутствует в выбранной папке.");
+          const result = await importKnowledgeFile(file, entry, importPlan.inventorySha256, folders.current, importPlan.entries,
+            (bytes) => setStatus(`${done} из ${max} · ${entry.title} · ${entry.bytes ? Math.round(bytes / entry.bytes * 100) : 100}%`));
+          if (result.reused) reused++;
+          done++; setStatus(`Проверено ${done} из ${max}, ранее перенесено ${reused}`);
+        } catch (cause) {
+          failed++;
+          setFailures((current) => [...current, { path: entry.relativePath, reason: cause instanceof Error ? cause.message : "Перенос не выполнен." }]);
+          if (failed >= 3) stop.current = true;
+        } finally {
+          release(); if (blobTurns.get(key) === tail) blobTurns.delete(key);
+        }
       }
     }
+    await Promise.all(Array.from({ length: Math.min(4, batch.length) }, () => worker()));
     setStatus(`${stop.current ? "Перенос остановлен" : done === normal.length && !failed ? "Обычные материалы перенесены" : "Контрольная партия завершена"}: ${done}, ошибок: ${failed}. Защищённые источники и ключи учитываются отдельно.`);
     setRunning(false); onChanged();
   }
@@ -74,7 +89,7 @@ export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
       }} /></label>
       {plan && <p>В плане {plan.entries.length} записей. Защищённых источников: {plan.entries.filter((e) => e.action === "protected_import").length}. Ключи остаются вне CRM: {plan.entries.filter((e) => e.action === "retain_outside_crm").length}.</p>}
       <label>Объём переноса<select disabled={running} value={limit} onChange={(e) => setLimit(e.target.value)}><option value="1">Первый файл</option><option value="10">Первые 10 файлов</option><option value="all">Все обычные материалы</option></select></label>
-      <div className={styles.actions}><button type="button" disabled={running || !plan || !files.size} onClick={() => void run()}>Начать / продолжить</button>{running && <button type="button" onClick={() => { stop.current = true; }}>Остановить после файла</button>}</div>
+      <div className={styles.actions}><button type="button" disabled={running || !plan || !files.size} onClick={() => void run()}>Начать / продолжить</button>{running && <button type="button" onClick={() => { stop.current = true; }}>Остановить после текущих файлов</button>}</div>
       {status && <p role="status">{status}</p>}{error && <p className={styles.error} role="alert">{error}</p>}
       <button type="button" disabled={running || !plan} onClick={() => void reconcile()}>Сверить все источники</button>
       <KnowledgeProtectedImport onChanged={onChanged} />

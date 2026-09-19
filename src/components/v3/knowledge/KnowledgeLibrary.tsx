@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KNOWLEDGE_AREAS, KNOWLEDGE_AREA_NAMES, type KnowledgeArea, type KnowledgeItem, type KnowledgePage, type KnowledgeQuery } from "@/lib/knowledge-library-contract";
 import { command, configureKnowledgeCommands, knowledgeFetch, knowledgeSourceKey, uploadKnowledgeFile } from "./client";
@@ -14,11 +14,11 @@ import styles from "./KnowledgeLibrary.module.css";
 
 type View = "list" | "trash" | "review" | "archive" | "inbox";
 const kindNames = { folder: "Папка", page: "Страница", file: "Файл", secret: "Доступ" };
-export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
+export function KnowledgeLibrary({ commandScope, section = null, children }: { commandScope: string; section?: "documents" | "snippets" | null; children?: ReactNode }) {
   useLayoutEffect(() => { configureKnowledgeCommands(commandScope); }, [commandScope]);
   const router = useRouter(); const params = useSearchParams();
   const area = (KNOWLEDGE_AREAS.includes(params.get("area") as KnowledgeArea) ? params.get("area") : "internal") as KnowledgeArea;
-  const parentId = params.get("folder"); const itemId = params.get("item");
+  const parentId = section ? null : params.get("folder"); const itemId = section ? null : params.get("item");
   const view: View = ["trash", "review", "archive", "inbox"].includes(params.get("view") ?? "") ? params.get("view") as View : "list";
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [folders, setFolders] = useState<KnowledgeItem[]>([]);
@@ -54,6 +54,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
     return Object.fromEntries(Object.entries(value).filter(([, val]) => val !== null && val !== undefined).map(([key, val]) => [key, String(val)]));
   }, [area, parentId, search, searchScope, view]);
   useEffect(() => {
+    if (section) return;
     const abort = new AbortController();
     const timer = setTimeout(() => {
       setLoading(true); setError(""); setSelected(new Set());
@@ -62,7 +63,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
       }).catch((cause) => { if (!abort.signal.aborted) setError(cause.message); }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     }, search ? 250 : 0);
     return () => { clearTimeout(timer); abort.abort(); };
-  }, [query, refresh, search]);
+  }, [query, refresh, search, section]);
   useEffect(() => {
     let stopped = false;
     void (async () => {
@@ -163,8 +164,10 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
     <div className={styles.layout}>
       <aside className={`${styles.tree} ${treeOpen ? styles.treeOpen : ""}`} aria-label="Папки базы знаний">
         <div className={styles.treeHeading}>Папки<button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(false)}>Закрыть</button></div>
-        {KNOWLEDGE_AREAS.map((nodeArea) => <section key={nodeArea}><Link className={area === nodeArea && !parentId && view === "list" ? styles.active : ""} href={href({ area: nodeArea, folder: null })}>{KNOWLEDGE_AREA_NAMES[nodeArea]}</Link><div className={styles.branch}>{tree(null, nodeArea)}</div></section>)}
-        <nav className={styles.special} aria-label="Состояния материалов"><Link href="/v3/documents">Документы CRM</Link><Link href="/v3/reply-snippets">Шаблоны ответов</Link>
+        {KNOWLEDGE_AREAS.map((nodeArea) => <section key={nodeArea}><Link className={!section && area === nodeArea && !parentId && view === "list" ? styles.active : ""} href={href({ area: nodeArea, folder: null })}>{KNOWLEDGE_AREA_NAMES[nodeArea]}</Link><div className={styles.branch}>{tree(null, nodeArea)}</div></section>)}
+        <nav className={styles.special} aria-label="Разделы базы знаний">
+          <Link href="/v3/knowledge?section=documents" className={section === "documents" ? styles.active : ""} aria-current={section === "documents" ? "page" : undefined} onClick={() => setTreeOpen(false)}>Документы</Link>
+          <Link href="/v3/knowledge?section=snippets" className={section === "snippets" ? styles.active : ""} aria-current={section === "snippets" ? "page" : undefined} onClick={() => setTreeOpen(false)}>Шаблоны ответов</Link>
           <Link href={href({ folder: null, view: "inbox" })}>Входящие</Link>
           <Link href={href({ folder: null, view: "review" })}>На уточнении</Link>
           <Link href={href({ folder: null, view: "archive" })}>Архив</Link>
@@ -172,6 +175,13 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
         </nav>
       </aside>
       <section className={styles.contents} aria-label="Материалы">
+        {section ? <>
+          <div className={styles.toolbar}>
+            <button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(true)}>Папки</button>
+            <h2 className={styles.sectionHeading}>{section === "documents" ? "Документы" : "Шаблоны ответов"}</h2>
+          </div>
+          {children}
+        </> : <>
         <KnowledgeImport onChanged={reload} />
         <div className={styles.toolbar}>
           <button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(true)}>Папки</button>
@@ -209,6 +219,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
         {loading && <p className={styles.status} role="status">Загрузка…</p>}
         {page?.hasMore && <button type="button" disabled={loading} onClick={() => void more()}>Показать ещё</button>}
         </div>
+        </>}
       </section>
     </div>
     {assignCase && folderRevision === refresh && <KnowledgeAssignCase items={chosen} folders={folders} onClose={() => setAssignCase(false)} onSaved={reload} />}

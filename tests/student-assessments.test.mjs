@@ -116,7 +116,8 @@ test("every mutation authenticates directly; no service role or logging of priva
 });
 
 test("assessment UI uses bounded authenticated actions, not a browser database or local grader", () => {
-  const runner = readFileSync(new URL("../src/components/v3/portal/assessments/AssessmentRunner.tsx", import.meta.url), "utf8");
+  // PORT-8c: раннер живёт в «Атласе» (portal/tests), механика прежняя.
+  const runner = readFileSync(new URL("../src/components/portal/tests/AssessmentRunner.tsx", import.meta.url), "utf8");
   assert.match(runner, /saveStudentAssessmentAction/);
   assert.match(runner, /pending\.current \?\?/);
   assert.match(runner, /crypto\.randomUUID/);

@@ -41,6 +41,10 @@ const EXPECTED_SURFACES = [
   "admission-overview",
   "admission-documents",
   "admission-notifications",
+  // PORT-8c: экраны тестов в «Атласе» — каталог, раннер и результаты.
+  "tests-catalog",
+  "tests-runner",
+  "tests-results",
   "professions-and-profile-forms",
 ] as const;
 

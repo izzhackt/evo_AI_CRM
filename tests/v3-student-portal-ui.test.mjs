@@ -468,12 +468,13 @@ test("Student stage wording matches the exact schema and published OZO lifecycle
 });
 
 test("existing case portal views stay presentation-only and never render raw status keys", () => {
-  // PORT-5d: экраны «Моего поступления» живут в portal/admission; в
-  // v3/portal остаются только PortalPage (экраны тестов),
-  // PortalNotificationUpdates (layout) и assessments/*.
+  // PORT-5d: экраны «Моего поступления» живут в portal/admission. PORT-8c:
+  // экраны тестов переехали в portal/tests (их клиентский раннер сохраняет
+  // useEffect-механику и закреплён tests/student-assessments.test.mjs);
+  // в v3/portal остаётся только PortalNotificationUpdates (layout).
   const componentFiles = [
     ...filesUnder("src/components/v3/portal/")
-      .filter((path) => path.endsWith(".tsx") && !path.includes("/assessments/")),
+      .filter((path) => path.endsWith(".tsx")),
     ...filesUnder("src/components/portal/admission/")
       .filter((path) => path.endsWith(".tsx")),
   ];
@@ -637,10 +638,6 @@ test("notification command IDs replay per verified Student actor and notificatio
 });
 
 test("portal includes honest empty, loading and failure states", () => {
-  const components = filesUnder("src/components/v3/portal/")
-    .filter((path) => path.endsWith(".tsx"))
-    .map(source)
-    .join("\n");
   const admission = filesUnder("src/components/portal/admission/")
     .filter((path) => path.endsWith(".tsx"))
     .map(source)
@@ -648,7 +645,13 @@ test("portal includes honest empty, loading and failure states", () => {
   const loading = source("src/app/(portal)/portal/loading.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
-  assert.match(components, /PortalEmptyState/u);
+  // PORT-8c: пустое состояние каталога тестов — честный pt-empty из словаря
+  // tests, а границы маршрута тестов рескинены на pt-классы.
+  const testsCatalog = source("src/components/portal/tests/TestsCatalog.tsx");
+  assert.match(testsCatalog, /pt-empty/u);
+  assert.match(testsCatalog, /strings\.emptyTitle/u);
+  assert.match(source("src/app/(portal)/portal/tests/loading.tsx"), /role="status"/u);
+  assert.match(source("src/app/(portal)/portal/tests/error.tsx"), /role="alert"/u);
   // PORT-5d: пустые состояния Атласа — честный заголовок + следующий шаг.
   // PORT-6a: смоук-якорь «Список документов пока пуст» живёт RU-значением
   // ключа admission.documentsEmptyTitle (смоук-аккаунт — language=ru).

@@ -81,7 +81,6 @@ export function ProfileCaseDirectory({ directory, initiallyOpen, params, curator
         : rows.length === 0 ? <div className="space-y-2 py-8 text-center">
           <p className="font-medium text-fg">{docsPageWithoutAccess ? "На этой странице нет дел с доступом к документам." : params.active ? "По вашему запросу ничего не найдено." : "Пока нет доступных дел студентов."}</p>
           <p className="text-sm text-fg-2">{docsPageWithoutAccess ? directory.hasNext && directory.nextCursor ? "Перейдите к следующим записям." : "Для работы с документами нужен полный доступ к делу." : params.active ? "Измените запрос или сбросьте фильтры." : docsMode ? "Студенты появляются после продажи в отчёте." : "Здесь появятся дела после передачи из продаж."}</p>
-          {allowAdmissionsFilters && !docsMode ? <p className="mx-auto max-w-xl text-sm leading-6 text-fg-2">Вузы и программы выбираются в деле студента на вкладке «Вузы и программы». Кнопки направлений выше только фильтруют список.</p> : null}
         </div>
         : <ul aria-label="Доступные дела студентов" className="divide-y divide-border">{rows.map((row) => {
           const href = row.access === "full" ? withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=${docsMode ? "anketa" : "route"}`, docsMode) : row.leadId ? `/v3/profile?id=${row.leadId}` : null;

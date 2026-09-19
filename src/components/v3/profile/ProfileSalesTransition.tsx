@@ -262,9 +262,6 @@ function GateCard({
       title="Договор и оплата"
       aside={<Pill tone={gateStatus.tone}>{gateStatus.label}</Pill>}
     >
-      <p className="px-4 pt-3 text-xs text-fg-3">
-        Оплата — отдельный факт: сумма продажи в условиях на карточке не делает её автоматически оплаченной.
-      </p>
       <div className="grid gap-0 @5xl:grid-cols-2" data-testid="v3-sales-gate">
         <section className="space-y-3 p-4 @5xl:border-e @5xl:border-border">
           <div className="flex flex-wrap items-center justify-between gap-2">

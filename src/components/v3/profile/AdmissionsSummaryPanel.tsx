@@ -29,7 +29,7 @@ export async function AdmissionsSummaryPanel({ actor, params, expanded = false }
       <Metric label="Нужно назначить куратора" value={needsCurator} href={admissionsDirectoryHref({ ...linkParams, attention: "needs_curator" })} />
     </div>
     <AdmissionsSummaryReport expanded={expanded}>
-      <p className="mb-3 text-sm leading-6 text-fg-2">«В работе» и ожидания — состояние сейчас. Просрочки включают следующий шаг, задачи и исправления. «Нужно назначить куратора» — дело с продажей, где отклонили назначение куратора.</p>
+      <p className="mb-3 text-sm leading-6 text-fg-2">Просрочки включают следующий шаг, задачи и исправления. «Нужно назначить куратора» — дело с продажей, где отклонили назначение куратора.</p>
       <ul className="divide-y divide-border">{summary.stock.map((row) => <li key={row.direction} className="grid gap-3 py-4 sm:grid-cols-[140px_1fr]">
         <Link href={admissionsDirectoryHref({ ...linkParams, direction: row.direction })} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline">{DIRECTION_LABELS[row.direction]}</Link>
         <dl className="grid grid-cols-3 gap-3 text-sm"><div><dt className="text-xs text-fg-3">В работе</dt><dd className="mt-1 font-semibold text-fg">{row.active}</dd></div><div><dt className="text-xs text-fg-3">Есть просрочки</dt><dd className="mt-1 text-fg">{row.overdue}</dd></div><div><dt className="text-xs text-fg-3">Нужно назначить куратора</dt><dd className="mt-1 text-fg">{row.needs_curator}</dd></div></dl>

@@ -135,9 +135,6 @@ export function LeadSaleConditions({
             {conditions.linkedSalesRegister.archived ? " · в архиве" : ""}
           </p>
         ) : null}
-        <p className="text-xs text-fg-3">
-          Заполнение этих полей не добавляет продажу в отчёт. Отчёт сохраняется отдельно: «Продажи → Отчёт продаж → Добавить продажу».
-        </p>
         <form action={action} className="space-y-4" aria-busy={pending}>
           <input type="hidden" name="lead_id" value={leadId} />
           <input type="hidden" name="expected_revision" value={revision} />
@@ -196,7 +193,6 @@ export function LeadSaleConditions({
               {currencySelect(draft.paidCurrency, (value) => update("paidCurrency", value))}
             </div>
           </div>
-          <p className="text-xs text-fg-3">Сумма продажи и полученная оплата — разные факты; оплата хранится отдельно.</p>
           <label className="block">
             <span className={labelCls}>Заметка об оплате</span>
             <textarea

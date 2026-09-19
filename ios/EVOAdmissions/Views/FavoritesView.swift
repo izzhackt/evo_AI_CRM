@@ -140,6 +140,11 @@ struct FavoritesView: View {
                             format: String(localized: "favorites_compare_select"),
                             item.content.name
                         )))
+                        // A11y (9b): выбранность для сравнения — не только
+                        // цвет/иконка.
+                        .accessibilityAddTraits(
+                            compareSelection.contains(item.id) ? [.isSelected] : []
+                        )
 
                         NavigationLink(value: item.id) {
                             VStack(alignment: .leading, spacing: 4) {

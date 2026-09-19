@@ -56,11 +56,32 @@ final class SupabaseService {
             .value
     }
 
-    /// `platform.student_university_catalog(p_offset:)` — one page (30 items)
-    /// of the published catalogue, plus `nextOffset` for pagination.
-    func studentUniversityCatalog(offset: Int = 0) async throws -> UniversityCatalogPage {
-        try await client
-            .rpc("student_university_catalog", params: ["p_offset": offset])
+    /// `platform.student_university_catalog(p_query:p_country:p_level:p_offset:)`
+    /// — one page (30 items) of the published catalogue, plus `nextOffset`.
+    /// Parameter NAMES are exactly the web wrapper's `args`
+    /// (src/lib/v3/university-source.ts:15); the web's `|| null` empties are
+    /// expressed by omitting the parameter (the function declares DEFAULT
+    /// NULL — the single-card read below already relies on that).
+    func studentUniversityCatalog(
+        filters: UniversityCatalogFilters = UniversityCatalogFilters(),
+        offset: Int = 0
+    ) async throws -> UniversityCatalogPage {
+        struct Params: Encodable, Sendable {
+            let p_query: String?
+            let p_country: String?
+            let p_level: String?
+            let p_offset: Int
+        }
+        return try await client
+            .rpc(
+                "student_university_catalog",
+                params: Params(
+                    p_query: UniversityCatalogFilterPolicy.queryParameter(filters),
+                    p_country: UniversityCatalogFilterPolicy.countryParameter(filters),
+                    p_level: UniversityCatalogFilterPolicy.levelParameter(filters),
+                    p_offset: offset
+                )
+            )
             .execute()
             .value
     }

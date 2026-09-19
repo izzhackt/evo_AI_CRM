@@ -7583,6 +7583,40 @@
         }
       }
     },
+    "result_answer_correct" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верно"
+          }
+        }
+      }
+    },
+    "result_answer_incorrect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туура эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверно"
+          }
+        }
+      }
+    },
     "result_band_fallback" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8790,6 +8824,57 @@
         }
       }
     },
+    "universities_all_countries" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык өлкөлөр"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все страны"
+          }
+        }
+      }
+    },
+    "universities_all_levels" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык деңгээлдер"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все уровни"
+          }
+        }
+      }
+    },
+    "universities_country" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өлкө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страна"
+          }
+        }
+      }
+    },
     "universities_empty" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8803,6 +8888,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Опубликованных карточек пока нет"
+          }
+        }
+      }
+    },
+    "universities_filtered_empty_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чыпкаларды алып салып көрүңүз. Жаңы маалымат текшерүүдөн жана жарыялоодон кийин чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попробуйте убрать фильтры. Новые сведения появятся после проверки и публикации."
+          }
+        }
+      }
+    },
+    "universities_filtered_empty_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул суроо боюнча жарыяланган карточкалар азырынча жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По этому запросу пока нет опубликованных карточек"
+          }
+        }
+      }
+    },
+    "universities_level" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Деңгээл"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уровень"
           }
         }
       }
@@ -8841,6 +8977,142 @@
         }
       }
     },
+    "universities_map_close_card" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жабуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть"
+          }
+        }
+      }
+    },
+    "universities_map_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта жүктөлгөн жок. Тизме толук иштейт — «Тизме» көрүнүшүнө өтүңүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карту не удалось загрузить. Список работает полностью — переключитесь на «Список»."
+          }
+        }
+      }
+    },
+    "universities_map_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Университеттердин картасы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта университетов"
+          }
+        }
+      }
+    },
+    "universities_map_open_card" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточканы ачуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть карточку"
+          }
+        }
+      }
+    },
+    "universities_map_shown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Картада: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На карте: %lld"
+          }
+        }
+      }
+    },
+    "universities_map_without_point" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Картада чекити жоктор: %lld — бул ЖОЖдор тизмеде бар."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без точки на карте: %lld — эти вузы есть в списке."
+          }
+        }
+      }
+    },
+    "universities_reset_filters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чыпкаларды алып салуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить фильтры"
+          }
+        }
+      }
+    },
+    "universities_search_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Университет издөө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найти университет"
+          }
+        }
+      }
+    },
     "universities_unavailable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8854,6 +9126,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось загрузить каталог. Это не означает, что опубликованных университетов нет."
+          }
+        }
+      }
+    },
+    "universities_view_list" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тизме"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список"
+          }
+        }
+      }
+    },
+    "universities_view_map" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта"
+          }
+        }
+      }
+    },
+    "universities_view_toggle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каталогдун көрүнүшү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Представление каталога"
           }
         }
       }

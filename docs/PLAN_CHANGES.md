@@ -31220,3 +31220,116 @@ ky-полнота нового неймспейса, новый tests/portal-pro
 рендер экрана в этой сессии не выполняется — фиксируется честно в PR.
 Reviewer notes: pending independent review on the exact PR head; PR идёт
 stacked поверх izzhackt/portal-3b-favorites (base до merge #883 — эта ветка).
+
+## 2026-09-19 — PORT-5b: запрос консультации из кабинета (миграция 197)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §5 «Самостоятельный школьник»
+п.6, §6 строка «Консультация» («Короткий запрос из общего портала или
+выбранной программы в существующую staff-очередь; повтор не создаёт дубль;
+ученик видит результат отправки, сотрудник — нужный контекст») и §10 PORT-5
+(«Добавить запрос консультации и нужный контекст в существующую очередь без
+автоматической передачи тестов или всего личного профиля»).
+Change type: architecture and scope fixation for PORT-5b before coding;
+allocates migration number 197 (следующий после 196 из PORT-5a; сверено с
+main `0fa2ef95` и production-ledger 001–196 — чужих 197 нет).
+Affected plan section: PORT-5 (консультация — независимая от OTH-блокеров
+часть), план §6 «Консультация», §8.5/§8.7, §14 (приватность тестов).
+
+Reason: строка плана §6 «Консультация» — последняя общая возможность без
+серверного контракта: approved-пользователь не имеет канала обращения
+(case-help с 192 — уровень сопровождения), а Sales не видит таких запросов
+в своей очереди «Заявки».
+
+Decision:
+- (a) Миграция `197_platform_portal_consultation_requests.sql`: таблица
+  `platform_private.portal_consultation_requests` (id, organization_id,
+  membership_id, request_id UNIQUE per member, institution_id NULL FK на
+  каталог организации, note TEXT CHECK 1..500, status
+  'requested'|'handled' c shape-CHECK, created_at, handled_at,
+  handled_by_membership_id; RLS+FORCE+REVOKE ALL как 195/196). «Один
+  ОТКРЫТЫЙ запрос на участника» — частичный уникальный индекс по
+  status='requested' (инвариант в БД, паттерн 196).
+- (b) RPC (SECURITY DEFINER, search_path='', GRANT EXECUTE TO
+  authenticated): `platform.create_portal_consultation_request_v1(
+  p_request_id, p_institution_id DEFAULT NULL, p_note DEFAULT NULL)` —
+  студенческий guard ровно как у каталога/избранного 148/195/196
+  (platform_role='student' + portal.read.self, СОЗНАТЕЛЬНО
+  case-НЕзависимый); институция при наличии валидируется по published-
+  каталогу организации актора (стиль 148: 42501 «Institution is
+  unavailable» для чужого/неизвестного/неопубликованного id); идемпотентно
+  по request_id (повтор возвращает исходный receipt в любом статусе);
+  второй create при открытом запросе возвращает ОТКРЫТЫЙ receipt (без
+  дубля, честное состояние); после handled новый запрос разрешён.
+  `platform.own_portal_consultation_requests_v1()` — только свои, свежие
+  первыми, потолок 20. `platform.staff_portal_consultation_requests_v1(
+  p_offset DEFAULT 0)` — staff-guard: РЕАЛЬНОЕ разрешение очереди «Заявки»
+  `lead.read` (маршрут /v3/requests ↔ capability sales.read ↔ permission
+  'lead.read' в src/lib/platform-access.ts; Sales-шаблон 173 держит
+  lead.read; admin проходит через admin-байпас
+  platform_private.staff_has_permission — «admin included»; студенты
+  исключены явно; новых permission-ключей НЕ вводится); страница 50 строк,
+  открытые первыми, items+nextOffset+openCount; контекст строки — имя
+  студента, выбранный вуз (имя из последней published-публикации), note,
+  даты. `platform.handle_portal_consultation_request_v1(p_row_id,
+  p_expected_status)` — тот же staff-guard; requested→handled с
+  handled_at/handled_by; повтор с p_expected_status='handled' —
+  идемпотентный replay (ничего не переписывается); несовпадение статуса —
+  PT409 `consultation_request_conflict` (конвенция 178/186/194, не 40001).
+  ПРИВАТНОСТЬ (план §6 «Тесты», §14, решение-стандарт «135»): запрос НЕ
+  прикрепляет результаты/ответы тестов ни в каком виде; note — свободный
+  текст ученика; вуз — его явный выбор; staff-строка несёт ровно
+  объявленный набор ключей.
+- (c) Staff UI (аддитивно, существующий экран «Заявки» /v3/requests):
+  новый фильтр-пилюля «Кабинет: консультации» в REQUEST_SOURCE_FILTERS
+  (страница уже строит пилюли из этого списка); при выборе — секция-список
+  (имя студента, вуз если выбран, note, дата) с действием «Обработано»
+  (server action + PT409 → честное сообщение о конфликте и обновление).
+  Загрузка очереди консультаций — только при активном фильтре. Словарь
+  статусов — `portalConsultationStatus` в `src/lib/v3/wording.ts`
+  (аддитивно). Новых route/permission нет; исходники — расширение
+  `src/lib/v3/requests-source.ts` (без нового -source-файла, пины
+  v3-supabase-integration не трогаются) + server action
+  `src/lib/platform-portal-consultation-actions.ts` + компонент
+  `src/components/v3/requests/PortalConsultations.tsx`.
+- (d) Portal UI (RU/KY, новый неймспейс `consultation` в
+  `src/lib/portal/i18n.ts`): кнопка «Записаться на консультацию» в
+  карточке вуза (передаёт institution_id) и в «Профиле» (без вуза);
+  маленькая форма с необязательной заметкой (честный placeholder, лимит
+  500); после отправки — состояние «Запрос отправлен — менеджер свяжется»;
+  в «Профиле» — история своих запросов со статусами (свежие первыми).
+  Повторное нажатие при открытом запросе показывает существующий статус
+  (RPC возвращает открытый receipt) — дубль невозможен. Клиентские
+  парсеры/типы `src/lib/portal/consultation.ts`, серверное чтение
+  `consultation-source.ts`, server action `consultation-actions.ts`,
+  компонент `src/components/portal/consultation/ConsultationRequest.tsx`.
+- (e) Boundary-тест `supabase/tests/platform_portal_consultation_requests.sql`
+  на собственном чекпоинте 197 в `scripts/test-postgres-authorization.sh`
+  (конвенция 185/192–196, зеркало строк 192–196): студент создаёт/читает
+  только своё; изоляция второго студента; один-открытый-на-участника
+  (второй create возвращает ТОТ ЖЕ receipt, superuser-проверка «ровно один
+  ряд»); replay по request_id идемпотентен; чужой/неопубликованный/
+  неизвестный institution_id — 42501 в стиле 148; staff: admin (без
+  грантов, admin-байпас) и Sales с реальным грантом lead.read (последова-
+  тельность staff_role_command/impact/publish/assignments_save, клеймы
+  после гранта — паттерн 185/189) читают и обрабатывают; curator БЕЗ
+  гранта lead.read — 42501 в обе стороны (обе стороны реальной permission-
+  карты); студент/anon/service_role — отказ; handle: PT409 на несовпадении
+  статуса, идемпотентный replay 'handled', 22023 на невалидный вход;
+  зеркало приватности 135: фикстура с draft-попыткой english36, в ответах
+  которой маркер-строка, и проверка, что staff-JSON консультаций не
+  содержит маркер и несёт ровно объявленный набор ключей.
+
+Validation impact: полная цепочка 001–197 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с ПОЛНЫМ логом и grep
+маркеров P197 (и сохранности P192–P196); `npm run typecheck`;
+`npm run build`; `npm run test:brand-ui`; затронутые node-тесты (portal-i18n
+ky-полнота нового неймспейса, новый tests/portal-consultation.test.mjs в
+test:frontend с обновлением пинов tests/ci-node-test-suite.test.mjs В ТОМ ЖЕ
+коммите); `git diff --check`. Smoke-якоря не затрагиваются (новая секция —
+за фильтром существующего экрана «Заявки», новые портальные блоки не меняют
+существующие якоря). Живой аутентифицированный рендер экранов в этой сессии
+не выполняется — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head; base main
+`0fa2ef95`.

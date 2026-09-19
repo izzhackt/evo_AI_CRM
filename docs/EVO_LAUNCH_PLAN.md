@@ -1,5 +1,26 @@
 # EVO Launch Plan
 
+## Portal release v3-r35446304360-a1-50c932c6 accepted 2026-09-19
+
+- [x] Migration 200 (student side of the per-case chat over OTH-5's 191
+  model: portal read/post RPCs, assisted-only, students flip needs_reply,
+  staff mechanics untouched; the 191-author's seven-point integration
+  contract was enforced as the review gate — one deviation (task titles
+  leaking past student_visible) was caught and fixed pre-merge) applied
+  before the release; ledger tail `…196-200` verified.
+- [x] Release from exact main `50c932c691a1bf5fd5f4bd8f2407fdaa056261fd`
+  (#892 чат + #894 «Моё поступление» в Атласе: four assisted screens
+  re-skinned with contracts byte-preserved, 9 legacy files deleted, smoke
+  anchors byte-identical). Release run 35446304360 accepted; container on
+  the exact revision; health live; ARMED back to `false`.
+- First live authenticated verification happened this cycle: the owner
+  signed the QA student into the wave-5 iOS build; favorites round-trip,
+  the 196 language cycle (ru→ky→restart→full-KY UI→ru) and seeded lessons/
+  professions were verified against production; one iOS save-button bug
+  found live and fixed in PR #893 with a regression test.
+- Not claimed: live web renders of the new chat screen; KY for the four
+  re-skinned assisted screens stays a named PORT-6 item.
+
 ## Portal release v3-r35441505162-a1-a6e41aa9 accepted 2026-09-19
 
 - [x] Migrations 197 (portal consultation requests into the staff Заявки

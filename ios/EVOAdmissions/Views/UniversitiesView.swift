@@ -55,6 +55,13 @@ final class UniversitiesViewModel: ObservableObject {
 
     private let service: SupabaseService
     private var searchDebounce: Task<Void, Never>?
+    // Review #912 (medium): голые guard'ы isLoading/isMapLoading молча
+    // дропали перезагрузку во время полёта, и завершение публиковало
+    // результат СТАРЫХ фильтров. Затворы с поколением делают смену фильтров
+    // честной; семантика и выбор «generation counter vs Task-cancellation» —
+    // в SingleFlightReloadGate (юниты: SingleFlightReloadGateTests).
+    private let listReload = SingleFlightReloadGate()
+    private let mapReload = SingleFlightReloadGate()
 
     init(service: SupabaseService = .shared) {
         self.service = service
@@ -74,26 +81,45 @@ final class UniversitiesViewModel: ObservableObject {
     }()
 
     func loadFirstPage() async {
-        if isLoading { return }
+        // Полёт уже идёт — НЕ молчаливый дроп (review #912): invalidate()
+        // из applyFilterChange уже сдвинул поколение, и затвор перезапустит
+        // действующий полёт с актуальными фильтрами сам.
+        if listReload.isRunning { return }
         isLoading = true
         errorMessage = nil
         loadMoreFailed = false
-        do {
-            let page = try await service.studentUniversityCatalog(filters: filters, offset: 0)
-            items = page.items
-            nextOffset = page.nextOffset
-        } catch {
-            errorMessage = error.localizedDescription
+        await listReload.run { [service] in
+            // Фильтры перечитываются при КАЖДОЙ попытке затвора — рестарт
+            // после смены поколения работает уже с новыми значениями.
+            let requested = filters
+            do {
+                let page = try await service.studentUniversityCatalog(filters: requested, offset: 0)
+                return {
+                    self.items = page.items
+                    self.nextOffset = page.nextOffset
+                    self.errorMessage = nil
+                }
+            } catch {
+                return { self.errorMessage = error.localizedDescription }
+            }
         }
         isLoading = false
     }
 
     func loadNextPage() async {
-        guard let offset = nextOffset, !isLoadingMore, !isLoading else { return }
+        guard let offset = nextOffset, !isLoadingMore, !isLoading, !listReload.isRunning else { return }
         isLoadingMore = true
         loadMoreFailed = false
+        // Review #912: страница, запрошенная до смены фильтров, не должна
+        // доклеиваться к списку НОВЫХ фильтров — устаревший ответ (и его
+        // ошибка) отбрасывается; первую страницу перегрузит applyFilterChange.
+        let requestedGeneration = listReload.generation
         do {
             let page = try await service.studentUniversityCatalog(filters: filters, offset: offset)
+            guard requestedGeneration == listReload.generation else {
+                isLoadingMore = false
+                return
+            }
             // Публикация между страницами может сдвинуть offset и повторить
             // запись — дубль отбрасываем (та же логика, что у веб-карты).
             let known = Set(items.map(\.id))
@@ -106,6 +132,10 @@ final class UniversitiesViewModel: ObservableObject {
                 nextOffset = page.nextOffset
             }
         } catch {
+            guard requestedGeneration == listReload.generation else {
+                isLoadingMore = false
+                return
+            }
             loadMoreFailed = true
         }
         isLoadingMore = false
@@ -148,6 +178,11 @@ final class UniversitiesViewModel: ObservableObject {
     }
 
     private func applyFilterChange() async {
+        // Каждая смена фильтров открывает новое поколение (review #912):
+        // результат любого полёта со старыми фильтрами будет отброшен, а
+        // сам полёт перезапущен затвором с актуальными значениями.
+        listReload.invalidate()
+        mapReload.invalidate()
         mapLoadedFilters = nil
         if viewMode == .map {
             async let list: Void = loadFirstPage()
@@ -168,20 +203,33 @@ final class UniversitiesViewModel: ObservableObject {
     }
 
     func loadMap() async {
-        if isMapLoading { return }
+        // Полёт уже идёт — НЕ молчаливый дроп (review #912): при сдвиге
+        // поколения затвор отбросит результат старых фильтров и перезапустит
+        // сбор с актуальными (смена A→B в середине до 12 RPC не оставит
+        // пины A под чипами B).
+        if mapReload.isRunning { return }
         isMapLoading = true
         mapFailed = false
-        do {
+        await mapReload.run { [service] in
+            // Фильтры перечитываются при КАЖДОЙ попытке затвора.
             let requested = filters
-            let complete = try await UniversityMapPolicy.collectComplete { [service] offset in
-                try await service.studentUniversityCatalog(filters: requested, offset: offset)
+            do {
+                let complete = try await UniversityMapPolicy.collectComplete { offset in
+                    try await service.studentUniversityCatalog(filters: requested, offset: offset)
+                }
+                let selection = UniversityMapPolicy.pins(
+                    for: complete,
+                    geo: UniversityGeoLibrary.shared
+                )
+                return {
+                    self.mapPins = selection.pins
+                    self.mapMissing = selection.missing
+                    self.mapLoadedFilters = requested
+                    self.mapFailed = false
+                }
+            } catch {
+                return { self.mapFailed = true }
             }
-            let selection = UniversityMapPolicy.pins(for: complete, geo: UniversityGeoLibrary.shared)
-            mapPins = selection.pins
-            mapMissing = selection.missing
-            mapLoadedFilters = requested
-        } catch {
-            mapFailed = true
         }
         isMapLoading = false
     }

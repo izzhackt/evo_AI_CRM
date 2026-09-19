@@ -88,6 +88,7 @@ targets:
       - path: EVOAdmissions/Services/UniversityGeoLibrary.swift
       - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
       - path: EVOAdmissions/Services/UniversityMapPolicy.swift
+      - path: EVOAdmissions/Services/SingleFlightReloadGate.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift
       - path: EVOAdmissions/Services/FavoritesModels.swift
       - path: EVOAdmissions/Services/PortalProfileModels.swift

@@ -154,7 +154,9 @@ private struct UniversitiesMapCanvas: View {
         let country = AppLocale.current.localizedString(forRegionCode: pin.country)
             ?? pin.country
         if let city = pin.city, !city.isEmpty {
-            return "\(city), \(country)"
+            // Разделитель « · » — как у мини-карточки веб-карты
+            // (src/app/(portal)/portal/universities/page.tsx:74).
+            return "\(city) · \(country)"
         }
         return country
     }

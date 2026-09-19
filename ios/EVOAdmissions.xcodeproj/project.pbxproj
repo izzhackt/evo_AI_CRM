@@ -68,6 +68,8 @@
 		AF234FDE29868AEC7808392B /* ConsultationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A437F63DD1A066A64F901E16 /* ConsultationModels.swift */; };
 		B15EAF7230531E1A6751767C /* AdmissionNotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */; };
 		B1DC6A73ED10736AFB626CA8 /* LearningDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B0F15B1070867453F272AE /* LearningDecodingTests.swift */; };
+		B63BE4229E1A2AEB727C94F3 /* SingleFlightReloadGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */; };
+		B687504536672E433587D296 /* SingleFlightReloadGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */; };
 		B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45852421E9DCACAC63246FF9 /* SignInView.swift */; };
 		B7782A31DA97FA6DE6A80A3C /* FavoritesModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96E6200B0A5AA1809D60313 /* FavoritesModels.swift */; };
 		B78A4283ECF32D133774F200 /* AssessmentDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */; };
@@ -81,6 +83,7 @@
 		CCF485A32444DB98E3E685E9 /* ProfileLanguagePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C223846B4B1CA8906A605E8 /* ProfileLanguagePolicyTests.swift */; };
 		CF2D2E0E22170543B0179AFB /* ApplicationStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80F438CFFD677C2DE858F295 /* ApplicationStatusView.swift */; };
 		D25B6A3BE454004A57D2D1A4 /* AssessmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */; };
+		D341E2B8E30CF10EFC9FB52C /* SingleFlightReloadGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */; };
 		D38251318F18868A0F5BAEBE /* ConsultationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A437F63DD1A066A64F901E16 /* ConsultationModels.swift */; };
 		D4432D06FA2A6B58FC20C4EB /* ProfessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995A1A73307F3D08D8A479EF /* ProfessionsView.swift */; };
 		DC6FFE100BC9210E4ACE3302 /* PortalCaseChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30410E2669DCC35D7ADEAE99 /* PortalCaseChatModels.swift */; };
@@ -143,6 +146,7 @@
 		79B0F15B1070867453F272AE /* LearningDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningDecodingTests.swift; sourceTree = "<group>"; };
 		7A9A04DD0B9D506D1216F399 /* LearningRunnerPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRunnerPolicyTests.swift; sourceTree = "<group>"; };
 		7AB25A7C26BF4F620662154D /* EVO admissions.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "EVO admissions.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleFlightReloadGateTests.swift; sourceTree = "<group>"; };
 		80F438CFFD677C2DE858F295 /* ApplicationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationStatusView.swift; sourceTree = "<group>"; };
 		8D38E00F8D964FE4DCDA857C /* EnglishView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnglishView.swift; sourceTree = "<group>"; };
 		90729578002EEEABF3DBADAB /* UniversityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityDetailView.swift; sourceTree = "<group>"; };
@@ -163,6 +167,7 @@
 		ADA7E12A092A4DCE19EA6C04 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		AE59581B9A18399AA3618C63 /* university-geo-library.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "university-geo-library.json"; sourceTree = "<group>"; };
 		B32E74D315F6147AFDA53377 /* AdmissionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmissionModels.swift; sourceTree = "<group>"; };
+		B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleFlightReloadGate.swift; sourceTree = "<group>"; };
 		B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentDecodingTests.swift; sourceTree = "<group>"; };
 		B689B5D15EBAEBDE59C83A64 /* PortalCaseChatDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalCaseChatDecodingTests.swift; sourceTree = "<group>"; };
 		B863F1ACCC11C2F3BCC68A06 /* PortalCaseChatPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalCaseChatPolicyTests.swift; sourceTree = "<group>"; };
@@ -184,7 +189,7 @@
 		F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogFilterPolicyTests.swift; sourceTree = "<group>"; };
 		F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentRunnerView.swift; sourceTree = "<group>"; };
 		FD04FB295EC8AF191E69FE6A /* TabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabShell.swift; sourceTree = "<group>"; };
-		"TEMP_AD70E370-485B-4C10-93AD-A51B903DBC6E" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
+		"TEMP_5D7DB66B-ADE1-4F9E-888A-9D7175713BE5" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -306,6 +311,7 @@
 				0B849158C9D6896582F6522A /* PortalProfileDecodingTests.swift */,
 				C1649B16320704E7A7DCB7DC /* ProfessionDecodingTests.swift */,
 				1C223846B4B1CA8906A605E8 /* ProfileLanguagePolicyTests.swift */,
+				7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */,
 				259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */,
 				F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */,
 				72846D94CB1FCC708DFB3A83 /* UniversityGeoLibraryTests.swift */,
@@ -354,6 +360,7 @@
 				31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */,
 				1E3A48D9B01EEF280AD9AD95 /* ProfessionModels.swift */,
 				BAE1702D238F863B18144F44 /* SessionRouter.swift */,
+				B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */,
 				17B36978FE6CEE29DDAC580E /* SupabaseService.swift */,
 				10D552D1FAB72B356FDF47B8 /* UniversityCatalogFilterPolicy.swift */,
 				99BAE80FF87DB4110F926ADA /* UniversityGeoLibrary.swift */,
@@ -363,10 +370,10 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		"TEMP_2225E289-5AFC-4FDA-9F01-15C312ACCB9A" /* ios */ = {
+		"TEMP_0193E5C2-F4A0-4DB6-BBBF-01EBD609C8AB" /* ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_AD70E370-485B-4C10-93AD-A51B903DBC6E" /* Local.xcconfig */,
+				"TEMP_5D7DB66B-ADE1-4F9E-888A-9D7175713BE5" /* Local.xcconfig */,
 			);
 			path = ios;
 			sourceTree = "<group>";
@@ -508,6 +515,8 @@
 				2EBF539E80CC079239E5AD98 /* ProfessionDecodingTests.swift in Sources */,
 				6629B0AAAFDFDB6C2FD70F0B /* ProfessionModels.swift in Sources */,
 				CCF485A32444DB98E3E685E9 /* ProfileLanguagePolicyTests.swift in Sources */,
+				D341E2B8E30CF10EFC9FB52C /* SingleFlightReloadGate.swift in Sources */,
+				B63BE4229E1A2AEB727C94F3 /* SingleFlightReloadGateTests.swift in Sources */,
 				01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */,
 				6173408AFBCABC55C1099B19 /* UniversityCatalogFilterPolicy.swift in Sources */,
 				597500B4D15B7351BC429F3B /* UniversityCatalogFilterPolicyTests.swift in Sources */,
@@ -565,6 +574,7 @@
 				7EB7366B1B43CE792C680F3A /* RootView.swift in Sources */,
 				F808E95418CFD0F82AACCDD2 /* SessionRouter.swift in Sources */,
 				B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */,
+				B687504536672E433587D296 /* SingleFlightReloadGate.swift in Sources */,
 				99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */,
 				FD07B3A17A0CA2DC11FA85C1 /* TabShell.swift in Sources */,
 				3E03D82AE38652963B61B3CA /* TestsView.swift in Sources */,
@@ -605,7 +615,7 @@
 		};
 		B6C84763ED668FD71B0D8C20 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_AD70E370-485B-4C10-93AD-A51B903DBC6E" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_5D7DB66B-ADE1-4F9E-888A-9D7175713BE5" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -723,7 +733,7 @@
 		};
 		F095E5C184A5CF5D3A673C4C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_AD70E370-485B-4C10-93AD-A51B903DBC6E" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_5D7DB66B-ADE1-4F9E-888A-9D7175713BE5" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

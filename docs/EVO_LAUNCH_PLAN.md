@@ -1,5 +1,26 @@
 # EVO Launch Plan
 
+## Portal release v3-r35435007516-a1-d1b64849 accepted 2026-09-19
+
+- [x] Migrations 195 (student-owned university favorites: set/list/by-ids
+  RPCs, case-independent guard per the catalog pattern, staff denied) and
+  196 (portal_language on student_profiles, get/set-own profile RPCs,
+  account-deletion REQUEST flow with a DB-enforced one-open-per-member
+  index — the RPC deletes nothing) applied before the release; Management
+  API readback: ledger tail `…192-196` equals the repo tree.
+- [x] Release from exact main `d1b648499c75a5cda2371a5d0b113e47317ab4e0`
+  (#883 избранное+сравнение, #884 профиль/язык/удаление, #882 iOS каталог-
+  карточка/раннер тестов/профиль с 18/18 XCTest, #881 контент-драфты
+  PORT-4). Release run 35435007516 accepted; container carries the exact
+  revision; `/api/health` live; ARMED back to `false`.
+- Independent exact-head reviews on all four PRs, including reviewer-run
+  xcodebuild test reproduction for iOS and a content review with an
+  independent validator script; every post-review delta re-confirmed on
+  its final head. Cross-session protocol observed.
+- Not claimed: live authenticated journeys on the new screens (no student
+  credentials in the agent session); RU/KY native proofread remains the
+  named PORT-6 step.
+
 ## Portal release v3-r35431481983-a1-0667c001 accepted 2026-09-19
 
 - [x] Migrations 193 (invited intake unification: `intake_flow='anketa_v1'`

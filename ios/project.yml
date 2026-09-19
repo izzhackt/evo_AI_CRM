@@ -37,6 +37,11 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: EVOAdmissions
+      # Единственный источник фото-библиотеки кампусов — тот же файл, что у
+      # веба (photoKey → url + CC-атрибуция). Не копия: bundle-ресурс из
+      # src/lib, чтобы iOS и веб не расходились.
+      - path: ../src/lib/university-photo-library.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: "EVO admissions"
@@ -61,14 +66,36 @@ targets:
       - package: Supabase
         product: Supabase
 
+  # Hostless unit tests: компилируют только чистые Codable/логические файлы
+  # (без Supabase SDK и UI), поэтому не запускают приложение и не ходят в сеть.
+  EVOAdmissionsTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: EVOAdmissionsTests
+      - path: EVOAdmissions/Services/PortalModels.swift
+      - path: EVOAdmissions/Services/AssessmentModels.swift
+      - path: EVOAdmissions/Services/UniversityPhotoLibrary.swift
+      - path: EVOAdmissions/Services/PostgresTimestamp.swift
+      - path: ../src/lib/university-photo-library.json
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.evoadmissions.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   EVO admissions:
     build:
       targets:
         EVO admissions: all
+        EVOAdmissionsTests: [test]
     run:
       config: Debug
     test:
       config: Debug
+      targets:
+        - EVOAdmissionsTests
     archive:
       config: Release

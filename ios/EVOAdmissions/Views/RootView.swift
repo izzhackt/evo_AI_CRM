@@ -12,7 +12,7 @@ struct RootView: View {
                 ProgressView()
                     .controlSize(.large)
             case .active(let session):
-                TabShell(session: session)
+                TabShell(session: session, router: router)
             case .accessPending:
                 AccessPendingView(router: router)
             case .networkError(let message):

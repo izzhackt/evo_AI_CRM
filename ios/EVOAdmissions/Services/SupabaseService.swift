@@ -64,4 +64,111 @@ final class SupabaseService {
             .execute()
             .value
     }
+
+    /// Single published card via `p_institution_id`
+    /// (supabase/migrations/148: the filter narrows the same page helper to
+    /// one institution). `nil` when the institution has no published card.
+    func studentUniversityCard(institutionId: UUID) async throws -> UniversityCatalogItem? {
+        struct Params: Encodable, Sendable {
+            let p_institution_id: UUID
+            let p_offset: Int
+        }
+        let page: UniversityCatalogPage = try await client
+            .rpc(
+                "student_university_catalog",
+                params: Params(p_institution_id: institutionId, p_offset: 0)
+            )
+            .execute()
+            .value
+        return page.items.first
+    }
+
+    // MARK: - Private assessments (supabase/migrations/135)
+
+    /// `platform.student_assessments_v1()` — instruments plus the caller's
+    /// own attempt history. Owner-private by contract.
+    func studentAssessments() async throws -> AssessmentCatalog {
+        try await client
+            .rpc("student_assessments_v1")
+            .execute()
+            .value
+    }
+
+    /// `platform.student_assessment_attempt_v1(p_attempt_id)` — full payload
+    /// of one own attempt (questions, answers, result snapshot).
+    func studentAssessmentAttempt(id: UUID) async throws -> AssessmentAttempt {
+        struct Params: Encodable, Sendable { let p_attempt_id: UUID }
+        return try await client
+            .rpc("student_assessment_attempt_v1", params: Params(p_attempt_id: id))
+            .execute()
+            .value
+    }
+
+    /// `platform.start_student_assessment_v1` — идемпотентно по
+    /// `p_request_id`: повтор с тем же id возвращает тот же receipt, а не
+    /// вторую попытку.
+    func startAssessment(instrumentKey: String, requestId: UUID) async throws -> AssessmentAttempt {
+        struct Params: Encodable, Sendable {
+            let p_instrument_key: String
+            let p_request_id: UUID
+        }
+        return try await client
+            .rpc(
+                "start_student_assessment_v1",
+                params: Params(p_instrument_key: instrumentKey, p_request_id: requestId)
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.save_student_assessment_answers_v1` — optimistic-lock save
+    /// (`p_expected_revision`), idempotent per `p_request_id`.
+    func saveAssessmentAnswers(
+        attemptId: UUID,
+        expectedRevision: Int64,
+        answers: [String: String],
+        requestId: UUID
+    ) async throws -> AssessmentAttempt {
+        try await client
+            .rpc(
+                "save_student_assessment_answers_v1",
+                params: AssessmentWriteParams(
+                    p_attempt_id: attemptId,
+                    p_expected_revision: expectedRevision,
+                    p_answers: answers,
+                    p_request_id: requestId
+                )
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.complete_student_assessment_v1` — completes and grades the
+    /// draft in one transaction; the result snapshot comes back inline.
+    func completeAssessment(
+        attemptId: UUID,
+        expectedRevision: Int64,
+        answers: [String: String],
+        requestId: UUID
+    ) async throws -> AssessmentAttempt {
+        try await client
+            .rpc(
+                "complete_student_assessment_v1",
+                params: AssessmentWriteParams(
+                    p_attempt_id: attemptId,
+                    p_expected_revision: expectedRevision,
+                    p_answers: answers,
+                    p_request_id: requestId
+                )
+            )
+            .execute()
+            .value
+    }
+}
+
+private struct AssessmentWriteParams: Encodable, Sendable {
+    let p_attempt_id: UUID
+    let p_expected_revision: Int64
+    let p_answers: [String: String]
+    let p_request_id: UUID
 }

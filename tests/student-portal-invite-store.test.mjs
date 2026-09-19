@@ -392,6 +392,9 @@ test("verified identity resolver is exact, private and handles final HTTP 409 co
       inviteDeliveryStatus: "accepted",
       accountPending: true,
       authorityActivated: false,
+      // A pre-193 payload carries no marker: decoded as the legacy flow.
+      intakeFlow: "legacy",
+      displayName: null,
     },
   );
   assert.deepEqual(
@@ -584,5 +587,67 @@ test("reissue-unknown replay is never hidden by already-active authority", async
       expectedInviteGeneration: "2",
     }),
     { status: "blocked", code: "portal_reconciliation_required" },
+  );
+});
+
+test("identity resolver decodes the PORT-1b intake marker and display name", async () => {
+  const fake = fakeClient([
+    {
+      data: {
+        receipt_id: RECEIPT_ID,
+        provisioning_state: "invite_succeeded",
+        invite_delivery_status: "accepted",
+        receipt_version: 4,
+        invite_generation: 1,
+        account_pending: true,
+        authority_activated: false,
+        intake_flow: "anketa_v1",
+        student_display_name: "Айбек Приглашённый",
+      },
+      error: null,
+    },
+    {
+      data: {
+        receipt_id: RECEIPT_ID,
+        provisioning_state: "invite_succeeded",
+        invite_delivery_status: "accepted",
+        receipt_version: 4,
+        invite_generation: 1,
+        account_pending: true,
+        authority_activated: false,
+        intake_flow: "not_a_flow",
+      },
+      error: null,
+    },
+  ]);
+  const store = createStudentPortalInviteStore(fake.client);
+
+  assert.deepEqual(
+    await store.resolveIdentity({
+      authUserId: AUTH_USER_ID,
+      normalizedEmail: EMAIL,
+      markAccepted: false,
+    }),
+    {
+      status: "matched",
+      receiptId: RECEIPT_ID,
+      receiptVersion: "4",
+      inviteGeneration: "1",
+      provisioningState: "invite_succeeded",
+      inviteDeliveryStatus: "accepted",
+      accountPending: true,
+      authorityActivated: false,
+      intakeFlow: "anketa_v1",
+      displayName: "Айбек Приглашённый",
+    },
+  );
+  // An unknown marker value fails closed instead of guessing a flow.
+  assert.deepEqual(
+    await store.resolveIdentity({
+      authUserId: AUTH_USER_ID,
+      normalizedEmail: EMAIL,
+      markAccepted: false,
+    }),
+    { status: "unavailable" },
   );
 });

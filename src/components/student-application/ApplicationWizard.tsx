@@ -23,9 +23,12 @@ type WizardState = {
   englishScore: string; englishLevel: string; tuitionBudget: string; fundingSource: string; consent: boolean;
 };
 
-function initialState(requestId: string, draft: StudentApplicationDraft | null): WizardState {
+/** PORT-1b: bounded invited-name prefill; never a substitute for the draft. */
+export type ApplicationNamePrefill = { firstName: string; lastName: string };
+
+function initialState(requestId: string, draft: StudentApplicationDraft | null, namePrefill: ApplicationNamePrefill | null = null): WizardState {
   return {
-    requestId, firstName: draft?.firstName ?? "", lastName: draft?.lastName ?? "", phone: draft?.phone ?? "",
+    requestId, firstName: draft?.firstName ?? namePrefill?.firstName ?? "", lastName: draft?.lastName ?? namePrefill?.lastName ?? "", phone: draft?.phone ?? "",
     destinationCountries: draft?.destinationCountries ?? [], intakeSeason: draft?.intakeSeason ?? "",
     intakeYear: draft ? String(draft.intakeYear) : "", educationLevel: draft?.educationLevel ?? "",
     averageGrade: draft ? String(draft.averageGrade) : "", gradeScale: draft?.gradeScale ?? "5",
@@ -67,11 +70,11 @@ function Choice({ selected, children, onClick }: { selected: boolean; children: 
   </button>;
 }
 
-export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, year }: {
-  requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; year: number;
+export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year }: {
+  requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; namePrefill?: ApplicationNamePrefill | null; year: number;
 }) {
   const storageKey = draftOwnerId ? `${STORAGE_KEY}:${draftOwnerId}:${expectedRevision}` : STORAGE_KEY;
-  const [values, setValues] = useState(() => initialState(requestId, draft));
+  const [values, setValues] = useState(() => initialState(requestId, draft, namePrefill));
   const [step, setStep] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -95,7 +98,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
           const anonymous = sessionStorage.getItem(STORAGE_KEY);
           if (anonymous && JSON.parse(anonymous).submittedEmail === signedInEmail.toLowerCase()) raw = anonymous;
         }
-        const saved = raw ? restoredState(raw, initialState(requestId, draft)) : null;
+        const saved = raw ? restoredState(raw, initialState(requestId, draft, namePrefill)) : null;
         if (saved) { setValues(saved.values); setStep(saved.step); }
         if (raw) {
           const stored = JSON.parse(raw);
@@ -105,7 +108,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
       } catch { /* The form still works when browser storage is disabled. */ }
     }
     setLoaded(true);
-  }, [draft, requestId, storageKey, signedInEmail, expectedRevision]);
+  }, [draft, requestId, storageKey, signedInEmail, expectedRevision, namePrefill]);
   useEffect(() => {
     if (!loaded) return;
     try {

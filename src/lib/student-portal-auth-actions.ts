@@ -111,7 +111,7 @@ export async function setStudentPortalPasswordAction(
   if (password !== passwordConfirm) return "passwordMismatch";
   if (password.length < 12 || password.length > 4096) return "passwordRejected";
 
-  let destination: "/portal" | "/auth/account-pending" | null = null;
+  let destination: "/portal" | "/auth/account-pending" | "/apply" | null = null;
   try {
     const { sessionClient, receiptStore } =
       await createStudentInviteSessionRuntime();
@@ -155,7 +155,13 @@ export async function setStudentPortalPasswordAction(
         pendingSession.status === "authenticated" &&
         pendingSession.receipt.accountPending
       ) {
-        destination = "/auth/account-pending";
+        // PORT-1b: an anketa_v1 invite continues into the public анкета
+        // right after the password is set; legacy receipts keep the
+        // pre-193 waiting room.
+        destination =
+          pendingSession.receipt.intakeFlow === "anketa_v1"
+            ? "/apply"
+            : "/auth/account-pending";
       } else if (pendingSession.status === "unavailable") {
         return "authUnavailable";
       } else {

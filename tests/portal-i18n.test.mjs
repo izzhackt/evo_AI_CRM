@@ -43,6 +43,35 @@ test("portal strings resolve ky strictly and en deliberately falls back to ru", 
   assert.equal(getPortalStrings("shell", "en"), PORTAL_DICTIONARIES.shell.ru);
 });
 
+// PORT-3a: шаблонные маркеры вида {date}/{count}/{author} обязаны совпадать
+// между RU и KY — иначе подстановка молча оставит «{...}» в одной из локалей.
+test("placeholder markers agree between ru and ky in every namespace", () => {
+  const markers = (value) =>
+    [...value.matchAll(/\{(\w+)\}/gu)].map((match) => match[1]).sort();
+  for (const namespace of Object.keys(PORTAL_DICTIONARIES)) {
+    const { ru, ky } = PORTAL_DICTIONARIES[namespace];
+    for (const key of Object.keys(ru)) {
+      assert.deepEqual(markers(ky[key]), markers(ru[key]), `${namespace}.${key}`);
+    }
+  }
+});
+
+// PORT-3a: каталог «Атлас» говорит на обоих языках, включая доменные подписи
+// уровней/статусов и честные строки карты.
+test("universities dictionary covers levels, intake statuses and honest map lines", () => {
+  const ru = getPortalStrings("universities", "ru");
+  const ky = getPortalStrings("universities", "ky");
+  assert.equal(ru.detailLead, "Программы, условия поступления и даты наборов.");
+  assert.equal(ky.viewList, "Тизме");
+  assert.equal(ky["level.foundation"], "Даярдоо программасы");
+  assert.equal(ky["intakeStatus.open"], "Булактын маалыматы боюнча кабыл алуу ачык");
+  for (const strings of [ru, ky]) {
+    assert.ok(strings.intakeDeadlineByDate.includes("{date}"));
+    assert.ok(strings.mapWithoutPoint.includes("{count}"));
+    assert.ok(strings.photoBy.includes("{author}"));
+  }
+});
+
 test("template substitution fills named values and leaves unknown markers visible", () => {
   assert.equal(
     formatPortalString("Открываем раздел «{label}»", { label: "Тесты" }),

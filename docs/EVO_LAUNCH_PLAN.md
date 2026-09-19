@@ -11,6 +11,12 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 документные/Auth-контракты, номера миграций и выпуск координируются; worktree
 не изолирует общую БД. Это планирование, а не квитанция реализации или переноса.
 
+### KB-0 execution started
+
+- Base `6a2a7829`; worktree `evo-crm-knowledge-implementation`, branch `izzhackt/crm-knowledge-implementation`. Canonical dirty checkout preserved.
+- Private source inventory and transfer constraints are being measured. No source bytes have been imported or published.
+- Runtime, client projections, SOPS interface, complete import/export reconciliation and managed delivery remain open. Fable retains schema/release coordination until explicit handoff.
+
 ## Portal release v3-r35452266156-a1-b7052637 accepted 2026-09-19
 
 - [x] No migrations this cycle: Management API readback before arm

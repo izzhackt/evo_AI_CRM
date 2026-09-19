@@ -588,3 +588,9 @@ _Avoid_: internal employee profile, inferred consent
 **Knowledge Authority Order**:
 The precedence used to resolve competing claims: latest user or EVO director confirmation, applicable signed agreement, current official external source, newest active EVO document, latest confirmed email or WhatsApp agreement, then legacy Notion or draft material.
 _Avoid_: newest file wins, all sources are equal
+
+## Admin knowledge migration — 2026-09-19
+
+Current contract: [CRM Knowledge Base](docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md). Astra owns the Admin library, local-source migration/sorting and export. Fable owns Portal/App and coordinates shared schema/release operations until recorded handoff.
+
+The four roots of `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания` are the migration sources and preserved archive, not a bidirectionally synchronized editing surface. Only verified migration/read/export establishes CRM as the working library. CRM «Клиентская база» means personal dossiers; the historical local name denotes general knowledge approved for client AI. Preserve the latter's approval and source metadata when sorting into internal topics. Existing AI bundles are not republished. Raw archives, personal files and SOPS secrets retain separate storage/access boundaries.

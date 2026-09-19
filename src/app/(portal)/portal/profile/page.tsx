@@ -1,13 +1,78 @@
 import Link from "next/link";
 
+import { ConsultationRequest } from "@/components/portal/consultation/ConsultationRequest";
 import { DeleteAccountRequest } from "@/components/portal/profile/DeleteAccountRequest";
 import { LanguageForm } from "@/components/portal/profile/LanguageForm";
 import { getLocale } from "@/lib/i18n";
-import { getPortalStrings } from "@/lib/portal/i18n";
+import type { Locale } from "@/lib/i18n-data";
+import {
+  openConsultationRequest,
+  type ConsultationReceipt,
+} from "@/lib/portal/consultation";
+import { readOwnConsultationRequests } from "@/lib/portal/consultation-source";
+import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
 import type { PortalProfile } from "@/lib/portal/portal-profile";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
+
+function consultationDate(value: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "ky" ? "ky" : "ru", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
+/**
+ * История запросов консультации со статусами (PORT-5b, план §6): каждый
+ * запрос — фактическое состояние «отправлен/обработан» с датами, выбранным
+ * вузом и заметкой; никаких обещаний сроков.
+ */
+function ConsultationHistory({
+  history,
+  strings,
+  locale,
+}: {
+  history: readonly ConsultationReceipt[];
+  strings: PortalStrings<"consultation">;
+  locale: Locale;
+}) {
+  if (history.length === 0) return null;
+  return (
+    <>
+      <h3 className="pt-section-title">{strings.historyHeading}</h3>
+      <ul className="pt-consult-history">
+        {history.map((receipt) => (
+          <li key={receipt.requestId} className="pt-consult-history-item">
+            <p className="pt-consult-history-status">
+              {receipt.status === "handled" ? strings.statusHandled : strings.statusRequested}
+            </p>
+            {receipt.institutionName !== null ? (
+              <p className="pt-consult-history-meta">
+                {formatPortalString(strings.universityLine, { name: receipt.institutionName })}
+              </p>
+            ) : null}
+            {receipt.note !== null ? (
+              <p className="pt-consult-history-note">{receipt.note}</p>
+            ) : null}
+            <p className="pt-consult-history-meta">
+              {formatPortalString(strings.historyDate, {
+                date: consultationDate(receipt.requestedAt, locale),
+              })}
+              {receipt.handledAt !== null
+                ? ` · ${formatPortalString(strings.handledDate, {
+                  date: consultationDate(receipt.handledAt, locale),
+                })}`
+                : ""}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +88,22 @@ export default async function ProfilePage() {
     getLocale(),
   ]);
   const strings = getPortalStrings("profile", locale);
+  const consultationStrings = getPortalStrings("consultation", locale);
 
   let profile: PortalProfile | null = null;
   try {
     profile = await readOwnPortalProfile();
   } catch {
     profile = null;
+  }
+
+  // Запрос консультации (PORT-5b): история и открытый запрос читаются
+  // отдельно от профиля; сбой чтения — честная строка, не пустая история.
+  let consultationHistory: readonly ConsultationReceipt[] | null = null;
+  try {
+    consultationHistory = await readOwnConsultationRequests();
+  } catch {
+    consultationHistory = null;
   }
 
   return (
@@ -57,6 +132,27 @@ export default async function ProfilePage() {
             <p>
               <Link href="/portal/tests" className="pt-link">{strings.testsLink}</Link>
             </p>
+          </section>
+
+          <section aria-labelledby="portal-profile-consultation" className="pt-profile-card">
+            <h2 id="portal-profile-consultation" className="pt-section-title">
+              {consultationStrings.heading}
+            </h2>
+            {consultationHistory === null ? (
+              <p role="alert" className="pt-alert">{consultationStrings.historyUnavailable}</p>
+            ) : (
+              <>
+                <ConsultationRequest
+                  initialOpenRequest={openConsultationRequest(consultationHistory)}
+                  strings={consultationStrings}
+                />
+                <ConsultationHistory
+                  history={consultationHistory}
+                  strings={consultationStrings}
+                  locale={locale}
+                />
+              </>
+            )}
           </section>
 
           <section aria-labelledby="portal-profile-language" className="pt-profile-card">

@@ -15,6 +15,12 @@ import {
   universityMonthLabel,
 } from "@/lib/portal/universities";
 
+import {
+  ConsultationRequest,
+  type ConsultationRequestStrings,
+} from "@/components/portal/consultation/ConsultationRequest";
+import type { ConsultationReceipt } from "@/lib/portal/consultation";
+
 import { FavoriteToggle } from "./FavoriteToggle";
 import { PhotoFigure } from "./PhotoFigure";
 
@@ -149,6 +155,7 @@ export function UniversityDetailView({
   locale,
   now,
   favored = null,
+  consultation = null,
 }: {
   university: PublishedUniversity;
   base: string;
@@ -157,6 +164,15 @@ export function UniversityDetailView({
   now: Date;
   /** null — состояние избранного неизвестно (toggle не показывается). */
   favored?: boolean | null;
+  /**
+   * Запрос консультации по этому вузу (PORT-5b); null — блок не показывается
+   * (например, историю запросов не удалось прочитать — submit из профиля
+   * остаётся доступным).
+   */
+  consultation?: Readonly<{
+    initialOpenRequest: ConsultationReceipt | null;
+    strings: ConsultationRequestStrings;
+  }> | null;
 }) {
   const content = university.content;
   return (
@@ -193,6 +209,13 @@ export function UniversityDetailView({
           {strings.website}
         </ExternalLink>
       </div>
+      {consultation !== null ? (
+        <ConsultationRequest
+          institutionId={university.id}
+          initialOpenRequest={consultation.initialOpenRequest}
+          strings={consultation.strings}
+        />
+      ) : null}
       <section aria-labelledby="portal-university-programs">
         <h2 id="portal-university-programs" className="pt-section-title">
           {strings.programsHeading}

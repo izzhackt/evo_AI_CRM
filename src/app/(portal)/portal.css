@@ -1327,3 +1327,82 @@
   outline: 2px solid var(--pt-accent);
   outline-offset: 2px;
 }
+
+/* ---------- Запрос консультации (PORT-5b) ---------- */
+
+.pt-consult {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.pt-consult .pt-field {
+  width: 100%;
+  max-width: 520px;
+}
+
+.pt-consult-note {
+  width: 100%;
+  min-height: 88px;
+  padding: 10px 12px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font: inherit;
+  resize: vertical;
+}
+
+.pt-page textarea:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-consult-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.pt-consult-sent {
+  margin: 0;
+  color: var(--pt-ok);
+  font-weight: 500;
+}
+
+.pt-consult-history {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.pt-consult-history-item {
+  padding: 12px 14px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  display: grid;
+  gap: 4px;
+}
+
+.pt-consult-history-status {
+  margin: 0;
+  font-weight: 600;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-consult-history-meta {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-consult-history-note {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: var(--pt-size-secondary);
+}

@@ -300,6 +300,10 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/portal/tests",
     "/portal/tests/english",
     "/portal/tests/career",
+    // Подключены релизом d1b64849 (миграции 195/196): экраны существуют,
+    // но не были внесены в allowlist прокси — этот hotfix закрывает разрыв.
+    "/portal/favorites",
+    "/portal/profile",
   ];
   const authRoutes = [
     "/auth/callback",
@@ -321,7 +325,7 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
   }
   for (const path of [
     "/portal/",
-    "/portal/profile",
+    "/portal/profile/child",
     "/portal/documents/child",
     "/portal/tests/unknown",
     "/portal/tests/english/child",

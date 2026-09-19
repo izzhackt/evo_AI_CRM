@@ -18,6 +18,7 @@ import {
   universityMonthLabel,
 } from "@/lib/portal/universities";
 
+import { FavoriteToggle } from "./FavoriteToggle";
 import { PhotoFigure } from "./PhotoFigure";
 
 /**
@@ -131,18 +132,21 @@ export function UniversitiesToolbar({
   );
 }
 
-function UniversityCard({
+export function UniversityCard({
   item,
   base,
   strings,
   locale,
   now,
+  favored = null,
 }: {
   item: PublishedUniversity;
   base: string;
   strings: Strings;
   locale: Locale;
   now: Date;
+  /** null — состояние избранного неизвестно (toggle не показывается). */
+  favored?: boolean | null;
 }) {
   const content = item.content;
   const nearest = nearestUniversityIntake(content, now);
@@ -158,13 +162,27 @@ function UniversityCard({
           : universityMonthLabel(nearest.value, locale),
       });
   return (
-    <li className="pt-uni-card">
+    <article className="pt-uni-card">
       <PhotoFigure content={content} strings={strings} />
       <div className="pt-uni-card-body">
-        <p className="pt-uni-meta">
-          {universityCountryLabel(content.country, locale)}
-          {content.city ? ` · ${content.city}` : ""}
-        </p>
+        <div className="pt-uni-card-top">
+          <p className="pt-uni-meta">
+            {universityCountryLabel(content.country, locale)}
+            {content.city ? ` · ${content.city}` : ""}
+          </p>
+          {favored !== null ? (
+            <FavoriteToggle
+              institutionId={item.id}
+              initialFavored={favored}
+              universityName={content.name}
+              strings={{
+                favoriteAdd: strings.favoriteAdd,
+                favoriteRemove: strings.favoriteRemove,
+                favoriteError: strings.favoriteError,
+              }}
+            />
+          ) : null}
+        </div>
         <h2 className="pt-uni-name">
           <Link href={`${base}/${item.id}`}>{content.name}</Link>
         </h2>
@@ -182,7 +200,7 @@ function UniversityCard({
           <span className="pt-sr-only"> — {content.name}</span>
         </Link>
       </div>
-    </li>
+    </article>
   );
 }
 
@@ -193,6 +211,7 @@ export function UniversityCards({
   strings,
   locale,
   now,
+  favoriteIds = null,
 }: {
   page: UniversityPage;
   filters: UniversityFilters;
@@ -200,6 +219,8 @@ export function UniversityCards({
   strings: Strings;
   locale: Locale;
   now: Date;
+  /** null — избранное недоступно этому рендеру (toggle не показывается). */
+  favoriteIds?: readonly string[] | null;
 }) {
   if (!page.items.length) {
     return (
@@ -215,14 +236,16 @@ export function UniversityCards({
     <>
       <ul className="pt-uni-grid">
         {page.items.map((item) => (
-          <UniversityCard
-            key={item.id}
-            item={item}
-            base={base}
-            strings={strings}
-            locale={locale}
-            now={now}
-          />
+          <li key={item.id}>
+            <UniversityCard
+              item={item}
+              base={base}
+              strings={strings}
+              locale={locale}
+              now={now}
+              favored={favoriteIds === null ? null : favoriteIds.includes(item.id)}
+            />
+          </li>
         ))}
       </ul>
       {page.nextOffset !== null ? (

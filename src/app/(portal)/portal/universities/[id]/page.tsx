@@ -5,6 +5,7 @@ import { UniversityDetailView } from "@/components/portal/universities/Detail";
 import { getLocale } from "@/lib/i18n";
 import { universityUuid } from "@/lib/platform-university-catalog";
 import { getPortalStrings } from "@/lib/portal/i18n";
+import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { readStudentUniversities } from "@/lib/v3/university-source";
 
@@ -39,6 +40,15 @@ export default async function UniversityPage({
     );
   }
   const university = page.items[0] ?? notFound();
+  // Сбой чтения избранного не роняет карточку: toggle честно скрывается
+  // вместо ложного «не сохранено» (PORT-3b).
+  let favored: boolean | null = null;
+  try {
+    favored = (await readStudentUniversityFavorites())
+      .some((favorite) => favorite.institutionId === university.id);
+  } catch {
+    favored = null;
+  }
   return (
     <main className="pt-page">
       <UniversityDetailView
@@ -47,6 +57,7 @@ export default async function UniversityPage({
         strings={strings}
         locale={locale}
         now={new Date()}
+        favored={favored}
       />
     </main>
   );

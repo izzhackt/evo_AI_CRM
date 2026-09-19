@@ -16,6 +16,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "calendar-contract.ts",
     "calendar-source.ts",
     "case-access-contract.ts",
+    "case-agreement-source.ts",
     "case-operations-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",
@@ -64,6 +65,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
   assert.deepEqual(adapterFiles, [
     "admissions-source.ts",
     "calendar-source.ts",
+    "case-agreement-source.ts",
     "case-operations-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",

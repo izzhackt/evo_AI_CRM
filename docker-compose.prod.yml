@@ -32,6 +32,7 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
+      EVO_KNOWLEDGE_AGE_KEY_FILE: "/run/evo-knowledge/age.key"
       EVO_CLAMD_HOST: "evo-crm-clamav"
       EVO_CLAMD_PORT: "3310"
       EVO_CLAMD_TIMEOUT_MS: "10000"
@@ -42,6 +43,7 @@ services:
       - "3000"
     volumes:
       - evo_crm_output:/app/output
+      - /etc/evo-crm/knowledge:/run/evo-knowledge:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
       - /app/.next/cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1001,gid=1001

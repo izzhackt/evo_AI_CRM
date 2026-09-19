@@ -657,6 +657,7 @@ function SidebarFolder({
 
 /** One real workspace over company files plus the existing student-document projection. */
 export function FileManager({
+  rootLabel = "База знаний",
   folders,
   files,
   canManage,
@@ -664,6 +665,7 @@ export function FileManager({
   createFolderRequestId,
   createFileRequestId,
 }: Readonly<{
+  rootLabel?: string;
   folders: readonly KnowledgeFolder[];
   files: readonly KnowledgeFile[];
   canManage: boolean;
@@ -763,7 +765,7 @@ export function FileManager({
                     onClick={() => openFolder(null)}
                     className="min-h-8 rounded-nav px-1 hover:text-fg"
                   >
-                    База знаний
+                    {rootLabel}
                   </button>
                 </li>
                 {breadcrumbs.map((folder) => (

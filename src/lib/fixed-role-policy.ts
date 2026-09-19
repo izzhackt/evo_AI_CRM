@@ -34,6 +34,8 @@ export const FIXED_ROLE_ROUTES = [
   "/v3/messages",
   "/v3/universities",
   "/v3/knowledge",
+  "/v3/reply-snippets",
+  "/v3/documents",
   "/v3/settings",
 ] as const;
 
@@ -78,7 +80,9 @@ const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/team-chat": ["team.read"],
   "/v3/messages": ["admissions.read"],
   "/v3/universities": ["sales.read", "admissions.read"],
-  "/v3/knowledge": ["documents.read", "messaging.read"],
+  "/v3/knowledge": ["admin.preview"],
+  "/v3/documents": ["documents.read"],
+  "/v3/reply-snippets": ["sales.read", "admissions.read"],
   "/v3/settings": ["admin.preview"],
 } as const satisfies Record<FixedRoleRoute, RouteCapabilityRequirement>;
 

@@ -20,6 +20,8 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/admissions-requests",
   "/v3/settings",
   "/v3/knowledge",
+  "/v3/reply-snippets",
+  "/v3/documents",
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",
@@ -219,6 +221,7 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 export function isConnectedPlatformApi(path: string): boolean {
   return (
+    /^\/api\/v3\/knowledge\/(?:list|command|item|blob|download|exports|clients|secrets|source)(?:\/[0-9a-z-]+){0,2}$/.test(path) ||
     path === PLATFORM_AUDIT_EXPORT_PATH ||
     PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||

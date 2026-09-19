@@ -32268,6 +32268,38 @@ tests/ci-node-test-suite.test.mjs (состав suite не меняется — 
 - Контент инструментов (вопросы/разборы/метаданные) остаётся RU из БД;
   перевод контента — отдельная контентная работа, не UI-слайс.
 
+## 2026-09-19 — KB-1/2: изолированный контракт Admin-библиотеки
+
+KB-0 merged as PR #902 (`7610579df`); exact-head independent review and protected short checks passed. The next slice adds the knowledge domain under `platform_private` with only explicitly granted Admin RPCs; no direct table grants, separate organization/scope-bounded blob identities, immutable page snapshots, optimistic versions and idempotent request receipts. It does not replace existing case documents/chat or the company-file authority.
+
+Names and current page text are searchable; raw files and encrypted payloads are opaque. Inbox is the absence of a parent in an area; review and trash are filters over the existing location. Folder cycles and cross-boundary moves are rejected. Page restores create a new immutable version. Source identities are unique and never overwrite a subsequently edited imported page.
+
+Measured 50 MiB Storage object limit and 2.27 GB source containers require 8 MiB immutable parts in private Supabase Storage. A file is published only after the server reads every stored part and verifies the entire SHA-256 and length. Client-declared hashes alone are not proof. Download/export reconstruct original bytes in order. Existing case-file malware/provenance controls remain unchanged; library raw containers are opaque attachments without active previews or claimed full-file malware scans.
+
+Schema source initially lives in `docs/design/knowledge/schema.sql` pending coordinator numbering; it is not an applied migration. Before shipping it is moved once to the assigned forward migration, reviewed and applied by the shared coordinator. The UI/API remains unpublished until its real database path is available. Shared route/navigation changes will be restricted to the new Admin boundary after Fable's acknowledgment. No key provisioning or runtime release is implied by this entry.
+
+### 2026-09-20 — KB: sealed records, canonical dossier projections and source filing
+
+- SOPS records use private versioned ciphertext and access facts without values; no plaintext fields are persisted in the generic node/index/receipt domain. Existing local vault decryption was verified process-only; production key and binary remain absent until coordinated provisioning.
+- Dossiers reuse the real case, document workspace, chat pagination and activity readers. Source files are not cloned and client identity is not recreated. Full export still needs canonical-source snapshots before acceptance.
+- Private metadata filing plan covers all 6,570 source entries; 436 approved/working general Markdown pages are editable, other originals remain files, 32 protected sources have a separate encrypted import, and two backup key files remain outside the library. Candidate/approval provenance is preserved; no AI bundle publication occurs.
+- Import checks source size/hash, resumes existing blobs/nodes, preserves user-edited pages and maps unambiguous local links to stable material IDs. Source originals remain immutable. SQL stays unnumbered until coordinator confirmation.
+
+### 2026-09-20 — KB: canonical export and protected source delivery (draft #906)
+
+- Dossier export projects existing case/document/company-file/chat/history records into one fixed database snapshot. It creates no second business identity. Explicit case selection includes its added KB materials; selecting a nested KB folder does not expand to the whole case. Existing scan proofs are checked again before reading original Storage bytes.
+- Reply snippets keep their staff permissions on `/v3/reply-snippets`; `/v3/knowledge` remains Admin-only. The shared navigation change is limited to this relocated entry.
+- Protected migration wraps all original vault files with the existing SOPS/age recipient and maps existing vault entries to structured records. Local preparation writes ciphertext only, verifies round trips and excludes key backups. Server import authenticates SOPS and verifies original hashes before persisting ciphertext.
+- Runtime proposal: checksum-pinned SOPS binary in the immutable image, age key in a read-only external directory, and a scheduled service-only export maintenance command. No production apply, key provisioning, timer installation or arm is implied; Fable coordination is pending in #906/#903.
+- Scope-local SQL validation uses a separate empty local database copied from the schema only; no customer/Auth records were copied. This is compilation evidence, not production business acceptance.
+
+### 2026-09-20 — KB: сохранение рабочих документов и явная привязка материалов
+
+- Existing staff documents remain reachable on `/v3/documents` through the same company/document sources and permissions. The Admin-only library does not remove this staff workflow.
+- Historical unassigned materials in the clients area can be attached to an existing case only after the Admin selects its actual CRM identity and confirms ownership. The whole selected subtree gains that case reference in one versioned transaction. Already-bound case materials cannot be reassigned through this action; no canonical business entity is mutated.
+- Retried generic browser commands retain their request identity across transient failures and page reloads. Browser session storage contains only a command hash and request UUID, never source text or secret values.
+- Export failures retain the failing item for the owner and remain unavailable as complete archives. Retry rechecks current scan proof and reuses verified output parts. Expired export paths are swept repeatedly to collect parts uploaded by a worker that was in flight at expiry.
+
 ## 2026-09-20 — PORT-9c: «Главная» кабинета в «Атласе» (web, append-only)
 
 Контекст: дизайн-контракт (docs/design/portal/design-contract.md §«Карта
@@ -32372,6 +32404,15 @@ tests/ci-node-test-suite.test.mjs; 9. git diff --check.
   структурные пины и неизменность серверных контрактов (только существующие
   RPC-чтения).
 - KY-строки написаны агентом и ждут вычитки носителем языка.
+
+### 2026-09-20 — KB: SQL draft location recognized by protected checks
+
+Fast checks on `441492b7` correctly failed closed: four proposed SQL files under
+`docs/design/knowledge` were unknown code paths. Move these unchanged SQL drafts
+to the already supported `docs/schemas/knowledge/` prefix. The existing classifier
+continues to require code lint/build and release contracts; no CI guard is changed
+or bypassed. These remain unnumbered proposals, not ledger migrations. Migration
+numbering and schema/release coordination are still required before delivery.
 
 ## 2026-09-20 — PORT-9a: анкета, статус заявки и инвайт на iPhone (append-only)
 
@@ -32674,3 +32715,27 @@ HTTP 200 с верными content-type и байтами, совпадающи�
 выполнена ревьюером #909 спот-чеками (6 записей в обе стороны через
 extmetadata API); полная построчная ре-верификация остаётся честным
 ограничением.
+
+
+## 2026-09-20 — KB: передача выпуска Astra и резерв миграций 201–204
+
+Владелец в текущей задаче явно подтвердил передачу Astra выпуска базы знаний,
+переноса реальных материалов и проверки экспорта. Fable уведомлён в #912:
+https://github.com/izzhackt/evo_AI_CRM/pull/912#issuecomment-5745678648.
+На момент резерва main `d564aefd`, production ledger заканчивается на 200,
+Portal release `35469103571` завершён, release arm выключен, pending отсутствует.
+Открытые #912/#905 не добавляют SQL. За KB резервируются 201–204 в порядке
+library → sealed records → canonical export → export jobs. SQL-проекты
+переносятся без изменения поведения в forward migrations. Единственный
+координатор schema apply и ближайшего выпуска — Astra; до dispatch отдельно
+фиксируется exact-main freeze. Portal/iOS-изменения сохраняются.
+
+Production apply выполняется только из проверенного commit с записью исходного
+SQL в общий ledger в одной транзакции; последующее чтение проверяет номера и
+SHA-256. Management API `/database/migrations` сам назначает версию и не принимает
+наш числовой version, поэтому используется `/database/query` для точного SQL и
+ledger insert. Официальный контракт: https://supabase.com/docs/reference/api/v1-run-a-query
+и https://supabase.com/docs/reference/api/v1-apply-a-migration (проверены 20.09.2026).
+Ключ SOPS передаётся только process-only из Keychain на внешний серверный путь.
+Эта запись фиксирует полномочия и порядок, но не объявляет применение,
+выпуск, импорт или проверку ZIP уже выполненными.

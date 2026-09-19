@@ -61,3 +61,6 @@ data/
 
 # Claude Code local settings (machine-specific; never shared)
 .claude/settings.local.json
+
+# Private knowledge runtime material must never enter Git or build context.
+secrets/knowledge/

@@ -32146,3 +32146,124 @@ Idempotency-Key (ретрай/смена файла/успех), UUIDv5-пари
 сортировка очереди действий. Live upload/download НЕ прогоняются до merge
 и релиза PORT-8a (серверного bearer ещё нет в main); live sign-in в этой
 сессии не выполняется — пост-логин экраны перечисляются как not-exercised.
+
+
+## 2026-09-19 — PORT-8c: веб-хвосты — тесты в «Атласе», KY-анкета, этап дела (append-only)
+
+Слайс закрывает три подтверждённых аудитом разрыва веб-портала после
+PORT-2…PORT-6a. Ветка izzhackt/portal-8-web-residuals от origin/main
+(c4fcc489). Без миграций; ассессмент-контракт (5 Student-RPC, раннер,
+серверные вердикты) не меняется — только представление и словари.
+
+### 1. Экраны тестов переезжают в «Атлас» (replace-don't-layer)
+
+- Новые компоненты `src/components/portal/tests/`: `TestsCatalog.tsx`
+  (каталог+история, серверный), `AssessmentPage.tsx` (серверная сборка
+  attempt→runner), `AssessmentRunner.tsx`, `AssessmentQuestion.tsx`,
+  `AssessmentResults.tsx` (клиентские; та же механика — автосейв 650ms,
+  идемпотентный retry того же request/snapshot, exit-guard, testid
+  `assessment-runner`/`assessment-results`). Стили — только `--pt-*`
+  классы portal.css (light+dark обязательны), Tailwind-утилиты staff-мира
+  уходят вместе со старыми файлами.
+- Умирают v3-файлы (grep всего репозитория подтверждает, что после переноса
+  импортов не остаётся): `src/components/v3/portal/PortalPage.tsx`,
+  `src/components/v3/portal/assessments/{AssessmentPage,AssessmentQuestion,
+  AssessmentResults,AssessmentRunner}.tsx`.
+  `PortalNotificationUpdates.tsx` остаётся: его импортирует layout портала,
+  это не экран тестов и не residual этого слайса.
+- Новый неймспейс `tests` в `src/lib/portal/i18n.ts`: RU-значения —
+  байт-в-байт сегодняшние строки экранов (они же якоря
+  tests/e2e/student-assessments.spec.ts: «Начать тест», «Все ответы
+  сохранены», «Завершить и получить результат», «Задание {n} из {total}»,
+  «Ваша карта интересов», «Сохранить и выйти» и т.д.), KY — полный словарь.
+  Страницы: `getPortalStrings("tests", await getLocale())` (getLocale —
+  async), клиентские компоненты получают строки/locale пропсами (паттерн
+  LessonRunner). Контент инструмента (metadata/questions/разборы) приходит
+  из read model с его локалью (сегодня ru) и не переводится на клиенте —
+  честная граница, как в уроках английского.
+- error.tsx/loading.tsx маршрута тестов рескинятся на pt-классы; тексты
+  error-boundary остаются RU-статикой — то же осознанное ограничение, что у
+  существующего `src/app/(portal)/portal/error.tsx` (boundary рендерится без
+  серверного locale-прохода).
+- Metadata title страниц остаётся статическим RU («Тесты — EVO Admissions»)
+  — паттерн остальных портальных страниц (english/page.tsx).
+- Обновляются в тех же коммитах структурные пины:
+  tests/v3-student-portal-ui.test.mjs (остаточный состав v3/portal,
+  PortalEmptyState-пин переезжает на новый каталог),
+  tests/student-assessments.test.mjs (путь раннера; поведенческие пины
+  сохраняются), tests/e2e/portal-static-render.cjs +
+  tests/e2e/portal-accessibility.spec.ts (см. a11y ниже).
+
+### 2. Анкета /apply получает полный KY
+
+- Механизм локали — существующий: cookie `locale` читается `getLocale()`
+  на сервере (анкета живёт до авторизации; тот же механизм уже работает на
+  /login). Persist в БД не добавляется — до создания аккаунта персистить
+  некуда, после одобрения профиль портала владеет языком (RPC 196).
+- Видимый переключатель RU/KY на страницах /apply и /apply/status:
+  двухкнопочная форма на существующем server action
+  `src/lib/locale-actions.ts` setLocaleAction (EN не предлагается — у
+  портала осознанно нет английского интерфейса; en-cookie резолвится в RU).
+- Новый неймспейс `apply` в портальном словаре: шаги, вопросы, подписи
+  полей, валидация, серверные статусы регистрации, статусный экран, ошибки.
+  RU — байт-в-байт сегодняшние строки (HARD constraint; grep tests/ не
+  нашёл прямых якорей на строки анкеты, но правило сохраняем). Доменные
+  подписи опций (страны, сезоны, уровни, бюджеты, источники) — ключи
+  `opt.<value>`; RU зеркалит APPLICATION_LABELS байт-в-байт (контракт-тест
+  по паттерну admission↔wording). Направления обучения хранятся RU-строками
+  (контракт заявки не меняется) — KY-подпись только для показа, значение в
+  анкете остаётся каноническим RU; поиск по направлениям матчит обе подписи.
+- Названия стран гражданства: Intl.DisplayNames("ky") с проверкой
+  resolvedOptions().locale и честным фолбэком на RU-имена, если у рантайма
+  нет ky-данных (Node 22/браузеры ship full ICU — проверено локально).
+- Серверная логика регистрации/одобрения не трогается: user-visible
+  сообщения статусов уже маппятся на клиенте (serverError в wizard) и
+  локализуются словарём.
+
+### 3. «Моё поступление» показывает операционный этап дела
+
+- Read model уже отдаёт `overview.operationalStage`
+  (src/lib/v3/portal-source.ts:81,430); рендерим его в
+  src/components/portal/admission/OverviewView.tsx в колонке команды EVO:
+  подпись + значение. Ключи `stage.<key>` в admission-словаре зеркалят
+  RU staff-словаря STUDENT_OPERATIONAL_STAGE байт-в-байт (11 ключей) +
+  `stageCustom` = «индивидуальный этап сопровождения» для нестандартного
+  значения; KY — свои значения. Никакого нового RPC и выдуманных названий;
+  overview=null (pending-кабинет/нет плана) — блока этапа нет вовсе.
+- Пин теста «the overview never claims a mandatory stage» уточняется:
+  запреты «Текущий этап»/overviewStage-хелпера остаются, добавляются
+  позитивные пины честного рендера operationalStage из словаря.
+
+### A11y и якоря
+
+- Статический axe-гейт (tests/e2e/portal-accessibility.spec.ts +
+  portal-static-render.cjs) получает новые поверхности тем же паттерном,
+  light+dark: `tests-catalog`, `tests-runner` (черновик с вопросом),
+  `tests-results` (завершённый english-результат на фикстуре E2-формы).
+- Смоук-якоря заморожены байт-в-байт и перепроверяются grep'ом после
+  изменений: testid student-portal-shell, nav «Разделы кабинета», заголовки
+  «Моё поступление», «Документы», «Чеклист», empty-state «Список документов
+  пока пуст», #staff-email/#staff-password.
+
+### План валидации (каждая команда отдельно, с echo exit-кода)
+
+1. npx tsc --noEmit; 2. npx eslint (затронутые пути); 3. npx next build;
+4. node --test tests/portal-i18n.test.mjs; 5. node --test
+tests/v3-student-portal-ui.test.mjs; 6. node --test
+tests/student-assessments.test.mjs; 7. node --test
+tests/student-public-application.test.mjs; 8. node --test
+tests/ci-node-test-suite.test.mjs (состав suite не меняется — новые
+тест-файлы не добавляются, пины occurrenceCount/uniqueFileCount ожидаемо
+прежние); 9. npx playwright test -c playwright.accessibility.config.ts
+(портальный axe-гейт). Прогоны не чейнятся с пушем и не фильтруются
+через tail/grep.
+
+### Честные ограничения
+
+- Живой production-рендер и реальный Supabase-путь тестов/анкеты в этой
+  сессии не прогоняются: e2e student-assessments.spec.ts требует живой
+  Supabase-runtime (E5-гейт), уверенность — из статического рендера axe,
+  структурных пинов и неизменного контракта действий.
+- KY-тексты написаны агентом и ждут вычитки носителем языка.
+- Контент инструментов (вопросы/разборы/метаданные) остаётся RU из БД;
+  перевод контента — отдельная контентная работа, не UI-слайс.

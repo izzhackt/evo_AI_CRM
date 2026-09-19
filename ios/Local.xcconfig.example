@@ -1,0 +1,4 @@
+// Copy this file to Local.xcconfig (same directory) and fill in real values.
+// Local.xcconfig is git-ignored; never commit real Supabase credentials.
+SUPABASE_URL = https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY = your-publishable-key

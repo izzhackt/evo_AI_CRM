@@ -1,0 +1,9 @@
+# Real Supabase URL/key live only here, never in git.
+Local.xcconfig
+
+# Xcode / SPM local state
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/

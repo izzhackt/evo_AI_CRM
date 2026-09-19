@@ -1,0 +1,452 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 005949937B65067CD79CB062 /* Localizable.xcstrings */; };
+		1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036B63945D738592B84D329 /* AccessPendingView.swift */; };
+		45DE16AD4C98B00179939449 /* NetworkErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */; };
+		48954EF3BCE4088708D2D5C3 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6092FB55F132DB487AC29A36 /* HomeView.swift */; };
+		4B719C2CF1A19ED986419366 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CDF92CA04A21A199DB841591 /* Assets.xcassets */; };
+		7EB7366B1B43CE792C680F3A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC77892DE13ABBA6FF91B1B4 /* RootView.swift */; };
+		8EDF7EA8F721F4F8A12E6532 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 2F2B8B40F10FF70688FD83B9 /* Supabase */; };
+		95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */; };
+		99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B36978FE6CEE29DDAC580E /* SupabaseService.swift */; };
+		B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45852421E9DCACAC63246FF9 /* SignInView.swift */; };
+		C3B4FCB7F47E3265DF94166E /* PortalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9DA536AE40E6D000522F975 /* PortalModels.swift */; };
+		C48A08D145638EFFBC5FCDCA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122B8F39ABA8651CEF454758 /* AppConfig.swift */; };
+		F7583E3535D3D71DCC0682FA /* UniversitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 934F3BCA224845533993A460 /* UniversitiesView.swift */; };
+		F808E95418CFD0F82AACCDD2 /* SessionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE1702D238F863B18144F44 /* SessionRouter.swift */; };
+		FBDD8C578D08F51D4CA21198 /* PlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68EA92B3C878C3B9C3C501EA /* PlaceholderView.swift */; };
+		FD07B3A17A0CA2DC11FA85C1 /* TabShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD04FB295EC8AF191E69FE6A /* TabShell.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		005949937B65067CD79CB062 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		122B8F39ABA8651CEF454758 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		17B36978FE6CEE29DDAC580E /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		45852421E9DCACAC63246FF9 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkErrorView.swift; sourceTree = "<group>"; };
+		5036B63945D738592B84D329 /* AccessPendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPendingView.swift; sourceTree = "<group>"; };
+		6092FB55F132DB487AC29A36 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		68EA92B3C878C3B9C3C501EA /* PlaceholderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
+		7AB25A7C26BF4F620662154D /* EVO admissions.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "EVO admissions.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		934F3BCA224845533993A460 /* UniversitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversitiesView.swift; sourceTree = "<group>"; };
+		9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EVOAdmissionsApp.swift; sourceTree = "<group>"; };
+		A9DA536AE40E6D000522F975 /* PortalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalModels.swift; sourceTree = "<group>"; };
+		BAE1702D238F863B18144F44 /* SessionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRouter.swift; sourceTree = "<group>"; };
+		CC77892DE13ABBA6FF91B1B4 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		CDF92CA04A21A199DB841591 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FD04FB295EC8AF191E69FE6A /* TabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabShell.swift; sourceTree = "<group>"; };
+		"TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1BC30991CD54FF7329CBF0CA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8EDF7EA8F721F4F8A12E6532 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0229C86B914EC8852E3C9C41 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				5036B63945D738592B84D329 /* AccessPendingView.swift */,
+				6092FB55F132DB487AC29A36 /* HomeView.swift */,
+				4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */,
+				68EA92B3C878C3B9C3C501EA /* PlaceholderView.swift */,
+				CC77892DE13ABBA6FF91B1B4 /* RootView.swift */,
+				45852421E9DCACAC63246FF9 /* SignInView.swift */,
+				FD04FB295EC8AF191E69FE6A /* TabShell.swift */,
+				934F3BCA224845533993A460 /* UniversitiesView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		1349A8A541121D8A15002A81 /* EVOAdmissions */ = {
+			isa = PBXGroup;
+			children = (
+				18AC55EE767B87C27FABF436 /* App */,
+				6C76C8767C0DB172062D9774 /* Resources */,
+				AEDC6BBDAD17A67A2F572E6C /* Services */,
+				0229C86B914EC8852E3C9C41 /* Views */,
+			);
+			path = EVOAdmissions;
+			sourceTree = "<group>";
+		};
+		18AC55EE767B87C27FABF436 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				122B8F39ABA8651CEF454758 /* AppConfig.swift */,
+				9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		258CB937688C35EAAF4A511C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7AB25A7C26BF4F620662154D /* EVO admissions.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		6C76C8767C0DB172062D9774 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				CDF92CA04A21A199DB841591 /* Assets.xcassets */,
+				005949937B65067CD79CB062 /* Localizable.xcstrings */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A0DA2110B516E89AD03DF224 = {
+			isa = PBXGroup;
+			children = (
+				1349A8A541121D8A15002A81 /* EVOAdmissions */,
+				258CB937688C35EAAF4A511C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AEDC6BBDAD17A67A2F572E6C /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A9DA536AE40E6D000522F975 /* PortalModels.swift */,
+				BAE1702D238F863B18144F44 /* SessionRouter.swift */,
+				17B36978FE6CEE29DDAC580E /* SupabaseService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		"TEMP_FD77BCCE-0B4F-4F2C-B6CE-32E5C05068AE" /* ios */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */,
+			);
+			path = ios;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8567162DA73BC7DA86C45165 /* EVO admissions */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CE385B75F1357DF7D3B7DF9 /* Build configuration list for PBXNativeTarget "EVO admissions" */;
+			buildPhases = (
+				BB128637DB6780C1A4BB59D1 /* Sources */,
+				8EE9A1F2F95910B8912DF93D /* Resources */,
+				1BC30991CD54FF7329CBF0CA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "EVO admissions";
+			packageProductDependencies = (
+				2F2B8B40F10FF70688FD83B9 /* Supabase */,
+			);
+			productName = "EVO admissions";
+			productReference = 7AB25A7C26BF4F620662154D /* EVO admissions.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		48D3E8B1092144ED0DE393C8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					8567162DA73BC7DA86C45165 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 0C4D88F3462CE462A5B7A25A /* Build configuration list for PBXProject "EVOAdmissions" */;
+			developmentRegion = ru;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				ky,
+				ru,
+			);
+			mainGroup = A0DA2110B516E89AD03DF224;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				66B488AC4626F656C60061B0 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 258CB937688C35EAAF4A511C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8567162DA73BC7DA86C45165 /* EVO admissions */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8EE9A1F2F95910B8912DF93D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B719C2CF1A19ED986419366 /* Assets.xcassets in Resources */,
+				10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BB128637DB6780C1A4BB59D1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */,
+				C48A08D145638EFFBC5FCDCA /* AppConfig.swift in Sources */,
+				95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */,
+				48954EF3BCE4088708D2D5C3 /* HomeView.swift in Sources */,
+				45DE16AD4C98B00179939449 /* NetworkErrorView.swift in Sources */,
+				FBDD8C578D08F51D4CA21198 /* PlaceholderView.swift in Sources */,
+				C3B4FCB7F47E3265DF94166E /* PortalModels.swift in Sources */,
+				7EB7366B1B43CE792C680F3A /* RootView.swift in Sources */,
+				F808E95418CFD0F82AACCDD2 /* SessionRouter.swift in Sources */,
+				B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */,
+				99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */,
+				FD07B3A17A0CA2DC11FA85C1 /* TabShell.swift in Sources */,
+				F7583E3535D3D71DCC0682FA /* UniversitiesView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		21E90DF4EEE73B191FC7DE04 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Generated/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.evoadmissions.app;
+				PRODUCT_NAME = "EVO admissions";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B6C84763ED668FD71B0D8C20 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		CB51B4AEA66C9E5C07B5ABA5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = Generated/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.evoadmissions.app;
+				PRODUCT_NAME = "EVO admissions";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		F095E5C184A5CF5D3A673C4C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0C4D88F3462CE462A5B7A25A /* Build configuration list for PBXProject "EVOAdmissions" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F095E5C184A5CF5D3A673C4C /* Debug */,
+				B6C84763ED668FD71B0D8C20 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8CE385B75F1357DF7D3B7DF9 /* Build configuration list for PBXNativeTarget "EVO admissions" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				21E90DF4EEE73B191FC7DE04 /* Debug */,
+				CB51B4AEA66C9E5C07B5ABA5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		66B488AC4626F656C60061B0 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2F2B8B40F10FF70688FD83B9 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 66B488AC4626F656C60061B0 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 48D3E8B1092144ED0DE393C8 /* Project object */;
+}

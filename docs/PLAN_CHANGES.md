@@ -31333,3 +31333,99 @@ test:frontend с обновлением пинов tests/ci-node-test-suite.test
 не выполняется — фиксируется честно в PR.
 Reviewer notes: pending independent review on the exact PR head; base main
 `0fa2ef95`.
+## 2026-09-19 — PORT-4a: движок обучения и профессий (миграция 198)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal content/engine session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 «Английский» и «Профессии»,
+§8.5 («личные данные»), §8.6 («публикуемый контент») и решения PORT-0
+«Состав первого учебного модуля» и «Покрытие профессий»; источники контента —
+`docs/design/portal/content/english-module-1-draft.json` и
+`professions-draft.json` (оба merged) с их notes-файлами.
+Change type: architecture and scope fixation for PORT-4a before coding;
+allocates migration number 198 (production ledger 001–196; номера 197+
+закреплены за Portal-цепочкой координатором, 197 занят параллельным
+Portal-slice, за этой работой — 198 движок и 199 сид контента).
+Affected plan section: PORT-4, план §6 «Английский»/«Профессии», §8.5/8.6;
+notes-файлы контента (их «открытые вопросы движка» закрываются здесь).
+
+Reason: контент-драфты merged, но у них нет ни хранилища, ни механики:
+уроки/упражнения/карточки профессий существуют только как JSON в docs, у
+ученика нет попыток, разборов, банка ошибок и прогресса. Открытые вопросы
+notes (нормализация short_answer, порог «урок пройден», экран итога) блокируют
+и сид (slice B), и UI (slice C) — фиксируются здесь до кодирования.
+
+Decision:
+- (a) Резолюции открытых вопросов notes (полномочие Fable, план §12):
+  нормализация short_answer = lowercase + trim + схлопывание внутренних
+  пробельных прогонов в один пробел + отбрасывание ФИНАЛЬНЫХ точек/запятых +
+  унификация типографских апострофов (’ ‘ ʻ ʼ → ') с ASCII; списки accepted
+  остаются каноническими формами. «Урок пройден» = отвечено КАЖДОЕ упражнение
+  урока (complete-гейт); доля верных сохраняется в result_snapshot попытки,
+  но порогом НЕ является («завершение отражает реальные действия», план §6).
+  Отдельного статического экрана-итога в v1 нет: итог собирается из
+  результатов заданий попытки (вариант 2 из notes; поле recap не добавляется).
+  Дополнительно: reading-упражнение считается верным только при верных
+  ответах на ВСЕ его вложенные вопросы (доля верных считается по упражнениям);
+  ответ на упражнение внутри попытки финален (повторное сохранение того же
+  упражнения — 22023; та же идемпотентность по request_id возвращает исходный
+  receipt) — «изменить ответ после разбора» означало бы фальшивую долю верных.
+- (b) Миграция `198_platform_learning_engine.sql` по референс-архитектуре 135:
+  версионируемый ИММУТАБЕЛЬНЫЙ контент в
+  `platform_private.learning_modules/learning_lessons/learning_exercises`
+  (INSERT-only триггеры; exact-key JSONB-валидаторы по типам упражнений
+  choice/matching/short_answer/reading; в choice у КАЖДОГО варианта обязательны
+  explain_ru/explain_ky) и `platform_private.profession_cards` (exact-key
+  валидатор по схеме драфта; orvis_scales — только 8 известных id шкал).
+  Состояние ученика: `platform.learning_lesson_attempts` (draft/completed,
+  optimistic revision с 40001-семантикой 135, частичный уникальный индекс
+  «один draft на урок», answers JSONB c приговорами) +
+  `platform_private.learning_requests` (идемпотентные start/save/complete по
+  request_id с receipt, зеркало write-функции 135). Проверка ответов — только
+  на сервере; ключи ответов и разборы НЕотвеченных упражнений никогда не
+  сериализуются клиенту: публичная проекция упражнения отрезает
+  answer_index/accepted/explain*, а у matching правая колонка отдаётся в
+  детерминированном хэш-порядке, не совпадающем с порядком пар (иначе сам
+  порядок был бы ключом). save-RPC возвращает вердикт + разбор отвеченного
+  упражнения сразу (мгновенный разбор — механика урока); банк ошибок — id
+  неверно отвеченных упражнений вычисляются сервером в момент ответа и
+  сохраняются в попытке/её result_snapshot.
+- (c) RPC (SECURITY DEFINER, search_path='', GRANT EXECUTE TO authenticated;
+  студенческий guard — каталожный паттерн 148/195/196: student +
+  portal.read.self, СОЗНАТЕЛЬНО case-НЕзависимый):
+  `platform.learning_modules_v1()` (модули + свой прогресс: уроки
+  всего/завершено, состояние каждого урока), `platform.learning_lesson_v1
+  (p_lesson_id)` (безопасная проекция урока + свой draft с разборами только
+  отвеченных + сводка последнего завершения),
+  `platform.start_learning_lesson_v1/save_learning_answer_v1/
+  complete_learning_lesson_v1` (семейство записи с receipt),
+  `platform.learning_review_v1(p_module_id)` (упражнения, отвеченные неверно
+  в завершённых попытках модуля; cap 20, новые первыми),
+  `platform.learning_review_check_v1(p_exercise_id, p_answer)` (проверка
+  ответа в режиме повторения; доступна ТОЛЬКО для упражнений из собственного
+  банка ошибок — их разборы ученику уже открыты, инвариант «разбор только
+  отвеченного» сохраняется), `platform.profession_cards_v1()` /
+  `platform.profession_card_v1(p_card_id)`.
+  ПРИВАТНОСТЬ (план §6/§8.5, staff-невидимость по стоячему решению):
+  попытки/ответы/прогресс — ноль табличных грантов, только RPC, ничего в
+  audit_events; admin/sales/curator и чужой студент получают 42501.
+- (d) Boundary-тест `supabase/tests/platform_learning_engine.sql` на
+  чекпоинте 198 (конвенция 185/192–196, маркеры
+  P198_LEARNING_ENGINE_SUITE_START/PASSED): свой start/save/complete/review;
+  мгновенный разбор только отвеченного (draft-проекция не содержит ключей и
+  разборов неотвеченных, save возвращает разбор); резюме draft (разборы
+  отвеченных в payload); конфликт ревизии 40001; отказ staff/чужого студента
+  42501; иммутабельность контента (UPDATE → 55000); валидаторы контента
+  (битые payload'ы всех четырёх типов и карточки — 22023); отсутствие следов
+  в audit_events.
+
+Validation impact: полная цепочка 001–198 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с ПОЛНЫМ захваченным
+логом и явным grep маркеров P198 (и сохранности P192–P196);
+`npm run typecheck`; `npm run build`; `npm run test:brand-ui`; портальные
+node-тесты не меняются в slice A (состав сьюта не трогается — пины
+ci-node-test-suite без изменений); `git diff --check`. Живой
+аутентифицированный рендер не входит в slice A (нет UI).
+Reviewer notes: pending independent review on the exact PR head; slice B
+(199, сид из драфтов) и slice C (веб-UI) идут stacked поверх этой ветки,
+ретаргет после merge базы — задача координатора.

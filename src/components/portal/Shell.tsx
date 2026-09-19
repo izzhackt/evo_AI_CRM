@@ -34,13 +34,15 @@ export type PortalAccessTier = "approved" | "assisted";
 
 /**
  * Честная навигация: только реально существующие сегодня разделы
- * (Избранное — PORT-3b, Профиль — PORT-5a). Профессии/Английский появятся в
- * PORT-4 вместе со своими маршрутами — мёртвых пунктов меню не выставляем.
+ * (Избранное — PORT-3b, Профиль — PORT-5a, Профессии/Английский — PORT-4c,
+ * оба tier'а по дизайн-контракту).
  */
 const SECTIONS = [
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
   { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"] },
+  { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
+  { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"] },
   { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },
   { href: "/portal/payments", key: "nav.payments", tiers: ["assisted"] },
   { href: "/portal/notifications", key: "nav.notifications", tiers: ["assisted"] },
@@ -71,6 +73,10 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.documents": "M6 2.5h5.5L15 6v11.5H6zM11.5 2.5V6H15M8.2 9.5h3.6M8.2 12.5h3.6",
     // Университеты: здание с колоннами.
     "nav.universities": "M3 8l7-4.5L17 8M4.5 8v7M8 8v7M12 8v7M15.5 8v7M3 15h14",
+    // Профессии: компас — исследование направлений.
+    "nav.professions": "M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM12.8 7.2l-1.6 4-4 1.6 1.6-4z",
+    // Английский: открытая книга.
+    "nav.english": "M10 5.2C8.8 4.2 7 3.7 4.6 3.7c-.6 0-1.1 0-1.6.1v11.4c.5-.1 1-.1 1.6-.1 2.4 0 4.2.5 5.4 1.5 1.2-1 3-1.5 5.4-1.5.6 0 1.1 0 1.6.1V3.8c-.5-.1-1-.1-1.6-.1-2.4 0-4.2.5-5.4 1.5zM10 5.2v11.4",
     // Избранное: сердечко.
     "nav.favorites": "M10 16.1 4.4 10.7a3.6 3.6 0 0 1 0-5.2 3.7 3.7 0 0 1 5.2 0l.4.4.4-.4a3.7 3.7 0 0 1 5.2 0 3.6 3.6 0 0 1 0 5.2z",
     // Оплата: карта.

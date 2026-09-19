@@ -31482,3 +31482,56 @@ Validation impact: `node scripts/generate-portal-learning-seed.mjs --check`
 Reviewer notes: pending independent review on the exact PR head; ветка
 stacked поверх izzhackt/portal-4-engine — ретаргет после merge базы делает
 координатор.
+
+## 2026-09-19 — PORT-4c: веб-разделы «Английский» и «Профессии»
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal content/engine session), веб-слой поверх движка 198 и
+сида 199; план §6 «Английский»/«Профессии», дизайн-контракт §3–4.
+Change type: UI-scope fixation before coding; без миграций.
+Affected plan section: PORT-4, дизайн-контракт (карта экранов), route
+contract портала.
+
+Decision:
+- (a) «Английский» (/portal/english): карта модуля с прогрессом
+  (learning_modules_v1), урок-раннер (/portal/english/lesson/[lessonId]):
+  теория → задания по одному с мгновенным вердиктом и разбором из
+  save-RPC, 4 типа заданий (включая matching по выданному порядку правой
+  колонки и short_answer с серверной нормализацией), autosave по ответу,
+  резюме черновика, exit-guard по образцу AssessmentRunner; экран
+  завершения (доля верных + «повторить ошибки»); режим повторения
+  (/portal/english/review, review-RPC + learning_review_check_v1, та же
+  механика); вход в english36 (/portal/tests/english).
+- (b) «Профессии» (/portal/professions): сетка с фильтром по шкалам ORVIS,
+  карточка (/portal/professions/[cardId]): день/среда/навыки/
+  интересное-сложное/пробное задание/куда учиться; ссылки на карточки
+  каталога резолвятся по institution_photo_key -> content.photoKey
+  честным фолбэком (нет в каталоге — текст без ссылки, без фиктивных
+  переходов); вход в orvis92 (/portal/tests/career); отметка «созвучно
+  твоим интересам» на карточках при завершённом orvis92 — результат
+  читается СУЩЕСТВУЮЩИМ приватным student-RPC в собственной сессии,
+  совпадение шкал считается на клиенте; серверной связки результатов с
+  профессиями нет (план §6 приватность).
+- (c) Nav: «Английский» и «Профессии» в Shell для обоих tier'ов; новые
+  RU/KY-неймспейсы english/professions; маршруты добавляются в
+  platform-route-contract (allowlist + uuid-паттерны деталей) вместе с
+  пинами fixed-role-route-contract; новые node-тесты
+  portal-learning/portal-professions входят в test:frontend, пины
+  ci-node-test-suite обновляются тем же коммитом. Смоук-якоря не меняются.
+- (d) Атрибуция: карточки профессий выводят O*NET/CC BY 4.0 (паттерн
+  orvis-v1 professionAttribution) на экране карточки.
+
+Validation impact: `npm run typecheck`; `npm run build`;
+`npm run test:brand-ui`; портальные node-тесты (i18n-полнота новых
+неймспейсов, portal-learning, portal-professions, обновлённые пины) —
+состав test:frontend и пины в одном коммите; полная миграционная цепочка
+не меняется (проверена в slices A/B; на этой ветке прогон повторяется по
+правилу «per slice» с теми же P198/P199-маркерами); `git diff --check`.
+Живой аутентифицированный рендер новых экранов в этой сессии не
+выполняется — честно фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; ветка
+stacked поверх izzhackt/portal-4-seed; ретаргет после merge базы — задача
+координатора. Отдельное наблюдение для координатора: /portal/favorites и
+/portal/profile из PORT-3b/5a сегодня отсутствуют в
+STUDENT_PORTAL_PAGE_ALLOWLIST (proxy fail-closed) — эта запись их не
+чинит, чтобы не пересекаться с чужими ветками.

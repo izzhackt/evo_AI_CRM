@@ -2617,6 +2617,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_learning_engine.sql
   fi
+
+  # Migration 200 adds the STUDENT side of the per-case chat (PORT-5c):
+  # platform.portal_case_chat_page_v1 / portal_case_chat_post_v1 over the
+  # EXISTING 191 tables, gated by the 192-tightened
+  # require_case_operations_actor (assisted-only). The suite proves the
+  # own-thread read/post path, the awaiting_student -> needs_reply
+  # transition, receipt idempotency with PT409 conflicts, the curator's
+  # UNCHANGED 191 RPCs seeing the student post (real calls), pending-student
+  # and staff/anon/service_role denials, second-student isolation and body
+  # validation. Exercised at its own checkpoint, same convention as
+  # 185/192-198.
+  if [[ "$(basename "$migration")" == 200_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_case_chat.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

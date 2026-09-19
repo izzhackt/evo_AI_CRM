@@ -24,6 +24,7 @@ const shellRu = {
   openingSection: "Открываем раздел «{label}»",
   "nav.overview": "Поступление",
   "nav.documents": "Документы",
+  "nav.messages": "Сообщения",
   "nav.universities": "Университеты",
   "nav.professions": "Профессии",
   "nav.english": "Английский",
@@ -45,6 +46,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   openingSection: "«{label}» бөлүмүн ачып жатабыз",
   "nav.overview": "Тапшыруу",
   "nav.documents": "Документтер",
+  "nav.messages": "Билдирүүлөр",
   "nav.universities": "Университеттер",
   "nav.professions": "Кесиптер",
   "nav.english": "Англис тили",
@@ -554,9 +556,72 @@ const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
   "scale.erudition": "Эрудиция",
 };
 
+/**
+ * Экран «Сообщения» (PORT-5c, план §6 «Общение»): переписка с командой EVO
+ * по делу — тред, отправка с честными состояниями, догрузка более ранних.
+ * Разовый вопрос-ответ куратору остаётся отдельным блоком на «Поступлении»;
+ * страница помечает разницу предметно.
+ */
+const messagesRu = {
+  kicker: "Сопровождение",
+  title: "Сообщения",
+  lead: "Переписка с командой EVO по вашему делу.",
+  unavailable: "Не удалось загрузить сообщения. Обновите страницу. Переписка не потеряна.",
+  emptyTitle: "Сообщений пока нет",
+  emptyBody: "Напишите команде EVO — сообщение появится здесь вместе с ответом.",
+  threadAria: "Переписка по делу",
+  awaitingYou: "Команда EVO ждёт вашего ответа.",
+  loadEarlier: "Показать более ранние",
+  loadingEarlier: "Загружаем…",
+  loadEarlierError: "Не удалось загрузить более ранние сообщения. Повторите.",
+  refreshError: "Не удалось обновить переписку.",
+  retry: "Повторить",
+  composerLabel: "Сообщение команде EVO",
+  composerPlaceholder: "Напишите сообщение",
+  limitHint: "До 2000 символов.",
+  send: "Отправить",
+  sending: "Отправляем…",
+  sendError: "Сообщение не отправлено. Повторите — текст сохранён.",
+  sentStatus: "Сообщение отправлено.",
+  attachmentDocument: "Документ: {label}",
+  quotedPrefix: "В ответ на: {preview}",
+  differenceNote: "Здесь — переписка с командой по вашему делу. Разовый вопрос куратору с ответом — в разделе «Поступление».",
+  differenceLink: "Открыть вопрос куратору",
+} as const;
+
+type MessagesKey = keyof typeof messagesRu;
+
+const messagesKy: Readonly<Record<MessagesKey, string>> = {
+  kicker: "Коштоо",
+  title: "Билдирүүлөр",
+  lead: "Ишиңиз боюнча EVO командасы менен кат алышуу.",
+  unavailable: "Билдирүүлөр жүктөлгөн жок. Баракты жаңыртыңыз. Кат алышуу жоголгон жок.",
+  emptyTitle: "Азырынча билдирүү жок",
+  emptyBody: "EVO командасына жазыңыз — билдирүү жообу менен ушул жерде чыгат.",
+  threadAria: "Иш боюнча кат алышуу",
+  awaitingYou: "EVO командасы жообуңузду күтүп жатат.",
+  loadEarlier: "Мурункуларын көрсөтүү",
+  loadingEarlier: "Жүктөп жатабыз…",
+  loadEarlierError: "Мурунку билдирүүлөр жүктөлгөн жок. Кайталаңыз.",
+  refreshError: "Кат алышуу жаңыртылган жок.",
+  retry: "Кайталоо",
+  composerLabel: "EVO командасына билдирүү",
+  composerPlaceholder: "Билдирүү жазыңыз",
+  limitHint: "2000 белгиге чейин.",
+  send: "Жөнөтүү",
+  sending: "Жөнөтүп жатабыз…",
+  sendError: "Билдирүү жөнөтүлгөн жок. Кайталаңыз — текст сакталып калды.",
+  sentStatus: "Билдирүү жөнөтүлдү.",
+  attachmentDocument: "Документ: {label}",
+  quotedPrefix: "Жооп катары: {preview}",
+  differenceNote: "Бул жерде — ишиңиз боюнча команда менен кат алышуу. Кураторго жообу менен бир жолку суроо — «Тапшыруу» бөлүмүндө.",
+  differenceLink: "Кураторго суроону ачуу",
+};
+
 /** Все портальные словари, по неймспейсам. Экспорт — для контракт-теста. */
 export const PORTAL_DICTIONARIES = {
   shell: { ru: shellRu, ky: shellKy },
+  messages: { ru: messagesRu, ky: messagesKy },
   universities: { ru: universitiesRu, ky: universitiesKy },
   favorites: { ru: favoritesRu, ky: favoritesKy },
   profile: { ru: profileRu, ky: profileKy },

@@ -307,6 +307,8 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/portal/english",
     "/portal/english/review",
     "/portal/professions",
+    // PORT-5c: сообщения по делу (assisted; граница — RPC миграции 200).
+    "/portal/messages",
   ];
   const authRoutes = [
     "/auth/callback",
@@ -346,6 +348,7 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     `/portal/english/lesson/${detailId}/child`,
     "/portal/professions/not-an-id",
     `/portal/professions/${detailId}/edit`,
+    "/portal/messages/child",
     "/auth/callback/",
     "/auth/set-password/child",
     "/auth/unknown",

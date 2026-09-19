@@ -42,6 +42,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/english/page.tsx",
     "src/app/(portal)/portal/english/review/page.tsx",
     "src/app/(portal)/portal/favorites/page.tsx",
+    "src/app/(portal)/portal/messages/page.tsx",
     "src/app/(portal)/portal/notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/notifications/page.tsx",
     "src/app/(portal)/portal/page.tsx",
@@ -67,6 +68,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
     [
       "/portal",
       "/portal/documents",
+      // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
+      "/portal/messages",
       "/portal/universities",
       "/portal/professions",
       "/portal/english",

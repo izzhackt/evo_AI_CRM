@@ -64,12 +64,12 @@ export function PortalConsultations({
       ) : (
         <ul className="space-y-4">
           {queue.items.map((row) => (
-            <li key={row.id} className="min-w-0 rounded-[10px] border border-border bg-surface p-4">
+            <li key={row.id} className="min-w-0 rounded-card border border-border bg-surface p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-semibold text-fg">{row.studentName}</span>
                 <span className="flex items-center gap-2 text-xs text-fg-2">
                   <Pill tone={row.status === "requested" ? "info" : "neutral"}>
-                    {portalConsultationStatus(row.status) ?? ""}
+                    {portalConsultationStatus(row.status) ?? "статус недоступен"}
                   </Pill>
                   {submittedDate(row.requestedAt)}
                 </span>

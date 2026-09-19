@@ -40,6 +40,7 @@ export type PortalAccessTier = "approved" | "assisted";
 const SECTIONS = [
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
+  { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
   { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"] },
   { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
   { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"] },
@@ -71,6 +72,8 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.overview": "M5 17V3.5M5 3.5h9.5l-2 3.5 2 3.5H5",
     // Документы: лист с загнутым углом.
     "nav.documents": "M6 2.5h5.5L15 6v11.5H6zM11.5 2.5V6H15M8.2 9.5h3.6M8.2 12.5h3.6",
+    // Сообщения: пузырь диалога.
+    "nav.messages": "M3.5 4.5h13v8.5h-7.2L6 16v-3H3.5zM6.8 7.5h6.4M6.8 10h4.4",
     // Университеты: здание с колоннами.
     "nav.universities": "M3 8l7-4.5L17 8M4.5 8v7M8 8v7M12 8v7M15.5 8v7M3 15h14",
     // Профессии: компас — исследование направлений.

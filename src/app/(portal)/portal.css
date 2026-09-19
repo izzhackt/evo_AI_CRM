@@ -1,0 +1,450 @@
+/*
+ * EVO Portal — токены --pt-* и стили портального shell (PORT-2).
+ * Контракт: docs/design/portal/design-contract.md, направление «Атлас».
+ *
+ * Изоляция от staff CRM: этот файл живёт только в группе маршрутов (portal),
+ * не переопределяет staff-токены и не трогает v3.css. Все селекторы носят
+ * префикс pt-. Экраны внутри shell пока рендерятся в v3-мире без изменений;
+ * их перевод на --pt-* — работа следующих slice'ов (PORT-3…5).
+ *
+ * Светлая тема — базовые значения, тёмная — через prefers-color-scheme
+ * (обе обязательны по контракту).
+ */
+
+.pt-shell {
+  /* Цвет, светлая: тёплая бумага. */
+  --pt-bg: #f7f5f2;
+  --pt-surface: #ffffff;
+  --pt-text: #191714;
+  --pt-text-2: #6b6660;
+  --pt-line: #e7e3dd;
+  --pt-accent: #d70217;
+  --pt-on-accent: #ffffff;
+  --pt-ok: #177245;
+  --pt-warn: #b45309;
+  --pt-error: #b3261e;
+
+  /* Типографика: Golos Text; шкала 32/24/20/17/15/13; данные — mono 13/15. */
+  --pt-font-sans: var(--font-golos), "Golos Text", system-ui, sans-serif;
+  --pt-font-mono: var(--font-jbmono), "JetBrains Mono", ui-monospace, monospace;
+  --pt-size-display: 32px;
+  --pt-size-title: 24px;
+  --pt-size-heading: 20px;
+  --pt-size-body: 17px;
+  --pt-size-secondary: 15px;
+  --pt-size-caption: 13px;
+  --pt-leading: 1.45;
+
+  /* Радиусы: карточка 16, элемент 12, контрол 10, чип 999. */
+  --pt-radius-card: 16px;
+  --pt-radius-item: 12px;
+  --pt-radius-control: 10px;
+  --pt-radius-chip: 999px;
+
+  /* Тени. */
+  --pt-shadow-card: 0 1px 3px rgb(0 0 0 / 0.07);
+  --pt-shadow-raised: 0 6px 24px rgb(0 0 0 / 0.1);
+
+  /* Движение: 160–240ms ease-out. */
+  --pt-motion-fast: 160ms;
+  --pt-motion: 200ms;
+  --pt-motion-slow: 240ms;
+  --pt-ease: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Сетка: контент 1200px max, боковой отступ 24 (моб. 16). */
+  --pt-content-max: 1200px;
+  --pt-gutter: 24px;
+  --pt-card-min: 280px;
+
+  /* Габариты shell. */
+  --pt-topbar-height: 60px;
+  --pt-rail-width: 224px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pt-shell {
+    --pt-bg: #141311;
+    --pt-surface: #1e1c19;
+    --pt-text: #f2efe9;
+    --pt-text-2: #a39d94;
+    --pt-line: #2c2925;
+    /* Тот же бренд, поднятая светлота для контраста на тёмном. */
+    --pt-accent: #ff4a57;
+    --pt-on-accent: #141311;
+    --pt-ok: #4cc38a;
+    --pt-warn: #e5a445;
+    --pt-error: #ff8177;
+    /* В тёмной глубина — через светлую линию, не тень. */
+    --pt-shadow-card: 0 0 0 1px var(--pt-line);
+    --pt-shadow-raised: 0 0 0 1px var(--pt-line);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-shell {
+    --pt-motion-fast: 0ms;
+    --pt-motion: 0ms;
+    --pt-motion-slow: 0ms;
+  }
+}
+
+/* ---------- Каркас ---------- */
+
+.pt-shell {
+  display: flex;
+  min-height: 100dvh;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--pt-bg);
+  color: var(--pt-text);
+  font-family: var(--pt-font-sans);
+  line-height: var(--pt-leading);
+}
+
+.pt-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.pt-content {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+}
+
+/* ---------- Скрытый текст и skip-link ---------- */
+
+.pt-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.pt-skip-link {
+  position: fixed;
+  top: 12px;
+  inset-inline-start: 12px;
+  z-index: 100;
+  padding: 12px 16px;
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(calc(-100% - 24px));
+}
+
+.pt-skip-link:focus {
+  transform: none;
+}
+
+/* ---------- Верхняя полоса ---------- */
+
+.pt-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--pt-topbar-height);
+  padding: 6px var(--pt-gutter);
+  background: var(--pt-surface);
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-topbar-logo {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: var(--pt-radius-control);
+}
+
+.pt-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pt-bell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--pt-radius-control);
+  color: var(--pt-text-2);
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-bell:hover {
+  background: var(--pt-bg);
+  color: var(--pt-text);
+}
+
+/* ---------- Меню аккаунта ---------- */
+
+.pt-user-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.pt-user-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 44vw;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-user-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pt-user-summary:hover {
+  background: var(--pt-bg);
+}
+
+.pt-user-summary-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-user-chevron {
+  flex-shrink: 0;
+  transition: transform var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-user-menu[open] .pt-user-chevron {
+  transform: rotate(180deg);
+}
+
+.pt-user-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  min-width: 224px;
+  max-width: calc(100vw - 2 * var(--pt-gutter));
+  padding: 12px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  box-shadow: var(--pt-shadow-raised);
+}
+
+.pt-user-caption {
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+.pt-user-name {
+  margin: 4px 0 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pt-logout {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: none;
+  color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-logout:hover {
+  background: var(--pt-bg);
+}
+
+/* ---------- Навигация: рейл (десктоп) / нижние вкладки (узкий экран) ---------- */
+
+.pt-nav-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: var(--pt-radius-control);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-nav-link:hover {
+  background: var(--pt-bg);
+  color: var(--pt-text);
+}
+
+.pt-nav-link[aria-current="page"] {
+  color: var(--pt-accent);
+  font-weight: 600;
+}
+
+.pt-nav-icon {
+  flex-shrink: 0;
+}
+
+.pt-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-nav-pending {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  color: var(--pt-accent);
+  font-size: var(--pt-size-caption);
+}
+
+@media (min-width: 768px) {
+  .pt-nav {
+    position: sticky;
+    top: var(--pt-topbar-height);
+    align-self: flex-start;
+    width: var(--pt-rail-width);
+    height: calc(100dvh - var(--pt-topbar-height));
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 16px 12px;
+    background: var(--pt-surface);
+    border-inline-end: 1px solid var(--pt-line);
+  }
+
+  .pt-nav-list {
+    display: grid;
+    gap: 4px;
+  }
+
+  /* Активный раздел: акцентная планка у кромки рейла. */
+  .pt-nav-link[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: -12px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: var(--pt-radius-chip);
+    background: var(--pt-accent);
+  }
+}
+
+@media (max-width: 767px) {
+  .pt-shell {
+    --pt-gutter: 16px;
+  }
+
+  .pt-nav {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 40;
+    background: var(--pt-surface);
+    border-top: 1px solid var(--pt-line);
+    padding: 4px max(6px, env(safe-area-inset-left))
+      max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+  }
+
+  .pt-nav-list {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 2px;
+  }
+
+  .pt-nav-link {
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-height: 52px;
+    padding: 4px 2px;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .pt-nav-link[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    inset-inline-start: 25%;
+    inset-inline-end: 25%;
+    height: 3px;
+    border-radius: var(--pt-radius-chip);
+    background: var(--pt-accent);
+  }
+
+  .pt-nav-label {
+    max-width: 100%;
+  }
+
+  /* Троеточие загрузки некуда ставить в вертикальной вкладке. */
+  .pt-nav-pending {
+    display: none;
+  }
+
+  /* Фиксированные вкладки не должны накрывать конец содержимого. */
+  .pt-content {
+    padding-bottom: 84px;
+  }
+}
+
+/* ---------- Фокус ---------- */
+
+.pt-skip-link:focus-visible,
+.pt-topbar-logo:focus-visible,
+.pt-bell:focus-visible,
+.pt-user-summary:focus-visible,
+.pt-logout:focus-visible,
+.pt-nav-link:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}

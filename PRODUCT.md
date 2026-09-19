@@ -13,9 +13,10 @@ staff team that supports them. The owner approved this audience expansion on
 2026-09-19, replacing the previous staff-only restriction on self-serve signup
 and customer-facing accounts.
 
-- **Independent prospective student** — enters through self-serve signup and
-  uses the shared university/program discovery, English preparation and
-  career-interest features with a personal profile and saved progress.
+- **Independent prospective student** — completes the mandatory questionnaire,
+  creates an account only at its final step, and waits for staff approval.
+  After approval, uses shared university/program discovery, English preparation
+  and career-interest features with a personal profile and saved progress.
 - **EVO client** — receives all the same shared features plus their authorized
   case, curator, documents, tasks and communication. Team invitations and later
   service enrollment lead into the same product; an existing user keeps their
@@ -36,18 +37,32 @@ desk for most of the day; the phone is for checking something between meetings.
 Density and scanability are designed for desktop. Mobile must stay genuinely
 usable — it is not a defensive afterthought — but it is the secondary surface.
 
-### Approved delivery order
+### Approved portal delivery and access — updated 2026-09-19
 
-First complete the web product, prioritizing desktop workflows, for both
-student audiences and the staff who support them. This includes client/curator
-work, documents and tasks alongside the shared discovery and preparation
-features. Then deliver the agreed functionality on iPhone, including client
-accompaniment; the iPhone scope is not limited to discovery and learning.
+Develop the complete desktop-first web portal and the complete iPhone app in
+parallel, sharing one account and the same data and authorization contracts.
+This later owner decision supersedes the sequential web-then-iPhone order
+recorded in PR #859. Both surfaces cover discovery, preparation and full client
+accompaniment, including documents, tasks and communication.
+
+Every new student, including a new invitee, follows questionnaire → account
+creation → staff approval → portal. Before approval, show only the application
+status and necessary account/support actions; neither a separate signup nor a
+guest catalog bypasses this gate. Approval grants shared portal access, while
+client accompaniment requires its own authorization. Preserve existing approved
+accounts and their data rather than making them register again.
+
+The current implementation scope is the student portal and its necessary CRM
+connections. Staff continue in the existing CRM; a separate staff redesign is
+not part of this portal plan. Fable chooses and implements a full portal UX/UI
+redesign within the EVO brand, with concise, useful frontend copy and no AI-style
+explanatory filler. See the [full web + iPhone plan](docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md).
 
 This is an approved product direction, not a claim that independent self-serve
 access, lesson-based learning or an iPhone client is already implemented or
-released. The implementation plan, mobile technology and commercial terms
-remain separate decisions. Existing authentication, organization/case access
+released. The linked plan defines implementation scope; Fable selects and records
+the mobile technology. Commercial terms are not a prerequisite for this work.
+Existing authentication, organization/case access
 and Student-private assessment boundaries remain in force during implementation.
 See the current scope entry in [the launch plan](docs/EVO_LAUNCH_PLAN.md) and
 its decision record in [PLAN_CHANGES](docs/PLAN_CHANGES.md).
@@ -173,7 +188,8 @@ server-authorised integration rather than a second source of truth.
 - WCAG 2.2 AA is a release criterion, not polish: keyboard operability, visible
   focus, semantic headings, descriptive document titles, contrast, reflow and
   target size are gated in CI via `npm run test:a11y` and the frontend contracts.
-- Locales: **Russian is the working language; English is the secondary surface.**
-  Kyrgyz (`ky`) is confirmed vestigial — existing strings stay, but new copy is
-  not required to ship a Kyrgyz translation, and Kyrgyz completeness must not
-  block work.
+- Portal locales: **Russian and Kyrgyz (`ru`, `ky`)**, complete across the agreed
+  web and iPhone scope. English is learning content, not a third portal UI locale.
+  This owner decision supersedes the former optional-Kyrgyz rule for the portal.
+- Staff CRM locale scope remains unchanged: Russian is the working language,
+  English the secondary surface; this portal plan does not relocalize the CRM.

@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Public product audience and delivery order — approved 2026-09-19
+## Portal web + iPhone — parallel implementation approved 2026-09-19
 
 The owner replaces the staff-only / no-self-serve restriction in
 [`PRODUCT.md`](../PRODUCT.md). The target serves independent prospective
@@ -9,14 +9,33 @@ features. Clients also receive their authorized case, curator, documents,
 tasks and communication; invitations and later service enrollment preserve
 the same account, saved choices and learning progress.
 
-Delivery order: complete the web product first, prioritizing desktop workflows
-for both student audiences and staff, including client/curator document work;
-then deliver the agreed functionality on iPhone, including accompaniment.
-This records product scope only. It does not change runtime access, implement
-signup or learning, choose a mobile stack or pricing, or authorize a deployment.
-Existing authentication, organization/case access and private assessment
-boundaries remain enforced. Detailed portal implementation planning follows
-separately; the active staff and incident scopes below are unchanged.
+Current contract: [full portal plan](EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md).
+The owner's later clarification replaces PR #859's sequential delivery order:
+develop the desktop-first web portal and the full iPhone app in parallel. Both
+student audiences receive the shared features, with full accompaniment added for
+clients. Every new student completes the questionnaire, creates an account at
+its final step and waits for staff approval. Approval and accompaniment are
+separate authorizations. Portal UI languages are Russian and Kyrgyz.
+
+Fable owns the full portal UX/UI redesign within the EVO brand, concise frontend
+copy, the mobile technology decision and implementation of the plan. The work is
+portal-scoped; necessary CRM connections reuse existing staff workflows. Active
+staff and incident scopes below remain unchanged. The plan carries forward the
+owner's delegated release workflow, subject to real credentials and release
+controls; this documentation change itself performs no deployment or migration.
+
+- [ ] PORT-0: current-main inventory, contracts and parallel worktree allocation.
+- [ ] PORT-1: approved access, shared data/API authority and account continuity.
+- [ ] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
+- [ ] PORT-3: university discovery, map, comparison and saved choices on both clients.
+- [ ] PORT-4: professions, private assessments and English learning on both clients.
+- [ ] PORT-5: full client accompaniment and consultation requests on both clients.
+- [ ] PORT-6: scoped integration, content completion and final UX pass.
+- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff.
+
+These checkboxes describe planned work, not existing feature readiness. Existing
+authentication, organization/case access and private assessment boundaries remain
+enforced; schema and API refinements are recorded before their implementation.
 
 The matching 2026-09-19 entry in [`PLAN_CHANGES.md`](PLAN_CHANGES.md) records
 the owner decision and the documentation-only validation boundary.

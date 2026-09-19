@@ -30720,3 +30720,51 @@ Validation: review the documentation diff, run `git diff --check`, verify ADR
 identifier uniqueness and changed local link targets, and obtain independent
 review of the exact committed head. No product tests or production actions are
 needed for this prose-only amendment; protected PR checks remain applicable.
+
+## 2026-09-19 — Adopt the full portal plan, parallel web/iPhone and owner UX decisions
+
+Date: 2026-09-19, workspace timezone.
+Author: Codex, consolidating the owner's chronological discussion for Claude Code / Fable.
+Change type: portal implementation contract, updated delivery model, access and design scope.
+Affected documents: `PRODUCT.md`, `DESIGN.md`, `docs/EVO_LAUNCH_PLAN.md`,
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`.
+
+Reason: after PR #859, the owner explicitly selected staff approval before any
+shared portal access and parallel development of complete web and iPhone clients.
+The latest collected notes supersede older alternatives. The owner also delegated
+full portal UX/UI selection to Fable and explicitly rejected AI explanatory filler
+in the frontend. A single executable Markdown plan is requested for Fable.
+
+Decision:
+- New independent and invited students complete the questionnaire, create an
+  account only at its final step, then wait for staff approval. Existing approved
+  accounts and data are preserved. Approval is separate from client accompaniment.
+- Develop the desktop-first web portal and full iPhone app in parallel, sharing
+  account, data and server permissions. This replaces the earlier sequential
+  web-then-iPhone direction; preserve that earlier entry as history.
+- Both audiences receive universities/map, professions, English preparation,
+  private tests, saved choices and profile. Clients additionally receive their
+  permitted case, documents, tasks, communication and contract/financial information.
+- Portal languages are Russian and Kyrgyz. English remains learning content.
+  Staff CRM locale scope is unchanged. Private test results remain Student-only,
+  without sharing/dossier or staff access.
+- Fable chooses the complete portal UX/UI redesign within the EVO brand and
+  records a scoped design contract. Supersede old portal-only style constraints;
+  preserve original logo, accessibility, useful copy and real states. Frontend
+  text contains actions, states, errors and relevant help, without AI-style
+  explanations or technical/marketing filler.
+- Keep this work portal-scoped. Reuse existing CRM, OTH case/chat/finance changes
+  and the approved Auth/email work; do not introduce a second operational model.
+  Do not impose KPI/SLA, marketing, monetization decisions or blanket heavy tests.
+- The plan records delegated Fable release work under existing authority and
+  credentials, exact-main/immutable/short-smoke/rollback controls. It does not
+  change runtime, apply migrations, mutate production or claim Apple publication.
+- Fable chooses the mobile stack and content coverage during implementation.
+  Objective external blockers are reported for the affected step while independent
+  work continues. No secrets, legal acceptance, purchases or data deletion are
+  authorized by this documentation amendment.
+
+Validation: inspect the prose diff, local reference targets and required decision
+coverage; run `git diff --check`; obtain independent review on the committed head.
+Only repository-protected documentation checks apply to this change. No runtime
+tests, migrations, provider actions or deployment are performed for this plan.

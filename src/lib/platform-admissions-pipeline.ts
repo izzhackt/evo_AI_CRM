@@ -12,6 +12,24 @@
  * mutationErrorFromRpc (errcode/message pair -> a small status enum).
  */
 import { staffCan } from "./platform-access.ts";
+import {
+  ADMISSIONS_PIPELINE_STAGES,
+  type AdmissionsPipelineBoard,
+  type AdmissionsPipelineBoardFilters,
+  type AdmissionsPipelineRow,
+  type AdmissionsPipelineStage,
+} from "./platform-admissions-pipeline-contract.ts";
+
+export {
+  ADMISSIONS_PIPELINE_STAGES,
+  ADMISSIONS_PIPELINE_TAB_STAGES,
+  admissionsPipelineTabOf,
+  type AdmissionsPipelineBoard,
+  type AdmissionsPipelineBoardFilters,
+  type AdmissionsPipelineRow,
+  type AdmissionsPipelineStage,
+  type AdmissionsPipelineTab,
+} from "./platform-admissions-pipeline-contract.ts";
 import type { PlatformActor } from "./platform-auth";
 
 const UUID_PATTERN =
@@ -21,57 +39,6 @@ const CONTROL_CHARACTER_PATTERN =
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 const SAFE_REPOSITORY_ERROR_MESSAGE = "Admissions pipeline board data is unavailable.";
 const SAFE_MUTATION_ERROR_MESSAGE = "Admissions pipeline board update failed.";
-
-/** The 9 kanban columns, in board order (tab 1 then tab 2). */
-export const ADMISSIONS_PIPELINE_STAGES = [
-  "new",
-  "shortlist",
-  "documents",
-  "ready_to_submit",
-  "awaiting_decision",
-  "confirmed",
-  "visa",
-  "predeparture",
-  "arrived",
-] as const;
-export type AdmissionsPipelineStage = (typeof ADMISSIONS_PIPELINE_STAGES)[number];
-
-export type AdmissionsPipelineTab = "admission" | "visa";
-
-export const ADMISSIONS_PIPELINE_TAB_STAGES: Readonly<
-  Record<AdmissionsPipelineTab, readonly AdmissionsPipelineStage[]>
-> = Object.freeze({
-  admission: ["new", "shortlist", "documents", "ready_to_submit", "awaiting_decision"],
-  visa: ["confirmed", "visa", "predeparture", "arrived"],
-});
-
-export function admissionsPipelineTabOf(stage: AdmissionsPipelineStage): AdmissionsPipelineTab {
-  return ADMISSIONS_PIPELINE_TAB_STAGES.admission.includes(stage) ? "admission" : "visa";
-}
-
-export type AdmissionsPipelineRow = Readonly<{
-  studentCaseId: string;
-  studentDisplayName: string;
-  targetCountry: string | null;
-  primaryInstitutionName: string | null;
-  currentCuratorMembershipId: string | null;
-  currentCuratorDisplayName: string | null;
-  pipelineStage: AdmissionsPipelineStage;
-  awaitingAck: boolean;
-  overdue: boolean;
-}>;
-
-export type AdmissionsPipelineBoard = Readonly<{
-  rows: readonly AdmissionsPipelineRow[];
-  /** Honest truncation: true only when the read actually stopped at the 400-row cap. */
-  truncated: boolean;
-}>;
-
-export type AdmissionsPipelineBoardFilters = Readonly<{
-  curatorMembershipId?: string | null;
-  country?: string | null;
-  query?: string | null;
-}>;
 
 export class PlatformAdmissionsPipelineRepositoryError extends Error {
   constructor() {

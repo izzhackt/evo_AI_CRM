@@ -8,7 +8,11 @@ import test from "node:test";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-const contract = source("src/lib/platform-admissions-pipeline.ts");
+// The client-safe contract lives in its own module so the client board never
+// traces supabase/server into the bundle (Build gate); the server module
+// re-exports it.
+const contract = source("src/lib/platform-admissions-pipeline-contract.ts");
+const serverModule = source("src/lib/platform-admissions-pipeline.ts");
 const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
 const actions = source("src/lib/platform-admissions-pipeline-actions.ts");
 const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
@@ -46,7 +50,7 @@ test("the board never calls the fact-gated admissions playbook RPC or imports it
   // checkable claim the task asks for (a bare textual ban on the words
   // "operational_stage"/"admissions_version" would also flag this file's own
   // header comment explaining that it does NOT touch them).
-  for (const file of [contract, board, actions, page]) {
+  for (const file of [contract, serverModule, board, actions, page]) {
     assert.doesNotMatch(file, /\.rpc\(\s*"transition_case_admissions_v1"/u);
   }
   assert.doesNotMatch(board, /from "@\/lib\/platform-admissions-playbook/u);

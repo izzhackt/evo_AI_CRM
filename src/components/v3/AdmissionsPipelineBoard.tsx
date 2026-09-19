@@ -15,7 +15,7 @@ import {
   type AdmissionsPipelineRow,
   type AdmissionsPipelineStage,
   type AdmissionsPipelineTab,
-} from "@/lib/platform-admissions-pipeline";
+} from "@/lib/platform-admissions-pipeline-contract";
 import { admissionsPipelineStage, admissionsPipelineTab, country as countryLabel } from "@/lib/v3/wording";
 
 /** Full sentences only — «saved» needs none, it is silent. */

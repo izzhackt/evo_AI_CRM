@@ -47,6 +47,8 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal/english",
   "/portal/english/review",
   "/portal/professions",
+  // PORT-5c: сообщения по делу (assisted; граница — RPC миграции 200).
+  "/portal/messages",
 ]);
 
 const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([

@@ -107,7 +107,6 @@ test("application catalogue selector renders actual React with deliberate choice
 
 test("application selector owns stale reads and search Enter without changing application retry or programme", () => {
   const selector = source("src/components/v3/profile/ApplicationUniversitySelector.tsx");
-  const workspace = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
   assert.match(selector, /const request = \+\+epoch\.current/u);
   assert.match(selector, /if \(request !== epoch\.current\) return;/u);
   assert.match(selector, /useEffect\(\(\) => \(\) => \{ epoch\.current \+= 1;/u);
@@ -121,10 +120,17 @@ test("application selector owns stale reads and search Enter without changing ap
   assert.match(selector, /const countryLabel = country\(item\.country\);/u);
   assert.match(selector, /\{countryLabel \? ` · \$\{countryLabel\}` : ""\}/u);
   assert.doesNotMatch(selector, /country\(item\.country\)\s*\?\?\s*item\.country/u);
-  assert.match(workspace, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} \/>/u);
-  assert.match(workspace, /name="program_name" required maxLength=\{300\}/u);
-  assert.match(workspace, /name="request_id" value=\{state\.requestId\}/u);
-  assert.match(workspace, /name="expected_version" value="0"/u);
+  // OTH-4: the selector's render location moved from ProfileAdmissionsWorkspace.tsx's
+  // inline <details>«Новая заявка»</details> into the new small search dialog
+  // (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge base») --
+  // deliberate pin move, not a drop. Program is optional here (plan: "программу
+  // указать сразу либо позже"), so the old `required` pin is gone too.
+  const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
+  assert.match(createDialog, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} \/>/u);
+  assert.match(createDialog, /name="program_name" maxLength=\{300\}/u);
+  assert.doesNotMatch(createDialog, /name="program_name" required/u);
+  assert.match(createDialog, /name="request_id" value=\{state\.requestId\}/u);
+  assert.match(createDialog, /name="expected_version" value="0"/u);
 });
 
 test("V3 profile keeps lead and Admissions case route identities separate", () => {
@@ -179,22 +185,30 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
 test("V3 profile actions use canonical versioned server commands and honest outcomes", () => {
   const controls = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
 
+  const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
   for (const action of [
-    "createPlatformUniversityApplicationAction",
+    "changePlatformUniversityApplicationAction",
     "updatePlatformUniversityApplicationDetailsAction",
     "createPlatformFinanceStopFactorAction",
     "resolvePlatformFinanceStopFactorAction",
   ]) {
     assert.match(controls, new RegExp(`${action}`));
   }
-  // Unified workflow S4 (plan §11): submission-status editing
-  // (changePlatformUniversityApplicationAction, ApplicationStatusForm) and
-  // visa-case CRUD (upsertPlatformCaseVisaAction) are retired from this tab.
-  assert.doesNotMatch(controls, /changePlatformUniversityApplicationAction/u);
+  assert.match(createDialog, /createPlatformUniversityApplicationAction/u);
+  // OTH-4 (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge base»:
+  // «Добавленный вуз означает «рассматриваем». Фактическая подача отмечается
+  // отдельно.»): un-deadens changePlatformUniversityApplicationAction /
+  // ApplicationStatusForm, which the retired unified-workflow-S4 comment
+  // this replaced used to pin ABSENT. visa-case CRUD
+  // (upsertPlatformCaseVisaAction/VisaForm) stays retired -- out of scope
+  // for this slice, still gone.
+  assert.match(controls, /changePlatformUniversityApplicationAction/u);
   assert.doesNotMatch(controls, /upsertPlatformCaseVisaAction/u);
-  assert.doesNotMatch(controls, /function ApplicationStatusForm/u);
+  assert.match(controls, /function ApplicationStatusForm/u);
   assert.doesNotMatch(controls, /function VisaForm/u);
-  assert.doesNotMatch(controls, /Изменить статус|Сохранить статус|Создать визовое дело|Обновить визу/u);
+  assert.match(controls, /Отметить статус/u);
+  assert.match(controls, /Сохранить статус/u);
+  assert.doesNotMatch(controls, /Создать визовое дело|Обновить визу/u);
   for (const field of [
     "student_case_id",
     "request_id",
@@ -209,11 +223,13 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   ]) {
     assert.match(controls, new RegExp(`name="${field}"`));
   }
-  // visa_case_id and the status picker's own name="status" (a <select>) are
-  // gone with the forms that submitted them; the create form's hidden,
-  // never-edited default is checked separately below.
+  // visa_case_id stays gone with the form that submitted it (visa-case CRUD
+  // is out of scope for this slice). OTH-4 un-deadens the status picker's own
+  // name="status" <select> in ApplicationStatusForm -- the create form's
+  // separate hidden, never-edited default (name="status" value="preparation")
+  // is checked against createDialog below.
   assert.doesNotMatch(controls, /name="visa_case_id"/u);
-  assert.doesNotMatch(controls, /<select name="status"/u);
+  assert.match(controls, /<select\s+name="status"/u);
   for (const outcome of [
     "saved",
     "invalid",
@@ -279,15 +295,37 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(detailsForm, /<ApplicationCountryField defaultValue=\{application\.country \?\? ""\} \/>/u);
   assert.match(detailsForm, /<ApplicationDegreeField defaultValue=\{application\.degree \?\? ""\} \/>/u);
 
-  const createForm = controls.slice(
-    controls.indexOf("function ApplicationCreateForm"),
-    controls.indexOf("function ApplicationDetailsForm"),
-  );
-  assert.match(createForm, /<ApplicationCountryField \/>/u);
-  assert.match(createForm, /<ApplicationDegreeField \/>/u);
-  assert.match(createForm, /name="status" value="preparation"/u);
+  // OTH-4: ApplicationCreateForm moved into ApplicationCreateDialog.tsx (the
+  // small search dialog); the deadline/country/degree/evidence/note fields it
+  // already had are now folded under <details>Дополнительно</details>
+  // (plan's "минимум обязательных полей", the dialog leads with search +
+  // program + основной-вариант only). ApplicationCountryField/
+  // ApplicationDegreeField themselves are unchanged, reused from
+  // ProfileAdmissionsWorkspace.tsx (not duplicated).
+  assert.match(createDialog, /<ApplicationCountryField \/>/u);
+  assert.match(createDialog, /<ApplicationDegreeField \/>/u);
+  assert.match(createDialog, /name="status" value="preparation"/u);
+  assert.match(createDialog, /<details>/u);
+  assert.match(createDialog, /Дополнительно/u);
   assert.match(controls, /<select name="country"/u);
   assert.match(controls, /<select name="degree"/u);
+  // Wording: launcher/dialog say «Добавить вуз» (plan §«Uni & knowledge
+  // base»: «Добавить вуз»), not the retired «Новая заявка»/«Добавить заявку».
+  assert.match(controls, /<ApplicationCreateDialog workspace=\{workspace\}\s*\/>/u);
+  assert.doesNotMatch(controls, /Новая заявка|Добавить заявку/u);
+  assert.match(createDialog, />\s*Добавить вуз\s*</u);
+  assert.match(createDialog, /"Добавить"/u);
+  assert.doesNotMatch(createDialog, /Новая заявка|Добавить заявку/u);
+  // Status form offers only the forward statuses (never `preparation`, the
+  // fixed create-time default), and only requires evidence when the RPC
+  // itself does.
+  assert.match(controls, /PLATFORM_APPLICATION_FORWARD_STATUSES\.filter\(\(status\) => status !== application\.status\)\.map/u);
+  assert.match(controls, /PLATFORM_APPLICATION_EVIDENCE_STATUSES\.has/u);
+  assert.match(controls, /needsNote = nextStatus === "rejected" \|\| nextStatus === "withdrawn"/u);
+  // Author attribution (plan: «Показывать автора добавления, когда он
+  // известен»): quiet metadata line, only rendered when known.
+  assert.match(controls, /application\.createdByDisplayName \? \(/u);
+  assert.match(controls, /Добавил: \{application\.createdByDisplayName\}/u);
   assert.match(controls, /platformApplicationCountryEditOptions\(defaultValue \|\| null\)/u);
   assert.match(controls, /platformApplicationDegreeEditOptions\(defaultValue \|\| null\)/u);
   assert.match(controls, /applicationCountry\(countryCode\)/u);

@@ -316,9 +316,12 @@ export async function createPlatformUniversityApplicationAction(
   const institutionName = institutionValue
     ? applicationText(institutionValue, 1, 300)
     : null;
-  const programName = applicationText(
+  // OTH-4: the case's university selector may set the program now or leave
+  // it for later (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge
+  // base») -- empty is a deliberate NULL, same optional-text convention as
+  // evidence/note below, not an error.
+  const programName = optionalApplicationText(
     applicationField(fields, "program_name"),
-    1,
     300,
   );
   const status = applicationStatus(applicationField(fields, "status"));
@@ -342,7 +345,8 @@ export async function createPlatformUniversityApplicationAction(
   if (
     !studentCaseId || !requestId || expectedVersion !== "0" ||
     (catalogValue !== "" && !catalogInstitutionId) ||
-    (!catalogInstitutionId && !institutionName) || !programName || !status ||
+    (!catalogInstitutionId && !institutionName) ||
+    programName === undefined || !status ||
     evidence === undefined || note === undefined || isPrimary === null ||
     universityDeadlineOn === undefined ||
     country === undefined || degree === undefined ||

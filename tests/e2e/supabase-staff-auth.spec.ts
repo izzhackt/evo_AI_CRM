@@ -2076,12 +2076,15 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   const catalogInstitutionId = requireUuidValue(cataloguePublicationRow.institutionId);
   expect(await readLocalApplicationBindings(studentCaseId, refreshedAdmissionsToken)).toEqual([]);
 
-  await applications
+  // OTH-4: the inline «Новая заявка» details became the «Добавить вуз» dialog;
+  // secondary fields (country/degree/deadline/evidence) are folded under «Дополнительно».
+  await applications.getByTestId("v3-application-create-launcher").click();
+  const createApplication = applications.getByTestId("v3-application-create");
+  await createApplication
     .locator("details")
-    .filter({ hasText: "Новая заявка" })
+    .filter({ hasText: "Дополнительно" })
     .locator("summary")
     .click();
-  const createApplication = applications.getByTestId("v3-application-create");
   await createApplication
     .locator('input[name="program_name"]')
     .fill("P4 isolated technical program");
@@ -2136,7 +2139,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(application).toContainText("Ступень: Бакалавриат");
   await application
     .locator("details")
-    .filter({ hasText: "Изменить статус" })
+    .filter({ hasText: "Отметить статус" })
     .locator("summary")
     .click();
   const changeApplication = application.locator(
@@ -2174,12 +2177,13 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(refreshedFirstApplication).toContainText("Страна: Малайзия");
   await expect(refreshedFirstApplication).toContainText("Ступень: Бакалавриат");
 
-  await refreshedApplications
+  await refreshedApplications.getByTestId("v3-application-create-launcher").click();
+  const createAlternativeApplication = refreshedApplications.getByTestId("v3-application-create");
+  await createAlternativeApplication
     .locator("details")
-    .filter({ hasText: "Новая заявка" })
+    .filter({ hasText: "Дополнительно" })
     .locator("summary")
     .click();
-  const createAlternativeApplication = refreshedApplications.getByTestId("v3-application-create");
   await createAlternativeApplication.getByRole("checkbox", { name: "Ввести вручную" }).check();
   await createAlternativeApplication
     .locator('input[name="institution_name"]')

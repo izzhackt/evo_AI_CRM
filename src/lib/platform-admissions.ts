@@ -635,7 +635,7 @@ export function normalizePlatformApplicationQueueRow(
     programDirection: optionalText(value.program_direction, 300),
     intake: optionalText(value.intake, 200),
     institutionName: requiredText(value.institution_name, 300),
-    programName: requiredText(value.program_name, 300),
+    programName: optionalText(value.program_name, 300),
     isPrimary: requiredBoolean(value.is_primary),
     universityDeadlineOn: optionalDate(value.university_deadline_on),
     country: optionalCountryCode(value.country),
@@ -665,6 +665,8 @@ export function normalizePlatformApplicationQueueRow(
     outstandingPaymentObligationCount: nonNegativeCount(
       value.outstanding_payment_obligation_count,
     ),
+    createdByMembershipId: requiredUuid(value.created_by_membership_id),
+    createdByDisplayName: optionalText(value.created_by_display_name, 200),
   };
 }
 
@@ -904,8 +906,11 @@ export async function listPlatformApplications(
     const client = await getPlatformClient();
     const pageSize = normalizePageSize(options?.pageSize, 50);
     const cursor = options?.cursor ?? null;
+    // OTH-4: v2 adds created_by_membership_id/created_by_display_name. The
+    // old staff_application_page (118) stays live, untouched, for old app
+    // code between migration 190 applying and this release deploying.
     const response = await client.schema("platform").rpc(
-      "staff_application_page",
+      "staff_application_page_v2",
       compactPlatformAdmissionsGetRpcArguments({
         p_limit: pageSize + 1,
         p_before_updated_at: cursor?.sortAt ?? null,
@@ -954,10 +959,11 @@ export async function getPlatformApplication(
     const universityApplicationId = parsePlatformAdmissionsUuid(id);
     if (universityApplicationId === null) return null;
     const client = await getPlatformClient();
+    // OTH-4: v2 counterpart of the page switch above.
     const response = await client
       .schema("platform")
       .rpc(
-        "staff_application_snapshot",
+        "staff_application_snapshot_v2",
         { p_university_application_id: universityApplicationId },
         { get: true },
       );

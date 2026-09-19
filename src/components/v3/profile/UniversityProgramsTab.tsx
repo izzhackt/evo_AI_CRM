@@ -56,7 +56,7 @@ export async function UniversityProgramsTab({
         initiallyOpen={packetsInitiallyOpen}
         applications={(draft.admissions?.applications ?? []).map((application) => ({
           id: application.universityApplicationId,
-          name: `${application.institutionName} · ${application.programName}`,
+          name: application.programName ? `${application.institutionName} · ${application.programName}` : application.institutionName,
         }))}
       />
     </div>

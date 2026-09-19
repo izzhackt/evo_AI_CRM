@@ -54,4 +54,3 @@ export type AdmissionsPipelineBoardFilters = Readonly<{
   country?: string | null;
   query?: string | null;
 }>;
-

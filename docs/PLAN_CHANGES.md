@@ -30851,3 +30851,74 @@ Reason: (1) a parallel portal session shipped 186_platform_student_invite_confli
 Decision: (1) migration ranges agreed with the portal session by cross-session message: OTH = 187 (board), 188 (notifications v2), 189 (case agreement), 190 (application author/optional program), 191 (case chat), buffer 192-194 stays with this chain; portal starts at 195; release-arm protocol: the session whose merge is last in queue owns the release, with a mandatory cross-session ping before any arm. (2) Migration 189 deliberately replaces both 043 payment_obligations update guards with platform_private.guard_payment_obligation_update: id/org/case/category/creator/created_at frozen forever, amount/currency frozen once total_paid_minor or total_refunded_minor is non-zero, label/due_at/next_action editable, archived_at one-way and unpaid-only, and no-op updates still rejected — the paid-money immutability the 043 design protected survives; only the unpaid-tranche window opens, exactly what the plan's «Деньги и договоры» requires.
 Validation impact: all five migration slices passed the full local OrbStack boundary run on the final 001->191 chain; per-slice adversarial reviews (two lenses) with every confirmed finding fixed pre-merge are recorded in the PR descriptions (#857, #861, #865, #866, #862, #871, follow-up #870). Release: owner applies 187-191 in order, managed release immediately after.
 Reviewer notes: per-slice reviews executed pre-merge on the exact heads; production acceptance record follows the release.
+
+## 2026-09-19 — PORT-3a: каталог в стиле Атлас, карта и гео-библиотека
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 (строки «Каталог» и
+«Карта», раздел «Каталог и материалы») и дизайн-контракт
+`docs/design/portal/design-contract.md` (направление «Атлас»).
+Change type: architecture and scope fixation for PORT-3a before coding.
+Affected plan section: PORT-3 (университеты/карта), решение PORT-0
+«каталог, карта, избранное, фото» (`docs/design/portal/port-0-contracts.md`).
+
+Reason: PORT-3a реализует список⇄карту портального каталога. PORT-0
+предполагал координаты как новое nullable-поле контента с миграцией; для
+slice без изменений БД (номера ≥195 зарезервированы под PORT-1 и избранное)
+нужен способ поставить точки на карту без миграции и без переиздания 143
+опубликованных карточек. Тайл-провайдер по PORT-0 выбирается здесь после
+проверки актуальных условий.
+
+Decision:
+- (a) Координаты поставляются repo-JSON-библиотекой
+  `src/lib/university-geo-library.json` по ключу `photoKey` (прецедент
+  файла-библиотеки: `src/lib/university-photo-library.json`); каждая запись —
+  `{lat, lng, sourceUrl, verifiedOn}` с провенансом на каждый факт
+  (sourceUrl — сущность Wikidata либо проверенная официальная страница,
+  verifiedOn — дата сверки). Схема контента `UniversityContent` НЕ меняется,
+  переиздания 143 карточек НЕТ: карта соединяет опубликованную запись с
+  библиотекой по `content.photoKey` на сервере портала. Вуз без уверенно
+  подтверждённой координаты не получает точку — план прямо запрещает
+  фиктивные пины; такие вузы живут в списке, а карта честно показывает
+  строку «N вузов без точки на карте». Это уточнение решения PORT-0
+  (nullable-поле контента + миграция 150/151-образца) для slice без БД;
+  перенос координат в контент с миграцией остаётся возможным следующим
+  шагом без потери провенанса.
+- (b) Движок карты — MapLibre GL JS (npm `maplibre-gl`, точная версия в
+  package.json). Тайлы — публичный инстанс OpenFreeMap
+  (https://openfreemap.org, стили tiles.openfreemap.org). Условия проверены
+  2026-09-19 по openfreemap.org: «Using our public instance is completely
+  free», «There's no registration, no user database, no API keys, and no
+  cookies», «There are no limits on the number of map views or requests»,
+  коммерческое использование прямо разрешено; обязательная атрибуция —
+  OpenMapTiles и OpenStreetMap («OpenFreeMap © OpenMapTiles Data from
+  OpenStreetMap»). Для низкотрафикового production-портала это подходит без
+  ключа; в карте включается видимая атрибуция
+  «OpenFreeMap © OpenMapTiles © OpenStreetMap contributors». Загрузка карты
+  клиентская (dynamic import, без SSR), `prefers-reduced-motion` отключает
+  анимации перелёта; сбой карты показывает явное состояние ошибки, список
+  остаётся полноценным представлением (план §6, «Каталог и материалы»).
+- (c) Портал получает собственные university-компоненты
+  (`src/components/portal/universities/*`, строки RU+KY через
+  `src/lib/portal/i18n.ts`). Существующие `src/components/v3/universities/*`
+  остаются интерфейсом STAFF-поверхности: общий `UniversityCatalogue`
+  продолжает обслуживать staff с `canManage=true`, а портал перестаёт его
+  импортировать. Это разделение аудиторий по дизайн-контракту (изоляция
+  портала от staff CRM), не layering: у двух аудиторий разные контракты
+  текста/локали/токенов, staff-поверхность не дублируется и не
+  замораживается.
+- (d) Сравнение программ откладывается в slice избранного (вместе с его
+  миграцией после 195): сравнение без сохранённого набора вузов — пустой
+  экран, а избранное v1 уже зафиксировано в PORT-0 отдельной работой.
+
+Validation impact: PORT-3a проверяется реальными командами репозитория —
+eslint по изменённым файлам, `npm run typecheck`, `npm run build`,
+`npm run test:brand-ui`, node --test для portal-i18n,
+v3-student-portal-ui и нового `tests/university-geo-library.test.mjs`
+(схема, диапазоны lat/lng, ключи ⊆ photoKey-набора фото-библиотеки,
+https-sourceUrl, отсутствие дублей), `git diff --check`. Живой рендер тайлов
+и аутентифицированный рендер страниц в этой сессии не выполняются (нет
+креденшелов) — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head; smoke-якоря
+(/portal, /portal/documents) не затрагиваются.

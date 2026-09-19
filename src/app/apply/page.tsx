@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { ApplicationWizard, type ApplicationNamePrefill } from "@/components/student-application/ApplicationWizard";
+import { getLocale } from "@/lib/i18n";
 import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "@/lib/student-application-contract";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
 import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-session";
@@ -27,7 +28,9 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: { absolute: "Начните поступление | EVO Admissions" }, description: "Расскажите о ваших планах и создайте личный аккаунт EVO." };
 
 export default async function ApplyPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const query = await searchParams;
+  // PORT-8c: язык анкеты — существующий механизм cookie `locale` (getLocale —
+  // async; до создания аккаунта персистить язык больше некуда).
+  const [query, locale] = await Promise.all([searchParams, getLocale()]);
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.getUser();
   if (error && error.name !== "AuthSessionMissingError") throw new Error("Student registration is unavailable.");
@@ -59,5 +62,5 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
       } catch { /* prefill is a convenience, not authority */ }
     }
   }
-  return <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} />;
+  return <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} />;
 }

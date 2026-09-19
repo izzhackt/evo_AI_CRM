@@ -36,13 +36,27 @@ test("all country packages are wired into the real server source, never a publis
   assert.match(source, /student_university_catalog/);
 });
 test("the Student university detail route uses a neutral reader description", () => {
+  // PORT-3a: описание переехало из литерала страницы в портальный словарь
+  // RU/KY (universities.detailLead) — нейтральная формулировка сохранена.
+  const dictionary = readFileSync(
+    new URL("../src/lib/portal/i18n.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(dictionary, /detailLead: "Программы, условия поступления и даты наборов\."/);
   for (const route of [
     "../src/app/(portal)/portal/universities/[id]/page.tsx",
+    "../src/components/portal/universities/Detail.tsx",
   ]) {
     const source = readFileSync(new URL(route, import.meta.url), "utf8");
-    assert.match(source, /description="Программы, условия поступления и даты наборов\."/, route);
     assert.doesNotMatch(source, /сведения, которые ещё нужно уточнить/, route);
   }
+  assert.match(
+    readFileSync(
+      new URL("../src/components/portal/universities/Detail.tsx", import.meta.url),
+      "utf8",
+    ),
+    /strings\.detailLead/,
+  );
 });
 test("every institutional roster entry is represented, with explicit campus and legacy-key deduplication", () => {
   const roster = JSON.parse(readFileSync(new URL("../docs/design/v3/references/2026-09-10-university-source-roster.json", import.meta.url), "utf8"));

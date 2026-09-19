@@ -8,14 +8,16 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 import { Pill, type PillTone } from "@/components/v3/Pill";
-import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
-  createPlatformUniversityApplicationAction,
+  changePlatformUniversityApplicationAction,
   updateApplicationPartnerDetailsAction,
   updatePlatformUniversityApplicationDetailsAction,
   type PlatformUniversityApplicationActionState,
 } from "@/lib/platform-admissions-actions";
 import {
+  PLATFORM_APPLICATION_EVIDENCE_STATUSES,
+  PLATFORM_APPLICATION_FORWARD_STATUSES,
   platformApplicationCountryEditOptions,
   platformApplicationDegreeEditOptions,
   type PlatformApplicationQueueRow,
@@ -34,10 +36,10 @@ import {
   financeBlockedActionOptions,
 } from "@/lib/v3/wording";
 
-import { ApplicationUniversitySelector } from "./ApplicationUniversitySelector";
+import { ApplicationCreateDialog } from "./ApplicationCreateDialog";
 import type { ApplicationPartnerDetails, ProfileAdmissionsWorkspace } from "./types";
 
-type ActionStatus =
+export type ActionStatus =
   | PlatformUniversityApplicationActionState["status"]
   | PlatformFinanceStopFactorActionState["status"];
 
@@ -57,14 +59,16 @@ function statusTone(status: string): PillTone {
   return "neutral";
 }
 
-function useCanonicalRefresh(status: ActionStatus): void {
+/** Exported for ApplicationCreateDialog.tsx, which reuses this same locked/refresh convention. */
+export function useCanonicalRefresh(status: ActionStatus): void {
   const router = useRouter();
   useEffect(() => {
     if (status === "saved" || status === "stale") router.refresh();
   }, [router, status]);
 }
 
-function PrimaryApplicationField({
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function PrimaryApplicationField({
   defaultChecked,
 }: Readonly<{ defaultChecked: boolean }>) {
   return (
@@ -85,7 +89,8 @@ function PrimaryApplicationField({
   );
 }
 
-function ApplicationCountryField({
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function ApplicationCountryField({
   defaultValue = "",
 }: Readonly<{ defaultValue?: string }>) {
   const options = platformApplicationCountryEditOptions(defaultValue || null);
@@ -104,7 +109,8 @@ function ApplicationCountryField({
   );
 }
 
-function ApplicationDegreeField({
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function ApplicationDegreeField({
   defaultValue = "",
 }: Readonly<{ defaultValue?: string }>) {
   const options = platformApplicationDegreeEditOptions(defaultValue || null);
@@ -140,7 +146,8 @@ function ApplicationGeographySummary({
   );
 }
 
-function StateBanner({ status }: Readonly<{ status: ActionStatus }>) {
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function StateBanner({ status }: Readonly<{ status: ActionStatus }>) {
   if (status === "idle") return null;
   const warning = status === "invalid" || status === "stale" || status === "request_conflict";
   return (
@@ -159,53 +166,79 @@ function StateBanner({ status }: Readonly<{ status: ActionStatus }>) {
   );
 }
 
-function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmissionsWorkspace }>) {
+/**
+ * OTH-4 («Отметить статус»): un-deadens `platform.change_university_application`
+ * (live since 107, previously exported but never rendered anywhere — see this
+ * slice's plan doc, «Uni & knowledge base», «Добавленный вуз означает
+ * «рассматриваем». Фактическая подача отмечается отдельно»). Only the
+ * meaningful forward statuses are offered (PLATFORM_APPLICATION_FORWARD_STATUSES
+ * excludes `preparation`, the fixed create-time default). Evidence is always
+ * submitted as one field (exactActionStringFields requires the exact expected
+ * count every time, the same convention `is_primary`'s checkbox already
+ * relies on above) but only rendered/required while the chosen status needs
+ * it; `rejected`/`withdrawn` require a note the same way the RPC itself does.
+ */
+function ApplicationStatusForm({
+  workspace,
+  application,
+}: Readonly<{
+  workspace: ProfileAdmissionsWorkspace;
+  application: PlatformApplicationQueueRow;
+}>) {
   const initialState: PlatformUniversityApplicationActionState = {
     status: "idle",
-    requestId: workspace.requestIds.createApplication,
-    universityApplicationId: null,
-    version: null,
+    requestId: workspace.requestIds.changeStatus[application.universityApplicationId],
+    universityApplicationId: application.universityApplicationId,
+    version: application.version,
   };
   const [state, action, pending] = useActionState(
-    createPlatformUniversityApplicationAction,
+    changePlatformUniversityApplicationAction,
     initialState,
   );
   useCanonicalRefresh(state.status);
   const locked = pending || state.status === "saved" || state.status === "stale";
+  const [nextStatus, setNextStatus] = useState("");
+  const needsEvidence = PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(
+    nextStatus as (typeof PLATFORM_APPLICATION_FORWARD_STATUSES)[number],
+  );
+  const needsNote = nextStatus === "rejected" || nextStatus === "withdrawn";
 
   return (
-    <form action={action} className="mt-3 space-y-3" aria-busy={pending} data-testid="v3-application-create">
+    <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
+      <input type="hidden" name="application_id" value={application.universityApplicationId} />
       <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
       <input type="hidden" name="request_id" value={state.requestId} />
-      <input type="hidden" name="expected_version" value="0" />
-      {/* Unified workflow S4 (plan §11): no submission-status editing UI —
-          a newly added university/program is simply "being considered", not
-          submitted anywhere. The status column stays a required DB field, so
-          a fixed default is still submitted, just never as a visible picker. */}
-      <input type="hidden" name="status" value="preparation" />
+      <input type="hidden" name="expected_version" value={state.version ?? application.version} />
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
-        <ApplicationUniversitySelector key={workspace.studentCaseId} />
         <label>
-          <span className={labelCls}>Программа</span>
-          <input name="program_name" required maxLength={300} className={inputCls} />
+          <span className={labelCls}>Статус</span>
+          <select
+            name="status"
+            required
+            value={nextStatus}
+            onChange={(event) => setNextStatus(event.target.value)}
+            className={inputCls}
+          >
+            <option value="">Выберите статус</option>
+            {PLATFORM_APPLICATION_FORWARD_STATUSES.filter((status) => status !== application.status).map((status) => (
+              <option key={status} value={status}>{applicationStatus(status)}</option>
+            ))}
+          </select>
         </label>
-        <PrimaryApplicationField defaultChecked={false} />
-        <label>
-          <span className={labelCls}>Дедлайн от университета</span>
-          <input name="university_deadline_on" type="date" className={inputCls} />
-        </label>
-        <ApplicationCountryField />
-        <ApplicationDegreeField />
-        <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
-          <input name="evidence_reference" maxLength={1000} className={inputCls} />
-        </label>
+        {needsEvidence ? (
+          <label>
+            <span className={labelCls}>Ссылка на подтверждение</span>
+            <input name="evidence_reference" required maxLength={1000} className={inputCls} />
+          </label>
+        ) : (
+          <input type="hidden" name="evidence_reference" value="" />
+        )}
         <label className="md:col-span-2">
           <span className={labelCls}>Заметка</span>
-          <textarea name="note" rows={2} maxLength={1000} className={inputCls} />
+          <textarea name="note" required={needsNote} rows={2} maxLength={1000} className={inputCls} />
         </label>
-        <button type="submit" className={btnCls} disabled={locked}>
-          {pending ? "Сохраняем…" : "Добавить заявку"}
+        <button type="submit" className={btnGhostCls} disabled={locked || !nextStatus}>
+          {pending ? "Сохраняем…" : "Сохранить статус"}
         </button>
       </fieldset>
       <StateBanner status={state.status} />
@@ -515,7 +548,7 @@ export function ProfileAdmissionsWorkspacePanel({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-medium text-fg">{application.institutionName}</p>
-                    <p className="mt-0.5 text-sm text-fg-3">{application.programName}</p>
+                    {application.programName ? <p className="mt-0.5 text-sm text-fg-3">{application.programName}</p> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Pill tone={application.isPrimary ? "info" : "neutral"}>
@@ -543,6 +576,11 @@ export function ProfileAdmissionsWorkspacePanel({
                     {application.latestEvidenceReference}
                   </p>
                 ) : null}
+                {application.createdByDisplayName ? (
+                  <p className="mt-2 text-xs text-fg-3">
+                    Добавил: {application.createdByDisplayName}
+                  </p>
+                ) : null}
                 <ApplicationPartnerFacts
                   key={`partner-${application.universityApplicationId}-${
                     partnerDetails.find((item) => item.applicationId === application.universityApplicationId)?.version
@@ -565,17 +603,26 @@ export function ProfileAdmissionsWorkspacePanel({
                     />
                   </details>
                 ) : null}
+                {canWriteApplications ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-medium text-accent">
+                      Отметить статус
+                    </summary>
+                    <ApplicationStatusForm
+                      key={`status-${application.universityApplicationId}-${application.version}`}
+                      workspace={workspace}
+                      application={application}
+                    />
+                  </details>
+                ) : null}
               </article>
             ))}
           </div>
         )}
         {canWriteApplications ? (
-          <details className="border-t border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium text-accent">
-              Новая заявка
-            </summary>
-            <ApplicationCreateForm workspace={workspace} />
-          </details>
+          <div className="border-t border-border px-4 py-3">
+            <ApplicationCreateDialog workspace={workspace} />
+          </div>
         ) : null}
       </Card>
     </div>

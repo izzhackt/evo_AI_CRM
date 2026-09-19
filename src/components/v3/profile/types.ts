@@ -183,6 +183,8 @@ export type ProfileAdmissionsRequestIds = Readonly<{
   resolveStops: Readonly<Record<string, string>>;
   /** «Партнёр и решение» save per application (unified workflow S7). */
   partnerDetails: Readonly<Record<string, string>>;
+  /** OTH-4: «Отметить статус» save per application, own id/form/RPC. */
+  changeStatus: Readonly<Record<string, string>>;
 }>;
 
 /**

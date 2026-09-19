@@ -234,7 +234,7 @@ function profileApplications(
   return applications.map((application) => ({
     id: application.universityApplicationId,
     institution: application.institutionName,
-    program: application.programName,
+    program: application.programName ?? "программа не указана",
     intake: application.intake ?? "не указано",
     isPrimary: application.isPrimary,
     universityDeadlineOn: application.universityDeadlineOn,
@@ -289,7 +289,7 @@ function profileDocumentCaseLinkTargets(
     return {
       kind: "university_application",
       id: application.universityApplicationId,
-      label: `${application.institutionName}: ${application.programName} · ${details.join(" · ")}`,
+      label: `${[application.institutionName, application.programName].filter(Boolean).join(": ")} · ${details.join(" · ")}`,
       linked: false,
       requestId: allowWrite ? randomUUID() : null,
     };
@@ -493,6 +493,15 @@ function admissionsWorkspace(
       // distinct from applicationDetails above (a different form, a
       // different RPC).
       partnerDetails: Object.fromEntries(
+        data.applications.map((application) => [
+          application.universityApplicationId,
+          randomUUID(),
+        ]),
+      ),
+      // OTH-4: «Отметить статус» -- own per-application id, distinct form/RPC
+      // from applicationDetails above (change_university_application, not
+      // update_university_application_details).
+      changeStatus: Object.fromEntries(
         data.applications.map((application) => [
           application.universityApplicationId,
           randomUUID(),

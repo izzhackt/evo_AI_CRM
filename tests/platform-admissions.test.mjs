@@ -48,6 +48,8 @@ const LEAD_ID = "33333333-3333-4333-8333-444444444444";
 const VERSION_ID = "44444444-4444-4444-8444-444444444444";
 const CONTRACT_ID = "55555555-5555-4555-8555-555555555555";
 const HANDOFF_ID = "66666666-6666-4666-8666-666666666666";
+// OTH-4: application.created_by_membership_id, distinct from actor().membershipId.
+const CREATED_BY_MEMBERSHIP_ID = "99999999-9999-4999-8999-000000000001";
 const AT = "2026-08-01T05:00:00+00:00";
 
 function loadUniversitySearch({ authorize, read }) {
@@ -423,6 +425,11 @@ function applicationRow(overrides = {}) {
     open_task_count: 1,
     payment_obligation_count: 1,
     outstanding_payment_obligation_count: 0,
+    // OTH-4: staff_application_page_v2/staff_application_snapshot_v2 add
+    // these two columns over the retired staff_application_page/snapshot
+    // fixture shape -- deliberate pin update for this slice.
+    created_by_membership_id: CREATED_BY_MEMBERSHIP_ID,
+    created_by_display_name: "Creator User",
     ...overrides,
   };
 }
@@ -481,6 +488,17 @@ test("public intake cases and university applications preserve an absent Sales o
   assert.equal(application.studentCaseId, CASE_ID);
   assert.equal(normalizePlatformStudentCaseQueueRow(caseRow()).responsibleSalesDisplayName, "Sales User");
   assert.equal(normalizePlatformApplicationQueueRow(applicationRow()).responsibleSalesDisplayName, "Sales User");
+});
+
+test("application rows decode a NULL program_name (optional program, OTH-4)", () => {
+  // Migration 189 makes program_name nullable; the read path must accept it
+  // or a single program-less application takes down the whole case page.
+  const application = normalizePlatformApplicationQueueRow(
+    applicationRow({ program_name: null }),
+    ORGANIZATION_ID,
+  );
+  assert.equal(application.programName, null);
+  assert.equal(application.institutionName, "Example University");
 });
 
 test("nullable Sales owner never accepts a missing or malformed projection", () => {

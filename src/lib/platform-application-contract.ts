@@ -18,6 +18,18 @@ export const PLATFORM_APPLICATION_EVIDENCE_STATUSES = new Set<
 >(["submitted", "under_review", "offer", "rejected", "enrolled"]);
 
 /**
+ * OTH-4: the statuses a staff member can move an application FORWARD to from
+ * the card ("Отметить статус") -- every status except `preparation`, which is
+ * the fixed create-time default and not a picker choice (see
+ * ProfileAdmissionsWorkspace.tsx's ApplicationCreateForm).
+ */
+export const PLATFORM_APPLICATION_FORWARD_STATUSES =
+  PLATFORM_APPLICATION_STATUSES.filter(
+    (status): status is Exclude<PlatformApplicationStatus, "preparation"> =>
+      status !== "preparation",
+  );
+
+/**
  * The exact six destination countries the business works with, represented as
  * ISO-3166-1 alpha-2 codes. This allowlist is shared by response validation and
  * every staff form; no other two-letter code is a valid application country.
@@ -378,7 +390,7 @@ export type PlatformApplicationQueueRow = Readonly<{
   programDirection: string | null;
   intake: string | null;
   institutionName: string;
-  programName: string;
+  programName: string | null;
   isPrimary: boolean;
   universityDeadlineOn: string | null;
   country: string | null;
@@ -396,4 +408,7 @@ export type PlatformApplicationQueueRow = Readonly<{
   openTaskCount: number;
   paymentObligationCount: number;
   outstandingPaymentObligationCount: number;
+  /** OTH-4: who added this entry, from staff_application_page_v2/staff_application_snapshot_v2. */
+  createdByMembershipId: string;
+  createdByDisplayName: string | null;
 }>;

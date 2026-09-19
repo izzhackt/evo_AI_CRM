@@ -103,6 +103,10 @@ Merge — маленькими PR по порядку; каждый PR само�
 6. Семейство invite-RPC (`claim/finalize/resolve…`, 126) — service_role-only и
    остаётся серверно-опосредованным: для iPhone инвайт идёт через universal
    link в web `/auth/callback` (ADR 0030), не через прямой PostgREST.
+   Дополнение PORT-1b (миграция 193): приглашения с маркером
+   `intake_flow='anketa_v1'` после принятия ведут в анкету и активируются
+   только через staff-одобрение (finalize для них биндит без активации);
+   legacy-инвайты работают по-старому.
 7. Обязательный boundary-тест уровня `platform_student_assessments_boundary.sql`
    на новую границу: pending-актор получает 42501/пусто на case-help и
    документы, approved-возможности работают, active-кейс не деградирует.

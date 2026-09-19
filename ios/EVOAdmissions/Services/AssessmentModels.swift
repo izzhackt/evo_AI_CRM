@@ -141,6 +141,11 @@ struct AssessmentAttempt: Decodable {
 struct AssessmentResult: Decodable {
     let instrumentKey: String
     let version: String
+    /// `p_version.metadata` (migration 135, line 257) — the exact same
+    /// `student_assessment_versions.metadata` column already surfaced as
+    /// `AssessmentAttempt.metadata`/`AssessmentInstrumentSummary.metadata`,
+    /// so it decodes with the same `AssessmentMetadata` shape here.
+    let metadata: AssessmentMetadata
     let answeredCount: Int
     let questionCount: Int
     let completedAt: String

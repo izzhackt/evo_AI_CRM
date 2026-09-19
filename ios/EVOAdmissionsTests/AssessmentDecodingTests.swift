@@ -169,6 +169,9 @@ final class AssessmentDecodingTests: XCTestCase {
     }
 
     func testDecodesCompletedEnglishResult() throws {
+        // grade_student_assessment line 257 always echoes `p_version.metadata`
+        // into the result; this fixture already carried it, but nothing
+        // asserted on it before AssessmentResult gained a `metadata` field.
         let fixture = """
         {
           "attemptId": "c3d4e5f6-a7b8-4920-b1c2-d3e4f5061728",
@@ -245,14 +248,27 @@ final class AssessmentDecodingTests: XCTestCase {
             attempt.metadata.bands?.first(where: { $0.id == english.band })?.label,
             "Развивающаяся полоса"
         )
+        XCTAssertEqual(result.metadata.title, "Английский: 36 заданий")
     }
 
     func testDecodesOrvisResultSnapshot() throws {
         // grade_student_assessment lines 276–285: mean = round(raw/count, 4).
+        // Line 257: `result := jsonb_build_object(..., 'metadata', p_version.metadata, ...)`
+        // — grading always echoes the instrument's own version metadata back
+        // into the result snapshot, so the fixture carries it too (matching
+        // the SQL contract, not just the narrower Swift model it once had).
         let fixture = """
         {
           "instrumentKey": "orvis92",
           "version": "2026-06-v1",
+          "metadata": {
+            "title": "Карта интересов",
+            "scales": [
+              { "id": "analysis", "label": "Анализ", "description": "Работа с данными и закономерностями." },
+              { "id": "creativity", "label": "Креативность", "description": "Генерация новых идей и решений." }
+            ],
+            "professionAttribution": "Адаптация EVO по O*NET®, CC BY 4.0."
+          },
           "answeredCount": 92,
           "questionCount": 92,
           "completedAt": "2026-09-10T11:00:00+00:00",
@@ -274,6 +290,8 @@ final class AssessmentDecodingTests: XCTestCase {
         XCTAssertEqual(orvis.scales[0].mean, 4.2, accuracy: 0.0001)
         XCTAssertEqual(orvis.topScales, ["analysis"])
         XCTAssertNil(result.english)
+        XCTAssertEqual(result.metadata.title, "Карта интересов")
+        XCTAssertEqual(result.metadata.scales?.count, 2)
     }
 }
 

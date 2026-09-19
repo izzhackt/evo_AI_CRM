@@ -32372,3 +32372,172 @@ tests/ci-node-test-suite.test.mjs; 9. git diff --check.
   структурные пины и неизменность серверных контрактов (только существующие
   RPC-чтения).
 - KY-строки написаны агентом и ждут вычитки носителем языка.
+
+## 2026-09-20 — PORT-9a: анкета, статус заявки и инвайт на iPhone (append-only)
+
+Волна 9a плана `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` (§2 «Регистрация»/«Приглашения», §5 оба пути, §10 PORT-1) в ветке
+izzhackt/portal-ios-wave9-anketa от origin/main (5ab34127). Закрывает
+аудит-разрыв «на iPhone есть только SignInView»: нативная анкета, создание
+аккаунта в конце, статус заявки, resubmit и invite-путь. Без миграций;
+серверная логика регистрации/одобрения и email_confirm-семантика не меняются.
+
+### Решение 1 — что НЕ становится новым endpoint'ом
+
+`platform.own_student_application_v1` и `platform.submit_student_application_v1`
+уже `GRANT EXECUTE TO authenticated` (177:506-512, 180:353-361; 193 меняет
+только тела). По ADR 0030 («никакого универсального bearer-гейтвея, оба
+клиента вызывают один контракт») iPhone вызывает их напрямую через PostgREST
+тем же путём, что и все волны 4-8: статус заявки, отправка анкеты signed-in
+пользователем и resubmit после отказа — это НЕ новые route handler'ы, а те же
+RPC с теми же definer-гейтами (identity-conflict 193(f), PT409, advisory
+locks). Новые HTTP-обёртки над ними дублировали бы существующую поверхность —
+осознанно отклонено.
+
+### Решение 2 — два узких route handler'а (ADR 0030 «Решение» п.3)
+
+1. **POST `/api/portal/registration`** (анонимный; создание аккаунта в конце
+   анкеты — единственный шаг, который клиентским ключом не воспроизводится:
+   `auth.admin.createUser`). Тонкий адаптер над ТЕМИ ЖЕ функциями веб-мастера
+   (`src/lib/student-signup-actions.ts` / `src/lib/server/student-public-registration.ts`):
+   - тело — только `application/json` (иначе 415), exact-ключи
+     `{questionnaire, email, password}` (дисциплина exactActionStringFields),
+     стрим-чтение с потолком 16 KiB и сериализованная анкета ≤ 12000 символов
+     (зеркало student-signup-actions.ts:32);
+   - email нормализуется как в action (trim+lowercase, ≤254, тот же regex);
+     анкета — `validateStudentApplicationDraft` (единственный валидатор);
+   - вызывает `createPublicStudentAccount(email, password, draft)` БЕЗ
+     изменений: та же `reserve_student_signup_attempt_v1` (глобально 100/час +
+     5/час на email, 177:8-48), тот же bcrypt-байтовый потолок, те же коды;
+   - ответ `{status}` — байт-в-байт статусы StudentSignupState:
+     201 created / 400 invalid|password|password_too_long / 409 conflict /
+     429 rate_limit / 503 unavailable. iPhone маппит их на существующие
+     `server.*`-строки словаря apply;
+   - CSRF/Origin-проверка веб-action защищает cookie-сессионную двойственность
+     формы (signed-in ветку). Endpoint cookies не читает и не пишет и
+     signed-in ветки не имеет, поэтому Origin-гейт заменяется контрактом
+     «только JSON + exact-ключи»; анти-abuse остаётся ТЕМ ЖЕ DB-постом
+     (bucket-RPC + Supabase 429). Идемпотентность создания — как на вебе:
+     дубликат email всегда отвергается admin.createUser (conflict), повтор
+     submit'а после входа идемпотентен по requestId анкеты в самой RPC.
+2. **POST `/api/portal/invite-acceptance`** (bearer; нативное потребление
+   инвайта «не выходя из приложения», ADR 0030 п.3(б)). Токен из письма
+   приложение потребляет само (`auth.verifyOTP(token_hash, type=invite)` — тот
+   же Auth-вызов, что у веб-callback'а, student-invite-callback-runtime.ts:27-30);
+   отметка получения receipt'а — service-role-only RPC, поэтому нужен узкий
+   handler:
+   - Authorization: Bearer → `createSupabaseBearerServerClient(token)` +
+     `auth.getClaims(token)` (паттерн PORT-8a, student-portal-auth.ts:122);
+     resolveStudentPortalBearerActor не переиспользуется целиком осознанно —
+     он требует портальную authority, которой у account-pending приглашённого
+     ещё нет;
+   - claims → `normalizeStudentInviteIdentity` →
+     `resolveStudentInviteReceiptIdentity(identity, createTrustedStudentInviteReceiptStore(), markAccepted=true)`
+     — РОВНО те же функции и тот же m126/186/193-seam, что у веб-callback'а
+     (student-invite-session.ts:38-93, student-invite-session-runtime.ts:13-18);
+     web-CSRF-cookie-церемония заменяется bearer'ом (cookies не участвуют);
+   - ответ: 200 `{status:"accepted", intakeFlow, accountPending, displayName}`
+     / 401 `{status:"authentication_required"}` / 409 `{status:"mismatch"}`
+     / 503 `{status:"unavailable"}`. Повтор идемпотентен: accept_e1 срабатывает
+     только если receipt ещё не accepted (126:2876-2884), затем тот же ответ.
+   - Установка пароля приглашённого — нативный `auth.updateUser({password})`
+     (та же операция, что set-password action, student-portal-auth-actions.ts:128),
+     границы длины 12..4096 зеркалятся в клиенте.
+
+Прокси/route-contract: `/api/portal/registration` (POST) добавляется как
+public-intake pass-through (класс `/api/public/website-leads`: handler владеет
+своей границей); `/api/portal/invite-acceptance` (POST) добавляется в
+`isConnectedStudentPortalApi` — существующий bearer-precedence проход PORT-8a
+покрывает его; без bearer-заголовка handler честно отвечает 401. Пины
+tests/fixed-role-route-contract.test.mjs обновляются в том же коммите.
+
+### Решение 3 — iOS: маршрутизация, wizard, статус, инвайт
+
+- **SessionRouter** заменяет «безликий» accessPending честными состояниями:
+  `needsApplication` (анкета) и `applicationStatus(StudentApplication)`.
+  Таблица решений (чистая политика, юнит-тесты):
+  - authority есть и не student → accessPending (staff-аккаунту в этом
+    приложении делать нечего — как сегодня);
+  - authority student: 1 кейс → active; >1 → accessPending (multi-case v1 не
+    поддержан — как сегодня); 0 кейсов → анкетный маршрут (приглашённый до
+    approve: membership привязан finalize'ом, но activation нет — 193(d));
+  - authority нет → анкетный маршрут;
+  - анкетный маршрут: не подтверждён email или стоит staff-маркер
+    `evo_staff_password_request_id` (student-signup-runtime.ts:10-13) →
+    accessPending; `own_student_application_v1` != null → applicationStatus;
+    null → resume-политика (зеркало resumeStudentApplication:40-61): валидный
+    draft в user_metadata → `submit_student_application_v1(requestId, draft, 0)`
+    → очистка metadata → applicationStatus; иначе → needsApplication.
+- **Анкета (ApplicationWizardView)** — те же 9 шагов STEP_KEYS и тот же
+  порядок валидационных сообщений (ApplicationWizard.tsx:135-149), канон
+  значений — RU-строки контракта (направления обучения — RU-текст, KY только
+  подпись, как PORT-8c); валидация draft'а зеркалит
+  `validateStudentApplicationDraft` правило-в-правило (телефон, диапазоны
+  экзаменов, год 2026-2036, балл ≤ шкалы, exact-состав ключей, consentVersion
+  2026-09-18). Анонимный режим: финальный шаг = контакты+email+пароль+согласие
+  → POST registration → `signIn(email, password)` → router-resume отправляет
+  draft из metadata (тот же путь, что веб-resume — идемпотентно по requestId).
+  Signed-in режим (приглашённый, resume, resubmit): email read-only, без
+  пароля, кнопка «Отправить анкету» → прямая RPC с expectedRevision (0 или
+  revision отклонённой заявки). Черновик — UserDefaults без пароля (аналог
+  sessionStorage веба), чистится при показе статуса, как ApplicationStatus.tsx.
+- **Статус (ApplicationStatusView)** — зеркало /apply/status: заголовок/лид по
+  статусу, причина отказа, «Исправить анкету» (rejected → wizard с
+  draft=questionnaire, expectedRevision=revision), «Обновить статус»/«Открыть
+  кабинет» = `auth.refreshSession()` + повторный resolve (семантика
+  refreshStudentApplicationAction), «Выйти», список ответов из 12 строк
+  (localizedAnswers: подписи answer.*, значения opt.*/шаблоны gradeOf,
+  englishExamAnswer/englishSelfAnswer, страны — Locale.localizedString с
+  ky-фолбэком на RU, как localizedCountryLabel).
+- **Инвайт (InviteEntryView)**: письмо ведёт на web-callback
+  (`…/auth/callback?token_hash=<56hex>&type=invite`, supabase/templates/invite.html:6);
+  приложение принимает ВСТАВЛЕННУЮ ссылку или сам token_hash, парсинг зеркалит
+  decodeStudentInviteCallbackQuery (ровно 2 параметра, 56-hex, type=invite) →
+  verifyOTP → POST invite-acceptance → установка пароля → anketa_v1 +
+  accountPending → wizard с префиллом имени (invitedNamePrefill,
+  apply/page.tsx:18-25). Приглашённый, прошедший callback на вебе, просто
+  входит по email+паролю — тот же анкетный маршрут; префилл добирается
+  оппортунистическим invite-acceptance (mismatch = «не приглашённый», не
+  ошибка; сетевой сбой префилла анкету не блокирует — та же позиция, что
+  try/catch на /apply). Signed-out экран получает «Подать анкету» рядом со
+  входом.
+- **RU/KY**: все новые строки в Localizable.xcstrings обеими локалями; RU
+  зеркалит словарь apply байт-в-байт там, где строка существует на вебе
+  (шаблоны {step}/{limit} переносятся в формат-строки), iOS-специфичные строки
+  (вставка ссылки, ошибки RPC-submit) — новые ключи с обеими локалями.
+  accessibilityLabel на всех новых контролах; вёрстка на системных шрифтах
+  (Dynamic Type), без фиксированных высот.
+
+### Валидация
+
+Веб (каждая команда отдельно, echo exit-кода): `npx tsc --noEmit` (через
+`npm run typecheck`), `npx eslint <затронутые пути>`, `npm run build`
+(`next build` + worker-бандлы), `node --conditions=react-server
+--experimental-strip-types --test tests/student-portal-intake-routes.test.mjs
+tests/student-public-application.test.mjs tests/fixed-role-route-contract.test.mjs
+tests/ci-node-test-suite.test.mjs`, `git diff --check`. Новый тест-файл
+tests/student-portal-intake-routes.test.mjs встаёт в test:u1/test:u7/
+test:unit:core; пины ci-node-test-suite (occurrenceCount/uniqueFileCount/
+duplicateCount/групповые length) обновляются в том же коммите.
+iOS: `xcodegen generate`, `xcodebuild build` и `xcodebuild test`
+(iPhone 17 Pro simulator) отдельными командами с индивидуальными exit-кодами
+и «Executed N tests» из полного лога. Тесты: decoder-фикстуры
+(own_student_application_v1 — exact-состав ключей student-application-source.ts:22,
+варианты english; draft round-trip — DRAFT_KEYS contract:52; ответы
+registration/invite-acceptance) и policy-юниты (parity валидации анкеты
+построчно с контрактом, порядок шаговых сообщений, resubmit-ревизия, таблица
+решений router'а, парсинг invite-ссылки, префилл имени, resume-политика).
+
+### Честные ограничения
+
+- Живая регистрация в production не прогоняется (реальные аккаунты не
+  создаются); уверенность — из переиспользования нетронутых серверных функций,
+  route-юнитов на DI-зависимостях и policy/decoder-parity тестов. Живой
+  инвайт-путь end-to-end (реальное письмо → verifyOTP → acceptance) не
+  прогоняется по той же причине.
+- Bearer-путь invite-acceptance зависит от релиза веб-кабинета; до деплоя
+  iOS-поток честно упирается в 404 (тот же временной зазор, что PORT-8a).
+- KY-строки написаны агентом и ждут вычитки носителем.
+- Оппортунистический префилл приглашённого требует сети до веб-кабинета;
+  без неё анкета работает, но без префилла и с PT409-конфликтом на submit,
+  если receipt ещё не accepted (крайний случай: токен потреблён, приложение
+  умерло до acceptance; повторный вход чинит — acceptance вызывается заново).

@@ -11,7 +11,16 @@ PostgREST — no second backend, no bearer gateway.
 1. `which xcodegen || brew install xcodegen`
 2. Copy `Local.xcconfig.example` to `Local.xcconfig` in this directory and fill
    in the real Supabase project URL and publishable key. `Local.xcconfig` is
-   git-ignored — never commit it.
+   git-ignored — never commit it. NOTE: xcconfig treats `//` as a comment
+   anywhere in a line, so URLs must be written with the empty-substitution
+   guard: `https:/$()/host` (see the example file).
+
+   Optional key `PORTAL_WEB_BASE_URL` — the web-cabinet origin for the two
+   bearer document route handlers (upload/download, ADR 0030 §3). When the
+   key is missing, empty, or truncated to a hostless artefact, the app
+   falls back to the production cabinet `https://app.evoadmissions.com`
+   (`AppConfig.portalWebBaseURL`), so most setups can omit it; set it only
+   to point document upload/download at a staging cabinet.
 3. `xcodegen generate` (regenerates `EVOAdmissions.xcodeproj` from
    `project.yml`; re-run it after editing `project.yml` or adding/removing
    source files).
@@ -100,6 +109,40 @@ App Store step (plan §13), not made here.
 - **Anketa / case-less flow on phone** — a student authority with zero or
   more-than-one case routes to `AccessPendingView` in v1; the case-less
   application flow is explicitly out of scope for PORT-2 (plan/ADR 0030).
+
+## What was verified for wave 8 (сопровождение: документы / оплата / уведомления / задания)
+
+- Contracts: the SAME read RPCs the web PORT-5d screens consume —
+  `student_portal_overview_v2` (131:17-30), `student_portal_documents`
+  (128:675-694), `student_portal_finance_v2` (127:472-485, overdue
+  NULL-safety 189:242-257), `student_portal_notifications_v2` (153:97-106)
+  and `mark_own_student_portal_notification_read_v2` (153:210, receipt
+  153:314-318). Codable mirrors live in `Services/AdmissionModels.swift`,
+  each field commented with its SQL source lines; the bearer document
+  transport (upload multipart + frozen `Idempotency-Key`, download 302 →
+  signed URL with Authorization stripped cross-host) lives in
+  `Services/PortalDocumentTransfer.swift` against the route-handler
+  contract (route-handlers.ts:1160, 1461-1473, 1579-1594; ADR 0030 §3).
+- `xcodebuild … build` and `xcodebuild … test` for `iPhone 17 Pro` — both
+  exit code 0; `Executed 92 tests, with 0 failures` (21 new: decoder
+  fixtures hand-written from the 131/127+189/128/153 return shapes + pure
+  policies — frozen upload key retry/reset, UUIDv5 request-id parity
+  vectors against the web reference algorithm, mark-all over unread only,
+  the 189 undated-payment rendering, the action-queue merge/sort, the
+  one-part multipart body and the web's upload-failure status map).
+- «Моё поступление» is a hub now: case status, the student action queue,
+  the EVO task + curator column, and entries to Документы / Оплата /
+  Уведомления / Сообщения. The «доступны в веб-кабинете» deferral string
+  is REMOVED (wave-8 scope); RU/KY String Catalog went 270→362 keys, both
+  languages complete.
+- **Not exercised live** (deliberately): document upload/download against a
+  real cabinet — the server-side bearer resolver is being built IN PARALLEL
+  (izzhackt/portal-8-bearer-documents) and is not on main yet, so the live
+  path CANNOT work until PORT-8a merges and releases; no sign-in was
+  performed in this session, so all post-login screens (hub, documents,
+  payments, notifications, mark-read against production) are covered at the
+  decoder-fixture/policy-unit level only. KY texts are agent-written and
+  await a native-speaker read.
 
 ## What was verified for wave 7 (раннер уроков / консультация / сообщения)
 

@@ -178,7 +178,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
         {section ? <>
           <div className={styles.toolbar}>
             <button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(true)}>Папки</button>
-            <h2 className={styles.sectionHeading}>{section === "documents" ? "Документы" : "Шаблоны ответов"}</h2>
+            {section === "documents" && <h2 className={styles.sectionHeading}>Документы</h2>}
           </div>
           {children}
         </> : <>

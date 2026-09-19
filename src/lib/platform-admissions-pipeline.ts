@@ -165,9 +165,11 @@ export async function readAdmissionsPipelineBoard(
     const response = await client.schema("platform").rpc(
       "staff_admissions_pipeline_board_v1",
       {
-        p_curator_membership_id: curatorMembershipId,
-        p_country: country,
-        p_query: query,
+        // GET serializes null as the string "null". Omit unset filters so
+        // the RPC uses its SQL NULL defaults, including the UUID argument.
+        p_curator_membership_id: curatorMembershipId ?? undefined,
+        p_country: country ?? undefined,
+        p_query: query ?? undefined,
       },
       { get: true },
     );

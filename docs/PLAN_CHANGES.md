@@ -32739,3 +32739,30 @@ ledger insert. Официальный контракт: https://supabase.com/doc
 Ключ SOPS передаётся только process-only из Keychain на внешний серверный путь.
 Эта запись фиксирует полномочия и порядок, но не объявляет применение,
 выпуск, импорт или проверку ZIP уже выполненными.
+
+
+## 2026-09-20 — Admissions pipeline: omit empty GET filters
+
+Owner-reported production failure at `/v3/admissions-pipeline` was reproduced
+with the existing authenticated Admin session: no curator filter produces
+«Не удалось загрузить воронку поступления», selecting a curator removes that
+error, and resetting filters reproduces it. Managed Postgres logs at the
+matching request times confirm `invalid input syntax for type uuid: "null"`.
+No customer data or permissions were changed during diagnosis.
+
+The board RPC uses Supabase GET transport. Pinned postgrest-js 2.111.0 omits
+undefined values but serializes JavaScript null as the literal string `null`.
+The optional UUID therefore fails before the SQL function executes; empty
+country/search values also become unintended text filters. Omit all three
+unset arguments and retain the RPC's existing SQL NULL defaults. Preserve
+GET/read-only transport, nonempty filters, authorization and the decoder.
+No migration or product-scope change is needed.
+
+Official source: https://github.com/supabase/supabase-js/blob/v2.111.0/packages/core/postgrest-js/src/PostgrestClient.ts
+
+Validation scope: existing focused pipeline source-contract checks and diff
+review; these static checks do not prove HTTP behavior. The real regression
+signal is the authenticated browser board after managed release, including
+resetting filters and both tabs. Until then the production fix is unverified.
+Do not interrupt Fable's active exact-main release to merge or deploy this fix;
+use the next coordinated release after the current owner completes/disarms.

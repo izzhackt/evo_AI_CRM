@@ -7,18 +7,35 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */; };
+		03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */; };
+		065D3387E3057F66A131EE28 /* university-photo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 47EC7DEB3936306868625BE9 /* university-photo-library.json */; };
 		10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 005949937B65067CD79CB062 /* Localizable.xcstrings */; };
 		1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036B63945D738592B84D329 /* AccessPendingView.swift */; };
+		16CCE941413181944BF10D95 /* AssessmentResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280E923C4B1D8CC4E01905E0 /* AssessmentResultView.swift */; };
+		18286AF5B327A304BAE546DB /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6054711F5C4F26BE7B0903F9 /* ProfileView.swift */; };
+		387AEEB179AE91F1D8DEF13B /* PortalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9DA536AE40E6D000522F975 /* PortalModels.swift */; };
+		3E03D82AE38652963B61B3CA /* TestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AA13F5351C06938BB99E9E /* TestsView.swift */; };
+		432F8EDE8A7DA0FDA84CAA18 /* UniversityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90729578002EEEABF3DBADAB /* UniversityDetailView.swift */; };
 		45DE16AD4C98B00179939449 /* NetworkErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */; };
 		48954EF3BCE4088708D2D5C3 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6092FB55F132DB487AC29A36 /* HomeView.swift */; };
 		4B719C2CF1A19ED986419366 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CDF92CA04A21A199DB841591 /* Assets.xcassets */; };
+		6A90423B0FDC0890A5A43756 /* UniversityPhotoLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1138EB3C6CFD2299FADB8FB4 /* UniversityPhotoLibraryTests.swift */; };
+		6F0D140939ADB6FFC3F90AEE /* PostgresTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */; };
 		7EB7366B1B43CE792C680F3A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC77892DE13ABBA6FF91B1B4 /* RootView.swift */; };
 		8EDF7EA8F721F4F8A12E6532 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 2F2B8B40F10FF70688FD83B9 /* Supabase */; };
 		95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */; };
 		99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B36978FE6CEE29DDAC580E /* SupabaseService.swift */; };
+		A33A7B570BFD41CAF763E0D7 /* AssessmentRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */; };
 		B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45852421E9DCACAC63246FF9 /* SignInView.swift */; };
+		B78A4283ECF32D133774F200 /* AssessmentDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */; };
+		BF4A0970AA9425F03A0A2D41 /* university-photo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 47EC7DEB3936306868625BE9 /* university-photo-library.json */; };
 		C3B4FCB7F47E3265DF94166E /* PortalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9DA536AE40E6D000522F975 /* PortalModels.swift */; };
 		C48A08D145638EFFBC5FCDCA /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122B8F39ABA8651CEF454758 /* AppConfig.swift */; };
+		D25B6A3BE454004A57D2D1A4 /* AssessmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */; };
+		E7A76AA83BDDA764C68E476B /* PostgresTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */; };
+		EE87FB28050E6E996C751EB6 /* UniversityPhotoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */; };
+		F7027B902B58BB0758883194 /* UniversityPhotoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */; };
 		F7583E3535D3D71DCC0682FA /* UniversitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 934F3BCA224845533993A460 /* UniversitiesView.swift */; };
 		F808E95418CFD0F82AACCDD2 /* SessionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE1702D238F863B18144F44 /* SessionRouter.swift */; };
 		FBDD8C578D08F51D4CA21198 /* PlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68EA92B3C878C3B9C3C501EA /* PlaceholderView.swift */; };
@@ -27,22 +44,35 @@
 
 /* Begin PBXFileReference section */
 		005949937B65067CD79CB062 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		1138EB3C6CFD2299FADB8FB4 /* UniversityPhotoLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityPhotoLibraryTests.swift; sourceTree = "<group>"; };
 		122B8F39ABA8651CEF454758 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		17B36978FE6CEE29DDAC580E /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogDecodingTests.swift; sourceTree = "<group>"; };
+		280E923C4B1D8CC4E01905E0 /* AssessmentResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentResultView.swift; sourceTree = "<group>"; };
+		28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentModels.swift; sourceTree = "<group>"; };
+		2A64F118E721EA1E5FEC6472 /* EVOAdmissionsTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EVOAdmissionsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostgresTimestamp.swift; sourceTree = "<group>"; };
 		45852421E9DCACAC63246FF9 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		47EC7DEB3936306868625BE9 /* university-photo-library.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "university-photo-library.json"; sourceTree = "<group>"; };
 		4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkErrorView.swift; sourceTree = "<group>"; };
 		5036B63945D738592B84D329 /* AccessPendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPendingView.swift; sourceTree = "<group>"; };
+		54AA13F5351C06938BB99E9E /* TestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestsView.swift; sourceTree = "<group>"; };
+		6054711F5C4F26BE7B0903F9 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		6092FB55F132DB487AC29A36 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		68EA92B3C878C3B9C3C501EA /* PlaceholderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderView.swift; sourceTree = "<group>"; };
 		7AB25A7C26BF4F620662154D /* EVO admissions.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "EVO admissions.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		90729578002EEEABF3DBADAB /* UniversityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityDetailView.swift; sourceTree = "<group>"; };
 		934F3BCA224845533993A460 /* UniversitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversitiesView.swift; sourceTree = "<group>"; };
 		9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EVOAdmissionsApp.swift; sourceTree = "<group>"; };
 		A9DA536AE40E6D000522F975 /* PortalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalModels.swift; sourceTree = "<group>"; };
+		AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityPhotoLibrary.swift; sourceTree = "<group>"; };
+		B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentDecodingTests.swift; sourceTree = "<group>"; };
 		BAE1702D238F863B18144F44 /* SessionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRouter.swift; sourceTree = "<group>"; };
 		CC77892DE13ABBA6FF91B1B4 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		CDF92CA04A21A199DB841591 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentRunnerView.swift; sourceTree = "<group>"; };
 		FD04FB295EC8AF191E69FE6A /* TabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabShell.swift; sourceTree = "<group>"; };
-		"TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
+		"TEMP_E473061F-2AB6-4B07-BE9E-F9CDA963A78C" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,15 +91,28 @@
 			isa = PBXGroup;
 			children = (
 				5036B63945D738592B84D329 /* AccessPendingView.swift */,
+				280E923C4B1D8CC4E01905E0 /* AssessmentResultView.swift */,
+				F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */,
 				6092FB55F132DB487AC29A36 /* HomeView.swift */,
 				4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */,
 				68EA92B3C878C3B9C3C501EA /* PlaceholderView.swift */,
+				6054711F5C4F26BE7B0903F9 /* ProfileView.swift */,
 				CC77892DE13ABBA6FF91B1B4 /* RootView.swift */,
 				45852421E9DCACAC63246FF9 /* SignInView.swift */,
 				FD04FB295EC8AF191E69FE6A /* TabShell.swift */,
+				54AA13F5351C06938BB99E9E /* TestsView.swift */,
 				934F3BCA224845533993A460 /* UniversitiesView.swift */,
+				90729578002EEEABF3DBADAB /* UniversityDetailView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		0A7C5E53F485B02EDCE69370 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				86D11BBBACB495C04EE69807 /* lib */,
+			);
+			path = src;
 			sourceTree = "<group>";
 		};
 		1349A8A541121D8A15002A81 /* EVOAdmissions */ = {
@@ -96,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				7AB25A7C26BF4F620662154D /* EVO admissions.app */,
+				2A64F118E721EA1E5FEC6472 /* EVOAdmissionsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -109,28 +153,60 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		86D11BBBACB495C04EE69807 /* lib */ = {
+			isa = PBXGroup;
+			children = (
+				47EC7DEB3936306868625BE9 /* university-photo-library.json */,
+			);
+			path = lib;
+			sourceTree = "<group>";
+		};
+		9F31BD1FF8F344FE41B781BE /* EVOAdmissionsTests */ = {
+			isa = PBXGroup;
+			children = (
+				B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */,
+				259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */,
+				1138EB3C6CFD2299FADB8FB4 /* UniversityPhotoLibraryTests.swift */,
+			);
+			path = EVOAdmissionsTests;
+			sourceTree = "<group>";
+		};
 		A0DA2110B516E89AD03DF224 = {
 			isa = PBXGroup;
 			children = (
+				A3312DE82636660D53CC3D80 /* evo_AI_CRM-portal-ios */,
 				1349A8A541121D8A15002A81 /* EVOAdmissions */,
+				9F31BD1FF8F344FE41B781BE /* EVOAdmissionsTests */,
 				258CB937688C35EAAF4A511C /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A3312DE82636660D53CC3D80 /* evo_AI_CRM-portal-ios */ = {
+			isa = PBXGroup;
+			children = (
+				0A7C5E53F485B02EDCE69370 /* src */,
+			);
+			name = "evo_AI_CRM-portal-ios";
+			path = ..;
 			sourceTree = "<group>";
 		};
 		AEDC6BBDAD17A67A2F572E6C /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */,
 				A9DA536AE40E6D000522F975 /* PortalModels.swift */,
+				31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */,
 				BAE1702D238F863B18144F44 /* SessionRouter.swift */,
 				17B36978FE6CEE29DDAC580E /* SupabaseService.swift */,
+				AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
 		};
-		"TEMP_FD77BCCE-0B4F-4F2C-B6CE-32E5C05068AE" /* ios */ = {
+		"TEMP_AFD040EB-106B-48A2-B666-8F4E1818DBAE" /* ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */,
+				"TEMP_E473061F-2AB6-4B07-BE9E-F9CDA963A78C" /* Local.xcconfig */,
 			);
 			path = ios;
 			sourceTree = "<group>";
@@ -157,6 +233,24 @@
 			productName = "EVO admissions";
 			productReference = 7AB25A7C26BF4F620662154D /* EVO admissions.app */;
 			productType = "com.apple.product-type.application";
+		};
+		AADCEF0749FEFF6F4EFE0D9C /* EVOAdmissionsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 07AFA0C578775A36B106A16E /* Build configuration list for PBXNativeTarget "EVOAdmissionsTests" */;
+			buildPhases = (
+				B839773AEFFB232B753C8763 /* Sources */,
+				C60DB8FA0A562BFE89254561 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EVOAdmissionsTests;
+			packageProductDependencies = (
+			);
+			productName = EVOAdmissionsTests;
+			productReference = 2A64F118E721EA1E5FEC6472 /* EVOAdmissionsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -191,6 +285,7 @@
 			projectRoot = "";
 			targets = (
 				8567162DA73BC7DA86C45165 /* EVO admissions */,
+				AADCEF0749FEFF6F4EFE0D9C /* EVOAdmissionsTests */,
 			);
 		};
 /* End PBXProject section */
@@ -202,29 +297,60 @@
 			files = (
 				4B719C2CF1A19ED986419366 /* Assets.xcassets in Resources */,
 				10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */,
+				BF4A0970AA9425F03A0A2D41 /* university-photo-library.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C60DB8FA0A562BFE89254561 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				065D3387E3057F66A131EE28 /* university-photo-library.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B839773AEFFB232B753C8763 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B78A4283ECF32D133774F200 /* AssessmentDecodingTests.swift in Sources */,
+				D25B6A3BE454004A57D2D1A4 /* AssessmentModels.swift in Sources */,
+				387AEEB179AE91F1D8DEF13B /* PortalModels.swift in Sources */,
+				6F0D140939ADB6FFC3F90AEE /* PostgresTimestamp.swift in Sources */,
+				01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */,
+				F7027B902B58BB0758883194 /* UniversityPhotoLibrary.swift in Sources */,
+				6A90423B0FDC0890A5A43756 /* UniversityPhotoLibraryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BB128637DB6780C1A4BB59D1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */,
 				C48A08D145638EFFBC5FCDCA /* AppConfig.swift in Sources */,
+				03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */,
+				16CCE941413181944BF10D95 /* AssessmentResultView.swift in Sources */,
+				A33A7B570BFD41CAF763E0D7 /* AssessmentRunnerView.swift in Sources */,
 				95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */,
 				48954EF3BCE4088708D2D5C3 /* HomeView.swift in Sources */,
 				45DE16AD4C98B00179939449 /* NetworkErrorView.swift in Sources */,
 				FBDD8C578D08F51D4CA21198 /* PlaceholderView.swift in Sources */,
 				C3B4FCB7F47E3265DF94166E /* PortalModels.swift in Sources */,
+				E7A76AA83BDDA764C68E476B /* PostgresTimestamp.swift in Sources */,
+				18286AF5B327A304BAE546DB /* ProfileView.swift in Sources */,
 				7EB7366B1B43CE792C680F3A /* RootView.swift in Sources */,
 				F808E95418CFD0F82AACCDD2 /* SessionRouter.swift in Sources */,
 				B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */,
 				99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */,
 				FD07B3A17A0CA2DC11FA85C1 /* TabShell.swift in Sources */,
+				3E03D82AE38652963B61B3CA /* TestsView.swift in Sources */,
 				F7583E3535D3D71DCC0682FA /* UniversitiesView.swift in Sources */,
+				432F8EDE8A7DA0FDA84CAA18 /* UniversityDetailView.swift in Sources */,
+				EE87FB28050E6E996C751EB6 /* UniversityPhotoLibrary.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -255,7 +381,7 @@
 		};
 		B6C84763ED668FD71B0D8C20 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_E473061F-2AB6-4B07-BE9E-F9CDA963A78C" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -315,6 +441,23 @@
 			};
 			name = Release;
 		};
+		C259227821EB669EED3BA886 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.evoadmissions.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		CB51B4AEA66C9E5C07B5ABA5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -337,9 +480,26 @@
 			};
 			name = Release;
 		};
+		E0B068B56EB62772FA29274C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.evoadmissions.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		F095E5C184A5CF5D3A673C4C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_9FCEFA27-26E3-41A9-8398-783E7748EE7E" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_E473061F-2AB6-4B07-BE9E-F9CDA963A78C" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -409,6 +569,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		07AFA0C578775A36B106A16E /* Build configuration list for PBXNativeTarget "EVOAdmissionsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C259227821EB669EED3BA886 /* Debug */,
+				E0B068B56EB62772FA29274C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		0C4D88F3462CE462A5B7A25A /* Build configuration list for PBXProject "EVOAdmissions" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -30579,3 +30579,54 @@ scope assignment. **No defect in migration 185's actual privilege-boundary
 logic was found or fixed** — its `cabinet_pending` prepare/finalize/reissue
 authority checks, origin check, and state-shape guards all behaved exactly
 as specified on the first run where the test fixture itself was correct.
+
+## 2026-09-19 — Resend SMTP and reply forwarding: approved, activation pending
+
+The owner now approves `evo@evoadmissions.com` sending through Resend, replies
+forwarded to the business Gmail, Russian templates and `/apply` email confirmation.
+This supersedes the earlier no-confirmation direction for new Student signup,
+not the existing identity, authorization or duplicate-account safeguards.
+Read-only DNS/Auth/source checks found forwarding MX already present, custom SMTP
+unset and `/apply` still creating auto-confirmed identities. Provider browser
+login is missing; no DNS/Auth/template/account mutation or mail dispatch occurred.
+The [mail runbook](runbooks/resend-auth-email.md) records the precise baseline,
+configuration, free-tier limits, missing recipient choices and pending real proof.
+Keep public Auth signup disabled; ship any confirmation-flow change as a reviewed
+scope-local slice, not a blanket Auth toggle. No paid upgrade or broad test run.
+
+Same-day progress: owner signed in to both providers; the Resend sending domain
+was created in `eu-west-1` but is not Verified. Spaceship confirms existing
+domain-wide forwarding to the business Gmail, not actual delivery. Resend now
+requires DKIM TXT plus `rsend` and `send` CNAMEs, not the older sending MX/TXT
+recipe; copy the current dashboard values and preserve apex forwarding MX/SPF.
+No DNS, API-key, SMTP/Auth/template changes or test emails have occurred yet.
+
+Later same-day progress supersedes that pending DNS/key status: the exact DKIM
+TXT and two CNAMEs were published with TTL 30 minutes and read back from
+`launch1.spaceship.net`; apex forwarding MX/SPF and other records stayed intact.
+Resend UI shows Verified (19 September, 05:47 local display); Receiving stays off.
+The domain-restricted `EVO Supabase SMTP` sending key was created, but its secret
+remains only in the open one-time dialog, not archived or configured in Supabase.
+SMTP form preparation is not activation: subsequent Management API readback
+still shows null SMTP fields, rate 2/hour, signup disabled and autoconfirm false.
+Secret transfer and Save were handed to the owner. Templates, `/apply`
+confirmation implementation and all real mail/reply checks remain pending.
+
+Next same-day provider-only slice, after the owner reported Save: Management API
+readback confirms `smtp.resend.com:465`, user `resend`, sender
+`evo@evoadmissions.com` / `EVO Admissions`; the custom SMTP default limit is 30/hour.
+Apply the approved 100/hour limit and Russian Invite/Confirm copy only. Preserve
+the Invite `RedirectTo` + `TokenHash` link and the existing Confirm
+`ConfirmationURL`; do not widen redirect allowlists or enable public Auth signup.
+Localizing Confirm does not implement `/apply` confirmation: that separate code
+slice and all real delivery checks remain pending. No secret is returned in this
+readback, and encrypted archival of the owner's new key is not yet confirmed.
+
+Provider-only slice applied: Management API PATCH and fresh GET at
+`2026-09-19T02:03:21.264Z` matched the 100/hour limit, both Russian subjects and
+contents, and the preserved SMTP/auth/redirect fields exactly. No credentials
+were changed by the agent. One plain forwarding-check message was subsequently
+sent from the owner's signed-in personal Gmail to `evo@evoadmissions.com`;
+Gmail displayed `Message sent`. The destination business Gmail is not signed in
+in that browser, so receipt is unverified. This is not a Supabase invitation,
+signup confirmation or reply-path acceptance; no test identity was created.

@@ -30777,3 +30777,66 @@ Validation: inspect the prose diff, local reference targets and required decisio
 coverage; run `git diff --check`; obtain independent review on the committed head.
 Only repository-protected documentation checks apply to this change. No runtime
 tests, migrations, provider actions or deployment are performed for this plan.
+
+## 2026-09-19 — PORT-0: стартовые контракты портала, мобильный стек и модель доступа
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal session), исполняя `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`.
+Change type: PORT-0 architecture/contract fixation before implementation.
+Affected documents: `docs/adr/0030-portal-iphone-swiftui-supabase-transport.md`,
+`docs/design/portal/port-0-contracts.md`, this journal.
+
+Reason: план PORT-0 требует зафиксировать мобильный стек, границы клиента,
+модель доступа, состав первого учебного модуля и покрытие профессий в ADR и
+PLAN_CHANGES до реализации. Разведка выполнена на main `4a6c061f` с
+read-only сверкой production (Management API): ledger `001…186`, приложение
+`b10034b1` healthy, каталог полностью опубликован (143 вуза, 235 версий
+публикаций), 2 живых student_cases (обе active), 0 анкет.
+
+Decision:
+- Мобильный стек: нативный SwiftUI (каталог `ios/` в этом репозитории) +
+  supabase-swift, прямые вызовы существующих `platform.*` RPC через PostgREST
+  (они уже `GRANT EXECUTE TO authenticated`, схема exposed). Bearer-резолвер
+  актора добавляется только в два документных route handler'а; для анкеты с
+  телефона — узкий серверный endpoint; инвайт — universal link в web
+  `/auth/callback`. Service-role остаётся строго серверным. ADR 0030.
+- Модель доступа: существующий pending-case = состояние «одобрен»; case-less
+  уровень не создаётся. Производный `accessTier: approved|assisted` в
+  `VerifiedStudentPortalAuthority` (TS-only). Одна миграция №195: студентская
+  ветка case-help получает `state IN ('active','closed')` (по диаграмме плана
+  «Общение» — уровень сопровождения; в production затронуто 0 аккаунтов) и
+  явное ужесточение документных предикатов до active/closed (сегодня
+  безопасно лишь косвенно). Каталог/тесты/уведомления для approved работают
+  без изменений БД. Обязателен boundary-тест новой границы по образцу
+  `platform_student_assessments_boundary.sql`.
+- Координация с сессией OTHER зафиксирована перепиской: их миграции 187–191 +
+  буфер 192–194, Portal начинает с 195; владелец release-arm — сессия с
+  последней очередью merge, взаимное уведомление перед arm обязательно;
+  PORT-5-зависимости (задачи/договор/чат) — именованные блокеры до появления
+  их PR со схемой; их точечные null-правки portal-source/PaymentsView (189)
+  сохраняются в редизайне.
+- Учебный модуль 1 «Английский — старт»: 12 уроков с нуля (знакомство, базовые
+  слова и конструкции, простые вопросы, повседневные ситуации, чтение;
+  повторение из банка ошибок уроком 12), задания выбор/сопоставление/короткий
+  ответ/чтение, аудио отложено в модуль 2, контент — версионируемый JSON →
+  immutable-миграция (форк assessment-пайплайна, locale ru+ky). Без CEFR,
+  без XP/лиг/стриков.
+- Профессии: стартовый набор 24 карточки, покрывающий шкалы ORVIS, с
+  обязательным содержанием (день, среда, навыки, пробное задание, связи с
+  программами каталога); зарплаты/работодатели — только с надёжным источником;
+  пустые карточки не публикуются; атрибуция CC BY 4.0 сохраняется.
+- Каталог/карта: MapLibre; координаты — новое nullable-поле контента с
+  провенансом (вуз без координат — без точки); избранное v1 на уровне вуза
+  (RPC-first, student-owned таблица); фото переводятся с hotlink на управляемое
+  хранение с сохранением CC-атрибуции (PORT-3).
+- Локализация: язык — персистентное поле профиля (синхронизация веб/iPhone),
+  неймспейсные RU/KY-словари портала; «en» в портале не предлагается.
+- Релизная дисциплина: смена любых smoke-якорей — только вместе с обновлением
+  `scripts/evo-production-browser-smoke.mjs` и его контракт-теста в том же PR;
+  порядок: миграция в main → `evo-schema-ledger.yml` apply → ledger-сверка →
+  dispatch CI с proof_revision → авто-релиз → acceptance → disarm.
+
+Validation: prose-only изменение — просмотр диффа, `git diff --check`,
+независимое review точного head; защищённые PR-проверки. Runtime-тесты,
+миграции и production-действия к этому PR не относятся; сверки production
+выполнялись read-only через Management API и зафиксированы выше.

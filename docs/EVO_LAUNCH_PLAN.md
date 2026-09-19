@@ -1,6 +1,6 @@
 # EVO Launch Plan
 
-## Portal identity retry incident — active 2026-09-19
+## Portal identity retry incident — resolved and released 2026-09-19
 
 Owner approved the production fix and termination of the two confirmed looping
 database backends. No compute/plan upgrade, data deletion or Auth policy change.
@@ -9,16 +9,33 @@ events in five minutes, correlated to two PostgREST 14.5 backends. Official
 Supabase guidance identifies custom `40001` as an infinite-transaction-retry
 trigger in PostgREST 14. Preserve the existing identity denial, not the retry.
 
-- [ ] Forward migration replaces the incident RPC's business-conflict SQLSTATE
+- [x] Forward migration 186 replaces the incident RPC's business-conflict SQLSTATE
   with a non-retryable error, preserving signature, grants and all identity checks.
-- [ ] Update the server error mapping and directly affected assertions together.
-- [ ] Independent exact-head review, protected short checks, managed app release;
-  apply only the reviewed forward migration and keep the migration ledger exact.
-- [ ] Revalidate PID and backend-start identity before terminating only the two
-  confirmed loops; no project-wide restart.
-- [ ] Prove the real negative RPC path returns promptly, staff/student entry
-  still behaves correctly, error storm stops and CPU falls. No fake accounts,
-  synthetic production records, broad suites or unrelated provider actions.
+- [x] Update the server error mapping and directly affected assertions together.
+- [x] Independent exact-head review and protected short checks; PR #858 merged
+  as `b10034b1d93b89dfc520ef89c1ae182e64080938`. Exact migration 186 applied
+  once; the contiguous 001–186 ledger and both function definitions verified.
+- [x] Revalidate the two approved backend identities before guarded termination:
+  no matching rows remained at 02:50:36.556Z, so no backend was terminated and
+  no project restart occurred.
+- [x] Real PostgREST missing-receipt path returns HTTP 409 / `PT409` in 831 ms;
+  the actual server store with a real Supabase client returns `mismatch`.
+  Existing identity only; all receipt rows remain unchanged.
+- [x] Fresh exporter counter deltas show CPU falling from 98.774% before the
+  fix to 1.855% during 02:51:06.842–02:52:46.080 UTC. Logs from
+  02:50:30–02:52:03.192 UTC, filtered to `portal_identity_conflict`, contain
+  only the two expected `PT409` check calls and no `40001` for this conflict.
+- [x] Managed release 35416869712 passed after upstream 35416851038; accepted
+  `v3-r35416869712-a1-b10034b1` matches the reviewed merged SHA and image.
+  Acceptance/browser hashes match; app and scanner healthy, zero app restarts,
+  public health 200/live and no pending candidate. After the terminal workflow,
+  the release arm was manually reset and freshly read back as `false`.
+- [x] Accepted authenticated read-only browser smoke confirmed the staff case
+  and Student Portal entry paths.
+
+Evidence, exact hashes and limits: [incident receipt](qa/portal-identity-conflict-186-2026-09-19.md).
+No fake accounts, synthetic production records, compute purchase, broad suites
+or unrelated provider actions are part of this incident response.
 
 ## Other staff UX — active 2026-09-19
 

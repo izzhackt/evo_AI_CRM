@@ -41,6 +41,31 @@ struct HomeView: View {
                         .padding(16)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
                     }
+
+                    // Раздел «Избранное» (195) — вход с Главной.
+                    NavigationLink {
+                        FavoritesView()
+                    } label: {
+                        Label("favorites_title", systemImage: "heart")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .buttonStyle(.plain)
+
+                    if session.accessTier == .assisted {
+                        // У assisted «Профессии» не в таб-баре — вход с
+                        // Главной (дизайн-контракт «Карта экранов»).
+                        NavigationLink {
+                            ProfessionsContentView()
+                        } label: {
+                            Label("tab_professions", systemImage: "person.text.rectangle")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(16)
+                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(20)
             }

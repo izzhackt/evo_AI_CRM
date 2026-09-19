@@ -98,6 +98,32 @@ App Store step (plan §13), not made here.
   more-than-one case routes to `AccessPendingView` in v1; the case-less
   application flow is explicitly out of scope for PORT-2 (plan/ADR 0030).
 
+## What was verified for wave 5 (избранное/профиль/консультация/обучение-read)
+
+- Contracts: migrations 195 (favourites), 196 (portal profile language +
+  account deletion request), 197 (consultation requests), 198/199 (learning
+  READ + professions). Codable mirrors live in
+  `Services/{Favorites,PortalProfile,Consultation,Learning,Profession}Models.swift`,
+  each field commented with its SQL source lines.
+- `xcodebuild … build` and `xcodebuild … test` for `iPhone 17 Pro` — both
+  exit code 0; `Executed 38 tests, with 0 failures` (20 new decoder tests
+  against fixtures hand-written from the 195–199 return shapes).
+- Tab bar now follows the design contract: approved = Главная ·
+  Университеты · Профессии · Английский · Профиль; assisted = Главная ·
+  Моё поступление · Университеты · Английский · Профиль. «Тесты» became
+  entries inside «Английский»/«Профессии» and «Профиль» (`TestsContentView`).
+- App installed and launched on the simulator; `SignInView` renders
+  (`docs/wave5-signin.png`).
+- **Not exercised live in this session** (no sign-in was performed here;
+  no mock API was added): live favourites toggling/receipts, the favorites
+  section and comparison against live data, profile RPC (language save,
+  deletion request), consultation create/history, learning module map,
+  lesson content and profession cards against the production RPCs, and both
+  access tiers' tab sets with a live session. All of these are implemented
+  against the documented SQL contracts and covered at the decoder level by
+  fixtures. A QA portal account exists for the owner's own verification
+  (see `.env.student-portal-qa.json` in the main worktree root — untracked).
+
 ## What was verified for the catalog/tests/profile slice (real simulator, no mocks)
 
 - `xcodebuild … build` and `xcodebuild … test` for `iPhone 17 Pro`

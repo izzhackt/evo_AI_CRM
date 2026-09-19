@@ -39,47 +39,48 @@ struct AssessmentRunContext: Identifiable {
     }
 }
 
-struct TestsView: View {
+/// Каталог тестов, пригодный для push из «Английский», «Профессии» и
+/// «Профиль» (дизайн-контракт: Тесты — не отдельная вкладка, а входы из
+/// разделов и личные результаты в профиле).
+struct TestsContentView: View {
     @StateObject private var model = TestsViewModel()
     @State private var runContext: AssessmentRunContext?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if model.isLoading && model.catalog == nil {
-                    ProgressView()
-                } else if let errorMessage = model.errorMessage, model.catalog == nil {
-                    VStack(spacing: 12) {
-                        Text("tests_unavailable")
-                            .font(.body)
-                            .multilineTextAlignment(.center)
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Button("retry_button") {
-                            Task { await model.load() }
-                        }
-                        .buttonStyle(.bordered)
+        Group {
+            if model.isLoading && model.catalog == nil {
+                ProgressView()
+            } else if let errorMessage = model.errorMessage, model.catalog == nil {
+                VStack(spacing: 12) {
+                    Text("tests_unavailable")
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("retry_button") {
+                        Task { await model.load() }
                     }
-                    .padding(32)
-                } else if let catalog = model.catalog {
-                    catalogList(catalog)
-                } else {
-                    ProgressView()
+                    .buttonStyle(.bordered)
                 }
+                .padding(32)
+            } else if let catalog = model.catalog {
+                catalogList(catalog)
+            } else {
+                ProgressView()
             }
-            .navigationTitle("tab_tests")
-            .task {
-                if model.catalog == nil {
-                    await model.load()
-                }
+        }
+        .navigationTitle("tab_tests")
+        .task {
+            if model.catalog == nil {
+                await model.load()
             }
-            .fullScreenCover(item: $runContext, onDismiss: {
-                Task { await model.load() }
-            }) { context in
-                AssessmentRunnerView(context: context)
-            }
+        }
+        .fullScreenCover(item: $runContext, onDismiss: {
+            Task { await model.load() }
+        }) { context in
+            AssessmentRunnerView(context: context)
         }
     }
 

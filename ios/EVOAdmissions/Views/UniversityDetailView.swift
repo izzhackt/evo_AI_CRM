@@ -41,6 +41,8 @@ struct UniversityDetailView: View {
     let initialItem: UniversityCatalogItem?
 
     @StateObject private var model = UniversityCardViewModel()
+    @ObservedObject private var favorites = FavoritesStore.shared
+    @State private var showsConsultationSheet = false
 
     private var item: UniversityCatalogItem? { model.item ?? initialItem }
 
@@ -56,7 +58,25 @@ struct UniversityDetailView: View {
                 honestState("university_card_load_failed")
             }
         }
-        .task { await model.load(institutionId: institutionId) }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                // Сердечко (195): optimistic + честный откат в FavoritesStore.
+                FavoriteHeartButton(institutionId: institutionId, store: favorites)
+            }
+        }
+        .alert("favorite_error", isPresented: $favorites.toggleFailed) {
+            Button("ok_button", role: .cancel) {}
+        }
+        .sheet(isPresented: $showsConsultationSheet) {
+            ConsultationRequestSheet(
+                institutionId: institutionId,
+                institutionName: item?.content.name
+            )
+        }
+        .task {
+            await model.load(institutionId: institutionId)
+            await favorites.loadIfNeeded()
+        }
     }
 
     private func honestState(_ key: LocalizedStringKey) -> some View {
@@ -97,6 +117,15 @@ struct UniversityDetailView: View {
 
                 Text(item.content.overview)
                     .font(.body)
+
+                // Запрос консультации из карточки вуза (миграция 197).
+                Button {
+                    showsConsultationSheet = true
+                } label: {
+                    Label("consultation_cta", systemImage: "bubble.left.and.bubble.right")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
 
                 factsCard(item.content)
 
@@ -273,17 +302,7 @@ struct UniversityProgramCard: View {
     }
 
     private func levelLabel(_ level: String) -> String {
-        let key: String.LocalizationValue
-        switch level {
-        case "language": key = "university_level_language"
-        case "foundation": key = "university_level_foundation"
-        case "diploma": key = "university_level_diploma"
-        case "bachelor": key = "university_level_bachelor"
-        case "master": key = "university_level_master"
-        case "doctorate": key = "university_level_doctorate"
-        default: return level
-        }
-        return String(localized: key)
+        universityLevelLabel(level)
     }
 }
 

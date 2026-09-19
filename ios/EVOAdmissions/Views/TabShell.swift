@@ -1,8 +1,12 @@
 import SwiftUI
 
-/// Tabs by access tier (docs/design/portal/port-0-contracts.md):
-/// approved (`pending` case) = Главная, Университеты, Тесты, Профиль;
-/// assisted (`active`/`closed` case) additionally gets Моё поступление.
+/// Tabs by access tier (docs/design/portal/design-contract.md, «Карта
+/// экранов»):
+/// - approved: Главная · Университеты · Профессии · Английский · Профиль
+/// - assisted: Главная · Моё поступление · Университеты · Английский ·
+///   Профиль («Профессии» остаются с Главной)
+/// «Тесты» — не вкладка: входы из «Английский»/«Профессии» и личные
+/// результаты в Профиле. «Избранное» живёт внутри вкладки «Университеты».
 struct TabShell: View {
     let session: SessionRouter.PortalSession
     @ObservedObject var router: SessionRouter
@@ -20,8 +24,13 @@ struct TabShell: View {
             UniversitiesView()
                 .tabItem { Label("tab_universities", systemImage: "building.columns.fill") }
 
-            TestsView()
-                .tabItem { Label("tab_tests", systemImage: "checklist") }
+            if session.accessTier == .approved {
+                ProfessionsView()
+                    .tabItem { Label("tab_professions", systemImage: "person.text.rectangle") }
+            }
+
+            EnglishView()
+                .tabItem { Label("tab_english", systemImage: "book.fill") }
 
             ProfileView(session: session, router: router)
                 .tabItem { Label("tab_profile", systemImage: "person.crop.circle") }

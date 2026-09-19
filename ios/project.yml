@@ -78,6 +78,11 @@ targets:
       - path: EVOAdmissions/Services/AssessmentModels.swift
       - path: EVOAdmissions/Services/UniversityPhotoLibrary.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift
+      - path: EVOAdmissions/Services/FavoritesModels.swift
+      - path: EVOAdmissions/Services/PortalProfileModels.swift
+      - path: EVOAdmissions/Services/ConsultationModels.swift
+      - path: EVOAdmissions/Services/LearningModels.swift
+      - path: EVOAdmissions/Services/ProfessionModels.swift
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources
     settings:

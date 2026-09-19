@@ -164,6 +164,151 @@ final class SupabaseService {
             .execute()
             .value
     }
+    // MARK: - University favourites (supabase/migrations/195)
+
+    /// `platform.set_university_favorite_v1(p_institution_id, p_favored)` —
+    /// идемпотентная запись по построению (INSERT … ON CONFLICT DO NOTHING /
+    /// DELETE, 195:74-83): повтор не меняет состояние и возвращает фактический
+    /// receipt, поэтому request-ledger'а у этой RPC нет.
+    func setUniversityFavorite(institutionId: UUID, favored: Bool) async throws -> FavoriteReceipt {
+        struct Params: Encodable, Sendable {
+            let p_institution_id: UUID
+            let p_favored: Bool
+        }
+        return try await client
+            .rpc(
+                "set_university_favorite_v1",
+                params: Params(p_institution_id: institutionId, p_favored: favored)
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.student_university_favorites_v1()` — only the caller's own
+    /// rows, newest first (195:98-114).
+    func studentUniversityFavorites() async throws -> [UniversityFavorite] {
+        try await client
+            .rpc("student_university_favorites_v1")
+            .execute()
+            .value
+    }
+
+    /// `platform.student_university_catalog_by_ids_v1(p_institution_ids)` —
+    /// batch card read, same row shape as the catalogue page (195:159-166).
+    /// Ceiling is 30 ids per call (195:129); the caller chunks larger sets.
+    func studentUniversityCatalogByIds(institutionIds: [UUID]) async throws -> UniversityCatalogPage {
+        struct Params: Encodable, Sendable { let p_institution_ids: [UUID] }
+        return try await client
+            .rpc(
+                "student_university_catalog_by_ids_v1",
+                params: Params(p_institution_ids: institutionIds)
+            )
+            .execute()
+            .value
+    }
+
+    // MARK: - Portal profile (supabase/migrations/196)
+
+    /// `platform.get_own_portal_profile_v1()` (196:71-106).
+    func getOwnPortalProfile() async throws -> PortalProfile {
+        try await client
+            .rpc("get_own_portal_profile_v1")
+            .execute()
+            .value
+    }
+
+    /// `platform.set_own_portal_language_v1(p_language)` — student-only write
+    /// of the own profile row through the standard revision guard (196:111-154).
+    func setOwnPortalLanguage(_ language: String) async throws -> PortalLanguageReceipt {
+        struct Params: Encodable, Sendable { let p_language: String }
+        return try await client
+            .rpc("set_own_portal_language_v1", params: Params(p_language: language))
+            .execute()
+            .value
+    }
+
+    /// `platform.request_account_deletion_v1(p_request_id)` — идемпотентно по
+    /// request_id, максимум один ОТКРЫТЫЙ запрос на участника (196:159-194).
+    /// Ничего не удаляется этим вызовом — запрос уходит в staff-процесс.
+    func requestAccountDeletion(requestId: UUID) async throws -> AccountDeletionReceipt {
+        struct Params: Encodable, Sendable { let p_request_id: UUID }
+        return try await client
+            .rpc("request_account_deletion_v1", params: Params(p_request_id: requestId))
+            .execute()
+            .value
+    }
+
+    // MARK: - Consultation requests (supabase/migrations/197)
+
+    /// `platform.create_portal_consultation_request_v1` (197:108-160):
+    /// идемпотентно по request_id; при уже ОТКРЫТОМ запросе возвращает его
+    /// receipt (requestId будет отличаться от отправленного — «один открытый
+    /// запрос» честно виден клиенту).
+    func createConsultationRequest(
+        requestId: UUID,
+        institutionId: UUID?,
+        note: String?
+    ) async throws -> ConsultationReceipt {
+        struct Params: Encodable, Sendable {
+            let p_request_id: UUID
+            let p_institution_id: UUID?
+            let p_note: String?
+        }
+        return try await client
+            .rpc(
+                "create_portal_consultation_request_v1",
+                params: Params(p_request_id: requestId, p_institution_id: institutionId, p_note: note)
+            )
+            .execute()
+            .value
+    }
+
+    /// `platform.own_portal_consultation_requests_v1()` — only the caller's
+    /// own requests, newest first, ceiling 20 (197:163-182).
+    func ownConsultationRequests() async throws -> [ConsultationReceipt] {
+        try await client
+            .rpc("own_portal_consultation_requests_v1")
+            .execute()
+            .value
+    }
+
+    // MARK: - Learning READ (supabase/migrations/198, content 199)
+
+    /// `platform.learning_modules_v1()` — module map with the caller's own
+    /// progress (198:880-922).
+    func learningModules() async throws -> LearningModulesResponse {
+        try await client
+            .rpc("learning_modules_v1")
+            .execute()
+            .value
+    }
+
+    /// `platform.learning_lesson_v1(p_lesson_id)` — safe lesson projection
+    /// plus own draft/latest-completed attempts (198:925-959).
+    func learningLesson(lessonId: UUID) async throws -> LearningLessonResponse {
+        struct Params: Encodable, Sendable { let p_lesson_id: UUID }
+        return try await client
+            .rpc("learning_lesson_v1", params: Params(p_lesson_id: lessonId))
+            .execute()
+            .value
+    }
+
+    /// `platform.profession_cards_v1()` — compact grid rows (198:1038-1051).
+    func professionCards() async throws -> ProfessionCardsResponse {
+        try await client
+            .rpc("profession_cards_v1")
+            .execute()
+            .value
+    }
+
+    /// `platform.profession_card_v1(p_card_id)` — full body (198:1053-1062).
+    func professionCard(cardId: UUID) async throws -> ProfessionCardResponse {
+        struct Params: Encodable, Sendable { let p_card_id: UUID }
+        return try await client
+            .rpc("profession_card_v1", params: Params(p_card_id: cardId))
+            .execute()
+            .value
+    }
 }
 
 private struct AssessmentWriteParams: Encodable, Sendable {

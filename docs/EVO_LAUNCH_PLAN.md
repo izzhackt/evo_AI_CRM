@@ -17,6 +17,55 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 - Private source inventory and transfer constraints are being measured. No source bytes have been imported or published.
 - Runtime, client projections, SOPS interface, complete import/export reconciliation and managed delivery remain open. Fable retains schema/release coordination until explicit handoff.
 
+## Portal release v3-r35465491203-a1-5ab34127 accepted 2026-09-19
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree
+  (`200_platform_portal_case_chat.sql` is still the repo tail), so the
+  schema-ledger apply step was skipped by design.
+- [x] Release from exact main `5ab341278c0422e45b4a555aa95ccf1a9bc93eef`
+  (wave 8, closing plan-audit gaps). Web deltas: #899 (bearer-token path
+  on exactly the two student document endpoints per ADR 0030 «Решение»
+  п.2 — same authority chain on a token-bound publishable-key client, a
+  present-but-invalid header never falls back to cookies, plus the
+  narrowly-scoped proxy pass-through the middleware required) and #903
+  (PORT-8c: tests screens rebuilt in «Атлас» with the assessment contract
+  and the live e2e spec byte-untouched, full KY for the public /apply
+  анкета with RU strings byte-frozen and test-pinned, operational stage
+  rendered in «Моё поступление» mirroring the staff dictionary). iOS
+  delta #900 (wave 8: documents with frozen-idempotency upload and
+  bearer download, payments preserving the 189 null-semantics,
+  notifications with real in-app targets, read-only tasks/next actions;
+  the «доступны в веб-кабинете» deferral is gone) rides in the repo —
+  no store distribution exists yet, so the container ships the web
+  deltas. CI run 35465474055 green on the exact merge SHA; release run
+  35465491203 accepted; container `evo-crm-app-1` on hermes-vps carries
+  the exact OCI revision (healthy); `/api/health` live; accepted pointer
+  `v3-r35465491203-a1-5ab34127` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 19:54 UTC.
+- Independent exact-head reviews, each PASS with reproduced validation:
+  #899 hostile security review 9/9 (scope, no cookie fallback, identical
+  authority chain, supabase-js getClaims verification traced, proxy
+  anchored-regex scoping, adversarial sweep clean); #900 11/11 (every
+  cited SQL anchor opened, UUIDv5 request-id vectors independently
+  recomputed, cross-PR contract with #899 verified field-by-field,
+  92/92 tests reproduced); #903 11/11 (assessment runner semantics
+  diffed line-by-line against the deleted v3 components, e2e spec
+  zero-diff, 15/15 axe both themes). Every merge-race rebase carried a
+  patch-id --stable proof that the reviewed code commits were unchanged.
+  Cross-session protocol observed (peer ack before arm, main frozen,
+  accepted + disarm confirmed back); the parallel GPT-6 Astra knowledge
+  plan merged #901/#902 into main during the wave — both are inside the
+  released revision.
+- Not claimed: live iOS document upload/download against production
+  (the bearer path ships in this very release; a live pass needs a
+  signed-in device session); live post-release web render of the KY
+  tests/apply screens (no live credentials in the agent session); KY
+  texts still await the owner's native-speaker proofread; four
+  pre-existing local `test:ci:node` failures found on main by the #903
+  reviewer (environment-dependence suspected, CI is green) are spun off
+  as a separate task, not fixed here.
+
 ## Portal release v3-r35452266156-a1-b7052637 accepted 2026-09-19
 
 - [x] No migrations this cycle: Management API readback before arm

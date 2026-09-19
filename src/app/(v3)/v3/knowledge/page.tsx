@@ -14,6 +14,6 @@ export default async function KnowledgePart({ searchParams }: { searchParams: Pr
   if (query.tab === "snippets") redirect("/v3/knowledge?section=snippets");
   const section = query.section === "documents" || query.section === "snippets" ? query.section : null;
   return <PartShell title="База знаний"><Suspense fallback={<p role="status">Загрузка базы знаний…</p>}><KnowledgeLibrary commandScope={`${actor.organizationId}:${actor.membershipId}`} section={section}>
-    {section === "documents" ? <KnowledgeDocuments actor={actor} /> : section === "snippets" ? <KnowledgeSnippets actor={actor} /> : null}
+    {section === "documents" ? <KnowledgeDocuments actor={actor} embedded /> : section === "snippets" ? <KnowledgeSnippets actor={actor} /> : null}
   </KnowledgeLibrary></Suspense></PartShell>;
 }

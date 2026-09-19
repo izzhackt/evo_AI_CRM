@@ -20,7 +20,7 @@ import {
 
 const STUDENTS_ROOT = "students";
 
-export async function KnowledgeDocuments({ actor }: { actor: ActivePlatformActor }) {
+export async function KnowledgeDocuments({ actor, embedded = false }: { actor: ActivePlatformActor; embedded?: boolean }) {
   const surface = await loadV3KnowledgeSurface(actor, {
     readCompany: readCompanyKnowledge,
     readStudents: readKnowledgeStudents,
@@ -115,7 +115,7 @@ export async function KnowledgeDocuments({ actor }: { actor: ActivePlatformActor
 
   return <>
     {!studentDocuments.complete && <p role="alert">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране.</p>}
-    <FileManager rootLabel="Документы" folders={folders} files={files} canManage={surface.canManageCompanyFiles}
+    <FileManager embedded={embedded} rootLabel="Документы" folders={folders} files={files} canManage={surface.canManageCompanyFiles}
       canUpload={surface.canUploadCompanyFiles} createFolderRequestId={randomUUID()} createFileRequestId={randomUUID()} />
   </>;
 }

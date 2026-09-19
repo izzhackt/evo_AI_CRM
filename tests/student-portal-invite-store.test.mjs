@@ -356,7 +356,7 @@ test("store records success/failure/unknown and finalizes with exact fences", as
   ]);
 });
 
-test("verified identity resolver is exact, private and optionally accepting", async () => {
+test("verified identity resolver is exact, private and handles final HTTP 409 conflicts", async () => {
   const fake = fakeClient([
     {
       data: {
@@ -372,7 +372,7 @@ test("verified identity resolver is exact, private and optionally accepting", as
     },
     {
       data: null,
-      error: { code: "40001", message: "portal_identity_conflict" },
+      error: { code: "PT409", message: "portal_identity_conflict" },
     },
   ]);
   const store = createStudentPortalInviteStore(fake.client);

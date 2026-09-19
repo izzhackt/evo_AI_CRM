@@ -154,7 +154,8 @@ function errorField(error: unknown, key: "code" | "message"): string | null {
 }
 
 function conflictCode(error: unknown): string | null {
-  if (errorField(error, "code") !== "40001") return null;
+  const code = errorField(error, "code");
+  if (code !== "PT409" && code !== "40001") return null;
   const message = errorField(error, "message");
   return message && SAFE_CONFLICT_CODES.has(message)
     ? message

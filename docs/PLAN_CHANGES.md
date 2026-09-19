@@ -30630,3 +30630,31 @@ sent from the owner's signed-in personal Gmail to `evo@evoadmissions.com`;
 Gmail displayed `Message sent`. The destination business Gmail is not signed in
 in that browser, so receipt is unverified. This is not a Supabase invitation,
 signup confirmation or reply-path acceptance; no test identity was created.
+
+## 2026-09-19 — Stop the portal identity business-conflict retry storm
+
+The owner approved a narrow production correction after the read-only Supabase
+audit: Pro quotas have ample capacity, but CPU is 99–100%. The five-minute
+02:21–02:26 UTC log window contained 29,894 `portal_identity_conflict` events
+from `resolve_student_portal_invite_identity` line 16, SQLSTATE `40001`,
+PostgREST 14.5. Both error PIDs were matched to their live backend-start times.
+The code incorrectly labels a missing invite receipt as a serialization failure.
+[Supabase's current guidance](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b)
+confirms that this causes infinite retries in PostgREST 14.
+
+Scope: forward186 for this RPC and its directly reachable acceptance helper
+(three plus two business errors), and synchronized server error mapping;
+preserve signature, service-role restriction, identity checks and response shape.
+Review the exact diff, use protected short checks and the managed release path,
+then stop only the two freshly re-identified looping backends. Do not restart the
+whole project, buy compute, modify accounts, weaken Auth/RLS, or repair unrelated
+providers. Real post-change proof must show a prompt conflict response on an
+existing authorized identity, the disappearance of the error storm and measured
+CPU change. Existing production failure evidence replaces deliberately triggering
+another runaway pre-fix request. No synthetic records or mock acceptance.
+
+The exact added186 migration receives a narrow CI source/evidence binding gate,
+following178, instead of the retired blanket authorization suite. Real production
+rollback compilation and its existing-identity conflict result are source-hash
+bound in `docs/qa/portal-identity-conflict-186-2026-09-19.md`; CI does not claim to
+execute that SQL. All other migration diffs retain their existing boundary gate.

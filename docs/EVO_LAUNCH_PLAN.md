@@ -1,5 +1,26 @@
 # EVO Launch Plan
 
+## Portal identity retry incident — active 2026-09-19
+
+Owner approved the production fix and termination of the two confirmed looping
+database backends. No compute/plan upgrade, data deletion or Auth policy change.
+Live baseline: CPU 99–100%; 29,894 `portal_identity_conflict` / SQLSTATE `40001`
+events in five minutes, correlated to two PostgREST 14.5 backends. Official
+Supabase guidance identifies custom `40001` as an infinite-transaction-retry
+trigger in PostgREST 14. Preserve the existing identity denial, not the retry.
+
+- [ ] Forward migration replaces the incident RPC's business-conflict SQLSTATE
+  with a non-retryable error, preserving signature, grants and all identity checks.
+- [ ] Update the server error mapping and directly affected assertions together.
+- [ ] Independent exact-head review, protected short checks, managed app release;
+  apply only the reviewed forward migration and keep the migration ledger exact.
+- [ ] Revalidate PID and backend-start identity before terminating only the two
+  confirmed loops; no project-wide restart.
+- [ ] Prove the real negative RPC path returns promptly, staff/student entry
+  still behaves correctly, error storm stops and CPU falls. No fake accounts,
+  synthetic production records, broad suites or unrelated provider actions.
+
+
 ## Auth email — SMTP and templates saved, delivery pending, 2026-09-19
 
 Owner approved Resend SMTP, replies forwarded to Gmail and Student email confirmation.

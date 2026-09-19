@@ -143,7 +143,8 @@ test("Student preview implementation and staff entry are retired without removin
   for (const path of [
     // PORT-2: the live shell lives in src/components/portal/Shell.tsx now.
     "src/components/portal/Shell.tsx",
-    "src/components/v3/portal/OverviewView.tsx",
+    // PORT-5d: «Моё поступление» живёт в Атласе.
+    "src/components/portal/admission/OverviewView.tsx",
   ]) assert.doesNotMatch(source(path), /preview/u, path);
   for (const path of [
     "src/app/(portal)/portal/tests/english/page.tsx",
@@ -193,8 +194,9 @@ test("the retired applications route is an unconditional redirect, not a view", 
 });
 
 test("overview names each actor from the canonical projection and links exact items", () => {
-  const overview = source("src/components/v3/portal/OverviewView.tsx");
-  const documents = source("src/components/v3/portal/DocumentsView.tsx");
+  // PORT-5d: «Моё поступление» живёт в Атласе (portal/admission).
+  const overview = source("src/components/portal/admission/OverviewView.tsx");
+  const documents = source("src/components/portal/admission/DocumentsView.tsx");
 
   assert.match(overview, /overview\?\.studentAction/u);
   assert.match(overview, /overview\?\.evoAction/u);
@@ -213,7 +215,8 @@ test("overview names each actor from the canonical projection and links exact it
     /Сейчас нет действий по документам и оплате/u,
   );
   assert.match(overview, /Нет опубликованной задачи команды EVO/u);
-  assert.match(overview, /min-h-11/u);
+  // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
+  assert.match(overview, /pt-btn/u);
   assert.match(
     documents,
     /id=\{`document-\$\{document\.documentSlotId\}`\}/u,
@@ -221,8 +224,8 @@ test("overview names each actor from the canonical projection and links exact it
 });
 
 test("the overview never claims a mandatory stage, and a pending cabinet stays honest", () => {
-  const overview = source("src/components/v3/portal/OverviewView.tsx");
-  const presentation = source("src/components/v3/portal/presentation.ts");
+  const overview = source("src/components/portal/admission/OverviewView.tsx");
+  const presentation = source("src/components/portal/admission/presentation.ts");
   const wording = source("src/lib/v3/wording.ts");
   const portalPage = source("src/app/(portal)/portal/page.tsx");
   const applyStatusPage = source("src/app/apply/status/page.tsx");
@@ -288,10 +291,10 @@ test("migration 131 adds a v2 overview while preserving the rollback v1", () => 
 });
 
 test("views consume the exact E2 DTOs without an invented wrapper", () => {
-  assert.equal(
-    existsSync(new URL("src/components/v3/portal/types.ts", ROOT)),
-    false,
-  );
+  // PORT-5d: перенос в Атлас не изобретает обёрточных DTO — те же E2-типы.
+  for (const dir of ["src/components/v3/portal", "src/components/portal/admission"]) {
+    assert.equal(existsSync(new URL(`${dir}/types.ts`, ROOT)), false, dir);
+  }
 
   const expectedTypes = new Map([
     ["OverviewView.tsx", "StudentPortalOverview"],
@@ -300,17 +303,23 @@ test("views consume the exact E2 DTOs without an invented wrapper", () => {
     ["NotificationsView.tsx", "StudentPortalNotification"],
   ]);
   for (const [filename, typeName] of expectedTypes) {
-    const view = source(`src/components/v3/portal/${filename}`);
+    const view = source(`src/components/portal/admission/${filename}`);
     assert.match(view, new RegExp(`\\b${typeName}\\b`, "u"));
     assert.match(view, /@\/lib\/v3\/portal-source/u);
     assert.doesNotMatch(view, /Portal(?:Overview|Documents|Applications|Payments|Notifications)View/u);
+    // Replace-don't-layer: старый v3-файл удалён, не задублирован.
+    assert.equal(
+      existsSync(new URL(`../src/components/v3/portal/${filename}`, import.meta.url)),
+      false,
+      filename,
+    );
   }
 
   assert.equal(
     existsSync(new URL("../src/components/v3/portal/ApplicationsView.tsx", import.meta.url)),
     false,
   );
-  const payments = source("src/components/v3/portal/PaymentsView.tsx");
+  const payments = source("src/components/portal/admission/PaymentsView.tsx");
   assert.match(payments, /payment\.category/u);
   assert.match(payments, /payment\.refundedMinor/u);
   assert.doesNotMatch(payments, /paymentObligationId/u);
@@ -437,8 +446,15 @@ test("Student stage wording matches the exact schema and published OZO lifecycle
 });
 
 test("existing case portal views stay presentation-only and never render raw status keys", () => {
-  const componentFiles = filesUnder("src/components/v3/portal/")
-    .filter((path) => path.endsWith(".tsx") && !path.includes("/assessments/"));
+  // PORT-5d: экраны «Моего поступления» живут в portal/admission; в
+  // v3/portal остаются только PortalPage (экраны тестов),
+  // PortalNotificationUpdates (layout) и assessments/*.
+  const componentFiles = [
+    ...filesUnder("src/components/v3/portal/")
+      .filter((path) => path.endsWith(".tsx") && !path.includes("/assessments/")),
+    ...filesUnder("src/components/portal/admission/")
+      .filter((path) => path.endsWith(".tsx")),
+  ];
   const components = componentFiles.map(source).join("\n");
 
   assert.doesNotMatch(
@@ -462,9 +478,9 @@ test("existing case portal views stay presentation-only and never render raw sta
 
 test("mark-read accepts one opaque handle and creates authority and replay data server-side", () => {
   const action = source("src/lib/student-portal-actions.ts");
-  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const notifications = source("src/components/portal/admission/NotificationsView.tsx");
   const submit = source(
-    "src/components/v3/portal/PortalNotificationReadButton.tsx",
+    "src/components/portal/admission/PortalNotificationReadButton.tsx",
   );
   const browser = source("tests/e2e/student-portal.spec.ts");
 
@@ -497,10 +513,10 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
 });
 
 test("notifications deep-link by category, and bulk mark-read loops the existing single action", () => {
-  const presentation = source("src/components/v3/portal/presentation.ts");
-  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const presentation = source("src/components/portal/admission/presentation.ts");
+  const notifications = source("src/components/portal/admission/NotificationsView.tsx");
   const notificationsPage = source("src/app/(portal)/portal/notifications/page.tsx");
-  const markAll = source("src/components/v3/portal/PortalMarkAllReadButton.tsx");
+  const markAll = source("src/components/portal/admission/PortalMarkAllReadButton.tsx");
 
   assert.match(presentation, /export function portalNotificationTarget/u);
   assert.match(presentation, /notification\.eventCode === "case_help_answer"/u);
@@ -595,10 +611,17 @@ test("portal includes honest empty, loading and failure states", () => {
     .filter((path) => path.endsWith(".tsx"))
     .map(source)
     .join("\n");
+  const admission = filesUnder("src/components/portal/admission/")
+    .filter((path) => path.endsWith(".tsx"))
+    .map(source)
+    .join("\n");
   const loading = source("src/app/(portal)/portal/loading.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
   assert.match(components, /PortalEmptyState/u);
+  // PORT-5d: пустые состояния Атласа — честный заголовок + следующий шаг.
+  assert.match(admission, /pt-adm-empty/u);
+  assert.match(admission, /Список документов пока пуст/u);
   assert.match(loading, /aria-busy="true"/u);
   assert.match(error, /role="alert"/u);
   assert.match(error, /Попробуйте ещё раз или откройте другой раздел через меню/u);
@@ -615,10 +638,6 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
   // file, and the production smoke anchors stay byte-for-byte in the TSX.
   const shell = source("src/components/portal/Shell.tsx");
   const portalCss = source("src/app/(portal)/portal.css");
-  const components = filesUnder("src/components/v3/portal/")
-    .filter((path) => path.endsWith(".tsx"))
-    .map(source)
-    .join("\n");
 
   for (const removed of [
     "PortalShell.tsx",
@@ -643,12 +662,17 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
   assert.match(portalCss, /min-height: 44px/u);
   assert.match(portalCss, /@media \(prefers-color-scheme: dark\)/u);
   assert.match(portalCss, /@media \(prefers-reduced-motion: reduce\)/u);
-  assert.match(components, /sm:grid-cols-2|sm:grid-cols-3/u);
+  // PORT-5d: адаптивность «Моего поступления» живёт в pt-классах, не в
+  // tailwind-утилитах: двухколоночный обзор схлопывается на узком экране,
+  // суммы — auto-fit сетка.
+  assert.match(portalCss, /\.pt-adm-grid \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1\.9fr\) minmax\(240px, 1fr\)/u);
+  assert.match(portalCss, /@media \(max-width: 900px\) \{\s*\.pt-adm-grid \{\s*grid-template-columns: minmax\(0, 1fr\);/u);
+  assert.match(portalCss, /repeat\(auto-fit, minmax\(140px, 1fr\)\)/u);
 });
 
 test("portal feedback and status markers reuse the shared restrained visual language", () => {
-  const documents = source("src/components/v3/portal/DocumentsView.tsx");
-  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const documents = source("src/components/portal/admission/DocumentsView.tsx");
+  const notifications = source("src/components/portal/admission/NotificationsView.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
   assert.match(

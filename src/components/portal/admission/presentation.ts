@@ -1,4 +1,10 @@
-import type { PillTone } from "@/components/v3/Pill";
+/**
+ * Презентационные помощники «Моего поступления» (PORT-5d, дизайн-контракт §7).
+ * Перенос src/components/v3/portal/presentation.ts в портальный мир Атласа:
+ * логика и данные НЕ меняются — только дом компонентов. Доменные статусы
+ * читаются из src/lib/v3/wording.ts через этот файл (разрешённое исключение
+ * дизайн-контракта: «доменные статусы через локализуемый портальный слой»).
+ */
 import type {
   StudentPortalDocument,
   StudentPortalDocumentAction,
@@ -15,9 +21,12 @@ import {
   taskStatus,
 } from "@/lib/v3/wording";
 
+/** Тональности статус-пилюли Атласа (соответствуют прежним PillTone). */
+export type PortalStatusTone = "neutral" | "info" | "ok" | "warn" | "danger";
+
 export type PortalStatusPresentation = Readonly<{
   label: string | null;
-  tone: PillTone;
+  tone: PortalStatusTone;
 }>;
 
 const BISHKEK_DATE_TIME = new Intl.DateTimeFormat("ru-RU", {
@@ -80,7 +89,7 @@ export function evoActionStatus(
 export function documentStatus(
   document: StudentPortalDocument,
 ): PortalStatusPresentation {
-  const tone: PillTone = document.status === "approved"
+  const tone: PortalStatusTone = document.status === "approved"
     ? "ok"
     : document.status === "correction_required"
       ? "warn"
@@ -101,7 +110,7 @@ export function documentReviewLabel(
 export function paymentStatus(
   payment: StudentPortalPayment,
 ): PortalStatusPresentation {
-  const tone: PillTone = payment.status === "paid"
+  const tone: PortalStatusTone = payment.status === "paid"
     ? "ok"
     : payment.overdue || payment.status === "overdue"
       ? "danger"

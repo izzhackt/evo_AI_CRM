@@ -1,7 +1,6 @@
 import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 
 import { PortalDocumentControls } from "./PortalDocumentControls";
-import { PortalEmptyState, PortalSection } from "./PortalPage";
 import { PortalStatus } from "./PortalStatus";
 import {
   documentReviewLabel,
@@ -10,6 +9,11 @@ import {
   formatPortalTimestamp,
 } from "./presentation";
 
+/**
+ * «Документы» в Атласе (PORT-5d): чек-лист со счётчиком принятых, честными
+ * статусами и прежним XHR-путём загрузки/скачивания. Смоук-якоря сохранены
+ * байт-в-байт: заголовки «Чеклист» и «Список документов пока пуст».
+ */
 export function DocumentsView({
   documents,
 }: {
@@ -17,40 +21,51 @@ export function DocumentsView({
 }) {
   if (documents.length === 0) {
     return (
-      <PortalEmptyState
-        title="Список документов пока пуст"
-        description="Здесь появится список документов, которые нужно предоставить команде EVO."
-      />
+      <section className="pt-adm-empty">
+        <h2 className="pt-section-title">Список документов пока пуст</h2>
+        <p className="pt-adm-empty-body">
+          Здесь появится список документов, которые нужно предоставить команде EVO.
+        </p>
+      </section>
     );
   }
 
   const { approved, inReview, corrections, missing } = documentProgress(documents);
 
   return (
-    <PortalSection
-      title="Чеклист"
-      description={`${documents.length} ${documentCountLabel(documents.length)} в вашем деле. Сроки указаны по времени Бишкека.`}
-    >
-      <div className="border-b border-border p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-1 gap-x-4 text-sm">
-          <p id="document-progress-label" className="m-0 text-fg">Принято <strong className="font-semibold">{approved} из {documents.length}</strong></p>
-          <p className="m-0 text-fg-3">{approved === documents.length ? "Все документы приняты" : "После проверки командой EVO"}</p>
+    <section className="pt-card">
+      <header className="pt-card-header">
+        <div className="pt-card-header-main">
+          <h2 className="pt-card-title">Чеклист</h2>
+          <p className="pt-card-note">
+            {documents.length} {documentCountLabel(documents.length)} в вашем деле. Сроки указаны по времени Бишкека.
+          </p>
+        </div>
+      </header>
+      <div className="pt-doc-summary">
+        <div className="pt-doc-summary-row">
+          <p id="document-progress-label" className="pt-doc-summary-count">
+            Принято <strong>{approved} из {documents.length}</strong>
+          </p>
+          <p className="pt-card-note">
+            {approved === documents.length ? "Все документы приняты" : "После проверки командой EVO"}
+          </p>
         </div>
         <progress
-          className="mt-3 block h-2 w-full appearance-none overflow-hidden rounded-nav border-0 bg-surface-3 text-accent [&::-moz-progress-bar]:rounded-nav [&::-moz-progress-bar]:bg-accent [&::-webkit-progress-bar]:rounded-nav [&::-webkit-progress-bar]:bg-surface-3 [&::-webkit-progress-value]:rounded-nav [&::-webkit-progress-value]:bg-accent"
+          className="pt-progress"
           value={approved}
           max={documents.length}
           aria-labelledby="document-progress-label"
         />
         {missing > 0 || corrections > 0 || inReview > 0 ? (
-          <ul aria-label="Состояние документов" className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-fg-2">
-            {missing > 0 ? <li>Нужно добавить: <strong className="font-semibold">{missing}</strong></li> : null}
-            {corrections > 0 ? <li>Нужны исправления: <strong className="font-semibold">{corrections}</strong></li> : null}
-            {inReview > 0 ? <li>Ожидают проверки: <strong className="font-semibold">{inReview}</strong></li> : null}
+          <ul aria-label="Состояние документов" className="pt-doc-summary-facts">
+            {missing > 0 ? <li>Нужно добавить: <strong>{missing}</strong></li> : null}
+            {corrections > 0 ? <li>Нужны исправления: <strong>{corrections}</strong></li> : null}
+            {inReview > 0 ? <li>Ожидают проверки: <strong>{inReview}</strong></li> : null}
           </ul>
         ) : null}
       </div>
-      <ul className="divide-y divide-border">
+      <ul className="pt-adm-list">
         {documents.map((document) => {
           const status = documentStatus(document);
           const reviewLabel = documentReviewLabel(document);
@@ -61,15 +76,15 @@ export function DocumentsView({
             <li
               key={document.documentSlotId}
               id={`document-${document.documentSlotId}`}
-              className="scroll-mt-24 px-4 py-5 sm:px-5"
+              className="pt-doc-item"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold leading-6 text-fg">
+              <div className="pt-doc-item-head">
+                <div className="pt-doc-item-main">
+                  <h3 className="pt-doc-item-title">
                     {document.requirementLabel}
                   </h3>
                   {document.instructions ? (
-                    <p className="mt-1 max-w-[720px] text-sm leading-6 text-fg-2">
+                    <p className="pt-doc-item-instructions">
                       {document.instructions}
                     </p>
                   ) : null}
@@ -77,11 +92,11 @@ export function DocumentsView({
                 <PortalStatus label={status.label} tone={status.tone} />
               </div>
 
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+              <dl className="pt-facts pt-doc-item-facts">
                 {deadlineLabel ? (
-                  <div>
-                    <dt className="text-xs text-fg-3">Срок</dt>
-                    <dd className="mt-1 font-medium text-fg">
+                  <div className="pt-fact">
+                    <dt>Срок</dt>
+                    <dd>
                       <time dateTime={document.deadline ?? undefined}>
                         {deadlineLabel}
                       </time>
@@ -89,14 +104,14 @@ export function DocumentsView({
                   </div>
                 ) : null}
                 {document.originalFilename ? (
-                  <div>
-                    <dt className="text-xs text-fg-3">Последний файл</dt>
-                    <dd className="mt-1 break-words font-medium text-fg">
+                  <div className="pt-fact">
+                    <dt>Последний файл</dt>
+                    <dd>
                       {document.originalFilename}
                       {submittedLabel ? (
                         <time
                           dateTime={document.submittedAt ?? undefined}
-                          className="ms-2 font-normal text-fg-3"
+                          className="pt-doc-item-submitted"
                         >
                           · {submittedLabel}
                         </time>
@@ -105,9 +120,9 @@ export function DocumentsView({
                   </div>
                 ) : null}
                 {reviewLabel ? (
-                  <div>
-                    <dt className="text-xs text-fg-3">Решение EVO</dt>
-                    <dd className="mt-1 font-medium text-fg">{reviewLabel}</dd>
+                  <div className="pt-fact">
+                    <dt>Решение EVO</dt>
+                    <dd>{reviewLabel}</dd>
                   </div>
                 ) : null}
               </dl>
@@ -116,20 +131,20 @@ export function DocumentsView({
                 <div
                   role="note"
                   aria-label="Что нужно исправить"
-                  className="mt-4 border-s-2 border-border-strong ps-3"
+                  className="pt-doc-rework"
                 >
-                  <p className="text-xs font-semibold text-fg">
+                  <p className="pt-doc-rework-title">
                     Что нужно исправить
                   </p>
-                  <p className="mt-1 text-sm leading-6 text-fg-2">
+                  <p className="pt-doc-rework-body">
                     {document.reworkReason}
                   </p>
                 </div>
               ) : null}
 
               {document.nextAction ? (
-                <p className="mt-4 rounded-nav bg-surface-2 px-3 py-3 text-sm leading-6 text-fg-2">
-                  <span className="font-semibold text-fg">Следующий шаг:</span>{" "}
+                <p className="pt-next-step">
+                  <span className="pt-next-step-label">Следующий шаг:</span>{" "}
                   {document.nextAction}
                 </p>
               ) : null}
@@ -144,7 +159,7 @@ export function DocumentsView({
           );
         })}
       </ul>
-    </PortalSection>
+    </section>
   );
 }
 

@@ -21,7 +21,8 @@ const actionsSource = source("src/lib/platform-case-agreement-actions.ts");
 const financeControlSource = source("src/lib/platform-finance-control.ts");
 const financeEntryContractSource = source("src/lib/platform-finance-entry-contract.ts");
 const portalSourceSource = source("src/lib/v3/portal-source.ts");
-const paymentsViewSource = source("src/components/v3/portal/PaymentsView.tsx");
+// PORT-5d: «Моё поступление» живёт в Атласе — путь обновлён вместе с переносом.
+const paymentsViewSource = source("src/components/portal/admission/PaymentsView.tsx");
 const tabsSource = source("src/components/v3/profile/tabs.tsx");
 const profileSource = source("src/components/v3/profile/Profile.tsx");
 const sourceSource = source("src/lib/v3/case-agreement-source.ts");

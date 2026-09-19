@@ -107,7 +107,8 @@ test("Student next action reuses canonical finance without adding payment writes
   const portal = source("src/lib/v3/portal-source.ts");
   assert.match(portal, /readStudentPortalPayments/u);
   assert.match(portal, /outstandingMinor/u);
-  assert.match(source("src/components/v3/portal/OverviewView.tsx"), /\/portal\/payments/u);
+  // PORT-5d: «Моё поступление» живёт в Атласе — путь обновлён вместе с переносом.
+  assert.match(source("src/components/portal/admission/OverviewView.tsx"), /\/portal\/payments/u);
   assert.doesNotMatch(source("src/lib/platform-admissions-support-actions.ts"), /payment|refund|settle_finance/iu);
 });
 

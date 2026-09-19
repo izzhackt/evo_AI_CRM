@@ -658,6 +658,7 @@ function SidebarFolder({
 /** One real workspace over company files plus the existing student-document projection. */
 export function FileManager({
   rootLabel = "База знаний",
+  embedded = false,
   folders,
   files,
   canManage,
@@ -666,6 +667,7 @@ export function FileManager({
   createFileRequestId,
 }: Readonly<{
   rootLabel?: string;
+  embedded?: boolean;
   folders: readonly KnowledgeFolder[];
   files: readonly KnowledgeFile[];
   canManage: boolean;
@@ -720,9 +722,9 @@ export function FileManager({
   const currentIsCompany = current?.kind === "company-root" || current?.kind === "company";
 
   return (
-    <section className="overflow-hidden rounded-card border border-border bg-surface">
-      <div className="grid min-h-[620px] lg:grid-cols-[260px_minmax(0,1fr)]">
-        <nav
+    <section className={embedded ? "min-w-0" : "overflow-hidden rounded-card border border-border bg-surface"}>
+      <div className={embedded ? "min-w-0" : "grid min-h-[620px] lg:grid-cols-[260px_minmax(0,1fr)]"}>
+        {!embedded && <nav
           aria-label="Папки базы знаний"
           className="border-b border-border bg-surface-2 p-3 lg:border-b-0 lg:border-e"
         >
@@ -753,9 +755,9 @@ export function FileManager({
                 />
               ))}
           </ul>
-        </nav>
+        </nav>}
 
-        <div className="min-w-0 p-4 sm:p-5">
+        <div className={embedded ? "min-w-0" : "min-w-0 p-4 sm:p-5"}>
           <div className="flex flex-wrap items-center gap-3 border-b border-border pb-4">
             <nav aria-label="Путь к папке" className="min-w-0 flex-1">
               <ol className="flex min-w-0 items-center gap-1 text-sm text-fg-2">

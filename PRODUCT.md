@@ -45,6 +45,11 @@ This later owner decision supersedes the sequential web-then-iPhone order
 recorded in PR #859. Both surfaces cover discovery, preparation and full client
 accompaniment, including documents, tasks and communication.
 
+The owner-selected app name is **EVO admissions**, using the original EVO logo.
+The web portal remains at `https://app.evoadmissions.com`; staff continue at
+`https://crm.evoadmissions.com`. Parallel delivery does not create another
+production dataset or a replacement portal domain.
+
 Every new student, including a new invitee, follows questionnaire → account
 creation → staff approval → portal. Before approval, show only the application
 status and necessary account/support actions; neither a separate signup nor a

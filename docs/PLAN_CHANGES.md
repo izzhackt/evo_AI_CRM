@@ -30763,6 +30763,15 @@ Decision:
   Objective external blockers are reported for the affected step while independent
   work continues. No secrets, legal acceptance, purchases or data deletion are
   authorized by this documentation amendment.
+- The owner's subsequent clarification fixes the app name as `EVO admissions`,
+  with the original EVO logo, and retains `app.evoadmissions.com` for the portal.
+  Another Claude Code session is completing OTHER; it owns those staff slices.
+  The plan now specifies shared-contract ownership, one schema-apply coordinator
+  and one release/arm owner so separate worktrees do not compete in production.
+- Current GitHub evidence exposed the still-open OTH PR #861 proposing migration
+  186 while main already contains incident migration 186. Record the exact heads
+  as a dated dependency: the OTHER coordinator must reallocate only unapplied
+  migrations before merge/apply. This task does not modify those background PRs.
 
 Validation: inspect the prose diff, local reference targets and required decision
 coverage; run `git diff --check`; obtain independent review on the committed head.

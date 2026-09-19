@@ -435,6 +435,74 @@ final class SupabaseService {
             .value
     }
 
+    // MARK: - Accompaniment read models (PORT-5d parity, wave 8)
+
+    /// `platform.student_portal_overview_v2()` (131:17-30) — single row (or
+    /// none) with the student's next document action, the EVO task and the
+    /// curator. Same reader the web overview uses.
+    func studentPortalOverview() async throws -> StudentPortalOverviewRow? {
+        let rows: [StudentPortalOverviewRow] = try await client
+            .rpc("student_portal_overview_v2")
+            .execute()
+            .value
+        return rows.first
+    }
+
+    /// `platform.student_portal_documents()` (128:675-694) — the checklist
+    /// slots with each slot's LATEST version and review outcome.
+    func studentPortalDocuments() async throws -> [StudentPortalDocumentRow] {
+        try await client
+            .rpc("student_portal_documents")
+            .execute()
+            .value
+    }
+
+    /// `platform.student_portal_finance_v2()` (127:472-485, overdue
+    /// NULL-safety 189:242-257) — obligations with honest 189 null
+    /// semantics (due_at NULL = undated).
+    func studentPortalFinance() async throws -> [StudentPortalPaymentRow] {
+        try await client
+            .rpc("student_portal_finance_v2")
+            .execute()
+            .value
+    }
+
+    /// `platform.student_portal_notifications_v2()` (153:97-106, cap 500).
+    func studentPortalNotifications() async throws -> [StudentPortalNotificationRow] {
+        try await client
+            .rpc("student_portal_notifications_v2")
+            .execute()
+            .value
+    }
+
+    /// `platform.mark_own_student_portal_notification_read_v2` (153:210) —
+    /// replay-safe by request_id (replay_audit 153:283-291 returns the
+    /// original receipt). The id is DETERMINISTIC per (actor, notification)
+    /// — `AdmissionNotificationPolicy.readRequestId`, the same UUIDv5 the
+    /// web server action derives — so retries and mark-all partial-failure
+    /// reruns never mint a second command.
+    func markNotificationRead(notificationId: UUID, requestId: UUID) async throws -> NotificationReadReceipt {
+        struct Params: Encodable, Sendable {
+            let p_notification_id: UUID
+            let p_request_id: UUID
+        }
+        return try await client
+            .rpc(
+                "mark_own_student_portal_notification_read_v2",
+                params: Params(p_notification_id: notificationId, p_request_id: requestId)
+            )
+            .execute()
+            .value
+    }
+
+    /// Access token of the CURRENT Supabase session, for the two bearer
+    /// document route handlers (ADR 0030 §3). `auth.session` refreshes an
+    /// expired session before returning it (supabase-swift semantics), so
+    /// the token is fresh at call time.
+    func currentAccessToken() async throws -> String {
+        try await client.auth.session.accessToken
+    }
+
     /// `platform.profession_cards_v1()` — compact grid rows (198:1038-1051).
     func professionCards() async throws -> ProfessionCardsResponse {
         try await client

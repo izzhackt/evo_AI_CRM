@@ -11,7 +11,16 @@ PostgREST — no second backend, no bearer gateway.
 1. `which xcodegen || brew install xcodegen`
 2. Copy `Local.xcconfig.example` to `Local.xcconfig` in this directory and fill
    in the real Supabase project URL and publishable key. `Local.xcconfig` is
-   git-ignored — never commit it.
+   git-ignored — never commit it. NOTE: xcconfig treats `//` as a comment
+   anywhere in a line, so URLs must be written with the empty-substitution
+   guard: `https:/$()/host` (see the example file).
+
+   Optional key `PORTAL_WEB_BASE_URL` — the web-cabinet origin for the two
+   bearer document route handlers (upload/download, ADR 0030 §3). When the
+   key is missing, empty, or truncated to a hostless artefact, the app
+   falls back to the production cabinet `https://app.evoadmissions.com`
+   (`AppConfig.portalWebBaseURL`), so most setups can omit it; set it only
+   to point document upload/download at a staging cabinet.
 3. `xcodegen generate` (regenerates `EVOAdmissions.xcodeproj` from
    `project.yml`; re-run it after editing `project.yml` or adding/removing
    source files).

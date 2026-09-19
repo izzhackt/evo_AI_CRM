@@ -1,4 +1,13 @@
 // Copy this file to Local.xcconfig (same directory) and fill in real values.
 // Local.xcconfig is git-ignored; never commit real Supabase credentials.
-SUPABASE_URL = https://your-project.supabase.co
+// NOTE: xcconfig treats `//` as a comment ANYWHERE in a line — write URLs
+// with the empty-substitution guard, e.g. `https:/$()/host`, or the value
+// silently truncates to `https:`.
+SUPABASE_URL = https:/$()/your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY = your-publishable-key
+
+// Base URL of the web cabinet for the bearer document upload/download
+// route handlers (wave 8). OPTIONAL: when missing, empty, or truncated to
+// a hostless artefact, the app falls back to the production cabinet
+// https://app.evoadmissions.com — so most setups can leave this line out.
+PORTAL_WEB_BASE_URL = https:/$()/app.evoadmissions.com

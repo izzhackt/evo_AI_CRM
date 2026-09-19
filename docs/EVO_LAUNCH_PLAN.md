@@ -1,17 +1,21 @@
 # EVO Launch Plan
 
-## Auth email — domain verified, SMTP save and delivery pending, 2026-09-19
+## Auth email — SMTP and templates saved, delivery pending, 2026-09-19
 
 Owner approved Resend SMTP, replies forwarded to Gmail and Student email confirmation.
 Follow [the mail runbook](runbooks/resend-auth-email.md): DNS published, domain
-Verified and domain-restricted key created. Secret transfer/SMTP save is handed
-to the owner; live Auth/templates are unchanged and no test mail has been sent.
+Verified and domain-restricted key transferred to Supabase. Custom SMTP, rate
+100/hour and Russian Invite/Confirm templates were saved and read back after
+PATCH at `2026-09-19T02:03:21.264Z`; existing callback links and Auth signup
+policy are unchanged. One plain forwarding-check mail was sent from the owner's
+personal Gmail to `evo@evoadmissions.com`; receipt is unverified. No Auth mail
+sent; approved test aliases remain pending.
 
 - [x] Sign in to Resend and Spaceship; create domain; inspect existing forwarding.
 - [x] Apply actual TXT/CNAME records; read authoritative DNS; confirm domain Verified.
-- [x] Create domain-restricted sending key; its secret is not yet stored or applied.
-- [ ] Owner saves key and SMTP credentials; read back live settings and email limit.
-- [ ] Configure SMTP and Russian templates without changing Staff/Student boundaries.
+- [x] Create domain-restricted sending key and apply SMTP credentials.
+- [x] Save SMTP/rate limit and Russian templates; confirm exact Management API readback.
+- [ ] Confirm protected SOPS key archival; transport delivery is not yet proven.
 - [ ] Implement the separate `/apply` confirmation path; SMTP alone does not enable it.
 - [ ] Prove invitation, signup confirmation and reply delivery to approved recipients.
 

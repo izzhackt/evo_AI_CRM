@@ -30611,3 +30611,22 @@ SMTP form preparation is not activation: subsequent Management API readback
 still shows null SMTP fields, rate 2/hour, signup disabled and autoconfirm false.
 Secret transfer and Save were handed to the owner. Templates, `/apply`
 confirmation implementation and all real mail/reply checks remain pending.
+
+Next same-day provider-only slice, after the owner reported Save: Management API
+readback confirms `smtp.resend.com:465`, user `resend`, sender
+`evo@evoadmissions.com` / `EVO Admissions`; the custom SMTP default limit is 30/hour.
+Apply the approved 100/hour limit and Russian Invite/Confirm copy only. Preserve
+the Invite `RedirectTo` + `TokenHash` link and the existing Confirm
+`ConfirmationURL`; do not widen redirect allowlists or enable public Auth signup.
+Localizing Confirm does not implement `/apply` confirmation: that separate code
+slice and all real delivery checks remain pending. No secret is returned in this
+readback, and encrypted archival of the owner's new key is not yet confirmed.
+
+Provider-only slice applied: Management API PATCH and fresh GET at
+`2026-09-19T02:03:21.264Z` matched the 100/hour limit, both Russian subjects and
+contents, and the preserved SMTP/auth/redirect fields exactly. No credentials
+were changed by the agent. One plain forwarding-check message was subsequently
+sent from the owner's signed-in personal Gmail to `evo@evoadmissions.com`;
+Gmail displayed `Message sent`. The destination business Gmail is not signed in
+in that browser, so receipt is unverified. This is not a Supabase invitation,
+signup confirmation or reply-path acceptance; no test identity was created.

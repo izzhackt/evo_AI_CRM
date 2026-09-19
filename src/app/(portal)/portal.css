@@ -3290,3 +3290,11 @@ main.pt-page > .pt-card {
 .pt-res-back {
   align-self: flex-start;
 }
+
+/* Этап дела в колонке команды EVO (PORT-8c). */
+
+.pt-adm-stage {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--pt-line);
+}

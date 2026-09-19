@@ -12,6 +12,7 @@ import {
   paymentObligationCategory,
   paymentObligationStatus,
   portalPendingCabinet,
+  studentOperationalStage,
   taskStatus,
 } from "../src/lib/v3/wording.ts";
 
@@ -104,11 +105,19 @@ test("admission ru domain statuses mirror the staff wording byte-for-byte", () =
     ["payStatus", paymentObligationStatus, ["pending", "partially_paid", "paid", "overdue"]],
     ["payCategory", paymentObligationCategory, ["evo_service_fee", "third_party_cost"]],
     ["taskStatus", taskStatus, ["open", "in_progress", "blocked", "done", "completed", "cancelled", "overdue"]],
+    // PORT-8c: операционный этап дела на обзоре «Моего поступления».
+    ["stage", studentOperationalStage, [
+      "contract_confirmed", "admissions_handoff", "intake", "profile_and_route",
+      "documents", "applications", "decisions", "visa_and_predeparture",
+      "arrival_and_adaptation", "completed", "closed",
+    ]],
   ]) {
     for (const value of values) {
       assert.equal(ru[`${prefix}.${value}`], mapper(value), `${prefix}.${value}`);
     }
   }
+  // Нестандартный этап показывается честным общим словом, RU — как у staff.
+  assert.equal(ru.stageCustom, studentOperationalStage("nonstandard_stage_value"));
   // Словарь pending-кабинета переехал в admission.pending* без изменения RU.
   assert.equal(ru.pendingHeading, portalPendingCabinet.heading);
   assert.equal(ru.pendingManagerNotice, portalPendingCabinet.managerNotice);

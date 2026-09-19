@@ -249,6 +249,30 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   assert.doesNotMatch(overview, /overviewStage/u);
   assert.doesNotMatch(presentation, /export function overviewStage/u);
 
+  // PORT-8c: операционный этап из read model рендерится честно — известные
+  // ключи через admission.stage.* (RU байт-в-байт зеркалит staff-словарь
+  // studentOperationalStage), нестандартное значение — stageCustom, без
+  // overview этапа нет вовсе. Никакого нового RPC и выдуманных названий.
+  assert.match(overview, /overview\.operationalStage/u);
+  assert.match(overview, /strings\.stageCustom/u);
+  assert.match(overview, /const stage = overview \? stageLabel\(overview\.operationalStage, strings\) : null/u);
+  for (const key of [
+    "contract_confirmed",
+    "admissions_handoff",
+    "intake",
+    "profile_and_route",
+    "documents",
+    "applications",
+    "decisions",
+    "visa_and_predeparture",
+    "arrival_and_adaptation",
+    "completed",
+    "closed",
+  ]) {
+    assert.equal(admissionRu[`stage.${key}`], studentOperationalStage(key), key);
+  }
+  assert.equal(admissionRu.stageCustom, studentOperationalStage("nonstandard_stage_value"));
+
   // A pending, curator-less cabinet (S1's «кабинет до продажи») gets its own
   // quiet, accurate copy instead of a fabricated curator or stage.
   // PORT-6a: словарь pending-кабинета переехал из wording.portalPendingCabinet

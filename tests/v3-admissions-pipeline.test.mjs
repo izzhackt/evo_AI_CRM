@@ -16,7 +16,7 @@ const serverModule = source("src/lib/platform-admissions-pipeline.ts");
 const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
 const actions = source("src/lib/platform-admissions-pipeline-actions.ts");
 const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
-const migration = source("supabase/migrations/186_platform_admissions_pipeline_board.sql");
+const migration = source("supabase/migrations/187_platform_admissions_pipeline_board.sql");
 const fixedRolePolicy = source("src/lib/fixed-role-policy.ts");
 const navigation = source("src/lib/v3/navigation.ts");
 
@@ -104,7 +104,7 @@ test("the navigation entry is the first item of the Поступление group
   void group;
 });
 
-test("migration 186 continues the contiguous source ledger", async () => {
+test("migration 187 continues the contiguous source ledger", async () => {
   const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
   const { fileURLToPath } = await import("node:url");
   const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));

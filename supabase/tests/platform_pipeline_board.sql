@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- Privilege-boundary suite for migration 186 (OTH-1 «Воронка поступления»).
+-- Privilege-boundary suite for migration 187 (OTH-1 «Воронка поступления»).
 -- Isolated synthetic SQL fixtures only -- no Auth invitation, real customer or
 -- provider action. Style follows supabase/tests/platform_admissions_playbook_boundary.sql
 -- (a137's direct student_cases fixture under session_replication_role=replica,
@@ -116,7 +116,7 @@ SELECT platform.staff_role_command(
   pg_temp.p186_id(1), pg_temp.p186_id(701), 0, 'create',
   jsonb_build_object(
     'label', 'P186 Curator casework',
-    'description', 'Migration 186 synthetic curator casework role',
+    'description', 'Migration 187 synthetic curator casework role',
     'permissionKeys', jsonb_build_array('case.read.full', 'case.update.append')
   ),
   'P186 create curator casework role', pg_temp.p186_id(711)

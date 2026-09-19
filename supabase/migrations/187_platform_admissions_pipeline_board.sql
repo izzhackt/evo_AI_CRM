@@ -82,7 +82,7 @@ ALTER TABLE platform.student_cases
 -- backfill below, and platform.move_case_pipeline_v1's own UPDATE (section
 -- c), both rely on exactly this.
 COMMENT ON COLUMN platform.student_cases.pipeline_stage IS
-  'Kanban column of the curator board «Воронка поступления» — curator-owned, decoupled from operational_stage/admissions_version/admissions_facts (137). Not part of the admissions_case_command_guard-guarded tuple; see 186''s header comment.';
+  'Kanban column of the curator board «Воронка поступления» — curator-owned, decoupled from operational_stage/admissions_version/admissions_facts (137). Not part of the admissions_case_command_guard-guarded tuple; see 187''s header comment.';
 COMMENT ON COLUMN platform.student_cases.pipeline_hidden_at IS
   '«Убрать из воронки»: manual, reversible hide from the board. The case, its documents and history stay in «Студенты» — this is not platform.change_student_case_state (archiving stays a separate action).';
 

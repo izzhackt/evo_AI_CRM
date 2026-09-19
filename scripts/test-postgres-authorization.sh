@@ -2453,11 +2453,11 @@ SQL
       -f /workspace/supabase/tests/platform_cabinet_invites.sql
   fi
 
-  # Migration 186 adds the curator kanban board «Воронка поступления»
+  # Migration 187 adds the curator kanban board «Воронка поступления»
   # (OTH-1): platform.student_cases.pipeline_stage/pipeline_hidden_at plus
   # platform.move_case_pipeline_v1 and platform.staff_admissions_pipeline_board_v1.
   # Exercise the privilege boundary at its own checkpoint, same style as 185.
-  if [[ "$(basename "$migration")" == 186_* ]]; then
+  if [[ "$(basename "$migration")" == 187_* ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_pipeline_board.sql

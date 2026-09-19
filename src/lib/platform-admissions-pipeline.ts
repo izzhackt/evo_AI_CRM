@@ -2,7 +2,7 @@
  * OTH-1 «Воронка поступления» — curator kanban board.
  *
  * Reads platform.staff_admissions_pipeline_board_v1 and writes through
- * platform.move_case_pipeline_v1 (migration 186). This is a curator-owned
+ * platform.move_case_pipeline_v1 (migration 187). This is a curator-owned
  * kanban position (`pipeline_stage`/`pipeline_hidden_at` on
  * platform.student_cases), fully decoupled from the fact-gated admissions
  * playbook: this module never calls platform.transition_case_admissions_v1

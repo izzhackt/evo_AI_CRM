@@ -1,5 +1,4 @@
 import { Funnel } from "@/components/v3/Funnel";
-import { CuratorDay } from "@/components/v3/CuratorDay";
 import { MainHeader, type PeriodChoice } from "@/components/v3/MainHeader";
 import { MetricCard } from "@/components/v3/MetricCard";
 import { OperationsOverview } from "@/components/v3/OperationsOverview";
@@ -9,8 +8,6 @@ import { SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesR
 import { SalesReportNavigation } from "@/components/v3/SalesReportNavigation";
 import { isStaffPreview, staffCan, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { listPlatformStudentCases } from "@/lib/platform-admissions";
-import { readAdmissionsSummary } from "@/lib/v3/admissions-source";
 import {
   PERIODS,
   periodLabel,
@@ -41,25 +38,10 @@ export default async function MainPart({
     // это ровно условие «есть Admissions, нет отчёта продаж» из плана.
     const canReadAdmissions = staffPresentationCan(actor, "admissions.read");
     if (canReadAdmissions) {
-      const [casesResult, summaryResult] = await Promise.allSettled([
-        listPlatformStudentCases(actor, { curatorMembershipId: actor.membershipId, state: "active", pageSize: 30 }),
-        readAdmissionsSummary(actor, { curatorMembershipId: actor.membershipId }),
-      ]);
-      const casesPage = casesResult.status === "fulfilled" ? casesResult.value : null;
-      const cases = (casesPage?.rows ?? [])
-        .filter((row) => row.access === "full")
-        .map((row) => row.studentCase);
-      return (
-        <PartShell title="Мой день" count={casesPage ? cases.length : null}>
-          <CuratorDay
-            cases={cases}
-            casesUnavailable={casesResult.status === "rejected"}
-            hasMore={casesPage?.hasNext ?? false}
-            summary={summaryResult.status === "fulfilled" ? summaryResult.value : null}
-            summaryUnavailable={summaryResult.status === "rejected"}
-          />
-        </PartShell>
-      );
+      // OTH-1: «Мой день» (CuratorDay) is replaced — not layered — by the
+      // kanban board «Воронка поступления» at its own route. CuratorDay.tsx
+      // is deleted; this branch only redirects there now.
+      redirect("/v3/admissions-pipeline");
     }
     const operations = await readV3OperationalDashboard(actor);
     return <PartShell title="Рабочий обзор"><OperationsOverview snapshot={operations} /></PartShell>;

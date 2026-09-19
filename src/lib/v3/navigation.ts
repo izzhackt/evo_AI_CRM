@@ -10,6 +10,7 @@ export type V3NavigationLinkId =
   | "requests"
   | "pipeline"
   | "sales-report"
+  | "admissions-pipeline"
   | "admissions-worklist"
   | "evo-docs"
   | "admissions-summary"
@@ -66,6 +67,15 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
     id: "admissions",
     label: "Поступление",
     links: [
+      // OTH-1: curator kanban board «Воронка поступления» — FIRST item of
+      // this group (owner plan). Its own route already requires
+      // admissions.read (fixed-role-policy.ts), which Sales lacks entirely,
+      // so — like admissions-worklist/universities below — no extra
+      // `capability` gate is needed here; staffCanAccessRoute already hides
+      // it from Sales. The label «Воронка» duplicates the Продажи group's
+      // own «Воронка» (/v3/pipeline) by design — two different boards for
+      // two different roles, flagged and accepted, not an oversight.
+      { id: "admissions-pipeline", href: "/v3/admissions-pipeline", route: "/v3/admissions-pipeline", label: "Воронка" },
       // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
       { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
       { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },

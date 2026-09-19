@@ -239,6 +239,30 @@ const STUDENT_OPERATIONAL_STAGE: Record<string, string> = {
 
 const CUSTOM_STUDENT_OPERATIONAL_STAGE = "индивидуальный этап сопровождения";
 
+/**
+ * OTH-1 «Воронка поступления» — куратор-борд. `pipeline_stage`
+ * (`platform.student_cases`, миграция 186) сознательно отдельный от
+ * `operational_stage` выше: это позиция карточки на доске, а не факт-гейтед
+ * этап плейбука. Девять ключей — фиксированный `CHECK` в БД, порядок ниже —
+ * порядок колонок (сперва вкладка «Поступление», потом «Виза и выезд»).
+ */
+const ADMISSIONS_PIPELINE_STAGE: Record<string, string> = {
+  new: "Новые",
+  shortlist: "Подбор вузов",
+  documents: "Документы",
+  ready_to_submit: "Готовы к подаче",
+  awaiting_decision: "Ожидаем решения",
+  confirmed: "Поступление подтверждено",
+  visa: "Оформление визы",
+  predeparture: "Подготовка к выезду",
+  arrived: "Прибыл",
+};
+
+const ADMISSIONS_PIPELINE_TAB: Record<"admission" | "visa", string> = {
+  admission: "Поступление",
+  visa: "Виза и выезд",
+};
+
 // Plan §9: «Не загружен / На проверке / Нужно исправить / Принят». The
 // server enum keeps its fifth, honest state («Отклонён») — the plan's list
 // names the common path, not an exhaustive prohibition (unified workflow S6).
@@ -426,6 +450,9 @@ export function studentOperationalStage(
     CUSTOM_STUDENT_OPERATIONAL_STAGE;
 }
 export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, v);
+export const admissionsPipelineStage = (v: string | null | undefined) =>
+  lookup(ADMISSIONS_PIPELINE_STAGE, v);
+export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
 export const documentSlotStatus = (v: string | null | undefined) =>
   lookup(DOCUMENT_SLOT_STATUS, v);

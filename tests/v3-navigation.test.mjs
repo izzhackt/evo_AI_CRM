@@ -26,10 +26,15 @@ function links(model) {
 // at the FRONT of the Продажи group (plan §3 order: Заявки, Inbox, Воронка,
 // Отчёт продаж) and never reaches the admissions preview, which lacks
 // sales.read entirely — its list is unchanged from before this slice.
+// OTH-1: «Воронка» (id admissions-pipeline, /v3/admissions-pipeline) is the
+// FIRST item of the Поступление group (owner plan) — inserted right after
+// "home"/"sales-report" and before "admissions-worklist" for admin and
+// admissions; Sales never sees it (no admissions.read, matching the group's
+// existing admissions-worklist/universities-only visibility for that role).
 const expectedRoleLinks = {
-  admin: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
+  admin: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
   sales: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
-  admissions: ["home", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
+  admissions: ["home", "admissions-pipeline", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -62,7 +67,10 @@ test("the two disclosure groups use the approved destinations and worklist remai
   // «Inbox» (S6, plan §3/§14) — «Клиентские сообщения» is retired.
   assert.deepEqual(model.groups.map((group) => [group.label, group.links.map((link) => [link.label, link.href])]), [
     ["Продажи", [["Заявки", "/v3/requests"], ["Inbox", "/v3/inbox"], ["Воронка", "/v3/pipeline"], ["Отчёт продаж", "/v3/main?view=sales"]]],
-    ["Поступление", [["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
+    // «Воронка» (curator kanban, OTH-1) duplicates the Продажи group's own
+    // «Воронка» label by design — two different boards for two different
+    // roles; see navigation.ts's own comment on this entry.
+    ["Поступление", [["Воронка", "/v3/admissions-pipeline"], ["Студенты", "/v3/profile"], ["EVO Docs", "/v3/profile?section=docs"], ["Университеты", "/v3/universities"], ["Сводка по направлениям", "/v3/profile?section=summary#admissions-summary"]]],
   ]);
   assert.deepEqual(navigation("sales").groups[1].links.map((link) => link.id), ["admissions-worklist", "universities"]);
   assert.deepEqual(navigation("admissions").groups.map((group) => group.id), ["admissions"]);

@@ -14,6 +14,7 @@ export const metadata = { title: "Нет доступа · EVO" };
 const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/main": "Главная",
   "/v3/pipeline": "Воронка продаж",
+  "/v3/admissions-pipeline": "Воронка поступления",
   "/v3/inbox": "Входящие",
   "/v3/requests": "Заявки",
   "/v3/profile": "Студенты",

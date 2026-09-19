@@ -6,11 +6,14 @@ import { Pill } from "@/components/v3/Pill";
 import { ApplicationDecision, StudentApplicationAnswers, submittedDate } from "@/components/v3/admissions/StudentApplications";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { PortalConsultations } from "@/components/v3/requests/PortalConsultations";
 import {
   filterRequestsQueue,
+  loadPortalConsultationQueue,
   loadRequestsQueue,
   parseRequestSourceFilter,
   REQUEST_SOURCE_FILTERS,
+  type PortalConsultationQueue,
   type RequestSourceFilter,
 } from "@/lib/v3/requests-source";
 import { source as sourceWord } from "@/lib/v3/wording";
@@ -23,7 +26,27 @@ const FILTER_LABELS: Record<RequestSourceFilter, string> = {
   website: "Сайт",
   platform_application: "Платформа",
   whatsapp: "WhatsApp",
+  portal_consultation: "Кабинет: консультации",
 };
+
+function FilterNav({ filter }: { filter: RequestSourceFilter }) {
+  return (
+    <nav aria-label="Источник заявки" className="flex flex-wrap gap-2">
+      {REQUEST_SOURCE_FILTERS.map((value) => (
+        <Link
+          key={value}
+          href={value === "all" ? "/v3/requests" : `/v3/requests?source=${value}`}
+          aria-current={filter === value ? "page" : undefined}
+          className={`inline-flex min-h-11 items-center rounded-nav border px-3 text-sm font-medium ${
+            filter === value ? "border-accent bg-accent-weak text-accent" : "border-control-edge text-fg-2 hover:bg-surface-2"
+          }`}
+        >
+          {FILTER_LABELS[value]}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 export default async function RequestsPage({
   searchParams,
@@ -34,6 +57,34 @@ export default async function RequestsPage({
   const params = await searchParams;
   const filter = parseRequestSourceFilter(typeof params.source === "string" ? params.source : undefined);
   const readOnly = isStaffPreview(actor);
+
+  // «Кабинет: консультации» (PORT-5b) — отдельный источник за своей пилюлей:
+  // очередь лидов и анкет при этом фильтре не читается вовсе.
+  if (filter === "portal_consultation") {
+    const rawOffset = typeof params.offset === "string" ? Number(params.offset) : 0;
+    const offset = Number.isSafeInteger(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+    let consultations: PortalConsultationQueue | null = null;
+    try {
+      consultations = await loadPortalConsultationQueue(offset);
+    } catch {
+      consultations = null;
+    }
+    return (
+      <PartShell title="Заявки" count={consultations?.items.length}>
+        <div className="space-y-6">
+          <FilterNav filter={filter} />
+          {consultations === null ? (
+            <p role="alert" className="text-sm text-fg-2">
+              Не удалось загрузить запросы консультаций. Проверьте доступ и повторите попытку.{" "}
+              <a href="/v3/requests?source=portal_consultation" className="font-semibold text-accent hover:underline">Повторить</a>
+            </p>
+          ) : (
+            <PortalConsultations queue={consultations} readOnly={readOnly} />
+          )}
+        </div>
+      </PartShell>
+    );
+  }
 
   const queue = await loadRequestsQueue(actor);
   if (queue.applicationsUnavailable && queue.leadsUnavailable) {
@@ -51,20 +102,7 @@ export default async function RequestsPage({
   return (
     <PartShell title="Заявки" count={rows.length}>
       <div className="space-y-6">
-        <nav aria-label="Источник заявки" className="flex flex-wrap gap-2">
-          {REQUEST_SOURCE_FILTERS.map((value) => (
-            <Link
-              key={value}
-              href={value === "all" ? "/v3/requests" : `/v3/requests?source=${value}`}
-              aria-current={filter === value ? "page" : undefined}
-              className={`inline-flex min-h-11 items-center rounded-nav border px-3 text-sm font-medium ${
-                filter === value ? "border-accent bg-accent-weak text-accent" : "border-control-edge text-fg-2 hover:bg-surface-2"
-              }`}
-            >
-              {FILTER_LABELS[value]}
-            </Link>
-          ))}
-        </nav>
+        <FilterNav filter={filter} />
         <p className="text-sm text-fg-2">На рассмотрении: {queue.pendingApplicationCount}</p>
         {rows.length === 0 ? (
           <p className="text-sm text-fg-2">Заявок пока нет.</p>

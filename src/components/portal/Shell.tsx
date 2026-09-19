@@ -34,8 +34,8 @@ export type PortalAccessTier = "approved" | "assisted";
 
 /**
  * Честная навигация: только реально существующие сегодня разделы
- * (Избранное — PORT-3b). Профессии/Английский/Профиль появятся в PORT-4/5
- * вместе со своими маршрутами — мёртвых пунктов меню не выставляем.
+ * (Избранное — PORT-3b, Профиль — PORT-5a). Профессии/Английский появятся в
+ * PORT-4 вместе со своими маршрутами — мёртвых пунктов меню не выставляем.
  */
 const SECTIONS = [
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
@@ -45,6 +45,7 @@ const SECTIONS = [
   { href: "/portal/payments", key: "nav.payments", tiers: ["assisted"] },
   { href: "/portal/notifications", key: "nav.notifications", tiers: ["assisted"] },
   { href: "/portal/tests", key: "nav.tests", tiers: ["approved", "assisted"] },
+  { href: "/portal/profile", key: "nav.profile", tiers: ["approved", "assisted"] },
 ] as const satisfies readonly {
   href: string;
   key: keyof PortalStrings<"shell">;
@@ -78,6 +79,8 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.notifications": "M10 3a4.5 4.5 0 0 1 4.5 4.5c0 3.2 1 4.5 1.5 5H4c.5-.5 1.5-1.8 1.5-5A4.5 4.5 0 0 1 10 3zM8.5 15.5a1.5 1.5 0 0 0 3 0",
     // Тесты: планшет с отметкой.
     "nav.tests": "M6.5 3.5h7a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM8 3.5V2.8h4v.7M7.7 10.2l1.6 1.6 3-3.3",
+    // Профиль: человек.
+    "nav.profile": "M10 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 16.5c.7-2.9 3-4.5 6-4.5s5.3 1.6 6 4.5",
   };
   return (
     <svg

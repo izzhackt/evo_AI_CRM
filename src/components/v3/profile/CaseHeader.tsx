@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Pill } from "@/components/v3/Pill";
 import { personState } from "@/lib/v3/wording";
 import type { AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
+import { hasOpenAccountDeletionRequestForCase } from "@/lib/platform-account-deletion";
 import { readCaseAttentionFlags } from "@/lib/platform-admissions";
 import type { StudentPortalCuratorOption } from "@/lib/server/student-portal-curator-options";
 
@@ -72,6 +73,10 @@ export async function CaseHeader({
   const canAssignCurator = canLinkCoverage
     && (await readCaseAttentionFlags(actor, caseId).catch((): readonly AdmissionsAttention[] => []))
       .includes("needs_curator");
+  // PORT-5a (план §13): компактная строка о запросе удаления аккаунта из
+  // портала. Чтение admin-only (миграция 196); для остальных ролей и при
+  // любом отказе бейджа просто нет — карточка клиента не перестраивается.
+  const deletionRequested = await hasOpenAccountDeletionRequestForCase(actor, caseId);
 
   return (
     <section className="flex flex-col gap-3" data-testid="v3-case-header">
@@ -81,6 +86,7 @@ export async function CaseHeader({
         </h2>
         <p className="text-sm text-fg-3">{state}</p>
         {profile.financeStop ? <Pill tone="danger">финансовый стоп</Pill> : null}
+        {deletionRequested ? <Pill tone="warn">запросил удаление аккаунта</Pill> : null}
         {!isStaffPreview(actor) && staffHasPermission(actor, "task.manage") ? (
           <Link
             href={`/v3/tasks?create=case&case=${encodeURIComponent(caseId)}`}

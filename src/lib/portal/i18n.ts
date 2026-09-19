@@ -29,6 +29,7 @@ const shellRu = {
   "nav.payments": "Оплата",
   "nav.notifications": "Уведомления",
   "nav.tests": "Тесты",
+  "nav.profile": "Профиль",
 } as const;
 
 type ShellKey = keyof typeof shellRu;
@@ -47,6 +48,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.payments": "Төлөм",
   "nav.notifications": "Билдирмелер",
   "nav.tests": "Тесттер",
+  "nav.profile": "Профиль",
 };
 
 /**
@@ -231,11 +233,69 @@ const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
   cityUnknown: "Шаар көрсөтүлгөн эмес",
 };
 
+/**
+ * Экран «Профиль» (PORT-5a, дизайн-контракт §6): данные, язык RU/KY,
+ * личные тесты, выход и инициирование удаления аккаунта — с честным
+ * описанием последствий, без обещаний сроков (план §7 тексты, §13).
+ */
+const profileRu = {
+  kicker: "Аккаунт",
+  title: "Профиль",
+  lead: "Данные аккаунта, язык портала и управление доступом.",
+  unavailable: "Не удалось загрузить профиль. Обновите страницу.",
+  dataHeading: "Данные",
+  nameLabel: "Имя",
+  emailLabel: "Email",
+  testsLink: "Личные результаты тестов",
+  languageHeading: "Язык портала",
+  languageHint: "Сохраняется в аккаунте и действует на всех ваших устройствах.",
+  languageRu: "Русский",
+  languageKy: "Кыргызский",
+  languageSave: "Сохранить язык",
+  languageSaved: "Язык сохранён.",
+  languageError: "Не удалось сохранить язык. Повторите.",
+  sessionHeading: "Сессия",
+  logout: "Выйти",
+  deleteHeading: "Удаление аккаунта",
+  deleteDescription: "Команда EVO обработает запрос и закроет доступ к кабинету: избранное, результаты тестов и загруженные материалы станут недоступны. Записи, которые обязаны храниться по договору и закону, сохраняются по действующим правилам.",
+  deleteConfirm: "Отправить запрос на удаление",
+  deleteRequested: "Запрос отправлен — обрабатывается командой.",
+  deleteError: "Не удалось отправить запрос. Повторите.",
+} as const;
+
+type ProfileKey = keyof typeof profileRu;
+
+const profileKy: Readonly<Record<ProfileKey, string>> = {
+  kicker: "Аккаунт",
+  title: "Профиль",
+  lead: "Аккаунттун маалыматы, порталдын тили жана кирүүнү башкаруу.",
+  unavailable: "Профиль жүктөлгөн жок. Баракты жаңыртыңыз.",
+  dataHeading: "Маалымат",
+  nameLabel: "Аты-жөнү",
+  emailLabel: "Email",
+  testsLink: "Жеке тест жыйынтыктары",
+  languageHeading: "Порталдын тили",
+  languageHint: "Аккаунтта сакталат жана бардык түзмөктөрүңүздө колдонулат.",
+  languageRu: "Орусча",
+  languageKy: "Кыргызча",
+  languageSave: "Тилди сактоо",
+  languageSaved: "Тил сакталды.",
+  languageError: "Тил сакталган жок. Кайталаңыз.",
+  sessionHeading: "Сессия",
+  logout: "Чыгуу",
+  deleteHeading: "Аккаунтту өчүрүү",
+  deleteDescription: "EVO командасы сурамды иштеп чыгып, кабинетке кирүүнү жабат: тандалмалар, тест жыйынтыктары жана жүктөлгөн материалдар жеткиликсиз болот. Келишим жана мыйзам боюнча сакталууга тийиш жазуулар колдонуудагы эрежелер боюнча сакталат.",
+  deleteConfirm: "Өчүрүүгө сурам жөнөтүү",
+  deleteRequested: "Сурам жөнөтүлдү — команда иштеп жатат.",
+  deleteError: "Сурам жөнөтүлгөн жок. Кайталаңыз.",
+};
+
 /** Все портальные словари, по неймспейсам. Экспорт — для контракт-теста. */
 export const PORTAL_DICTIONARIES = {
   shell: { ru: shellRu, ky: shellKy },
   universities: { ru: universitiesRu, ky: universitiesKy },
   favorites: { ru: favoritesRu, ky: favoritesKy },
+  profile: { ru: profileRu, ky: profileKy },
 } as const;
 
 export type PortalNamespace = keyof typeof PORTAL_DICTIONARIES;

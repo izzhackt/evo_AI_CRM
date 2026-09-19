@@ -900,6 +900,117 @@
   gap: 4px;
 }
 
+/* ---------- Профиль (PORT-5a) ---------- */
+
+.pt-profile-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+  margin-top: 24px;
+}
+
+.pt-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-profile-card .pt-section-title {
+  margin: 0;
+}
+
+.pt-profile-hint {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-profile-language {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pt-profile-language-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.pt-profile-language-option {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.pt-profile-language-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pt-accent);
+}
+
+.pt-profile-language-submit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.pt-profile-status {
+  color: var(--pt-ok);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-profile-deletion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.pt-profile-deletion-state {
+  margin: 0;
+  color: var(--pt-text-2);
+}
+
+.pt-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--pt-error);
+  border-radius: var(--pt-radius-control);
+  background: none;
+  color: var(--pt-error);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-btn-danger:hover {
+  background: color-mix(in srgb, var(--pt-error) 8%, transparent);
+}
+
+.pt-btn-danger:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.pt-btn-danger:focus-visible {
+  outline: 2px solid var(--pt-error);
+  outline-offset: 2px;
+}
+
 /* ---------- Фото с атрибуцией ---------- */
 
 .pt-photo {

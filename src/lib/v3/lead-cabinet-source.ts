@@ -38,3 +38,28 @@ export async function readLeadCabinetCase(actor: ActivePlatformActor, leadId: st
   }
   return { studentCaseId: row.student_case_id, state: row.state };
 }
+
+/**
+ * Unified workflow S8 (plan §4): whether a student_case's OWN origin is a
+ * genuine 184 lead-cabinet case (source_key LIKE 'lead-cabinet:%',
+ * canonical_lead_id set) — independent of case state, and NOT derivable from
+ * caseState alone (a pre-pivot legacy_pending case is ALSO 'pending' with no
+ * curator; a curator-declined case reverts to 'pending' too, per 182). No
+ * existing case read model exposes source_key to this layer (the read RPCs
+ * traced through 078/110/137/149/176/177/182 select neither source_key nor
+ * canonical_lead_id), so StudentPortalAccessCard's three-way discriminator
+ * is driven by this dedicated, migration-185 companion read instead —
+ * fails closed to `false` (renders as if not a cabinet case; the SQL layer
+ * stays the authoritative gate regardless of what the UI shows).
+ */
+export async function readStudentCaseCabinetOrigin(
+  actor: ActivePlatformActor,
+  studentCaseId: string,
+): Promise<boolean> {
+  const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc(
+    "staff_student_case_cabinet_origin_v1",
+    { p_organization_id: actor.organizationId, p_student_case_id: studentCaseId },
+  );
+  if (error || typeof data !== "boolean") return false;
+  return data;
+}

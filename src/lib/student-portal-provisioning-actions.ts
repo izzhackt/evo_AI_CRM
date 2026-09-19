@@ -1,5 +1,6 @@
 "use server";
 
+import { staffCan } from "./platform-access.ts";
 import { resolvePlatformActor } from "./platform-auth.ts";
 import { exactActionStringFields } from "./server/action-form-fields.ts";
 import {
@@ -101,6 +102,45 @@ async function requireAdminOrganization(
   return actor.status === "authenticated" &&
     actor.actor.systemRole === "admin" &&
     actor.actor.organizationId === organizationId
+    ? "ok"
+    : "forbidden";
+}
+
+/**
+ * S8: normal_u6/legacy_pending delegate to requireAdminOrganization VERBATIM
+ * (above, unchanged, still the sole gate for those two shapes — byte-for-
+ * byte the same admin-only decision as before this slice). cabinet_pending
+ * (184's curator-less lead-cabinet case) additionally accepts a Sales actor
+ * holding "sales.write" — the same coarse capability prepareLeadCabinetAction
+ * already gates on (platform-sales-actions.ts). This is a COARSE pre-filter
+ * only; the RPC's own resource-scoped staff_can_access(...,
+ * 'lead.sales.workflow.manage', 'lead', <the case's linked lead>) check is
+ * the sole authority (migration 185) — a client-supplied case_shape that
+ * does not match the receipt's real, server-stored shape is simply rejected
+ * there, never trusted here.
+ */
+async function requireStudentPortalOrganization(
+  organizationId: string | undefined,
+  caseShape: string,
+): Promise<"ok" | "forbidden" | "unavailable"> {
+  if (caseShape !== "cabinet_pending") {
+    return requireAdminOrganization(organizationId);
+  }
+  const actor = await resolvePlatformActor();
+  if (
+    actor.status === "invalid" &&
+    actor.reason === "staff_authority_unavailable"
+  ) {
+    return "unavailable";
+  }
+  if (
+    actor.status !== "authenticated" ||
+    actor.actor.organizationId !== organizationId
+  ) {
+    return "forbidden";
+  }
+  return actor.actor.systemRole === "admin" ||
+    staffCan(actor.actor, "sales.write")
     ? "ok"
     : "forbidden";
 }
@@ -304,13 +344,15 @@ async function prepareStudentPortalAccess(
     !email ||
     !displayName ||
     !reason ||
-    (caseShape !== "normal_u6" && caseShape !== "legacy_pending") ||
-    (caseShape === "normal_u6" && legacyCuratorMembershipId !== null) ||
+    (caseShape !== "normal_u6" &&
+      caseShape !== "legacy_pending" &&
+      caseShape !== "cabinet_pending") ||
+    (caseShape !== "legacy_pending" && legacyCuratorMembershipId !== null) ||
     (caseShape === "legacy_pending" && !isUuid(legacyCuratorMembershipId ?? undefined))
   ) {
     return { status: "invalid" };
   }
-  const access = await requireAdminOrganization(organizationId);
+  const access = await requireStudentPortalOrganization(organizationId, caseShape);
   if (access !== "ok") return { status: access };
 
   const adminClient = await createSupabaseServerClient();
@@ -342,6 +384,7 @@ async function authorizeStudentPortalReissue(
     "receipt_version",
     "invite_generation",
     "reason",
+    "case_shape",
   ]);
   if (!fields) return { status: "invalid" };
   const organizationId = fields.get("organization_id");
@@ -349,16 +392,24 @@ async function authorizeStudentPortalReissue(
   const receiptVersion = fields.get("receipt_version");
   const inviteGeneration = fields.get("invite_generation");
   const reason = boundedText(fields.get("reason"), 1, 1000);
+  const caseShape = fields.get("case_shape");
   if (
     !isUuid(organizationId) ||
     !isUuid(receiptId) ||
     !isVersion(receiptVersion) ||
     !isVersion(inviteGeneration) ||
-    !reason
+    !reason ||
+    (caseShape !== "normal_u6" &&
+      caseShape !== "legacy_pending" &&
+      caseShape !== "cabinet_pending")
   ) {
     return { status: "invalid" };
   }
-  const access = await requireAdminOrganization(organizationId);
+  // A client-supplied case_shape is a UX-only pre-filter (see
+  // requireStudentPortalOrganization above) — the receipt's REAL, stored
+  // case_shape is what authorize_student_portal_invite_reissue actually
+  // gates on server-side (migration 185).
+  const access = await requireStudentPortalOrganization(organizationId, caseShape);
   if (access !== "ok") return { status: access };
   const reissueRequestId = studentPortalReissueRequestId(
     receiptId,
@@ -421,8 +472,10 @@ async function reconcileStudentPortalAccess(
     !displayName ||
     !isUuid(requestId) ||
     requestId !== studentPortalProvisioningRequestId(organizationId, studentCaseId) ||
-    (caseShape !== "normal_u6" && caseShape !== "legacy_pending") ||
-    (caseShape === "normal_u6" && legacyCuratorMembershipId !== null) ||
+    (caseShape !== "normal_u6" &&
+      caseShape !== "legacy_pending" &&
+      caseShape !== "cabinet_pending") ||
+    (caseShape !== "legacy_pending" && legacyCuratorMembershipId !== null) ||
     (caseShape === "legacy_pending" &&
       !isUuid(legacyCuratorMembershipId ?? undefined)) ||
     !isUuid(receiptId) ||
@@ -435,7 +488,7 @@ async function reconcileStudentPortalAccess(
   ) {
     return { status: "invalid" };
   }
-  const access = await requireAdminOrganization(organizationId);
+  const access = await requireStudentPortalOrganization(organizationId, caseShape);
   if (access !== "ok") return { status: access };
   const adminClient = await createSupabaseServerClient();
   const adminReplay = await createStudentPortalProvisioningAdminStore(

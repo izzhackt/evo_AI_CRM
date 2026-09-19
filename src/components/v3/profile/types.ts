@@ -203,6 +203,8 @@ export type ApplicationPartnerDetails = Readonly<{
 export type ProfileAdmissionsWorkspace = Readonly<{
   studentCaseId: string;
   caseState: "pending" | "active" | "closed";
+  /** Unified workflow S8: source_key-derived, NOT caseState-derived (a legacy pending case and a cabinet-pending case share caseState==='pending'). */
+  isCabinetCase: boolean;
   /** Unified workflow S4: the case DTO's own direction, replacing CaseHeader's deleted route-workspace read. */
   direction: AdmissionsDirection | null;
   applications: readonly PlatformApplicationQueueRow[];

@@ -7,7 +7,7 @@ import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess
 import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
 import { readLeadSaleConditions } from "./lead-sale-conditions-source";
-import { readLeadCabinetCase } from "./lead-cabinet-source";
+import { readLeadCabinetCase, readStudentCaseCabinetOrigin } from "./lead-cabinet-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -459,10 +459,16 @@ function profileFacts(
   };
 }
 
-function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
+function admissionsWorkspace(
+  data: FullCaseData,
+  isCabinetCase: boolean,
+): ProfileAdmissionsWorkspace {
   return {
     studentCaseId: data.studentCase.studentCaseId,
     caseState: data.studentCase.state,
+    // S8 (plan §4): source_key-derived, NOT caseState-derived — a legacy
+    // pending case and a cabinet-pending case share the same caseState.
+    isCabinetCase,
     // Unified workflow S4: CaseHeader used to fetch this separately via the
     // now-deleted route workspace read; the case DTO already carries it.
     direction: data.studentCase.admissionsDirection ?? null,
@@ -587,6 +593,7 @@ function fullCaseDetails(
   routeTarget: ProfileRouteTarget,
   responsible: string | null,
   contractSignedAt: string | null,
+  isCabinetCase: boolean,
 ): ProfileDraft {
   const facts = profileFacts(data.studentCase, data.studentProfile);
   const money = financeSummary(data.finance);
@@ -626,7 +633,7 @@ function fullCaseDetails(
     ) : [],
     otherFiles: [],
     ...money,
-    admissions: admissionsWorkspace(data),
+    admissions: admissionsWorkspace(data, isCabinetCase),
     contract,
     handoffAcknowledgement: {
       ...data.handoffAcknowledgement,
@@ -684,6 +691,11 @@ async function readCaseProfile(
   if (link && data.handoff?.leadId !== link.leadId) {
     throw new Error("V3 profile handoff lead does not match the canonical case link.");
   }
+  // S8: only a 'pending' case can ever be cabinet_pending (184's shape) —
+  // skip the extra read for active/closed cases, where it can never matter.
+  const isCabinetCase = data.studentCase.state === "pending"
+    ? await readStudentCaseCabinetOrigin(actor, canonicalCaseId)
+    : false;
   const profile: PersonProfile = {
     leadId: link?.leadId ?? null,
     person: data.studentCase.studentDisplayName,
@@ -712,6 +724,7 @@ async function readCaseProfile(
         { leadId: null, studentCaseId: canonicalCaseId },
         data.studentCase.currentCuratorDisplayName,
         null,
+        isCabinetCase,
       ),
     },
     sales: null,
@@ -796,6 +809,10 @@ async function readLeadProfile(
   // one) and regardless of admissions.read (a handed-off case the actor can't
   // fully open still means "don't show the prepare button again").
   const leadCabinetCase = fullCase ? null : await readLeadCabinetCase(actor, leadId);
+  // S8: same pending-only optimization as readCaseProfile above.
+  const isCabinetCase = fullCase && fullCase.studentCase.state === "pending" && caseId
+    ? await readStudentCaseCabinetOrigin(actor, caseId)
+    : false;
   const details: ProfileDraft = fullCase
     ? fullCaseDetails(
         actor,
@@ -803,6 +820,7 @@ async function readLeadProfile(
         routeTarget,
         lead.currentOwnerDisplayName,
         gate.contractConfirmedAt ? formatDate(gate.contractConfirmedAt, true) : null,
+        isCabinetCase,
       )
     : {
         access: { documents: false, finance: false, studentProfile: false, contract: false },

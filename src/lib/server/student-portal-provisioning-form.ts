@@ -12,7 +12,7 @@ const EXPECTED_BY_OPERATION = Object.freeze({
   ],
   reissue: [
     "organization_id", "receipt_id", "receipt_version",
-    "invite_generation", "reason", "operation",
+    "invite_generation", "reason", "case_shape", "operation",
   ],
   reconcile: [
     "organization_id", "student_case_id", "email", "display_name",

@@ -14,18 +14,16 @@ type CuratorOption = Readonly<{
 }>;
 
 const STATE_COPY: Readonly<Record<
-  Exclude<NonNullable<StudentPortalAccessActionState>["status"], "blocked"> | "blocked",
+  Exclude<NonNullable<StudentPortalAccessActionState>["status"], "blocked" | "forbidden" | "reissueAvailable"> | "blocked",
   string
 >> = {
   invalid: "Проверьте обязательные поля и повторите действие.",
-  forbidden: "Только Admin с действующей authority может управлять доступом.",
   unavailable: "Состояние доступа сейчас не подтверждено. Письмо не отправлено повторно.",
   blocked: "Операция остановлена безопасно. Письмо не отправлено повторно.",
   portalActivated: "Доступ к порталу активирован.",
   inviteIssued: "Приглашение уже выдано и ещё действует. Повторная отправка запрещена.",
   inviteFailed: "Провайдер подтвердил неуспешную отправку. Можно повторить подготовку.",
   reconciliationRequired: "Результат отправки неизвестен. Разрешена только проверка провайдера — без повторной отправки.",
-  reissueAvailable: "Срок приглашения истёк. Новую отправку должен явно подтвердить Admin.",
   accountPending: "Приглашение принято; завершение authority ещё ожидается.",
 };
 
@@ -40,12 +38,15 @@ function BindingFields({ state }: Readonly<{ state: NonNullable<StudentPortalAcc
   );
 }
 
+type CaseShape = "normal_u6" | "legacy_pending" | "cabinet_pending";
+
 export function StudentPortalAccessCard({
   organizationId,
   studentCaseId,
   email,
   displayName,
   caseState,
+  isCabinetCase,
   requestId,
   curatorOptions,
   curatorOptionsAvailable,
@@ -55,6 +56,8 @@ export function StudentPortalAccessCard({
   email: string | null;
   displayName: string;
   caseState: "pending" | "active" | "closed";
+  /** Unified workflow S8: source_key-derived (184's lead-cabinet origin), NOT caseState — a legacy pending case and a cabinet-pending case share caseState==='pending'. */
+  isCabinetCase: boolean;
   requestId: string;
   curatorOptions: readonly CuratorOption[];
   curatorOptionsAvailable: boolean;
@@ -63,7 +66,17 @@ export function StudentPortalAccessCard({
     manageStudentPortalAccessAction,
     null,
   );
-  const legacyPending = caseState === "pending";
+  // Three-way discriminator (S8): 'active'/'closed' is always normal_u6 (the
+  // only shape that ever reaches those states here); a 'pending' case is
+  // cabinet_pending when it originates from 184's lead cabinet, else the
+  // pre-pivot legacy_pending shape. NEVER derived from caseState alone.
+  const caseShape: CaseShape = caseState !== "pending"
+    ? "normal_u6"
+    : isCabinetCase
+      ? "cabinet_pending"
+      : "legacy_pending";
+  const legacyPending = caseShape === "legacy_pending";
+  const cabinetPending = caseShape === "cabinet_pending";
   const [legacyCuratorMembershipId, setLegacyCuratorMembershipId] = useState("");
   const prepareUnavailable =
     caseState === "closed" ||
@@ -80,15 +93,32 @@ export function StudentPortalAccessCard({
     state?.status === "reconciliationRequired" &&
     "receiptId" in state &&
     Boolean(state.attemptId && state.inviteKind);
+  const forbiddenCopy = cabinetPending
+    ? "Только Admin или Sales с действующим доступом к лиду может управлять доступом."
+    : "Только Admin с действующей authority может управлять доступом.";
+  const reissueAvailableCopy = cabinetPending
+    ? "Срок приглашения истёк. Новую отправку должен явно подтвердить Admin или Sales."
+    : "Срок приглашения истёк. Новую отправку должен явно подтвердить Admin.";
 
   return (
-    <Card eyebrow title="Доступ студента к порталу" aside="Только Admin">
+    <Card
+      eyebrow
+      title="Доступ студента к порталу"
+      aside={cabinetPending ? "Admin или Sales" : "Только Admin"}
+    >
       <div className="space-y-4 p-4 text-sm text-fg-2">
         <p>
           Приглашение привязано к этому делу, email и одному Auth ID. Действующее
           приглашение не отправляется повторно; неизвестный результат сначала
           сверяется с провайдером.
         </p>
+        {cabinetPending ? (
+          <p>
+            Дело подготовлено из лида и остаётся без куратора: одобрение доступа
+            не создаёт передачу в Admissions и не назначает куратора — куратора
+            назначает продажа при сохранении отчёта.
+          </p>
+        ) : null}
 
         {caseState === "closed" ? (
           <p role="status">Закрытое дело нельзя подключить к порталу.</p>
@@ -102,7 +132,11 @@ export function StudentPortalAccessCard({
 
         {state ? (
           <p role="status" className="rounded-ctl border border-border bg-surface-2 px-3 py-2">
-            {STATE_COPY[state.status]}
+            {state.status === "forbidden"
+              ? forbiddenCopy
+              : state.status === "reissueAvailable"
+                ? reissueAvailableCopy
+                : STATE_COPY[state.status]}
             {state.code ? ` Код: ${state.code}.` : ""}
           </p>
         ) : null}
@@ -113,11 +147,7 @@ export function StudentPortalAccessCard({
           <input type="hidden" name="student_case_id" value={studentCaseId} />
           <input type="hidden" name="email" value={email ?? ""} />
           <input type="hidden" name="display_name" value={displayName} />
-          <input
-            type="hidden"
-            name="case_shape"
-            value={legacyPending ? "legacy_pending" : "normal_u6"}
-          />
+          <input type="hidden" name="case_shape" value={caseShape} />
           <input type="hidden" name="request_id" value={requestId} />
           {legacyPending ? (
             <label>
@@ -162,6 +192,7 @@ export function StudentPortalAccessCard({
           <form action={action} className="space-y-3 rounded-ctl border border-border p-3">
             <input type="hidden" name="operation" value="reissue" />
             <input type="hidden" name="organization_id" value={organizationId} />
+            <input type="hidden" name="case_shape" value={caseShape} />
             <BindingFields state={state} />
             <label>
               <span className={labelCls}>Причина повторного приглашения</span>
@@ -186,11 +217,7 @@ export function StudentPortalAccessCard({
             <input type="hidden" name="student_case_id" value={studentCaseId} />
             <input type="hidden" name="email" value={email ?? ""} />
             <input type="hidden" name="display_name" value={displayName} />
-            <input
-              type="hidden"
-              name="case_shape"
-              value={legacyPending ? "legacy_pending" : "normal_u6"}
-            />
+            <input type="hidden" name="case_shape" value={caseShape} />
             <input
               type="hidden"
               name="legacy_curator_membership_id"

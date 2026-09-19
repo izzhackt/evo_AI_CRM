@@ -24,7 +24,7 @@ export type StudentPortalProvisioningReceipt = Readonly<{
   receiptId: string;
   requestId: string;
   studentCaseId: string;
-  caseShape: "normal_u6" | "legacy_pending";
+  caseShape: "normal_u6" | "legacy_pending" | "cabinet_pending";
   provisioningState:
     | "prepared"
     | "dispatching"
@@ -60,7 +60,7 @@ export type PrepareStudentPortalProvisioningInput = Readonly<{
   studentCaseId: string;
   email: string;
   displayName: string;
-  caseShape: "normal_u6" | "legacy_pending";
+  caseShape: "normal_u6" | "legacy_pending" | "cabinet_pending";
   legacyCuratorMembershipId: string | null;
   reason: string;
   requestId: string;
@@ -119,7 +119,7 @@ function decodeReceipt(value: unknown): StudentPortalProvisioningReceipt | null 
   const studentCaseId = uuid(data?.student_case_id);
   const receiptVersion = version(data?.receipt_version);
   const inviteGeneration = version(data?.invite_generation);
-  const caseShapes = new Set(["normal_u6", "legacy_pending"]);
+  const caseShapes = new Set(["normal_u6", "legacy_pending", "cabinet_pending"]);
   const states = new Set([
     "prepared",
     "dispatching",

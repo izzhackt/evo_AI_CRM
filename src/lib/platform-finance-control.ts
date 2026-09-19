@@ -140,13 +140,18 @@ export type PlatformFinanceControlObligation = Readonly<{
   category: PlatformFinanceControlObligationCategory;
   amountMinor: number;
   currency: string;
-  dueAt: string;
+  /**
+   * A case-agreement tranche (188_platform_case_agreement) may have no due
+   * date at all — "срок при необходимости". null means undated, not unknown.
+   */
+  dueAt: string | null;
   totalPaidMinor: number;
   totalRefundedMinor: number;
   outstandingMinor: number;
   status: PlatformFinanceControlObligationStatus;
   overdue: boolean;
-  nextAction: string;
+  /** null for a case-agreement tranche, which carries no free-text next step. */
+  nextAction: string | null;
   paymentConfirmationCount: number;
   lastPaymentAt: string | null;
   activeStopFactors: readonly PlatformFinanceControlActiveStopFactor[];
@@ -390,13 +395,13 @@ function normalizeObligation(value: unknown): PlatformFinanceControlObligation {
     category: oneOf(value.category, PLATFORM_OBLIGATION_CATEGORIES),
     amountMinor,
     currency: value.currency,
-    dueAt: requiredTimestamp(value.due_at),
+    dueAt: optionalTimestamp(value.due_at),
     totalPaidMinor,
     totalRefundedMinor,
     outstandingMinor,
     status,
     overdue,
-    nextAction: requiredText(value.next_action, 1_000),
+    nextAction: optionalText(value.next_action, 1_000),
     paymentConfirmationCount,
     lastPaymentAt,
     activeStopFactors,

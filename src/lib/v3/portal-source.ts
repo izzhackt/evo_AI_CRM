@@ -60,7 +60,11 @@ export type StudentPortalDocumentAction = Readonly<{
   documentSlotId: string;
 }>;
 export type StudentPortalPaymentAction = Readonly<{
-  kind: "payment"; label: string; dueAt: string; amountMinor: number; currency: string;
+  // Widened alongside StudentPortalPayment.dueAt (188_platform_case_agreement,
+  // the one allowed portal null-tolerance exception) — a case-agreement
+  // tranche can be undated. OverviewView.tsx already guards every dueAt
+  // read behind `&& action.dueAt`, so this needed no further UI change.
+  kind: "payment"; label: string; dueAt: string | null; amountMinor: number; currency: string;
 }>;
 export type StudentPortalAction = StudentPortalDocumentAction | StudentPortalPaymentAction;
 
@@ -109,10 +113,17 @@ export type StudentPortalPayment = Readonly<{
   refundedMinor: number;
   outstandingMinor: number;
   currency: string;
-  dueAt: string;
+  /**
+   * The one allowed null-tolerance exception for the portal
+   * (188_platform_case_agreement): a case-agreement tranche may have no due
+   * date at all ("срок при необходимости"), and the same
+   * platform.payment_obligations rows now feed this reader too. null means
+   * undated, not unknown — no portal UX change beyond accepting it.
+   */
+  dueAt: string | null;
   status: PlatformObligationStatus;
   overdue: boolean;
-  nextAction: string;
+  nextAction: string | null;
 }>;
 
 export type StudentPortalNotification = Readonly<{
@@ -562,10 +573,10 @@ export function normalizeStudentPortalPayment(value: unknown): StudentPortalPaym
     currency: typeof row.currency === "string" && CURRENCY_PATTERN.test(row.currency)
       ? row.currency
       : invalidShape(),
-    dueAt: requiredTimestamp(row.due_at),
+    dueAt: optionalTimestamp(row.due_at),
     status,
     overdue: row.overdue,
-    nextAction: requiredText(row.next_action, 1000),
+    nextAction: optionalText(row.next_action, 1000),
   });
 }
 

@@ -2472,6 +2472,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_notifications_v2.sql
   fi
+
+  # Migration 189 (OTH-3 «Договор и оплата»): tranches/payments are
+  # platform.payment_obligations/payment_events extended (not a second
+  # ledger) behind new resource-scoped write RPCs. Prove a resource-scoped
+  # Sales grant (not the org-wide finance.manage/finance.event.confirm
+  # authority) can create a tranche and record a payment on the SAME case an
+  # ungranted Sales peer and the case's own Student are refused 42501 on;
+  # replaying a request_id never double-counts; amount/currency edits and
+  # archiving are rejected once a tranche is paid; the read RPC excludes
+  # archived tranches from every sum; and the contract/receipt metadata RPCs
+  # stay service_role-only.
+  if [[ "$(basename "$migration")" == 189_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_agreement.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

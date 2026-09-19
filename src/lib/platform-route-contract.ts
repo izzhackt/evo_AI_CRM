@@ -72,6 +72,11 @@ const STUDENT_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/portal\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions$/i;
 const STUDENT_DOCUMENT_DOWNLOAD_PATH =
   /^\/api\/portal\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+// PORT-9a (ADR 0030 «Решение» п. 3): the two narrow intake routes of the
+// iPhone анкета path. Acceptance rides the PORT-8a bearer pass-through;
+// registration is a public intake whose handler owns its whole boundary.
+const STUDENT_INVITE_ACCEPTANCE_API_PATH = "/api/portal/invite-acceptance";
+const STUDENT_REGISTRATION_API_PATH = "/api/portal/registration";
 
 const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
@@ -168,7 +173,24 @@ export function isConnectedStudentPortalApi(
   return (
     (method === "POST" && STUDENT_DOCUMENT_VERSION_UPLOAD_PATH.test(path))
     || (method === "GET" && STUDENT_DOCUMENT_DOWNLOAD_PATH.test(path))
+    // PORT-9a: bearer-only invite acceptance; the handler answers 401 for a
+    // missing/rejected credential and never consults cookies.
+    || (method === "POST" && path === STUDENT_INVITE_ACCEPTANCE_API_PATH)
   );
+}
+
+/**
+ * PORT-9a: the anonymous анкета registration intake (account creation at the
+ * final wizard step). The handler owns its complete boundary — exact-JSON
+ * contract plus the database signup rate limit (migration 177:8-48); the
+ * proxy passes the exact path/method through without a session gate, the
+ * same class as /api/public/website-leads.
+ */
+export function isPublicStudentRegistrationApi(
+  path: string,
+  method: string,
+): boolean {
+  return method === "POST" && path === STUDENT_REGISTRATION_API_PATH;
 }
 
 /**

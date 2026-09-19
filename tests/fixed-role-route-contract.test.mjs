@@ -25,6 +25,7 @@ import {
   isConnectedStudentAuthPage,
   isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
+  isPublicStudentRegistrationApi,
   isRetiredPlatformRoute,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
@@ -549,6 +550,46 @@ test("Student document APIs admit only the exact path and HTTP method", () => {
     studentOnlyBranch,
     /NextResponse\.json\(\{ error: "forbidden" \}, \{ status: 403 \}\)/u,
   );
+});
+
+test("PORT-9a intake routes admit only their exact path and method", () => {
+  // Bearer invite acceptance rides the existing student-API pass-through.
+  assert.equal(isConnectedStudentPortalApi("/api/portal/invite-acceptance", "POST"), true);
+  for (const [path, method] of [
+    ["/api/portal/invite-acceptance", "GET"],
+    ["/api/portal/invite-acceptance/", "POST"],
+    ["/api/portal/invite-acceptance/child", "POST"],
+    ["/API/portal/invite-acceptance", "POST"],
+  ]) {
+    assert.equal(isConnectedStudentPortalApi(path, method), false, `${method} ${path}`);
+  }
+
+  // The anonymous registration intake is its own public predicate, never a
+  // connected student API (no bearer precedence, no cookie session branch).
+  assert.equal(isPublicStudentRegistrationApi("/api/portal/registration", "POST"), true);
+  assert.equal(isConnectedStudentPortalApi("/api/portal/registration", "POST"), false);
+  for (const [path, method] of [
+    ["/api/portal/registration", "GET"],
+    ["/api/portal/registration/", "POST"],
+    ["/api/portal/registration/child", "POST"],
+    ["/apply", "POST"],
+  ]) {
+    assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
+  }
+
+  // Proxy pins: the registration pass-through exists exactly once and runs
+  // BEFORE the canonical-origin redirect and every session gate; it never
+  // introduces a second Authorization check (PORT-8a pin stays intact).
+  const proxy = source("src/proxy.ts");
+  assert.equal(proxy.split("isPublicStudentRegistrationApi(path, request.method)").length, 2);
+  const registrationBranch = proxy.indexOf("isPublicStudentRegistrationApi(path, request.method)");
+  const canonicalOriginGate = proxy.indexOf("const canonicalOrigin = canonicalPlatformPageOrigin(");
+  const cookieSessionGate = proxy.indexOf(
+    "const session = await liveSessionState(request, requestHeaders);",
+  );
+  assert.ok(registrationBranch >= 0 && canonicalOriginGate >= 0 && cookieSessionGate >= 0);
+  assert.ok(registrationBranch < canonicalOriginGate);
+  assert.ok(registrationBranch < cookieSessionGate);
 });
 
 test("only the canonical WhatsApp inbound and private recovery routes enter the contract", () => {

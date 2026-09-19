@@ -31535,3 +31535,106 @@ stacked поверх izzhackt/portal-4-seed; ретаргет после merge �
 /portal/profile из PORT-3b/5a сегодня отсутствуют в
 STUDENT_PORTAL_PAGE_ALLOWLIST (proxy fail-closed) — эта запись их не
 чинит, чтобы не пересекаться с чужими ветками.
+
+## 2026-09-19 — PORT-5c: сообщения по делу для студента (миграция 200)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 строка «Общение»
+(«Существующий или согласованный чат/вопрос по делу, отправка, статус и
+продолжение диалога; сообщение действительно сохранено и видно разрешённому
+адресату; нет притворного „отправлено"») и §10 PORT-5, поверх staff-стороны
+OTH-5 (миграция 191, `case_chat_*`, /v3/messages), которая явно оставила
+student-side как зависимость портального плана (заголовок 191, строки 11–18).
+Change type: architecture and scope fixation for PORT-5c before coding;
+allocates migration number 200 (следующий после 199 из PORT-4b; сверено с
+локальной цепочкой 001–199 и production-ledger 001–199 — чужих 200 нет;
+номера 200+ закреплены за Portal).
+Affected plan section: PORT-5 («Общение» — блокер снят merge'ем OTH-5),
+план §4 (диаграмма: «Общение» принадлежит сопровождению), §8.7
+(идемпотентность), дизайн-контракт §7 «Моё поступление».
+
+Reason: строка плана §6 «Общение» — последняя часть сопровождения без
+студенческой стороны: staff уже ведёт переписку по делу (191), но студент
+не имеет ни чтения треда, ни отправки; case-help (146) остаётся разовым
+вопросом-ответом и переписку не заменяет (см. заголовок 191 о различии
+моделей).
+
+Decision:
+- (a) Миграция `200_platform_portal_case_chat.sql`: НИКАКОЙ второй модели
+  чата — student-side RPC поверх СУЩЕСТВУЮЩИХ таблиц 191
+  (`platform.case_chat_messages`/`case_chat_threads`,
+  `platform_private.case_chat_receipts`). Гейт обоих RPC — ровно
+  гейт-паттерн 192 для case-операций:
+  `platform_private.require_case_operations_actor(NULL, TRUE)` (студент,
+  свой единственный портальный кейс, state IN ('active','closed') после
+  ужесточения 192) плюс явный отказ не-студентам; параметры не адресуют
+  чужой кейс вовсе.
+- (b) `platform.portal_case_chat_post_v1(p_request_id, p_body)` —
+  идемпотентная отправка: body btrim 1..2000, управляющие символы кроме
+  \n\r\t запрещены (зеркало CHECK 191); advisory-локи в ТОМ ЖЕ порядке и с
+  ТЕМИ ЖЕ ключами, что team_chat/191 (`case-chat-request:`, `case-chat:`),
+  чтобы студенческие и staff-записи сериализовались на одном стриме;
+  receipts — та же `platform_private.case_chat_receipts` (actor-scoped,
+  студенческий membership не пересекается со staff); повтор того же
+  request_id+body возвращает исходный receipt, тот же request_id с другим
+  body — PT409 `portal_case_chat_request_conflict` (конвенция 178/186/194,
+  НЕ 40001: RPC достижим через PostgREST, класс infinite-retry инцидента
+  186); thread-upsert — точно смоделированная 191 студенческая ветка:
+  `await_state='needs_reply'` (снимает `awaiting_student`; явные
+  await_set_by/await_set_at НЕ трогаются — как в post-ветке 191);
+  invalidate-only realtime broadcast в тот же топик 191 (staff-сессии
+  обновляются); audit `case.chat.post` (allowlist уже расширен 191-й).
+- (c) `platform.portal_case_chat_page_v1(p_before_sequence_id DEFAULT
+  NULL)` — STABLE чтение СВОЕГО треда: страницы по 30 DESC с
+  before-курсором (паттерн 191 read_page); строка сообщения: id,
+  sequenceId, mine, authorName, body, createdAt, attachmentKind,
+  attachmentLabel (label документа/задачи резолвится как в 191 — staff
+  может прикладывать карточки-ссылки, студент видит подпись, не raw id),
+  quotedBodyPreview; в ответе awaitState треда. Курсор чтения студента НЕ
+  ведётся (unread-механика портала не в этом slice); чтение НИКОГДА не
+  меняет await_state (правило 191).
+- (d) Staff-сторона 191 НЕ переписывается — и аддитивный anchor-патч НЕ
+  НУЖЕН: `case_chat_read_page_v1` строит authorName через
+  organization_memberships→profiles (студенческий membership резолвится),
+  `staff_case_chat_threads_v1` считает unread по авторству «не я», триггер
+  `notify_case_chat_message` уведомляет куратора о студенческом посте,
+  board 187/191 показывает needs_reply из треда. Каждое из этих утверждений
+  проверяется РЕАЛЬНЫМ вызовом соответствующего staff-RPC в boundary-тесте,
+  не чтением кода.
+- (e) Boundary-тест `supabase/tests/platform_portal_case_chat.sql` на
+  checkpoint 200 в `scripts/test-postgres-authorization.sh` (зеркало
+  секции 192–198; маркеры P200): active-студент читает/пишет свой тред;
+  awaiting_student → needs_reply при студенческом посте; идемпотентный
+  replay и PT409-конфликт; уведомление куратору (ids only); staff видит
+  пост через СВОЙ 191-RPC; pending-студент — 42501 на оба RPC; второй
+  студент изолирован в своём кейсе; staff/anon/service_role — 42501 на
+  портальных RPC; body-валидация 22023; пагинация before-курсором.
+- (f) Portal UI: новый экран «Сообщения» `/portal/messages` (только
+  assisted; approved не видит раздела — правило дизайн-контракта про
+  замок-дразнилку): тред (старые выше, «показать более ранние» по
+  курсору), отправка с честными состояниями (отправляется/ошибка+повтор с
+  тем же request_id), автообновление умеренным поллингом 30s по паттерну
+  PortalNotificationUpdates (visibility/focus/online, только видимая
+  вкладка); RU/KY-неймспейс `messages`. CaseHelpWorkspace (вопрос-ответ)
+  остаётся как есть на «Поступлении»; страница «Сообщения» предметно
+  помечает разницу (вопрос куратору = разовое обращение с ответом;
+  сообщения = переписка с командой) и ссылается на блок обращений.
+  Маршрут добавляется в STUDENT_PORTAL_PAGE_ALLOWLIST + пины
+  fixed-role-route-contract; Shell получает пункт «Сообщения»
+  (tiers: assisted) с обновлением пинов v3-student-portal-ui; новый
+  node-тест `tests/portal-messages.test.mjs` входит в test:frontend, пины
+  ci-node-test-suite обновляются тем же коммитом (попутно дедуплицируется
+  случайно задвоенный assert uniqueFileCount). Смоук-якоря не меняются.
+
+Validation impact: полная цепочка 001–200 через
+`scripts/test-postgres-authorization.sh` с ПОЛНЫМ логом и явным grep
+маркеров P200; `npm run typecheck`; `npm run build` (проверка кода
+возврата); `npm run test:brand-ui`; портальные node-тесты (test:frontend,
+включая новый portal-messages и обновлённые пины); `git diff --check`.
+Живой аутентифицированный рендер нового экрана в этой сессии не
+выполняется — честно фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; ветка
+izzhackt/portal-5c-chat от origin/main (28758dd6). Поверх этого slice
+стекуется PORT-5d (редизайн «Моё поступление» в Атласе, без миграции) —
+отдельная запись ниже перед его кодированием.

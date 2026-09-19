@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useRef, useState, useTransition } from "react";
 
+import type { Locale } from "@/lib/i18n-data";
+import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
@@ -52,12 +55,18 @@ export function PortalDocumentControls({
   documentVersionId,
   originalFilename,
   allowUpload,
+  locale,
 }: {
   documentSlotId: string;
   documentVersionId: string | null;
   originalFilename: string | null;
   allowUpload: boolean;
+  locale: Locale;
 }) {
+  // PORT-6a: все подписи и сообщения — из неймспейса admission
+  // (RU байт-в-байт прежние, KY полный); локаль приходит из server-родителя
+  // тем же паттерном, что и Shell.
+  const strings = getPortalStrings("admission", locale);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const uploadIdempotencyKeyRef = useRef<string | null>(null);
@@ -67,11 +76,11 @@ export function PortalDocumentControls({
   // Процент остаётся только визуальным: живая область с ним объявляла бы
   // каждый тик прогресса.
   const feedback = state.status === "uploading"
-    ? "Загружаем файл…"
+    ? strings.uploadingButton
     : state.status === "confirming"
-      ? "Файл отправлен. Ждём подтверждение сохранения."
+      ? strings.uploadConfirming
       : state.status === "success"
-        ? `${state.message}${refreshing ? " Обновляем список документов…" : ""}`
+        ? `${state.message}${refreshing ? ` ${strings.uploadRefreshing}` : ""}`
         : state.status === "error" ? state.message : "";
 
   async function upload(event: FormEvent<HTMLFormElement>) {
@@ -81,7 +90,7 @@ export function PortalDocumentControls({
     const form = event.currentTarget;
     const formData = new FormData(form);
     if (Array.from(formData.keys()).some((key) => key !== "file")) {
-      setState({ status: "error", message: "Форма загрузки недоступна." });
+      setState({ status: "error", message: strings.errorFormUnavailable });
       return;
     }
 
@@ -102,7 +111,7 @@ export function PortalDocumentControls({
         },
       );
       if (response.status !== 201) {
-        setState({ status: "error", message: uploadFailureMessage(response.status) });
+        setState({ status: "error", message: uploadFailureMessage(response.status, strings) });
         return;
       }
 
@@ -111,7 +120,7 @@ export function PortalDocumentControls({
       if (!receipt) {
         setState({
           status: "error",
-          message: "EVO не смог подтвердить сохранение файла. Попробуйте позже.",
+          message: strings.errorReceipt,
         });
         return;
       }
@@ -120,13 +129,13 @@ export function PortalDocumentControls({
       formRef.current?.reset();
       setState({
         status: "success",
-        message: `Файл «${receipt.originalFilename}» загружен.`,
+        message: formatPortalString(strings.uploadSuccess, { name: receipt.originalFilename }),
       });
       startRefresh(() => router.refresh());
     } catch {
       setState({
         status: "error",
-        message: "Загрузка сейчас недоступна. Проверьте соединение и попробуйте позже.",
+        message: strings.errorNetwork,
       });
     }
   }
@@ -139,7 +148,7 @@ export function PortalDocumentControls({
             htmlFor={`portal-document-${documentSlotId}`}
             className="pt-field-label"
           >
-            Загрузить новый файл
+            {strings.uploadLabel}
           </label>
           <div className="pt-doc-upload-row">
             <input
@@ -163,10 +172,10 @@ export function PortalDocumentControls({
               className="pt-btn"
             >
               {state.status === "uploading"
-                ? <>Загружаем файл… <span aria-hidden="true">{state.progress}%</span></>
+                ? <>{strings.uploadingButton} <span aria-hidden="true">{state.progress}%</span></>
                 : state.status === "confirming"
-                  ? "Подтверждаем сохранение…"
-                  : refreshing ? "Обновляем список…" : state.status === "error" ? "Повторить загрузку" : "Загрузить"}
+                  ? strings.confirmingButton
+                  : refreshing ? strings.refreshingButton : state.status === "error" ? strings.retryUploadButton : strings.uploadButton}
             </button>
           </div>
           {state.status === "uploading" || state.status === "confirming" ? (
@@ -177,19 +186,19 @@ export function PortalDocumentControls({
               className="pt-progress pt-doc-progress"
             />
           ) : null}
-          <p id={`portal-document-hint-${documentSlotId}`} className="pt-doc-hint">PDF, JPG или PNG, до 25 МБ.</p>
+          <p id={`portal-document-hint-${documentSlotId}`} className="pt-doc-hint">{strings.uploadHint}</p>
         </form>
       ) : (
-        <p className="pt-doc-locked">Принятый документ доступен только для скачивания.</p>
+        <p className="pt-doc-locked">{strings.uploadLocked}</p>
       )}
 
       {documentVersionId ? (
         <a
           href={`/api/portal/document-versions/${encodeURIComponent(documentVersionId)}/download`}
           className="pt-btn-ghost pt-doc-download"
-          aria-label={`Скачать ${originalFilename ?? "последний файл"}`}
+          aria-label={formatPortalString(strings.downloadAria, { name: originalFilename ?? strings.lastFileFallback })}
         >
-          Скачать последний файл
+          {strings.downloadButton}
         </a>
       ) : null}
 
@@ -258,14 +267,17 @@ function isUuid(value: unknown): value is string {
     && value.toLowerCase() !== NIL_UUID;
 }
 
-function uploadFailureMessage(status: number): string {
+function uploadFailureMessage(
+  status: number,
+  strings: PortalStrings<"admission">,
+): string {
   if (status === 400 || status === 415) {
-    return "Выберите корректный PDF, JPG или PNG файл.";
+    return strings.errorBadFile;
   }
-  if (status === 403) return "У вас нет доступа к загрузке этого документа.";
-  if (status === 409) return "Этот документ уже загружается. Дождитесь завершения.";
-  if (status === 413) return "Файл превышает лимит 25 МБ.";
-  if (status === 422) return "Файл отклонён проверкой безопасности.";
-  if (status === 429) return "Слишком много попыток. Попробуйте немного позже.";
-  return "Загрузка сейчас недоступна. Попробуйте позже.";
+  if (status === 403) return strings.errorForbidden;
+  if (status === 409) return strings.errorConflict;
+  if (status === 413) return strings.errorTooLarge;
+  if (status === 422) return strings.errorScan;
+  if (status === 429) return strings.errorTooMany;
+  return strings.errorUnavailable;
 }

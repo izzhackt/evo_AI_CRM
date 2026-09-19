@@ -193,6 +193,10 @@ export function LessonRunner({
         },
       }));
       setValue(null);
+      // A11y (PORT-6a): успешный ответ заменяет кнопку «Ответить» разбором —
+      // без переноса фокуса он молча падал на <body>. Тот же focusHeading(),
+      // что уже используют start()/complete().
+      focusHeading();
     } catch {
       setError("unavailable");
     } finally {
@@ -375,9 +379,14 @@ export function LessonRunner({
   const submittable = currentValue !== null && exerciseValueComplete(current, currentValue);
   return (
     <div className="pt-lesson-flow">
-      <p className="pt-ex-progress" role="status">
+      {/*
+        A11y (PORT-6a): live-областью остаётся только часть «Сохраняем…» —
+        сам счётчик уже объявляется переносом фокуса на sr-only заголовок
+        ниже, и role="status" на всём абзаце дублировал каждое объявление.
+      */}
+      <p className="pt-ex-progress">
         {formatPortalString(strings.exerciseCounter, { n: String(index + 1), total: String(total) })}
-        {busy ? ` · ${strings.saving}` : ""}
+        <span role="status">{busy ? ` · ${strings.saving}` : ""}</span>
       </p>
       <section className="pt-lesson-card">
         <h2 ref={heading} tabIndex={-1} className="pt-sr-only">

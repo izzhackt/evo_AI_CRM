@@ -70,6 +70,10 @@ export function ReviewRunner({
         [current.exerciseId]: { check: response.check, answer },
       }));
       setValue(null);
+      // A11y (PORT-6a): успешная проверка заменяет кнопку «Ответить»
+      // разбором — переносим фокус на заголовок шага, как уже делает
+      // кнопка «Далее», иначе фокус молча падает на <body>.
+      requestAnimationFrame(() => heading.current?.focus());
     } catch {
       setError("unavailable");
     } finally {
@@ -100,7 +104,12 @@ export function ReviewRunner({
 
   return (
     <div className="pt-lesson-flow">
-      <p className="pt-ex-progress" role="status">
+      {/*
+        A11y (PORT-6a): role="status" убран — счётчик уже объявляется
+        переносом фокуса на sr-only заголовок ниже, live-область на том же
+        тексте дублировала каждое объявление.
+      */}
+      <p className="pt-ex-progress">
         {formatPortalString(strings.exerciseCounter, {
           n: String(index + 1),
           total: String(items.length),

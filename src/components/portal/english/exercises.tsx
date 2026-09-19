@@ -81,6 +81,7 @@ function OptionList({
   selected,
   disabled,
   onSelect,
+  labelId,
 }: {
   name: string;
   options: LearningOption[];
@@ -88,25 +89,37 @@ function OptionList({
   selected: string | null;
   disabled: boolean;
   onSelect: (id: string) => void;
+  /** id вопроса-абзаца перед списком — программная связь группы с вопросом. */
+  labelId?: string;
 }) {
   return (
-    <ul className="pt-ex-options">
-      {options.map((option) => (
-        <li key={option.id}>
-          <label className="pt-ex-option">
-            <input
-              type="radio"
-              name={name}
-              value={option.id}
-              checked={selected === option.id}
-              disabled={disabled}
-              onChange={() => onSelect(option.id)}
-            />
-            <span>{optionLabel(option, locale)}</span>
-          </label>
-        </li>
-      ))}
-    </ul>
+    // A11y (PORT-6a, WCAG 1.3.1/H71): группа радио-кнопок программно связана
+    // со своим вопросом через radiogroup + aria-labelledby — тот же паттерн,
+    // что уже используется в LanguageForm.
+    <div role="radiogroup" aria-labelledby={labelId}>
+      <ul className="pt-ex-options">
+        {options.map((option) => (
+          <li key={option.id}>
+            <label className="pt-ex-option">
+              <input
+                type="radio"
+                name={name}
+                value={option.id}
+                checked={selected === option.id}
+                disabled={disabled}
+                onChange={() => onSelect(option.id)}
+              />
+              {/*
+                A11y (PORT-6a): option.label — непереведённая английская форма
+                (проверяемое учебное содержание); lang="en" даёт корректное
+                произношение скринридером, как у promptEn/passageEn выше.
+              */}
+              <span lang={option.label ? "en" : undefined}>{optionLabel(option, locale)}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -128,9 +141,10 @@ export function ExerciseForm({
   const prompt = exercisePrompt(exercise, locale);
 
   if (exercise.type === "choice" && value.kind === "choice") {
+    const promptId = `exercise-${exercise.exerciseId}-prompt`;
     return (
       <div>
-        {prompt ? <p className="pt-ex-prompt" lang={exercise.promptEn ? "en" : undefined}>{prompt}</p> : null}
+        {prompt ? <p id={promptId} className="pt-ex-prompt" lang={exercise.promptEn ? "en" : undefined}>{prompt}</p> : null}
         <OptionList
           name={`exercise-${exercise.exerciseId}`}
           options={exercise.options ?? []}
@@ -138,6 +152,7 @@ export function ExerciseForm({
           selected={value.selected}
           disabled={disabled}
           onSelect={(id) => onChange({ kind: "choice", selected: id })}
+          labelId={prompt ? promptId : undefined}
         />
       </div>
     );
@@ -220,7 +235,7 @@ export function ExerciseForm({
         <ol className="pt-read-questions">
           {(exercise.questions ?? []).map((question) => (
             <li key={question.id}>
-              <p className="pt-ex-prompt" lang="en">{question.promptEn}</p>
+              <p id={`exercise-${exercise.exerciseId}-${question.id}-prompt`} className="pt-ex-prompt" lang="en">{question.promptEn}</p>
               <OptionList
                 name={`exercise-${exercise.exerciseId}-${question.id}`}
                 options={question.options}
@@ -229,6 +244,7 @@ export function ExerciseForm({
                 disabled={disabled}
                 onSelect={(id) =>
                   onChange({ kind: "reading", selected: { ...value.selected, [question.id]: id } })}
+                labelId={`exercise-${exercise.exerciseId}-${question.id}-prompt`}
               />
             </li>
           ))}

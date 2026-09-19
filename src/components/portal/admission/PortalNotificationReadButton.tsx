@@ -2,8 +2,13 @@
 
 import { useFormStatus } from "react-dom";
 
-export function PortalNotificationReadButton() {
+import type { Locale } from "@/lib/i18n-data";
+import { getPortalStrings } from "@/lib/portal/i18n";
+
+/** PORT-6a: подписи — из неймспейса admission (RU байт-в-байт прежние). */
+export function PortalNotificationReadButton({ locale }: { locale: Locale }) {
   const { pending } = useFormStatus();
+  const strings = getPortalStrings("admission", locale);
 
   return (
     <button
@@ -13,7 +18,7 @@ export function PortalNotificationReadButton() {
       className="pt-btn-ghost"
     >
       <span aria-live="polite">
-        {pending ? "Отмечаем…" : "Отметить прочитанным"}
+        {pending ? strings.marking : strings.markRead}
       </span>
     </button>
   );

@@ -51,6 +51,10 @@ export function MapCanvas({ pins, base, strings, onReady, onFail }: MapCanvasPro
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const [selected, setSelected] = useState<UniversityMapPin | null>(null);
+  // A11y (PORT-6a): id пина, чья карточка уже получила фокус, — чтобы
+  // фокусировать диалог один раз на открытие/смену пина, а не на каждый
+  // ре-рендер (инлайновый ref-колбэк вызывается на каждом рендере).
+  const focusedCardId = useRef<string | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -113,6 +117,7 @@ export function MapCanvas({ pins, base, strings, onReady, onFail }: MapCanvasPro
         .setLngLat([pin.lng, pin.lat])
         .addTo(map);
     });
+    focusedCardId.current = null;
     setSelected(null);
     if (pins.length > 0) {
       const bounds = new LngLatBounds();
@@ -129,7 +134,24 @@ export function MapCanvas({ pins, base, strings, onReady, onFail }: MapCanvasPro
     <>
       <div ref={containerRef} className="pt-map-canvas" />
       {selected !== null ? (
-        <div className="pt-map-card" role="dialog" aria-label={selected.name}>
+        // A11y (PORT-6a): немодальный диалог получает фокус при открытии и
+        // при смене пина — без этого фокус оставался на маркере и карточку
+        // приходилось искать табом вслепую.
+        <div
+          className="pt-map-card"
+          role="dialog"
+          aria-label={selected.name}
+          tabIndex={-1}
+          ref={(node) => {
+            // Инлайновый ref-колбэк вызывается на каждом рендере (null → node),
+            // поэтому сбрасываем маркер только при настоящем закрытии (см.
+            // кнопку закрытия и эффект пинов), а не в null-ветке.
+            if (node !== null && focusedCardId.current !== selected.id) {
+              focusedCardId.current = selected.id;
+              node.focus();
+            }
+          }}
+        >
           <h3 className="pt-map-card-name">{selected.name}</h3>
           <p className="pt-map-card-place">{selected.place}</p>
           <div className="pt-map-card-actions">
@@ -140,7 +162,14 @@ export function MapCanvas({ pins, base, strings, onReady, onFail }: MapCanvasPro
             <button
               type="button"
               className="pt-btn-ghost"
-              onClick={() => setSelected(null)}
+              onClick={() => {
+                focusedCardId.current = null;
+                // A11y: карточка размонтируется вместе с кнопкой закрытия —
+                // возвращаем фокус на маркер выбранного вуза, а не на <body>.
+                const index = pins.findIndex((pin) => pin.id === selected.id);
+                markersRef.current[index]?.getElement().focus();
+                setSelected(null);
+              }}
             >
               {strings.mapCloseCard}
             </button>

@@ -52,6 +52,14 @@ export function MessagesThread({
   const [sending, startSending] = useTransition();
 
   const refreshRef = useRef<() => void>(() => {});
+  // A11y (PORT-6a): зеркало messages для поллинга (замыкание в refresh()
+  // видит устаревший state) + текст объявления о новом входящем сообщении.
+  const messagesRef = useRef<readonly PortalCaseMessage[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const [incomingNotice, setIncomingNotice] = useState("");
+  const listRef = useRef<HTMLOListElement>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -68,7 +76,22 @@ export function MessagesThread({
         }
         setRefreshFailed(false);
         setAwaitState(result.page.awaitState);
-        setMessages((existing) => mergePortalCaseMessages(existing, result.page.messages));
+        // A11y (PORT-6a, WCAG 4.1.3): поллинг добавляет сообщения молча —
+        // объявляем новое входящее (не своё) короткой sr-only live-областью,
+        // не заставляя скринридер перечитывать весь тред.
+        const existing = messagesRef.current;
+        const merged = mergePortalCaseMessages(existing, result.page.messages);
+        const newest = merged[merged.length - 1];
+        if (
+          existing.length > 0
+          && merged.length > existing.length
+          && newest
+          && !newest.mine
+          && newest.sequenceId !== existing[existing.length - 1]?.sequenceId
+        ) {
+          setIncomingNotice(formatPortalString(strings.newMessageNotice, { name: newest.authorName }));
+        }
+        setMessages(merged);
       } catch {
         if (!disposed) setRefreshFailed(true);
       } finally {
@@ -89,7 +112,9 @@ export function MessagesThread({
       window.removeEventListener("focus", resume);
       window.removeEventListener("online", resume);
     };
-  }, []);
+    // Единственная внешняя зависимость эффекта — строка объявления о новом
+    // сообщении (a11y, PORT-6a); меняется только со сменой локали.
+  }, [strings.newMessageNotice]);
 
   const loadEarlier = () => {
     setEarlierFailed(false);
@@ -102,6 +127,12 @@ export function MessagesThread({
       setMessages((existing) => mergePortalCaseMessages(existing, result.page.messages));
       setHasEarlier(result.page.hasMore);
       setEarlierCursor(result.page.cursor);
+      // A11y (PORT-6a): когда более ранних не осталось, кнопка «Показать
+      // более ранние» размонтируется вместе с фокусом — переносим фокус на
+      // начало треда, чтобы он не падал молча на <body>.
+      if (!result.page.hasMore) {
+        requestAnimationFrame(() => listRef.current?.focus());
+      }
     });
   };
 
@@ -159,7 +190,7 @@ export function MessagesThread({
           <p className="pt-chat-empty-body">{strings.emptyBody}</p>
         </div>
       ) : (
-        <ol aria-label={strings.threadAria} className="pt-chat-list">
+        <ol ref={listRef} tabIndex={-1} aria-label={strings.threadAria} className="pt-chat-list">
           {messages.map((message) => (
             <li
               key={message.sequenceId}
@@ -196,6 +227,8 @@ export function MessagesThread({
           ))}
         </ol>
       )}
+
+      <p role="status" className="pt-sr-only">{incomingNotice}</p>
 
       {refreshFailed ? (
         <div className="pt-chat-refresh-error">

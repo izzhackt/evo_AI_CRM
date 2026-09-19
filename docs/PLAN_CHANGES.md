@@ -31765,3 +31765,76 @@ Correction (2026-09-19, после ребейза на main поверх #892/#8
 tests/ci-node-test-suite.test.mjs`, 10/10, exit 0): occurrenceCount/
 uniqueFileCount 345/206 (CI), bounded.files.length 174, occurrenceCount/
 uniqueFileCount 243/201 (unit).
+
+## 2026-09-19 — PORT-6a: KY экранов сопровождения и a11y-проход (без миграции)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), закрывая named limitation PORT-5d(e)
+(«Локализация RU/KY этих четырёх экранов сознательно НЕ входит в slice») и
+исполняя план §7 (тексты RU/KY без тихого фолбэка) и дизайн-контракт
+`docs/design/portal/design-contract.md` (изоляция словарей портала,
+доступность как обязательство).
+Change type: локализация + точечные a11y-исправления + новый статический
+a11y-гейт; БЕЗ миграций; ветка izzhackt/portal-6-ky-a11y от origin/main.
+Affected plan section: PORT-2 (i18n-слой), PORT-5d (экраны сопровождения),
+§7 тексты.
+
+Decision:
+- (a) Четыре экрана сопровождения (OverviewView/DocumentsView/PaymentsView/
+  NotificationsView), страница «Ответ куратора», их страницы-обёртки и
+  клиентские кнопки/контролы переводятся на неймспейс `admission` в
+  `src/lib/portal/i18n.ts` (RU+KY полностью, ~150 ключей). КРИТИЧНО и
+  проверяемо: русские значения — байт-в-байт прежние строки; смоук-якоря
+  («Моё поступление», «Документы», «Чеклист», «Список документов пока
+  пуст») закреплены новым тестом в tests/portal-i18n.test.mjs, смоук-скрипт
+  и его контракт-тест не тронуты (аккаунт смоука живёт с language=ru,
+  default locale = ru).
+- (b) Доменные статусы (слот документа, решение проверки, статус/категория
+  начисления, статус задачи EVO) уходят из прямого чтения
+  `src/lib/v3/wording.ts` в локализуемую портальную обёртку: ключи
+  `docStatus.*`/`reviewDecision.*`/`payStatus.*`/`payCategory.*`/
+  `taskStatus.*` неймспейса admission; RU-паритет со staff-словарём
+  закреплён тестом (portal-i18n ↔ wording), staff-файл НЕ изменён (из него
+  остаётся только allDayDate — чистое форматирование даты). Словарь
+  pending-кабинета переезжает в admission.pending* с теми же RU-значениями
+  (portalPendingCabinet в wording.ts остаётся нетронутым).
+- (c) A11y-проход по новым портальным экранам недели — точечные фиксы с
+  комментарием-причиной в каждом месте: перенос фокуса после успешного
+  ответа в LessonRunner/ReviewRunner (кнопка «Ответить» размонтируется),
+  фокус статуса после успеха в DeleteAccountRequest/ConsultationRequest,
+  клавиатурная прокрутка таблицы сравнения (FavoritesView: tabIndex+region),
+  radiogroup+aria-labelledby и lang="en" для вариантов ответов
+  (exercises.tsx), снятие дублирующего role="status" со счётчика заданий,
+  снятие aria-live со всего списка уведомлений (перечитывание всего списка),
+  объявление нового входящего сообщения в MessagesThread (sr-only status,
+  новый ключ messages.newMessageNotice RU+KY) и фокус после исчезновения
+  «Показать более ранние», фокус карточки-диалога на карте и возврат фокуса
+  на маркер при закрытии (MapCanvas).
+- (d) `npm run test:a11y` остаётся staff-гейтом (живой runtime,
+  PLAYWRIGHT_BASE_URL) — портал он не покрывает. Добавлен компактный
+  `npm run test:a11y:portal`: axe-core (та же связка AxeBuilder + WCAG
+  2.0/2.1/2.2 A+AA, что в staff-спеке) по СТАТИЧЕСКОМУ рендеру реальных
+  компонентов четырёх ключевых поверхностей (обзор, документы, уведомления,
+  профессии+формы профиля/консультации) с настоящим portal.css, light+dark.
+  Рендер — отдельным node-процессом (tests/e2e/portal-static-render.cjs):
+  транспилер Playwright компилирует JSX в CT-дескрипторы, внутри спеки
+  реальные компоненты не рендерятся.
+- (e) Осознанно НЕ делается в этом slice (named limitations): native
+  `disabled` на время pending по-прежнему роняет фокус на <body> до
+  завершения действия (систематический паттерн всего продукта, включая
+  staff; замена на aria-disabled+guard — отдельное решение с обновлением
+  пинов и проверкой двойной отправки повсюду); ExplainPanel монтируется как
+  live-область уже с текстом (объявление вердикта не гарантировано всеми
+  скринридерами); метаданные страниц локализованы через generateMetadata,
+  но заголовок вкладки при переключении языка обновится со следующей
+  навигации.
+
+Validation impact: `npm run typecheck` (exit); `npm run build` (exit);
+`npm run test:brand-ui`; портальные node-тесты (portal-i18n + структурные
+v3-student-portal-*, portal-*); `node --test
+tests/production-browser-smoke.test.mjs` (7/7); `npm run test:a11y:portal`
+(9/9); `git diff --check`. Живой аутентифицированный рендер и проверка
+носителем KY в этой сессии не выполняются — честно фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; KY-тексты
+написаны агентом и ждут вычитки носителем языка (терминология выровнена по
+существующим KY-словарям портала).

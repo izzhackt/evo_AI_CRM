@@ -46,7 +46,21 @@ export function ConsultationRequest({
   const [pending, startTransition] = useTransition();
 
   if (openRequest !== null) {
-    return <p role="status" className="pt-consult-sent">{strings.sent}</p>;
+    // A11y (PORT-6a): успех размонтирует форму вместе с кнопкой отправки,
+    // на которой стоял фокус, — без переноса он молча падал на <body>.
+    // Фокусируем статус только когда запрос отправлен в этой сессии.
+    return (
+      <p
+        role="status"
+        tabIndex={-1}
+        ref={(node) => {
+          if (node && openRequest !== initialOpenRequest) node.focus();
+        }}
+        className="pt-consult-sent"
+      >
+        {strings.sent}
+      </p>
+    );
   }
 
   const submit = () => {

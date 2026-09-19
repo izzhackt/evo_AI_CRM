@@ -249,6 +249,30 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   assert.doesNotMatch(overview, /overviewStage/u);
   assert.doesNotMatch(presentation, /export function overviewStage/u);
 
+  // PORT-8c: операционный этап из read model рендерится честно — известные
+  // ключи через admission.stage.* (RU байт-в-байт зеркалит staff-словарь
+  // studentOperationalStage), нестандартное значение — stageCustom, без
+  // overview этапа нет вовсе. Никакого нового RPC и выдуманных названий.
+  assert.match(overview, /overview\.operationalStage/u);
+  assert.match(overview, /strings\.stageCustom/u);
+  assert.match(overview, /const stage = overview \? stageLabel\(overview\.operationalStage, strings\) : null/u);
+  for (const key of [
+    "contract_confirmed",
+    "admissions_handoff",
+    "intake",
+    "profile_and_route",
+    "documents",
+    "applications",
+    "decisions",
+    "visa_and_predeparture",
+    "arrival_and_adaptation",
+    "completed",
+    "closed",
+  ]) {
+    assert.equal(admissionRu[`stage.${key}`], studentOperationalStage(key), key);
+  }
+  assert.equal(admissionRu.stageCustom, studentOperationalStage("nonstandard_stage_value"));
+
   // A pending, curator-less cabinet (S1's «кабинет до продажи») gets its own
   // quiet, accurate copy instead of a fabricated curator or stage.
   // PORT-6a: словарь pending-кабинета переехал из wording.portalPendingCabinet
@@ -468,12 +492,13 @@ test("Student stage wording matches the exact schema and published OZO lifecycle
 });
 
 test("existing case portal views stay presentation-only and never render raw status keys", () => {
-  // PORT-5d: экраны «Моего поступления» живут в portal/admission; в
-  // v3/portal остаются только PortalPage (экраны тестов),
-  // PortalNotificationUpdates (layout) и assessments/*.
+  // PORT-5d: экраны «Моего поступления» живут в portal/admission. PORT-8c:
+  // экраны тестов переехали в portal/tests (их клиентский раннер сохраняет
+  // useEffect-механику и закреплён tests/student-assessments.test.mjs);
+  // в v3/portal остаётся только PortalNotificationUpdates (layout).
   const componentFiles = [
     ...filesUnder("src/components/v3/portal/")
-      .filter((path) => path.endsWith(".tsx") && !path.includes("/assessments/")),
+      .filter((path) => path.endsWith(".tsx")),
     ...filesUnder("src/components/portal/admission/")
       .filter((path) => path.endsWith(".tsx")),
   ];
@@ -637,10 +662,6 @@ test("notification command IDs replay per verified Student actor and notificatio
 });
 
 test("portal includes honest empty, loading and failure states", () => {
-  const components = filesUnder("src/components/v3/portal/")
-    .filter((path) => path.endsWith(".tsx"))
-    .map(source)
-    .join("\n");
   const admission = filesUnder("src/components/portal/admission/")
     .filter((path) => path.endsWith(".tsx"))
     .map(source)
@@ -648,7 +669,13 @@ test("portal includes honest empty, loading and failure states", () => {
   const loading = source("src/app/(portal)/portal/loading.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
-  assert.match(components, /PortalEmptyState/u);
+  // PORT-8c: пустое состояние каталога тестов — честный pt-empty из словаря
+  // tests, а границы маршрута тестов рескинены на pt-классы.
+  const testsCatalog = source("src/components/portal/tests/TestsCatalog.tsx");
+  assert.match(testsCatalog, /pt-empty/u);
+  assert.match(testsCatalog, /strings\.emptyTitle/u);
+  assert.match(source("src/app/(portal)/portal/tests/loading.tsx"), /role="status"/u);
+  assert.match(source("src/app/(portal)/portal/tests/error.tsx"), /role="alert"/u);
   // PORT-5d: пустые состояния Атласа — честный заголовок + следующий шаг.
   // PORT-6a: смоук-якорь «Список документов пока пуст» живёт RU-значением
   // ключа admission.documentsEmptyTitle (смоук-аккаунт — language=ru).

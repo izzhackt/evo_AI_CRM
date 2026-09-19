@@ -44,6 +44,12 @@ for (const extension of [".ts", ".tsx"]) {
 // --- alias "@/..." → src/... (tsconfig paths) --------------------------------
 const originalResolve = Module._resolveFilename;
 Module._resolveFilename = function patchedResolve(request, ...rest) {
+  // PORT-8c: раннер тестов тянет server actions → server-only-модули. Этот
+  // процесс — SSR-рендер (как next build с condition react-server), поэтому
+  // маркер разрешается в пустой react-server-вариант пакета.
+  if (request === "server-only") {
+    return originalResolve.call(this, join(ROOT, "node_modules/server-only/empty.js"), ...rest);
+  }
   if (typeof request === "string" && request.startsWith("@/")) {
     const base = join(ROOT, "src", request.slice(2));
     for (const candidate of [base, `${base}.ts`, `${base}.tsx`]) {
@@ -67,6 +73,9 @@ const { ProfessionsGrid } = require(join(ROOT, "src/components/portal/profession
 const { LanguageForm } = require(join(ROOT, "src/components/portal/profile/LanguageForm.tsx"));
 const { DeleteAccountRequest } = require(join(ROOT, "src/components/portal/profile/DeleteAccountRequest.tsx"));
 const { ConsultationRequest } = require(join(ROOT, "src/components/portal/consultation/ConsultationRequest.tsx"));
+const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCatalog.tsx"));
+const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/AssessmentRunner.tsx"));
+const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/AssessmentResults.tsx"));
 
 const PORTAL_CSS = readFileSync(join(ROOT, "src/app/(portal)/portal.css"), "utf8");
 
@@ -232,6 +241,229 @@ const notificationsFixture = [
 
 const noopAction = async () => {};
 
+// PORT-8c: фикстуры экранов тестов повторяют формы E2 DTO
+// (AssessmentCatalog/AssessmentAttempt из student-assessment-contract).
+const testsStrings = getPortalStrings("tests", "ru");
+
+const assessmentMetadata = {
+  title: "Английский",
+  description: "36 заданий: грамматика, слова в контексте и чтение.",
+  instructions: ["Выбирайте один ответ на задание.", "Можно прерваться и продолжить позже."],
+  limitations: ["Это не сертификат уровня языка."],
+  bands: [{ id: "b1", label: "Уверенная база на этом наборе заданий" }],
+  recommendations: { grammar: "Повторите времена глагола на новых примерах." },
+};
+
+const assessmentCatalogFixture = {
+  instruments: [
+    {
+      instrumentKey: "english36",
+      versionId: "aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      version: "1.0.0",
+      locale: "ru",
+      metadata: assessmentMetadata,
+      questionCount: 36,
+      draftAttemptId: "bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      latestCompletedAttemptId: null,
+    },
+    {
+      instrumentKey: "orvis92",
+      versionId: "aaaaaaa2-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+      version: "1.0.0",
+      locale: "ru",
+      metadata: {
+        ...assessmentMetadata,
+        title: "Карта интересов",
+        description: "92 утверждения о занятиях: что вам ближе.",
+      },
+      questionCount: 92,
+      draftAttemptId: null,
+      latestCompletedAttemptId: "ccccccc2-cccc-4ccc-8ccc-ccccccccccc2",
+    },
+  ],
+  attempts: [
+    {
+      attemptId: "bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      instrumentKey: "english36",
+      version: "1.0.0",
+      status: "draft",
+      revision: 4,
+      answeredCount: 12,
+      questionCount: 36,
+      createdAt: "2026-09-17T10:00:00Z",
+      updatedAt: "2026-09-18T10:00:00Z",
+      completedAt: null,
+    },
+    {
+      attemptId: "ccccccc2-cccc-4ccc-8ccc-ccccccccccc2",
+      instrumentKey: "orvis92",
+      version: "1.0.0",
+      status: "completed",
+      revision: 9,
+      answeredCount: 92,
+      questionCount: 92,
+      createdAt: "2026-09-10T10:00:00Z",
+      updatedAt: "2026-09-11T10:00:00Z",
+      completedAt: "2026-09-11T10:00:00Z",
+    },
+  ],
+};
+
+const draftQuestions = [
+  {
+    id: "grammar-01",
+    prompt: "Choose the correct verb form:\nThe results ___ ready.",
+    options: [
+      { id: "a", label: "is" },
+      { id: "b", label: "are" },
+      { id: "unknown", label: "Не знаю" },
+    ],
+    topic: "grammar",
+  },
+];
+
+const draftAttemptFixture = {
+  attemptId: "bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+  instrumentKey: "english36",
+  versionId: "aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  version: "1.0.0",
+  locale: "ru",
+  status: "draft",
+  revision: 4,
+  metadata: assessmentMetadata,
+  questions: draftQuestions,
+  answers: {},
+  result: null,
+  createdAt: "2026-09-17T10:00:00Z",
+  updatedAt: "2026-09-18T10:00:00Z",
+  completedAt: null,
+};
+
+const englishResultAttemptFixture = {
+  ...draftAttemptFixture,
+  attemptId: "ddddddd3-dddd-4ddd-8ddd-ddddddddddd3",
+  status: "completed",
+  completedAt: "2026-09-18T11:00:00Z",
+  answers: { "grammar-01": "a" },
+  result: {
+    instrumentKey: "english36",
+    version: "1.0.0",
+    metadata: {
+      ...assessmentMetadata,
+      blueprint: [{ questionId: "grammar-01", skill: "verb-forms" }],
+      skillLabels: { "verb-forms": "Формы глагола" },
+    },
+    answeredCount: 1,
+    questionCount: 1,
+    completedAt: "2026-09-18T11:00:00Z",
+    english: {
+      correctCount: 1,
+      totalCount: 1,
+      band: "b1",
+      topics: [{ topic: "grammar", correctCount: 1, totalCount: 1 }],
+      feedback: [
+        {
+          questionId: "grammar-01",
+          selectedOptionId: "a",
+          correctOptionId: "b",
+          correct: false,
+          explanation: "Подлежащее во множественном числе требует are.",
+          topic: "grammar",
+        },
+      ],
+    },
+  },
+};
+
+const ORVIS_SCALE_IDS = [
+  "leadership",
+  "organization",
+  "altruism",
+  "creativity",
+  "analysis",
+  "production",
+  "adventure",
+  "erudition",
+];
+
+const orvisResultAttemptFixture = {
+  ...draftAttemptFixture,
+  attemptId: "eeeeeee4-eeee-4eee-8eee-eeeeeeeeeee4",
+  instrumentKey: "orvis92",
+  status: "completed",
+  completedAt: "2026-09-11T10:00:00Z",
+  questions: [],
+  answers: {},
+  metadata: { ...assessmentMetadata, title: "Карта интересов" },
+  result: {
+    instrumentKey: "orvis92",
+    version: "1.0.0",
+    metadata: {
+      ...assessmentMetadata,
+      title: "Карта интересов",
+      scales: ORVIS_SCALE_IDS.map((id) => ({
+        id,
+        label: testsStrings[`scale.${id}`],
+        description: "Насколько близки занятия этой группы.",
+      })),
+      professions: [
+        {
+          id: "software-developer",
+          title: "Разработчик программного обеспечения",
+          scaleIds: ["analysis"],
+          summary: "Проектирует и пишет программы.",
+          tasks: ["Разбирает задачу", "Пишет и проверяет код"],
+          skills: ["Алгоритмы", "Внимание к деталям"],
+          studyDirections: ["Информатика"],
+          tryActivity: "Соберите маленькую страницу-визитку.",
+          careerPath: ["Стажёр", "Инженер"],
+          editorialNote: "Редакционный пример EVO.",
+          source: {
+            url: "https://www.onetonline.org/link/summary/15-1252.00",
+            occupationId: "15-1252.00",
+            version: "28.2",
+            retrievedOn: "2026-09-01",
+            license: "CC BY 4.0",
+            licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+          },
+        },
+        {
+          id: "nurse",
+          title: "Медицинская сестра / медбрат",
+          scaleIds: ["altruism"],
+          summary: "Помогает пациентам и врачам.",
+          tasks: ["Наблюдает за состоянием пациентов"],
+          skills: ["Внимательность"],
+          studyDirections: ["Сестринское дело"],
+          tryActivity: "Пройдите короткий курс первой помощи.",
+          editorialNote: "Редакционный пример EVO.",
+          source: {
+            url: "https://www.onetonline.org/link/summary/29-1141.00",
+            occupationId: "29-1141.00",
+            version: "28.2",
+            retrievedOn: "2026-09-01",
+            license: "CC BY 4.0",
+            licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+          },
+        },
+      ],
+      professionAttribution: "Профили основаны на данных O*NET®.",
+    },
+    answeredCount: 92,
+    questionCount: 92,
+    completedAt: "2026-09-11T10:00:00Z",
+    orvis: {
+      scales: ORVIS_SCALE_IDS.map((id, index) => ({
+        scale: id,
+        rawSum: 40 - index,
+        itemCount: 12,
+        mean: 4.4 - index * 0.3,
+      })),
+      topScales: ["analysis", "creativity"],
+    },
+  },
+};
+
 const professionsStrings = getPortalStrings("professions", "ru");
 const profileStrings = getPortalStrings("profile", "ru");
 const consultationStrings = getPortalStrings("consultation", "ru");
@@ -275,6 +507,51 @@ const surfaces = [
           markAllReadAction: noopAction,
           locale: "ru",
         }),
+      ),
+    ),
+  },
+  {
+    name: "tests-catalog",
+    html: renderSurface(
+      "Тесты — a11y",
+      pageShell(
+        testsStrings.kicker,
+        testsStrings.title,
+        testsStrings.lead,
+        createElement(TestsCatalog, { catalog: assessmentCatalogFixture, locale: "ru" }),
+      ),
+    ),
+  },
+  {
+    name: "tests-runner",
+    html: renderSurface(
+      "Тест — раннер — a11y",
+      pageShell(
+        testsStrings.kicker,
+        assessmentMetadata.title,
+        assessmentMetadata.description,
+        createElement(AssessmentRunner, {
+          instrument: assessmentCatalogFixture.instruments[0],
+          initialAttempt: draftAttemptFixture,
+          locale: "ru",
+        }),
+      ),
+    ),
+  },
+  {
+    name: "tests-results",
+    html: renderSurface(
+      "Тест — результаты — a11y",
+      pageShell(
+        testsStrings.kicker,
+        assessmentMetadata.title,
+        assessmentMetadata.description,
+        createElement(
+          "div",
+          null,
+          createElement(AssessmentResults, { attempt: englishResultAttemptFixture, locale: "ru" }),
+          createElement(AssessmentResults, { attempt: orvisResultAttemptFixture, locale: "ru" }),
+        ),
       ),
     ),
   },

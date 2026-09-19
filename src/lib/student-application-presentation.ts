@@ -20,6 +20,24 @@ export function countryLabel(code: string): string {
   return new Intl.DisplayNames(["ru"], { type: "region" }).of(code) ?? code;
 }
 
+/**
+ * PORT-8c: названия стран для анкеты на языке интерфейса. KY берётся из ICU
+ * только когда рантайм реально несёт кыргызские данные (иначе честный фолбэк
+ * на существующие русские названия — не случайный английский). Staff-путь
+ * `countryLabel` выше не меняется.
+ */
+export function localizedCountryLabel(code: string, locale: string): string {
+  if (locale === "ky") {
+    try {
+      const names = new Intl.DisplayNames(["ky"], { type: "region" });
+      if (names.resolvedOptions().locale.startsWith("ky")) {
+        return names.of(code) ?? countryLabel(code);
+      }
+    } catch { /* фолбэк ниже */ }
+  }
+  return countryLabel(code);
+}
+
 export const STUDY_FIELD_OPTIONS = [
   "Бизнес и менеджмент", "Информатика и IT", "Инженерия", "Медицина и здоровье",
   "Экономика и финансы", "Право", "Дизайн и искусство", "Социальные науки",

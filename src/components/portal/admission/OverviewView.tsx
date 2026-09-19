@@ -9,6 +9,34 @@ import { evoActionDueLabel, evoActionStatus, formatPortalMoney, studentActionDue
 
 type AdmissionStrings = PortalStrings<"admission">;
 
+/**
+ * PORT-8c: операционный этап дела из read model (operational_stage,
+ * фиксированный CHECK-словарь миграции 042 + свободные значения). Известные
+ * ключи локализуются словарём admission.stage.* (RU байт-в-байт зеркалит
+ * staff-словарь studentOperationalStage), нестандартное значение честно
+ * показывается как stageCustom — этап не выдумывается.
+ */
+const STAGE_KEYS = [
+  "contract_confirmed",
+  "admissions_handoff",
+  "intake",
+  "profile_and_route",
+  "documents",
+  "applications",
+  "decisions",
+  "visa_and_predeparture",
+  "arrival_and_adaptation",
+  "completed",
+  "closed",
+] as const;
+
+function stageLabel(stage: string, strings: AdmissionStrings): string | null {
+  const normalized = stage.trim();
+  if (!normalized) return null;
+  const known = STAGE_KEYS.find((key) => key === normalized);
+  return known ? strings[`stage.${known}`] : strings.stageCustom;
+}
+
 function actionTitle(action: StudentPortalAction, strings: AdmissionStrings): string {
   const verb = action.kind === "payment" ? strings.actionPayment : action.kind === "upload_document" ? strings.actionUpload : strings.actionReplace;
   return `${verb}: ${action.label}`;
@@ -61,6 +89,7 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
   const evoAction = overview?.evoAction ?? null;
   const evoDue = evoAction ? evoActionDueLabel(evoAction) : null;
   const evoStatus = evoAction ? evoActionStatus(evoAction, strings) : null;
+  const stage = overview ? stageLabel(overview.operationalStage, strings) : null;
 
   return (
     <div className="pt-adm-grid">
@@ -153,6 +182,12 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
       </div>
 
       <aside aria-label={strings.asideAria} className="pt-adm-aside">
+        {stage ? (
+          <div className="pt-adm-stage">
+            <p className="pt-adm-curator-caption">{strings.stageTerm}</p>
+            <span className="pt-chip">{stage}</span>
+          </div>
+        ) : null}
         <h2 className="pt-adm-aside-title">{strings.evoHeading}</h2>
         {evoAction && evoStatus ? (
           <div id={`evo-task-${evoAction.taskId}`} className="pt-adm-evo">

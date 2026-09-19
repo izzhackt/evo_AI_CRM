@@ -30579,3 +30579,17 @@ scope assignment. **No defect in migration 185's actual privilege-boundary
 logic was found or fixed** — its `cabinet_pending` prepare/finalize/reissue
 authority checks, origin check, and state-shape guards all behaved exactly
 as specified on the first run where the test fixture itself was correct.
+
+## 2026-09-19 — Resend SMTP and reply forwarding: approved, activation pending
+
+The owner now approves `evo@evoadmissions.com` sending through Resend, replies
+forwarded to the business Gmail, Russian templates and `/apply` email confirmation.
+This supersedes the earlier no-confirmation direction for new Student signup,
+not the existing identity, authorization or duplicate-account safeguards.
+Read-only DNS/Auth/source checks found forwarding MX already present, custom SMTP
+unset and `/apply` still creating auto-confirmed identities. Provider browser
+login is missing; no DNS/Auth/template/account mutation or mail dispatch occurred.
+The [mail runbook](runbooks/resend-auth-email.md) records the precise baseline,
+configuration, free-tier limits, missing recipient choices and pending real proof.
+Keep public Auth signup disabled; ship any confirmation-flow change as a reviewed
+scope-local slice, not a blanket Auth toggle. No paid upgrade or broad test run.

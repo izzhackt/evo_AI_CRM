@@ -1,5 +1,15 @@
 # EVO Launch Plan
 
+## Auth email — active, blocked on provider login, 2026-09-19
+
+Owner approved Resend SMTP, replies forwarded to Gmail and Student email confirmation.
+Follow [the mail runbook](runbooks/resend-auth-email.md); no provider/Auth changes made yet.
+
+- [ ] Sign in to Resend and Spaceship; verify sending domain and forwarding.
+- [ ] Configure SMTP and Russian templates without changing Staff/Student boundaries.
+- [ ] Implement the separate `/apply` confirmation path; SMTP alone does not enable it.
+- [ ] Prove invitation, signup confirmation and reply delivery to approved recipients.
+
 ## Unified workflow S8 — released 2026-09-19; план закрыт
 
 Owner applied migration 185 from main 9cdea7aa (#854), ledger 001-185

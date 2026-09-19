@@ -39,16 +39,6 @@ struct AssessmentRunContext: Identifiable {
     }
 }
 
-/// Обёртка с собственным NavigationStack (использовалась вкладкой «Тесты»;
-/// после переноса тестов внутрь разделов остаётся для standalone-показов).
-struct TestsView: View {
-    var body: some View {
-        NavigationStack {
-            TestsContentView()
-        }
-    }
-}
-
 /// Каталог тестов, пригодный для push из «Английский», «Профессии» и
 /// «Профиль» (дизайн-контракт: Тесты — не отдельная вкладка, а входы из
 /// разделов и личные результаты в профиле).

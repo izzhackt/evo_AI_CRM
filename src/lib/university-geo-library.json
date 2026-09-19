@@ -1,0 +1,764 @@
+{
+  "academy-of-arts-architecture-and-design-in-prague": {
+    "lat": 50.088611,
+    "lng": 14.414722,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q414309",
+    "verifiedOn": "2026-09-19"
+  },
+  "agh-university-of-krakow": {
+    "lat": 50.064528,
+    "lng": 19.92375,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q414245",
+    "verifiedOn": "2026-09-19"
+  },
+  "ankara-university": {
+    "lat": 39.936667,
+    "lng": 32.830278,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1060621",
+    "verifiedOn": "2026-09-19"
+  },
+  "apu": {
+    "lat": 3.048056,
+    "lng": 101.6925,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q4806454",
+    "verifiedOn": "2026-09-19"
+  },
+  "bahcesehir-university": {
+    "lat": 41.041667,
+    "lng": 29.009444,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q3409570",
+    "verifiedOn": "2026-09-19"
+  },
+  "beijing-institute-of-technology-zhuhai-bit-zhuhai": {
+    "lat": 39.957778,
+    "lng": 116.308333,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q23101",
+    "verifiedOn": "2026-09-19"
+  },
+  "beijing-language-and-culture-university": {
+    "lat": 39.993333,
+    "lng": 116.337778,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q549697",
+    "verifiedOn": "2026-09-19"
+  },
+  "beijing-normal-university": {
+    "lat": 39.957222,
+    "lng": 116.3625,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1604022",
+    "verifiedOn": "2026-09-19"
+  },
+  "bilkent-university": {
+    "lat": 39.867347,
+    "lng": 32.750771,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q861904",
+    "verifiedOn": "2026-09-19"
+  },
+  "bocconi-university": {
+    "lat": 45.450278,
+    "lng": 9.189722,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q959524",
+    "verifiedOn": "2026-09-19"
+  },
+  "bogazici-university": {
+    "lat": 41.083556,
+    "lng": 29.050597,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q896267",
+    "verifiedOn": "2026-09-19"
+  },
+  "brno-university-of-technology": {
+    "lat": 49.201542,
+    "lng": 16.603614,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1122171",
+    "verifiedOn": "2026-09-19"
+  },
+  "ca-foscari-university-of-venice": {
+    "lat": 45.434464,
+    "lng": 12.3266,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1546906",
+    "verifiedOn": "2026-09-19"
+  },
+  "charles-university": {
+    "lat": 50.0884,
+    "lng": 14.4037,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q31519",
+    "verifiedOn": "2026-09-19"
+  },
+  "china-jiliang-university": {
+    "lat": 30.318977,
+    "lng": 120.36432,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q5099749",
+    "verifiedOn": "2026-09-19"
+  },
+  "city-malaysia": {
+    "lat": 3.102278,
+    "lng": 101.637639,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q30643258",
+    "verifiedOn": "2026-09-19"
+  },
+  "cyprus-university-of-technology": {
+    "lat": 34.676611,
+    "lng": 33.044167,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1518320",
+    "verifiedOn": "2026-09-19"
+  },
+  "czech-technical-university-ctu": {
+    "lat": 50.102167,
+    "lng": 14.388472,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1329478",
+    "verifiedOn": "2026-09-19"
+  },
+  "east-china-normal-university": {
+    "lat": 31.228056,
+    "lng": 121.4,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q2034790",
+    "verifiedOn": "2026-09-19"
+  },
+  "eastern-mediterranean-university": {
+    "lat": 35.145706,
+    "lng": 33.907139,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q2035790",
+    "verifiedOn": "2026-09-19"
+  },
+  "ecust": {
+    "lat": 31.143056,
+    "lng": 121.425,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q2655352",
+    "verifiedOn": "2026-09-19"
+  },
+  "european-university-cyprus": {
+    "lat": 35.160214,
+    "lng": 33.338994,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1377090",
+    "verifiedOn": "2026-09-19"
+  },
+  "frederick-university": {
+    "lat": 35.179496,
+    "lng": 33.377856,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1453031",
+    "verifiedOn": "2026-09-19"
+  },
+  "fudan-university": {
+    "lat": 31.298889,
+    "lng": 121.499167,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q495015",
+    "verifiedOn": "2026-09-19"
+  },
+  "gdut": {
+    "lat": 23.035921,
+    "lng": 113.391671,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q716822",
+    "verifiedOn": "2026-09-19"
+  },
+  "guangdong-university-of-foreign-studies": {
+    "lat": 23.2003,
+    "lng": 113.289,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q5613648",
+    "verifiedOn": "2026-09-19"
+  },
+  "harbin-institute-of-technology-hit": {
+    "lat": 45.746998,
+    "lng": 126.630692,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q632558",
+    "verifiedOn": "2026-09-19"
+  },
+  "huazhong-university-of-science-and-technology-hust": {
+    "lat": 30.51,
+    "lng": 114.41,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1711196",
+    "verifiedOn": "2026-09-19"
+  },
+  "hubei-university-of-arts-and-science": {
+    "lat": 31.999505,
+    "lng": 112.041835,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q15928983",
+    "verifiedOn": "2026-09-19"
+  },
+  "inti": {
+    "lat": 2.811944,
+    "lng": 101.758333,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q5972777",
+    "verifiedOn": "2026-09-19"
+  },
+  "istanbul-ayd-n-university": {
+    "lat": 40.99061,
+    "lng": 28.797232,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q6088582",
+    "verifiedOn": "2026-09-19"
+  },
+  "istanbul-teknik-universitesi-itu": {
+    "lat": 41.105,
+    "lng": 29.025,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q344334",
+    "verifiedOn": "2026-09-19"
+  },
+  "istanbul-university": {
+    "lat": 41.013036,
+    "lng": 28.963875,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q192964",
+    "verifiedOn": "2026-09-19"
+  },
+  "iulm-university": {
+    "lat": 45.4428,
+    "lng": 9.164203,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1077639",
+    "verifiedOn": "2026-09-19"
+  },
+  "jagiellonian-university": {
+    "lat": 50.061667,
+    "lng": 19.933889,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q189441",
+    "verifiedOn": "2026-09-19"
+  },
+  "koc-university": {
+    "lat": 41.197778,
+    "lng": 29.065,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1193155",
+    "verifiedOn": "2026-09-19"
+  },
+  "kozminski-university": {
+    "lat": 52.2714,
+    "lng": 21.015,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q2822255",
+    "verifiedOn": "2026-09-19"
+  },
+  "krakow-university-of-economics-uniwersytet-ekonomiczny-w-krakowie": {
+    "lat": 50.068696,
+    "lng": 19.955667,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1471879",
+    "verifiedOn": "2026-09-19"
+  },
+  "masaryk-university": {
+    "lat": 49.198611,
+    "lng": 16.605278,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q763586",
+    "verifiedOn": "2026-09-19"
+  },
+  "medical-university-of-gdansk": {
+    "lat": 54.366111,
+    "lng": 18.630556,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q5529378",
+    "verifiedOn": "2026-09-19"
+  },
+  "medical-university-of-warsaw": {
+    "lat": 52.20588,
+    "lng": 20.98554,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q496351",
+    "verifiedOn": "2026-09-19"
+  },
+  "middle-east-technical-university-metu-odtu": {
+    "lat": 39.885668,
+    "lng": 32.784027,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q756126",
+    "verifiedOn": "2026-09-19"
+  },
+  "mla-college": {
+    "lat": 50.3716,
+    "lng": -4.1423,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q136995411",
+    "verifiedOn": "2026-09-19"
+  },
+  "mmu": {
+    "lat": 2.248889,
+    "lng": 102.276944,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1421182",
+    "verifiedOn": "2026-09-19"
+  },
+  "monash-malaysia": {
+    "lat": 3.064411,
+    "lng": 101.600682,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q16934243",
+    "verifiedOn": "2026-09-19"
+  },
+  "msu": {
+    "lat": 3.0775,
+    "lng": 101.553,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q12712163",
+    "verifiedOn": "2026-09-19"
+  },
+  "nanchang-university": {
+    "lat": 28.665,
+    "lng": 115.8,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q3497259",
+    "verifiedOn": "2026-09-19"
+  },
+  "nanjing-university": {
+    "lat": 32.05611,
+    "lng": 118.775,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q683580",
+    "verifiedOn": "2026-09-19"
+  },
+  "near-east-university": {
+    "lat": 35.22669,
+    "lng": 33.32373,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q890755",
+    "verifiedOn": "2026-09-19"
+  },
+  "northwestern-polytechnical-university": {
+    "lat": 34.244722,
+    "lng": 108.911667,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q832550",
+    "verifiedOn": "2026-09-19"
+  },
+  "ocean-university-of-china-ouc": {
+    "lat": 36.065,
+    "lng": 120.3325,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1074015",
+    "verifiedOn": "2026-09-19"
+  },
+  "peking-university": {
+    "lat": 39.989722,
+    "lng": 116.305278,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q16952",
+    "verifiedOn": "2026-09-19"
+  },
+  "politecnico-di-milano": {
+    "lat": 45.478031,
+    "lng": 9.227319,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q392904",
+    "verifiedOn": "2026-09-19"
+  },
+  "politecnico-di-torino": {
+    "lat": 45.063094,
+    "lng": 7.661075,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q392897",
+    "verifiedOn": "2026-09-19"
+  },
+  "poznan-university-of-technology": {
+    "lat": 52.394167,
+    "lng": 16.918333,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1678753",
+    "verifiedOn": "2026-09-19"
+  },
+  "sabanc-university": {
+    "lat": 40.890547,
+    "lng": 29.378386,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q7395882",
+    "verifiedOn": "2026-09-19"
+  },
+  "sapienza-university-of-rome": {
+    "lat": 41.903333,
+    "lng": 12.515833,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q209344",
+    "verifiedOn": "2026-09-19"
+  },
+  "schiller-international-university": {
+    "lat": 27.893906,
+    "lng": -82.757513,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q327361",
+    "verifiedOn": "2026-09-19"
+  },
+  "scuola-politecnica-di-design": {
+    "lat": 45.49713,
+    "lng": 9.165819,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q3953349",
+    "verifiedOn": "2026-09-19"
+  },
+  "scut": {
+    "lat": 23.155,
+    "lng": 113.34226,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q835366",
+    "verifiedOn": "2026-09-19"
+  },
+  "shanghai-international-studies-university": {
+    "lat": 31.277157,
+    "lng": 121.482911,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1455176",
+    "verifiedOn": "2026-09-19"
+  },
+  "shanghai-jiao-tong-university": {
+    "lat": 31.20083,
+    "lng": 121.42972,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q525169",
+    "verifiedOn": "2026-09-19"
+  },
+  "shanghai-university": {
+    "lat": 31.316667,
+    "lng": 121.388889,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1343386",
+    "verifiedOn": "2026-09-19"
+  },
+  "southwest-university": {
+    "lat": 29.813903,
+    "lng": 106.412936,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q840443",
+    "verifiedOn": "2026-09-19"
+  },
+  "southwestern-university-of-finance-and-economics": {
+    "lat": 30.664854,
+    "lng": 104.017126,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1107944",
+    "verifiedOn": "2026-09-19"
+  },
+  "sunway": {
+    "lat": 3.0684,
+    "lng": 101.604,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q4475815",
+    "verifiedOn": "2026-09-19"
+  },
+  "taylors": {
+    "lat": 3.075,
+    "lng": 101.591111,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q841775",
+    "verifiedOn": "2026-09-19"
+  },
+  "tongji-university": {
+    "lat": 31.2827,
+    "lng": 121.506632,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q16947",
+    "verifiedOn": "2026-09-19"
+  },
+  "tongmyong-university": {
+    "lat": 35.122333,
+    "lng": 129.101694,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q12593324",
+    "verifiedOn": "2026-09-19"
+  },
+  "tsinghua-university": {
+    "lat": 40,
+    "lng": 116.326667,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q16955",
+    "verifiedOn": "2026-09-19"
+  },
+  "uclan-cyprus": {
+    "lat": 35.008229,
+    "lng": 33.696577,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q30263664",
+    "verifiedOn": "2026-09-19"
+  },
+  "ucsi": {
+    "lat": 3.079943,
+    "lng": 101.733274,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q7864125",
+    "verifiedOn": "2026-09-19"
+  },
+  "unikl": {
+    "lat": 3.15944,
+    "lng": 101.702,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q7895613",
+    "verifiedOn": "2026-09-19"
+  },
+  "universita-cattolica-del-sacro-cuore": {
+    "lat": 45.4631,
+    "lng": 9.176911,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q229022",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-bergamo": {
+    "lat": 45.704535,
+    "lng": 9.660692,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q45855",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-bologna": {
+    "lat": 44.493889,
+    "lng": 11.342778,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q131262",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-brescia": {
+    "lat": 45.538,
+    "lng": 10.2178,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1781263",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-calabria": {
+    "lat": 39.3637,
+    "lng": 16.2265,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1752540",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-camerino": {
+    "lat": 43.135889,
+    "lng": 13.068556,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q676817",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-cassino-and-southern-lazio": {
+    "lat": 41.471786,
+    "lng": 13.828173,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q504263",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-catania": {
+    "lat": 37.5036,
+    "lng": 15.0867,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1248821",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-chemistry-and-technology-prague-vscht": {
+    "lat": 50.103319,
+    "lng": 14.389892,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1476341",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-cyprus": {
+    "lat": 35.1597,
+    "lng": 33.3778,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1520608",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-economics-prague-vse": {
+    "lat": 50.08425,
+    "lng": 14.44125,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1063665",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-electronic-science-and-technology-of-china-uestc": {
+    "lat": 30.752011,
+    "lng": 103.927507,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q5971900",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-florence": {
+    "lat": 43.77777,
+    "lng": 11.25951,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q820887",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-genoa": {
+    "lat": 44.414853,
+    "lng": 8.926621,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q593321",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-insubria": {
+    "lat": 45.8146,
+    "lng": 8.8255,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1309998",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-macerata": {
+    "lat": 43.299294,
+    "lng": 13.449885,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1742507",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-messina": {
+    "lat": 38.19241,
+    "lng": 15.54611,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1245318",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-milan-bicocca": {
+    "lat": 45.518406,
+    "lng": 9.213344,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1073674",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-milan-universita-degli-studi-di-milano-statale": {
+    "lat": 45.460063,
+    "lng": 9.19466,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q46210",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-naples-federico-ii": {
+    "lat": 40.8472,
+    "lng": 14.2569,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q691851",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-nicosia": {
+    "lat": 35.165861,
+    "lng": 33.314444,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q338645",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-padova": {
+    "lat": 45.42,
+    "lng": 11.87,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q193510",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-palermo": {
+    "lat": 38.11768,
+    "lng": 13.370131,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1641504",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-parma": {
+    "lat": 44.801,
+    "lng": 10.3251,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1758474",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-pavia-universita-degli-studi-di-pavia": {
+    "lat": 45.18675,
+    "lng": 9.15586,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q219317",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-perugia": {
+    "lat": 43.1158,
+    "lng": 12.3858,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q748085",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-pisa": {
+    "lat": 43.716508,
+    "lng": 10.398458,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q645663",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-rome-tor-vergata": {
+    "lat": 41.849444,
+    "lng": 12.627222,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1031803",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-science-and-technology-of-china-ustc": {
+    "lat": 31.841667,
+    "lng": 117.258889,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1074103",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-shanghai-for-science-and-technology": {
+    "lat": 31.290603,
+    "lng": 121.552005,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q864879",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-siena": {
+    "lat": 43.319167,
+    "lng": 11.3325,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1245999",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-trento": {
+    "lat": 46.069426,
+    "lng": 11.121117,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q930528",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-turin": {
+    "lat": 45.069444,
+    "lng": 7.688889,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q499911",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-verona": {
+    "lat": 45.436667,
+    "lng": 11.003611,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q2531629",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-vienna-universitat-wien": {
+    "lat": 48.213056,
+    "lng": 16.359722,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q165980",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-warsaw": {
+    "lat": 52.240281,
+    "lng": 21.019169,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q144488",
+    "verifiedOn": "2026-09-19"
+  },
+  "university-of-wroc-aw": {
+    "lat": 51.113611,
+    "lng": 17.033333,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q315658",
+    "verifiedOn": "2026-09-19"
+  },
+  "unnc": {
+    "lat": 29.8022,
+    "lng": 121.5592,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1075625",
+    "verifiedOn": "2026-09-19"
+  },
+  "upc-east-china": {
+    "lat": 35.94227,
+    "lng": 120.17026,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q15703466",
+    "verifiedOn": "2026-09-19"
+  },
+  "upm": {
+    "lat": 2.999167,
+    "lng": 101.707778,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1458579",
+    "verifiedOn": "2026-09-19"
+  },
+  "utm": {
+    "lat": 1.559167,
+    "lng": 103.641389,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q24401",
+    "verifiedOn": "2026-09-19"
+  },
+  "vistula-university-uczelnia-vistula": {
+    "lat": 52.1589,
+    "lng": 21.0342,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q7895361",
+    "verifiedOn": "2026-09-19"
+  },
+  "warsaw-university-of-technology": {
+    "lat": 52.220278,
+    "lng": 21.010556,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1718656",
+    "verifiedOn": "2026-09-19"
+  },
+  "wuhan-university": {
+    "lat": 30.540833,
+    "lng": 114.361111,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q1108197",
+    "verifiedOn": "2026-09-19"
+  },
+  "xi-an-international-studies-university": {
+    "lat": 34.138017,
+    "lng": 108.876025,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q3551564",
+    "verifiedOn": "2026-09-19"
+  },
+  "xiamen-malaysia": {
+    "lat": 2.8329,
+    "lng": 101.7029,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q55637988",
+    "verifiedOn": "2026-09-19"
+  },
+  "xidian-university": {
+    "lat": 34.123389,
+    "lng": 108.835889,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q649906",
+    "verifiedOn": "2026-09-19"
+  },
+  "xjtlu": {
+    "lat": 31.2748,
+    "lng": 120.7381,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q13562485",
+    "verifiedOn": "2026-09-19"
+  },
+  "yibin-university": {
+    "lat": 28.790851,
+    "lng": 104.61259,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q30254151",
+    "verifiedOn": "2026-09-19"
+  },
+  "zhejiang-gongshang-university": {
+    "lat": 29.758075,
+    "lng": 119.637981,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q8070664",
+    "verifiedOn": "2026-09-19"
+  },
+  "zhejiang-international-studies-university": {
+    "lat": 30.222,
+    "lng": 120.029,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q16259712",
+    "verifiedOn": "2026-09-19"
+  },
+  "zhejiang-sci-tech-university": {
+    "lat": 30.31819,
+    "lng": 120.35123,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q8070672",
+    "verifiedOn": "2026-09-19"
+  },
+  "zhejiang-university": {
+    "lat": 30.263611,
+    "lng": 120.120833,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q197543",
+    "verifiedOn": "2026-09-19"
+  },
+  "zjut": {
+    "lat": 30.225778,
+    "lng": 120.039167,
+    "sourceUrl": "https://www.wikidata.org/wiki/Q986087",
+    "verifiedOn": "2026-09-19"
+  }
+}

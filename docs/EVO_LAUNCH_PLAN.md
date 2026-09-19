@@ -20,6 +20,33 @@ trigger in PostgREST 14. Preserve the existing identity denial, not the retry.
   still behaves correctly, error storm stops and CPU falls. No fake accounts,
   synthetic production records, broad suites or unrelated provider actions.
 
+## Other staff UX — active 2026-09-19
+
+Owner plan `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` (staff CRM only; portal/app
+and «Обзор руководителя» are excluded by the owner). Journal entry 2026-09-19
+«Adopt the Other staff-UX plan». Slices merge in order; migrations 186-190 are
+owner-applied, releases follow immediately after apply.
+
+Allocation update: incident PR #858 consumes migration186 before OTH-1. The
+186–190 numbers below are the original plan, not reserved slots: reallocate
+unmerged OTH migrations from the next free main slot before implementation/apply.
+
+- [ ] OTH-0: plan committed; the 11 inventoried explanatory paragraphs removed
+  from 8 staff components; removals pinned by `tests/v3-quiet-interface.test.mjs`.
+- [ ] OTH-1: «Воронка поступления» board — `pipeline_stage` + move RPC
+  (migration 186), `/v3/admissions-pipeline`, drag plus «Переместить в…»,
+  «Убрать из воронки»; curator `/v3/main` redirects to the board.
+- [ ] OTH-2: unified task composer (no upfront type choice) + task side panel;
+  notifications v2 — enriched rows, «Прочитать всё», case-task assignment,
+  due-tomorrow reminders (migration 187).
+- [ ] OTH-3: «Договор и оплата» on the unified card — contract files, tranches
+  on the canonical ledger, receipt files, computed оплачено/осталось
+  (migration 188).
+- [ ] OTH-4: «Добавить вуз» dialog from the case, optional program, author
+  attribution, submission marking (migration 189).
+- [ ] OTH-5: per-case staff chat — threads, quotes, «Обсудить» link-cards,
+  await states, notifications (migration 190); the student side stays an
+  explicit portal-plan dependency.
 
 ## Auth email — SMTP and templates saved, delivery pending, 2026-09-19
 

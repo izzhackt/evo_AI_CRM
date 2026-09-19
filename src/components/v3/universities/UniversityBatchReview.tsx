@@ -46,7 +46,7 @@ export function UniversityBatchReview({ initialRows }: { initialRows: readonly U
     } finally { busy.current = false; setRunning(false); setActive(""); }
   }
   return <div className="space-y-6">
-    <p className="max-w-3xl text-sm leading-6 text-fg-2">Проверьте подготовленные карточки по ссылкам ниже. Выберите страны и подтвердите публикацию. Сначала для каждой карточки сохраняется черновик, затем новая опубликованная версия. Существующие сведения не удаляются.</p>
+    <p className="max-w-3xl text-sm leading-6 text-fg-2">Существующие сведения не удаляются.</p>
     <p className="text-sm text-fg-2">Подготовлено: {rows.length}. Уже актуальны: {rows.filter((row) => row.state === "current").length}. Требуют сверки: {rows.filter((row) => row.state === "identity_conflict").length}.</p>
     <fieldset disabled={running} className="space-y-3">
       <legend className="mb-3 font-semibold text-fg">Страны и карточки для проверки</legend>

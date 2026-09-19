@@ -46,7 +46,16 @@ export async function importKnowledgeFile(file: File, entry: KnowledgeImportEntr
       const exact = pathMap.get(segments.join("/").normalize("NFC")) ?? pathMap.get((segments.join("/") + ".md").normalize("NFC"));
       if (exact) return exact;
       const candidates = entries.filter((e) => e.scope === entry.scope && e.nodeId && (e.relativePath.endsWith("/" + decoded) || e.relativePath.endsWith("/" + decoded + ".md")));
-      return candidates.length === 1 ? candidates[0] : null;
+      if (candidates.length === 1) return candidates[0];
+      // Notion exports can rename parent folders while retaining a stable id in the filename.
+      const basename = decoded.split("/").at(-1)?.normalize("NFC") ?? "";
+      if (!/[ _-][a-f0-9]{32}(?:\.[^/.]+)?$/i.test(basename)) return null;
+      const matches = entries.filter((e) => e.nodeId && e.area !== "secrets"
+        && e.relativePath.split("/").at(-1)?.normalize("NFC") === basename);
+      const sameScope = matches.filter((e) => e.scope === entry.scope);
+      const eligible = sameScope.length ? sameScope : matches;
+      if (!eligible.length || eligible.some((e) => !e.sha256) || new Set(eligible.map((e) => e.sha256)).size !== 1) return null;
+      return [...eligible].sort((a, b) => a.nodeId!.localeCompare(b.nodeId!))[0];
     };
     const link = (target: KnowledgeImportEntry, embedded: boolean, original: string) => {
       const fragment = original.includes("#") ? "#" + original.split("#").slice(1).join("#") : "";

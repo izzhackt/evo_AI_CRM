@@ -18,7 +18,7 @@ export default async function StudentPortalPaymentsPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{getPortalStrings("admission", getLocale()).kicker}</p>
+        <p className="pt-page-kicker">{getPortalStrings("admission", await getLocale()).kicker}</p>
         <h1 className="pt-page-title">Оплата</h1>
         <p className="pt-page-lead">Сколько начислено, оплачено и осталось.</p>
       </header>

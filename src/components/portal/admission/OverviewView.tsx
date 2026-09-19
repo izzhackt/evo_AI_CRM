@@ -50,8 +50,8 @@ function ActionRow({ action }: { action: StudentPortalAction }) {
  * контракты прежние: E2 DTO из portal-source, null-семантика 189 сохранена
  * (dueAt: null = «без срока» → «Не указан»).
  */
-export function OverviewView({ overview, pending = false }: { overview: StudentPortalOverview | null; pending?: boolean }) {
-  const admissionStrings = getPortalStrings("admission", getLocale());
+export async function OverviewView({ overview, pending = false }: { overview: StudentPortalOverview | null; pending?: boolean }) {
+  const admissionStrings = getPortalStrings("admission", await getLocale());
   const primary = overview?.studentAction ?? null;
   const remaining = overview?.studentActions.slice(1) ?? [];
   const evoAction = overview?.evoAction ?? null;

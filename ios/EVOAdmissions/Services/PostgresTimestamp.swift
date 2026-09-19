@@ -33,6 +33,19 @@ enum PostgresTimestamp {
         formatter.timeStyle = .none
         return formatter.string(from: date)
     }
+
+    /// Chat timestamp: «19 сентября, 14:05» in the portal's fixed timezone
+    /// Asia/Bishkek — the same convention as the web thread
+    /// (src/components/portal/messages/MessagesThread.tsx: Intl format with
+    /// day numeric + month long + HH:mm, timeZone Asia/Bishkek).
+    static func chatLabel(from raw: String, locale: Locale) -> String? {
+        guard let date = date(from: raw) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = TimeZone(identifier: "Asia/Bishkek")
+        formatter.setLocalizedDateFormatFromTemplate("d MMMM HH:mm")
+        return formatter.string(from: date)
+    }
 }
 
 /// Formatting for the catalogue's plain-date content fields

@@ -4,6 +4,10 @@ import SwiftUI
 /// (с institution_id) или из профиля (без). Отправка идемпотентна по
 /// request_id; при уже открытом запросе сервер возвращает ЕГО receipt —
 /// экран честно говорит, что новый запрос не создавался (one-open, 197:146-152).
+/// Паритет с вебом (ConsultationRequest.tsx): request_id СТАБИЛЕН на показ
+/// формы — ретрай после сетевой ошибки не плодит запросы и честно читается
+/// как «отправлено», а уже открытый запрос показывается СРАЗУ при открытии
+/// (own_portal_consultation_requests_v1) — форма не предлагает создать дубль.
 /// ПРИВАТНОСТЬ (план §6/§14): к запросу не прикрепляются результаты тестов —
 /// уходит только свободный текст ученика и явно выбранный вуз.
 @MainActor
@@ -19,6 +23,9 @@ final class ConsultationRequestViewModel: ObservableObject {
     @Published var note = ""
     @Published var state: SubmitState = .idle
 
+    /// Стабилен на всю попытку (веб: useState(crypto.randomUUID)): повтор
+    /// «Отправить» после сети возвращает исходный receipt, не второй запрос.
+    private let requestId = UUID()
     private let service: SupabaseService
 
     init(service: SupabaseService = .shared) {
@@ -31,10 +38,20 @@ final class ConsultationRequestViewModel: ObservableObject {
         return note.count <= 500
     }
 
+    /// Открытый запрос на момент открытия формы показывается сразу
+    /// (веб-паттерн initialOpenRequest). Ошибка чтения истории форму не
+    /// блокирует: сервер всё равно не создаст дубль (one-open в БД).
+    func loadOpenRequest() async {
+        guard case .idle = state else { return }
+        guard let requests = try? await service.ownConsultationRequests() else { return }
+        if case .idle = state, let open = requests.first(where: { $0.isOpen }) {
+            state = .sent(open, alreadyOpen: true)
+        }
+    }
+
     func submit(institutionId: UUID?) async {
         guard canSubmit else { return }
         state = .sending
-        let requestId = UUID()
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
             let receipt = try await service.createConsultationRequest(
@@ -133,6 +150,7 @@ struct ConsultationRequestSheet: View {
             }
             .navigationTitle("consultation_heading")
             .navigationBarTitleDisplayMode(.inline)
+            .task { await model.loadOpenRequest() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if case .sent = model.state {

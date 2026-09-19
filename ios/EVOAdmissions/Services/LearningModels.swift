@@ -2,9 +2,9 @@ import Foundation
 
 /// Codable mirrors of the learning READ contracts in
 /// `supabase/migrations/198_platform_learning_engine.sql` (content seeded by
-/// migration 199). This wave ships the read slice only — module map and
-/// lesson-content view; the iOS lesson runner (start/save/complete writes)
-/// is a separate later slice, so write receipts are not modelled here.
+/// migration 199): module map and lesson projection. The write/runner slice
+/// (answer payloads, save receipts, review) lives in
+/// `LearningRunnerModels.swift` on top of these types.
 ///
 /// Privacy (198 header, plan §6/§8.5): learning progress is owner-private —
 /// values from these types never go into logs or error messages.
@@ -186,19 +186,30 @@ struct LearningReadingQuestion: Decodable, Identifiable {
 }
 
 /// Own attempt payload `platform_private.learning_attempt_payload`
-/// (198:701-722), decoded WITHOUT the `answers` object: the read slice only
-/// surfaces progress facts; per-answer verdicts/explains belong to the
-/// runner slice. `result` is null for drafts (table CHECK 198:96-98).
+/// (198:701-722) — also the receipt shape of `start_learning_lesson_v1`
+/// (198:788) and `complete_learning_lesson_v1` (198:852). `answers` maps
+/// exercise-id strings to the stored answer merged with its verdict and
+/// explain (198:708-713) — present ONLY for answered exercises; `{}` when
+/// nothing is answered yet. `result` is null for drafts (CHECK 198:96-98).
 struct LearningAttemptSnapshot: Decodable {
     let attemptId: UUID
     let lessonId: UUID
     /// draft | completed (CHECK 198:86).
     let status: String
     let revision: Int64
+    let answers: [String: LearningAnswerRecord]
     let answeredCount: Int
     let exercisesTotal: Int
     let result: LearningLessonResult?
     let createdAt: String
     let updatedAt: String
     let completedAt: String?
+
+    var isDraft: Bool { status == "draft" }
+    var isCompleted: Bool { status == "completed" }
+
+    /// The stored record for one exercise, if answered.
+    func record(for exerciseId: UUID) -> LearningAnswerRecord? {
+        answers[exerciseId.uuidString.lowercased()]
+    }
 }

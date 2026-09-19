@@ -54,8 +54,11 @@ source of truth for structural changes.
   (one question per screen, debounced autosave, retry with the same
   `request_id`, revision-conflict reload, save-and-exit protection) +
   `AssessmentResultView` (bands/topics/feedback, ORVIS scales — no CEFR),
-  `ProfileView` (name, email, honest access line, app version, sign out),
-  `PlaceholderView` for «Моё поступление».
+  `LessonRunnerView` + `ReviewRunnerView` (lesson runner and wrong-answer
+  review per migration 198 — verdict/explain from the save receipt, frozen
+  idempotent retries), `MyAdmissionView` (assisted: case status +
+  `MessagesThreadView`, the student case chat of migration 200),
+  `ProfileView` (name, email, honest access line, app version, sign out).
 - **`Resources/Localizable.xcstrings`** — String Catalog, `ru` base, complete
   `ky` for every string. `developmentLanguage: ru` in `project.yml` so the
   simulator (device locale `en`) still falls back to `ru`, not raw keys.
@@ -97,6 +100,35 @@ App Store step (plan §13), not made here.
 - **Anketa / case-less flow on phone** — a student authority with zero or
   more-than-one case routes to `AccessPendingView` in v1; the case-less
   application flow is explicitly out of scope for PORT-2 (plan/ADR 0030).
+
+## What was verified for wave 7 (раннер уроков / консультация / сообщения)
+
+- Contracts: migrations 198/199 (lesson runner writes + review), 197
+  (consultation one-open parity fixes), 200 (student case chat). Codable
+  mirrors live in `Services/LearningRunnerModels.swift` and
+  `Services/PortalCaseChatModels.swift`, each field commented with its SQL
+  source lines; answer KEYS never exist client-side (projection 198:519-561),
+  verdicts and explains render from the save-RPC receipt only.
+- `xcodebuild … build` and `xcodebuild … test` for `iPhone 17 Pro` — both
+  exit code 0; 28 new tests (runner/chat decoder fixtures hand-written from
+  the 197/198/200 return shapes + pure-policy units for resume index,
+  frozen-request retry, matching permutation draft, thread merge).
+- «Моё поступление» is no longer a placeholder: case status + «Сообщения»;
+  documents/payments/notifications honestly marked as the next wave.
+- **Exercised live, read-only** (`docs/wave7-*.png`): the simulator's
+  Keychain already held a QA-student session from earlier verification — no
+  sign-in was performed in this session and no credentials were touched.
+  With that pre-existing session the new screens were OPENED against the
+  production RPCs (all screen-open calls are STABLE reads): «Моё
+  поступление», the messages thread (empty-state + composer), the lesson
+  screen with the runner entry, «Повторение ошибок» (honest empty bank) and
+  the consultation form (open-request preload found none).
+- **Not exercised live** (would be production writes — deliberately not
+  performed): lesson start/save/complete receipts, review checks, chat
+  sending/pagination/polling over real data, consultation submit, verdict
+  and explain rendering with live receipts, the approved-tier tab set, and
+  the KY locale run. All of it is implemented against the documented SQL
+  contracts and covered at the decoder-fixture/policy-unit level.
 
 ## What was verified for wave 5 (избранное/профиль/консультация/обучение-read)
 

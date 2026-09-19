@@ -82,6 +82,8 @@ targets:
       - path: EVOAdmissions/Services/PortalProfileModels.swift
       - path: EVOAdmissions/Services/ConsultationModels.swift
       - path: EVOAdmissions/Services/LearningModels.swift
+      - path: EVOAdmissions/Services/LearningRunnerModels.swift
+      - path: EVOAdmissions/Services/PortalCaseChatModels.swift
       - path: EVOAdmissions/Services/ProfessionModels.swift
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources

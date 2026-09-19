@@ -304,6 +304,9 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     // но не были внесены в allowlist прокси — этот hotfix закрывает разрыв.
     "/portal/favorites",
     "/portal/profile",
+    "/portal/english",
+    "/portal/english/review",
+    "/portal/professions",
   ];
   const authRoutes = [
     "/auth/callback",
@@ -323,12 +326,26 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     assert.equal(isConnectedPlatformPage(path), true, path);
     assert.equal(isRetiredPlatformRoute(path), false, path);
   }
+  // PORT-4c: uuid-детали урока и профессии — ровно один сегмент-id.
+  const detailId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  for (const path of [
+    `/portal/english/lesson/${detailId}`,
+    `/portal/professions/${detailId}`,
+  ]) {
+    assert.equal(isConnectedStudentPortalPage(path), true, path);
+    assert.equal(isConnectedPlatformPage(path), true, path);
+  }
+
   for (const path of [
     "/portal/",
     "/portal/profile/child",
     "/portal/documents/child",
     "/portal/tests/unknown",
     "/portal/tests/english/child",
+    "/portal/english/lesson/not-an-id",
+    `/portal/english/lesson/${detailId}/child`,
+    "/portal/professions/not-an-id",
+    `/portal/professions/${detailId}/edit`,
     "/auth/callback/",
     "/auth/set-password/child",
     "/auth/unknown",

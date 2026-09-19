@@ -59,8 +59,9 @@ test("CI Node suite runs the former security and unit surface once", () => {
   ]);
   assert.match(packageJson.scripts["pretest:unit"], /--suite unit --validate-only/u);
   assert.match(packageJson.scripts["test:ci:node"], /run-node-test-suite\.mjs --suite ci/u);
-  assert.equal(plan.occurrenceCount, 342); // актуализировано под текущий состав сьюта (+1 здесь: tests/portal-consultation.test.mjs, PORT-5b)
-  assert.equal(plan.uniqueFileCount, 203); // актуализировано вместе с occurrenceCount выше
+  assert.equal(plan.occurrenceCount, 344); // union PORT-5b + PORT-4c (+3 файла)
+  assert.equal(plan.uniqueFileCount, 204);
+  assert.equal(plan.uniqueFileCount, 204); // актуализировано вместе с occurrenceCount выше
   assert.equal(plan.duplicateCount, 139);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.equal(new Set(plan.files).size, plan.files.length);
@@ -127,8 +128,9 @@ test("local unit command preserves its full logical surface without hidden hooks
     entryScripts: UNIT_ENTRY_SCRIPTS,
   });
   assert.match(packageJson.scripts["test:unit"], /run-node-test-suite\.mjs --suite unit/u);
-  assert.equal(plan.occurrenceCount, 240); // актуализировано под текущий состав unit-плана (+1: tests/portal-consultation.test.mjs, PORT-5b)
-  assert.equal(plan.uniqueFileCount, 198); // актуализировано вместе с occurrenceCount выше
+  assert.equal(plan.occurrenceCount, 242); // union PORT-5b + PORT-4c (+3 файла)
+  assert.equal(plan.uniqueFileCount, 199);
+  assert.equal(plan.uniqueFileCount, 199); // актуализировано вместе с occurrenceCount выше
   assert.equal(plan.duplicateCount, 42);
   assert.equal(plan.files.includes("tests/student-portal-assessment-preview.test.mjs"), false);
   assert.ok(plan.files.includes("tests/staff-auth-failure.test.mjs"));

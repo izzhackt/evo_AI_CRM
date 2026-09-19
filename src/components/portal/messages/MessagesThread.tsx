@@ -174,14 +174,15 @@ export function MessagesThread({
                 {message.body !== "" ? (
                   <p className="pt-chat-body">{message.body}</p>
                 ) : null}
-                {message.attachmentKind !== null ? (
+                {/* Контракт 191→200 §6: карточки-ссылки на задачи в портале не
+                    показываются вовсе (kind=case_task пропускается; RPC 200 и
+                    так отдаёт для них label NULL). Документные карточки —
+                    только подпись под portal authz. */}
+                {message.attachmentKind === "document" ? (
                   <p className="pt-chat-attachment">
-                    {formatPortalString(
-                      message.attachmentKind === "document"
-                        ? strings.attachmentDocument
-                        : strings.attachmentTask,
-                      { label: message.attachmentLabel ?? "—" },
-                    )}
+                    {formatPortalString(strings.attachmentDocument, {
+                      label: message.attachmentLabel ?? "—",
+                    })}
                   </p>
                 ) : null}
                 <p className="pt-chat-meta">

@@ -24,7 +24,14 @@
 --          A, their post lands in their own case;
 --   (vii)  staff, anon and service_role are all denied on the portal RPCs;
 --   (viii) body validation is 22023 (empty, too long, control characters);
---   (ix)   before-cursor pagination excludes newer messages.
+--   (ix)   before-cursor pagination excludes newer messages;
+--   (x)    attachment link-cards keep staff boundaries (contract 191->200 §6):
+--          a case task's title NEVER reaches the student (attachmentLabel is
+--          NULL while the staff 191 RPC still resolves it), a removed document
+--          slot resolves to NULL (the post-192 student_portal_documents
+--          semantics), a live document slot still resolves its label, and
+--          over-long labels / author names are truncated SQL-side so one
+--          staff row can never brick the fail-closed client parser.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -134,9 +141,10 @@ GRANT SELECT ON p200_actors TO authenticated;
 SELECT claims AS p200_admin FROM p200_actors WHERE n = 1 \gset
 
 -- ---------------------------------------------------------------------------
--- Grant the curator 'case.read.full' + 'case.update.append' at 'own' scope
--- (the 155/173 surface, exactly as 191's own suite does) so the staff-side
--- 191 RPC calls below are REAL curator calls, not admin shortcuts.
+-- Grant the curator 'case.read.full' + 'case.update.append' + 'task.manage'
+-- at 'own' scope (the 155/173 surface, exactly the role 191's own suite
+-- builds) so the staff-side 191 RPC calls below are REAL curator calls, not
+-- admin shortcuts, and the curator can hold the (7b) task assignment.
 -- ---------------------------------------------------------------------------
 SET request.jwt.claims TO :'p200_admin';
 SET ROLE authenticated;
@@ -145,7 +153,7 @@ SELECT platform.staff_role_command(
   jsonb_build_object(
     'label', 'P200 Curator casework',
     'description', 'Migration 200 synthetic curator casework role',
-    'permissionKeys', jsonb_build_array('case.read.full', 'case.update.append')
+    'permissionKeys', jsonb_build_array('case.read.full', 'case.update.append', 'task.manage')
   ),
   'P200 create curator casework role', pg_temp.p200_id(811)
 ) AS p200_role_created \gset
@@ -362,6 +370,130 @@ SELECT pg_temp.p200_assert(
 );
 
 -- ===========================================================================
+-- (7b) Attachment link-cards keep staff boundaries (contract 191->200 §6).
+-- Fixtures: one NOT-student_visible case task on case A; three document
+-- requirements (a normal label, an over-long 340-char label, and one whose
+-- slot gets removed after the post). The curator attaches all four through
+-- THEIR unchanged 191 command; the student read must withhold the task title
+-- entirely, drop the removed slot's label, keep the live one, and truncate
+-- over-long labels/author names SQL-side.
+-- ===========================================================================
+INSERT INTO platform.document_requirements(
+  id, organization_id, target_country, target_degree, program_direction, checklist_version,
+  requirement_key, label, instructions, created_by_membership_id
+) VALUES
+  (pg_temp.p200_id(700), pg_temp.p200_id(1), 'China', 'Bachelor', 'Engineering', 1,
+   'p200_passport_copy', 'P200 Копия паспорта', 'P200 synthetic requirement', pg_temp.p200_id(301)),
+  (pg_temp.p200_id(701), pg_temp.p200_id(1), 'China', 'Bachelor', 'Engineering', 1,
+   'p200_overlong_label', 'P200 ' || repeat('x', 335), 'P200 over-long label requirement', pg_temp.p200_id(301)),
+  (pg_temp.p200_id(702), pg_temp.p200_id(1), 'China', 'Bachelor', 'Engineering', 1,
+   'p200_removed_slot', 'P200 Удалённое требование', 'P200 removed-slot requirement', pg_temp.p200_id(301));
+INSERT INTO platform.document_slots(id, organization_id, student_case_id, requirement_id, created_by_membership_id)
+  VALUES
+    (pg_temp.p200_id(710), pg_temp.p200_id(1), pg_temp.p200_id(501), pg_temp.p200_id(700), pg_temp.p200_id(301)),
+    (pg_temp.p200_id(711), pg_temp.p200_id(1), pg_temp.p200_id(501), pg_temp.p200_id(701), pg_temp.p200_id(301)),
+    (pg_temp.p200_id(712), pg_temp.p200_id(1), pg_temp.p200_id(501), pg_temp.p200_id(702), pg_temp.p200_id(301));
+
+-- The case task is deliberately student_visible = FALSE: the exact row 069/089
+-- hide from the student, so a resolved title here would be a real leak.
+SET LOCAL request.jwt.claims TO :'p200_admin';
+SET LOCAL ROLE authenticated;
+SELECT platform.create_case_task(pg_temp.p200_id(1), pg_temp.p200_id(501), 'follow_up',
+  'P200 case A task', pg_temp.p200_id(302), 'normal', NULL, NULL, 'open', FALSE, 0,
+  pg_temp.p200_id(906))::TEXT AS p200_task_created \gset
+RESET ROLE;
+SELECT (:'p200_task_created'::JSONB ->> 'case_task_id')::UUID AS p200_task_a \gset
+
+SET LOCAL request.jwt.claims TO :'p200_curator';
+SET LOCAL ROLE authenticated;
+SELECT platform.case_chat_command(pg_temp.p200_id(1), pg_temp.p200_id(501), pg_temp.p200_id(907),
+  jsonb_build_object('mode', 'post', 'body', NULL, 'quotedMessageId', NULL, 'attachmentKind', 'case_task', 'attachmentId', :'p200_task_a')
+)::TEXT AS p200_post_task_card \gset
+SELECT platform.case_chat_command(pg_temp.p200_id(1), pg_temp.p200_id(501), pg_temp.p200_id(908),
+  jsonb_build_object('mode', 'post', 'body', NULL, 'quotedMessageId', NULL, 'attachmentKind', 'document', 'attachmentId', pg_temp.p200_id(710))
+)::TEXT AS p200_post_live_doc \gset
+SELECT platform.case_chat_command(pg_temp.p200_id(1), pg_temp.p200_id(501), pg_temp.p200_id(909),
+  jsonb_build_object('mode', 'post', 'body', NULL, 'quotedMessageId', NULL, 'attachmentKind', 'document', 'attachmentId', pg_temp.p200_id(712))
+)::TEXT AS p200_post_removed_doc \gset
+SELECT platform.case_chat_command(pg_temp.p200_id(1), pg_temp.p200_id(501), pg_temp.p200_id(910),
+  jsonb_build_object('mode', 'post', 'body', NULL, 'quotedMessageId', NULL, 'attachmentKind', 'document', 'attachmentId', pg_temp.p200_id(711))
+)::TEXT AS p200_post_overlong_doc \gset
+RESET ROLE;
+SELECT (:'p200_post_task_card'::JSONB ->> 'messageId')::UUID AS p200_message_task_card \gset
+SELECT (:'p200_post_live_doc'::JSONB ->> 'messageId')::UUID AS p200_message_live_doc \gset
+SELECT (:'p200_post_removed_doc'::JSONB ->> 'messageId')::UUID AS p200_message_removed_doc \gset
+SELECT (:'p200_post_overlong_doc'::JSONB ->> 'messageId')::UUID AS p200_message_overlong_doc \gset
+
+-- After the posts: remove slot 712 (the link-card now points at a removed
+-- slot) and give the curator an over-long display name. Replica mode keeps
+-- side-effect triggers out so no actor's access version drifts mid-suite;
+-- neither row shape is otherwise CHECK-bounded (042/043) -- which is exactly
+-- why the RPC truncates.
+SET LOCAL session_replication_role = replica;
+UPDATE platform.document_slots
+  SET removed_at = clock_timestamp(), removed_by_membership_id = pg_temp.p200_id(302),
+    removal_reason = 'P200 slot removed after the link-card was posted'
+  WHERE id = pg_temp.p200_id(712) AND organization_id = pg_temp.p200_id(1);
+UPDATE platform.profiles SET display_name = 'P200 ' || repeat('n', 245)
+  WHERE id = pg_temp.p200_id(202);
+SET LOCAL session_replication_role = origin;
+
+SET LOCAL request.jwt.claims TO :'p200_student_a';
+SET LOCAL ROLE authenticated;
+SELECT platform.portal_case_chat_page_v1()::TEXT AS p200_page_attachments \gset
+RESET ROLE;
+
+SELECT pg_temp.p200_assert(
+  (SELECT item ->> 'attachmentKind' = 'case_task' AND item -> 'attachmentLabel' = 'null'::JSONB
+   FROM jsonb_array_elements(:'p200_page_attachments'::JSONB -> 'messages') item
+   WHERE item ->> 'id' = :'p200_message_task_card'::TEXT),
+  'contract §6: a case task link-card reaches the student WITHOUT the task title -- attachmentLabel is NULL'
+);
+SELECT pg_temp.p200_assert(
+  position('P200 case A task' IN :'p200_page_attachments') = 0,
+  'the task title never appears anywhere in the serialized student page'
+);
+SELECT pg_temp.p200_assert(
+  (SELECT item ->> 'attachmentLabel' = 'P200 Копия паспорта'
+   FROM jsonb_array_elements(:'p200_page_attachments'::JSONB -> 'messages') item
+   WHERE item ->> 'id' = :'p200_message_live_doc'::TEXT),
+  'a LIVE document slot still resolves its requirement label for the student (the withholding is task-specific, not blanket)'
+);
+SELECT pg_temp.p200_assert(
+  (SELECT item ->> 'attachmentKind' = 'document' AND item -> 'attachmentLabel' = 'null'::JSONB
+   FROM jsonb_array_elements(:'p200_page_attachments'::JSONB -> 'messages') item
+   WHERE item ->> 'id' = :'p200_message_removed_doc'::TEXT),
+  'a REMOVED document slot resolves to label NULL (post-192 student_portal_documents semantics)'
+);
+SELECT pg_temp.p200_assert(
+  (SELECT char_length(item ->> 'attachmentLabel') = 300
+      AND item ->> 'attachmentLabel' = left('P200 ' || repeat('x', 335), 300)
+   FROM jsonb_array_elements(:'p200_page_attachments'::JSONB -> 'messages') item
+   WHERE item ->> 'id' = :'p200_message_overlong_doc'::TEXT),
+  'an over-long document label is truncated to 300 characters SQL-side, inside the strict client parser cap'
+);
+SELECT pg_temp.p200_assert(
+  (SELECT char_length(item ->> 'authorName') = 200
+   FROM jsonb_array_elements(:'p200_page_attachments'::JSONB -> 'messages') item
+   WHERE item ->> 'id' = :'p200_message_task_card'::TEXT),
+  'an over-long author display name is truncated to 200 characters SQL-side'
+);
+
+-- Discriminating counterpart: the SAME task message through the curator's
+-- UNCHANGED 191 read RPC still resolves the title -- the data exists, and
+-- only the portal RPC withholds it.
+SET LOCAL request.jwt.claims TO :'p200_curator';
+SET LOCAL ROLE authenticated;
+SELECT platform.case_chat_read_page_v1(pg_temp.p200_id(1), pg_temp.p200_id(501))::TEXT AS p200_staff_page_attachments \gset
+RESET ROLE;
+SELECT pg_temp.p200_assert(
+  (SELECT item ->> 'attachmentKind' = 'case_task' AND item ->> 'attachmentLabel' = 'P200 case A task'
+   FROM jsonb_array_elements(:'p200_staff_page_attachments'::JSONB -> 'messages') item
+   WHERE item ->> 'id' = :'p200_message_task_card'::TEXT),
+  'the staff 191 RPC still resolves the SAME task card''s title -- the portal withholding is a boundary, not missing data'
+);
+
+-- ===========================================================================
 -- (8) A pending-case (approved-tier) student is denied on BOTH portal RPCs:
 -- «Общение» belongs to сопровождение (plan §4, the 192 gate).
 -- ===========================================================================
@@ -474,8 +606,8 @@ RESET ROLE;
 -- ===========================================================================
 SELECT pg_temp.p200_assert(
   (SELECT count(*) FROM platform.case_chat_messages
-    WHERE organization_id = pg_temp.p200_id(1) AND student_case_id = pg_temp.p200_id(501)) = 2,
-  'case A holds exactly the student post and the curator reply'
+    WHERE organization_id = pg_temp.p200_id(1) AND student_case_id = pg_temp.p200_id(501)) = 6,
+  'case A holds exactly the student post, the curator reply and the four (7b) attachment link-cards'
 );
 SELECT pg_temp.p200_assert(
   (SELECT count(*) FROM platform.case_chat_messages

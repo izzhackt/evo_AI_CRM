@@ -158,19 +158,30 @@ BEGIN
   ids := ids[1:30];
   SELECT coalesce(min(m.sequence_id), 0) INTO next_cursor FROM platform.case_chat_messages m WHERE m.id = ANY(ids);
 
-  -- Строка сообщения для студента: подписи вместо raw id (label документа /
-  -- заголовок задачи — staff может приложить карточку-ссылку, 191 secция c),
-  -- превью цитаты, признак «моё». Ответы и результаты тестов сюда попасть не
-  -- могут — чат не имеет к ним доступа ни в одной ветке.
+  -- Строка сообщения для студента: подпись вместо raw id, превью цитаты,
+  -- признак «моё». Ответы и результаты тестов сюда попасть не могут — чат не
+  -- имеет к ним доступа ни в одной ветке.
+  --
+  -- Границы label (интеграционный контракт 191→200, §6 «task link-cards в
+  -- портале не показывать»):
+  --   * case_task — staff-сущность со СВОЕЙ границей видимости для студента
+  --     (case_tasks.student_visible, 069/089); этот RPC её не пересекает:
+  --     заголовок задачи студенту НЕ резолвится никогда — attachmentLabel
+  --     остаётся NULL, UI карточку задачи не рендерит вовсе;
+  --   * document — только живой слот (removed_at IS NULL — та же семантика,
+  --     что student_portal_documents после 192); удалённый слот → NULL;
+  --   * left(..., 300/200) — в case_tasks.title и document_requirements.label
+  --     нет верхнего CHECK (042/043), а строгий клиентский парсер fail-closed
+  --     отклоняет всю страницу целиком: одна сверхдлинная staff-строка не
+  --     должна «окирпичивать» тред (паттерн quote-preview left(...) 140-й).
   SELECT coalesce(jsonb_agg(jsonb_build_object(
       'id', m.id, 'sequenceId', m.sequence_id::TEXT,
       'mine', m.author_membership_id = gate.membership_id,
-      'authorName', author_profile.display_name,
+      'authorName', left(author_profile.display_name, 200),
       'body', m.body, 'createdAt', m.created_at,
       'attachmentKind', m.attachment_kind,
       'attachmentLabel', CASE
-        WHEN m.attachment_kind = 'document' THEN document_requirement.label
-        WHEN m.attachment_kind = 'case_task' THEN case_task.title
+        WHEN m.attachment_kind = 'document' THEN left(document_requirement.label, 300)
         ELSE NULL END,
       'quotedBodyPreview', CASE WHEN quoted.id IS NOT NULL THEN left(quoted.body, 140) ELSE NULL END
     ) ORDER BY m.sequence_id DESC), '[]'::JSONB)
@@ -184,10 +195,9 @@ BEGIN
     AND quoted.id = m.quoted_message_id
   LEFT JOIN platform.document_slots document_slot
     ON m.attachment_kind = 'document' AND document_slot.organization_id = gate.organization_id AND document_slot.id = m.attachment_id
+    AND document_slot.removed_at IS NULL
   LEFT JOIN platform.document_requirements document_requirement
     ON document_requirement.organization_id = gate.organization_id AND document_requirement.id = document_slot.requirement_id
-  LEFT JOIN platform.case_tasks case_task
-    ON m.attachment_kind = 'case_task' AND case_task.organization_id = gate.organization_id AND case_task.id = m.attachment_id
   WHERE m.organization_id = gate.organization_id AND m.student_case_id = gate.student_case_id AND m.id = ANY(ids);
 
   SELECT * INTO thread FROM platform.case_chat_threads t

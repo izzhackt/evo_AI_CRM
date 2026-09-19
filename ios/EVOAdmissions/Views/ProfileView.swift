@@ -29,6 +29,11 @@ final class ProfileViewModel: ObservableObject {
 
     @Published var selectedLanguage = "ru"
     @Published var languageState: LanguageState = .idle
+    /// Baseline for the save-button visibility check: the LAST-SAVED language
+    /// (server receipt), not the value loaded at app launch — updated on
+    /// every successful `saveLanguage()` so switching back after a save
+    /// doesn't require a relaunch.
+    @Published var lastSavedLanguage = "ru"
 
     /// Отметка открытого запроса удаления: серверная (из профиля) или
     /// только что полученная receipt'ом. nil — открытого запроса нет.
@@ -52,6 +57,7 @@ final class ProfileViewModel: ObservableObject {
             let profile = try await service.getOwnPortalProfile()
             self.profile = profile
             selectedLanguage = profile.portalLanguage
+            lastSavedLanguage = profile.portalLanguage
             deletionRequestedAt = profile.deletionRequestedAt
         } catch {
             profileLoadFailed = true
@@ -79,6 +85,7 @@ final class ProfileViewModel: ObservableObject {
         do {
             let receipt = try await service.setOwnPortalLanguage(selectedLanguage)
             UserDefaults.standard.set([receipt.portalLanguage], forKey: "AppleLanguages")
+            lastSavedLanguage = receipt.portalLanguage
             languageState = .saved
         } catch {
             languageState = .failed
@@ -206,9 +213,12 @@ struct ProfileView: View {
             .pickerStyle(.menu)
             .disabled(model.profile == nil)
 
-            if model.profile != nil,
-               model.selectedLanguage != model.profile?.portalLanguage
-                || model.languageState == .saving {
+            if ProfileLanguagePolicy.showsSaveButton(
+                hasProfile: model.profile != nil,
+                selectedLanguage: model.selectedLanguage,
+                lastSavedLanguage: model.lastSavedLanguage,
+                isSaving: model.languageState == .saving
+            ) {
                 Button {
                     Task { await model.saveLanguage() }
                 } label: {

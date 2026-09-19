@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */; };
+		C6E08217A89DEF409825152D /* ProfileLanguagePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC275BCFCF57759BD3D6AC4 /* ProfileLanguagePolicyTests.swift */; };
 		03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */; };
 		065D3387E3057F66A131EE28 /* university-photo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 47EC7DEB3936306868625BE9 /* university-photo-library.json */; };
 		10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 005949937B65067CD79CB062 /* Localizable.xcstrings */; };
@@ -67,6 +68,7 @@
 		0B849158C9D6896582F6522A /* PortalProfileDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalProfileDecodingTests.swift; sourceTree = "<group>"; };
 		1138EB3C6CFD2299FADB8FB4 /* UniversityPhotoLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityPhotoLibraryTests.swift; sourceTree = "<group>"; };
 		122B8F39ABA8651CEF454758 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		7CC275BCFCF57759BD3D6AC4 /* ProfileLanguagePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileLanguagePolicyTests.swift; sourceTree = "<group>"; };
 		1748B57341B5875DDEAC04BB /* PortalProfileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalProfileModels.swift; sourceTree = "<group>"; };
 		17B36978FE6CEE29DDAC580E /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		1E3A48D9B01EEF280AD9AD95 /* ProfessionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionModels.swift; sourceTree = "<group>"; };
@@ -207,6 +209,7 @@
 				AD470A4B4BA2C62E1BB38F1B /* ConsultationDecodingTests.swift */,
 				2D2DFEDB36585854B8AF9A88 /* FavoritesDecodingTests.swift */,
 				79B0F15B1070867453F272AE /* LearningDecodingTests.swift */,
+				7CC275BCFCF57759BD3D6AC4 /* ProfileLanguagePolicyTests.swift */,
 				0B849158C9D6896582F6522A /* PortalProfileDecodingTests.swift */,
 				C1649B16320704E7A7DCB7DC /* ProfessionDecodingTests.swift */,
 				259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */,
@@ -377,6 +380,7 @@
 				387AEEB179AE91F1D8DEF13B /* PortalModels.swift in Sources */,
 				C53B666A03158F0CE806EF28 /* PortalProfileDecodingTests.swift in Sources */,
 				92ABBB46D6C78E6254FF0F02 /* PortalProfileModels.swift in Sources */,
+				C6E08217A89DEF409825152D /* ProfileLanguagePolicyTests.swift in Sources */,
 				6F0D140939ADB6FFC3F90AEE /* PostgresTimestamp.swift in Sources */,
 				2EBF539E80CC079239E5AD98 /* ProfessionDecodingTests.swift in Sources */,
 				6629B0AAAFDFDB6C2FD70F0B /* ProfessionModels.swift in Sources */,

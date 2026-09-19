@@ -37,3 +37,24 @@ struct AccountDeletionReceipt: Decodable {
     let status: String
     let requestedAt: String
 }
+
+/// Pure predicate for ProfileView's "save language" button visibility.
+///
+/// The baseline MUST be the LAST-SAVED language (the most recent server
+/// receipt), never the value loaded once at app launch — comparing against
+/// launch-time data means that after a successful save, switching the
+/// picker back to the original language reads as "already saved" and hides
+/// the button until the app restarts. `ProfileViewModel` keeps
+/// `lastSavedLanguage` updated on both `load()` and a successful
+/// `saveLanguage()` and calls through this policy so the rule lives in one
+/// place and is testable without a network round trip.
+enum ProfileLanguagePolicy {
+    static func showsSaveButton(
+        hasProfile: Bool,
+        selectedLanguage: String,
+        lastSavedLanguage: String,
+        isSaving: Bool
+    ) -> Bool {
+        hasProfile && (selectedLanguage != lastSavedLanguage || isSaving)
+    }
+}

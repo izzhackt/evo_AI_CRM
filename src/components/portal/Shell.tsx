@@ -38,6 +38,10 @@ export type PortalAccessTier = "approved" | "assisted";
  * оба tier'а по дизайн-контракту).
  */
 const SECTIONS = [
+  // PORT-9c: «Главная» — отдельный маршрут; /portal остаётся «Моим
+  // поступлением» (замороженные смоук-якоря: вход после логина, заголовок и
+  // ссылка a[href="/portal"] в этом nav).
+  { href: "/portal/home", key: "nav.home", tiers: ["approved", "assisted"] },
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
   { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
@@ -68,6 +72,8 @@ function NavigationLabel({ label, opening }: { label: string; opening: string })
 
 function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] }) {
   const paths: Record<(typeof SECTIONS)[number]["key"], string> = {
+    // Главная: дом.
+    "nav.home": "M3.5 9.5 10 3.5l6.5 6M5.5 8.2V16h9V8.2M8.5 16v-4h3v4",
     // Поступление: флажок у цели маршрута.
     "nav.overview": "M5 17V3.5M5 3.5h9.5l-2 3.5 2 3.5H5",
     // Документы: лист с загнутым углом.

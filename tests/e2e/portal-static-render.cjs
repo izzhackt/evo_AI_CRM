@@ -76,6 +76,8 @@ const { ConsultationRequest } = require(join(ROOT, "src/components/portal/consul
 const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCatalog.tsx"));
 const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/AssessmentRunner.tsx"));
 const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/AssessmentResults.tsx"));
+// PORT-9c: «Главная» кабинета.
+const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
 
 const PORTAL_CSS = readFileSync(join(ROOT, "src/app/(portal)/portal.css"), "utf8");
 
@@ -468,6 +470,112 @@ const professionsStrings = getPortalStrings("professions", "ru");
 const profileStrings = getPortalStrings("profile", "ru");
 const consultationStrings = getPortalStrings("consultation", "ru");
 
+// PORT-9c: фикстуры «Главной» повторяют формы существующих read model
+// (LearningModule движка 198, AssessmentCatalog E2, PublishedUniversity 148).
+const homeStrings = getPortalStrings("home", "ru");
+const HOME_NOW = new Date("2026-09-20T12:00:00Z");
+
+const learningModulesDraftFixture = [
+  {
+    moduleId: "f1111111-1111-4111-8111-111111111111",
+    moduleKey: "english-basics",
+    version: "1.0.0",
+    metadata: {
+      title_ru: "Английский с нуля",
+      title_ky: "Англис тили нөлдөн",
+      level_note_ru: "Стартовый уровень",
+      level_note_ky: "Баштапкы деңгээл",
+    },
+    lessonsTotal: 12,
+    lessonsCompleted: 3,
+    lessons: [
+      {
+        lessonId: "f2222222-2222-4222-8222-222222222222",
+        lessonKey: "lesson-04",
+        orderIndex: 4,
+        metadata: {
+          title_ru: "Вопросы о себе",
+          title_ky: "Өзү жөнүндө суроолор",
+          goal_ru: "Задавать простые вопросы о себе.",
+          goal_ky: "Өзү жөнүндө жөнөкөй суроолорду берүү.",
+        },
+        exercisesTotal: 8,
+        completed: false,
+        draftAttemptId: "f3333333-3333-4333-8333-333333333333",
+        lastResult: null,
+      },
+    ],
+  },
+];
+
+const learningModulesDoneFixture = [
+  {
+    ...learningModulesDraftFixture[0],
+    lessonsCompleted: 12,
+    lessons: [
+      {
+        ...learningModulesDraftFixture[0].lessons[0],
+        completed: true,
+        draftAttemptId: null,
+        lastResult: { correctCount: 7, exercisesTotal: 8 },
+      },
+    ],
+  },
+];
+
+// Каталог тестов без черновика — карточка-вход вместо «Продолжить».
+const assessmentCatalogNoDraftFixture = {
+  instruments: assessmentCatalogFixture.instruments.map((instrument) => ({
+    ...instrument,
+    draftAttemptId: null,
+  })),
+  attempts: assessmentCatalogFixture.attempts.filter(
+    (attempt) => attempt.status === "completed",
+  ),
+};
+
+const favoriteUniversityFixture = {
+  id: "f4444444-4444-4444-8444-444444444444",
+  version: 1,
+  publishedAt: "2026-09-01T10:00:00Z",
+  content: {
+    name: "Universiti Malaya",
+    country: "MY",
+    city: "Куала-Лумпур",
+    overview: "Старейший университет Малайзии.",
+    websiteUrl: "https://um.edu.my",
+    sourceUrl: "https://um.edu.my",
+    verifiedOn: "2026-09-01",
+    notes: "",
+    photoKey: null,
+    programs: [
+      {
+        id: "f5555555-5555-4555-8555-555555555555",
+        title: "Computer Science",
+        level: "bachelor",
+        duration: "4 года",
+        language: "EN",
+        summary: "Бакалавриат по информатике.",
+        sourceUrl: "https://um.edu.my",
+        intakes: [
+          {
+            label: "Сентябрь 2027",
+            startDate: "2027-09-01",
+            startMonth: "2027-09",
+            applicationDeadline: "2027-05-31",
+            deadlineTime: null,
+            timezone: null,
+            status: "open",
+            note: "",
+            sourceUrl: "https://um.edu.my",
+            verifiedOn: "2026-09-01",
+          },
+        ],
+      },
+    ],
+  },
+};
+
 const surfaces = [
   {
     name: "admission-overview",
@@ -606,6 +714,53 @@ const surfaces = [
             }),
           ),
         ),
+      ),
+    ),
+  },
+  // PORT-9c: «Главная» — оба tier'а: approved (черновики урока/теста,
+  // избранное с интейком, анкета-статус) и assisted (действия дела первым
+  // блоком, «модуль пройден», вход в тесты, пустое избранное).
+  {
+    name: "home-approved",
+    html: renderSurface(
+      "Главная — approved — a11y",
+      pageShell(
+        homeStrings.kicker,
+        homeStrings.title,
+        homeStrings.leadApproved,
+        createElement(HomeView, {
+          tier: "approved",
+          overview: null,
+          overviewFailed: false,
+          modules: learningModulesDraftFixture,
+          assessments: assessmentCatalogFixture,
+          favorites: [favoriteUniversityFixture],
+          favoritesTotal: 1,
+          locale: "ru",
+          now: HOME_NOW,
+        }),
+      ),
+    ),
+  },
+  {
+    name: "home-assisted",
+    html: renderSurface(
+      "Главная — assisted — a11y",
+      pageShell(
+        homeStrings.kicker,
+        homeStrings.title,
+        homeStrings.leadAssisted,
+        createElement(HomeView, {
+          tier: "assisted",
+          overview: overviewFixture,
+          overviewFailed: false,
+          modules: learningModulesDoneFixture,
+          assessments: assessmentCatalogNoDraftFixture,
+          favorites: [],
+          favoritesTotal: 0,
+          locale: "ru",
+          now: HOME_NOW,
+        }),
       ),
     ),
   },

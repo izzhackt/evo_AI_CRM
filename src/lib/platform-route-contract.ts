@@ -30,6 +30,9 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
 
 const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal",
+  // PORT-9c: «Главная» кабинета (урок hotfix'а release-3: экран без
+  // allowlist невидим за прокси).
+  "/portal/home",
   "/portal/documents",
   // Retired screen (unified workflow S5): kept connected only so old
   // bookmarks/notification links still resolve. The page itself is an

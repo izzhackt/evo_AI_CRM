@@ -293,6 +293,8 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
   assert.equal(isConnectedPlatformPage("/auth/staff/extra"), false);
   const portalRoutes = [
     "/portal",
+    // PORT-9c: «Главная» кабинета.
+    "/portal/home",
     "/portal/documents",
     "/portal/applications",
     "/portal/payments",

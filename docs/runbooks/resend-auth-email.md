@@ -2,19 +2,25 @@
 
 Для оператора EVO. Статус на 2026-09-19: **настройка и проверка PENDING**.
 Владелец разрешил отправку, переадресацию и подтверждение Student email.
-Resend и Spaceship требуют входа владельца в браузере. DNS, Auth, шаблоны
-и аккаунты в этом проходе не изменялись; тестовые письма не отправлялись.
+Вход в Resend и Spaceship выполнен; sending domain создан, но ещё не Verified.
+Ожидаются DNS-подтверждение, ключ отправки и настройка SMTP. DNS, Auth и шаблоны
+не менялись; API-ключ не создан, тестовые письма не отправлялись.
 
 ## Проверенное исходное состояние
 
-- GitHub main: `69e27a10652f4a4b8306a2c03cce06681b7deb53`; последующие после
+- GitHub main при исходной проверке: `69e27a10652f4a4b8306a2c03cce06681b7deb53`; последующие после
   принятого runtime изменения — документация. Production принят как
   `v3-r35408839637-a1-9cdea7aa`, revision `9cdea7aa6f55ae6e6c61286ef339ff311c10a686`.
 - DNS: `launch1.spaceship.net`, `launch2.spaceship.net`; корневые MX —
   `mx1.efwd.spaceship.net` и `mx2.efwd.spaceship.net`, оба priority 0.
   SPF: `v=spf1 include:spf.efwd.spaceship.net ~all`.
-  Resend DKIM и MX/TXT для `send` пока отсутствуют. Наличие MX не доказывает
-  настройку нужного адреса или доставку в Gmail.
+  Новые записи Resend ещё не добавлены. Spaceship UI подтвердил существующую
+  переадресацию всего домена на `evoadmissions@gmail.com`; доставка не проверена.
+- Resend: `evoadmissions.com`, ID `cd385aca-2e64-4f9e-b89b-3419980552ec`,
+  регион `eu-west-1`, домен не Verified. Dashboard требует TXT `resend._domainkey`
+  с показанным там публичным ключом, CNAME `rsend` → `rsend-euw1.forge.rmta.net`
+  и CNAME `send` → `send.forge.rmta.net`. Это текущая схема провайдера,
+  а не старый вариант sending MX/TXT; полный DKIM-ключ в этот документ не копировать.
 - Supabase: SMTP-поля не настроены, пароль отсутствует, email limit 2/час;
   `disable_signup=true`, `mailer_autoconfirm=false`. Site URL —
   `https://crm.evoadmissions.com`; allowlist содержит только
@@ -25,14 +31,15 @@ Resend и Spaceship требуют входа владельца в браузе
 
 ## Порядок настройки — всё ещё PENDING
 
-- [ ] Войти в Resend и Spaceship. В Resend открыть Domains → `evoadmissions.com`.
-  Скопировать точные записи из dashboard и добавить в Spaceship: не угадывать
+- [x] Войти в Resend и Spaceship; создать sending domain и прочитать его записи.
+- [ ] В Resend открыть существующий Domains → `evoadmissions.com`, не создавать повторно.
+  Скопировать актуальные TXT/CNAME из dashboard и добавить в Spaceship: не угадывать
   значения, selector, регион, имя sending-subdomain или количество записей.
   Сохранить корневые MX/SPF переадресации, A/AAAA и nameservers; не включать
   Resend Receiving, не переносить DNS на Cloudflare. Дождаться Verified.
-- [ ] Проверить существующую переадресацию; добавить или исправить только
-  `evo@evoadmissions.com` → `evoadmissions@gmail.com`, если она ещё не настроена.
-  Подтвердить destination в Gmail, если провайдер попросит.
+- [x] Проверить в Spaceship существующую доменную переадресацию на business Gmail.
+- [ ] Проверить доставку именно `evo@evoadmissions.com` → `evoadmissions@gmail.com`;
+  не заменять уже настроенную доменную переадресацию без необходимости.
 - [ ] Создать отдельный Resend sending key с минимальными доступными правами.
   Сохранить только в защищённом хранилище и SMTP Supabase: не в Git, чате или логах.
 - [ ] Supabase → Authentication → Email → SMTP Settings: sender

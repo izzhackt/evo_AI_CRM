@@ -30593,3 +30593,10 @@ The [mail runbook](runbooks/resend-auth-email.md) records the precise baseline,
 configuration, free-tier limits, missing recipient choices and pending real proof.
 Keep public Auth signup disabled; ship any confirmation-flow change as a reviewed
 scope-local slice, not a blanket Auth toggle. No paid upgrade or broad test run.
+
+Same-day progress: owner signed in to both providers; the Resend sending domain
+was created in `eu-west-1` but is not Verified. Spaceship confirms existing
+domain-wide forwarding to the business Gmail, not actual delivery. Resend now
+requires DKIM TXT plus `rsend` and `send` CNAMEs, not the older sending MX/TXT
+recipe; copy the current dashboard values and preserve apex forwarding MX/SPF.
+No DNS, API-key, SMTP/Auth/template changes or test emails have occurred yet.

@@ -1,11 +1,13 @@
 # EVO Launch Plan
 
-## Auth email — active, blocked on provider login, 2026-09-19
+## Auth email — active, domain verification and SMTP pending, 2026-09-19
 
 Owner approved Resend SMTP, replies forwarded to Gmail and Student email confirmation.
-Follow [the mail runbook](runbooks/resend-auth-email.md); no provider/Auth changes made yet.
+Follow [the mail runbook](runbooks/resend-auth-email.md): provider login and domain
+creation complete; DNS, API key, SMTP/Auth/templates and delivery remain unchanged.
 
-- [ ] Sign in to Resend and Spaceship; verify sending domain and forwarding.
+- [x] Sign in to Resend and Spaceship; create domain; inspect existing forwarding.
+- [ ] Apply the actual Resend TXT/CNAME records; verify sending and reply delivery.
 - [ ] Configure SMTP and Russian templates without changing Staff/Student boundaries.
 - [ ] Implement the separate `/apply` confirmation path; SMTP alone does not enable it.
 - [ ] Prove invitation, signup confirmation and reply delivery to approved recipients.

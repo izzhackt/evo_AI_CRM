@@ -2548,6 +2548,21 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_invite_conflict_codes_pt409.sql
   fi
+
+  # Migration 195 adds the Student-private university favourites (PORT-3b):
+  # platform_private.university_favorites behind three Student-only RPCs
+  # (set_university_favorite_v1 idempotent by construction,
+  # student_university_favorites_v1, student_university_catalog_by_ids_v1 with
+  # the 30-id cap). The guard is the 148 catalogue guard (student +
+  # portal.read.self), deliberately case-independent. The suite proves own-set
+  # CRUD and isolation between two Students, staff/anon/service_role denials,
+  # foreign-org and unknown-id refusals, and replay idempotency. Exercised at
+  # its own checkpoint, same convention as 185/192/193/194.
+  if [[ "$(basename "$migration")" == 195_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_university_favorites.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

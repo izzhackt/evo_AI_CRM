@@ -1,5 +1,25 @@
 # EVO Launch Plan
 
+## Unified workflow S8 — released 2026-09-19; план закрыт
+
+Owner applied migration 185 from main 9cdea7aa (#854), ledger 001-185
+confirmed; 185 replaces three RPC bodies with unchanged signatures and
+response shapes, so no degradation window occurred. Exact-main CI and managed
+release 35408839637 passed on `9cdea7aa6f55ae6e6c61286ef339ff311c10a686`;
+accepted release `v3-r35408839637-a1-9cdea7aa`; the running container reports
+the same revision, healthy, zero restarts; public health 200 on both origins;
+arm read back `false`. The cabinet-invite privilege boundary is covered by a
+real-Postgres suite executed at the 185 checkpoint of the authorization
+harness (this release's own review requirement).
+
+With S8 the unified-workflow plan (docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md)
+is fully implemented: an independent audit of all nine owner criteria against
+the shipped code found eight done and one gap — closed by this slice. The two
+remaining documented cosmetic follow-ups (full-row card save vs partial
+merge; playbook-bound legacy partner-details fail-closed) stay recorded in
+PLAN_CHANGES and are not plan criteria.
+
+
 ## Unified workflow S8 — active 2026-09-19
 
 Final plan gap (§4): invite dispatch for cabinet cases. Journal entry

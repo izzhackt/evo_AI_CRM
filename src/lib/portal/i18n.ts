@@ -290,12 +290,58 @@ const profileKy: Readonly<Record<ProfileKey, string>> = {
   deleteError: "Сурам жөнөтүлгөн жок. Кайталаңыз.",
 };
 
+/**
+ * «Запрос консультации» (PORT-5b, план §6 «Консультация»): кнопка в карточке
+ * вуза и в профиле, форма с необязательной заметкой, честное состояние
+ * «Запрос отправлен — менеджер свяжется» и история своих запросов.
+ */
+const consultationRu = {
+  heading: "Консультация",
+  hint: "Задайте вопрос о поступлении — менеджер EVO свяжется с вами.",
+  ctaButton: "Записаться на консультацию",
+  noteLabel: "Комментарий (необязательно)",
+  notePlaceholder: "Вопрос или удобное время для звонка",
+  submit: "Отправить запрос",
+  cancel: "Отмена",
+  sent: "Запрос отправлен — менеджер свяжется.",
+  error: "Не удалось отправить запрос. Повторите.",
+  historyHeading: "Ваши запросы",
+  historyUnavailable: "Не удалось загрузить запросы. Обновите страницу.",
+  historyDate: "Отправлен {date}",
+  handledDate: "Обработан {date}",
+  universityLine: "Университет: {name}",
+  statusRequested: "Запрос отправлен — менеджер свяжется",
+  statusHandled: "Обработан",
+} as const;
+
+type ConsultationKey = keyof typeof consultationRu;
+
+const consultationKy: Readonly<Record<ConsultationKey, string>> = {
+  heading: "Консультация",
+  hint: "Тапшыруу боюнча суроо бериңиз — EVO менеджери сиз менен байланышат.",
+  ctaButton: "Консультацияга жазылуу",
+  noteLabel: "Комментарий (милдеттүү эмес)",
+  notePlaceholder: "Суроо же чалуу үчүн ыңгайлуу убакыт",
+  submit: "Сурам жөнөтүү",
+  cancel: "Жокко чыгаруу",
+  sent: "Сурам жөнөтүлдү — менеджер байланышат.",
+  error: "Сурам жөнөтүлгөн жок. Кайталаңыз.",
+  historyHeading: "Сиздин сурамдарыңыз",
+  historyUnavailable: "Сурамдар жүктөлгөн жок. Баракты жаңыртыңыз.",
+  historyDate: "Жөнөтүлдү {date}",
+  handledDate: "Иштелди {date}",
+  universityLine: "Университет: {name}",
+  statusRequested: "Сурам жөнөтүлдү — менеджер байланышат",
+  statusHandled: "Иштелди",
+};
+
 /** Все портальные словари, по неймспейсам. Экспорт — для контракт-теста. */
 export const PORTAL_DICTIONARIES = {
   shell: { ru: shellRu, ky: shellKy },
   universities: { ru: universitiesRu, ky: universitiesKy },
   favorites: { ru: favoritesRu, ky: favoritesKy },
   profile: { ru: profileRu, ky: profileKy },
+  consultation: { ru: consultationRu, ky: consultationKy },
 } as const;
 
 export type PortalNamespace = keyof typeof PORTAL_DICTIONARIES;

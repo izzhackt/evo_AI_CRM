@@ -272,6 +272,13 @@ const CASE_CHAT_AWAIT_STATE: Record<string, string> = {
   awaiting_student: "Ждём студента",
 };
 
+// PORT-5b «Запрос консультации» (миграция 197): состояние запроса из
+// кабинета студента в очереди «Заявки».
+const PORTAL_CONSULTATION_STATUS: Record<string, string> = {
+  requested: "Ожидает",
+  handled: "Обработано",
+};
+
 // Plan §9: «Не загружен / На проверке / Нужно исправить / Принят». The
 // server enum keeps its fifth, honest state («Отклонён») — the plan's list
 // names the common path, not an exhaustive prohibition (unified workflow S6).
@@ -463,6 +470,8 @@ export const admissionsPipelineStage = (v: string | null | undefined) =>
   lookup(ADMISSIONS_PIPELINE_STAGE, v);
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
 export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
+export const portalConsultationStatus = (v: string | null | undefined) =>
+  lookup(PORTAL_CONSULTATION_STATUS, v);
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
 export const documentSlotStatus = (v: string | null | undefined) =>
   lookup(DOCUMENT_SLOT_STATUS, v);

@@ -2580,6 +2580,25 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_portal_profile_language.sql
   fi
+
+  # Migration 197 adds the portal consultation request (PORT-5b):
+  # platform_private.portal_consultation_requests behind
+  # create_portal_consultation_request_v1 / own_portal_consultation_requests_v1
+  # (Student-only, the 148/195/196 catalogue guard, case-independent;
+  # idempotent by request_id, ONE OPEN request per member) and
+  # staff_portal_consultation_requests_v1 / handle_portal_consultation_request_v1
+  # (the REAL «Заявки» queue permission 'lead.read'; admin passes via the
+  # staff_has_permission bypass, handle conflicts are PT409). The suite proves
+  # own-only create/list, second-student isolation, one-open-per-member,
+  # request_id replays, the 148-style institution refusals, granted-Sales vs
+  # ungranted-curator both directions, anon/service_role denials and the 135
+  # privacy mirror (no assessment content in the staff JSON, exact key set).
+  # Exercised at its own checkpoint, same convention as 185/192-196.
+  if [[ "$(basename "$migration")" == 197_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_consultation_requests.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

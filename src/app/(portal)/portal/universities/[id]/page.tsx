@@ -4,6 +4,8 @@ import { UniversitiesUnavailable } from "@/components/portal/universities/Catalo
 import { UniversityDetailView } from "@/components/portal/universities/Detail";
 import { getLocale } from "@/lib/i18n";
 import { universityUuid } from "@/lib/platform-university-catalog";
+import { openConsultationRequest, type ConsultationReceipt } from "@/lib/portal/consultation";
+import { readOwnConsultationRequests } from "@/lib/portal/consultation-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
@@ -49,6 +51,16 @@ export default async function UniversityPage({
   } catch {
     favored = null;
   }
+  // Запрос консультации (PORT-5b): открытый запрос показывается честно уже
+  // при загрузке; сбой чтения истории скрывает блок, а не рисует ложное
+  // «запроса нет» — submit остаётся доступным из профиля.
+  let openRequest: ConsultationReceipt | null = null;
+  let consultationAvailable = true;
+  try {
+    openRequest = openConsultationRequest(await readOwnConsultationRequests());
+  } catch {
+    consultationAvailable = false;
+  }
   return (
     <main className="pt-page">
       <UniversityDetailView
@@ -58,6 +70,10 @@ export default async function UniversityPage({
         locale={locale}
         now={new Date()}
         favored={favored}
+        consultation={consultationAvailable ? {
+          initialOpenRequest: openRequest,
+          strings: getPortalStrings("consultation", locale),
+        } : null}
       />
     </main>
   );

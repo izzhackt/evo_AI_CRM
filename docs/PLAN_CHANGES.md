@@ -31038,3 +31038,29 @@ DO-блоке): INSERT без `portal_activated_at` + сразу же guarded UP
 
 Reviewer notes: обычный merge в main; base PR — `main` (PORT-1a/192 уже в
 main как #869, перенумерованная 195→192).
+
+## 2026-09-19 — Миграция 194: PT409 вместо 40001 на аутентифицированном invite-пути
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal session), follow-up по finding независимого review PR #877.
+Change type: targeted risk-class fix (infinite-retry 40001 → PT409), миграция 194.
+Affected documents: `supabase/migrations/194_platform_invite_conflict_codes_pt409.sql`,
+`supabase/tests/platform_invite_conflict_codes_pt409.sql`,
+`scripts/test-postgres-authorization.sh`, TS-маппер provisioning-admin-store.
+
+Reason: review #877 зафиксировал, что prepare/authorize-reissue/finalize из
+185-эры несут кастомные бизнес-коды на SQLSTATE 40001 — тот же класс
+infinite-transaction-retry, что вызвал CPU-инцидент миграции 186
+(docs/qa/portal-identity-conflict-186-2026-09-19.md). Сессия OTHER подтвердила,
+что клиентские маппинги CRM уже принимают PT409.
+
+Decision: 35 замен 40001→PT409 (тексты сообщений байт-в-байт) в трёх функциях
+(prepare 11, authorize_reissue 8, finalize 16) техникой anchor-replace 186/192/193
+с readback-ассершенами «0 остаточных 40001, ровно 11/8/16 PT409». Осознанно
+оставлены на 40001: worker/dispatch-RPC вне аутентифицированного пути (позиция
+переходного периода 186), revision-семантика assessments и прочие домены.
+TS: safeConflict дополнительно принимает PT409 (40001 сохранён на окно apply).
+Тест: новый чекпоинт-сьют 194 в scripts/test-postgres-authorization.sh.
+
+Validation: полная цепочка 001–194 на OrbStack, маркеры P193/P194 в полном
+логе, typecheck, целевые node-тесты 15/15, git diff --check.

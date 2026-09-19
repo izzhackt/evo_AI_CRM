@@ -527,3 +527,132 @@ private struct AssessmentWriteParams: Encodable, Sendable {
     let p_answers: [String: String]
     let p_request_id: UUID
 }
+
+/// PORT-9a — анкета, статус заявки и инвайт. Signed-in reads/writes are the
+/// SAME authenticated RPCs the web uses (GRANT 177:506-512, 180:353-361);
+/// only account creation and receipt acceptance go through the two narrow
+/// web route handlers (ADR 0030 «Решение» п. 3, docs/PLAN_CHANGES.md PORT-9a).
+extension SupabaseService {
+    /// What the анкета routing needs to know about the signed-in identity —
+    /// the same facts resumeStudentApplication reads
+    /// (src/lib/server/student-signup-runtime.ts:40-52).
+    struct StudentSessionIdentity {
+        let email: String?
+        let emailConfirmed: Bool
+        let staffProvisionMarker: String?
+        /// The user_metadata draft, already contract-validated; nil when
+        /// absent or invalid (metadata is a draft, never authority).
+        let metadataDraft: StudentApplicationDraft?
+    }
+
+    func studentSessionIdentity() async throws -> StudentSessionIdentity {
+        let user = try await client.auth.session.user
+        var marker: String?
+        if case .string(let value)? = user.appMetadata["evo_staff_password_request_id"] {
+            marker = value
+        }
+        var draft: StudentApplicationDraft?
+        if let raw = user.userMetadata[ApplicationContract.metadataKey],
+           let data = try? JSONEncoder().encode(raw),
+           let decoded = try? JSONDecoder().decode(StudentApplicationDraft.self, from: data),
+           ApplicationDraftValidator.isValid(decoded) {
+            draft = decoded
+        }
+        return StudentSessionIdentity(
+            email: user.email,
+            emailConfirmed: user.emailConfirmedAt != nil,
+            staffProvisionMarker: marker,
+            metadataDraft: draft
+        )
+    }
+
+    /// `platform.own_student_application_v1` (177:303-310, body patched by
+    /// 193) — the caller's own application or JSON null.
+    func ownStudentApplication() async throws -> StudentApplication? {
+        let response = try await client.rpc("own_student_application_v1").execute()
+        return try StudentApplication.decodeOptionalValidated(from: response.data)
+    }
+
+    /// `platform.submit_student_application_v1(p_request_id, p_questionnaire,
+    /// p_expected_revision)` — идемпотентно по requestId анкеты, оптимистичная
+    /// ревизия как на вебе (student-application-source.ts:60-65).
+    func submitStudentApplication(
+        draft: StudentApplicationDraft,
+        expectedRevision: Int64
+    ) async throws -> StudentApplication {
+        struct Params: Encodable, Sendable {
+            let p_request_id: String
+            let p_questionnaire: StudentApplicationDraft
+            let p_expected_revision: Int64
+        }
+        let response = try await client
+            .rpc(
+                "submit_student_application_v1",
+                params: Params(
+                    p_request_id: draft.requestId,
+                    p_questionnaire: draft,
+                    p_expected_revision: expectedRevision
+                )
+            )
+            .execute()
+        return try StudentApplication.decodeValidated(from: response.data)
+    }
+
+    /// The committed application wins; the metadata draft is then only a
+    /// leftover. Mirrors the web's post-submit cleanup
+    /// (student-signup-runtime.ts:55-59) — best-effort at call sites.
+    func clearStudentApplicationMetadataDraft() async throws {
+        try await client.auth.update(
+            user: UserAttributes(data: [ApplicationContract.metadataKey: .null])
+        )
+    }
+
+    /// The same Supabase Auth call the web callback runtime issues
+    /// (student-invite-callback-runtime.ts:27-30); establishes a session.
+    func verifyStudentInviteToken(tokenHash: String) async throws {
+        _ = try await client.auth.verifyOTP(tokenHash: tokenHash, type: .invite)
+    }
+
+    /// The same operation as the web set-password action
+    /// (student-portal-auth-actions.ts:128) on the user's own session.
+    func updateOwnPassword(_ password: String) async throws {
+        _ = try await client.auth.update(user: UserAttributes(password: password))
+    }
+
+    /// refreshStudentApplicationAction's session refresh
+    /// (student-signup-actions.ts:95) before re-resolving access.
+    func refreshSession() async throws {
+        _ = try await client.auth.refreshSession()
+    }
+
+    /// POST {web}/api/portal/registration — the account-creation step of the
+    /// анкета (anonymous; the handler wraps createPublicStudentAccount).
+    func registerStudentAccount(
+        draft: StudentApplicationDraft,
+        email: String,
+        password: String
+    ) async throws -> StudentRegistrationOutcome {
+        let request = try ApplicationIntakeTransfer.registrationRequest(
+            baseURL: AppConfig.portalWebBaseURL,
+            payload: StudentRegistrationPayload(
+                questionnaire: draft, email: email, password: password
+            )
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard response is HTTPURLResponse else { return .unavailable }
+        return StudentRegistrationOutcome.decode(from: data)
+    }
+
+    /// POST {web}/api/portal/invite-acceptance — bearer; marks the caller's
+    /// own invite receipt accepted (idempotent) and returns its facts.
+    func acceptStudentInvite() async throws -> InviteAcceptanceOutcome {
+        let token = try await currentAccessToken()
+        let request = ApplicationIntakeTransfer.inviteAcceptanceRequest(
+            baseURL: AppConfig.portalWebBaseURL,
+            accessToken: token
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { return .unavailable }
+        return InviteAcceptanceOutcome.from(statusCode: http.statusCode, body: data)
+    }
+}

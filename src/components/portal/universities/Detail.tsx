@@ -15,6 +15,7 @@ import {
   universityMonthLabel,
 } from "@/lib/portal/universities";
 
+import { FavoriteToggle } from "./FavoriteToggle";
 import { PhotoFigure } from "./PhotoFigure";
 
 /**
@@ -147,12 +148,15 @@ export function UniversityDetailView({
   strings,
   locale,
   now,
+  favored = null,
 }: {
   university: PublishedUniversity;
   base: string;
   strings: Strings;
   locale: Locale;
   now: Date;
+  /** null — состояние избранного неизвестно (toggle не показывается). */
+  favored?: boolean | null;
 }) {
   const content = university.content;
   return (
@@ -162,10 +166,24 @@ export function UniversityDetailView({
       </p>
       <header className="pt-uni-hero">
         <PhotoFigure content={content} large strings={strings} />
-        <p className="pt-page-kicker">
-          {universityCountryLabel(content.country, locale)}
-          {content.city ? ` · ${content.city}` : ""}
-        </p>
+        <div className="pt-uni-card-top">
+          <p className="pt-page-kicker">
+            {universityCountryLabel(content.country, locale)}
+            {content.city ? ` · ${content.city}` : ""}
+          </p>
+          {favored !== null ? (
+            <FavoriteToggle
+              institutionId={university.id}
+              initialFavored={favored}
+              universityName={content.name}
+              strings={{
+                favoriteAdd: strings.favoriteAdd,
+                favoriteRemove: strings.favoriteRemove,
+                favoriteError: strings.favoriteError,
+              }}
+            />
+          ) : null}
+        </div>
         <h1 className="pt-page-title">{content.name}</h1>
         <p className="pt-page-lead">{strings.detailLead}</p>
       </header>

@@ -38,6 +38,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
   assert.deepEqual(pageFiles, [
     "src/app/(portal)/portal/applications/page.tsx",
     "src/app/(portal)/portal/documents/page.tsx",
+    "src/app/(portal)/portal/favorites/page.tsx",
     "src/app/(portal)/portal/notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/notifications/page.tsx",
     "src/app/(portal)/portal/page.tsx",
@@ -51,8 +52,9 @@ test("the Student workspace preserves four portal pages, private tests and publi
 
   // PORT-2: the shell moved to src/components/portal/Shell.tsx (replace-don't-
   // layer, design contract docs/design/portal/design-contract.md). The section
-  // list keeps exactly today's six real routes; assisted-only sections carry a
-  // tiers gate instead of disappearing from the source.
+  // list keeps exactly today's seven real routes (favorites — PORT-3b);
+  // assisted-only sections carry a tiers gate instead of disappearing from
+  // the source.
   const shell = source("src/components/portal/Shell.tsx");
   assert.deepEqual(
     [...shell.matchAll(/href: "([^"]+)"/gu)].map((match) => match[1]),
@@ -60,6 +62,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
       "/portal",
       "/portal/documents",
       "/portal/universities",
+      "/portal/favorites",
       "/portal/payments",
       "/portal/notifications",
       "/portal/tests",

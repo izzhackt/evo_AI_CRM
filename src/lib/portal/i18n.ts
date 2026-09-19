@@ -25,6 +25,7 @@ const shellRu = {
   "nav.overview": "Поступление",
   "nav.documents": "Документы",
   "nav.universities": "Университеты",
+  "nav.favorites": "Избранное",
   "nav.payments": "Оплата",
   "nav.notifications": "Уведомления",
   "nav.tests": "Тесты",
@@ -42,6 +43,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.overview": "Тапшыруу",
   "nav.documents": "Документтер",
   "nav.universities": "Университеттер",
+  "nav.favorites": "Тандалмалар",
   "nav.payments": "Төлөм",
   "nav.notifications": "Билдирмелер",
   "nav.tests": "Тесттер",
@@ -112,6 +114,9 @@ const universitiesRu = {
   photoFailed: "Не удалось загрузить фото кампуса",
   photoBy: "Фото: {author}",
   photoCrop: "Кадрирование в карточке.",
+  favoriteAdd: "В избранное",
+  favoriteRemove: "Убрать из избранного",
+  favoriteError: "Не удалось сохранить. Нажмите ещё раз.",
 } as const;
 
 type UniversitiesKey = keyof typeof universitiesRu;
@@ -175,12 +180,62 @@ const universitiesKy: Readonly<Record<UniversitiesKey, string>> = {
   photoFailed: "Кампустун сүрөтү жүктөлгөн жок",
   photoBy: "Сүрөт: {author}",
   photoCrop: "Карточкада сүрөт кыркылып көрсөтүлөт.",
+  favoriteAdd: "Тандалмаларга кошуу",
+  favoriteRemove: "Тандалмалардан алып салуу",
+  favoriteError: "Сакталган жок. Дагы бир жолу басыңыз.",
+};
+
+/**
+ * Раздел «Избранное» (PORT-3b): сохранённые вузы и сравнение фактических
+ * свойств. Никаких рейтингов и «шансов поступления» — план §6/§14.
+ */
+const favoritesRu = {
+  kicker: "Каталог",
+  title: "Избранное",
+  lead: "Сохранённые университеты и сравнение их фактических свойств.",
+  savedCount: "Сохранено: {count}",
+  emptyTitle: "Пока ничего не сохранено",
+  emptyBody: "Отметьте университет сердечком в каталоге — он появится здесь.",
+  emptyAction: "Открыть каталог",
+  unavailable: "Не удалось загрузить избранное. Обновите страницу. Сохранённые записи не потеряны.",
+  compareHeading: "Сравнение",
+  compareHint: "Отметьте минимум два университета, чтобы сравнить их.",
+  compareSelect: "Сравнивать: {name}",
+  compareProperty: "Свойство",
+  compareCountry: "Страна и город",
+  compareLevels: "Уровни",
+  comparePrograms: "Программы",
+  compareIntake: "Ближайший набор",
+  cityUnknown: "Город не указан",
+} as const;
+
+type FavoritesKey = keyof typeof favoritesRu;
+
+const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
+  kicker: "Каталог",
+  title: "Тандалмалар",
+  lead: "Сакталган университеттер жана алардын факт-касиеттерин салыштыруу.",
+  savedCount: "Сакталды: {count}",
+  emptyTitle: "Азырынча эч нерсе сакталган жок",
+  emptyBody: "Каталогдон университетти жүрөк белгиси менен белгилеңиз — ал ушул жерде чыгат.",
+  emptyAction: "Каталогду ачуу",
+  unavailable: "Тандалмалар жүктөлгөн жок. Баракты жаңыртыңыз. Сакталган жазуулар жоголгон жок.",
+  compareHeading: "Салыштыруу",
+  compareHint: "Салыштыруу үчүн кеминде эки университетти белгилеңиз.",
+  compareSelect: "Салыштырууга кошуу: {name}",
+  compareProperty: "Касиет",
+  compareCountry: "Өлкө жана шаар",
+  compareLevels: "Деңгээлдер",
+  comparePrograms: "Программалар",
+  compareIntake: "Жакынкы кабыл алуу",
+  cityUnknown: "Шаар көрсөтүлгөн эмес",
 };
 
 /** Все портальные словари, по неймспейсам. Экспорт — для контракт-теста. */
 export const PORTAL_DICTIONARIES = {
   shell: { ru: shellRu, ky: shellKy },
   universities: { ru: universitiesRu, ky: universitiesKy },
+  favorites: { ru: favoritesRu, ky: favoritesKy },
 } as const;
 
 export type PortalNamespace = keyof typeof PORTAL_DICTIONARIES;

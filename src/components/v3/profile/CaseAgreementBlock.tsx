@@ -206,7 +206,7 @@ export async function CaseAgreementBlock({
                     <a
                       key={receipt.id}
                       className="text-xs font-semibold text-accent hover:underline"
-                      href={`/api/v2/payment-receipts/${studentCaseId}/${receipt.id}/download`}
+                      href={`/api/v2/payment-receipt-files/${studentCaseId}/${receipt.id}/download`}
                     >
                       Чек
                     </a>

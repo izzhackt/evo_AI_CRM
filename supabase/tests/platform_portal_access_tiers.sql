@@ -17,7 +17,14 @@
 --         and assessments read (the shared case gate stays pending-eligible);
 --   (iii) an active-case student retains case-help and documents end to end
 --         (real download grant issued against a fabricated finalized object);
---   (iv)  a help thread created before the gate stays readable for staff.
+--   (iv)  a help thread created before the gate stays readable for staff;
+--   (v)   the six document-path functions with no individual denial call
+--         above (grant_document_download_pre_e5's two anchors, consume_
+--         document_download_grant_pre_e5, reserve_document_upload_after_
+--         ingress_scan, preflight_document_upload, require_document_
+--         storage_actor, require_current_upload_reservation) carry 195's
+--         exact tightened state predicate verbatim in their LIVE body
+--         (introspection review recommendation, PR #869).
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -479,6 +486,65 @@ SELECT pg_temp.p195_assert(
 );
 
 RESET ROLE;
+
+-- ===========================================================================
+-- (v) Introspection for the six document-path functions that 195 patches but
+-- that no call above denies individually: grant_document_download_pre_e5 is
+-- REVOKEd from authenticated (128:768-770) -- its student branch is reached
+-- only through grant_student_portal_document_download, which already denies
+-- pending on ITS OWN anchor before the call gets this far, so no public RPC
+-- can distinguish a correct pre_e5 anchor from a broken one; consume_
+-- document_download_grant_pre_e5 and reserve_document_upload_after_ingress_
+-- scan belong to the service-role/webhook malware-scan chain; preflight_
+-- document_upload, require_document_storage_actor and require_current_
+-- upload_reservation are not invoked by any call this suite makes. Each
+-- assertion here checks PRESENCE of 195's own p_after text, verbatim, in the
+-- LIVE post-migration body (pg_get_functiondef) -- NOT absence of a bare
+-- 'pending' substring: reserve_document_upload_after_ingress_scan legitimately
+-- contains an unrelated 'pending' literal elsewhere in its body (the ingress-
+-- scan-result insert), so a naive '!~ pending' check would misfire there.
+-- ===========================================================================
+SELECT pg_temp.p195_assert(
+  position($p195af$        AND student_case.state IN ('active', 'closed')$p195af$
+    IN pg_get_functiondef('private.grant_document_download_pre_e5(uuid,uuid,text,integer,uuid)'::regprocedure)) > 0,
+  'grant_document_download_pre_e5 (student_case anchor) lost the 195 tightened state predicate'
+);
+
+SELECT pg_temp.p195_assert(
+  position($p195af$      AND case_row.state IN ('active', 'closed')$p195af$
+    IN pg_get_functiondef('private.grant_document_download_pre_e5(uuid,uuid,text,integer,uuid)'::regprocedure)) > 0,
+  'grant_document_download_pre_e5 (case_row anchor) lost the 195 tightened state predicate'
+);
+
+SELECT pg_temp.p195_assert(
+  position($p195af$        AND student_case.state IN ('active', 'closed') AND student_case.student_membership_id = membership.id$p195af$
+    IN pg_get_functiondef('private.consume_document_download_grant_pre_e5(uuid,uuid)'::regprocedure)) > 0,
+  'consume_document_download_grant_pre_e5 lost the 195 tightened state predicate'
+);
+
+SELECT pg_temp.p195_assert(
+  position($p195af$        AND student_case.state IN ('active', 'closed')$p195af$
+    IN pg_get_functiondef('platform.reserve_document_upload_after_ingress_scan(uuid,uuid,uuid,text,text,bigint,text,text,text,text,text,text,timestamp with time zone,uuid)'::regprocedure)) > 0,
+  'reserve_document_upload_after_ingress_scan lost the 195 tightened state predicate'
+);
+
+SELECT pg_temp.p195_assert(
+  position($p195af$        AND student_case.state IN ('active', 'closed')$p195af$
+    IN pg_get_functiondef('platform.preflight_document_upload(uuid,uuid,text,text,bigint,text,uuid)'::regprocedure)) > 0,
+  'preflight_document_upload lost the 195 tightened state predicate'
+);
+
+SELECT pg_temp.p195_assert(
+  position($p195af$    OR (a.actor_role IS NOT DISTINCT FROM 'student' AND c.state IN ('active','closed')$p195af$
+    IN pg_get_functiondef('platform_private.require_document_storage_actor(uuid,uuid,text)'::regprocedure)) > 0,
+  'require_document_storage_actor lost the 195 tightened state predicate'
+);
+
+SELECT pg_temp.p195_assert(
+  position($p195af$      AND c.student_membership_id = m.id AND c.state IN ('active', 'closed') AND c.portal_activated_at IS NOT NULL$p195af$
+    IN pg_get_functiondef('platform_private.require_current_upload_reservation(uuid,uuid,text)'::regprocedure)) > 0,
+  'require_current_upload_reservation lost the 195 tightened state predicate'
+);
 
 SELECT 'P195_PORTAL_ACCESS_TIERS_SUITE_PASSED' AS p195_suite_marker;
 

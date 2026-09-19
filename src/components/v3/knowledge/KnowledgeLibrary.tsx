@@ -1,19 +1,21 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KNOWLEDGE_AREAS, KNOWLEDGE_AREA_NAMES, type KnowledgeArea, type KnowledgeItem, type KnowledgePage, type KnowledgeQuery } from "@/lib/knowledge-library-contract";
-import { command, knowledgeFetch, knowledgeSourceKey, uploadKnowledgeFile } from "./client";
+import { command, configureKnowledgeCommands, knowledgeFetch, knowledgeSourceKey, uploadKnowledgeFile } from "./client";
 import { KnowledgeImport } from "./KnowledgeImport";
 import { KnowledgeSecret } from "./KnowledgeSecret";
 import { KnowledgeDossiers } from "./KnowledgeDossiers";
+import { KnowledgeAssignCase } from "./KnowledgeAssignCase";
 import { KnowledgeExport } from "./KnowledgeExport";
 import { KnowledgeEditor } from "./KnowledgeEditor";
 import styles from "./KnowledgeLibrary.module.css";
 
 type View = "list" | "trash" | "review" | "archive" | "inbox";
 const kindNames = { folder: "Папка", page: "Страница", file: "Файл", secret: "Доступ" };
-export function KnowledgeLibrary() {
+export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
+  useLayoutEffect(() => { configureKnowledgeCommands(commandScope); }, [commandScope]);
   const router = useRouter(); const params = useSearchParams();
   const area = (KNOWLEDGE_AREAS.includes(params.get("area") as KnowledgeArea) ? params.get("area") : "internal") as KnowledgeArea;
   const parentId = params.get("folder"); const itemId = params.get("item");
@@ -27,6 +29,7 @@ export function KnowledgeLibrary() {
   const [refresh, setRefresh] = useState(0); const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [status, setStatus] = useState("");
   const [newSecret, setNewSecret] = useState(false);
+  const [assignCase, setAssignCase] = useState(false);
   const [treeOpen, setTreeOpen] = useState(false);
   const [dialog, setDialog] = useState<"folder" | "page" | "rename" | "move" | null>(null);
   const [name, setName] = useState(""); const [targetFolder, setTargetFolder] = useState("");
@@ -142,21 +145,25 @@ export function KnowledgeLibrary() {
     finally { setBusy(false); }
   }
   function tree(treeParentId: string | null, nodeArea: KnowledgeArea, depth = 0): React.ReactNode {
-    if (depth > 40) return null;
+    if (depth > 40) return <Link href={href({ area: nodeArea, folder: treeParentId })}>Открыть вложенные папки</Link>;
     return folders.filter((folder) => folder.area === nodeArea && folder.parent_id === treeParentId).map((folder) => <details key={folder.id} open={breadcrumb.some((item) => item.id === folder.id)}>
       <summary><Link href={href({ area: nodeArea, folder: folder.id })} aria-current={folder.id === parentId ? "page" : undefined} onClick={() => setTreeOpen(false)}>{folder.title}</Link></summary>
       <div className={styles.branch}>{tree(folder.id, nodeArea, depth + 1)}</div>
     </details>);
   }
-  const onSaved = useCallback((saved: KnowledgeItem) => { setItems((old) => old.map((item) => item.id === saved.id ? saved : item)); }, []);
-  if (newSecret || (itemId && selectedItem?.id === itemId && selectedItem.kind === "secret")) return <div className={styles.library}><KnowledgeSecret item={newSecret ? undefined : selectedItem!} parentId={parentId} onClose={() => { setNewSecret(false); router.push(href({ item: null })); }} onSaved={onSaved} /></div>;
-  if (itemId && selectedItem?.id === itemId) return <div className={styles.library}><KnowledgeEditor key={itemId} item={selectedItem} onClose={() => router.push(href({ item: null }))} onSaved={onSaved} /></div>;
+  const onSaved = useCallback((saved: KnowledgeItem) => {
+    setSelectedItem(saved);
+    setItems((old) => old.map((item) => item.id === saved.id ? saved : item));
+    setRefresh((value) => value + 1);
+  }, []);
+  if (newSecret || (itemId && selectedItem?.id === itemId && selectedItem.kind === "secret")) return <div className={styles.library}><KnowledgeSecret item={newSecret ? undefined : selectedItem!} parentId={parentId} onClose={() => { setNewSecret(false); router.push(href({ area: "secrets", folder: selectedItem?.parent_id ?? parentId, item: null })); }} onSaved={onSaved} /></div>;
+  if (itemId && selectedItem?.id === itemId) return <div className={styles.library}><KnowledgeEditor key={itemId} item={selectedItem} onClose={() => router.push(href({ area: selectedItem.area, folder: selectedItem.parent_id, item: null }))} onSaved={onSaved} /></div>;
   return <div className={styles.library}>
     <div className={styles.layout}>
       <aside className={`${styles.tree} ${treeOpen ? styles.treeOpen : ""}`} aria-label="Папки базы знаний">
         <div className={styles.treeHeading}>Папки<button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(false)}>Закрыть</button></div>
         {KNOWLEDGE_AREAS.map((nodeArea) => <section key={nodeArea}><Link className={area === nodeArea && !parentId && view === "list" ? styles.active : ""} href={href({ area: nodeArea, folder: null })}>{KNOWLEDGE_AREA_NAMES[nodeArea]}</Link><div className={styles.branch}>{tree(null, nodeArea)}</div></section>)}
-        <nav className={styles.special} aria-label="Состояния материалов"><Link href="/v3/knowledge?tab=snippets">Шаблоны ответов</Link>
+        <nav className={styles.special} aria-label="Состояния материалов"><Link href="/v3/documents">Документы CRM</Link><Link href="/v3/reply-snippets">Шаблоны ответов</Link>
           <Link href={href({ folder: null, view: "inbox" })}>Входящие</Link>
           <Link href={href({ folder: null, view: "review" })}>На уточнении</Link>
           <Link href={href({ folder: null, view: "archive" })}>Архив</Link>
@@ -181,8 +188,9 @@ export function KnowledgeLibrary() {
         {selected.size > 0 && <div className={styles.selection}>
           <span>Выбрано: {selected.size}</span><KnowledgeExport ids={[...selected]} label="Выгрузить выбранное" />
           {view === "trash" ? <button type="button" disabled={busy} onClick={() => void mutate("restore")}>Восстановить</button> : <>
-            {selected.size === 1 && <button type="button" onClick={() => { setName(chosen[0]?.title ?? ""); setDialog("rename"); }}>Переименовать</button>}
+            {selected.size === 1 && <button type="button" onClick={() => { if (chosen[0]?.kind === "secret") { router.push(href({ area: "secrets", item: chosen[0].id })); return; } setName(chosen[0]?.title ?? ""); setDialog("rename"); }}>Переименовать</button>}
             <button type="button" onClick={() => { setTargetFolder(""); setDialog("move"); }}>Переместить</button>
+            {chosen.every((item) => item.area === "clients" && !item.client_case_id && !item.archived_at) && <button type="button" disabled={busy} onClick={() => setAssignCase(true)}>Привязать к делу</button>}
             <button type="button" disabled={busy} onClick={() => void mutate(view === "archive" ? "unarchive" : "archive")}>{view === "archive" ? "Вернуть из архива" : "Архивировать"}</button>
             <button type="button" disabled={busy} onClick={() => void mutate("trash")}>В корзину</button>
           </>}
@@ -202,6 +210,7 @@ export function KnowledgeLibrary() {
         </div>
       </section>
     </div>
+    {assignCase && <KnowledgeAssignCase items={chosen} folders={folders} onClose={() => setAssignCase(false)} onSaved={reload} />}
     <dialog ref={dialogRef} className={styles.dialog} onCancel={() => setDialog(null)}>
       <form onSubmit={submitDialog}><h2>{dialog === "move" ? "Переместить" : dialog === "rename" ? "Переименовать" : dialog === "folder" ? "Новая папка" : "Новая страница"}</h2>
         {dialog === "move" ? <label>Папка<select value={targetFolder} onChange={(event) => setTargetFolder(event.target.value)}><option value="">Входящие</option>{folders.filter((folder) => folder.area === area && !selected.has(folder.id)).map((folder) => <option key={folder.id} value={folder.id}>{folder.title}</option>)}</select></label> : <label>Название<input autoFocus required maxLength={240} value={name} onChange={(event) => setName(event.target.value)} /></label>}

@@ -43,6 +43,7 @@ export function staffPresentationCan(actor: ActivePlatformActor, capability: Fix
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
   if (route === "/v3/knowledge") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
+  if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
   if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage");
   if (route === "/v3/tasks") return staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create")
     || staffHasPermission(actor, "task.manage")
@@ -60,11 +61,13 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
     "/v3/messages": ["admissions.read"],
     "/v3/universities": ["catalog.read"],
     "/v3/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
+    "/v3/documents": ["documents.read"],
+    "/v3/reply-snippets": ["snippets.read"],
     "/v3/settings": ["admin.preview"],
   };
   return routeCapabilities[route].some((capability) => staffCan(actor, capability));
 }
 export function staffHomeRoute(actor: ActivePlatformActor): FixedRoleRoute | "/access-denied" {
-  const routes: readonly FixedRoleRoute[] = ["/v3/main", "/v3/calendar", "/v3/tasks", "/v3/team-chat", "/v3/inbox", "/v3/profile", "/v3/universities", "/v3/knowledge"];
+  const routes: readonly FixedRoleRoute[] = ["/v3/main", "/v3/calendar", "/v3/tasks", "/v3/team-chat", "/v3/inbox", "/v3/profile", "/v3/universities", "/v3/documents", "/v3/reply-snippets", "/v3/knowledge"];
   return routes.find((route) => staffCanAccessRoute(actor, route)) ?? "/access-denied";
 }

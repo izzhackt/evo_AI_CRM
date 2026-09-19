@@ -2,6 +2,9 @@
 import { useRef, useState } from "react";
 import type { KnowledgeImportPlan } from "@/lib/knowledge-import-contract";
 import { KNOWLEDGE_SHA256 } from "@/lib/knowledge-library-contract";
+import { KnowledgeProtectedImport } from "./KnowledgeProtectedImport";
+import { reconcileKnowledgeImport } from "./reconcile";
+import { prepareKnowledgeStructure } from "./import-structure";
 import { importKnowledgeFile } from "./import";
 import styles from "./KnowledgeLibrary.module.css";
 export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
@@ -25,6 +28,8 @@ export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
   async function run() {
     if (!plan) return;
     setRunning(true); stop.current = false; setFailures([]); setError("");
+    try { await prepareKnowledgeStructure(folders.current); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось подготовить папки."); setRunning(false); return; }
     let done = 0; let reused = 0; let failed = 0;
     const normal = plan.entries.filter((entry) => entry.action === "import");
     const max = limit === "all" ? normal.length : Math.max(1, Number(limit));
@@ -47,6 +52,18 @@ export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
     setStatus(`${stop.current ? "Перенос остановлен" : done === normal.length && !failed ? "Обычные материалы перенесены" : "Контрольная партия завершена"}: ${done}, ошибок: ${failed}. Защищённые источники и ключи учитываются отдельно.`);
     setRunning(false); onChanged();
   }
+  async function reconcile() {
+    if (!plan) return;
+    setRunning(true); setError("");
+    try {
+      const report = await reconcileKnowledgeImport(plan, (done) => setStatus(`Сверено ${done} источников`));
+      const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
+      const link = document.createElement("a"); link.href = url; link.download = "Сверка переноса.json"; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setStatus(`Проверено: ${report.verified}. Отсутствуют: ${report.missing}. Не совпали: ${report.mismatched}. Ключи вне CRM: ${report.retainedOutside.length}.`);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Сверка не завершена."); }
+    finally { setRunning(false); }
+  }
   return <details className={styles.importPanel}><summary>Перенос локальной базы</summary>
     <div className={styles.exportOptions}>
       <label>План размещения<input type="file" accept="application/json,.json" disabled={running} onChange={(event) => void readPlan(event.target.files?.[0])} /></label>
@@ -59,6 +76,8 @@ export function KnowledgeImport({ onChanged }: { onChanged: () => void }) {
       <label>Объём переноса<select disabled={running} value={limit} onChange={(e) => setLimit(e.target.value)}><option value="1">Первый файл</option><option value="10">Первые 10 файлов</option><option value="all">Все обычные материалы</option></select></label>
       <div className={styles.actions}><button type="button" disabled={running || !plan || !files.size} onClick={() => void run()}>Начать / продолжить</button>{running && <button type="button" onClick={() => { stop.current = true; }}>Остановить после файла</button>}</div>
       {status && <p role="status">{status}</p>}{error && <p className={styles.error} role="alert">{error}</p>}
+      <button type="button" disabled={running || !plan} onClick={() => void reconcile()}>Сверить все источники</button>
+      <KnowledgeProtectedImport onChanged={onChanged} />
       {failures.length > 0 && <ul className={styles.error}>{failures.map((failure) => <li key={failure.path}>{failure.path}: {failure.reason}</li>)}</ul>}
     </div>
   </details>;

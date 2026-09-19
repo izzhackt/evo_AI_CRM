@@ -32284,3 +32284,18 @@ Schema source initially lives in `docs/design/knowledge/schema.sql` pending coor
 - Dossiers reuse the real case, document workspace, chat pagination and activity readers. Source files are not cloned and client identity is not recreated. Full export still needs canonical-source snapshots before acceptance.
 - Private metadata filing plan covers all 6,570 source entries; 436 approved/working general Markdown pages are editable, other originals remain files, 32 protected sources have a separate encrypted import, and two backup key files remain outside the library. Candidate/approval provenance is preserved; no AI bundle publication occurs.
 - Import checks source size/hash, resumes existing blobs/nodes, preserves user-edited pages and maps unambiguous local links to stable material IDs. Source originals remain immutable. SQL stays unnumbered until coordinator confirmation.
+
+### 2026-09-20 — KB: canonical export and protected source delivery (draft #906)
+
+- Dossier export projects existing case/document/company-file/chat/history records into one fixed database snapshot. It creates no second business identity. Explicit case selection includes its added KB materials; selecting a nested KB folder does not expand to the whole case. Existing scan proofs are checked again before reading original Storage bytes.
+- Reply snippets keep their staff permissions on `/v3/reply-snippets`; `/v3/knowledge` remains Admin-only. The shared navigation change is limited to this relocated entry.
+- Protected migration wraps all original vault files with the existing SOPS/age recipient and maps existing vault entries to structured records. Local preparation writes ciphertext only, verifies round trips and excludes key backups. Server import authenticates SOPS and verifies original hashes before persisting ciphertext.
+- Runtime proposal: checksum-pinned SOPS binary in the immutable image, age key in a read-only external directory, and a scheduled service-only export maintenance command. No production apply, key provisioning, timer installation or arm is implied; Fable coordination is pending in #906/#903.
+- Scope-local SQL validation uses a separate empty local database copied from the schema only; no customer/Auth records were copied. This is compilation evidence, not production business acceptance.
+
+### 2026-09-20 — KB: сохранение рабочих документов и явная привязка материалов
+
+- Existing staff documents remain reachable on `/v3/documents` through the same company/document sources and permissions. The Admin-only library does not remove this staff workflow.
+- Historical unassigned materials in the clients area can be attached to an existing case only after the Admin selects its actual CRM identity and confirms ownership. The whole selected subtree gains that case reference in one versioned transaction. Already-bound case materials cannot be reassigned through this action; no canonical business entity is mutated.
+- Retried generic browser commands retain their request identity across transient failures and page reloads. Browser session storage contains only a command hash and request UUID, never source text or secret values.
+- Export failures retain the failing item for the owner and remain unavailable as complete archives. Retry rechecks current scan proof and reuses verified output parts. Expired export paths are swept repeatedly to collect parts uploaded by a worker that was in flight at expiry.

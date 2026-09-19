@@ -11,8 +11,22 @@ export async function knowledgeFetch<T>(path: string, init?: RequestInit): Promi
   if (!response.ok) throw new KnowledgeClientError(typeof data.error === "string" ? data.error : "knowledge_unavailable", response.status);
   return data as T;
 }
-export function command<T = KnowledgeItem>(value: KnowledgeCommand, requestId = crypto.randomUUID()) {
-  return knowledgeFetch<T>("command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId, command: value }) });
+const pendingCommands = new Map<string, string>();
+let commandScope = "";
+export function configureKnowledgeCommands(scope: string) { commandScope = scope; }
+export async function command<T = KnowledgeItem>(value: KnowledgeCommand, requestId?: string) {
+  if (!commandScope) throw new Error("Обновите страницу перед сохранением.");
+  const key = `evo:knowledge-command:${commandScope}:${knowledgeSourceKey(value)}`;
+  if (!requestId) {
+    try { requestId = sessionStorage.getItem(key) ?? undefined; } catch { /* Storage may be disabled. */ }
+    requestId ??= pendingCommands.get(key) ?? crypto.randomUUID();
+    pendingCommands.set(key, requestId);
+    try { sessionStorage.setItem(key, requestId); } catch { /* Retain the in-memory receipt key. */ }
+  }
+  const result = await knowledgeFetch<T>("command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId, command: value }) });
+  pendingCommands.delete(key);
+  try { sessionStorage.removeItem(key); } catch { /* No source content is stored here. */ }
+  return result;
 }
 export const knowledgeSourceKey = (value: unknown) => bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(value))));
 export async function uploadKnowledgeFile(file: File, area: KnowledgeArea, parentId: string | null, progress: (done: number, total: number) => void, caseId: string | null = null) {

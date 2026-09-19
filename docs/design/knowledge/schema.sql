@@ -1,5 +1,10 @@
 -- KB-1/2 draft: assign a forward migration number with the shared coordinator.
 BEGIN;
+INSERT INTO storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+VALUES('platform-knowledge-library','platform-knowledge-library',FALSE,8388608,ARRAY['application/octet-stream']);
+-- Even a broader existing object policy cannot expose this private library.
+CREATE POLICY knowledge_library_server_only ON storage.objects AS RESTRICTIVE FOR ALL TO anon,authenticated
+USING(bucket_id<>'platform-knowledge-library') WITH CHECK(bucket_id<>'platform-knowledge-library');
 
 CREATE TABLE platform_private.kb_blobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -112,10 +117,10 @@ CREATE TRIGGER kb_node_version AFTER INSERT OR UPDATE ON platform_private.kb_nod
 
 CREATE FUNCTION platform.kb_query_v1(p_organization_id UUID,p_query JSONB DEFAULT '{}')
 RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
-DECLARE actor UUID; n platform_private.kb_nodes; b platform_private.kb_blobs;
+DECLARE n platform_private.kb_nodes; b platform_private.kb_blobs;
   result JSONB; lim INTEGER:=100; mode TEXT:=coalesce(p_query->>'mode','list');
 BEGIN
-  actor:=platform_private.kb_require_admin(p_organization_id);
+  PERFORM platform_private.kb_require_admin(p_organization_id);
   IF jsonb_typeof(p_query)<>'object' THEN RAISE EXCEPTION 'knowledge_invalid' USING ERRCODE='22023'; END IF;
   lim:=least(200,greatest(1,coalesce((p_query->>'limit')::INTEGER,100)));
   IF mode='item' OR mode='history' THEN
@@ -134,6 +139,13 @@ BEGIN
     SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.part_index),'[]') INTO result
       FROM platform_private.kb_blob_parts x WHERE x.blob_id=b.id;
     RETURN to_jsonb(b)||jsonb_build_object('parts',result);
+  ELSIF mode='sources' THEN
+    IF jsonb_typeof(p_query->'keys') IS DISTINCT FROM 'array' OR jsonb_array_length(p_query->'keys')>200 THEN RAISE EXCEPTION 'knowledge_invalid' USING ERRCODE='22023'; END IF;
+    RETURN (SELECT coalesce(jsonb_agg(jsonb_build_object('id',k.id,'sourceKey',k.source_key,'area',k.area,
+      'sha256',k.source->>'sha256','byteSize',k.source->'byteSize','blobId',coalesce(k.source_blob_id,k.blob_id),
+      'blobReady',source_blob.state='ready','version',k.version,'archived',k.archived_at IS NOT NULL,'trashed',k.deleted_at IS NOT NULL)),'[]')
+      FROM platform_private.kb_nodes k LEFT JOIN platform_private.kb_blobs source_blob ON source_blob.id=coalesce(k.source_blob_id,k.blob_id) AND source_blob.organization_id=k.organization_id
+      WHERE k.organization_id=p_organization_id AND k.source_key IN (SELECT jsonb_array_elements_text(p_query->'keys')));
   ELSIF mode='source' THEN
     SELECT * INTO n FROM platform_private.kb_nodes WHERE organization_id=p_organization_id AND source_key=p_query->>'key';
     RETURN CASE WHEN FOUND THEN to_jsonb(n) ELSE 'null'::JSONB END;
@@ -223,6 +235,7 @@ BEGIN
       IF n.version IS DISTINCT FROM (p_command->>'expectedVersion')::INTEGER THEN
         RAISE EXCEPTION 'knowledge_version_conflict' USING ERRCODE='PT409';
       END IF;
+      IF n.kind='secret' AND op IN ('edit','restore_version') THEN RAISE EXCEPTION 'knowledge_encrypted_operation_required' USING ERRCODE='42501'; END IF;
       IF op='edit' THEN
         IF n.deleted_at IS NOT NULL THEN RAISE EXCEPTION 'knowledge_in_trash' USING ERRCODE='PT409'; END IF;
         n.title:=coalesce(nullif(btrim(p_command->>'title'),''),n.title);
@@ -231,6 +244,13 @@ BEGIN
         n.review_question:=coalesce(p_command->>'reviewQuestion',n.review_question);
       ELSIF op='move' THEN
         n.parent_id:=parent_value;
+      ELSIF op='assign_case' THEN
+        IF n.area<>'clients' OR n.client_case_id IS NOT NULL OR n.deleted_at IS NOT NULL
+          OR n.archived_at IS NOT NULL OR parent_value IS NULL OR NOT coalesce((p_command->>'confirmed')::BOOLEAN,FALSE) THEN
+          RAISE EXCEPTION 'knowledge_case_boundary' USING ERRCODE='22023';
+        END IF;
+        n.parent_id:=parent_value; n.client_case_id:=nullif(p_command->>'caseId','')::UUID;
+        IF n.client_case_id IS NULL THEN RAISE EXCEPTION 'knowledge_case_boundary' USING ERRCODE='22023'; END IF;
       ELSIF op='restore_version' THEN
         IF n.kind<>'page' OR n.deleted_at IS NOT NULL THEN RAISE EXCEPTION 'knowledge_invalid' USING ERRCODE='22023'; END IF;
         SELECT v.snapshot INTO old_snapshot FROM platform_private.kb_versions v WHERE v.node_id=n.id AND v.version=(p_command->>'restoreVersion')::INTEGER;
@@ -245,7 +265,7 @@ BEGIN
       IF op='create' AND n.kind='secret' THEN RAISE EXCEPTION 'knowledge_encrypted_operation_required' USING ERRCODE='42501'; END IF;
       IF n.parent_id IS NOT NULL THEN
         SELECT * INTO parent FROM platform_private.kb_nodes WHERE id=n.parent_id AND organization_id=p_organization_id AND area=n.area;
-        IF NOT FOUND OR parent.kind<>'folder' OR parent.deleted_at IS NOT NULL OR (parent.archived_at IS NOT NULL AND op IN ('create','move','unarchive')) THEN
+        IF NOT FOUND OR parent.kind<>'folder' OR parent.deleted_at IS NOT NULL OR (parent.archived_at IS NOT NULL AND op IN ('create','move','assign_case','unarchive')) THEN
           RAISE EXCEPTION 'knowledge_parent_invalid' USING ERRCODE='22023';
         END IF;
         IF EXISTS(WITH RECURSIVE ancestors AS (
@@ -263,7 +283,7 @@ BEGIN
       END IF;
       IF n.kind='file' AND n.blob_id IS NULL THEN RAISE EXCEPTION 'knowledge_blob_required' USING ERRCODE='22023'; END IF;
       IF EXISTS(SELECT 1 FROM unnest(ARRAY[n.blob_id,n.source_blob_id]) x(id) WHERE id IS NOT NULL AND NOT EXISTS(
-        SELECT 1 FROM platform_private.kb_blobs b WHERE b.id=x.id AND b.organization_id=p_organization_id AND b.area=n.area AND b.state='ready')) THEN
+        SELECT 1 FROM platform_private.kb_blobs blob_row WHERE blob_row.id=x.id AND blob_row.organization_id=p_organization_id AND blob_row.area=n.area AND blob_row.state='ready')) THEN
         RAISE EXCEPTION 'knowledge_blob_not_ready' USING ERRCODE='PT409';
       END IF;
       IF op IN ('trash','archive') THEN
@@ -289,6 +309,18 @@ BEGIN
           version=k.version+1,updated_at=now(),updated_by=actor
           WHERE k.organization_id=p_organization_id AND k.id IN (SELECT id FROM descendants) AND
             ((op='restore' AND k.delete_batch=n.delete_batch) OR (op='unarchive' AND k.archive_batch=n.archive_batch));
+      ELSIF op='assign_case' THEN
+        IF EXISTS(WITH RECURSIVE descendants AS (SELECT id,client_case_id FROM platform_private.kb_nodes WHERE id=n.id
+          UNION ALL SELECT child.id,child.client_case_id FROM platform_private.kb_nodes child JOIN descendants d ON child.parent_id=d.id)
+          SELECT 1 FROM descendants WHERE client_case_id IS NOT NULL) THEN
+          RAISE EXCEPTION 'knowledge_case_boundary' USING ERRCODE='22023';
+        END IF;
+        WITH RECURSIVE descendants AS (SELECT id FROM platform_private.kb_nodes WHERE id=n.id
+          UNION ALL SELECT child.id FROM platform_private.kb_nodes child JOIN descendants d ON child.parent_id=d.id)
+        UPDATE platform_private.kb_nodes k SET client_case_id=n.client_case_id,
+          parent_id=CASE WHEN k.id=n.id THEN n.parent_id ELSE k.parent_id END,
+          version=k.version+1,updated_at=now(),updated_by=actor
+          WHERE k.id IN (SELECT id FROM descendants);
       ELSIF op='create' THEN
         INSERT INTO platform_private.kb_nodes SELECT n.*;
       ELSE

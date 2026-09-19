@@ -20,6 +20,8 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/admissions-requests",
   "/v3/settings",
   "/v3/knowledge",
+  "/v3/reply-snippets",
+  "/v3/documents",
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",

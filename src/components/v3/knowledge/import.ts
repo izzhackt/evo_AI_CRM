@@ -48,13 +48,16 @@ export async function importKnowledgeFile(file: File, entry: KnowledgeImportEntr
       const candidates = entries.filter((e) => e.scope === entry.scope && e.nodeId && (e.relativePath.endsWith("/" + decoded) || e.relativePath.endsWith("/" + decoded + ".md")));
       return candidates.length === 1 ? candidates[0] : null;
     };
-    const link = (target: KnowledgeImportEntry, embedded: boolean) => embedded && /\.(png|jpe?g)$/i.test(target.relativePath)
-      ? `/api/v3/knowledge/download/${target.nodeId}?preview=1` : `/v3/knowledge?item=${target.nodeId}`;
+    const link = (target: KnowledgeImportEntry, embedded: boolean, original: string) => {
+      const fragment = original.includes("#") ? "#" + original.split("#").slice(1).join("#") : "";
+      return (embedded && /\.(png|jpe?g)$/i.test(target.relativePath)
+        ? `/api/v3/knowledge/download/${target.nodeId}?preview=1` : `/v3/knowledge?item=${target.nodeId}`) + fragment;
+    };
     body = body.replace(/(!?)\[\[([^\]]+)\]\]/g, (original, embedded, value: string) => {
       const [target, alias] = value.split("|"); const resolved = resolve(target);
-      return resolved ? `${embedded}[${alias ?? target}](${link(resolved, Boolean(embedded))})` : original;
+      return resolved ? `${embedded}[${alias ?? target}](${link(resolved, Boolean(embedded), target)})` : original;
     }).replace(/(!?)\[([^\]]*)\]\(([^)]+)\)/g, (original, embedded, title: string, target: string) => {
-      const resolved = resolve(target); return resolved ? `${embedded}[${title}](${link(resolved, Boolean(embedded))})` : original;
+      const resolved = resolve(target); return resolved ? `${embedded}[${title}](${link(resolved, Boolean(embedded), target)})` : original;
     });
   }
   const source = { scope: entry.scope, relativePath: entry.relativePath, originalFilename: file.name, sha256: entry.sha256,

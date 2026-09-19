@@ -1,0 +1,9 @@
+[Unit]
+Description=Maintain EVO knowledge exports every fifteen minutes
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=15min
+Persistent=true
+Unit=evo-knowledge-maintenance.service
+[Install]
+WantedBy=timers.target

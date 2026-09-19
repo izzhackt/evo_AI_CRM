@@ -20,7 +20,7 @@ async function configuration() {
   } catch { throw new KnowledgeError("knowledge_sops_unavailable"); }
   return { binary, keyFile, recipients };
 }
-async function sops(operation: "encrypt" | "decrypt", input: Buffer): Promise<Buffer> {
+export async function sops(operation: "encrypt" | "decrypt", input: Buffer, maxBytes = 1_048_576): Promise<Buffer> {
   const config = await configuration();
   const args = [operation, "--input-type", "json", "--output-type", "json"];
   if (operation === "encrypt") args.push("--age", config.recipients, "--filename-override", "evo-knowledge.enc.json");
@@ -29,7 +29,7 @@ async function sops(operation: "encrypt" | "decrypt", input: Buffer): Promise<Bu
     const buffers: Buffer[] = []; let size = 0; let failed = false;
     const fail = () => { if (!failed) { failed = true; child.kill("SIGKILL"); reject(new KnowledgeError("knowledge_sops_unavailable")); } };
     const timeout = setTimeout(fail, 15_000);
-    child.stdout.on("data", (chunk: Buffer) => { size += chunk.length; if (size > 1_048_576) fail(); else buffers.push(chunk); });
+    child.stdout.on("data", (chunk: Buffer) => { size += chunk.length; if (size > maxBytes) fail(); else buffers.push(chunk); });
     // SOPS errors may contain input fragments. Drain them without logging or returning them.
     child.stderr.resume(); child.on("error", fail); child.stdin.on("error", fail);
     child.on("close", (code) => { clearTimeout(timeout); if (code !== 0) fail(); else if (!failed) resolve(Buffer.concat(buffers)); });
@@ -60,13 +60,21 @@ export async function readKnowledgeSecret(actor: ActivePlatformActor, id: string
   const plaintext = await sops("decrypt", Buffer.from(result.ciphertext));
   try {
     const value = fields(JSON.parse(plaintext.toString("utf8")));
-    return reveal ? { value: value.value } : { item: result.item as KnowledgeItem, ...value, value: undefined, hasValue: Boolean(value.value) };
+    return reveal ? { value: value.value } : { item: result.item as KnowledgeItem, ...value, service: result.item.title as string, value: undefined, hasValue: Boolean(value.value) };
   } finally { plaintext.fill(0); }
 }
 export async function saveKnowledgeSecret(actor: ActivePlatformActor, payload: Record<string, unknown>) {
   requireKnowledgeAdmin(actor);
   if (typeof payload.id !== "string" || !KNOWLEDGE_UUID.test(payload.id) || typeof payload.requestId !== "string" || !KNOWLEDGE_UUID.test(payload.requestId)) throw new KnowledgeError("knowledge_invalid", 400);
   const content = fields(payload.fields);
+  const command = { id: payload.id, requestId: payload.requestId, expectedVersion: payload.expectedVersion ?? 0, parentId: payload.parentId ?? null, title: content.service };
+  // Hash the submitted intent, before resolving keepValue. A later rotation must
+  // not change the identity of an already committed request.
+  const intent = Buffer.from(JSON.stringify({ ...command, fields: content, keepValue: payload.keepValue === true }));
+  const fingerprint = createHmac("sha256", getPlatformSupabaseBackendConfig().supabaseSecretKey).update(intent).digest("hex");
+  intent.fill(0);
+  const receipt = await sealedRpc(actor, "receipt", { requestId: payload.requestId, fingerprint });
+  if (receipt) return receipt as KnowledgeItem;
   // An edit can retain the current value without revealing it to the browser.
   if (payload.keepValue === true && Number(payload.expectedVersion) > 0) {
     const stored = await readKnowledgeSecret(actor, payload.id, true); content.value = stored.value ?? "";
@@ -79,8 +87,6 @@ export async function saveKnowledgeSecret(actor: ActivePlatformActor, payload: R
     decrypted.fill(0);
     try { if (check.length !== plaintext.length || !timingSafeEqual(check, plaintext)) throw new KnowledgeError("knowledge_integrity_failed"); }
     finally { check.fill(0); }
-    const command = { id: payload.id, requestId: payload.requestId, expectedVersion: payload.expectedVersion ?? 0, parentId: payload.parentId ?? null, title: content.service };
-    const fingerprint = createHmac("sha256", getPlatformSupabaseBackendConfig().supabaseSecretKey).update(JSON.stringify(command)).update(plaintext).digest("hex");
     return await sealedRpc(actor, "save", { ...command, fingerprint, ciphertext: ciphertext.toString("utf8") }) as KnowledgeItem;
   } finally { plaintext.fill(0); }
 }

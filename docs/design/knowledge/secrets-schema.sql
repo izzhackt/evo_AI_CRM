@@ -44,7 +44,7 @@ BEGIN
      VALUES(p_organization_id,n.id,p_actor,CASE WHEN p_mode='reveal' THEN 'reveal' ELSE 'read_metadata' END);
    RETURN jsonb_build_object('item',to_jsonb(n),'ciphertext',result);
  END IF;
- IF p_mode<>'save' OR p_data->>'fingerprint' !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'knowledge_invalid' USING ERRCODE='22023'; END IF;
+ IF p_mode NOT IN ('save','receipt') OR coalesce(p_data->>'fingerprint','') !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'knowledge_invalid' USING ERRCODE='22023'; END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended('knowledge:'||p_organization_id::TEXT,0));
  SELECT * INTO prior FROM platform_private.kb_sealed_receipts WHERE organization_id=p_organization_id AND request_id=(p_data->>'requestId')::UUID;
  IF FOUND THEN
@@ -52,6 +52,7 @@ BEGIN
    SELECT snapshot INTO result FROM platform_private.kb_versions WHERE node_id=prior.node_id AND version=prior.node_version;
    RETURN result::JSONB;
  END IF;
+ IF p_mode='receipt' THEN RETURN 'null'::JSONB; END IF;
  SELECT * INTO n FROM platform_private.kb_nodes WHERE id=(p_data->>'id')::UUID AND organization_id=p_organization_id FOR UPDATE;
  IF FOUND THEN
    IF n.kind<>'secret' OR n.deleted_at IS NOT NULL THEN RAISE EXCEPTION 'knowledge_invalid' USING ERRCODE='22023'; END IF;

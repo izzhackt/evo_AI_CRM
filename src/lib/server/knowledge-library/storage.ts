@@ -1,9 +1,9 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { type KnowledgeBlob, KNOWLEDGE_PART_SIZE } from "@/lib/knowledge-library-contract";
-import { KnowledgeError, checkedBlob, knowledgeRpcError, readKnowledgeBlob, requireKnowledgeAdmin } from "@/lib/v3/knowledge-library-source";
+import { KnowledgeError, checkedBlob, knowledgeRpcError, readKnowledgeBlob, requireKnowledgeAdmin, runKnowledgeCommand } from "@/lib/v3/knowledge-library-source";
 import { createPlatformSupabaseServiceClient } from "@/lib/server/platform-supabase-service-client";
 import { getPlatformSupabaseBackendConfig } from "@/lib/server/platform-supabase-backend-config";
 import { scanBytesWithClamd } from "@/lib/server/clamd-malware-scanner";
@@ -25,9 +25,12 @@ async function readPart(blob: KnowledgeBlob, index: number): Promise<Uint8Array>
   return bytes;
 }
 export async function uploadKnowledgePart(actor: ActivePlatformActor, blobId: string, index: number, bytes: Uint8Array) {
+  return persistPart(actor, blobId, index, bytes, false);
+}
+async function persistPart(actor: ActivePlatformActor, blobId: string, index: number, bytes: Uint8Array, sealed: boolean) {
   requireKnowledgeAdmin(actor);
   const blob = await readKnowledgeBlob(actor, blobId);
-  if (blob.area === "secrets") throw new KnowledgeError("knowledge_encrypted_operation_required", 400);
+  if (blob.area === "secrets" && !sealed) throw new KnowledgeError("knowledge_encrypted_operation_required", 400);
   const count = Math.ceil(blob.byte_size / KNOWLEDGE_PART_SIZE);
   const size = Math.min(KNOWLEDGE_PART_SIZE, blob.byte_size - index * KNOWLEDGE_PART_SIZE);
   if (!Number.isSafeInteger(index) || index < 0 || index >= count || bytes.length !== size) throw new KnowledgeError("knowledge_part_invalid", 400);
@@ -101,4 +104,21 @@ export async function* knowledgeBlobBytes(blob: KnowledgeBlob): AsyncGenerator<U
 }
 export function knowledgeBlobStream(blob: KnowledgeBlob): ReadableStream<Uint8Array> {
   return Readable.toWeb(Readable.from(knowledgeBlobBytes(blob))) as ReadableStream<Uint8Array>;
+}
+
+/** Only called after SOPS authentication and envelope validation by the protected importer. */
+export async function persistKnowledgeCiphertext(actor: ActivePlatformActor, ciphertext: Buffer) {
+  requireKnowledgeAdmin(actor);
+  const hash = sha256(ciphertext);
+  const reservation = await runKnowledgeCommand(actor, randomUUID(), { op: "reserve_blob", area: "secrets", sha256: hash, byteSize: ciphertext.length });
+  const blob = checkedBlob(reservation, actor.organizationId);
+  for (let offset = 0, index = 0; offset < ciphertext.length; offset += KNOWLEDGE_PART_SIZE, index++) {
+    await persistPart(actor, blob.id, index, ciphertext.subarray(offset, offset + KNOWLEDGE_PART_SIZE), true);
+  }
+  const result = await service().schema("platform").rpc("kb_storage_verified_v1", {
+    p_organization_id: actor.organizationId, p_blob_id: blob.id, p_part_index: null,
+    p_sha256: hash, p_byte_size: ciphertext.length, p_complete: true, p_scan_status: "opaque",
+  });
+  if (result.error) knowledgeRpcError(result.error);
+  return checkedBlob(result.data, actor.organizationId);
 }

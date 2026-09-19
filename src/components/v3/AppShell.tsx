@@ -39,6 +39,8 @@ const LINK_ICONS = {
   tasks: "check-square",
   "team-chat": "message-circle",
   knowledge: "book-open",
+  documents: "book-open",
+  "reply-snippets": "book-open",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
 

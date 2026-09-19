@@ -23,6 +23,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
   const savedRef = useRef(savedDraft);
   const versionRef = useRef(item.version);
   const busyRef = useRef(false);
+  const restoreRequest = useRef<{ key: string; id: string } | null>(null);
   const pendingRef = useRef<{ id: string; draft: Draft } | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const attachmentRef = useRef<HTMLInputElement>(null);
@@ -136,7 +137,10 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
         <summary>Версия {version.version} · {new Date(version.created_at).toLocaleString("ru")}</summary>
         <pre>{version.snapshot.body}</pre>
         <button type="button" disabled={dirty} onClick={() => {
-          void command({ op: "restore_version", id: item.id, expectedVersion: versionRef.current, restoreVersion: version.version }).then((restored) => {
+          const key = `${item.id}:${versionRef.current}:${version.version}`;
+          if (restoreRequest.current?.key !== key) restoreRequest.current = { key, id: crypto.randomUUID() };
+          void command({ op: "restore_version", id: item.id, expectedVersion: versionRef.current, restoreVersion: version.version }, restoreRequest.current.id).then((restored) => {
+            restoreRequest.current = null;
             const next = { title: restored.title, body: restored.body ?? "", reviewQuestion: restored.review_question };
             versionRef.current = restored.version; savedRef.current = JSON.stringify(next); setSavedDraft(savedRef.current); setDraft(next); onSaved(restored); setHistory(false); setState("Версия восстановлена");
           }).catch((cause) => setError(cause.message));

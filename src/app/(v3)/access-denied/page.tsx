@@ -24,6 +24,8 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/messages": "Сообщения",
   "/v3/universities": "Университеты",
   "/v3/knowledge": "База знаний",
+  "/v3/documents": "Документы",
+  "/v3/reply-snippets": "Шаблоны ответов",
   "/v3/settings": "Настройки",
 };
 

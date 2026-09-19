@@ -18,7 +18,8 @@ export type KnowledgeExport = {
   created_at: string; expires_at: string; lease_until: string | null; error_code: string | null; sha256: string | null;
   parts?: { path: string; sha256: string; byte_size: number }[];
 };
-type Snapshot = KnowledgeItem & { exportSelected: boolean; exportHistory?: boolean; exportCiphertext?: string; exportBlob?: { sha256: string; byteSize: number }; exportSourceBlob?: { sha256: string; byteSize: number } };
+type ExternalFile = { kind: "document" | "company"; id: string; bucket: string; path: string; sha256: string; byteSize: number };
+type Snapshot = KnowledgeItem & { exportSelected: boolean; exportHistory?: boolean; exportError?: string; exportExternal?: ExternalFile; exportCiphertext?: string; exportBlob?: { sha256: string; byteSize: number }; exportSourceBlob?: { sha256: string; byteSize: number } };
 const service = () => createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 export async function knowledgeExportAction(actor: ActivePlatformActor, mode: string, id?: string, options = {}): Promise<KnowledgeExport> {
@@ -65,15 +66,17 @@ function snapshotPaths(snapshots: Snapshot[]) {
   for (const id of current.keys()) pathOf(id);
   return paths;
 }
-function portableMarkdown(body: string, filePath: string, paths: Map<string, string>, included: Set<string>) {
+function portableMarkdown(body: string, filePath: string, paths: Map<string, string>, included: Set<string>, originals: Map<string, string>) {
   // Only known CRM routes are rewritten; external links retain their own access boundary.
-  return body.replace(/(?:https?:\/\/[^\s)<>]+|\/(?:api\/v3\/knowledge\/download\/|v3\/knowledge\?)[^\s)<>]+)/gi, (link) => {
+  return body.replace(/(?:https?:\/\/[^\s)<>]+|\/(?:api\/v3\/knowledge\/download\/|api\/v2\/document-versions\/|v3\/knowledge\?)[^\s)<>]+)/gi, (link) => {
     let url: URL;
     try { url = new URL(link, "https://crm.evoadmissions.com"); } catch { return link; }
     if (url.origin !== "https://crm.evoadmissions.com") return link;
-    const id = url.pathname.startsWith("/api/v3/knowledge/download/") ? url.pathname.split("/").at(-1)! : url.pathname === "/v3/knowledge" ? url.searchParams.get("item") : null;
-    if (!id || !included.has(id) || !paths.has(id) || url.searchParams.get("original") === "1") return link;
-    return posix.relative(posix.dirname(filePath), paths.get(id)!).split("/").map(encodeURIComponent).join("/") + url.hash;
+    const id = url.pathname.startsWith("/api/v3/knowledge/download/") ? url.pathname.split("/").at(-1)! : /^\/api\/v2\/document-versions\/[0-9a-f-]+\/download$/.test(url.pathname) ? url.pathname.split("/")[4] : url.pathname === "/v3/knowledge" ? url.searchParams.get("item") : null;
+    if (!id || !included.has(id) || !paths.has(id)) return link;
+    const target = url.searchParams.get("original") === "1" ? originals.get(id) : paths.get(id);
+    if (!target) return link;
+    return posix.relative(posix.dirname(filePath), target).split("/").map(encodeURIComponent).join("/") + url.hash;
   });
 }
 async function verifiedStorage(path: string, expected: { sha256: string; byte_size: number }) {
@@ -88,6 +91,7 @@ export async function buildKnowledgeExport(id: string) {
   const lease = randomUUID();
   const job = await worker<KnowledgeExport | null>(id, lease, "claim");
   if (!job) return;
+  let failedItem: Pick<Snapshot, "id" | "title"> | undefined;
   const zip = new ZipFile();
   const stream = zip.outputStream as Readable;
   zip.on("error", (error) => stream.destroy(error));
@@ -101,14 +105,17 @@ export async function buildKnowledgeExport(id: string) {
     }
     if (snapshots.length !== job.entry_count) throw new KnowledgeError("knowledge_integrity_failed");
     const paths = snapshotPaths(snapshots);
+    const originals = new Map(snapshots.filter((s) => !s.exportHistory && s.source_blob_id).map((s) => [s.id, s.source_blob_id === s.blob_id ? paths.get(s.id)! : `Исходники/${s.id}/${s.version}/${safeName(String(s.source?.originalFilename ?? s.title))}`]));
     const included = new Set(snapshots.filter((s) => s.exportSelected && !s.exportHistory).map((s) => s.id));
     let completed = 0;
     const manifest: Record<string, unknown>[] = [];
-    const addBlob = (blobId: string, path: string, mtime: Date) => {
+    const addBlob = (blobId: string, path: string, mtime: Date, item: Snapshot, verified: () => void) => {
       zip.addReadStreamLazy(path, { mtime, compress: false }, (callback) => {
+        failedItem = item;
         worker<unknown>(id, lease, "blob", { id: blobId }).then((value) => {
           const blob = checkedBlob(value, job.organization_id);
           const input = Readable.from(knowledgeBlobBytes(blob));
+          input.once("end", verified);
           input.on("error", (error) => stream.destroy(error));
           callback(null, input);
         }, (error) => stream.destroy(error));
@@ -116,22 +123,45 @@ export async function buildKnowledgeExport(id: string) {
     };
     for (const item of snapshots) {
       if (!item.exportSelected) { completed++; continue; }
+      failedItem = item;
+      // Scan proof may become available after the snapshot; the worker checks it live.
+      if (item.exportError && !item.exportExternal) throw new KnowledgeError(item.exportError);
       const basePath = paths.get(item.id)!;
       const path = item.exportHistory ? `История/${item.id}/${item.version}/${posix.basename(basePath)}` : basePath;
       const mtime = new Date(item.updated_at);
+      let pendingFiles = 0;
+      const verified = () => { if (--pendingFiles === 0) completed++; };
       if (item.kind === "folder") zip.addEmptyDirectory(path, { mtime });
-      else if (item.kind === "page") zip.addBuffer(Buffer.from(portableMarkdown(item.body ?? "", path, paths, included)), path, { mtime });
+      else if (item.kind === "page") zip.addBuffer(Buffer.from(portableMarkdown(item.body ?? "", path, paths, included, originals)), path, { mtime });
       else if (item.kind === "secret" && item.exportCiphertext) zip.addBuffer(Buffer.from(item.exportCiphertext), path, { mtime });
-      else if (item.blob_id) addBlob(item.blob_id, path, mtime);
+      else if (item.exportExternal) {
+        pendingFiles++;
+        zip.addReadStreamLazy(path, { mtime, compress: false }, (callback) => {
+          failedItem = item;
+          void (async () => {
+            const file = await worker<ExternalFile>(id, lease, "external", { id: item.id });
+            if (!["platform-documents", "platform-company-files"].includes(file.bucket) || !/^[0-9a-f]{2}\/[0-9a-f]{62}$/.test(file.path)
+              || !Number.isSafeInteger(file.byteSize) || file.byteSize < 1 || file.byteSize > 26_214_400) throw new KnowledgeError("knowledge_integrity_failed");
+            const result = await service().storage.from(file.bucket).download(file.path);
+            if (result.error || !result.data) throw new KnowledgeError("knowledge_storage_unavailable");
+            const bytes = new Uint8Array(await result.data.arrayBuffer());
+            if (bytes.length !== file.byteSize || sha256(bytes) !== file.sha256) throw new KnowledgeError("knowledge_integrity_failed");
+            const input = Readable.from([bytes]); input.once("end", verified);
+            callback(null, input);
+          })().catch((error) => stream.destroy(error));
+        });
+      }
+      else if (item.blob_id) { pendingFiles++; addBlob(item.blob_id, path, mtime, item, verified); }
       else throw new KnowledgeError("knowledge_blob_not_ready");
       if (item.source_blob_id && item.source_blob_id !== item.blob_id) {
-        addBlob(item.source_blob_id, `Исходники/${item.id}/${item.version}/${safeName(String(item.source?.originalFilename ?? item.title))}`, mtime);
+        pendingFiles++;
+        addBlob(item.source_blob_id, `Исходники/${item.id}/${item.version}/${safeName(String(item.source?.originalFilename ?? item.title))}`, mtime, item, verified);
       }
       manifest.push({ id: item.id, path, version: item.version, area: item.area, kind: item.kind,
-        sha256: item.kind === "page" ? sha256(Buffer.from(portableMarkdown(item.body ?? "", path, paths, included))) : item.exportCiphertext ? sha256(Buffer.from(item.exportCiphertext)) : item.exportBlob?.sha256, byteSize: item.exportBlob?.byteSize, original: item.exportSourceBlob, originalTitle: item.title, updatedAt: item.updated_at, source: item.area === "secrets" ? undefined : item.source,
+        sha256: item.kind === "page" ? sha256(Buffer.from(portableMarkdown(item.body ?? "", path, paths, included, originals))) : item.exportCiphertext ? sha256(Buffer.from(item.exportCiphertext)) : item.exportExternal?.sha256 ?? item.exportBlob?.sha256, byteSize: item.exportExternal?.byteSize ?? item.exportBlob?.byteSize, original: item.exportSourceBlob, originalTitle: item.title, updatedAt: item.updated_at, source: item.area === "secrets" ? undefined : item.source,
+        history: Boolean(item.exportHistory), originalPath: item.source_blob_id && item.source_blob_id !== item.blob_id ? `Исходники/${item.id}/${item.version}/${safeName(String(item.source?.originalFilename ?? item.title))}` : undefined,
         reviewQuestion: item.review_question || undefined, archivedAt: item.archived_at, deletedAt: item.deleted_at });
-      // This is progress through the snapshot, while written_bytes is actual uploaded ZIP output.
-      completed++;
+      if (!pendingFiles) completed++;
     }
     zip.addBuffer(Buffer.from(JSON.stringify({ format: 1, snapshotAt: job.created_at, materials: manifest }, null, 2)), "Манифест.json", { mtime: new Date(job.created_at) });
     zip.end();
@@ -159,7 +189,7 @@ export async function buildKnowledgeExport(id: string) {
     await worker(id, lease, "ready", { sha256: digest.digest("hex"), parts, bytes: written, entries: completed });
   } catch (error) {
     stream.destroy();
-    await worker(id, lease, "failed", { code: error instanceof KnowledgeError ? error.code : "knowledge_export_failed" }).catch(() => {});
+    await worker(id, lease, "failed", { code: error instanceof KnowledgeError ? error.code : "knowledge_export_failed", itemId: failedItem?.id, title: failedItem?.title }).catch(() => {});
     // The durable job holds the error; callbacks never print source metadata or provider responses.
   }
 }

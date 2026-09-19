@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build a private, deterministic filing plan from the verified inventory.
-Reads path metadata only. Does not read document text, publish facts, or alter sources.
+Reads path metadata and headings/status of explicitly reviewed Markdown. Does not publish facts or alter sources.
 """
 import argparse
 from collections import Counter
@@ -17,8 +17,8 @@ TOPICS = {
     'компан': 'Компания', 'услуг': 'Компания', 'стоимост': 'Компания',
     'регламент': 'Процессы и инструкции', 'процесс': 'Процессы и инструкции', 'инструкц': 'Процессы и инструкции',
     'команд': 'Команда и партнёры', 'партнёр': 'Команда и партнёры', 'партнер': 'Команда и партнёры',
-    'шаблон': 'Документы и шаблоны', 'договор': 'Документы и шаблоны',
-    'термин': 'Термины', 'словар': 'Термины',
+    'шаблон': 'Шаблоны документов', 'договор': 'Шаблоны документов',
+    'термин': 'Словарь EVO', 'словар': 'Словарь EVO',
     'стран': 'Страны и поступление', 'университет': 'Страны и поступление', 'программ': 'Страны и поступление',
     'ассистент': 'ИИ-ассистент', 'faq': 'ИИ-ассистент', 'вопросы и ответы': 'ИИ-ассистент',
 }
@@ -83,6 +83,41 @@ def plan(row):
             'authority': 'preserved_from_source_no_new_approval', 'importStatus': 'pending'}
 
 
+
+def classify_reviewed_text(entry, root):
+    # Only the 2-MiB-capped, approved/working Markdown already admitted as pages.
+    # Raw exports, Trash/Spam, applicant files and closed derivatives are never opened.
+    if entry.get('kind') != 'page' or entry.get('area') != 'internal':
+        return entry
+    source = root / entry['relativePath']
+    if source.is_symlink() or not source.resolve().is_relative_to(root.resolve()):
+        raise ValueError('source_path_invalid')
+    data = source.read_bytes()
+    if hashlib.sha256(data).hexdigest() != entry['sha256']:
+        raise ValueError('source_changed')
+    try:
+        text = data.decode('utf-8')
+    except UnicodeDecodeError:
+        return {**entry, 'kind': 'file', 'title': source.name, 'reason': 'Текст не является UTF-8; сохранён исходный файл.'}
+    lines = text.splitlines()
+    frontmatter = []
+    if lines and lines[0].strip() == '---':
+        for line in lines[1:100]:
+            if line.strip() == '---': break
+            frontmatter.append(line)
+    headings = [line.lstrip('# ').strip().lower() for line in lines if line.startswith('#')][:30]
+    heading_text = ' '.join([entry['title'].lower(), *headings])
+    topics = {topic for token, topic in TOPICS.items() if token in heading_text}
+    folders = entry['folders']
+    if len(topics) == 1 and folders and folders[0] in {'Внутренние знания','Процессы и инструкции'}:
+        topic = next(iter(topics))
+        if folders[0] == 'Внутренние знания': folders = [topic, *folders[1:]]
+    review = entry.get('reviewQuestion','')
+    if any(re.search(r'^(?:status|статус)\s*:.*(?:conflict|needs.review|на уточнении|конфликт)', line, re.I) for line in frontmatter):
+        review = 'В исходной странице отмечен конфликт или необходимость проверки. Требуется подтверждение.'
+    return {**entry, 'folders': folders, 'reviewQuestion': review,
+            'reason': 'Существующая группировка, заголовки и статус разрешённой текстовой страницы; факты и признаки утверждения сохранены.'}
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--inventory', required=True); ap.add_argument('--output', required=True)
@@ -92,14 +127,14 @@ def main():
     if not rows or any(x['status'] not in {'hashed', 'retained_key_outside_export'} for x in rows):
         raise SystemExit('inventory_not_complete')
     output = private_output(Path(args.output).absolute(), Path(rows[0]['sourceRoot']))
-    planned = [plan(row) for row in rows]
+    planned = [classify_reviewed_text(plan(row), Path(rows[0]['sourceRoot'])) for row in rows]
     result = {'version': 1, 'inventorySha256': hashlib.sha256(input_path.read_bytes()).hexdigest(),
               'preparedAt': datetime.now(timezone.utc).isoformat(), 'sourceRoot': rows[0]['sourceRoot'],
               'entries': planned}
     write_json(output, result)
     counts = Counter((r['area'] if 'area' in r else 'outside', r.get('kind','key'),r['action']) for r in planned)
     summary = {'sourceEntries': len(rows), 'plannedEntries': len(planned), 'imported': 0,
-               'classification': 'path_metadata_only',
+               'classification': 'archive_metadata_and_reviewed_text_headings',
                'groups': [{'area': k[0], 'kind': k[1], 'action': k[2], 'count': n} for k,n in sorted(counts.items())]}
     write_json(output.with_suffix('.summary.json'), summary)
     print(json.dumps(summary, ensure_ascii=False))

@@ -8,6 +8,7 @@ import type { CaseChatPage } from "@/lib/platform-case-chat-contract";
 import type { ProfileEvent } from "@/components/v3/profile/types";
 import { journalEvent } from "@/lib/v3/wording";
 import { knowledgeFetch, command } from "./client";
+import { KnowledgeExport } from "./KnowledgeExport";
 import styles from "./KnowledgeLibrary.module.css";
 
 type Directory = { items: PlatformStudentCaseQueueRow[]; hasMore: boolean; nextCursor: { sortAt: string; id: string } | null };
@@ -24,8 +25,9 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
     try {
       if (!caseId) setDirectory(await knowledgeFetch<Directory>(`clients?${new URLSearchParams({ search })}`, { signal }));
       else {
-        setRecord(await knowledgeFetch<PlatformStudentCaseQueueRow>(`clients/${caseId}`, { signal }));
-        if (tab === "documents") setDocuments(await knowledgeFetch<PlatformCaseDocumentWorkspace>(`clients/${caseId}/documents`, { signal }));
+        const current = await knowledgeFetch<PlatformStudentCaseQueueRow>(`clients/${caseId}`, { signal });
+        setRecord(current);
+        if (tab === "documents") setDocuments(current.handoffAt && ["active", "closed"].includes(current.state) ? await knowledgeFetch<PlatformCaseDocumentWorkspace>(`clients/${caseId}/documents`, { signal }) : null);
         if (tab === "chat") setChat(await knowledgeFetch<CaseChatPage>(`clients/${caseId}/chat`, { signal }));
         if (tab === "history") setHistory(await knowledgeFetch<History>(`clients/${caseId}/history`, { signal }));
       }
@@ -78,6 +80,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       {directory?.hasMore && <button type="button" disabled={busy} onClick={() => void more()}>Показать ещё клиентов</button>}
     </> : <>
       <Link href="/v3/knowledge?area=clients">← Клиенты</Link>
+      <KnowledgeExport caseIds={[caseId]} label="Выгрузить досье" />
       <h2>{record?.studentDisplayName ?? "Загрузка досье…"}</h2>
       <div className={styles.actions}>
         <Link href={`/v3/profile?case=${caseId}`}>Открыть дело</Link>
@@ -86,6 +89,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       <div className={styles.actions} role="group" aria-label="Материалы клиента">
         {(["documents", "chat", "history"] as const).map((key) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{({ documents: "Документы", chat: "Переписка", history: "История" })[key]}</button>)}
       </div>
+      {tab === "documents" && record && !record.handoffAt && <p>Рабочий список документов появится после передачи дела.</p>}
       {tab === "documents" && documents && <>
         {!documents.slots.length && <p>В деле пока нет документов.</p>}
         {documents.slots.map((slot) => <section key={slot.documentSlotId}><h3>{slot.requirementLabel}</h3>

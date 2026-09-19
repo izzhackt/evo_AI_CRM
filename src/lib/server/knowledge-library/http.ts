@@ -1,4 +1,5 @@
 import "server-only";
+import { importKnowledgeProtected } from "./protected-import";
 import { readKnowledgeDossier, readKnowledgeDossiers } from "./dossiers";
 import { knowledgeSecretsStatus, readKnowledgeSecret, saveKnowledgeSecret } from "./secrets";
 import { after } from "next/server";
@@ -46,15 +47,23 @@ export async function knowledgeHttp(request: Request, segments: string[]): Promi
     const [route, id, option] = segments;
     const url = new URL(request.url);
     if (request.method === "POST") sameOrigin(request);
+    if (route === "source" && request.method === "POST" && segments.length === 1) {
+      const payload = JSON.parse(new TextDecoder().decode(await boundedBody(request, 20_000)));
+      return json(await knowledgeQuery(actor, { mode: "sources", keys: payload.keys }));
+    }
     if (route === "source" && request.method === "GET" && id && /^[0-9a-f]{64}$/.test(id) && segments.length === 2) {
       return json(await knowledgeQuery(actor, { mode: "source", key: id }));
     }
     if (route === "secrets") {
+      if (request.method === "POST" && id === "import" && !option) {
+        const payload = JSON.parse(new TextDecoder().decode(await boundedBody(request, 40 * 1024 * 1024)));
+        return json(await importKnowledgeProtected(actor, payload));
+      }
       if (request.method === "GET" && id === "status") return json(await knowledgeSecretsStatus(actor));
       if (request.method === "GET" && id && KNOWLEDGE_UUID.test(id) && !option) return json(await readKnowledgeSecret(actor, id, false));
       if (request.method === "POST" && id && KNOWLEDGE_UUID.test(id) && option === "reveal") return json(await readKnowledgeSecret(actor, id, true));
       if (request.method === "POST" && !id) {
-        const payload = JSON.parse(new TextDecoder().decode(await boundedBody(request, 100_000)));
+        const payload = JSON.parse(new TextDecoder().decode(await boundedBody(request, 400_000)));
         return json(await saveKnowledgeSecret(actor, payload));
       }
     }

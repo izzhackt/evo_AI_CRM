@@ -34,9 +34,9 @@ function links(model) {
 // OTH-5: «Сообщения» (id messages, /v3/messages) follows «Воронка» right
 // after it — same admissions.read-only gate, so Sales never sees it either.
 const expectedRoleLinks = {
-  admin: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "knowledge", "settings"],
-  sales: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "knowledge"],
-  admissions: ["home", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "knowledge"],
+  admin: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "calendar", "documents", "reply-snippets", "knowledge", "settings"],
+  sales: ["home", "requests", "inbox", "pipeline", "sales-report", "admissions-worklist", "universities", "tasks", "team-chat", "reply-snippets"],
+  admissions: ["home", "admissions-pipeline", "messages", "admissions-worklist", "evo-docs", "universities", "admissions-summary", "tasks", "team-chat", "inbox", "calendar", "documents", "reply-snippets"],
 };
 
 for (const role of ["admin", "sales", "admissions"]) {
@@ -48,9 +48,9 @@ for (const role of ["admin", "sales", "admissions"]) {
     // S6 (plan §3/§14): the inbox link label is «Inbox» everywhere, sidebar
     // included — «Клиентские сообщения» is retired.
     assert.deepEqual(model.common.map((link) => link.label), role === "sales"
-      ? ["Задачи", "Командный чат", "База знаний"]
-      : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "База знаний"]
-      : ["Задачи", "Командный чат", "Inbox", "Календарь", "База знаний"]);
+      ? ["Задачи", "Командный чат", "Шаблоны ответов"]
+      : role === "admin" ? ["Задачи", "Командный чат", "Календарь", "Документы", "Шаблоны ответов", "База знаний"]
+      : ["Задачи", "Командный чат", "Inbox", "Календарь", "Документы", "Шаблоны ответов"]);
   });
 
   test(`Admin presentation preview of ${role} follows that role, not Admin authority`, () => {

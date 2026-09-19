@@ -8,9 +8,9 @@ import styles from "./KnowledgeLibrary.module.css";
 type ExportJob = {
   id: string; state: "queued" | "running" | "ready" | "failed" | "expired";
   entry_count: number; completed_entries: number; written_bytes: number;
-  created_at: string; expires_at: string; lease_until: string | null; error_code: string | null;
+  created_at: string; expires_at: string; lease_until: string | null; error_code: string | null; error_title?: string | null;
 };
-export function KnowledgeExport({ ids, area, label = "Выгрузить" }: { ids?: string[]; area?: KnowledgeArea; label?: string }) {
+export function KnowledgeExport({ ids, area, caseIds, label = "Выгрузить" }: { ids?: string[]; area?: KnowledgeArea; caseIds?: string[]; label?: string }) {
   const [now, setNow] = useState(0);
   const [open, setOpen] = useState(false); const [jobs, setJobs] = useState<ExportJob[]>([]);
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
@@ -33,7 +33,7 @@ export function KnowledgeExport({ ids, area, label = "Выгрузить" }: { i
   }, [open, jobs, refresh]);
   async function start() {
     setBusy(true); setError("");
-    const options = { ids, area, includeHistory: history, includeArchive: archive, includeTrash: trash };
+    const options = { ids, area, caseIds, includeHistory: history, includeArchive: archive, includeTrash: trash };
     const fingerprint = JSON.stringify(options);
     if (request.current?.fingerprint !== fingerprint) request.current = { id: crypto.randomUUID(), fingerprint };
     try {
@@ -68,8 +68,8 @@ export function KnowledgeExport({ ids, area, label = "Выгрузить" }: { i
           <span>{new Date(job.created_at).toLocaleString("ru-RU")}</span>
           {expired ? <span>Срок хранения истёк</span> : job.state === "ready"
             ? <a href={`/api/v3/knowledge/exports/${job.id}/download`}>Скачать ZIP · {(job.written_bytes / 1024 / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ</a>
-            : job.state === "failed" || interrupted || (job.state === "queued" && now - Date.parse(job.created_at) > 30_000) ? <><span role="status">{job.error_code ? knowledgeMessage(job.error_code) : "Подготовка прервана."} Архив не готов.</span><button disabled={busy} type="button" onClick={() => void retry(job.id)}>Повторить</button></>
-              : <span role="status">{job.state === "queued" ? "Ожидает подготовки" : `Подготовка · записано ${(job.written_bytes / 1024 / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ`}</span>}
+            : job.state === "failed" || interrupted || (job.state === "queued" && now - Date.parse(job.created_at) > 30_000) ? <><span role="status">{job.error_title ? `Не удалось выгрузить «${job.error_title}». ` : ""}{job.error_code ? knowledgeMessage(job.error_code) : "Подготовка прервана."} Архив не готов.</span><button disabled={busy} type="button" onClick={() => void retry(job.id)}>Повторить</button></>
+              : <span role="status">{job.state === "queued" ? "Ожидает подготовки" : `Подготовка · ${job.completed_entries} из ${job.entry_count} материалов · записано ${(job.written_bytes / 1024 / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ`}</span>}
         </li>;
       })}</ul>
     </dialog>

@@ -30522,3 +30522,60 @@ report deviations honestly. The two remaining S7 cosmetic follow-ups
 (full-row card save vs partial merge; playbook-bound legacy partner-details
 fail-closed) remain untouched and out of this slice's scope, unchanged from
 the prior entry.
+
+### 2026-09-19 — поправка к записи S8: real-database boundary coverage for cabinet_pending
+
+Date: 2026-09-19. Author: Claude Sonnet 5 (Claude Code). Change type: test
+coverage addendum (no migration or product code change). Affected plan
+section: «unified workflow S8: выдача приглашения для кабинетных дел».
+Migration 185's cabinet_pending privilege-boundary logic had zero real-
+Postgres test execution: `supabase/tests/platform_student_portal_provisioning.sql`
+(126) runs only at the 126 checkpoint, against the migration-126-era schema,
+which predates `cabinet_pending` entirely. Added
+`supabase/tests/platform_cabinet_invites.sql`, a real-execution suite in
+126's own idiom (pg_temp assertion helpers, SET ROLE/JWT-claims actor
+simulation via the live `platform_private.custom_access_token_hook`,
+RAISE-based negative assertions), wired to a new 185 checkpoint hook in
+`scripts/test-postgres-authorization.sh` (126's own hook left untouched).
+Covers: Sales-owned lead → `prepare_lead_cabinet_v1` → curator-less pending
+case; Sales `prepare_student_portal_provisioning('cabinet_pending')`
+positive + same-request replay; admin-only preserved for
+normal_u6/legacy_pending; origin-check refusal against a non-cabinet pending
+case; resource-scoped refusal for a second Sales actor holding the identical
+own-scoped grant who does not own the linked lead (proves ownership
+scoping, not a missing-permission artifact); Sales reissue-authorize allowed
+on her own expired cabinet invite, refused on a legacy receipt; a full
+finalize (claim → invite success → finalize) asserting the case stays
+`pending`/curator-less/handoff-less with only `portal_activated_at` and
+`student_membership_id` moving, and `platform.student_portal_cases()`
+resolving the case for the newly bound student (S1's pending predicate);
+a replayed finalize and a second prepare on the now-bound case both failing
+closed per the family's existing semantics.
+
+Full `npm run test:database:migration-boundaries` run against a disposable
+Docker Postgres container: **exit 0**, ending in the script's own "Verified
+disposable authorization database with ..." line, with the new suite's
+`P185_CABINET_INVITES_SUITE_START`/`P185_CABINET_INVITES_SUITE_PASSED`
+markers both present in the log at the 185 checkpoint (every intervening
+`p185_assert`/`p185_expect_prepare_denied`/`p185_expect_reissue_denied` call
+returned cleanly, zero `ERROR` lines attributed to
+`platform_cabinet_invites.sql`), immediately after the 126 checkpoint's own
+unmodified run. Three bugs surfaced by the first three attempts were all in
+the NEW test fixture, not in migration 185's logic, and were fixed in place
+before a clean run: (1) the legacy-active case fixture needs the same
+`session_replication_role = replica` insert-time bypass 126 already uses for
+042's `student_cases_transition_guard` (a case must start `pending`/
+curator-less on INSERT) — the fixture was inserting it already-active; (2)
+three assertions read `platform_private.student_portal_provisioning_receipts`
+directly while `SET ROLE authenticated`/`service_role` was still active —
+that schema has no grant to either role (only SECURITY DEFINER functions may
+read it), so those reads were moved to after `RESET ROLE`, matching every
+other such read in this suite and in 126's own; (3) the organization's
+canonical `platform.record_scopes` row (`scope_kind='organization'`) was
+missing — `assign_organization_scope_authorized_e1`, called from finalize's
+shared bind branch to grant the newly provisioned Student membership its
+organization scope, requires it independently of any staff membership's own
+scope assignment. **No defect in migration 185's actual privilege-boundary
+logic was found or fixed** — its `cabinet_pending` prepare/finalize/reissue
+authority checks, origin check, and state-shape guards all behaved exactly
+as specified on the first run where the test fixture itself was correct.

@@ -2439,6 +2439,19 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/154_staff_organization_directory.sql
   fi
+
+  # Migration 185 adds the cabinet_pending case_shape (S8 «выдача
+  # приглашения для кабинетных дел»): Sales-reachable prepare/finalize/reissue
+  # for a curator-less lead-cabinet case, gated by staff_can_access on the
+  # linked lead rather than the family's usual admin-only authority. Exercise
+  # it against the full current-boundary schema at its own checkpoint --
+  # the 126 hook above stays pinned to the migration-126-era schema and
+  # cannot see this shape at all.
+  if [[ "$(basename "$migration")" == 185_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_cabinet_invites.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

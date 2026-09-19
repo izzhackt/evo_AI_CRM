@@ -2535,6 +2535,19 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_invited_intake_unification.sql
   fi
+
+  # Migration 194 converts the invite family's re-invite business conflicts
+  # from the retryable SQLSTATE 40001 to PT409 (the 178/186 convention; the
+  # 186 incident class -- PostgREST retries 40001 forever). The suite proves
+  # the repeat-invite conflict is now PT409 with the UNCHANGED message and a
+  # single receipt, and that prepare-replay/reissue/finalize fencing all
+  # surface PT409. Exercise the boundary at its own checkpoint, same style
+  # as 192/193.
+  if [[ "$(basename "$migration")" == 194_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_invite_conflict_codes_pt409.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -68,6 +68,10 @@ const KNOWN_CODE_PREFIXES = [
   "deploy/",
   "docs/schemas/",
   "e2e/",
+  // Native iPhone client source (ADR 0030). Node lint/build do not compile
+  // Swift; its real verification is the local xcodebuild run recorded in the
+  // PR, so ios/ counts as known code without requiring the production build.
+  "ios/",
   "public/",
   "scripts/",
   "src/",

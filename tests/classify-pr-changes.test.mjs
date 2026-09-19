@@ -303,3 +303,19 @@ test("the exact reviewed PDF font bundle requires a build without allowing unrel
     assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
   }
 });
+
+test("native iOS client sources are known code with lint but no Node production build", () => {
+  for (const path of [
+    "ios/project.yml",
+    "ios/EVOAdmissions/App/EVOApp.swift",
+    "ios/Local.xcconfig.example",
+    "ios/.gitignore",
+  ]) {
+    const result = classifyNameStatus(nul("A", path));
+    assert.equal(result.code, true, path);
+    assert.equal(result.lint, true, path);
+    assert.equal(result.build, false, path);
+    assert.equal(result.ordinary_docs, false, path);
+    assert.equal(result.unknown, false, path);
+  }
+});

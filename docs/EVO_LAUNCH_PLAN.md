@@ -1,5 +1,28 @@
 # EVO Launch Plan
 
+## Portal release v3-r35428426080-a1-03fb983f accepted 2026-09-19
+
+- [x] Migration 192 (portal access tiers) applied to production BEFORE the
+  release via the manual schema-ledger workflow; Management API readback
+  confirmed the live ledger tail `…188-192` equals the repo tree. Zero
+  affected accounts (both live cases active); boundary suite checkpoint
+  `P192_PORTAL_ACCESS_TIERS_SUITE_PASSED` verified in the full local log.
+- [x] Release from exact main `03fb983fab746f167cccfec42df114d7da0adda3`
+  (#869 access tiers + #873 catalogue «Атлас»: MapLibre map, geo library
+  126 pins/17 honest omissions, OpenFreeMap keyless terms verified + #874
+  node-suite guard fixes). CI run 35428409672 green; release run 35428426080
+  accepted; container `evo-crm-app-1` on hermes-vps carries the exact OCI
+  revision; `/api/health` live; accepted pointer
+  `v3-r35428426080-a1-03fb983f` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 07:12 UTC.
+- Independent exact-head reviews: #869 triple-confirmed (incl. renumbering
+  195→192 after OTHER released the 192-194 buffer), #873 confirmed on the
+  merge tree, #874 confirmed at 10/10 guard. Cross-session release protocol
+  observed both ways (ping before arm, main frozen during the run).
+- Not claimed: real student sign-in journeys on the redesigned surfaces
+  (no live credentials in the agent session); browser smoke covered the
+  standing portal anchors only.
+
 ## Portal web + iPhone — parallel implementation approved 2026-09-19
 
 The owner replaces the staff-only / no-self-serve restriction in

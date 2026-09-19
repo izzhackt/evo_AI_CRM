@@ -125,6 +125,11 @@ function normalizeRow(value: unknown): AdmissionsPipelineRow {
     pipelineStage: requiredStage(value.pipeline_stage),
     awaitingAck: requiredBoolean(value.awaiting_ack),
     overdue: requiredBoolean(value.overdue),
+    // OTH-5, migration 191: the board RPC now also returns needs_reply. The
+    // OLD RPC body (pre-191) never sends this key — decode it as absent-safe
+    // false rather than requiredBoolean, so this same client build keeps
+    // working against the board during a rolling deploy window.
+    needsReply: value.needs_reply === true,
   });
 }
 

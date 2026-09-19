@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, type FormEvent } from "react";
 
@@ -675,6 +676,14 @@ export function ProfileDocumentsClient({
 
   return (
     <>
+      {studentCaseId ? (
+        <p className="border-b border-border px-4 py-2.5">
+          <Link href={`/v3/messages?case=${studentCaseId}`} className="text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit">
+            Обсудить
+          </Link>
+        </p>
+      ) : null}
+
       {uploadAccess !== "allowed" ? (
         <p className="border-b border-border px-4 py-3 text-sm text-fg-3" role="status">
           {ACCESS_MESSAGE[uploadAccess]}

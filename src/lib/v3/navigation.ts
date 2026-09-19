@@ -11,6 +11,7 @@ export type V3NavigationLinkId =
   | "pipeline"
   | "sales-report"
   | "admissions-pipeline"
+  | "messages"
   | "admissions-worklist"
   | "evo-docs"
   | "admissions-summary"
@@ -76,6 +77,10 @@ const GROUPS: readonly Omit<V3NavigationGroup, "active">[] = [
       // own «Воронка» (/v3/pipeline) by design — two different boards for
       // two different roles, flagged and accepted, not an oversight.
       { id: "admissions-pipeline", href: "/v3/admissions-pipeline", route: "/v3/admissions-pipeline", label: "Воронка" },
+      // OTH-5: per-case staff chat «Сообщения» — right after «Воронка» (owner
+      // plan). Its own route already requires admissions.read, so no extra
+      // `capability` gate is needed here either.
+      { id: "messages", href: "/v3/messages", route: "/v3/messages", label: "Сообщения" },
       // Plan §3: «Рабочий список» renamed to «Студенты» (id kept for stability).
       { id: "admissions-worklist", href: "/v3/profile", route: "/v3/profile", label: "Студенты" },
       { id: "evo-docs", href: "/v3/profile?section=docs", route: "/v3/profile", label: "EVO Docs", capability: "admissions.read" },

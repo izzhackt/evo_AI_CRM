@@ -23,6 +23,7 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",
+  "/v3/messages",
   "/v3/universities",
   "/v3/universities/manage",
 ]);

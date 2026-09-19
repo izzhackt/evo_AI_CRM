@@ -56,6 +56,10 @@ function rowCopy(item: StaffNotification): string {
       return item.actorDisplayName ? `${item.actorDisplayName} упомянул(а) вас в чате` : "Вас упомянули в чате";
     case "case_help":
       return item.studentDisplayName ? `Новое обращение по делу студента · ${item.studentDisplayName}` : "Новое обращение по делу студента";
+    case "case_message":
+      return item.actorDisplayName && item.studentDisplayName
+        ? `${item.actorDisplayName} написал(а) в переписке · ${item.studentDisplayName}`
+        : "Новое сообщение в переписке по делу";
     default:
       return "Событие";
   }

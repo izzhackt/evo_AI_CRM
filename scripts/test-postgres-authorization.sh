@@ -2498,6 +2498,20 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_application_author.sql
   fi
+
+  # Migration 191 adds the per-case staff chat (OTH-5): platform.case_chat_command
+  # (post/set_await/read), platform.case_chat_read_page_v1,
+  # platform.staff_case_chat_threads_v1, the new 'case_message' staff
+  # notification kind and the board's needs_reply column. Same convention as
+  # 185/187/188 above: exercised at its own checkpoint against the full
+  # current-boundary schema. This branch's ledger has a temporary numbering
+  # gap at 189/190 (sibling OTH slices, merged separately) -- 191 is still the
+  # correct checkpoint filename to match on here.
+  if [[ "$(basename "$migration")" == 191_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_chat.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

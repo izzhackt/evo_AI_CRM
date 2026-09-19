@@ -41,6 +41,8 @@ export type AdmissionsPipelineRow = Readonly<{
   pipelineStage: AdmissionsPipelineStage;
   awaitingAck: boolean;
   overdue: boolean;
+  /** OTH-5: the case's per-case chat thread has await_state='needs_reply'. */
+  needsReply: boolean;
 }>;
 
 export type AdmissionsPipelineBoard = Readonly<{

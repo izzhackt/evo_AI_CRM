@@ -263,6 +263,15 @@ const ADMISSIONS_PIPELINE_TAB: Record<"admission" | "visa", string> = {
   visa: "Виза и выезд",
 };
 
+// OTH-5 «Переписка по делу»: await mark per conversation. «Без отметки»
+// renders no Pill at all (state, not a fourth colored value) — see
+// CaseChatThread.tsx.
+const CASE_CHAT_AWAIT_STATE: Record<string, string> = {
+  none: "Без отметки",
+  needs_reply: "Нужен ответ",
+  awaiting_student: "Ждём студента",
+};
+
 // Plan §9: «Не загружен / На проверке / Нужно исправить / Принят». The
 // server enum keeps its fifth, honest state («Отклонён») — the plan's list
 // names the common path, not an exhaustive prohibition (unified workflow S6).
@@ -453,6 +462,7 @@ export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, 
 export const admissionsPipelineStage = (v: string | null | undefined) =>
   lookup(ADMISSIONS_PIPELINE_STAGE, v);
 export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
+export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
 export const documentSlotStatus = (v: string | null | undefined) =>
   lookup(DOCUMENT_SLOT_STATUS, v);

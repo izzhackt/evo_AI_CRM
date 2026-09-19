@@ -208,7 +208,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
             <label><span className={labelCls}>Оплачено по записи</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid} onChange={e => update("paid", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("paid_currency")}
           </div>{record?.paidRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.paidRaw}</p> : null}</div>
         </div>
-        <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми. Это отчётная запись, а не подтверждение платежа.</p>
+        <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми.</p>
         <div className="grid gap-4 sm:grid-cols-2">{input("manager_label", "text", false, 300)}
           {canChooseOwner ? <label><span className={labelCls}>Ответственный за продажу</span><select value={draft.owner_membership_id} disabled={locked} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Не назначен</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}

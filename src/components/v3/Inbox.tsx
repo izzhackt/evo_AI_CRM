@@ -349,7 +349,6 @@ export function Inbox({
         <section className="hidden place-items-center rounded-card border border-border bg-surface p-8 text-center text-sm text-fg-3 @4xl:grid">
           <div>
             <p className="font-semibold text-fg-2">Выберите диалог</p>
-            <p className="mt-1">Откройте переписку из списка слева.</p>
           </div>
         </section>
       )}

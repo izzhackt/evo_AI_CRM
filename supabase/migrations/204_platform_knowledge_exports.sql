@@ -1,4 +1,4 @@
--- Draft; combine with the KB schema only after the shared migration reservation.
+-- 204_platform_knowledge_exports; KB release coordinated by Astra.
 BEGIN;
 CREATE TABLE platform_private.kb_exports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

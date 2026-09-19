@@ -16,7 +16,7 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 - KB-0 merged as #902 (`7610579df`). Implementation is in draft #906, branch `izzhackt/crm-knowledge-core`, isolated worktree `evo-crm-knowledge-implementation`; canonical dirty checkout is preserved.
 - Private inventory covers 6,570 source entries. The filing plan retains 436 editable pages, 6,100 ordinary source files and 32 protected originals; two backup key files remain outside CRM. Protected preparation adds 25 structured records and verifies 57 ciphertext round trips without writing plaintext files.
 - The candidate implements Admin library, existing CRM dossiers, protected records, resumable import, reconciliation and ZIP export. Details and actual evidence: [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).
-- Production schema, key provisioning, release, real UI acceptance, control batch, complete import and downloaded ZIP verification remain open. Zero source entries have been imported into CRM. Fable retains schema/release coordination until explicit handoff.
+- Production schema, key provisioning, release, real UI acceptance, control batch, complete import and downloaded ZIP verification remain open. Zero source entries have been imported into CRM. The owner explicitly transferred KB schema/release coordination to Astra; Fable was notified in #912. Forward migrations 201–204 are reserved; application is not yet claimed.
 
 ## Portal release v3-r35469103571-a1-b047e663 accepted 2026-09-20
 

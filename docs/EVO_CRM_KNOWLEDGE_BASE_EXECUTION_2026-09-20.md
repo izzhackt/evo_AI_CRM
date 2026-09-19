@@ -76,11 +76,11 @@
 
 ## Что необходимо до завершения
 
-1. Согласовать с единым координатором номера четырёх миграций и владельца
-   schema apply / выпуска. SQL пока лежит в `docs/schemas/knowledge/` и
-   не обозначен как применённый. Сообщения координации: #899 и #903.
-2. После назначения перенести SQL в forward migrations, выполнить ревью
-   точного head и protected checks. Применить через общий ledger и проверить
+1. Владелец передал Astra schema apply / выпуск, перенос и экспорт. Fable
+   уведомлён в #912. За KB зарезервированы forward migrations 201–204;
+   production ledger до применения — 200, arm выключен.
+2. Выполнить ревью точного head с миграциями и protected checks. Применить
+   через общий ledger и проверить
    реальные RPC/RLS. Порядок: base → secrets → canonical export → export.
 3. Согласованно подключить внешний ключ `/etc/evo-crm/knowledge/age.key`,
    публичного получателя и maintenance timer. Ключ не входит в checkout,

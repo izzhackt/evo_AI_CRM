@@ -32715,3 +32715,27 @@ HTTP 200 с верными content-type и байтами, совпадающи�
 выполнена ревьюером #909 спот-чеками (6 записей в обе стороны через
 extmetadata API); полная построчная ре-верификация остаётся честным
 ограничением.
+
+
+## 2026-09-20 — KB: передача выпуска Astra и резерв миграций 201–204
+
+Владелец в текущей задаче явно подтвердил передачу Astra выпуска базы знаний,
+переноса реальных материалов и проверки экспорта. Fable уведомлён в #912:
+https://github.com/izzhackt/evo_AI_CRM/pull/912#issuecomment-5745678648.
+На момент резерва main `d564aefd`, production ledger заканчивается на 200,
+Portal release `35469103571` завершён, release arm выключен, pending отсутствует.
+Открытые #912/#905 не добавляют SQL. За KB резервируются 201–204 в порядке
+library → sealed records → canonical export → export jobs. SQL-проекты
+переносятся без изменения поведения в forward migrations. Единственный
+координатор schema apply и ближайшего выпуска — Astra; до dispatch отдельно
+фиксируется exact-main freeze. Portal/iOS-изменения сохраняются.
+
+Production apply выполняется только из проверенного commit с записью исходного
+SQL в общий ledger в одной транзакции; последующее чтение проверяет номера и
+SHA-256. Management API `/database/migrations` сам назначает версию и не принимает
+наш числовой version, поэтому используется `/database/query` для точного SQL и
+ledger insert. Официальный контракт: https://supabase.com/docs/reference/api/v1-run-a-query
+и https://supabase.com/docs/reference/api/v1-apply-a-migration (проверены 20.09.2026).
+Ключ SOPS передаётся только process-only из Keychain на внешний серверный путь.
+Эта запись фиксирует полномочия и порядок, но не объявляет применение,
+выпуск, импорт или проверку ZIP уже выполненными.

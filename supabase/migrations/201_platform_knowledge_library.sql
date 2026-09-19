@@ -1,4 +1,4 @@
--- KB-1/2 draft: assign a forward migration number with the shared coordinator.
+-- 201_platform_knowledge_library; KB release coordinated by Astra.
 BEGIN;
 INSERT INTO storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 VALUES('platform-knowledge-library','platform-knowledge-library',FALSE,8388608,ARRAY['application/octet-stream']);

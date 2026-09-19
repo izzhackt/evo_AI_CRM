@@ -52,9 +52,9 @@ blob и исключёнными ключами. Публично публику
 
 ## Runtime и координация
 
-SQL в `docs/schemas/knowledge/` остаётся проектом до резервирования номера общим
-координатором. Порядок: `schema.sql`, `secrets-schema.sql`,
-`canonical-export-schema.sql`, `export-schema.sql`. Первый файл создаёт отдельный
+Forward migrations 201–204 в `supabase/migrations/` зарезервированы за Astra
+после передачи выпуска владельцем. Порядок: library, sealed records,
+canonical exports, export jobs. Первый файл создаёт отдельный
 private Storage bucket с частями по 8 MiB и закрывает прямой доступ Auth/anon.
 Применять ровно один раз через согласованный migration ledger.
 

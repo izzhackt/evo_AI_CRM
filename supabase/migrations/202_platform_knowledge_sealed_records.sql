@@ -1,4 +1,4 @@
--- Draft: sealed records contain complete SOPS ciphertext, never plaintext fields.
+-- 202_platform_knowledge_sealed_records; KB release coordinated by Astra.
 BEGIN;
 CREATE TABLE platform_private.kb_sealed_values (
  node_id UUID NOT NULL REFERENCES platform_private.kb_nodes(id),

@@ -1,4 +1,4 @@
--- Draft; apply after the library schema and before export-schema.sql.
+-- 203_platform_knowledge_canonical_exports; KB release coordinated by Astra.
 -- These are export projections. They do not create another case/document identity.
 BEGIN;
 CREATE FUNCTION platform_private.kb_projection(p_id UUID,p_org UUID,p_area TEXT,p_parent UUID,p_kind TEXT,p_title TEXT,p_at TIMESTAMPTZ,p_extra JSONB DEFAULT '{}')

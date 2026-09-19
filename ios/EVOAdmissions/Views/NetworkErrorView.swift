@@ -8,8 +8,12 @@ struct NetworkErrorView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 40))
+                // A11y (9b): системный текст-стиль вместо фиксированных 40pt
+                // (Dynamic Type); сам символ — декорация рядом с заголовком.
+                .font(.largeTitle)
+                .imageScale(.large)
                 .foregroundStyle(Color("AccentColor"))
+                .accessibilityHidden(true)
 
             Text("network_error_title")
                 .font(.title3.bold())
@@ -34,6 +38,8 @@ struct NetworkErrorView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Color("AccentColor"))
+            // A11y (9b): во время повтора label — ProgressView без текста.
+            .accessibilityLabel(Text("retry_button"))
         }
         .padding(32)
     }

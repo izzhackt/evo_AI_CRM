@@ -58,6 +58,9 @@ struct SignInView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
                 .disabled(email.isEmpty || password.isEmpty || isAuthenticating)
+                // A11y (9b): во время входа label кнопки — ProgressView без
+                // текста; VoiceOver должен по-прежнему слышать «Войти».
+                .accessibilityLabel(Text("sign_in_button"))
 
                 // PORT-9a (план §4 «Не зарегистрирован»): анкета и приём
                 // приглашения доступны рядом со входом.

@@ -449,6 +449,10 @@ struct LessonRunnerView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
                 .disabled(model.isWriting || model.exercises.isEmpty)
+                // A11y (9b): во время записи label — ProgressView без текста.
+                .accessibilityLabel(model.attemptId != nil
+                    ? Text("english_continue_lesson")
+                    : Text("english_start_lesson"))
             }
             .padding(20)
         }
@@ -577,6 +581,8 @@ struct LessonRunnerView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
                 .disabled(!model.canSubmit)
+                // A11y (9b): во время записи label — ProgressView без текста.
+                .accessibilityLabel(Text("english_answer_button"))
             }
         }
         .padding(16)
@@ -608,6 +614,8 @@ struct LessonRunnerView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(Color("AccentColor"))
                     .disabled(!model.allAnswered || model.isWriting)
+                    // A11y (9b): во время записи label — ProgressView.
+                    .accessibilityLabel(Text("english_finish_button"))
                 }
                 .padding(16)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
@@ -673,6 +681,8 @@ struct LessonRunnerView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(model.isWriting)
+                // A11y (9b): во время записи label — ProgressView.
+                .accessibilityLabel(Text("english_repeat_lesson"))
 
                 failureCard
 
@@ -903,6 +913,8 @@ struct RunnerOptionButton: View {
             HStack {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
                     .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    // A11y (9b): кружок — декорация, состояние несёт trait.
+                    .accessibilityHidden(true)
                 Text(label)
                     .font(.subheadline)
                     .multilineTextAlignment(.leading)
@@ -918,6 +930,8 @@ struct RunnerOptionButton: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
+        // A11y (9b): выбранность варианта — не только цвет/иконка.
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }
 

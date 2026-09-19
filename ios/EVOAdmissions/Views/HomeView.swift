@@ -29,6 +29,9 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    // A11y (9b): карточка статуса читается одним элементом
+                    // («Статус дела, активно»), а не двумя строками.
+                    .accessibilityElement(children: .combine)
 
                     if let nextAction = session.portalCase.nextAction, !nextAction.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
@@ -40,6 +43,8 @@ struct HomeView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                        // A11y (9b): подпись и текст шага — один элемент.
+                        .accessibilityElement(children: .combine)
                     }
 
                     // Раздел «Избранное» (195) — вход с Главной.

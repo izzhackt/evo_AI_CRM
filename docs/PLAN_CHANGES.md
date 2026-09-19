@@ -32656,3 +32656,21 @@ src/lib/university-photo-library.json (144 записи) целиком hotlink
   не входит в slice.
 - Сбои скачивания в --check фиксируются в манифесте как failed и не
   мигрируют; их починка (замена источника) — контентная работа вне slice.
+
+## 2026-09-20 — PORT-9d: выполнен --apply переноса фото вузов (координатор)
+
+Координатор выполнил scripts/portal/migrate-university-photos.mjs --apply
+против production (ключ получен из Management API в память процесса, на
+диск и в вывод не попадал; канонические node-флаги --conditions=react-server).
+Результат: bucketStatus=created_and_verified (бакет
+portal-university-photos создан этим прогоном), uploaded=87, failures=0,
+alreadyMigrated=0, totals migrated=87/144 (57 официальных источников
+остаются hotlink по лицензии — как решено в PORT-9d). Спот-чек публичных
+URL: peking-university.jpg и university-of-rome-tor-vergata.png отвечают
+HTTP 200 с верными content-type и байтами, совпадающими с манифестом.
+Этот коммит-флип манифеста — единственное кодовое изменение; сайт начнёт
+отдавать managed-URL после релиза, содержащего этот флип. Ручная
+ре-верификация лицензий на Commons-страницах, названная в PORT-9d,
+выполнена ревьюером #909 спот-чеками (6 записей в обе стороны через
+extmetadata API); полная построчная ре-верификация остаётся честным
+ограничением.

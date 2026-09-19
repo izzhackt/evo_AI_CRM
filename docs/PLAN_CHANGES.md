@@ -31064,3 +31064,76 @@ TS: safeConflict дополнительно принимает PT409 (40001 со
 
 Validation: полная цепочка 001–194 на OrbStack, маркеры P193/P194 в полном
 логе, typecheck, целевые node-тесты 15/15, git diff --check.
+
+## 2026-09-19 — PORT-3b: избранное каталога и сравнение (миграция 195)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 (строка «Избранное»,
+раздел «Каталог и материалы») и решение PORT-0 «каталог, карта, избранное,
+фото» (`docs/design/portal/port-0-contracts.md`: «Избранное v1 — на уровне
+вуза … таблица student-owned + RPC add/remove/list + batch-by-ids чтение
+карточек; та же RPC-only изоляция, что у каталога»).
+Change type: architecture and scope fixation for PORT-3b before coding;
+allocates migration number 195 (первый номер Portal-цепочки после закрытия
+цепочки OTHER на 191 и PORT-1a/1b на 192–194; сверено с main `0667c001`,
+открытых PR с 195 нет).
+Affected plan section: PORT-3 (университеты/исследование), план §6
+«Избранное», §8.5 (личные данные), design contract §5 «Избранное».
+
+Reason: карточки каталога «Атлас» (PORT-3a, #873) уже в main, но сохранить
+вуз и вернуться к нему с другого устройства нельзя — избранное по плану §6
+обязано жить на сервере, а не в localStorage. Сравнение вузов было осознанно
+отложено из PORT-3a до появления сохранённого набора (запись PLAN_CHANGES
+PORT-3a, пункт d).
+
+Decision:
+- (a) Миграция `195_platform_university_favorites.sql`: таблица
+  `platform_private.university_favorites(organization_id, membership_id,
+  institution_id, created_at, UNIQUE(organization_id, membership_id,
+  institution_id))` c RLS ENABLE+FORCE и REVOKE ALL от всех API-ролей —
+  дословно паттерн приватных таблиц 148. Доступ только через три RPC
+  (SECURITY DEFINER, SET search_path='', GRANT EXECUTE TO authenticated),
+  актор выводится внутри через `platform.current_actor_authority()` с
+  guard'ом каталога 148 (`platform_role='student'` +
+  `portal.read.self`) — сознательно БЕЗ привязки к состоянию кейса:
+  избранное — общая возможность approved-уровня (план §4, §8.5).
+- (b) `platform.set_university_favorite_v1(p_institution_id, p_favored)` —
+  идемпотентен по построению (INSERT … ON CONFLICT DO NOTHING / DELETE,
+  без request-ledger'а: повтор не меняет состояние), возвращает фактическое
+  состояние и счётчик; институция обязана принадлежать организации актора и
+  иметь published-публикацию, иначе 42501 (стиль 148 «Institution is
+  unavailable»). `platform.student_university_favorites_v1()` — только свои
+  записи. `platform.student_university_catalog_by_ids_v1(p_institution_ids)`
+  — та же форма строк, что `student_university_catalog` (items:
+  id/version/publishedAt/content), потолок 30 id (22023 выше), только
+  published и только своя организация (иначе 42501); чужой membership не
+  адресуем ни одним параметром.
+- (c) Boundary-тест `supabase/tests/platform_university_favorites.sql` на
+  собственном чекпоинте 195 в `scripts/test-postgres-authorization.sh`
+  (конвенция 185/192/193/194): студент CRUD своего набора; второй студент
+  видит только своё (пусто); staff admin/sales/curator получают 42501 на все
+  три RPC (избранное — приватные данные ученика, план §8.5); anon и
+  service_role отклонены; двойной set — одна строка; by_ids отклоняет чужую
+  организацию; pending-case студент работает, второй студент вовсе без кейса
+  (case-независимость с двух сторон).
+- (d) Web: сердечко-toggle на карточках каталога и в карточке вуза
+  (optimistic через useTransition, честная ошибка при отказе, повтор
+  безопасен — RPC идемпотентен); раздел «Избранное» `/portal/favorites` в
+  Shell-нав обоих tier'ов; внутри — карточки из by_ids и «Сравнить»:
+  таблица фактических свойств выбранных (страна/город/уровни/программы/
+  ближайшие интейки) — никаких рейтингов и шансов поступления (план §6,
+  §14). RU/KY через `src/lib/portal/i18n.ts` (новый неймспейс favorites);
+  пустое состояние честное. Смоук-якоря не затрагиваются.
+
+Validation impact: полная цепочка 001–195 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с полным логом и grep
+маркеров P195 (и сохранности P191–P194); `npm run typecheck`;
+`npm run build`; `npm run test:brand-ui`; портальные node-тесты
+(portal-i18n ky-полнота, новый tests/portal-university-favorites.test.mjs,
+v3-student-portal-ui с обновлёнными пинами навигации; пины
+tests/ci-node-test-suite.test.mjs обновляются в том же коммите, что и
+состав test:frontend); `git diff --check`. Живой аутентифицированный рендер
+экрана в этой сессии не выполняется (нет разрешённого студенческого
+аккаунта) — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head.

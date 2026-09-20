@@ -53,3 +53,13 @@ Student/anonymous/tenant denials и неизменность business/Auth/funct
 подходящих данных. Никаких fixtures/entities, новых Auth/ролей или изменения
 business facts для демонстрации не разрешено. Managed DB и production release
 не выполнялись. CRM-03 полностью принят только в пределах фактических доказательств.
+
+## Замечание независимого review до применения220
+
+На7b4e6cd7 один reviewer одобрил source/SQL, второй указал на native selects
+с defaultValue: после URL Back/Forward прежний DOM мог сохранить выбранный
+статус при уже обновлённом серверном списке. Форма получила identity key из
+source/applicationStatus/consultationStatus/limit. Смена серверных фильтров
+теперь пересоздаёт её DOM с актуальными значениями. Команды и SQL не менялись.
+Actual Back/Forward и повторный submit с совпадением URL/полей/списка добавлены
+в ожидающий UI-проход после220. Новый exact-head review ещё требуется.

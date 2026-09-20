@@ -33,7 +33,8 @@ function Filters({ selection }: { selection: RequestSelection }) {
       </Link>)}
     </nav>
     {(requestKindSelected("application", selection.source) || requestKindSelected("consultation", selection.source)) ? (
-      <form action="/v3/requests" className="flex flex-wrap items-end gap-3">
+      <form key={`${selection.source}:${selection.applicationStatus}:${selection.consultationStatus}:${selection.limit}`}
+        action="/v3/requests" className="flex flex-wrap items-end gap-3">
         <input type="hidden" name="source" value={selection.source} />
         {selection.limit !== 50 ? <input type="hidden" name="limit" value={selection.limit} /> : null}
         {requestKindSelected("application", selection.source) ? <label className="grid min-w-0 w-full gap-1 text-sm text-fg-2 sm:flex-1 sm:max-w-64">

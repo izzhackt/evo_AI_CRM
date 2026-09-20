@@ -34716,3 +34716,36 @@ CREATE OR REPLACE сохраняет owner/permissions, но остальные 
 заново, поэтому они должны быть явно сохранены в219. Source: migration137
 `admissions_validate_fields`/`admissions_guard_related` и migration184
 `application_partner_detail_fields`/`update_application_partner_details_v1`.
+
+
+## 2026-09-21 — item29: forward fix for discovered HTTPS validator dependency
+
+The actual owned-local219 function run failed with `invalid regular expression:
+invalid repetition count(s)` in the existing184
+`platform_private.application_partner_detail_fields(JSONB)`.219 applied correctly;
+its SQL stays immutable and its receipt remains `APPLIED_QA_FAILED`. No business
+or Auth data changed. The failed run will not be relabeled or silently repeated.
+
+The old HTTPS predicate uses `{1,1990}`. PostgreSQL bounds allow at most255:
+[official pattern matching reference](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-POSIX-REGEXP).
+The required repair is part of the current item29 dependency, not new product
+scope. Allocate new forward migration220; the unapplied A queue moves220→221,
+root reason guard pre-code221→222, and future B schema starts223 if needed.
+
+Before implementation, preserve the complete184 helper except the HTTPS
+predicate: a nonempty value must have length9..1998 and match
+`^https://[^\s<>"]+$`. This preserves the intended1..1990 suffix bound after
+`https://`, optional blank/null normalization, four-key allowlist, per-key length
+and control-character checks, signature, STABLE/invoker/search_path and ACL.
+Keep all historical migrations,219, caller authority/replay/version/evidence
+rules and stored fields unchanged. No backfill or synthetic candidate records.
+
+After exact-head independent review, designated A may apply the frozen220 only
+to the existing owned local project under an exclusive schema window. Compare
+all existing business/Auth/ledger/function metadata; only this helper and the220
+ledger entry may change. Run the already-reviewed real-function QA once against
+the changed dependency, retain the original failure, and report both revisions.
+Extend direct boundary checks only if the original packet omits a demonstrated
+risk. Suitable pinned legacy Auth/UI data is still absent; successful pure SQL
+validation is not authenticated persistence or browser acceptance. Production,
+provider, customer and Auth-identity mutations remain outside this block.

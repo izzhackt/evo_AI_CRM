@@ -4,10 +4,7 @@ import {
   getIntegrationSecrets,
   getIntegrationSetting,
 } from '@/lib/integrations/settings';
-import {
-  AmoCrmConfigurationError,
-  type AmoCrmConfig,
-} from './client';
+import { AmoCrmConfigurationError, type AmoCrmConfig } from './client';
 
 export interface AmoCrmRuntimeConfig {
   settingId: string;
@@ -15,17 +12,14 @@ export interface AmoCrmRuntimeConfig {
   publicConfig: Record<string, unknown>;
 }
 
-function stringConfig(
-  value: Record<string, unknown>,
-  key: string,
-): string {
+function stringConfig(value: Record<string, unknown>, key: string): string {
   const raw = value[key];
   return typeof raw === 'string' ? raw.trim() : '';
 }
 
 function optionalNumberConfig(
   value: Record<string, unknown>,
-  key: string,
+  key: string
 ): string | number | null {
   const raw = value[key];
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
@@ -35,7 +29,7 @@ function optionalNumberConfig(
 
 export async function loadAmoCrmRuntimeConfig(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<AmoCrmRuntimeConfig> {
   const setting = await getIntegrationSetting(db, accountId, 'amocrm');
   if (!setting) {
@@ -61,7 +55,7 @@ export async function loadAmoCrmRuntimeConfig(
       statusId: optionalNumberConfig(setting.publicConfig, 'statusId'),
       responsibleUserId: optionalNumberConfig(
         setting.publicConfig,
-        'responsibleUserId',
+        'responsibleUserId'
       ),
     },
     publicConfig: setting.publicConfig,

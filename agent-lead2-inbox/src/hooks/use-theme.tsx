@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
   type ReactNode,
-} from "react";
+} from 'react';
 
 import {
   DEFAULT_MODE,
@@ -21,7 +21,7 @@ import {
   resolveMode,
   type Mode,
   type ThemeId,
-} from "@/lib/themes";
+} from '@/lib/themes';
 
 /**
  * ThemeProvider — wraps the whole app, owns the two theming axes:
@@ -51,15 +51,15 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function applyModeToDocument(next: Mode) {
-  if (typeof document === "undefined") return;
+  if (typeof document === 'undefined') return;
   document.documentElement.dataset.mode = next;
   document
     .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-    ?.setAttribute("content", MODE_THEME_COLORS[next]);
+    ?.setAttribute('content', MODE_THEME_COLORS[next]);
 }
 
 function readInitialTheme(): ThemeId {
-  if (typeof window === "undefined") return DEFAULT_THEME;
+  if (typeof window === 'undefined') return DEFAULT_THEME;
   // Whatever the boot script applied is the truth. Fall back to
   // localStorage / default if for some reason the attribute is missing
   // (e.g. someone bypassed the boot script in a custom layout).
@@ -75,7 +75,7 @@ function readInitialTheme(): ThemeId {
 }
 
 function readInitialMode(): Mode {
-  if (typeof window === "undefined") return DEFAULT_MODE;
+  if (typeof window === 'undefined') return DEFAULT_MODE;
   const fromAttr = document.documentElement.dataset.mode;
   if (isMode(fromAttr)) return fromAttr;
   try {
@@ -93,7 +93,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: ThemeId) => {
     setThemeState(next);
-    if (typeof document !== "undefined") {
+    if (typeof document !== 'undefined') {
       document.documentElement.dataset.theme = next;
     }
     try {
@@ -136,12 +136,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, [theme, mode]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, mode, setMode, toggleMode }}>
+    <ThemeContext.Provider
+      value={{ theme, setTheme, mode, setMode, toggleMode }}
+    >
       {children}
     </ThemeContext.Provider>
   );

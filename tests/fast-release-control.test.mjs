@@ -1719,8 +1719,8 @@ test("active platform CI executes only the root successor product", () => {
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Changed range$/gmu) ?? []).length, 1);
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Fast checks$/gmu) ?? []).length, 1);
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
-  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --github-output "\$GITHUB_OUTPUT"/u);
-  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "inbox_dependencies", "lead_agent_dependencies", "unknown"]) {
+  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
+  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "inbox_dependencies", "inbox_formatting", "inbox_contract_tests", "lead_agent_dependencies", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }
   assert.doesNotMatch(fastPr, /^  classification_guard:/mu);
@@ -1751,7 +1751,7 @@ test("retired Inbox dependency maintenance runs in isolation without deployment 
   const workflow = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
   const lane = workflow.split("  inbox_dependencies:\n    name: Inbox dependency maintenance\n")[1]?.split("\n  fast-checks:")[0];
   assert.ok(lane);
-  assert.match(lane, /if: \$\{\{ needs\.changed-range\.outputs\.inbox_dependencies == 'true' && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
+  assert.match(lane, /if: \$\{\{ \(needs\.changed-range\.outputs\.inbox_dependencies == 'true' \|\| needs\.changed-range\.outputs\.inbox_formatting == 'true' \|\| needs\.changed-range\.outputs\.inbox_contract_tests == 'true'\) && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
   assert.match(lane, /working-directory: agent-lead2-inbox/u);
   assert.match(lane, /cache-dependency-path: agent-lead2-inbox\/package-lock\.json/u);
   for (const command of ["npm ci --ignore-scripts", "npm audit --audit-level=low", "npm run typecheck", "npm run lint", "npm run build"]) {
@@ -1766,7 +1766,15 @@ test("retired Inbox dependency maintenance runs in isolation without deployment 
   assert.match(lane, /context\.state\.getUnhandledErrors\(\)\.length > 0/u);
   assert.match(lane, /process\.exitCode = 1/u);
   assert.match(lane, /finally \{\n\s+await context\?\.close\(\);/u);
-  assert.doesNotMatch(lane, /secrets\.|docker|ssh|continue-on-error|npm test|ENCRYPTION_KEY|META_APP_SECRET/u);
+  assert.match(lane, /ref: \$\{\{ needs\.changed-range\.outputs\.format_head_sha \}\}/u);
+  assert.match(lane, /FORMAT_BASE_SHA: \$\{\{ needs\.changed-range\.outputs\.format_base_sha \}\}/u);
+  assert.match(lane, /if: \$\{\{ needs\.changed-range\.outputs\.inbox_formatting == 'true' \}\}\n        run: npm test/u);
+  assert.match(lane, /if: \$\{\{ needs\.changed-range\.outputs\.inbox_formatting != 'true' \}\}\n        run:/u);
+  assert.ok(lane.indexOf("--scope-only") < lane.indexOf("npm ci --ignore-scripts"));
+  assert.ok(lane.indexOf("Prove exact output") > lane.indexOf("npm ci --ignore-scripts"));
+  assert.match(lane, /run: npm run format:check/u);
+  assert.match(lane, /run: node --test \.\.\/tests\/inbox-format-verifier\.test\.mjs/u);
+  assert.doesNotMatch(lane, /secrets\.|docker|ssh|continue-on-error|ENCRYPTION_KEY|META_APP_SECRET/u);
 });
 
 test("actual Fast checks shell requires selected dependency maintenance to succeed", () => {
@@ -1779,7 +1787,7 @@ test("actual Fast checks shell requires selected dependency maintenance to succe
     RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false",
     CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
-    INBOX_DEPENDENCIES_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: "success",
+    INBOX_DEPENDENCIES_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: "success", INBOX_FORMATTING_REQUIRED: "false", INBOX_CONTRACT_TESTS_REQUIRED: "false",
     LEAD_AGENT_DEPENDENCIES_REQUIRED: "false", LEAD_AGENT_DEPENDENCIES_RESULT: "skipped",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
@@ -1795,6 +1803,16 @@ test("actual Fast checks shell requires selected dependency maintenance to succe
   }
   assert.equal(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_DEPENDENCIES_RESULT: "skipped" }), 0);
   for (const required of ["", "unknown"]) assert.notEqual(run({ INBOX_DEPENDENCIES_REQUIRED: required }), 0);
+  assert.equal(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_FORMATTING_REQUIRED: "true" }), 0);
+  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
+    assert.notEqual(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_FORMATTING_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: result }), 0, result);
+  }
+  assert.notEqual(run({ INBOX_FORMATTING_REQUIRED: "" }), 0);
+  assert.equal(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_CONTRACT_TESTS_REQUIRED: "true" }), 0);
+  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
+    assert.notEqual(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_CONTRACT_TESTS_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: result }), 0, result);
+  }
+  assert.notEqual(run({ INBOX_CONTRACT_TESTS_REQUIRED: "" }), 0);
   assert.notEqual(run({ UNKNOWN: "true" }), 0);
 });
 

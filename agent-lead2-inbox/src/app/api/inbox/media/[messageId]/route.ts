@@ -12,7 +12,7 @@ const SIGNED_URL_SECONDS = 60;
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ messageId: string }> },
+  context: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const account = await getCurrentAccount();
@@ -20,7 +20,7 @@ export async function GET(
     const { data: message, error } = await account.supabase
       .from('messages')
       .select(
-        'id, media_bucket, media_path, media_size_bytes, media_retention_until, media_deleted_at, conversations!inner(account_id)',
+        'id, media_bucket, media_path, media_size_bytes, media_retention_until, media_deleted_at, conversations!inner(account_id)'
       )
       .eq('id', messageId)
       .eq('conversations.account_id', account.accountId)
@@ -34,7 +34,10 @@ export async function GET(
       (message.media_retention_until &&
         new Date(message.media_retention_until).getTime() <= Date.now())
     ) {
-      return NextResponse.json({ error: 'Media retention expired' }, { status: 410 });
+      return NextResponse.json(
+        { error: 'Media retention expired' },
+        { status: 410 }
+      );
     }
 
     const admin = integrationsAdminClient();
@@ -42,7 +45,10 @@ export async function GET(
       .from(message.media_bucket)
       .createSignedUrl(message.media_path, SIGNED_URL_SECONDS);
     if (signError || !data?.signedUrl) {
-      return NextResponse.json({ error: 'Media access unavailable' }, { status: 503 });
+      return NextResponse.json(
+        { error: 'Media access unavailable' },
+        { status: 503 }
+      );
     }
 
     await writeMediaAudit(admin, {
@@ -61,6 +67,9 @@ export async function GET(
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    return NextResponse.json({ error: 'Media access unavailable' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'Media access unavailable' },
+      { status: 503 }
+    );
   }
 }

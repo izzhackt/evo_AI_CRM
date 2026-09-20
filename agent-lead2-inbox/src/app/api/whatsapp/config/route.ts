@@ -30,7 +30,8 @@ function publicWahaConfig(body: Record<string, unknown>) {
   return {
     baseUrl: textField(body, 'base_url', 'baseUrl'),
     sessionName:
-      textField(body, 'session_name', 'sessionName') || DEFAULT_WAHA_SESSION_NAME,
+      textField(body, 'session_name', 'sessionName') ||
+      DEFAULT_WAHA_SESSION_NAME,
   };
 }
 
@@ -135,14 +136,14 @@ export async function POST(request: Request) {
     const webhookHmacSecret = textField(
       body,
       'webhook_hmac_secret',
-      'webhookHmacSecret',
+      'webhookHmacSecret'
     );
 
     const admin = integrationsAdminClient();
     const existingSetting = await getIntegrationSetting(
       admin,
       ctx.accountId,
-      'waha',
+      'waha'
     );
     const existingSecrets = existingSetting
       ? await getIntegrationSecrets(admin, existingSetting.id)
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
           error: 'waha_not_configured',
           missing_fields: missingFields,
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -188,7 +189,7 @@ export async function POST(request: Request) {
       has_secrets: {
         api_key: Boolean(apiKey || existingSecrets.api_key),
         webhook_hmac_secret: Boolean(
-          webhookHmacSecret || existingSecrets.webhook_hmac_secret,
+          webhookHmacSecret || existingSecrets.webhook_hmac_secret
         ),
       },
     });
@@ -203,7 +204,7 @@ export async function DELETE() {
     await deleteIntegrationSetting(
       integrationsAdminClient(),
       ctx.accountId,
-      'waha',
+      'waha'
     );
     return NextResponse.json({ success: true });
   } catch (err) {

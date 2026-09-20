@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { Suspense, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { useLanguage } from "@/hooks/use-language";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Suspense, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { useLanguage } from '@/hooks/use-language';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { MessageSquare, CheckCircle, UsersRound } from "lucide-react";
-import { LanguageToggle } from "@/components/layout/language-toggle";
+} from '@/components/ui/card';
+import { MessageSquare, CheckCircle, UsersRound } from 'lucide-react';
+import { LanguageToggle } from '@/components/layout/language-toggle';
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -35,12 +35,12 @@ function SignupPageInner() {
   // verification → redirect round-trip. `emailRedirectTo` below
   // points back at /join/<token> so the user lands on the redeem
   // step after verifying instead of being dropped on /dashboard.
-  const inviteToken = searchParams.get("invite");
+  const inviteToken = searchParams.get('invite');
 
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -51,12 +51,12 @@ function SignupPageInner() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError(t("auth.signup.passwordMismatch"));
+      setError(t('auth.signup.passwordMismatch'));
       return;
     }
 
     if (password.length < 6) {
-      setError(t("auth.signup.passwordTooShort"));
+      setError(t('auth.signup.passwordTooShort'));
       return;
     }
 
@@ -94,20 +94,20 @@ function SignupPageInner() {
 
   if (success) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="absolute right-4 top-4">
+      <div className="bg-background relative flex min-h-screen items-center justify-center px-4">
+        <div className="absolute top-4 right-4">
           <LanguageToggle />
         </div>
-        <Card className="w-full max-w-md border-border bg-card">
+        <Card className="border-border bg-card w-full max-w-md">
           <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <CheckCircle className="h-6 w-6 text-primary" />
+            <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
+              <CheckCircle className="text-primary h-6 w-6" />
             </div>
-            <CardTitle className="text-xl text-foreground">
-              {t("auth.signup.checkEmail")}
+            <CardTitle className="text-foreground text-xl">
+              {t('auth.signup.checkEmail')}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              {t("auth.signup.checkEmailBody", { email })}
+              {t('auth.signup.checkEmailBody', { email })}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -115,14 +115,14 @@ function SignupPageInner() {
               href={
                 inviteToken
                   ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
+                  : '/login'
               }
             >
               <Button
                 variant="outline"
-                className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="border-border text-muted-foreground hover:bg-muted hover:text-foreground w-full"
               >
-                {t("auth.signup.backToSignIn")}
+                {t('auth.signup.backToSignIn')}
               </Button>
             </Link>
           </CardContent>
@@ -132,28 +132,28 @@ function SignupPageInner() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="absolute right-4 top-4">
+    <div className="bg-background relative flex min-h-screen items-center justify-center px-4">
+      <div className="absolute top-4 right-4">
         <LanguageToggle />
       </div>
-      <Card className="w-full max-w-md border-border bg-card">
+      <Card className="border-border bg-card w-full max-w-md">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
             {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
+              <UsersRound className="text-primary h-6 w-6" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <MessageSquare className="text-primary h-6 w-6" />
             )}
           </div>
-          <CardTitle className="text-xl text-foreground">
+          <CardTitle className="text-foreground text-xl">
             {inviteToken
-              ? t("auth.signup.inviteTitle")
-              : t("auth.signup.title")}
+              ? t('auth.signup.inviteTitle')
+              : t('auth.signup.title')}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             {inviteToken
-              ? t("auth.signup.inviteDescription")
-              : t("auth.signup.description")}
+              ? t('auth.signup.inviteDescription')
+              : t('auth.signup.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -166,12 +166,12 @@ function SignupPageInner() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="fullName" className="text-muted-foreground">
-                {t("auth.signup.fullName")}
+                {t('auth.signup.fullName')}
               </Label>
               <Input
                 id="fullName"
                 type="text"
-                placeholder={t("auth.signup.fullNamePlaceholder")}
+                placeholder={t('auth.signup.fullNamePlaceholder')}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -181,12 +181,12 @@ function SignupPageInner() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-muted-foreground">
-                {t("common.email")}
+                {t('common.email')}
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder={t("auth.login.emailPlaceholder")}
+                placeholder={t('auth.login.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -196,12 +196,12 @@ function SignupPageInner() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="password" className="text-muted-foreground">
-                {t("auth.signup.password")}
+                {t('auth.signup.password')}
               </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder={t("auth.signup.passwordPlaceholder")}
+                placeholder={t('auth.signup.passwordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -210,13 +210,16 @@ function SignupPageInner() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="confirmPassword" className="text-muted-foreground">
-                {t("auth.signup.confirmPassword")}
+              <Label
+                htmlFor="confirmPassword"
+                className="text-muted-foreground"
+              >
+                {t('auth.signup.confirmPassword')}
               </Label>
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder={t("auth.signup.confirmPasswordPlaceholder")}
+                placeholder={t('auth.signup.confirmPasswordPlaceholder')}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
@@ -227,23 +230,23 @@ function SignupPageInner() {
             <Button
               type="submit"
               disabled={loading}
-              className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 h-10 w-full disabled:opacity-50"
             >
-              {loading ? t("auth.signup.submitting") : t("auth.signup.submit")}
+              {loading ? t('auth.signup.submitting') : t('auth.signup.submit')}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t("auth.signup.haveAccount")}{" "}
+          <p className="text-muted-foreground mt-6 text-center text-sm">
+            {t('auth.signup.haveAccount')}{' '}
             <Link
               href={
                 inviteToken
                   ? `/login?invite=${encodeURIComponent(inviteToken)}`
-                  : "/login"
+                  : '/login'
               }
               className="text-primary hover:text-primary/80"
             >
-              {t("auth.signup.signIn")}
+              {t('auth.signup.signIn')}
             </Link>
           </p>
         </CardContent>

@@ -37,7 +37,7 @@ export interface AmoCrmSyncOutcome {
 export interface AmoCrmSyncDeps {
   loadAmoCrmConfig?: (
     db: SupabaseClient,
-    accountId: string,
+    accountId: string
   ) => Promise<AmoCrmRuntimeConfig>;
   createAmoCrmClient?: (config: AmoCrmRuntimeConfig['config']) => AmoCrmClient;
   resolveAmoCrmIdentityFromProvider?: (input: {
@@ -76,7 +76,7 @@ const defaultDeps = {
 export async function syncAmoCrmConversation(
   db: SupabaseClient,
   target: AmoCrmSyncTarget,
-  depsOverride: AmoCrmSyncDeps = {},
+  depsOverride: AmoCrmSyncDeps = {}
 ): Promise<AmoCrmSyncOutcome> {
   const deps = { ...defaultDeps, ...depsOverride };
   const existing = await loadLocalShadowIdentity(db, target);
@@ -131,7 +131,7 @@ export async function syncAmoCrmConversation(
       db,
       target.accountId,
       failure.integrationStatus,
-      failure.error,
+      failure.error
     );
     await setLocalCrmSyncState(db, target, {
       status: failure.status,
@@ -145,7 +145,7 @@ export async function syncAmoCrmConversation(
 export async function syncPendingAmoCrmConversations(
   db: SupabaseClient,
   options: PendingAmoCrmSyncOptions = {},
-  deps: AmoCrmSyncDeps = {},
+  deps: AmoCrmSyncDeps = {}
 ): Promise<PendingAmoCrmSyncResult> {
   const limit = clampBatchLimit(options.limit);
   const statuses: CrmSyncStatus[] = options.includeBlocked
@@ -192,7 +192,7 @@ export async function syncPendingAmoCrmConversations(
           status: 'blocked',
           error: 'Local contact phone is missing; cannot sync to amoCRM.',
           now: deps.now?.() ?? new Date(),
-        },
+        }
       );
       result.blocked += 1;
       continue;
@@ -207,7 +207,7 @@ export async function syncPendingAmoCrmConversations(
         phone: String(contact.phone),
         name: typeof contact.name === 'string' ? contact.name : null,
       },
-      deps,
+      deps
     );
     incrementResult(result, outcome.status);
   }
@@ -218,7 +218,7 @@ export async function syncPendingAmoCrmConversations(
 export async function resetAmoCrmSyncAfterConfigChange(
   db: SupabaseClient,
   accountId: string,
-  now: Date = new Date(),
+  now: Date = new Date()
 ): Promise<void> {
   const timestamp = now.toISOString();
   const { data: rows, error: selectError } = await db
@@ -319,7 +319,7 @@ interface PendingSyncContact {
 
 async function loadLocalShadowIdentity(
   db: SupabaseClient,
-  target: AmoCrmSyncTarget,
+  target: AmoCrmSyncTarget
 ): Promise<{ amoContactId: string | null; amoLeadId: string | null }> {
   const [contactResult, conversationResult] = await Promise.all([
     db
@@ -353,7 +353,7 @@ async function setLocalCrmSyncState(
     status: CrmSyncStatus;
     error: string | null;
     now: Date;
-  },
+  }
 ): Promise<void> {
   const now = input.now.toISOString();
   const value = {
@@ -394,7 +394,7 @@ async function setIntegrationState(
   db: SupabaseClient,
   accountId: string,
   status: IntegrationStatus,
-  lastError: string | null,
+  lastError: string | null
 ): Promise<void> {
   const now = new Date().toISOString();
   const result = await db
@@ -423,13 +423,16 @@ function clampBatchLimit(value: number | undefined): number {
 }
 
 function firstContact(
-  value: PendingSyncContact | PendingSyncContact[] | null | undefined,
+  value: PendingSyncContact | PendingSyncContact[] | null | undefined
 ): PendingSyncContact | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
 }
 
-function incrementResult(result: PendingAmoCrmSyncResult, status: CrmSyncStatus) {
+function incrementResult(
+  result: PendingAmoCrmSyncResult,
+  status: CrmSyncStatus
+) {
   if (status === 'synced') result.synced += 1;
   else if (status === 'pending') result.pending += 1;
   else if (status === 'not_configured') result.notConfigured += 1;

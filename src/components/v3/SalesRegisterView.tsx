@@ -10,10 +10,11 @@ import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-fin
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesReportNavigation } from "./SalesReportNavigation";
 import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./SalesRegisterForms";
+import { SalesRecordPreview } from "./SalesRecordPreview";
 
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
-  manager?: string; direction?: string; review?: string; saved?: string;
+  manager?: string; direction?: string; review?: string; saved?: string; edit?: string;
 }>;
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
@@ -46,27 +47,32 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null }).catch(() => null),
       checkFinanceAccess && month ? readMonthlyPaymentSummary(actor, year, month)
         .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
-      query.new === "true" && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
+      query.new === "true" && !query.record && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
     ]);
   }
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
+  const clearFiltersHref = `/v3/main?${params.toString()}`;
+  const hasFilters = Boolean(query.manager || query.direction || query.review || query.archived === "true");
   if (query.archived === "true") params.set("archived", "true");
   if (query.manager) params.set("manager", query.manager);
   if (query.direction) params.set("direction", query.direction);
   if (query.review) params.set("review", query.review);
+  if (valid && offset > 0) params.set("offset", String(offset));
   const href = (extra: Record<string, string> = {}) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(extra)) next.set(key, value);
     return `/v3/main?${next.toString()}`;
   };
-  const editing = query.new === "true" || Boolean(query.record);
+  const viewingRecord = Boolean(query.record);
+  const editing = (query.new === "true" && !viewingRecord) || (viewingRecord && query.edit === "true");
   const reportMonth = `${year}-${String(month ?? Number(now.find(p => p.type === "month")!.value)).padStart(2, "0")}-01`;
-  const saved = !editing && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
+  const saved = !editing && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = workspace?.targets.find(t => t.reportMonth === reportMonth && t.managerLabel === null) ?? null;
+  const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
 
   return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
     <SalesReportNavigation sales />
-    {!editing || !canManage ? <header className="flex flex-wrap items-start justify-between gap-4">
+    {(!editing || !canManage) && !viewingRecord ? <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Отчёт продаж</h1>
       </div>
@@ -86,10 +92,11 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     {editing && canManage ? <div className="mt-6 max-w-[860px]">
       <SalesRegisterForm key={query.record ?? "new"} record={workspace?.selected ?? null}
         recordId={query.record ?? null} reportMonth={reportMonth} ownerOptions={workspace?.ownerOptions ?? []}
-        canChooseOwner={canManage} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={href()} readUnavailable={!workspace}
+        canChooseOwner={canManage} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={backHref} readUnavailable={!workspace}
         ownMembershipId={actor.membershipId} ownLabel={actor.displayName} intakeOptions={intakeOptions} />
-    </div> : <>
-      <form method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-end gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
+    </div> : viewingRecord ? <SalesRecordPreview record={workspace?.selected ?? null} backHref={backHref}
+      editHref={canManage && workspace?.selected ? href({ record: workspace.selected.id, edit: "true" }) : null} /> : <>
+      <form key={params.toString()} method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-end gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
         <input type="hidden" name="view" value="sales" />
         <label className="min-w-0 @2xl:w-28"><span className={labelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11`} /></label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
@@ -98,10 +105,11 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         <label className="min-w-0 @2xl:w-40"><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
-        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Менеджер</span><select name="manager" defaultValue={query.manager ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option>{workspace?.managerLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
+        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Менеджер</span><select name="manager" defaultValue={query.manager ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option>{query.manager && !workspace?.managerLabels.includes(query.manager) ? <option value={query.manager}>{query.manager}</option> : null}{workspace?.managerLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Направление</span><input name="direction" defaultValue={query.direction ?? ""} maxLength={500} placeholder="Как в записи" className={`${inputCls} min-h-11`} /></label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Уточнения</span><select name="review" defaultValue={query.review ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option><option value="true">Нужно уточнить</option><option value="false">Сверенные</option></select></label>
         <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`} type="submit">Показать</button>
+        {valid && hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`}>Сбросить фильтры</Link> : null}
       </form>
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
         <p>{valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
@@ -138,17 +146,19 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         </section> : null}
 
         {workspace.rows.length === 0 ? <div className="space-y-2 py-12 text-center">
-          <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : "В выбранном периоде записей нет."}</p>
-          <p className="text-sm text-fg-2">{offset > 0 ? "Вернитесь к началу списка." : "Выберите другой месяц или весь год в фильтрах выше."}</p>
+          <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : hasFilters ? "По выбранным фильтрам записей не найдено." : "В выбранном периоде записей нет."}</p>
+          <p className="text-sm text-fg-2">{offset > 0 ? "Вернитесь к началу списка с теми же фильтрами." : hasFilters ? "Измените или сбросьте фильтры. Выбранный период сохранится." : "Выберите другой месяц или весь год в фильтрах выше."}</p>
+          {offset > 0 ? <Link href={href({ offset: "0" })} className={`${btnGhostCls} min-h-11`}>К началу списка</Link>
+            : hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11`}>Сбросить фильтры</Link> : null}
         </div> : <div className="mt-6">
           <p id="sales-table-help" className="sr-only">Таблицу можно прокручивать по горизонтали.</p>
           <div role="region" aria-label="Записи продаж" aria-describedby="sales-table-help" tabIndex={0} className="relative max-w-full overflow-x-auto rounded-nav border border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <table className="w-full min-w-[960px] text-left text-sm">
               <caption className="sr-only">Продажи выбранного периода</caption>
               <thead className="border-b border-border bg-surface-2 text-xs text-fg-2"><tr><th scope="col" className="px-4 py-3 font-medium">Студент и программа</th><th scope="col" className="px-4 py-3 font-medium">Менеджер и дата</th><th scope="col" className="px-4 py-3 text-right font-medium">Стоимость</th><th scope="col" className="px-4 py-3 text-right font-medium">Оплачено по записи</th><th scope="col" className="px-4 py-3 font-medium">Уточнения</th><th scope="col" className="px-4 py-3"><span className="sr-only">Действие</span></th></tr></thead>
-              <tbody className="divide-y divide-border">{workspace.rows.map(row => <tr key={row.id} className={`align-top ${row.id === saved?.id ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
+              <tbody className="divide-y divide-border">{workspace.rows.map(row => <tr key={row.id} id={`sale-${row.id}`} className={`scroll-mt-24 align-top ${row.id === saved?.id ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
                 <th scope="row" className="min-w-[240px] max-w-[360px] px-4 py-3 font-normal"><Link href={href({ record: row.id })} className="inline-flex min-h-11 items-center break-words font-semibold text-fg underline-offset-4 hover:underline">{row.applicantName || "Имя не указано"}</Link><p className="break-words text-sm text-fg-2">{[row.country, row.program].filter(Boolean).join(" · ") || "Программа не указана"}</p></th>
-                <td className="min-w-[180px] max-w-[260px] px-4 py-5"><p className="break-words text-fg">{row.managerLabel || "Менеджер не указан"}</p><p className="mt-1 text-xs text-fg-2">{dateLabel(row.signingDate)}</p></td>
+                <td className="min-w-[180px] max-w-[260px] px-4 py-5"><p className="break-words text-fg">{row.managerLabel || "Менеджер не указан"}</p><p className="mt-1 text-xs text-fg-2">{dateLabel(row.signingDate)}</p>{month === undefined ? <p className="mt-1 text-xs text-fg-2">Месяц отчёта: {MONTHS[Number(row.reportMonth.slice(5, 7)) - 1]} {row.reportMonth.slice(0, 4)}</p> : null}</td>
                 <td className="whitespace-nowrap px-4 py-5 text-right font-mono tabular-nums">{money(row.serviceCostMinor, row.serviceCostCurrency)}</td>
                 <td className="whitespace-nowrap px-4 py-5 text-right font-mono tabular-nums">{money(row.paidMinor, row.paidCurrency)}</td>
                 <td className="min-w-[140px] px-4 py-5 text-xs text-fg-2">{row.needsReview ? "Нужно уточнить" : row.archived ? "В архиве" : ""}</td>

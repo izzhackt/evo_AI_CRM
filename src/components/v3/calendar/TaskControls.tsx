@@ -217,7 +217,7 @@ export function CalendarCreateTaskForm({
   const [selectedAssignee, setSelectedAssignee] = useState(actorMembershipId);
   const [priority, setPriority] = useState("normal");
   const [visible, setVisible] = useState("false");
-  const [activeCaseId, setActiveCaseId] = useState(selectedCase?.id ?? cases[0]?.id ?? "");
+  const [activeCaseId, setActiveCaseId] = useState(selectedCase?.id ?? "");
   const [candidateState, setCandidateState] = useState<Readonly<{
     caseId: string; status: "loading" | "ready" | "unavailable"; assignees: readonly CalendarAssigneeOption[];
   }>>(selectedCase ? { caseId: selectedCase.id, status: "ready", assignees } : { caseId: "", status: "loading", assignees: [] });
@@ -270,7 +270,7 @@ export function CalendarCreateTaskForm({
             <input name="title" value={title} onChange={(event) => setTitle(event.target.value)} required
               minLength={1} maxLength={1_000} autoComplete="off" className={CONTROL} />
           </label>
-          <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} onCaseChange={setActiveCaseId} />
+          <TaskCasePicker initialCases={cases} initialHasMore={casesHaveMore} selectedCase={selectedCase} onCaseChange={setActiveCaseId} disabled={locked} />
 
           <label className="text-xs font-medium text-fg-2">
             Ответственный

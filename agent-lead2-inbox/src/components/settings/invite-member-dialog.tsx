@@ -77,17 +77,14 @@ function roleLabel(role: InviteRole, t: ReturnType<typeof useLanguage>['t']) {
 
 function roleDescription(
   role: InviteRole,
-  t: ReturnType<typeof useLanguage>['t'],
+  t: ReturnType<typeof useLanguage>['t']
 ) {
   if (role === 'admin') return t('settings.invite.role.admin');
   if (role === 'agent') return t('settings.invite.role.agent');
   return t('settings.invite.role.viewer');
 }
 
-function expiryLabel(
-  value: string,
-  t: ReturnType<typeof useLanguage>['t'],
-) {
+function expiryLabel(value: string, t: ReturnType<typeof useLanguage>['t']) {
   if (value === '1') return t('settings.invite.expiry.1');
   if (value === '7') return t('settings.invite.expiry.7');
   return t('settings.invite.expiry.30');
@@ -187,7 +184,8 @@ export function InviteMemberDialog({
     // they're being invited to before clicking through. This matters
     // for users in multi-team contexts where "our EVO Inbox workspace"
     // wouldn't be enough to disambiguate.
-    const accountName = result?.accountName ?? t('settings.invite.defaultAccount');
+    const accountName =
+      result?.accountName ?? t('settings.invite.defaultAccount');
     const message = t('settings.invite.whatsappMessage', {
       account: accountName,
       days: result?.expiresInDays ?? 0,
@@ -211,8 +209,8 @@ export function InviteMemberDialog({
         {result ? (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-popover-foreground">
-                <Sparkles className="size-4 text-primary" />
+              <DialogTitle className="text-popover-foreground flex items-center gap-2">
+                <Sparkles className="text-primary size-4" />
                 {t('settings.invite.createdTitle')}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground">
@@ -267,7 +265,7 @@ export function InviteMemberDialog({
                 className={buttonVariants({
                   variant: 'outline',
                   className:
-                    'w-full border-border text-muted-foreground hover:bg-muted',
+                    'border-border text-muted-foreground hover:bg-muted w-full',
                 })}
               >
                 <MessageCircle className="size-4" />
@@ -304,16 +302,22 @@ export function InviteMemberDialog({
                   value={role}
                   onValueChange={(v) => v && setRole(v as InviteRole)}
                 >
-                  <SelectTrigger className="w-full bg-muted border-border text-foreground">
+                  <SelectTrigger className="bg-muted border-border text-foreground w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">{roleLabel('admin', t)}</SelectItem>
-                    <SelectItem value="agent">{roleLabel('agent', t)}</SelectItem>
-                    <SelectItem value="viewer">{roleLabel('viewer', t)}</SelectItem>
+                    <SelectItem value="admin">
+                      {roleLabel('admin', t)}
+                    </SelectItem>
+                    <SelectItem value="agent">
+                      {roleLabel('agent', t)}
+                    </SelectItem>
+                    <SelectItem value="viewer">
+                      {roleLabel('viewer', t)}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   {roleDescription(role, t)}
                 </p>
               </div>
@@ -322,11 +326,8 @@ export function InviteMemberDialog({
                 <Label className="text-muted-foreground">
                   {t('settings.invite.linkValidFor')}
                 </Label>
-                <Select
-                  value={expiry}
-                  onValueChange={(v) => v && setExpiry(v)}
-                >
-                  <SelectTrigger className="w-full bg-muted border-border text-foreground">
+                <Select value={expiry} onValueChange={(v) => v && setExpiry(v)}>
+                  <SelectTrigger className="bg-muted border-border text-foreground w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -342,7 +343,7 @@ export function InviteMemberDialog({
               <div className="space-y-2">
                 <Label className="text-muted-foreground">
                   {t('settings.invite.label')}{' '}
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     ({t('settings.invite.optional')})
                   </span>
                 </Label>
@@ -353,7 +354,7 @@ export function InviteMemberDialog({
                   maxLength={MAX_LABEL_LEN}
                   className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   {t('settings.invite.labelHint')}
                 </p>
               </div>

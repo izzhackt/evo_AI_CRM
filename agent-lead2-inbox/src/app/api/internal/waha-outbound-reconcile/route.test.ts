@@ -12,7 +12,9 @@ vi.mock('@/lib/integrations/admin-client', () => ({
     readonly missingFields: string[];
 
     constructor(missingFields: string[]) {
-      super(`Supabase service configuration is missing: ${missingFields.join(', ')}`);
+      super(
+        `Supabase service configuration is missing: ${missingFields.join(', ')}`
+      );
       this.name = 'IntegrationsAdminConfigurationError';
       this.missingFields = missingFields;
     }
@@ -38,13 +40,11 @@ function request(input: {
     {
       method: input.method ?? 'GET',
       headers: {
-        ...(input.cronSecret
-          ? { 'x-cron-secret': input.cronSecret }
-          : {}),
+        ...(input.cronSecret ? { 'x-cron-secret': input.cronSecret } : {}),
         ...(input.body ? { 'content-type': 'application/json' } : {}),
       },
       body: input.body ? JSON.stringify(input.body) : undefined,
-    },
+    }
   );
 }
 
@@ -97,7 +97,7 @@ describe('/api/internal/waha-outbound-reconcile', () => {
       request({
         cronSecret: 'valid-cron-header',
         url: 'https://inbox.example.com/api/internal/waha-outbound-reconcile?limit=7',
-      }),
+      })
     );
 
     expect(response.status).toBe(200);
@@ -108,10 +108,7 @@ describe('/api/internal/waha-outbound-reconcile', () => {
       unresolved: 1,
       failed: 0,
     });
-    expect(h.reconcile).toHaveBeenCalledWith(
-      { service: true },
-      { limit: 7 },
-    );
+    expect(h.reconcile).toHaveBeenCalledWith({ service: true }, { limit: 7 });
   });
 
   it('accepts a POST JSON limit without exposing any send operation', async () => {
@@ -120,13 +117,10 @@ describe('/api/internal/waha-outbound-reconcile', () => {
         method: 'POST',
         cronSecret: 'valid-cron-header',
         body: { limit: 3 },
-      }),
+      })
     );
 
-    expect(h.reconcile).toHaveBeenCalledWith(
-      { service: true },
-      { limit: 3 },
-    );
+    expect(h.reconcile).toHaveBeenCalledWith({ service: true }, { limit: 3 });
   });
 
   it('treats a non-object JSON body as no options', async () => {
@@ -140,13 +134,13 @@ describe('/api/internal/waha-outbound-reconcile', () => {
             'x-cron-secret': 'valid-cron-header',
           },
           body: 'null',
-        },
-      ),
+        }
+      )
     );
 
     expect(h.reconcile).toHaveBeenCalledWith(
       { service: true },
-      { limit: undefined },
+      { limit: undefined }
     );
   });
 });

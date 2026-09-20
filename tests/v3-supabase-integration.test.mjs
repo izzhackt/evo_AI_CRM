@@ -41,6 +41,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "profile-source.ts",
     "reply-snippets-source.ts",
     "requests-source.ts",
+    "sales-handoff-source.ts",
     "sales-register-source.ts",
     "settings-journal-contract.ts",
     "settings-source.ts",
@@ -85,6 +86,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "profile-source.ts",
     "reply-snippets-source.ts",
     "requests-source.ts",
+    "sales-handoff-source.ts",
     "sales-register-source.ts",
     "settings-source.ts",
     "staff-notification-source.ts",
@@ -214,7 +216,7 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   assert.match(tabs, /<LeadSaleConditions/);
   assert.match(
     source("src/components/v3/profile/LeadSaleConditions.tsx"),
-    /saveLeadSaleConditionsAction/,
+    /saveLeadSaleConditionsGroupAction/,
   );
 
   for (const path of [

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { PipelineMobileFilters } from "@/components/v3/PipelineStageViewport";
 import { Pipeline } from "@/components/v3/Pipeline";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
 import { PartShell } from "@/components/v3/PartShell";
@@ -173,7 +174,7 @@ export default async function PipelinePart({
           <input type="hidden" name="owner" value={query.owner} />
         ) : null}
 
-        <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
+        <label className="inline-flex w-full min-w-0 items-center gap-1.5 text-2xs text-fg-3 @2xl:w-auto">
           Поиск
           <input
             type="search"
@@ -181,17 +182,18 @@ export default async function PipelinePart({
             defaultValue={query.q ?? ""}
             maxLength={MAX_QUERY_LENGTH}
             placeholder="Имя, контакт или действие"
-            className={`${CONTROL_CLASS} w-64 max-w-full placeholder:text-fg-3`}
+            className={`${CONTROL_CLASS} min-w-0 flex-1 placeholder:text-fg-3 @2xl:w-64 @2xl:flex-none`}
           />
         </label>
 
         {ownerSelectShown ? (
-          <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
+          <label className="inline-flex w-full min-w-0 items-center gap-1.5 text-2xs text-fg-3 @2xl:w-auto">
             Сотрудник
             <select
+              key={query.owner ?? "all"}
               name="owner"
               defaultValue={query.owner ?? ""}
-              className={CONTROL_CLASS}
+              className={`${CONTROL_CLASS} min-w-0 flex-1 @2xl:flex-none`}
             >
               <option value="">Все сотрудники</option>
               {!ownerListed && query.owner !== null ? (
@@ -238,11 +240,14 @@ export default async function PipelinePart({
       ) : null}
 
       <div className="mt-3 flex flex-col gap-2">
+        <div className="hidden @2xl:block">
         <FilterLinkGroup
           id="v3-pipeline-filter-stage"
           label="Стадия"
           choices={stageChoices}
         />
+        </div>
+        <PipelineMobileFilters activeCount={Number(query.due !== "all") + Number(query.assignment !== "all")}>
         <FilterLinkGroup
           id="v3-pipeline-filter-due"
           label="Срок"
@@ -253,6 +258,7 @@ export default async function PipelinePart({
           label="Ответственный"
           choices={assignmentChoices}
         />
+        </PipelineMobileFilters>
       </div>
 
       {board.truncated ? (
@@ -265,6 +271,9 @@ export default async function PipelinePart({
         <Pipeline
           stages={stages}
           leads={leads}
+          filteredStage={query.stage}
+          allStagesHref={boardHref({ ...query, stage: "all" })}
+          truncated={board.truncated}
           ownerOptions={ownerRows}
           ownerOptionsHaveMore={ownerOptions?.hasNext ?? false}
           actor={actor}

@@ -14,9 +14,11 @@ import {
   type PlatformSalesWorkflowMutationInput,
 } from "./platform-sales";
 import { exactActionStringFields } from "./server/action-form-fields";
+import { decodeLeadSaleConditionsGroupForm } from "./server/lead-sale-conditions-form";
 import { createSupabaseServerClient } from "./supabase/server";
 import {
   CONDITIONS_BUDGET_PERIODS,
+  LEAD_SALE_CONDITION_GROUP_KEYS,
   SALE_CONDITION_CURRENCIES,
   type ConditionsBudgetPeriod,
   type SaleConditionCurrency,
@@ -378,6 +380,91 @@ export async function saveLeadSaleConditionsAction(
       data.lead_id !== leadId ||
       parseSalesInteger(data.revision) !== revision + 1
     ) {
+      return saleConditionsOutcome(form, "unavailable");
+    }
+    revalidatePath(`/v3/profile?id=${leadId}`);
+    return saleConditionsOutcome(form, "saved", data.revision as string);
+  } catch {
+    return saleConditionsOutcome(form, "unavailable");
+  }
+}
+
+/** Save one closed group; the database supplies all sibling values under lock. */
+export async function saveLeadSaleConditionsGroupAction(
+  _previous: SaveLeadSaleConditionsActionState,
+  form: FormData,
+): Promise<SaveLeadSaleConditionsActionState> {
+  const actor = await requirePlatformMutationCapability("sales.write", "/v3/profile");
+  const decoded = decodeLeadSaleConditionsGroupForm(form);
+  if (!decoded) return saleConditionsOutcome(form, "invalid");
+  const { group, fields } = decoded;
+  // Outcomes must read the decoded IDs too: unavailable/stale keeps the same
+  // command ID even when React sent its prefixed useActionState envelope.
+  form = decoded.commandForm;
+  const groupKeys = LEAD_SALE_CONDITION_GROUP_KEYS[group];
+  const leadId = parsePlatformSalesUuid(fields.get("lead_id"));
+  const requestIdValue = fields.get("request_id") ?? "";
+  const requestId = REQUEST_UUID_PATTERN.test(requestIdValue) ? requestIdValue.toLowerCase() : null;
+  const revision = parseSalesInteger(fields.get("expected_revision"), Number.MAX_SAFE_INTEGER - 1);
+  if (!leadId || !requestId || revision === null) return saleConditionsOutcome(form, "invalid");
+
+  const payload: Record<string, string | number | null> = {};
+  for (const key of groupKeys) {
+    const value = fields.get(key)!;
+    const limit = SALE_CONDITIONS_TEXT_FIELD_LIMITS[key];
+    if (CONTROL_CHARACTER_PATTERN.test(value) || (limit !== undefined && value.length > limit)) {
+      return saleConditionsOutcome(form, "invalid");
+    }
+    payload[key] = value;
+  }
+  for (const key of ["service_cost_raw", "paid_raw", "conditions_budget_raw"]) {
+    if ((fields.get(key)?.length ?? 0) > 300) return saleConditionsOutcome(form, "invalid");
+  }
+  if (fields.has("signing_date")) {
+    const value = fields.get("signing_date")!;
+    if (value !== "" && !parseSalesDate(value)) return saleConditionsOutcome(form, "invalid");
+    payload.signing_date = value || null;
+  }
+  const intakeYear = fields.get("wishes_intake_year");
+  if (intakeYear && !/^(19|20|21)[0-9]{2}$/.test(intakeYear)) return saleConditionsOutcome(form, "invalid");
+  const budgetPeriod = fields.get("conditions_budget_period");
+  if (budgetPeriod && !CONDITIONS_BUDGET_PERIODS.includes(budgetPeriod as ConditionsBudgetPeriod)) {
+    return saleConditionsOutcome(form, "invalid");
+  }
+  for (const prefix of SALE_CONDITIONS_MONEY_PAIR_PREFIXES) {
+    if (!fields.has(`${prefix}_minor`)) continue;
+    const minorValue = fields.get(`${prefix}_minor`)!;
+    const amount = minorValue === "" ? null : parseSalesInteger(minorValue, 1_000_000_000_000);
+    const currencyValue = fields.get(`${prefix}_currency`) || null;
+    if ((minorValue !== "" && amount === null) || (amount === null) !== (currencyValue === null)
+      || (currencyValue !== null && !SALE_CONDITION_CURRENCIES.includes(currencyValue as SaleConditionCurrency))) {
+      return saleConditionsOutcome(form, "invalid");
+    }
+    payload[`${prefix}_minor`] = amount;
+    payload[`${prefix}_currency`] = currencyValue;
+  }
+
+  try {
+    const client = await createSupabaseServerClient();
+    const { data, error } = await client.schema("platform").rpc("save_lead_sale_conditions_group_v1", {
+      p_organization_id: actor.organizationId,
+      p_request_id: requestId,
+      p_lead_id: leadId,
+      p_expected_revision: revision,
+      p_group: group,
+      p_fields: payload,
+    });
+    if (error) {
+      if (error.code === "42501") return saleConditionsOutcome(form, "forbidden");
+      if (error.code === "PT409") return saleConditionsOutcome(form, "stale");
+      if ((error.code === "22023" || error.code === "23505") && /request_id/.test(error.message)) {
+        return saleConditionsOutcome(form, "request_conflict");
+      }
+      return saleConditionsOutcome(form, error.code === "22023" ? "invalid" : "unavailable");
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)
+      || data.organization_id !== actor.organizationId || data.lead_id !== leadId
+      || parseSalesInteger(data.revision) !== revision + 1) {
       return saleConditionsOutcome(form, "unavailable");
     }
     revalidatePath(`/v3/profile?id=${leadId}`);

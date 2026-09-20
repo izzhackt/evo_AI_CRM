@@ -37,7 +37,7 @@ export interface WahaInboundDeliveryResult {
 export interface WahaInboundDeliveryDeps {
   loadAmoCrmConfig?: (
     db: SupabaseClient,
-    accountId: string,
+    accountId: string
   ) => Promise<AmoCrmRuntimeConfig>;
   createAmoCrmClient?: (config: AmoCrmRuntimeConfig['config']) => AmoCrmClient;
   resolveAmoCrmIdentityFromProvider?: (input: {
@@ -45,7 +45,10 @@ export interface WahaInboundDeliveryDeps {
     phone: string;
     name?: string | null;
   }) => Promise<AmoCrmIdentity>;
-  resolveAuditUserId?: (db: SupabaseClient, accountId: string) => Promise<string>;
+  resolveAuditUserId?: (
+    db: SupabaseClient,
+    accountId: string
+  ) => Promise<string>;
   findOrCreateContact?: typeof findOrCreateContact;
   persistAmoCrmShadowIdentity?: typeof persistAmoCrmShadowIdentity;
   now?: () => Date;
@@ -101,7 +104,7 @@ export async function deliverWahaInboundMessage(
     accountId: string;
     message: WahaInboundMessage;
   },
-  deps: WahaInboundDeliveryDeps = {},
+  deps: WahaInboundDeliveryDeps = {}
 ): Promise<WahaInboundDeliveryResult> {
   const resolvedDeps = { ...defaultDeps, ...deps };
   const db = input.db as SupabaseClient;
@@ -119,27 +122,27 @@ export async function deliverWahaInboundMessage(
   const auditUserId = await resolveAuditUserOrThrow(
     db,
     input.accountId,
-    resolvedDeps,
+    resolvedDeps
   );
   const contact = await createContactOrThrow(
     db,
     input.accountId,
     auditUserId,
     input.message,
-    resolvedDeps,
+    resolvedDeps
   );
   const conversation = await findOrCreateConversation(
     db,
     input.accountId,
     auditUserId,
-    contact.id,
+    contact.id
   );
 
   const inserted = await insertInboundMessage(
     db,
     conversation.id,
     contact.id,
-    input.message,
+    input.message
   );
   if (inserted.duplicate) {
     return {
@@ -156,7 +159,7 @@ export async function deliverWahaInboundMessage(
     input.accountId,
     conversation,
     input.message,
-    resolvedDeps.now(),
+    resolvedDeps.now()
   );
 
   const syncOutcome = await syncAfterLocalSave(
@@ -164,7 +167,7 @@ export async function deliverWahaInboundMessage(
     input,
     contact.id,
     conversation.id,
-    resolvedDeps,
+    resolvedDeps
   );
 
   return {
@@ -186,28 +189,34 @@ async function syncAfterLocalSave(
   },
   contactId: string,
   conversationId: string,
-  deps: Required<WahaInboundDeliveryDeps>,
+  deps: Required<WahaInboundDeliveryDeps>
 ): Promise<AmoCrmSyncOutcome> {
   try {
-    return await syncAmoCrmConversation(db, {
-      accountId: input.accountId,
-      conversationId,
-      contactId,
-      phone: input.message.senderPhone,
-      name: input.message.senderName,
-    }, {
-      loadAmoCrmConfig: deps.loadAmoCrmConfig,
-      createAmoCrmClient: deps.createAmoCrmClient,
-      resolveAmoCrmIdentityFromProvider: deps.resolveAmoCrmIdentityFromProvider,
-      persistAmoCrmShadowIdentity: deps.persistAmoCrmShadowIdentity,
-      now: deps.now,
-    });
+    return await syncAmoCrmConversation(
+      db,
+      {
+        accountId: input.accountId,
+        conversationId,
+        contactId,
+        phone: input.message.senderPhone,
+        name: input.message.senderName,
+      },
+      {
+        loadAmoCrmConfig: deps.loadAmoCrmConfig,
+        createAmoCrmClient: deps.createAmoCrmClient,
+        resolveAmoCrmIdentityFromProvider:
+          deps.resolveAmoCrmIdentityFromProvider,
+        persistAmoCrmShadowIdentity: deps.persistAmoCrmShadowIdentity,
+        now: deps.now,
+      }
+    );
   } catch (err) {
     void err;
     return {
       status: 'pending',
       retryable: true,
-      error: 'amoCRM sync did not complete after the message was saved locally.',
+      error:
+        'amoCRM sync did not complete after the message was saved locally.',
     };
   }
 }
@@ -215,7 +224,7 @@ async function syncAfterLocalSave(
 async function resolveAuditUserOrThrow(
   db: SupabaseClient,
   accountId: string,
-  deps: Required<WahaInboundDeliveryDeps>,
+  deps: Required<WahaInboundDeliveryDeps>
 ): Promise<string> {
   try {
     return await deps.resolveAuditUserId(db, accountId);
@@ -229,7 +238,7 @@ async function createContactOrThrow(
   accountId: string,
   auditUserId: string,
   message: WahaInboundMessage,
-  deps: Required<WahaInboundDeliveryDeps>,
+  deps: Required<WahaInboundDeliveryDeps>
 ): Promise<{ id: string; created: boolean }> {
   try {
     return await deps.findOrCreateContact(db, accountId, auditUserId, {
@@ -243,7 +252,7 @@ async function createContactOrThrow(
 
 async function findExistingWahaMessage(
   db: SupabaseClient,
-  message: WahaInboundMessage,
+  message: WahaInboundMessage
 ): Promise<ExistingWahaMessage | null> {
   const { data, error } = await db
     .from('messages')
@@ -260,7 +269,8 @@ async function findExistingWahaMessage(
     messageId: String(data.id),
     conversationId: String(data.conversation_id),
     crmSyncStatus: toCrmSyncStatus(data.crm_sync_status),
-    crmSyncError: typeof data.crm_sync_error === 'string' ? data.crm_sync_error : null,
+    crmSyncError:
+      typeof data.crm_sync_error === 'string' ? data.crm_sync_error : null,
   };
 }
 
@@ -268,7 +278,7 @@ async function findOrCreateConversation(
   db: SupabaseClient,
   accountId: string,
   auditUserId: string,
-  contactId: string,
+  contactId: string
 ): Promise<ConversationShadow> {
   const { data: existing, error: findError } = await db
     .from('conversations')
@@ -280,7 +290,10 @@ async function findOrCreateConversation(
     .maybeSingle();
 
   if (findError) {
-    throw toSupabaseError('Failed to load local conversation shadow', findError);
+    throw toSupabaseError(
+      'Failed to load local conversation shadow',
+      findError
+    );
   }
   if (existing?.id) {
     return {
@@ -301,7 +314,10 @@ async function findOrCreateConversation(
     .single();
 
   if (createError || !created?.id) {
-    throw toSupabaseError('Failed to create local conversation shadow', createError);
+    throw toSupabaseError(
+      'Failed to create local conversation shadow',
+      createError
+    );
   }
 
   return {
@@ -314,7 +330,7 @@ async function insertInboundMessage(
   db: SupabaseClient,
   conversationId: string,
   contactId: string,
-  message: WahaInboundMessage,
+  message: WahaInboundMessage
 ): Promise<ExistingWahaMessage & { duplicate: boolean }> {
   const { data, error } = await db
     .from('messages')
@@ -355,7 +371,7 @@ async function updateConversationPreview(
   accountId: string,
   conversation: ConversationShadow,
   message: WahaInboundMessage,
-  now: Date,
+  now: Date
 ): Promise<void> {
   const preview = message.contentText || `[${message.contentType}]`;
   const result = await db
@@ -370,7 +386,10 @@ async function updateConversationPreview(
     .eq('account_id', accountId);
 
   if (hasSupabaseError(result)) {
-    throw toSupabaseError('Failed to update conversation preview', result.error);
+    throw toSupabaseError(
+      'Failed to update conversation preview',
+      result.error
+    );
   }
 }
 
@@ -396,7 +415,10 @@ function hasSupabaseError(value: unknown): value is { error: unknown } {
   );
 }
 
-function toSupabaseError(message: string, cause: unknown): WahaInboundDeliveryError {
+function toSupabaseError(
+  message: string,
+  cause: unknown
+): WahaInboundDeliveryError {
   void cause;
   return new WahaInboundDeliveryError({
     code: 'supabase_error',

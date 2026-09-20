@@ -18,7 +18,7 @@ test("only the retired Inbox manifests select its isolated dependency checks", (
     assert.equal(result.lint, false, path);
     assert.equal(result.build, false, path);
   }
-  for (const path of ["agent-lead2-inbox/src/app/page.tsx", "agent-lead2-inbox/package.json.backup", "agent-lead2-inbox/nested/package.json"]) {
+  for (const path of ["agent-lead2-inbox/package.json.backup", "agent-lead2-inbox/nested/package.json"]) {
     const result = classifyNameStatus(nul("M", path));
     assert.equal(result.inbox_dependencies, false, path);
     assert.equal(result.unknown, true, path);
@@ -372,4 +372,31 @@ test("dependency smoke and its workflow select the actual Python lane", () => {
     assert.equal(result.lead_agent_dependencies, true);
     assert.equal(result.unknown, false);
   }
+});
+
+
+test("Inbox formatting candidates require byte proof and preserve unknown/rename boundaries", () => {
+  const path = "agent-lead2-inbox/src/app/page.tsx";
+  const modified = classifyNameStatus(nul("M", path));
+  assert.equal(modified.inbox_formatting, true);
+  assert.equal(modified.inbox_dependencies, false);
+  assert.equal(modified.unknown, false);
+  assert.equal(modified.lint, false);
+  assert.equal(modified.build, false);
+  for (const status of ["A", "D", "T"]) {
+    const result = classifyNameStatus(nul(status, path));
+    assert.equal(result.inbox_formatting, false);
+    assert.equal(result.unknown, true);
+  }
+  const renamed = classifyNameStatus(nul("R100", path, "agent-lead2-inbox/src/app/renamed.tsx"));
+  assert.equal(renamed.inbox_formatting, false);
+  assert.equal(renamed.unknown, true);
+  const mixed = classifyNameStatus(nul("M", path, "M", "unclassified.binary"));
+  assert.equal(mixed.inbox_formatting, true);
+  assert.equal(mixed.unknown, true);
+  for (const control of [".editorconfig", ".prettierrc", ".prettierignore", "src/prettier.config.mjs", "supabase/migrations/001.sql", "public/opus/encoder.js"]) {
+    assert.equal(classifyNameStatus(nul("M", `agent-lead2-inbox/${control}`)).unknown, true, control);
+  }
+  assert.equal(classifyNameStatus(nul("M", "agent-lead2-inbox/deploy/docker-compose.edge.yml")).inbox_formatting, false);
+  assert.equal(classifyNameStatus(nul("M", "scripts/verify-inbox-format.mjs")).inbox_dependencies, true);
 });

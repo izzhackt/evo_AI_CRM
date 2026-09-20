@@ -6,7 +6,10 @@ import {
   dayDelta,
   taskDeadlineInputDefaults,
   calendarCapabilitiesForTask,
+  calendarUndatedContinuationHref,
 } from "../src/components/v3/calendar/types.ts";
+
+import { comparePersonalCalendarCursor, parsePersonalCalendarCursor, parsePersonalCalendarPage, PersonalCalendarReadError } from "../src/lib/v3/personal-calendar-contract.ts";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -18,6 +21,7 @@ const controls = source("src/components/v3/calendar/TaskControls.tsx");
 const grids = source("src/components/v3/calendar/grids.tsx");
 const types = source("src/components/v3/calendar/types.ts");
 const adapter = source("src/lib/v3/calendar-source.ts");
+const personal = source("src/lib/v3/personal-calendar-contract.ts");
 
 test("deadline-kind conversion preserves the task day instead of the period anchor", () => {
   assert.deepEqual(
@@ -56,19 +60,18 @@ test("deadline day deltas stay date-only across month and year boundaries", () =
 test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.match(page, /requireV3PageActor\("\/v3\/calendar"\)/);
   assert.match(page, /readCalendarWorkspace/);
-  assert.match(adapter, /listPlatformAdmissionsTaskQueue/);
+  assert.match(adapter, /readPersonalCalendarPage/);
   assert.match(adapter, /listPlatformStudentCases/);
   assert.match(adapter, /getPlatformAdmissionsTaskTarget/);
   assert.match(adapter, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapter, /const CASE_PAGE_SIZE = 100/);
-  assert.match(adapter, /dueFrom: from,[\s\S]*dueTo: to/u);
+  assert.match(adapter, /mode: "dated", from, to/u);
   assert.match(adapter, /while \(datedCursor !== null\)/u);
   assert.doesNotMatch(adapter, /while \(undatedCursor !== null\)/u);
-  assert.match(adapter, /undatedNextCursor: undatedPage\.nextCursor/u);
-  assert.match(adapter, /while \(cursor !== null\)/u);
+  assert.match(adapter, /undatedNextCursor: undated\.nextCursor/u);
   assert.doesNotMatch(adapter, /truncatedAfter|periodComplete/u);
   assert.match(adapter, /hasNext: page\.hasNext/);
-  assert.match(adapter, /casesHaveMore:\s*cases\.hasNext/);
+  assert.match(adapter, /casesHaveMore:\s*cases\?\.hasNext/);
   assert.match(page, /casesHaveMore=\{workspace\.casesHaveMore\}/);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
   assert.match(page, /undatedContinuationPage=\{workspace\.access\.tasks && undatedCursor !== null\}/u);
@@ -81,7 +84,7 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
     "only the exact edit target is read on the server; creation resolves its own case",
   );
   assert.equal([...adapter.matchAll(/await listPlatformStudentCases\(/g)].length, 1);
-  assert.match(adapter, /const assignees = target\?\.assignees \?\? \[\]/);
+  assert.match(adapter, /assignees: target\?\.assignees \?\? \[\]/);
   assert.doesNotMatch(
     adapter,
     /better-sqlite3|drizzle|@\/lib\/server\/database|\bevo_[a-z0-9_]+\b/i,
@@ -89,21 +92,18 @@ test("V3 calendar exhausts selected ranges and bounds undated history", () => {
   assert.doesNotMatch(adapter, /PlatformAdmissionsCursor|for \(;;\)|TASK_STATE/);
 });
 
-test("calendar production adapter uses the tested permission coordinator and keeps creation separate", () => {
-  assert.match(adapter, /await readCalendarWorkspaceBranches\(actor, \{/);
-  assert.match(adapter, /tasks: \(current\) => readCalendarTasks\(current, from, to, undatedCursor\)/);
-  assert.match(adapter, /deadlines: \(current\) => readCalendarApplicationDeadlines\(current, from, to\)/);
-  assert.match(adapter, /nearest: readNearestCalendarApplicationDeadline/);
-  assert.match(adapter, /cases: readActiveCases/);
-  assert.match(adapter, /access: branches\.access/);
+test("personal calendar gates each permitted task branch and keeps creation separate", () => {
+  assert.match(adapter, /const access = personalCalendarAccess\(actor\)/);
+  assert.match(adapter, /access\.tasks \? readCalendarTasks\(actor, from, to, undatedCursor\) : null/);
+  assert.match(adapter, /staffPresentationCan\(actor, "admissions\.read"\) \? readActiveCases/);
+  assert.doesNotMatch(adapter, /readCalendarApplicationDeadlines|readNearestCalendarApplicationDeadline/);
   assert.match(page, /readAccess=\{workspace\.access\}/);
-  assert.match(calendar, /readAccess\.applicationDeadlines \? <NearestApplicationDeadline/);
-  assert.match(calendar, /calendarAccessNotice\(readAccess, open !== null\)/);
+  assert.doesNotMatch(calendar, /NearestApplicationDeadline|readAccess\.applicationDeadlines/);
+  assert.match(calendar, /calendarAccessNotice\(readAccess\)/);
   assert.match(calendar, /calendarEmptyPeriodLabel\(readAccess\)/);
-  assert.match(calendar, /readAccess\.tasks \|\| readAccess\.applicationDeadlines \|\| tasks\.length > 0/);
   assert.match(calendar, /<CalendarCreateTaskForm/);
   assert.match(controls, /isStaffPreview\(actor\) \|\| !staffHasPermission\(actor, "task\.create"\)/);
-  assert.match(adapter, /tasks: target[\s\S]*\[target\.task, \.\.\.read\.tasks\.filter/);
+  assert.match(adapter, /task\.key !== target\.task\.key/);
 });
 
 test("case task candidates follow exact selection and block submission until checked", () => {
@@ -166,18 +166,20 @@ test("V3 calendar create, change, complete and cancel use versioned server actio
   assert.match(controls, /name="reason" value=\{reason\}/);
 });
 
-test("calendar links resolve a real case-bound task and preselect it without page duplication", () => {
-  assert.match(page, /hasTarget && \(!caseId \|\| !taskId\)\) notFound\(\)/);
-  assert.match(page, /await readCalendarTaskTarget\(actor, caseId, taskId\)/);
-  assert.match(page, /const day = target\?\.task\.day \?\?/);
-  assert.match(page, /initialTaskId=\{target\?\.task\.id \?\? null\}/);
-  assert.match(adapter, /getPlatformAdmissionsTaskTarget\(actor, studentCaseId, caseTaskId\)/);
-  const targetRead = adapter.slice(adapter.indexOf("export async function readCalendarTaskTarget"), adapter.indexOf("export async function readCalendarWorkspace"));
-  assert.doesNotMatch(targetRead, /listPlatformStudentCases|getPlatformAdmissionsTaskWorkspace|\.find\(|catch|return null/);
+test("calendar targets enforce personal scope while shared Tasks retains its reader", () => {
+  assert.match(page, /kind === "case" && !caseId/);
+  assert.match(page, /kind === "staff" && caseParam !== undefined/);
+  assert.match(page, /await readPersonalCalendarTaskTarget\(actor, caseId, taskId, kind\)/);
+  assert.match(page, /initialTaskKey=\{target\?\.task\.key \?\? null\}/);
+  assert.match(adapter, /getPlatformAdmissionsTaskTarget\(actor, studentCaseId, taskId\)/);
+  const sharedTarget = adapter.slice(adapter.indexOf("export async function readCalendarTaskTarget"), adapter.indexOf("export type CalendarTaskTarget"));
+  assert.doesNotMatch(sharedTarget, /readPersonalCalendarTarget|catch|return null/);
+  assert.match(source("src/app/(v3)/v3/tasks/page.tsx"), /readCalendarTaskTarget/);
   assert.match(page, /taskCapabilities=\{target\?\.capabilities \?\? null\}/);
-  assert.match(adapter, /read\.tasks\.filter\(\(task\) => task\.id !== target\.task\.id\)/);
-  assert.match(calendar, /tasks\.find\(\(task\) => task\.id === initialTaskId\)/);
+  assert.match(adapter, /task\.key !== target\.task\.key/);
+  assert.match(calendar, /tasks\.find\(\(task\) => task\.key === initialTaskKey\)/);
   assert.match(calendar, /params\.set\("case", target\.studentCaseId\)/);
+  assert.match(calendar, /params\.set\("kind", "staff"\)/);
   assert.match(calendar, /params\.set\("task", target\.id\)/);
 });
 
@@ -192,7 +194,7 @@ test("selected task controls and case navigation use only matching scoped target
   assert.match(changeForm, /!isStaffPreview\(actor\) && capabilities\.canChangeVisibility/);
   assert.doesNotMatch(changeForm, /staffHasPermission\(actor, "task\.(assign|visibility\.manage)"\)/);
   assert.match(calendar, /openCapabilities\?\.canReadCase \? <Link/);
-  assert.match(calendar, /openCapabilities && taskRequestIds\[open\.id\]/);
+  assert.match(calendar, /openCapabilities && taskRequestIds\[open\.key\]/);
   assert.match(calendar, /staffPresentationCan\(actor, "admissions\.read"\) \? <CalendarCreateTaskForm/);
 });
 
@@ -219,14 +221,14 @@ test("V3 calendar writes use live permission hints and remain keyboard-operable"
   assert.match(controls, /staffHasPermission\(actor, "task\.assign"\)/);
   assert.match(controls, /staffHasPermission\(actor, "task\.visibility\.manage"\)/);
   assert.match(controls, /state\.status === "saved" \|\| state\.status === "stale"/);
-  assert.match(grids, /<button[\s\S]*id=\{`task-\$\{task\.id\}`\}/);
+  assert.match(grids, /<button[\s\S]*id=\{`task-\$\{task\.key\}`\}/);
   assert.doesNotMatch(calendar, /\bADDED\b|\bHIDDEN\b|local-/);
   assert.match(calendar, /\/v3\/profile\?case=/);
 });
 
 test("V3 calendar preserves canonical task states and undated tasks", () => {
-  assert.match(adapter, /projectPlatformTaskDeadline\(row\.dueOn, row\.dueAt, now\)/);
-  assert.match(adapter, /task\.day < from \|\|[\s\S]*task\.day > to/u);
+  assert.match(personal, /projectPlatformTaskDeadline\(dueOn, dueAt, now\)/);
+  assert.match(personal, /parsed\.task\.day < options\.from \|\| parsed\.task\.day > options\.to/u);
   assert.match(adapter, /state: row\.status/);
   assert.match(adapter, /version: row\.version/);
   assert.match(calendar, /tasks\.filter\(\(task\) => task\.day === null\)/);
@@ -252,7 +254,7 @@ test("V3 calendar keeps exactly one active task-control component", () => {
 test("V3 stale task edits retain their draft and explicitly rebase before retry", () => {
   assert.match(calendar, /key=\{open\.id\}/);
   assert.doesNotMatch(calendar, /key=\{`\$\{open\.id\}:\$\{open\.version\}`\}/);
-  assert.match(page, /key=\{target \? target\.task\.id : `\$\{view\}:\$\{day\}`\}/);
+  assert.match(page, /key=\{target \? target\.task\.key : `\$\{view\}:\$\{day\}`\}/);
   assert.match(calendar, /params\.set\("case", target\.studentCaseId\)/);
   assert.match(calendar, /params\.set\("task", target\.id\)/);
   assert.match(controls, /const \[expectedVersion, setExpectedVersion\] = useState\(task\.version\)/);
@@ -261,4 +263,57 @@ test("V3 stale task edits retain their draft and explicitly rebase before retry"
   assert.match(controls, /disabled=\{task\.version === expectedVersion\}/);
   assert.match(controls, /setExpectedVersion\(task\.version\); setStaleAcknowledged\(true\)/);
   assert.match(controls, /Ваши поля сохранены в форме/);
+});
+
+// Parser/order inputs only; these tests do not represent database task records.
+const taskId = "12400000-0000-4000-8000-000000000101";
+const sentinel = "9999-12-31T00:00:00+00:00";
+
+test("personal calendar cursors reject incomplete or mixed-domain input", () => {
+  for (const args of [
+    [sentinel, undefined, taskId], [sentinel, "other", taskId], [sentinel, "staff", undefined],
+    ["not-a-date", "case", taskId], [sentinel, "case", "invalid-id"],
+  ]) assert.equal(parsePersonalCalendarCursor(...args), null);
+  assert.equal(parsePersonalCalendarCursor("2026-09-21T00:00:00Z", "case", taskId, true), null);
+  assert.equal(parsePersonalCalendarCursor("9999-12-31T00:00:00.000001Z", "case", taskId, true), null);
+});
+
+test("calendar ordering preserves microseconds and canonical offset equivalence", () => {
+  const first = { sortAt: "2026-09-21T00:00:00.000001Z", kind: "case", taskId };
+  const second = { ...first, sortAt: "2026-09-21T00:00:00.000002Z" };
+  assert.equal(comparePersonalCalendarCursor(first, second), -1);
+  assert.equal(comparePersonalCalendarCursor(second, first), 1);
+  assert.equal(comparePersonalCalendarCursor(first, { ...first, sortAt: "2026-09-21T06:00:00.000001+06:00" }), 0);
+});
+
+test("equal UUIDs in separate task domains have distinct stable cursor positions", () => {
+  const first = { sortAt: sentinel, kind: "case", taskId };
+  const second = { ...first, kind: "staff" };
+  assert.equal(comparePersonalCalendarCursor(first, second), -1);
+  assert.equal(comparePersonalCalendarCursor(second, first), 1);
+});
+
+test("mixed-domain continuation round trips its full tuple and keeps period", () => {
+  for (const kind of ["case", "staff"]) {
+    const cursor = { sortAt: sentinel, kind, taskId };
+    const url = new URL(calendarUndatedContinuationHref("/v3/calendar", "week", "2026-09-21", cursor), "http://localhost");
+    assert.equal(url.searchParams.get("view"), "week");
+    assert.equal(url.searchParams.get("date"), "2026-09-21");
+    assert.deepEqual(parsePersonalCalendarCursor(url.searchParams.get("undated_after_sort_at"), url.searchParams.get("undated_after_kind"), url.searchParams.get("undated_after_task_id"), true), cursor);
+    assert.equal(url.searchParams.has("undated_after_case_task_id"), false);
+  }
+});
+
+test("legacy case-only continuation remains readable without guessing a staff domain", () => {
+  const url = new URL(calendarUndatedContinuationHref("/v3/calendar", "month", "2026-09-21", { sortAt: sentinel, caseTaskId: taskId }), "http://localhost");
+  assert.deepEqual(parsePersonalCalendarCursor(url.searchParams.get("undated_after_sort_at"), "case", url.searchParams.get("undated_after_case_task_id"), true), { sortAt: sentinel, kind: "case", taskId });
+});
+
+test("page envelope cannot claim invalid totals or continuation without a row", () => {
+  for (const value of [
+    { rows: [], total_count: -1, next_cursor: null },
+    { rows: [], total_count: Number.MAX_SAFE_INTEGER + 1, next_cursor: null },
+    { rows: [], total_count: 1, next_cursor: { sort_at: sentinel, kind: "case", task_id: taskId } },
+    { rows: [], total_count: 0, next_cursor: null, hidden_extra: true },
+  ]) assert.throws(() => parsePersonalCalendarPage(value, {}, { mode: "undated" }), PersonalCalendarReadError);
 });

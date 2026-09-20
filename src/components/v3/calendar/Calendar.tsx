@@ -1,5 +1,7 @@
 "use client";
 
+import type { PersonalCalendarCursor } from "@/lib/v3/personal-calendar-contract";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useTransition } from "react";
@@ -10,14 +12,12 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { CalendarReadAccess } from "@/lib/v3/calendar-contract";
 import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 
-import { NearestApplicationDeadline } from "./ApplicationDeadline";
 import { MonthGrid, TaskChip, TimeGrid, statePill, taskStateKey } from "./grids";
 import {
   CalendarCreateTaskForm,
   CalendarTaskControls,
 } from "./TaskControls";
 import {
-  type CalendarApplicationDeadline,
   type CalendarAssigneeOption,
   type CalendarCaseOption,
   type CalendarTask,
@@ -30,6 +30,7 @@ import {
   calendarAccessNotice,
   calendarEmptyPeriodLabel,
   calendarCapabilitiesForTask,
+  calendarUndatedContinuationHref,
   dayLabel,
   periodLabel,
   stepDay,
@@ -38,15 +39,14 @@ import {
 } from "./types";
 
 /**
- * Calendar over canonical Admissions tasks and read-only application
- * deadlines. The URL identifies the task inspector; every business
+ * Personal calendar over canonical case and staff tasks. The URL identifies the task inspector; every business
  * mutation crosses the server action boundary.
  */
 const GHOST =
   "inline-flex min-h-11 items-center justify-center rounded-ctl px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 export function Calendar({
-  initialTaskId = null,
+  initialTaskKey = null,
   taskCapabilities,
   view,
   day,
@@ -57,8 +57,8 @@ export function Calendar({
   readAccess,
   undatedContinuationPage,
   undatedNextHref,
-  applicationDeadlines,
-  nearestApplicationDeadline,
+  undatedCount,
+  undatedCursor,
   cases,
   casesHaveMore,
   assignees,
@@ -68,7 +68,7 @@ export function Calendar({
   taskRequestIds,
   basePath,
 }: {
-  initialTaskId?: string | null;
+  initialTaskKey?: string | null;
   taskCapabilities: CalendarTaskCapabilities | null;
   view: CalendarView;
   day: Day;
@@ -80,8 +80,8 @@ export function Calendar({
   readAccess: CalendarReadAccess;
   undatedContinuationPage: boolean;
   undatedNextHref: string | null;
-  applicationDeadlines: readonly CalendarApplicationDeadline[];
-  nearestApplicationDeadline: CalendarApplicationDeadline | null;
+  undatedCount: number;
+  undatedCursor: PersonalCalendarCursor | null;
   cases: readonly CalendarCaseOption[];
   casesHaveMore: boolean;
   assignees: readonly CalendarAssigneeOption[];
@@ -94,13 +94,16 @@ export function Calendar({
   const panelId = useId();
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
-  const open = tasks.find((task) => task.id === initialTaskId) ?? null;
+  const open = tasks.find((task) => task.key === initialTaskKey) ?? null;
   const openCapabilities = open ? calendarCapabilitiesForTask(open, taskCapabilities) : null;
   const selectTask = (id: string | null) => {
-    const target = tasks.find((task) => task.id === id);
-    const params = new URLSearchParams({ view, date: day });
+    const target = tasks.find((task) => task.key === id);
+    const params = undatedCursor
+      ? new URLSearchParams(calendarUndatedContinuationHref(basePath, view, day, undatedCursor).split("?")[1])
+      : new URLSearchParams({ view, date: day });
     if (target) {
-      params.set("case", target.studentCaseId);
+      if (target.kind === "case") params.set("case", target.studentCaseId);
+      else params.set("kind", "staff");
       params.set("task", target.id);
     }
     startNavigation(() => router.push(`${basePath}?${params}`, { scroll: false }));
@@ -126,9 +129,9 @@ export function Calendar({
     `${basePath}?view=${nextView}&date=${nextDay}`;
   const chip = {
     today,
-    selectedId: open?.id ?? null,
+    selectedId: open?.key ?? null,
     panelId: open ? panelId : null,
-    onSelect: (id: string) => selectTask(initialTaskId === id ? null : id),
+    onSelect: (id: string) => selectTask(initialTaskKey === id ? null : id),
   };
   const unscheduled = tasks.filter((task) => task.day === null);
   const undatedNotice = readAccess.tasks ? calendarUndatedPageNotice(
@@ -136,7 +139,7 @@ export function Calendar({
     undatedNextHref !== null,
     unscheduled.length,
   ) : null;
-  const accessNotice = calendarAccessNotice(readAccess, open !== null);
+  const accessNotice = calendarAccessNotice(readAccess);
   const emptyPeriodLabel = calendarEmptyPeriodLabel(readAccess);
 
   return (
@@ -203,11 +206,6 @@ export function Calendar({
 
       {accessNotice ? <p className="text-sm text-fg-2" data-testid="v3-calendar-read-access">{accessNotice}</p> : null}
 
-      {readAccess.applicationDeadlines ? <NearestApplicationDeadline
-        today={today}
-        deadline={nearestApplicationDeadline}
-      /> : null}
-
       {open ? (
         <aside
           id={panelId}
@@ -236,17 +234,22 @@ export function Calendar({
               <p className="mt-1 text-xs text-fg-3">
                 Ответственный: <span className="text-fg-2">{open.assigneeDisplayName}</span>
               </p>
-              {openCapabilities?.canReadCase ? <Link
+              {open.kind === "case" && openCapabilities?.canReadCase ? <Link
                 href={`/v3/profile?case=${encodeURIComponent(open.studentCaseId)}`}
                 className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline"
               >
                 Открыть раздел «Студенты»
               </Link> : null}
+              {open.kind === "staff" ? (
+                <Link href={`/v3/tasks?domain=staff&view=mine&status=all&task=${encodeURIComponent(open.id)}`} className="mt-2 inline-flex text-sm text-brand underline-offset-4 hover:underline">
+                  Открыть задачу и действия
+                </Link>
+              ) : null}
               {open.details ? <p className="mt-3 text-sm leading-6 text-fg">{open.details}</p> : null}
               {open.cancelReason ? (
                 <p className="mt-2 text-sm text-fg-2">Причина: {open.cancelReason}</p>
               ) : null}
-              {openCapabilities && taskRequestIds[open.id] &&
+              {open.kind === "case" && openCapabilities && taskRequestIds[open.key] &&
               open.caseState === "active" &&
               open.state !== "done" &&
               open.state !== "cancelled" &&
@@ -258,7 +261,7 @@ export function Calendar({
                   assignees={assignees}
                   actor={actor}
                   capabilities={openCapabilities}
-                  requestIds={taskRequestIds[open.id]}
+                  requestIds={taskRequestIds[open.key]}
                 />
               ) : null}
             </div>
@@ -266,7 +269,7 @@ export function Calendar({
               type="button"
               className={`${GHOST} w-11 px-0`}
               onClick={() => {
-                const id = open.id;
+                const id = open.key;
                 selectTask(null);
                 requestAnimationFrame(() => document.getElementById(`task-${id}`)?.focus());
               }}
@@ -279,7 +282,6 @@ export function Calendar({
       ) : null}
 
       {tasks.length === 0 &&
-      applicationDeadlines.length === 0 &&
       !undatedContinuationPage && emptyPeriodLabel ? (
         <p className="px-1 text-sm text-fg-3">{emptyPeriodLabel}</p>
       ) : null}
@@ -290,17 +292,17 @@ export function Calendar({
           className="rounded-card border border-border bg-surface p-3"
         >
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">
-            Без срока
+            Без срока — {undatedCount}
           </h2>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {unscheduled.map((task) => (
               <TaskChip
-                key={task.id}
+                key={task.key}
                 task={task}
                 today={today}
-                selected={task.id === chip.selectedId}
+                selected={task.key === chip.selectedId}
                 panelId={chip.panelId}
-                onSelect={() => chip.onSelect(task.id)}
+                onSelect={() => chip.onSelect(task.key)}
               />
             ))}
           </div>
@@ -324,12 +326,12 @@ export function Calendar({
         </section>
       ) : null}
 
-      {readAccess.tasks || readAccess.applicationDeadlines || tasks.length > 0 ? <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface">
+      {readAccess.tasks || tasks.length > 0 ? <section className="min-w-0 overflow-hidden rounded-card border border-border bg-surface">
         {view === "month" ? (
           <MonthGrid
             days={days}
             tasks={tasks}
-            deadlines={applicationDeadlines}
+            deadlines={[]}
             anchor={day}
             hrefForDay={(value) => href("day", value)}
             label={`Сетка месяца, ${periodLabel(view, day)}`}
@@ -339,7 +341,7 @@ export function Calendar({
           <TimeGrid
             days={days}
             tasks={tasks}
-            deadlines={applicationDeadlines}
+            deadlines={[]}
             hours={hours}
             anchor={anchorMinute}
             hrefForDay={(value) => href("day", value)}

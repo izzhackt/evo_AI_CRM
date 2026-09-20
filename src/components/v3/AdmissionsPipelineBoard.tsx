@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { cn } from "@/components/ui";
@@ -179,6 +180,8 @@ export function AdmissionsPipelineBoard({
   query: Readonly<{ q: string | null; country: string | null; curator: string | null }>;
   basePath?: string;
 }>) {
+  const router = useRouter();
+  const [retrying, startRetry] = useTransition();
   const [cards, setCards] = useState(rows);
   const [error, setError] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<AdmissionsPipelineStage | null>(null);
@@ -276,7 +279,22 @@ export function AdmissionsPipelineBoard({
       ) : null}
 
       {boardUnavailable ? (
-        <p role="alert" className="text-sm text-danger">Не удалось загрузить воронку поступления. Обновите страницу.</p>
+        <div className="space-y-2">
+          <p role="alert" className="text-sm text-danger">Не удалось загрузить воронку поступления.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={retrying}
+              onClick={() => startRetry(() => router.refresh())}
+              className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-3 text-sm font-medium text-fg hover:bg-surface-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              {retrying ? "Загрузка…" : "Повторить"}
+            </button>
+            <Link href="/v3/profile" className="inline-flex min-h-11 items-center text-sm text-accent underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+              Открыть студентов
+            </Link>
+          </div>
+        </div>
       ) : boardEmpty ? (
         <p className="px-1 py-10 text-center text-sm text-fg-3">Дел в работе нет.</p>
       ) : (

@@ -33177,3 +33177,51 @@ portal-only scope PRODUCT.md. Для нового admissions-пути веб в�
 #925–#928 и #930 составляют принятую базу iPhone/портала. #929 и migration 207
 остаются отдельным незавершённым блоком без новой production authority.
 Каждый блок получает точечную реальную проверку и независимый exact-head review.
+
+
+## 2026-09-20 — Admissions pipeline: omit empty GET filters
+
+Owner-reported production failure at `/v3/admissions-pipeline` was reproduced
+with the existing authenticated Admin session: no curator filter produces
+«Не удалось загрузить воронку поступления», selecting a curator removes that
+error, and resetting filters reproduces it. Managed Postgres logs at the
+matching request times confirm `invalid input syntax for type uuid: "null"`.
+No customer data or permissions were changed during diagnosis.
+
+The board RPC uses Supabase GET transport. Pinned postgrest-js 2.111.0 omits
+undefined values but serializes JavaScript null as the literal string `null`.
+The optional UUID therefore fails before the SQL function executes; empty
+country/search values also become unintended text filters. Omit all three
+unset arguments and retain the RPC's existing SQL NULL defaults. Preserve
+GET/read-only transport, nonempty filters, authorization and the decoder.
+No migration or product-scope change is needed.
+
+Official source: https://github.com/supabase/supabase-js/blob/v2.111.0/packages/core/postgrest-js/src/PostgrestClient.ts
+
+Validation scope: existing focused pipeline source-contract checks and diff
+review; these static checks do not prove HTTP behavior. The real regression
+signal is the authenticated browser board after managed release, including
+resetting filters and both tabs. Until then the production fix is unverified.
+Do not interrupt Fable's active exact-main release to merge or deploy this fix;
+use the next coordinated release after the current owner completes/disarms.
+
+2026-09-20 continuation: the former release has completed. Live release arm is
+false and no pending receipt exists; accepted revision is `b7598a1c`. Current
+main is merged into this branch, retaining both appended decision histories.
+No production deployment or database write is performed by this continuation.
+
+
+### CRM-06 — filter reset and recovery on the same board
+
+The actual authenticated local UI against managed Supabase confirmed another
+part of the same filter path: after reset, the rows return to the complete
+set but the uncontrolled curator select retains its previous visible value.
+Key the GET filter form by the canonical query URL so every URL transition
+remounts its controls. This uses React's documented form reset with a key:
+https://react.dev/learn/preserving-and-resetting-state#resetting-a-form-with-a-key.
+
+Complete CRM-06's existing error requirement with retry of the current route
+and a Students link. Preserve the board, error-vs-empty distinction and all
+move permissions. Next.js refresh re-fetches the route's server data without
+changing the URL: https://nextjs.org/docs/app/api-reference/functions/use-router.
+No failure response or customer records are fabricated for validation.

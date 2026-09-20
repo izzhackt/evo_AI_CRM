@@ -13,6 +13,7 @@ import {
   type PlatformSalesStage,
 } from "@/lib/platform-sales";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
+import { readCompletedSalesHandoffs } from "@/lib/v3/sales-handoff-source";
 import { FUNNEL_STEP, leadStage } from "@/lib/v3/wording";
 
 const PAGE_SIZE = 100;
@@ -32,7 +33,7 @@ export type PipelineBoardFilters = Readonly<{
   query: string | null;
   /**
    * «handed_off» — производная колонка: в базе переданный лид остаётся в
-   * своей канонической стадии, а колонку определяет связанное дело. Поэтому
+   * своей канонической стадии, а колонку определяет завершённая передача. Поэтому
    * фильтр по ней применяется после чтения, а не в RPC.
    */
   stage: PlatformSalesStage | "handed_off" | "all";
@@ -70,8 +71,8 @@ function requiredStageTitle(key: string): string {
 /**
  * The board follows the canonical Supabase workflow vocabulary. A completed
  * admissions handoff is deliberately presented as a derived terminal column:
- * the queue exposes it through `linkedStudentCaseCount`, not through a second
- * sales-stage dictionary. The gate marker belongs to `qualified`, the exact
+ * a separate scoped projection proves it from durable handoff evidence, not
+ * mere case existence. The gate marker belongs to `qualified`, the exact
  * stage required by the canonical handoff command; contract/payment evidence
  * remains a separate server-side decision rendered on the V3 person profile.
  */
@@ -222,14 +223,15 @@ export type PipelineBoardRead = Readonly<{
 }>;
 
 export async function readPipelineLeads(
-  actor: PlatformActor,
+  actor: ActivePlatformActor,
   filters: PipelineBoardFilters = PIPELINE_BOARD_NO_FILTERS,
 ): Promise<PipelineBoardRead> {
   const read = await readAllCanonicalSalesLeads(actor, filters);
+  const completed = await readCompletedSalesHandoffs(actor, read.rows.map((row) => row.leadId));
   const today = organizationDate(new Date());
 
   const mapped = read.rows.map((row) => {
-    const stageKey = row.linkedStudentCaseCount > 0
+    const stageKey = completed.has(row.leadId)
       ? "handed_off" as const
       : row.stageKey;
     return {

@@ -8,6 +8,8 @@ export const UNIVERSITY_COUNTRIES = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW A
 export const UNIVERSITY_PHOTOS = photoLibrary;
 export type UniversityPhotoKey = keyof typeof UNIVERSITY_PHOTOS;
 export type UniversityIntake = Readonly<{
+  /** Missing only in legacy publications; never derive identity from a label or date. */
+  id?: string;
   label: string; startDate: string | null; startMonth: string | null;
   applicationDeadline: string | null; deadlineTime: string | null; timezone: string | null;
   status: "announced" | "open" | "closed" | "unknown" | "needs_reconfirmation";
@@ -23,12 +25,25 @@ export type UniversityContent = Readonly<{
   photoKey: UniversityPhotoKey | null; programs: readonly UniversityProgram[];
 }>;
 export type PublishedUniversity = Readonly<{ id: string; version: number; publishedAt: string; content: UniversityContent }>;
-export type UniversityDraft = Readonly<{ id: string; institutionId: string | null; baseVersion: number; createdAt: string; status: "draft"; content: UniversityContent; reason: string }>;
+export type UniversityReviewKind = "content" | "intake_ids";
+export type UniversityDraft = Readonly<{ id: string; institutionId: string | null; baseVersion: number; createdAt: string; status: "draft"; content: UniversityContent; reason: string; reviewKind: UniversityReviewKind }>;
 export type UniversityFilters = Readonly<{ query: string; country: string; level: UniversityLevel | ""; offset: number }>;
 export type UniversityPage = Readonly<{ items: readonly PublishedUniversity[]; nextOffset: number | null }>;
 export type UniversityActionState = Readonly<{ status: "idle" | "saved" | "published" | "rejected" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable"; requestId: string; draftId: string | null; institutionId: string | null }>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function universityUuid(value: unknown): string | null { return typeof value === "string" && UUID.test(value) ? value : null; }
+export function universityIntakeId(value: unknown): value is string {
+  return typeof value === "string" && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+}
+/** Run once when opening a new editorial revision, then keep these IDs through edits/retries. */
+export function withUniversityIntakeIds(content: UniversityContent, createId: () => string): UniversityContent {
+  return { ...content, programs: content.programs.map((program) => ({ ...program, intakes: program.intakes.map((intake) => {
+    if (intake.id !== undefined) return intake;
+    const id = createId();
+    if (!universityIntakeId(id)) throw new Error("Invalid intake identity");
+    return { ...intake, id };
+  }) })) };
+}
 function object(value: unknown): Record<string, unknown> | null { return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
 function exact(value: Record<string, unknown>, keys: readonly string[]) { return Object.keys(value).length === keys.length && Object.keys(value).every((key) => keys.includes(key)); }
 function text(value: unknown, max: number, empty = false): value is string { return typeof value === "string" && (empty || value.trim().length > 0) && value.length <= max && !/[\u0000-\u001f\u007f]/.test(value); }
@@ -50,6 +65,7 @@ export function parseUniversityContent(value: unknown): UniversityContent | null
     || !text(row.notes, 1500, true) || !(row.photoKey === null || (typeof row.photoKey === "string" && Object.hasOwn(UNIVERSITY_PHOTOS, row.photoKey)))
     || !Array.isArray(row.programs) || row.programs.length < 1 || row.programs.length > 30) return null;
   const programs: UniversityProgram[] = [];
+  const intakeIds = new Set<string>();
   for (const entry of row.programs) {
     const program = object(entry);
     if (!program || !exact(program, ["id", "title", "level", "duration", "language", "summary", "sourceUrl", "intakes"])
@@ -61,7 +77,9 @@ export function parseUniversityContent(value: unknown): UniversityContent | null
     const intakes: UniversityIntake[] = [];
     for (const item of program.intakes) {
       const intake = object(item);
-      if (!intake || !exact(intake, ["label", "startDate", "startMonth", "applicationDeadline", "deadlineTime", "timezone", "status", "note", "sourceUrl", "verifiedOn"])
+      const hasId = intake !== null && Object.hasOwn(intake, "id");
+      if (!intake || !exact(intake, ["label", "startDate", "startMonth", "applicationDeadline", "deadlineTime", "timezone", "status", "note", "sourceUrl", "verifiedOn", ...(hasId ? ["id"] : [])])
+        || (hasId && (!universityIntakeId(intake.id) || intakeIds.has(intake.id)))
         || !text(intake.label, 200) || !(intake.startDate === null || universityDate(intake.startDate))
         || !(intake.startMonth === null || (typeof intake.startMonth === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(intake.startMonth)))
         || !(intake.applicationDeadline === null || universityDate(intake.applicationDeadline))
@@ -72,6 +90,7 @@ export function parseUniversityContent(value: unknown): UniversityContent | null
         || !["announced", "open", "closed", "unknown", "needs_reconfirmation"].includes(intake.status as string)
         || !text(intake.note, 1000, true) || !universityPublicUrl(intake.sourceUrl) || !universityDate(intake.verifiedOn)) return null;
       try { if (intake.timezone !== null) new Intl.DateTimeFormat("en", { timeZone: intake.timezone as string }); } catch { return null; }
+      if (hasId) intakeIds.add(intake.id as string);
       intakes.push(intake as unknown as UniversityIntake);
     }
     programs.push({ ...(program as unknown as UniversityProgram), intakes });
@@ -111,8 +130,11 @@ export function parseUniversityDrafts(value: unknown): readonly UniversityDraft[
   const drafts: UniversityDraft[] = [];
   for (const entry of value) {
     const row = object(entry), content = parseUniversityContent(row?.content), id = universityUuid(row?.id);
-    if (!row || !exact(row, ["id", "institutionId", "baseVersion", "createdAt", "content", "reason", "status"]) || !id || drafts.some((draft) => draft.id === id) || !content || !(row.institutionId === null || universityUuid(row.institutionId)) || !Number.isSafeInteger(row.baseVersion) || Number(row.baseVersion) < 0 || !text(row.reason, 500) || row.status !== "draft" || typeof row.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(row.createdAt) || Number.isNaN(Date.parse(row.createdAt))) return null;
-    drafts.push({ id, institutionId: row.institutionId as string | null, baseVersion: row.baseVersion as number, createdAt: row.createdAt, content, reason: row.reason, status: "draft" });
+    const hasReviewKind = row !== null && Object.hasOwn(row, "reviewKind");
+    const reviewKind = hasReviewKind ? row?.reviewKind : "content";
+    if (!row || !exact(row, ["id", "institutionId", "baseVersion", "createdAt", "content", "reason", "status", ...(hasReviewKind ? ["reviewKind"] : [])]) || !["content", "intake_ids"].includes(reviewKind as string) || !id || drafts.some((draft) => draft.id === id) || !content || !(row.institutionId === null || universityUuid(row.institutionId)) || !Number.isSafeInteger(row.baseVersion) || Number(row.baseVersion) < 0 || !text(row.reason, 500) || row.status !== "draft" || typeof row.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(row.createdAt) || Number.isNaN(Date.parse(row.createdAt))) return null;
+    if (reviewKind === "intake_ids" && (!row.institutionId || Number(row.baseVersion) < 1)) return null;
+    drafts.push({ id, institutionId: row.institutionId as string | null, baseVersion: row.baseVersion as number, createdAt: row.createdAt, content, reason: row.reason, status: "draft", reviewKind: reviewKind as UniversityReviewKind });
   }
   return drafts;
 }

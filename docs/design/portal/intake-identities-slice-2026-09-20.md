@@ -1,6 +1,7 @@
 # B3a — стабильные ID наборов и техническая публикация
 
-Статус: спецификация до runtime-кода. Основа main
+Статус: спецификация зафиксирована до runtime-кода; реализация B3a подготовлена,
+реальная запись/публикация не выполнена. Основа main
 `6da4f354d1a7af88bfbb19b11c3e2546606ae114` (207–209).
 Root выделил миграцию **211**; 210 принадлежит A. Принятый shared contract:
 [B-3 в launch plan, commit 8bd96f2d](https://github.com/izzhackt/evo_AI_CRM/blob/8bd96f2dfc23dc7fc574ecee2591383e05ba311c/docs/EVO_LAUNCH_PLAN.md).
@@ -33,7 +34,8 @@ Admin может подготовить и проверить техническ
 ## Формат и совместимость
 
 `UniversityIntake.id` необязателен для чтения старых JSON. Если присутствует,
-это непустая строка канонического UUID; null/неверный тип не являются ID.
+это lowercase UUID длиной 36, версия 1–8 и variant 8/9/a/b;
+null/неверный тип/uppercase не являются ID.
 TS, SQL и Swift согласованы. Дубли ID внутри публикации отвергаются. Старые
 остальные JSON-правила (URL, дата, timezone, фото, уровни) сохраняются.
 
@@ -55,8 +57,13 @@ legacy workflow лишь пока его база тоже не идентифи
   content, reason, request ID. Для technical path обязательны существующий
   institution и его опубликованная база; создание нового вуза не допускается.
 - Publication хранит неизменяемый `review_kind` (`content` по умолчанию,
-  `intake_ids` для technical path). Это не новый реестр. В Admin drafts DTO
-  добавить `reviewKind`; старый отсутствующий ключ читатель трактует как content.
+  `intake_ids` для technical path). Это не новый реестр. Новый guarded reader
+  `admin_university_catalog_drafts_with_review_kind` возвращает `reviewKind`.
+  Старый RPC сохраняет прежний exact DTO и показывает только `content` drafts:
+  иначе schema-first rollout ломает уже опубликованный strict TS parser и может
+  показать технический черновик с ложной галочкой проверки источников. Новый
+  reader использует старый только при PGRST202 (новый RPC ещё отсутствует),
+  отсутствующий `reviewKind` трактует как content. Ошибки Auth/данных не скрываются.
 - Technical proof привязан к exact existing base (org/institution/version,
   соответствующие publication UUID и content hash). Сервер сравнивает candidate
   с base после удаления ТОЛЬКО добавленных intake.id. Прежние ID, program IDs,
@@ -91,11 +98,15 @@ Swift `UniversityIntake`. При необходимости добавить м�
 
 ## Реальная проверка и текущие ограничения
 
-До изменения кода получить свежие existing published snapshots настоящим
+Для проверки получить свежие existing published snapshots настоящим
 Student catalog RPC с уже имеющимся managed QA identity. Конфиг canonical
 `.env.student-portal-qa.json` читается только процессом, значения не копируются
 в worktree/Git/логи. Пароль/Auth token в вывод не попадают. Роль/tenant не менять.
 Можно проверить реальные decoder/reader пути и количество legacy наборов.
+Фактический baseline получен 2026-09-20 18:16:10.777 UTC до изменения TS/editor;
+SQL/Swift workers к этому времени уже подготовили код. Пять страниц/143 вуза,
+251 программа/145 наборов без ID; поддерживаемые страны — 116 вузов/131 набор.
+Подробности и границы — `docs/qa/b3-intake-identities-2026-09-20.md`.
 
 Новый stage/review/save не выполняется в managed до отдельной authority на211
 и записи; существующая staff browser session не переносится cookie extraction

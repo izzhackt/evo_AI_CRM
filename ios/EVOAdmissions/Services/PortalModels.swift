@@ -100,6 +100,40 @@ struct UniversityContent: Decodable {
     let programs: [UniversityProgram]
 }
 
+extension UniversityContent {
+    private enum CodingKeys: String, CodingKey {
+        case name, country, city, overview, websiteUrl, sourceUrl
+        case verifiedOn, notes, photoKey, programs
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        name = try values.decode(String.self, forKey: .name)
+        country = try values.decode(String.self, forKey: .country)
+        city = try values.decodeIfPresent(String.self, forKey: .city)
+        overview = try values.decode(String.self, forKey: .overview)
+        websiteUrl = try values.decode(String.self, forKey: .websiteUrl)
+        sourceUrl = try values.decode(String.self, forKey: .sourceUrl)
+        verifiedOn = try values.decode(String.self, forKey: .verifiedOn)
+        notes = try values.decode(String.self, forKey: .notes)
+        photoKey = try values.decodeIfPresent(String.self, forKey: .photoKey)
+        programs = try values.decode([UniversityProgram].self, forKey: .programs)
+
+        var intakeIDs = Set<String>()
+        for program in programs {
+            for intake in program.intakes {
+                if let id = intake.id, !intakeIDs.insert(id).inserted {
+                    throw DecodingError.dataCorruptedError(
+                        forKey: .programs,
+                        in: values,
+                        debugDescription: "Intake ids must be unique across the university publication."
+                    )
+                }
+            }
+        }
+    }
+}
+
 struct UniversityProgram: Decodable, Identifiable {
     let id: String
     let title: String
@@ -113,6 +147,9 @@ struct UniversityProgram: Decodable, Identifiable {
 }
 
 struct UniversityIntake: Decodable {
+    /// Missing only in legacy publications. Identified intakes retain this UUID
+    /// across later immutable publications.
+    let id: String?
     let label: String
     let startDate: String?
     let startMonth: String?
@@ -123,6 +160,74 @@ struct UniversityIntake: Decodable {
     let note: String
     let sourceUrl: String
     let verifiedOn: String
+}
+
+extension UniversityIntake {
+    /// Preserve existing constructions of legacy, unidentified intakes while
+    /// retaining the synthesized memberwise initializer that accepts an ID.
+    init(
+        label: String,
+        startDate: String?,
+        startMonth: String?,
+        applicationDeadline: String?,
+        deadlineTime: String?,
+        timezone: String?,
+        status: String,
+        note: String,
+        sourceUrl: String,
+        verifiedOn: String
+    ) {
+        self.init(
+            id: nil,
+            label: label,
+            startDate: startDate,
+            startMonth: startMonth,
+            applicationDeadline: applicationDeadline,
+            deadlineTime: deadlineTime,
+            timezone: timezone,
+            status: status,
+            note: note,
+            sourceUrl: sourceUrl,
+            verifiedOn: verifiedOn
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, label, startDate, startMonth, applicationDeadline
+        case deadlineTime, timezone, status, note, sourceUrl, verifiedOn
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        if values.contains(.id) {
+            // decodeIfPresent would also accept null; only an absent legacy
+            // key is optional. Match the shared TS/SQL canonical UUID rule.
+            let value = try values.decode(String.self, forKey: .id)
+            guard value.range(
+                of: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                options: .regularExpression
+            ) == value.startIndex..<value.endIndex else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .id,
+                    in: values,
+                    debugDescription: "Intake id must be a canonical lowercase UUID."
+                )
+            }
+            id = value
+        } else {
+            id = nil
+        }
+        label = try values.decode(String.self, forKey: .label)
+        startDate = try values.decodeIfPresent(String.self, forKey: .startDate)
+        startMonth = try values.decodeIfPresent(String.self, forKey: .startMonth)
+        applicationDeadline = try values.decodeIfPresent(String.self, forKey: .applicationDeadline)
+        deadlineTime = try values.decodeIfPresent(String.self, forKey: .deadlineTime)
+        timezone = try values.decodeIfPresent(String.self, forKey: .timezone)
+        status = try values.decode(String.self, forKey: .status)
+        note = try values.decode(String.self, forKey: .note)
+        sourceUrl = try values.decode(String.self, forKey: .sourceUrl)
+        verifiedOn = try values.decode(String.self, forKey: .verifiedOn)
+    }
 }
 
 /// Intake status for display. Same computation as the web portal's

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace, SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
-import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions } from "@/lib/v3/sales-register-source";
+import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess } from "@/lib/v3/sales-register-source";
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
@@ -13,7 +13,7 @@ import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./Sales
 
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
-  manager?: string; direction?: string; review?: string;
+  manager?: string; direction?: string; review?: string; saved?: string;
 }>;
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
@@ -32,7 +32,8 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     && (query.manager === undefined || (typeof query.manager === "string" && query.manager.length <= 300))
     && (query.direction === undefined || (typeof query.direction === "string" && query.direction.length <= 500))
     && (query.review === undefined || ["", "true", "false"].includes(query.review));
-  const canManage = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.manage");
+  const writeAccess = await readSalesRegisterWriteAccess(actor);
+  const canManage = writeAccess === "allowed";
   const canTarget = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage");
   const canImport = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.import");
   const checkFinanceAccess = staffHasPermission(actor, "finance.read.full") && !isStaffPreview(actor);
@@ -41,7 +42,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   let cash: MonthlyPaymentSummaryRead | Readonly<{ status: "unavailable" }> | null = null;
   if (valid) {
     [workspace, cash, intakeOptions] = await Promise.all([
-      readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record, archived: query.archived === "true",
+      readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record ?? query.saved, archived: query.archived === "true",
         manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null }).catch(() => null),
       checkFinanceAccess && month ? readMonthlyPaymentSummary(actor, year, month)
         .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
@@ -60,6 +61,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   };
   const editing = query.new === "true" || Boolean(query.record);
   const reportMonth = `${year}-${String(month ?? Number(now.find(p => p.type === "month")!.value)).padStart(2, "0")}-01`;
+  const saved = !editing && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = workspace?.targets.find(t => t.reportMonth === reportMonth && t.managerLabel === null) ?? null;
 
   return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
@@ -71,6 +73,16 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
       {!editing && workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </header> : null}
 
+    {writeAccess === "unavailable" ? <p role="alert" className="mt-4 text-sm text-fg-2">Не удалось проверить права на запись продажи. Обновите страницу перед добавлением или изменением.</p> : null}
+    {editing && writeAccess === "denied" ? <p role="status" className="mt-4 text-sm text-fg-2">Добавление и исправление продаж доступны Sales Manager.</p> : null}
+    {saved ? <section id="saved-sale" aria-labelledby="saved-sale-title" className="mt-6 scroll-mt-4 rounded-card border border-accent bg-surface-2 p-4">
+      <h2 id="saved-sale-title" className="text-base font-semibold text-fg">Продажа добавлена</h2>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0"><p className="break-words font-medium text-fg">{saved.applicantName}</p>
+          <p className="mt-1 text-sm text-fg-2">{dateLabel(saved.signingDate)} · {money(saved.serviceCostMinor, saved.serviceCostCurrency)}</p></div>
+        {saved.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(saved.leadId)}`} className={`${btnCls} min-h-11`}>Открыть дело</Link> : null}
+      </div>
+    </section> : null}
     {editing && canManage ? <div className="mt-6 max-w-[860px]">
       <SalesRegisterForm key={query.record ?? "new"} record={workspace?.selected ?? null}
         recordId={query.record ?? null} reportMonth={reportMonth} ownerOptions={workspace?.ownerOptions ?? []}
@@ -134,7 +146,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
             <table className="w-full min-w-[960px] text-left text-sm">
               <caption className="sr-only">Продажи выбранного периода</caption>
               <thead className="border-b border-border bg-surface-2 text-xs text-fg-2"><tr><th scope="col" className="px-4 py-3 font-medium">Студент и программа</th><th scope="col" className="px-4 py-3 font-medium">Менеджер и дата</th><th scope="col" className="px-4 py-3 text-right font-medium">Стоимость</th><th scope="col" className="px-4 py-3 text-right font-medium">Оплачено по записи</th><th scope="col" className="px-4 py-3 font-medium">Уточнения</th><th scope="col" className="px-4 py-3"><span className="sr-only">Действие</span></th></tr></thead>
-              <tbody className="divide-y divide-border">{workspace.rows.map(row => <tr key={row.id} className="align-top bg-surface hover:bg-surface-2">
+              <tbody className="divide-y divide-border">{workspace.rows.map(row => <tr key={row.id} className={`align-top ${row.id === saved?.id ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
                 <th scope="row" className="min-w-[240px] max-w-[360px] px-4 py-3 font-normal"><Link href={href({ record: row.id })} className="inline-flex min-h-11 items-center break-words font-semibold text-fg underline-offset-4 hover:underline">{row.applicantName || "Имя не указано"}</Link><p className="break-words text-sm text-fg-2">{[row.country, row.program].filter(Boolean).join(" · ") || "Программа не указана"}</p></th>
                 <td className="min-w-[180px] max-w-[260px] px-4 py-5"><p className="break-words text-fg">{row.managerLabel || "Менеджер не указан"}</p><p className="mt-1 text-xs text-fg-2">{dateLabel(row.signingDate)}</p></td>
                 <td className="whitespace-nowrap px-4 py-5 text-right font-mono tabular-nums">{money(row.serviceCostMinor, row.serviceCostCurrency)}</td>

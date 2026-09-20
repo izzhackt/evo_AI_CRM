@@ -8,6 +8,7 @@ import {
   type PortalStrings,
 } from "@/lib/portal/i18n";
 import type { LearningLessonSummary, LearningModule } from "@/lib/portal/learning";
+import type { RecentUniversity } from "@/lib/portal/recent-universities";
 import {
   nearestUniversityIntake,
   universityCountryLabel,
@@ -27,11 +28,10 @@ import { formatPortalMoney, studentActionDueLabel } from "../admission/presentat
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов»
  * п.1): продолжение урока/теста, избранное с ближайшими интейками; assisted —
  * ближайшие действия дела первым блоком (та же модель E2, что у
- * OverviewView «Моего поступления»). Никаких новых DTO: точные результаты
- * существующих read model приходят пропсами, каждый источник несёт свой
- * честный сбой (null) и честную пустоту. «Новое в каталоге» сознательно
- * отсутствует: у каталога нет честного признака новизны (publishedAt —
- * reviewed_at текущей версии, см. docs/PLAN_CHANGES.md PORT-9c).
+ * OverviewView «Моего поступления»). Серверные read model приходят пропсами,
+ * каждый источник несёт свой честный сбой (null) и честную пустоту.
+ * Новое в каталоге использует firstPublishedAt из неизменяемой истории
+ * публикаций (207); reviewed_at текущей версии не является признаком новизны.
  */
 
 type AdmissionStrings = PortalStrings<"admission">;
@@ -97,6 +97,7 @@ export function HomeView({
   assessments,
   favorites,
   favoritesTotal,
+  recentUniversities,
   locale,
   now,
 }: {
@@ -109,6 +110,7 @@ export function HomeView({
   assessments: AssessmentCatalog | null;
   favorites: readonly PublishedUniversity[] | null;
   favoritesTotal: number;
+  recentUniversities: readonly RecentUniversity[] | null;
   locale: Locale;
   now: Date;
 }) {
@@ -345,6 +347,40 @@ export function HomeView({
                     <span className="pt-data">
                       {nearestIntakeText(item, universitiesStrings, locale, now)}
                     </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section aria-labelledby="home-recent-title">
+        <div className="pt-home-section-head">
+          <h2 id="home-recent-title" className="pt-section-title">{strings.recentHeading}</h2>
+          <Link href="/portal/universities" className="pt-link">{strings.recentAll}</Link>
+        </div>
+        <p className="pt-home-fav-place">{strings.recentDescription}</p>
+        {recentUniversities === null ? (
+          <p role="alert" className="pt-alert">{strings.recentUnavailable}</p>
+        ) : recentUniversities.length === 0 ? (
+          <p className="pt-empty-body">{strings.recentEmpty}</p>
+        ) : (
+          <ul className="pt-home-fav-list">
+            {recentUniversities.map((item) => (
+              <li key={item.id}>
+                <Link href={`/portal/universities/${item.id}`} className="pt-home-fav-row">
+                  <span className="pt-home-fav-main">
+                    <span className="pt-home-fav-name">{item.name}</span>
+                    <span className="pt-home-fav-place">
+                      {universityCountryLabel(item.country, locale)}
+                      {item.city ? ` · ${item.city}` : ""}
+                    </span>
+                  </span>
+                  <span className="pt-home-fav-intake">
+                    {strings.recentPublished}{": "}
+                    <time dateTime={item.firstPublishedAt}>
+                      {universityDateLabel(new Date(item.firstPublishedAt).toISOString().slice(0, 10), locale)}
+                    </time>
                   </span>
                 </Link>
               </li>

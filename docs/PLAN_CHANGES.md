@@ -33132,6 +33132,17 @@ Home uses independent read sections, maximum four favorites in existing server o
 Move the polling component from v3 into the existing Atlas header bell; remove duplicate status strip. Render for assisted tier, matching notifications navigation; derive tier solely from actor.accessTier. Keep 30-second visible-page polling and focus/online/manual resume, no duplicate initial refresh. Add /portal/home to operational refresh; retain existing operational routes, exclude learning/test runners. RU/KY unread/loading/error/retry labels; retry is keyboard accessible. No new notifications or mark-read writes for validation. Next.js documents router.refresh as merging server payload while preserving unaffected client state: https://nextjs.org/docs/app/api-reference/functions/use-router.
 
 
+## 2026-09-20 — AST-5 truthful recent catalogue entries
+
+Before implementation: main d1404aef1 includes the independently reviewed iPhone stage (#926), iPhone Home (#927), and Atlas notifications (#928). Live Supabase ledger has 206 entries, ending 204/205/206; open PR inventory contains no schema change. Reserve 207 for `student_recent_universities_v1()` and recheck before merge/apply.
+
+Migration 148 already protects every published revision against update/delete. Therefore `min(reviewed_at)` over all published revisions per organization/institution is the real first-publication time; 87 of 143 live universities have later revisions, so the current-version timestamp would be misleading. No new timestamp column, guessed history or backfill is needed. Calculate the minimum before applying the 30-day filter, return latest published name/country/city with the first date, deterministic descending first-date/id ordering, limit four. Student identity and tenant come from current_actor_authority plus portal.read.self; RPC arguments cannot target another tenant. No private publication metadata is exposed.
+
+Home uses an independent server read and an explicit unavailable state. UI reuses the incumbent Atlas list, section title, typography and links, RU/KY, with full-width touch rows on mobile. Impeccable adapt/craft-floor used; no redesign of the accepted visual style. First publish means entry into the EVO catalogue, not foundation date or latest edit. The catalogue currently has no unpublish operation; future lifecycle work must preserve history and align visible filtering.
+
+Official source: [PostgreSQL window functions](https://www.postgresql.org/docs/current/tutorial-window.html) (full partition without ORDER BY; outer filtering after the window calculation). Context7 unavailable due to quota, as recorded above. Validate the exact selection against live read-only data and real Student detail reads, then parser/type/lint/contracts. Successful new-RPC UI validation requires applying migration 207 with production authority; absent RPC must surface a real error, never substituted data. Deployment remains separately coordinated.
+
+
 ## 2026-09-20 — iPhone Home action hierarchy after Impeccable review
 
 Continue the owner's requested functional/UI work with a narrow native Home
@@ -33294,6 +33305,58 @@ Admin / Sales cabinet_pending, вне preview. Для просмотра без 
 этого среза ограничена отображением и навигацией, без отправки писем и auth writes.
 
 
+## 2026-09-20 — CRM-02a: полномочия и факт новой продажи
+
+Первый срез CRM-02 объединяет создание/исправление продажи, подтверждённого
+продавца, дату/месяц и устойчивый предпросмотр. Поиск по истории, новая компоновка
+всего отчёта, финансовая сводка и перенос импорта остаются следующими срезами.
+
+В staff_role_definitions добавляется закрытый от обычного редактора workflow_key
+со значением sales_manager. Однократная привязка идёт по проверенным UUID
+существующей роли и организации; сравнение редактируемой подписи не участвует
+в авторизации. Назначение этой активной роли с её текущим опубликованным bundle
+и sales.register.manage обязательно также для Admin. Существующие проверки
+области записей остаются. Read-only RPC сообщает собственный доступ UI; при
+недоступности проверки действия закрыты, чтение отчёта сохраняется.
+
+Миграция 208 зарезервирована этим срезом после проверки main/open PR/managed
+ledger 206; 207 остаётся у PR #929. Она не назначает роли сотрудникам и не
+переписывает историю. Все новые pipeline-продажи, включая прежний handoff-trigger,
+требуют Sales Manager, подтверждённого sales owner и заполненной даты продажи.
+Месяц определяется date_trunc от signing_date карточки; старый аргумент месяца
+сохраняется только для совместимости/идемпотентности старых запросов.
+Импорт исторического источника и план отдела сохраняют отдельные прежние права.
+Продавец сохраняется по membership текущего владельца лида и его имени;
+записывающий сотрудник остаётся актором квитанции/audit. Импортные подписи не меняются.
+
+Предпросмотр использует поколение запроса, очищается при смене человека и
+показывает дату/месяц со ссылкой «Исправить условия». Успех открывает фактический
+период, очищает скрывающие фильтры и отдельно показывает сохранённую строку
+с переходом в связанное дело, даже если она за первой страницей. Это не
+подмена фактической пагинации и не перенос всей таблицы в текущий срез.
+
+Контракт SQL опирается на официальные документы:
+[PostgreSQL CREATE FUNCTION](https://www.postgresql.org/docs/current/sql-createfunction.html)
+(фиксированный search_path SECURITY DEFINER, сохранение ACL при OR REPLACE),
+[date_trunc](https://www.postgresql.org/docs/current/functions-datetime.html),
+[Supabase database functions](https://supabase.com/docs/guides/database/functions).
+До отдельного разрешения production SQL, QA writes и release не выполняются.
+Схемная проверка в отдельной локальной БД не заменяет живую бизнес-приёмку.
+
+
+CRM-02a, уточнение после независимого review: write-entry отчёта и исторической
+правки удерживают organization FOR KEY SHARE до конца транзакции, до проверки
+актора и ожидания request/lead/case/conditions locks. Это существующий порядок
+legacy handoff; staff_role_request_begin меняет роли под FOR UPDATE той же
+организации. Без этой пары отзыв роли мог завершиться, пока сохранение ждёт
+строку, и первоначальный gate устаревал. Повторной проверки до следующего
+ожидания недостаточно; новые права не выдаются.
+
+Поведение блокировок сверено с
+[PostgreSQL Row-Level Locks](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS):
+KEY SHARE конфликтует с FOR UPDATE и удерживается до завершения транзакции.
+
+
 ## 2026-09-20 — Whole-product refinement with dedicated page agents
 
 The owner explicitly expanded UX analysis/refinement to staff CRM, desktop and
@@ -33368,3 +33431,91 @@ Retain the legacy class and staff tokens/components. Validate real authorized
 Student catalogue, favorites, detail and one compatible home/documents screen in
 light/dark themes and at 390 px, with computed contrast and screenshots.
 No authentication, schema, business writes, content expansion or redesign.
+
+## CRM-02a local acceptance environment — 2026-09-20
+
+Read-only preflight of deployed frontend `b7598a1c` and current role assignments
+proved a user-visible mismatch if migration 208 is applied independently:
+permission-only controls, cost-only readiness and stale report-month navigation.
+Shared 208 is therefore deferred to a separately authorized frontend+SQL release.
+No runtime or SQL contract is weakened to accelerate acceptance.
+
+Root confirmed reversible isolated local validation as part of assigned work.
+Use a new disposable local Auth/PostgREST/Postgres project and Next from #935,
+ordinary sign-in, supported provisioning and real application/RPC persistence.
+Create only the minimum explicitly marked local QA records; no production
+identities, credentials or customer records may be copied. Do not forge JWTs,
+mock responses, bypass RLS or call outbound providers. Reuse existing repo
+bootstrap tooling; report unsupported bootstrap as a concrete blocker.
+Source/local acceptance and independent exact-head review may complete before
+the deferred managed rollout. Local proof is not customer/managed acceptance.
+Detailed target checks and evidence boundaries are in
+`docs/qa/migrations-207-208-qa-packet-2026-09-20.md`.
+
+## Shared local acceptance for CRM-02a and B-2 — 2026-09-20
+
+A owns one disposable local Supabase project and its schema/bootstrap. Apply the
+immutable PR #929 migration 207 before the PR #935 migration 208 inside that
+project; keep 207 out of the PR #935 source diff. B owns recent-university
+Student RPC and Home verification against its current #929 source. Separate
+Next dev origins serve A and B; local Auth permits both callback origins.
+
+Use real local Auth, PostgREST and Postgres, ordinary logins, supported product
+provisioning/publishing and only the minimum explicitly marked QA records.
+Begin with an empty local Student catalogue, then publish local QA universities
+through supported Admin commands and verify the bounded recent list. Verify
+no-session and wrong-role denial. A second local Student tenant may be added
+for tenant isolation if supported onboarding allows it. Preserve publication
+history; do not fabricate timestamps or bypass access checks.
+
+This reversible local verification is authorized within development. Do not
+copy managed identities, credentials or customer records, forge JWTs, mock RPCs,
+or send external provider messages. Source/local acceptance remains separate
+from the deferred, separately authorized managed frontend and SQL rollout.
+
+### CRM-02a local manager role binding
+
+Migration 208 deliberately leaves new organizations without an implicit manager.
+Root approved a narrow reproducible local setup helper after supported bootstrap
+and role publication. Bind exactly the newly created QA role, guarded by the
+owned disposable project/workdir, exact organization/role IDs, active role,
+current published bundle containing sales.register.manage, and a one-row
+transaction. Reject managed/remote Docker endpoints and mismatched ownership.
+Do not change the production role editor/API or migration 208, copy production
+IDs, seed a completed sale, or bypass the runtime authorization gate. Subsequent
+sales operations use ordinary Auth and genuine application/RPC persistence.
+
+### B-2 local public intake binding
+
+The disposable database applies migration 177 before the first organization
+exists, leaving its private intake singleton empty. After the ordinary Admin
+command creates the QA review department, A may run B's reviewed guarded local
+helper to bind exactly that new organization and department. Require the owned
+local project/container, active same-organization department, empty singleton,
+and one-row transaction; retain intake owner NULL. No second tenant, Student
+row, case or application is inserted directly. Subsequent signup, submission
+and approval use current product paths (migration 180 approval signature).
+
+## B-2a public approval own-case scope — migration 209
+
+Local ordinary public signup, submission and approval produced an active Student
+and portal-activated pending case, but no case membership scope assignment.
+The fresh Student session therefore cannot read that case. Root reserved 209
+for B's separate minimal correction; A remains the sole local schema applier.
+
+In the current five-argument approval path, after creating/activating its exact
+case, append one scope assignment for the newly created Student membership via
+the existing append_scope_event contract, using a deterministic child request
+and the actual Admin audit identity. Preserve organization, case, revision,
+replay checks and the existing access-version bump. Keep RLS, JWT, access-tier,
+email and program-registration contracts unchanged. No historical backfill,
+regrant after a prior revocation, or repair of the already failed QA case.
+Assess existing affected records read-only in a separate plan.
+
+Validate a NEW ordinary signup, submission and approval on composed local
+207/208/209: fresh Auth reads exactly its own pending case and Home; replay adds
+neither a second case nor grant; another Student/case, staff and anonymous
+requests cannot cross Student boundaries; pending documents/help stay denied.
+A applies exact reviewed 209 locally after review; managed SQL and production
+release remain separately authorized and deferred. Earlier #935 evidence from
+001–208 remains explicitly bounded to its original schema and runtime.

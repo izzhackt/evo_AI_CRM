@@ -208,13 +208,14 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   assert.match(page, /const tier = actor\.accessTier;/u);
   assert.doesNotMatch(page, /caseState === "pending"/u);
 
-  // Только существующие read model — никаких новых RPC и обёрточных DTO.
+  // Серверные read model изолируют транспорт; view не обращается к БД напрямую.
   for (const reader of [
     "readStudentPortalOverview",
     "readLearningModules",
     "readStudentAssessments",
     "readStudentUniversityFavorites",
     "readStudentUniversitiesByIds",
+    "readStudentRecentUniversities",
   ]) assert.match(page, new RegExp(`\\b${reader}\\b`, "u"), reader);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(|createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   assert.doesNotMatch(view, /\.rpc\(|\.schema\(|createClient|supabase|useEffect|fixture|demo/iu);
@@ -242,11 +243,12 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   assert.match(view, /\/portal\/documents#document-\$\{action\.documentSlotId\}/u);
   assert.match(view, /href="\/portal"/u);
 
-  // Честный пропуск: «новое в каталоге» не строится — publishedAt каталога
-  // не является признаком новизны (см. docs/PLAN_CHANGES.md PORT-9c); пропуск
-  // задокументирован в самом view, а поле не используется как «новизна».
-  assert.doesNotMatch(view, /item\.publishedAt|новинк/iu);
-  assert.match(view, /«Новое в каталоге» сознательно/u);
+  // Новизна — только первая публикация из отдельного read model (207).
+  assert.doesNotMatch(view, /item\.publishedAt/u);
+  assert.match(view, /item\.firstPublishedAt/u);
+  assert.match(page, /readStudentRecentUniversities\(\)\.catch\(/u);
+  assert.match(view, /strings\.recentUnavailable/u);
+  assert.match(view, /strings\.recentEmpty/u);
 
   // Смоук-якоря корня не тронуты: /portal остаётся «Моим поступлением».
   const rootPage = source("src/app/(portal)/portal/page.tsx");

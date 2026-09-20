@@ -4,6 +4,7 @@ import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { readLearningModules } from "@/lib/portal/learning-source";
+import { readStudentRecentUniversities } from "@/lib/portal/recent-universities-source";
 import {
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
@@ -39,7 +40,7 @@ export default async function StudentPortalHomePage() {
   const tier = actor.accessTier;
   const strings = getPortalStrings("home", locale);
 
-  const [overviewResult, modules, assessments, favoritesResult] = await Promise.all([
+  const [overviewResult, modules, assessments, favoritesResult, recentUniversities] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
@@ -56,6 +57,7 @@ export default async function StudentPortalHomePage() {
         ),
       }))
       .catch(() => ({ ok: false as const })),
+    readStudentRecentUniversities().catch((): null => null),
   ]);
 
   return (
@@ -75,6 +77,7 @@ export default async function StudentPortalHomePage() {
         assessments={assessments}
         favorites={favoritesResult.ok ? favoritesResult.items : null}
         favoritesTotal={favoritesResult.ok ? favoritesResult.total : 0}
+        recentUniversities={recentUniversities}
         locale={locale}
         now={new Date()}
       />

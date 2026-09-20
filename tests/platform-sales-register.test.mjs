@@ -57,15 +57,16 @@ test("source and actions use cookie authority with no provider or elevated clien
 // Unified workflow S2 (plan §6): «Отчёт продаж → Добавить продажу» narrows
 // to выбор лида и куратора; conditions/applicant identity are read back
 // server-side from the card, never resubmitted through this form.
-test("saveSalesRegisterAction's create path narrows to lead+curator+report_month and drops the retired new-student intake", () => {
+test("saveSalesRegisterAction's create path takes lead+curator and lets the server choose the month and drops the retired new-student intake", () => {
   const actions = readFileSync(new URL("../src/lib/platform-sales-register-actions.ts", import.meta.url), "utf8");
-  assert.match(actions, /const INTAKE = \["lead_id", "curator_membership_id", "report_month"\] as const;/);
+  assert.match(actions, /const INTAKE = \["lead_id", "curator_membership_id"\] as const;/);
   assert.doesNotMatch(actions, /"email"|"interest_direction"/);
   assert.doesNotMatch(actions, /create_manual_sales_lead|existing_student/);
   assert.match(
     actions,
-    /rpc\("create_sales_report_handoff", \{\s*p_organization_id: actor\.organizationId, p_request_id: requestId, p_lead_id: leadId,\s*p_curator_membership_id: curatorId, p_report_month: reportMonth,/,
+    /rpc\("create_sales_report_handoff", \{\s*p_organization_id: actor\.organizationId, p_request_id: requestId, p_lead_id: leadId,\s*p_curator_membership_id: curatorId,/,
   );
+  assert.doesNotMatch(actions, /p_report_month: reportMonth/);
   // create no longer submits or expects a reason; only update/archive/restore do.
   assert.match(actions, /const REASON = \["reason"\] as const;/);
   assert.match(

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import {
   saveSalesRegisterAction, saveSalesTargetAction, importSalesRegisterAction,
@@ -23,7 +23,7 @@ const MESSAGES: Record<Exclude<SalesRegisterActionState["status"], "idle">, stri
 };
 type Draft = Record<string, string>;
 const FIELD_LABELS: Record<string, string> = {
-  report_month: "Месяц отчёта", signing_date: "Дата договора", applicant_name: "Заявитель",
+  report_month: "Месяц отчёта", signing_date: "Дата продажи", applicant_name: "Заявитель",
   phone: "Телефон", country: "Страна", university: "Университет", program: "Программа",
   direction: "Направление", intake: "Набор", contract_number: "Номер договора",
   manager_label: "Менеджер в отчёте", status_raw: "Статус в отчёте", owner_membership_id: "Ответственный сотрудник",
@@ -73,27 +73,28 @@ export function SalesRegisterForm(props: FormProps) {
 function ConditionsPreview({ leadId, preview, pending }: {
   leadId: string; preview: SalesReportConditionsPreview | null; pending: boolean;
 }) {
-  const cardHref = `/v3/profile?id=${encodeURIComponent(leadId)}&tab=overview`;
+  const cardHref = `/v3/profile?id=${encodeURIComponent(leadId)}&tab=overview#sale-conditions`;
   if (pending) return <p role="status" className="text-sm text-fg-2">Загружаем условия продажи из карточки…</p>;
   if (!preview || preview.status !== "ready") {
     return <p role="alert" className="text-sm text-fg-2">Не удалось загрузить условия продажи. Обновите страницу перед сохранением.</p>;
   }
   const conditions: LeadSaleConditions = preview.conditions;
-  const missing = conditions.serviceCostMinor === null;
+  const missing = conditions.serviceCostMinor === null || !preview.reportMonth;
   if (missing) {
-    return <div className="space-y-2 border-s-2 border-border ps-3 text-sm" data-testid="v3-sales-conditions-missing">
-      <p className="text-fg-2">В карточке лида ещё не заполнены условия продажи — нужна как минимум стоимость услуг.</p>
-      <Link href={cardHref} className={`${btnGhostCls} min-h-11`}>Заполнить условия в карточке</Link>
+    return <div className="space-y-2 rounded-card border border-border p-4 text-sm" data-testid="v3-sales-conditions-missing">
+      <p className="text-fg-2">Для добавления продажи заполните в карточке стоимость услуг и дату продажи.</p>
+      <Link href={cardHref} className={`${btnGhostCls} min-h-11`}>Исправить условия</Link>
     </div>;
   }
   return <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 text-sm" data-testid="v3-sales-conditions-preview">
     <dt className="text-fg-3">Услуга/пакет</dt><dd className="text-right text-fg">{conditions.serviceLabel || "не указано"}</dd>
     <dt className="text-fg-3">Дата продажи</dt><dd className="text-right text-fg">{conditions.signingDate ? conditions.signingDate.split("-").reverse().join(".") : "не указана"}</dd>
+    <dt className="text-fg-3">Месяц отчёта</dt><dd className="text-right font-medium text-fg">{new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${preview.reportMonth}T00:00:00Z`))}</dd>
     <dt className="text-fg-3">Стоимость</dt><dd className="text-right font-mono text-fg">{previewMoney(conditions.serviceCostMinor, conditions.serviceCostCurrency)}</dd>
     <dt className="text-fg-3">Оплачено</dt><dd className="text-right font-mono text-fg">{previewMoney(conditions.paidMinor, conditions.paidCurrency)}</dd>
     {conditions.paymentNote ? <><dt className="text-fg-3">Об оплате</dt><dd className="text-right text-fg">{conditions.paymentNote}</dd></> : null}
     <dt className="col-span-2 border-t border-border pt-2 text-xs text-fg-3">
-      Условия заполняются <Link href={cardHref} className="underline underline-offset-4">в карточке</Link>; здесь только просмотр.
+      <Link href={cardHref} className="inline-flex min-h-11 items-center text-sm text-fg underline underline-offset-4">Исправить условия</Link>
     </dt>
   </dl>;
 }
@@ -112,9 +113,17 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   const [selectedLead, setSelectedLead] = useState<SalesRegisterIntakeOptions["leads"][number] | null>(null);
   const [conditionsPreview, setConditionsPreview] = useState<SalesReportConditionsPreview | null>(null);
   const [previewPending, startPreview] = useTransition();
+  const selectionGeneration = useRef(0);
   const [state, action, pending] = useActionState(async (previous: SalesRegisterActionState & { submittedVersion: number }, form: FormData) => ({
     ...await saveSalesRegisterAction(previous, form), submittedVersion: base.version,
   }), { status: "idle", requestId, recordId, leadId: null, submittedVersion: base.version } as SalesRegisterActionState & { submittedVersion: number });
+  useEffect(() => {
+    if (!recordId && state.status === "saved" && state.recordId && state.reportMonth) {
+      const params = new URLSearchParams({ view: "sales", year: state.reportMonth.slice(0, 4),
+        month: String(Number(state.reportMonth.slice(5, 7))), saved: state.recordId });
+      router.push(`/v3/main?${params.toString()}#saved-sale`);
+    }
+  }, [recordId, router, state.status, state.recordId, state.reportMonth]);
   const status = state.submittedVersion === base.version ? state.status : "idle";
   const fresh = fields(record, reportMonth, ownMembershipId, ownLabel);
   const displayValue = (key: string, value: string) => {
@@ -128,7 +137,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
   };
   const changed = Boolean(record && record.version !== base.version);
   const locked = pending || status === "saved";
-  const conditionsReady = !recordId ? conditionsPreview?.status === "ready" && conditionsPreview.conditions.serviceCostMinor !== null : true;
+  const conditionsReady = !recordId ? conditionsPreview?.status === "ready" && conditionsPreview.conditions.serviceCostMinor !== null && Boolean(conditionsPreview.reportMonth) && conditionsPreview.conditions.leadId === leadId : true;
   const canSubmit = !locked && !readUnavailable && !changed && status !== "stale" && !record?.archived
     && (Boolean(recordId) || (Boolean(intakeOptions) && Boolean(curatorId) && Boolean(leadId) && conditionsReady));
   const update = (key: string, value: string) => setDraft(previous => ({ ...previous, [key]: value }));
@@ -156,7 +165,6 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
       {!recordId ? <>
         <input type="hidden" name="lead_id" value={leadId} />
         <input type="hidden" name="curator_membership_id" value={curatorId} />
-        <input type="hidden" name="report_month" value={`${reportMonth.slice(0, 7)}-01`} />
       </> : null}
       {recordId ? Object.entries(wire).map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />) : null}
       <fieldset disabled={locked || record?.archived} className="space-y-6">
@@ -166,18 +174,26 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
           <div className="space-y-4">
             <p className="text-sm text-fg-2">Выберите лида и куратора. Условия продажи и данные заявителя подставятся из карточки.</p>
             <label className="block"><span className={labelCls}>Имя или телефон</span><div className="flex gap-2">
-              <input value={studentQuery} disabled={searchPending} onChange={e => {
+              <input value={studentQuery} onChange={e => {
+                selectionGeneration.current += 1;
                 setStudentQuery(e.target.value); setLeadId(""); setSelectedLead(null); setStudentResults([]); setSearchStatus("idle"); setConditionsPreview(null);
               }} maxLength={200} className={`${inputCls} min-h-11 min-w-0 flex-1`} />
               <button type="button" disabled={searchPending || studentQuery.trim().length < 2} className={`${btnGhostCls} min-h-11`} onClick={() => startSearch(async () => {
-                const result = await searchSalesRegisterStudentsAction(studentQuery);
+                const generation = ++selectionGeneration.current;
+                setLeadId(""); setSelectedLead(null); setConditionsPreview(null);
+                const result = await searchSalesRegisterStudentsAction(studentQuery).catch(() => ({ status: "unavailable" as const, leads: [] }));
+                if (generation !== selectionGeneration.current) return;
                 setStudentResults(result.leads); setSearchStatus(result.status); setLeadId(""); setSelectedLead(null); setConditionsPreview(null);
               })}>{searchPending ? "Ищем…" : "Найти"}</button>
             </div></label>
             {searchStatus === "ready" && studentResults.length > 0 ? <label className="block"><span className={labelCls}>Выберите студента</span><select value={leadId} required onChange={e => {
+              const generation = ++selectionGeneration.current;
               const lead = studentResults.find(item => item.id === e.target.value) ?? null;
               setLeadId(lead?.id ?? ""); setSelectedLead(lead); setConditionsPreview(null);
-              if (lead) startPreview(async () => setConditionsPreview(await readSalesReportConditionsPreviewAction(lead.id)));
+              if (lead) startPreview(async () => {
+                const result = await readSalesReportConditionsPreviewAction(lead.id).catch(() => ({ status: "unavailable" as const }));
+                if (generation === selectionGeneration.current) setConditionsPreview(result);
+              });
             }} className={`${inputCls} min-h-11 w-full`}>
               <option value="">Выберите студента</option>{studentResults.map(lead => <option key={lead.id} value={lead.id}>{lead.label}{lead.phone ? ` · ${lead.phone}` : ""}</option>)}
             </select></label> : null}
@@ -223,7 +239,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
         </> : null}
       </fieldset>
       {readUnavailable ? <p role="alert" className="text-sm text-fg-2">Актуальные данные недоступны. Ввод сохранён; отправка остановлена.</p> : null}
-      {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm text-fg-2">{MESSAGES[status]}</p> : null}
+      {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm text-fg-2">{status === "saved" && !recordId ? "Продажа добавлена" : MESSAGES[status]}</p> : null}
       {status === "conditions_missing" && leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(leadId)}&tab=overview`} className={`${btnGhostCls} min-h-11`}>Заполнить условия в карточке</Link> : null}
       {changed ? <div className="space-y-3 border-s-2 border-border ps-4">
         <p className="text-sm font-medium">Изменения другого сотрудника</p>

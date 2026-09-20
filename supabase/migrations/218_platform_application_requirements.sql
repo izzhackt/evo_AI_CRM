@@ -446,12 +446,24 @@ BEGIN
         p_organization_id, p_student_case_id, slot.id, 'university_application',
         p_application_id, NULL, actor.actor_membership_id
       );
-      -- 113 makes relevance part of the slot aggregate. The existing trigger
-      -- advances version once; no file pointer, status or review is changed.
+      -- 113 makes relevance part of the slot aggregate; 114 narrows this
+      -- transition to the exact transaction-local link context. Preserve that
+      -- protocol without changing the guard or any file/status/review fields.
+      PERFORM pg_catalog.set_config(
+        'platform_private.document_slot_case_link_context',
+        p_organization_id::TEXT || ':' || p_student_case_id::TEXT || ':' ||
+          slot.id::TEXT || ':' || slot.version::TEXT,
+        TRUE
+      );
       UPDATE platform.document_slots AS target
-      SET version = target.version + 1
+      SET version = target.version + 1, updated_at = statement_timestamp()
       WHERE target.organization_id = p_organization_id AND target.student_case_id = p_student_case_id
-        AND target.id = slot.id;
+        AND target.id = slot.id AND target.version = slot.version
+      RETURNING target.* INTO slot;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'application_requirements_invariant_conflict' USING ERRCODE = '55000';
+      END IF;
+      PERFORM pg_catalog.set_config('platform_private.document_slot_case_link_context', '', TRUE);
     END LOOP;
   END IF;
 

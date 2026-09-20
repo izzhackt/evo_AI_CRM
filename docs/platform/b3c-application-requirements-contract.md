@@ -133,7 +133,9 @@ fixtures вместо реального path не нужны. Если стар
 
 043:95/132 — case-route requirements/slots;108 — dynamic custom/soft removal;
 053:464–550 и179:156–390 — immutable whole-case checklist/route binding;
-113:17–71,245–485 — tenant/case links и mutable relevance;137:104,162–173,436–466 —
+113:17–71,245–485 — tenant/case links и mutable relevance;114:51–80,308–336 —
+обязательный точный transaction-local context для увеличения версии связи;
+137:104,162–173,436–466 —
 старый approved gate/admissions_details;128:675–752,192:95–112 — Student docs gate;
 156:106/2394 — scoped document.manage/read.full;055:210 — upload сейчас submitted;
 platform-university-catalog.ts:18–26 — каталог не хранит document requirements.

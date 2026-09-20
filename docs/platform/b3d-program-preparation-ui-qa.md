@@ -220,3 +220,26 @@ identified/legacy/blocked. Новый writer/backfill механизма для 
 объявляется. Private inventory SHA256:
 `4d924934c6d40cfd9e00d1b1e3e60779122a3361dc0c5b66efd46ab2c973b767`;
 артефакты `/private/tmp/evo-b3d-ui-observer/`, без публикации identity/credentials.
+
+## Проверка второго существующего дела
+
+После окончательного освобождения root222 business window выполнен отдельно
+разрешённый SELECT-only metadata inventory существующего Student2. Exact observer
+`d161a05277c7c76036ef2d0000703437fed99a124e4d459d64861343919f9f19` привязан к final
+root222 release receipt, использует строгий214 UUID и не имеет capture/write CLI.
+
+Владелец canonical case совпадает с прежним account receipt; profile, organization
+и membership активны, роль Student, portal activation есть. Но само дело имеет
+состояние **pending**, пригодных active cases у этого владельца —0. Metadata gate
+не пройден: дальнейший catalog/target inventory не запускался. Это чтение метаданных,
+не проверка авторизации токена/RLS (`auth_acceptance=false`).
+
+Дело не активировалось, другой account автоматически не выбирался, вход/сервер/UI
+не запускались; данные/права/публикации не менялись. Таким образом, ни первый, ни
+второй проверенный сценарий сейчас не дают допустимый новый выбор. First-selection
+UI acceptance остаётся заблокированным реальными исходными данными. Это не
+доказательство наличия или отсутствия других подходящих дел во всей организации.
+
+Private receipt `student2/inventory.json` SHA256
+`c5ff7c99e869a0e9cc21afc79498ea81ff96ef03d0792f1ff9688e826c458929`.
+Новые записи214/218, UI replay и native candidate UI по-прежнему не подтверждены.

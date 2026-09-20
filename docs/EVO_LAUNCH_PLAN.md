@@ -11702,3 +11702,26 @@ ledger. Managed writes/provider actions/release требуют собствен�
 [row comparisons](https://www.postgresql.org/docs/17/functions-comparisons.html#FUNCTIONS-COMPARISONS-ROW),
 проверены20.09.2026UTC. Уникальный порядок и non-null tuple важны для предсказуемой
 страницы; сами по себе они не дают snapshot всей изменяющейся очереди.
+
+
+## 2026-09-21 — CRM-03: резерв очереди220 →221 до применения
+
+Координатор перенёс неприменённую requests queue с220 на221. Реальная function QA
+после schema-only219 выявила в существующем184 application_partner_detail_fields
+ошибку PostgreSQL regex repetition count. Применённая219 сохраняется без изменения
+ledger/hash; root выполняет её необходимое forward исправление новым220. Это
+изменение порядка, не новая продуктовая функциональность очереди. Предыдущий
+контракт CRM-03/220 выше остаётся историей первоначального выделения номера;
+все его runtime/authority/UX/QA условия теперь относятся к221. Source candidate
+7b4e6cd7 и correction abab969e ещё не применялись. Файл SQL переименован
+221_platform_requests_queue.sql с сохранением байтов, роли и данные не меняются.
+
+Актуальный порядок local219(APPLIED_QA_FAILED) → root220 → A221. A остаётся
+единственным local schema applier, root — координатором и владельцем releases.
+root task-reason переносится221→222, следующий B резерв223 при необходимости.
+Новое применение только после exact-head review и root GO; production сюда не входит.
+
+Независимое review очереди также выявило stale uncontrolled status selects при
+Back/Forward. Форма получила identity key по source/applicationStatus/
+consultationStatus/limit. Actual URL/history/visible-controls parity включена в
+ожидающий реальный UI проход; существующие business commands не менялись.

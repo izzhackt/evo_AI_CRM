@@ -1,8 +1,9 @@
 # CRM-03 — единая очередь заявок: текущие доказательства
 
 Контракт до кода:68474063, принят root и независимым review. После #962 runtime
-начат на integration e789ffd7/main23036454. Миграция220 выделена root; её применение
-ожидает218→219 и отдельное GO. Этот документ не утверждает выполнение220.
+начат на integration e789ffd7/main23036454. Очередь первоначально получила220; после выявленного реальной219 QA дефекта
+прежнего184 helper root перенёс её на221. Forward220 принадлежит исправлению
+этого helper,221 ожидает220 и собственное GO. Этот документ не утверждает применение221.
 
 Новая scoped read-проекция объединяет существующие lead, application,
 consultation с независимыми прежними authority. PERFORM existing
@@ -31,7 +32,7 @@ Validated returnTo сохраняет source/status/limit/cursor при пере
 - Перед UI-правками открыта настоящая существующая Admissions-сессия текущей
   /v3/requests, просмотрены DOM и screenshot. Она одновременно показывала
   «Заявок пока нет» и «Анкеты платформы недоступны вашей роли». Собственная
-  вкладка закрыта и сервер33229 остановлен. Это incumbent, не новый220 UI proof.
+  вкладка закрыта и сервер33229 остановлен. Это incumbent, не новый221 UI proof.
 
 Во время разработки parser поймал отсутствующие скобки вокруг CASE в guard
 cursor-kind, исправлено до DDL. Один unit assertion использовал одинаковые UUID
@@ -40,7 +41,7 @@ MODULE_TYPELESS_PACKAGE_JSON warning сохраняется; package.json не �
 
 ## Ещё не выполнено
 
-Independent exact-head source/SQL reviews, локальная220, обычные Auth RPC,
+Independent exact-head source/SQL reviews, локальная221, обычные Auth RPC,
 новый фактический UI desktop/390/320 и protectedCI. Нужны фактические страницы
 по существующим approved applications с applications=all/limit1, next/back,
 возврат из карточки, сохранение filter/retry, доступность действий/preview,
@@ -54,7 +55,7 @@ Student/anonymous/tenant denials и неизменность business/Auth/funct
 business facts для демонстрации не разрешено. Managed DB и production release
 не выполнялись. CRM-03 полностью принят только в пределах фактических доказательств.
 
-## Замечание независимого review до применения220
+## Замечание независимого review до применения221
 
 На7b4e6cd7 один reviewer одобрил source/SQL, второй указал на native selects
 с defaultValue: после URL Back/Forward прежний DOM мог сохранить выбранный
@@ -62,4 +63,13 @@ business facts для демонстрации не разрешено. Managed 
 source/applicationStatus/consultationStatus/limit. Смена серверных фильтров
 теперь пересоздаёт её DOM с актуальными значениями. Команды и SQL не менялись.
 Actual Back/Forward и повторный submit с совпадением URL/полей/списка добавлены
-в ожидающий UI-проход после220. Новый exact-head review ещё требуется.
+в ожидающий UI-проход после221. Новый exact-head review ещё требуется.
+
+## Изменение номера миграции до применения
+
+Root перенёс requests queue220→221 после фактического отказа независимой219 QA
+в existing184 helper (unsupported PostgreSQL regex repetition count). Применённая
+219 и её failed receipt сохраняются; root владеет новым forward220 исправлением.
+Файл очереди переименован в221_platform_requests_queue.sql без изменения SQL
+байтов. Auth/RPC/body/UI claims остаются pending; старые review heads относятся
+к прежнему имени файла. Нужны exact-head reviews нового кандидата221.

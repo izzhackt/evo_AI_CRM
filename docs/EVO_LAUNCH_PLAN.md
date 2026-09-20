@@ -10960,3 +10960,58 @@ mark-read, бизнес-записей, managed DB/provider/deployment. Успе
 latest explicit selection должна читаться актуально, включая её очистку.
 Существующие query sequence/cleanup guards сохраняются/расширяются только
 для этой прямой зависимости; политика draft storage не меняется.
+
+## 2026-09-21 — CRM-11 subset: надёжный поиск списка сообщений
+
+Root владеет только этим переданным A срезом пункта11; остальная работа11
+остаётся у A. Base после#954: `aa663b3d151462e6a7bac6249c459b7ef4e8899e`,
+изолированный `evo-case-chat-search`. A записывает только shared contract до
+кода; pending948/946 и их положительная приёмка не затрагиваются.
+
+Фактический baseline root: existing ordinary Local QA Sales, owned local33222,
+`/v3/messages` безcase. Видны4 существующих QA rows; запрос
+`zz-no-matching-student` во время ожидания оставляет прежние4 строки без
+loading, затем показывает «Переписок пока нет» и «Выберите переписку слева».
+Никакая переписка не открывалась и mark-read не выполнялся. Source
+`src/components/v3/case-chat/CaseChatThread.tsx`, CaseChatWorkspace494–502:
+250ms debounce, без response sequence/catch/retry/unmount cleanup. Это source
+race risk; фактически доказаны прежние rows/loading gap и misleading empty,
+а не перестановка двух ответов или отказ настоящего RPC.
+
+Контракт до кода:
+- Latest query владеет результатом. Новое значение немедленно инвалидирует
+  старую работу, включая промежуток250ms debounce. Только ответ текущего
+  запроса может менять rows/loading/error; одинаковый guard нужен и для
+  success, typed failure и rejected promise. После unmount clear debounce и
+  invalidate pending callbacks. Не менять существующий read-only action/RPC.
+- Явно различать loading, ready, error и filtered-empty. Не представлять старые
+  строки без пометки как результаты нового запроса. Ошибка не превращается
+  в «переписок нет» или успешную выдачу. Использовать существующие failure
+  semantics, не обходить permission/tenant/current actor проверки.
+- Retry повторяет текущий query и состояние фильтра, не stale closure query.
+  Очистка поиска возвращает существующий обычный список. Debounce/empty retry
+  не создают новые очереди или альтернативный источник данных.
+- При отсутствии совпадений говорить об отсутствии совпадений и давать понятный
+  способ очистить запрос. Unfiltered empty — отдельное состояние. Когда нет
+  строк для выбора, не показывать вводящее в заблуждение «Выберите переписку».
+  Это уточнение существующего EVO по Impeccable, без смены visual identity.
+- Существующая selected conversation остаётся смонтированной при поиске,
+  loading/error/empty; не менять её key/selection/URL или пересоздавать workspace
+  при изменении query. Сохранить draft/reply/attachment, source-message context, back link,
+  существующие private scopes, badges/unread/await-state и truncation hint.
+  Изменение списка не вызывает open conversation/send/mark-read.
+- Сохранить SSR initial data/query, row URLs и выбранный case, доступные
+  permissions, текущий max/range/ordering. Не добавлять schema, queues, новые
+  server commands, сообщения/fixtures, provider calls или записи в базу.
+
+Реальная проверка только `/v3/messages` БЕЗcase под существующим Sales:
+initial4rows → поиск существующего имени → loading/ready → no-match/empty →
+clear/retry current query; desktop и actual390px. Не нажимать строки, не
+открывать дело/переписку для проверки: этот путь автоматическиmark-read.
+Последовательность async responses/errors/unmount допустимо проверить отдельно
+на decision logic; это не заменяет реальный Auth/RPC/UI и не считается proof
+реального provider failure. Недоступные actual error/reordering/selected-draft
+состояния честно указать как непроверенные, без подставных успешных ответов.
+Scope-local lint/typecheck/релевантные проверки + независимый exact-head review
+и protected CI. Никаких business/Auth/provider/managed/production mutations.
+Завершение этого subset не означает завершение всего пункта11.

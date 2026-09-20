@@ -60,20 +60,66 @@ SQL SHA256:
 frozen packet и буквально тот же failed handoff request/payload. Первая ошибка
 не перезаписывается, следующий этап автоматически не запускается. Независимый
 review runner SHA `6763b0b4c23e8a449175864b9b4e8e3f4559d05ec4aad6f077392c769db9d49f`
-одобрен только как проверка исходника; сам runner ещё не исполнялся.
+одобрен как проверка исходника до исполнения. Последующее исполнение описано ниже.
 
-## Что ещё требуется
+## Реальное локальное исполнение — 20 сентября UTC / 21 сентября локально
 
-Независимые exact-head SQL reviews, затем A применяет215 только в своей local
-QA после root GO с проверкой прежнего ledger и business parity. После этого:
-ограниченные rollback-only SQL проверки guard и исходный обычный Auth handoff;
-положительный214 selection/readback/replay/denials; декодирование фактического
-результата существующими TS/Swift моделями.
+Два независимых review одобрили exact `0e0f87db0493855f5ad4a208204531872391c5cd`.
+A как единственный schema applier после root GO применил указанный SQL только
+в `evo-local-0fd3559d0240c989`, `21:42:50Z` (`local215-receipt.json`).
+Ledger и SQL001–214 неизменны; схема001–215 последовательна. Все20 существующих
+business hashes/counts и число Auth users прежние; новый context table пуст.
+Проверены FORCE RLS, закрытые ACL, два immutable trigger и deferred parent FK.
+OID/ACL/прочие pg_proc metadata двух заменённых функций сохранились.
+
+Перед Auth выполнены6 rollback-only SQL probes: отсутствие/неверный формат/
+невыданный receipt pointer и попытки совместно поменять Student, state или
+source. Каждый получил40001 `portal_identity_conflict`. A fresh snapshot после
+probes полностью совпал с21-table baseline после215, включая functions и ledger.
+
+После этого ровно один обычный Sales Auth retry использовал буквально тот же
+request/payload, что первый неуспешный208 вызов. Он прошёл:
+
+- Существующее дело pending→active; seller — текущий владелец lead, curator —
+  согласованный существующий сотрудник, scope1→2 с деактивацией старого scope.
+- Ровно одна продажа, один final handoff receipt и один owner-sync receipt.
+  Условия1KGS / paid0 и месяц2026-09 соответствуют согласованному QA packet.
+- Три затронутых profile получили access_version+1. Delta: audit+3,
+  scope events+3, assignment+1 и lifecycle event+1.
+- Lead, conditions, memberships, прочие записи и старые append-only строки,
+  functions/ledger/Auth count неизменны. Это подтверждено отдельным A observer.
+
+Затем исходный214 Student selection создал одну preparation/version1 с одним
+binding/event/audit. Exact replay не меняет состояние; тот же выбор с новым
+согласованным request добавляет только command audit. Changed-version conflict
+и чужой Student read отклонены без записей. Actual Student/Admissions responses
+прошли существующие TS и Swift модели с проверкой pinned publication/intent.
+
+После Auth-сценария5 SQL probes подтвердили запрет смены seller уже активного
+дела, в том числе с прежним actual receipt pointer, и запрет UPDATE приватной
+квитанции55000. Outer rollback выполнен; финальный A snapshot полностью совпал
+с предыдущим состоянием после denials. После этого B освободил writer window.
+
+Приватные доказательства вне Git: `b215-retry-*-result.json`,
+`b215-guard-probes-*-result.json`, `a-b215-handoff-parity-result.json`,
+`a-b215-selection-parity-result.json`, `a-b215-replay-parity-result.json`,
+`a-b215-duplicate-parity-result.json`, `a-b215-denials-parity-result.json`,
+`a-b215-final-parity-result.json`, `b214-actual-swift-decode-result.json`.
+
+## Границы и оставшаяся интеграция
 
 SQL probes являются техническим доказательством guard, а не ordinary Auth
 acceptance. Нынешнее QA дело имеет NULL прежнего seller и не доказывает
 non-NULL reassignment. Новые сущности, роли, фикстуры или чужие дела для такого
 доказательства не создаются. Непроверенные варианты остаются явно указанными.
+Active-case отказ не изолирует stale-xid predicate; deferred FK проверен по
+живому catalog, но orphan commit не исполнялся. Валидный receipt с неверной
+authority и отдельный downstream failure уже внутри215 не воспроизводились.
+Первый полный rollback относился к исходной ошибке208 до исправления215.
+
+Порядок интеграции остаётся948→946→этот stacked PR; после retarget на main
+нужны окончательные exact-head review и CI. Предыдущие review и local receipts
+сохраняют свои точные revisions и не объявляются новым прогоном после rebase.
 
 Это не завершение полного UI/iPhone пути, требований к документам, загрузки,
 отправки/проверки пакетов, managed rollout или production release.

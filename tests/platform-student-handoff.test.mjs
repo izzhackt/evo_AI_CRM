@@ -567,9 +567,13 @@ test("V3 profile exposes the gate through the reviewed server-action contract; t
   assert.doesNotMatch(source, /handoffPlatformLeadToAdmissionsAction/);
   assert.equal(source.match(/name="expected_gate_version"/g)?.length, 1);
   assert.equal(source.match(/<Version value=\{gateVersion\} \/>/g)?.length, 1);
-  // Unified workflow S2 (plan §6): «оплата хранится отдельным фактом».
+  // Unified workflow S2 (plan §6): payment is a separate fact from the sale
+  // conditions. The explanatory paragraph narrating this was removed by the
+  // quiet-interface sweep (OTH-0, #857, pinned in tests/v3-quiet-interface);
+  // the structure itself — a separate gate card with its own payment fields —
+  // is asserted below.
   assert.match(source, /title="Договор и оплата"/);
-  assert.match(source, /отдельный факт/);
+  assert.doesNotMatch(source, /отдельный факт/);
 
   for (const status of [
     "saved",

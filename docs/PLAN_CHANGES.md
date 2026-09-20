@@ -33440,3 +33440,47 @@ Source/local acceptance and independent exact-head review may complete before
 the deferred managed rollout. Local proof is not customer/managed acceptance.
 Detailed target checks and evidence boundaries are in
 `docs/qa/migrations-207-208-qa-packet-2026-09-20.md`.
+
+## Shared local acceptance for CRM-02a and B-2 — 2026-09-20
+
+A owns one disposable local Supabase project and its schema/bootstrap. Apply the
+immutable PR #929 migration 207 before the PR #935 migration 208 inside that
+project; keep 207 out of the PR #935 source diff. B owns recent-university
+Student RPC and Home verification against its current #929 source. Separate
+Next dev origins serve A and B; local Auth permits both callback origins.
+
+Use real local Auth, PostgREST and Postgres, ordinary logins, supported product
+provisioning/publishing and only the minimum explicitly marked QA records.
+Begin with an empty local Student catalogue, then publish local QA universities
+through supported Admin commands and verify the bounded recent list. Verify
+no-session and wrong-role denial. A second local Student tenant may be added
+for tenant isolation if supported onboarding allows it. Preserve publication
+history; do not fabricate timestamps or bypass access checks.
+
+This reversible local verification is authorized within development. Do not
+copy managed identities, credentials or customer records, forge JWTs, mock RPCs,
+or send external provider messages. Source/local acceptance remains separate
+from the deferred, separately authorized managed frontend and SQL rollout.
+
+### CRM-02a local manager role binding
+
+Migration 208 deliberately leaves new organizations without an implicit manager.
+Root approved a narrow reproducible local setup helper after supported bootstrap
+and role publication. Bind exactly the newly created QA role, guarded by the
+owned disposable project/workdir, exact organization/role IDs, active role,
+current published bundle containing sales.register.manage, and a one-row
+transaction. Reject managed/remote Docker endpoints and mismatched ownership.
+Do not change the production role editor/API or migration 208, copy production
+IDs, seed a completed sale, or bypass the runtime authorization gate. Subsequent
+sales operations use ordinary Auth and genuine application/RPC persistence.
+
+### B-2 local public intake binding
+
+The disposable database applies migration 177 before the first organization
+exists, leaving its private intake singleton empty. After the ordinary Admin
+command creates the QA review department, A may run B's reviewed guarded local
+helper to bind exactly that new organization and department. Require the owned
+local project/container, active same-organization department, empty singleton,
+and one-row transaction; retain intake owner NULL. No second tenant, Student
+row, case or application is inserted directly. Subsequent signup, submission
+and approval use current product paths (migration 180 approval signature).

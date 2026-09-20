@@ -33710,6 +33710,77 @@ denial пути; positive selection/readback/replay/staff visibility остаю�
 scope-local checks и ограниченный визуальный проход для затронутых UI. Финальный
 E2E, контент, App Store, managed writes и production deployment сюда не входят.
 
+## 2026-09-21 — B215: согласовать handoff продажи с защитой identity дела
+
+Root выделил `215_platform_sales_handoff_owner_guard.sql` как узкую зависимость
+приёмки B214. Основание stacked #946 `36f4b440`; до этого append код215 не менялся.
+Обычный Auth208 вызов завершился `40001 portal_identity_conflict`: pending-ветка
+208 синхронизирует seller с canonical lead, а guard126 запрещает изменение seller.
+Read-only before/after подтвердили полный rollback20 таблиц, scopes/access versions,
+продажи и receipt. Owner assignment и conditions revision1 выполнены раньше и
+сохраняются. Это исправление обнаруженного продуктового дефекта, не ремонт QA-данных.
+
+Контракт до кода, подтверждённый root:
+- Одна forward migration215; исторические001–214 неизменны. Новая private
+  append-only таблица разрешений owner-sync; изменить только две существующие
+  функции: `create_sales_report_handoff` и `guard_student_case_identity_e1`.
+  Общий curator helper и публичные RPC/grants не менять.
+- Receipt связывает UUID, текущий xid8, org/request/case/canonical lead,
+  actor membership/profile/Auth identity, nullable old seller, new seller,
+  прежний scope/version и curator. Old/new различаются; tenant-aware составные
+  ссылки, unique org/request, FORCE RLS, REVOKE ALL для PUBLIC/anon/authenticated/
+  service_role/supabase_auth_admin. Deferred initially-deferred FK org/request
+  на окончательный handoff receipt запрещает commit незавершённого разрешения.
+- Первым взять org row FOR UPDATE вместо KEY SHARE. Это явно одобренная root
+  поправка после выявленного cross-case lock cycle: сериализация handoff внутри
+  одной организации предотвращает поздний upgrade и взаимное ожидание profile
+  locks с sibling KEY SHARE handoff. Late upgrade и sorted-profile prelocks
+  не добавлять. Затем сохранить request advisory → canonical lead advisory/row
+  → case row ordering; независимо проверить compatibility и предел tradeoff.
+- После ожидания locks повторить fresh actor authority/scoped permission,
+  canonical current owner и его действующие права на lead. Сохранить caller/
+  manager checks, idempotency, seller/month snapshot, no-existing-sale/handoff,
+  curator validation и прежний exact replay до создания нового context.
+- Только pending-ветка создаёт private receipt и transaction-local GUC pointer
+  перед единственным seller UPDATE. Guard проверяет private receipt и текущую
+  транзакцию, exact OLD/NEW owner, org/case/canonical lead/scope, pending state и
+  свежую actor authority. Сравнить весь OLD/NEW row кроме seller и updated_at:
+  simultaneous Student/tenant/source/contract/lead/curator/state/scope mutation
+  запрещена. Прежнее отдельное E1 Student-binding исключение сохранить; нельзя
+  совмещать его с owner-sync. Сам GUC не является authority, прошлый receipt
+  не работает в следующей транзакции. Сразу после UPDATE очистить pointer.
+- После прежнего curator helper отозвать прежнего non-NULL seller из old scope
+  через append_scope_event(FALSE), с детерминированным derived request ID;
+  bump его profile access_version только если helper ещё не затронул тот же
+  PROFILE через new seller/Student/curator. Не сохранять лишний доступ бывшему
+  seller и не делать double bump. Любая следующая ошибка откатывает весь handoff.
+
+Проверка: реальные существующие local inputs и bounded rollback-only SQL probes
+для отсутствующего/поддельного/stale/неподходящего context, combined identity,
+не-pending case и downstream rollback. Эти SQL probes root разрешены только
+в собственном local QA и являются технической проверкой guard, не Auth acceptance.
+Не создавать entities, не менять Auth/роли и не производить data repair. Existing
+Student/anon/cross-case RPC denials не выдавать за достижение trigger, если ACL
+отказал раньше. Non-NULL old-seller ветка отдельно source-reviewed; NULL-case
+не доказывает её выполнение. Полный UI/native/E2E этим блоком не заявлять.
+
+A — единственный local schema applier: после SQL review и root GO применить215
+к001–214, сверить прежний ledger, точные functions/ACL и business parity. Затем B
+получает отдельное writer окно и повторяет исходную frozen команду208 с прежним
+request ID/payload и новым append-only attempt receipt, связывающим первоначальный
+FAIL/rollback и SQL215 SHA. Удалять FAIL/started markers нельзя. После успешного
+handoff проверить same case, seller/month, sale/receipt, activation/scope effects;
+затем выполнить исходный214 selection/readback/replay/denials. Не расширять packet.
+Техническая приёмка B214 указывает фактическую схему001–215.
+
+Работа в isolated `evo-sales-handoff-owner-guard`, PR stacked на946. Merge order
+948→946→215, затем retarget/rebase215 на main с повторным independent exact-head
+review/CI. A пишет только эти shared appendices, B runtime/QA; root merge/release.
+Managed DB, provider, production release и следующая функциональность не включены.
+PostgreSQL основание: [xid8](https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT),
+[transaction-local context](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-SET),
+[SECURITY DEFINER](https://www.postgresql.org/docs/current/sql-createfunction.html).
+
 ## 2026-09-20 — CRM-05: подтверждённая передача на рабочей доске (212)
 
 Основание: main `1795bf2380344bdca059868aba57d033fa13a259` после #943.
@@ -34408,6 +34479,60 @@ Root добавляет только первый focus-visible «К содер�
 не ломать full-height страницы. ActualSales UI+keyboard proof без записей,
 узкие проверки и независимое exact-head review; полныйконтракт вEVO_LAUNCH_PLAN.
 Runtime начинается после959merge. Root owns толькоэтотisolatedworktree/docs.
+
+## 2026-09-21 — CRM-02b: серверный поиск продаж (216, до кода)
+
+Основание main `011c0e49e7a95b845eb52d34e10cc2bfa00f9f1f` после принятого #948.
+Root утвердил q-only срез и выделил `216_platform_sales_register_search.sql`;
+изолированный worktree `evo-sales-register-search`, исполнитель A. Общий план
+CRM-02 уже задаёт поиск по имени, телефону и договору. Новых продуктовых решений
+от владельца не требуется. Private анализ: /private/tmp/evo-crm02b-search-brief.md.
+
+Доказанный пробел: SalesReportQuery/source/RPC не принимают строку поиска.
+Существующий scoped reader144+156 УЖЕ фильтрует manager/direction/review/period/
+archive до count/totals и LIMIT50/OFFSET; это сохранить. #956/#958 preview/reset/
+back/context/annual reportMonth не переделывать. Direction facet и остальная
+компоновка отчёта остаются явными следующими срезами; root CRM-05 mobile отдельно.
+
+Контракт:
+- Новые private/platform `read_sales_register_v2` с p_query, без изменения bytes
+  v1 или overload c ambiguous defaults. Сохранить sales_register_actor, fresh
+  scoped per-record authority, независимую проверку selected record и прежние
+  owner/target/manager projections. Пустой q возвращает dataset/count/totals v1.
+- Trim, максимум200 символов, control characters запрещены. Literal substring
+  имени/договора без учёта регистра; %/_ не wildcards. Для телефонного запроса
+  с цифрами и телефонной пунктуацией — поиск непустой цифровой части по digits
+  сохранённого phone. Не извлекать телефонный поиск из произвольного текста.
+  Нормализация только чтения; fuzzy/ranking/provider и новые индексы вне среза.
+- Единственный query predicate входит в серверный filtered набор до count/
+  currency totals/LIMIT/OFFSET. Архивные итоги и неизвестные суммы остаются
+  прежними; план отдела не пересчитывается по найденным строкам. Не фильтровать
+  первые50 rows в JS и не выгружать весь отчёт ради клиентского поиска.
+- TS сохраняет строгий DTO; q проходит в обычный RPC и URL списка/preview/edit/
+  back/pagination. GET submit сбрасывает offset; reset снимает q/фильтры,
+  сохраняя период. Invalid query, unavailable, empty filter и empty period
+  различимы. Не подменять ошибку пустым успехом.
+- Impeccable Operate: существующие EVO/Golos/tokens/native controls, один явно
+  подписанный поиск «Имя, телефон или договор»,44px, обычная клавиатурная отправка.
+  Без autosubmit/анимации/нового декоративного контейнера. В этом срезе не менять
+  финансовые записи, creation/edit authority, shared shell и соседние формы.
+
+Приёмка: ordinary local Sales/Admin readonly21:38:20Z на001–214 дали4 строки,
+4 имени,2 manager labels; phone/contract/direction пусты, hasMorefalse. Поэтому
+реально проверить name-query, регистр, empty/zero, сочетания фильтров/count/totals,
+selected/back/reset/offset1 и actual desktop+390 UI. После B215 продажи изменятся —
+использовать свежий baseline. Positive phone/contract/>50 данных нет: pure predicate
+checks или source review не называть таким DB/Auth proof; fake fixtures/новые
+записи/правки фактов ради демонстрации не создавать. Существующий name-path достаточен
+для принятого root search-path proof с явно указанными оставшимися ограничениями.
+Сохранить tenant/record-scope и отказ unauthorized actor; отдельно проверить v1 parity.
+
+216 local apply только после завершения215 и освобождения B writer window,
+reviewed SQL + root GO; A единственный applier. Сверить ledger/business/Auth counts,
+permissions/functions; scoped checks + независимый exact-head review + protected CI.
+Managed DB, provider, production release и финальный E2E сюда не входят.
+Основание SQL17: [строковые функции](https://www.postgresql.org/docs/17/functions-string.html)
+и [function signature/security](https://www.postgresql.org/docs/17/sql-createfunction.html).
 
 ## 2026-09-21 — CRM-03 / 220: полная очередь заявок (контракт до кода)
 

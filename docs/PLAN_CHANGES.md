@@ -33016,3 +33016,9 @@ Admin и организацию, курсор включает название,
 лимитом; реальные staff/Student/anonymous denials; существующее скачивание.
 Runtime выпускает Astra по текущему managed контракту после завершения/штатной
 паузы двух потоков импорта. Portal/App и канонические правила записи не меняются.
+
+## 2026-09-20 — KB final acceptance: unsaved navigation, file questions and canonical selections
+
+The independent final audit of KB §§6–10 found three remaining paths: SPA/back navigation could discard an unsaved editor draft; file review questions could not be read/resolved in the UI; canonical CRM documents/company folders lacked selection/folder ZIP controls. Complete these within the existing KB contract before final acceptance.
+
+Keep draft contents only in editor memory and guard navigation until saved or explicitly discarded. Use the existing versioned edit command for file review metadata, without changing original bytes. Add forward migration 206 for an explicitly scoped canonical export selection (document/company version IDs, document-case folders and company-folder subtrees), preserving ordinary Admin authorization, tenant checks, immutable snapshots, existing downloads and all-base export behavior. A selected canonical file must not export its entire case, correspondence or unrelated library materials. Do not change Portal/App files or primary object ownership. Validate with existing QA documents, actual Auth denials, downloaded selected ZIP bytes, real navigation after a failed save, and independent exact-head review.

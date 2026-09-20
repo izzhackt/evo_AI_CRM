@@ -35029,3 +35029,18 @@ https://nextjs.org/docs/app/api-reference/directives/use-client and
 https://nextjs.org/docs/app/getting-started/server-and-client-components.
 Repeat only affected lint/types and the actual positive page/navigation/mobile
 path after this correction; final exact-head reviews must include the fix.
+
+## 2026-09-21 — CRM-03/221: restore native filter state with browser history
+
+Actual Chrome Back after submitting pending returned the saved all-status URL
+and its positive row while the native select still showed pending. The earlier
+form identity key alone did not reset the browser-restored form document; a
+second submit therefore sent stalepending. Keep this failed UI evidence.
+
+Move only the existing native GET status form into a small client component.
+Keep defaultValue and ordinary controls, and reset the form to the canonical
+server selection on navigation/props and pageshow restoration. Do not alter
+filters/cursors, SQL, authority, commands or visual layout. MDN pageshow covers
+returning to a document with browser Back/Forward, including bfcache:
+https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event.
+Actual Back/Forward plus resubmit must pass before acceptance.

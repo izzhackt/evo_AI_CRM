@@ -5,7 +5,8 @@
 прежнего184 helper root перенёс её на221. Forward220 принадлежит исправлению
 этого helper. После forward220 и отдельного GO очередь221 применена только в
 согласованной локальной QA. Доказательства ниже относятся к exact583bd631;
-фактический новый UI, итоговая интеграция и production остаются отдельными шагами.
+После интеграции main44092c57/#966 фактический UI проверен с двумя исправлениями,
+описанными ниже. Итоговые exact-head reviews/CI и production остаются отдельными шагами.
 
 Новая scoped read-проекция объединяет существующие lead, application,
 consultation с независимыми прежними authority. PERFORM existing
@@ -71,12 +72,11 @@ receipt содержало тире вместо дефиса. Исправле�
 
 ## Ещё не выполнено
 
-Новый фактический UI desktop/390/320, итоговые exact-head reviews после
-интеграции и protectedCI. Нужны возврат из карточки, сохранение filter/retry,
-Back/Forward полей и списка, доступность действий/preview. Положительные
-страницы и next/back уже проверены настоящим RPC, но это не UI acceptance.
-Для queue→card UI требуется вошедшее в main исправление profile loader,
-которое координатор проверяет и доставляет отдельным блоком.
+Итоговые exact-head reviews после исправлений и protectedCI. Фактические
+положительные страницы/next/back, возврат из карточки и Back/Forward фильтров
+проверены в UI, как описано ниже. Нет подходящих данных для pending decisions
+и положительных остальных видов обращений; forced unavailable/retry и preview
+action UI не проверялись. Production release не выполнялся.
 
 Фактическими Auth-чтениями подтверждены3 approved applications,
 но нет pending applications, website/WhatsApp leads или consultations. Значит,
@@ -118,7 +118,9 @@ Validated returnTo и identity формы сохраняют контекст р
 detect точного requests/page.tsx на583bd631:exit0, findings[]. Это проверка
 исходника, не подтверждение визуального результата и не отдельный независимый
 Impeccable reviewer. Следующий UI-проход должен одним пакетом проверить desktop,
-390 и320, реальные анкеты/навигацию/фильтры; результат будет записан после него.
+390 и320, реальные анкеты/навигацию/фильтры. Этот проход завершён ниже; в одном
+пакете исправлено сжатие имени на узком экране, затем выполнена одна визуальная
+проверка результата на390/320. Дальнейшее косметическое расширение не делалось.
 
 ## Дополнительная проверка существующего source inventory
 
@@ -148,5 +150,48 @@ student-application-presentation.ts; серверная страница и кл
 [Next.js use client](https://nextjs.org/docs/app/api-reference/directives/use-client)
 и [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).
 Это scoped runtime correction; после неё lint четырёх затронутых файлов и tsc
-прошли. Фактический положительный UI/навигационный проход выполняется заново
-на исправленном коде; окончательный результат будет записан отдельно.
+прошли. Исправление записано в6de47dc2; фактический положительный UI/навигационный
+проход на исправленном коде описан ниже.
+
+## Browser Back/Forward: первая попытка и рабочее исправление
+
+Реальная последовательность после6de47dc2: all/cursor с одной анкетой → выбрать
+pending и применить → пустой pending → браузерный Back. URL и строка вернулись
+к all/cursor, но native select оставался pending. Повторный submit отправил
+устаревшее pending. Ранее одобренного identity key оказалось недостаточно.
+
+Только status form выделена в RequestStatusFilters. Сохранены native GET и
+defaultValue, добавлен reset к серверному selection при смене props и событии
+pageshow, autoComplete выключен для этой формы фильтров. Это соответствует
+описанному [MDN восстановлению документа при Back/Forward](https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event).
+SQL, схема, команды и собственно смысл фильтров не менялись.
+
+Повторён ровно упавший сценарий: pending0 → Back all/cursor, полеall и1строка →
+Forward pending0/полеpending → Back all → повторный submit даёт all/первую
+страницу. Значение поля, URL и фактическая строка совпали на каждом шаге.
+
+## Фактический UI и завершающая сверка
+
+Обычный существующий Local Admin, localhost33229, локальная схема001–221.
+Использованы три прежние approved анкеты, без новых entities/roles/business writes.
+
+- Default limit50 показал все3 анкеты и счётчики3/3/pending0. Ограничениеlimit1
+  прошло next→previous→next с теми же фактическими строками.
+- Из второй страницы открыта карточка связанного лида, затем вкладка «Вузы и
+  программы». «К списку заявок» вернул точно тот же source/status/limit/cursor
+  и ту же строку. Исправление profile loader из#966 осталось без изменений.
+- Фильтр pending дал настоящее пустое состояние. Back/Forward и повторное
+  применение проверены после описанного исправления формы.
+- Desktop1280: actual clientWidth/scrollWidth1280/1280, оба native поля256×44.
+  На390:390/390, поля358×44. На320:320/320, поля288×44.
+- В первом мобильном просмотре дата/статус сжимали имя. На mobile они перенесены
+  под имя, desktop сохранил прежнее расположение. Одна заключительная пара
+  screenshots390/320 показала три читаемые записи без горизонтальной прокрутки.
+  Tab с «Применить» перевёл фокус к первой анкете; видимая solid-обводка сохранена.
+
+Приватный a221-after-ui-parity.json содержит hashes всех фактически проверенных
+runtime файлов и полного состояния. Все281 business tables, Auth counts,
+schema metadata, функции и ledger совпали с состоянием после Auth35. Браузерная
+вкладка закрыта, viewport override очищен, сервер33229 остановлен. Сырые QA
+данные и screenshots не добавлялись в Git. Pending/other-kind/provider/customer
+acceptance не выводятся из этого локального read-only результата.

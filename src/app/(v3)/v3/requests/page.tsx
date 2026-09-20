@@ -5,6 +5,7 @@ import { PartShell } from "@/components/v3/PartShell";
 import { Pill } from "@/components/v3/Pill";
 import { ApplicationDecision, StudentApplicationAnswers } from "@/components/v3/admissions/StudentApplications";
 import { PortalConsultationDetails } from "@/components/v3/requests/PortalConsultations";
+import { RequestStatusFilters } from "@/components/v3/requests/RequestStatusFilters";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import {
@@ -21,7 +22,6 @@ const FILTER_LABELS: Record<RequestSourceFilter, string> = {
 };
 const KIND_LABELS = { lead: "Обращения с сайта и WhatsApp", application: "Анкеты платформы", consultation: "Консультации из кабинета" };
 const linkClass = "inline-flex min-h-11 items-center rounded-nav border border-control-edge px-3 text-sm font-medium text-fg hover:bg-surface-2";
-const selectClass = "min-h-11 w-full rounded-nav border border-control-edge bg-surface px-3 text-sm text-fg";
 
 function Filters({ selection }: { selection: RequestSelection }) {
   return <div className="space-y-4">
@@ -34,24 +34,7 @@ function Filters({ selection }: { selection: RequestSelection }) {
       </Link>)}
     </nav>
     {(requestKindSelected("application", selection.source) || requestKindSelected("consultation", selection.source)) ? (
-      <form key={`${selection.source}:${selection.applicationStatus}:${selection.consultationStatus}:${selection.limit}`}
-        action="/v3/requests" className="flex flex-wrap items-end gap-3">
-        <input type="hidden" name="source" value={selection.source} />
-        {selection.limit !== 50 ? <input type="hidden" name="limit" value={selection.limit} /> : null}
-        {requestKindSelected("application", selection.source) ? <label className="grid min-w-0 w-full gap-1 text-sm text-fg-2 sm:flex-1 sm:max-w-64">
-          Анкеты платформы
-          <select className={selectClass} name="applications" defaultValue={selection.applicationStatus}>
-            <option value="pending">Ожидают решения</option><option value="all">Все статусы</option>
-          </select>
-        </label> : <input type="hidden" name="applications" value={selection.applicationStatus} />}
-        {requestKindSelected("consultation", selection.source) ? <label className="grid min-w-0 w-full gap-1 text-sm text-fg-2 sm:flex-1 sm:max-w-64">
-          Консультации
-          <select className={selectClass} name="consultations" defaultValue={selection.consultationStatus}>
-            <option value="all">Все статусы</option><option value="requested">Открытые</option><option value="handled">Обработанные</option>
-          </select>
-        </label> : <input type="hidden" name="consultations" value={selection.consultationStatus} />}
-        <button type="submit" className={linkClass}>Применить</button>
-      </form>
+      <RequestStatusFilters key={`${selection.source}:${selection.applicationStatus}:${selection.consultationStatus}:${selection.limit}`} selection={selection} />
     ) : null}
   </div>;
 }
@@ -108,7 +91,7 @@ export default async function RequestsPage({ searchParams }: {
           {selection.cursor ? <Link href={firstHref} className={linkClass}>К началу очереди</Link> : null}
         </div> : <ul className="divide-y divide-border border-y border-border">
           {queue.rows.map((row) => <li key={`${row.kind}:${row.id}`} className="min-w-0 space-y-3 py-5">
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="flex flex-col items-start justify-between gap-x-4 gap-y-2 sm:flex-row">
               <div className="min-w-0 flex-1">
                 {row.kind !== "consultation" && row.leadId ? <Link
                   href={`/v3/profile?id=${encodeURIComponent(row.leadId)}&returnTo=${encodeURIComponent(currentHref)}`}

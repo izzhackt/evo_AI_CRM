@@ -5,7 +5,7 @@ import type { KnowledgeCanonicalPage } from "@/lib/knowledge-canonical-search-co
 import { knowledgeFetch } from "./client";
 import styles from "./KnowledgeLibrary.module.css";
 
-export function KnowledgeCanonicalSearch({ search }: { search: string }) {
+export function KnowledgeCanonicalSearch({ search, onOpen }: { search: string; onOpen: () => void }) {
   const [page, setPage] = useState<KnowledgeCanonicalPage | null>(null);
   const [busy, setBusy] = useState(true); const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -35,7 +35,7 @@ export function KnowledgeCanonicalSearch({ search }: { search: string }) {
     <h2>Материалы CRM</h2>
     {error && <p role="alert" className={styles.error}>{error}<button type="button" onClick={() => setRetry((value) => value + 1)}>Повторить поиск</button></p>}
     <ul className={styles.clientList}>{page?.items.map((item) => <li key={`${item.kind}:${item.id}`}>
-      <Link href={item.href}>{item.title}</Link>
+      <Link href={item.href} onClick={onOpen}>{item.title}</Link>
       <span>{item.context}</span>
       {item.downloadHref && <a href={item.downloadHref}>Скачать исходник</a>}
     </li>)}</ul>

@@ -196,7 +196,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
         <div className={styles.search}><input type="search" maxLength={240} aria-label="Поиск по базе знаний" placeholder="Найти материал" value={search} onChange={(event) => setSearch(event.target.value)} /><select aria-label="Область поиска" value={searchScope} onChange={(event) => setSearchScope(event.target.value)}><option value="all">Вся база</option><option value="folder">Текущая папка</option></select></div>
         {error && <div className={styles.error} role="alert">{error}<button type="button" onClick={reload}>Повторить</button></div>}
         {status && <p role="status" aria-live="polite" className={styles.status}>{status}</p>}
-        {search.trim() && searchScope === "all" && <KnowledgeCanonicalSearch key={search.trim()} search={search.trim()} />}
+        {search.trim() && searchScope === "all" && <KnowledgeCanonicalSearch key={search.trim()} search={search.trim()} onOpen={() => setSearch("")} />}
         {area === "clients" && !parentId && view === "list" && !(search.trim() && searchScope === "all") && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} search={search} />}
         {selected.size > 0 && <div className={styles.selection}>
           <span>Выбрано: {selected.size}</span><KnowledgeExport ids={[...selected]} label="Выгрузить выбранное" />

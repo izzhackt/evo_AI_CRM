@@ -11441,3 +11441,61 @@ Admin preview только при существующей доступной с
 Scoped lint/types/существующие navigation/brand checks, independent exact-head
 review, protectedCI. Это один обоснованный срез22, не изменение всех экранов
 или доказательство screen-reader/live-device acceptance. Без SQL/DDL/release.
+
+
+## CRM-33 / SQL221 — причина изменения срока и приоритета case task — 21.09.2026
+
+Pre-code контракт на main `5adce46e`; отдельная ветка
+`izzhackt/task-change-reason`. Root выделил221 и остаётся единственным
+координатором миграций и назначения applier. Сейчас разрешены только эти docs;
+реализация начинается после merge219 и отдельного root pre-code GO.
+
+Цель: закрыть остаток пункта33 / issue687 — прямой Admin RPC сейчас может
+менять срок/приоритет case task без причины, хотя действующие UI/action уже
+требуют её. Portal v1 уже удалён152; его повторное удаление и staff tasks
+не входят. Исторический rollback prerequisite issue687 учитывается root
+при принятии текущего поручения и delivery; этот контракт не означает
+managed применение или production acceptance.
+
+Изменение: новая forward221 изменяет только каноническое
+`platform_private.coverage_change_task_body` с существующими11 аргументами.
+В актуальном теле после133/156 удалить protected-Admin исключение из условия
+`p_reason IS NULL ... AND (priority/due_at/due_on IS DISTINCT FROM ...)`.
+Остальные bytes тела сохранить; перед заменой проверить точную текущую
+сигнатуру/definition и единственное совпадение. Не копировать старое129 поверх
+scoped authority, не редактировать исторические миграции, не вводить overload.
+
+Инварианты:
+- Причина обязательна только при фактическом изменении priority/due_at/due_on.
+  Сохранить прежнюю проверку явно переданной причины1..1000 после btrim,
+  статусные/no-op правила, API/default NULL и protected audit.
+- Сохранить wrapper assignment/coverage locks, request lock, row lock, tenant,
+  fresh task.manage/task.assign/task.visibility.manage и assignee authority.
+- Guard остаётся после authority, replay и version check на прежнем месте.
+  Исторический успешный request с прежней причиной возвращает прежнюю receipt
+  после fresh authority check; новый NULL-reason change отклоняется22023.
+  Stale остаётсяPT409; same-request changed payload/reason не создаёт запись.
+- Не менять отдельные lifecycle/closed-case правила Admin, transitions,
+  reason visibility, DTO, UI, staff-task API или данные. Deadline-only change
+  остаётся audit event, а не выдуманным status transition.
+
+Приёмка: existing LOCAL217 receipts показывают12 доступных Admin canonical
+case tasks и12 own Admissions; Admin personal calendar0 не препятствует
+проверке через общий Tasks. Сначала свежий read существующей задачи и версии.
+В выделенное root writer window допустим ограниченный обратимый owned-QA
+сценарий: новый request с реальным priority/deadline change и NULL/blank reason
+отклоняется без row/version/audit mutation; обычный Admin с осмысленной причиной
+сохраняет изменение, readback/audit подтверждают его; replay не дублирует,
+changed request/stale отклоняются. Проверить обе ветки priority и deadline.
+Вернуть исходные значения отдельной reasoned versioned командой только при
+совпадении ожидаемого post-write version/state; при чужом изменении остановить
+restore, не перезаписывать его. Audit/version историю не удалять.
+
+Проверить существующий UI required reason и обычные authority denials в рамках
+этого пути. Не создавать задачи/пользователей/роли/фикстуры; не менять provider,
+Auth или Storage. Existing reversible owned-QA continuation не превращать
+в повторный общий запрос; непосредственный applier/window назначает root.
+Исторические129 test assertions оставить как provenance; новые scoped checks
+проверяют forward exception removal и сохранение остального тела. Source tests
+не подменяют actual Auth/RPC. Независимое exact-head review, protected CI,
+точная local receipt с ограничениями; managed rollout и общийE2E вне среза.

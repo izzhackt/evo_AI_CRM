@@ -34408,3 +34408,20 @@ Root добавляет только первый focus-visible «К содер�
 не ломать full-height страницы. ActualSales UI+keyboard proof без записей,
 узкие проверки и независимое exact-head review; полныйконтракт вEVO_LAUNCH_PLAN.
 Runtime начинается после959merge. Root owns толькоэтотisolatedworktree/docs.
+
+
+## 2026-09-21 — CRM-33 / SQL221: закрыть Admin reason exception
+
+Root зарезервировал221 для пункта33 / остатка issue687. Pre-code docs-only
+на `5adce46e`, ветка `izzhackt/task-change-reason`; runtime ждёт merge219
+и root GO. Единственный runtime delta — удалить Admin exemption из missing
+reason guard актуального11-argument `coverage_change_task_body`, оставив
+все остальные bytes/locks/scoped authority/replay/stale/audit неизменными.
+Причина обязательна для фактического deadline/priority change; UI уже требует
+её. Не менять staff tasks, lifecycle policy, старые миграции или удалённый portal v1.
+
+Existing owned LOCAL case tasks позволяют обычный Admin negative/positive
+RPC, replay/stale и guarded reasoned restore без новых entities/roles.
+Restore допускается только при ожидаемой версии и состоянии; history остаётся.
+Root координирует номер/applier/window; никакого apply/runtime в этом commit.
+Полный контракт и acceptance bounds — CRM-33 в `EVO_LAUNCH_PLAN.md`.

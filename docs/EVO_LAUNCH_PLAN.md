@@ -10293,3 +10293,20 @@ production check additionally requires separately authorized deployment.
   <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html>,
   <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html> and
   <https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html>.
+
+## 2026-09-20 — KB: уточнение фактической координации и обслуживания
+
+Дополнение к сохранённой записи Portal #914: перед применением KB schema
+в #912 были опубликованы передача владельца выпуска (5745678648, 22:13:39Z)
+и резерв 201–204 (5745702031, 22:17:32Z). Выпуск/перенос подтверждены владельцем
+в задаче Astra. Миграции применены одним координатором и проверены по ledger
+и исходным SHA-256; детали — в KB execution receipt.
+
+`evo-knowledge-maintenance.timer` установлен, active/enabled; service завершился
+с Result=success и ExecMainStatus=0. Независимый reviewer повторно подтвердил
+это read-only через SSH, включая успешный запуск в 22:47:08 UTC, отмеченный в его квитанции.
+Таким образом, отсутствие уведомления до apply и ещё не установленный timer
+не являются текущими незавершёнными пунктами KB. История записи #914 сохранена.
+
+Реальный защищённый перенос завершён (32 оригинала + 25 записей), обычный
+перенос и полная сверка ZIP продолжаются. Завершение всего плана не объявляется.

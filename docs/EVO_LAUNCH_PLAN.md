@@ -12149,3 +12149,15 @@ reviews and protected short CI remain required; ROOT routes reviewers/merge.
 Precode must be approved before runtime changes. Full item15's flat chronology,
 quotes/old reply and draft compatibility, search context, channel previews,
 autosize/scroll and sparse seen-message tracking remain separate work.
+
+
+### A15a menu acceptance clarification before implementation
+
+Fresh exact82c800 source, TeamChatMessageRow.tsx:48–60: the menu includes an
+unconditional «Ссылка» deep link at line58. After Create task is removed, that
+useful action remains for other-author/non-moderator and deleted messages.
+Therefore this slice does not create an empty menu, and must not hide it based
+only on edit/delete/moderation authority. Keep the current menu and Link action,
+plus unchanged edit/delete/moderation conditions and focus refs. Actual UI
+verification includes another author's menu where existing history allows it.
+No conditional-menu rewrite is added to the three-file scope.

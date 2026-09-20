@@ -35067,3 +35067,14 @@ populated history; no new messages/tasks or Mark read command. Missing history
 limits the claim rather than authorizing fabricated data. ROOT retains existing
 independent reviewers and merge ownership. This precode records the boundary;
 implementation awaits its review.
+
+
+## 2026-09-21 — A15a review fact check: preserve the remaining message link
+
+A precode review raised a possible empty··· menu after task-action removal.
+Exact82c800 TeamChatMessageRow.tsx:58 instead retains unconditional «Ссылка»
+inside that menu. Preserve that existing useful action for every message, along
+with current edit/delete/moderation conditions and focus refs. Hiding the menu
+by mutation authority would remove direct message navigation. Clarify actual UI
+acceptance for another author's remaining menu; no new runtime scope follows
+from the unconfirmed empty-menu concern.

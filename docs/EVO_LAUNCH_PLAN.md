@@ -10682,3 +10682,59 @@ controls, mobile и denied actors. В текущем QA нет208 activation, ar
 Новые business writes, managed SQL, provider actions и production не разрешены
 этим контрактом. После212 очередь A: сначала сохранение соседних блоков условий
 продажи (#30), затем CRM-02b search/read-detail и остальные согласованные1–36.
+
+## 2026-09-20 — пункт35 / issue #42: форматирование EVO Inbox
+
+Root принимает исполнение пункта35 из очереди A и работает в отдельном
+`evo-inbox-format-baseline`, ветка `izzhackt/inbox-format-baseline`, от main
+`1e03c6bede4e368fb895b0b81863289670d9632d`. Этот контракт записан до исходных
+правок formatter; A сохраняет приоритет213 и остальных CRM-срезов.
+
+Объём — привести существующие tracked форматируемые файлы `agent-lead2-inbox/`
+к действующему Prettier baseline issue#42. Это форматирование: сохранить
+семантику, существующие конфигурацию и exclusions, dependency versions/lockfile,
+публичные интерфейсы, auth/tenant/secret boundaries. Generated/vendor не трогать.
+Не изменять CRM runtime, lead-agent, БД/миграции, provider settings, sessions,
+DNS, deploy или данные; не добавлять runtime-изменений под видом форматирования.
+
+Приёмка issue: Node22, `format:check`, `lint`, `typecheck`, `test`, `build`
+в companion по его реальным scripts. До запуска проверить точные команды и
+игнорирования. Использовать существующие входы; ошибки и пределы исполнения
+указывать прямо, не создавать success fallback. Нужен независимый semantic-diff
+review точного head, защищённые CI-проверки и итоговая scoped receipt. Production,
+WhatsApp/provider acceptance и публикация сервиса этим срезом не разрешаются.
+Root добавит собственную квитанцию и статус очереди после проверки; слияние
+координируется последовательно с другими ветками, исходные append-only записи
+общего плана и журнала сохраняются.
+
+## 2026-09-20 — issue #42: узкий CI predecessor перед форматированием
+
+Read-only baseline показал347 форматируемых файлов companion вместо старого
+счётчика338 в issue. Действующий classifier признаёт только отдельные Inbox
+maintenance/edge paths; массовое форматирование source закономерно остаётся
+unknown и блокируется. Root назначил необходимый отдельный CI predecessor;
+до его контракта runtime/formatting source не менялись.
+
+Сначала отдельный PR добавляет fail-closed путь проверки format-only кандидатов:
+только изменения M существующих tracked regular файлов в явно поддерживаемом
+formatter scope `agent-lead2-inbox/`. Add/delete/rename, mode changes, symlinks,
+dependencies/lockfiles, formatter config, exclusions, vendor/generated и
+миграции исключаются. Для каждого кандидата обязательна точная побайтовая
+проверка: head равен результату существующего locked Prettier над base blob
+с неизменными formatter/config/exclusions. Одна классификация пути не является
+доказательством форматирования и не даёт общий allowlist для Inbox source.
+Неподдерживаемые или непроверенные изменения сохраняют unknown/fail-closed.
+
+Выбранная lane выполняет именно issue42 `format:check`, `lint`, `typecheck`,
+`test`, `build` на Node22, без credentials, provider actions и deployment.
+В CI predecessor не смешивать код нового gate с механическим форматированием
+347 source-файлов или runtime-изменениями. Нужны реальные проверки classifier/
+byte-proof границ, независимый review точного head и защищённый CI. Root проводит
+read-only независимую design-проверку и вправе переименовать эту ветку в
+`inbox-format-gate` до кода; это не меняет product/runtime scope.
+
+Только после merge этого predecessor — отдельный механический formatter PR
+по исходному контракту, с повторной проверкой фактического числа файлов и
+semantic-diff review. Issue42 не объявлять выполненным на одном CI gate. Это
+обслуживание существующего companion, не возобновление отдельного продукта,
+provider acceptance или разрешение изменять production.

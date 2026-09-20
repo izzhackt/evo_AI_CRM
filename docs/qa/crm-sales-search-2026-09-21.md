@@ -104,4 +104,35 @@ Auth count, прежних функций и ledger001–215 после RPC/UI. 
 
 Phone/contract positive data, >50 boundary и salesOther authority остаются
 непроверенными. Нет новых фиктивных записей, identities, ролей, managed writes
-или production release. Слияние216 вmain ждёт predecessor #946/214 и #960/215.
+или production release. Predecessor #946/214 и #960/215 теперь merged; интеграция
+в свежийmain и оставшийся320px проход описаны ниже.
+
+## Интеграция main и проверка320 CSS px
+
+После merge #946/#960 подтянут main
+`8aa7192ce42844d6d1c2ded3c824700e1b7fe025`; integration commit
+`52a56668c7a424847f09510a95277f52108449ab`. Конфликтовали только два append-only
+плана: весь canonical main и216 контракт сохранены. Все шесть runtime/test/SQL
+файлов поиска byte-identical reviewed70177587; package/lock не изменились.
+Повторные узкие checks после интеграции: typecheck,10 tests, scopedESLint PASS.
+29 прежнихRPC assertions не запускались повторно и не выдаются за новый прогон.
+
+На существующей Sales-сессии и local001–217 выполнен ранее отсутствовавший
+320CSS reflow: actualviewport=pageScrollWidth=320, searchinput254×44px. По Enter
+запросcurrent вернул1 запись и USD1000. Снимок просмотрен, новое поле и controls
+помещаются; существующие широкие таблицы сохраняют внутреннийscroll. Никаких
+правок runtime для320 не потребовалось. Временнаяemulation сброшена, ownChrome
+tab закрыт, ownNext33229 остановлен. Next сообщил прежнее предупреждениеLCP
+логотипа; оно не мешало этому пути и не исправлялось в данном срезе.
+
+After-readonly parity: все24 business tables, Auth count, всеfunctions и весь
+ledger001–217 совпали сpost217baseline. Миграция216 повторно не применялась.
+
+| Новый receipt | SHA256 |
+|---|---|
+| a216-integration-320-ui.json | e17e08179c328751e6748ef2f729713192c00f796bcef5fcdb02ab8c5a44cb81 |
+| a216-integration-320.png | 2629dea20d06393e396cb06b4dfefa89485350a6466a171a25cb48fa2a13f500 |
+| a216-after-integration-320-parity.json | 44726ae43510ad752c053b341db6b0aead30f5f0bfedb9e82697761ed8b3b7db |
+
+Окончательные exact-head review и protectedCI относятся к кандидату после этого
+QA appendix. Managed/prod delivery остаётся отдельным невыполненным действием.

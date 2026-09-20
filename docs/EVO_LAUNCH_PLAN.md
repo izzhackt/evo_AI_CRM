@@ -11293,3 +11293,57 @@ B сохраняет единоличное выполнение своего о
 Merge #948 остаётся после фактического UPDATE/cross-group/UI acceptance,
 финального QA-документа, независимого exact-head review и protected CI.
 Частичный B INSERT proof не подменяет эту проверку; merge #946 следует за #948.
+
+## 2026-09-21 — CRM-02b: серверный поиск продаж (216, до кода)
+
+Основание main `011c0e49e7a95b845eb52d34e10cc2bfa00f9f1f` после принятого #948.
+Root утвердил q-only срез и выделил `216_platform_sales_register_search.sql`;
+изолированный worktree `evo-sales-register-search`, исполнитель A. Общий план
+CRM-02 уже задаёт поиск по имени, телефону и договору. Новых продуктовых решений
+от владельца не требуется. Private анализ: /private/tmp/evo-crm02b-search-brief.md.
+
+Доказанный пробел: SalesReportQuery/source/RPC не принимают строку поиска.
+Существующий scoped reader144+156 УЖЕ фильтрует manager/direction/review/period/
+archive до count/totals и LIMIT50/OFFSET; это сохранить. #956/#958 preview/reset/
+back/context/annual reportMonth не переделывать. Direction facet и остальная
+компоновка отчёта остаются явными следующими срезами; root CRM-05 mobile отдельно.
+
+Контракт:
+- Новые private/platform `read_sales_register_v2` с p_query, без изменения bytes
+  v1 или overload c ambiguous defaults. Сохранить sales_register_actor, fresh
+  scoped per-record authority, независимую проверку selected record и прежние
+  owner/target/manager projections. Пустой q возвращает dataset/count/totals v1.
+- Trim, максимум200 символов, control characters запрещены. Literal substring
+  имени/договора без учёта регистра; %/_ не wildcards. Для телефонного запроса
+  с цифрами и телефонной пунктуацией — поиск непустой цифровой части по digits
+  сохранённого phone. Не извлекать телефонный поиск из произвольного текста.
+  Нормализация только чтения; fuzzy/ranking/provider и новые индексы вне среза.
+- Единственный query predicate входит в серверный filtered набор до count/
+  currency totals/LIMIT/OFFSET. Архивные итоги и неизвестные суммы остаются
+  прежними; план отдела не пересчитывается по найденным строкам. Не фильтровать
+  первые50 rows в JS и не выгружать весь отчёт ради клиентского поиска.
+- TS сохраняет строгий DTO; q проходит в обычный RPC и URL списка/preview/edit/
+  back/pagination. GET submit сбрасывает offset; reset снимает q/фильтры,
+  сохраняя период. Invalid query, unavailable, empty filter и empty period
+  различимы. Не подменять ошибку пустым успехом.
+- Impeccable Operate: существующие EVO/Golos/tokens/native controls, один явно
+  подписанный поиск «Имя, телефон или договор»,44px, обычная клавиатурная отправка.
+  Без autosubmit/анимации/нового декоративного контейнера. В этом срезе не менять
+  финансовые записи, creation/edit authority, shared shell и соседние формы.
+
+Приёмка: ordinary local Sales/Admin readonly21:38:20Z на001–214 дали4 строки,
+4 имени,2 manager labels; phone/contract/direction пусты, hasMorefalse. Поэтому
+реально проверить name-query, регистр, empty/zero, сочетания фильтров/count/totals,
+selected/back/reset/offset1 и actual desktop+390 UI. После B215 продажи изменятся —
+использовать свежий baseline. Positive phone/contract/>50 данных нет: pure predicate
+checks или source review не называть таким DB/Auth proof; fake fixtures/новые
+записи/правки фактов ради демонстрации не создавать. Существующий name-path достаточен
+для принятого root search-path proof с явно указанными оставшимися ограничениями.
+Сохранить tenant/record-scope и отказ unauthorized actor; отдельно проверить v1 parity.
+
+216 local apply только после завершения215 и освобождения B writer window,
+reviewed SQL + root GO; A единственный applier. Сверить ledger/business/Auth counts,
+permissions/functions; scoped checks + независимый exact-head review + protected CI.
+Managed DB, provider, production release и финальный E2E сюда не входят.
+Основание SQL17: [строковые функции](https://www.postgresql.org/docs/17/functions-string.html)
+и [function signature/security](https://www.postgresql.org/docs/17/sql-createfunction.html).

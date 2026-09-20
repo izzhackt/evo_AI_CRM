@@ -69,7 +69,14 @@ test("V3 Admissions operations client imports only client-safe contracts", () =>
   );
 
   assert.match(panelSource, /@\/lib\/platform-application-contract/);
-  assert.match(panelSource, /@\/lib\/platform-case-operations-contract/);
+  // Unified workflow S4: the visa-case CRUD Card (and its
+  // PlatformCaseVisa/PLATFORM_VISA_STATUSES import from
+  // platform-case-operations-contract) is retired from this client
+  // component — it no longer needs that contract module at all. The finance
+  // stop actions it still renders come from platform-case-operations-actions
+  // (a server-action module, safe for a client component to import).
+  assert.doesNotMatch(panelSource, /@\/lib\/platform-case-operations-contract/);
+  assert.match(panelSource, /@\/lib\/platform-case-operations-actions/);
   assert.doesNotMatch(
     panelSource,
     /@\/lib\/platform-(?:admissions|case-operations)["']/,

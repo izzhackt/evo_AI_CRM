@@ -95,6 +95,8 @@ export type PlatformStudentCaseQueueRow = Readonly<{
   overdueTaskCount: number;
   overdueObligationCount: number;
   rejectedDocumentCount: number;
+  /** S3 (plan §7): full attention-flag set for this row (182's directory column); [] when absent/older row shape. */
+  attentionFlags: readonly AdmissionsAttention[];
 }>;
 
 export type PlatformStudentCaseSnapshot = PlatformStudentCaseQueueRow &
@@ -431,6 +433,18 @@ function boundedTextArray(value: unknown): readonly string[] {
   return value.map((item) => requiredText(item, 1000));
 }
 
+/**
+ * S3 (182): staff_student_case_page's new attention_flags column, NULL for
+ * every row this migration predates (access_mode='sales_summary', or a
+ * fixture/older RPC response that never populated it) or when the 'full'
+ * predicate itself found nothing to flag.
+ */
+function attentionFlagsList(value: unknown): readonly AdmissionsAttention[] {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > ADMISSIONS_ATTENTION.length) return invalidShape();
+  return value.map((item) => oneOf(item, ADMISSIONS_ATTENTION));
+}
+
 function requireAdmissionsOrganization(actor: PlatformActor): string {
   if (
     !staffCan(actor, "dashboard.read")
@@ -521,6 +535,7 @@ export function normalizePlatformStudentCaseQueueRow(
     overdueTaskCount: nonNegativeCount(value.overdue_task_count),
     overdueObligationCount: nonNegativeCount(value.overdue_obligation_count),
     rejectedDocumentCount: nonNegativeCount(value.rejected_document_count),
+    attentionFlags: attentionFlagsList(value.attention_flags),
   };
 }
 
@@ -620,7 +635,7 @@ export function normalizePlatformApplicationQueueRow(
     programDirection: optionalText(value.program_direction, 300),
     intake: optionalText(value.intake, 200),
     institutionName: requiredText(value.institution_name, 300),
-    programName: requiredText(value.program_name, 300),
+    programName: optionalText(value.program_name, 300),
     isPrimary: requiredBoolean(value.is_primary),
     universityDeadlineOn: optionalDate(value.university_deadline_on),
     country: optionalCountryCode(value.country),
@@ -650,6 +665,8 @@ export function normalizePlatformApplicationQueueRow(
     outstandingPaymentObligationCount: nonNegativeCount(
       value.outstanding_payment_obligation_count,
     ),
+    createdByMembershipId: requiredUuid(value.created_by_membership_id),
+    createdByDisplayName: optionalText(value.created_by_display_name, 200),
   };
 }
 
@@ -753,6 +770,32 @@ export async function listPlatformStudentCases(
       nextCursor,
       hasNext,
     };
+  } catch (error) {
+    return failClosed(error);
+  }
+}
+
+/**
+ * S3 (plan §7): a small, dedicated read for CaseHeader — does this case need
+ * a curator (state='pending' with sale/handoff evidence, 182's
+ * platform_private.case_sale_or_handoff_evidence) or wait for acceptance
+ * (state='active', curator set, no accepted acknowledgement)? Reuses the same
+ * platform_private.admissions_attention_flags the directory list already
+ * computes per row, via the small platform.staff_case_attention_flags_v1 RPC.
+ */
+export async function readCaseAttentionFlags(
+  actor: PlatformActor,
+  studentCaseId: string,
+): Promise<readonly AdmissionsAttention[]> {
+  try {
+    requireAdmissionsOrganization(actor);
+    const caseId = requiredUuid(studentCaseId);
+    const client = await getPlatformClient();
+    const response = await client
+      .schema("platform")
+      .rpc("staff_case_attention_flags_v1", { p_student_case_id: caseId });
+    if (response.error || !Array.isArray(response.data)) return invalidShape();
+    return attentionFlagsList(response.data);
   } catch (error) {
     return failClosed(error);
   }
@@ -863,8 +906,11 @@ export async function listPlatformApplications(
     const client = await getPlatformClient();
     const pageSize = normalizePageSize(options?.pageSize, 50);
     const cursor = options?.cursor ?? null;
+    // OTH-4: v2 adds created_by_membership_id/created_by_display_name. The
+    // old staff_application_page (118) stays live, untouched, for old app
+    // code between migration 190 applying and this release deploying.
     const response = await client.schema("platform").rpc(
-      "staff_application_page",
+      "staff_application_page_v2",
       compactPlatformAdmissionsGetRpcArguments({
         p_limit: pageSize + 1,
         p_before_updated_at: cursor?.sortAt ?? null,
@@ -913,10 +959,11 @@ export async function getPlatformApplication(
     const universityApplicationId = parsePlatformAdmissionsUuid(id);
     if (universityApplicationId === null) return null;
     const client = await getPlatformClient();
+    // OTH-4: v2 counterpart of the page switch above.
     const response = await client
       .schema("platform")
       .rpc(
-        "staff_application_snapshot",
+        "staff_application_snapshot_v2",
         { p_university_application_id: universityApplicationId },
         { get: true },
       );

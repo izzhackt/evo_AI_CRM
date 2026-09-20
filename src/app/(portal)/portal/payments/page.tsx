@@ -1,24 +1,30 @@
 import type { Metadata } from "next";
 
-import { PaymentsView } from "@/components/v3/portal/PaymentsView";
-import { PortalPage } from "@/components/v3/portal/PortalPage";
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
+
+import { PaymentsView } from "@/components/portal/admission/PaymentsView";
 import { readStudentPortalPayments } from "@/lib/v3/portal-source";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Оплата — EVO Admissions",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("admission", await getLocale());
+  return { title: `${strings.paymentsTitle} — EVO Admissions` };
+}
 
 export default async function StudentPortalPaymentsPage() {
-  const payments = await readStudentPortalPayments();
+  const [payments, locale] = await Promise.all([readStudentPortalPayments(), getLocale()]);
+  const strings = getPortalStrings("admission", locale);
 
   return (
-    <PortalPage
-      title="Оплата"
-      description="Сколько начислено, оплачено и осталось."
-    >
-      <PaymentsView payments={payments} />
-    </PortalPage>
+    <main className="pt-page">
+      <header className="pt-page-header">
+        <p className="pt-page-kicker">{strings.kicker}</p>
+        <h1 className="pt-page-title">{strings.paymentsTitle}</h1>
+        <p className="pt-page-lead">{strings.paymentsLead}</p>
+      </header>
+      <PaymentsView payments={payments} locale={locale} />
+    </main>
   );
 }

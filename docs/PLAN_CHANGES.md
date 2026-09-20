@@ -28529,3 +28529,4815 @@ Supabase CLI:178 rows, range001–178, version178 named
 platform_student_application_conflict_codes, and both new checklist RPCs absent.
 This confirms179 is the only missing change. Protected checks and independent
 exact-head review remain in place; the application release stays with Claude.
+
+### 2026-09-18 — unified workflow: план-контракт реализации
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: product pivot
+(supersedes conflicting earlier decisions). Affected plan section: new
+top-level slice «Unified workflow»; supersedes the mandatory admissions
+route/visa/arrival tracker scope, the public-application approve-into-case
+flow (177), the Docs direct student intake UI (#836) and the card-side
+Admissions handoff path, per docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md
+(owner plan; its §17 links are reference-only and were not fetched).
+
+Reason: owner's consolidated Google-Doc decisions: one person — one card; all
+inquiries flow through Продажи; the only curator handoff trigger is saving a
+sale in the report; Admissions keeps анкета/документы/вузы/пакет without
+mandatory stage, submission, visa or arrival tracking; the portal and CRM work
+on the same single case; Docs keeps its document functions but stops creating
+students directly.
+
+Decision — architecture mappings (per plan §1's integrity-not-rewrite rule):
+(1) «Кабинет до продажи» is stored as the SAME canonical chain
+client → lead → student_cases row in state='pending' with portal_activated_at
+set and no curator/direction; portal authority and portal read models accept
+pending cases; product-wise this is a card with cabinet access, not Admissions
+work. Approval of the platform анкета therefore creates/links the canonical
+lead (same create_or_link path the website and WhatsApp already use) and the
+pending case — never a curator, direction or active case.
+(2) Отклонение назначения куратором reverts the case to state='pending'
+(curator and handoff cleared — legal under student_cases_state_shape_check)
+plus an explicit needs-curator surface in «Студенты»; Admin reassigns inside
+the case via the existing assign_student_case_curator initial-assignment
+branch. Продажа, данные и файлы не трогаются.
+(3) Условия продажи live on the card in a new 1:1 lead-scoped store; «Добавить
+продажу» in the report narrows to выбор лида и куратора with a read-only
+preview, and the handoff RPC copies the card conditions into the register row.
+(4) «Маршрут» tab becomes «Вузы и программы» (the ?tab=route URL value is
+kept, label and content change): university/program/partner selection from the
+existing university_applications model without submission/visa/arrival
+tracking; the playbook stage panel, stage editor, message templates, visa-case
+CRUD and portal «Заявки и виза» screen are retired from the UI. Saved rows,
+files and history stay in the database untouched.
+(5) EVO Docs: direct student creation UI removed (migration 176 SQL and its
+data stay); the Docs section keeps search, Анкета и формы, Файлы, Пакет ZIP.
+(6) Naming/nav per plan §3: Продажи{Заявки, Inbox, Воронка, Отчёт продаж},
+Admissions{Студенты, EVO Docs, Университеты, Сводка}; «Рабочий список» →
+«Студенты»; equal Sales capabilities inside Продаж (authorization boundaries
+preserved). Документные статусы получают подписи «Не загружен / На проверке /
+Нужно исправить / Принят»; серверный enum не меняется, «Отклонён» остаётся
+пятой честной подписью.
+
+Slice order (each its own PR; release to production once at the end):
+S1 Заявки и доступ (migration 180: анкета→lead on submit, access-only
+approve, pending-portal authority, Sales-gated queue at Продажи→Заявки);
+S2 Карточка Sales и продажа в отчёте (181: lead_sales_card + narrowed
+create_sales_report_handoff, card blocks, removal of the card-side handoff
+path); S3 Принятие дела (182: declined decision → pending revert, admin
+reassign UI, directory states); S4 Admissions detracking («Вузы и
+программы»); S5 Портал одного дела (screen removal, pending-cabinet views);
+S6 Docs/наименования/Inbox↔карточка/сводка. Validation per the fast policy:
+scoped lint/tsc/build plus the pinned suites each slice touches; migration
+apply remains the owner's manual step before the final release.
+
+Validation impact: extensive pinned-test updates are expected and will be
+performed with per-assertion reasoning (navigation, handoff, portal
+applications, playbook suites). Reviewer notes: PR #830/#841 flows are
+superseded by S1; historical rows (approved applications with cases, docs-
+intake cases, playbook facts) remain valid data under relaxed constraints.
+
+## 2026-09-18 — unified workflow S1: заявки и доступ
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S1.
+Affected plan section: «S1 Заявки и доступ» (this journal, previous entry).
+
+Reason: implement the first slice of the unified-workflow pivot — a public
+platform анкета now links the same canonical client/lead Website/WhatsApp
+already use, and approval only opens a portal-activated `state='pending'`
+cabinet (no curator, no direction, no active case). The old
+approve-into-Admissions-case path from migration 177 is superseded.
+
+Decision: migration 180
+(supabase/migrations/180_platform_unified_intake_access.sql, NOT applied —
+no Supabase credentials in this environment, per the task's own instruction)
+— (a) `student_applications` gains `canonical_lead_id`; the approved-shape
+CHECK now only requires `student_case_id` (`admissions_direction` stays
+legal but optional, so historical 177-approved rows remain valid); (b)
+`student_application_configuration` gains a nullable `intake_owner_membership_id`
+(left unset — no operational process sets it yet); (c)
+`submit_student_application_v1` keeps its exact questionnaire/upsert/PT409
+contract and additionally links (or reuses) the canonical client/lead via
+`create_or_link_client`/`create_or_link_lead` when an intake owner is
+configured; (d) `decide_student_application_v1` is dropped and recreated
+with direction/curator removed entirely (`(application_id, expected_revision,
+decision, reason, request_id)`); reject is unchanged; approve provisions the
+Student membership exactly as before, ensures the canonical lead exists
+(creating it — with the approving actor's own Sales membership as owner
+only when that actor actually holds the `sales` business role, else
+ownerless — only when submit-time linking was skipped), and opens a
+`state='pending'`, portal-activated, curator-less case linked to that lead
+(`responsible_sales_membership_id` = the lead's current owner, legally
+NULL); (e)/(f) `student_cases_intake_origin_check` and
+`student_cases_state_shape_check` are relaxed so a pending public-application
+case may carry `canonical_lead_id` and `portal_activated_at`; (g)
+`platform.staff_student_application_for_lead_v1` is a new small read for the
+lead-card block, gated by the same `private.platform_can_read_canonical_lead`
+the rest of the lead card already uses. Twelve portal-predicate functions
+(login/overview/notifications plus the upload/download chain's Student
+branches) are extended from `state IN ('active','closed')` to include
+`'pending'` via self-verifying anchor-count `pg_get_functiondef`+`replace`
+patches (same pattern as migration 156/177/178); five are deliberately left
+active/closed-only with one-line reasons in the migration header
+(`student_portal_finance_v2`, the retiring `student_portal_applications_v2`/
+`visa_cases_v2`/timeline family, `student_portal_messages`, staff-only
+readers, and the staff notification-creation actor).
+
+TS/UI: `src/lib/supabase/student-portal-authority.ts` accepts
+`case_state='pending'`; `src/lib/v3/portal-source.ts`'s overview normalizer
+was checked and already tolerates a null curator (no change needed).
+`src/lib/v3/student-application-source.ts`/`student-application-contract.ts`
+add `canonicalLeadId` and narrow `decideStudentApplication` to the new
+5-argument RPC. `src/components/v3/admissions/StudentApplications.tsx` drops
+`StudentApplicationsNav` and the combined queue/detail `StudentApplications`
+component (both retired); `ApplicationDecision` loses its direction/curator
+fields and is reused, unchanged in spirit, by both the new
+`src/app/(v3)/v3/requests/page.tsx` (Продажи → «Заявки»: filter pills
+Все/Сайт/Платформа/WhatsApp over pending platform applications plus recent
+website/WhatsApp leads, via the new `src/lib/v3/requests-source.ts`) and a
+new «Доступ к платформе» card on the lead-card Overview
+(`src/components/v3/profile/tabs.tsx`, wired through
+`src/lib/v3/profile-source.ts`'s lead branch). `/v3/admissions-requests` is
+now an unconditional redirect to `/v3/requests` and left the
+`FixedRoleRoute`/capability contracts (`fixed-role-policy.ts`,
+`platform-access.ts`) in favor of the new sales.read-gated route, while
+staying in the raw page allowlist (`platform-route-contract.ts`) so old
+links still resolve. Navigation (`src/lib/v3/navigation.ts`) reorders the
+Продажи group to Заявки, Inbox, Воронка, Отчёт продаж per plan §3.
+
+Known deviations (honest, not hidden): (1) the RPC's own staff authorization
+(`student_application_staff_org`/`..._can_manage`, unchanged — department-
+bound `profile.read.full`+`profile.manage`+`case.curator.assign`) is
+independent from the new page-level `sales.read` gate; a Sales member with
+page access but no matching department permission will see /v3/requests but
+get a forbidden result from the RPC. Expanding that permission matrix is
+explicitly out of scope for S1 (plan §3: «Подробную матрицу разрешений
+сейчас не расширяем»); the operational fix is ensuring the relevant staff
+hold the review-department role via existing tooling. (2) A future Sales
+report handoff (S2) creating an active case for a lead that already has a
+pending case from this slice will hit `student_cases_one_open_case_per_
+canonical_lead_idx` (from 088) as a hard unique-constraint failure rather
+than a graceful state transition; S2 must handle "approve a lead that
+already has a pending case" explicitly. (3) `/v3/requests`' lead rows reuse
+`readAllCanonicalSalesLeads` (unbounded up to its existing 4000-row safety
+cap) filtered on the server; this is not a paginated read and is a
+reasonable target for a later optimization pass, not S1.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean), `npm run test:brand-ui` (5/5), and every pinned
+suite plus a new source-pattern suite for migration 180
+(`tests/platform-unified-intake-access-migration.test.mjs`) — 125/125 across
+tests/student-public-application, tests/platform-admissions,
+tests/v3-profile-admissions, tests/student-portal-authority,
+tests/student-portal-auth, tests/v3-navigation,
+tests/fixed-role-route-contract, tests/supabase-staff-auth, the new
+migration suite and tests/v3-supabase-integration (whose exhaustive
+`src/lib/v3/*.ts` allowlist needed the new `requests-source.ts`, plus two
+already-missing pre-existing files, added in the same small fix). A broader
+~150-file regression sweep surfaced only pre-existing, unrelated failures
+(a `react-dom/server` named-export ESM/CJS interop issue reproducing
+identically on unmodified `main`, and one already-stale CI-output fixture) —
+verified via `git stash` against the pre-slice tree, not introduced here.
+Migration 180 itself is NOT applied; no Supabase credentials exist in this
+environment, matching every prior slice's stated limitation.
+Reviewer notes: S2 (Карточка Sales и продажа в отчёте) owns sale-condition
+storage and the narrowed `create_sales_report_handoff`; S3 owns the
+declined-assignment→pending revert; S6 owns the «Рабочий список»→«Студенты»
+and «Клиентские сообщения» renames — none of those are touched here.
+
+## 2026-09-18 — unified workflow S2: карточка Sales и продажа в отчёте
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S2.
+Affected plan section: «S2 Карточка Sales и продажа в отчёте» (plan §5, §6,
+§13; PLAN_CHANGES «план-контракт реализации» and the S1 entry above).
+
+Reason: implement the owner's last edit to §6 — sale conditions (service,
+date, sum, currency, payment note) are filled on the lead card and never
+re-entered when the sale is saved into the report; the report only chooses
+an existing lead and a curator. The card-side «Передача в Admissions» bypass
+(HandoffCard) is retired, since the only curator-handoff trigger left is a
+saved Sales report.
+
+Decision: migration 181
+(supabase/migrations/181_platform_lead_sale_conditions.sql, NOT applied — no
+Supabase credentials in this environment, matching every prior slice) —
+(a) new table `platform_private.lead_sale_conditions` (one mutable,
+revision-versioned row per lead — a current-state card block, not an
+append-only log) plus its own request-id receipt table
+(`lead_sale_conditions_requests`, append-only) and validator
+`platform_private.lead_sale_condition_fields()` mirroring
+`sales_register_fields()`'s (134) money-pair/currency (USD/EUR/KGS) and
+length/control-character conventions on the card's own key set
+(service_label, signing_date, service_cost_raw/minor/currency,
+paid_raw/minor/currency, payment_note — deliberately not 1:1 with the
+register's key set); (b) `platform.save_lead_sale_conditions_v1` — upsert
+with optimistic concurrency (`p_expected_revision`, 0 for the first save)
+gated by the same scoped check the old report-create path already used
+(`staff_can_access(...,'lead.sales.workflow.manage','lead',p_lead_id)`), a
+payload-bound fingerprint (actor+lead+revision+fields) for request-id
+replay, and a standard `platform.audit_events` write (action
+`lead.sale.conditions.save`); (c) `platform.staff_lead_sale_conditions_v1`
+— a read gated by `private.platform_can_read_canonical_lead` (the same
+lead-read authority the S1 «Доступ к платформе» block already uses),
+returning the conditions plus `linked_sales_register` (id/report_month/
+archived) so the card can render its «Продажа в отчёте за <месяц>» link
+without a second round trip; (d) `platform.create_sales_report_handoff` is
+narrowed: `DROP FUNCTION` on the old 8-argument creation signature
+(org/request/fields/reason/lead/curator/email/direction) and a fresh
+`CREATE FUNCTION` with `(p_organization_id, p_request_id, p_lead_id,
+p_curator_membership_id, p_report_month DATE DEFAULT NULL)` — the
+create-new-lead branch (and its `create_manual_sales_lead` call) is dropped
+entirely, since the report always «выбирает существующего лида». Inside:
+reads `lead_sale_conditions` for the chosen lead and requires
+`service_cost_minor` present, else `sale_conditions_missing` (22023) so the
+UI can link back to the card; maps the card's fields onto the register's own
+vocabulary explicitly (`service_label`→`program`, `payment_note`→`notes`,
+money/date fields pass through) plus `applicant_name`/`phone` read from the
+canonical client and `report_month` (provided or the current Bishkek month).
+Then the S1 flag (documented as a known deviation in S1's own entry above):
+if the lead already owns a `platform.student_cases` row in `state='pending'`
+linked by `canonical_lead_id` (the cabinet case S1's access approval opened),
+that case is activated in place via
+`platform_private.assign_student_case_curator_authorized_e1` (126/177 — the
+same authorized-actor curator-assignment path 177 already reuses for an
+analogous "approve into an existing case" flow); its own COALESCE on
+`handoff_at`/`portal_activated_at` preserves the S1 approval timestamp and
+only sets `handoff_at` now. That branch never inserts into
+`platform.sales_admissions_handoffs` (that table is the OTHER path's
+evidence — U6 handing off a lead that had no case yet), so 134's own AFTER
+INSERT trigger that seeds a placeholder pipeline row never fires; the
+already fully-populated `sales_register` row is inserted directly instead.
+The other, unchanged path (no pending case) still goes through
+`platform_private.handoff_lead_to_admissions` (088/134, mode
+`'sales_report'`) exactly as 174 did, whose trigger seeds the placeholder
+row that this function then updates with the real fields. Replay semantics:
+the existing `sales_report_handoff_requests` receipt table (174, schema
+unchanged) is reused; only the fingerprint's input shape narrows from 174's
+8-value shape to `(lead, curator, report_month)` — documented in the
+migration header as a fail-closed (never silently-wrong) boundary note, not
+an operational concern since request ids are per-submission random UUIDs.
+
+TS/UI: new `src/lib/lead-sale-conditions-contract.ts` (parsing, reusing
+`platform-sales-register-contract.ts`'s UUID/date/integer/currency helpers)
+and `src/lib/v3/lead-sale-conditions-source.ts` (`readLeadSaleConditions`,
+mirroring `loadStudentApplicationForLead`'s shape). `src/lib/platform-sales-actions.ts`
+gains `saveLeadSaleConditionsAction` (gated by
+`requirePlatformMutationCapability("sales.write", "/v3/profile")`, revalidates
+only ``/v3/profile?id=${leadId}`` — never the bare `/v3/profile` the file's
+own pinned test forbids). New `src/components/v3/profile/LeadSaleConditions.tsx`
+— a Card titled «Условия продажи», useActionState/request-id/expected_revision
+conventions matching `GateActionForm`, `router.refresh()`-on-save so the
+parent's `key={`sale-conditions:${revision}`}` remounts it with fresh state
+(same pattern as `GateActionForm`), and the linked-register link
+(`/v3/main?view=sales&year=&month=&record=`) when one exists. Wired into
+`src/components/v3/profile/tabs.tsx` Overview inside the existing
+`sales && staffPresentationCan(actor,"sales.read")` block (`readOnly` in
+staff preview, matching `PlatformAccessCard`'s convention rather than hiding
+the block outright); `src/lib/v3/profile-source.ts`'s `readLeadProfile`
+fetches it only on the lead-only branch (not `fullCaseDetails`, which sets
+`saleConditions: null` — a deliberate S2 scoping: the block belongs to the
+Sales-facing card before/around the report save, not the full-case Money
+tab, which is a different concept fed from finance events). `types.ts` gains
+`ProfileDraft.saleConditions` and `ProfileSalesRequestIds.saleConditions`;
+`page.tsx` mints the new request id.
+
+Report form (`src/components/v3/SalesRegisterForms.tsx` `SalesDraft`'s
+create branch): the "new student" mode (owner/email/direction inputs,
+`studentMode` toggle) is removed entirely; only the existing-lead search UX
+survives. Selecting a lead now also fetches a read-only conditions preview
+(new `readSalesReportConditionsPreviewAction` in
+`platform-sales-register-actions.ts`, wrapping `readLeadSaleConditions`) and
+shows either the parsed fields or, when `serviceCostMinor` is null, a
+«Заполнить условия в карточке» link to the lead card (submit stays disabled
+until conditions are confirmed present). `saveSalesRegisterAction`'s create
+path now submits only `lead_id`/`curator_membership_id`/`report_month`
+(hidden, defaulting to the report page's currently viewed month) and calls
+the narrowed RPC; a new `conditions_missing` UI status (mapped from the
+RPC's `sale_conditions_missing` error) replaces the retired
+`existing_student` status. Edit/archive/restore branches are byte-for-byte
+unchanged in behavior (still `manage_sales_register_v1`, still require a
+reason).
+
+Card-side bypass removal: `HandoffCard` and its `handoffInitialState` are
+deleted from `src/components/v3/profile/ProfileSalesTransition.tsx`;
+`ProfileSalesTransition` now takes `{actor, gate, requestIds}` (no `handoff`
+prop) and renders only `GateCard`, retitled «Договор и оплата» with an added
+line («оплата — отдельный факт: сумма продажи в условиях на карточке не
+делает её автоматически оплаченной»). `ProfileHandoffAcknowledgement` (S3)
+and `ProfileSalesHandoffAcknowledgement` (the curator-response summary — a
+different, read-only feature, unrelated to the write-side handoff form) are
+untouched. `src/lib/platform-student-handoff-actions.ts` drops
+`handoffPlatformLeadToAdmissionsAction`, `parseHandoffInput`,
+`handoffFailureState`, `HANDOFF_FORM_FIELDS`,
+`PlatformLeadAdmissionsHandoffActionState` and
+`createInitialPlatformLeadAdmissionsHandoffActionState` (verified dead via
+repo-wide grep first); `platform-student-handoff.ts` (the repository layer,
+`handoffPlatformLeadToAdmissions` and its SQL RPC
+`platform.handoff_lead_to_admissions`) is left untouched, since the narrowed
+`create_sales_report_handoff`'s own "no pending case" branch still calls it
+internally.
+
+Known deviations (honest, not hidden): (1) `service_label` maps onto the
+register's `program` column — the closest existing register field to
+«услуга/пакет» — since the report no longer collects `university`/
+`program`/`direction`/`intake`/`contract_number`/`manager_label`/
+`status_raw` at creation time; those stay editable later via the unchanged
+edit branch. (2) The pending-case-activation branch does not write a
+`platform.sales_admissions_handoffs` row (that table specifically evidences
+the *other* path — a lead with no prior case), so
+`platform.staff_student_case_handoff_context`/`staff_lead_admissions_handoff`
+return nothing for these cases; their own audit trail is the
+`student_case_lifecycle_events`/`student_case_assignment_events`/
+`audit_events` rows `assign_student_case_curator_authorized_e1` already
+writes. No UI in this repo currently reads those two RPCs outside
+`src/lib/platform-student-handoff.ts` itself, so this has no observed UI
+impact, but a future S3/S4 screen relying on that context for a
+pending-case-activated case would need to source it differently. (3) The
+lead card's new «Условия продажи» block only appears in the lead-only
+Overview branch (not once a full case is loaded) — a deliberate S2 scoping
+call, not an oversight; extending it to the case view is left to a later
+slice if needed. (4) The card's «Дата продажи» is left empty by default for
+a brand-new (never-saved) conditions row rather than prefilling today's
+date; plan §6's "для новой записи допустимо предзаполнить сегодняшний день"
+is worded as permissive (допустимо), not mandatory, and an honest empty
+field matches plan §14's "no fabricated success" rule better than a
+silently-assumed date.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file including the new/updated test files (clean),
+`npm run test:brand-ui` (5/5), and the pinned suites this slice touches:
+`tests/platform-sales-actions.test.mjs` (5/5, 2 new),
+`tests/platform-sales-register.test.mjs` (6/6, 2 new),
+`tests/platform-student-handoff.test.mjs` (8/8 — 1 test deleted since its
+target function no longer exists, 2 updated), `tests/v3-supabase-integration.test.mjs`
+(10/10 — not in the task's named list but directly pinned `ProfileSalesTransition.tsx`
+content and the exhaustive `src/lib/v3/*.ts` file allowlist, so left broken
+it would have been a real regression), `tests/staff-roles-sales-handoff-migrations.test.mjs`
+(5/6 — the one failure, "staff fast path accepts only the complete exact
+added 173–175 boundary diff", reproduces identically on this branch's
+pre-slice tree via `git stash`, so it is pre-existing CI-workflow-ledger
+breakage unrelated to S2, not fixed here), plus a new migration-pattern
+suite `tests/platform-lead-sale-conditions-migration.test.mjs` (10/10,
+following 180's own template) and `tests/v3-handoff-navigation.test.mjs`.
+That last suite's regexes were updated per the task's instruction even
+though the task described it as failing in this environment from a
+react-dom/server interop issue; the actual pre-slice breakage found here was
+narrower and unrelated to react-dom/server — the test eagerly compiled a
+`src/components/v3/profile/Card.tsx` that has not existed since before this
+slice (Card has lived in `@/components/ui`), crashing at module load
+regardless of `--conditions=react-server`, reproduced via `git stash`
+against the pre-slice tree. Dropping that dead compile call as part of the
+regex update made the suite pass cleanly (3/3) under plain `node --test` in
+this environment. `tests/platform-admissions.test.mjs` (24/24) and
+`tests/v3-navigation.test.mjs` (16/16) — both unaffected, run as required by
+the task. A broader sanity sweep of every other test file referencing
+`profile-source.ts`/`tabs.tsx`/`SalesRegisterForms`/`ProfileSalesTransition`/
+the sales/handoff action files (`platform-handoff-acknowledgement`,
+`v3-profile-contract`, `v3-profile-activity`, `v3-operational-parity`,
+`v3-profile-pipeline-notes`, `v3-profile-documents`, `v3-profile-admissions`,
+`v3-student-profile-fields`, `scoped-finance-read-contract`,
+`p4-supabase-admissions-storage-legacy-cleanup`) passed 63/63 (each run
+under its own designated node flags — `v3-student-profile-fields.test.mjs`
+specifically needs plain `node --test`, not `--conditions=react-server`,
+matching its own `test:student-profile-fields` script). Migration 181 itself
+is NOT applied; no Supabase credentials exist in this environment, matching
+every prior slice's stated limitation.
+Reviewer notes: S3 (Принятие дела) owns the declined-assignment→pending
+revert and should double-check whether a case activated by this slice's
+pending-case branch needs its own acceptance-queue surface (it has no
+`sales_admissions_handoffs` row — see deviation (2) above). S4 owns «Вузы и
+программы». Historical sales_register rows (including ones created by the
+now-removed create-new-lead branch) remain valid data under unchanged
+constraints; nothing here rewrites past rows.
+
+## 2026-09-18 — unified workflow S3: передача и принятие дела
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S3.
+Affected plan section: «S3 Принятие дела» (plan §7; PLAN_CHANGES «план-контракт
+реализации», S1, S2 above).
+
+Reason: implement plan §7 — a curator sees «Ожидает принятия» and either
+«Принять дело» or «Отклонить»; declining reverts the ASSIGNMENT only (the
+sale, its data and files stay), and Admin picks another curator inside the
+same case, which the directory now surfaces as «Нужно назначить куратора».
+Also closes the S2-documented gap where `create_sales_report_handoff`'s
+pending-case-activation branch never produced `awaiting_ack` evidence.
+
+Decision: migration 182
+(supabase/migrations/182_platform_case_acceptance.sql, NOT applied — no
+Supabase credentials in this environment, matching every prior slice) —
+(a) `student_case_handoff_acknowledgements`'s decision CHECK gains
+`'declined'` (both auto-named CHECKs located and replaced via the same
+dynamic pg_constraint-lookup pattern 180 used); a decline reuses the existing
+`clarification` column as its required reason, bounded to 1-1000 chars
+(tighter than `clarification_requested`'s 1-2000, to fit the lifecycle-event
+`reason` column it is written into) — a second free-text column for the same
+fact would be a second source of truth, so the existing append-only ack table
+and its triggers are otherwise untouched, and historical accepted/
+clarification_requested rows stay valid. (b) `student_case_lifecycle_events`
+gains event_type `'declined'` (active→pending, the exact inverse of
+`'activated'`). (c) new shared predicate
+`platform_private.case_sale_or_handoff_evidence(org, case)` — true when
+either a `platform.sales_admissions_handoffs` row exists for the case OR a
+`platform_private.sales_register` row exists for its `canonical_lead_id`;
+used by BOTH signals below so they stay definitionally consistent. (d)
+`platform_private.admissions_attention_flags` (145) is widened: a `'pending'`
+case now returns `['needs_curator']` when that predicate holds (else `[]` —
+still nothing for a bare S1 «кабинет до продажи» case with no sale), and the
+existing `'awaiting_ack'` branch's own `EXISTS(sales_admissions_handoffs)`
+check is replaced by the same shared predicate — closing the S2 gap
+without touching 181's already-shipped `create_sales_report_handoff` (the
+task's own suggested smaller alternative). AWAITING-ACCEPTANCE PREDICATE
+CHOICE, documented in the migration header: `sales_register` has
+`UNIQUE(organization_id, lead_id)` and `student_cases` has
+`UNIQUE(organization_id, canonical_lead_id) WHERE state IN ('pending',
+'active')` (088), and every creation branch of `create_sales_report_handoff`
+inserts `sales_register` in the SAME transaction that activates the case —
+so a *pending* case can only carry this evidence once it has already been
+active once, i.e. only through the decline-revert this migration adds; no
+false positive against a never-handed-off historical pending case (docs-intake
+cases have no `canonical_lead_id` at all). (e) `private.respond_student_case_handoff`
+/ `platform.respond_student_case_handoff` (130, with 149's
+`is_eligible_staff_responsibility` patch folded in as the current baseline)
+are replaced whole: on a *fresh* `'declined'` response (never on a replayed
+one), after the ack row is inserted, the case is reverted — curator cleared,
+`state='pending'`, `handoff_at=NULL` — leaving `portal_activated_at` and every
+canonical/sale link (`canonical_lead_id`, `canonical_client_id`,
+`public_application_id`, `sales_register`, `sales_admissions_handoffs`)
+completely untouched (shape-legal since 180 relaxed the pending branch of
+`student_cases_state_shape_check`). The case's `record_scope` is bumped and
+its grants updated in the exact inverse of
+`assign_student_case_curator_authorized_e1`'s own `'assigned'` branch: the
+declining curator and the student are revoked, the responsible Sales owner
+regains the grant `private.platform_can_read_student_case`'s own `'pending'`
+branch already relies on, so the case is immediately visible to Sales/Admin
+again. The actor gate is UNCHANGED — still the current curator (or an
+eligible Admin acting as curator, 149) of the ACTIVE case; «Нужно уточнить»
+is untouched in spirit and code (same `clarification_requested` branch, no
+new form). (f) new RPC `platform.assign_case_curator_v1(org, request_id,
+case_id, curator_membership_id, reason)` — gate mirrors
+`platform_private.assign_student_case_curator_body`/117's own
+`private.assign_student_case_curator` exactly (`require_admin_actor` with
+`case.curator.assign`, the shared assignment-domain advisory lock, then
+`require_case_assignment_admin_locked`'s post-lock recheck), then calls
+`platform_private.replay_audit` itself FIRST (same `p_expected_after` shape
+`assign_student_case_curator_authorized_e1` uses for its own action
+`'case.curator.set'`) — a retried request after a real success would
+otherwise see the case already out of `'pending'` and fail closed on "Case
+does not need a curator assignment" instead of returning the original
+receipt; only a genuinely new request reaches the shape check. It then
+verifies the case is actually `state='pending'` AND sale/handoff-evidenced
+(the needs-curator shape, not just any pending cabinet case) before reusing
+`assign_student_case_curator_authorized_e1` — the same initial-assignment
+branch every other "approve a pending case with a curator" caller in this
+codebase already reuses (126/177/181). (g) new
+`platform.staff_case_attention_flags_v1(case_id)` — a tiny direct
+SECURITY DEFINER read (mirrors `admissions_direction_summary_v1`'s own style,
+no private wrapper), gated by `private.platform_can_read_student_case`, so
+CaseHeader can ask "does this case need a curator" without duplicating the
+predicate. (h) `platform.staff_student_case_page` (078/110, patched by
+137/149/176/177) is widened ADDITIVELY, in place, via `CREATE OR REPLACE`:
+Postgres allows appending trailing columns to an existing `RETURNS TABLE`
+this way, so — unlike 137's own patch, which changed the parameter list and
+needed `DROP FUNCTION` + re-`GRANT` — no drop or grant replay is needed here.
+`'needs_curator'` joins the `p_attention` allow-list (the WHERE clause
+filtering by it already worked for free, since it already called
+`admissions_attention_flags`); a new `attention_flags text[]` column
+(`access_mode='full'` rows only) feeds directory row badges without a second
+round trip per row. Every anchor uses dollar-quoted `replace()` arguments
+(`$a1$...$a1$` style) instead of 137/149's doubled-quote escaping, since a
+dollar-quoted literal needs no escaping for embedded SQL quotes — lower risk
+to write correctly without a live database to verify against. The new
+migration-pattern suite `tests/platform-case-acceptance-migration.test.mjs`
+pattern-matches every one of these anchors directly against the written SQL
+file (8/8 passing), which is the closest available substitute for actual
+execution in this environment.
+
+TS/UI: `src/lib/platform-handoff-acknowledgement.ts`'s `HandoffDecision`
+gains `'declined'`; `parseHandoffResponseInput`/`responseFields` require a
+reason for every non-`'accepted'` decision and bound it to 1000 chars
+specifically for `'declined'` (2000 stays for `'clarification_requested'`).
+`src/lib/v3/wording.ts`'s `handoffAcknowledgementLabel` gains a `'declined'`
+label. `src/components/v3/profile/ProfileSalesTransition.tsx`'s
+`ProfileHandoffAcknowledgement` gains a third «Отклонить» button reusing the
+EXACT SAME form/action as accept/clarify (plan §7's own constraint: no
+separate «форма запроса уточнений»/decline form) — opening it shows a quiet
+one-line confirm («Отклоняется назначение, а не студент: продажа и данные
+сохранятся.») and a required «Причина отклонения» textarea (`maxLength=1000`)
+instead of the contact-date field. `src/lib/platform-admissions-playbook-contract.ts`'s
+`ADMISSIONS_ATTENTION` gains `'needs_curator'`;
+`src/components/v3/profile/admissions-view.ts`'s `ATTENTION_LABELS` gains
+`needs_curator: "Нужно назначить куратора"` and renames `awaiting_ack` from
+"Передача ещё не принята" to plan §7's own exact phrase, «Ожидает принятия»
+(also applied to `src/components/v3/CuratorDay.tsx`'s "Мой день" metric,
+the OTHER place this same count was hand-labeled). `src/lib/platform-admissions.ts`
+gains `PlatformStudentCaseQueueRow.attentionFlags` (optional/lenient parse —
+`undefined`/`null` → `[]`, matching how `admissionsDirection`/`nextActionDueOn`
+are already handled for the single-case snapshot reader that never supplies
+these newer columns) and a new `readCaseAttentionFlags(actor, caseId)`
+repository read wrapping `staff_case_attention_flags_v1`.
+`src/lib/v3/profile-source.ts`'s `V3ProfileCaseDirectoryRow` carries
+`attentionFlags` through for the `'full'`/admin-or-curator branch; `[]` for
+both `'sales_summary'` branches (no per-row RPC call there today).
+`src/components/v3/profile/ProfileCaseDirectory.tsx` renders a
+`stateBadge()` override — a `'pending'` row with `needs_curator` shows
+«Нужно назначить куратора» (`danger` tone) instead of «Ожидает начала»
+— plus an «Ожидает принятия» pill alongside «В работе» when `awaiting_ack`
+is present; its own title («Рабочий список»/«Студенты» split by `docsMode`)
+now always reads «Студенты» (plan §3). `src/lib/v3/navigation.ts`'s
+`admissions-worklist` link label is renamed the same way (id kept for route
+stability); `tests/v3-navigation.test.mjs`/`tests/v3-operational-parity.test.mjs`
+updated to match — repo-wide `grep -rn "Рабочий список"` after the change
+returns only the two explanatory code comments left behind.
+
+New Admin-only surface: `src/lib/platform-case-curator-assignment-actions.ts`
+(`assignCaseCuratorAction`, gated the same way
+`manageCaseCoverageAction`/`platform-case-coverage-actions.ts` already gates
+`case.curator.assign` — the real RBAC permission, not the coarser
+`FixedRoleCapability` `requirePlatformMutationCapability` takes) and
+`src/components/v3/profile/AssignCaseCuratorForm.tsx` (a small client form:
+curator select + required reason, reusing the `StudentPortalCuratorOption`
+list/type `listStudentPortalActiveCurators` already provides — the "coverage
+or report form options source" the task pointed at). `CaseHeader.tsx` fetches
+`readCaseAttentionFlags` (short-circuited behind the same
+`actor.systemRole==='admin' && staffHasPermission(actor,'case.curator.assign')
+&& !isStaffPreview` gate `canLinkCoverage` already computed) and renders the
+form inline in the Куратор row instead of the «Нагрузка кураторов» link when
+the case needs one; `src/app/(v3)/v3/profile/page.tsx` passes the SAME
+`studentPortalCurators` array it already loads (its own fetch condition —
+`directory || caseState === "pending"` — already covered this exact
+scenario) plus a freshly minted `assignCuratorRequestId`.
+
+Known deviations (honest, not hidden): (1) `platform.admissions_direction_summary_v1`
+(the «Сводка по направлениям» widget) is deliberately left untouched — it has
+no `needs_curator` bucket, so a needs-curator case is invisible there (it
+never enumerates every possible attention flag, only a fixed named set the
+task did not ask this slice to extend; `tests/admissions-playbook.test.mjs`'s
+own exhaustive stock-shape assertion confirms nothing there was disturbed).
+(2) `AssignCaseCuratorForm` does not special-case an empty curator list (no
+active curators available) beyond the submit button's own
+`!curatorMembershipId` guard — no "Нет доступного куратора" message like
+`DocsCreateStudentForm`'s; a minor UX polish gap, not a functional one, left
+for a later pass. (3) `tests/platform-student-handoff.test.mjs` was checked
+per the task's own explicit list but needed NO change — it tests
+`src/lib/platform-student-handoff.ts` (the `handoff_lead_to_admissions` RPC
+wrapper), which this slice does not touch at all; it stays 8/8 and is
+reported here as verified-unaffected rather than silently skipped.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean), `npm run test:brand-ui` (5/5), and the pinned
+suites this slice touches: `tests/platform-handoff-acknowledgement.test.mjs`
+(9/9, 2 new), `tests/platform-admissions.test.mjs` (26/26, 2 new),
+`tests/v3-navigation.test.mjs` (16/16), `tests/v3-operational-parity.test.mjs`
+(3/3), `tests/platform-student-handoff.test.mjs` (8/8, unaffected — see
+deviation 3), `tests/v3-student-profile-fields.test.mjs` under plain
+`node --test` per its own designated flag (10/10), plus the new
+`tests/platform-case-acceptance-migration.test.mjs` (8/8, following
+180/181's own template). A broader sweep of every other test file
+referencing `profile-source.ts`/`ProfileCaseDirectory`/`CaseHeader`/
+`platform-admissions.ts`/`ProfileSalesTransition`/`admissions-view.ts`/
+`platform-admissions-playbook-contract.ts`/`platform-handoff-acknowledgement.ts`/
+`navigation.ts` (`admissions-playbook`, `fixed-role-settings-ui`,
+`p4-supabase-admissions-storage-legacy-cleanup`, `scoped-finance-read-contract`,
+`staff-metadata-feedback`, `staff-role-member-editor`,
+`student-portal-provisioning-ui`, `v3-admissions-support`, `v3-brand-design`,
+`v3-handoff-navigation`, `v3-profile-activity`, `v3-profile-admissions`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`)
+passed 79/81, with 2 pre-existing failures verified via `git stash` to
+reproduce identically on this branch's pre-slice tree and therefore unrelated
+to this slice: `tests/v3-handoff-navigation.test.mjs` (the same
+`react-dom/server` ESM/CJS interop crash S2's own entry already documented)
+and, newly observed here, `tests/staff-metadata-feedback.test.mjs` failing
+with the IDENTICAL `react-dom/server` interop error on a file this slice
+never touches. `tests/staff-roles-sales-handoff-migrations.test.mjs` (5/6 —
+the same pre-existing "173-175 boundary diff" failure S2's entry already
+documented, re-verified via `git stash` here) was also run per the task's own
+"grep for respond_student_case_handoff" instruction, confirming it holds no
+pins on that function. Migration 182 itself is NOT applied; no Supabase
+credentials exist in this environment, matching every prior slice's stated
+limitation.
+Reviewer notes: S4 («Вузы и программы») and later slices are untouched — no
+route/playbook/portal surfaces were touched here, per this task's own
+constraint. The `needs_curator`/`awaiting_ack` flags are additive to
+`admissions_attention_flags`'s existing return shape; a future slice reusing
+that array for a NEW purpose should keep both entries in mind rather than
+assuming the old fixed six-flag set.
+
+## 2026-09-18 — unified workflow S4: Admissions без обязательного маршрута
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S4.
+Affected plan section: «S4 Admissions без обязательного маршрута» (plan §8,
+§11, §12, §13; PLAN_CHANGES «план-контракт реализации», S1, S2, S3 above).
+
+Reason: implement plan §8's «единое дело, а не обязательный маршрут» — the
+mandatory country-route/playbook stage tracker (seven fixed stages, gated
+transitions, message templates) and the visa-case CRUD form are retired;
+«Маршрут» becomes «Вузы и программы» (university/program/partner selection,
+no submission/visa/arrival tracking); the direction summary keeps only
+counts still actually tracked (plan §12).
+
+Deleted whole files: `src/components/v3/profile/ProfileAdmissionsRoute.tsx`,
+`AdmissionsRoutePanel.tsx`, `AdmissionsRouteEditor.tsx`,
+`AdmissionsMessageTemplates.tsx`, `src/lib/platform-admissions-playbook-command.ts`,
+`src/lib/platform-admissions-playbook-actions.ts` — the whole stage-transition/
+playbook-configuration/message-template command layer, superseded by nothing
+(plan §13: this is removal, not replacement). Also deleted
+`tests/e2e/admissions.spec.ts` (497 lines): a live-browser Playwright spec
+that drove exactly this deleted UI end to end (stage transitions, the
+`data-testid="admissions-route"` panel, visa-case create/update, message
+template clipboard copy) and imported the now-deleted `AdmissionsWorkspace`
+type, hard-breaking `npm run typecheck`. It is not part of the fast unit
+suite this task's CHECKS name, this environment cannot run or validate live
+Playwright specs against Supabase anyway, and rewriting ~500 lines of E2E
+coverage for a much lighter read-only replacement feature is disproportionate
+scope for this slice — deletion (not a rewrite left broken) is the honest
+option.
+
+Decision — migration 183
+(supabase/migrations/183_platform_admissions_summary_pruning.sql, NOT
+applied — no Supabase credentials in this environment, matching every prior
+slice) replaces `platform.admissions_direction_summary_v1` (137, unchanged
+since — confirmed unmodified across 145/149/156/176/177/178/180/181/182) via
+a single `CREATE OR REPLACE FUNCTION` on the SAME 4-argument signature (no
+`DROP FUNCTION`/re-grant needed, the same in-place-amend pattern 145/182
+already used for `platform_private.admissions_attention_flags`'s own body
+rewrites). `stock` keeps only `active`/`overdue`/`awaiting_ack` (unchanged
+meaning) plus S3's `needs_curator`; dropped: `awaiting_partner`, `submitted`,
+`decisions`, `visas`, `arrivals`, `cancelled`, `arrived` and the whole
+`periodArrivals` CTE (a "closed, confirmed-arrived-this-month" metric for a
+tracker this slice retires). The per-case flag computation itself
+(`platform_private.admissions_attention_flags`) is UNTOUCHED — the
+«Студенты» directory's own `p_attention` filter chips still return the full
+flag set; only this one AGGREGATE reader narrows what it reports.
+`p_period_from`/`p_period_to` stay accepted (changing the signature would
+need `DROP FUNCTION` + re-grant for no benefit) and still validated, but are
+no longer reflected in the JSON result — no `periodFrom`/`periodTo`/
+`periodArrivals` keys; the TS side stops sending them. New migration-pattern
+suite `tests/platform-admissions-summary-migration.test.mjs` (5/5) pattern-
+matches the rewritten function body directly against the written SQL file.
+
+TS/UI: `src/lib/platform-admissions-playbook-contract.ts` is pruned to just
+`ADMISSIONS_DIRECTIONS`/`AdmissionsDirection` (still used everywhere),
+`ADMISSIONS_ATTENTION`/`AdmissionsAttention` (S3's directory attention
+flags — unrelated to the route tracker, kept whole) and a narrowed
+`AdmissionsSummary` interface (`stock` only, matching migration 183).
+Deleted entirely: `ADMISSIONS_STAGES`/`ADMISSIONS_STAGE_LABELS`,
+`AdmissionsOutcome`, `ADMISSIONS_CASE_FIELDS`/`ADMISSIONS_APPLICATION_FIELDS`/
+`ADMISSIONS_VISA_FIELDS`/`AdmissionsField`/`admissionsVisaFields`/
+`validateAdmissionsFields`, `AdmissionsPlaybook`/`AdmissionsWorkspace`/
+`AdmissionsMutationReceipt` — nothing kept uses them once the route/playbook
+UI and the visa CRUD form are gone (verified: the partner-detail read below
+needed none of this machinery). `src/lib/v3/admissions-source.ts` keeps
+exactly the four named exports the task specified
+(`AdmissionsSourceError`, `admissionsRpc`, `normalizeAdmissionsSummary`,
+`readAdmissionsSummary` — the last narrowed to `{direction,
+curatorMembershipId}`, no more period args) plus ONE new addition,
+`readApplicationPartnerDetails` (see below) — a deliberate, documented
+departure from a literal "exactly these four" reading, made because the
+alternative (a whole new `src/lib/v3/*-source.ts` adapter file) would have
+required updating `tests/v3-supabase-integration.test.mjs`'s exhaustive
+per-file allowlist for zero benefit; a Server Action still needed its own
+new `"use server"` file regardless (Next.js requirement), so only the READ
+side was added here.
+
+`CaseHeader.tsx` no longer fetches the (deleted) route workspace: `stageLabel`,
+`activeBlocker`, the «Этап» `HeaderFact` and the blocker banner are gone
+(header grid drops from 4 to 3 columns — Направление/Куратор/Следующий шаг).
+Direction now comes from `draft.admissions.direction`, a new field on
+`ProfileAdmissionsWorkspace` (types.ts) populated in
+`admissionsWorkspace()` (profile-source.ts) from
+`data.studentCase.admissionsDirection` — a column `staff_student_case_page`
+already returns (137), so this needed no new read, just threading an
+already-fetched value through. `nextAction`/`nextActionDueOn` now always use
+the `profile.nextAction`/`profile.nextActionAt` fallback the old code already
+had for a failed workspace read (that failure path is now the only path).
+
+New tab: `src/components/v3/profile/UniversityProgramsTab.tsx` replaces
+`ProfileAdmissionsRoute.tsx`, wired via a renamed `Profile.tsx` prop
+(`admissionsRoute` → `universityProgramsTab`, no test pinned the old name).
+The `TABS` key stays `"route"` (types.ts) — the `?tab=route` URL contract
+survives (`tests/v3-operational-parity.test.mjs`'s literal, `CuratorDay.tsx`'s
+link) — only the title changes to «Вузы и программы». The new tab composes
+the KEPT `ProfileAdmissionsWorkspacePanel` (applications Card — untouched
+create/details actions in `platform-admissions-actions.ts`) and the
+re-parented `PartnerPacketsPanel`, each reading and failing independently, as
+before.
+
+Status-editing removal (plan §11's product decision): `ApplicationStatusForm`
+is deleted outright (was the only caller of
+`changePlatformUniversityApplicationAction`, left untouched in
+`platform-admissions-actions.ts` since other callers may still exist — verified
+none do inside this component, and the action itself is out of this task's
+file list). `ApplicationCreateForm`'s status `<select>` is also removed — a
+newly added university/program is simply "being considered", so the same
+default it already used (`"preparation"`) is now a hidden, unedited field
+instead of a visible picker. The `university_applications.status` column,
+existing rows and `PLATFORM_APPLICATION_STATUSES` all stay; the status Pill
+next to each application (`applicationStatus(application.status)`) keeps
+showing it read-only, per the task's own allowance.
+
+Visa-case CRUD removal (plan §11): the «Виза» Card and `VisaForm` are deleted
+from `ProfileAdmissionsWorkspace.tsx`; `upsertPlatformCaseVisaAction` and its
+private helpers (`visaFailureState`, `VISA_FIELDS`,
+`PlatformCaseVisaActionState`) are deleted from
+`platform-case-operations-actions.ts` (surgical — `createPlatformFinanceStopFactorAction`/
+`resolvePlatformFinanceStopFactorAction` and their shared helpers are
+untouched, confirmed by a clean `npm run typecheck`+`eslint` afterward).
+**Scope clarification versus the task's literal file list**:
+`PLATFORM_VISA_STATUSES`/`PlatformVisaStatus`/`PlatformCaseVisa` in
+`platform-case-operations-contract.ts` are NOT deleted — investigation
+found them load-bearing well beyond the deleted form: the read-only
+`getPlatformCaseVisa`/`normalizePlatformCaseVisa` (`platform-case-operations.ts`,
+feeds `PersonProfile.visa`, already-established as "kept in the model,
+deliberately not rendered" per `tabs.tsx`'s own pre-existing comment), the
+staff visa QUEUE (`platform-admissions-workspace.ts`, an unrelated org-wide
+worklist), and the PORTAL's visa history (`portal-source.ts` — explicitly
+out of scope, "no portal changes (S5)"). Deleting the shared enum/type would
+have broken all three to satisfy a form that no longer exists; `types.ts`'s
+`ProfileAdmissionsWorkspace.visa`/`workspace.requestIds` similarly keep the
+`visa: PlatformCaseVisa | null` field (same "kept, unrendered" treatment as
+`profile.visa` — its own explanatory comment in `tabs.tsx` is updated to say
+so) while the now-pointless `requestIds.visa` UUID (pure per-render
+scaffolding, zero data-loss risk either way) is removed. Visa rows and files
+stay in the database untouched; visa files remain ordinary documents (the
+documents tab's own «Виза» group comes from document *requirements*, a
+completely separate mechanism, confirmed unaffected).
+
+**Partner-fields outcome: read-only, not editable — with a stronger reason
+than anticipated.** The task allowed either outcome depending on where the
+write allowlist lives. Investigation found the SQL-side field allowlist
+(`platform_private.admissions_field_schema`/`admissions_validate_fields`,
+137) is genuinely independent of the deleted TS command layer — so by the
+letter of the task's own test, editable looked achievable. But the SAME RPC
+family (`platform_private.admissions_related_command`, wrapped by
+`platform.update_application_admissions_details_v1`) hard-requires
+`c.admissions_playbook_version_id IS NOT NULL` ("Configure a country
+playbook first") before it will write `admissions_details` at all. That
+configuration path (`configure_case_admissions_v1`) was reachable ONLY
+through the just-deleted `AdmissionsRoutePanel` "Выбрать маршрут" editor,
+and even when it existed it was CN/MY-only (playbooks never existed for
+EUROPE/AE/TR). After this slice there is no UI left to ever set that column,
+so the write RPC would fail closed for essentially every case going
+forward — building an editable form on it would not be a narrow edge case,
+it would silently fail for the whole product. Making it genuinely usable
+would need a new SQL RPC without that gate, which the task explicitly
+forbids ("do NOT widen SQL"). Read-only is therefore the correct choice, not
+just the cautious one. New `readApplicationPartnerDetails` in
+`admissions-source.ts` re-reads the same `staff_case_admissions_workspace_v1`
+RPC the deleted editor used, scoped to four kept keys — `partnerContact`,
+`packageReference` (section «Партнёр и ссылки»), `decisionReference`,
+`offerConditions` (section «Решение университета», matching plan §11's exact
+labels). `ApplicationPartnerFacts` (`ProfileAdmissionsWorkspace.tsx`) renders
+them per application with no edit control, and renders nothing at all when
+every field is empty (the common case for any application never touched by
+the old editor). `ProfileAdmissionsWorkspacePanel` gains an optional
+`partnerDetails` prop (default `[]`); `UniversityProgramsTab` is the only
+caller that populates it — the SAME panel is also still rendered on the
+Overview tab (`tabs.tsx`, pre-existing duplication, unrelated to this slice)
+where it intentionally gets no partner facts, keeping Overview lean per
+plan principle #3.
+
+Summary panel/CuratorDay: `AdmissionsSummaryPanel.tsx` drops the "Месяц
+прибытия" period picker and its «Ждём партнёра»/«Прибыли за месяц» metrics
+entirely (nothing left to compute them from); a new «Нужно назначить
+куратора» metric (S3's `needs_curator`) takes the freed slot, both as an
+org-wide `Metric` tile and a per-direction column in the expandable report.
+`CuratorDay.tsx`'s "Мой день" metrics make the same swap. The
+`admissionsReportPeriod` calendar-month utility (`src/lib/admissions-report-period.ts`)
+is kept and still unit-tested (now in `tests/admissions-summary.test.mjs`)
+per the task's explicit instruction, even though no UI calls it any more
+after this slice — a deliberate decision (it is a generically useful, already
+correct pure function, not route/playbook-specific), not an oversight.
+
+Tests: `tests/admissions-playbook.test.mjs` is deleted; its three
+still-relevant assertions (`normalizeAdmissionsSummary`,
+`admissionsReportPeriod`, `buildPlatformStudentCasePageRpcArguments`/
+`normalizePlatformStudentCaseQueueRow`) move to new
+`tests/admissions-summary.test.mjs`, updated for the narrowed
+`AdmissionsSummary` shape. `tests/v3-profile-admissions.test.mjs`: the visa
+Card assertion (`id="visa"[\s\S]*title="Виза"`) is replaced with
+`doesNotMatch` guards; the big action/field/outcome test drops
+`upsertPlatformCaseVisaAction`/`visa_case_id`/`PLATFORM_APPLICATION_STATUSES`/
+`PLATFORM_VISA_STATUSES` assertions, adds `doesNotMatch` guards for the
+retired status-editing UI, and adds assertions for the new
+`ApplicationPartnerFacts` block (present, form-free, correctly sliced
+between `ApplicationDetailsForm` and `FinanceStopCreateForm` now that
+`VisaForm`/`ApplicationStatusForm` no longer exist as slice boundaries).
+`tests/platform-case-operations.test.mjs`: **not** what the task's own
+inventory suggested ("retire visa normalizer tests, keep finance-stop") —
+investigation found this file's visa coverage targets
+`normalizePlatformCaseVisa`, the READ path proven load-bearing above, not
+the deleted CRUD action (which this file never tested in the first place;
+that coverage lived in `v3-profile-admissions.test.mjs`, updated instead).
+The one real change needed here is the client-import-hygiene test noticing
+`ProfileAdmissionsWorkspace.tsx` no longer imports anything from
+`platform-case-operations-contract.ts` (the deleted visa import was the only
+one) — updated to assert that directly rather than leave a false pin.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched/added file (clean, zero warnings after removing one file-local
+helper — `optionalOperationText` in `platform-case-operations-actions.ts` —
+left orphaned by the visa-action deletion), `npm run test:brand-ui` (5/5),
+and the pinned suites this slice touches: `tests/v3-operational-parity.test.mjs`
+(3/3), `tests/platform-admissions.test.mjs` (unaffected, all passing),
+`tests/v3-admissions-support.test.mjs` (unaffected, all passing),
+`tests/platform-admissions-tasks.test.mjs` (unaffected, all passing),
+`tests/admissions-summary.test.mjs` (3/3, new), `tests/v3-profile-admissions.test.mjs`
+(7/7), `tests/platform-case-operations.test.mjs` (9/9, 1 updated),
+`tests/v3-supabase-integration.test.mjs` (unaffected — no new `src/lib/v3/*.ts`
+file was added, so its exhaustive allowlist needed no change), plus the new
+`tests/platform-admissions-summary-migration.test.mjs` (5/5). A broader
+sweep of every other test file referencing `profile-source.ts`/`tabs.tsx`/
+`admissions-view.ts`/`CaseHeader.tsx`/`ProfileAdmissionsWorkspace.tsx`/
+`platform-admissions.ts`/`CuratorDay.tsx`/`Profile.tsx`/`types.ts`/
+`page.tsx`/`AdmissionsSummaryPanel`/`platform-case-operations-contract`/
+`platform-admissions-playbook-contract`/`UniversityProgramsTab` (
+`p4-supabase-admissions-storage-legacy-cleanup`, `scoped-finance-read-contract`,
+`staff-metadata-feedback`, `staff-role-member-editor`,
+`student-portal-provisioning-ui`, `v3-document-recognition-jobs`,
+`v3-handoff-navigation`, `v3-navigation`, `v3-profile-activity`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`,
+`v3-student-profile-fields`) passed 74/77, with 3 pre-existing failures
+verified via `git stash` to reproduce identically on this branch's pre-slice
+tree and therefore unrelated to this slice: `tests/v3-handoff-navigation.test.mjs`
+and `tests/staff-metadata-feedback.test.mjs` (the same `react-dom/server`
+ESM/CJS interop crash S2/S3's own entries already documented) and, newly
+observed here, `tests/v3-document-recognition-jobs.test.mjs` failing with the
+IDENTICAL error on a file this slice never touches (re-verified via
+`git stash` here). `tests/v3-student-profile-fields.test.mjs` was run under
+plain `node --test` per its own designated flag (10/10). Migration 183
+itself is NOT applied; no Supabase credentials exist in this environment,
+matching every prior slice's stated limitation. Final repo-wide check —
+`rg 'AdmissionsRoutePanel|readAdmissionsWorkspace|ADMISSIONS_STAGE_LABELS|
+AdmissionsMessageTemplates|VisaForm|upsertPlatformCaseVisa' src tests` —
+returns only kept-by-design hits: one explanatory doc-comment in
+`admissions-source.ts` naming the deleted `AdmissionsRoutePanel` for
+context, and the new `doesNotMatch` test assertions in
+`v3-profile-admissions.test.mjs` that verify these symbols are gone.
+
+Reviewer notes: S5 («Портал одного дела») and S6 are untouched — no portal
+surfaces, Docs direct-intake removal or naming/Inbox↔card work happened
+here, per this task's own constraint. The visa read path
+(`getPlatformCaseVisa`/`normalizePlatformCaseVisa`/`PlatformCaseVisa`) is
+now the LAST live consumer keeping `platform-case-operations-contract.ts`'s
+visa types un-prunable from the CRM side; a future slice that also retires
+the staff visa queue and/or `PersonProfile.visa` could revisit deleting them
+then, not before. `readApplicationPartnerDetails`'s dependency on
+`staff_case_admissions_workspace_v1` (and therefore on
+`admissions_playbook_version_id` existing at all on old CN/MY cases) means
+its four facts will read as empty for any case that never had a playbook
+configured — expected and honest, not a bug: those cases never had this
+data written in the first place.
+
+## 2026-09-18 — unified workflow S5: Портал одного дела
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S5.
+Affected plan section: «S5 Портал одного дела» (plan §10, §11, §13;
+PLAN_CHANGES «план-контракт реализации», S1-S4 above).
+
+Reason: implement plan §10/§13 — the portal's old «Заявки и виза» screen
+tracked university-application and visa stages the platform no longer
+tracks as their own process, and duplicated the mandatory-stage framing the
+CRM side already dropped in S4. The portal and CRM stay one case; a
+curator-less, portal-activated `state='pending'` cabinet (S1's «кабинет до
+продажи») must render truthfully instead of inventing a stage or a curator
+that do not exist yet.
+
+Decision — no new migration. Every SQL predicate this slice depends on was
+already extended for `state='pending'` by migration 180 (S1) or never
+gated on case state to begin with; investigation (documented per deliverable
+3, not guessed) confirmed each surface below already works, so migration
+184 was not created:
+- `platform.student_portal_overview_v2()` (131, extended by 180) already
+  accepts `'pending'`; a fresh pending case gets `operational_stage`'s table
+  default (`'contract_confirmed'`, 042) with null curator, student action
+  and EVO action — exactly the shape the removed stage pill would have
+  rendered dishonestly as "договор подтверждён". Removing the pill (below)
+  makes this a non-issue rather than a value worth relabeling.
+- `platform.student_portal_finance_v2()` (127) is still active/closed-only
+  by design (180's own header); for a pending case its base `WHERE
+  student_case.state IN ('active','closed')` returns zero rows, not an
+  error — an honestly empty payments list, matching plan §6 (no sale before
+  handoff means no obligations yet).
+- Assessments (`platform_private.require_student_assessment_actor_read`,
+  135) and case-help (`platform_private.require_case_operations_actor`,
+  146/156) both gate the Student branch on `(SELECT count(*) FROM
+  platform.student_portal_cases()) <> 1`, and `student_portal_cases()` (042)
+  delegates entirely to `private.platform_can_read_student_portal_case`,
+  the exact function 180 already extended to `state IN ('pending','active',
+  'closed')`. Both English/ORVIS tests and «Вопрос куратору» therefore
+  already work for a pending cabinet with zero code changes — verified by
+  reading the SQL, not assumed.
+- Document slots (`student_portal_documents`, upload/download chain) were
+  already extended for `'pending'` by 180 itself; DocumentsView is generic
+  over the row list and needed no change.
+- The «Виза» document group the task asked to verify is not a UI grouping
+  at all — `DocumentsView.tsx` renders a flat checklist keyed by
+  `requirementLabel`/`requirementKey` from `document_requirements` data,
+  unrelated to and unaffected by this slice; visa files stay ordinary
+  documents.
+
+Screen removal: `src/app/(portal)/portal/applications/page.tsx` no longer
+reads or renders anything — investigating `src/proxy.ts` (`isConnectedPlatformPage`
+→ `isConnectedStudentPortalPage`) showed the route gate runs BEFORE Next's
+own router, so simply deleting the page and dropping `/portal/applications`
+from `STUDENT_PORTAL_PAGE_ALLOWLIST` (`src/lib/platform-route-contract.ts`)
+would produce a hidden 404 outside the portal shell, not the friendlier
+`(portal)/not-found.tsx` — confirmed by `tests/fixed-role-route-contract.test.mjs`'s
+own existing assertion that `/portal/applications` stays connected. Redirect
+(the task's own "kinder for old notification links" choice) therefore keeps
+the route in the allowlist and replaces the page body with an unconditional
+`redirect("/portal")`, the same pattern S1 used for `/v3/admissions-requests`.
+`src/components/v3/portal/ApplicationsView.tsx` is deleted outright.
+`src/components/v3/portal/PortalShell.tsx` drops the «Заявки» nav entry
+(`SECTIONS` 7 → 6 items). `src/lib/v3/portal-source.ts` drops
+`readStudentPortalApplications`, its five normalizers/helpers
+(`normalizeApplication(TimelineEntry)`, `normalizeVisa(TimelineEntry)`,
+`assertTimelineContinuity` — verified unused elsewhere first), its five
+exported types (`StudentPortalApplication(s|TimelineEntry)`,
+`StudentPortalVisa(TimelineEntry)`) and the now-dead `TIMELINE_LIMIT`
+constant and `PLATFORM_APPLICATION_STATUSES`/`PLATFORM_VISA_STATUSES`
+imports (the underlying contract files stay — still used by the CRM side's
+kept visa-read path and application-status Pill, per S4). The
+`application`/`visa` branch in `portalNotificationTarget`
+(`src/components/v3/portal/presentation.ts`) — confirmed dead in the
+briefing, since no migration ever emits those categories — is removed
+without a replacement branch; both prefixes now fall through to the same
+default `/portal` link every other unknown category already used, per the
+task's "map to /portal fallback" option. `applicationStatusPresentation`/
+`visaStatusPresentation` (presentation.ts) are deleted with it (their only
+caller was the deleted view). `wording.ts`'s `VISA_STATUS`/`visaStatus` and
+`APPLICATION_STATUS`/`applicationStatus` dictionaries are deliberately kept
+untouched — `applicationStatus` is still used by `ApplicationDeadline.tsx`/
+`ProfileAdmissionsWorkspace.tsx`/`tabs.tsx` (CRM side), and pruning the
+now-unused `visaStatus` export was judged out of scope for a screen-removal
+slice (a small, harmless, generically-named wording lookup, not a
+type/route/predicate that could mislead).
+
+Overview without the mandatory stage: the «Текущий этап» pill and its
+`overviewStage()` helper (presentation.ts) are deleted — confirmed unused
+elsewhere first (`rg overviewStage`). `OverviewView.tsx` already led with
+the next-action queue post-redesign, so removing the pill needed no other
+layout change. `STUDENT_OPERATIONAL_STAGE`/`studentOperationalStage` in
+`wording.ts` stay — still consumed by the CRM staff directory
+(`CuratorDay.tsx`, `ProfileCaseDirectory.tsx`), matching the task's own
+"keep if still consumed elsewhere" instruction.
+
+Pending-cabinet honesty — three decisions:
+(1) **Overview/curator.** `OverviewView` takes a new optional `pending`
+prop (`src/app/(portal)/portal/page.tsx` passes `actor.caseState ===
+"pending"`, from the actor `requireStudentPortalActor()` already fetches).
+When pending, the «Ваш куратор» block is retitled «Сопровождение» with the
+quiet copy «Менеджер свяжется с вами.» instead of «Куратор пока не
+назначен.» — the latter implies a curator will eventually appear on this
+case, which is false for a pre-sale cabinet (curator assignment only
+happens after a sale, per S1/S3). New `portalPendingCabinet` dictionary in
+`wording.ts` holds this and the анкета copy below, quiet and Russian per
+plan §14.
+(2) **Анкета.** Investigated the task's suggested "smallest honest
+solution" (link `/apply/status` from the overview) and found it did NOT
+actually work as stated: `studentApplicationEntryRedirect`
+(`student-signup-runtime.ts`) bounces ANY portal-authenticated actor —
+pending included, since `readVerifiedStudentPortalAuthority` already
+accepts `'pending'` per S1 — straight back to `/portal` before the page
+ever reads the application. Fixing this required a real code change, made
+narrowly inside `src/app/apply/status/page.tsx` only (not the shared
+`studentApplicationEntryRedirect` helper, which stays byte-for-byte
+unchanged and keeps its 3 existing call sites and pinned test
+(`tests/student-public-application.test.mjs`, still 15/15) untouched): when
+the shared helper says "/portal", the page now additionally reads portal
+authority itself and only redirects if the case is NOT `'pending'`; a
+pending actor stays and sees their approved анкета via the existing,
+unmodified `own_student_application_v1` RPC (keyed purely by `auth.uid()`,
+no role/state gate — verified in migration 177/180) and the existing
+`ApplicationStatus` component, whose "Открыть кабинет" button already
+returns them to `/portal` independently (`refreshStudentApplicationAction`
+doesn't use `studentApplicationEntryRedirect` at all). The overview's new
+«Ваша анкета» card (pending only) links to `/apply/status`.
+(3) **Assessments/case-help.** Left fully as-is — see the "no new
+migration" section above; both already accept `'pending'` and needed no
+quiet-empty-state fallback because there was nothing to hide behind one.
+
+Tests: `tests/v3-student-portal-ui.test.mjs` — page-file list test retitled
+"four portal pages" (the applications page file stays on disk as a redirect
+stub, so the file list itself is unchanged; only the nav-hrefs assertion
+drops one entry); the "application and visa projections overlap" reader
+test is deleted (its subject no longer exists); the "every page passes the
+direct strict E2 result" table drops the applications row and gains a
+`pending={actor.caseState === "pending"}` assertion on the overview row,
+plus a new adjacent test asserting the applications route is a bare
+`redirect("/portal")` with no reader/view imports; "views consume the exact
+E2 DTOs" drops the `ApplicationsView`/`StudentPortalApplications` entry and
+asserts the file no longer exists; "existing case portal views stay
+presentation-only" drops its «История статусов» assertion (that text only
+ever existed in the deleted Timeline disclosure); "notifications deep-link
+by category" replaces the application/visa `match` with a `doesNotMatch`
+covering both the removed branch text and the removed "Открыть заявки"
+label; "portal feedback and status markers" drops its `ApplicationsView`
+read. New: "the overview never claims a mandatory stage, and a pending
+cabinet stays honest" — structural coverage for the stage-pill removal, the
+pending curator/анкета copy, the `portalPendingCabinet` dictionary, the
+`pending` prop wiring on the overview page, and the `/apply/status`
+pending-bypass condition. `tests/v3-student-portal-source.test.mjs` drops
+the `readStudentPortalApplications` import and its two dedicated tests plus
+the now-dead `APPLICATION_ROW`/`VISA_ROW`/`VISA_CASE_ID` fixtures
+(`APPLICATION_ID` stays — it was already reused generically for unrelated
+UUID fields elsewhere in the file before this slice).
+`tests/e2e/student-portal.spec.ts`: `PORTAL_ROUTES` drops the applications
+entry (4 routes now), the "all five... routes" test retitled "all four",
+and the mobile-menu link-count assertion drops from 7 to 6.
+`src/lib/platform-route-contract.ts` gains an explanatory comment on the
+kept `/portal/applications` allowlist entry; no behavioral change, so its
+own pinned assertions (`tests/fixed-role-route-contract.test.mjs`) needed
+no edits and still pass unmodified (22/22).
+
+Known deviations (honest, not hidden): (1) the operational-stage default
+(`'contract_confirmed'`) a fresh pending case's `student_portal_overview_v2`
+row still carries is never surfaced anywhere in the portal any more (the
+pill is gone) or read by this slice's new code — it remains a CRM-only
+concern (`studentOperationalStage`/`STUDENT_OPERATIONAL_STAGE` continues to
+apply to CRM case rows that do have real progress). (2) `/apply/status`'s
+pending-bypass duplicates one `getClaims`+`readVerifiedStudentPortalAuthority`
+round trip already performed inside `studentApplicationEntryRedirect` — an
+accepted, deliberate small cost to avoid touching a 3-call-site shared
+helper and its pinned tests for a low-traffic status page. (3) `visaStatus`/
+`VISA_STATUS` in `wording.ts` are now fully unused (their only caller was
+the deleted `ApplicationsView`/`presentation.ts` pair) but were left in
+place — pruning them was judged out of this slice's scope; a future pass
+may remove them if no CRM surface ever adopts them.
+
+Validation impact: `npm run typecheck` (clean), `npx eslint` on every
+touched file (clean), `npm run test:brand-ui` (5/5), and the pinned suites
+this slice touches: `tests/v3-student-portal-ui.test.mjs` (21/21, 6 updated,
+2 new), `tests/v3-student-portal-source.test.mjs` (7/7, 2 tests removed),
+`tests/v3-admissions-support.test.mjs` (1/1, unaffected). `tests/e2e/student-portal.spec.ts`
+was updated per the task's instruction but, like every prior slice, cannot
+be executed in this environment (no live Supabase/browser). A broader
+regression sweep confirmed no collateral damage: `tests/fixed-role-route-contract.test.mjs`
+(22/22 — specifically re-verifies `/portal/applications` stays a connected
+Student Portal route), `tests/student-portal-authority.test.mjs` (6/6),
+`tests/student-portal-auth.test.mjs` (5/5), `tests/v3-navigation.test.mjs`
+(16/16), `tests/v3-supabase-integration.test.mjs` (10/10 — its exhaustive
+`src/lib/v3/*.ts` allowlist needed no change since `portal-source.ts` still
+exists), `tests/student-public-application.test.mjs` (15/15 — proves the
+`/apply/status` change didn't disturb `studentApplicationEntryRedirect`'s 3
+call sites or the shared entry-redirect contract). `tests/v3-handoff-navigation.test.mjs`
+and `tests/staff-metadata-feedback.test.mjs` fail with the same pre-existing
+`react-dom/server` ESM/CJS interop error S2/S3/S4 already documented,
+re-verified via `git stash` to reproduce identically on this branch's
+pre-slice tree — unrelated to this slice, not fixed here. Migration 184 was
+NOT created — every predicate this slice depends on already accepted
+`'pending'` (see Decision above), so `supabase/migrations/` is untouched by
+this slice. Final repo-wide sweep — `rg 'readStudentPortalApplications|ApplicationsView'`
+across the whole tree outside `docs/` — returns only the two new
+`doesNotMatch`/`existsSync(...,false)` test assertions that verify these
+symbols are gone.
+
+Reviewer notes: S6 (Docs/наименования/Inbox↔карточка/сводка) is untouched —
+no Docs direct-intake removal, naming or Inbox↔card work happened here, per
+this task's own constraint. The universities portal page/catalog is
+untouched (plan §11 keeps «Вузы и программы»/«Университеты» as a real,
+ongoing surface, not part of the retired tracker). No staff-CRM screens
+were touched (S4 already did that work); assessments privacy is untouched
+(no new read/write path, no widened predicate — the existing pending-case
+support was discovered, not built).
+
+## 2026-09-18 — unified workflow S6: Docs, наименования и связки
+
+Date: 2026-09-18. Author: Claude (Sonnet 5). Change type: scope
+implementation of the previously contracted «unified workflow» slice S6 —
+the final slice. Affected plan section: «S6 Docs и наименования» (plan §3,
+§4, §9, §12, §13, §14; PLAN_CHANGES «план-контракт реализации», S1-S5
+above).
+
+Reason: close the four remaining plan items S1-S5 deliberately left
+untouched — direct student creation via EVO Docs (plan §13, the last
+Продажи-bypass still standing after S1-S5 closed the others), the
+«Клиентские сообщения» → Inbox rename (plan §3/§14, explicitly deferred to
+S6 by S2's own reviewer note), honest five-state document status labels
+(plan §9), and a card→chat link using data the lead read already carries
+but never surfaced (plan §4/§12) — plus the DESIGN.md/EVO_LAUNCH_PLAN.md
+bookkeeping every prior slice deferred to the slice that closes the plan.
+
+### 1. Remove direct student creation via EVO Docs (plan §13)
+
+Deleted whole files: `src/components/v3/profile/DocsCreateStudentForm.tsx`,
+`src/lib/platform-docs-student-actions.ts`, `src/lib/v3/docs-student-source.ts`.
+Migration176 SQL and its data are untouched, per the task's own constraint
+(no SQL changes in this slice) and per plan §13's own rule («не удаляем
+сохранённых людей, файлы, продажи и историю»): historical docs-intake cases
+created through the old form remain valid data, same as S1's treatment of
+pre-existing approved-application cases.
+
+`src/app/(v3)/v3/profile/page.tsx`: removed the `DocsCreateStudentForm` and
+`canCreateDocsStudent`/`readDocsStudentOptions` imports, the `canAddStudent`/
+`createStudentHref` consts, the entire `?section=docs&new=student` branch
+(the dedicated "Добавить студента" screen), the "Добавить студента" Link in
+the docs-mode toolbar, and the `createStudentHref` prop passed to
+`ProfileCaseDirectory`. The toolbar `<div>` that held both the "Добавить
+студента" and "Университеты и бланки" links now renders only when the
+`catalog.import.manage` condition holds — previously it could render an
+empty flex row when neither link's condition was true; collapsing the two
+independent conditions into one removed that dead markup as a side effect,
+not a separate change.
+
+`src/components/v3/profile/ProfileCaseDirectory.tsx`: dropped the
+`createStudentHref` prop and its two consumers (the empty-state "Добавить
+студента" link is gone). The docs-mode empty-state copy — previously
+"Добавьте студента, чтобы начать работу с документами." when the caller
+had create rights, or a generic "Здесь появятся доступные вам дела
+студентов." otherwise — is now the single quiet line the task specified:
+"Студенты появляются после продажи в отчёте." for every docs-mode empty
+state, matching the non-docs branch's existing "Здесь появятся дела после
+передачи из продаж." — both branches now say the same thing about the same
+fact (plan §14 rule 1: same destination reads the same everywhere), rather
+than docs mode implying a second, Docs-only way to add a student.
+
+Verified `?section=docs&new=student` now falls through to the plain
+`ProfileCaseDirectory` render (no dead-end, no 404): the removed `if` block
+was the only special-case branch keyed off `params.new`, and the rest of
+`ProfilePart` never reads that key. `rg` sweep (`DocsCreateStudentForm|
+docs-student-source|platform-docs-student-actions|canCreateDocsStudent|
+readDocsStudentOptions|createDocsStudentAction|new=student|createStudentHref|
+canAddStudent` across the whole tree) returns only one hit, in
+`docs/EVO_LAUNCH_PLAN.md`'s existing PR #836 production-acceptance receipt
+("Entry: `/v3/profile?section=docs&new=student`.") — left untouched as an
+append-only historical record of what that release verified, per this
+file's own convention (same treatment S1-S5 gave prior release receipts).
+`tests/v3-supabase-integration.test.mjs`'s adapter-file allowlist did list
+`docs-student-source.ts` in both the full `src/lib/v3/*.ts` list and the
+`*-source.ts` subset; both arrays are updated to drop it (10/10 still
+passes — confirmed no other file in that directory was affected).
+
+### 2. Naming: «Клиентские сообщения» → «Inbox» (plan §3/§14)
+
+`src/lib/v3/navigation.ts`: both `inbox` link definitions (the Продажи-group
+entry at the old :60 and the common-section entry at the old :76) now use
+`label: "Inbox"`. Route, id and capability gate (`sales.read` on the
+Продажи-group entry) are unchanged — only the label moved, matching plan
+§14 rule 5 (clear, consistent names) and plan §3's own diagram, which
+already spells this destination "Inbox" in the target nav tree.
+
+Scope of the rename is the exact string «Клиентские сообщения», per the
+task's own instruction to find it by `rg 'Клиентские сообщения' src`. That
+sweep returned exactly the two `navigation.ts` lines (now fixed) plus two
+`docs/` hits (`PLAN_CHANGES.md`'s own S2 reviewer note and
+`docs/design/v3/team-workspace-run-plan.md`, an unrealized future-chat
+plan document) — both left as historical/planning text, not live UI.
+Deliberately NOT renamed: the inbox page's own title/heading text
+("Входящие" — `src/app/(v3)/v3/inbox/page.tsx`,
+`src/app/(v3)/v3/inbox/loading.tsx`, its `<title>` metadata, and the
+`access-denied` route-label map). "Входящие" is a different existing
+Russian word, not a match for the literal string the task asked to rename,
+and retitling the page itself would be a second, unrequested naming
+decision beyond "rename the nav label" — left as a follow-up judgment call
+for a future pass, not a deviation from this task since it was never in
+scope.
+
+`tests/v3-navigation.test.mjs`: the two label arrays that pinned
+"Клиентские сообщения" (the admissions-preview common-links assertion and
+the Продажи group's ordered `[label, href]` list) now expect "Inbox", with
+an inline comment recording the S6/plan §3 reasoning at each site.
+
+### 3. Card ↔ chat link (plan §4/§12) — implemented, no new SQL
+
+Implemented using an existing, already-fetched field that was never wired
+to the UI. `platform-sales.ts`'s `getPlatformSalesLead` (backing
+`readLeadProfile` in `profile-source.ts`) already calls
+`staff_sales_lead_detail`, whose response `linkedConversations` field
+(`PlatformSalesLinkedConversation[]`: `conversationId`, `subject`, `queue`,
+`status`, `updatedAt`) was normalized and returned but never read by any
+UI component (confirmed by `rg linkedConversation src` before this slice —
+every hit was inside `platform-sales.ts` itself). No new RPC, no new
+migration, no widened read — the smallest honest read the task asked for.
+
+`src/components/v3/profile/types.ts`: `ProfileSalesSnapshot` gains a
+`linkedConversations: readonly PlatformSalesLinkedConversation[]` field
+(type-only import from `platform-sales.ts`, the same pattern
+`Pipeline.tsx` already uses for `PlatformSalesLeadLatestNote`). Deliberately
+NOT widened via `sales.lead`'s own type (`PlatformSalesWorkflowLead`,
+structurally a narrower projection that `PlatformSalesLeadDetail` already
+satisfies at runtime) — an explicit field says what the card actually reads
+instead of relying on an accidental structural superset.
+
+`src/lib/v3/profile-source.ts`: the single construction site (inside
+`readLeadProfile`, previously `sales: { lead, gate, handoff }`) now also
+copies `linkedConversations: lead.linkedConversations` through. This is the
+ONLY site that builds a `ProfileSalesSnapshot` in the whole tree (verified
+by grep) — `readCaseProfile`'s early-return path stays `sales: null`,
+unaffected.
+
+`src/components/v3/profile/tabs.tsx` (`Overview`, the sales-branch Card):
+renders "Открыть переписку в Inbox" (or, if a lead ever carries more than
+one linked conversation, one link per conversation suffixed with its
+subject to disambiguate) using the existing `buildV3InboxHref` — previously
+consumed only inside `inbox-source.ts`, now also imported here — building
+`/v3/inbox?conversation=<id>`. Gated on
+`staffPresentationCan(actor, "messaging.read")`, the same capability
+`/v3/inbox`'s own route guard requires (`fixed-role-policy.ts`:
+`"/v3/inbox": ["messaging.read"]`) — symmetric with `v3InboxProfileHref`'s
+reverse-direction check on the inbox page, which gates the "back to
+lead/case" link on `sales.read`/`admissions.read` (the profile route's own
+requirement). An actor who cannot open Inbox never sees a link that would
+404/redirect them there.
+
+Outcome: implemented, not a deviation. The link is scoped to the lead-based
+Sales-card branch (`sales && staffPresentationCan(actor, "sales.read")`),
+matching plan §4's "Открыть переписку в Inbox, если переписка существует"
+placement inside the lead card.
+
+### 4. Document status labels (plan §9)
+
+`src/lib/v3/wording.ts`'s `DOCUMENT_SLOT_STATUS` (previously lowercase
+"требуется"/"отправлен"/"принят"/"нужно исправить"/"отклонён") becomes
+"Не загружен" / "На проверке" / "Принят" / "Нужно исправить" / "Отклонён" —
+required/submitted/approved/correction_required exactly as the task quoted
+from plan §9, capitalized to match this dictionary's only call sites, both
+inside `<Pill>`/badge components (`ProfileDocumentsClient.tsx`'s document
+row and `portal/presentation.ts`'s `documentStatus`, itself only ever
+rendered through `<PortalStatus>`, a `<Pill>` wrapper) — the same
+capitalization convention already used by this file's other Pill-only
+dictionaries (e.g. `STATE_COPY` in `ProfileCaseDirectory.tsx`: "В работе",
+"Закрыто"). `rejected` keeps "Отклонён": the plan's four-item list names
+the common path, not an exhaustive prohibition — the server enum keeps its
+fifth, honest state, per the task's own framing of this as the already-
+decided orchestrator call.
+
+`DOCUMENT_REVIEW_DECISION` is synced to the same three words
+(`correction_required` moves from "возвращён на исправление" to "нужно
+исправить", matching the slot status's wording) but stays LOWERCASE,
+deliberately not capitalized like the slot dictionary above: unlike
+`documentSlotStatus`, `documentReviewDecision` is read mid-sentence in
+`ProfileDocumentsClient.tsx` ("Документ {decision} · {date}" → "Документ
+принят · 12.09.2026"); a mid-sentence capital there would misread as a
+typo, not emphasis. Its other two call sites
+(`portal/presentation.ts`'s `documentReviewLabel`, rendered as a
+standalone `<dd>` value in `DocumentsView.tsx`) read naturally in
+lowercase too, so no second dictionary was needed.
+
+Verified no duplicated literals: `rg` for the old and new label strings
+across `src/components/v3/portal/DocumentsView.tsx` and
+`ProfileDocumentsClient.tsx` found no independent copies — both consume
+`documentSlotStatus`/`documentReviewDecision` from the single `wording.ts`
+dictionary (`portal/presentation.ts` re-exports them as
+`documentStatus`/`documentReviewLabel`, itself just a thin Pill-tone
+wrapper, not a second source of truth).
+
+`tests/v3-student-portal-ui.test.mjs`'s "the single wording module maps
+every Student status exposed by E2" test pinned both old dictionaries
+verbatim; both `Map`s are updated to the new label sets with an inline
+comment recording the capitalization split and its reasoning.
+
+### 5. DESIGN.md refresh
+
+"## Навигация отделов — утверждённый вариант 2 (2026-09-10)": added a dated
+2026-09-18 note (not a deletion — the original heading and its date stay,
+per this file's own convention of marking supersession rather than erasing
+history) pointing at plan §3 and the item list itself is updated to the
+target composition: Продажи{Заявки, Inbox, Воронка, Отчёт продаж},
+Поступление{Студенты, EVO Docs, Университеты, Сводка по направлениям}. The
+group's own Russian sidebar label stays "Поступление" — plan §3's ASCII
+diagram uses "Admissions" as a shorthand section name in the plan document
+itself, not an instruction to rename the live sidebar heading, and
+`navigation.ts`'s group id/label were already "Поступление" before this
+slice.
+
+"## Поступление: одно рабочее пространство": added a dated 2026-09-18 note
+at the top stating that the unified-workflow plan (§8/§11/§13) supersedes
+the mandatory China/Malaysia stage-by-stage tracker, submission/decision/
+visa/arrival tracking, and the seven-stage-per-country checklist described
+below it — the section body itself is left intact as historical record of
+the prior scope, per this file's append-only convention (same treatment
+this file already gave the retired `/preview/student` plan on
+2026-09-17).
+
+### 6. Sales equal capabilities (plan §3) — no code change
+
+Plan §3: "Все сотрудники Sales имеют одинаковые возможности внутри
+Продаж... Подробную матрицу разрешений сейчас не расширяем." Chosen
+interpretation, recorded here rather than in code: the split capability
+keys (`sales.read`, `sales.report.read`, `messaging.read`, etc.) stay
+exactly as they are — equal access inside Продажи is delivered by the
+shared role bundles #831 already grants every Sales member (every Sales
+membership already carries the same permission-key set), not by collapsing
+the capability keys themselves into one. The permission matrix is data
+(role-to-permission-key assignment, provisioned per organization), not
+code — changing it is an operational/role-provisioning action, not a
+slice deliverable, and plan §3's own text explicitly declines to expand
+the matrix ("не расширяем"). No file in `src/lib/fixed-role-policy.ts` or
+elsewhere changed for this item.
+
+### 7. EVO_LAUNCH_PLAN.md checkboxes
+
+`docs/EVO_LAUNCH_PLAN.md`'s "Unified workflow — active 2026-09-18" section:
+S1-S6 checkboxes marked `[x]` with one-line commit-SHA receipts (S1:
+a223bbd9/51c6c68e; S2: 2bb0e65c/e266aa78; S3: 0394c113/65172df2; S4:
+83908ef9/86aff708; S5: 99d0dfdb; S6: this change, uncommitted at authoring
+time — the orchestrator fills in the SHA once committed, per the task's own
+instruction). The final "Финальная проверка слайсов, применение миграций
+владельцем и один управляемый релиз" checkbox is left open — that step is
+the owner's manual migration-apply and release action, not part of any
+slice's code.
+
+### Known deviations (honest, not hidden)
+
+(1) The stale "Маршруты Китая и Малайзии находятся в деле студента на
+вкладке «Маршрут»." copy in `ProfileCaseDirectory.tsx`'s non-docs empty
+state — a leftover from S4 renaming that tab to «Вузы и программы» — was
+noticed while editing the adjacent line but left unfixed: it is not one of
+this slice's seven deliverables, and fixing unrelated stale copy while
+already touching this exact file risked scope creep beyond what the task
+specified. Flagged separately for a follow-up, not silently carried
+forward as if unnoticed.
+(2) The inbox page's own "Входящие" title/heading (distinct from the
+"Клиентские сообщения" string the rename targeted) was deliberately left
+alone — see item 2 above. If a future pass wants the destination to read
+"Inbox" everywhere including its own page chrome, that is a separate,
+larger-surface naming decision this task did not authorize.
+
+### Validation impact
+
+`npm run typecheck` (clean). `npx eslint` on every changed file (clean, 0
+warnings). Pinned suites the task named: `tests/v3-navigation.test.mjs`,
+`tests/v3-operational-parity.test.mjs`, `tests/v3-profile-documents.test.mjs`,
+`tests/v3-student-portal-ui.test.mjs`, `tests/v3-supabase-integration.test.mjs`
+— run together, 57/57 pass (2 tests updated in `v3-navigation.test.mjs`, 1
+Map pair updated in `v3-student-portal-ui.test.mjs`, 2 array entries
+dropped in `v3-supabase-integration.test.mjs`). `npm run test:brand-ui`
+(5/5). Broader regression sweep for collateral damage on every file this
+slice touched or that references them: `tests/v3-inbox-integration.test.mjs`,
+`tests/v3-profile-activity.test.mjs`, `tests/v3-brand-design.test.mjs`,
+`tests/v3-profile-contract.test.mjs`, `tests/v3-admissions-support.test.mjs`,
+`tests/v3-inbox-profile-link.test.mjs`, `tests/student-portal-provisioning-ui.test.mjs`,
+`tests/p4-supabase-admissions-storage-legacy-cleanup.test.mjs`,
+`tests/platform-admissions.test.mjs`, `tests/v3-profile-admissions.test.mjs`,
+`tests/v3-profile-pipeline-notes.test.mjs` (75/75 combined),
+`tests/platform-sales-read.test.mjs` (45/45, confirms `getPlatformSalesLead`/
+`PlatformSalesLeadDetail` shape is unchanged), `tests/fixed-role-route-contract.test.mjs`,
+`tests/student-portal-authority.test.mjs`, `tests/student-portal-auth.test.mjs`
+all pass. `tests/v3-handoff-navigation.test.mjs` and
+`tests/staff-metadata-feedback.test.mjs` fail with the same pre-existing
+`react-dom/server` named-export ESM/CJS interop error every prior slice
+(S2-S5) already documented — re-verified via `git stash` against this
+slice's own pre-change tree, reproducing identically, confirming it is
+unrelated to this slice. `rg` sweeps for every deleted/renamed name (see
+sections 1-2 above) return zero unexpected hits. No SQL/migration files
+touched — this slice made no database changes, per its own constraint.
+
+Reviewer notes: this is the final code slice. `docs/PLAN_CHANGES.md`'s
+own top-level "план-контракт" entry names one remaining step after S1-S6:
+"Финальная проверка слайсов, применение миграций владельцем и один
+управляемый релиз с честной квитанцией" — left open in
+`EVO_LAUNCH_PLAN.md` per item 7 above, since migration apply and release
+are the owner's manual actions, not something this or any prior slice
+performed.
+
+### 2026-09-18 — поправка к записи S6
+
+Date: 2026-09-18. Author: Fable (Claude Code). Change type: correction.
+Affected plan section: «unified workflow S6», known deviations item (1).
+The stale «Маршрут» empty-state copy in ProfileCaseDirectory.tsx, recorded
+there as left for a follow-up, was in fact fixed by the orchestrator inside
+the same commit b016b25b (the entry was written before that inline fix
+landed). No follow-up remains; the live copy reads «Вузы и программы…».
+
+### 2026-09-19 — unified workflow S7: карточные блоки, приглашение, партнёрские факты
+
+Date: 2026-09-19. Author: Fable (Claude Code). Change type: follow-up slice
+closing the three recorded partial items of the unified-workflow pivot.
+Affected plan section: «Unified workflow» (released 2026-09-19); plan §4, §5,
+§8 of docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md.
+
+Reason: the released pivot delivered «Условия продажи», but plan §5's other
+card blocks (Пожелания, Образование, Условия) remained direction-interest +
+анкета + заметки; §4's personal cabinet invite covered platform анкеты only
+(site/WhatsApp leads without an account had no path); §8's partner
+contact/link/decision facts were read-only because the sole write RPC
+required an admissions playbook binding.
+
+Decision — migration 184:
+(1) The lead card store (platform_private.lead_sale_conditions, 181) becomes
+the general card-fields store: the allowlist validator gains the Пожелания
+(countries, study fields, education level, intake year/season, universities
+of interest), Образование (current education, grade/course, grades, english
+level, certificates) and Условия (budget minor+currency+period, scholarship,
+constraints note) key families with the same shape/length/currency rules;
+save/read RPCs unchanged in signature (fields payload widens). UI: three
+quiet collapsible card blocks beside «Условия продажи», progressive fill per
+§5 («заполняем постепенно»).
+(2) platform.prepare_lead_cabinet_v1: for a lead without a linked account it
+creates the same canonical pending, portal-activated, curator-less case the
+анкета approval creates (S1 shape), gated like the lead sales workflow
+writes; the existing case-bound invite provisioning then issues the personal
+invite. If the dispatch surface stays admin-gated after inspection, that is
+recorded as the standing gate, not silently widened.
+(3) platform.update_application_partner_details_v1: writes exactly the
+partner/decision fact keys (partner contact, external link, decision
+reference, decision note) on university_applications.admissions_details with
+optimistic concurrency and replay, gated by the same application-manage case
+scope as the kept application CRUD — no playbook binding required. The S4
+read-only block becomes an editable form.
+
+Validation impact: scoped lint/tsc/build + touched suites + a full local
+test:database:migration-boundaries run via OrbStack BEFORE push, and an
+explicit audit of scripts/evo-production-browser-smoke.mjs anchors against
+the changed UI (both lessons from the 2026-09-19 release). Release follows
+the standard owner-migration + managed-release path.
+
+### 2026-09-19 — unified workflow S7 implementation: карточные блоки, приглашение, партнёрские факты
+
+Date: 2026-09-19. Author: Claude (Sonnet 5). Change type: implementation of
+the previously contracted S7 follow-up slice (this journal, previous entry).
+Affected plan section: «unified workflow S7» (previous entry); plan §4, §5,
+§8 of docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md.
+
+Decision — migration 184
+(supabase/migrations/184_platform_card_fields_and_partner_details.sql, NOT
+applied in this environment — no Supabase credentials, matching every prior
+slice — but validated end to end against a disposable OrbStack Postgres via
+`npm run test:database:migration-boundaries`, see Validation impact below):
+
+(a) `platform_private.lead_sale_condition_fields()` (181) widens from 9 keys
+to 26 across four card-block families — Пожелания (wishes_countries,
+wishes_study_fields, wishes_education_level, wishes_intake_year,
+wishes_intake_season, wishes_universities), Образование (education_current,
+education_grade, education_marks, education_english,
+education_certificates) and Условия (conditions_budget_raw/minor/currency,
+conditions_budget_period, conditions_scholarship, conditions_note) join the
+original service_label/signing_date/service_cost_*/paid_*/payment_note set.
+Same 181 conventions: control-character guard, per-key bounded lengths,
+USD/EUR/KGS money pairs (now three: service_cost, paid, conditions_budget).
+Every 181 key stays legal, and the function still accepts a payload
+containing only a subset of the 26 keys (any absent key normalizes to
+blank/NULL) — a historical row saved before this migration remains valid
+input. `platform.save_lead_sale_conditions_v1` (181) is byte-for-byte
+unchanged: same signature, same full-row-replace semantics. This turned out
+to require ALSO touching `platform_private.lead_sale_conditions_row` and
+`platform.staff_lead_sale_conditions_v1` (both same-signature `CREATE OR
+REPLACE`, not in the task's literal three-part list, but a direct,
+unavoidable consequence of (a)): without it, a historical row or a
+never-saved lead would read back missing the 17 new keys, breaking the TS
+contract's exact-key parser. Both now reuse the validator itself as a
+defaults source (`lead_sale_condition_fields('{}')` already returns a full
+26-key object) instead of hand-listing 26 keys twice. Because the row is
+replaced whole (never merged) on every save, each of the four UI card blocks
+submits the FULL 26-key set on its own independent submit — its own edited
+slice as visible fields, the other three blocks' current, unedited values as
+hidden passthrough fields (`src/components/v3/profile/LeadCardFieldsForm.tsx`'s
+`allFieldValues()`/`HiddenPassthrough`). Each block also got its OWN
+server-minted request id (`wishesCard`/`educationCard`/`conditionsCard` in
+`ProfileSalesRequestIds`, distinct from `saleConditions`) rather than sharing
+one: sharing would let a same-user, same-instant double-submit across two
+blocks reuse an already-consumed request id before the post-save
+`router.refresh()` remounts every block with fresh state — a real, narrow
+race the task didn't call out but the existing `lead_sale_conditions_requests`
+fingerprint-replay mechanism (181, unchanged) would otherwise surface as a
+confusing "request already used" error for a legitimate second edit.
+
+(b) `platform.prepare_lead_cabinet_v1(p_organization_id, p_request_id,
+p_lead_id)`: gated by `platform_private.staff_can_access(...,
+'lead.sales.workflow.manage','lead',p_lead_id)`, the same scoped permission
+every other lead-sales-workflow write already uses. Refuses with a named
+error (`lead_cabinet_case_exists`, PT409) when the lead already owns a
+pending/active case, and (`lead_cabinet_membership_exists`, PT409) when an
+active Student membership already exists for a profile whose `auth.users`
+email matches the lead's client email — "one person, one card" (plan §1).
+Creates the case in the exact S1 shape (`state='pending'`, curator NULL,
+`canonical_lead_id` set, `responsible_sales_membership_id` = the lead's
+current owner, legally NULL for an ownerless lead exactly as 180 already
+allows) via the generic `platform_private.replay_audit` +
+`platform.audit_events` idiom (118/126/137's style, not 181's own dedicated
+receipt-table style, since this needed no new schema). Extended
+`student_cases_intake_origin_check` with a fourth disjunct for the new
+`'lead-cabinet:'||lead_id` source-key shape (`student_membership_id IS
+NULL`, since no account exists yet) — every existing disjunct from 180 stays
+byte-for-byte legal.
+
+**Deliberate, documented departure from the literal S7 contract wording**
+("portal_activated_at=now"): investigation of migration 126 (case-bound
+invite provisioning) found that setting `portal_activated_at` at prepare
+time is impossible without ALSO having a Student membership already bound —
+`student_cases_portal_membership_shape_check` (088, untouched) requires it,
+and a site/WhatsApp lead has no account yet at prepare time (unlike the S1
+анкета flow, where the applicant already has a confirmed `auth.users` row
+and freshly-provisioned membership BEFORE the case INSERT). `prepare_lead_cabinet_v1`
+therefore only prepares the case — `portal_activated_at` stays NULL, deferred
+to whenever an account actually gets bound.
+
+**Invite-gate outcome (the task's own required decision, made explicit, not
+hidden):** migration 126 defines exactly two case shapes for its
+admin-gated invite provisioning — `normal_u6` (an ACTIVE case with a curator
+already assigned) and `legacy_pending` (a PENDING, curator-less case at
+prepare time, but `finalize_student_portal_authority`'s own
+`continuing_legacy_activation` branch assigns the supplied
+`legacy_curator_membership_id` as the case's curator AND flips the case to
+`state='active'` the instant the invite is accepted). Reusing
+`legacy_pending` for a cabinet-prepared case would therefore silently assign
+a curator and hand the case to Admissions on invite acceptance — exactly
+what plan §4 forbids ("Одобрение анкеты или доступа не создаёт передачу в
+Admissions и не назначает куратора"). Neither shape fits "stays pending,
+curator-less, until a real Sales report handoff" (S2's
+`create_sales_report_handoff` is already the correct, existing trigger for
+that transition). Dispatch is admin-gated today
+(`platform_private.require_admin_actor` inside
+`prepare_student_portal_provisioning`) and that gate is correctly kept, but
+wiring `StudentPortalAccessCard` against a cabinet-prepared case would need
+a THIRD 126 case shape that does not exist — a schema/trigger change to a
+different migration's domain, out of scope here, left as a follow-up. The
+UI (`PrepareLeadCabinetAction.tsx`) therefore only creates the case and
+shows the case link plus the quiet line «Приглашение отправляет
+администратор из дела» — honest about both facts (admin-gated, AND not yet
+wired for this specific case shape), never a fabricated capability.
+
+Added beyond the task's literal three-part list, same narrow necessity as
+S4's own `readApplicationPartnerDetails` departure: `platform.
+staff_lead_cabinet_case_v1(p_organization_id, p_lead_id)` — a STABLE read
+gated identically to `staff_lead_sale_conditions_v1` (181), returning the
+lead's linked case (any state) or NULL. Without it the «Подготовить
+кабинет» button could never learn a cabinet already exists after a page
+reload — a lead-cabinet case has no `student_applications` row (site/WhatsApp
+leads never filled an анкета), so the existing
+`staff_student_application_for_lead_v1` read (S1) stays NULL forever for
+this population, and plan §4's "для уже открытого доступа показываем «Доступ
+открыт», а не повторное одобрение" applies here just as much as to the
+анкета path.
+
+(c) `platform.update_application_partner_details_v1(p_organization_id,
+p_request_id, p_student_case_id, p_university_application_id,
+p_expected_version, p_fields)`: allowlists exactly four NEW keys —
+`partner_contact`, `external_link` (`^https://[^\s<>"]{1,1990}$` shape
+check), `decision_reference`, `decision_note` — merged (`||`, preserving
+every other existing key) into `university_applications.admissions_details`,
+with optimistic concurrency and `replay_audit`-based request-id replay.
+Gated by `platform_private.require_domain_actor(...,'application.manage')`
+(cheap preliminary check) THEN `platform_private.require_case_operator(...,
+'application.manage')` on the application's OWN `student_case_id` — the
+exact double-check pattern `private.platform_update_university_application_details`
+(118) already uses for the kept "details" CRUD action, the strongest of the
+two kept application-CRUD SQL gates. NO `admissions_playbook_version_id`
+requirement — closing the exact gap S4's own entry identified.
+
+Deliberately NEW key names (snake_case), not the retired playbook editor's
+camelCase `partnerContact`/`packageReference`/`decisionReference`/
+`offerConditions`: an independent vocabulary that coexists in the same JSONB
+column via the merge, with no risk of silently reinterpreting historical
+playbook-era data under new semantics. **Known, narrow limitation, not
+fixed here, out of scope:** the pre-existing `admissions_guard_related`
+trigger (137) only skips its own `admissions_field_schema` validation when
+`admissions_playbook_version_id IS NULL` — true for every case going
+forward since S4 removed the only UI that could ever set it. For the small
+remaining population of ACTIVE, still playbook-bound legacy CN/MY cases,
+that trigger's `admissions_validate_fields` call requires every key present
+in the merged `admissions_details` to appear in `admissions_field_schema`
+with a non-empty value; our four new, often-blank, schema-unlisted keys do
+not qualify, so a write through this RPC fails closed there. Widening 137's
+own global field-schema/trigger semantics for optional, sparsely-filled keys
+is a different migration's contract and is left as a follow-up — the same
+population S4's own entry already flagged as an edge case, not a new gap
+this slice introduces.
+
+TS/UI: `src/lib/lead-sale-conditions-contract.ts` widens `LeadSaleConditions`
+and `parseLeadSaleConditions` to the 26 keys (exact-key parser, so migration
+184's `staff_lead_sale_conditions_v1` shape and this parser must — and do —
+match exactly). `src/lib/platform-sales-actions.ts`'s
+`saveLeadSaleConditionsAction` widens `SALE_CONDITIONS_FORM_FIELDS` and its
+validation loops to the 26 keys (unchanged gate/RPC/error-mapping) and gains
+`prepareLeadCabinetAction` (new, narrow: `lead_id`+`request_id` only, calls
+`prepare_lead_cabinet_v1`, maps PT409→"conflict", revalidates
+`` /v3/profile?id=${leadId} ``). New `src/lib/v3/lead-cabinet-source.ts`
+(`readLeadCabinetCase`, mirroring `lead-sale-conditions-source.ts`'s
+conventions) — added to `tests/v3-supabase-integration.test.mjs`'s
+exhaustive `src/lib/v3/*.ts` allowlist (both the full file list and the
+`-source.ts` adapter sublist), matching S1's precedent for `requests-source.ts`.
+New `src/components/v3/profile/LeadCardFieldsForm.tsx` (shared plumbing:
+`allFieldValues`, `useCardFieldsAction`, `HiddenPassthrough`, `StatusRow`,
+`SimpleFieldsCard` — used by the exported `LeadWishesCard`/`LeadEducationCard`;
+`LeadConditionsCard` is a bespoke sibling for the money+period fields) and
+`src/components/v3/profile/PrepareLeadCabinetAction.tsx`. `tabs.tsx`:
+`PlatformAccessCard` gains `leadId`/`leadCabinetCase`/`prepareRequestId`
+props and a third branch (anketa null + no cabinet case → `PrepareLeadCabinetAction`);
+the three new card blocks render beside `LeadSaleConditions` inside the
+existing `draft.saleConditions ?` guard, each keyed by
+`` `<name>:${draft.saleConditions.revision}` `` so any block's save remounts
+every block with fresh data (same pattern `LeadSaleConditions` already
+documents). `src/lib/v3/profile-source.ts`'s `readLeadProfile` fetches
+`leadCabinetCase` on the lead-only branch only (`fullCase ? null : ...`,
+matching `saleConditions`'s own scoping) and `admissionsWorkspace()` mints a
+new `requestIds.partnerDetails` per-application map.
+`src/lib/v3/admissions-source.ts`'s `readApplicationPartnerDetails` keeps
+its read path (same `staff_case_admissions_workspace_v1` RPC, per the task's
+own instruction) but now decodes the new snake_case keys plus `version`
+(needed for the new form's optimistic concurrency) instead of the retired
+camelCase ones. `src/lib/platform-admissions-actions.ts` gains
+`updateApplicationPartnerDetailsAction` (same `application.manage` gate,
+`applicationText`/`applicationFailureState` conventions as the kept CRUD
+actions, plus a client-side `HTTPS_LINK_PATTERN` mirroring the SQL check).
+`ProfileAdmissionsWorkspace.tsx`'s `ApplicationPartnerFacts` becomes a form
+when `canWriteApplications`, a plain read-only fact list otherwise (matching
+every other write control on that panel) — the call site now keys it by
+`` `partner-${id}-${version}` `` so a save remounts it with the fresh
+version, matching `ApplicationDetailsForm`'s own pattern.
+
+Validation impact: `npm run typecheck` (clean, exit 0), `npx eslint` on
+every touched/added file (clean, exit 0), `npm run test:brand-ui` (5/5), the
+new migration-pattern suite `tests/platform-card-fields-migration.test.mjs`
+(14/14, following 181/180's own template) plus extensions to
+`tests/platform-sales-actions.test.mjs` (7/7, 2 new) and
+`tests/v3-profile-admissions.test.mjs` (7/7, rewritten for the new editable
+form) and `tests/v3-supabase-integration.test.mjs` (10/10, allowlist
+updated), all under `node --conditions=react-server --experimental-strip-types --test`.
+A broader sweep of every other test file referencing `tabs.tsx`/
+`profile-source.ts`/`ProfileAdmissionsWorkspace.tsx`/`types.ts`/
+`platform-admissions-actions.ts`/`platform-sales-actions.ts`/`page.tsx`/
+`LeadSaleConditions.tsx`/`lead-sale-conditions-contract.ts`/
+`admissions-source.ts` (`admissions-summary`, `p4-supabase-admissions-storage-legacy-cleanup`,
+`platform-admissions`, `platform-case-operations`, `scoped-finance-read-contract`,
+`student-portal-provisioning-ui`, `v3-admissions-support`,
+`v3-handoff-navigation`, `v3-operational-parity`, `v3-profile-activity`,
+`v3-profile-contract`, `v3-profile-documents`, `v3-profile-pipeline-notes`)
+passed 84/85, with the one failure —
+`tests/v3-handoff-navigation.test.mjs` — verified pre-existing and unrelated:
+`git status`/`git stash` show this file untouched by this slice, and it
+fails at module load (`SyntaxError: Named export 'renderToStaticMarkup' not
+found` from a CJS/ESM `react-dom/server` interop issue) before any of its
+own assertions run — the identical, previously-documented environment issue
+S2/S3/S4's own entries already recorded. `tests/v3-student-profile-fields.test.mjs`
+was run under plain `node --test` per its own designated flag (10/10).
+
+Full local boundary run (mandatory before finishing, per the task's own
+instruction): `npm run test:database:migration-boundaries` against a
+disposable OrbStack Postgres container — every migration 001-184 applied in
+order plus the full interleaved `supabase/tests/*.sql` RLS/authorization
+suite, ending in `authorization_policies.sql`/`authorization_inventory.sql`.
+**Exit code 0** on the first run (no fix-and-rerun cycle needed); the final
+inventory listing confirms all three new functions
+(`prepare_lead_cabinet_v1`, `staff_lead_cabinet_case_v1`,
+`update_application_partner_details_v1`) registered with `search_path=""`
+alongside every other platform function, and the run's closing line reads
+"Verified disposable authorization database with
+public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d…".
+
+Smoke audit (mandatory, plan's own lesson from the 2026-09-19 release):
+`rg "getByTestId|getByText|getByRole" scripts/evo-production-browser-smoke.mjs
+tests/production-browser-smoke.test.mjs` against every anchor near the
+changed files found exactly one relevant hit,
+`getByTestId("v3-universities-programs")` (the outer wrapper `<div>` in
+`UniversityProgramsTab.tsx`) — its `data-testid` was not touched; the new
+`ApplicationPartnerFacts` form and the three new lead-card blocks are purely
+additive content nested well inside already-stable containers. Smoke
+anchors unaffected.
+
+Reviewer notes: (a)'s "each block submits the full 26-key set" design is a
+direct consequence of NOT touching `save_lead_sale_conditions_v1`'s
+full-row-replace semantics, per the task's own narrow scope for part (a); a
+future slice wanting a true partial-merge save (so a block's own submit
+touches only its own keys server-side) would need to revisit that RPC's
+UPDATE, not just the validator. (b)'s invite-dispatch gap (no third 126 case
+shape for a permanently curator-less, portal-eligible case) is real, open
+follow-up work — flagged in both the migration header and here, not solved
+by this slice, per its own explicit scope boundary ("do not widen auth
+surfaces silently"). (c)'s playbook-bound-legacy-case limitation affects
+only cases that both (i) still carry `admissions_playbook_version_id` and
+(ii) are `state='active'` — a shrinking, already-frozen population since S4;
+`readApplicationPartnerDetails`'s own S4-era comment about empty facts for
+never-configured cases stays accurate unchanged.
+
+### 2026-09-19 — unified workflow S8: выдача приглашения для кабинетных дел
+
+Date: 2026-09-19. Author: Fable (Claude Code). Change type: final gap of the
+unified-workflow plan (§4 «выдаём персональное приглашение» for site/WhatsApp
+leads). Affected plan section: «Unified workflow» / S7 follow-up.
+
+Reason: prepare_lead_cabinet_v1 (184) creates the cabinet case, but the 126
+invite family knows only normal_u6 (active+curator) and legacy_pending
+(nominates a curator at prepare and, on acceptance, assigns it and flips the
+case active) — dispatching an invite for a curator-less cabinet case is
+impossible without corrupting business state, and the whole family is
+admin-only through staff_system_only permissions that a Sales bundle can
+never hold.
+
+Decision — migration 185: a third case shape `cabinet_pending` in the
+provisioning receipts (no curator ever: legacy_curator_membership_id IS NULL;
+prepare requires the genuine cabinet origin — source_key 'lead-cabinet:%',
+canonical_lead_id present, pending/no-curator/no-portal-activation).
+Acceptance binds the auth user/membership to the case exactly as normal_u6
+does and sets ONLY portal_activated_at — state stays 'pending' with no
+curator until a real sale assigns one (plan §4: одобрение доступа не создаёт
+передачу и не назначает куратора). Authority for cabinet_pending receipts:
+admin, OR sales authorized via staff_can_access(...,
+'lead.sales.workflow.manage', lead) on the receipt's linked lead — the same
+resource-scoped SECURITY DEFINER pattern 180's decide and 184's prepare
+already use (cited precedent); admin-only paths for the two existing shapes
+are untouched, and every receipt-lifecycle assertion call site is repointed
+consistently (the largest diff surface, per the spec). TS: the caseShape
+union and actions gating grow the third literal; StudentPortalAccessCard
+becomes a real three-way discriminator so a cabinet case never renders the
+legacy curator picker, with accurate non-admin copy. No email machinery
+changes (Supabase Auth invite runs under the service-role client regardless
+of the triggering role).
+
+Validation impact: scoped suites + the S8 migration-pattern suite + a full
+local test:database:migration-boundaries run before push + smoke-anchor
+audit. Release via the standard owner-migration path. The two remaining S7
+cosmetic follow-ups (full-row card save vs partial merge; playbook-bound
+legacy partner-details fail-closed) stay documented and out of this slice.
+
+### 2026-09-19 — unified workflow S8 implementation: выдача приглашения для кабинетных дел
+
+Date: 2026-09-19. Author: Claude (Sonnet 5). Change type: implementation of
+the previously contracted S8 slice (this journal, previous entry) — the
+final documented gap of the unified-workflow plan. Affected plan section:
+«unified workflow S8» (previous entry); plan §4 of
+docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md.
+
+Decision — migration 185
+(supabase/migrations/185_platform_cabinet_invites.sql, NOT applied in this
+environment — no Supabase credentials, matching every prior slice — but
+validated end to end against a disposable OrbStack/Docker Postgres via
+`npm run test:database:migration-boundaries`, see Validation impact below):
+
+**Critical discovery before writing a single line:** migration 126's own
+`prepare_student_portal_provisioning` and `finalize_student_portal_authority`
+are NOT what 126's source file shows on disk — migrations 149
+(`is_eligible_staff_responsibility`) and 157 (scoped-staff-roles
+restructuring) already patched their LIVE bodies in place via the
+established `pg_get_functiondef` + exact-anchor + `EXECUTE` technique
+(the same idiom 137/156/176/177/180/181/182 use). 185 reconstructed the
+current live bodies by mechanically replaying every prior anchor/replacement
+pair (verified byte-for-byte against 149's and 157's own recorded DO blocks,
+via a scratch Python script, not by eye) before writing its OWN new anchors
+against THAT reconstruction — never a bare `CREATE OR REPLACE` with a
+hand-copied 126 body, which would have silently regressed both prior
+patches. `platform.authorize_student_portal_invite_reissue` and
+`platform_private.assert_student_portal_receipt_admin_e1` were confirmed
+untouched by any prior migration's DO block (grepped across every migration
+file) — the former is therefore a plain `CREATE OR REPLACE` below (safe,
+zero drift risk), and the latter (157's own `CREATE OR REPLACE` version) is
+left completely alone and simply CALLED by the new wrapper.
+
+(a) `case_shape`/`required_permission_keys`/`student_portal_receipts_shape_check`
+CHECKs widen to a third value, `'cabinet_pending'`. The first two are
+UNNAMED column-level CHECKs auto-named by Postgres — rather than guess the
+truncated auto-generated name, 185 discovers the real `conname` dynamically
+via `pg_constraint`/`pg_get_constraintdef` LIKE-matching (182's own
+`DO $ack_decision_shape$` idiom for exactly this situation), RAISEs on a
+missed match, then drops and re-adds under an explicit, readable name
+(`student_portal_receipts_case_shape_check`,
+`student_portal_receipts_permission_keys_check`). `required_permission_keys`
+for `cabinet_pending` is `ARRAY['lead.sales.workflow.manage']` ONLY —
+deliberately NOT `membership.provision`/`scope.manage` (`staff_system_only`
+= TRUE, 155:30/323 — a Sales bundle can never hold them; the SECURITY
+DEFINER body performs those effects itself). Every historical `normal_u6`/
+`legacy_pending` row stays legal under all three widened CHECKs.
+
+(b) Four new `platform_private` functions, one authority predicate reused
+everywhere it's needed (the task's own "pick ONE approach, apply it
+consistently" instruction): `resolve_student_portal_cabinet_lead_e1`
+(genuine-origin check: `source_key LIKE 'lead-cabinet:%' AND
+canonical_lead_id IS NOT NULL`); `require_student_portal_cabinet_actor_e1`
+(LIVE-session check via `current_actor_authority()`, admin-or-sales +
+`staff_can_access(...,'lead.sales.workflow.manage','lead',...)` — 180/184's
+own resource-scoped-permission-on-a-non-admin-actor precedent, cited in
+comments); `assert_student_portal_cabinet_membership_e1` (the STORED-
+membership variant — no live session at finalize time, service-role only —
+re-checks a specific `membership_id` via `staff_membership_identity`);
+`assert_student_portal_receipt_authority_e1` (the repointed assertion:
+`normal_u6`/`legacy_pending` `PERFORM assert_student_portal_receipt_admin_e1(...)
+; RETURN` — a pure delegate, byte-identical behavior; `cabinet_pending`
+re-resolves the lead from `receipt.student_case_id` EVERY call, live
+re-authorization, fail closed).
+
+**Assert approach chosen (the task's explicit either/or):** a NEW function,
+not an in-place branch of `assert_student_portal_receipt_admin_e1` — this
+keeps 157's own live definition completely untouched and reused, rather than
+re-implementing its bundle/scope re-verification logic a second time.
+
+**Family audit (every function in the receipt lifecycle, individually
+checked, not assumed):** `prepare_student_portal_provisioning` — TOUCHED
+(c, below). `claim_student_portal_invite`,
+`claim_student_portal_invite_reissue`, `record_student_portal_invite_success`,
+`record_student_portal_invite_failure`/`_unknown`,
+`reconcile_student_portal_invite` — NOT TOUCHED; all six are
+`GRANT ... TO service_role` only (no live actor, no `case_shape` reference
+anywhere in their bodies — read in full, not skimmed) and operate purely on
+receipt/attempt state. `finalize_student_portal_authority` — TOUCHED (d,
+below). One function ended up touched BEYOND the task's literal eight-name
+list, flagged as a deviation: `authorize_student_portal_invite_reissue` (e,
+below) — its `FOREACH ... require_admin_actor` loop hard-fails any
+non-admin regardless of which permission key is checked (155:810-819
+requires `system_role='admin'` before even inspecting the key), so without
+branching it, reissuing an invite for a `cabinet_pending` case would be
+silently admin-only — directly contradicting the slice's entire point
+(Sales must operate the cabinet case they prepared, not just its first
+dispatch).
+
+(c) `prepare_student_portal_provisioning`'s `cabinet_pending` branch:
+curator-required guard extended (`p_legacy_curator_membership_id` must be
+NULL, like `normal_u6`); `required_permissions` CASE gains a
+`cabinet_pending` arm; BOTH the pre-lock preflight and the post-lock repeat
+(the function's existing two-phase authority pattern) branch to the live
+actor check instead of `require_admin_actor`'s loop; a third
+shape-validation `ELSIF` verifies genuine cabinet origin
+(`source_key LIKE 'lead-cabinet:%'`, `canonical_lead_id` set AND matching
+the resolved lead, `pending`/no-curator/no-handoff/no-portal-activation/
+not-closed). The `normal_u6`/`legacy_pending` arms are reproduced
+byte-for-byte from the CURRENT (149+157-patched) live body inside their own
+untouched branches — verified by the anchor match itself (a drift there
+fails the whole migration closed, not silently).
+
+(d) `finalize_student_portal_authority`: its one call to
+`assert_student_portal_receipt_admin_e1` is repointed to
+`assert_student_portal_receipt_authority_e1`; a third state-shape branch
+mirrors `normal_u6`'s own condition (`pending`/curator IS NULL instead of
+`active`/curator IS NOT NULL); a third activation branch binds membership/
+org-scope via the EXISTING shared, shape-agnostic bind branch (unchanged —
+it has never referenced `case_shape` and already runs identically for
+`cabinet_pending`, verifying deliverable (e) with zero code), then
+`UPDATE ... SET portal_activated_at=occurred_at WHERE state='pending' AND
+current_curator_membership_id IS NULL AND portal_activated_at IS NULL AND
+closed_at IS NULL`, row_count-guarded exactly like `normal_u6`'s own sibling
+UPDATE — NO curator, NO state flip, NO handoff_at, ever (plan §4:
+«Одобрение анкеты или доступа не создаёт передачу в Admissions и не
+назначает куратора»).
+
+**Continuing/re-entry outcome (the task's explicit "prove or handle" gate):**
+PROVEN safe with no extra branch, not extended. `continuing_legacy_activation`
+stays FALSE for every shape but `legacy_pending` (it's set true only inside
+a guard that already fires closed for ANY other shape, including
+`cabinet_pending`, with zero code change — it tests inequality to
+`'legacy_pending'`, not membership in a fixed list). The one genuinely
+reachable re-entry case — bound but not yet activated, i.e. finalize
+committed the bind but the caller never learned the outcome and retries — is
+symmetric for `normal_u6` and `cabinet_pending` by construction: neither
+shape's state-shape branch references `continuing_legacy_activation` at all,
+because neither ever changes state/curator/handoff_at at finalize time, so
+the identical condition legally holds before AND during that re-entry;
+execution falls through to the existing (already shape-agnostic, apart from
+its own legacy-curator-specific final clause) `continuing_bound_case`
+verification block, confirms the prior bind's audit trail, and proceeds
+straight to the new activation UPDATE. Reissue-after-partial-DISPATCH-
+failure (the invite email attempt itself failing/expiring before finalize is
+ever reached — the other, and more common, meaning of "partial failure" in
+this family) is what (e) actually closes.
+
+(e) `authorize_student_portal_invite_reissue`: same two-phase branch as (c)
+(pre-lock preflight via `receipt_hint`, post-lock repeat via the now-locked
+`receipt` row, both widened with `case_shape`/`student_case_id` columns) —
+`cabinet_pending` uses the live actor check instead of the
+`required_permission_keys` FOREACH loop. Untouched by any prior migration's
+DO block, so a plain same-signature `CREATE OR REPLACE` is safe here (unlike
+(c)/(d)).
+
+(f) No new `p7a_safe_audit_actions` allowlist entries. Every audit action
+name the new code paths write is already allowlisted:
+`student.portal.authority.activate` (126, reused verbatim by the new
+`cabinet_pending` activation branch, unconditionally — not a new action),
+`membership.provision`/`membership.scope.organization.assign` (both written
+by the shared, untouched bind branch). Neither `prepare_student_portal_provisioning`
+nor `authorize_student_portal_invite_reissue` writes to `platform.audit_events`
+at all, for any shape.
+
+**Added beyond the task's literal deliverable list, same narrow necessity as
+S7's own `staff_lead_cabinet_case_v1` departure:**
+`platform.staff_student_case_cabinet_origin_v1(p_organization_id,
+p_student_case_id)` — a STABLE, read-gated (`private.platform_can_read_student_case`)
+companion read, `GRANT`ed to `authenticated`, that delegates to
+`resolve_student_portal_cabinet_lead_e1` (one authority predicate, one
+truth). Necessary because `StudentPortalAccessCard`'s existing
+`legacyPending = caseState === "pending"` check is WRONG for a cabinet
+case — both shapes share `caseState==='pending'`, and NO existing case read
+model exposes `source_key`/`canonical_lead_id` to the profile-source layer:
+the read RPC chain (`staff_student_case_read_snapshot` →
+`staff_student_case_page`, traced through migrations
+078/110/137/149/176/177/182) selects neither column, and widening an
+already seven-times-patched RPC for one boolean this migration's own domain
+already knows how to answer was rejected as disproportionate risk.
+
+TS/UI: `src/lib/student-portal-provisioning-actions.ts` gains
+`requireStudentPortalOrganization(organizationId, caseShape)`, which
+DELEGATES to the untouched `requireAdminOrganization` for `normal_u6`/
+`legacy_pending` (byte-identical decision, not reimplemented — mirroring the
+SQL side's own delegation pattern) and additionally accepts
+`staffCan(actor, "sales.write")` for `cabinet_pending` (the same coarse
+capability `prepareLeadCabinetAction`, migration 184's TS counterpart,
+already gates on). Both `caseShape` validation branches (prepare, reconcile)
+widen to three values and correctly require a NULL curator for BOTH
+`normal_u6` AND `cabinet_pending` (only `legacy_pending` may carry one).
+`authorizeStudentPortalReissueAction` gains a `case_shape` field (threaded
+through `student-portal-provisioning-form.ts`'s operation decoder too) — a
+UX-only pre-filter; the RPC's own resource-scoped check on the receipt's
+REAL, server-stored shape is the sole authority regardless of what the
+client claims. `student-portal-provisioning-admin-store.ts`'s `caseShape`
+union widens (receipt decode + prepare input). `StudentPortalAccessCard.tsx`
+becomes a genuine three-way discriminator: `caseState !== "pending" ?
+"normal_u6" : isCabinetCase ? "cabinet_pending" : "legacy_pending"` — NEVER
+derived from `caseState` alone (the exact bug the task named). The curator
+picker renders ONLY for `legacy_pending`; the card's `aside`/`forbidden`/
+`reissueAvailable` copy becomes shape-conditional ("Admin или Sales" vs
+"Только Admin"), honest about who can actually act. `isCabinetCase` is
+threaded from `src/lib/v3/profile-source.ts` (`admissionsWorkspace`/
+`fullCaseDetails` gain the parameter; both call sites —
+`readCaseProfile`/`readLeadProfile` — call the new
+`readStudentCaseCabinetOrigin` (`lead-cabinet-source.ts`, sibling to
+`readLeadCabinetCase`) ONLY when `state === 'pending'`, since it can never
+matter for `active`/`closed`) through `ProfileAdmissionsWorkspace` (`types.ts`,
+one new field) to `Profile.tsx`, whose render gate widens from bare
+`actor.systemRole === "admin"` to `actor.systemRole === "admin" ||
+(draft.admissions.isCabinetCase && staffCan(actor, "sales.write"))` — Sales
+can now see and operate the card for a cabinet case, exactly as plan §4
+requires, while every other case shape stays exactly as admin-only as
+before. Invite email dispatch machinery needed NO changes — Supabase Auth
+invite always runs under the service-role client
+(`student-portal-invite-runtime.ts:36-52`), independent of which role
+triggered it; verified by reading the file, not assumed.
+
+Validation impact: `npm run typecheck` (clean, exit 0), `npx eslint` on
+every touched/added file (clean, 0 errors/warnings), `npm run test:brand-ui`
+(5/5), the new migration-pattern suite
+`tests/platform-cabinet-invites-migration.test.mjs` (19/19, following
+182/184's own template — CHECK widening, both anchor-patch DO blocks'
+drift protection, every new private helper, the repointed assertion, both
+prepare/finalize `cabinet_pending` branches individually, the shared bind
+branch's shape-agnosticism, the reissue branch, the companion read, the p7a
+non-change, REVOKE/GRANT pairing — plus a mandatory control-character
+byte-scan of the migration file itself), and the full `test:e3` invite
+family (86/86, including 3 new/rewritten assertions in
+`student-portal-provisioning-ui.test.mjs` and 1 new behavioral test in
+`student-portal-provisioning-admin-store.test.mjs` exercising a real
+`cabinet_pending` prepare round-trip against a fake RPC client). A broader
+sweep of every other test file referencing `profile-source.ts`/`types.ts`/
+`Profile.tsx`/`StudentPortalAccessCard.tsx`/`lead-cabinet-source.ts`
+(`p4-supabase-admissions-storage-legacy-cleanup`, `platform-admissions`,
+`scoped-finance-read-contract`, `v3-profile-activity`,
+`v3-document-recognition-jobs`, `v3-profile-pipeline-notes`,
+`v3-profile-contract`, `v3-operational-parity`, `v3-profile-documents`,
+`v3-supabase-integration`, `v3-profile-admissions`) passed 82/83, with the
+one failure — `tests/v3-document-recognition-jobs.test.mjs` — verified
+pre-existing and unrelated: it fails at module load (`SyntaxError: Named
+export 'renderToStaticMarkup' not found`, the same CJS/ESM `react-dom/server`
+interop issue S2/S3/S4/S7's own entries already recorded) before any of its
+own assertions run, and the file is untouched by this slice.
+
+Full local boundary run (mandatory before finishing, per the task's own
+instruction): `npm run test:database:migration-boundaries` against a
+disposable Docker Postgres container — every migration 001-185 applied in
+order plus the full interleaved `supabase/tests/*.sql` RLS/authorization
+suite, ending in `authorization_policies.sql`/`authorization_inventory.sql`.
+**Exit code 0 on the first run** (no fix-and-rerun cycle needed) — the
+run's closing line reads "Verified disposable authorization database with
+public.ecr.aws/supabase/postgres@sha256:80d7b27c3e8d…", confirming migration
+185's two anchor-patch DO blocks matched their reconstructed live-body
+anchors exactly (no `student_portal_prepare_cabinet_source_drift`/
+`student_portal_finalize_cabinet_source_drift`), both dynamic
+constraint-name lookups found their targets (no
+`portal_receipts_case_shape_check_not_found`/
+`portal_receipts_permission_keys_check_not_found`), and every interleaved
+RLS/authorization assertion for migrations 001-184 stayed green under the
+widened schema.
+
+Smoke audit (mandatory, plan's own lesson from the 2026-09-19 release):
+`grep` of `getByTestId|getByText|getByRole|student-portal|case_shape` across
+`scripts/evo-production-browser-smoke.mjs` and
+`tests/production-browser-smoke.test.mjs` found exactly one relevant hit,
+`getByTestId("student-portal-shell")` — entirely on the STUDENT-facing
+`/portal` route (post-acceptance), never touched by this slice (no invite
+machinery, no `StudentPortalAccessCard`, no `case_shape` anywhere near it).
+The admin-session portion of the smoke script visits `/v3/profile?case=...`
+only at `tab=route` and `tab=contract` — never `tab=overview`, where
+`StudentPortalAccessCard` renders — and even if it did, that session
+authenticates as a genuine `system_role='admin'` actor, for whom the
+widened render gate (`actor.systemRole === "admin" || ...`) behaves exactly
+as before. Smoke anchors unaffected.
+
+Reviewer notes: the `authorize_student_portal_invite_reissue` deviation (one
+function touched beyond the task's literal eight-name list) is a discovered,
+necessary gap, not scope creep — without it, cabinet-case invite reissue
+would be silently admin-only, defeating the slice's own purpose; documented
+in both the migration header and here per the task's own instruction to
+report deviations honestly. The two remaining S7 cosmetic follow-ups
+(full-row card save vs partial merge; playbook-bound legacy partner-details
+fail-closed) remain untouched and out of this slice's scope, unchanged from
+the prior entry.
+
+### 2026-09-19 — поправка к записи S8: real-database boundary coverage for cabinet_pending
+
+Date: 2026-09-19. Author: Claude Sonnet 5 (Claude Code). Change type: test
+coverage addendum (no migration or product code change). Affected plan
+section: «unified workflow S8: выдача приглашения для кабинетных дел».
+Migration 185's cabinet_pending privilege-boundary logic had zero real-
+Postgres test execution: `supabase/tests/platform_student_portal_provisioning.sql`
+(126) runs only at the 126 checkpoint, against the migration-126-era schema,
+which predates `cabinet_pending` entirely. Added
+`supabase/tests/platform_cabinet_invites.sql`, a real-execution suite in
+126's own idiom (pg_temp assertion helpers, SET ROLE/JWT-claims actor
+simulation via the live `platform_private.custom_access_token_hook`,
+RAISE-based negative assertions), wired to a new 185 checkpoint hook in
+`scripts/test-postgres-authorization.sh` (126's own hook left untouched).
+Covers: Sales-owned lead → `prepare_lead_cabinet_v1` → curator-less pending
+case; Sales `prepare_student_portal_provisioning('cabinet_pending')`
+positive + same-request replay; admin-only preserved for
+normal_u6/legacy_pending; origin-check refusal against a non-cabinet pending
+case; resource-scoped refusal for a second Sales actor holding the identical
+own-scoped grant who does not own the linked lead (proves ownership
+scoping, not a missing-permission artifact); Sales reissue-authorize allowed
+on her own expired cabinet invite, refused on a legacy receipt; a full
+finalize (claim → invite success → finalize) asserting the case stays
+`pending`/curator-less/handoff-less with only `portal_activated_at` and
+`student_membership_id` moving, and `platform.student_portal_cases()`
+resolving the case for the newly bound student (S1's pending predicate);
+a replayed finalize and a second prepare on the now-bound case both failing
+closed per the family's existing semantics.
+
+Full `npm run test:database:migration-boundaries` run against a disposable
+Docker Postgres container: **exit 0**, ending in the script's own "Verified
+disposable authorization database with ..." line, with the new suite's
+`P185_CABINET_INVITES_SUITE_START`/`P185_CABINET_INVITES_SUITE_PASSED`
+markers both present in the log at the 185 checkpoint (every intervening
+`p185_assert`/`p185_expect_prepare_denied`/`p185_expect_reissue_denied` call
+returned cleanly, zero `ERROR` lines attributed to
+`platform_cabinet_invites.sql`), immediately after the 126 checkpoint's own
+unmodified run. Three bugs surfaced by the first three attempts were all in
+the NEW test fixture, not in migration 185's logic, and were fixed in place
+before a clean run: (1) the legacy-active case fixture needs the same
+`session_replication_role = replica` insert-time bypass 126 already uses for
+042's `student_cases_transition_guard` (a case must start `pending`/
+curator-less on INSERT) — the fixture was inserting it already-active; (2)
+three assertions read `platform_private.student_portal_provisioning_receipts`
+directly while `SET ROLE authenticated`/`service_role` was still active —
+that schema has no grant to either role (only SECURITY DEFINER functions may
+read it), so those reads were moved to after `RESET ROLE`, matching every
+other such read in this suite and in 126's own; (3) the organization's
+canonical `platform.record_scopes` row (`scope_kind='organization'`) was
+missing — `assign_organization_scope_authorized_e1`, called from finalize's
+shared bind branch to grant the newly provisioned Student membership its
+organization scope, requires it independently of any staff membership's own
+scope assignment. **No defect in migration 185's actual privilege-boundary
+logic was found or fixed** — its `cabinet_pending` prepare/finalize/reissue
+authority checks, origin check, and state-shape guards all behaved exactly
+as specified on the first run where the test fixture itself was correct.
+
+## 2026-09-19 — Resend SMTP and reply forwarding: approved, activation pending
+
+The owner now approves `evo@evoadmissions.com` sending through Resend, replies
+forwarded to the business Gmail, Russian templates and `/apply` email confirmation.
+This supersedes the earlier no-confirmation direction for new Student signup,
+not the existing identity, authorization or duplicate-account safeguards.
+Read-only DNS/Auth/source checks found forwarding MX already present, custom SMTP
+unset and `/apply` still creating auto-confirmed identities. Provider browser
+login is missing; no DNS/Auth/template/account mutation or mail dispatch occurred.
+The [mail runbook](runbooks/resend-auth-email.md) records the precise baseline,
+configuration, free-tier limits, missing recipient choices and pending real proof.
+Keep public Auth signup disabled; ship any confirmation-flow change as a reviewed
+scope-local slice, not a blanket Auth toggle. No paid upgrade or broad test run.
+
+Same-day progress: owner signed in to both providers; the Resend sending domain
+was created in `eu-west-1` but is not Verified. Spaceship confirms existing
+domain-wide forwarding to the business Gmail, not actual delivery. Resend now
+requires DKIM TXT plus `rsend` and `send` CNAMEs, not the older sending MX/TXT
+recipe; copy the current dashboard values and preserve apex forwarding MX/SPF.
+No DNS, API-key, SMTP/Auth/template changes or test emails have occurred yet.
+
+Later same-day progress supersedes that pending DNS/key status: the exact DKIM
+TXT and two CNAMEs were published with TTL 30 minutes and read back from
+`launch1.spaceship.net`; apex forwarding MX/SPF and other records stayed intact.
+Resend UI shows Verified (19 September, 05:47 local display); Receiving stays off.
+The domain-restricted `EVO Supabase SMTP` sending key was created, but its secret
+remains only in the open one-time dialog, not archived or configured in Supabase.
+SMTP form preparation is not activation: subsequent Management API readback
+still shows null SMTP fields, rate 2/hour, signup disabled and autoconfirm false.
+Secret transfer and Save were handed to the owner. Templates, `/apply`
+confirmation implementation and all real mail/reply checks remain pending.
+
+Next same-day provider-only slice, after the owner reported Save: Management API
+readback confirms `smtp.resend.com:465`, user `resend`, sender
+`evo@evoadmissions.com` / `EVO Admissions`; the custom SMTP default limit is 30/hour.
+Apply the approved 100/hour limit and Russian Invite/Confirm copy only. Preserve
+the Invite `RedirectTo` + `TokenHash` link and the existing Confirm
+`ConfirmationURL`; do not widen redirect allowlists or enable public Auth signup.
+Localizing Confirm does not implement `/apply` confirmation: that separate code
+slice and all real delivery checks remain pending. No secret is returned in this
+readback, and encrypted archival of the owner's new key is not yet confirmed.
+
+Provider-only slice applied: Management API PATCH and fresh GET at
+`2026-09-19T02:03:21.264Z` matched the 100/hour limit, both Russian subjects and
+contents, and the preserved SMTP/auth/redirect fields exactly. No credentials
+were changed by the agent. One plain forwarding-check message was subsequently
+sent from the owner's signed-in personal Gmail to `evo@evoadmissions.com`;
+Gmail displayed `Message sent`. The destination business Gmail is not signed in
+in that browser, so receipt is unverified. This is not a Supabase invitation,
+signup confirmation or reply-path acceptance; no test identity was created.
+
+## 2026-09-19 — Stop the portal identity business-conflict retry storm
+
+The owner approved a narrow production correction after the read-only Supabase
+audit: Pro quotas have ample capacity, but CPU is 99–100%. The five-minute
+02:21–02:26 UTC log window contained 29,894 `portal_identity_conflict` events
+from `resolve_student_portal_invite_identity` line 16, SQLSTATE `40001`,
+PostgREST 14.5. Both error PIDs were matched to their live backend-start times.
+The code incorrectly labels a missing invite receipt as a serialization failure.
+[Supabase's current guidance](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b)
+confirms that this causes infinite retries in PostgREST 14.
+
+Scope: forward186 for this RPC and its directly reachable acceptance helper
+(three plus two business errors), and synchronized server error mapping;
+preserve signature, service-role restriction, identity checks and response shape.
+Review the exact diff, use protected short checks and the managed release path,
+then stop only the two freshly re-identified looping backends. Do not restart the
+whole project, buy compute, modify accounts, weaken Auth/RLS, or repair unrelated
+providers. Real post-change proof must show a prompt conflict response on an
+existing authorized identity, the disappearance of the error storm and measured
+CPU change. Existing production failure evidence replaces deliberately triggering
+another runaway pre-fix request. No synthetic records or mock acceptance.
+
+The exact added186 migration receives a narrow CI source/evidence binding gate,
+following178, instead of the retired blanket authorization suite. Real production
+rollback compilation and its existing-identity conflict result are source-hash
+bound in `docs/qa/portal-identity-conflict-186-2026-09-19.md`; CI does not claim to
+execute that SQL. All other migration diffs retain their existing boundary gate.
+
+## 2026-09-19 - Adopt the Other staff-UX plan (funnel board, tasks and notifications, case chat, contract and payments, universities, quiet interface)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Claude).
+Change type: scope, architecture, acceptance criteria, merge order, and validation.
+Affected plan section: new plan `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` (committed with this entry); `docs/EVO_LAUNCH_PLAN.md` «Other staff UX» slices.
+Reason: the owner ordered execution of the consolidated «Other» work-session plan (staff CRM only; portal/app work and «Обзор руководителя» are excluded by the owner), plus removal of explanatory narration ("AI-slop" copy) from the staff UI.
+Decision: six slices, merged in order OTH-0..OTH-5; migrations 186-190 stay owner-applied. Key architecture decisions fixed now:
+- OTH-0 (docs + copy, no DB): commit the plan; remove the 11 inventoried explanatory paragraphs across 8 staff components (LeadSaleConditions x2, ProfileCaseDirectory, ProfileSalesTransition, UniversityEditor x2, UniversityBatchReview, universities/manage page, AdmissionsSummaryPanel, SalesRegisterForms, Inbox), keeping error/empty/permission/consequence notices per the DESIGN.md quiet-interface carve-out; pin the removals with `tests/v3-quiet-interface.test.mjs`.
+- OTH-1 «Воронка поступления» (migration 186): the board position is a NEW curator-owned column `student_cases.pipeline_stage` (nine keys across the two tabs «Поступление» and «Виза и выезд») plus `pipeline_hidden_at` for «Убрать из воронки», deliberately decoupled from the fact-gated playbook `operational_stage` machinery — the board never calls `transition_case_admissions_v1`, and `admissions_gate` stays authoritative for CN/MY rigor. New lightweight RPC `platform.move_case_pipeline_v1` (optimistic version, request-id idempotent, curator/admin through existing case access). Backfill maps `operational_stage`/`admissions_outcome` to an initial `pipeline_stage`. New route `/v3/admissions-pipeline` (capability `admissions.read`), nav item «Воронка» in group «Поступление»; the curator branch of `/v3/main` redirects there — «Мой день» (summary metrics + «Мои студенты» list) is retired per the plan. Native HTML5 drag-and-drop plus a «Переместить в…» menu fallback (keyboard/phone), no new dependency. Board filters live in the query string like `/v3/pipeline`.
+- OTH-2 tasks and notifications (migration 187): the unified composer drops the upfront «Рабочая / По студенту» choice — a chosen case routes the save to the canonical `create_case_task`, no case routes it to `mutate_staff_task`; no task-table schema change. Task side panel on `/v3/tasks` preserves list URL state for both kinds. Notifications: enriched read RPC `staff_notifications_page_v2` (actor display name, task title, student name; the old RPC body stays untouched until release — no degradation window), new `mark_all_staff_notifications_read`, case-task assignment notifications (new kind, CHECK extended), and due-date reminders «за день до срока» materialized lazily inside the v2 page read — idempotent `event_key = task-reminder:<task>:<due>`, stale reminders auto-read on due change or completion, no cron dependency (none exists in the repo).
+- OTH-3 «Договор и оплата» (migration 188): extend the canonical ledger, never a parallel accounting — tranches are `payment_obligations` with `due_at` made nullable and `next_action` optional; the single total cost stays `lead_sale_conditions.service_cost_*` (its manual `paid_*` fields become derived/read-only from the ledger); new tables for the uploaded signed contract file (versioned, newest current, history kept, uploader+date) and payment receipt files, reusing the platform-documents storage + clamd scan + service-role metadata pattern; corrections without hidden history loss (obligation edit/void guarded by version + audit, payments corrected via existing refunds); sales+curator write access is resource-scoped SECURITY DEFINER per the 180/184 precedent. Card block header: стоимость → оплачено → осталось, computed from `payment_events` only.
+- OTH-4 universities (migration 189): «Добавить вуз» becomes a small dialog over the case (catalog search reused), program optional at create, author attribution surfaced via `staff_application_page_v2`/`staff_application_snapshot_v2` (DROP/recreate per the RETURNS TABLE rule; client switches in the same release), and marking the actual submission is exposed in the UI through the existing `change_university_application`. The shared catalog stays reference-only (no per-student buttons).
+- OTH-5 case chat (migration 190): a new per-case thread model patterned on `team_chat` (messages with parent quote and object link-cards to case documents/tasks, receipts idempotency, realtime invalidate signal), a per-thread await state (`needs_reply`/`awaiting_student`/none with explicit «Ответ не требуется»), a new staff notification kind, a two-pane `/v3/messages` screen plus the same thread opened from the case, and «Обсудить» actions on documents/tasks. `case_help_requests` is not converted; the student side is an explicit dependency of the separate portal plan, and the staff side is never claimed as a finished two-way scenario.
+Validation impact: per slice — targeted node suites with pinned regexes updated deliberately; a local OrbStack `npm run test:database:migration-boundaries` run before pushing any migration; new privilege-boundary SQL suites hooked at the matching migration checkpoint of `scripts/test-postgres-authorization.sh` for 186/188/190; `scripts/evo-production-browser-smoke.mjs` anchors audited before each release (the `?tab=contract` testid and `v3-universities-programs` anchors are preserved; a curator-board checkpoint is added with OTH-1). Releases follow the owner-applied-migration path; widened read RPCs are versioned to avoid degradation windows.
+Reviewer notes: adversarial review per slice on the exact PR head.
+
+Coordination after concurrent PR #857: incident186 is allocated to the reviewed
+portal retry fix in #858; the original OTH planned186–190 numbers are provisional
+and must be rebased onto the next free main slots before those migrations merge.
+No OTH migration SQL existed on main at this integration checkpoint.
+
+## 2026-09-19 - Approve public self-serve product scope and resolve the duplicate ADR identifier
+
+Date: 2026-09-19, workspace timezone.
+Author: Codex, implementing the owner's explicit documentation request.
+Change type: product audience, delivery order, and documentation identifiers.
+Affected documents: `PRODUCT.md`, `docs/EVO_LAUNCH_PLAN.md`, and the knowledge
+authority ADR formerly numbered 0014.
+
+Reason: the owner approved a product for independent prospective students and
+EVO clients, then explicitly requested removal of the obsolete staff-only /
+no-self-serve constraint from `PRODUCT.md` and separation of the duplicate
+ADR 0014 identifiers.
+
+Decision:
+- Replace the staff-only audience restriction with independent prospective
+  students, EVO clients, and the existing staff team. Both student audiences
+  receive the shared university/program discovery, English preparation and
+  career-interest features. Clients additionally receive their authorized case,
+  curator, documents, tasks and communication. Invitations and later service
+  enrollment preserve the same account, saved choices and learning progress.
+- Complete the web product first, prioritizing desktop workflows for both
+  student audiences and staff, including full client/curator document work.
+  Then deliver the agreed functionality on iPhone, including accompaniment.
+- Record this as approved target scope, not implemented or deployed capability.
+  Detailed implementation, mobile technology and commercial terms remain
+  separate decisions. Existing authentication, organization/case access and
+  Student-private assessment boundaries remain enforced. No runtime, schema,
+  provider, production or active staff/incident scope changes are authorized
+  by this documentation amendment.
+- Keep `0014-unified-evo-platform-target-architecture.md` as ADR 0014; its
+  existing architecture references retain their meaning. Rename the knowledge
+  authority decision to `0029-resolve-knowledge-by-authority-order.md`, update
+  its heading and the knowledge-specific launch-plan reference. The decision
+  text and original decision date remain unchanged.
+
+Validation: review the documentation diff, run `git diff --check`, verify ADR
+identifier uniqueness and changed local link targets, and obtain independent
+review of the exact committed head. No product tests or production actions are
+needed for this prose-only amendment; protected PR checks remain applicable.
+
+## 2026-09-19 — Adopt the full portal plan, parallel web/iPhone and owner UX decisions
+
+Date: 2026-09-19, workspace timezone.
+Author: Codex, consolidating the owner's chronological discussion for Claude Code / Fable.
+Change type: portal implementation contract, updated delivery model, access and design scope.
+Affected documents: `PRODUCT.md`, `DESIGN.md`, `docs/EVO_LAUNCH_PLAN.md`,
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`.
+
+Reason: after PR #859, the owner explicitly selected staff approval before any
+shared portal access and parallel development of complete web and iPhone clients.
+The latest collected notes supersede older alternatives. The owner also delegated
+full portal UX/UI selection to Fable and explicitly rejected AI explanatory filler
+in the frontend. A single executable Markdown plan is requested for Fable.
+
+Decision:
+- New independent and invited students complete the questionnaire, create an
+  account only at its final step, then wait for staff approval. Existing approved
+  accounts and data are preserved. Approval is separate from client accompaniment.
+- Develop the desktop-first web portal and full iPhone app in parallel, sharing
+  account, data and server permissions. This replaces the earlier sequential
+  web-then-iPhone direction; preserve that earlier entry as history.
+- Both audiences receive universities/map, professions, English preparation,
+  private tests, saved choices and profile. Clients additionally receive their
+  permitted case, documents, tasks, communication and contract/financial information.
+- Portal languages are Russian and Kyrgyz. English remains learning content.
+  Staff CRM locale scope is unchanged. Private test results remain Student-only,
+  without sharing/dossier or staff access.
+- Fable chooses the complete portal UX/UI redesign within the EVO brand and
+  records a scoped design contract. Supersede old portal-only style constraints;
+  preserve original logo, accessibility, useful copy and real states. Frontend
+  text contains actions, states, errors and relevant help, without AI-style
+  explanations or technical/marketing filler.
+- Keep this work portal-scoped. Reuse existing CRM, OTH case/chat/finance changes
+  and the approved Auth/email work; do not introduce a second operational model.
+  Do not impose KPI/SLA, marketing, monetization decisions or blanket heavy tests.
+- The plan records delegated Fable release work under existing authority and
+  credentials, exact-main/immutable/short-smoke/rollback controls. It does not
+  change runtime, apply migrations, mutate production or claim Apple publication.
+- Fable chooses the mobile stack and content coverage during implementation.
+  Objective external blockers are reported for the affected step while independent
+  work continues. No secrets, legal acceptance, purchases or data deletion are
+  authorized by this documentation amendment.
+- The owner's subsequent clarification fixes the app name as `EVO admissions`,
+  with the original EVO logo, and retains `app.evoadmissions.com` for the portal.
+  Another Claude Code session is completing OTHER; it owns those staff slices.
+  The plan now specifies shared-contract ownership, one schema-apply coordinator
+  and one release/arm owner so separate worktrees do not compete in production.
+- Current GitHub evidence exposed the still-open OTH PR #861 proposing migration
+  186 while main already contains incident migration 186. Record the exact heads
+  as a dated dependency: the OTHER coordinator must reallocate only unapplied
+  migrations before merge/apply. This task does not modify those background PRs.
+
+Validation: inspect the prose diff, local reference targets and required decision
+coverage; run `git diff --check`; obtain independent review on the committed head.
+Only repository-protected documentation checks apply to this change. No runtime
+tests, migrations, provider actions or deployment are performed for this plan.
+
+## 2026-09-19 — PORT-0: стартовые контракты портала, мобильный стек и модель доступа
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal session), исполняя `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`.
+Change type: PORT-0 architecture/contract fixation before implementation.
+Affected documents: `docs/adr/0030-portal-iphone-swiftui-supabase-transport.md`,
+`docs/design/portal/port-0-contracts.md`, this journal.
+
+Reason: план PORT-0 требует зафиксировать мобильный стек, границы клиента,
+модель доступа, состав первого учебного модуля и покрытие профессий в ADR и
+PLAN_CHANGES до реализации. Разведка выполнена на main `4a6c061f` с
+read-only сверкой production (Management API): ledger `001…186`, приложение
+`b10034b1` healthy, каталог полностью опубликован (143 вуза, 235 версий
+публикаций), 2 живых student_cases (обе active), 0 анкет.
+
+Decision:
+- Мобильный стек: нативный SwiftUI (каталог `ios/` в этом репозитории) +
+  supabase-swift, прямые вызовы существующих `platform.*` RPC через PostgREST
+  (они уже `GRANT EXECUTE TO authenticated`, схема exposed). Bearer-резолвер
+  актора добавляется только в два документных route handler'а; для анкеты с
+  телефона — узкий серверный endpoint; инвайт — universal link в web
+  `/auth/callback`. Service-role остаётся строго серверным. ADR 0030.
+- Модель доступа: существующий pending-case = состояние «одобрен»; case-less
+  уровень не создаётся. Производный `accessTier: approved|assisted` в
+  `VerifiedStudentPortalAuthority` (TS-only). Одна миграция №195: студентская
+  ветка case-help получает `state IN ('active','closed')` (по диаграмме плана
+  «Общение» — уровень сопровождения; в production затронуто 0 аккаунтов) и
+  явное ужесточение документных предикатов до active/closed (сегодня
+  безопасно лишь косвенно). Каталог/тесты/уведомления для approved работают
+  без изменений БД. Обязателен boundary-тест новой границы по образцу
+  `platform_student_assessments_boundary.sql`.
+- Координация с сессией OTHER зафиксирована перепиской: их миграции 187–191 +
+  буфер 192–194, Portal начинает с 195; владелец release-arm — сессия с
+  последней очередью merge, взаимное уведомление перед arm обязательно;
+  PORT-5-зависимости (задачи/договор/чат) — именованные блокеры до появления
+  их PR со схемой; их точечные null-правки portal-source/PaymentsView (189)
+  сохраняются в редизайне.
+- Учебный модуль 1 «Английский — старт»: 12 уроков с нуля (знакомство, базовые
+  слова и конструкции, простые вопросы, повседневные ситуации, чтение;
+  повторение из банка ошибок уроком 12), задания выбор/сопоставление/короткий
+  ответ/чтение, аудио отложено в модуль 2, контент — версионируемый JSON →
+  immutable-миграция (форк assessment-пайплайна, locale ru+ky). Без CEFR,
+  без XP/лиг/стриков.
+- Профессии: стартовый набор 24 карточки, покрывающий шкалы ORVIS, с
+  обязательным содержанием (день, среда, навыки, пробное задание, связи с
+  программами каталога); зарплаты/работодатели — только с надёжным источником;
+  пустые карточки не публикуются; атрибуция CC BY 4.0 сохраняется.
+- Каталог/карта: MapLibre; координаты — новое nullable-поле контента с
+  провенансом (вуз без координат — без точки); избранное v1 на уровне вуза
+  (RPC-first, student-owned таблица); фото переводятся с hotlink на управляемое
+  хранение с сохранением CC-атрибуции (PORT-3).
+- Локализация: язык — персистентное поле профиля (синхронизация веб/iPhone),
+  неймспейсные RU/KY-словари портала; «en» в портале не предлагается.
+- Релизная дисциплина: смена любых smoke-якорей — только вместе с обновлением
+  `scripts/evo-production-browser-smoke.mjs` и его контракт-теста в том же PR;
+  порядок: миграция в main → `evo-schema-ledger.yml` apply → ledger-сверка →
+  dispatch CI с proof_revision → авто-релиз → acceptance → disarm.
+
+Validation: prose-only изменение — просмотр диффа, `git diff --check`,
+независимое review точного head; защищённые PR-проверки. Runtime-тесты,
+миграции и production-действия к этому PR не относятся; сверки production
+выполнялись read-only через Management API и зафиксированы выше.
+
+## 2026-09-19 - Other staff-UX chain renumbered to 187-191; tranche-aware payment_obligations guards
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Claude).
+Change type: merge order, architecture correction, and receipts.
+Affected plan section: «Other staff UX» slices of docs/EVO_LAUNCH_PLAN.md; the 2026-09-19 adoption entry above (its 186-190 numbering is superseded).
+Reason: (1) a parallel portal session shipped 186_platform_student_invite_conflict_codes to main and production while OTH-1 was in review, colliding with the adopted numbering; (2) implementing OTH-3's editable-until-paid tranches collided with migration 043's design of payment_obligations as fully immutable facts (identity trigger froze label/amount/currency/due_at forever; transition guard rejected any UPDATE without a totals change) — discovered by the live-Postgres boundary run, not reviewable from source alone.
+Decision: (1) migration ranges agreed with the portal session by cross-session message: OTH = 187 (board), 188 (notifications v2), 189 (case agreement), 190 (application author/optional program), 191 (case chat), buffer 192-194 stays with this chain; portal starts at 195; release-arm protocol: the session whose merge is last in queue owns the release, with a mandatory cross-session ping before any arm. (2) Migration 189 deliberately replaces both 043 payment_obligations update guards with platform_private.guard_payment_obligation_update: id/org/case/category/creator/created_at frozen forever, amount/currency frozen once total_paid_minor or total_refunded_minor is non-zero, label/due_at/next_action editable, archived_at one-way and unpaid-only, and no-op updates still rejected — the paid-money immutability the 043 design protected survives; only the unpaid-tranche window opens, exactly what the plan's «Деньги и договоры» requires.
+Validation impact: all five migration slices passed the full local OrbStack boundary run on the final 001->191 chain; per-slice adversarial reviews (two lenses) with every confirmed finding fixed pre-merge are recorded in the PR descriptions (#857, #861, #865, #866, #862, #871, follow-up #870). Release: owner applies 187-191 in order, managed release immediately after.
+Reviewer notes: per-slice reviews executed pre-merge on the exact heads; production acceptance record follows the release.
+
+## 2026-09-19 — PORT-3a: каталог в стиле Атлас, карта и гео-библиотека
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 (строки «Каталог» и
+«Карта», раздел «Каталог и материалы») и дизайн-контракт
+`docs/design/portal/design-contract.md` (направление «Атлас»).
+Change type: architecture and scope fixation for PORT-3a before coding.
+Affected plan section: PORT-3 (университеты/карта), решение PORT-0
+«каталог, карта, избранное, фото» (`docs/design/portal/port-0-contracts.md`).
+
+Reason: PORT-3a реализует список⇄карту портального каталога. PORT-0
+предполагал координаты как новое nullable-поле контента с миграцией; для
+slice без изменений БД (номера ≥195 зарезервированы под PORT-1 и избранное)
+нужен способ поставить точки на карту без миграции и без переиздания 143
+опубликованных карточек. Тайл-провайдер по PORT-0 выбирается здесь после
+проверки актуальных условий.
+
+Decision:
+- (a) Координаты поставляются repo-JSON-библиотекой
+  `src/lib/university-geo-library.json` по ключу `photoKey` (прецедент
+  файла-библиотеки: `src/lib/university-photo-library.json`); каждая запись —
+  `{lat, lng, sourceUrl, verifiedOn}` с провенансом на каждый факт
+  (sourceUrl — сущность Wikidata либо проверенная официальная страница,
+  verifiedOn — дата сверки). Схема контента `UniversityContent` НЕ меняется,
+  переиздания 143 карточек НЕТ: карта соединяет опубликованную запись с
+  библиотекой по `content.photoKey` на сервере портала. Вуз без уверенно
+  подтверждённой координаты не получает точку — план прямо запрещает
+  фиктивные пины; такие вузы живут в списке, а карта честно показывает
+  строку «N вузов без точки на карте». Это уточнение решения PORT-0
+  (nullable-поле контента + миграция 150/151-образца) для slice без БД;
+  перенос координат в контент с миграцией остаётся возможным следующим
+  шагом без потери провенанса.
+- (b) Движок карты — MapLibre GL JS (npm `maplibre-gl`, точная версия в
+  package.json). Тайлы — публичный инстанс OpenFreeMap
+  (https://openfreemap.org, стили tiles.openfreemap.org). Условия проверены
+  2026-09-19 по openfreemap.org: «Using our public instance is completely
+  free», «There's no registration, no user database, no API keys, and no
+  cookies», «There are no limits on the number of map views or requests»,
+  коммерческое использование прямо разрешено; обязательная атрибуция —
+  OpenMapTiles и OpenStreetMap («OpenFreeMap © OpenMapTiles Data from
+  OpenStreetMap»). Для низкотрафикового production-портала это подходит без
+  ключа; в карте включается видимая атрибуция
+  «OpenFreeMap © OpenMapTiles © OpenStreetMap contributors». Загрузка карты
+  клиентская (dynamic import, без SSR), `prefers-reduced-motion` отключает
+  анимации перелёта; сбой карты показывает явное состояние ошибки, список
+  остаётся полноценным представлением (план §6, «Каталог и материалы»).
+- (c) Портал получает собственные university-компоненты
+  (`src/components/portal/universities/*`, строки RU+KY через
+  `src/lib/portal/i18n.ts`). Существующие `src/components/v3/universities/*`
+  остаются интерфейсом STAFF-поверхности: общий `UniversityCatalogue`
+  продолжает обслуживать staff с `canManage=true`, а портал перестаёт его
+  импортировать. Это разделение аудиторий по дизайн-контракту (изоляция
+  портала от staff CRM), не layering: у двух аудиторий разные контракты
+  текста/локали/токенов, staff-поверхность не дублируется и не
+  замораживается.
+- (d) Сравнение программ откладывается в slice избранного (вместе с его
+  миграцией после 195): сравнение без сохранённого набора вузов — пустой
+  экран, а избранное v1 уже зафиксировано в PORT-0 отдельной работой.
+
+Validation impact: PORT-3a проверяется реальными командами репозитория —
+eslint по изменённым файлам, `npm run typecheck`, `npm run build`,
+`npm run test:brand-ui`, node --test для portal-i18n,
+v3-student-portal-ui и нового `tests/university-geo-library.test.mjs`
+(схема, диапазоны lat/lng, ключи ⊆ photoKey-набора фото-библиотеки,
+https-sourceUrl, отсутствие дублей), `git diff --check`. Живой рендер тайлов
+и аутентифицированный рендер страниц в этой сессии не выполняются (нет
+креденшелов) — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head; smoke-якоря
+(/portal, /portal/documents) не затрагиваются.
+## 2026-09-19 — PORT-1b: приглашённый проходит ту же анкету и одобрение (миграция 193)
+
+Date: 2026-09-19, workspace timezone.
+Author: Claude (Fable 5), ветка `izzhackt/portal-1b-intake-unification`
+(изначально stacked поверх `izzhackt/portal-1-access`; после перенумерования
+195→192 и merge #869 в main база PR — `main`).
+Change type: scope + architecture слайса PORT-1 (доступ), контракт миграции 193.
+Affected plan section: `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §2
+(«Приглашения»), §5 «Новый клиент по приглашению» (+ строка edge cases), §10
+PORT-1; `docs/design/portal/port-0-contracts.md` «Решение: модель доступа».
+
+Reason: план §2/§5 требует, чтобы приглашённый клиент проходил ТУ ЖЕ анкету и
+staff-одобрение — приглашение связывает его с существующей записью, но не
+обходит анкету. Сегодня (126/185) принятый инвайт активирует портал сразу на
+finalize: membership+bind+`portal_activated_at` ставятся ещё при отправке
+письма, и после установки пароля пользователь попадает прямо в кабинет.
+
+Decision (зафиксировано координатором; реализация, не пере-обсуждение):
+
+1. **Маркер потока в receipt, граница совместимости — временнАя.** Миграция
+   193 добавляет `platform_private.student_portal_provisioning_receipts.intake_flow`
+   (`'legacy'` DEFAULT | `'anketa_v1'`). Dispatch-RPC
+   (`prepare_student_portal_provisioning`) начинает ставить `'anketa_v1'`
+   для НОВЫХ приглашений; все существующие receipt получают `'legacy'` через
+   DEFAULT и работают по-старому. Оба активированных прод-кейса (active, по
+   сверке PORT-0) не затрагиваются: у них нет нового маркера, их связи и
+   доступ сохраняются. Sales UI не меняется.
+   Осознанное отклонение: `case_shape='legacy_pending'` продолжает получать
+   `'legacy'` (закреплено CHECK-ом) — смысл этой legacy-формы в назначении
+   куратора в момент принятия инвайта; прогонять её через анкету значило бы
+   молча отложить назначение куратора, которое форма обязана выполнить.
+   Unified workflow такие receipt больше не готовит (184/185 заменили путь
+   кабинетом), Sales UI их не создаёт.
+2. **anketa_v1-инвайт больше не активирует портал на finalize.**
+   `finalize_student_portal_authority` для `intake_flow='anketa_v1'`
+   выполняет прежний bind (membership, org-scope, exact-case-scope,
+   `student_membership_id`) и выходит ДО активации: `portal_activated_at`
+   не ставится, receipt остаётся `invite_succeeded` (account_pending). Это
+   закрывает «прямой вход в кабинет» на уровне БД, а не только роутера:
+   `student_portal_cases()`/authority честно пусты до одобрения анкеты.
+3. **Редирект-политика в существующем guard-слое.** Для принявших инвайт
+   anketa_v1 БЕЗ поданной анкеты состояние account-pending ведёт в `/apply`
+   (вместо «доступ готовится»): корневой диспетчер `src/app/page.tsx`,
+   страница `/auth/account-pending` и `setStudentPortalPasswordAction`.
+   `resolve_student_portal_invite_identity` дополнительно возвращает
+   `intake_flow` и `student_display_name` (данные самого пользователя) —
+   `/apply` предзаполняет имя из receipt; email уже виден из сессии. Телефон
+   лида пользователю сегодня не виден — не предзаполняется.
+4. **`submit_student_application_v1`:** если у `auth.uid()` есть accepted
+   invite receipt c `intake_flow='anketa_v1'`, анкета связывается с кейсом
+   инвайта: новая nullable-колонка
+   `platform_private.student_applications.invited_case_id` (+FK, +CHECK
+   совместимости: approved ⇒ `student_case_id=invited_case_id`);
+   `canonical_lead_id` берётся у кейса (никогда не создаётся второй
+   client/lead — «один человек — одна карточка»). Invite-bound membership
+   исключается из identity-conflict-гейта; ЛЮБОЕ другое membership — прежний
+   PT409. Идемпотентность не меняется: advisory-локи + receipts + PT409,
+   без 40001 (урок 186).
+5. **`decide_student_application_v1` approve при `invited_case_id`
+   ПЕРЕИСПОЛЬЗУЕТ кейс** (по образцу 185): без нового membership/lead/case;
+   `portal_activated_at` ставится guarded-UPDATE-ом если NULL; state/curator/
+   handoff не трогаются; свежие данные анкеты сохраняются в
+   `student_profiles` (INSERT для кейса без профиля — кабинет 184 профиль не
+   создаёт; UPDATE summary-полей без bump revision для существующего);
+   invite receipt завершается (`authority_activated`). Чужой auth к чужому
+   инвайт-кейсу — 42501. Поведение обычных (не-invite) анкет не меняется:
+   исходная ветка сохранена байт-в-байт внутри ELSE.
+6. **Техника** — anchor-replace живых тел (pg_get_functiondef + якорь +
+   EXECUTE, образец 180/192), fail-loud при несовпадении якоря. Последние
+   определения проверены: submit/decide — 180 (181–192 их не трогали);
+   prepare/finalize — 185; resolve — 186 (PT409-патч).
+7. **TS-классификация занятого email при dispatch**
+   (`student-portal-invite-auth-provider.ts`): вместо одноразмерного
+   `portal_invite_already_accepted` — точные коды через service-role admin
+   lookup по email: `existing_staff_account` (защищённый staff-маркер
+   `app_metadata`), `already_accepted_invite` (`invited_at` установлен),
+   `existing_student_account` (остальные). Старый код остаётся fallback-ом
+   при недоступном lookup. Staff-wording — аддитивно в `wording.ts`.
+8. **Edge cases определёнными состояниями:** повторное приглашение при
+   поданной анкете → `portal_case_already_bound`/`portal_case_already_reserved`
+   без дублей receipt; занятый email при dispatch → классификация п.7;
+   просроченная ссылка → существующий reissue-путь 185 (193 его не меняет);
+   повторное одобрение → PT409 через receipt-replay; прерванная анкета →
+   существующий draft-резюм; invite-контекст переживает резюм по построению —
+   `invited_case_id` выводится сервером из receipt самого пользователя при
+   КАЖДОМ (пере)submit, а не из клиентского черновика.
+
+Что НЕ меняется: email-scope (`email_confirm:true` в /apply — отдельный
+согласованный контур, Auth не перенастраивается), Sales UI подготовки
+кабинета/инвайта, старые (legacy) receipt и оба прод-аккаунта, reissue-путь
+185, RLS/grants семейства 126; ветка обычной анкеты сохраняется как
+контракт — с единственной починкой скрытого дефекта 180 (см. ниже).
+
+Validation impact: `npm run test:database:migration-boundaries` с новым
+чекпоинт-тестом `supabase/tests/platform_invited_intake_unification.sql`
+(193, wiring как у 192): (i) anketa_v1-инвайт → submit связывает анкету с
+кейсом, портал до одобрения закрыт; (ii) approve переиспользует кейс —
+count(student_cases) не растёт, `portal_activated_at` установлен, профиль
+обновлён; (iii) legacy-инвайт по-старому (bind без анкеты); (iv) обычная
+анкета — прежнее поведение (новый кейс); (v) replay decide → PT409-receipt;
+(vi) чужой auth → 42501. Плюс TS-юнит на классификацию email, typecheck,
+целевые node-тесты invite-семейства, `npm run build`, `git diff --check`.
+Обнаруженный и исправленный скрытый дефект (validation finding): ветка ОБЫЧНОГО
+approve в 180-м `decide_student_application_v1` вставляет новый кейс сразу с
+`portal_activated_at`, а BEFORE INSERT-триггер 042
+(`guard_student_case_transition`, никем после 042 не патченный) требует
+`portal_activated_at IS NULL` на INSERT — то есть одобрение обычной анкеты
+всегда падало бы 55000. Никогда не проявлялось: в production 0 анкет, и до
+этого слайса ни один DB-тест не вызывал decide. Найдено чекпоинт-тестом (iv)
+на реальной базе. Минимальная починка в 193 (отдельный якорь в том же
+DO-блоке): INSERT без `portal_activated_at` + сразу же guarded UPDATE
+(`WHERE portal_activated_at IS NULL`) — путь, которым 185 уже легально
+активирует pending-кейс; триггер 042 не ослабляется.
+
+Reviewer notes: обычный merge в main; base PR — `main` (PORT-1a/192 уже в
+main как #869, перенумерованная 195→192).
+
+## 2026-09-19 — Миграция 194: PT409 вместо 40001 на аутентифицированном invite-пути
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal session), follow-up по finding независимого review PR #877.
+Change type: targeted risk-class fix (infinite-retry 40001 → PT409), миграция 194.
+Affected documents: `supabase/migrations/194_platform_invite_conflict_codes_pt409.sql`,
+`supabase/tests/platform_invite_conflict_codes_pt409.sql`,
+`scripts/test-postgres-authorization.sh`, TS-маппер provisioning-admin-store.
+
+Reason: review #877 зафиксировал, что prepare/authorize-reissue/finalize из
+185-эры несут кастомные бизнес-коды на SQLSTATE 40001 — тот же класс
+infinite-transaction-retry, что вызвал CPU-инцидент миграции 186
+(docs/qa/portal-identity-conflict-186-2026-09-19.md). Сессия OTHER подтвердила,
+что клиентские маппинги CRM уже принимают PT409.
+
+Decision: 35 замен 40001→PT409 (тексты сообщений байт-в-байт) в трёх функциях
+(prepare 11, authorize_reissue 8, finalize 16) техникой anchor-replace 186/192/193
+с readback-ассершенами «0 остаточных 40001, ровно 11/8/16 PT409». Осознанно
+оставлены на 40001: worker/dispatch-RPC вне аутентифицированного пути (позиция
+переходного периода 186), revision-семантика assessments и прочие домены.
+TS: safeConflict дополнительно принимает PT409 (40001 сохранён на окно apply).
+Тест: новый чекпоинт-сьют 194 в scripts/test-postgres-authorization.sh.
+
+Validation: полная цепочка 001–194 на OrbStack, маркеры P193/P194 в полном
+логе, typecheck, целевые node-тесты 15/15, git diff --check.
+
+## 2026-09-19 — PORT-3b: избранное каталога и сравнение (миграция 195)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 (строка «Избранное»,
+раздел «Каталог и материалы») и решение PORT-0 «каталог, карта, избранное,
+фото» (`docs/design/portal/port-0-contracts.md`: «Избранное v1 — на уровне
+вуза … таблица student-owned + RPC add/remove/list + batch-by-ids чтение
+карточек; та же RPC-only изоляция, что у каталога»).
+Change type: architecture and scope fixation for PORT-3b before coding;
+allocates migration number 195 (первый номер Portal-цепочки после закрытия
+цепочки OTHER на 191 и PORT-1a/1b на 192–194; сверено с main `0667c001`,
+открытых PR с 195 нет).
+Affected plan section: PORT-3 (университеты/исследование), план §6
+«Избранное», §8.5 (личные данные), design contract §5 «Избранное».
+
+Reason: карточки каталога «Атлас» (PORT-3a, #873) уже в main, но сохранить
+вуз и вернуться к нему с другого устройства нельзя — избранное по плану §6
+обязано жить на сервере, а не в localStorage. Сравнение вузов было осознанно
+отложено из PORT-3a до появления сохранённого набора (запись PLAN_CHANGES
+PORT-3a, пункт d).
+
+Decision:
+- (a) Миграция `195_platform_university_favorites.sql`: таблица
+  `platform_private.university_favorites(organization_id, membership_id,
+  institution_id, created_at, UNIQUE(organization_id, membership_id,
+  institution_id))` c RLS ENABLE+FORCE и REVOKE ALL от всех API-ролей —
+  дословно паттерн приватных таблиц 148. Доступ только через три RPC
+  (SECURITY DEFINER, SET search_path='', GRANT EXECUTE TO authenticated),
+  актор выводится внутри через `platform.current_actor_authority()` с
+  guard'ом каталога 148 (`platform_role='student'` +
+  `portal.read.self`) — сознательно БЕЗ привязки к состоянию кейса:
+  избранное — общая возможность approved-уровня (план §4, §8.5).
+- (b) `platform.set_university_favorite_v1(p_institution_id, p_favored)` —
+  идемпотентен по построению (INSERT … ON CONFLICT DO NOTHING / DELETE,
+  без request-ledger'а: повтор не меняет состояние), возвращает фактическое
+  состояние и счётчик; институция обязана принадлежать организации актора и
+  иметь published-публикацию, иначе 42501 (стиль 148 «Institution is
+  unavailable»). `platform.student_university_favorites_v1()` — только свои
+  записи. `platform.student_university_catalog_by_ids_v1(p_institution_ids)`
+  — та же форма строк, что `student_university_catalog` (items:
+  id/version/publishedAt/content), потолок 30 id (22023 выше), только
+  published и только своя организация (иначе 42501); чужой membership не
+  адресуем ни одним параметром.
+- (c) Boundary-тест `supabase/tests/platform_university_favorites.sql` на
+  собственном чекпоинте 195 в `scripts/test-postgres-authorization.sh`
+  (конвенция 185/192/193/194): студент CRUD своего набора; второй студент
+  видит только своё (пусто); staff admin/sales/curator получают 42501 на все
+  три RPC (избранное — приватные данные ученика, план §8.5); anon и
+  service_role отклонены; двойной set — одна строка; by_ids отклоняет чужую
+  организацию; pending-case студент работает, второй студент вовсе без кейса
+  (case-независимость с двух сторон).
+- (d) Web: сердечко-toggle на карточках каталога и в карточке вуза
+  (optimistic через useTransition, честная ошибка при отказе, повтор
+  безопасен — RPC идемпотентен); раздел «Избранное» `/portal/favorites` в
+  Shell-нав обоих tier'ов; внутри — карточки из by_ids и «Сравнить»:
+  таблица фактических свойств выбранных (страна/город/уровни/программы/
+  ближайшие интейки) — никаких рейтингов и шансов поступления (план §6,
+  §14). RU/KY через `src/lib/portal/i18n.ts` (новый неймспейс favorites);
+  пустое состояние честное. Смоук-якоря не затрагиваются.
+
+Validation impact: полная цепочка 001–195 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с полным логом и grep
+маркеров P195 (и сохранности P191–P194); `npm run typecheck`;
+`npm run build`; `npm run test:brand-ui`; портальные node-тесты
+(portal-i18n ky-полнота, новый tests/portal-university-favorites.test.mjs,
+v3-student-portal-ui с обновлёнными пинами навигации; пины
+tests/ci-node-test-suite.test.mjs обновляются в том же коммите, что и
+состав test:frontend); `git diff --check`. Живой аутентифицированный рендер
+экрана в этой сессии не выполняется (нет разрешённого студенческого
+аккаунта) — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head.
+
+## 2026-09-19 — PORT-5a: профиль портала, язык и запрос удаления аккаунта (миграция 196)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 «Профиль», §13 (Apple
+Account deletion §5.1.1(v)) и решение PORT-0 «Локализация» («язык —
+персистентное поле профиля в БД (синхронизация между веб и iPhone), cookie
+остаётся быстрым request-time умолчанием»); дизайн-контракт §6 «Профиль».
+Change type: architecture and scope fixation for PORT-5a before coding;
+allocates migration number 196 (следующий после 195 из PORT-3b; сверено с
+main и открытыми PR — чужих 196 нет).
+Affected plan section: PORT-5 (профиль — независимая от OTH-блокеров часть),
+план §6 «Профиль», §8.5, §13; PORT-0 «Локализация».
+
+Reason: профиль — общая возможность обоих tier'ов, до сих пор без экрана;
+язык портала живёт только в cookie и не синхронизируется между устройствами
+(план §8.8); инициирование удаления аккаунта обязательно для канала App
+Store (план §13) и должно быть реальным серверным запросом, а не кнопкой
+«напишите нам».
+
+Decision:
+- (a) Миграция `196_platform_portal_profile_language.sql`:
+  `platform.student_profiles` получает `portal_language TEXT NOT NULL
+  DEFAULT 'ru' CHECK (portal_language IN ('ru','ky'))`. Проверено по
+  042/053/159/180/193: профиль 1:1 с делом (UNIQUE(organization_id,
+  student_case_id)), оба intake-пути (публичная анкета 180 и приглашение
+  193) создают/дозаполняют строку профиля; legacy cabinet-кейс может не
+  иметь строки (193 явно обрабатывает profile-less case) — RPC обязаны
+  переживать её отсутствие: чтение отдаёт честный default 'ru', запись
+  создаёт минимальную строку профиля без выдуманных фактов (паттерн D2a
+  159: профиль может существовать без фактов; consent_status
+  'not_recorded', никакие анкетные поля не изобретаются). Обновление языка
+  идёт через штатный revision-guard 053 (revision+1) — язык является частью
+  канонического профиля, staff-редакторы получают честный optimistic-conflict.
+- (b) RPC (SECURITY DEFINER, search_path='', GRANT EXECUTE TO authenticated;
+  студенческий guard — как у каталога 148: student + portal.read.self,
+  case-независимый; собственный кейс резолвится как в student_portal_cases —
+  portal_activated_at IS NOT NULL, state IN ('pending','active','closed')):
+  `platform.get_own_portal_profile_v1()` → {displayName, email,
+  portalLanguage, caseState, deletionRequestedAt} (последнее поле — чтобы
+  экран честно показывал состояние «запрос отправлен» после перезагрузки;
+  дополнение к согласованной четвёрке полей, зафиксировано здесь);
+  `platform.set_own_portal_language_v1(p_language)` — student-only, 22023 на
+  не-ru/ky; `platform.request_account_deletion_v1(p_request_id)` — новая
+  таблица `platform_private.account_deletion_requests` (membership-scoped,
+  status requested/acknowledged, RLS+REVOKE ALL как 148/195), идемпотентно
+  по request_id И не более одного открытого запроса на участника
+  (частичный уникальный индекс по status='requested'; повтор с новым
+  request_id возвращает исходный открытый запрос, не второй ряд);
+  `platform.staff_account_deletion_requests_v1()` — только admin
+  (role='admin' + organization.read), отдаёт запросы своей организации с
+  display_name и привязкой к делу.
+- (c) Web: экран `/portal/profile` по дизайн-контракту §6 — данные
+  (имя/email read-only), язык RU/KY (персист через RPC И обновление cookie
+  `locale` в ТОМ ЖЕ server action — setLocaleAction-семантика), ссылка на
+  личные результаты тестов (/portal/tests), выход, «Удалить аккаунт» с
+  честным описанием последствий и состоянием «запрос отправлен —
+  обрабатывается командой» (без обещаний сроков), повтор идемпотентен
+  (стабильный request_id на попытку). Профиль в Shell-нав обоих tier'ов.
+  RU/KY — новый неймспейс profile. Staff: компактная строка-бейдж
+  «запрошено удаление аккаунта» в шапке карточки клиента
+  (`CaseHeader.tsx`, аддитивно через Pill; только admin видит — чтение
+  через admin-only RPC, отказ тихо скрывает бейдж), staff-UI не
+  перестраивается.
+- (d) Boundary-тест `supabase/tests/platform_portal_profile_language.sql` на
+  чекпоинте 196 (конвенция 185/192—195): set/get языка только своё (staff
+  запись/чтение — 42501; второй студент изолирован); существующие строки
+  профиля не затронуты (default 'ru'); legacy-студент без строки профиля
+  получает рабочий путь (создание минимальной строки); запрос удаления
+  идемпотентен по request_id, один открытый на участника, staff-admin
+  читает, sales/curator — 42501; anon/service_role отклонены.
+
+Validation impact: полная цепочка 001–196 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с полным логом и grep
+маркеров P196 (и сохранности P191–P195); `npm run typecheck`;
+`npm run build`; `npm run test:brand-ui`; портальные node-тесты (portal-i18n
+ky-полнота нового неймспейса, новый tests/portal-profile.test.mjs,
+обновлённые пины v3-student-portal-ui и ci-node-test-suite в одном коммите
+с составом test:frontend); `git diff --check`. Живой аутентифицированный
+рендер экрана в этой сессии не выполняется — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head; PR идёт
+stacked поверх izzhackt/portal-3b-favorites (base до merge #883 — эта ветка).
+
+## 2026-09-19 — PORT-5b: запрос консультации из кабинета (миграция 197)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §5 «Самостоятельный школьник»
+п.6, §6 строка «Консультация» («Короткий запрос из общего портала или
+выбранной программы в существующую staff-очередь; повтор не создаёт дубль;
+ученик видит результат отправки, сотрудник — нужный контекст») и §10 PORT-5
+(«Добавить запрос консультации и нужный контекст в существующую очередь без
+автоматической передачи тестов или всего личного профиля»).
+Change type: architecture and scope fixation for PORT-5b before coding;
+allocates migration number 197 (следующий после 196 из PORT-5a; сверено с
+main `0fa2ef95` и production-ledger 001–196 — чужих 197 нет).
+Affected plan section: PORT-5 (консультация — независимая от OTH-блокеров
+часть), план §6 «Консультация», §8.5/§8.7, §14 (приватность тестов).
+
+Reason: строка плана §6 «Консультация» — последняя общая возможность без
+серверного контракта: approved-пользователь не имеет канала обращения
+(case-help с 192 — уровень сопровождения), а Sales не видит таких запросов
+в своей очереди «Заявки».
+
+Decision:
+- (a) Миграция `197_platform_portal_consultation_requests.sql`: таблица
+  `platform_private.portal_consultation_requests` (id, organization_id,
+  membership_id, request_id UNIQUE per member, institution_id NULL FK на
+  каталог организации, note TEXT CHECK 1..500, status
+  'requested'|'handled' c shape-CHECK, created_at, handled_at,
+  handled_by_membership_id; RLS+FORCE+REVOKE ALL как 195/196). «Один
+  ОТКРЫТЫЙ запрос на участника» — частичный уникальный индекс по
+  status='requested' (инвариант в БД, паттерн 196).
+- (b) RPC (SECURITY DEFINER, search_path='', GRANT EXECUTE TO
+  authenticated): `platform.create_portal_consultation_request_v1(
+  p_request_id, p_institution_id DEFAULT NULL, p_note DEFAULT NULL)` —
+  студенческий guard ровно как у каталога/избранного 148/195/196
+  (platform_role='student' + portal.read.self, СОЗНАТЕЛЬНО
+  case-НЕзависимый); институция при наличии валидируется по published-
+  каталогу организации актора (стиль 148: 42501 «Institution is
+  unavailable» для чужого/неизвестного/неопубликованного id); идемпотентно
+  по request_id (повтор возвращает исходный receipt в любом статусе);
+  второй create при открытом запросе возвращает ОТКРЫТЫЙ receipt (без
+  дубля, честное состояние); после handled новый запрос разрешён.
+  `platform.own_portal_consultation_requests_v1()` — только свои, свежие
+  первыми, потолок 20. `platform.staff_portal_consultation_requests_v1(
+  p_offset DEFAULT 0)` — staff-guard: РЕАЛЬНОЕ разрешение очереди «Заявки»
+  `lead.read` (маршрут /v3/requests ↔ capability sales.read ↔ permission
+  'lead.read' в src/lib/platform-access.ts; Sales-шаблон 173 держит
+  lead.read; admin проходит через admin-байпас
+  platform_private.staff_has_permission — «admin included»; студенты
+  исключены явно; новых permission-ключей НЕ вводится); страница 50 строк,
+  открытые первыми, items+nextOffset+openCount; контекст строки — имя
+  студента, выбранный вуз (имя из последней published-публикации), note,
+  даты. `platform.handle_portal_consultation_request_v1(p_row_id,
+  p_expected_status)` — тот же staff-guard; requested→handled с
+  handled_at/handled_by; повтор с p_expected_status='handled' —
+  идемпотентный replay (ничего не переписывается); несовпадение статуса —
+  PT409 `consultation_request_conflict` (конвенция 178/186/194, не 40001).
+  ПРИВАТНОСТЬ (план §6 «Тесты», §14, решение-стандарт «135»): запрос НЕ
+  прикрепляет результаты/ответы тестов ни в каком виде; note — свободный
+  текст ученика; вуз — его явный выбор; staff-строка несёт ровно
+  объявленный набор ключей.
+- (c) Staff UI (аддитивно, существующий экран «Заявки» /v3/requests):
+  новый фильтр-пилюля «Кабинет: консультации» в REQUEST_SOURCE_FILTERS
+  (страница уже строит пилюли из этого списка); при выборе — секция-список
+  (имя студента, вуз если выбран, note, дата) с действием «Обработано»
+  (server action + PT409 → честное сообщение о конфликте и обновление).
+  Загрузка очереди консультаций — только при активном фильтре. Словарь
+  статусов — `portalConsultationStatus` в `src/lib/v3/wording.ts`
+  (аддитивно). Новых route/permission нет; исходники — расширение
+  `src/lib/v3/requests-source.ts` (без нового -source-файла, пины
+  v3-supabase-integration не трогаются) + server action
+  `src/lib/platform-portal-consultation-actions.ts` + компонент
+  `src/components/v3/requests/PortalConsultations.tsx`.
+- (d) Portal UI (RU/KY, новый неймспейс `consultation` в
+  `src/lib/portal/i18n.ts`): кнопка «Записаться на консультацию» в
+  карточке вуза (передаёт institution_id) и в «Профиле» (без вуза);
+  маленькая форма с необязательной заметкой (честный placeholder, лимит
+  500); после отправки — состояние «Запрос отправлен — менеджер свяжется»;
+  в «Профиле» — история своих запросов со статусами (свежие первыми).
+  Повторное нажатие при открытом запросе показывает существующий статус
+  (RPC возвращает открытый receipt) — дубль невозможен. Клиентские
+  парсеры/типы `src/lib/portal/consultation.ts`, серверное чтение
+  `consultation-source.ts`, server action `consultation-actions.ts`,
+  компонент `src/components/portal/consultation/ConsultationRequest.tsx`.
+- (e) Boundary-тест `supabase/tests/platform_portal_consultation_requests.sql`
+  на собственном чекпоинте 197 в `scripts/test-postgres-authorization.sh`
+  (конвенция 185/192–196, зеркало строк 192–196): студент создаёт/читает
+  только своё; изоляция второго студента; один-открытый-на-участника
+  (второй create возвращает ТОТ ЖЕ receipt, superuser-проверка «ровно один
+  ряд»); replay по request_id идемпотентен; чужой/неопубликованный/
+  неизвестный institution_id — 42501 в стиле 148; staff: admin (без
+  грантов, admin-байпас) и Sales с реальным грантом lead.read (последова-
+  тельность staff_role_command/impact/publish/assignments_save, клеймы
+  после гранта — паттерн 185/189) читают и обрабатывают; curator БЕЗ
+  гранта lead.read — 42501 в обе стороны (обе стороны реальной permission-
+  карты); студент/anon/service_role — отказ; handle: PT409 на несовпадении
+  статуса, идемпотентный replay 'handled', 22023 на невалидный вход;
+  зеркало приватности 135: фикстура с draft-попыткой english36, в ответах
+  которой маркер-строка, и проверка, что staff-JSON консультаций не
+  содержит маркер и несёт ровно объявленный набор ключей.
+
+Validation impact: полная цепочка 001–197 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с ПОЛНЫМ логом и grep
+маркеров P197 (и сохранности P192–P196); `npm run typecheck`;
+`npm run build`; `npm run test:brand-ui`; затронутые node-тесты (portal-i18n
+ky-полнота нового неймспейса, новый tests/portal-consultation.test.mjs в
+test:frontend с обновлением пинов tests/ci-node-test-suite.test.mjs В ТОМ ЖЕ
+коммите); `git diff --check`. Smoke-якоря не затрагиваются (новая секция —
+за фильтром существующего экрана «Заявки», новые портальные блоки не меняют
+существующие якоря). Живой аутентифицированный рендер экранов в этой сессии
+не выполняется — фиксируется честно в PR.
+Reviewer notes: pending independent review on the exact PR head; base main
+`0fa2ef95`.
+## 2026-09-19 — PORT-4a: движок обучения и профессий (миграция 198)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal content/engine session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 «Английский» и «Профессии»,
+§8.5 («личные данные»), §8.6 («публикуемый контент») и решения PORT-0
+«Состав первого учебного модуля» и «Покрытие профессий»; источники контента —
+`docs/design/portal/content/english-module-1-draft.json` и
+`professions-draft.json` (оба merged) с их notes-файлами.
+Change type: architecture and scope fixation for PORT-4a before coding;
+allocates migration number 198 (production ledger 001–196; номера 197+
+закреплены за Portal-цепочкой координатором, 197 занят параллельным
+Portal-slice, за этой работой — 198 движок и 199 сид контента).
+Affected plan section: PORT-4, план §6 «Английский»/«Профессии», §8.5/8.6;
+notes-файлы контента (их «открытые вопросы движка» закрываются здесь).
+
+Reason: контент-драфты merged, но у них нет ни хранилища, ни механики:
+уроки/упражнения/карточки профессий существуют только как JSON в docs, у
+ученика нет попыток, разборов, банка ошибок и прогресса. Открытые вопросы
+notes (нормализация short_answer, порог «урок пройден», экран итога) блокируют
+и сид (slice B), и UI (slice C) — фиксируются здесь до кодирования.
+
+Decision:
+- (a) Резолюции открытых вопросов notes (полномочие Fable, план §12):
+  нормализация short_answer = lowercase + trim + схлопывание внутренних
+  пробельных прогонов в один пробел + отбрасывание ФИНАЛЬНЫХ точек/запятых +
+  унификация типографских апострофов (’ ‘ ʻ ʼ → ') с ASCII; списки accepted
+  остаются каноническими формами. «Урок пройден» = отвечено КАЖДОЕ упражнение
+  урока (complete-гейт); доля верных сохраняется в result_snapshot попытки,
+  но порогом НЕ является («завершение отражает реальные действия», план §6).
+  Отдельного статического экрана-итога в v1 нет: итог собирается из
+  результатов заданий попытки (вариант 2 из notes; поле recap не добавляется).
+  Дополнительно: reading-упражнение считается верным только при верных
+  ответах на ВСЕ его вложенные вопросы (доля верных считается по упражнениям);
+  ответ на упражнение внутри попытки финален (повторное сохранение того же
+  упражнения — 22023; та же идемпотентность по request_id возвращает исходный
+  receipt) — «изменить ответ после разбора» означало бы фальшивую долю верных.
+- (b) Миграция `198_platform_learning_engine.sql` по референс-архитектуре 135:
+  версионируемый ИММУТАБЕЛЬНЫЙ контент в
+  `platform_private.learning_modules/learning_lessons/learning_exercises`
+  (INSERT-only триггеры; exact-key JSONB-валидаторы по типам упражнений
+  choice/matching/short_answer/reading; в choice у КАЖДОГО варианта обязательны
+  explain_ru/explain_ky) и `platform_private.profession_cards` (exact-key
+  валидатор по схеме драфта; orvis_scales — только 8 известных id шкал).
+  Состояние ученика: `platform.learning_lesson_attempts` (draft/completed,
+  optimistic revision с 40001-семантикой 135, частичный уникальный индекс
+  «один draft на урок», answers JSONB c приговорами) +
+  `platform_private.learning_requests` (идемпотентные start/save/complete по
+  request_id с receipt, зеркало write-функции 135). Проверка ответов — только
+  на сервере; ключи ответов и разборы НЕотвеченных упражнений никогда не
+  сериализуются клиенту: публичная проекция упражнения отрезает
+  answer_index/accepted/explain*, а у matching правая колонка отдаётся в
+  детерминированном хэш-порядке, не совпадающем с порядком пар (иначе сам
+  порядок был бы ключом). save-RPC возвращает вердикт + разбор отвеченного
+  упражнения сразу (мгновенный разбор — механика урока); банк ошибок — id
+  неверно отвеченных упражнений вычисляются сервером в момент ответа и
+  сохраняются в попытке/её result_snapshot.
+- (c) RPC (SECURITY DEFINER, search_path='', GRANT EXECUTE TO authenticated;
+  студенческий guard — каталожный паттерн 148/195/196: student +
+  portal.read.self, СОЗНАТЕЛЬНО case-НЕзависимый):
+  `platform.learning_modules_v1()` (модули + свой прогресс: уроки
+  всего/завершено, состояние каждого урока), `platform.learning_lesson_v1
+  (p_lesson_id)` (безопасная проекция урока + свой draft с разборами только
+  отвеченных + сводка последнего завершения),
+  `platform.start_learning_lesson_v1/save_learning_answer_v1/
+  complete_learning_lesson_v1` (семейство записи с receipt),
+  `platform.learning_review_v1(p_module_id)` (упражнения, отвеченные неверно
+  в завершённых попытках модуля; cap 20, новые первыми),
+  `platform.learning_review_check_v1(p_exercise_id, p_answer)` (проверка
+  ответа в режиме повторения; доступна ТОЛЬКО для упражнений из собственного
+  банка ошибок — их разборы ученику уже открыты, инвариант «разбор только
+  отвеченного» сохраняется), `platform.profession_cards_v1()` /
+  `platform.profession_card_v1(p_card_id)`.
+  ПРИВАТНОСТЬ (план §6/§8.5, staff-невидимость по стоячему решению):
+  попытки/ответы/прогресс — ноль табличных грантов, только RPC, ничего в
+  audit_events; admin/sales/curator и чужой студент получают 42501.
+- (d) Boundary-тест `supabase/tests/platform_learning_engine.sql` на
+  чекпоинте 198 (конвенция 185/192–196, маркеры
+  P198_LEARNING_ENGINE_SUITE_START/PASSED): свой start/save/complete/review;
+  мгновенный разбор только отвеченного (draft-проекция не содержит ключей и
+  разборов неотвеченных, save возвращает разбор); резюме draft (разборы
+  отвеченных в payload); конфликт ревизии 40001; отказ staff/чужого студента
+  42501; иммутабельность контента (UPDATE → 55000); валидаторы контента
+  (битые payload'ы всех четырёх типов и карточки — 22023); отсутствие следов
+  в audit_events.
+
+Validation impact: полная цепочка 001–198 через
+`scripts/test-postgres-authorization.sh` (OrbStack) с ПОЛНЫМ захваченным
+логом и явным grep маркеров P198 (и сохранности P192–P196);
+`npm run typecheck`; `npm run build`; `npm run test:brand-ui`; портальные
+node-тесты не меняются в slice A (состав сьюта не трогается — пины
+ci-node-test-suite без изменений); `git diff --check`. Живой
+аутентифицированный рендер не входит в slice A (нет UI).
+Reviewer notes: pending independent review on the exact PR head; slice B
+(199, сид из драфтов) и slice C (веб-UI) идут stacked поверх этой ветки,
+ретаргет после merge базы — задача координатора.
+
+## 2026-09-19 — PORT-4b: сид контента обучения и профессий (миграция 199)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal content/engine session), продолжение PORT-4a
+(миграция 198) по плану §6 и решениям PORT-0; источники —
+`docs/design/portal/content/english-module-1-draft.json` (12 уроков,
+99 заданий) и `professions-draft.json` (24 карточки), оба merged.
+Change type: content seed pipeline fixation before coding; занимает
+номер 199 (следующий в Portal-цепочке за 198; сверено с ledger 001–196 и
+конвенцией «197+ — Portal»).
+Affected plan section: PORT-4, план §6 «Английский»/«Профессии», §8.6.
+
+Reason: движок 198 без контента пуст; драфты должны стать immutable-сидом
+тем же конвейером, что и assessment-контент (версионируемый JSON →
+генератор → sha256-штампованная миграция + режим --check), а не ручным SQL.
+
+Decision:
+- (a) `scripts/generate-portal-learning-seed.mjs` — зеркало
+  `generate-student-assessment-seed.mjs`: читает ОБА драфта, валидирует
+  состав (12 уроков / 99 заданий: 70 choice, 10 matching, 13 short_answer,
+  6 reading; урок 12 — ровно 10 заданий с source_lesson; RU/KY-парность
+  каждого `*_ru`; «Верно…»/«Туура:» только у верного варианта; 24 карточки,
+  каждая шкала ORVIS основная ровно у 3; поля зарплат/работодателей
+  отсутствуют) и генерирует `199_platform_learning_content_v1.sql` с
+  sha256-заголовками источников; `--check` сверяет байт-в-байт, `--write`
+  перегенерирует НЕприменённую миграцию. Детерминированные UUID строк
+  выводятся из ключей контента (sha256), поэтому регенерация стабильна.
+- (b) Контент version = '1.0.0' (черновой «0.1.0-draft» остаётся статусом
+  файла-источника), module_key `en-m1-start`; KY-поля обязательны; после
+  применения 199 источники и миграция не редактируются — новая версия
+  контента = новый forward-номер (правило assessment-конвейера).
+- (c) Ассерты консистентности ВНУТРИ миграции (DO-блок после INSERT'ов:
+  количества, уникальность ключей, покрытие шкал) + маркеры
+  P199_LEARNING_CONTENT_SEED_START/ASSERTED для grep полного лога прогона;
+  отдельный checkpoint-файл в test-postgres-authorization.sh не нужен.
+- (d) Проверки контента — `scripts/test-portal-learning-content.mjs`
+  (node:test, зеркало `test-student-assessment-content.mjs`: состав, KY,
+  сид байт-в-байт, только platform_private-INSERT'ы) + раздел
+  «Generation and checks» в `docs/design/portal/content/README.md`.
+  Wiring — ровно как у assessment-проверки: standalone-скрипты по README
+  (assessment-проверка сознательно не входит в package.json/CI — зеркалим
+  фактическую конвенцию, состав node-сьюта не меняется, пины
+  ci-node-test-suite не трогаются).
+
+Validation impact: `node scripts/generate-portal-learning-seed.mjs --check`
+зелёный; `node scripts/test-portal-learning-content.mjs` зелёный; полная
+цепочка 001–199 через `scripts/test-postgres-authorization.sh` с ПОЛНЫМ
+логом и grep маркеров P198 и P199; `npm run typecheck`; `npm run build`;
+`npm run test:brand-ui`; `git diff --check`.
+Reviewer notes: pending independent review on the exact PR head; ветка
+stacked поверх izzhackt/portal-4-engine — ретаргет после merge базы делает
+координатор.
+
+## 2026-09-19 — PORT-4c: веб-разделы «Английский» и «Профессии»
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal content/engine session), веб-слой поверх движка 198 и
+сида 199; план §6 «Английский»/«Профессии», дизайн-контракт §3–4.
+Change type: UI-scope fixation before coding; без миграций.
+Affected plan section: PORT-4, дизайн-контракт (карта экранов), route
+contract портала.
+
+Decision:
+- (a) «Английский» (/portal/english): карта модуля с прогрессом
+  (learning_modules_v1), урок-раннер (/portal/english/lesson/[lessonId]):
+  теория → задания по одному с мгновенным вердиктом и разбором из
+  save-RPC, 4 типа заданий (включая matching по выданному порядку правой
+  колонки и short_answer с серверной нормализацией), autosave по ответу,
+  резюме черновика, exit-guard по образцу AssessmentRunner; экран
+  завершения (доля верных + «повторить ошибки»); режим повторения
+  (/portal/english/review, review-RPC + learning_review_check_v1, та же
+  механика); вход в english36 (/portal/tests/english).
+- (b) «Профессии» (/portal/professions): сетка с фильтром по шкалам ORVIS,
+  карточка (/portal/professions/[cardId]): день/среда/навыки/
+  интересное-сложное/пробное задание/куда учиться; ссылки на карточки
+  каталога резолвятся по institution_photo_key -> content.photoKey
+  честным фолбэком (нет в каталоге — текст без ссылки, без фиктивных
+  переходов); вход в orvis92 (/portal/tests/career); отметка «созвучно
+  твоим интересам» на карточках при завершённом orvis92 — результат
+  читается СУЩЕСТВУЮЩИМ приватным student-RPC в собственной сессии,
+  совпадение шкал считается на клиенте; серверной связки результатов с
+  профессиями нет (план §6 приватность).
+- (c) Nav: «Английский» и «Профессии» в Shell для обоих tier'ов; новые
+  RU/KY-неймспейсы english/professions; маршруты добавляются в
+  platform-route-contract (allowlist + uuid-паттерны деталей) вместе с
+  пинами fixed-role-route-contract; новые node-тесты
+  portal-learning/portal-professions входят в test:frontend, пины
+  ci-node-test-suite обновляются тем же коммитом. Смоук-якоря не меняются.
+- (d) Атрибуция: карточки профессий выводят O*NET/CC BY 4.0 (паттерн
+  orvis-v1 professionAttribution) на экране карточки.
+
+Validation impact: `npm run typecheck`; `npm run build`;
+`npm run test:brand-ui`; портальные node-тесты (i18n-полнота новых
+неймспейсов, portal-learning, portal-professions, обновлённые пины) —
+состав test:frontend и пины в одном коммите; полная миграционная цепочка
+не меняется (проверена в slices A/B; на этой ветке прогон повторяется по
+правилу «per slice» с теми же P198/P199-маркерами); `git diff --check`.
+Живой аутентифицированный рендер новых экранов в этой сессии не
+выполняется — честно фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; ветка
+stacked поверх izzhackt/portal-4-seed; ретаргет после merge базы — задача
+координатора. Отдельное наблюдение для координатора: /portal/favorites и
+/portal/profile из PORT-3b/5a сегодня отсутствуют в
+STUDENT_PORTAL_PAGE_ALLOWLIST (proxy fail-closed) — эта запись их не
+чинит, чтобы не пересекаться с чужими ветками.
+
+## 2026-09-19 — PORT-5c: сообщения по делу для студента (миграция 200)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §6 строка «Общение»
+(«Существующий или согласованный чат/вопрос по делу, отправка, статус и
+продолжение диалога; сообщение действительно сохранено и видно разрешённому
+адресату; нет притворного „отправлено"») и §10 PORT-5, поверх staff-стороны
+OTH-5 (миграция 191, `case_chat_*`, /v3/messages), которая явно оставила
+student-side как зависимость портального плана (заголовок 191, строки 11–18).
+Change type: architecture and scope fixation for PORT-5c before coding;
+allocates migration number 200 (следующий после 199 из PORT-4b; сверено с
+локальной цепочкой 001–199 и production-ledger 001–199 — чужих 200 нет;
+номера 200+ закреплены за Portal).
+Affected plan section: PORT-5 («Общение» — блокер снят merge'ем OTH-5),
+план §4 (диаграмма: «Общение» принадлежит сопровождению), §8.7
+(идемпотентность), дизайн-контракт §7 «Моё поступление».
+
+Reason: строка плана §6 «Общение» — последняя часть сопровождения без
+студенческой стороны: staff уже ведёт переписку по делу (191), но студент
+не имеет ни чтения треда, ни отправки; case-help (146) остаётся разовым
+вопросом-ответом и переписку не заменяет (см. заголовок 191 о различии
+моделей).
+
+Decision:
+- (a) Миграция `200_platform_portal_case_chat.sql`: НИКАКОЙ второй модели
+  чата — student-side RPC поверх СУЩЕСТВУЮЩИХ таблиц 191
+  (`platform.case_chat_messages`/`case_chat_threads`,
+  `platform_private.case_chat_receipts`). Гейт обоих RPC — ровно
+  гейт-паттерн 192 для case-операций:
+  `platform_private.require_case_operations_actor(NULL, TRUE)` (студент,
+  свой единственный портальный кейс, state IN ('active','closed') после
+  ужесточения 192) плюс явный отказ не-студентам; параметры не адресуют
+  чужой кейс вовсе.
+- (b) `platform.portal_case_chat_post_v1(p_request_id, p_body)` —
+  идемпотентная отправка: body btrim 1..2000, управляющие символы кроме
+  \n\r\t запрещены (зеркало CHECK 191); advisory-локи в ТОМ ЖЕ порядке и с
+  ТЕМИ ЖЕ ключами, что team_chat/191 (`case-chat-request:`, `case-chat:`),
+  чтобы студенческие и staff-записи сериализовались на одном стриме;
+  receipts — та же `platform_private.case_chat_receipts` (actor-scoped,
+  студенческий membership не пересекается со staff); повтор того же
+  request_id+body возвращает исходный receipt, тот же request_id с другим
+  body — PT409 `portal_case_chat_request_conflict` (конвенция 178/186/194,
+  НЕ 40001: RPC достижим через PostgREST, класс infinite-retry инцидента
+  186); thread-upsert — точно смоделированная 191 студенческая ветка:
+  `await_state='needs_reply'` (снимает `awaiting_student`; явные
+  await_set_by/await_set_at НЕ трогаются — как в post-ветке 191);
+  invalidate-only realtime broadcast в тот же топик 191 (staff-сессии
+  обновляются); audit `case.chat.post` (allowlist уже расширен 191-й).
+- (c) `platform.portal_case_chat_page_v1(p_before_sequence_id DEFAULT
+  NULL)` — STABLE чтение СВОЕГО треда: страницы по 30 DESC с
+  before-курсором (паттерн 191 read_page); строка сообщения: id,
+  sequenceId, mine, authorName, body, createdAt, attachmentKind,
+  attachmentLabel (label документа/задачи резолвится как в 191 — staff
+  может прикладывать карточки-ссылки, студент видит подпись, не raw id),
+  quotedBodyPreview; в ответе awaitState треда. Курсор чтения студента НЕ
+  ведётся (unread-механика портала не в этом slice); чтение НИКОГДА не
+  меняет await_state (правило 191).
+- (d) Staff-сторона 191 НЕ переписывается — и аддитивный anchor-патч НЕ
+  НУЖЕН: `case_chat_read_page_v1` строит authorName через
+  organization_memberships→profiles (студенческий membership резолвится),
+  `staff_case_chat_threads_v1` считает unread по авторству «не я», триггер
+  `notify_case_chat_message` уведомляет куратора о студенческом посте,
+  board 187/191 показывает needs_reply из треда. Каждое из этих утверждений
+  проверяется РЕАЛЬНЫМ вызовом соответствующего staff-RPC в boundary-тесте,
+  не чтением кода.
+- (e) Boundary-тест `supabase/tests/platform_portal_case_chat.sql` на
+  checkpoint 200 в `scripts/test-postgres-authorization.sh` (зеркало
+  секции 192–198; маркеры P200): active-студент читает/пишет свой тред;
+  awaiting_student → needs_reply при студенческом посте; идемпотентный
+  replay и PT409-конфликт; уведомление куратору (ids only); staff видит
+  пост через СВОЙ 191-RPC; pending-студент — 42501 на оба RPC; второй
+  студент изолирован в своём кейсе; staff/anon/service_role — 42501 на
+  портальных RPC; body-валидация 22023; пагинация before-курсором.
+- (f) Portal UI: новый экран «Сообщения» `/portal/messages` (только
+  assisted; approved не видит раздела — правило дизайн-контракта про
+  замок-дразнилку): тред (старые выше, «показать более ранние» по
+  курсору), отправка с честными состояниями (отправляется/ошибка+повтор с
+  тем же request_id), автообновление умеренным поллингом 30s по паттерну
+  PortalNotificationUpdates (visibility/focus/online, только видимая
+  вкладка); RU/KY-неймспейс `messages`. CaseHelpWorkspace (вопрос-ответ)
+  остаётся как есть на «Поступлении»; страница «Сообщения» предметно
+  помечает разницу (вопрос куратору = разовое обращение с ответом;
+  сообщения = переписка с командой) и ссылается на блок обращений.
+  Маршрут добавляется в STUDENT_PORTAL_PAGE_ALLOWLIST + пины
+  fixed-role-route-contract; Shell получает пункт «Сообщения»
+  (tiers: assisted) с обновлением пинов v3-student-portal-ui; новый
+  node-тест `tests/portal-messages.test.mjs` входит в test:frontend, пины
+  ci-node-test-suite обновляются тем же коммитом (попутно дедуплицируется
+  случайно задвоенный assert uniqueFileCount). Смоук-якоря не меняются.
+
+Validation impact: полная цепочка 001–200 через
+`scripts/test-postgres-authorization.sh` с ПОЛНЫМ логом и явным grep
+маркеров P200; `npm run typecheck`; `npm run build` (проверка кода
+возврата); `npm run test:brand-ui`; портальные node-тесты (test:frontend,
+включая новый portal-messages и обновлённые пины); `git diff --check`.
+Живой аутентифицированный рендер нового экрана в этой сессии не
+выполняется — честно фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; ветка
+izzhackt/portal-5c-chat от origin/main (28758dd6). Поверх этого slice
+стекуется PORT-5d (редизайн «Моё поступление» в Атласе, без миграции) —
+отдельная запись ниже перед его кодированием.
+
+## 2026-09-19 — PORT-5d: «Моё поступление» в Атласе (без миграции)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), исполняя
+`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §7 (полный редизайн UX/UI) и
+дизайн-контракт `docs/design/portal/design-contract.md` §7 «Моё поступление»
+(«обзор/документы/оплата/вопрос куратору в новом визуале; функциональные
+контракты не меняются») и правило изоляции («замена src/components/v3/portal/*
+по мере переноса экранов, replace-don't-layer»).
+Change type: UI-scope fixation before coding; без миграций; stacked поверх
+izzhackt/portal-5c-chat (PORT-5c, PR #892).
+Affected plan section: PORT-5/PORT-2 (перенос последних v3-экранов портала в
+Атлас), дизайн-контракт §7.
+
+Decision:
+- (a) OverviewView/DocumentsView/PaymentsView/NotificationsView переносятся
+  из `src/components/v3/portal/` в `src/components/portal/admission/` на
+  pt-токены (replace-don't-layer: старые файлы удаляются этим же slice,
+  все импорты обновлены). Вместе с ними — их собственные опоры:
+  presentation.ts (портальный слой над доменными статусами v3/wording —
+  разрешённое исключение дизайн-контракта), PortalStatus (pt-пилюля),
+  PortalDocumentControls, PortalNotificationReadButton,
+  PortalMarkAllReadButton; страница «Ответ куратора»
+  (/portal/notifications/[id]) тоже переводится — иначе presentation и
+  кнопка прочтения остались бы жить в двух мирах. Имена компонентов
+  сохраняются — меняются путь и разметка.
+- (b) Функциональные контракты и данные НЕ меняются: те же читатели
+  `src/lib/v3/portal-source.ts` (E2 DTO), те же server actions прочтения
+  уведомлений, тот же XHR-upload с Idempotency-Key и exact-receipt; вся
+  null-семантика 189 сохраняется (`dueAt: null` = «без срока» → «Не
+  указан»/строка срока не рисуется; `nextAction: null` → блок «Следующий
+  шаг» не рисуется) — проверено чтением кода обеих сторон.
+- (c) Смоук-якоря production — байт-в-байт: заголовки «Моё поступление»,
+  «Документы», варианты заголовков документов («Чеклист» | «Список
+  документов пока пуст»), testid `student-portal-shell`, nav «Разделы
+  кабинета». Смоук-скрипт и его контракт-тест НЕ трогаются; после переноса
+  прогоняется `node --test tests/production-browser-smoke.test.mjs`.
+- (d) Пины структурных тестов обновляются осознанно (пути v3/portal →
+  portal/admission, pt-классы вместо tailwind-утилит):
+  v3-student-portal-ui, v3-student-portal-documents-ui. Что остаётся в
+  v3-мире сознательно (вне объёма): PortalPage/PortalEmptyState для
+  экранов тестов (assessments), PortalNotificationUpdates в layout,
+  assessments/* — их перенос принадлежит следующим slice'ам.
+- (e) Локализация RU/KY этих четырёх экранов сознательно НЕ входит в slice:
+  редизайн обязан сохранить функциональные контракты и смоук-якоря
+  байт-в-байт; тексты остаются сегодняшними русскими строками, KY-слой
+  «Моего поступления» — отдельная работа с собственными словарями доменных
+  статусов (named limitation, фиксируется и в PR).
+
+Validation impact: `npm run typecheck`; `npm run build` (код возврата);
+`npm run test:brand-ui`; `npm run test:frontend` (обновлённые пины);
+`node --test tests/production-browser-smoke.test.mjs`; `git diff --check`.
+Миграционная цепочка не меняется (P200-прогон выполнен в PORT-5c).
+Живой аутентифицированный рендер в этой сессии не выполняется — честно
+фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; ветка
+izzhackt/portal-5d-atlas stacked поверх izzhackt/portal-5c-chat — ретаргет
+после merge базы делает координатор.
+
+## 2026-09-19 — PORT iOS волна 5: избранное, профиль, консультация, обучение-read
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal iOS session), iOS-догон против ПРИМЕНЁННЫХ контрактов
+195–199 (ledger в проде); план §6, дизайн-контракт «Карта экранов» (iPhone),
+ADR 0030.
+Change type: iOS UI-scope fixation; без миграций и без изменений веба.
+Affected plan section: PORT-3b/5a/5b/4a-4c (iPhone-часть), дизайн-контракт
+«iPhone: таб-бар».
+
+Decision:
+- (a) Избранное (195): сердечко в списке и карточке вуза
+  (set_university_favorite_v1, optimistic с честным откатом через общий
+  FavoritesStore), раздел «Избранное» внутри вкладки «Университеты» и с
+  Главной (favorites list + by_ids кусками по 30), сравнение — простой
+  таблицей фактов (страна/город, уровни, число программ, ближайший набор).
+- (b) Профиль (196): язык RU/KY через get_own_portal_profile_v1 /
+  set_own_portal_language_v1 — локальная смена локали (AppleLanguages)
+  ТОЛЬКО после receipt сервера, с честной пометкой «полностью после
+  перезапуска»; «Удалить аккаунт» — request_account_deletion_v1, кнопка =
+  запрос команде, ничего не удаляется сразу; состояние «запрос отправлен»
+  переживает перезапуск через deletionRequestedAt из профиля.
+- (c) Консультация (197): кнопка в карточке вуза и в Профиле, форма с note
+  (≤500), история своих запросов (own_portal_consultation_requests_v1);
+  one-open честно: receipt с чужим requestId показывается как «открытый
+  запрос уже есть — новый не создавался».
+- (d) Обучение READ (198/199): вкладка «Английский» — карта модуля с
+  прогрессом (learning_modules_v1) и просмотр урока (learning_lesson_v1:
+  цель, теория, состав заданий) с честной пометкой «прохождение уроков на
+  iPhone — в следующем обновлении» (раннер — отдельный slice);
+  «Профессии» — сетка+карточка (profession_cards_v1/profession_card_v1) со
+  связками в каталог по institution_photo_key → photoKey (не найденное —
+  честный текст без ссылки; недочитанный каталог — отдельная честная
+  пометка).
+- (e) Таб-бар по дизайн-контракту: approved — Главная · Университеты ·
+  Профессии · Английский · Профиль; assisted — Главная · Моё поступление ·
+  Университеты · Английский · Профиль («Профессии» — с Главной). «Тесты»
+  перестают быть вкладкой: входы из «Английский»/«Профессии» и «Личные
+  результаты тестов» в Профиле (TestsContentView, функциональность без
+  изменений).
+- (f) RU/KY String Catalog для всего нового (95 ключей, полный ky);
+  двуязычный контент (обучение/профессии) выбирается по языку bundle
+  (AppLocale.pick), английские формулировки заданий не переводятся.
+
+Validation impact: xcodebuild build И test (exit-коды, полные логи,
+строка «Executed N tests»); декодер-тесты с фикстурами, написанными руками
+по SQL-контрактам 195–199 с построчными ссылками в комментариях, — главный
+проверяемый артефакт; установка+запуск в симуляторе iPhone 17 Pro со
+скриншотами достижимых без входа экранов; git diff --check; секреты в гит
+не попадают. Живой авторизованный прогон новых экранов в этой сессии не
+выполняется (нет согласованного входа в этой сессии) — непройденные пути
+честно перечислены в PR.
+Reviewer notes: pending independent review on the exact PR head; ветка
+izzhackt/portal-ios-wave5 от origin/main, конфликтов с веб-ветками нет
+(изменения только в ios/ и этой записи).
+
+Correction (2026-09-19, после ребейза на main поверх #892/#894): заявление
+выше о нулевых конфликтах с веб-ветками не подтвердилось — ребейз дал два
+реальных конфликта: точка дописывания этой же записи в PLAN_CHANGES.md
+(тривиальный, обе стороны просто дописывали в конец файла) и общие пины в
+`tests/ci-node-test-suite.test.mjs` (обе ветки независимо дедуплицировали
+один и тот же задвоенный assert uniqueFileCount, но зафиксировали разные
+числа). Оба разрешены взятием структуры main-стороны с последующим
+пересчётом пяти пинов по факту (`node --test
+tests/ci-node-test-suite.test.mjs`, 10/10, exit 0): occurrenceCount/
+uniqueFileCount 345/206 (CI), bounded.files.length 174, occurrenceCount/
+uniqueFileCount 243/201 (unit).
+
+## 2026-09-19 — PORT-6a: KY экранов сопровождения и a11y-проход (без миграции)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal web session), закрывая named limitation PORT-5d(e)
+(«Локализация RU/KY этих четырёх экранов сознательно НЕ входит в slice») и
+исполняя план §7 (тексты RU/KY без тихого фолбэка) и дизайн-контракт
+`docs/design/portal/design-contract.md` (изоляция словарей портала,
+доступность как обязательство).
+Change type: локализация + точечные a11y-исправления + новый статический
+a11y-гейт; БЕЗ миграций; ветка izzhackt/portal-6-ky-a11y от origin/main.
+Affected plan section: PORT-2 (i18n-слой), PORT-5d (экраны сопровождения),
+§7 тексты.
+
+Decision:
+- (a) Четыре экрана сопровождения (OverviewView/DocumentsView/PaymentsView/
+  NotificationsView), страница «Ответ куратора», их страницы-обёртки и
+  клиентские кнопки/контролы переводятся на неймспейс `admission` в
+  `src/lib/portal/i18n.ts` (RU+KY полностью, ~150 ключей). КРИТИЧНО и
+  проверяемо: русские значения — байт-в-байт прежние строки; смоук-якоря
+  («Моё поступление», «Документы», «Чеклист», «Список документов пока
+  пуст») закреплены новым тестом в tests/portal-i18n.test.mjs, смоук-скрипт
+  и его контракт-тест не тронуты (аккаунт смоука живёт с language=ru,
+  default locale = ru).
+- (b) Доменные статусы (слот документа, решение проверки, статус/категория
+  начисления, статус задачи EVO) уходят из прямого чтения
+  `src/lib/v3/wording.ts` в локализуемую портальную обёртку: ключи
+  `docStatus.*`/`reviewDecision.*`/`payStatus.*`/`payCategory.*`/
+  `taskStatus.*` неймспейса admission; RU-паритет со staff-словарём
+  закреплён тестом (portal-i18n ↔ wording), staff-файл НЕ изменён (из него
+  остаётся только allDayDate — чистое форматирование даты). Словарь
+  pending-кабинета переезжает в admission.pending* с теми же RU-значениями
+  (portalPendingCabinet в wording.ts остаётся нетронутым).
+- (c) A11y-проход по новым портальным экранам недели — точечные фиксы с
+  комментарием-причиной в каждом месте: перенос фокуса после успешного
+  ответа в LessonRunner/ReviewRunner (кнопка «Ответить» размонтируется),
+  фокус статуса после успеха в DeleteAccountRequest/ConsultationRequest,
+  клавиатурная прокрутка таблицы сравнения (FavoritesView: tabIndex+region),
+  radiogroup+aria-labelledby и lang="en" для вариантов ответов
+  (exercises.tsx), снятие дублирующего role="status" со счётчика заданий,
+  снятие aria-live со всего списка уведомлений (перечитывание всего списка),
+  объявление нового входящего сообщения в MessagesThread (sr-only status,
+  новый ключ messages.newMessageNotice RU+KY) и фокус после исчезновения
+  «Показать более ранние», фокус карточки-диалога на карте и возврат фокуса
+  на маркер при закрытии (MapCanvas).
+- (d) `npm run test:a11y` остаётся staff-гейтом (живой runtime,
+  PLAYWRIGHT_BASE_URL) — портал он не покрывает. Добавлен компактный
+  `npm run test:a11y:portal`: axe-core (та же связка AxeBuilder + WCAG
+  2.0/2.1/2.2 A+AA, что в staff-спеке) по СТАТИЧЕСКОМУ рендеру реальных
+  компонентов четырёх ключевых поверхностей (обзор, документы, уведомления,
+  профессии+формы профиля/консультации) с настоящим portal.css, light+dark.
+  Рендер — отдельным node-процессом (tests/e2e/portal-static-render.cjs):
+  транспилер Playwright компилирует JSX в CT-дескрипторы, внутри спеки
+  реальные компоненты не рендерятся.
+- (e) Осознанно НЕ делается в этом slice (named limitations): native
+  `disabled` на время pending по-прежнему роняет фокус на <body> до
+  завершения действия (систематический паттерн всего продукта, включая
+  staff; замена на aria-disabled+guard — отдельное решение с обновлением
+  пинов и проверкой двойной отправки повсюду); ExplainPanel монтируется как
+  live-область уже с текстом (объявление вердикта не гарантировано всеми
+  скринридерами); метаданные страниц локализованы через generateMetadata,
+  но заголовок вкладки при переключении языка обновится со следующей
+  навигации.
+
+Validation impact: `npm run typecheck` (exit); `npm run build` (exit);
+`npm run test:brand-ui`; портальные node-тесты (portal-i18n + структурные
+v3-student-portal-*, portal-*); `node --test
+tests/production-browser-smoke.test.mjs` (7/7); `npm run test:a11y:portal`
+(9/9); `git diff --check`. Живой аутентифицированный рендер и проверка
+носителем KY в этой сессии не выполняются — честно фиксируется в PR.
+Reviewer notes: pending independent review on the exact PR head; KY-тексты
+написаны агентом и ждут вычитки носителем языка (терминология выровнена по
+существующим KY-словарям портала).
+
+## 2026-09-19 — PORT iOS волна 7: раннер уроков, консультация и сообщения
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal iOS session), iOS-паритет против ПРИМЕНЁННЫХ контрактов
+197–200 (ledger 001–200 в проде); план §6, дизайн-контракт «Карта экранов»
+(iPhone), ADR 0030.
+Change type: iOS UI-scope fixation; без миграций и без изменений веба.
+Affected plan section: PORT-4a/4c (раннер, iPhone-часть), PORT-5b/5c
+(iPhone-часть), дизайн-контракт «iPhone: таб-бар».
+
+Decision:
+- (a) Раннер уроков (198/199): полный проход урока в приложении — экраны
+  теории, затем упражнения по одному (choice / matching / short_answer /
+  reading; matching — нативное тап-сопоставление пар, short_answer — с
+  подсказкой правил нормализации 198:493-500). Вердикт и разбор рендерятся
+  ИЗ ОТВЕТА save_learning_answer_v1 (receipt 198:819-825) — ключи ответов на
+  клиент не попадают ни в какой форме (проекция 198:519-561). Автосейв
+  каждого ответа немедленный и идемпотентный: неподтверждённый запрос
+  повторяется с ТЕМ ЖЕ request_id и тем же payload (input_hash 198:763-776),
+  40001 — явная перезагрузка попытки, ответ внутри попытки финален
+  (198:805-807, «подобрать» вариант после разбора нельзя). Резюм черновика —
+  с первого неотвеченного упражнения, отвеченные листаются со своим
+  вердиктом+разбором. Выход — только «Сохранить и выйти» (exit-protection
+  паттерна 135-раннера). Завершение (complete_learning_lesson_v1) — доля
+  правильных из result_snapshot (порогом НЕ является, 198:830-831) и вход
+  «Повторить ошибки».
+- (b) Режим повторения (198): learning_review_v1 (банк ошибок модуля, cap
+  20) + stateless-проверка learning_review_check_v1 — ничего не пишет;
+  разборы упражнений собственного банка уже открыты завершённой попыткой.
+  Честная заглушка «прохождение уроков — в следующем обновлении» в
+  EnglishView заменяется реальным входом в раннер.
+- (c) Сообщения (200, assisted): вкладка «Моё поступление» перестаёт быть
+  PlaceholderView — статус кейса + вход в «Сообщения»; остальные разделы
+  сопровождения (документы, оплата, уведомления) честно помечены «в
+  следующем обновлении». Экран треда: страницы по 30 before-курсором
+  (200:151-159), отправка идемпотентна по request_id (fingerprint 200:80-90,
+  повтор — тот же receipt; PT409 — конфликт чужого запроса), документ-камни
+  только с честным label (label может быть NULL — 200:183-185; NULL-label
+  рендерится нейтральной подписью без выдуманного названия), task-карточки
+  НЕ рендерятся вовсе (контракт §6, 200:168-172: attachmentLabel для задач
+  всегда NULL), состояния отправки честные (sending / не подтверждено /
+  retry с тем же request_id), умеренный поллинг первой страницы (30 с,
+  зеркало веба) с дедупликацией по id.
+- (d) Консультация (197): паритет с вебом там, где iOS-волна 5 от него
+  отставала — request_id становится СТАБИЛЬНЫМ на показ формы (веб держит
+  его стабильным на попытку: ретрай после сети не плодит запросы и честно
+  показывает «отправлено», а не «уже есть открытый»), и открытый запрос
+  показывается СРАЗУ при открытии формы (own_portal_consultation_requests_v1;
+  веб-паттерн initialOpenRequest) — форма не предлагает создать дубль.
+  Форма (note ≤500, необязательный institution из карточки вуза) и история
+  своих запросов в Профиле — без изменений (волна 5).
+- (e) RU/KY String Catalog для всего нового; двуязычный контент по
+  AppLocale.pick, английские формулировки заданий не переводятся (план §7).
+- (f) Тесты: декодер-фикстуры, написанные руками по SQL 197/198/200 с
+  построчными ссылками (save-receipt, attempt payload с answers/verdict/
+  explain всех 4 типов, review-элементы и review-check, страница и receipt
+  чата, NULL-label документа); юниты чистых политик раннера/чата по образцу
+  ProfileLanguagePolicy (резюм-индекс, retry-политика с тем же request_id,
+  matching-черновик, сборка страниц треда с дедупликацией).
+
+Validation impact: xcodebuild build И test (exit-коды, строка «Executed N
+tests», база волны 5 — 43 теста + новые); git diff --check; секреты вне
+гита. Установка и живой прогон новых экранов НЕ выполняются: в сессии нет
+согласованного входа (правило DO NOT sign in), поэтому скриншот — только
+SignIn-экран, а весь пост-логин путь честно перечисляется как not-exercised;
+уверенность — из декодер-фикстур и юнитов политик.
+Reviewer notes: pending independent review on the exact PR head; KY-тексты
+написаны агентом и ждут вычитки носителем языка.
+
+## 2026-09-19 — PORT iOS волна 7: уточнение объёма live-валидации (append-only)
+
+Запись волны 7 выше предсказывала, что живой прогон ограничится
+скриншотом SignIn-экрана (в сессии нет согласованного входа). Фактический
+объём оказался шире и задокументирован в README PR #897: владелец сам
+вошёл в QA-аккаунт в симуляторе ранее в этот день, и оставшаяся Keychain-
+сессия позволила read-only открытие шести экранов (Моё поступление,
+тред сообщений, вход в урок до кнопки «Начать», повторение, форма
+консультации, профиль) — без ввода каких-либо учётных данных, без единого
+write-RPC (все screen-open вызовы — STABLE read; start/save/send/submit
+требуют отдельного явного действия и не выполнялись). Независимое review
+head c252d529 (PASS, 8/8 пунктов) подтвердило read-only характер по коду
+и отметило само расхождение план↔README — эта запись закрывает его
+append-only, не меняя отревьюенный head. Аккаунт оставлен как был.
+
+## 2026-09-19 — Admin CRM Knowledge Base: план GPT-6 Astra
+
+Решение владельца: отдельный полный план
+`docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md` реализует GPT-6 Astra;
+Claude Code Fable продолжает Portal/App. Этот scope расширяет прежний
+ограниченный подраздел базы знаний OTHER, не переоткрывая остальные его
+задачи и не меняя контракт портала.
+
+Включены Admin-only управление гибкими папками, файлами и редактируемыми
+страницами; материалы существующих клиентов без второй личности/копии;
+внутренние знания EVO, сырой архив и защищённые записи доступа. Позднее
+уточнение владельца отменяет сложные «Связанные материалы»: нужны обычные
+ссылки. Подключение ИИ/RAG остаётся за пределами текущей поставки.
+
+Обязательная часть результата — загрузить всю существующую локальную базу,
+рассортировать, сверить полноту и дальше работать в CRM; локальные оригиналы
+сохраняются. Новое прямое требование владельца — выгрузка отдельного
+материала, выбранного набора, папки и всей базы. Экспорт сохраняет исходные
+файлы/вложения/структуру, сообщает неполноту и включает секреты только
+зашифрованными, без ключей. Исторический контур общих клиентских AI-знаний
+не смешивается с новой «Клиентской базой» личных документов и переписок.
+
+Основа документа: main `c4fcc4893e70f7cc690bd817f3a0f87319a317fe`;
+repo tail 200 — снимок, не резерв номера и не проверка production-ledger.
+Учтён открытый Portal PR #899 по общим документным/Auth-файлам. Worktrees
+отдельные, номера/schema apply и release arm/disarm координируются общими
+владельцами. Перед реализацией актуализировать GitHub main, PR и ledger.
+
+Validation impact: сейчас только документация, diff review и
+`git diff --check`; продуктовые тесты, импорт приватных материалов,
+production-записи, миграции и релиз этим изменением не выполняются.
+Будущая реализация использует scope-local реальные проверки и независимое
+review точного head по Fast Execution, без blanket full-suite gate.
+
+
+## 2026-09-19 — PORT-8a: bearer-путь к двум документным эндпойнтам (web)
+
+Date: 2026-09-19, workspace timezone.
+Author: Claude (Fable 5), slice PORT-8a.
+Change type: architecture (серверный транспорт документов для iOS).
+Affected plan section: `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §8
+(общие данные и архитектура, файлы), ADR 0030 «Решение» п. 2.
+Reason: ADR 0030 принял точечный bearer-резолвер актора только там, где
+сегодня cookie-only HTTP — два документных route handler'а. Без него iOS
+не может загружать и скачивать документы дела.
+Decision:
+- (a) Объём: РОВНО два handler'а — POST
+  `/api/portal/document-slots/[documentSlotId]/versions` и GET
+  `/api/portal/document-versions/[versionId]/download`. Никакие другие
+  эндпойнты bearer не получают. Staff-хендлеры тех же фабрик не меняются.
+- (b) Прецеденс: если заголовок `Authorization` ПРИСУТСТВУЕТ (любое
+  значение), запрос обрабатывается bearer-транспортом; cookie-сессия при
+  этом не читается вовсе. Заголовка нет — cookie-путь без изменений
+  (байт-в-байт та же цепочка зависимостей, что сегодня).
+- (c) Никакого отката к cookie: присутствующий, но невалидный/просроченный
+  bearer (не-Bearer схема, не-JWT форма, неверная подпись, exp) даёт 401
+  `{"error":"authentication_required"}` — существующая форма ошибки
+  хендлеров. У invalid-bearer зависимостей `createUserClient` намеренно
+  бросает исключение (защита в глубину от любого cookie-пути).
+- (d) Верификация токена — только Supabase: `auth.getClaims(<jwt>)`
+  (JWKS/WebCrypto либо серверная проверка `getUser`), без самодельной
+  проверки JWT. Затем ТА ЖЕ цепочка полномочия, что и у cookie-пути:
+  `readVerifiedStudentPortalAuthority` → RPC `current_actor_authority` +
+  `student_portal_cases` на клиенте, чьи PostgREST-вызовы несут этот же
+  токен (`createClient` c публичным ключом и заголовком Authorization).
+  Downstream-хореография grant→consume→sign, admissions/preflight RPC,
+  scan-admission и идемпотентность не меняются; user-RPC вызовы идут от
+  bearer-клиента (auth.uid() из токена). Не-student токен отклоняется той
+  же семантикой, что не-student cookie (401), чужой slot/version — теми же
+  403 от RPC.
+- (e) Proxy: сегодня `src/proxy.ts` cookie-гейтит оба маршрута ДО
+  handler'ов (bearer-запрос умирал бы на 401 в proxy). Добавляется узкий
+  pass-through ровно для `isConnectedStudentPortalApi`-путей с
+  присутствующим `Authorization`: proxy пропускает запрос к handler'у,
+  который сам fail-closed верифицирует токен и полномочие (паттерн
+  isDirectPlatformStaffAssistantApi «handler владеет своей границей»).
+  Cookie-запросы браузера (без Authorization) проходят прежний гейт без
+  изменений. Это часть той же границы двух маршрутов, не новый эндпойнт.
+- (f) Без service-role на новом пути (используются только уже существующие
+  service-шаги хендлеров), без миграций, без новых зависимостей.
+Validation impact: `npm run typecheck`, `npm run lint`, `npx next build`,
+целевые node-тесты (`tests/platform-document-storage-route-handlers.test.mjs`,
+`tests/student-portal-auth.test.mjs`, `tests/fixed-role-route-contract.test.mjs`)
+— каждый отдельной командой с проверенным exit-кодом. Новые тесты
+добавляются в существующие файлы (пины ci-node-test-suite не меняются):
+bearer принят → авторизован; присутствующий невалидный bearer → 401 без
+cookie-отката; без bearer + cookie → прежний путь; токен не-student →
+отклонён; парсер заголовка и proxy pass-through — source/юнит-пины.
+Honest limits: живой iOS-аплоад и реальный Supabase bearer-токен в этой
+сессии не прогоняются (нет согласованного входа/окружения); верификация —
+юнитами с инжектированными клиентами и локальной сборкой. Живое
+подтверждение остаётся на iOS-слайс.
+Reviewer notes: pending independent review on the exact PR head.
+
+## 2026-09-19 — KB-0: источник, полномочия и исполнимый перенос
+
+Owner request: implement the full CRM Knowledge Base plan, including all four local roots, sorting and export. Base: `6a2a7829dfec98dd7a1accf0b94813db75b9365d`; isolated worktree `evo-crm-knowledge-implementation`, branch `izzhackt/crm-knowledge-implementation`. The preserved canonical checkout is not modified.
+
+First slice: product/context/agent terminology plus a reusable read-only, resumable inventory tool. It streams SHA-256 without extracting raw text, records every source location and boundary, detects changed/unreadable files, does not follow symlinks, writes private 0600 state outside Git and emits only aggregate counts. Secret key material is explicitly retained outside library/archive exports; encrypted vault/backups remain in the secret boundary. Mapping is a proposal derived from existing group metadata, not an approval or claim-resolution engine.
+
+The measured source includes multi-gigabyte archive containers; the library must support source-preserving streamed/chunked transfer under the actual Storage limit, with manifest/reassembly and final full-file hash verification. No file-size truncation, rename of original containers, public uploads or byte-loss fallback is allowed. Final runtime architecture and migration number will be recorded after live capacity and coordinator confirmation.
+
+Fable retains shared schema apply and release/arm ownership. PR #899 currently owns the common document bearer/auth handlers; KB will reuse the merged contract. This slice changes no runtime/Auth/Storage/RLS or production data. A migration number is not reserved by this entry. Runtime and import completion remain open.
+
+Official references checked on 2026-09-19: Supabase Storage access control (service keys bypass RLS; new operations need explicit Admin/object authorization), SOPS (encrypted files require a real key mechanism), Next.js Route Handlers (Web Request/Response streaming). Context7 returned quota exceeded; direct official docs and installed Next.js docs used: https://supabase.com/docs/guides/storage/security/access-control , https://getsops.io/docs/ , https://nextjs.org/docs/app/api-reference/file-conventions/route .
+
+KB-0 measured evidence (2026-09-19): 6,570 source files; 6,568 hashed, 2 key files explicitly retained outside import/export; 5,960 unique boundary-scoped blobs and 608 duplicate locations. Raw source is 10,391,040,670 bytes; largest archive 2,266,114,496 bytes. Managed read-only query returned ledger tail 195–200 and Storage fileSizeLimit=52,428,800 bytes. Python TLS trust failed locally; system curl with normal TLS verification succeeded using the existing Keychain token process-only. No TLS bypass or credential copy. Private full inventory is outside Git with mode 0600. Runtime data import count remains zero.
+
+Coordination request posted to https://github.com/izzhackt/evo_AI_CRM/pull/899#issuecomment-5744697374 : Fable keeps schema/release ownership; next migration number requires acknowledgment. No apply/arm operation was performed.
+
+Read-only inventory validation: first 73 real files stopped with explicit incomplete status; resume completed. A second actual process was terminated with SIGTERM after 107 completed rows; its on-disk journal resumed to exit 0 and all 6,570 source records matched the first inventory exactly. No synthetic files or copied stand-ins were used; source bytes remained read-only. `git diff --check` passed. This proves inventory resumption only, not the later Storage import/export path.
+
+
+## 2026-09-19 — PORT iOS волна 8: сопровождение на iPhone (документы, оплата, уведомления, задания)
+
+Date: 2026-09-19, workspace timezone.
+Author: Fable (Portal iOS session), iOS-паритет разделов сопровождения против
+ПРИМЕНЁННЫХ read-контрактов PORT-5d (миграции 043→153, ledger в проде);
+план §2 (урезанный iPhone с web-only документами НЕ соответствует заданию),
+§6 «Сопровождение», ADR 0030 §2/§3.
+Change type: iOS UI + клиентский bearer-транспорт документов; без миграций,
+без изменений веб-кода. Первый коммит — только эта запись.
+Affected plan section: PORT-5a/5b/5d (iPhone-часть), дизайн-контракт
+«iPhone: Моё поступление».
+
+Decision:
+- (a) ДОКУМЕНТЫ (чтение): тот же RPC, что у веба —
+  `platform.student_portal_documents()` (128:675-694; правки статусной
+  машины 108). Слот показывает requirement_label, instructions, статус
+  (5 значений document_slot_status), deadline, next_action, последнюю
+  версию (version_no/original_filename/submitted_at — «истории версий»
+  отдельного RPC у веба НЕТ: version_no и есть счётчик, iOS показывает
+  ровно то же и ничего не изобретает), review_decision + rework_reason.
+  Ко-ограничения NULL-полей версии/решения — как в веб-нормализаторе
+  (portal-source.ts): фикстуры их фиксируют.
+- (b) ДОКУМЕНТЫ (upload/download, bearer-контракт): вебовые route
+  handler'ы, авторизация `Authorization: Bearer <access token текущей
+  Supabase-сессии>` (ADR 0030 §3; серверная часть строится ПАРАЛЛЕЛЬНО в
+  ветке izzhackt/portal-8-bearer-documents — iOS кодируется по контракту и
+  честно помечает live-прогон как not-exercised):
+  - POST `{base}/api/portal/document-slots/{slotId}/versions`,
+    multipart/form-data с РОВНО одной частью `file` (pdf|jpeg|png, ≤25MB),
+    заголовки Accept: application/json и `Idempotency-Key: <UUID>` (handler
+    требует UUID — route-handlers.ts:1160). Семантика ключа зеркалит
+    PortalDocumentControls.tsx: ключ ЗАМОРОЖЕН на попытку, ретрай шлёт ТОТ
+    ЖЕ ключ, выбор другого файла и успех сбрасывают его. Ответ 201
+    `{document:{documentSlotId,documentVersionId,versionNumber,
+    originalFilename,declaredMimeType,byteSize}}` (route-handlers.ts:
+    1461-1473); ошибки мапятся как в вебе: 400/415 файл, 403 доступ,
+    409 конфликт/скан, 413 размер, 422 malware, 429 rate limit, иначе
+    «недоступно». Процент загрузки веб получает из XHR; iOS в этой волне
+    показывает честное неопределённое состояние «Загрузка…» без процентов.
+  - GET `{base}/api/portal/document-versions/{versionId}/download` с тем же
+    Bearer; студенческий policy отвечает 302 + Location на подписанный URL
+    (route-handlers.ts:175-179, 1579-1594). URLSession-делегат СНИМАЕТ
+    Authorization при cross-host redirect; файл скачивается во временный
+    каталог и открывается QuickLook-превью.
+- (c) База URL кабинета: новый конфиг-ключ `PORTAL_WEB_BASE_URL` там же,
+  где живёт SUPABASE_URL (Local.xcconfig → Info.plist через project.yml);
+  пустое/отсутствующее значение (в т.ч. обрезанный xcconfig-артефакт без
+  хоста) → дефолт `https://app.evoadmissions.com` (план §2 «app.evoadmissions
+  .com»). Документируется в ios/README.md + placeholder в
+  Local.xcconfig.example ($()-экранирование `//`). Сам Local.xcconfig не
+  читается и не изменяется.
+- (d) ОПЛАТА: тот же RPC `platform.student_portal_finance_v2()`
+  (127:472-485; overdue NULL-safe патчем 189:242-257). Null-семантика 189
+  СОХРАНЕНА: due_at NULL = «без срока» — строка срока не рисуется вовсе,
+  никаких выдуманных дефолтов; next_action NULL — блока «Следующий шаг»
+  нет. Суммы в minor units → те же 4 строки веба (к оплате / оплачено /
+  осталось / возвращено-если->0), статус из derived_status (4 значения
+  obligation_status), категория evo_service_fee|third_party_cost.
+- (e) УВЕДОМЛЕНИЯ: `platform.student_portal_notifications_v2()`
+  (153:97-106, cap 500) + пер-элементное
+  `mark_own_student_portal_notification_read_v2(p_notification_id,
+  p_request_id)` (153:210; receipt jsonb 153:314-318
+  {notification_id,is_read,read_at}). request_id — ДЕТЕРМИНИРОВАННЫЙ
+  UUIDv5, бит-в-бит формула веба (student-portal-notification-command-id.ts:
+  namespace 73f89df8-d811-5352-9a97-a87652d591c1, имя
+  notification-read:org:case:membership:authUser:notification): один студент
+  + одно уведомление = одна replay-safe команда, ретрай и mark-all safe при
+  частичном сбое. «Прочитать все» = цикл той же одиночной RPC по
+  непрочитанным — ровно как веб (notifications/page.tsx:21-30, «no new
+  RPC»). Навигация по категории — зеркало portalNotificationTarget
+  (presentation.ts): category document* → экран «Документы», payment* →
+  «Оплата», eventCode case_help_answer → у веба отдельная страница ответа
+  (readStudentHelpReply) — на iPhone этого экрана в волне 8 НЕТ, пункт
+  честно раскрывает detail-текст уведомления и говорит, что полный ответ —
+  в веб-кабинете (это НЕ мёртвая ссылка); прочие категории — без ссылки
+  (объект — сам хаб). «message → чат»: категорий сообщений в эмитируемом
+  контракте уведомлений НЕ существует (проекции 069/108/153) — веб их тоже
+  никуда не ведёт; чат доступен из хаба.
+- (f) ЗАДАНИЯ/следующие действия: `platform.student_portal_overview_v2()`
+  (131:17-30, single-row; ко-ограничения NULL-групп student_action/
+  evo_action — как в normalizeStudentPortalOverview). Читается ТОЛЬКО на
+  чтение в MyAdmissionView: главный шаг + очередь действий (слияние
+  document-action с payment-действиями по правилу веба portal-source.ts:
+  674-691 — outstanding>0 и статус не cancelled/waived, сортировка «раньше
+  срок — выше», без срока — в конец, стабильные ничьи), колонка EVO
+  (evo_action + куратор). Контракт волны 7 сохраняется: task-карточек в
+  чате НЕТ.
+- (g) MyAdmissionView становится хабом: статус кейса → Документы / Оплата /
+  Уведомления / Сообщения + очередь действий. Строка-отсрочка
+  admission_next_wave («…в веб-кабинете») УДАЛЯЕТСЯ для этих разделов.
+- (h) RU/KY: каждый новый ключ в String Catalog сразу с ru И ky (дисциплина
+  270/270); accessibilityLabel на всех новых интерактивных элементах;
+  Dynamic Type — системные текстовые стили, без фиксированных размеров.
+
+Что НЕ строится в этой волне (честные границы): страница полного ответа
+case-help на iPhone; история версий документов сверх version_no (у веба её
+нет); процент upload-прогресса; push-уведомления (план §14); никакие
+web/SQL-изменения (bearer-серверная часть — параллельная ветка
+izzhackt/portal-8-bearer-documents).
+
+Validation plan: xcodebuild build И xcodebuild test (iPhone 17 Pro),
+отдельными командами с отдельными exit-кодами и строкой «Executed N tests»
+из ПОЛНОГО лога; декодер-фикстуры, написанные руками по SQL 131/127+189/
+128/153 с построчными ссылками; юниты чистых политик: замороженный
+Idempotency-Key (ретрай/смена файла/успех), UUIDv5-паритет request_id
+(векторы посчитаны референсной реализацией), mark-all только по
+непрочитанным, null-семантика оплаты (без срока — без строки), слияние и
+сортировка очереди действий. Live upload/download НЕ прогоняются до merge
+и релиза PORT-8a (серверного bearer ещё нет в main); live sign-in в этой
+сессии не выполняется — пост-логин экраны перечисляются как not-exercised.
+
+
+## 2026-09-19 — PORT-8c: веб-хвосты — тесты в «Атласе», KY-анкета, этап дела (append-only)
+
+Слайс закрывает три подтверждённых аудитом разрыва веб-портала после
+PORT-2…PORT-6a. Ветка izzhackt/portal-8-web-residuals от origin/main
+(c4fcc489). Без миграций; ассессмент-контракт (5 Student-RPC, раннер,
+серверные вердикты) не меняется — только представление и словари.
+
+### 1. Экраны тестов переезжают в «Атлас» (replace-don't-layer)
+
+- Новые компоненты `src/components/portal/tests/`: `TestsCatalog.tsx`
+  (каталог+история, серверный), `AssessmentPage.tsx` (серверная сборка
+  attempt→runner), `AssessmentRunner.tsx`, `AssessmentQuestion.tsx`,
+  `AssessmentResults.tsx` (клиентские; та же механика — автосейв 650ms,
+  идемпотентный retry того же request/snapshot, exit-guard, testid
+  `assessment-runner`/`assessment-results`). Стили — только `--pt-*`
+  классы portal.css (light+dark обязательны), Tailwind-утилиты staff-мира
+  уходят вместе со старыми файлами.
+- Умирают v3-файлы (grep всего репозитория подтверждает, что после переноса
+  импортов не остаётся): `src/components/v3/portal/PortalPage.tsx`,
+  `src/components/v3/portal/assessments/{AssessmentPage,AssessmentQuestion,
+  AssessmentResults,AssessmentRunner}.tsx`.
+  `PortalNotificationUpdates.tsx` остаётся: его импортирует layout портала,
+  это не экран тестов и не residual этого слайса.
+- Новый неймспейс `tests` в `src/lib/portal/i18n.ts`: RU-значения —
+  байт-в-байт сегодняшние строки экранов (они же якоря
+  tests/e2e/student-assessments.spec.ts: «Начать тест», «Все ответы
+  сохранены», «Завершить и получить результат», «Задание {n} из {total}»,
+  «Ваша карта интересов», «Сохранить и выйти» и т.д.), KY — полный словарь.
+  Страницы: `getPortalStrings("tests", await getLocale())` (getLocale —
+  async), клиентские компоненты получают строки/locale пропсами (паттерн
+  LessonRunner). Контент инструмента (metadata/questions/разборы) приходит
+  из read model с его локалью (сегодня ru) и не переводится на клиенте —
+  честная граница, как в уроках английского.
+- error.tsx/loading.tsx маршрута тестов рескинятся на pt-классы; тексты
+  error-boundary остаются RU-статикой — то же осознанное ограничение, что у
+  существующего `src/app/(portal)/portal/error.tsx` (boundary рендерится без
+  серверного locale-прохода).
+- Metadata title страниц остаётся статическим RU («Тесты — EVO Admissions»)
+  — паттерн остальных портальных страниц (english/page.tsx).
+- Обновляются в тех же коммитах структурные пины:
+  tests/v3-student-portal-ui.test.mjs (остаточный состав v3/portal,
+  PortalEmptyState-пин переезжает на новый каталог),
+  tests/student-assessments.test.mjs (путь раннера; поведенческие пины
+  сохраняются), tests/e2e/portal-static-render.cjs +
+  tests/e2e/portal-accessibility.spec.ts (см. a11y ниже).
+
+### 2. Анкета /apply получает полный KY
+
+- Механизм локали — существующий: cookie `locale` читается `getLocale()`
+  на сервере (анкета живёт до авторизации; тот же механизм уже работает на
+  /login). Persist в БД не добавляется — до создания аккаунта персистить
+  некуда, после одобрения профиль портала владеет языком (RPC 196).
+- Видимый переключатель RU/KY на страницах /apply и /apply/status:
+  двухкнопочная форма на существующем server action
+  `src/lib/locale-actions.ts` setLocaleAction (EN не предлагается — у
+  портала осознанно нет английского интерфейса; en-cookie резолвится в RU).
+- Новый неймспейс `apply` в портальном словаре: шаги, вопросы, подписи
+  полей, валидация, серверные статусы регистрации, статусный экран, ошибки.
+  RU — байт-в-байт сегодняшние строки (HARD constraint; grep tests/ не
+  нашёл прямых якорей на строки анкеты, но правило сохраняем). Доменные
+  подписи опций (страны, сезоны, уровни, бюджеты, источники) — ключи
+  `opt.<value>`; RU зеркалит APPLICATION_LABELS байт-в-байт (контракт-тест
+  по паттерну admission↔wording). Направления обучения хранятся RU-строками
+  (контракт заявки не меняется) — KY-подпись только для показа, значение в
+  анкете остаётся каноническим RU; поиск по направлениям матчит обе подписи.
+- Названия стран гражданства: Intl.DisplayNames("ky") с проверкой
+  resolvedOptions().locale и честным фолбэком на RU-имена, если у рантайма
+  нет ky-данных (Node 22/браузеры ship full ICU — проверено локально).
+- Серверная логика регистрации/одобрения не трогается: user-visible
+  сообщения статусов уже маппятся на клиенте (serverError в wizard) и
+  локализуются словарём.
+
+### 3. «Моё поступление» показывает операционный этап дела
+
+- Read model уже отдаёт `overview.operationalStage`
+  (src/lib/v3/portal-source.ts:81,430); рендерим его в
+  src/components/portal/admission/OverviewView.tsx в колонке команды EVO:
+  подпись + значение. Ключи `stage.<key>` в admission-словаре зеркалят
+  RU staff-словаря STUDENT_OPERATIONAL_STAGE байт-в-байт (11 ключей) +
+  `stageCustom` = «индивидуальный этап сопровождения» для нестандартного
+  значения; KY — свои значения. Никакого нового RPC и выдуманных названий;
+  overview=null (pending-кабинет/нет плана) — блока этапа нет вовсе.
+- Пин теста «the overview never claims a mandatory stage» уточняется:
+  запреты «Текущий этап»/overviewStage-хелпера остаются, добавляются
+  позитивные пины честного рендера operationalStage из словаря.
+
+### A11y и якоря
+
+- Статический axe-гейт (tests/e2e/portal-accessibility.spec.ts +
+  portal-static-render.cjs) получает новые поверхности тем же паттерном,
+  light+dark: `tests-catalog`, `tests-runner` (черновик с вопросом),
+  `tests-results` (завершённый english-результат на фикстуре E2-формы).
+- Смоук-якоря заморожены байт-в-байт и перепроверяются grep'ом после
+  изменений: testid student-portal-shell, nav «Разделы кабинета», заголовки
+  «Моё поступление», «Документы», «Чеклист», empty-state «Список документов
+  пока пуст», #staff-email/#staff-password.
+
+### План валидации (каждая команда отдельно, с echo exit-кода)
+
+1. npx tsc --noEmit; 2. npx eslint (затронутые пути); 3. npx next build;
+4. node --test tests/portal-i18n.test.mjs; 5. node --test
+tests/v3-student-portal-ui.test.mjs; 6. node --test
+tests/student-assessments.test.mjs; 7. node --test
+tests/student-public-application.test.mjs; 8. node --test
+tests/ci-node-test-suite.test.mjs (состав suite не меняется — новые
+тест-файлы не добавляются, пины occurrenceCount/uniqueFileCount ожидаемо
+прежние); 9. npx playwright test -c playwright.accessibility.config.ts
+(портальный axe-гейт). Прогоны не чейнятся с пушем и не фильтруются
+через tail/grep.
+
+### Честные ограничения
+
+- Живой production-рендер и реальный Supabase-путь тестов/анкеты в этой
+  сессии не прогоняются: e2e student-assessments.spec.ts требует живой
+  Supabase-runtime (E5-гейт), уверенность — из статического рендера axe,
+  структурных пинов и неизменного контракта действий.
+- KY-тексты написаны агентом и ждут вычитки носителем языка.
+- Контент инструментов (вопросы/разборы/метаданные) остаётся RU из БД;
+  перевод контента — отдельная контентная работа, не UI-слайс.
+
+## 2026-09-19 — KB-1/2: изолированный контракт Admin-библиотеки
+
+KB-0 merged as PR #902 (`7610579df`); exact-head independent review and protected short checks passed. The next slice adds the knowledge domain under `platform_private` with only explicitly granted Admin RPCs; no direct table grants, separate organization/scope-bounded blob identities, immutable page snapshots, optimistic versions and idempotent request receipts. It does not replace existing case documents/chat or the company-file authority.
+
+Names and current page text are searchable; raw files and encrypted payloads are opaque. Inbox is the absence of a parent in an area; review and trash are filters over the existing location. Folder cycles and cross-boundary moves are rejected. Page restores create a new immutable version. Source identities are unique and never overwrite a subsequently edited imported page.
+
+Measured 50 MiB Storage object limit and 2.27 GB source containers require 8 MiB immutable parts in private Supabase Storage. A file is published only after the server reads every stored part and verifies the entire SHA-256 and length. Client-declared hashes alone are not proof. Download/export reconstruct original bytes in order. Existing case-file malware/provenance controls remain unchanged; library raw containers are opaque attachments without active previews or claimed full-file malware scans.
+
+Schema source initially lives in `docs/design/knowledge/schema.sql` pending coordinator numbering; it is not an applied migration. Before shipping it is moved once to the assigned forward migration, reviewed and applied by the shared coordinator. The UI/API remains unpublished until its real database path is available. Shared route/navigation changes will be restricted to the new Admin boundary after Fable's acknowledgment. No key provisioning or runtime release is implied by this entry.
+
+### 2026-09-20 — KB: sealed records, canonical dossier projections and source filing
+
+- SOPS records use private versioned ciphertext and access facts without values; no plaintext fields are persisted in the generic node/index/receipt domain. Existing local vault decryption was verified process-only; production key and binary remain absent until coordinated provisioning.
+- Dossiers reuse the real case, document workspace, chat pagination and activity readers. Source files are not cloned and client identity is not recreated. Full export still needs canonical-source snapshots before acceptance.
+- Private metadata filing plan covers all 6,570 source entries; 436 approved/working general Markdown pages are editable, other originals remain files, 32 protected sources have a separate encrypted import, and two backup key files remain outside the library. Candidate/approval provenance is preserved; no AI bundle publication occurs.
+- Import checks source size/hash, resumes existing blobs/nodes, preserves user-edited pages and maps unambiguous local links to stable material IDs. Source originals remain immutable. SQL stays unnumbered until coordinator confirmation.
+
+### 2026-09-20 — KB: canonical export and protected source delivery (draft #906)
+
+- Dossier export projects existing case/document/company-file/chat/history records into one fixed database snapshot. It creates no second business identity. Explicit case selection includes its added KB materials; selecting a nested KB folder does not expand to the whole case. Existing scan proofs are checked again before reading original Storage bytes.
+- Reply snippets keep their staff permissions on `/v3/reply-snippets`; `/v3/knowledge` remains Admin-only. The shared navigation change is limited to this relocated entry.
+- Protected migration wraps all original vault files with the existing SOPS/age recipient and maps existing vault entries to structured records. Local preparation writes ciphertext only, verifies round trips and excludes key backups. Server import authenticates SOPS and verifies original hashes before persisting ciphertext.
+- Runtime proposal: checksum-pinned SOPS binary in the immutable image, age key in a read-only external directory, and a scheduled service-only export maintenance command. No production apply, key provisioning, timer installation or arm is implied; Fable coordination is pending in #906/#903.
+- Scope-local SQL validation uses a separate empty local database copied from the schema only; no customer/Auth records were copied. This is compilation evidence, not production business acceptance.
+
+### 2026-09-20 — KB: сохранение рабочих документов и явная привязка материалов
+
+- Existing staff documents remain reachable on `/v3/documents` through the same company/document sources and permissions. The Admin-only library does not remove this staff workflow.
+- Historical unassigned materials in the clients area can be attached to an existing case only after the Admin selects its actual CRM identity and confirms ownership. The whole selected subtree gains that case reference in one versioned transaction. Already-bound case materials cannot be reassigned through this action; no canonical business entity is mutated.
+- Retried generic browser commands retain their request identity across transient failures and page reloads. Browser session storage contains only a command hash and request UUID, never source text or secret values.
+- Export failures retain the failing item for the owner and remain unavailable as complete archives. Retry rechecks current scan proof and reuses verified output parts. Expired export paths are swept repeatedly to collect parts uploaded by a worker that was in flight at expiry.
+
+## 2026-09-20 — PORT-9c: «Главная» кабинета в «Атласе» (web, append-only)
+
+Контекст: дизайн-контракт (docs/design/portal/design-contract.md §«Карта
+экранов» п.1) описывает «Главную» — «продолжить» (урок/тест/анкета-статус),
+избранное с ближайшими интейками, новое в каталоге; assisted — ближайшие
+действия дела первым блоком. Аудит показал, что экран не был построен:
+корень /portal рендерит «Моё поступление» (PORT-5d). План §6 «Главная»:
+самостоятельному — сохранённые варианты и продолжение обучения, клиенту —
+также ближайшие действия своего дела; без вымышленных процентов готовности.
+
+### Решение по маршрутизации
+
+- «Главная» живёт на новом маршруте `/portal/home`; корень `/portal`
+  остаётся «Моим поступлением» без изменений. Причина — замороженные
+  смоук-якоря production (scripts/evo-production-browser-smoke.mjs,
+  студенческая фаза): вход обязан завершиться точно на
+  `app.evoadmissions.com/portal` (waitForURL), там же байт-в-байт заголовок
+  «Моё поступление», и клик по `a[href="/portal"]` в nav «Разделы кабинета»
+  снова обязан показать тот же заголовок. Перенос «Моего поступления» с
+  корня сломал бы все три проверки; смена якорей разрешена только вместе со
+  смоук-скриптом в одном PR и не входит в этот slice.
+- Навигация Shell: первым пунктом обоих tier'ов добавляется «Главная» →
+  `/portal/home` (ключ shell."nav.home", RU/KY); остальные пункты, включая
+  «Поступление» → `/portal`, не меняются — смоук-путь к якорям сохранён.
+- `/portal/home` вносится в STUDENT_PORTAL_PAGE_ALLOWLIST
+  (src/lib/platform-route-contract.ts) в этом же PR — урок hotfix'а
+  release-3 (экран без allowlist невидим за прокси); пин — в
+  tests/fixed-role-route-contract.test.mjs (список portalRoutes).
+
+### Состав блоков и их источники (никаких новых RPC и миграций)
+
+- approved и assisted (общие discovery-блоки):
+  - «Продолжить занятия»: readLearningModules (движок 198) — урок с
+    draftAttemptId («Продолжить»), иначе первый непройденный по orderIndex
+    («Начать»), иначе честное «модуль пройден» со входом в раздел; ссылка —
+    /portal/english/lesson/{id}. Сбой чтения — честная плашка, не пустота.
+  - «Продолжить тест»: readStudentAssessments (E2, student-assessment-source)
+    — инструмент с draftAttemptId и прогрессом answered/total («Продолжить»
+    → assessmentPath(key)?attempt=), иначе вход в /portal/tests. Тот же
+    честный сбой.
+  - «Избранное с ближайшими интейками»: student_university_favorites_v1 +
+    student_university_catalog_by_ids_v1 (миграция 195, PORT-3b), первые 4
+    записи в порядке избранного; «ближайший набор» — существующий помощник
+    nearestUniversityIntake (только open/announced — непроверенные даты не
+    факт). Пустое состояние — честное, со входом в каталог; сбой — честная
+    плашка favorites.unavailable.
+  - approved дополнительно: карточка «Ваша анкета» → /apply/status
+    (actor.caseState === "pending"; строки admission.pendingApplication* —
+    «честный статус анкеты/доступа» из дизайн-контракта).
+- assisted первым блоком: «Ближайшие действия дела» — readStudentPortalOverview
+  (та же модель, что OverviewView «Моего поступления»): главный шаг
+  (документ/оплата с реальным сроком и суммой), счётчик остальных, вход в
+  «Моё поступление» и в разделы сопровождения (Документы/Оплата/Сообщения).
+  overview=null — честное «действий сейчас нет»; сбой RPC — честная плашка.
+
+### Честные пропуски
+
+- «Новое в каталоге» НЕ строится: честного сигнала новизны в read model нет.
+  `publishedAt` каталога — это reviewed_at ТЕКУЩЕЙ версии публикации
+  (миграция 148): любая правка карточки поднимает версию и дату, то есть
+  «новое» показывало бы «недавно отредактированное». Даты первой публикации
+  RPC не отдаёт, сортировка каталога — по имени. Блок появится, когда
+  появится честный признак (отдельная серверная работа, не этот slice).
+- «Продолжить анкету» для незавершённой регистрации не входит: на /portal
+  попадают только аккаунты с делом; статус анкеты покрыт карточкой
+  «Ваша анкета».
+
+### UI, i18n, a11y, тесты
+
+- Вью — src/components/portal/home/HomeView.tsx (presentation-only, без
+  useEffect; точные E2/портальные DTO без обёрток), страница —
+  src/app/(portal)/portal/home/page.tsx (чтения — Promise.all, каждый
+  источник со своим честным fallback'ом). Стили — существующие pt-классы
+  (pt-card/pt-empty/pt-btn/pt-chip/pt-data) плюс небольшой набор pt-home-*
+  в portal.css, light+dark, узкий экран, reduced-motion наследуется.
+- Словарь: новый неймспейс home (RU+KY, строгая полнота ловится
+  tests/portal-i18n.test.mjs автоматически) + ключ shell."nav.home";
+  повторно используются существующие строки admission/english/tests/
+  favorites/universities, где смысл идентичен, — без дублей.
+- A11y: статический axe-гейт получает поверхности `home-approved` и
+  `home-assisted` (tests/e2e/portal-static-render.cjs + EXPECTED_SURFACES в
+  tests/e2e/portal-accessibility.spec.ts), light+dark.
+- Пины: tests/v3-student-portal-ui.test.mjs — список pageFiles получает
+  home/page.tsx, список href Shell — "/portal/home"; добавляются структурные
+  пины «Главной» в том же файле. Новые тест-файлы не создаются — пины
+  ci-node-test-suite (occurrenceCount/uniqueFileCount) не меняются;
+  tests/fixed-role-route-contract.test.mjs дополняется маршрутом.
+
+### План валидации (каждая команда отдельно, exit-код echo, без чейна с push)
+
+1. npx tsc --noEmit; 2. npx eslint (затронутые пути); 3. npx next build;
+4. node --test tests/portal-i18n.test.mjs; 5. node --test
+tests/v3-student-portal-ui.test.mjs; 6. node --test
+tests/fixed-role-route-contract.test.mjs; 7. npx playwright test
+-c playwright.portal-accessibility.config.ts; 8. node --test
+tests/ci-node-test-suite.test.mjs; 9. git diff --check.
+
+### Честные ограничения
+
+- Живой production-прогон и реальный Supabase-путь «Главной» в этой сессии
+  не выполняются; уверенность — статический axe-рендер реальных компонентов,
+  структурные пины и неизменность серверных контрактов (только существующие
+  RPC-чтения).
+- KY-строки написаны агентом и ждут вычитки носителем языка.
+
+### 2026-09-20 — KB: SQL draft location recognized by protected checks
+
+Fast checks on `441492b7` correctly failed closed: four proposed SQL files under
+`docs/design/knowledge` were unknown code paths. Move these unchanged SQL drafts
+to the already supported `docs/schemas/knowledge/` prefix. The existing classifier
+continues to require code lint/build and release contracts; no CI guard is changed
+or bypassed. These remain unnumbered proposals, not ledger migrations. Migration
+numbering and schema/release coordination are still required before delivery.
+
+## 2026-09-20 — PORT-9a: анкета, статус заявки и инвайт на iPhone (append-only)
+
+Волна 9a плана `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` (§2 «Регистрация»/«Приглашения», §5 оба пути, §10 PORT-1) в ветке
+izzhackt/portal-ios-wave9-anketa от origin/main (5ab34127). Закрывает
+аудит-разрыв «на iPhone есть только SignInView»: нативная анкета, создание
+аккаунта в конце, статус заявки, resubmit и invite-путь. Без миграций;
+серверная логика регистрации/одобрения и email_confirm-семантика не меняются.
+
+### Решение 1 — что НЕ становится новым endpoint'ом
+
+`platform.own_student_application_v1` и `platform.submit_student_application_v1`
+уже `GRANT EXECUTE TO authenticated` (177:506-512, 180:353-361; 193 меняет
+только тела). По ADR 0030 («никакого универсального bearer-гейтвея, оба
+клиента вызывают один контракт») iPhone вызывает их напрямую через PostgREST
+тем же путём, что и все волны 4-8: статус заявки, отправка анкеты signed-in
+пользователем и resubmit после отказа — это НЕ новые route handler'ы, а те же
+RPC с теми же definer-гейтами (identity-conflict 193(f), PT409, advisory
+locks). Новые HTTP-обёртки над ними дублировали бы существующую поверхность —
+осознанно отклонено.
+
+### Решение 2 — два узких route handler'а (ADR 0030 «Решение» п.3)
+
+1. **POST `/api/portal/registration`** (анонимный; создание аккаунта в конце
+   анкеты — единственный шаг, который клиентским ключом не воспроизводится:
+   `auth.admin.createUser`). Тонкий адаптер над ТЕМИ ЖЕ функциями веб-мастера
+   (`src/lib/student-signup-actions.ts` / `src/lib/server/student-public-registration.ts`):
+   - тело — только `application/json` (иначе 415), exact-ключи
+     `{questionnaire, email, password}` (дисциплина exactActionStringFields),
+     стрим-чтение с потолком 16 KiB и сериализованная анкета ≤ 12000 символов
+     (зеркало student-signup-actions.ts:32);
+   - email нормализуется как в action (trim+lowercase, ≤254, тот же regex);
+     анкета — `validateStudentApplicationDraft` (единственный валидатор);
+   - вызывает `createPublicStudentAccount(email, password, draft)` БЕЗ
+     изменений: та же `reserve_student_signup_attempt_v1` (глобально 100/час +
+     5/час на email, 177:8-48), тот же bcrypt-байтовый потолок, те же коды;
+   - ответ `{status}` — байт-в-байт статусы StudentSignupState:
+     201 created / 400 invalid|password|password_too_long / 409 conflict /
+     429 rate_limit / 503 unavailable. iPhone маппит их на существующие
+     `server.*`-строки словаря apply;
+   - CSRF/Origin-проверка веб-action защищает cookie-сессионную двойственность
+     формы (signed-in ветку). Endpoint cookies не читает и не пишет и
+     signed-in ветки не имеет, поэтому Origin-гейт заменяется контрактом
+     «только JSON + exact-ключи»; анти-abuse остаётся ТЕМ ЖЕ DB-постом
+     (bucket-RPC + Supabase 429). Идемпотентность создания — как на вебе:
+     дубликат email всегда отвергается admin.createUser (conflict), повтор
+     submit'а после входа идемпотентен по requestId анкеты в самой RPC.
+2. **POST `/api/portal/invite-acceptance`** (bearer; нативное потребление
+   инвайта «не выходя из приложения», ADR 0030 п.3(б)). Токен из письма
+   приложение потребляет само (`auth.verifyOTP(token_hash, type=invite)` — тот
+   же Auth-вызов, что у веб-callback'а, student-invite-callback-runtime.ts:27-30);
+   отметка получения receipt'а — service-role-only RPC, поэтому нужен узкий
+   handler:
+   - Authorization: Bearer → `createSupabaseBearerServerClient(token)` +
+     `auth.getClaims(token)` (паттерн PORT-8a, student-portal-auth.ts:122);
+     resolveStudentPortalBearerActor не переиспользуется целиком осознанно —
+     он требует портальную authority, которой у account-pending приглашённого
+     ещё нет;
+   - claims → `normalizeStudentInviteIdentity` →
+     `resolveStudentInviteReceiptIdentity(identity, createTrustedStudentInviteReceiptStore(), markAccepted=true)`
+     — РОВНО те же функции и тот же m126/186/193-seam, что у веб-callback'а
+     (student-invite-session.ts:38-93, student-invite-session-runtime.ts:13-18);
+     web-CSRF-cookie-церемония заменяется bearer'ом (cookies не участвуют);
+   - ответ: 200 `{status:"accepted", intakeFlow, accountPending, displayName}`
+     / 401 `{status:"authentication_required"}` / 409 `{status:"mismatch"}`
+     / 503 `{status:"unavailable"}`. Повтор идемпотентен: accept_e1 срабатывает
+     только если receipt ещё не accepted (126:2876-2884), затем тот же ответ.
+   - Установка пароля приглашённого — нативный `auth.updateUser({password})`
+     (та же операция, что set-password action, student-portal-auth-actions.ts:128),
+     границы длины 12..4096 зеркалятся в клиенте.
+
+Прокси/route-contract: `/api/portal/registration` (POST) добавляется как
+public-intake pass-through (класс `/api/public/website-leads`: handler владеет
+своей границей); `/api/portal/invite-acceptance` (POST) добавляется в
+`isConnectedStudentPortalApi` — существующий bearer-precedence проход PORT-8a
+покрывает его; без bearer-заголовка handler честно отвечает 401. Пины
+tests/fixed-role-route-contract.test.mjs обновляются в том же коммите.
+
+### Решение 3 — iOS: маршрутизация, wizard, статус, инвайт
+
+- **SessionRouter** заменяет «безликий» accessPending честными состояниями:
+  `needsApplication` (анкета) и `applicationStatus(StudentApplication)`.
+  Таблица решений (чистая политика, юнит-тесты):
+  - authority есть и не student → accessPending (staff-аккаунту в этом
+    приложении делать нечего — как сегодня);
+  - authority student: 1 кейс → active; >1 → accessPending (multi-case v1 не
+    поддержан — как сегодня); 0 кейсов → анкетный маршрут (приглашённый до
+    approve: membership привязан finalize'ом, но activation нет — 193(d));
+  - authority нет → анкетный маршрут;
+  - анкетный маршрут: не подтверждён email или стоит staff-маркер
+    `evo_staff_password_request_id` (student-signup-runtime.ts:10-13) →
+    accessPending; `own_student_application_v1` != null → applicationStatus;
+    null → resume-политика (зеркало resumeStudentApplication:40-61): валидный
+    draft в user_metadata → `submit_student_application_v1(requestId, draft, 0)`
+    → очистка metadata → applicationStatus; иначе → needsApplication.
+- **Анкета (ApplicationWizardView)** — те же 9 шагов STEP_KEYS и тот же
+  порядок валидационных сообщений (ApplicationWizard.tsx:135-149), канон
+  значений — RU-строки контракта (направления обучения — RU-текст, KY только
+  подпись, как PORT-8c); валидация draft'а зеркалит
+  `validateStudentApplicationDraft` правило-в-правило (телефон, диапазоны
+  экзаменов, год 2026-2036, балл ≤ шкалы, exact-состав ключей, consentVersion
+  2026-09-18). Анонимный режим: финальный шаг = контакты+email+пароль+согласие
+  → POST registration → `signIn(email, password)` → router-resume отправляет
+  draft из metadata (тот же путь, что веб-resume — идемпотентно по requestId).
+  Signed-in режим (приглашённый, resume, resubmit): email read-only, без
+  пароля, кнопка «Отправить анкету» → прямая RPC с expectedRevision (0 или
+  revision отклонённой заявки). Черновик — UserDefaults без пароля (аналог
+  sessionStorage веба), чистится при показе статуса, как ApplicationStatus.tsx.
+- **Статус (ApplicationStatusView)** — зеркало /apply/status: заголовок/лид по
+  статусу, причина отказа, «Исправить анкету» (rejected → wizard с
+  draft=questionnaire, expectedRevision=revision), «Обновить статус»/«Открыть
+  кабинет» = `auth.refreshSession()` + повторный resolve (семантика
+  refreshStudentApplicationAction), «Выйти», список ответов из 12 строк
+  (localizedAnswers: подписи answer.*, значения opt.*/шаблоны gradeOf,
+  englishExamAnswer/englishSelfAnswer, страны — Locale.localizedString с
+  ky-фолбэком на RU, как localizedCountryLabel).
+- **Инвайт (InviteEntryView)**: письмо ведёт на web-callback
+  (`…/auth/callback?token_hash=<56hex>&type=invite`, supabase/templates/invite.html:6);
+  приложение принимает ВСТАВЛЕННУЮ ссылку или сам token_hash, парсинг зеркалит
+  decodeStudentInviteCallbackQuery (ровно 2 параметра, 56-hex, type=invite) →
+  verifyOTP → POST invite-acceptance → установка пароля → anketa_v1 +
+  accountPending → wizard с префиллом имени (invitedNamePrefill,
+  apply/page.tsx:18-25). Приглашённый, прошедший callback на вебе, просто
+  входит по email+паролю — тот же анкетный маршрут; префилл добирается
+  оппортунистическим invite-acceptance (mismatch = «не приглашённый», не
+  ошибка; сетевой сбой префилла анкету не блокирует — та же позиция, что
+  try/catch на /apply). Signed-out экран получает «Подать анкету» рядом со
+  входом.
+- **RU/KY**: все новые строки в Localizable.xcstrings обеими локалями; RU
+  зеркалит словарь apply байт-в-байт там, где строка существует на вебе
+  (шаблоны {step}/{limit} переносятся в формат-строки), iOS-специфичные строки
+  (вставка ссылки, ошибки RPC-submit) — новые ключи с обеими локалями.
+  accessibilityLabel на всех новых контролах; вёрстка на системных шрифтах
+  (Dynamic Type), без фиксированных высот.
+
+### Валидация
+
+Веб (каждая команда отдельно, echo exit-кода): `npx tsc --noEmit` (через
+`npm run typecheck`), `npx eslint <затронутые пути>`, `npm run build`
+(`next build` + worker-бандлы), `node --conditions=react-server
+--experimental-strip-types --test tests/student-portal-intake-routes.test.mjs
+tests/student-public-application.test.mjs tests/fixed-role-route-contract.test.mjs
+tests/ci-node-test-suite.test.mjs`, `git diff --check`. Новый тест-файл
+tests/student-portal-intake-routes.test.mjs встаёт в test:u1/test:u7/
+test:unit:core; пины ci-node-test-suite (occurrenceCount/uniqueFileCount/
+duplicateCount/групповые length) обновляются в том же коммите.
+iOS: `xcodegen generate`, `xcodebuild build` и `xcodebuild test`
+(iPhone 17 Pro simulator) отдельными командами с индивидуальными exit-кодами
+и «Executed N tests» из полного лога. Тесты: decoder-фикстуры
+(own_student_application_v1 — exact-состав ключей student-application-source.ts:22,
+варианты english; draft round-trip — DRAFT_KEYS contract:52; ответы
+registration/invite-acceptance) и policy-юниты (parity валидации анкеты
+построчно с контрактом, порядок шаговых сообщений, resubmit-ревизия, таблица
+решений router'а, парсинг invite-ссылки, префилл имени, resume-политика).
+
+### Честные ограничения
+
+- Живая регистрация в production не прогоняется (реальные аккаунты не
+  создаются); уверенность — из переиспользования нетронутых серверных функций,
+  route-юнитов на DI-зависимостях и policy/decoder-parity тестов. Живой
+  инвайт-путь end-to-end (реальное письмо → verifyOTP → acceptance) не
+  прогоняется по той же причине.
+- Bearer-путь invite-acceptance зависит от релиза веб-кабинета; до деплоя
+  iOS-поток честно упирается в 404 (тот же временной зазор, что PORT-8a).
+- KY-строки написаны агентом и ждут вычитки носителем.
+- Оппортунистический префилл приглашённого требует сети до веб-кабинета;
+  без неё анкета работает, но без префилла и с PT409-конфликтом на submit,
+  если receipt ещё не accepted (крайний случай: токен потреблён, приложение
+  умерло до acceptance; повторный вход чинит — acceptance вызывается заново).
+
+## 2026-09-20 — PORT-9d: подготовка managed-хранения фото вузов (append-only)
+
+Контекст: план §6 «Каталог и материалы» требует «управляемое хранение при
+разрешённых правах, не случайные hotlink»; port-0-contracts.md (раздел «фото»)
+обещал миграцию фото каталога с hotlink Wikimedia на Supabase Storage ещё в
+PORT-3 — аудит подтвердил, что это не сделано:
+src/lib/university-photo-library.json (144 записи) целиком hotlink
+(87 — Wikimedia, 57 — официальные сайты вузов). Этот slice готовит миграцию
+кодом и манифестом; сам production-upload выполняет координатор позже.
+
+### Решение: право на копирование — фильтр отбора
+
+- Копировать байты в наше хранилище можно только там, где лицензия это
+  разрешает. Явный allowlist точных строк лицензий библиотеки: CC BY 3.0 /
+  3.0 pl / 4.0, CC BY-SA 2.0 / 2.5 / 3.0 / 4.0, CC0, FAL, Public domain
+  (все три варианта записи). Это 87 записей — ровно тот «Wikimedia + CC»
+  объём, который обещал port-0.
+- 57 записей «Official-source embedding / All rights reserved / supplier…»
+  НЕ мигрируют: право на перенос байтов не заявлено, embedding с
+  официального источника — осознанная правовая позиция PORT-3a. В манифесте
+  они помечаются status="ineligible" с причиной — честно видимы, не
+  выброшены. Неизвестная строка лицензии по умолчанию ineligible.
+
+### Решение: bucket и схема URL
+
+- Bucket: `portal-university-photos`, public-read (фото каталога — публичный
+  контент), file_size_limit 20 MiB, allowed_mime_types: image/avif,
+  image/gif, image/jpeg, image/png, image/webp (только растровые; SVG
+  запрещён намеренно). Создание — только через Storage API в --apply по
+  идиоме scripts/configure-university-template-storage.mjs (точный GET →
+  создание лишь при отсутствии → readback; существующий bucket с другими
+  настройками — конфликт, не перезапись). Без миграций и без RPC.
+- Путь объекта: `<photoKey>.<ext>`, ext выводится из проверенного
+  content-type скачанного оригинала и фиксируется в манифесте
+  (objectPath). Публичный URL:
+  `https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/object/public/portal-university-photos/<objectPath>`.
+- База URL — константа в коде (prod-проект iosckaqtovbbnssqcpde, как в
+  storage-скриптах репозитория): фото-библиотека — repo-контент, не зависящий
+  от окружения; сегодняшние hotlink точно так же указывают на внешние
+  фиксированные хосты. Новых env для рантайма не вводится.
+
+### Решение: pipeline-скрипт scripts/portal/migrate-university-photos.mjs
+
+- Три режима, по умолчанию офлайн-«plan» (идиома
+  configure-university-template-storage.mjs: план без сети и без кредов).
+  - `--plan` (и запуск без аргументов): без сети; читает библиотеку,
+    делит записи на eligible/ineligible, проверяет полноту метаданных
+    (path/license/licenseUrl/author/title/caption/sourceUrl непустые) —
+    неполная запись валит план с exit 1.
+  - `--check`: сеть, строго read-only: скачивает каждый eligible-оригинал,
+    проверяет HTTP 200 + image/* content-type + вменяемый размер
+    (1 KiB…20 MiB), считает sha256 и пишет манифест
+    scripts/portal/university-photos-manifest.json: photoKey → sourceUrl
+    (hotlink), pageUrl (страница-источник), sha256, bytes, contentType,
+    objectPath, license, licenseUrl, attribution (=author библиотеки,
+    байт-в-байт), status (verified|ineligible|failed), reason, migrated.
+    Сбой скачивания — честная запись status="failed" с причиной, не молча
+    выброшенная. Повторный --check сохраняет migrated=true записи, только
+    если sha256 и objectPath не изменились (дрейф оригинала честно
+    сбрасывает флаг с пометкой).
+  - `--apply` (координатор, позже): создаёт bucket при отсутствии,
+    пере-скачивает eligible-оригиналы, сверяет sha256 с манифестом
+    (расхождение — failed "content_drifted", без загрузки), загружает байты
+    (upsert=false; существующий объект сверяется по хешу публичного URL),
+    после readback ставит migrated=true и переписывает манифест.
+- Env-контракт --apply (и только его): NEXT_PUBLIC_SUPABASE_URL (ровно
+  https://iosckaqtovbbnssqcpde.supabase.co) + EVO_PLATFORM_SUPABASE_SECRET_KEY
+  (sb_secret_* или service-role JWT) через существующий
+  getPlatformSupabaseBackendConfig; env отсутствует/чужой проект — отказ до
+  какой-либо сети. Кредов в файлах/коде нет; plan и check работают без
+  кредов вовсе.
+
+### Решение: переключение кода (fallback-семантика)
+
+- Единый helper src/lib/university-photo-url.ts: managed-URL возвращается
+  только когда запись манифеста существует, status="verified",
+  migrated===true и objectPath задан; во всех остальных случаях — прежний
+  hotlink из библиотеки; неизвестный photoKey → null. Оба рендера
+  (портальный PhotoFigure и staff UniversityPhoto) берут src через helper;
+  атрибуция (caption, автор→источник, лицензия→licenseUrl, пометка о
+  кадрировании) не меняется ни байтом.
+- Коммитится манифест после реального --check с migrated=false у всех
+  записей: поведение сайта в этом PR не меняется вовсе. Переключение на
+  managed-URL — это последующий коммит манифеста с migrated=true после
+  --apply координатора (то есть обычный code-deploy, не runtime-тумблер);
+  до него сайт продолжает служить hotlink.
+
+### Тесты и валидация
+
+- Новый tests/university-photo-storage.test.mjs (канонические флаги
+  --conditions=react-server --experimental-strip-types): helper —
+  migrated/не-migrated/отсутствующий ключ/точная база URL; схема манифеста —
+  полнота полей, ключи ⊆ библиотеки, sha256-формат, license/attribution
+  байт-в-байт равны библиотеке, ineligible ⊂ allowlist-дополнение; скрипт —
+  офлайн-план без сети, отказ --apply без env, bucket-идиома на фикстурах
+  fetchImpl (по образцу tests/configure-university-template-storage.test.mjs).
+  Файл добавляется в test:frontend — пины ci-node-test-suite
+  (occurrenceCount/uniqueFileCount) обновляются в том же коммите.
+- Валидация slice: tsc, eslint, next build, новые тесты, git diff --check;
+  реальные --plan и --check прогоняются в сессии, их фактические счётчики
+  (ok/failed/ineligible) фиксируются в PR честно.
+
+### Честные ограничения
+
+- --apply в этой сессии НЕ выполняется: production-bucket не создан, байты
+  не загружены, сайт до прогона координатора служит прежние hotlink.
+- Перепроверка лицензий из port-0 автоматизирована на уровне метаданных
+  (строка лицензии + полнота атрибуции); содержательная сверка страницы
+  Commons остаётся ручной обязанностью прогона координатора.
+- 57 official-source записей остаются hotlink намеренно — до отдельного
+  решения о правах (запрос разрешения вузов или замена на CC-фото), это
+  не входит в slice.
+- Сбои скачивания в --check фиксируются в манифесте как failed и не
+  мигрируют; их починка (замена источника) — контентная работа вне slice.
+
+## 2026-09-20 — PORT-9d: выполнен --apply переноса фото вузов (координатор)
+
+Координатор выполнил scripts/portal/migrate-university-photos.mjs --apply
+против production (ключ получен из Management API в память процесса, на
+диск и в вывод не попадал; канонические node-флаги --conditions=react-server).
+Результат: bucketStatus=created_and_verified (бакет
+portal-university-photos создан этим прогоном), uploaded=87, failures=0,
+alreadyMigrated=0, totals migrated=87/144 (57 официальных источников
+остаются hotlink по лицензии — как решено в PORT-9d). Спот-чек публичных
+URL: peking-university.jpg и university-of-rome-tor-vergata.png отвечают
+HTTP 200 с верными content-type и байтами, совпадающими с манифестом.
+Этот коммит-флип манифеста — единственное кодовое изменение; сайт начнёт
+отдавать managed-URL после релиза, содержащего этот флип. Ручная
+ре-верификация лицензий на Commons-страницах, названная в PORT-9d,
+выполнена ревьюером #909 спот-чеками (6 записей в обе стороны через
+extmetadata API); полная построчная ре-верификация остаётся честным
+ограничением.
+
+
+## 2026-09-20 — KB: передача выпуска Astra и резерв миграций 201–204
+
+Владелец в текущей задаче явно подтвердил передачу Astra выпуска базы знаний,
+переноса реальных материалов и проверки экспорта. Fable уведомлён в #912:
+https://github.com/izzhackt/evo_AI_CRM/pull/912#issuecomment-5745678648.
+На момент резерва main `d564aefd`, production ledger заканчивается на 200,
+Portal release `35469103571` завершён, release arm выключен, pending отсутствует.
+Открытые #912/#905 не добавляют SQL. За KB резервируются 201–204 в порядке
+library → sealed records → canonical export → export jobs. SQL-проекты
+переносятся без изменения поведения в forward migrations. Единственный
+координатор schema apply и ближайшего выпуска — Astra; до dispatch отдельно
+фиксируется exact-main freeze. Portal/iOS-изменения сохраняются.
+
+Production apply выполняется только из проверенного commit с записью исходного
+SQL в общий ledger в одной транзакции; последующее чтение проверяет номера и
+SHA-256. Management API `/database/migrations` сам назначает версию и не принимает
+наш числовой version, поэтому используется `/database/query` для точного SQL и
+ledger insert. Официальный контракт: https://supabase.com/docs/reference/api/v1-run-a-query
+и https://supabase.com/docs/reference/api/v1-apply-a-migration (проверены 20.09.2026).
+Ключ SOPS передаётся только process-only из Keychain на внешний серверный путь.
+Эта запись фиксирует полномочия и порядок, но не объявляет применение,
+выпуск, импорт или проверку ZIP уже выполненными.
+
+
+## 2026-09-20 — PORT iOS волна 9b: карта, поиск и фильтры каталога, иконка, a11y-проход (append-only)
+
+Контекст (аудит плана): iOS-каталог — плоский пагинированный список без
+поиска, фильтров и карты, хотя RPC `student_university_catalog` давно
+принимает `p_query/p_country/p_level` (веб передаёт их с PORT-3a), веб
+показывает карту MapLibre на OpenFreeMap с репо-гео-библиотекой, а
+дизайн-контракт обещает «список⇄карта… веб и iPhone — одни возможности»
+(docs/design/portal/design-contract.md:55). Слот AppIcon пуст (appiconset без
+изображения), план §1 закрепляет «корректную адаптацию существующего знака
+для иконки приложения» за Fable. Вне экранов волн 8/9 во вьюхах всего
+3 accessibilityLabel (FavoritesView ×2, MessagesThreadView ×1).
+
+### Решение 1 — поиск и фильтры каталога (те же RPC-параметры, что веб)
+
+- `studentUniversityCatalog(query:country:level:offset:)` передаёт РОВНО те
+  имена параметров, что веб-обёртка `args` (src/lib/v3/university-source.ts:15):
+  `p_query`, `p_country`, `p_level`, `p_offset`. Семантика «пустое → NULL»
+  веба (`filters.query || null`) на iOS выражена пропуском параметра —
+  PostgREST-функция объявляет DEFAULT NULL для всех трёх (существующие
+  вызовы уже полагаются на это для `p_institution_id`/`p_query`).
+- Чистая политика `UniversityCatalogFilterPolicy` (юнит-тесты, hostless):
+  запрос обрезается до 100 символов (веб: `maxLength={100}` в Catalog.tsx:98 и
+  `text(query, 100, true)` в platform-university-catalog.ts:95), страна —
+  только код из списка `UNIVERSITY_COUNTRIES` (platform-university-catalog.ts:7,
+  249 кодов, продублирован строкой в Swift с тестом на счёт/состав), уровень —
+  только из 6 доменных значений (platform-university-catalog.ts:3). Пустые
+  строки — «фильтр не задан».
+- UI: системный `.searchable` (debounce 300 мс через отменяемый Task),
+  меню-фильтры «Страна» (полный ISO-список, локализованные имена, сортировка
+  коллацией активной локали — как веб) и «Уровень», кнопка сброса. Пустой
+  результат с активными фильтрами — честные `emptyTitle/emptyBody` веба и
+  кнопка сброса. Пагинация сохраняется: любое изменение фильтров перезагружает
+  первую страницу, `p_offset` продолжает листать в рамках тех же фильтров.
+
+### Решение 2 — карта (MapKit, стандартные тайлы Apple + наши пины)
+
+- Технология: **MapKit / SwiftUI Map (iOS 17)**, НЕ MapLibre Native.
+  Взвешено: MapLibre Native дал бы визуальный паритет с вебом (тот же стиль
+  OpenFreeMap liberty/dark), но приносит новую SPM-зависимость (maplibre-gl
+  native, BSD-2) и отдельный вопрос жизненного цикла GL-вью в SwiftUI;
+  MapKit — системный, без третьей стороны, без вопроса тайловых условий
+  (тайлы Apple — часть платформенного соглашения, атрибуция «Legal» рисуется
+  самим MKMapView/Map автоматически), тёмная тема — автоматически. План
+  прямо разрешает «подходящую поддерживаемую альтернативу» MapLibre
+  (EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md:256). Компромисс честно принят:
+  картографическая подложка iOS ≠ подложка веба; одинаковыми остаются данные
+  (одна гео-библиотека), фильтры и поведение.
+- Пины — ТОЛЬКО из репо-гео-библиотеки `src/lib/university-geo-library.json`
+  (126 записей, ключ = `photoKey`, провенанс Wikidata + verifiedOn), которая
+  бандлится ресурсом в app и test target — тот же паттерн единственного
+  источника, что `university-photo-library.json` (ios/project.yml). Вуз без
+  записи просто отсутствует на карте; выдуманных координат нет (план §6
+  «Карта»: «отсутствие координат не создаёт ложную точку»). Честная сводка
+  веба переносится: «На карте: N · Без точки на карте: M — эти вузы есть в
+  списке» (mapShown/mapWithoutPoint).
+- Полный отфильтрованный набор для карты собирается той же политикой, что
+  веб-`readStudentUniversitiesComplete` (src/lib/portal/university-catalog-reader.ts:26-39):
+  до 12 страниц, дедупликация по id, не движущийся вперёд `nextOffset` —
+  ошибка, 13-я страница — ошибка; сбой карты — явное состояние с кнопкой
+  повтора, список остаётся полноценным (план §6). Политика вынесена в чистую
+  функцию `UniversityMapPolicy.collectComplete` с юнитами.
+- Тап по пину — мини-карточка (название, «город · страна») с переходом на
+  существующий `UniversityDetailView`; закрытие возвращает выбор. Переключение
+  список⇄карта — сегмент-контрол над содержимым; фильтры и поиск общие для
+  обоих представлений (веб: те же `q/country/level` в обоих href).
+
+### Решение 3 — иконка приложения
+
+- Знак EVO (красная «книга-E» из официального лого `public/brand/evo-logo.png`,
+  того же файла, что рендерит EvoLogo.tsx) адаптируется программно: скрипт
+  Pillow вырезает альфа-bbox знака из левой части лого (без чёрной
+  словесной части), масштабирует с сохранением пропорций до ~62% холста и
+  центрирует на бумажном фоне `#f7f5f2` дизайн-контракта
+  (docs/design/portal/design-contract.md:24). Никакой перерисовки или новой
+  графики — пиксели знака берутся из оригинала как есть (брендовый красный
+  #d70217 уже в них). Результат — один PNG 1024×1024 в
+  `AppIcon.appiconset` (single-size iOS marketing icon), Contents.json
+  заполняется по формату Xcode.
+- Проверка: у проекта нет паттерна тестов на xcasset-ресурсы (hostless-тесты
+  не видят каталог активов приложения); честная проверка — компиляция
+  каталога `actool` в составе `xcodebuild build` (отсутствующий файл или
+  битый Contents.json валят сборку) и визуальный скрин иконки в PR.
+
+### Решение 4 — a11y-проход по экранам волн 1–7
+
+- Объём: SignInView, AccessPendingView, NetworkErrorView, HomeView,
+  UniversitiesView (+новые контролы), UniversityDetailView, FavoritesView,
+  ProfileView, TestsView, EnglishView, ProfessionsView, AssessmentRunnerView,
+  AssessmentResultView, ConsultationRequestSheet, LessonRunnerView,
+  ReviewRunnerView, MessagesThreadView. Без реструктуризации UI: только
+  `accessibilityLabel` на интерактивных контролах без текстовой подписи
+  (иконки-кнопки, ссылки-строки), `accessibilityElement(children: .combine)`
+  на карточных строках, `accessibilityHidden` на чисто декоративных
+  SF-символах.
+- Фиксированные размеры шрифта заменяются системными стилями/ScaledMetric:
+  AccessPendingView/NetworkErrorView `.font(.system(size: 40))` на иконках,
+  AssessmentRunnerView `.font(.system(size: 5))`. Ширины колонок таблицы
+  сравнения избранного не трогаются (это layout, не типографика, и таблица
+  скроллится).
+
+### RU/KY
+
+Все новые строки — в Localizable.xcstrings обеими локалями; формулировки
+зеркалят портальный словарь `universities` (src/lib/portal/i18n.ts:68-196)
+байт-в-байт там, где строка существует на вебе (поиск, страна/уровень,
+список/карта, пустое состояние, сводка карты, mapOpenCard/mapCloseCard,
+сброс фильтров); iOS-специфичные строки (ошибка карты с кнопкой повтора,
+a11y-подписи) — новые ключи с обеими локалями.
+
+### Валидация
+
+`xcodegen generate`; `xcodebuild build` и `xcodebuild test`
+(iPhone 17 Pro simulator) отдельными командами, индивидуальные exit-коды,
+«Executed N tests» из полного лога. Тесты: политика фильтров (parity имён
+параметров и границ с web-строками, процитированными выше), сборка полного
+набора для карты (дедуп, потолок 12 страниц, не движущийся offset), выбор
+пинов (photoKey с координатой / без / nil — без выдуманных точек),
+гео-библиотека (реальный файл: 126 записей, диапазоны lat/lng, https-провенанс,
+формат verifiedOn).
+
+### Честные ограничения
+
+- Подложка карты — Apple Maps, не OpenFreeMap: визуальный паритет с вебом
+  сознательно не цель этого среза (данные и поведение — одни).
+- Живой прогон RPC с q/country/level против production не выполняется;
+  уверенность — из паритета имён параметров с работающим веб-кодом и
+  policy-юнитов. Скрин-прогон VoiceOver руками не выполняется — проход
+  ограничен статическими атрибутами доступности.
+- KY-строки написаны агентом и ждут вычитки носителем.
+- Иконка проверяется сборкой каталога активов и глазами, юнит-теста на
+  xcasset нет (паттерн в проекте отсутствует).
+
+## 2026-09-20 — PORT iOS волна 9b: фикс гонки фильтров и уточнение тали a11y (append-only)
+
+- Review #912 (medium): guard'ы `isLoading`/`isMapLoading` в UniversitiesView
+  молча дропали перезагрузку, пришедшую во время полёта, а завершение
+  публиковало результат СТАРЫХ фильтров (смена A→B в середине сбора карты
+  оставляла пины A под чипами B до ручного toggle; тот же класс — для списка
+  при debounced-поиске). Фикс: `SingleFlightReloadGate` (generation counter,
+  выбран вместо Task-cancellation — загрузки зовутся из нескольких мест и
+  отмена потребовала бы владения Task-handle'ами; обоснование в doc-комменте
+  затвора). Юниты: устаревший результат отбрасывается, mid-flight смена
+  перезапускает полёт с новыми фильтрами, двойная смена не плодит
+  параллельных сборов; догрузка страницы со старым поколением отбрасывается.
+- Уточнение фактического тали a11y-прохода записи выше: 16 accessibilityLabel
+  добавлено на экранах волн 1–7 и 5 — на новых контролах каталога/карты
+  (16+5, а не «17», как значилось в первоначальном теле PR; PR-описание
+  поправлено).
+
+## 2026-09-20 — KB: исправления по реальной контрольной партии
+
+Managed release `35473287436` принят на main `2e72d5ad`, arm=false, pending
+отсутствует. Реальный UI перенёс 10 источников (2 страницы, 8 файлов), 3 049 345
+байт; 9 source blobs сохраняют обе логические позиции дубля. Через UI скачан
+ZIP; verifier проверил 19 материалов архива и точные байты 10 исходников.
+Это контрольная партия, не полный перенос 6 568 оригиналов.
+
+Проверка показала три необходимых уточнения реализации перед полной загрузкой:
+
+1. В разрешённой странице Notion два относительных CSV-адреса содержат старую
+   родительскую папку. Точные CSV с теми же Notion-id существуют в инвентаре;
+   совпадающие копии имеют одинаковый SHA-256. Дополнить resolver безопасным
+   поиском точного basename с Notion-id в той же области источников; неоднозначные
+   разные байты не выбирать. Заголовок страницы брать из её настоящего H1,
+   сохраняя исходное имя/байты отдельно. Уже импортированные страницы автоматически
+   не перезаписывать; исправление контрольной страницы — обычной редакцией CRM.
+2. Метаданные инвентаря показали 1 240 прежних кандидатов под «Входящими», из них
+   912 — извлечённые тексты конвейера. Файлы производных исходников расположить
+   в сыром архиве с прежней вложенностью; рабочие отчёты проверки — среди процессов
+   подготовки базы. Сохранять статус кандидата, происхождение и вопросы; не
+   объявлять факты утверждёнными, не читать чувствительный текст/OCR и не публиковать
+   ничего в ИИ. Это сортировка по назначению, не простое переименование Inbox.
+3. Контрольная партия выявила последовательную оплату сетевой задержки на каждый
+   файл (около 8 секунд на обычный небольшой файл). Для 6 536 файлов нужен
+   ограниченный параллельный перенос. Разрешить до 4 независимых файлов; один
+   и тот же area/hash/size обрабатывать последовательно. Сохранить общий останов
+   после текущих файлов, предел трёх ошибок, точные request-id/источники/хеши.
+
+DB/Auth/Storage-схема и права не меняются. Реальная проверка: повтор прежней
+партии без дублей и потери правки, новая партия файлов с проверкой ссылок и ZIP,
+затем полный перенос. Source originals и ключи остаются без изменений.
+
+## 2026-09-20 — KB: единый раздел Admin по замечанию владельца
+
+Владелец указал на дублирование «Документов», «Шаблонов ответов» и «Базы знаний»
+в основном меню. Для настоящего Admin остаётся один пункт «База знаний»;
+существующие документы CRM и шаблоны открываются внутри неё с общей навигацией.
+Их источники, серверные операции и права остаются каноническими. Старые адреса
+Admin перенаправляются на соответствующий раздел базы. Сотрудники и Admin
+в режиме просмотра роли сохраняют прежние рабочие маршруты и доступ, без
+доступа ко всей базе. Это объединение интерфейса, без копирования документов
+клиентов или расширения доступа. Проверка: реальные Admin/Staff маршруты,
+переходы в браузере и узкая проверка ролевой навигации.
+
+## 2026-09-20 — KB: убрать вложенное дерево документов после живого просмотра
+
+В новом Admin-разделе реальный desktop-просмотр выявил две соседние панели
+папок: общая навигация базы и прежний FileManager. Они сужают содержимое и
+обрезают названия папок. Встроенный режим FileManager использует общую панель
+базы; внутри остаются карточки папок, путь, поиск и прежние действия над файлами.
+Обычный рабочий экран сотрудников сохраняет собственное дерево. Источники и
+права не меняются. Это точечное исправление подтверждённого визуального дефекта.
+
+Живой переход к шаблонам также выявил повтор заголовка «Шаблоны ответов»:
+оставляем заголовок существующего канонического компонента; общий shell
+не добавляет второй.
+
+## 2026-09-20 — KB: закрытые производные переписки относятся к сырому архиву
+
+Проверка метаданных массового переноса выявила 1 415 файлов Markdown из старого
+раздела «Закрытые производные материалы / WhatsApp», ошибочно оставленных
+во внутренней области. Они перенесены как непрочитанные файлы, а не страницы;
+AI bundles не менялись. Однако прежнее расположение не подтверждает, что это
+общие или обезличенные знания. Исправленный план направляет группу в
+«Сырой архив / Производные исходников / Закрытые производные материалы /
+WhatsApp» с вопросом о назначении и принадлежности. Содержимое переписок
+для этого решения не извлекается; клиенты по именам не подбираются.
+
+Для уже записанных файлов готовятся проверенные raw blobs через штатный Admin
+upload API. Адресная транзакционная коррекция переносит существующие узлы,
+сохраняя ID, source key, прежние blobs и историю. Она проверяет организацию,
+версию, классификацию, SHA, размер и родительскую папку. Область существующего
+blob не меняется: она входит в Storage-путь. Эта исправительная операция
+отдельно отражается в квитанции; обычный импорт продолжается через Admin API.
+
+## 2026-09-20 — Финальная ведомость §11, handover §15 и передача исполнения Astra GPT-6
+
+Владелец инициировал продолжение исполнения через Astra GPT-6 («после этого
+давай сделаем продолжения через Astra gpt 6», 2026-09-20). Пакет закрывает
+финальные пункты плана `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`:
+
+- `docs/EVO_PORTAL_FINAL_LEDGER_2026-09-20.md` — финальная ведомость §11:
+  16 строк «функция → веб → iPhone → релиз/SHA → результат реальной проверки →
+  ограничение»; каждое «готово» прослеживается до release-receipt или
+  file:line, live-заявления — только из receipts.
+- `docs/EVO_PORTAL_HANDOVER_2026-09-20.md` — handover-пакет §15: ссылки и
+  точный статус, карта разделов, PR/релизы/архитектура/дизайн/блоки, результаты
+  реальных проверок и ограничения, оставшиеся действия владельца, плюс новая
+  финальная секция «Передача исполнения Astra GPT-6».
+
+К драфтам применены 14 коррекций адверсариальных факт-чекеров (10 — ведомость,
+4 — handover): сняты overclaim'ы о review-фиксации в receipts (#893, #894,
+подготовительные #864/#867/#868 в receipts отдельной строкой не записаны),
+исправлены неверные SHA-привязки (фото iOS, «Анкета», «Документы»), сужены до
+receipts заявления о smoke-якорях и KY-вычитке, исправлен список OTH staff-UX
+PR (чётные включены) и расширен состав live E2E-прогона до реального покрытия
+пп.1–5 ограничений; «стадия» в iOS «Моём поступлении» честно помечена как
+декодируемая, но не отображаемая.
+
+Момент передачи: schema/release-координация переходит от Fable к Astra после
+мержа этого пакета; до него — за Fable. Чекбоксы PORT-0..7 в
+`docs/EVO_LAUNCH_PLAN.md` проставляются этим же пакетом честно: PORT-0..5 —
+[x]; PORT-6 — [x] кроме владельческой вычитки KY носителем; PORT-7 остаётся
+[ ] (владельческие внешние шаги Apple; агентская часть выполнена). Изменение
+документационное, кода и схемы не трогает.
+
+## 2026-09-20 — KB: общий поиск включает канонические материалы CRM
+
+Независимая проверка §6–7 выявила пробел: режим «Вся база» ищет только
+`kb_nodes`, хотя существующие документы представлены внутри той же базы.
+Добавить отдельную постраничную группу результатов из канонических документов
+клиентов и компании, папок компании, шаблонов ответа и существующих дел.
+Поиск использует только названия и разрешённые поля/текст шаблонов, не содержимое
+документов, переписку, секреты или Student-private обучение. Результат ведёт
+к действующему источнику; копии в библиотеке и операции изменения первичных
+объектов через поиск не создаются. Поиск по текущей папке сохраняет прежнюю область.
+
+Astra резервирует migration 205: свежий main `7cc50dd8`, реальный ledger204,
+открытые #913/#905 миграций не содержат. Новый read-only RPC проверяет действующего
+Admin и организацию, курсор включает название, тип источника и UUID. Отдельная
+пагинация группы не выдаёт первую страницу за полный результат. Проверки:
+существующий документ через настоящий Admin поиск и UI; полный обход с малым
+лимитом; реальные staff/Student/anonymous denials; существующее скачивание.
+Runtime выпускает Astra по текущему managed контракту после завершения/штатной
+паузы двух потоков импорта. Portal/App и канонические правила записи не меняются.
+
+## 2026-09-20 — KB final acceptance: unsaved navigation, file questions and canonical selections
+
+The independent final audit of KB §§6–10 found three remaining paths: SPA/back navigation could discard an unsaved editor draft; file review questions could not be read/resolved in the UI; canonical CRM documents/company folders lacked selection/folder ZIP controls. Complete these within the existing KB contract before final acceptance.
+
+Keep draft contents only in editor memory and guard navigation until saved or explicitly discarded. Use the existing versioned edit command for file review metadata, without changing original bytes. Add forward migration 206 for an explicitly scoped canonical export selection (document/company version IDs, document-case folders and company-folder subtrees), preserving ordinary Admin authorization, tenant checks, immutable snapshots, existing downloads and all-base export behavior. A selected canonical file must not export its entire case, correspondence or unrelated library materials. Do not change Portal/App files or primary object ownership. Validate with existing QA documents, actual Auth denials, downloaded selected ZIP bytes, real navigation after a failed save, and independent exact-head review.
+
+## 2026-09-20 — KB canonical search proxy registration
+
+Real production HTTP/UI acceptance on `49f07148` returned HTTP 403
+`platform_route_not_connected` for the new canonical-search endpoint, while
+the normal Admin RPC checks had passed. Register only the exact
+`/api/v3/knowledge/search-canonical` path in the existing staff-cookie proxy
+contract. Keep live Admin/tenant checks in the handler/RPC unchanged. Verify
+the connected-route boundary locally and repeat actual Admin, staff, Student
+and anonymous HTTP checks plus the existing-document UI journey after release.
+No migration, Portal/App or primary-document mutation is required.
+
+
+## 2026-09-20 — План продолжения для GPT-6 Astra (по поручению владельца)
+
+Добавляется `docs/EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md` — план продолжения
+работы над EVO после закрытия портального плана: пять блоков AST-1..5
+(завершение KB-контракта как приоритет №1, живой E2E-прогон новых портальных
+флоу, контентная волна 2, App Store readiness агентской стороны, очередь
+UX/тех-долгов) под дисциплиной handover §6. К черновику применены все
+15 коррекций адверсариального факт-чека: актуальный base-SHA, knowledge-релизы
+#915/#916, миграция 205 занята #918 (при финальной сверке 206 занята #919 —
+следующая свободная 207), фактическое состояние KB-переноса (две контрольные
+партии, защищённый контур закрыт), снятое systemd-разночтение, полнота
+дисциплины §7 (node-флаги, iOS), PR #905 для 4 локальных падений,
+CaseHelpWorkspace как второй v3-компонент, dependabot PR #847, точный
+диапазон строк a11y §(e).
+Волатильные факты (origin/main SHA `49f07148`, хвост миграций, последние
+принятые релизы, статусы PR #905/#847/#918/#919) пересверены на момент
+составления — 2026-09-20 00:27 UTC — и датированы в §10 документа. Сам документ —
+предложение Fable: обязательным его делает владелец утверждением
+(и Astra — принятием); эта запись фиксирует появление документа, а не
+его вступление в силу. Ссылка на план добавляется в `EVO_LAUNCH_PLAN.md`
+рядом с финальными портальными документами.
+
+## 2026-09-20 — Решение владельца: сначала функциональность и интерфейс продукта
+
+Владелец уточнил порядок продолжения: состав продукта ещё не определён
+окончательно, возможны новые функции. Закрытие предыдущей портальной поставки
+не означает, что весь продукт закончен или все его сценарии доказанно работают.
+Сейчас продолжаются действующий KB-контракт и доведение функциональности/UI,
+включая известные пробелы AST-5 и последующие согласованные дополнения.
+
+Общий итоговый E2E (AST-2), контентная волна 2 (AST-3) и App Store readiness
+(AST-4) отложены до явного решения владельца, что нужный состав функций
+завершён и пора переходить к этим этапам. Не начинать их автоматически после
+KB и не запрашивать сейчас QA/симулятор/Apple-шаги ради отложенных блоков.
+Перенос существующей базы знаний остаётся частью действующего KB-контракта,
+а не отложенной контентной волной.
+
+Сохраняются точечные реальные проверки каждого изменённого поведения,
+затронутых границ доступа, защищённые PR-проверки, независимое exact-head
+review и управляемый выпуск. Уже известный функциональный дефект исправляется
+в текущем этапе, а отсутствие итогового E2E не превращается в доказательство
+готовности. Исторические receipts и непройденные пути сохраняются как факты.
+Обновляются текущий порядок и критерии завершения в плане Astra и указатель
+в launch-плане; это документационное изменение без кода, миграций и деплоя.
+
+
+## 2026-09-20 — KB: восстановление большой выгрузки после ошибки Storage
+
+Реальный полный ZIP `618d62c1-437e-4c80-a7b4-7ce122756d90` остановился
+на 1 620/7 897 материалах с `knowledge_storage_unavailable`; сохранено
+206 подтверждённых частей (1 728 053 248 байт). Указанный материал затем
+прочитан штатным Admin HTTP: 200, 86 821 байт, SHA-256 совпал. Точный
+первоначальный provider status не сохранён, поэтому причина не объявляется
+установленной. Полный архив пока не готов.
+
+В пределах KB добавляются ограниченные повторы чтения Storage и записи
+частей ZIP для временных сетевых/408/429/5xx ошибок. Повтор записи использует
+тот же уникальный путь без upsert; существующая часть принимается только
+после проверки размера и SHA-256. Ошибки доступа, отсутствующий объект и
+несовпадение суммы не превращаются в успешный результат. Snapshot, lease,
+Admin-права, области доступа и шифрование сохраняются. SQL не меняется.
+
+После точечных проверок, независимого ревью и управляемого выпуска
+повторяется то же задание через интерфейс; итоговая проверка включает
+скачивание всего архива и сверку всех 6 568 исходников. Официальная основа:
+[Supabase Storage error codes](https://supabase.com/docs/guides/storage/debugging/error-codes),
+проверено 20.09.2026: отдельные коды доступа/отсутствия и временные ошибки
+Storage, включая рекомендацию backoff для SlowDown.
+
+## 2026-09-20 — Impeccable: карточка университета iPhone
+
+Владелец поручил разобрать работающий экран в Simulator, составить план и
+внести улучшения. Два независимых обзора подтвердили перегруженное вступление,
+позднее появление программ и проблемы читаемости/размера вторичных действий.
+До кода фиксируется контракт `docs/design/portal/ios-university-refinement.md`:
+быстрый переход к программам, раскрытие атрибуции, источники после программ,
+адаптивные факты и нативные targets. Все данные, источники, лицензии, статусы,
+сроки и действующие бизнес-действия сохраняются. Нет миграций или серверного
+выпуска. Проверка — сборка и реальный изменённый экран в текущем QA Simulator;
+общий финальный E2E и App Store readiness не возобновляются.
+
+
+## 2026-09-20 — AST-5 scoped portal parity implementation
+
+Owner accepted the four gaps reported in this task: iPhone operational stage and Home parity, web catalogue novelty and notifications. Implement as four independently reviewed PRs per continuation plan. Add first-publication persistence rather than relabel current reviewed_at as novelty; keep existing catalogue DTO stable by using a dedicated recent-publications read RPC. Timestamp history/backfill policy and exact migration number will be recorded before schema code. No final E2E/content/App Store work or production writes are implied. Operational-stage empty values remain absent; unknown values use the existing localized custom-stage wording, never raw internal identifiers.
+
+
+### AST-5 Home implementation details
+
+Home uses independent read sections, maximum four favorites in existing server order, lesson draft before first incomplete lesson, first instrument with draft as web. Native TabView selection opens existing English/admission/university tabs rather than nested navigation stacks. Application reads own_student_application_v1 only for approved tier; an absent row is stated as absent, no approval status invented. Existing admission action row is reused. Nearest-intake policy mirrors current web (UTC day/month and open/announced only). Read paths refresh on entry, foreground and pull; test sheet dismissal reloads attempt state.
+
+
+### AST-5 notifications implementation details
+
+Move the polling component from v3 into the existing Atlas header bell; remove duplicate status strip. Render for assisted tier, matching notifications navigation; derive tier solely from actor.accessTier. Keep 30-second visible-page polling and focus/online/manual resume, no duplicate initial refresh. Add /portal/home to operational refresh; retain existing operational routes, exclude learning/test runners. RU/KY unread/loading/error/retry labels; retry is keyboard accessible. No new notifications or mark-read writes for validation. Next.js documents router.refresh as merging server payload while preserving unaffected client state: https://nextjs.org/docs/app/api-reference/functions/use-router.
+
+
+## 2026-09-20 — iPhone Home action hierarchy after Impeccable review
+
+Continue the owner's requested functional/UI work with a narrow native Home
+refinement. Preserve the #927 data and navigation contracts. Real required
+admission actions and load/error states stay first; a successfully loaded calm
+summary moves below continuation. A saved test attempt precedes the lesson
+section; without a draft, lessons remain first. Clarify module-level counts in
+RU/KY and size the continue-test label to a real 44-point minimum. No change to
+Auth, schema, private learning state, tab identity, or catalogue content. Plan
+and focused real Simulator acceptance: `docs/design/portal/ios-home-refinement.md`.
+PR #929 remains separately pending migration 207 and runtime acceptance; this
+refinement does not authorize or substitute for that production operation.
+
+Independent evidence review additionally confirmed a Kyrgyz naming mismatch:
+Home quotes «Менин тапшыруум» while the existing destination is «Менин кабыл
+алынышым». Align the shortcut to that existing title within this same copy slice.
+
+The first actual dark/default-size render confirmed low-contrast Home text
+links with the single brand accent. In the one bounded correction pass, use
+Apple systemRed for Home text actions in dark mode only, retain brand accent
+for light mode and the filled continuation button, and let the continuation
+label occupy its row width at large text sizes. This is local to Home; no shared
+asset, descendant screen, or app-wide theme changes.
+
+
+## 2026-09-20 — принят план CRM UX и единого поступления
+
+Владелец передал `EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` и поручил
+реализацию с Impeccable. Неизменённая копия исходного документа включена в
+`docs/`; детализация и исключения §1–17 составляют scope. Начальная база —
+main `922483eb54c18a2da72bdd65fb503d728fa7af22`; прежний dirty checkout сохранён.
+Это дополнение разрешает выбранные staff CRM-изменения поверх прежнего
+portal-only scope PRODUCT.md. Для нового admissions-пути веб выпускается
+полностью первым, iPhone развивается на тех же контрактах. Только Sales Manager
+может создавать продажи; общее правило Admin-superset не является исключением
+для этой конкретной операции. Остальные полномочия Admin сохраняются.
+
+Последовательность: критические CRM-контракты → выбранные рабочие экраны →
+отдельные chat/calendar блоки → общие документы/пакеты → полный web/iPhone путь.
+Не добавлять KPI, коммерческие правила, новый контент и другие исключённые
+функции. Зафиксированные в §14 решения запрошены; зависимая реализация ждёт
+ответа. Существующий #913 использовать после проверки, не дублировать;
+#925–#928 и #930 составляют принятую базу iPhone/портала. #929 и migration 207
+остаются отдельным незавершённым блоком без новой production authority.
+Каждый блок получает точечную реальную проверку и независимый exact-head review.
+
+
+## 2026-09-20 — Admissions pipeline: omit empty GET filters
+
+Owner-reported production failure at `/v3/admissions-pipeline` was reproduced
+with the existing authenticated Admin session: no curator filter produces
+«Не удалось загрузить воронку поступления», selecting a curator removes that
+error, and resetting filters reproduces it. Managed Postgres logs at the
+matching request times confirm `invalid input syntax for type uuid: "null"`.
+No customer data or permissions were changed during diagnosis.
+
+The board RPC uses Supabase GET transport. Pinned postgrest-js 2.111.0 omits
+undefined values but serializes JavaScript null as the literal string `null`.
+The optional UUID therefore fails before the SQL function executes; empty
+country/search values also become unintended text filters. Omit all three
+unset arguments and retain the RPC's existing SQL NULL defaults. Preserve
+GET/read-only transport, nonempty filters, authorization and the decoder.
+No migration or product-scope change is needed.
+
+Official source: https://github.com/supabase/supabase-js/blob/v2.111.0/packages/core/postgrest-js/src/PostgrestClient.ts
+
+Validation scope: existing focused pipeline source-contract checks and diff
+review; these static checks do not prove HTTP behavior. The real regression
+signal is the authenticated browser board after managed release, including
+resetting filters and both tabs. Until then the production fix is unverified.
+Do not interrupt Fable's active exact-main release to merge or deploy this fix;
+use the next coordinated release after the current owner completes/disarms.
+
+2026-09-20 continuation: the former release has completed. Live release arm is
+false and no pending receipt exists; accepted revision is `b7598a1c`. Current
+main is merged into this branch, retaining both appended decision histories.
+No production deployment or database write is performed by this continuation.
+
+
+### CRM-06 — filter reset and recovery on the same board
+
+The actual authenticated local UI against managed Supabase confirmed another
+part of the same filter path: after reset, the rows return to the complete
+set but the uncontrolled curator select retains its previous visible value.
+Key the GET filter form by the canonical query URL so every URL transition
+remounts its controls. This uses React's documented form reset with a key:
+https://react.dev/learn/preserving-and-resetting-state#resetting-a-form-with-a-key.
+
+Complete CRM-06's existing error requirement with retry of the current route
+and a Students link. Preserve the board, error-vs-empty distinction and all
+move permissions. Next.js refresh re-fetches the route's server data without
+changing the URL: https://nextjs.org/docs/app/api-reference/functions/use-router.
+No failure response or customer records are fabricated for validation.
+
+
+## 2026-09-20 — CRM-08: куратор шапки из текущего дела
+
+Живое чтение существующего тестового дела выявило расхождение: воронка
+показывает назначенного куратора, а шапка того же дела — владельца Sales-лида.
+`readCaseProfile` для Admin также делегирует в `readLeadProfile`, поэтому дефект
+затрагивает оба URL-входа. `fullCaseDetails` должен брать ответственного только
+из `data.studentCase.currentCuratorDisplayName`, без аргумента от вызывающего
+кода. Неназначенный куратор остаётся null и получает прежнюю явную подпись.
+Lead-only карточка продолжает показывать своего sales owner. Назначения,
+полномочия, handoff, данные продажи и регистрация не меняются. Это первый
+ограниченный срез CRM-08; объединение блоков доступа к порталу остаётся открыто.
+
+В кратком обзоре дела подпись ответственного становится «Куратор», а в Sales-блоке — «Менеджер продаж»: реальные сотрудники остаются разными, роль каждого названа явно.
+
+
+## 2026-09-20 — владелец подтвердил немедленное начало подготовки
+
+Ответ владельца на открытый вопрос §14.2: «Сразу открывать подготовку».
+После выбора программы клиентом с сопровождением создаётся/открывается единая
+подготовка по программе и набору; она сразу видна уполномоченному сотруднику.
+Отдельное одобрение самого выбора не требуется. Загрузка, отправка EVO и
+проверка документов остаются отдельными действиями. Доступ сопровождения,
+несколько программ и защита повторного выбора сохраняются по §11.
+Открытым остаётся только расположение сводки на странице студентов (§14.1).
+
+
+## 2026-09-20 — владелец сохранил компоновку страницы студентов
+
+Ответ на §14.1: «Оставить расположение как сейчас». Не переносить список,
+поиск или сводку этой страницы. Оба продуктовых решения §14 теперь закрыты;
+план, launch plan и ведомость обновлены прямо, без сохранения устаревшего
+ожидания ответов как действующего правила.
+
+## 2026-09-20 — CRM-09a: стоимость остаётся доступна после открытия дела
+
+На существующем связанном деле подтверждён разрыв: «Стоимость не указана»
+ведёт в обзор, но адаптер скрывает условия продажи, когда доступно полное дело.
+Сохраняем чтение той же revisioned строки canonical lead и после handoff;
+ссылка ведёт непосредственно к существующему редактору `#sale-conditions`.
+Без доступных условий карточка показывает отсутствие стоимости обычным текстом,
+без ложного перехода. Редактирование требует прежнего `lead.sales.workflow.manage`
+и не доступно в preview; серверные проверки, история продаж и деньги не меняются.
+Это ограниченный первый срез CRM-09: сведение финансовых форм в единый поток
+и стоимость у дел без canonical lead остаются открытыми пунктами.
+
+Реальный проход выявил связанную ошибку decoder: migration 184 возвращает
+пустой `wishes_intake_year` как JSON null, а TypeScript принимал только строку.
+Явный null теперь соответствует пустому полю формы; отсутствующий ключ,
+неверный тип и некорректный год по-прежнему отклоняются. Это чтение реального
+контракта, без подстановки выдуманных условий или изменения данных.
+
+## 2026-09-20 — CRM-08b: единый раздел доступа к порталу
+
+Объединяем сведения о заявке, ручную подготовку кабинета и существующее управление
+приглашением в один раздел обзора «Доступ к порталу». Реальная карточка уже
+созданного дела показывала ложное «Подготовить кабинет», потому что адаптер
+полного дела намеренно оставлял leadCabinetCase пустым. Для отображения используем
+уже прочитанное дело; наличие дела не выдаём за активированный доступ.
+
+Статусы заявки, решение/отказ, приглашение, сверка неизвестного результата и
+явное повторное приглашение сохраняются. У приглашения остаётся прежний gate
+Admin / Sales cabinet_pending, вне preview. Для просмотра без Sales не добавляем
+прав решения по заявке или ручной подготовки. Серверные операции и их payload,
+регистрация, привязки, назначения и provider-поведение не меняются. Живая проверка
+этого среза ограничена отображением и навигацией, без отправки писем и auth writes.
+
+
+## 2026-09-20 — Whole-product refinement with dedicated page agents
+
+The owner explicitly expanded UX analysis/refinement to staff CRM, desktop and
+mobile product web, and the iPhone app. Preserve the recognizable EVO identity
+and useful functionality; CRM may receive substantial task/layout improvements.
+Assess functions, permissions, data/state, cross-surface outcomes and the existing
+CRM/admissions plan together with visual design, typography and responsive use.
+Dedicated agents per page are authorized. Initial independent page analyses are
+read-only and may run alongside the pending #929/#935 acceptance; shared schema,
+API, CSS/shell integration and release retain one coordinator.
+
+The additive contract is `docs/EVO_UX_REFINEMENT_PLAN_2026-09-20.md`; detailed
+page briefs are in `docs/design/ux-refinement/`. The earlier business scope and
+owner decisions remain: immediate program preparation, Students directory layout
+unchanged, deferred final E2E/content/App Store. All-page analysis does not silently
+add business features, rebuild the knowledge pipeline or alter provider settings.
+No code/schema/production change is part of this documentation block. No repeated
+approval is needed for ordinary design choices within the accepted direction;
+production migration/Auth/provider writes and release keep their own authority.
+
+
+## Parallel A/B execution — 2026-09-20
+
+Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
+Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+(items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
+installation and real local HTTP smoke, with unknown paths still fail-closed.
+This unblocks assessment of #847, not production release or provider acceptance.
+Root coordinates main/schema/release; A owns these shared planning appendices.
+
+B-1 (item 26): validate migrated photo objectPath against the existing manifest
+contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
+No Storage writes, license/catalog changes or broader bundle refactor. Validate
+resolver, all real manifest entries and read-only public URL/hash; authenticated
+render is not claimed. B owns its runtime files and detailed lane plan.
+
+B-1 merged as PR #937 into main `22404da81ab9398a28fdca99d879dc9f0b15a0d6`
+after independent review of `20229d1915ffd99d18e2caccc1fe3e0cd6634330` and
+required CI. This records source integration, not production delivery.
+
+B-5 (item 26): production-build analysis found the full photo audit manifest
+in browser JavaScript. Resolve photo URLs and attribution on the server; retain
+a minimal client image-error boundary for portal and staff catalogue images.
+Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
+when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
+this block. Verify bundle removal and real read-only catalogue rendering.
+No content, authentication, schema or Storage writes are included.

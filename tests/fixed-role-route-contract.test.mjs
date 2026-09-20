@@ -25,6 +25,7 @@ import {
   isConnectedStudentAuthPage,
   isConnectedStudentPortalApi,
   isConnectedStudentPortalPage,
+  isPublicStudentRegistrationApi,
   isRetiredPlatformRoute,
   platformHomeRoute,
 } from "../src/lib/platform-route-contract.ts";
@@ -249,12 +250,30 @@ test("the active V3 route policy exposes each exact presentation interface", () 
   assert.equal(fixedRoleCanAccessRoute("sales", "/v3/calendar"), false);
 
   for (const role of ["admin", "sales", "admissions"]) {
-    assert.equal(fixedRoleCanAccessRoute(role, "/v3/knowledge"), true, role);
+    assert.equal(fixedRoleCanAccessRoute(role, "/v3/knowledge"), role === "admin", role);
   }
 
   assert.equal(fixedRoleCanAccessRoute("admin", "/v3/settings"), true);
   assert.equal(fixedRoleCanAccessRoute("sales", "/v3/settings"), false);
   assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/settings"), false);
+
+  // Unified workflow S1: «Заявки» is Продажи-only (sales.read), replacing the
+  // retired /v3/admissions-requests (admissions.read). Admissions has no
+  // sales.read at all, so it stays denied even though the intake queue used
+  // to live in its own worklist.
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/requests"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/requests"), true);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/requests"), false);
+});
+
+test("the retired /v3/admissions-requests route stays connected for old links but leaves the fixed-role capability contract", () => {
+  // "keep the route so old links work" (unified workflow S1): the page itself
+  // is an unconditional redirect to /v3/requests and no longer needs its own
+  // FixedRoleRoute/capability entry — isConnectedPlatformPage covers the
+  // proxy allowlist, which is the only gate that still matters for it.
+  assert.equal(isConnectedPlatformPage("/v3/admissions-requests"), true);
+  assert.equal(FIXED_ROLE_ROUTES.includes("/v3/admissions-requests"), false);
+  assert.equal(FIXED_ROLE_ROUTES.includes("/v3/requests"), true);
 });
 
 test("university routes admit only catalogue, management and bounded detail paths", () => {
@@ -275,6 +294,8 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
   assert.equal(isConnectedPlatformPage("/auth/staff/extra"), false);
   const portalRoutes = [
     "/portal",
+    // PORT-9c: «Главная» кабинета.
+    "/portal/home",
     "/portal/documents",
     "/portal/applications",
     "/portal/payments",
@@ -282,6 +303,15 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/portal/tests",
     "/portal/tests/english",
     "/portal/tests/career",
+    // Подключены релизом d1b64849 (миграции 195/196): экраны существуют,
+    // но не были внесены в allowlist прокси — этот hotfix закрывает разрыв.
+    "/portal/favorites",
+    "/portal/profile",
+    "/portal/english",
+    "/portal/english/review",
+    "/portal/professions",
+    // PORT-5c: сообщения по делу (assisted; граница — RPC миграции 200).
+    "/portal/messages",
   ];
   const authRoutes = [
     "/auth/callback",
@@ -301,12 +331,27 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     assert.equal(isConnectedPlatformPage(path), true, path);
     assert.equal(isRetiredPlatformRoute(path), false, path);
   }
+  // PORT-4c: uuid-детали урока и профессии — ровно один сегмент-id.
+  const detailId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  for (const path of [
+    `/portal/english/lesson/${detailId}`,
+    `/portal/professions/${detailId}`,
+  ]) {
+    assert.equal(isConnectedStudentPortalPage(path), true, path);
+    assert.equal(isConnectedPlatformPage(path), true, path);
+  }
+
   for (const path of [
     "/portal/",
-    "/portal/profile",
+    "/portal/profile/child",
     "/portal/documents/child",
     "/portal/tests/unknown",
     "/portal/tests/english/child",
+    "/portal/english/lesson/not-an-id",
+    `/portal/english/lesson/${detailId}/child`,
+    "/portal/professions/not-an-id",
+    `/portal/professions/${detailId}/edit`,
+    "/portal/messages/child",
     "/auth/callback/",
     "/auth/set-password/child",
     "/auth/unknown",
@@ -507,6 +552,46 @@ test("Student document APIs admit only the exact path and HTTP method", () => {
   );
 });
 
+test("PORT-9a intake routes admit only their exact path and method", () => {
+  // Bearer invite acceptance rides the existing student-API pass-through.
+  assert.equal(isConnectedStudentPortalApi("/api/portal/invite-acceptance", "POST"), true);
+  for (const [path, method] of [
+    ["/api/portal/invite-acceptance", "GET"],
+    ["/api/portal/invite-acceptance/", "POST"],
+    ["/api/portal/invite-acceptance/child", "POST"],
+    ["/API/portal/invite-acceptance", "POST"],
+  ]) {
+    assert.equal(isConnectedStudentPortalApi(path, method), false, `${method} ${path}`);
+  }
+
+  // The anonymous registration intake is its own public predicate, never a
+  // connected student API (no bearer precedence, no cookie session branch).
+  assert.equal(isPublicStudentRegistrationApi("/api/portal/registration", "POST"), true);
+  assert.equal(isConnectedStudentPortalApi("/api/portal/registration", "POST"), false);
+  for (const [path, method] of [
+    ["/api/portal/registration", "GET"],
+    ["/api/portal/registration/", "POST"],
+    ["/api/portal/registration/child", "POST"],
+    ["/apply", "POST"],
+  ]) {
+    assert.equal(isPublicStudentRegistrationApi(path, method), false, `${method} ${path}`);
+  }
+
+  // Proxy pins: the registration pass-through exists exactly once and runs
+  // BEFORE the canonical-origin redirect and every session gate; it never
+  // introduces a second Authorization check (PORT-8a pin stays intact).
+  const proxy = source("src/proxy.ts");
+  assert.equal(proxy.split("isPublicStudentRegistrationApi(path, request.method)").length, 2);
+  const registrationBranch = proxy.indexOf("isPublicStudentRegistrationApi(path, request.method)");
+  const canonicalOriginGate = proxy.indexOf("const canonicalOrigin = canonicalPlatformPageOrigin(");
+  const cookieSessionGate = proxy.indexOf(
+    "const session = await liveSessionState(request, requestHeaders);",
+  );
+  assert.ok(registrationBranch >= 0 && canonicalOriginGate >= 0 && cookieSessionGate >= 0);
+  assert.ok(registrationBranch < canonicalOriginGate);
+  assert.ok(registrationBranch < cookieSessionGate);
+});
+
 test("only the canonical WhatsApp inbound and private recovery routes enter the contract", () => {
   assert.equal(isConnectedPlatformApi("/api/v2/whatsapp/inbound"), true);
   assert.equal(
@@ -522,6 +607,41 @@ test("only the canonical WhatsApp inbound and private recovery routes enter the 
     "/api/webhooks/waha",
     "/api/webhooks/whatsapp",
   ]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});
+
+test("proxy hands a present-Authorization student document request to its fail-closed handler", () => {
+  const proxy = source("src/proxy.ts");
+
+  // PORT-8a (ADR 0030 «Решение» п. 2): the bearer pass-through exists exactly
+  // once, is scoped to the two connected student document APIs, and returns
+  // straight to the handler without running the cookie session gate.
+  const passThroughPattern =
+    /if \(studentPortalApi && request\.headers\.has\("authorization"\)\) \{[^{}]*return setResponseHeaders\(nextResponse\(requestHeaders\), id\);\s*\}/u;
+  assert.match(proxy, passThroughPattern);
+  assert.equal(proxy.split('request.headers.has("authorization")').length, 2);
+
+  const bearerBranch = proxy.search(passThroughPattern);
+  const cookieSessionGate = proxy.indexOf(
+    "const session = await liveSessionState(request, requestHeaders);",
+  );
+  const studentApiCookieBranch = proxy.indexOf("if (studentPortalApi)");
+  assert.ok(cookieSessionGate >= 0);
+  assert.ok(
+    bearerBranch >= 0 && bearerBranch < cookieSessionGate,
+    "a present Authorization header must never reach the cookie session gate",
+  );
+  assert.ok(
+    studentApiCookieBranch > cookieSessionGate,
+    "requests without the header keep the unchanged cookie gate",
+  );
+});
+
+
+test("canonical knowledge search crosses the staff proxy only at its exact endpoint", () => {
+  assert.equal(isConnectedPlatformApi("/api/v3/knowledge/search-canonical"), true);
+  for (const path of ["/api/v3/knowledge/search-canonical/", "/api/v3/knowledge/search-canonical/extra", "/api/v3/knowledge/search-other"]) {
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
 });

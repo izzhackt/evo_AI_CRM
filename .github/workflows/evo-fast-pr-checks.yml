@@ -25,6 +25,7 @@ jobs:
       lint: ${{ steps.classify.outputs.lint }}
       build: ${{ steps.classify.outputs.build }}
       inbox_dependencies: ${{ steps.classify.outputs.inbox_dependencies }}
+      lead_agent_dependencies: ${{ steps.classify.outputs.lead_agent_dependencies }}
       unknown: ${{ steps.classify.outputs.unknown }}
     steps:
       - name: Check out full history
@@ -57,10 +58,11 @@ jobs:
           LINT: ${{ steps.classify.outputs.lint }}
           BUILD: ${{ steps.classify.outputs.build }}
           INBOX_DEPENDENCIES: ${{ steps.classify.outputs.inbox_dependencies }}
+          LEAD_AGENT_DEPENDENCIES: ${{ steps.classify.outputs.lead_agent_dependencies }}
           UNKNOWN: ${{ steps.classify.outputs.unknown }}
         run: |
           set -Eeuo pipefail
-          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$UNKNOWN"; do
+          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$LEAD_AGENT_DEPENDENCIES" "$UNKNOWN"; do
             case "$value" in
               true|false) ;;
               *)
@@ -189,6 +191,11 @@ jobs:
           else
             echo "scoped_docs_intake=false" >> "$GITHUB_OUTPUT"
           fi
+          if [[ "$boundary_diff" == $'A\tsupabase/migrations/186_platform_student_invite_conflict_codes.sql' ]]; then
+            echo "scoped_invite_conflicts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "scoped_invite_conflicts=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check scoped 171 function source contract
         if: ${{ steps.migration-scope.outputs.scoped_chat_mute == 'true' }}
@@ -203,7 +210,7 @@ jobs:
           node --test tests/staff-roles-sales-handoff-migrations.test.mjs
 
       - name: Test migration boundary
-        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' && steps.migration-scope.outputs.scoped_student_conflicts != 'true' }}
+        if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' && steps.migration-scope.outputs.scoped_student_conflicts != 'true' && steps.migration-scope.outputs.scoped_invite_conflicts != 'true' }}
         run: npm run test:database:migration-boundaries
 
       - name: Check scoped Docs intake source boundary
@@ -265,9 +272,60 @@ jobs:
           console.log('Exact added178 source/evidence binding only; CI did not execute SQL or authenticated RPC. Real rollback compilation and local RPC results are separately recorded.');
           NODE
 
+      - name: Check scoped invite conflict source and evidence binding
+        if: ${{ steps.migration-scope.outputs.scoped_invite_conflicts == 'true' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import assert from 'node:assert/strict';
+          const sql = readFileSync('supabase/migrations/186_platform_student_invite_conflict_codes.sql', 'utf8');
+          const receipt = readFileSync('docs/qa/portal-identity-conflict-186-2026-09-19.md', 'utf8');
+          const blocks = [...receipt.matchAll(/^```json\r?\n([\s\S]*?)^```[ \t]*$/gm)];
+          assert.equal(blocks.length, 1, 'Expected exactly one JSON evidence block');
+          const evidence = JSON.parse(blocks[0][1]);
+          assert.equal(createHash('sha256').update(sql).digest('hex'), evidence.migrationSha256);
+          assert.equal(evidence.productionRollbackCompile.functions, 2);
+          for (const key of ['authorityUnchanged', 'onlyCodesChanged', 'rolledBack', 'readbackRestored']) {
+            assert.equal(evidence.productionRollbackCompile[key], true, key);
+          }
+          assert.equal(evidence.productionSqlConflict.code, 'PT409');
+          assert.equal(evidence.productionSqlConflict.message, 'portal_identity_conflict');
+          assert.equal(evidence.productionSqlConflict.existingIdentity, true);
+          assert.equal(evidence.productionSqlConflict.stateUnchanged, true);
+          console.log('Exact added186 source/evidence binding only; CI did not execute production SQL or HTTP. Real rollback SQL proof is separately recorded; HTTP/UI/release evidence follows deployment.');
+          NODE
+
       - name: Check retired unused migration slot
         if: ${{ steps.migration-scope.outputs.scoped_retired_slot == 'true' }}
         run: node --test tests/staff-roles-sales-handoff-migrations.test.mjs
+
+  # Isolated dependency verification; no deployment or provider credentials.
+  lead_agent_dependencies:
+    name: Lead-agent dependency maintenance
+    needs: changed-range
+    if: ${{ needs.changed-range.outputs.lead_agent_dependencies == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container: python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91
+    defaults:
+      run:
+        working-directory: evo-lead-agent
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install production uv version
+        run: python -m pip install --no-cache-dir uv==0.11.7
+
+      - name: Install locked production dependencies
+        run: uv sync --locked --no-dev
+
+      - name: Check installed dependency compatibility
+        run: uv pip check
+
+      - name: Exercise real local lead-agent HTTP runtime
+        run: uv run --locked --no-dev python ../scripts/smoke-lead-agent-dependencies.py
 
   # Source-only maintenance of a retired companion; no deployment or credentials.
   inbox_dependencies:
@@ -344,6 +402,7 @@ jobs:
       - build
       - migration_boundary
       - inbox_dependencies
+      - lead_agent_dependencies
     runs-on: ubuntu-latest
     steps:
       - name: Require selected fast PR checks
@@ -355,6 +414,8 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
+          LEAD_AGENT_DEPENDENCIES_REQUIRED: ${{ needs.changed-range.outputs.lead_agent_dependencies }}
+          LEAD_AGENT_DEPENDENCIES_RESULT: ${{ needs.lead_agent_dependencies.result }}
           INBOX_DEPENDENCIES_REQUIRED: ${{ needs.changed-range.outputs.inbox_dependencies }}
           INBOX_DEPENDENCIES_RESULT: ${{ needs.inbox_dependencies.result }}
         run: |
@@ -365,6 +426,11 @@ jobs:
           case "$INBOX_DEPENDENCIES_REQUIRED" in
             true) test "$INBOX_DEPENDENCIES_RESULT" = "success" ;;
             false) test "$INBOX_DEPENDENCIES_RESULT" = "skipped" ;;
+            *) exit 1 ;;
+          esac
+          case "$LEAD_AGENT_DEPENDENCIES_REQUIRED" in
+            true) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "success" ;;
+            false) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "skipped" ;;
             *) exit 1 ;;
           esac
           for result in "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do

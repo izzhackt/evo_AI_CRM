@@ -8,7 +8,6 @@ import {
   normalizeStudentPortalNotification,
   normalizeStudentPortalOverview,
   normalizeStudentPortalPayment,
-  readStudentPortalApplications,
   readStudentPortalDocuments,
   readStudentPortalNotifications,
   readStudentPortalOverview,
@@ -16,7 +15,6 @@ import {
 } from "../src/lib/v3/portal-source.ts";
 
 const APPLICATION_ID = "11111111-1111-4111-8111-111111111111";
-const VISA_CASE_ID = "22222222-2222-4222-8222-222222222222";
 const CASE_ID = "33333333-3333-4333-8333-333333333333";
 const SLOT_ID = "44444444-4444-4444-8444-444444444444";
 const VERSION_ID = "55555555-5555-4555-8555-555555555555";
@@ -56,20 +54,6 @@ const DOCUMENT_ROW = Object.freeze({
   review_decision: null,
   rework_reason: null,
   reviewed_at: null,
-});
-
-const APPLICATION_ROW = Object.freeze({
-  application_id: APPLICATION_ID,
-  institution_name: "University of Example",
-  program_name: "Computer Science",
-  application_status: "submitted",
-  is_primary: true,
-  university_deadline_on: null,
-});
-
-const VISA_ROW = Object.freeze({
-  visa_case_id: VISA_CASE_ID,
-  visa_status: "approved",
 });
 
 const PAYMENT_ROW = Object.freeze({
@@ -281,104 +265,6 @@ test("document decoder keeps database nulls and validates one complete safe vers
   ]));
   await expectUnavailableAsync(() => readStudentPortalDocuments({
     client: duplicateSlot.client,
-  }));
-});
-
-test("applications reader joins only bounded safe status timelines", async () => {
-  const applicationTimeline = [
-    {
-      previous_status: "ready",
-      new_status: "submitted",
-      occurred_at: "2026-09-07T09:00:00+00:00",
-    },
-    {
-      previous_status: "preparation",
-      new_status: "ready",
-      occurred_at: "2026-09-06T09:00:00+00:00",
-    },
-  ];
-  const visaTimeline = [
-    {
-      previous_status: "submitted",
-      new_status: "approved",
-      occurred_at: "2026-09-07T10:00:00+00:00",
-    },
-    {
-      previous_status: "docs",
-      new_status: "submitted",
-      occurred_at: "2026-09-06T10:00:00+00:00",
-    },
-  ];
-  const mock = mockRpc((name, args) => {
-    if (name === "student_portal_applications_v2") return ok([APPLICATION_ROW]);
-    if (name === "student_portal_visa_cases_v2") return ok([VISA_ROW]);
-    if (name === "student_portal_application_timeline_v1") {
-      assert.deepEqual(args, { p_application_id: APPLICATION_ID, p_limit: 50 });
-      return ok(applicationTimeline);
-    }
-    if (name === "student_portal_visa_timeline_v1") {
-      assert.deepEqual(args, { p_visa_case_id: VISA_CASE_ID, p_limit: 50 });
-      return ok(visaTimeline);
-    }
-    assert.fail(`Unexpected RPC ${name}`);
-  });
-
-  const result = await readStudentPortalApplications({ client: mock.client });
-  assert.equal(result.applications[0].status, "submitted");
-  assert.equal(result.applications[0].universityDeadlineOn, null);
-  assert.deepEqual(result.applications[0].timeline[0], {
-    previousStatus: "ready",
-    newStatus: "submitted",
-    occurredAt: "2026-09-07T09:00:00+00:00",
-  });
-  assert.equal(result.visa?.status, "approved");
-  assert.equal(result.visa?.timeline.length, 2);
-  assert.ok(mock.calls.every((call) => call.options?.get === true));
-});
-
-test("applications reader fails closed on status drift, broken chronology, or unsafe fields", async () => {
-  const drifted = mockRpc((name) => {
-    if (name === "student_portal_applications_v2") return ok([APPLICATION_ROW]);
-    if (name === "student_portal_visa_cases_v2") return ok([]);
-    return ok([{
-      previous_status: "preparation",
-      new_status: "ready",
-      occurred_at: "2026-09-07T09:00:00+00:00",
-    }]);
-  });
-  await expectUnavailableAsync(() => readStudentPortalApplications({
-    client: drifted.client,
-  }));
-
-  const unsafe = mockRpc((name) => {
-    if (name === "student_portal_applications_v2") {
-      return ok([{ ...APPLICATION_ROW, evidence_reference: "internal" }]);
-    }
-    if (name === "student_portal_visa_cases_v2") return ok([]);
-    assert.fail(`Unexpected RPC ${name}`);
-  });
-  await expectUnavailableAsync(() => readStudentPortalApplications({
-    client: unsafe.client,
-  }));
-
-  const broken = mockRpc((name) => {
-    if (name === "student_portal_applications_v2") return ok([APPLICATION_ROW]);
-    if (name === "student_portal_visa_cases_v2") return ok([]);
-    return ok([
-      {
-        previous_status: "ready",
-        new_status: "submitted",
-        occurred_at: "2026-09-06T09:00:00+00:00",
-      },
-      {
-        previous_status: "preparation",
-        new_status: "ready",
-        occurred_at: "2026-09-07T09:00:00+00:00",
-      },
-    ]);
-  });
-  await expectUnavailableAsync(() => readStudentPortalApplications({
-    client: broken.client,
   }));
 });
 

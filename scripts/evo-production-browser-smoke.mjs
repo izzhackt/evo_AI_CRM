@@ -235,7 +235,8 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       await verifyVersion(page, configuration);
       checkpoint("case_route");
       await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=route`);
-      await page.getByTestId("admissions-route").waitFor({ state: "visible", timeout: 30_000 });
+      // «Вузы и программы» replaced the route tracker at the same URL (S4).
+      await page.getByTestId("v3-universities-programs").waitFor({ state: "visible", timeout: 30_000 });
       checkpoint("case_contract");
       await visit(page, `${configuration.baseUrl}/v3/profile?case=${configuration.caseId}&tab=contract`);
       const contract = page.getByTestId("v3-profile-contract-workspace");
@@ -245,6 +246,11 @@ export async function runProductionBrowserSmoke({ environment = process.env } = 
       }
       if (runtimeError) throw new Error("staff_runtime_error");
       process.stdout.write('{"ok":true,"code":"production_case_smoke_passed"}\n');
+      checkpoint("admissions_pipeline");
+      await visit(page, `${configuration.baseUrl}/v3/admissions-pipeline`);
+      await page.getByTestId("v3-admissions-pipeline-board").waitFor({ state: "visible", timeout: 30_000 });
+      if (runtimeError) throw new Error("staff_runtime_error");
+      process.stdout.write('{"ok":true,"code":"production_admissions_pipeline_smoke_passed"}\n');
       checkpoint("team_chat");
       await visit(page, `${configuration.baseUrl}/v3/team-chat`);
       const channels = page.getByRole("navigation", { name: "Каналы команды", exact: true });

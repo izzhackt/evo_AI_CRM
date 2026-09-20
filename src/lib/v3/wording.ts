@@ -239,17 +239,64 @@ const STUDENT_OPERATIONAL_STAGE: Record<string, string> = {
 
 const CUSTOM_STUDENT_OPERATIONAL_STAGE = "индивидуальный этап сопровождения";
 
-const DOCUMENT_SLOT_STATUS: Record<PlatformDocumentSlotStatus, string> = {
-  required: "требуется",
-  submitted: "отправлен",
-  approved: "принят",
-  correction_required: "нужно исправить",
-  rejected: "отклонён",
+/**
+ * OTH-1 «Воронка поступления» — куратор-борд. `pipeline_stage`
+ * (`platform.student_cases`, миграция 187) сознательно отдельный от
+ * `operational_stage` выше: это позиция карточки на доске, а не факт-гейтед
+ * этап плейбука. Девять ключей — фиксированный `CHECK` в БД, порядок ниже —
+ * порядок колонок (сперва вкладка «Поступление», потом «Виза и выезд»).
+ */
+const ADMISSIONS_PIPELINE_STAGE: Record<string, string> = {
+  new: "Новые",
+  shortlist: "Подбор вузов",
+  documents: "Документы",
+  ready_to_submit: "Готовы к подаче",
+  awaiting_decision: "Ожидаем решения",
+  confirmed: "Поступление подтверждено",
+  visa: "Оформление визы",
+  predeparture: "Подготовка к выезду",
+  arrived: "Прибыл",
 };
 
+const ADMISSIONS_PIPELINE_TAB: Record<"admission" | "visa", string> = {
+  admission: "Поступление",
+  visa: "Виза и выезд",
+};
+
+// OTH-5 «Переписка по делу»: await mark per conversation. «Без отметки»
+// renders no Pill at all (state, not a fourth colored value) — see
+// CaseChatThread.tsx.
+const CASE_CHAT_AWAIT_STATE: Record<string, string> = {
+  none: "Без отметки",
+  needs_reply: "Нужен ответ",
+  awaiting_student: "Ждём студента",
+};
+
+// PORT-5b «Запрос консультации» (миграция 197): состояние запроса из
+// кабинета студента в очереди «Заявки».
+const PORTAL_CONSULTATION_STATUS: Record<string, string> = {
+  requested: "Ожидает",
+  handled: "Обработано",
+};
+
+// Plan §9: «Не загружен / На проверке / Нужно исправить / Принят». The
+// server enum keeps its fifth, honest state («Отклонён») — the plan's list
+// names the common path, not an exhaustive prohibition (unified workflow S6).
+const DOCUMENT_SLOT_STATUS: Record<PlatformDocumentSlotStatus, string> = {
+  required: "Не загружен",
+  submitted: "На проверке",
+  approved: "Принят",
+  correction_required: "Нужно исправить",
+  rejected: "Отклонён",
+};
+
+// Same three words as the slot status above («принят» / «нужно исправить» /
+// «отклонён»), lowercase: this dictionary is also read mid-sentence
+// («Документ принят · …» in ProfileDocumentsClient.tsx), where a
+// mid-sentence capital would misread as a typo, not emphasis.
 const DOCUMENT_REVIEW_DECISION: Record<PlatformDocumentReviewDecision, string> = {
   approved: "принят",
-  correction_required: "возвращён на исправление",
+  correction_required: "нужно исправить",
   rejected: "отклонён",
 };
 
@@ -342,6 +389,7 @@ const ROLE: Record<string, string> = {
 const SOURCE: Record<string, string> = {
   whatsapp: "WhatsApp",
   website: "сайт",
+  platform_application: "платформа",
   referral: "по рекомендации",
   office: "встреча в офисе",
   phone_call: "звонок",
@@ -418,6 +466,12 @@ export function studentOperationalStage(
     CUSTOM_STUDENT_OPERATIONAL_STAGE;
 }
 export const taskStatus = (v: string | null | undefined) => lookup(TASK_STATUS, v);
+export const admissionsPipelineStage = (v: string | null | undefined) =>
+  lookup(ADMISSIONS_PIPELINE_STAGE, v);
+export const admissionsPipelineTab = (v: "admission" | "visa") => ADMISSIONS_PIPELINE_TAB[v];
+export const caseChatAwaitState = (v: string | null | undefined) => lookup(CASE_CHAT_AWAIT_STATE, v);
+export const portalConsultationStatus = (v: string | null | undefined) =>
+  lookup(PORTAL_CONSULTATION_STATUS, v);
 export const documentPresence = (v: DocumentPresence) => DOCUMENT_PRESENCE[v];
 export const documentSlotStatus = (v: string | null | undefined) =>
   lookup(DOCUMENT_SLOT_STATUS, v);
@@ -714,6 +768,7 @@ export function handoffAcknowledgementLabel(value: string): string | null {
   const labels: Record<string, string> = {
     accepted: "Дело принято куратором",
     clarification_requested: "Нужно уточнение от Sales",
+    declined: "Назначение отклонено куратором",
   };
   return Object.hasOwn(labels, value) ? labels[value] : null;
 }
@@ -1061,6 +1116,19 @@ export const settingsStatusWords = {
 } as const;
 
 /**
+ * S1's «кабинет до продажи»: a portal-activated `state='pending'` case with
+ * no curator and no sale yet (plan §10, unified workflow S5). The overview
+ * must not name a non-existent curator or fabricate a stage for it.
+ */
+export const portalPendingCabinet = {
+  heading: "Сопровождение",
+  managerNotice: "Менеджер свяжется с вами.",
+  applicationHeading: "Ваша анкета",
+  applicationHint: "Анкета, которую вы отправили и одобрила команда EVO.",
+  applicationLink: "Открыть анкету",
+} as const;
+
+/**
  * Экраны-тупики оболочки: страница не найдена и неперехваченная ошибка
  * рендера. Один словарь на V3 и Student Portal — сообщение остаётся
  * человеческим и одинаковым в обоих мирах.
@@ -1094,4 +1162,24 @@ export function settingsBlockedWahaDetail(status: string | undefined): string {
     case "FAILED": return "Ошибка подключения.";
     default: return "Состояние подключения не подтверждено.";
   }
+}
+
+/**
+ * PORT-1b (193): точная классификация занятого email при отправке
+ * приглашения в портал (вместо одноразмерного
+ * `portal_invite_already_accepted`, который остаётся честным fallback-ом,
+ * когда admin-lookup недоступен).
+ */
+export function studentPortalInviteFailure(value: string): string | null {
+  const labels: Record<string, string> = {
+    already_accepted_invite:
+      "Приглашение для этого email уже принято: аккаунт создан по инвайту. Повторная отправка не выполняется.",
+    existing_student_account:
+      "Этот email уже принадлежит студенческому аккаунту (регистрация через анкету). Новое приглашение на него не отправляется.",
+    existing_staff_account:
+      "Этот email принадлежит аккаунту сотрудника. Для студенческого доступа нужен другой email.",
+    portal_invite_already_accepted:
+      "Email уже занят существующим аккаунтом; его тип подтвердить не удалось. Письмо не отправлено.",
+  };
+  return labels[value] ?? null;
 }

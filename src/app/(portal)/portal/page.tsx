@@ -1,27 +1,39 @@
 import type { Metadata } from "next";
 
-import { OverviewView } from "@/components/v3/portal/OverviewView";
-import { PortalPage } from "@/components/v3/portal/PortalPage";
+import { OverviewView } from "@/components/portal/admission/OverviewView";
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Моё поступление — EVO Admissions",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("admission", await getLocale());
+  return { title: `${strings.overviewTitle} — EVO Admissions` };
+}
 
+/**
+ * «Моё поступление» в Атласе (PORT-5d). Смоук-якорь production: заголовок
+ * «Моё поступление» — байт-в-байт (PORT-6a: RU-значение живёт ключом
+ * admission.overviewTitle, смоук-аккаунт — language=ru). CaseHelpWorkspace
+ * (разовый вопрос-ответ) остаётся как есть — переписка живёт в
+ * /portal/messages (PORT-5c).
+ */
 export default async function StudentPortalOverviewPage() {
-  const [overview, actor] = await Promise.all([readStudentPortalOverview(), requireStudentPortalActor()]);
+  const [overview, actor, locale] = await Promise.all([readStudentPortalOverview(), requireStudentPortalActor(), getLocale()]);
+  const strings = getPortalStrings("admission", locale);
 
   return (
-    <PortalPage
-      title="Моё поступление"
-      description="Ваш следующий шаг и работа команды — под рукой."
-    >
-      <OverviewView overview={overview} />
-      <div id="case-help" className="mt-8 scroll-mt-20"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
-    </PortalPage>
+    <main className="pt-page">
+      <header className="pt-page-header">
+        <p className="pt-page-kicker">{strings.kickerCabinet}</p>
+        <h1 className="pt-page-title">{strings.overviewTitle}</h1>
+        <p className="pt-page-lead">{strings.overviewLead}</p>
+      </header>
+      <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />
+      <div id="case-help" className="pt-adm-case-help"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
+    </main>
   );
 }

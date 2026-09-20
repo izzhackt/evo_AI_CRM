@@ -5,7 +5,9 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { loadProfileSalesContext } from "./profile-route-load";
-import { loadStudentApplicationForCase } from "./student-application-source";
+import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
+import { readLeadSaleConditions } from "./lead-sale-conditions-source";
+import { readLeadCabinetCase, readStudentCaseCabinetOrigin } from "./lead-cabinet-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
 import { countryLabel } from "@/lib/student-application-presentation";
 import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, type AdmissionsAttention } from "@/lib/platform-admissions-playbook-contract";
@@ -135,6 +137,8 @@ export type V3ProfileCaseDirectoryRow = Readonly<{
   admissionsDirection?: AdmissionsDirection | null;
   nextAction?: string | null;
   nextActionDueOn?: string | null;
+  /** S3 (plan §7): «Ожидает принятия»/«Нужно назначить куратора» row badges. [] for sales_summary rows. */
+  attentionFlags: readonly AdmissionsAttention[];
 }>;
 
 export type V3ProfileCaseDirectory = Readonly<{
@@ -230,7 +234,7 @@ function profileApplications(
   return applications.map((application) => ({
     id: application.universityApplicationId,
     institution: application.institutionName,
-    program: application.programName,
+    program: application.programName ?? "программа не указана",
     intake: application.intake ?? "не указано",
     isPrimary: application.isPrimary,
     universityDeadlineOn: application.universityDeadlineOn,
@@ -285,7 +289,7 @@ function profileDocumentCaseLinkTargets(
     return {
       kind: "university_application",
       id: application.universityApplicationId,
-      label: `${application.institutionName}: ${application.programName} · ${details.join(" · ")}`,
+      label: `${[application.institutionName, application.programName].filter(Boolean).join(": ")} · ${details.join(" · ")}`,
       linked: false,
       requestId: allowWrite ? randomUUID() : null,
     };
@@ -455,10 +459,19 @@ function profileFacts(
   };
 }
 
-function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
+function admissionsWorkspace(
+  data: FullCaseData,
+  isCabinetCase: boolean,
+): ProfileAdmissionsWorkspace {
   return {
     studentCaseId: data.studentCase.studentCaseId,
     caseState: data.studentCase.state,
+    // S8 (plan §4): source_key-derived, NOT caseState-derived — a legacy
+    // pending case and a cabinet-pending case share the same caseState.
+    isCabinetCase,
+    // Unified workflow S4: CaseHeader used to fetch this separately via the
+    // now-deleted route workspace read; the case DTO already carries it.
+    direction: data.studentCase.admissionsDirection ?? null,
     applications: data.applications,
     visa: data.visa,
     finance: data.finance,
@@ -476,7 +489,24 @@ function admissionsWorkspace(data: FullCaseData): ProfileAdmissionsWorkspace {
           randomUUID(),
         ]),
       ),
-      visa: randomUUID(),
+      // «Партнёр и решение» (unified workflow S7): own per-application id,
+      // distinct from applicationDetails above (a different form, a
+      // different RPC).
+      partnerDetails: Object.fromEntries(
+        data.applications.map((application) => [
+          application.universityApplicationId,
+          randomUUID(),
+        ]),
+      ),
+      // OTH-4: «Отметить статус» -- own per-application id, distinct form/RPC
+      // from applicationDetails above (change_university_application, not
+      // update_university_application_details).
+      changeStatus: Object.fromEntries(
+        data.applications.map((application) => [
+          application.universityApplicationId,
+          randomUUID(),
+        ]),
+      ),
       createStops: Object.fromEntries(
         (data.finance?.obligations ?? []).map((obligation) => [
           obligation.paymentObligationId,
@@ -570,8 +600,8 @@ function fullCaseDetails(
   actor: ActivePlatformActor,
   data: FullCaseData,
   routeTarget: ProfileRouteTarget,
-  responsible: string | null,
   contractSignedAt: string | null,
+  isCabinetCase: boolean,
 ): ProfileDraft {
   const facts = profileFacts(data.studentCase, data.studentProfile);
   const money = financeSummary(data.finance);
@@ -599,7 +629,7 @@ function fullCaseDetails(
     profileFieldSources: profileFieldSourceVersions(data.documents, data.profileFields, isStaffPreview(actor)),
     studentApplication: data.studentApplication,
     routeTarget,
-    responsible,
+    responsible: data.studentCase.currentCuratorDisplayName,
     provider: null,
     ...facts,
     documents: data.documents ? profileDocuments(
@@ -611,7 +641,7 @@ function fullCaseDetails(
     ) : [],
     otherFiles: [],
     ...money,
-    admissions: admissionsWorkspace(data),
+    admissions: admissionsWorkspace(data, isCabinetCase),
     contract,
     handoffAcknowledgement: {
       ...data.handoffAcknowledgement,
@@ -619,6 +649,13 @@ function fullCaseDetails(
       requestId: randomUUID(),
     },
     salesHandoffAcknowledgement: null,
+    // «Условия продажи» is a lead-card block (plan §5); this branch has no
+    // lead link to attach it to (docs-intake origin or insufficient
+    // sales.read), so it stays null here — see readLeadProfile below.
+    saleConditions: null,
+    // Same scoping as saleConditions above: a full case already exists by
+    // definition on this branch, so there is nothing left to "prepare".
+    leadCabinetCase: null,
     contractSignedAt,
   };
 }
@@ -662,6 +699,11 @@ async function readCaseProfile(
   if (link && data.handoff?.leadId !== link.leadId) {
     throw new Error("V3 profile handoff lead does not match the canonical case link.");
   }
+  // S8: only a 'pending' case can ever be cabinet_pending (184's shape) —
+  // skip the extra read for active/closed cases, where it can never matter.
+  const isCabinetCase = data.studentCase.state === "pending"
+    ? await readStudentCaseCabinetOrigin(actor, canonicalCaseId)
+    : false;
   const profile: PersonProfile = {
     leadId: link?.leadId ?? null,
     person: data.studentCase.studentDisplayName,
@@ -688,8 +730,8 @@ async function readCaseProfile(
         actor,
         data,
         { leadId: null, studentCaseId: canonicalCaseId },
-        data.studentCase.currentCuratorDisplayName,
         null,
+        isCabinetCase,
       ),
     },
     sales: null,
@@ -760,14 +802,35 @@ async function readLeadProfile(
     timeline: studentCase ? caseTimeline(studentCase) : [],
   };
   const money = financeSummary(finance);
+  // «Доступ к платформе» (unified workflow S1): before Admissions takes over
+  // a full case, the lead card still needs to show/decide the linked platform
+  // анкета. staff_student_application_for_lead_v1 authorizes off the SAME
+  // canonical-lead read the rest of this branch already established.
+  const leadStudentApplication = fullCase ? null : await loadStudentApplicationForLead(leadId);
+  // «Условия продажи» (unified workflow S2): the same card block the report
+  // later reads back through platform.create_sales_report_handoff. Keep this
+  // same revisioned row available after handoff for linked full-case cards.
+  const saleConditions = await readLeadSaleConditions(actor, leadId);
+  // «Подготовить кабинет» (unified workflow S7): whether this lead already
+  // has a linked case — regardless of anketa (site/WhatsApp leads never have
+  // one) and regardless of admissions.read (a handed-off case the actor can't
+  // fully open still means "don't show the prepare button again").
+  const leadCabinetCase = fullCase ? null : await readLeadCabinetCase(actor, leadId);
+  // S8: same pending-only optimization as readCaseProfile above.
+  const isCabinetCase = fullCase && fullCase.studentCase.state === "pending" && caseId
+    ? await readStudentCaseCabinetOrigin(actor, caseId)
+    : false;
   const details: ProfileDraft = fullCase
-    ? fullCaseDetails(
-        actor,
-        fullCase,
-        routeTarget,
-        lead.currentOwnerDisplayName,
-        gate.contractConfirmedAt ? formatDate(gate.contractConfirmedAt, true) : null,
-      )
+    ? {
+        ...fullCaseDetails(
+          actor,
+          fullCase,
+          routeTarget,
+          gate.contractConfirmedAt ? formatDate(gate.contractConfirmedAt, true) : null,
+          isCabinetCase,
+        ),
+        saleConditions,
+      }
     : {
         access: { documents: false, finance: false, studentProfile: false, contract: false },
         routeTarget,
@@ -776,7 +839,7 @@ async function readLeadProfile(
         person: [],
         study: [],
         profileFields: null,
-        studentApplication: null,
+        studentApplication: leadStudentApplication,
         profileFieldSources: [],
         documents: [],
         otherFiles: [],
@@ -785,6 +848,8 @@ async function readLeadProfile(
         contract: null,
         handoffAcknowledgement: null,
         salesHandoffAcknowledgement,
+        saleConditions,
+        leadCabinetCase,
         contractSignedAt: gate.contractConfirmedAt
           ? formatDate(gate.contractConfirmedAt, true)
           : null,
@@ -793,7 +858,12 @@ async function readLeadProfile(
   return {
     profile,
     details,
-    sales: { lead, gate, handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)) },
+    sales: {
+      lead,
+      gate,
+      handoff: profileSalesHandoffSnapshot(handoff, caseView, isStaffPreview(actor)),
+      linkedConversations: lead.linkedConversations,
+    },
   };
 }
 
@@ -904,6 +974,7 @@ function directoryRow(
       targetCountry: studentCase.targetCountry,
       targetDegree: studentCase.targetDegree,
       updatedAt: studentCase.handoffAt,
+      attentionFlags: [],
     });
   }
   if (presentationRole === "sales") {
@@ -923,6 +994,7 @@ function directoryRow(
       targetCountry: studentCase.targetCountry,
       targetDegree: studentCase.targetDegree,
       updatedAt: studentCase.handoffAt,
+      attentionFlags: [],
     });
   }
   const studentCase = item.studentCase;
@@ -944,6 +1016,7 @@ function directoryRow(
     targetCountry: studentCase.targetCountry,
     targetDegree: studentCase.targetDegree,
     updatedAt: studentCase.updatedAt,
+    attentionFlags: studentCase.attentionFlags,
   });
 }
 

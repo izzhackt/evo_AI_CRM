@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
+
+// PORT-5d: «Документы» живут в Атласе (src/components/portal/admission/) —
+// пути обновлены вместе с переносом, функциональные пины прежние.
 const controls = await readFile(
-  new URL("../src/components/v3/portal/PortalDocumentControls.tsx", import.meta.url),
+  new URL("../src/components/portal/admission/PortalDocumentControls.tsx", import.meta.url),
   "utf8",
 );
 const documents = await readFile(
-  new URL("../src/components/v3/portal/DocumentsView.tsx", import.meta.url),
+  new URL("../src/components/portal/admission/DocumentsView.tsx", import.meta.url),
   "utf8",
 );
 
@@ -50,7 +54,11 @@ test("Student upload posts through XMLHttpRequest so upload progress is a real p
 test("Student upload is file-only, bounded and exposes accessible outcome state", () => {
   assert.match(controls, /name="file"/u);
   assert.match(controls, /accept="application\/pdf,image\/jpeg,image\/png"/u);
-  assert.match(controls, /до 25 МБ/u);
+  // PORT-6a: подсказка о лимите — ключ admission.uploadHint (RU байт-в-байт
+  // прежний, KY несёт тот же лимит 25 МБ).
+  assert.match(controls, /strings\.uploadHint/u);
+  assert.equal(PORTAL_DICTIONARIES.admission.ru.uploadHint, "PDF, JPG или PNG, до 25 МБ.");
+  assert.match(PORTAL_DICTIONARIES.admission.ky.uploadHint, /25 МБ/u);
   assert.match(controls, /Array\.from\(formData\.keys\(\)\)/u);
   assert.match(controls, /key !== "file"/u);
   assert.match(controls, /disabled=\{pending\}/u);

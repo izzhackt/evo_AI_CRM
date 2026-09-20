@@ -25,8 +25,11 @@ import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-c
 
 const LINK_ICONS = {
   home: "grid",
+  requests: "file-check",
   pipeline: "funnel",
   "sales-report": "bar-chart",
+  "admissions-pipeline": "funnel",
+  messages: "message-square",
   "admissions-worklist": "users",
   "evo-docs": "folder",
   "admissions-summary": "plane",
@@ -36,6 +39,8 @@ const LINK_ICONS = {
   tasks: "check-square",
   "team-chat": "message-circle",
   knowledge: "book-open",
+  documents: "book-open",
+  "reply-snippets": "book-open",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
 

@@ -61,7 +61,8 @@ test("zero-assignment staff is authenticated but has no implicit business sectio
 });
 test("live permissions select sections and fixed choices are only protected Admin preview", () => {
   const staff = actor(["company.file.read", "team.chat.admissions"]);
-  assert.equal(staffCanAccessRoute(staff, "/v3/knowledge"), true);
+  assert.equal(staffCanAccessRoute(staff, "/v3/knowledge"), false);
+  assert.equal(staffCanAccessRoute(staff, "/v3/documents"), true);
   assert.equal(staffCanAccessRoute(staff, "/v3/team-chat"), true);
   assert.equal(staffCan(staff, "documents.read"), false);
   assert.equal(staffCan(staff, "admissions.write"), false);
@@ -83,7 +84,7 @@ test("report-only and snippet-only roles do not inherit lead, case or communicat
   assert.equal(staffCanAccessRoute(reporting, "/v3/pipeline"), false);
   assert.equal(staffCanAccessRoute(reporting, "/v3/profile"), false);
   const snippets = actor(["reply.snippet.sales", "reply.snippet.manage"]);
-  assert.equal(staffHomeRoute(snippets), "/v3/knowledge");
+  assert.equal(staffHomeRoute(snippets), "/v3/reply-snippets");
   assert.equal(staffCan(snippets, "snippets.write"), true);
   assert.equal(staffCan(snippets, "messaging.read"), false);
   assert.equal(staffCanAccessRoute(snippets, "/v3/inbox"), false);
@@ -92,6 +93,16 @@ test("report-only and snippet-only roles do not inherit lead, case or communicat
   assert.equal(staffCanAccessRoute(caseTasks, "/v3/tasks"), true);
   assert.equal(staffHasPermission(caseTasks, "staff.task.read"), false);
   assert.equal(staffCanAccessRoute(actor(["task.create"]), "/v3/tasks"), false);
+});
+test("document-only staff retain their home while the library stays Admin-only", () => {
+  for (const permission of ["company.file.read", "document.read.full"]) {
+    const staff = actor([permission]);
+    assert.equal(staffHomeRoute(staff), "/v3/documents");
+    assert.equal(staffCanAccessRoute(staff, "/v3/knowledge"), false);
+  }
+  const admin = actor([], { systemRole: "admin" });
+  assert.equal(staffCanAccessRoute(admin, "/v3/knowledge"), true);
+  assert.equal(staffCanAccessRoute({ ...admin, presentationRole: "admissions" }, "/v3/knowledge"), false);
 });
 test("case modules are independent strict object-bound read capabilities", () => {
   const value = { organizationId, studentCaseId: uuid(80), documents: false, finance: true,

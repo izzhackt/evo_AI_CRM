@@ -1,5 +1,5 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import { getSupabasePublicConfig } from "./config.ts";
@@ -40,4 +40,26 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient> {
 
 export async function createSupabaseServerContext(): Promise<SupabaseServerContext> {
   return { client: await createSupabaseServerClient() };
+}
+
+/**
+ * PORT-8a (ADR 0030 «Решение» п. 2): a request-scoped client for the native
+ * bearer transport of the two student document route handlers. Every
+ * PostgREST call carries the caller's own access token (`auth.uid()` comes
+ * from that token), the cookie store is deliberately not connected, and no
+ * session is persisted or refreshed. The token itself is verified separately
+ * with `auth.getClaims(<jwt>)` before any authority is derived from it.
+ */
+export function createSupabaseBearerServerClient(
+  accessToken: string,
+): SupabaseClient {
+  const config = getSupabasePublicConfig();
+  return createClient(config.url, config.publishableKey, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
 }

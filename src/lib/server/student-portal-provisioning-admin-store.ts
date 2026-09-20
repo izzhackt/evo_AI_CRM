@@ -24,7 +24,7 @@ export type StudentPortalProvisioningReceipt = Readonly<{
   receiptId: string;
   requestId: string;
   studentCaseId: string;
-  caseShape: "normal_u6" | "legacy_pending";
+  caseShape: "normal_u6" | "legacy_pending" | "cabinet_pending";
   provisioningState:
     | "prepared"
     | "dispatching"
@@ -60,7 +60,7 @@ export type PrepareStudentPortalProvisioningInput = Readonly<{
   studentCaseId: string;
   email: string;
   displayName: string;
-  caseShape: "normal_u6" | "legacy_pending";
+  caseShape: "normal_u6" | "legacy_pending" | "cabinet_pending";
   legacyCuratorMembershipId: string | null;
   reason: string;
   requestId: string;
@@ -108,7 +108,15 @@ function timestamp(value: unknown): string | null {
 
 function safeConflict(error: unknown): string | null {
   const value = record(error);
-  if (value?.code !== "40001" || typeof value.message !== "string") return null;
+  // Migration 194 moves the invite family's business conflicts from the
+  // retryable SQLSTATE 40001 to PT409 (the 178/186 convention); 40001 stays
+  // accepted for the transition window around the migration apply.
+  if (
+    (value?.code !== "40001" && value?.code !== "PT409") ||
+    typeof value?.message !== "string"
+  ) {
+    return null;
+  }
   return SAFE_CODES.has(value.message) ? value.message : "provisioning_conflict";
 }
 
@@ -119,7 +127,7 @@ function decodeReceipt(value: unknown): StudentPortalProvisioningReceipt | null 
   const studentCaseId = uuid(data?.student_case_id);
   const receiptVersion = version(data?.receipt_version);
   const inviteGeneration = version(data?.invite_generation);
-  const caseShapes = new Set(["normal_u6", "legacy_pending"]);
+  const caseShapes = new Set(["normal_u6", "legacy_pending", "cabinet_pending"]);
   const states = new Set([
     "prepared",
     "dispatching",

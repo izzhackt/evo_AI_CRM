@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useActionState,
   useEffect,
@@ -9,6 +9,8 @@ import {
   type FormEvent,
 } from "react";
 
+import { KnowledgeExport } from "@/components/v3/knowledge/KnowledgeExport";
+import type { KnowledgeCanonicalSelection } from "@/lib/knowledge-canonical-export-contract";
 import { Icon } from "@/components/icons";
 import {
   btnCls,
@@ -657,6 +659,9 @@ function SidebarFolder({
 
 /** One real workspace over company files plus the existing student-document projection. */
 export function FileManager({
+  rootLabel = "База знаний",
+  embedded = false,
+  allowKnowledgeExport = false,
   folders,
   files,
   canManage,
@@ -664,6 +669,9 @@ export function FileManager({
   createFolderRequestId,
   createFileRequestId,
 }: Readonly<{
+  rootLabel?: string;
+  embedded?: boolean;
+  allowKnowledgeExport?: boolean;
   folders: readonly KnowledgeFolder[];
   files: readonly KnowledgeFile[];
   canManage: boolean;
@@ -671,8 +679,13 @@ export function FileManager({
   createFolderRequestId: string;
   createFileRequestId: string;
 }>) {
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const params = useSearchParams();
+  const [currentId, setCurrentId] = useState<string | null>(() => {
+    const requested = embedded ? params.get("documentFolder") : null;
+    return requested && folders.some((folder) => folder.id === requested) ? requested : null;
+  });
   const [query, setQuery] = useState("");
+  const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
   const byId = useMemo(
     () => new Map(folders.map((folder) => [folder.id, folder] as const)),
     [folders],
@@ -705,6 +718,7 @@ export function FileManager({
     folders.filter((folder) => folder.parentId === folderId).length
     + files.filter((file) => file.folderId === folderId).length;
   const openFolder = (folderId: string | null) => {
+    setSelectedVersions(new Set());
     setCurrentId(folderId);
     setQuery("");
   };
@@ -716,11 +730,22 @@ export function FileManager({
         candidate.id !== current.id && !isDescendant(candidate, current.id, byId))
     : companyDestinations;
   const currentIsCompany = current?.kind === "company-root" || current?.kind === "company";
+  const exportable = visibleFiles.filter((file) => file.currentVersionId && file.downloadHref);
+  const selectedFiles = files.filter((file) => file.currentVersionId && selectedVersions.has(file.currentVersionId));
+  const selectedExport: KnowledgeCanonicalSelection = {
+    documentVersionIds: selectedFiles.filter((file) => file.kind === "student").map((file) => file.currentVersionId!),
+    companyVersionIds: selectedFiles.filter((file) => file.kind === "company").map((file) => file.currentVersionId!),
+  };
+  const folderExport: KnowledgeCanonicalSelection = !current ? { allDocuments: true, companyRoot: true }
+    : current.kind === "students" ? { allDocuments: true }
+    : current.kind === "student" ? { documentCaseIds: [current.id.replace(/^student-/, "")] }
+    : current.kind === "company-root" ? { companyRoot: true } : { companyFolderIds: [current.id] };
+
 
   return (
-    <section className="overflow-hidden rounded-card border border-border bg-surface">
-      <div className="grid min-h-[620px] lg:grid-cols-[260px_minmax(0,1fr)]">
-        <nav
+    <section className={embedded ? "min-w-0" : "overflow-hidden rounded-card border border-border bg-surface"}>
+      <div className={embedded ? "min-w-0" : "grid min-h-[620px] lg:grid-cols-[260px_minmax(0,1fr)]"}>
+        {!embedded && <nav
           aria-label="Папки базы знаний"
           className="border-b border-border bg-surface-2 p-3 lg:border-b-0 lg:border-e"
         >
@@ -751,9 +776,9 @@ export function FileManager({
                 />
               ))}
           </ul>
-        </nav>
+        </nav>}
 
-        <div className="min-w-0 p-4 sm:p-5">
+        <div className={embedded ? "min-w-0" : "min-w-0 p-4 sm:p-5"}>
           <div className="flex flex-wrap items-center gap-3 border-b border-border pb-4">
             <nav aria-label="Путь к папке" className="min-w-0 flex-1">
               <ol className="flex min-w-0 items-center gap-1 text-sm text-fg-2">
@@ -763,7 +788,7 @@ export function FileManager({
                     onClick={() => openFolder(null)}
                     className="min-h-8 rounded-nav px-1 hover:text-fg"
                   >
-                    База знаний
+                    {rootLabel}
                   </button>
                 </li>
                 {breadcrumbs.map((folder) => (
@@ -793,6 +818,14 @@ export function FileManager({
             </label>
           </div>
 
+          {allowKnowledgeExport && <div className="flex flex-wrap items-center gap-3 py-3">
+            <KnowledgeExport canonical={folderExport} label={current ? "Выгрузить папку" : "Выгрузить все документы"} buttonClassName={btnGhostCls} />
+            {selectedFiles.length > 0 && <>
+              <span className="text-sm text-fg-2">Выбрано: {selectedFiles.length}</span>
+              <KnowledgeExport canonical={selectedExport} label="Выгрузить выбранные документы" buttonClassName={btnGhostCls} />
+              <button type="button" className={btnGhostCls} onClick={() => setSelectedVersions(new Set())}>Снять выделение</button>
+            </>}
+          </div>}
           {canManage && currentIsCompany && current ? (
             <div className="grid gap-3 border-b border-border py-4">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -859,6 +892,11 @@ export function FileManager({
             <table className="w-full min-w-[560px] border-separate border-spacing-0 text-start">
               <thead>
                 <tr className="text-start text-2xs uppercase tracking-wide text-fg-3">
+                  {allowKnowledgeExport && <th className="w-10 border-b border-border px-3 py-2">
+                    <input type="checkbox" aria-label="Выбрать документы на экране" disabled={!exportable.length}
+                      checked={exportable.length > 0 && exportable.every((file) => selectedVersions.has(file.currentVersionId!))}
+                      onChange={(event) => setSelectedVersions((old) => { const next = new Set(old); for (const file of exportable) { if (event.target.checked) next.add(file.currentVersionId!); else next.delete(file.currentVersionId!); } return next; })} />
+                  </th>}
                   <th className="border-b border-border px-3 py-2 text-start font-medium">Документ</th>
                   <th className="border-b border-border px-3 py-2 text-start font-medium">Размер</th>
                   <th className="border-b border-border px-3 py-2 text-start font-medium">Действия</th>
@@ -872,6 +910,11 @@ export function FileManager({
                     data-testid={file.kind === "company" ? "v3-company-file-row" : undefined}
                     data-file-id={file.id}
                   >
+                    {allowKnowledgeExport && <td className="border-b border-border px-3 py-3">
+                      <input type="checkbox" aria-label={`Выбрать ${file.name}`} disabled={!file.currentVersionId || !file.downloadHref}
+                        checked={Boolean(file.currentVersionId && selectedVersions.has(file.currentVersionId))}
+                        onChange={(event) => setSelectedVersions((old) => { const next = new Set(old); if (event.target.checked) next.add(file.currentVersionId!); else next.delete(file.currentVersionId!); return next; })} />
+                    </td>}
                     <td className="border-b border-border px-3 py-3">
                       {file.downloadHref ? (
                         <a href={file.downloadHref} className="font-medium underline-offset-4 hover:underline">

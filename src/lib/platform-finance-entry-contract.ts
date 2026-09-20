@@ -1,7 +1,7 @@
 import { parseSalesDate, parseSalesUuid } from "./platform-sales-register-contract.ts";
 export type FinanceEntryStatus = "idle" | "saved" | "invalid" | "forbidden" | "request_conflict" | "unavailable";
 export type FinanceEntryState = Readonly<{ status: FinanceEntryStatus; requestId: string; resourceId: string | null }>;
-export type FinanceObligation = Readonly<{ id: string; label: string; currency: string; amountMinor: string; outstandingMinor: string; dueAt: string }>;
+export type FinanceObligation = Readonly<{ id: string; label: string; currency: string; amountMinor: string; outstandingMinor: string; dueAt: string | null }>;
 export type FinancePayment = Readonly<{ id: string; obligationId: string; type: "payment" | "refund"; amountMinor: string; currency: string; occurredAt: string; refundableMinor: string }>;
 export type FinanceEntryWorkspace = Readonly<{ caseId: string; obligations: readonly FinanceObligation[]; events: readonly FinancePayment[]; canCreate: boolean; canRecord: boolean; canReadEvents: boolean }>;
 export type MonthlyPaymentTotal = Readonly<{ currency: string; paymentsMinor: string; refundsMinor: string; netMinor: string; eventCount: string }>;
@@ -36,11 +36,16 @@ function bool(value: unknown): boolean { return typeof value === "boolean" ? val
 function integer(value: unknown, signed = false): string { const result = text(value, 40); return (signed ? /^-?\d+$/ : /^\d+$/).test(result) ? result : fail(); }
 function currency(value: unknown): string { const result = text(value, 3); return /^[A-Z]{3}$/.test(result) ? result : fail(); }
 function time(value: unknown): string { const result = text(value, 40); return Number.isFinite(Date.parse(result)) ? result : fail(); }
+// A case-agreement tranche (188_platform_case_agreement) may carry no due
+// date — "срок при необходимости" — so this admin-ledger reader must accept
+// null for the same column the strict `time()` decoder above still requires
+// elsewhere (occurred_at on payment/refund events is never null).
+function optionalTime(value: unknown): string | null { return value === null ? null : time(value); }
 function list(value: unknown, max: number): unknown[] { return Array.isArray(value) && value.length <= max ? value : fail(); }
 export function parseFinanceEntryWorkspace(value: unknown, organizationId: string, caseId: string): FinanceEntryWorkspace {
   const r = record(value);
   if (r.organization_id !== organizationId || r.case_id !== caseId) fail();
-  const obligations = list(r.obligations, 200).map(value => { const o = record(value); return { id: id(o.id), label: text(o.label), currency: currency(o.currency), amountMinor: integer(o.amount_minor), outstandingMinor: integer(o.outstanding_minor), dueAt: time(o.due_at) }; });
+  const obligations = list(r.obligations, 200).map(value => { const o = record(value); return { id: id(o.id), label: text(o.label), currency: currency(o.currency), amountMinor: integer(o.amount_minor), outstandingMinor: integer(o.outstanding_minor), dueAt: optionalTime(o.due_at) }; });
   const ids = new Set(obligations.map(o => o.id));
   if (ids.size !== obligations.length) fail();
   const events: FinancePayment[] = list(r.events, 1000).map(value => { const e = record(value), type = e.type;

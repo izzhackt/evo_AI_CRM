@@ -12,7 +12,22 @@ export type VerifiedStudentPortalAuthority = Readonly<{
   platformAccessVersion: number;
   platformBundleId: string;
   platformBundleVersion: number;
-  caseState: "active" | "closed";
+  /**
+   * Unified workflow (S1): a portal cabinet can be activated before a sale —
+   * 'pending' with portal_activated_at set (public анкета approval, plan §4).
+   * No curator/direction exist yet in that state; the portal UI must not
+   * assume either.
+   */
+  caseState: "pending" | "active" | "closed";
+  /**
+   * PORT-1a (PORT-0 «Решение: модель доступа»): the single checkable tier
+   * boundary for web and iPhone instead of scattered `caseState === 'pending'`
+   * checks. Derived, never stored: 'approved' = a portal-activated pending
+   * cabinet (обзор, каталог, тесты, уведомления, профиль); 'assisted' =
+   * active/closed сопровождение (плюс документы и case-help — migration 195
+   * enforces the same boundary in PostgreSQL).
+   */
+  accessTier: "approved" | "assisted";
   portalActivatedAt: string;
 }>;
 
@@ -112,7 +127,7 @@ export function decodeVerifiedStudentPortalAuthority(
     authority.platform_role !== "student" ||
     accessVersion === null ||
     !isUuid(portalCase?.case_id) ||
-    (portalCase.case_state !== "active" && portalCase.case_state !== "closed") ||
+    (portalCase.case_state !== "pending" && portalCase.case_state !== "active" && portalCase.case_state !== "closed") ||
     portalActivatedAt === null
   ) {
     return null;
@@ -131,6 +146,7 @@ export function decodeVerifiedStudentPortalAuthority(
     platformBundleId: bundleId,
     platformBundleVersion: bundleVersion,
     caseState: portalCase.case_state,
+    accessTier: portalCase.case_state === "pending" ? "approved" : "assisted",
     portalActivatedAt,
   });
 }

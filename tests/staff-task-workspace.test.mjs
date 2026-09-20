@@ -146,5 +146,11 @@ test("tasks page wires explicit queue availability separately from the case comp
   assert.match(page, /const canReadTaskQueue = domain === "staff" \? workspace\.canReadStaffTasks : workspace\.canReadCaseTasks/);
   assert.match(page, /!canReadTaskQueue \? <p role="status"/);
   assert.match(page, /В вашей роли нет права на просмотр/);
-  assert.match(page, /canCreateCase=\{workspace\.canReadCases && staffHasPermission\(actor, "task\.create"\)\}/);
+  // OTH-2 (staff tasks + notifications rework): the inline radio-fieldset
+  // TaskComposer was replaced by the unified <TaskComposerDialog>, whose case
+  // path is gated by a `caseAllowed` prop instead of the old component's
+  // `canCreateCase` — same boolean expression (workspace.canReadCases &&
+  // staffHasPermission(actor, "task.create")), now also explicit about
+  // isStaffPreview the way the sibling `staffAllowed` prop already was.
+  assert.match(page, /caseAllowed=\{!isStaffPreview\(actor\) && workspace\.canReadCases && staffHasPermission\(actor, "task\.create"\)\}/);
 });

@@ -4,7 +4,6 @@ import { isStaffPreview, staffHasPermission } from "./platform-access.ts";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
-import { PLATFORM_VISA_STATUSES } from "./platform-case-operations-contract.ts";
 import { requirePlatformStaffActor } from "./platform-guards";
 import type { PlatformAdmissionsActionStatus } from "./platform-admissions-task-actions";
 import { exactActionStringFields } from "./server/action-form-fields";
@@ -20,15 +19,6 @@ const PLATFORM_FINANCE_BLOCKED_ACTIONS = [
   "document_processing",
   "visa_submission",
   "case_progression",
-] as const;
-const VISA_FIELDS = [
-  "student_case_id",
-  "visa_case_id",
-  "status",
-  "evidence_reference",
-  "note",
-  "request_id",
-  "expected_version",
 ] as const;
 const CREATE_STOP_FIELDS = [
   "student_case_id",
@@ -48,13 +38,6 @@ const RESOLVE_STOP_FIELDS = [
   "request_id",
   "expected_version",
 ] as const;
-
-export type PlatformCaseVisaActionState = Readonly<{
-  status: PlatformAdmissionsActionStatus;
-  requestId: string;
-  visaCaseId: string | null;
-  version: string | null;
-}>;
 
 export type PlatformFinanceStopFactorActionState = Readonly<{
   status: PlatformAdmissionsActionStatus;
@@ -117,22 +100,6 @@ function operationText(
   return candidate;
 }
 
-function optionalOperationText(
-  fields: OperationStringFields,
-  key: string,
-  maximum: number,
-): string | null | undefined {
-  const candidate = operationField(fields, key);
-  if (!candidate) return null;
-  if (
-    candidate.length > maximum ||
-    CONTROL_CHARACTER_PATTERN.test(candidate)
-  ) {
-    return undefined;
-  }
-  return candidate;
-}
-
 function operationVersion(value: string, allowZero: boolean): string | null {
   if (!/^\d+$/.test(value)) return null;
   const normalized = value.replace(/^0+(?=\d)/, "");
@@ -173,23 +140,6 @@ function operationErrorStatus(
   return "unavailable";
 }
 
-function visaFailureState(
-  form: FormData,
-  status: Exclude<PlatformAdmissionsActionStatus, "idle" | "saved">,
-  visaCaseId: string | null = null,
-  verifiedRequestId?: string | null,
-): PlatformCaseVisaActionState {
-  const requestId = verifiedRequestId ?? submittedOperationRequestId(form);
-  return Object.freeze({
-    status,
-    requestId: status === "stale" || status === "request_conflict"
-      ? randomUUID()
-      : (requestId ?? randomUUID()),
-    visaCaseId,
-    version: null,
-  });
-}
-
 function stopFailureState(
   form: FormData,
   status: Exclude<PlatformAdmissionsActionStatus, "idle" | "saved">,
@@ -211,100 +161,6 @@ function revalidateCaseOperations(studentCaseId: string): void {
   void studentCaseId;
   revalidatePath("/v3/calendar");
   revalidatePath("/v3/profile");
-}
-
-export async function upsertPlatformCaseVisaAction(
-  _previous: PlatformCaseVisaActionState,
-  form: FormData,
-): Promise<PlatformCaseVisaActionState> {
-  const actor = await requirePlatformStaffActor();
-  if (isStaffPreview(actor) || !staffHasPermission(actor, "visa.manage")) {
-    return visaFailureState(form, "forbidden");
-  }
-  const fields = exactActionStringFields(form, VISA_FIELDS);
-  if (!fields) return visaFailureState(form, "invalid");
-
-  const studentCaseId = uuid(operationField(fields, "student_case_id"));
-  const visaCaseIdValue = operationField(fields, "visa_case_id");
-  const visaCaseId = visaCaseIdValue ? uuid(visaCaseIdValue) : null;
-  const status = oneOf(operationField(fields, "status"), PLATFORM_VISA_STATUSES);
-  const evidenceReference = operationText(fields, "evidence_reference", 1, 2000);
-  const note = optionalOperationText(fields, "note", 4000);
-  const requestId = uuid(operationField(fields, "request_id"));
-  const expectedVersion = operationVersion(
-    operationField(fields, "expected_version"),
-    visaCaseId === null,
-  );
-
-  if (
-    !studentCaseId || (visaCaseIdValue !== "" && !visaCaseId) || !status ||
-    !evidenceReference || note === undefined || !requestId || !expectedVersion ||
-    (visaCaseId ? expectedVersion === "0" : expectedVersion !== "0")
-  ) {
-    return visaFailureState(form, "invalid", visaCaseId, requestId);
-  }
-
-  try {
-    const client = await createSupabaseServerClient();
-    const response = visaCaseId
-      ? await client.schema("platform").rpc("change_visa_case", {
-          p_organization_id: actor.organizationId,
-          p_visa_case_id: visaCaseId,
-          p_new_status: status,
-          p_evidence_reference: evidenceReference,
-          p_note: note,
-          p_expected_version: expectedVersion,
-          p_request_id: requestId,
-        })
-      : await client.schema("platform").rpc("create_visa_case", {
-          p_organization_id: actor.organizationId,
-          p_student_case_id: studentCaseId,
-          p_status: status,
-          p_evidence_reference: evidenceReference,
-          p_note: note,
-          p_expected_version: expectedVersion,
-          p_request_id: requestId,
-        });
-    if (response.error) {
-      return visaFailureState(
-        form,
-        operationErrorStatus(response.error, "admissions_version_conflict"),
-        visaCaseId,
-        requestId,
-      );
-    }
-    const data = response.data;
-    const nextVersion = isRecord(data) && typeof data.version === "string"
-      ? operationVersion(data.version, false)
-      : null;
-    if (
-      !isRecord(data) ||
-      !hasExactKeys(data, [
-        "organization_id", "visa_case_id", "student_case_id", "status",
-        "evidence_reference", "note", "request_id", "expected_version",
-        "version",
-      ]) ||
-      data.organization_id !== actor.organizationId ||
-      data.student_case_id !== studentCaseId ||
-      typeof data.visa_case_id !== "string" || !uuid(data.visa_case_id) ||
-      (visaCaseId !== null && data.visa_case_id !== visaCaseId) ||
-      data.status !== status || data.evidence_reference !== evidenceReference ||
-      data.note !== note || data.request_id !== requestId ||
-      data.expected_version !== expectedVersion || !nextVersion ||
-      BigInt(nextVersion) !== BigInt(expectedVersion) + BigInt(1)
-    ) {
-      return visaFailureState(form, "unavailable", visaCaseId, requestId);
-    }
-    revalidateCaseOperations(studentCaseId);
-    return Object.freeze({
-      status: "saved" as const,
-      requestId: randomUUID(),
-      visaCaseId: data.visa_case_id,
-      version: nextVersion,
-    });
-  } catch {
-    return visaFailureState(form, "unavailable", visaCaseId, requestId);
-  }
 }
 
 export async function createPlatformFinanceStopFactorAction(

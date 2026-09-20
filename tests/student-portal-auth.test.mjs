@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   resolveStudentPortalActor,
+  resolveStudentPortalBearerActor,
 } from "../src/lib/student-portal-auth.ts";
 import {
   studentPortalGuardDestination,
@@ -156,4 +157,100 @@ test("Student logout uses the local Supabase scope and never a provider/global m
   assert.match(source, /signOut\(\{ scope: "local" \}\)/u);
   assert.match(source, /redirect\("\/login"\)/u);
   assert.doesNotMatch(source, /scope: "global"|auth\.admin/u);
+});
+
+// PORT-8a (ADR 0030 «Решение» п. 2): the bearer resolver verifies the exact
+// provided token with Supabase Auth and then runs the same authority chain
+// as the cookie resolver. A present token never resolves to "anonymous".
+
+function bearerClient({ claimsError = null, claimsValue = claims(), role = "student" } = {}) {
+  const authCalls = [];
+  const base = client({ role });
+  return {
+    authCalls,
+    client: {
+      ...base,
+      auth: {
+        async getClaims(jwt) {
+          authCalls.push(jwt);
+          return {
+            data: claimsError ? null : { claims: claimsValue },
+            error: claimsError,
+          };
+        },
+      },
+    },
+  };
+}
+
+test("Bearer resolver verifies the provided token and returns the same active portal actor", async () => {
+  const bearer = bearerClient();
+  const result = await resolveStudentPortalBearerActor("token.jwt.value", {
+    createClient: async (accessToken) => {
+      assert.equal(accessToken, "token.jwt.value");
+      return bearer.client;
+    },
+  });
+  assert.equal(result.status, "authenticated");
+  assert.equal(result.actor.studentCaseId, CASE_ID);
+  assert.equal(result.actor.databaseRole, "student");
+  assert.deepEqual(bearer.authCalls, ["token.jwt.value"]);
+});
+
+test("Bearer resolver never reports anonymous for a present token", async () => {
+  for (const claimsError of [
+    { name: "AuthSessionMissingError" },
+    { name: "AuthInvalidJwtError", message: "invalid JWT" },
+    { name: "AuthApiError", message: "token is expired" },
+  ]) {
+    const bearer = bearerClient({ claimsError });
+    assert.deepEqual(
+      await resolveStudentPortalBearerActor("token.jwt.value", {
+        createClient: async () => bearer.client,
+      }),
+      { status: "invalid", actor: null, reason: "supabase_session_invalid" },
+      claimsError.name,
+    );
+  }
+
+  const throwing = {
+    auth: {
+      async getClaims() {
+        throw new SyntaxError("not JSON");
+      },
+    },
+  };
+  assert.deepEqual(
+    await resolveStudentPortalBearerActor("token.jwt.value", {
+      createClient: async () => throwing,
+    }),
+    { status: "invalid", actor: null, reason: "supabase_session_invalid" },
+  );
+});
+
+test("Bearer resolver fails closed on unavailable Auth and rejects non-student authority", async () => {
+  assert.deepEqual(
+    await resolveStudentPortalBearerActor("token.jwt.value", {
+      createClient: async () => {
+        throw new Error("configuration missing");
+      },
+    }),
+    {
+      status: "invalid",
+      actor: null,
+      reason: "student_authority_unavailable",
+    },
+  );
+
+  const staffBearer = bearerClient({ role: "admin" });
+  assert.deepEqual(
+    await resolveStudentPortalBearerActor("token.jwt.value", {
+      createClient: async () => staffBearer.client,
+    }),
+    {
+      status: "invalid",
+      actor: null,
+      reason: "student_authority_invalid",
+    },
+  );
 });

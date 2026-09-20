@@ -16,6 +16,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "calendar-contract.ts",
     "calendar-source.ts",
     "case-access-contract.ts",
+    "case-agreement-source.ts",
+    "case-chat-source.ts",
     "case-operations-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",
@@ -25,6 +27,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "inbox-source.ts",
     "knowledge-source.ts",
     "knowledge-surface.ts",
+    "lead-cabinet-source.ts",
+    "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
     "navigation.ts",
     "operations-source.ts",
@@ -35,6 +39,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "profile-route-load.ts",
     "profile-source.ts",
     "reply-snippets-source.ts",
+    "requests-source.ts",
     "sales-register-source.ts",
     "settings-journal-contract.ts",
     "settings-source.ts",
@@ -45,6 +50,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "staff-task-source.ts",
     "staff-workspace-contract.ts",
     "staff-workspace-source.ts",
+    "student-application-source.ts",
     "student-assessment-source.ts",
     "task-case-actions.ts",
     "team-chat-source.ts",
@@ -60,11 +66,15 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
   assert.deepEqual(adapterFiles, [
     "admissions-source.ts",
     "calendar-source.ts",
+    "case-agreement-source.ts",
+    "case-chat-source.ts",
     "case-operations-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",
     "inbox-source.ts",
     "knowledge-source.ts",
+    "lead-cabinet-source.ts",
+    "lead-sale-conditions-source.ts",
     "manual-lead-source.ts",
     "operations-source.ts",
     "pipeline-source.ts",
@@ -72,11 +82,13 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "profile-activity-source.ts",
     "profile-source.ts",
     "reply-snippets-source.ts",
+    "requests-source.ts",
     "sales-register-source.ts",
     "settings-source.ts",
     "staff-notification-source.ts",
     "staff-task-source.ts",
     "staff-workspace-source.ts",
+    "student-application-source.ts",
     "student-assessment-source.ts",
     "team-chat-source.ts",
     "university-form-source.ts",
@@ -184,15 +196,24 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   assert.match(profileSource, /getPlatformLeadAdmissionsGate/);
   assert.match(profileSource, /getPlatformLeadAdmissionsHandoff/);
   assert.match(transition, /mutatePlatformLeadAdmissionsGateAction/);
-  assert.match(transition, /handoffPlatformLeadToAdmissionsAction/);
   assert.match(transition, /name="expected_gate_version"/);
   assert.match(transition, /data-testid="v3-sales-transition"/);
-  assert.match(transition, /data-testid="v3-sales-handoff"/);
-  assert.match(
+  // Unified workflow S2: the card-side «Передача в Admissions» handoff form
+  // is retired; the only curator handoff trigger left is a saved Sales
+  // report. LeadSaleConditions replaces it on the lead card Overview.
+  assert.doesNotMatch(transition, /handoffPlatformLeadToAdmissionsAction/);
+  assert.doesNotMatch(transition, /data-testid="v3-sales-handoff"/);
+  assert.doesNotMatch(
     transition,
     /href=\{`\/v3\/profile\?case=\$\{caseId\}&tab=overview`\}/,
   );
   assert.doesNotMatch(transition, /href=\{`\/clients\/\$\{caseId\}`\}/);
+  assert.match(profileSource, /readLeadSaleConditions/);
+  assert.match(tabs, /<LeadSaleConditions/);
+  assert.match(
+    source("src/components/v3/profile/LeadSaleConditions.tsx"),
+    /saveLeadSaleConditionsAction/,
+  );
 
   for (const path of [
     "src/app/(staff)/sales/[id]/page.tsx",

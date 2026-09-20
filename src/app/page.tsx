@@ -47,7 +47,13 @@ async function resolveEvoHomeRoute(): Promise<string> {
       return "/login?error=auth_unavailable";
     }
     if (invite.status === "authenticated" && invite.receipt.accountPending) {
-      return platformAudienceHomeRoute(host, "student", "/auth/account-pending");
+      // PORT-1b: an anketa_v1 invite acceptance leads to the same public
+      // анкета instead of «доступ готовится» — fall through to the
+      // application check below (/apply or /apply/status). Legacy receipts
+      // keep the pre-193 waiting room.
+      if (invite.receipt.intakeFlow !== "anketa_v1") {
+        return platformAudienceHomeRoute(host, "student", "/auth/account-pending");
+      }
     }
   } catch {
     return "/login?error=auth_unavailable";

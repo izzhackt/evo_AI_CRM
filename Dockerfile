@@ -1,5 +1,12 @@
 # syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
 
+ARG TARGETARCH
+FROM scratch AS knowledge-sops-amd64
+ADD --checksum=sha256:154dfe4cd70554bdd82b98e4cd4acf191d43d01ead6f00a73477aa44c4ac42ef https://github.com/getsops/sops/releases/download/v3.13.2/sops-v3.13.2.linux.amd64 /sops
+FROM scratch AS knowledge-sops-arm64
+ADD --checksum=sha256:78abf2e15c86250a1553ae6f53aba96be6b2a8126f160b1534959add3467ad76 https://github.com/getsops/sops/releases/download/v3.13.2/sops-v3.13.2.linux.arm64 /sops
+FROM knowledge-sops-${TARGETARCH} AS knowledge-sops
+
 FROM node:22-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS deps
 
 WORKDIR /app
@@ -116,6 +123,9 @@ COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/platform-knowl
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/document-recognition-worker.mjs ./document-recognition-worker.mjs
 COPY --from=document-source-runtime --chown=0:0 /opt/evo-document-runtime/ /opt/evo-document-runtime/
 COPY --from=university-template-runtime --chown=0:0 /opt/evo-university-template-runtime/ /opt/evo-university-template-runtime/
+
+COPY --from=knowledge-sops --chown=0:0 --chmod=0555 /sops /usr/local/bin/sops
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/knowledge-maintenance.mjs ./knowledge-maintenance.mjs
 
 USER nextjs
 

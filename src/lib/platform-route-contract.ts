@@ -10,21 +10,35 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3",
   "/v3/main",
   "/v3/pipeline",
+  "/v3/admissions-pipeline",
   "/v3/inbox",
   "/v3/profile",
+  "/v3/requests",
+  // Retired route (unified workflow S1, replaced by /v3/requests, gated by
+  // sales.read not admissions.read): kept connected so old bookmarks/links
+  // still resolve. The page itself is an unconditional redirect.
   "/v3/admissions-requests",
   "/v3/settings",
   "/v3/knowledge",
+  "/v3/reply-snippets",
+  "/v3/documents",
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",
+  "/v3/messages",
   "/v3/universities",
   "/v3/universities/manage",
 ]);
 
 const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal",
+  // PORT-9c: «Главная» кабинета (урок hotfix'а release-3: экран без
+  // allowlist невидим за прокси).
+  "/portal/home",
   "/portal/documents",
+  // Retired screen (unified workflow S5): kept connected only so old
+  // bookmarks/notification links still resolve. The page itself is an
+  // unconditional redirect to /portal, same pattern as /v3/admissions-requests.
   "/portal/applications",
   "/portal/universities",
   "/portal/payments",
@@ -32,6 +46,14 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal/tests",
   "/portal/tests/english",
   "/portal/tests/career",
+  "/portal/favorites",
+  "/portal/profile",
+  // PORT-4c: обучение и профессии (движок 198, сид 199).
+  "/portal/english",
+  "/portal/english/review",
+  "/portal/professions",
+  // PORT-5c: сообщения по делу (assisted; граница — RPC миграции 200).
+  "/portal/messages",
 ]);
 
 const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
@@ -45,11 +67,18 @@ const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{
 const STAFF_UNIVERSITY_FORMS_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_LESSON_DETAIL_PATH = /^\/portal\/english\/lesson\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_PROFESSION_DETAIL_PATH = /^\/portal\/professions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const STUDENT_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/portal\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/versions$/i;
 const STUDENT_DOCUMENT_DOWNLOAD_PATH =
   /^\/api\/portal\/document-versions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+// PORT-9a (ADR 0030 «Решение» п. 3): the two narrow intake routes of the
+// iPhone анкета path. Acceptance rides the PORT-8a bearer pass-through;
+// registration is a public intake whose handler owns its whole boundary.
+const STUDENT_INVITE_ACCEPTANCE_API_PATH = "/api/portal/invite-acceptance";
+const STUDENT_REGISTRATION_API_PATH = "/api/portal/registration";
 
 const PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH =
   /^\/api\/v2\/document-slots\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/versions$/i;
@@ -125,10 +154,12 @@ export function isConnectedPlatformPage(path: string): boolean {
   );
 }
 
-/** Only implemented Student pages and bounded university/notification details. */
+/** Only implemented Student pages and bounded uuid detail routes. */
 export function isConnectedStudentPortalPage(path: string): boolean {
   return STUDENT_PORTAL_PAGE_ALLOWLIST.has(path) || STUDENT_UNIVERSITY_DETAIL_PATH.test(path)
-    || STUDENT_NOTIFICATION_DETAIL_PATH.test(path);
+    || STUDENT_NOTIFICATION_DETAIL_PATH.test(path)
+    || STUDENT_LESSON_DETAIL_PATH.test(path)
+    || STUDENT_PROFESSION_DETAIL_PATH.test(path);
 }
 
 /** Auth-only invite surfaces; none grants Student or staff product authority. */
@@ -144,7 +175,24 @@ export function isConnectedStudentPortalApi(
   return (
     (method === "POST" && STUDENT_DOCUMENT_VERSION_UPLOAD_PATH.test(path))
     || (method === "GET" && STUDENT_DOCUMENT_DOWNLOAD_PATH.test(path))
+    // PORT-9a: bearer-only invite acceptance; the handler answers 401 for a
+    // missing/rejected credential and never consults cookies.
+    || (method === "POST" && path === STUDENT_INVITE_ACCEPTANCE_API_PATH)
   );
+}
+
+/**
+ * PORT-9a: the anonymous анкета registration intake (account creation at the
+ * final wizard step). The handler owns its complete boundary — exact-JSON
+ * contract plus the database signup rate limit (migration 177:8-48); the
+ * proxy passes the exact path/method through without a session gate, the
+ * same class as /api/public/website-leads.
+ */
+export function isPublicStudentRegistrationApi(
+  path: string,
+  method: string,
+): boolean {
+  return method === "POST" && path === STUDENT_REGISTRATION_API_PATH;
 }
 
 /**
@@ -173,6 +221,8 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 export function isConnectedPlatformApi(path: string): boolean {
   return (
+    path === "/api/v3/knowledge/search-canonical" ||
+    /^\/api\/v3\/knowledge\/(?:list|command|item|blob|download|exports|clients|secrets|source)(?:\/[0-9a-z-]+){0,2}$/.test(path) ||
     path === PLATFORM_AUDIT_EXPORT_PATH ||
     PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||

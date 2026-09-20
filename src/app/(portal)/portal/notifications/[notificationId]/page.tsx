@@ -1,49 +1,66 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { PortalPage, PortalSection } from "@/components/v3/portal/PortalPage";
-import { PortalNotificationReadButton } from "@/components/v3/portal/PortalNotificationReadButton";
-import { formatPortalTimestamp } from "@/components/v3/portal/presentation";
+import { PortalNotificationReadButton } from "@/components/portal/admission/PortalNotificationReadButton";
+import { formatPortalTimestamp } from "@/components/portal/admission/presentation";
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
 import { caseOperationUuid } from "@/lib/platform-admissions-support-contract";
 import { markStudentPortalNotificationReadAction } from "@/lib/student-portal-actions";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { readStudentHelpReply } from "@/lib/v3/case-operations-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Ответ куратора — EVO Admissions" };
+
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("admission", await getLocale());
+  return { title: `${strings.replyTitle} — EVO Admissions` };
+}
 
 export default async function StudentHelpReplyPage({ params }: {
   params: Promise<{ notificationId: string }>;
 }) {
-  const actor = await requireStudentPortalActor();
+  const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
+  const strings = getPortalStrings("admission", locale);
   const { notificationId } = await params;
   if (!caseOperationUuid(notificationId)) notFound();
   const { request: reply, readAt } = await readStudentHelpReply(actor, notificationId);
 
   return (
-    <PortalPage title="Ответ куратора" description="Обращение по вашему поступлению.">
-      <Link href="/portal/notifications" className="mb-4 inline-flex min-h-11 items-center font-medium text-accent-text underline">
-        Все уведомления
-      </Link>
-      <PortalSection title={reply.subject}>
-        <div className="space-y-5 break-words p-4 sm:p-5">
+    <main className="pt-page">
+      <header className="pt-page-header">
+        <p className="pt-page-kicker">{strings.kickerCabinet}</p>
+        <h1 className="pt-page-title">{strings.replyTitle}</h1>
+        <p className="pt-page-lead">{strings.replyLead}</p>
+      </header>
+      <p>
+        <Link href="/portal/notifications" className="pt-link">
+          {strings.replyAllNotifications}
+        </Link>
+      </p>
+      <section className="pt-card pt-reply-card">
+        <header className="pt-card-header">
+          <h2 className="pt-card-title">{reply.subject}</h2>
+        </header>
+        <div className="pt-reply-body">
           <div>
-            <h3 className="text-sm font-semibold text-fg">Ваш вопрос</h3>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg-2">{reply.body}</p>
+            <h3 className="pt-reply-heading">{strings.replyYourQuestion}</h3>
+            <p className="pt-reply-text">{reply.body}</p>
           </div>
-          <div className="border-s-2 border-accent ps-3">
-            <h3 className="text-sm font-semibold text-fg">Ответ EVO</h3>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg">{reply.answer}</p>
-            <p className="mt-2 text-xs text-fg-3">{formatPortalTimestamp(reply.answeredAt)}</p>
+          <div className="pt-reply-answer">
+            <h3 className="pt-reply-heading">{strings.replyAnswer}</h3>
+            <p className="pt-reply-text">{reply.answer}</p>
+            <p className="pt-reply-meta">{formatPortalTimestamp(reply.answeredAt)}</p>
           </div>
           {readAt === null ? (
             <form action={markStudentPortalNotificationReadAction}>
               <input type="hidden" name="notification_id" value={notificationId} />
-              <PortalNotificationReadButton />
+              <PortalNotificationReadButton locale={locale} />
             </form>
           ) : null}
         </div>
-      </PortalSection>
-    </PortalPage>
+      </section>
+    </main>
   );
 }

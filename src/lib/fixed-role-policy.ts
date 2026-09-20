@@ -23,15 +23,19 @@ export type FixedRole = StaffRole;
 
 export const FIXED_ROLE_ROUTES = [
   "/v3/main",
+  "/v3/requests",
   "/v3/pipeline",
+  "/v3/admissions-pipeline",
   "/v3/inbox",
   "/v3/profile",
-  "/v3/admissions-requests",
   "/v3/calendar",
   "/v3/tasks",
   "/v3/team-chat",
+  "/v3/messages",
   "/v3/universities",
   "/v3/knowledge",
+  "/v3/reply-snippets",
+  "/v3/documents",
   "/v3/settings",
 ] as const;
 
@@ -66,15 +70,19 @@ type RouteCapabilityRequirement = readonly [
 
 const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/main": ["sales.read", "admissions.read"],
+  "/v3/requests": ["sales.read"],
   "/v3/pipeline": ["sales.read"],
+  "/v3/admissions-pipeline": ["admissions.read"],
   "/v3/inbox": ["messaging.read"],
   "/v3/profile": ["dashboard.read"],
-  "/v3/admissions-requests": ["admissions.read"],
   "/v3/calendar": ["admissions.read"],
   "/v3/tasks": ["team.read"],
   "/v3/team-chat": ["team.read"],
+  "/v3/messages": ["admissions.read"],
   "/v3/universities": ["sales.read", "admissions.read"],
-  "/v3/knowledge": ["documents.read", "messaging.read"],
+  "/v3/knowledge": ["admin.preview"],
+  "/v3/documents": ["documents.read"],
+  "/v3/reply-snippets": ["sales.read", "admissions.read"],
   "/v3/settings": ["admin.preview"],
 } as const satisfies Record<FixedRoleRoute, RouteCapabilityRequirement>;
 

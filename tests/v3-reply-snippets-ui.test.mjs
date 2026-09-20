@@ -240,6 +240,7 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   const section = source("src/components/v3/reply-snippets/KnowledgeReplySnippetSection.tsx");
   const tabs = source("src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx");
   const page = source("src/app/(v3)/v3/knowledge/page.tsx");
+  const snippets = source("src/components/v3/knowledge/KnowledgeSnippets.tsx");
 
   assert.match(picker, /type="button"/u);
   assert.match(picker, /insertReplySnippetWithinCodePointLimit/u);
@@ -258,10 +259,12 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   assert.match(section, /canManage && item\.canMutate/u);
   assert.match(section, /Шаблон никогда не отправляется сам/u);
 
-  assert.match(page, /loadV3KnowledgeSurface/u);
-  assert.match(page, /KnowledgeWorkspaceTabs/u);
-  assert.match(page, /KnowledgeReplySnippetSection/u);
-  assert.match(page, /v3CanMutateReplySnippet\(actor, snippet\)/u);
+  assert.match(page, /requireKnowledgeAdmin\(actor\)/u);
+  assert.match(page, /KnowledgeLibrary/u);
+  assert.match(page, /KnowledgeSnippets actor=\{actor\}/u);
+  assert.match(snippets, /readV3ReplySnippets\(actor\)/u);
+  assert.match(snippets, /KnowledgeReplySnippetSection/u);
+  assert.match(snippets, /v3CanMutateReplySnippet\(actor, snippet\)/u);
   assert.doesNotMatch(page, /Promise\.all\(\[\s*readCompanyKnowledge/u);
 
   assert.match(tabs, /<nav/u);

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import ts from "typescript";
 
 import {
   getPlatformLeadAdmissionsGate,
@@ -494,47 +493,12 @@ test("source boundary uses the server cookie client and contains no service, Dri
   );
 });
 
-test("confirmed Admin self-handoff renews the same authority outside the mutation catch", () => {
-  const source = readFileSync(
-    new URL("../src/lib/platform-student-handoff-actions.ts", import.meta.url),
-    "utf8",
-  );
-  const parsed = ts.createSourceFile("handoff-actions.ts", source, ts.ScriptTarget.Latest, true);
-  const action = parsed.statements.find((statement) =>
-    ts.isFunctionDeclaration(statement) &&
-    statement.name?.text === "handoffPlatformLeadToAdmissionsAction"
-  );
-  assert.ok(action?.body);
-  const statements = [...action.body.statements];
-  const mutationIndex = statements.findIndex((statement) => ts.isTryStatement(statement));
-  const refreshIndex = statements.findIndex((statement) =>
-    ts.isIfStatement(statement) &&
-    statement.expression.getText(parsed).includes("refreshConfirmedSelfHandoffSession(actor)")
-  );
-  assert.ok(refreshIndex > mutationIndex, "post-commit recovery must be outside the mutation catch");
-  const refresh = statements[refreshIndex].getText(parsed);
-  assert.match(refresh, /actor\.systemRole === "admin"/);
-  assert.match(refresh, /receipt\.admissionsOwnerMembershipId === actor\.membershipId/);
-  assert.match(refresh, /!\(await refreshConfirmedSelfHandoffSession\(actor\)\)/);
-  assert.match(refresh, /redirect\("\/login\?error=session_invalid"\)/);
-  const postCommit = statements.slice(mutationIndex + 1).map((statement) => statement.getText(parsed)).join("\n");
-  assert.doesNotMatch(postCommit, /handoffFailureState|handoffPlatformLeadToAdmissions\(/);
-  assert.ok(statements.findIndex((statement) => statement.getText(parsed).startsWith("revalidatePath(")) > refreshIndex);
-  assert.match(postCommit, /status: "saved"/);
-
-  const session = readFileSync(
-    new URL("../src/lib/server/self-handoff-session.ts", import.meta.url),
-    "utf8",
-  );
-  assert.match(session, /import "server-only"/);
-  assert.match(session, /actor\.systemRole !== "admin"/);
-  assert.match(session, /await client\.auth\.refreshSession\(\)[\s\S]*await client\.auth\.getClaims\(\)[\s\S]*await readVerifiedPlatformAuthority\(client, data\.claims\)/);
-  for (const identity of ["authUserId", "profileId", "membershipId", "organizationId"]) {
-    assert.ok(session.includes(`authority.${identity} === actor.${identity}`));
-  }
-  assert.match(session, /authority\.systemRole === "admin"/);
-  assert.doesNotMatch(session, /getSession\(|service[_-]?role|SUPABASE_SERVICE|redirect\(/i);
-});
+// The card-side handoff action (handoffPlatformLeadToAdmissionsAction) was
+// retired by the unified-workflow S2 slice: the only curator handoff trigger
+// left is a saved Sales report (platform.create_sales_report_handoff), so
+// there is no longer a card-side self-handoff commit path to pin here. The
+// self-handoff session helper itself is exercised by the report save action
+// instead (see tests/platform-sales-register.test.mjs).
 
 test("server actions enforce exact fields, staff guard and success-only revalidation", () => {
   const source = readFileSync(
@@ -542,19 +506,18 @@ test("server actions enforce exact fields, staff guard and success-only revalida
     "utf8",
   );
   assert.match(source, /exactActionStringFields\(form, GATE_FORM_FIELDS\)/);
-  assert.match(source, /exactActionStringFields\(form, HANDOFF_FORM_FIELDS\)/);
+  assert.doesNotMatch(source, /HANDOFF_FORM_FIELDS/);
   assert.equal(
     source.match(/const actor = await requirePlatformMutationCapability\("sales\.read", "\/v3\/pipeline"\);/g)?.length,
-    2,
+    1,
   );
   assert.match(
     source,
     /const receipt = await mutatePlatformLeadAdmissionsGate\(actor, input\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\)/,
   );
-  assert.match(
-    source,
-    /receipt = await handoffPlatformLeadToAdmissions\(actor, input\);[\s\S]*revalidatePath\("\/v3\/pipeline"\);[\s\S]*revalidatePath\(`\/v3\/profile\?id=\$\{receipt\.leadId\}`\);[\s\S]*if \(receipt\.caseId\) \{[\s\S]*revalidatePath\(`\/v3\/profile\?case=\$\{receipt\.caseId\}`\)/,
-  );
+  assert.doesNotMatch(source, /handoffPlatformLeadToAdmissions\(/);
+  assert.doesNotMatch(source, /handoffFailureState/);
+  assert.doesNotMatch(source, /refreshConfirmedSelfHandoffSession/);
   assert.doesNotMatch(source, /revalidatePath\("\/(?:sales|clients)"\)/);
   assert.doesNotMatch(
     source,
@@ -568,10 +531,6 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   assert.match(
     source,
     /error instanceof PlatformStudentHandoffRepositoryError[\s\S]*return gateFailureState\(form, error\.reason, input\);/,
-  );
-  assert.match(
-    source,
-    /error instanceof PlatformStudentHandoffRepositoryError[\s\S]*return handoffFailureState\(form, error\.reason, input\);/,
   );
   for (const status of [
     "idle",
@@ -591,7 +550,7 @@ test("server actions enforce exact fields, staff guard and success-only revalida
   );
 });
 
-test("V3 profile exposes gate and handoff through the reviewed server-action contract", () => {
+test("V3 profile exposes the gate through the reviewed server-action contract; the card-side handoff form is retired", () => {
   const source = readFileSync(
     new URL(
       "../src/components/v3/profile/ProfileSalesTransition.tsx",
@@ -600,17 +559,17 @@ test("V3 profile exposes gate and handoff through the reviewed server-action con
     "utf8",
   );
 
-  assert.equal(source.match(/useActionState\(/g)?.length, 2);
+  assert.equal(source.match(/useActionState\(/g)?.length, 1);
   assert.match(
     source,
     /useActionState\(\s*mutatePlatformLeadAdmissionsGateAction/,
   );
-  assert.match(
-    source,
-    /useActionState\(\s*handoffPlatformLeadToAdmissionsAction/,
-  );
-  assert.equal(source.match(/name="expected_gate_version"/g)?.length, 2);
-  assert.equal(source.match(/<Version value=\{gateVersion\} \/>/g)?.length, 2);
+  assert.doesNotMatch(source, /handoffPlatformLeadToAdmissionsAction/);
+  assert.equal(source.match(/name="expected_gate_version"/g)?.length, 1);
+  assert.equal(source.match(/<Version value=\{gateVersion\} \/>/g)?.length, 1);
+  // Unified workflow S2 (plan §6): «оплата хранится отдельным фактом».
+  assert.match(source, /title="Договор и оплата"/);
+  assert.match(source, /отдельный факт/);
 
   for (const status of [
     "saved",
@@ -634,21 +593,15 @@ test("V3 profile exposes gate and handoff through the reviewed server-action con
     "received_date",
     "reason",
     "evidence_reference",
-    "admissions_owner_membership_id",
-    "handoff_mode",
   ]) {
     assert.match(source, new RegExp(`name="${field}"`));
   }
-
-  assert.match(source, /normalAvailable = !isStaffPreview\(actor\) && handoff\.canSubmitNormal/);
-  assert.match(
-    source,
-    /!isStaffPreview\(actor\) && handoff\.canSubmitExceptional/,
-  );
-  assert.match(source, /"normal"/);
-  assert.match(source, /"exceptional_override"/);
-  assert.match(source, /data-testid="v3-sales-handoff-completed"/);
-  assert.match(
+  assert.doesNotMatch(source, /admissions_owner_membership_id/);
+  assert.doesNotMatch(source, /handoff_mode/);
+  assert.doesNotMatch(source, /data-testid="v3-sales-handoff"/);
+  assert.doesNotMatch(source, /data-testid="v3-sales-handoff-form"/);
+  assert.doesNotMatch(source, /data-testid="v3-sales-handoff-completed"/);
+  assert.doesNotMatch(
     source,
     /href=\{`\/v3\/profile\?case=\$\{caseId\}&tab=overview`\}/,
   );

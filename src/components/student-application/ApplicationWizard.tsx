@@ -3,19 +3,23 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
+import type { Locale } from "@/lib/i18n-data";
+import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import {
   STUDENT_APPLICATION_CONSENT_VERSION, STUDENT_APPLICATION_COUNTRIES, STUDENT_APPLICATION_EDUCATION_LEVELS,
   STUDENT_APPLICATION_FUNDING_SOURCES, STUDENT_APPLICATION_GRADE_SCALES, STUDENT_APPLICATION_INTAKE_SEASONS,
   STUDENT_APPLICATION_STUDY_LEVELS, STUDENT_APPLICATION_TUITION_BUDGETS, validateStudentApplicationDraft,
   type StudentApplicationDraft,
 } from "@/lib/student-application-contract";
-import { APPLICATION_LABELS as LABELS, countryLabel, ENGLISH_EXAMS, NATIONALITY_COUNTRIES, STUDY_FIELD_OPTIONS } from "@/lib/student-application-presentation";
+import { ENGLISH_EXAMS, localizedCountryLabel, NATIONALITY_COUNTRIES, STUDY_FIELD_OPTIONS } from "@/lib/student-application-presentation";
 import { registerStudentAction } from "@/lib/student-signup-actions";
+import { ApplyLangSwitcher } from "./ApplyLangSwitcher";
 
-const STEPS = ["Страны", "Начало учёбы", "Образование", "Направления", "Ступень", "Гражданство", "Английский", "Бюджет", "Аккаунт"];
-const QUESTIONS = ["Где вы хотите учиться?", "Когда планируете начать?", "Какое у вас образование?", "Что вы хотите изучать?", "На какую программу поступаете?", "Какое у вас гражданство?", "Расскажите о вашем английском", "Какой бюджет на обучение?", "Создайте аккаунт EVO"];
 const STORAGE_KEY = "evo-application-draft-v1";
 const INPUT = "min-h-12 w-full rounded-ctl border border-control-edge bg-surface px-3.5 py-3 text-base text-fg outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring/25";
+// PORT-8c: подписи шагов — неймспейс apply (RU байт-в-байт прежние строки,
+// KY полный); порядок ключей — порядок шагов wizard'а.
+const STEP_KEYS = ["countries", "intake", "education", "fields", "levels", "nationality", "english", "budget", "account"] as const;
 type WizardState = {
   requestId: string; firstName: string; lastName: string; phone: string; destinationCountries: string[];
   intakeSeason: string; intakeYear: string; educationLevel: string; averageGrade: string; gradeScale: string;
@@ -23,9 +27,12 @@ type WizardState = {
   englishScore: string; englishLevel: string; tuitionBudget: string; fundingSource: string; consent: boolean;
 };
 
-function initialState(requestId: string, draft: StudentApplicationDraft | null): WizardState {
+/** PORT-1b: bounded invited-name prefill; never a substitute for the draft. */
+export type ApplicationNamePrefill = { firstName: string; lastName: string };
+
+function initialState(requestId: string, draft: StudentApplicationDraft | null, namePrefill: ApplicationNamePrefill | null = null): WizardState {
   return {
-    requestId, firstName: draft?.firstName ?? "", lastName: draft?.lastName ?? "", phone: draft?.phone ?? "",
+    requestId, firstName: draft?.firstName ?? namePrefill?.firstName ?? "", lastName: draft?.lastName ?? namePrefill?.lastName ?? "", phone: draft?.phone ?? "",
     destinationCountries: draft?.destinationCountries ?? [], intakeSeason: draft?.intakeSeason ?? "",
     intakeYear: draft ? String(draft.intakeYear) : "", educationLevel: draft?.educationLevel ?? "",
     averageGrade: draft ? String(draft.averageGrade) : "", gradeScale: draft?.gradeScale ?? "5",
@@ -67,11 +74,15 @@ function Choice({ selected, children, onClick }: { selected: boolean; children: 
   </button>;
 }
 
-export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, year }: {
-  requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; year: number;
+export function ApplicationWizard({ requestId, draft = null, signedInEmail = null, draftOwnerId = null, expectedRevision = 0, namePrefill = null, year, locale = "ru" }: {
+  requestId: string; draft?: StudentApplicationDraft | null; signedInEmail?: string | null; draftOwnerId?: string | null; expectedRevision?: number; namePrefill?: ApplicationNamePrefill | null; year: number; locale?: Locale;
 }) {
+  const strings = getPortalStrings("apply", locale);
+  // Доменные подписи опций: как прежний `LABELS[key] ?? key`, но из словаря.
+  const opt = (key: string) => (strings as Record<string, string>)[`opt.${key}`] ?? key;
+  const fieldLabel = (value: string) => (strings as Record<string, string>)[`field.${value}`] ?? value;
   const storageKey = draftOwnerId ? `${STORAGE_KEY}:${draftOwnerId}:${expectedRevision}` : STORAGE_KEY;
-  const [values, setValues] = useState(() => initialState(requestId, draft));
+  const [values, setValues] = useState(() => initialState(requestId, draft, namePrefill));
   const [step, setStep] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -95,7 +106,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
           const anonymous = sessionStorage.getItem(STORAGE_KEY);
           if (anonymous && JSON.parse(anonymous).submittedEmail === signedInEmail.toLowerCase()) raw = anonymous;
         }
-        const saved = raw ? restoredState(raw, initialState(requestId, draft)) : null;
+        const saved = raw ? restoredState(raw, initialState(requestId, draft, namePrefill)) : null;
         if (saved) { setValues(saved.values); setStep(saved.step); }
         if (raw) {
           const stored = JSON.parse(raw);
@@ -105,7 +116,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
       } catch { /* The form still works when browser storage is disabled. */ }
     }
     setLoaded(true);
-  }, [draft, requestId, storageKey, signedInEmail, expectedRevision]);
+  }, [draft, requestId, storageKey, signedInEmail, expectedRevision, namePrefill]);
   useEffect(() => {
     if (!loaded) return;
     try {
@@ -117,21 +128,21 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   function toggle(key: "destinationCountries" | "studyFields" | "studyLevels", value: string) {
     const list = values[key];
     const limit = key === "studyFields" ? 10 : key === "studyLevels" ? 6 : 15;
-    if (!list.includes(value) && list.length >= limit) { setError(`Можно выбрать до ${limit} вариантов.`); return; }
+    if (!list.includes(value) && list.length >= limit) { setError(formatPortalString(strings.limitError, { limit: String(limit) })); return; }
     update(key, list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   }
   function changeStep(next: number) { moved.current = true; setError(""); setStep(next); }
   function validateStep(): boolean {
     const messages = [
-      values.destinationCountries.length ? "" : "Выберите хотя бы одну страну.",
-      values.intakeSeason && values.intakeYear ? "" : "Выберите набор и год.",
-      values.educationLevel && values.averageGrade !== "" ? "" : "Укажите образование и средний балл.",
-      values.studyFields.length ? "" : "Выберите направление или добавьте своё.",
-      values.studyLevels.length ? "" : "Выберите хотя бы одну ступень обучения.",
-      NATIONALITY_COUNTRIES.includes(values.nationality) ? "" : "Выберите гражданство из списка.",
-      values.englishMode === "exam" ? (values.englishScore !== "" ? "" : "Укажите результат экзамена.") : values.englishMode === "self" && values.englishLevel ? "" : "Укажите результат экзамена или ваш уровень.",
-      values.tuitionBudget && values.fundingSource ? "" : "Выберите бюджет и источник финансирования.",
-      validateStudentApplicationDraft(questionnaire(values)) ? "" : "Проверьте анкету и подтвердите согласие.",
+      values.destinationCountries.length ? "" : strings["validation.countries"],
+      values.intakeSeason && values.intakeYear ? "" : strings["validation.intake"],
+      values.educationLevel && values.averageGrade !== "" ? "" : strings["validation.education"],
+      values.studyFields.length ? "" : strings["validation.fields"],
+      values.studyLevels.length ? "" : strings["validation.levels"],
+      NATIONALITY_COUNTRIES.includes(values.nationality) ? "" : strings["validation.nationality"],
+      values.englishMode === "exam" ? (values.englishScore !== "" ? "" : strings["validation.englishScore"]) : values.englishMode === "self" && values.englishLevel ? "" : strings["validation.english"],
+      values.tuitionBudget && values.fundingSource ? "" : strings["validation.budget"],
+      validateStudentApplicationDraft(questionnaire(values)) ? "" : strings["validation.review"],
     ];
     if (messages[step]) { setError(messages[step]); return false; }
     return form.current?.reportValidity() ?? false;
@@ -150,46 +161,50 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   }
   const exam = ENGLISH_EXAMS[values.englishExam as keyof typeof ENGLISH_EXAMS] ?? ENGLISH_EXAMS.ielts;
   const years = Array.from({ length: 7 }, (_, i) => year + i);
-  const options = (keys: readonly string[]) => keys.map((key) => <option key={key} value={key}>{LABELS[key] ?? key}</option>);
-  const select = (key: keyof WizardState, label: string, keys: readonly string[]) => <label className="grid gap-2 text-sm font-medium text-fg-2">{label}<select className={INPUT} value={String(values[key])} onChange={(event) => update(key, event.target.value)} required><option value="">Выберите</option>{options(keys)}</select></label>;
-  const stepCopy = step === 0 || step === 3 || step === 4 ? "Можно выбрать несколько вариантов." : step === 7 ? "Только обучение за один год, без проживания." : step === 8 ? "Команда EVO рассмотрит анкету. Полный кабинет откроется после одобрения." : "";
-  const serverError = result.status === "password" ? "Используйте пароль не менее 12 символов."
-    : result.status === "password_too_long" ? "Этот пароль слишком длинный. Попробуйте более короткий."
-      : result.status === "rate_limit" ? "Слишком много попыток. Попробуйте немного позже."
-      : result.status === "conflict" ? "Не удалось создать аккаунт с этим email. Если аккаунт уже есть, войдите."
-        : result.status === "invalid" ? "Проверьте заполненные поля и отправьте ещё раз."
-          : result.status === "unavailable" ? "Не удалось завершить регистрацию. Ответы сохранены в этой вкладке. Попробуйте позже." : "";
+  const searchLocale = locale === "ky" ? "ky" : "ru";
+  const options = (keys: readonly string[]) => keys.map((key) => <option key={key} value={key}>{opt(key)}</option>);
+  const select = (key: keyof WizardState, label: string, keys: readonly string[]) => <label className="grid gap-2 text-sm font-medium text-fg-2">{label}<select className={INPUT} value={String(values[key])} onChange={(event) => update(key, event.target.value)} required><option value="">{strings.choosePlaceholder}</option>{options(keys)}</select></label>;
+  const stepCopy = step === 0 || step === 3 || step === 4 ? strings.copyMulti : step === 7 ? strings.copyBudget : step === 8 ? strings.copyAccount : "";
+  const serverError = result.status === "password" ? strings["server.password"]
+    : result.status === "password_too_long" ? strings["server.password_too_long"]
+      : result.status === "rate_limit" ? strings["server.rate_limit"]
+      : result.status === "conflict" ? strings["server.conflict"]
+        : result.status === "invalid" ? strings["server.invalid"]
+          : result.status === "unavailable" ? strings["server.unavailable"] : "";
   return <main className="min-h-dvh bg-bg text-fg" data-testid="public-student-application">
     <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-6 sm:px-8">
-      <Link href="/apply" aria-label="EVO Admissions — начало анкеты" className="rounded-ctl bg-white p-2"><EvoLogo width={146} /></Link>
-      <Link href={signedInEmail ? "/apply/status" : "/login"} className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 underline-offset-4 hover:underline">{signedInEmail ? "Моя заявка" : "Уже есть аккаунт? Войти"}</Link>
+      <Link href="/apply" aria-label={strings.logoAria} className="rounded-ctl bg-white p-2"><EvoLogo width={146} /></Link>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <ApplyLangSwitcher current={locale} label={strings.languageAria} />
+        <Link href={signedInEmail ? "/apply/status" : "/login"} className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 underline-offset-4 hover:underline">{signedInEmail ? strings.myApplication : strings.loginLink}</Link>
+      </div>
     </header>
     <div className="mx-auto max-w-4xl px-4 pb-10 pt-3 sm:px-8 sm:pt-8">
-      <div className="mb-6 flex items-center justify-between gap-4 text-sm"><span className="font-medium text-fg-2">{STEPS[step]}</span><span aria-live="polite" className="text-fg-2">Шаг {step + 1} из 9</span></div>
-      <div role="progressbar" aria-label="Заполнение анкеты" aria-valuemin={0} aria-valuemax={9} aria-valuenow={step + 1} className="mb-8 flex gap-1.5">{STEPS.map((label, i) => <span key={label} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-accent" : "bg-border"}`} />)}</div>
+      <div className="mb-6 flex items-center justify-between gap-4 text-sm"><span className="font-medium text-fg-2">{strings[`step.${STEP_KEYS[step]}`]}</span><span aria-live="polite" className="text-fg-2">{formatPortalString(strings.stepOf, { step: String(step + 1) })}</span></div>
+      <div role="progressbar" aria-label={strings.progressAria} aria-valuemin={0} aria-valuemax={9} aria-valuenow={step + 1} className="mb-8 flex gap-1.5">{STEP_KEYS.map((key, i) => <span key={key} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= step ? "bg-accent" : "bg-border"}`} />)}</div>
       <form ref={form} action={action} onSubmit={submit} onReset={preserveAnswers} className="rounded-card border border-border bg-surface px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-10">
         <input name="questionnaire" type="hidden" value={JSON.stringify(questionnaire(values))} />
         <input name="expected_revision" type="hidden" value={expectedRevision} />
         {step !== 8 && <><input name="email" type="hidden" value={signedInEmail ?? ""} /><input name="password" type="hidden" value="" /></>}
         <div key={step} className="page-in min-h-[340px] motion-reduce:animate-none">
-          <h1 tabIndex={-1} ref={heading} className="max-w-xl text-2xl font-semibold leading-tight tracking-tight outline-none sm:text-3xl">{step === 8 && signedInEmail ? "Контактные данные" : QUESTIONS[step]}</h1>
+          <h1 tabIndex={-1} ref={heading} className="max-w-xl text-2xl font-semibold leading-tight tracking-tight outline-none sm:text-3xl">{step === 8 && signedInEmail ? strings.contactsHeading : strings[`question.${STEP_KEYS[step]}`]}</h1>
           {stepCopy && <p className="mt-3 text-sm leading-6 text-fg-2">{stepCopy}</p>}
           <div className="mt-7 space-y-5">
-            {step === 0 && <div className="grid gap-3 sm:grid-cols-3">{STUDENT_APPLICATION_COUNTRIES.map((country) => <Choice key={country} selected={values.destinationCountries.includes(country)} onClick={() => toggle("destinationCountries", country)}><span className="flex items-center gap-3"><span aria-hidden="true" className="text-2xl">{String.fromCodePoint(...[...country].map((c) => c.charCodeAt(0) + 127397))}</span>{LABELS[country]}</span></Choice>)}</div>}
-            {step === 1 && <div className="grid max-w-xl gap-5 sm:grid-cols-2">{select("intakeSeason", "Набор", STUDENT_APPLICATION_INTAKE_SEASONS)}<label className="grid gap-2 text-sm font-medium text-fg-2">Год<select className={INPUT} required value={values.intakeYear} onChange={(e) => update("intakeYear", e.target.value)}><option value="">Выберите год</option>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select></label></div>}
-            {step === 2 && <div className="max-w-xl space-y-5">{select("educationLevel", "Текущий или последний уровень образования", STUDENT_APPLICATION_EDUCATION_LEVELS)}<div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">Средний балл<input className={INPUT} type="number" min="0" max={Number(values.gradeScale)} step="0.01" required value={values.averageGrade} onChange={(e) => update("averageGrade", e.target.value)} inputMode="decimal" /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Шкала оценивания<select className={INPUT} value={values.gradeScale} onChange={(e) => update("gradeScale", e.target.value)}>{STUDENT_APPLICATION_GRADE_SCALES.map((scale) => <option key={scale} value={scale}>Из {scale}</option>)}</select></label></div></div>}
-            {step === 3 && <><label className="grid gap-2 text-sm font-medium text-fg-2">Найти направление<input className={INPUT} value={fieldSearch} onChange={(e) => setFieldSearch(e.target.value)} placeholder="Например, инженерия" type="search" /></label><div className="grid gap-3 sm:grid-cols-2">{STUDY_FIELD_OPTIONS.filter((item) => item.toLocaleLowerCase("ru").includes(fieldSearch.toLocaleLowerCase("ru"))).map((field) => <Choice key={field} selected={values.studyFields.includes(field)} onClick={() => toggle("studyFields", field)}>{field}</Choice>)}</div><div className="flex flex-wrap gap-2">{values.studyFields.filter((s) => !(STUDY_FIELD_OPTIONS as readonly string[]).includes(s)).map((s) => <button type="button" key={s} onClick={() => toggle("studyFields", s)} className="min-h-11 rounded-ctl border border-accent bg-accent-weak px-3 text-sm text-accent-text" aria-label={`Убрать ${s}`}>{s} ×</button>)}</div><div className="flex items-end gap-3"><label className="grid min-w-0 flex-1 gap-2 text-sm font-medium text-fg-2">Своё направление<input className={INPUT} maxLength={100} value={customField} onChange={(e) => setCustomField(e.target.value)} /></label><button type="button" disabled={!customField.trim()} onClick={() => { const field = customField.trim(); if (field && !values.studyFields.includes(field)) toggle("studyFields", field); setCustomField(""); }} className="min-h-12 rounded-ctl border border-control-edge px-4 text-sm font-medium disabled:opacity-50">Добавить</button></div></>}
-            {step === 4 && <div className="grid gap-3 sm:grid-cols-2">{STUDENT_APPLICATION_STUDY_LEVELS.map((level) => <Choice key={level} selected={values.studyLevels.includes(level)} onClick={() => toggle("studyLevels", level)}>{LABELS[level]}</Choice>)}</div>}
-            {step === 5 && <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">Страна гражданства<select required className={INPUT} value={values.nationality} onChange={(e) => update("nationality", e.target.value)}><option value="">Выберите страну</option>{NATIONALITY_COUNTRIES.map((code) => ({ code, name: countryLabel(code) })).sort((a, b) => a.name.localeCompare(b.name, "ru")).map(({ code, name }) => <option key={code} value={code}>{name}</option>)}</select></label>}
-            {step === 6 && <div className="max-w-xl space-y-6"><fieldset><legend className="mb-3 text-sm font-medium text-fg-2">Есть результат языкового экзамена?</legend><div className="grid gap-3 sm:grid-cols-2"><Choice selected={values.englishMode === "exam"} onClick={() => update("englishMode", "exam")}>Да, есть результат</Choice><Choice selected={values.englishMode === "self"} onClick={() => update("englishMode", "self")}>Нет, пока не сдавал</Choice></div></fieldset>{values.englishMode === "exam" && <div className="grid gap-5 sm:grid-cols-2">{select("englishExam", "Экзамен и шкала", Object.keys(ENGLISH_EXAMS))}<label className="grid gap-2 text-sm font-medium text-fg-2">Общий результат<input required className={INPUT} type="number" min={exam.min} max={exam.max} step={exam.step} value={values.englishScore} onChange={(e) => update("englishScore", e.target.value)} inputMode="decimal" /></label></div>}{values.englishMode === "self" && select("englishLevel", "Как вы оцениваете свой английский?", ["beginner", "intermediate", "advanced", "fluent"])}</div>}
-            {step === 7 && <div className="max-w-xl space-y-5">{select("tuitionBudget", "Обучение в год, USD", STUDENT_APPLICATION_TUITION_BUDGETS)}{select("fundingSource", "Источник финансирования", STUDENT_APPLICATION_FUNDING_SOURCES)}</div>}
-            {step === 8 && <div className="space-y-5"><div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">Имя<input required className={INPUT} autoComplete="given-name" maxLength={60} value={values.firstName} onChange={(e) => update("firstName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Фамилия<input required className={INPUT} autoComplete="family-name" maxLength={60} value={values.lastName} onChange={(e) => update("lastName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">Телефон с кодом страны<input required className={INPUT} type="tel" autoComplete="tel" maxLength={40} placeholder="+996 …" value={values.phone} onChange={(e) => update("phone", e.target.value)} /></label>{signedInEmail ? <div className="grid content-start gap-2 text-sm font-medium text-fg-2"><span>Email аккаунта</span><p className="break-all py-3 text-base font-normal text-fg">{signedInEmail}</p><input name="email" type="hidden" value={signedInEmail} /></div> : <label className="grid gap-2 text-sm font-medium text-fg-2">Email<input required className={INPUT} name="email" type="email" autoComplete="email" maxLength={254} value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} /></label>}</div>{signedInEmail ? <input name="password" type="hidden" value="" /> : <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">Пароль<div className="flex gap-2"><input required className={INPUT} name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={12} maxLength={72} aria-describedby="password-hint" /><button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="min-h-12 rounded-ctl px-2 text-sm text-accent-text">{showPassword ? "Скрыть" : "Показать"}</button></div><span id="password-hint" className="text-sm font-normal text-fg-2">Не менее 12 символов.</span></label>}<label className="flex cursor-pointer items-start gap-3 border-t border-border pt-5 text-sm leading-6 text-fg-2"><input type="checkbox" required checked={values.consent} onChange={(e) => update("consent", e.target.checked)} className="mt-1 size-5 shrink-0 accent-accent" /><span>Согласен передать анкету команде EVO для рассмотрения заявки и связи со мной по вопросам поступления.</span></label></div>}
+            {step === 0 && <div className="grid gap-3 sm:grid-cols-3">{STUDENT_APPLICATION_COUNTRIES.map((country) => <Choice key={country} selected={values.destinationCountries.includes(country)} onClick={() => toggle("destinationCountries", country)}><span className="flex items-center gap-3"><span aria-hidden="true" className="text-2xl">{String.fromCodePoint(...[...country].map((c) => c.charCodeAt(0) + 127397))}</span>{opt(country)}</span></Choice>)}</div>}
+            {step === 1 && <div className="grid max-w-xl gap-5 sm:grid-cols-2">{select("intakeSeason", strings.intakeLabel, STUDENT_APPLICATION_INTAKE_SEASONS)}<label className="grid gap-2 text-sm font-medium text-fg-2">{strings.yearLabel}<select className={INPUT} required value={values.intakeYear} onChange={(e) => update("intakeYear", e.target.value)}><option value="">{strings.chooseYear}</option>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select></label></div>}
+            {step === 2 && <div className="max-w-xl space-y-5">{select("educationLevel", strings.educationLabel, STUDENT_APPLICATION_EDUCATION_LEVELS)}<div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.gradeLabel}<input className={INPUT} type="number" min="0" max={Number(values.gradeScale)} step="0.01" required value={values.averageGrade} onChange={(e) => update("averageGrade", e.target.value)} inputMode="decimal" /></label><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.gradeScaleLabel}<select className={INPUT} value={values.gradeScale} onChange={(e) => update("gradeScale", e.target.value)}>{STUDENT_APPLICATION_GRADE_SCALES.map((scale) => <option key={scale} value={scale}>{formatPortalString(strings.gradeScaleOf, { scale })}</option>)}</select></label></div></div>}
+            {step === 3 && <><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.fieldSearchLabel}<input className={INPUT} value={fieldSearch} onChange={(e) => setFieldSearch(e.target.value)} placeholder={strings.fieldSearchPlaceholder} type="search" /></label><div className="grid gap-3 sm:grid-cols-2">{STUDY_FIELD_OPTIONS.filter((item) => item.toLocaleLowerCase("ru").includes(fieldSearch.toLocaleLowerCase(searchLocale)) || fieldLabel(item).toLocaleLowerCase(searchLocale).includes(fieldSearch.toLocaleLowerCase(searchLocale))).map((field) => <Choice key={field} selected={values.studyFields.includes(field)} onClick={() => toggle("studyFields", field)}>{fieldLabel(field)}</Choice>)}</div><div className="flex flex-wrap gap-2">{values.studyFields.filter((s) => !(STUDY_FIELD_OPTIONS as readonly string[]).includes(s)).map((s) => <button type="button" key={s} onClick={() => toggle("studyFields", s)} className="min-h-11 rounded-ctl border border-accent bg-accent-weak px-3 text-sm text-accent-text" aria-label={formatPortalString(strings.removeField, { field: s })}>{s} ×</button>)}</div><div className="flex items-end gap-3"><label className="grid min-w-0 flex-1 gap-2 text-sm font-medium text-fg-2">{strings.customFieldLabel}<input className={INPUT} maxLength={100} value={customField} onChange={(e) => setCustomField(e.target.value)} /></label><button type="button" disabled={!customField.trim()} onClick={() => { const field = customField.trim(); if (field && !values.studyFields.includes(field)) toggle("studyFields", field); setCustomField(""); }} className="min-h-12 rounded-ctl border border-control-edge px-4 text-sm font-medium disabled:opacity-50">{strings.addField}</button></div></>}
+            {step === 4 && <div className="grid gap-3 sm:grid-cols-2">{STUDENT_APPLICATION_STUDY_LEVELS.map((level) => <Choice key={level} selected={values.studyLevels.includes(level)} onClick={() => toggle("studyLevels", level)}>{opt(level)}</Choice>)}</div>}
+            {step === 5 && <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">{strings.nationalityLabel}<select required className={INPUT} value={values.nationality} onChange={(e) => update("nationality", e.target.value)}><option value="">{strings.chooseCountry}</option>{NATIONALITY_COUNTRIES.map((code) => ({ code, name: localizedCountryLabel(code, locale) })).sort((a, b) => a.name.localeCompare(b.name, searchLocale)).map(({ code, name }) => <option key={code} value={code}>{name}</option>)}</select></label>}
+            {step === 6 && <div className="max-w-xl space-y-6"><fieldset><legend className="mb-3 text-sm font-medium text-fg-2">{strings.englishLegend}</legend><div className="grid gap-3 sm:grid-cols-2"><Choice selected={values.englishMode === "exam"} onClick={() => update("englishMode", "exam")}>{strings.englishYes}</Choice><Choice selected={values.englishMode === "self"} onClick={() => update("englishMode", "self")}>{strings.englishNo}</Choice></div></fieldset>{values.englishMode === "exam" && <div className="grid gap-5 sm:grid-cols-2">{select("englishExam", strings.examLabel, Object.keys(ENGLISH_EXAMS))}<label className="grid gap-2 text-sm font-medium text-fg-2">{strings.examScoreLabel}<input required className={INPUT} type="number" min={exam.min} max={exam.max} step={exam.step} value={values.englishScore} onChange={(e) => update("englishScore", e.target.value)} inputMode="decimal" /></label></div>}{values.englishMode === "self" && select("englishLevel", strings.selfLevelLabel, ["beginner", "intermediate", "advanced", "fluent"])}</div>}
+            {step === 7 && <div className="max-w-xl space-y-5">{select("tuitionBudget", strings.budgetLabel, STUDENT_APPLICATION_TUITION_BUDGETS)}{select("fundingSource", strings.fundingLabel, STUDENT_APPLICATION_FUNDING_SOURCES)}</div>}
+            {step === 8 && <div className="space-y-5"><div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.firstNameLabel}<input required className={INPUT} autoComplete="given-name" maxLength={60} value={values.firstName} onChange={(e) => update("firstName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.lastNameLabel}<input required className={INPUT} autoComplete="family-name" maxLength={60} value={values.lastName} onChange={(e) => update("lastName", e.target.value)} /></label><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.phoneLabel}<input required className={INPUT} type="tel" autoComplete="tel" maxLength={40} placeholder={strings.phonePlaceholder} value={values.phone} onChange={(e) => update("phone", e.target.value)} /></label>{signedInEmail ? <div className="grid content-start gap-2 text-sm font-medium text-fg-2"><span>{strings.accountEmailLabel}</span><p className="break-all py-3 text-base font-normal text-fg">{signedInEmail}</p><input name="email" type="hidden" value={signedInEmail} /></div> : <label className="grid gap-2 text-sm font-medium text-fg-2">{strings.emailLabel}<input required className={INPUT} name="email" type="email" autoComplete="email" maxLength={254} value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} /></label>}</div>{signedInEmail ? <input name="password" type="hidden" value="" /> : <label className="grid max-w-xl gap-2 text-sm font-medium text-fg-2">{strings.passwordLabel}<div className="flex gap-2"><input required className={INPUT} name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={12} maxLength={72} aria-describedby="password-hint" /><button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="min-h-12 rounded-ctl px-2 text-sm text-accent-text">{showPassword ? strings.hidePassword : strings.showPassword}</button></div><span id="password-hint" className="text-sm font-normal text-fg-2">{strings.passwordHint}</span></label>}<label className="flex cursor-pointer items-start gap-3 border-t border-border pt-5 text-sm leading-6 text-fg-2"><input type="checkbox" required checked={values.consent} onChange={(e) => update("consent", e.target.checked)} className="mt-1 size-5 shrink-0 accent-accent" /><span>{strings.consentLabel}</span></label></div>}
           </div>
         </div>
-        {(error || serverError) && <p role="alert" className="mt-6 rounded-ctl bg-danger-weak p-3 text-sm leading-6 text-danger">{error || serverError}{!error && result.status === "conflict" && <> <Link href="/login" className="font-medium underline underline-offset-4">Перейти ко входу</Link></>}</p>}
+        {(error || serverError) && <p role="alert" className="mt-6 rounded-ctl bg-danger-weak p-3 text-sm leading-6 text-danger">{error || serverError}{!error && result.status === "conflict" && <> <Link href="/login" className="font-medium underline underline-offset-4">{strings.goToLogin}</Link></>}</p>}
         <footer className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-5">
-          <button type="button" disabled={step === 0 || pending} onClick={() => changeStep(step - 1)} className="min-h-12 rounded-ctl px-4 font-medium text-fg-2 hover:bg-surface-2 disabled:invisible">Назад</button>
-          <button type="submit" disabled={pending || !loaded} className="min-h-12 rounded-ctl bg-accent px-6 font-semibold text-on-accent transition-colors hover:bg-accent-2 disabled:opacity-60">{pending ? "Сохраняем…" : step === 8 ? signedInEmail ? "Отправить анкету" : "Создать аккаунт" : "Продолжить"}</button>
+          <button type="button" disabled={step === 0 || pending} onClick={() => changeStep(step - 1)} className="min-h-12 rounded-ctl px-4 font-medium text-fg-2 hover:bg-surface-2 disabled:invisible">{strings.back}</button>
+          <button type="submit" disabled={pending || !loaded} className="min-h-12 rounded-ctl bg-accent px-6 font-semibold text-on-accent transition-colors hover:bg-accent-2 disabled:opacity-60">{pending ? strings.saving : step === 8 ? signedInEmail ? strings.submitApplication : strings.createAccount : strings.continueButton}</button>
         </footer>
       </form>
     </div>

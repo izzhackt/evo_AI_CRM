@@ -1,0 +1,561 @@
+/**
+ * Контракт движка обучения (PORT-4c поверх миграций 198/199): строгие
+ * парсеры проекций RPC. Ключи ответов и разборы НЕотвеченных упражнений
+ * сервер не отдаёт вовсе; парсер дополнительно отбрасывает всё вне
+ * allowlist-формы — неожиданная форма означает честную ошибку, а не
+ * «как-нибудь показать».
+ */
+
+export const LEARNING_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+export function isLearningUuid(value: unknown): value is string {
+  return typeof value === "string" && LEARNING_UUID.test(value);
+}
+
+export class LearningParseError extends Error {
+  constructor() {
+    super("Learning payload has an unexpected shape.");
+    this.name = "LearningParseError";
+  }
+}
+
+const fail = (): never => {
+  throw new LearningParseError();
+};
+
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : fail();
+}
+function text(value: unknown, max = 12000): string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= max
+    && !/[\x00--]/u.test(value)
+    ? value
+    : fail();
+}
+function list<T>(value: unknown, parse: (item: unknown) => T, max = 200): T[] {
+  return Array.isArray(value) && value.length <= max ? value.map((item) => parse(item)) : fail();
+}
+function integer(value: unknown, max = Number.MAX_SAFE_INTEGER): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max
+    ? value
+    : fail();
+}
+function bool(value: unknown): boolean {
+  return typeof value === "boolean" ? value : fail();
+}
+function uuid(value: unknown): string {
+  return isLearningUuid(value) ? value : fail();
+}
+function timestamp(value: unknown): string {
+  const result = text(value, 40);
+  return /^\d{4}-\d{2}-\d{2}T/u.test(result) && Number.isFinite(Date.parse(result)) ? result : fail();
+}
+function nullable<T>(value: unknown, parse: (item: unknown) => T): T | null {
+  return value === null || value === undefined ? null : parse(value);
+}
+function share(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1
+    ? value
+    : fail();
+}
+
+export type LearningExerciseType = "choice" | "matching" | "short_answer" | "reading";
+
+export type LearningOption = {
+  id: string;
+  label?: string;
+  labelRu?: string;
+  labelKy?: string;
+};
+
+export type LearningReadingQuestion = {
+  id: string;
+  promptEn: string;
+  options: LearningOption[];
+};
+
+export type LearningExercise = {
+  exerciseId: string;
+  exerciseKey: string;
+  orderIndex: number;
+  type: LearningExerciseType;
+  sourceLesson?: number;
+  promptEn?: string;
+  promptRu?: string;
+  promptKy?: string;
+  options?: LearningOption[];
+  instructionRu?: string;
+  instructionKy?: string;
+  lefts?: string[];
+  rights?: { rightRu: string; rightKy: string }[];
+  passageEn?: string;
+  questions?: LearningReadingQuestion[];
+};
+
+export type LearningExplain = {
+  correctOptionId?: string;
+  options?: { id: string; explainRu: string; explainKy: string }[];
+  pairs?: { leftEn: string; rightRu: string; rightKy: string }[];
+  explainRu?: string;
+  explainKy?: string;
+  answer?: string;
+  questions?: {
+    id: string;
+    correctOptionId: string;
+    options: { id: string; explainRu: string; explainKy: string }[];
+  }[];
+};
+
+export type LearningVerdict = {
+  correct: boolean;
+  perPair?: boolean[];
+  correctCount?: number;
+  total?: number;
+  perQuestion?: Record<string, boolean>;
+};
+
+/** Ответ на упражнение, как его принимает save-RPC. */
+export type LearningAnswer =
+  | { selected: string }
+  | { matches: number[] }
+  | { text: string }
+  | { selected: Record<string, string> };
+
+export type LearningAnswerEntry = {
+  answer: unknown;
+  correct: boolean;
+  verdict: LearningVerdict;
+  answeredAt: string;
+  explain: LearningExplain;
+};
+
+export type LearningResult = {
+  exercisesTotal: number;
+  correctCount: number;
+  correctShare: number;
+  wrongExerciseIds: string[];
+  completedAt: string;
+};
+
+export type LearningAttempt = {
+  attemptId: string;
+  lessonId: string;
+  status: "draft" | "completed";
+  revision: number;
+  answers: Record<string, LearningAnswerEntry>;
+  answeredCount: number;
+  exercisesTotal: number;
+  result: LearningResult | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
+export type LearningLessonMeta = {
+  title_ru: string;
+  title_ky: string;
+  goal_ru: string;
+  goal_ky: string;
+};
+
+export type LearningModuleMeta = {
+  title_ru: string;
+  title_ky: string;
+  level_note_ru: string;
+  level_note_ky: string;
+};
+
+export type LearningTheoryBlock = {
+  text_ru: string;
+  text_ky: string;
+  examples: { en: string; ru: string; ky: string }[];
+};
+
+export type LearningLessonSummary = {
+  lessonId: string;
+  lessonKey: string;
+  orderIndex: number;
+  metadata: LearningLessonMeta;
+  exercisesTotal: number;
+  completed: boolean;
+  draftAttemptId: string | null;
+  lastResult: LearningResult | null;
+};
+
+export type LearningModule = {
+  moduleId: string;
+  moduleKey: string;
+  version: string;
+  metadata: LearningModuleMeta;
+  lessonsTotal: number;
+  lessonsCompleted: number;
+  lessons: LearningLessonSummary[];
+};
+
+export type LearningLessonView = {
+  module: { moduleId: string; moduleKey: string; version: string; metadata: LearningModuleMeta };
+  lesson: {
+    lessonId: string;
+    lessonKey: string;
+    orderIndex: number;
+    metadata: LearningLessonMeta;
+    theory: LearningTheoryBlock[];
+    exercises: LearningExercise[];
+  };
+  draft: LearningAttempt | null;
+  latestCompleted: LearningAttempt | null;
+};
+
+export type LearningSaveResult = {
+  attemptId: string;
+  revision: number;
+  exerciseId: string;
+  correct: boolean;
+  verdict: LearningVerdict;
+  explain: LearningExplain;
+  answeredCount: number;
+  exercisesTotal: number;
+};
+
+export type LearningReviewItem = LearningExercise & {
+  lessonId: string;
+  lessonKey: string;
+  lessonOrderIndex: number;
+};
+
+export type LearningReviewCheck = {
+  exerciseId: string;
+  correct: boolean;
+  verdict: LearningVerdict;
+  explain: LearningExplain;
+};
+
+function option(value: unknown): LearningOption {
+  const row = record(value);
+  return {
+    id: text(row.id, 8),
+    ...(row.label !== undefined ? { label: text(row.label, 2000) } : {}),
+    ...(row.labelRu !== undefined ? { labelRu: text(row.labelRu, 2000) } : {}),
+    ...(row.labelKy !== undefined ? { labelKy: text(row.labelKy, 2000) } : {}),
+  };
+}
+
+function exercise(value: unknown): LearningExercise {
+  const row = record(value);
+  const type = row.type;
+  if (type !== "choice" && type !== "matching" && type !== "short_answer" && type !== "reading") {
+    return fail();
+  }
+  const base: LearningExercise = {
+    exerciseId: uuid(row.exerciseId),
+    exerciseKey: text(row.exerciseKey, 120),
+    orderIndex: integer(row.orderIndex, 200),
+    type,
+    ...(row.sourceLesson !== undefined ? { sourceLesson: integer(row.sourceLesson, 99) } : {}),
+    ...(row.promptEn !== undefined ? { promptEn: text(row.promptEn) } : {}),
+    ...(row.promptRu !== undefined ? { promptRu: text(row.promptRu) } : {}),
+    ...(row.promptKy !== undefined ? { promptKy: text(row.promptKy) } : {}),
+  };
+  if (type === "choice") {
+    return { ...base, options: list(row.options, option, 6) };
+  }
+  if (type === "matching") {
+    return {
+      ...base,
+      instructionRu: text(row.instructionRu),
+      instructionKy: text(row.instructionKy),
+      lefts: list(row.lefts, (item) => text(item, 2000), 8),
+      rights: list(row.rights, (item) => {
+        const right = record(item);
+        return { rightRu: text(right.rightRu, 2000), rightKy: text(right.rightKy, 2000) };
+      }, 8),
+    };
+  }
+  if (type === "reading") {
+    return {
+      ...base,
+      passageEn: text(row.passageEn),
+      questions: list(row.questions, (item) => {
+        const question = record(item);
+        return {
+          id: text(question.id, 120),
+          promptEn: text(question.promptEn),
+          options: list(question.options, option, 6),
+        };
+      }, 5),
+    };
+  }
+  return base;
+}
+
+function explain(value: unknown): LearningExplain {
+  const row = record(value);
+  const explainOption = (item: unknown) => {
+    const optionRow = record(item);
+    return {
+      id: text(optionRow.id, 8),
+      explainRu: text(optionRow.explainRu),
+      explainKy: text(optionRow.explainKy),
+    };
+  };
+  return {
+    ...(row.correctOptionId !== undefined ? { correctOptionId: text(row.correctOptionId, 8) } : {}),
+    ...(row.options !== undefined ? { options: list(row.options, explainOption, 6) } : {}),
+    ...(row.pairs !== undefined
+      ? {
+        pairs: list(row.pairs, (item) => {
+          const pair = record(item);
+          return {
+            leftEn: text(pair.leftEn, 2000),
+            rightRu: text(pair.rightRu, 2000),
+            rightKy: text(pair.rightKy, 2000),
+          };
+        }, 8),
+      }
+      : {}),
+    ...(row.explainRu !== undefined ? { explainRu: text(row.explainRu) } : {}),
+    ...(row.explainKy !== undefined ? { explainKy: text(row.explainKy) } : {}),
+    ...(row.answer !== undefined ? { answer: text(row.answer, 2000) } : {}),
+    ...(row.questions !== undefined
+      ? {
+        questions: list(row.questions, (item) => {
+          const question = record(item);
+          return {
+            id: text(question.id, 120),
+            correctOptionId: text(question.correctOptionId, 8),
+            options: list(question.options, explainOption, 6),
+          };
+        }, 5),
+      }
+      : {}),
+  };
+}
+
+function verdict(value: unknown): LearningVerdict {
+  const row = record(value);
+  return {
+    correct: bool(row.correct),
+    ...(row.perPair !== undefined ? { perPair: list(row.perPair, bool, 8) } : {}),
+    ...(row.correctCount !== undefined ? { correctCount: integer(row.correctCount, 8) } : {}),
+    ...(row.total !== undefined ? { total: integer(row.total, 8) } : {}),
+    ...(row.perQuestion !== undefined
+      ? {
+        perQuestion: Object.fromEntries(
+          Object.entries(record(row.perQuestion)).slice(0, 5)
+            .map(([key, item]) => [text(key, 120), bool(item)]),
+        ),
+      }
+      : {}),
+  };
+}
+
+function result(value: unknown): LearningResult {
+  const row = record(value);
+  return {
+    exercisesTotal: integer(row.exercisesTotal, 200),
+    correctCount: integer(row.correctCount, 200),
+    correctShare: share(row.correctShare),
+    wrongExerciseIds: list(row.wrongExerciseIds, uuid, 200),
+    completedAt: timestamp(row.completedAt),
+  };
+}
+
+export function parseLearningAttempt(value: unknown): LearningAttempt {
+  const row = record(value);
+  const status = row.status === "draft" || row.status === "completed" ? row.status : fail();
+  const answers = Object.fromEntries(
+    Object.entries(record(row.answers)).slice(0, 200).map(([key, item]) => {
+      const entry = record(item);
+      return [uuid(key), {
+        answer: entry.answer,
+        correct: bool(entry.correct),
+        verdict: verdict(entry.verdict),
+        answeredAt: timestamp(entry.answeredAt),
+        explain: explain(entry.explain),
+      }];
+    }),
+  );
+  const parsedResult = nullable(row.result, result);
+  if ((status === "completed") !== (parsedResult !== null)) return fail();
+  return {
+    attemptId: uuid(row.attemptId),
+    lessonId: uuid(row.lessonId),
+    status,
+    revision: integer(row.revision),
+    answers,
+    answeredCount: integer(row.answeredCount, 200),
+    exercisesTotal: integer(row.exercisesTotal, 200),
+    result: parsedResult,
+    createdAt: timestamp(row.createdAt),
+    updatedAt: timestamp(row.updatedAt),
+    completedAt: nullable(row.completedAt, timestamp),
+  };
+}
+
+function moduleMeta(value: unknown): LearningModuleMeta {
+  const row = record(value);
+  return {
+    title_ru: text(row.title_ru, 300),
+    title_ky: text(row.title_ky, 300),
+    level_note_ru: text(row.level_note_ru, 1000),
+    level_note_ky: text(row.level_note_ky, 1000),
+  };
+}
+
+function lessonMeta(value: unknown): LearningLessonMeta {
+  const row = record(value);
+  return {
+    title_ru: text(row.title_ru, 300),
+    title_ky: text(row.title_ky, 300),
+    goal_ru: text(row.goal_ru, 1000),
+    goal_ky: text(row.goal_ky, 1000),
+  };
+}
+
+export function parseLearningModules(value: unknown): LearningModule[] {
+  const row = record(value);
+  return list(row.modules, (item) => {
+    const moduleRow = record(item);
+    return {
+      moduleId: uuid(moduleRow.moduleId),
+      moduleKey: text(moduleRow.moduleKey, 120),
+      version: text(moduleRow.version, 80),
+      metadata: moduleMeta(moduleRow.metadata),
+      lessonsTotal: integer(moduleRow.lessonsTotal, 200),
+      lessonsCompleted: integer(moduleRow.lessonsCompleted, 200),
+      lessons: list(moduleRow.lessons, (lessonItem) => {
+        const lesson = record(lessonItem);
+        return {
+          lessonId: uuid(lesson.lessonId),
+          lessonKey: text(lesson.lessonKey, 120),
+          orderIndex: integer(lesson.orderIndex, 200),
+          metadata: lessonMeta(lesson.metadata),
+          exercisesTotal: integer(lesson.exercisesTotal, 200),
+          completed: bool(lesson.completed),
+          draftAttemptId: nullable(lesson.draftAttemptId, uuid),
+          lastResult: nullable(lesson.lastResult, result),
+        };
+      }),
+    };
+  }, 10);
+}
+
+export function parseLearningLessonView(value: unknown): LearningLessonView {
+  const row = record(value);
+  const moduleRow = record(row.module);
+  const lessonRow = record(row.lesson);
+  return {
+    module: {
+      moduleId: uuid(moduleRow.moduleId),
+      moduleKey: text(moduleRow.moduleKey, 120),
+      version: text(moduleRow.version, 80),
+      metadata: moduleMeta(moduleRow.metadata),
+    },
+    lesson: {
+      lessonId: uuid(lessonRow.lessonId),
+      lessonKey: text(lessonRow.lessonKey, 120),
+      orderIndex: integer(lessonRow.orderIndex, 200),
+      metadata: lessonMeta(lessonRow.metadata),
+      theory: list(lessonRow.theory, (item) => {
+        const block = record(item);
+        return {
+          text_ru: text(block.text_ru),
+          text_ky: text(block.text_ky),
+          examples: list(block.examples, (exampleItem) => {
+            const example = record(exampleItem);
+            return { en: text(example.en), ru: text(example.ru), ky: text(example.ky) };
+          }, 8),
+        };
+      }, 6),
+      exercises: list(lessonRow.exercises, exercise, 20),
+    },
+    draft: nullable(row.draft, parseLearningAttempt),
+    latestCompleted: nullable(row.latestCompleted, parseLearningAttempt),
+  };
+}
+
+export function parseLearningSaveResult(value: unknown): LearningSaveResult {
+  const row = record(value);
+  return {
+    attemptId: uuid(row.attemptId),
+    revision: integer(row.revision),
+    exerciseId: uuid(row.exerciseId),
+    correct: bool(row.correct),
+    verdict: verdict(row.verdict),
+    explain: explain(row.explain),
+    answeredCount: integer(row.answeredCount, 200),
+    exercisesTotal: integer(row.exercisesTotal, 200),
+  };
+}
+
+export function parseLearningReview(value: unknown): LearningReviewItem[] {
+  const row = record(value);
+  return list(row.items, (item) => {
+    const itemRow = record(item);
+    return {
+      ...exercise(item),
+      lessonId: uuid(itemRow.lessonId),
+      lessonKey: text(itemRow.lessonKey, 120),
+      lessonOrderIndex: integer(itemRow.lessonOrderIndex, 200),
+    };
+  }, 20);
+}
+
+export function parseLearningReviewCheck(value: unknown): LearningReviewCheck {
+  const row = record(value);
+  return {
+    exerciseId: uuid(row.exerciseId),
+    correct: bool(row.correct),
+    verdict: verdict(row.verdict),
+    explain: explain(row.explain),
+  };
+}
+
+/** Валидация ответа перед отправкой; сервер повторяет проверку строже. */
+export function parseLearningAnswerInput(
+  type: LearningExerciseType,
+  value: unknown,
+): LearningAnswer | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (Object.keys(row).length !== 1) return null;
+  if (type === "choice") {
+    return typeof row.selected === "string" && row.selected.length <= 8
+      ? { selected: row.selected }
+      : null;
+  }
+  if (type === "matching") {
+    const matches = row.matches;
+    if (!Array.isArray(matches) || matches.length < 3 || matches.length > 8) return null;
+    if (!matches.every((item) => Number.isInteger(item) && item >= 0 && item < matches.length)) {
+      return null;
+    }
+    if (new Set(matches).size !== matches.length) return null;
+    return { matches: matches as number[] };
+  }
+  if (type === "short_answer") {
+    return typeof row.text === "string" && row.text.trim().length > 0 && row.text.length <= 300
+      ? { text: row.text }
+      : null;
+  }
+  const selected = row.selected;
+  if (selected === null || typeof selected !== "object" || Array.isArray(selected)) return null;
+  const entries = Object.entries(selected as Record<string, unknown>);
+  if (entries.length < 1 || entries.length > 5) return null;
+  if (!entries.every(([key, item]) => key.length <= 120 && typeof item === "string" && item.length <= 8)) {
+    return null;
+  }
+  return { selected: selected as Record<string, string> };
+}
+
+/** Первый неотвеченный индекс упражнения — точка резюме черновика. */
+export function firstUnansweredIndex(
+  exercises: readonly Pick<LearningExercise, "exerciseId">[],
+  answers: Readonly<Record<string, unknown>>,
+): number {
+  const index = exercises.findIndex((item) => !(item.exerciseId in answers));
+  return index === -1 ? exercises.length : index;
+}

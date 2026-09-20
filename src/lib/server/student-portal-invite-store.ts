@@ -66,6 +66,15 @@ export type StudentPortalInviteIdentityMatch = Readonly<{
     | null;
   accountPending: boolean;
   authorityActivated: boolean;
+  /**
+   * PORT-1b (193): invites dispatched after migration 193 carry
+   * 'anketa_v1' — the accepted user passes the public анкета and staff
+   * approval before the portal opens. Receipts predating the migration have
+   * no marker and decode as 'legacy' (unchanged pre-193 behaviour).
+   */
+  intakeFlow: "legacy" | "anketa_v1";
+  /** The receipt's own display name (the caller's data) for /apply prefill. */
+  displayName: string | null;
 }>;
 
 export type StudentPortalInviteIdentityResult =
@@ -154,7 +163,8 @@ function errorField(error: unknown, key: "code" | "message"): string | null {
 }
 
 function conflictCode(error: unknown): string | null {
-  if (errorField(error, "code") !== "40001") return null;
+  const code = errorField(error, "code");
+  if (code !== "PT409" && code !== "40001") return null;
   const message = errorField(error, "message");
   return message && SAFE_CONFLICT_CODES.has(message)
     ? message
@@ -562,6 +572,18 @@ export function createStudentPortalInviteStore(
       const data = record(response.data);
       const receiptVersion = version(data?.receipt_version);
       const inviteGeneration = version(data?.invite_generation);
+      const intakeFlow: "legacy" | "anketa_v1" | null =
+        data?.intake_flow === undefined || data?.intake_flow === null
+          ? "legacy"
+          : data.intake_flow === "legacy" || data.intake_flow === "anketa_v1"
+            ? data.intake_flow
+            : null;
+      const displayName =
+        typeof data?.student_display_name === "string" &&
+        data.student_display_name.length > 0 &&
+        data.student_display_name.length <= 200
+          ? data.student_display_name
+          : null;
       const provisioningStates = new Set([
         "prepared",
         "dispatching",
@@ -590,7 +612,8 @@ export function createStudentPortalInviteStore(
           (typeof data.invite_delivery_status !== "string" ||
             !deliveryStates.has(data.invite_delivery_status))) ||
         typeof data.account_pending !== "boolean" ||
-        typeof data.authority_activated !== "boolean"
+        typeof data.authority_activated !== "boolean" ||
+        intakeFlow === null
       ) {
         return { status: "unavailable" };
       }
@@ -606,6 +629,8 @@ export function createStudentPortalInviteStore(
           null,
         accountPending: data.account_pending,
         authorityActivated: data.authority_activated,
+        intakeFlow,
+        displayName,
       };
     },
   });

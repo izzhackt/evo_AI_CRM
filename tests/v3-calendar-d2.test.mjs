@@ -432,8 +432,10 @@ test("application deadlines are read-only calendar items linked to exact Admissi
   const calendar = source("src/components/v3/calendar/Calendar.tsx");
   assert.match(component, /kind: "application_deadline"|CalendarApplicationDeadline/u);
   assert.match(component, /\/v3\/profile\?case=.*&tab=route#/u);
-  assert.match(component, /admissions-visa/u);
-  assert.match(component, /admissions-applications/u);
+  // Detracked destinations (S4): visa deadlines open the documents tab,
+  // application deadlines the kept #applications card on «Вузы и программы».
+  assert.match(component, /tab=documents/u);
+  assert.match(component, /tab=route#applications/u);
   assert.doesNotMatch(component, /TaskControls|complete|cancel|changePlatform/u);
   assert.match(calendar, /NearestApplicationDeadline/u);
   assert.match(calendar, /Без срока/u);

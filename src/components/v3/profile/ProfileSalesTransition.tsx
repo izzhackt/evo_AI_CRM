@@ -4,31 +4,25 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview } from "@/lib/platform-access";
 
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
-  handoffPlatformLeadToAdmissionsAction,
   mutatePlatformLeadAdmissionsGateAction,
   type PlatformLeadAdmissionsGateActionState,
-  type PlatformLeadAdmissionsHandoffActionState,
   type PlatformStudentHandoffActionStatus,
 } from "@/lib/platform-student-handoff-actions";
 import type {
   PlatformLeadAdmissionsGateAction,
   PlatformLeadAdmissionsGateSnapshot,
-  PlatformLeadAdmissionsHandoffSnapshot,
-  PlatformStudentHandoffMode,
 } from "@/lib/platform-student-handoff";
 
 import type { HandoffAcknowledgement, HandoffDecision, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import { respondToHandoffAction, type HandoffResponseActionState } from "@/lib/platform-handoff-acknowledgement-actions";
 import { handoffAcknowledgementLabel } from "@/lib/v3/wording";
 import type {
-  ProfileSalesHandoffSnapshot,
   ProfileSalesRequestIds,
 } from "./types";
 
@@ -265,7 +259,7 @@ function GateCard({
   return (
     <Card
       eyebrow
-      title="Договор и первый платёж"
+      title="Договор и оплата"
       aside={<Pill tone={gateStatus.tone}>{gateStatus.label}</Pill>}
     >
       <div className="grid gap-0 @5xl:grid-cols-2" data-testid="v3-sales-gate">
@@ -338,228 +332,25 @@ function GateCard({
   );
 }
 
-function handoffInitialState(
-  requestId: string,
-  handoff: PlatformLeadAdmissionsHandoffSnapshot,
-): PlatformLeadAdmissionsHandoffActionState {
-  return {
-    status: "idle",
-    requestId,
-    leadId: handoff.leadId,
-    gateVersion: handoff.gateVersion,
-    studentCaseId: handoff.caseId,
-    changedAt: null,
-  };
-}
-
-function HandoffCard({
-  actor,
-  handoff,
-  requestId,
-}: {
-  actor: ActivePlatformActor;
-  handoff: ProfileSalesHandoffSnapshot;
-  requestId: string;
-}) {
-  const router = useRouter();
-  const [state, action, pending] = useActionState(
-    handoffPlatformLeadToAdmissionsAction,
-    handoffInitialState(requestId, handoff),
-  );
-  const normalAvailable = !isStaffPreview(actor) && handoff.canSubmitNormal;
-  const exceptionalAvailable =
-    !isStaffPreview(actor) && handoff.canSubmitExceptional;
-  const firstMode: PlatformStudentHandoffMode = normalAvailable
-    ? "normal"
-    : "exceptional_override";
-  const [mode, setMode] = useState<PlatformStudentHandoffMode>(firstMode);
-  const effectiveMode =
-    (mode === "normal" && normalAvailable) ||
-    (mode === "exceptional_override" && exceptionalAvailable)
-      ? mode
-      : firstMode;
-  const gateVersion = state.gateVersion ?? handoff.gateVersion;
-  const caseId = state.studentCaseId ?? handoff.caseId;
-  const locked = pending || state.status === "stale";
-
-  useEffect(() => {
-    if (state.status === "saved" || state.status === "stale") router.refresh();
-  }, [router, state.changedAt, state.status]);
-
-  if (caseId) {
-    const refreshed = handoff.caseId !== null;
-    return (
-      <Card eyebrow title="Передача в Admissions" aside={<Pill tone="ok">передан</Pill>}>
-        <div className="space-y-3 p-4" data-testid="v3-sales-handoff-completed">
-          {refreshed ? (
-            <>
-              <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-sm">
-                <dt className="text-fg-3">Ответственный</dt>
-                <dd className="text-right text-fg">
-                  {handoff.admissionsOwnerDisplayName}
-                </dd>
-                <dt className="text-fg-3">Стартовых задач</dt>
-                <dd className="text-right text-fg">{handoff.starterTaskCount}</dd>
-              </dl>
-              {handoff.handoffReason ? (
-                <p className="text-sm leading-6 text-fg-2">{handoff.handoffReason}</p>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm text-fg-2">Передача подтверждена. Обновляем дело.</p>
-          )}
-          {!isStaffPreview(actor) && handoff.canOpenCase ? (
-            <Link
-              href={`/v3/profile?case=${caseId}&tab=overview`}
-              className={btnGhostCls}
-            >
-              Открыть дело
-            </Link>
-          ) : (
-            <p className="text-sm text-fg-3">
-              Полное дело доступно Admissions и Admin.
-            </p>
-          )}
-          <ActionResult status={state.status} />
-        </div>
-      </Card>
-    );
-  }
-
-  const canSubmit = normalAvailable || exceptionalAvailable;
-  const handoffStatus: Readonly<{ label: string; tone: PillTone }> = normalAvailable
-    ? { label: "доступна", tone: "ok" }
-    : exceptionalAvailable
-      ? { label: "только исключение", tone: "warn" }
-      : { label: "заблокирована", tone: "neutral" };
-
-  return (
-    <Card
-      eyebrow
-      title="Передача в Admissions"
-      aside={<Pill tone={handoffStatus.tone}>{handoffStatus.label}</Pill>}
-    >
-      <div className="space-y-4 p-4" data-testid="v3-sales-handoff">
-        {canSubmit ? (
-          <form
-            action={action}
-            className="space-y-4"
-            data-testid="v3-sales-handoff-form"
-          >
-            <input type="hidden" name="lead_id" value={handoff.leadId} />
-            <input
-              type="hidden"
-              name="expected_gate_version"
-              value={gateVersion}
-            />
-            <input type="hidden" name="request_id" value={state.requestId} />
-
-            <div className="grid gap-3 @4xl:grid-cols-2">
-              <label>
-                <span className={labelCls}>Ответственный Admissions</span>
-                <select
-                  name="admissions_owner_membership_id"
-                  required
-                  defaultValue=""
-                  disabled={locked || handoff.eligibleAdmissionsOwners.length === 0}
-                  className={inputCls}
-                >
-                  <option value="" disabled>
-                    {handoff.eligibleAdmissionsOwners.length === 0
-                      ? "Нет доступного сотрудника"
-                      : "Выберите сотрудника"}
-                  </option>
-                  {handoff.eligibleAdmissionsOwners.map((owner) => (
-                    <option key={owner.membershipId} value={owner.membershipId}>
-                      {owner.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {normalAvailable && exceptionalAvailable ? (
-                <label>
-                  <span className={labelCls}>Режим</span>
-                  <select
-                    name="handoff_mode"
-                    value={effectiveMode}
-                    onChange={(event) => {
-                      setMode(event.target.value as PlatformStudentHandoffMode);
-                    }}
-                    disabled={locked}
-                    className={inputCls}
-                  >
-                    <option value="normal">Обычная передача</option>
-                    <option value="exceptional_override">Исключение Admin</option>
-                  </select>
-                </label>
-              ) : (
-                <input type="hidden" name="handoff_mode" value={effectiveMode} />
-              )}
-            </div>
-
-            <label>
-              <span className={labelCls}>
-                {effectiveMode === "exceptional_override"
-                  ? "Причина исключения"
-                  : "Комментарий для Admissions"}
-              </span>
-              <textarea
-                name="reason"
-                required
-                maxLength={1000}
-                rows={3}
-                disabled={locked}
-                className={cn(inputCls, "h-auto resize-y py-2")}
-              />
-            </label>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="submit"
-                disabled={locked || handoff.eligibleAdmissionsOwners.length === 0}
-                className={btnCls}
-              >
-                {pending
-                  ? "Передаём…"
-                  : effectiveMode === "exceptional_override"
-                    ? "Передать как исключение"
-                    : "Передать в Admissions"}
-              </button>
-              <Version value={gateVersion} />
-            </div>
-            <ActionResult status={state.status} />
-          </form>
-        ) : (
-          <p className="text-sm text-fg-3">
-            Сначала подтвердите договор и получение первого платежа.
-          </p>
-        )}
-      </div>
-    </Card>
-  );
-}
-
+/**
+ * Unified workflow S2 (plan §6, §13): the card-side «Передача в Admissions»
+ * bypass is retired here. The only curator handoff trigger left is a saved
+ * Sales report (platform.create_sales_report_handoff); the lead card shows
+ * that outcome through LeadSaleConditions' linked-register block instead of
+ * a second, form-driven path to the same result.
+ */
 export function ProfileSalesTransition({
   actor,
   gate,
-  handoff,
   requestIds,
 }: {
   actor: ActivePlatformActor;
   gate: PlatformLeadAdmissionsGateSnapshot;
-  handoff: ProfileSalesHandoffSnapshot;
   requestIds: ProfileSalesRequestIds;
 }) {
   return (
     <div className="flex flex-col gap-4" data-testid="v3-sales-transition">
       <GateCard actor={actor} gate={gate} requestIds={requestIds} />
-      <HandoffCard
-        key={`${handoff.gateVersion}:${handoff.caseId ?? "pending"}`}
-        actor={actor}
-        handoff={handoff}
-        requestId={requestIds.handoff}
-      />
     </div>
   );
 }
@@ -609,9 +400,10 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
     : saved ? "Ответ сохранён." : null;
   const showResult = pending || message !== null;
   const current = snapshot.current;
+  const declining = decision === "declined";
   const unchanged = current?.decision === decision
     && current.clarification === (decision === "accepted" ? null : clarification.trim())
-    && current.agreedContactDate === (contactDate || null);
+    && (declining || current.agreedContactDate === (contactDate || null));
   return (
     <Card eyebrow title="Приём дела" id="handoff-acknowledgement">
       <div className="flex flex-col gap-3 p-4" data-testid="v3-handoff-acknowledgement">
@@ -624,6 +416,9 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
             <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => { setDecision("clarification_requested"); setOpen(true); }}>
               Нужно уточнить
             </button>
+            <button type="button" className={cn(btnGhostCls, "min-h-11")} onClick={() => { setDecision("declined"); setOpen(true); }}>
+              Отклонить
+            </button>
           </div>
         ) : null}
         {snapshot.canRespond && open && snapshot.assignmentEventId ? (
@@ -633,6 +428,11 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
             <input type="hidden" name="expected_acknowledgement_id" value={current?.acknowledgementId ?? ""} />
             <input type="hidden" name="request_id" value={state.requestId} />
             <input type="hidden" name="decision" value={decision} />
+            {declining ? (
+              <p className="text-sm text-fg-2">
+                Отклоняется назначение, а не студент: продажа и данные сохранятся.
+              </p>
+            ) : null}
             {decision === "clarification_requested" ? (
               <label className={labelCls}>
                 Что нужно уточнить у Sales
@@ -641,16 +441,30 @@ export function ProfileHandoffAcknowledgement({ snapshot }: {
                   onChange={(event) => setClarification(event.target.value)} disabled={pending}
                   aria-invalid={state.status === "invalid" || undefined} />
               </label>
+            ) : declining ? (
+              <label className={labelCls}>
+                Причина отклонения
+                <textarea name="clarification" required maxLength={1000} rows={3}
+                  className={cn(inputCls, "mt-1 min-h-24 resize-y")} value={clarification}
+                  onChange={(event) => setClarification(event.target.value)} disabled={pending}
+                  aria-invalid={state.status === "invalid" || undefined} />
+              </label>
             ) : <input type="hidden" name="clarification" value="" />}
-            <label className={labelCls}>
-              Согласованная дата контакта · необязательно
-              <input type="date" name="agreed_contact_date" className={cn(inputCls, "mt-1 min-h-11")}
-                min="0001-01-01" max="9999-12-31" value={contactDate}
-                onChange={(event) => setContactDate(event.target.value)} disabled={pending} />
-            </label>
+            {declining ? (
+              <input type="hidden" name="agreed_contact_date" value="" />
+            ) : (
+              <label className={labelCls}>
+                Согласованная дата контакта · необязательно
+                <input type="date" name="agreed_contact_date" className={cn(inputCls, "mt-1 min-h-11")}
+                  min="0001-01-01" max="9999-12-31" value={contactDate}
+                  onChange={(event) => setContactDate(event.target.value)} disabled={pending} />
+              </label>
+            )}
             <div className="flex flex-wrap gap-2">
               <button type="submit" disabled={pending || needsRefresh || unchanged} className={cn(btnCls, "min-h-11")}>
-                {pending ? "Сохраняем…" : unchanged ? "Уже сохранено" : decision === "accepted" ? "Подтвердить приём" : "Сохранить уточнение"}
+                {pending ? "Сохраняем…" : unchanged ? "Уже сохранено"
+                  : decision === "accepted" ? "Подтвердить приём"
+                  : declining ? "Отклонить назначение" : "Сохранить уточнение"}
               </button>
               <button type="button" disabled={pending} className={cn(btnGhostCls, "min-h-11")}
                 onClick={() => setOpen(false)}>Отмена</button>

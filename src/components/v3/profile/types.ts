@@ -8,6 +8,7 @@ import type {
   PlatformCaseFinanceControl,
 } from "@/lib/platform-finance-control";
 import type { PlatformSalesWorkflowLead } from "@/lib/platform-sales-contract";
+import type { PlatformSalesLinkedConversation } from "@/lib/platform-sales";
 import type { HandoffAcknowledgement, SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type {
   PlatformLeadAdmissionsGateSnapshot,
@@ -15,6 +16,7 @@ import type {
   PlatformStudentCaseHandoffContext,
 } from "@/lib/platform-student-handoff";
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
+import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type {
   PlatformCaseContractWorkspace,
   PlatformContractRetryOperation,
@@ -26,6 +28,8 @@ import type {
 import type { DocumentGroup } from "./document-types";
 import type { PlatformStudentProfileFieldsSnapshot } from "@/lib/platform-student-profile-fields";
 import type { PlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
+import type { LeadSaleConditions } from "@/lib/lead-sale-conditions-contract";
+import type { LeadCabinetCase } from "@/lib/v3/lead-cabinet-source";
 
 export type ProfileFieldSourceVersion = Readonly<{
   id: string; filename: string; versionNumber: number; downloadReady: boolean;
@@ -154,6 +158,12 @@ export type ProfileSalesSnapshot = Readonly<{
   lead: PlatformSalesWorkflowLead;
   gate: PlatformLeadAdmissionsGateSnapshot;
   handoff: ProfileSalesHandoffSnapshot;
+  /**
+   * Card ↔ chat link (plan §4/§12): `staff_sales_lead_detail` already reads
+   * this (platform-sales.ts's `getPlatformSalesLead`); it was fetched but
+   * never surfaced in the UI before this slice.
+   */
+  linkedConversations: readonly PlatformSalesLinkedConversation[];
 }>;
 
 export type ProfileNotesSnapshot = Readonly<{
@@ -169,15 +179,46 @@ export type ProfileAdmissionsRequestIds = Readonly<{
   createApplication: string;
   applications: Readonly<Record<string, string>>;
   applicationDetails: Readonly<Record<string, string>>;
-  visa: string;
   createStops: Readonly<Record<string, string>>;
   resolveStops: Readonly<Record<string, string>>;
+  /** «Партнёр и решение» save per application (unified workflow S7). */
+  partnerDetails: Readonly<Record<string, string>>;
+  /** OTH-4: «Отметить статус» save per application, own id/form/RPC. */
+  changeStatus: Readonly<Record<string, string>>;
+}>;
+
+/**
+ * Партнёр и решение — editable since unified workflow S7 (plan §8, §11). See
+ * `readApplicationPartnerDetails` in `src/lib/v3/admissions-source.ts` for
+ * the key rename (a NEW, independent vocabulary — not the retired playbook
+ * editor's camelCase keys) and the migration-184 write RPC.
+ */
+export type ApplicationPartnerDetails = Readonly<{
+  applicationId: string;
+  version: string;
+  partnerContact: string | null;
+  externalLink: string | null;
+  decisionReference: string | null;
+  decisionNote: string | null;
 }>;
 
 export type ProfileAdmissionsWorkspace = Readonly<{
   studentCaseId: string;
   caseState: "pending" | "active" | "closed";
+  /** Unified workflow S8: source_key-derived, NOT caseState-derived (a legacy pending case and a cabinet-pending case share caseState==='pending'). */
+  isCabinetCase: boolean;
+  /** Unified workflow S4: the case DTO's own direction, replacing CaseHeader's deleted route-workspace read. */
+  direction: AdmissionsDirection | null;
   applications: readonly PlatformApplicationQueueRow[];
+  /**
+   * Kept in the model, intentionally not rendered (unified workflow S4): the
+   * visa-case CRUD Card is retired (plan §11 — no separate visa case,
+   * mandatory statuses or CRM-side workflow), but `getPlatformCaseVisa`
+   * stays a real, load-bearing read elsewhere (portal history, the staff
+   * visa queue in `platform-admissions-workspace.ts`). Same treatment as
+   * `PersonProfile.visa` — see tabs.tsx's comment above «Как он к нам
+   * пришёл».
+   */
   visa: PlatformCaseVisa | null;
   finance: PlatformCaseFinanceControl | null;
   requestIds: ProfileAdmissionsRequestIds;
@@ -202,6 +243,22 @@ export type ProfileSalesRequestIds = Readonly<{
   firstPayment: string;
   override: string;
   handoff: string;
+  /** «Доступ к платформе» approve/reject on the lead card Overview (unified workflow S1). */
+  platformAccess: string;
+  /** «Условия продажи» save on the lead card Overview (unified workflow S2). */
+  saleConditions: string;
+  /** «Подготовить кабинет» on the lead card «Доступ к платформе» (unified workflow S7). */
+  prepareLeadCabinet: string;
+  /**
+   * «Пожелания» / «Образование» / «Условия» (unified workflow S7): own
+   * request ids, distinct from `saleConditions` above — all four blocks
+   * write the same row, so sharing one id risks a same-user, same-instant
+   * double-submit reusing an already-consumed request id before the
+   * post-save `router.refresh()` remounts every block with fresh state.
+   */
+  wishesCard: string;
+  educationCard: string;
+  conditionsCard: string;
 }>;
 
 export type Payment = Readonly<{
@@ -250,6 +307,18 @@ export type ProfileDraft = Readonly<{
   handoffAcknowledgement: (HandoffAcknowledgement & Readonly<{ requestId: string }>) | null;
   salesHandoffAcknowledgement: SalesHandoffAcknowledgement | null;
   /**
+   * «Условия продажи» (unified workflow S2): populated only on the lead-only
+   * Overview branch (readLeadProfile without a loaded full case) — the block
+   * where заполнение условий happens before any report save. null elsewhere.
+   */
+  saleConditions: LeadSaleConditions | null;
+  /**
+   * «Подготовить кабинет» (unified workflow S7): populated only on the
+   * lead-only Overview branch, same scoping as `saleConditions` above. null
+   * on a full case (a case already exists by definition there).
+   */
+  leadCabinetCase: LeadCabinetCase | null;
+  /**
    * Есть в модели, намеренно не рисуется.
    *
    * Дату договора во вкладке «Деньги» показывает карточка «Договор», и берёт
@@ -262,7 +331,9 @@ export type ProfileDraft = Readonly<{
 
 export const TABS = [
   { key: "overview", title: "Обзор" },
-  { key: "route", title: "Маршрут" },
+  // The URL contract (?tab=route) is pinned by tests/v3-operational-parity.test.mjs
+  // and CuratorDay's link — only the visible title changes (plan §8/§13).
+  { key: "route", title: "Вузы и программы" },
   { key: "anketa", title: "Анкета" },
   { key: "documents", title: "Документы" },
   { key: "money", title: "Деньги" },

@@ -9,32 +9,34 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-test("public Student application queue renders complete answers, a deliberate assignment and versioned decision fields", async () => {
+// Unified workflow S1: the combined queue+decision StudentApplications/
+// StudentApplicationsNav components are retired (the queue moved to
+// /v3/requests under Продажи, and the case directory dropped its now
+// cross-role «Заявки» tab). StudentApplicationAnswers and the simplified,
+// direction/curator-free ApplicationDecision are the two pieces that
+// survive — reused by both /v3/requests and the lead-card «Доступ к
+// платформе» block — so this SSR probe now renders exactly those two.
+test("the public Student анкета answers and the access-only decision form render without direction/curator fields", async () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
   const compiled = await build({
     stdin: { contents: `
       import { createElement } from "react";
       import { renderToStaticMarkup } from "react-dom/server";
-      import { StudentApplications, StudentApplicationsNav } from "./src/components/v3/admissions/StudentApplications";
+      import { StudentApplicationAnswers, ApplicationDecision } from "./src/components/v3/admissions/StudentApplications";
       const application = {
         id: "11111111-1111-4111-8111-111111111111", revision: 3, status: "pending", email: "student@example.test",
-        submittedAt: "2026-09-18T09:00:00Z", decidedAt: null, decisionReason: null, studentCaseId: null, admissionsDirection: null,
+        submittedAt: "2026-09-18T09:00:00Z", decidedAt: null, decisionReason: null, studentCaseId: null,
+        admissionsDirection: null, canonicalLeadId: null,
         questionnaire: { firstName: "Тест", lastName: "Заявки", phone: "+996555000000", destinationCountries: ["CN", "MY"],
           intakeSeason: "autumn", intakeYear: 2027, educationLevel: "high_school", averageGrade: 4.5, gradeScale: "5",
           studyFields: ["Инженерия", "Дизайн"], studyLevels: ["bachelor", "foundation"], nationality: "KG",
           english: { mode: "self", level: "intermediate" }, tuitionBudget: "5000_10000", fundingSource: "family" }
       };
-      function render(item, readOnly = false) {
-        return renderToStaticMarkup(createElement(StudentApplications, {
-          queue: { applications: [item], curators: [{ membershipId: "22222222-2222-4222-8222-222222222222", displayName: "Куратор", directions: ["CN"] }], pendingCount: 7 },
-          selectedId: item.id, requestId: "33333333-3333-4333-8333-333333333333", readOnly
-        }));
-      }
       process.stdout.write(JSON.stringify({
-        pending: render(application), readOnly: render(application, true),
-        approved: render({ ...application, status: "approved", studentCaseId: "44444444-4444-4444-8444-444444444444" }),
-        rejected: render({ ...application, status: "rejected", decisionReason: "Уточните год поступления" }),
-        navigation: renderToStaticMarkup(createElement(StudentApplicationsNav, { current: "applications", pendingCount: 7 }))
+        answers: renderToStaticMarkup(createElement(StudentApplicationAnswers, { application })),
+        decision: renderToStaticMarkup(createElement(ApplicationDecision, {
+          application, requestId: "33333333-3333-4333-8333-333333333333",
+        })),
       }));
     `, resolveDir: root, sourcefile: "student-applications-ssr.tsx", loader: "tsx" },
     bundle: true, write: false, platform: "node", format: "cjs", target: "node22",
@@ -53,20 +55,20 @@ test("public Student application queue renders complete answers, a deliberate as
   assert.ifError(rendered.error);
   assert.equal(rendered.status, 0, rendered.stderr);
   const output = JSON.parse(rendered.stdout);
-  assert.match(output.pending, /Заполнено студентом/);
-  assert.match(output.pending, /Сведения требуют проверки/);
-  for (const answer of ["Китай, Малайзия", "Инженерия, Дизайн", "4.5 из 5", "самооценка", "student@example.test"]) assert.ok(output.pending.includes(answer), answer);
-  assert.match(output.pending, /name="expected_revision" value="3"/);
-  assert.match(output.pending, /name="request_id" value="33333333-3333-4333-8333-333333333333"/);
-  assert.match(output.pending, /name="reason" value=""/);
-  assert.match(output.pending, /<option value="" selected="">Выберите направление/);
-  assert.doesNotMatch(output.pending, /<option[^>]*>Куратор<\/option>/);
-  assert.match(output.pending, /<button type="submit" disabled=""/);
-  assert.doesNotMatch(output.readOnly, /<form/);
-  assert.doesNotMatch(output.approved, /<form/);
-  assert.match(output.approved, /\/v3\/profile\?case=44444444-4444-4444-8444-444444444444&amp;tab=anketa/);
-  assert.match(output.rejected, /Уточните год поступления/);
-  assert.match(output.navigation, /aria-label="7 на рассмотрении"/);
+  assert.match(output.answers, /Заполнено студентом/);
+  assert.match(output.answers, /Сведения требуют проверки/);
+  for (const answer of ["Китай, Малайзия", "Инженерия, Дизайн", "4.5 из 5", "самооценка", "student@example.test"]) assert.ok(output.answers.includes(answer), answer);
+  assert.match(output.decision, /name="expected_revision" value="3"/);
+  assert.match(output.decision, /name="request_id" value="33333333-3333-4333-8333-333333333333"/);
+  assert.match(output.decision, /name="reason" value=""/);
+  assert.match(output.decision, /Одобрить и открыть кабинет/);
+  // The direction/curator pickers are gone entirely (plan §4: access alone,
+  // never an Admissions assignment) — no leftover select, option or label.
+  // (The approved-status "Открыть дело" link now lives on the caller —
+  // tabs.tsx's PlatformAccessCard and the /v3/requests row — not on this
+  // form, which no longer branches on application.status at all.)
+  assert.doesNotMatch(output.decision, /Направление|Куратор|admissions_direction|curator_membership_id/);
+  assert.doesNotMatch(output.decision, /<select/);
 });
 
 test("application catalogue selector renders actual React with deliberate choice and no extra submitted fields", async () => {
@@ -105,7 +107,6 @@ test("application catalogue selector renders actual React with deliberate choice
 
 test("application selector owns stale reads and search Enter without changing application retry or programme", () => {
   const selector = source("src/components/v3/profile/ApplicationUniversitySelector.tsx");
-  const workspace = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
   assert.match(selector, /const request = \+\+epoch\.current/u);
   assert.match(selector, /if \(request !== epoch\.current\) return;/u);
   assert.match(selector, /useEffect\(\(\) => \(\) => \{ epoch\.current \+= 1;/u);
@@ -119,10 +120,17 @@ test("application selector owns stale reads and search Enter without changing ap
   assert.match(selector, /const countryLabel = country\(item\.country\);/u);
   assert.match(selector, /\{countryLabel \? ` · \$\{countryLabel\}` : ""\}/u);
   assert.doesNotMatch(selector, /country\(item\.country\)\s*\?\?\s*item\.country/u);
-  assert.match(workspace, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} \/>/u);
-  assert.match(workspace, /name="program_name" required maxLength=\{300\}/u);
-  assert.match(workspace, /name="request_id" value=\{state\.requestId\}/u);
-  assert.match(workspace, /name="expected_version" value="0"/u);
+  // OTH-4: the selector's render location moved from ProfileAdmissionsWorkspace.tsx's
+  // inline <details>«Новая заявка»</details> into the new small search dialog
+  // (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge base») --
+  // deliberate pin move, not a drop. Program is optional here (plan: "программу
+  // указать сразу либо позже"), so the old `required` pin is gone too.
+  const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
+  assert.match(createDialog, /<ApplicationUniversitySelector key=\{workspace\.studentCaseId\} \/>/u);
+  assert.match(createDialog, /name="program_name" maxLength=\{300\}/u);
+  assert.doesNotMatch(createDialog, /name="program_name" required/u);
+  assert.match(createDialog, /name="request_id" value=\{state\.requestId\}/u);
+  assert.match(createDialog, /name="expected_version" value="0"/u);
 });
 
 test("V3 profile keeps lead and Admissions case route identities separate", () => {
@@ -159,7 +167,13 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
   assert.match(adapter, /leadId: link\?\.leadId \?\? null/u);
   assert.doesNotMatch(adapter, /if \(!link[^\n]*\) return null/u);
   assert.match(workspace, /<Card eyebrow id="applications" title="Заявки">/u);
-  assert.match(workspace, /id="visa"[\s\S]*title="Виза"/u);
+  // Unified workflow S4 (plan §11): the visa-case CRUD Card is retired —
+  // no separate visa case, mandatory statuses or CRM-side visa workflow.
+  // Visa rows/files stay in the database untouched; nothing renders them
+  // as a Card here any more (see tests/platform-case-operations.test.mjs
+  // for the still-live, unrelated READ path this does not touch).
+  assert.doesNotMatch(workspace, /id="visa"/u);
+  assert.doesNotMatch(workspace, /title="Виза"/u);
   assert.doesNotMatch(adapter, /actor\.authorityRole === "admin" && studentCase/u);
   assert.match(adapter, /listPlatformStudentCases/u);
   assert.match(adapter, /getPlatformStudentCaseView/u);
@@ -171,22 +185,35 @@ test("V3 profile keeps lead and Admissions case route identities separate", () =
 test("V3 profile actions use canonical versioned server commands and honest outcomes", () => {
   const controls = source("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
 
+  const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
   for (const action of [
-    "createPlatformUniversityApplicationAction",
     "changePlatformUniversityApplicationAction",
     "updatePlatformUniversityApplicationDetailsAction",
-    "upsertPlatformCaseVisaAction",
     "createPlatformFinanceStopFactorAction",
     "resolvePlatformFinanceStopFactorAction",
   ]) {
     assert.match(controls, new RegExp(`${action}`));
   }
+  assert.match(createDialog, /createPlatformUniversityApplicationAction/u);
+  // OTH-4 (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge base»:
+  // «Добавленный вуз означает «рассматриваем». Фактическая подача отмечается
+  // отдельно.»): un-deadens changePlatformUniversityApplicationAction /
+  // ApplicationStatusForm, which the retired unified-workflow-S4 comment
+  // this replaced used to pin ABSENT. visa-case CRUD
+  // (upsertPlatformCaseVisaAction/VisaForm) stays retired -- out of scope
+  // for this slice, still gone.
+  assert.match(controls, /changePlatformUniversityApplicationAction/u);
+  assert.doesNotMatch(controls, /upsertPlatformCaseVisaAction/u);
+  assert.match(controls, /function ApplicationStatusForm/u);
+  assert.doesNotMatch(controls, /function VisaForm/u);
+  assert.match(controls, /Отметить статус/u);
+  assert.match(controls, /Сохранить статус/u);
+  assert.doesNotMatch(controls, /Создать визовое дело|Обновить визу/u);
   for (const field of [
     "student_case_id",
     "request_id",
     "expected_version",
     "application_id",
-    "visa_case_id",
     "payment_obligation_id",
     "stop_factor_id",
     "is_primary",
@@ -196,6 +223,13 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   ]) {
     assert.match(controls, new RegExp(`name="${field}"`));
   }
+  // visa_case_id stays gone with the form that submitted it (visa-case CRUD
+  // is out of scope for this slice). OTH-4 un-deadens the status picker's own
+  // name="status" <select> in ApplicationStatusForm -- the create form's
+  // separate hidden, never-edited default (name="status" value="preparation")
+  // is checked against createDialog below.
+  assert.doesNotMatch(controls, /name="visa_case_id"/u);
+  assert.match(controls, /<select\s+name="status"/u);
   for (const outcome of [
     "saved",
     "invalid",
@@ -216,31 +250,82 @@ test("V3 profile actions use canonical versioned server commands and honest outc
   assert.match(controls, /data-primary=\{application\.isPrimary \? "true" : "false"\}/u);
   assert.match(controls, /details-\$\{application\.universityApplicationId\}-\$\{application\.version\}/u);
   assert.match(controls, /router\.refresh\(\)/u);
-  assert.match(controls, /PLATFORM_APPLICATION_STATUSES\.map/u);
-  assert.match(controls, /PLATFORM_VISA_STATUSES\.map/u);
+  // Status still displays read-only, as secondary metadata (task's own
+  // allowance) — the DB column and PLATFORM_APPLICATION_STATUSES-backed
+  // label function stay; only the editable <select> is gone.
+  assert.match(controls, /Pill tone=\{statusTone\(application\.status\)\}/u);
+  assert.match(controls, /applicationStatus\(application\.status\)/u);
+  assert.doesNotMatch(controls, /PLATFORM_APPLICATION_STATUSES/u);
+  assert.doesNotMatch(controls, /PLATFORM_VISA_STATUSES/u);
   assert.doesNotMatch(controls, /createSupabase|supabase\.from|localStorage|sessionStorage/u);
   assert.equal(
     existsSync(new URL("../src/components/v3/profile/ProfileAdmissionsActions.ts", import.meta.url)),
     false,
   );
 
+  // «Партнёр и решение» is editable since unified workflow S7 (plan §8/§11):
+  // platform.update_application_partner_details_v1 (migration 184) needs no
+  // admissions_playbook_version_id, unlike the retired 137 write path.
+  assert.match(controls, /function ApplicationPartnerFacts/u);
+  assert.match(controls, /Партнёр и решение/u);
+  const partnerFacts = controls.slice(
+    controls.indexOf("function ApplicationPartnerFacts"),
+    controls.indexOf("function FinanceStopCreateForm"),
+  );
+  assert.match(partnerFacts, /<form action=\{action\}/u);
+  assert.match(partnerFacts, /useActionState\(\s*updateApplicationPartnerDetailsAction/u);
+  assert.match(partnerFacts, /name="partner_contact"/u);
+  assert.match(partnerFacts, /name="external_link"/u);
+  assert.match(partnerFacts, /name="decision_reference"/u);
+  assert.match(partnerFacts, /name="decision_note"/u);
+  assert.match(partnerFacts, /name="student_case_id" value=\{workspace\.studentCaseId\}/u);
+  // Read-only fallback (no `application.manage`) stays a plain fact list.
+  assert.match(partnerFacts, /if \(!canWrite\) \{/u);
+  assert.doesNotMatch(partnerFacts, /packageReference|offerConditions/u);
+  assert.match(controls, /partnerDetails\?: readonly ApplicationPartnerDetails\[\]/u);
+  assert.match(controls, /<ApplicationPartnerFacts/u);
+  assert.match(controls, /canWrite=\{canWriteApplications\}/u);
+
   const detailsForm = controls.slice(
     controls.indexOf("function ApplicationDetailsForm"),
-    controls.indexOf("function VisaForm"),
+    controls.indexOf("function ApplicationPartnerFacts"),
   );
   assert.match(detailsForm, /name="application_id"/u);
   assert.doesNotMatch(detailsForm, /name="student_case_id"/u);
   assert.match(detailsForm, /<ApplicationCountryField defaultValue=\{application\.country \?\? ""\} \/>/u);
   assert.match(detailsForm, /<ApplicationDegreeField defaultValue=\{application\.degree \?\? ""\} \/>/u);
 
-  const createForm = controls.slice(
-    controls.indexOf("function ApplicationCreateForm"),
-    controls.indexOf("function ApplicationStatusForm"),
-  );
-  assert.match(createForm, /<ApplicationCountryField \/>/u);
-  assert.match(createForm, /<ApplicationDegreeField \/>/u);
+  // OTH-4: ApplicationCreateForm moved into ApplicationCreateDialog.tsx (the
+  // small search dialog); the deadline/country/degree/evidence/note fields it
+  // already had are now folded under <details>Дополнительно</details>
+  // (plan's "минимум обязательных полей", the dialog leads with search +
+  // program + основной-вариант only). ApplicationCountryField/
+  // ApplicationDegreeField themselves are unchanged, reused from
+  // ProfileAdmissionsWorkspace.tsx (not duplicated).
+  assert.match(createDialog, /<ApplicationCountryField \/>/u);
+  assert.match(createDialog, /<ApplicationDegreeField \/>/u);
+  assert.match(createDialog, /name="status" value="preparation"/u);
+  assert.match(createDialog, /<details>/u);
+  assert.match(createDialog, /Дополнительно/u);
   assert.match(controls, /<select name="country"/u);
   assert.match(controls, /<select name="degree"/u);
+  // Wording: launcher/dialog say «Добавить вуз» (plan §«Uni & knowledge
+  // base»: «Добавить вуз»), not the retired «Новая заявка»/«Добавить заявку».
+  assert.match(controls, /<ApplicationCreateDialog workspace=\{workspace\}\s*\/>/u);
+  assert.doesNotMatch(controls, /Новая заявка|Добавить заявку/u);
+  assert.match(createDialog, />\s*Добавить вуз\s*</u);
+  assert.match(createDialog, /"Добавить"/u);
+  assert.doesNotMatch(createDialog, /Новая заявка|Добавить заявку/u);
+  // Status form offers only the forward statuses (never `preparation`, the
+  // fixed create-time default), and only requires evidence when the RPC
+  // itself does.
+  assert.match(controls, /PLATFORM_APPLICATION_FORWARD_STATUSES\.filter\(\(status\) => status !== application\.status\)\.map/u);
+  assert.match(controls, /PLATFORM_APPLICATION_EVIDENCE_STATUSES\.has/u);
+  assert.match(controls, /needsNote = nextStatus === "rejected" \|\| nextStatus === "withdrawn"/u);
+  // Author attribution (plan: «Показывать автора добавления, когда он
+  // известен»): quiet metadata line, only rendered when known.
+  assert.match(controls, /application\.createdByDisplayName \? \(/u);
+  assert.match(controls, /Добавил: \{application\.createdByDisplayName\}/u);
   assert.match(controls, /platformApplicationCountryEditOptions\(defaultValue \|\| null\)/u);
   assert.match(controls, /platformApplicationDegreeEditOptions\(defaultValue \|\| null\)/u);
   assert.match(controls, /applicationCountry\(countryCode\)/u);

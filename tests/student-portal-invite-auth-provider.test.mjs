@@ -178,3 +178,77 @@ test("provider read fails closed on missing, malformed or unavailable Auth user"
     );
   }
 });
+
+test("provider classifies an occupied email via the trusted admin lookup (PORT-1b)", async () => {
+  const occupied = (user, expectedCode) => async () => {
+    const provider = createStudentPortalInviteAuthProvider(
+      client({
+        invite: async () => ({
+          data: { user: null },
+          error: { status: 422, code: "email_exists", name: "AuthApiError" },
+        }),
+        getUser: async () => ({ data: { user: null }, error: null }),
+        listUsers: async () => ({
+          data: { users: user ? [user] : [], nextPage: null },
+          error: null,
+        }),
+      }),
+    );
+    assert.deepEqual(
+      await provider.inviteUserByEmail({
+        email: "student@example.com",
+        redirectTo: "http://127.0.0.1:3000/auth/callback",
+      }),
+      { status: "definite_failure", code: expectedCode },
+    );
+  };
+
+  await occupied(
+    {
+      id: AUTH_USER_ID,
+      email: "student@example.com",
+      app_metadata: { evo_staff_password_request_id: AUTH_USER_ID },
+    },
+    "existing_staff_account",
+  )();
+  await occupied(
+    {
+      id: AUTH_USER_ID,
+      email: "student@example.com",
+      invited_at: "2026-09-10T10:00:00.000Z",
+      app_metadata: {},
+    },
+    "already_accepted_invite",
+  )();
+  await occupied(
+    {
+      id: AUTH_USER_ID,
+      email: "Student@Example.com",
+      app_metadata: {},
+      user_metadata: {},
+    },
+    "existing_student_account",
+  )();
+  // No matching user (or an unavailable lookup) keeps the honest legacy code.
+  await occupied(null, "portal_invite_already_accepted")();
+});
+
+test("provider keeps the legacy occupied-email code when the lookup is unavailable", async () => {
+  const provider = createStudentPortalInviteAuthProvider(
+    client({
+      invite: async () => ({
+        data: { user: null },
+        error: { status: 422, code: "email_address_exists", name: "AuthApiError" },
+      }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      listUsers: async () => ({ data: { users: null }, error: { status: 500 } }),
+    }),
+  );
+  assert.deepEqual(
+    await provider.inviteUserByEmail({
+      email: "student@example.com",
+      redirectTo: "http://127.0.0.1:3000/auth/callback",
+    }),
+    { status: "definite_failure", code: "portal_invite_already_accepted" },
+  );
+});

@@ -5,18 +5,19 @@ import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Pill, type PillTone } from "@/components/v3/Pill";
-import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
+import { btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
   changePlatformUniversityApplicationAction,
-  createPlatformUniversityApplicationAction,
+  updateApplicationPartnerDetailsAction,
   updatePlatformUniversityApplicationDetailsAction,
   type PlatformUniversityApplicationActionState,
 } from "@/lib/platform-admissions-actions";
 import {
-  PLATFORM_APPLICATION_STATUSES,
+  PLATFORM_APPLICATION_EVIDENCE_STATUSES,
+  PLATFORM_APPLICATION_FORWARD_STATUSES,
   platformApplicationCountryEditOptions,
   platformApplicationDegreeEditOptions,
   type PlatformApplicationQueueRow,
@@ -24,11 +25,8 @@ import {
 import {
   createPlatformFinanceStopFactorAction,
   resolvePlatformFinanceStopFactorAction,
-  upsertPlatformCaseVisaAction,
-  type PlatformCaseVisaActionState,
   type PlatformFinanceStopFactorActionState,
 } from "@/lib/platform-case-operations-actions";
-import { PLATFORM_VISA_STATUSES } from "@/lib/platform-case-operations-contract";
 import {
   allDayDate,
   applicationStatus,
@@ -36,15 +34,13 @@ import {
   degree as applicationDegree,
   financeBlockedAction,
   financeBlockedActionOptions,
-  visaStatus,
 } from "@/lib/v3/wording";
 
-import { ApplicationUniversitySelector } from "./ApplicationUniversitySelector";
-import type { ProfileAdmissionsWorkspace } from "./types";
+import { ApplicationCreateDialog } from "./ApplicationCreateDialog";
+import type { ApplicationPartnerDetails, ProfileAdmissionsWorkspace } from "./types";
 
-type ActionStatus =
+export type ActionStatus =
   | PlatformUniversityApplicationActionState["status"]
-  | PlatformCaseVisaActionState["status"]
   | PlatformFinanceStopFactorActionState["status"];
 
 const STATUS_COPY: Record<Exclude<ActionStatus, "idle">, string> = {
@@ -63,14 +59,16 @@ function statusTone(status: string): PillTone {
   return "neutral";
 }
 
-function useCanonicalRefresh(status: ActionStatus): void {
+/** Exported for ApplicationCreateDialog.tsx, which reuses this same locked/refresh convention. */
+export function useCanonicalRefresh(status: ActionStatus): void {
   const router = useRouter();
   useEffect(() => {
     if (status === "saved" || status === "stale") router.refresh();
   }, [router, status]);
 }
 
-function PrimaryApplicationField({
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function PrimaryApplicationField({
   defaultChecked,
 }: Readonly<{ defaultChecked: boolean }>) {
   return (
@@ -91,7 +89,8 @@ function PrimaryApplicationField({
   );
 }
 
-function ApplicationCountryField({
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function ApplicationCountryField({
   defaultValue = "",
 }: Readonly<{ defaultValue?: string }>) {
   const options = platformApplicationCountryEditOptions(defaultValue || null);
@@ -110,7 +109,8 @@ function ApplicationCountryField({
   );
 }
 
-function ApplicationDegreeField({
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function ApplicationDegreeField({
   defaultValue = "",
 }: Readonly<{ defaultValue?: string }>) {
   const options = platformApplicationDegreeEditOptions(defaultValue || null);
@@ -146,7 +146,8 @@ function ApplicationGeographySummary({
   );
 }
 
-function StateBanner({ status }: Readonly<{ status: ActionStatus }>) {
+/** Exported for ApplicationCreateDialog.tsx (reuse, not a second copy). */
+export function StateBanner({ status }: Readonly<{ status: ActionStatus }>) {
   if (status === "idle") return null;
   const warning = status === "invalid" || status === "stale" || status === "request_conflict";
   return (
@@ -165,63 +166,18 @@ function StateBanner({ status }: Readonly<{ status: ActionStatus }>) {
   );
 }
 
-function ApplicationCreateForm({ workspace }: Readonly<{ workspace: ProfileAdmissionsWorkspace }>) {
-  const initialState: PlatformUniversityApplicationActionState = {
-    status: "idle",
-    requestId: workspace.requestIds.createApplication,
-    universityApplicationId: null,
-    version: null,
-  };
-  const [state, action, pending] = useActionState(
-    createPlatformUniversityApplicationAction,
-    initialState,
-  );
-  useCanonicalRefresh(state.status);
-  const locked = pending || state.status === "saved" || state.status === "stale";
-
-  return (
-    <form action={action} className="mt-3 space-y-3" aria-busy={pending} data-testid="v3-application-create">
-      <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
-      <input type="hidden" name="request_id" value={state.requestId} />
-      <input type="hidden" name="expected_version" value="0" />
-      <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
-        <ApplicationUniversitySelector key={workspace.studentCaseId} />
-        <label>
-          <span className={labelCls}>Программа</span>
-          <input name="program_name" required maxLength={300} className={inputCls} />
-        </label>
-        <label>
-          <span className={labelCls}>Статус</span>
-          <select name="status" defaultValue="preparation" className={inputCls}>
-            {PLATFORM_APPLICATION_STATUSES.map((status) => (
-              <option key={status} value={status}>{applicationStatus(status) ?? "—"}</option>
-            ))}
-          </select>
-        </label>
-        <PrimaryApplicationField defaultChecked={false} />
-        <label>
-          <span className={labelCls}>Дедлайн от университета</span>
-          <input name="university_deadline_on" type="date" className={inputCls} />
-        </label>
-        <ApplicationCountryField />
-        <ApplicationDegreeField />
-        <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
-          <input name="evidence_reference" maxLength={1000} className={inputCls} />
-        </label>
-        <label className="md:col-span-2">
-          <span className={labelCls}>Заметка</span>
-          <textarea name="note" rows={2} maxLength={1000} className={inputCls} />
-        </label>
-        <button type="submit" className={btnCls} disabled={locked}>
-          {pending ? "Сохраняем…" : "Добавить заявку"}
-        </button>
-      </fieldset>
-      <StateBanner status={state.status} />
-    </form>
-  );
-}
-
+/**
+ * OTH-4 («Отметить статус»): un-deadens `platform.change_university_application`
+ * (live since 107, previously exported but never rendered anywhere — see this
+ * slice's plan doc, «Uni & knowledge base», «Добавленный вуз означает
+ * «рассматриваем». Фактическая подача отмечается отдельно»). Only the
+ * meaningful forward statuses are offered (PLATFORM_APPLICATION_FORWARD_STATUSES
+ * excludes `preparation`, the fixed create-time default). Evidence is always
+ * submitted as one field (exactActionStringFields requires the exact expected
+ * count every time, the same convention `is_primary`'s checkbox already
+ * relies on above) but only rendered/required while the chosen status needs
+ * it; `rejected`/`withdrawn` require a note the same way the RPC itself does.
+ */
 function ApplicationStatusForm({
   workspace,
   application,
@@ -231,7 +187,7 @@ function ApplicationStatusForm({
 }>) {
   const initialState: PlatformUniversityApplicationActionState = {
     status: "idle",
-    requestId: workspace.requestIds.applications[application.universityApplicationId],
+    requestId: workspace.requestIds.changeStatus[application.universityApplicationId],
     universityApplicationId: application.universityApplicationId,
     version: application.version,
   };
@@ -241,6 +197,11 @@ function ApplicationStatusForm({
   );
   useCanonicalRefresh(state.status);
   const locked = pending || state.status === "saved" || state.status === "stale";
+  const [nextStatus, setNextStatus] = useState("");
+  const needsEvidence = PLATFORM_APPLICATION_EVIDENCE_STATUSES.has(
+    nextStatus as (typeof PLATFORM_APPLICATION_FORWARD_STATUSES)[number],
+  );
+  const needsNote = nextStatus === "rejected" || nextStatus === "withdrawn";
 
   return (
     <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
@@ -251,26 +212,32 @@ function ApplicationStatusForm({
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
         <label>
           <span className={labelCls}>Статус</span>
-          <select name="status" defaultValue={application.status} className={inputCls}>
-            {PLATFORM_APPLICATION_STATUSES.map((status) => (
-              <option key={status} value={status}>{applicationStatus(status) ?? "—"}</option>
+          <select
+            name="status"
+            required
+            value={nextStatus}
+            onChange={(event) => setNextStatus(event.target.value)}
+            className={inputCls}
+          >
+            <option value="">Выберите статус</option>
+            {PLATFORM_APPLICATION_FORWARD_STATUSES.filter((status) => status !== application.status).map((status) => (
+              <option key={status} value={status}>{applicationStatus(status)}</option>
             ))}
           </select>
         </label>
-        <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
-          <input
-            name="evidence_reference"
-            defaultValue={application.latestEvidenceReference ?? ""}
-            maxLength={1000}
-            className={inputCls}
-          />
-        </label>
+        {needsEvidence ? (
+          <label>
+            <span className={labelCls}>Ссылка на подтверждение</span>
+            <input name="evidence_reference" required maxLength={1000} className={inputCls} />
+          </label>
+        ) : (
+          <input type="hidden" name="evidence_reference" value="" />
+        )}
         <label className="md:col-span-2">
           <span className={labelCls}>Заметка</span>
-          <textarea name="note" rows={2} maxLength={1000} className={inputCls} />
+          <textarea name="note" required={needsNote} rows={2} maxLength={1000} className={inputCls} />
         </label>
-        <button type="submit" className={btnGhostCls} disabled={locked}>
+        <button type="submit" className={btnGhostCls} disabled={locked || !nextStatus}>
           {pending ? "Сохраняем…" : "Сохранить статус"}
         </button>
       </fieldset>
@@ -326,56 +293,119 @@ function ApplicationDetailsForm({
   );
 }
 
-function VisaForm({ workspace }: Readonly<{ workspace: ProfileAdmissionsWorkspace }>) {
-  const initialState: PlatformCaseVisaActionState = {
+/**
+ * Партнёр и решение — editable since unified workflow S7 (plan §8/§11).
+ * `platform.update_application_partner_details_v1` (migration 184) needs no
+ * admissions_playbook_version_id, unlike the retired 137 write path — see
+ * `readApplicationPartnerDetails` in `src/lib/v3/admissions-source.ts` for
+ * the full history. Read-only fallback stays for staff without
+ * `application.manage`, matching every other write control on this panel
+ * (`canWriteApplications`); renders nothing when every field is empty AND
+ * the actor cannot write — a quiet card, never a permanent placeholder.
+ */
+function ApplicationPartnerFacts({
+  workspace, application, details, canWrite,
+}: Readonly<{
+  workspace: ProfileAdmissionsWorkspace;
+  application: PlatformApplicationQueueRow;
+  details: ApplicationPartnerDetails | undefined;
+  canWrite: boolean;
+}>) {
+  const initialState: PlatformUniversityApplicationActionState = {
     status: "idle",
-    requestId: workspace.requestIds.visa,
-    visaCaseId: workspace.visa?.visaCaseId ?? null,
-    version: workspace.visa?.version ?? null,
+    requestId: workspace.requestIds.partnerDetails[application.universityApplicationId],
+    universityApplicationId: application.universityApplicationId,
+    version: details?.version ?? application.version,
   };
-  const [state, action, pending] = useActionState(upsertPlatformCaseVisaAction, initialState);
+  const [state, action, pending] = useActionState(
+    updateApplicationPartnerDetailsAction,
+    initialState,
+  );
   useCanonicalRefresh(state.status);
-  const locked = pending || state.status === "saved" || state.status === "stale";
+  const locked = !canWrite || pending || state.status === "saved" || state.status === "stale";
+  const [draft, setDraft] = useState({
+    partnerContact: details?.partnerContact ?? "",
+    externalLink: details?.externalLink ?? "",
+    decisionReference: details?.decisionReference ?? "",
+    decisionNote: details?.decisionNote ?? "",
+  });
+
+  if (!canWrite) {
+    const facts = [
+      { label: "Контакт партнёра", value: details?.partnerContact ?? null },
+      { label: "Ссылка", value: details?.externalLink ?? null },
+      { label: "Номер / ссылка решения", value: details?.decisionReference ?? null },
+      { label: "Заметка о решении", value: details?.decisionNote ?? null },
+    ].filter((fact) => fact.value);
+    if (facts.length === 0) return null;
+    return (
+      <div className="mt-3 rounded-nav border border-border p-3">
+        <h4 className="text-sm font-medium text-fg">Партнёр и решение</h4>
+        <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+          {facts.map((fact) => (
+            <div key={fact.label} className="min-w-0">
+              <dt className="text-xs text-fg-3">{fact.label}</dt>
+              <dd className="mt-0.5 break-words text-sm text-fg">{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  }
 
   return (
-    <form action={action} className="mt-3 space-y-3" aria-busy={pending}>
+    <form action={action} className="mt-3 space-y-3 rounded-nav border border-border p-3" aria-busy={pending}>
+      <h4 className="text-sm font-medium text-fg">Партнёр и решение</h4>
+      <input type="hidden" name="application_id" value={application.universityApplicationId} />
       <input type="hidden" name="student_case_id" value={workspace.studentCaseId} />
-      <input type="hidden" name="visa_case_id" value={workspace.visa?.visaCaseId ?? ""} />
       <input type="hidden" name="request_id" value={state.requestId} />
-      <input
-        type="hidden"
-        name="expected_version"
-        value={state.version ?? workspace.visa?.version ?? "0"}
-      />
-      <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
+      <input type="hidden" name="expected_version" value={state.version ?? application.version} />
+      <fieldset disabled={locked} className="grid gap-3 sm:grid-cols-2">
         <label>
-          <span className={labelCls}>Статус</span>
-          <select
-            name="status"
-            defaultValue={workspace.visa?.status ?? "not_started"}
-            className={inputCls}
-          >
-            {PLATFORM_VISA_STATUSES.map((status) => (
-              <option key={status} value={status}>{visaStatus(status) ?? "—"}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className={labelCls}>Ссылка на подтверждение</span>
-          <input name="evidence_reference" required maxLength={2000} className={inputCls} />
-        </label>
-        <label className="md:col-span-2">
-          <span className={labelCls}>Заметка</span>
-          <textarea
-            name="note"
-            rows={2}
-            defaultValue={workspace.visa?.note ?? ""}
-            maxLength={4000}
+          <span className={labelCls}>Контакт партнёра</span>
+          <input
+            name="partner_contact"
+            maxLength={300}
+            value={draft.partnerContact}
+            onChange={(event) => setDraft((previous) => ({ ...previous, partnerContact: event.target.value }))}
             className={inputCls}
           />
         </label>
-        <button type="submit" className={btnCls} disabled={locked}>
-          {pending ? "Сохраняем…" : workspace.visa ? "Обновить визу" : "Создать визовое дело"}
+        <label>
+          <span className={labelCls}>Ссылка</span>
+          <input
+            name="external_link"
+            type="url"
+            maxLength={2000}
+            placeholder="https://…"
+            value={draft.externalLink}
+            onChange={(event) => setDraft((previous) => ({ ...previous, externalLink: event.target.value }))}
+            className={inputCls}
+          />
+        </label>
+        <label>
+          <span className={labelCls}>Номер / ссылка решения</span>
+          <input
+            name="decision_reference"
+            maxLength={300}
+            value={draft.decisionReference}
+            onChange={(event) => setDraft((previous) => ({ ...previous, decisionReference: event.target.value }))}
+            className={inputCls}
+          />
+        </label>
+        <label className="sm:col-span-2">
+          <span className={labelCls}>Заметка о решении</span>
+          <textarea
+            name="decision_note"
+            maxLength={2000}
+            rows={2}
+            value={draft.decisionNote}
+            onChange={(event) => setDraft((previous) => ({ ...previous, decisionNote: event.target.value }))}
+            className={inputCls}
+          />
+        </label>
+        <button type="submit" className={btnGhostCls} disabled={locked}>
+          {pending ? "Сохраняем…" : "Сохранить"}
         </button>
       </fieldset>
       <StateBanner status={state.status} />
@@ -490,14 +520,16 @@ function FinanceStopResolveForm({
 export function ProfileAdmissionsWorkspacePanel({
   actor,
   workspace,
+  partnerDetails = [],
 }: Readonly<{
   actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
+  /** «Партнёр и решение» facts, keyed by application — editable since unified workflow S7 (plan §8/§11). */
+  partnerDetails?: readonly ApplicationPartnerDetails[];
 }>) {
   if (!workspace) return null;
   const canWrite = workspace.caseState === "active" && !isStaffPreview(actor);
   const canWriteApplications = canWrite && staffHasPermission(actor, "application.manage");
-  const canWriteVisa = canWrite && staffHasPermission(actor, "visa.manage");
 
   return (
     <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
@@ -516,7 +548,7 @@ export function ProfileAdmissionsWorkspacePanel({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-medium text-fg">{application.institutionName}</p>
-                    <p className="mt-0.5 text-sm text-fg-3">{application.programName}</p>
+                    {application.programName ? <p className="mt-0.5 text-sm text-fg-3">{application.programName}</p> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Pill tone={application.isPrimary ? "info" : "neutral"}>
@@ -544,18 +576,21 @@ export function ProfileAdmissionsWorkspacePanel({
                     {application.latestEvidenceReference}
                   </p>
                 ) : null}
-                {canWriteApplications ? (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-sm font-medium text-accent">
-                      Изменить статус
-                    </summary>
-                    <ApplicationStatusForm
-                      key={`status-${application.universityApplicationId}-${application.version}`}
-                      workspace={workspace}
-                      application={application}
-                    />
-                  </details>
+                {application.createdByDisplayName ? (
+                  <p className="mt-2 text-xs text-fg-3">
+                    Добавил: {application.createdByDisplayName}
+                  </p>
                 ) : null}
+                <ApplicationPartnerFacts
+                  key={`partner-${application.universityApplicationId}-${
+                    partnerDetails.find((item) => item.applicationId === application.universityApplicationId)?.version
+                      ?? application.version
+                  }`}
+                  workspace={workspace}
+                  application={application}
+                  details={partnerDetails.find((item) => item.applicationId === application.universityApplicationId)}
+                  canWrite={canWriteApplications}
+                />
                 {canWriteApplications ? (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium text-accent">
@@ -568,40 +603,27 @@ export function ProfileAdmissionsWorkspacePanel({
                     />
                   </details>
                 ) : null}
+                {canWriteApplications ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-medium text-accent">
+                      Отметить статус
+                    </summary>
+                    <ApplicationStatusForm
+                      key={`status-${application.universityApplicationId}-${application.version}`}
+                      workspace={workspace}
+                      application={application}
+                    />
+                  </details>
+                ) : null}
               </article>
             ))}
           </div>
         )}
         {canWriteApplications ? (
-          <details className="border-t border-border px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium text-accent">
-              Новая заявка
-            </summary>
-            <ApplicationCreateForm workspace={workspace} />
-          </details>
+          <div className="border-t border-border px-4 py-3">
+            <ApplicationCreateDialog workspace={workspace} />
+          </div>
         ) : null}
-      </Card>
-
-      <Card
-        eyebrow
-        id="visa"
-        title="Виза"
-        aside={workspace.visa ? (
-          <Pill tone={statusTone(workspace.visa.status)}>
-            {visaStatus(workspace.visa.status) ?? "—"}
-          </Pill>
-        ) : undefined}
-      >
-        {!workspace.visa ? (
-          <p className="px-4 pt-3 text-sm text-fg-3">Визовое дело ещё не создано.</p>
-        ) : null}
-        {workspace.visa?.note ? (
-          <p className="px-4 pt-3 text-sm text-fg-3">{workspace.visa.note}</p>
-        ) : null}
-        {canWriteVisa ? <div className="px-4 py-3"><VisaForm
-          key={`visa-${workspace.studentCaseId}-${workspace.visa?.visaCaseId ?? "new"}-${workspace.visa?.version ?? 0}`}
-          workspace={workspace}
-        /></div> : null}
       </Card>
     </div>
   );

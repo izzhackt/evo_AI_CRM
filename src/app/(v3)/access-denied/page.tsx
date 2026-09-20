@@ -14,14 +14,18 @@ export const metadata = { title: "Нет доступа · EVO" };
 const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/main": "Главная",
   "/v3/pipeline": "Воронка продаж",
+  "/v3/admissions-pipeline": "Воронка поступления",
   "/v3/inbox": "Входящие",
-  "/v3/admissions-requests": "Заявки на поступление",
+  "/v3/requests": "Заявки",
   "/v3/profile": "Студенты",
   "/v3/calendar": "Календарь",
   "/v3/tasks": "Задачи",
   "/v3/team-chat": "Командный чат",
+  "/v3/messages": "Сообщения",
   "/v3/universities": "Университеты",
   "/v3/knowledge": "База знаний",
+  "/v3/documents": "Документы",
+  "/v3/reply-snippets": "Шаблоны ответов",
   "/v3/settings": "Настройки",
 };
 

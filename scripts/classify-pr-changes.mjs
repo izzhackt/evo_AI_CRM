@@ -31,6 +31,10 @@ const DOCUMENT_ASSET_EXTENSIONS = new Set([
   ".webp",
 ]);
 // Reviewed proof receipts are documentation; arbitrary JSON remains unknown.
+// Versioned portal content drafts (professions, lessons) are editorial
+// documentation until a seed-generator slice turns them into migrations.
+const CONTENT_DRAFT_PREFIX = "docs/design/portal/content/";
+const CONTENT_DRAFT_EXTENSIONS = new Set([".json", ".md"]);
 const DOCUMENT_ASSET_PATHS = new Set([
   "docs/evidence/public-student-onboarding-local-2026-09-18.json",
   "docs/qa/student-public-onboarding-177-local-2026-09-18.json",
@@ -39,6 +43,10 @@ const DOCUMENT_ASSET_PATHS = new Set([
 const INBOX_DEPENDENCY_PATHS = new Set([
   "agent-lead2-inbox/package.json",
   "agent-lead2-inbox/package-lock.json",
+]);
+const LEAD_AGENT_DEPENDENCY_PATHS = new Set([
+  "evo-lead-agent/pyproject.toml",
+  "evo-lead-agent/uv.lock",
 ]);
 const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
@@ -68,6 +76,10 @@ const KNOWN_CODE_PREFIXES = [
   "deploy/",
   "docs/schemas/",
   "e2e/",
+  // Native iPhone client source (ADR 0030). Node lint/build do not compile
+  // Swift; its real verification is the local xcodebuild run recorded in the
+  // PR, so ios/ counts as known code without requiring the production build.
+  "ios/",
   "public/",
   "scripts/",
   "src/",
@@ -149,11 +161,14 @@ function isOrdinaryProsePath(path) {
     || path.startsWith("presentations/")
     || path.startsWith("specs/")
   ) && DOCUMENT_ASSET_EXTENSIONS.has(extension);
-  return (isRootProse || isDocumentationAsset || DOCUMENT_ASSET_PATHS.has(path)) && !isContractPath(path);
+  const isContentDraft = path.startsWith(CONTENT_DRAFT_PREFIX)
+    && CONTENT_DRAFT_EXTENSIONS.has(extension);
+  return (isRootProse || isDocumentationAsset || isContentDraft || DOCUMENT_ASSET_PATHS.has(path)) && !isContractPath(path);
 }
 
 function isKnownCodePath(path) {
-  return INBOX_DEPENDENCY_PATHS.has(path)
+  return LEAD_AGENT_DEPENDENCY_PATHS.has(path)
+    || INBOX_DEPENDENCY_PATHS.has(path)
     || KNOWN_CODE_PATHS.has(path)
     || hasPrefix(path, KNOWN_CODE_PREFIXES)
     || /^playwright\..+\.config\.ts$/u.test(path);
@@ -175,7 +190,10 @@ export function classifyChangedEntries(entries) {
   ]);
   const strongPaths = paths.filter((path) => !knownLightweight.has(path));
   const inboxDependencyPaths = paths.filter((path) => INBOX_DEPENDENCY_PATHS.has(path));
-  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path));
+  const leadAgentDependencies = paths.some((path) => LEAD_AGENT_DEPENDENCY_PATHS.has(path)
+    || path === "scripts/smoke-lead-agent-dependencies.py"
+    || path === ".github/workflows/evo-fast-pr-checks.yml");
+  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path) && !LEAD_AGENT_DEPENDENCY_PATHS.has(path));
   const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path));
   const codeRequired = strongPaths.length > 0;
   const buildRequired = strongPaths.some(requiresProductionBuild) || unknownPaths.length > 0;
@@ -189,6 +207,7 @@ export function classifyChangedEntries(entries) {
     lint: rootCodePaths.length > 0,
     build: buildRequired,
     inbox_dependencies: inboxDependencyPaths.length > 0,
+    lead_agent_dependencies: leadAgentDependencies,
     unknown: paths.length === 0 || unknownPaths.length > 0,
     paths,
     ordinary_prose_paths: ordinaryProsePaths,

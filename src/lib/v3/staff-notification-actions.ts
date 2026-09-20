@@ -3,7 +3,7 @@ import {
   isStaffNotificationCursor, isStaffNotificationId,
   type StaffNotificationCursor, type StaffNotificationPage,
 } from "@/lib/platform-staff-notifications-contract";
-import { markStaffNotificationRead, readStaffNotifications } from "@/lib/v3/staff-notification-source";
+import { markAllStaffNotificationsRead, markStaffNotificationRead, readStaffNotifications } from "@/lib/v3/staff-notification-source";
 
 export async function loadStaffNotificationsAction(cursor: StaffNotificationCursor | null = null): Promise<
   { ok: true; page: StaffNotificationPage } | { ok: false; message: string }
@@ -16,4 +16,8 @@ export async function markStaffNotificationReadAction(id: string): Promise<{ ok:
   if (!isStaffNotificationId(id)) return { ok: false, message: "Уведомление недоступно." };
   try { await markStaffNotificationRead(id); return { ok: true }; }
   catch { return { ok: false, message: "Уведомление больше недоступно. Обновите список." }; }
+}
+export async function markAllStaffNotificationsReadAction(): Promise<{ ok: boolean; message?: string }> {
+  try { await markAllStaffNotificationsRead(); return { ok: true }; }
+  catch { return { ok: false, message: "Не удалось отметить уведомления прочитанными. Повторите." }; }
 }

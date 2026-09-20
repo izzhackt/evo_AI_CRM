@@ -49,6 +49,12 @@ export default async function StudentAccountPendingPage() {
   ) {
     redirect("/login?error=session_invalid");
   }
+  // PORT-1b: an accepted anketa_v1 invite waits for the анкета, not for a
+  // background provisioning step — the submitted-анкета case already
+  // redirected to /apply/status above.
+  if (inviteSession.receipt.intakeFlow === "anketa_v1") {
+    redirect("/apply");
+  }
 
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-4 py-10">

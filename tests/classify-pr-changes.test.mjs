@@ -303,3 +303,73 @@ test("the exact reviewed PDF font bundle requires a build without allowing unrel
     assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
   }
 });
+
+test("native iOS client sources are known code with lint but no Node production build", () => {
+  for (const path of [
+    "ios/project.yml",
+    "ios/EVOAdmissions/App/EVOApp.swift",
+    "ios/Local.xcconfig.example",
+    "ios/.gitignore",
+  ]) {
+    const result = classifyNameStatus(nul("A", path));
+    assert.equal(result.code, true, path);
+    assert.equal(result.lint, true, path);
+    assert.equal(result.build, false, path);
+    assert.equal(result.ordinary_docs, false, path);
+    assert.equal(result.unknown, false, path);
+  }
+});
+
+test("portal content drafts under docs/design/portal/content are ordinary docs", () => {
+  for (const path of [
+    "docs/design/portal/content/professions-draft.json",
+    "docs/design/portal/content/english-module-1-notes.md",
+  ]) {
+    const result = classifyNameStatus(nul("A", path));
+    assert.equal(result.ordinary_docs, true, path);
+    assert.equal(result.code, false, path);
+    assert.equal(result.unknown, false, path);
+  }
+  for (const path of [
+    "docs/design/portal/content/rogue.bin",
+    "docs/design/portal/other.json",
+  ]) {
+    assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
+  }
+});
+
+
+test("lead-agent dependency scope stays narrow and preserves mixed/rename gates", () => {
+  for (const path of ["evo-lead-agent/pyproject.toml", "evo-lead-agent/uv.lock"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.lead_agent_dependencies, true);
+    assert.equal(result.unknown, false);
+    assert.equal(result.lint, false);
+    assert.equal(result.build, false);
+    assert.equal(result.code, true);
+  }
+  for (const path of ["evo-lead-agent/src/evo_lead_agent/main.py", "evo-lead-agent/uv.lock.bak", "evo-lead-agent/nested/uv.lock"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.lead_agent_dependencies, false);
+    assert.equal(result.unknown, true);
+  }
+  const mixed = classifyNameStatus(nul("M", "evo-lead-agent/uv.lock", "M", "src/app/page.tsx"));
+  assert.equal(mixed.lead_agent_dependencies, true);
+  assert.equal(mixed.lint, true);
+  assert.equal(mixed.build, true);
+  assert.equal(mixed.unknown, false);
+  for (const paths of [["evo-lead-agent/uv.lock", "evo-lead-agent/old.lock"], ["evo-lead-agent/old.lock", "evo-lead-agent/uv.lock"]]) {
+    const result = classifyNameStatus(nul("R100", ...paths));
+    assert.equal(result.lead_agent_dependencies, true);
+    assert.equal(result.unknown, true);
+  }
+});
+
+
+test("dependency smoke and its workflow select the actual Python lane", () => {
+  for (const path of ["scripts/smoke-lead-agent-dependencies.py", ".github/workflows/evo-fast-pr-checks.yml"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.lead_agent_dependencies, true);
+    assert.equal(result.unknown, false);
+  }
+});

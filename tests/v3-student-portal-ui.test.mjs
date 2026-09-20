@@ -10,6 +10,11 @@ import {
   studentOperationalStage,
 } from "../src/lib/v3/wording.ts";
 import { studentPortalNotificationReadRequestId } from "../src/lib/server/student-portal-notification-command-id.ts";
+import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
+
+// PORT-6a: строки экранов сопровождения живут в неймспейсе admission;
+// структурные пины ниже проверяют ключи в TSX и русские значения в словаре.
+const admissionRu = PORTAL_DICTIONARIES.admission.ru;
 
 const ROOT = new URL("../", import.meta.url);
 
@@ -27,17 +32,31 @@ function filesUnder(path) {
     .sort();
 }
 
-test("the Student workspace preserves five portal pages, private tests and published universities", () => {
+test("the Student workspace preserves four portal pages, private tests and published universities", () => {
   const pageFiles = filesUnder("src/app/(portal)/portal/")
     .filter((path) => path.endsWith("/page.tsx") || path.endsWith("portal/page.tsx"));
 
+  // applications/page.tsx stays on disk (unified workflow S5): the route is
+  // kept connected only so old bookmarks/notification links still resolve,
+  // and its file is now an unconditional redirect to /portal, not a page
+  // with its own reader/view — see the "direct strict E2 result" test below.
   assert.deepEqual(pageFiles, [
     "src/app/(portal)/portal/applications/page.tsx",
     "src/app/(portal)/portal/documents/page.tsx",
+    "src/app/(portal)/portal/english/lesson/[lessonId]/page.tsx",
+    "src/app/(portal)/portal/english/page.tsx",
+    "src/app/(portal)/portal/english/review/page.tsx",
+    "src/app/(portal)/portal/favorites/page.tsx",
+    // PORT-9c: «Главная» — отдельный маршрут (корень /portal — смоук-якорь).
+    "src/app/(portal)/portal/home/page.tsx",
+    "src/app/(portal)/portal/messages/page.tsx",
     "src/app/(portal)/portal/notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/notifications/page.tsx",
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal/payments/page.tsx",
+    "src/app/(portal)/portal/professions/[cardId]/page.tsx",
+    "src/app/(portal)/portal/professions/page.tsx",
+    "src/app/(portal)/portal/profile/page.tsx",
     "src/app/(portal)/portal/tests/career/page.tsx",
     "src/app/(portal)/portal/tests/english/page.tsx",
     "src/app/(portal)/portal/tests/page.tsx",
@@ -45,27 +64,42 @@ test("the Student workspace preserves five portal pages, private tests and publi
     "src/app/(portal)/portal/universities/page.tsx",
   ]);
 
-  const shell = source("src/components/v3/portal/PortalShell.tsx");
+  // PORT-2: the shell moved to src/components/portal/Shell.tsx (replace-don't-
+  // layer, design contract docs/design/portal/design-contract.md). The section
+  // list keeps exactly today's ten real routes (favorites — PORT-3b,
+  // profile — PORT-5a, professions/english — PORT-4c); assisted-only sections
+  // carry a tiers gate instead of disappearing from the source.
+  const shell = source("src/components/portal/Shell.tsx");
   assert.deepEqual(
     [...shell.matchAll(/href: "([^"]+)"/gu)].map((match) => match[1]),
     [
+      // PORT-9c: «Главная» — первый пункт обоих tier'ов.
+      "/portal/home",
       "/portal",
       "/portal/documents",
-      "/portal/applications",
+      // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
+      "/portal/messages",
       "/portal/universities",
+      "/portal/professions",
+      "/portal/english",
+      "/portal/favorites",
       "/portal/payments",
       "/portal/notifications",
       "/portal/tests",
+      "/portal/profile",
     ],
   );
 });
 
 test("the portal uses the Student guard and never mounts the staff shell", () => {
   const layout = source("src/app/(portal)/layout.tsx");
-  const shell = source("src/components/v3/portal/PortalShell.tsx");
+  // PORT-2: the layout mounts the new portal Shell and derives the access
+  // tier from caseState with the exact semantics PORT-1a will move server-side.
+  const shell = source("src/components/portal/Shell.tsx");
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
-  assert.match(layout, /<PortalShell displayName=\{actor\.displayName\}>/u);
+  assert.match(layout, /<Shell displayName=\{actor\.displayName\} accessTier=\{accessTier\} locale=\{locale\}>/u);
+  assert.match(layout, /actor\.caseState === "pending" \? "approved" : "assisted"/u);
   assert.match(shell, /logoutStudentPortalAction/u);
   assert.doesNotMatch(
     `${layout}\n${shell}`,
@@ -85,10 +119,10 @@ test("Student render guard deduplicates only through React request-local cache",
 });
 
 test("route entry reads the notification badge without a duplicate route refresh", () => {
-  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
   assert.match(updates, /async function update\(refreshContent = true\)/u);
   assert.match(updates, /const result = await loadStudentPortalNotificationState\(\);\s*if \(disposed\) return;/u);
-  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); return; \}/u);
+  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); setUnread\(null\); return; \}/u);
   assert.match(updates, /if \(refreshContent && refreshPage\) \{\s*startTransition\(\(\) => router\.refresh\(\)\)/u);
   assert.match(updates, /void update\(false\);\s*return \(\) => \{\s*disposed = true;/u);
   assert.match(updates, /retry\.current = \(\) => \{ void update\(\); \}/u);
@@ -98,16 +132,6 @@ test("route entry reads the notification badge without a duplicate route refresh
     assert.ok(updates.includes(`addEventListener("${event}", resume)`));
     assert.ok(updates.includes(`removeEventListener("${event}", resume)`));
   }
-});
-
-test("application and visa projections overlap without dropping validation", () => {
-  const reader = source("src/lib/v3/portal-source.ts").split("export async function readStudentPortalApplications(")[1].split("export async function readStudentPortalPayments(")[0];
-  assert.match(reader, /const \[applications, visas\] = await Promise\.all\(\[/u);
-  assert.match(reader, /const \[applicationRows, visa\] = await Promise\.all\(\[/u);
-  assert.match(reader, /if \(visas\.length > 1\) return invalidShape\(\)/u);
-  assert.match(reader, /assertTimelineContinuity\(timeline, application\.status\)/u);
-  assert.match(reader, /assertTimelineContinuity\(timeline, visas\[0\]\.status\)/u);
-  assert.match(reader, /return failClosed\(error\)/u);
 });
 
 test("Student preview implementation and staff entry are retired without removing the real portal", () => {
@@ -126,8 +150,10 @@ test("Student preview implementation and staff entry are retired without removin
   assert.doesNotMatch(staffShell, /student-portal-preview|\/preview\/student|Предпросмотр кабинета студента/u);
   assert.match(staffShell, /selectStaffRolePreviewAction/u);
   for (const path of [
-    "src/components/v3/portal/PortalShell.tsx",
-    "src/components/v3/portal/OverviewView.tsx",
+    // PORT-2: the live shell lives in src/components/portal/Shell.tsx now.
+    "src/components/portal/Shell.tsx",
+    // PORT-5d: «Моё поступление» живёт в Атласе.
+    "src/components/portal/admission/OverviewView.tsx",
   ]) assert.doesNotMatch(source(path), /preview/u, path);
   for (const path of [
     "src/app/(portal)/portal/tests/english/page.tsx",
@@ -141,7 +167,6 @@ test("every page passes the direct strict E2 result to its view", () => {
   const expected = [
     ["src/app/(portal)/portal/page.tsx", "readStudentPortalOverview", "overview", "OverviewView"],
     ["src/app/(portal)/portal/documents/page.tsx", "readStudentPortalDocuments", "documents", "DocumentsView"],
-    ["src/app/(portal)/portal/applications/page.tsx", "readStudentPortalApplications", "applications", "ApplicationsView"],
     ["src/app/(portal)/portal/payments/page.tsx", "readStudentPortalPayments", "payments", "PaymentsView"],
     ["src/app/(portal)/portal/notifications/page.tsx", "readStudentPortalNotifications", "notifications", "NotificationsView"],
   ];
@@ -152,12 +177,16 @@ test("every page passes the direct strict E2 result to its view", () => {
       page,
       new RegExp(`import \\{ ${reader} \\} from "@/lib/v3/portal-source"`, "u"),
     );
+    // PORT-6a: страницы дополнительно читают locale (тем же Promise.all) и
+    // передают его view — RU/KY словарь admission резолвится на сервере.
     if (resultName === "overview") {
-      assert.match(page, /const \[overview, actor\] = await Promise\.all\(\[readStudentPortalOverview\(\), requireStudentPortalActor\(\)\]\)/u);
+      assert.match(page, /const \[overview, actor, locale\] = await Promise\.all\(\[readStudentPortalOverview\(\), requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
       assert.match(page, /<CaseHelpWorkspace actor=\{actor\} caseId=\{actor\.studentCaseId\} student/u);
+      assert.match(page, /pending=\{actor\.caseState === "pending"\}/u);
     } else {
-      assert.match(page, new RegExp(`const ${resultName} = await ${reader}\\(\\)`, "u"));
+      assert.match(page, new RegExp(`const \\[${resultName}, locale\\] = await Promise\\.all\\(\\[${reader}\\(\\), getLocale\\(\\)\\]\\)`, "u"));
     }
+    assert.match(page, new RegExp(`<${component}[\\s\\S]*locale=\\{locale\\}`, "u"));
     assert.match(
       page,
       new RegExp(`<${component}[\\s\\S]*${resultName}=\\{${resultName}\\}`, "u"),
@@ -166,15 +195,94 @@ test("every page passes the direct strict E2 result to its view", () => {
   }
 });
 
+test("the home screen continues real work, keeps the smoke root and omits invented recency", () => {
+  // PORT-9c: «Главная» — отдельный маршрут /portal/home; корень /portal
+  // остаётся «Моим поступлением» (замороженные смоук-якоря production).
+  const page = source("src/app/(portal)/portal/home/page.tsx");
+  const view = source("src/components/portal/home/HomeView.tsx");
+  const homeRu = PORTAL_DICTIONARIES.home.ru;
+
+  assert.match(page, /requireStudentPortalActor\(\)/u);
+  // PORT-1a: граница уровня доступа — серверный accessTier authority, не
+  // повторная scattered-деривация из caseState (review #907, finding A).
+  assert.match(page, /const tier = actor\.accessTier;/u);
+  assert.doesNotMatch(page, /caseState === "pending"/u);
+
+  // Только существующие read model — никаких новых RPC и обёрточных DTO.
+  for (const reader of [
+    "readStudentPortalOverview",
+    "readLearningModules",
+    "readStudentAssessments",
+    "readStudentUniversityFavorites",
+    "readStudentUniversitiesByIds",
+  ]) assert.match(page, new RegExp(`\\b${reader}\\b`, "u"), reader);
+  assert.doesNotMatch(page, /\.rpc\(|\.schema\(|createClient|supabase|sqlite|drizzle|fixture|demo/iu);
+  assert.doesNotMatch(view, /\.rpc\(|\.schema\(|createClient|supabase|useEffect|fixture|demo/iu);
+
+  // Обзор дела читается только для assisted; каждый источник несёт свой
+  // честный fallback (catch -> null/failed), не роняя весь экран.
+  assert.match(page, /tier === "assisted"\s*\?\s*readStudentPortalOverview\(\)/u);
+  assert.match(page, /readLearningModules\(\)\.catch\(/u);
+  assert.match(page, /readStudentAssessments\(\)\.catch\(/u);
+  assert.match(view, /overviewFailed/u);
+  assert.equal(homeRu.caseUnavailable, "Не удалось загрузить действия по делу. Обновите страницу.");
+
+  // «Продолжить» — реальные состояния движка 198 и E2, не выдуманный прогресс.
+  assert.match(view, /draftAttemptId/u);
+  assert.match(view, /\/portal\/english\/lesson\/\$\{picked\.lesson\.lessonId\}/u);
+  assert.match(view, /assessmentPath\(draftInstrument\.instrumentKey\)/u);
+  assert.doesNotMatch(view, /готовност|processed|percent/iu);
+
+  // Избранное — с ближайшим интейком (только open/announced внутри helper'а).
+  assert.match(view, /nearestUniversityIntake/u);
+  assert.match(view, /\/portal\/universities\/\$\{item\.id\}/u);
+
+  // Assisted: та же модель действий, что у OverviewView «Моего поступления».
+  assert.match(view, /overview\?\.studentAction/u);
+  assert.match(view, /\/portal\/documents#document-\$\{action\.documentSlotId\}/u);
+  assert.match(view, /href="\/portal"/u);
+
+  // Честный пропуск: «новое в каталоге» не строится — publishedAt каталога
+  // не является признаком новизны (см. docs/PLAN_CHANGES.md PORT-9c); пропуск
+  // задокументирован в самом view, а поле не используется как «новизна».
+  assert.doesNotMatch(view, /item\.publishedAt|новинк/iu);
+  assert.match(view, /«Новое в каталоге» сознательно/u);
+
+  // Смоук-якоря корня не тронуты: /portal остаётся «Моим поступлением».
+  const rootPage = source("src/app/(portal)/portal/page.tsx");
+  assert.match(rootPage, /readStudentPortalOverview/u);
+  assert.match(rootPage, /strings\.overviewTitle/u);
+  assert.equal(PORTAL_DICTIONARIES.admission.ru.overviewTitle, "Моё поступление");
+
+  // «Главная» подключена за прокси (урок hotfix'а release-3).
+  const routeContract = source("src/lib/platform-route-contract.ts");
+  assert.match(routeContract, /"\/portal\/home",/u);
+});
+
+test("the retired applications route is an unconditional redirect, not a view", () => {
+  const page = source("src/app/(portal)/portal/applications/page.tsx");
+  assert.match(page, /import \{ redirect \} from "next\/navigation"/u);
+  assert.match(page, /redirect\("\/portal"\)/u);
+  assert.doesNotMatch(
+    page,
+    /readStudentPortal|ApplicationsView|createClient|supabase|sqlite|drizzle|fixture|demo/iu,
+  );
+});
+
 test("overview names each actor from the canonical projection and links exact items", () => {
-  const overview = source("src/components/v3/portal/OverviewView.tsx");
-  const documents = source("src/components/v3/portal/DocumentsView.tsx");
+  // PORT-5d: «Моё поступление» живёт в Атласе (portal/admission).
+  const overview = source("src/components/portal/admission/OverviewView.tsx");
+  const documents = source("src/components/portal/admission/DocumentsView.tsx");
 
   assert.match(overview, /overview\?\.studentAction/u);
   assert.match(overview, /overview\?\.evoAction/u);
   assert.doesNotMatch(overview, /overview\.nextAction/u);
-  assert.match(overview, /Что требуется от вас/u);
-  assert.match(overview, /Что делает EVO/u);
+  // PORT-6a: строки — ключи admission-словаря; RU-значения остались
+  // байт-в-байт прежними (проверяется по словарю, не по TSX).
+  assert.match(overview, /strings\.nextStepNote/u);
+  assert.match(overview, /strings\.evoHeading/u);
+  assert.equal(admissionRu.nextStepNote, "Что требуется от вас");
+  assert.equal(admissionRu.evoHeading, "Что делает EVO");
   assert.match(
     overview,
     /\/portal\/documents#document-\$\{action\.documentSlotId\}/u,
@@ -182,16 +290,80 @@ test("overview names each actor from the canonical projection and links exact it
   // Overview is a flat action queue now: no nested <details> disclosure.
   assert.doesNotMatch(overview, /<details/u);
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
-  assert.match(
-    overview,
-    /Сейчас нет действий по документам и оплате/u,
+  assert.match(overview, /strings\.calmDoneLead/u);
+  assert.equal(
+    admissionRu.calmDoneLead,
+    "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору.",
   );
-  assert.match(overview, /Нет опубликованной задачи команды EVO/u);
-  assert.match(overview, /min-h-11/u);
+  assert.match(overview, /strings\.evoEmpty/u);
+  assert.equal(admissionRu.evoEmpty, "Нет опубликованной задачи команды EVO.");
+  // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
+  assert.match(overview, /pt-btn/u);
   assert.match(
     documents,
     /id=\{`document-\$\{document\.documentSlotId\}`\}/u,
   );
+});
+
+test("the overview never claims a mandatory stage, and a pending cabinet stays honest", () => {
+  const overview = source("src/components/portal/admission/OverviewView.tsx");
+  const presentation = source("src/components/portal/admission/presentation.ts");
+  const wording = source("src/lib/v3/wording.ts");
+  const portalPage = source("src/app/(portal)/portal/page.tsx");
+  const applyStatusPage = source("src/app/apply/status/page.tsx");
+
+  // Plan §10/S5: no invented mandatory stage pill, and no leftover helper.
+  assert.doesNotMatch(overview, /Текущий этап/u);
+  assert.doesNotMatch(overview, /overviewStage/u);
+  assert.doesNotMatch(presentation, /export function overviewStage/u);
+
+  // PORT-8c: операционный этап из read model рендерится честно — известные
+  // ключи через admission.stage.* (RU байт-в-байт зеркалит staff-словарь
+  // studentOperationalStage), нестандартное значение — stageCustom, без
+  // overview этапа нет вовсе. Никакого нового RPC и выдуманных названий.
+  assert.match(overview, /overview\.operationalStage/u);
+  assert.match(overview, /strings\.stageCustom/u);
+  assert.match(overview, /const stage = overview \? stageLabel\(overview\.operationalStage, strings\) : null/u);
+  for (const key of [
+    "contract_confirmed",
+    "admissions_handoff",
+    "intake",
+    "profile_and_route",
+    "documents",
+    "applications",
+    "decisions",
+    "visa_and_predeparture",
+    "arrival_and_adaptation",
+    "completed",
+    "closed",
+  ]) {
+    assert.equal(admissionRu[`stage.${key}`], studentOperationalStage(key), key);
+  }
+  assert.equal(admissionRu.stageCustom, studentOperationalStage("nonstandard_stage_value"));
+
+  // A pending, curator-less cabinet (S1's «кабинет до продажи») gets its own
+  // quiet, accurate copy instead of a fabricated curator or stage.
+  // PORT-6a: словарь pending-кабинета переехал из wording.portalPendingCabinet
+  // в admission.pending* (RU байт-в-байт тот же — проверено ниже по значениям),
+  // потому что этим экранам нужен KY, а staff-словарь не локализуется.
+  assert.match(overview, /pending\??: boolean/u);
+  assert.match(overview, /pending \? strings\.pendingHeading : strings\.curatorHeading/u);
+  assert.match(overview, /strings\.pendingManagerNotice/u);
+  assert.equal(admissionRu.pendingHeading, "Сопровождение");
+  assert.equal(admissionRu.pendingManagerNotice, "Менеджер свяжется с вами.");
+  assert.equal(admissionRu.pendingApplicationHeading, "Ваша анкета");
+  assert.equal(admissionRu.pendingApplicationHint, "Анкета, которую вы отправили и одобрила команда EVO.");
+  assert.equal(admissionRu.pendingApplicationLink, "Открыть анкету");
+  assert.equal(admissionRu.curatorHeading, "Ваш куратор");
+  assert.match(overview, /href="\/apply\/status"/u);
+  assert.match(wording, /export const portalPendingCabinet = \{/u);
+  assert.match(portalPage, /pending=\{actor\.caseState === "pending"\}/u);
+
+  // /apply/status stays reachable for a pending cabinet instead of bouncing
+  // straight back to /portal (the only place the submitted анкета can be
+  // read once a portal case exists).
+  assert.match(applyStatusPage, /portal\.authority\.caseState === "pending"/u);
+  assert.match(applyStatusPage, /if \(!stillPending\) redirect\(destination\);/u);
 });
 
 test("migration 131 adds a v2 overview while preserving the rollback v1", () => {
@@ -233,28 +405,35 @@ test("migration 131 adds a v2 overview while preserving the rollback v1", () => 
 });
 
 test("views consume the exact E2 DTOs without an invented wrapper", () => {
-  assert.equal(
-    existsSync(new URL("src/components/v3/portal/types.ts", ROOT)),
-    false,
-  );
+  // PORT-5d: перенос в Атлас не изобретает обёрточных DTO — те же E2-типы.
+  for (const dir of ["src/components/v3/portal", "src/components/portal/admission"]) {
+    assert.equal(existsSync(new URL(`${dir}/types.ts`, ROOT)), false, dir);
+  }
 
   const expectedTypes = new Map([
     ["OverviewView.tsx", "StudentPortalOverview"],
     ["DocumentsView.tsx", "StudentPortalDocument"],
-    ["ApplicationsView.tsx", "StudentPortalApplications"],
     ["PaymentsView.tsx", "StudentPortalPayment"],
     ["NotificationsView.tsx", "StudentPortalNotification"],
   ]);
   for (const [filename, typeName] of expectedTypes) {
-    const view = source(`src/components/v3/portal/${filename}`);
+    const view = source(`src/components/portal/admission/${filename}`);
     assert.match(view, new RegExp(`\\b${typeName}\\b`, "u"));
     assert.match(view, /@\/lib\/v3\/portal-source/u);
     assert.doesNotMatch(view, /Portal(?:Overview|Documents|Applications|Payments|Notifications)View/u);
+    // Replace-don't-layer: старый v3-файл удалён, не задублирован.
+    assert.equal(
+      existsSync(new URL(`../src/components/v3/portal/${filename}`, import.meta.url)),
+      false,
+      filename,
+    );
   }
 
-  const applications = source("src/components/v3/portal/ApplicationsView.tsx");
-  const payments = source("src/components/v3/portal/PaymentsView.tsx");
-  assert.match(applications, /application\.isPrimary/u);
+  assert.equal(
+    existsSync(new URL("../src/components/v3/portal/ApplicationsView.tsx", import.meta.url)),
+    false,
+  );
+  const payments = source("src/components/portal/admission/PaymentsView.tsx");
   assert.match(payments, /payment\.category/u);
   assert.match(payments, /payment\.refundedMinor/u);
   assert.doesNotMatch(payments, /paymentObligationId/u);
@@ -274,16 +453,21 @@ test("the single wording module maps every Student status exposed by E2", () => 
     ["completed", "поступление завершено"],
     ["closed", "дело закрыто"],
   ]);
+  // S6 (plan §9): document slot status becomes «Не загружен / На проверке /
+  // Нужно исправить / Принят» (Pill-only presentation, so capitalized);
+  // «Отклонён» stays as the fifth, honest state the plan's list doesn't
+  // prohibit. Review decision keeps the same three words lowercase — it is
+  // also read mid-sentence in ProfileDocumentsClient.tsx.
   const documentStatuses = new Map([
-    ["required", "требуется"],
-    ["submitted", "отправлен"],
-    ["approved", "принят"],
-    ["correction_required", "нужно исправить"],
-    ["rejected", "отклонён"],
+    ["required", "Не загружен"],
+    ["submitted", "На проверке"],
+    ["approved", "Принят"],
+    ["correction_required", "Нужно исправить"],
+    ["rejected", "Отклонён"],
   ]);
   const reviewDecisions = new Map([
     ["approved", "принят"],
-    ["correction_required", "возвращён на исправление"],
+    ["correction_required", "нужно исправить"],
     ["rejected", "отклонён"],
   ]);
   const paymentStatuses = new Map([
@@ -376,8 +560,16 @@ test("Student stage wording matches the exact schema and published OZO lifecycle
 });
 
 test("existing case portal views stay presentation-only and never render raw status keys", () => {
-  const componentFiles = filesUnder("src/components/v3/portal/")
-    .filter((path) => path.endsWith(".tsx") && !path.includes("/assessments/"));
+  // PORT-5d: экраны «Моего поступления» живут в portal/admission. PORT-8c:
+  // экраны тестов переехали в portal/tests (их клиентский раннер сохраняет
+  // useEffect-механику и закреплён tests/student-assessments.test.mjs);
+  // Уведомления перенесены в Atlas header; admission views остаются presentation-only.
+  const componentFiles = [
+    ...filesUnder("src/components/v3/portal/")
+      .filter((path) => path.endsWith(".tsx")),
+    ...filesUnder("src/components/portal/admission/")
+      .filter((path) => path.endsWith(".tsx")),
+  ];
   const components = componentFiles.map(source).join("\n");
 
   assert.doesNotMatch(
@@ -392,19 +584,21 @@ test("existing case portal views stay presentation-only and never render raw sta
     .filter(path => !path.endsWith("/PortalNotificationUpdates.tsx"))
     .map(source).join("\n");
   assert.doesNotMatch(presentationViews, /useEffect/u);
-  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
   assert.match(updates, /loadStudentPortalNotificationState/u);
   assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);
   assert.match(components, /<PortalStatus[\s\S]*label=/u);
-  assert.match(components, /Что нужно исправить/u);
-  assert.match(components, /История статусов/u);
+  // PORT-6a: подпись «Что нужно исправить» — ключ admission.reworkTitle,
+  // RU-значение прежнее байт-в-байт.
+  assert.match(components, /strings\.reworkTitle/u);
+  assert.equal(admissionRu.reworkTitle, "Что нужно исправить");
 });
 
 test("mark-read accepts one opaque handle and creates authority and replay data server-side", () => {
   const action = source("src/lib/student-portal-actions.ts");
-  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const notifications = source("src/components/portal/admission/NotificationsView.tsx");
   const submit = source(
-    "src/components/v3/portal/PortalNotificationReadButton.tsx",
+    "src/components/portal/admission/PortalNotificationReadButton.tsx",
   );
   const browser = source("tests/e2e/student-portal.spec.ts");
 
@@ -420,7 +614,9 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   assert.doesNotMatch(action, /form\.get\("request_id"\)|auth_user_id|organization_id|student_case_id/iu);
   assert.match(notifications, /form action=\{markReadAction\}/u);
   assert.match(notifications, /name="notification_id"/u);
-  assert.match(notifications, /<PortalNotificationReadButton \/>/u);
+  // PORT-6a: кнопка получает locale и берёт подписи из admission-словаря
+  // (RU байт-в-байт прежние — проверено по словарю ниже).
+  assert.match(notifications, /<PortalNotificationReadButton locale=\{locale\} \/>/u);
   assert.doesNotMatch(notifications, /onClick|fetch\(|useState/u);
   assert.match(submit, /^"use client";/u);
   assert.match(submit, /useFormStatus/u);
@@ -428,8 +624,10 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
   assert.match(submit, /aria-disabled=\{pending\}/u);
   assert.match(
     submit,
-    /pending \? "Отмечаем…" : "Отметить прочитанным"/u,
+    /pending \? strings\.marking : strings\.markRead/u,
   );
+  assert.equal(admissionRu.marking, "Отмечаем…");
+  assert.equal(admissionRu.markRead, "Отметить прочитанным");
   assert.match(
     browser,
     /const markReadSubmission = notification\.locator\('form button\[type="submit"\]'\);[\s\S]*await markReadSubmission\.click\(\);[\s\S]*await expect\(markReadSubmission\)\.toHaveCount\(0\)/u,
@@ -437,23 +635,27 @@ test("mark-read accepts one opaque handle and creates authority and replay data 
 });
 
 test("notifications deep-link by category, and bulk mark-read loops the existing single action", () => {
-  const presentation = source("src/components/v3/portal/presentation.ts");
-  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const presentation = source("src/components/portal/admission/presentation.ts");
+  const notifications = source("src/components/portal/admission/NotificationsView.tsx");
   const notificationsPage = source("src/app/(portal)/portal/notifications/page.tsx");
-  const markAll = source("src/components/v3/portal/PortalMarkAllReadButton.tsx");
+  const markAll = source("src/components/portal/admission/PortalMarkAllReadButton.tsx");
 
   assert.match(presentation, /export function portalNotificationTarget/u);
   assert.match(presentation, /notification\.eventCode === "case_help_answer"/u);
   assert.match(presentation, /notification\.category\.startsWith\("document"\)/u);
   assert.match(presentation, /notification\.category\.startsWith\("payment"\)/u);
-  assert.match(
+  // Retired screen (unified workflow S5): the never-emitted application/visa
+  // categories no longer get their own branch — they fall through to the
+  // same default overview link every other unknown category already uses.
+  assert.doesNotMatch(
     presentation,
-    /notification\.category\.startsWith\("application"\) \|\| notification\.category\.startsWith\("visa"\)/u,
+    /notification\.category\.startsWith\("application"\)|notification\.category\.startsWith\("visa"\)|Открыть заявки/u,
   );
 
-  assert.match(notifications, /portalNotificationTarget\(notification\)/u);
+  // PORT-6a: цели уведомлений локализуемы — helper получает admission-словарь.
+  assert.match(notifications, /portalNotificationTarget\(notification, strings\)/u);
   assert.match(notifications, /href=\{target\.href\}/u);
-  assert.match(notifications, /<PortalMarkAllReadButton \/>/u);
+  assert.match(notifications, /<PortalMarkAllReadButton locale=\{locale\} \/>/u);
   assert.match(notifications, /form action=\{markAllReadAction\}/u);
 
   assert.match(markAll, /^"use client";/u);
@@ -528,14 +730,26 @@ test("notification command IDs replay per verified Student actor and notificatio
 });
 
 test("portal includes honest empty, loading and failure states", () => {
-  const components = filesUnder("src/components/v3/portal/")
+  const admission = filesUnder("src/components/portal/admission/")
     .filter((path) => path.endsWith(".tsx"))
     .map(source)
     .join("\n");
   const loading = source("src/app/(portal)/portal/loading.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
-  assert.match(components, /PortalEmptyState/u);
+  // PORT-8c: пустое состояние каталога тестов — честный pt-empty из словаря
+  // tests, а границы маршрута тестов рескинены на pt-классы.
+  const testsCatalog = source("src/components/portal/tests/TestsCatalog.tsx");
+  assert.match(testsCatalog, /pt-empty/u);
+  assert.match(testsCatalog, /strings\.emptyTitle/u);
+  assert.match(source("src/app/(portal)/portal/tests/loading.tsx"), /role="status"/u);
+  assert.match(source("src/app/(portal)/portal/tests/error.tsx"), /role="alert"/u);
+  // PORT-5d: пустые состояния Атласа — честный заголовок + следующий шаг.
+  // PORT-6a: смоук-якорь «Список документов пока пуст» живёт RU-значением
+  // ключа admission.documentsEmptyTitle (смоук-аккаунт — language=ru).
+  assert.match(admission, /pt-adm-empty/u);
+  assert.match(admission, /strings\.documentsEmptyTitle/u);
+  assert.equal(admissionRu.documentsEmptyTitle, "Список документов пока пуст");
   assert.match(loading, /aria-busy="true"/u);
   assert.match(error, /role="alert"/u);
   assert.match(error, /Попробуйте ещё раз или откройте другой раздел через меню/u);
@@ -544,15 +758,17 @@ test("portal includes honest empty, loading and failure states", () => {
 // This is deliberately structural. The cumulative E5 integration gate must
 // still exercise 393px, forced-dark and axe against real Supabase-backed pages.
 test("markup keeps responsive hooks and semantic navigation for the later browser gate", () => {
-  const shell = source("src/components/v3/portal/PortalShell.tsx");
-  const components = filesUnder("src/components/v3/portal/")
-    .filter((path) => path.endsWith(".tsx"))
-    .map(source)
-    .join("\n");
+  // PORT-2: the shell is src/components/portal/Shell.tsx styled by --pt-*
+  // tokens in src/app/(portal)/portal.css (design contract
+  // docs/design/portal/design-contract.md). The mobile hamburger panel became
+  // a fixed bottom tab bar, so the aria-expanded/menu-button pins retired with
+  // it; responsive hooks, 44px targets and both themes now live in the CSS
+  // file, and the production smoke anchors stay byte-for-byte in the TSX.
+  const shell = source("src/components/portal/Shell.tsx");
+  const portalCss = source("src/app/(portal)/portal.css");
 
-  // Token-based Tailwind now, no CSS modules: responsive hooks and 44px
-  // targets live as utility classes directly on the shell/view markup.
   for (const removed of [
+    "PortalShell.tsx",
     "PortalShell.module.css",
     "OverviewView.module.css",
     "DocumentsView.module.css",
@@ -563,40 +779,44 @@ test("markup keeps responsive hooks and semantic navigation for the later browse
       removed,
     );
   }
-  assert.match(shell, /aria-expanded=\{navigationOpen\}/u);
-  assert.match(shell, /aria-controls="portal-navigation-panel"/u);
-  assert.match(shell, /href="#portal-content"/u);
-  assert.match(shell, /event\.key === "Escape"/u);
-  assert.match(shell, /md:hidden/u);
-  assert.match(shell, /min-h-11/u);
-  assert.match(shell, /aria-label="Навигация по разделам кабинета"/u);
-  assert.match(shell, /tabIndex=\{-1\}/u);
-  assert.match(shell, /menuButton/u);
-  assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);
+  assert.match(shell, /data-testid="student-portal-shell"/u);
   assert.match(shell, /aria-label="Разделы кабинета"/u);
-  assert.match(components, /sm:grid-cols-2|sm:grid-cols-3/u);
+  assert.match(shell, /href="#portal-content"/u);
+  assert.match(shell, /tabIndex=\{-1\}/u);
+  assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);
+  assert.doesNotMatch(shell, /className="[^"]*\b(?:bg|text|border)-(?:surface|fg|accent|border)/u);
+  assert.match(portalCss, /@media \(min-width: 768px\)/u);
+  assert.match(portalCss, /@media \(max-width: 767px\)/u);
+  assert.match(portalCss, /min-height: 44px/u);
+  assert.match(portalCss, /@media \(prefers-color-scheme: dark\)/u);
+  assert.match(portalCss, /@media \(prefers-reduced-motion: reduce\)/u);
+  // PORT-5d: адаптивность «Моего поступления» живёт в pt-классах, не в
+  // tailwind-утилитах: двухколоночный обзор схлопывается на узком экране,
+  // суммы — auto-fit сетка.
+  assert.match(portalCss, /\.pt-adm-grid \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1\.9fr\) minmax\(240px, 1fr\)/u);
+  assert.match(portalCss, /@media \(max-width: 900px\) \{\s*\.pt-adm-grid \{\s*grid-template-columns: minmax\(0, 1fr\);/u);
+  assert.match(portalCss, /repeat\(auto-fit, minmax\(140px, 1fr\)\)/u);
 });
 
 test("portal feedback and status markers reuse the shared restrained visual language", () => {
-  const applications = source("src/components/v3/portal/ApplicationsView.tsx");
-  const documents = source("src/components/v3/portal/DocumentsView.tsx");
-  const notifications = source("src/components/v3/portal/NotificationsView.tsx");
+  const documents = source("src/components/portal/admission/DocumentsView.tsx");
+  const notifications = source("src/components/portal/admission/NotificationsView.tsx");
   const error = source("src/app/(portal)/portal/error.tsx");
 
-  assert.match(
-    applications,
-    /<PortalStatus label=\{item\.label\} tone="neutral" \/>/u,
-  );
+  // PORT-6a: «Новое» — ключ admission.statusNew (RU байт-в-байт прежний).
   assert.match(
     notifications,
-    /<PortalStatus label="Новое" tone="info" \/>/u,
+    /<PortalStatus label=\{strings\.statusNew\} tone="info" \/>/u,
   );
+  assert.equal(admissionRu.statusNew, "Новое");
   assert.doesNotMatch(
     `${documents}\n${notifications}\n${error}`,
     /border-danger|bg-danger-weak|rounded-\[5px\] bg-info-weak/u,
   );
   assert.match(documents, /role="note"/u);
-  assert.match(documents, /aria-label="Что нужно исправить"/u);
+  // PORT-6a: aria-label локализуется тем же ключом admission.reworkTitle,
+  // что и видимый заголовок блока.
+  assert.match(documents, /aria-label=\{strings\.reworkTitle\}/u);
 });
 
 test("the Student portal structural contract is registered exactly once", () => {

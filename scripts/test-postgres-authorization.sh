@@ -2439,6 +2439,200 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/154_staff_organization_directory.sql
   fi
+
+  # Migration 185 adds the cabinet_pending case_shape (S8 «выдача
+  # приглашения для кабинетных дел»): Sales-reachable prepare/finalize/reissue
+  # for a curator-less lead-cabinet case, gated by staff_can_access on the
+  # linked lead rather than the family's usual admin-only authority. Exercise
+  # it against the full current-boundary schema at its own checkpoint --
+  # the 126 hook above stays pinned to the migration-126-era schema and
+  # cannot see this shape at all.
+  if [[ "$(basename "$migration")" == 185_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_cabinet_invites.sql
+  fi
+
+  # Migration 187 adds the curator kanban board «Воронка поступления»
+  # (OTH-1): platform.student_cases.pipeline_stage/pipeline_hidden_at plus
+  # platform.move_case_pipeline_v1 and platform.staff_admissions_pipeline_board_v1.
+  # Exercise the privilege boundary at its own checkpoint, same style as 185.
+  if [[ "$(basename "$migration")" == 187_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_pipeline_board.sql
+  fi
+
+  # Migration 188 adds case-task assignment notifications, the v2 enriched
+  # notification page, mark-all-read and the lazily-materialized due-tomorrow
+  # reminder (OTH-2). Same convention as 185 above: exercised at its own
+  # checkpoint against the full current-boundary schema.
+  if [[ "$(basename "$migration")" == 188_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_notifications_v2.sql
+  fi
+
+  # Migration 189 (OTH-3 «Договор и оплата»): tranches/payments are
+  # platform.payment_obligations/payment_events extended (not a second
+  # ledger) behind new resource-scoped write RPCs. Prove a resource-scoped
+  # Sales grant (not the org-wide finance.manage/finance.event.confirm
+  # authority) can create a tranche and record a payment on the SAME case an
+  # ungranted Sales peer and the case's own Student are refused 42501 on;
+  # replaying a request_id never double-counts; amount/currency edits and
+  # archiving are rejected once a tranche is paid; the read RPC excludes
+  # archived tranches from every sum; and the contract/receipt metadata RPCs
+  # stay service_role-only.
+  if [[ "$(basename "$migration")" == 189_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_agreement.sql
+  fi
+
+  # Migration 190 (OTH-4 «Uni & knowledge base»): optional program_name plus
+  # the new author-attribution v2 read RPCs. Same own-checkpoint convention
+  # as 185 above -- exercised against the full current-boundary schema, not
+  # the migration-189-era snapshot alone.
+  if [[ "$(basename "$migration")" == 190_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_application_author.sql
+  fi
+
+  # Migration 191 adds the per-case staff chat (OTH-5): platform.case_chat_command
+  # (post/set_await/read), platform.case_chat_read_page_v1,
+  # platform.staff_case_chat_threads_v1, the new 'case_message' staff
+  # notification kind and the board's needs_reply column. Same convention as
+  # 185/187/188 above: exercised at its own checkpoint against the full
+  # current-boundary schema. This branch's ledger has a temporary numbering
+  # gap at 189/190 (sibling OTH slices, merged separately) -- 191 is still the
+  # correct checkpoint filename to match on here.
+  if [[ "$(basename "$migration")" == 191_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_chat.sql
+  fi
+
+  # Migration 192 separates the portal access tiers (PORT-1a): the Student
+  # branch of case-help operations and every Student document path now
+  # require state IN ('active','closed'), while the shared pending-eligible
+  # case gate (overview/notifications/catalog/assessments) is untouched.
+  # Exercise the boundary at its own checkpoint, same style as 185.
+  if [[ "$(basename "$migration")" == 192_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_access_tiers.sql
+  fi
+
+  # Migration 193 unifies the invited intake (PORT-1b): new invites carry
+  # intake_flow='anketa_v1' — finalize binds the membership WITHOUT
+  # activating the portal, the accepted user passes the same public анкета,
+  # and approval reuses the invite's case instead of provisioning a second
+  # one. Legacy receipts (DEFAULT 'legacy') keep the pre-193 behaviour.
+  # Exercise the boundary at its own checkpoint, same style as 185/192.
+  if [[ "$(basename "$migration")" == 193_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_invited_intake_unification.sql
+  fi
+
+  # Migration 194 converts the invite family's re-invite business conflicts
+  # from the retryable SQLSTATE 40001 to PT409 (the 178/186 convention; the
+  # 186 incident class -- PostgREST retries 40001 forever). The suite proves
+  # the repeat-invite conflict is now PT409 with the UNCHANGED message and a
+  # single receipt, and that prepare-replay/reissue/finalize fencing all
+  # surface PT409. Exercise the boundary at its own checkpoint, same style
+  # as 192/193.
+  if [[ "$(basename "$migration")" == 194_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_invite_conflict_codes_pt409.sql
+  fi
+
+  # Migration 195 adds the Student-private university favourites (PORT-3b):
+  # platform_private.university_favorites behind three Student-only RPCs
+  # (set_university_favorite_v1 idempotent by construction,
+  # student_university_favorites_v1, student_university_catalog_by_ids_v1 with
+  # the 30-id cap). The guard is the 148 catalogue guard (student +
+  # portal.read.self), deliberately case-independent. The suite proves own-set
+  # CRUD and isolation between two Students, staff/anon/service_role denials,
+  # foreign-org and unknown-id refusals, and replay idempotency. Exercised at
+  # its own checkpoint, same convention as 185/192/193/194.
+  if [[ "$(basename "$migration")" == 195_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_university_favorites.sql
+  fi
+
+  # Migration 196 adds the portal profile surface (PORT-5a):
+  # student_profiles.portal_language (NOT NULL DEFAULT 'ru', ru/ky) behind
+  # get_own_portal_profile_v1/set_own_portal_language_v1 (Student-only, the
+  # 148/195 catalogue guard, case-state-independent; a legacy profile-less
+  # case gets the minimal D2a row) plus platform_private.
+  # account_deletion_requests behind request_account_deletion_v1 (idempotent
+  # by request_id, one OPEN request per member) and the admin-only
+  # staff_account_deletion_requests_v1. The suite proves own-only get/set,
+  # untouched defaults on existing rows, per-member ledger isolation, the
+  # admin queue, and staff/anon/service_role denials. Exercised at its own
+  # checkpoint, same convention as 185/192-195.
+  if [[ "$(basename "$migration")" == 196_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_profile_language.sql
+  fi
+
+  # Migration 197 adds the portal consultation request (PORT-5b):
+  # platform_private.portal_consultation_requests behind
+  # create_portal_consultation_request_v1 / own_portal_consultation_requests_v1
+  # (Student-only, the 148/195/196 catalogue guard, case-independent;
+  # idempotent by request_id, ONE OPEN request per member) and
+  # staff_portal_consultation_requests_v1 / handle_portal_consultation_request_v1
+  # (the REAL «Заявки» queue permission 'lead.read'; admin passes via the
+  # staff_has_permission bypass, handle conflicts are PT409). The suite proves
+  # own-only create/list, second-student isolation, one-open-per-member,
+  # request_id replays, the 148-style institution refusals, granted-Sales vs
+  # ungranted-curator both directions, anon/service_role denials and the 135
+  # privacy mirror (no assessment content in the staff JSON, exact key set).
+  # Exercised at its own checkpoint, same convention as 185/192-196.
+  if [[ "$(basename "$migration")" == 197_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_consultation_requests.sql
+  fi
+
+  # Migration 198 adds the learning and professions engine (PORT-4a):
+  # immutable versioned content (platform_private.learning_modules/lessons/
+  # exercises, profession_cards) behind Student-only RPCs with the
+  # case-INDEPENDENT 148/195/196 catalogue guard, per-exercise server-side
+  # grading with instant разбор of the answered exercise only, the
+  # server-computed mistake bank and the review RPC family. Learning state
+  # is staff-invisible by standing decision (plan §6): the suite proves
+  # 42501 for admin/sales/curator, peer and foreign Students, plus content
+  # immutability and no audit projection. Exercised at its own checkpoint,
+  # same convention as 185/192-196. The seed migration 199 carries its own
+  # in-migration consistency assertions (P199 markers) and needs no
+  # separate checkpoint file here.
+  if [[ "$(basename "$migration")" == 198_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_learning_engine.sql
+  fi
+
+  # Migration 200 adds the STUDENT side of the per-case chat (PORT-5c):
+  # platform.portal_case_chat_page_v1 / portal_case_chat_post_v1 over the
+  # EXISTING 191 tables, gated by the 192-tightened
+  # require_case_operations_actor (assisted-only). The suite proves the
+  # own-thread read/post path, the awaiting_student -> needs_reply
+  # transition, receipt idempotency with PT409 conflicts, the curator's
+  # UNCHANGED 191 RPCs seeing the student post (real calls), pending-student
+  # and staff/anon/service_role denials, second-student isolation and body
+  # validation. Exercised at its own checkpoint, same convention as
+  # 185/192-198.
+  if [[ "$(basename "$migration")" == 200_* ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_case_chat.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

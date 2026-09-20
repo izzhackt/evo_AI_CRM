@@ -1,5 +1,632 @@
 # EVO Launch Plan
 
+## CRM UX и единое поступление — принято к реализации 2026-09-20
+
+Владелец поручил реализовать [план CRM UX и поступления](EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md).
+Он определяет выбранные CRM-изменения и общий путь программа → документы →
+проверка EVO для CRM, веба и iPhone. Веб — первый полный рабочий выпуск;
+iPhone использует те же серверные операции. Этот порядок относится к новому
+admissions-пути и уточняет прежнее общее правило параллельной разработки.
+[Ведомость исполнения](EVO_CRM_UX_AND_ADMISSIONS_EXECUTION_2026-09-20.md)
+разделяет реализацию, review/merge, выпуск и реальные проверки.
+
+Решение §14.2 получено: клиент с сопровождением сразу начинает подготовку
+по выбранной программе, без отдельного одобрения выбора. Решение §14.1 также получено: сохранить нынешнее расположение сводки
+и списка студентов.
+Сопровождение остаётся обязательным условием нового клиентского пути.
+Общий финальный E2E, контентная волна и App Store остаются отложенными; точечная
+проверка изменённых функций обязательна. Поручение не включает применение
+миграций, production-записи или release-arm без отдельной действующей authority.
+
+## 2026-09-20 — точечная доработка карточки университета iPhone
+
+По поручению владельца выполняется Impeccable critique → план → реализация.
+Контракт и квитанция: [iPhone university refinement](design/portal/ios-university-refinement.md).
+Это текущая работа над UI; итоговый E2E и App Store readiness остаются отложены.
+
+## Текущий приоритет владельца — функциональность и интерфейс, 2026-09-20
+
+После #920 владелец уточнил: состав продукта ещё открыт, продолжаем
+действующий KB-контракт и доведение функций/UI. Закрытая портальная поставка
+не означает, что продукт закончен или все сценарии доказанно работают.
+Общий итоговый E2E (AST-2), контентная волна 2 (AST-3) и App Store readiness
+(AST-4) отложены до явного решения владельца о завершении нужного состава
+функций и переходе к этим этапам. Автоматически после KB их не запускать.
+Точечные реальные проверки изменений, независимое review и управляемые
+release-гейты сохраняются. Актуальный порядок и известные UI-пробелы:
+[план продолжения Astra, §4–6](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md#4-порядок-блоков).
+
+## CRM Knowledge Base — план GPT-6 Astra, 2026-09-19
+
+Контракт отдельной задачи: [EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md](EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md).
+Admin-only база с папками, страницами и файлами, существующими материалами
+клиентов, защищёнными записями доступа; обязательный перенос и сортировка всей
+локальной базы, дальнейшая работа в CRM и выгрузка материала/папки/всей базы.
+Связи — обычные ссылки; подключение ИИ остаётся отдельной будущей работой.
+Astra владеет этим scope, Claude Code Fable продолжает Portal/App. Общие
+документные/Auth-контракты, номера миграций и выпуск координируются; worktree
+не изолирует общую БД. Это планирование, а не квитанция реализации или переноса.
+
+### KB execution — 2026-09-20
+
+Перенос, сортировка и полный экспорт завершены; 6 568/6 568 исходников в
+скачанном ZIP проверены по исходным размерам и SHA-256 без пропусков и ошибок.
+Восстановление после ошибки Storage выполнено по [контракту изменения](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
+
+- KB-0 and runtime merged through #902/#906/#915/#916/#918/#919/#921/#924. Worktree `evo-crm-knowledge-implementation` preserves the canonical dirty checkout. Admin navigation is unified under Knowledge Base; staff document/template routes remain available.
+- Production ledger 001–206 is contiguous and matches applied hashes. SOPS runtime, external age key and export maintenance timer are provisioned. The owner transferred schema/release and actual import/export coordination to Astra; Portal/App remains Fable's scope.
+- The complete source plan covers 6,570 entries: 436 internal pages, 432 internal files, 5,668 raw files and 32 protected originals; two key files remain outside CRM. All 6,568 source originals and 25 structured protected records are imported. Full UI/API reconciliation: 6,568 verified, 0 missing, 0 mismatch; 5,961 unique blobs and 607 preserved duplicate source locations. After the first Storage failure, #924 was released and the same full snapshot resumed with all 206 verified parts retained. The 10,471,474,710-byte ZIP is downloaded and fully verified: 7,542 file entries, all 6,568 originals, 25 current protected records (26 versions) and 32 protected originals; zero missing/errors. All 2,655 review questions remain explicit; two key files stay outside the archive.
+- Real editor/navigation, file-review metadata, selected canonical ZIP, normal Auth denials, source-byte preservation and earlier UI journeys are recorded in the [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md). No Student customer acceptance or AI republication is claimed.
+- Current release `35481793583` accepted exact main `b7598a1c5046fe3c2b16fc014bc0c22044e64b27`; runtime/accepted pointer match, healthy, pending absent and arm=false. The changed Storage path passed a real one-file Admin export/download with exact source bytes and five role denials. Earlier canonical-search HTTP/UI acceptance and guarded release history remain in the execution receipt.
+
+## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
+
+- [x] Ledger this cycle: the production ledger gained migrations
+  201-204 (`platform_knowledge_*`, the Astra knowledge plan) — applied
+  OUTSIDE the portal coordinator's schema-ledger workflow and without a
+  pre-apply ping, which deviates from the cross-plan coordination
+  protocol recorded in this file's KB section; noted here honestly.
+  Both the coordinator and the peer session independently re-read the
+  ledger via the Management API before arm: count=204, min=001,
+  max=204 — contiguity intact, repo tree tail equals the live tail, so
+  the release gate was satisfied and no apply step was needed.
+- [x] Release from exact main `fd25b1ac9a3a4f7c31b7747b81bcba6e1c1fa8a9`.
+  Five commits since the previous release: #909 (PORT-9d prep:
+  photo-migration pipeline, manifest, URL-resolution switch), #910
+  (previous receipt), #911 (manifest flip after the coordinator ran
+  --apply: bucket `portal-university-photos` created and verified,
+  87/87 uploads with zero failures, public URLs spot-checked with
+  sha256 matches by two independent reviewers — this release makes the
+  catalog serve managed photo URLs; 57 official-source photos stay
+  hotlinks by license), #906 (Astra: Admin knowledge library, sealed
+  import, canonical exports — includes a Dockerfile change; the peer
+  session verified sops v3.13.2 is pinned by sha256 checksum for both
+  architectures, and the built image passed browser smoke and the
+  acceptance guard), and #912 (iOS wave 9b: catalog search/filters
+  with exact RPC parameter parity, MapKit map fed only by the repo geo
+  library with honest no-coordinates disclosure, app icon regenerated
+  byte-identically from the official brand asset, a11y pass 16+5
+  labels/traits/ScaledMetric across waves 1-7; 139/139 tests).
+  CI run 35473582066 green on the exact merge SHA; release run
+  35473599531 accepted; container `evo-crm-app-1` on hermes-vps
+  carries the exact OCI revision (healthy); `/api/health` live;
+  accepted pointer `v3-r35473599531-a1-fd25b1ac` with
+  acceptance-record sha256 recorded; `EVO_PRODUCTION_RELEASE_ARMED`
+  returned to `false` at 22:37 UTC.
+- Independent exact-head reviews, each PASS: #909 9/9 + #911 flip
+  delta-review (set-equality of the 87 flips, 5 reviewer-chosen public
+  URLs with sha256 matches); #912 11/11 with one medium finding (a
+  filter/collect race leaving stale map pins under new filter chips)
+  fixed pre-merge via a generation-counter gate with three
+  deterministic unit tests and delta-confirmed. Every merge-race
+  rebase carried patch-id --stable proofs.
+- Open item handed to Astra/the owner: #906's
+  `deploy/knowledge/*.service|*.timer` are HOST-side systemd units not
+  contained in the image — until someone installs and enables them on
+  hermes-vps the knowledge-maintenance job simply does not run (no
+  degradation of anything else). Who installs them is not decided in
+  the portal plan.
+- Not claimed: live authenticated render of managed photos in the
+  production catalog (no credentials in the agent session — the
+  managed URLs themselves return HTTP 200 with manifest-matching
+  bytes); live filtered-RPC run and manual VoiceOver pass on iOS
+  (static parity and attributes only); KY texts still await the
+  owner's native-speaker proofread.
+
+## Portal release v3-r35469103571-a1-b047e663 accepted 2026-09-20
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree, and
+  the released delta touches no `supabase/migrations/` files.
+- [x] Release from exact main `b047e663ebcd72c7fa599f276f532abcd9b5cc3e`
+  (wave 9). Web/shared deltas: #907 (PORT-9c: «Главная» кабинета at
+  /portal/home in «Атлас» — continue-lesson/test from real attempt
+  state, favorites with nearest open/announced intakes, анкета-status
+  card for approved, case next-actions first for assisted; /portal root
+  and the production smoke path byte-frozen; «новое в каталоге»
+  honestly omitted — the catalog exposes no first-published signal) and
+  the web half of #908 (two narrow intake endpoints: anonymous
+  registration delegating to the unchanged createPublicStudentAccount
+  with the same rate buckets and анкета validation, and bearer-only
+  invite acceptance over the PORT-8a transport reusing the exact web
+  callback seam). iOS half of #908 rides in the repo (9-step native
+  анкета wizard with rule-for-rule contract parity, application status
+  screen, invite flow, honest SessionRouter states, +188 RU/KY pairs,
+  115/115 tests) — this release is what makes the phone flow live,
+  since the endpoints now exist in production. CI run 35469083620
+  green on the exact merge SHA; release run 35469103571 accepted;
+  container `evo-crm-app-1` on hermes-vps carries the exact OCI
+  revision (healthy); `/api/health` live; accepted pointer
+  `v3-r35469103571-a1-b047e663` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 21:07 UTC.
+- Independent exact-head reviews, each PASS with reproduced validation:
+  #907 10/10 (no new RPCs, smoke-path safety, honest data blocks, axe
+  19/19; its finding A — a third copy of the tier derivation instead
+  of actor.accessTier — was fixed pre-merge and delta-confirmed);
+  #908 hostile security review 11/11 (registration parity incl. the
+  cannot-create-account-with-invalid-анкета trace, invite identity
+  binding in migration 126 SQL, proxy scoping, PostgREST GRANTs read
+  from migrations 177/180, 66/66 web + 115/115 iOS reproduced; three
+  non-blocking vocabulary/side-effect notes recorded in the review
+  comment). Cross-session protocol observed both ways.
+- Not claimed: no live registration or invite acceptance has been run
+  against production (no real accounts created); the wave-9a phone
+  flow is enabled by this release but not yet exercised end-to-end;
+  KY texts still await the owner's native-speaker proofread.
+
+## Portal release v3-r35465491203-a1-5ab34127 accepted 2026-09-19
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree
+  (`200_platform_portal_case_chat.sql` is still the repo tail), so the
+  schema-ledger apply step was skipped by design.
+- [x] Release from exact main `5ab341278c0422e45b4a555aa95ccf1a9bc93eef`
+  (wave 8, closing plan-audit gaps). Web deltas: #899 (bearer-token path
+  on exactly the two student document endpoints per ADR 0030 «Решение»
+  п.2 — same authority chain on a token-bound publishable-key client, a
+  present-but-invalid header never falls back to cookies, plus the
+  narrowly-scoped proxy pass-through the middleware required) and #903
+  (PORT-8c: tests screens rebuilt in «Атлас» with the assessment contract
+  and the live e2e spec byte-untouched, full KY for the public /apply
+  анкета with RU strings byte-frozen and test-pinned, operational stage
+  rendered in «Моё поступление» mirroring the staff dictionary). iOS
+  delta #900 (wave 8: documents with frozen-idempotency upload and
+  bearer download, payments preserving the 189 null-semantics,
+  notifications with real in-app targets, read-only tasks/next actions;
+  the «доступны в веб-кабинете» deferral is gone) rides in the repo —
+  no store distribution exists yet, so the container ships the web
+  deltas. CI run 35465474055 green on the exact merge SHA; release run
+  35465491203 accepted; container `evo-crm-app-1` on hermes-vps carries
+  the exact OCI revision (healthy); `/api/health` live; accepted pointer
+  `v3-r35465491203-a1-5ab34127` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 19:54 UTC.
+- Independent exact-head reviews, each PASS with reproduced validation:
+  #899 hostile security review 9/9 (scope, no cookie fallback, identical
+  authority chain, supabase-js getClaims verification traced, proxy
+  anchored-regex scoping, adversarial sweep clean); #900 11/11 (every
+  cited SQL anchor opened, UUIDv5 request-id vectors independently
+  recomputed, cross-PR contract with #899 verified field-by-field,
+  92/92 tests reproduced); #903 11/11 (assessment runner semantics
+  diffed line-by-line against the deleted v3 components, e2e spec
+  zero-diff, 15/15 axe both themes). Every merge-race rebase carried a
+  patch-id --stable proof that the reviewed code commits were unchanged.
+  Cross-session protocol observed (peer ack before arm, main frozen,
+  accepted + disarm confirmed back); the parallel GPT-6 Astra knowledge
+  plan merged #901/#902 into main during the wave — both are inside the
+  released revision.
+- Not claimed: live iOS document upload/download against production
+  (the bearer path ships in this very release; a live pass needs a
+  signed-in device session); live post-release web render of the KY
+  tests/apply screens (no live credentials in the agent session); KY
+  texts still await the owner's native-speaker proofread; four
+  pre-existing local `test:ci:node` failures found on main by the #903
+  reviewer (environment-dependence suspected, CI is green) are spun off
+  as a separate task, not fixed here.
+
+## Portal release v3-r35452266156-a1-b7052637 accepted 2026-09-19
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree, so the
+  schema-ledger apply step was skipped by design.
+- [x] Release from exact main `b7052637d48c812ba37c68c5b9016615b59c55e0`.
+  Web delta is #896 (PORT-6a: KY for the four re-skinned assisted screens —
+  142 pairs, closing the debt named in the previous receipt — plus 8 a11y
+  fixes and a static axe gate; RU smoke anchors byte-pinned). iOS deltas
+  #893 (wave 5: favorites, profile, consultation, learning-read, incl. the
+  live-found language save-button fix) and #897 (wave 7: lesson runner with
+  server-receipt verdicts and frozen idempotent retries, review runner,
+  case-chat thread honoring contract §6 — no task cards, NULL-label
+  document cards — consultation parity, +56 RU/KY keys, 71/71 tests) ride
+  in the repo only; no store/TestFlight release exists yet, so the
+  container ships the web delta. CI run 35452248717 green on the exact
+  merge SHA; release run 35452266156 accepted; container `evo-crm-app-1`
+  on hermes-vps carries the exact OCI revision (healthy); `/api/health`
+  live; accepted pointer `v3-r35452266156-a1-b7052637` with
+  acceptance-record sha256 recorded; `EVO_PRODUCTION_RELEASE_ARMED`
+  returned to `false` at 15:42 UTC.
+- Independent exact-head reviews: #896 confirmed earlier this cycle; #897
+  PASS 8/8 on head `c252d529` (build+test reproduced twice, secrets scan
+  clean, §6 and read-only live-check claims verified against code and SQL).
+  The reviewer's one non-blocking note — the wave-7 PLAN_CHANGES entry
+  predicted a SignIn-only screenshot while the final validation was a wider
+  but still read-only six-screen pass — is closed by an append-only
+  PLAN_CHANGES entry in this receipt PR. Cross-session protocol observed
+  (ping before arm acknowledged by the peer session, accepted + disarm
+  confirmed back).
+- Not claimed: live post-release web render of the KY assisted screens
+  (no live credentials in the agent session); KY texts still await the
+  owner's native-speaker proofread (standing PORT-6 item); iOS runner
+  write-paths were never exercised against production (decoder fixtures
+  and policy units only).
+
+## Portal release v3-r35446304360-a1-50c932c6 accepted 2026-09-19
+
+- [x] Migration 200 (student side of the per-case chat over OTH-5's 191
+  model: portal read/post RPCs, assisted-only, students flip needs_reply,
+  staff mechanics untouched; the 191-author's seven-point integration
+  contract was enforced as the review gate — one deviation (task titles
+  leaking past student_visible) was caught and fixed pre-merge) applied
+  before the release; ledger tail `…196-200` verified.
+- [x] Release from exact main `50c932c691a1bf5fd5f4bd8f2407fdaa056261fd`
+  (#892 чат + #894 «Моё поступление» в Атласе: four assisted screens
+  re-skinned with contracts byte-preserved, 9 legacy files deleted, smoke
+  anchors byte-identical). Release run 35446304360 accepted; container on
+  the exact revision; health live; ARMED back to `false`.
+- First live authenticated verification happened this cycle: the owner
+  signed the QA student into the wave-5 iOS build; favorites round-trip,
+  the 196 language cycle (ru→ky→restart→full-KY UI→ru) and seeded lessons/
+  professions were verified against production; one iOS save-button bug
+  found live and fixed in PR #893 with a regression test.
+- Not claimed: live web renders of the new chat screen; KY for the four
+  re-skinned assisted screens stays a named PORT-6 item.
+
+## Portal release v3-r35441505162-a1-a6e41aa9 accepted 2026-09-19
+
+- [x] Migrations 197 (portal consultation requests into the staff Заявки
+  queue on the existing lead.read permission; one-open-per-member; never
+  attaches test results), 198 (learning/professions engine per the 135
+  reference architecture: immutable versioned content, private attempts
+  with mistake bank, server-only grading, staff-invisible progress) and
+  199 (seeded content v1: module en-m1-start — 12 lessons / 99 exercises,
+  and 24 profession cards, generated from the merged drafts with a
+  sha256-stamped drift-checked pipeline) applied before the release;
+  Management API readback: ledger tail `…195-199` equals the repo tree.
+- [x] Release from exact main `a6e41aa975827ce5fe2a5e2ec01db24392be92e3`
+  (#886 консультация, #887 движок, #888 сиды, #889 разделы «Английский» и
+  «Профессии», #890 hotfix route-allowlist для /portal/favorites и
+  /portal/profile — прод-дефект релиза d1b64849, найден независимым review
+  и подтверждён живым чеком). Release run 35441505162 accepted; container
+  carries the exact revision; `/api/health` live; ARMED back to `false`.
+- Independent exact-head reviews on all five PRs; the engine review
+  reconstructed all patched function bodies and hunted the key-projection
+  leak (none found); rebase deltas re-confirmed, incl. a full content
+  delta-review of the #889 union rebase after two seam repairs (CSS brace
+  loss and a TS closing-brace loss were caught by real build/test runs).
+- Not claimed: live authenticated journeys on the new screens; KY native
+  proofread remains the named PORT-6 step.
+
+## Portal release v3-r35435007516-a1-d1b64849 accepted 2026-09-19
+
+- [x] Migrations 195 (student-owned university favorites: set/list/by-ids
+  RPCs, case-independent guard per the catalog pattern, staff denied) and
+  196 (portal_language on student_profiles, get/set-own profile RPCs,
+  account-deletion REQUEST flow with a DB-enforced one-open-per-member
+  index — the RPC deletes nothing) applied before the release; Management
+  API readback: ledger tail `…192-196` equals the repo tree.
+- [x] Release from exact main `d1b648499c75a5cda2371a5d0b113e47317ab4e0`
+  (#883 избранное+сравнение, #884 профиль/язык/удаление, #882 iOS каталог-
+  карточка/раннер тестов/профиль с 18/18 XCTest, #881 контент-драфты
+  PORT-4). Release run 35435007516 accepted; container carries the exact
+  revision; `/api/health` live; ARMED back to `false`.
+- Independent exact-head reviews on all four PRs, including reviewer-run
+  xcodebuild test reproduction for iOS and a content review with an
+  independent validator script; every post-review delta re-confirmed on
+  its final head. Cross-session protocol observed.
+- Not claimed: live authenticated journeys on the new screens (no student
+  credentials in the agent session); RU/KY native proofread remains the
+  named PORT-6 step.
+
+## Portal release v3-r35431481983-a1-0667c001 accepted 2026-09-19
+
+- [x] Migrations 193 (invited intake unification: `intake_flow='anketa_v1'`
+  invites route through the анкета and staff approval; approve reuses the
+  invite-bound case; fixes the latent 180 defect where any ordinary анкета
+  approve would raise 55000 on 042's BEFORE INSERT guard) and 194 (35
+  business-code retags 40001→PT409 in prepare/authorize-reissue/finalize —
+  the 186 infinite-retry class; readback asserts zero residual 40001)
+  applied to production via the schema-ledger workflow; Management API
+  readback: live ledger tail `…190-194` equals the repo tree.
+- [x] Release from exact main `0667c001781372a36ebf3f7cef383e3e37552034`
+  (#877 + #879 + receipt/docs); CI 35431469620 green, release 35431481983
+  accepted, container `evo-crm-app-1` carries the exact OCI revision,
+  `/api/health` live, accepted pointer recorded, ARMED returned to `false`.
+- Independent exact-head reviews: #877 approve with the 180-defect claim
+  independently confirmed (live full-chain run by the reviewer); #879 approve
+  with all three function bodies reconstructed and all 35 sites recounted.
+  Cross-session protocol observed (ping both ways, main frozen during runs).
+- Known transient window (accepted, coordinated): between the 194 apply and
+  this acceptance, a staff re-invite conflict would surface a generic error
+  text on the old app; behaviour was unaffected.
+
+## Portal release v3-r35428426080-a1-03fb983f accepted 2026-09-19
+
+- [x] Migration 192 (portal access tiers) applied to production BEFORE the
+  release via the manual schema-ledger workflow; Management API readback
+  confirmed the live ledger tail `…188-192` equals the repo tree. Zero
+  affected accounts (both live cases active); boundary suite checkpoint
+  `P192_PORTAL_ACCESS_TIERS_SUITE_PASSED` verified in the full local log.
+- [x] Release from exact main `03fb983fab746f167cccfec42df114d7da0adda3`
+  (#869 access tiers + #873 catalogue «Атлас»: MapLibre map, geo library
+  126 pins/17 honest omissions, OpenFreeMap keyless terms verified + #874
+  node-suite guard fixes). CI run 35428409672 green; release run 35428426080
+  accepted; container `evo-crm-app-1` on hermes-vps carries the exact OCI
+  revision; `/api/health` live; accepted pointer
+  `v3-r35428426080-a1-03fb983f` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 07:12 UTC.
+- Independent exact-head reviews: #869 triple-confirmed (incl. renumbering
+  195→192 after OTHER released the 192-194 buffer), #873 confirmed on the
+  merge tree, #874 confirmed at 10/10 guard. Cross-session release protocol
+  observed both ways (ping before arm, main frozen during the run).
+- Not claimed: real student sign-in journeys on the redesigned surfaces
+  (no live credentials in the agent session); browser smoke covered the
+  standing portal anchors only.
+
+## Portal web + iPhone — parallel implementation approved 2026-09-19
+
+The owner replaces the staff-only / no-self-serve restriction in
+[`PRODUCT.md`](../PRODUCT.md). The target serves independent prospective
+students and EVO clients through the same shared discovery and preparation
+features. Clients also receive their authorized case, curator, documents,
+tasks and communication; invitations and later service enrollment preserve
+the same account, saved choices and learning progress.
+
+Current contract: [full portal plan](EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md).
+The owner's later clarification replaces PR #859's sequential delivery order:
+develop the desktop-first web portal and the full iPhone app in parallel. Both
+student audiences receive the shared features, with full accompaniment added for
+clients. Every new student completes the questionnaire, creates an account at
+its final step and waits for staff approval. Approval and accompaniment are
+separate authorizations. Portal UI languages are Russian and Kyrgyz.
+
+Fable owns the full portal UX/UI redesign within the EVO brand, concise frontend
+copy, the mobile technology decision and implementation of the plan. The work is
+portal-scoped; necessary CRM connections reuse existing staff workflows. Active
+staff and incident scopes below remain unchanged. The plan carries forward the
+owner's delegated release workflow, subject to real credentials and release
+controls; this documentation change itself performs no deployment or migration.
+
+- [x] PORT-0: current-main inventory, contracts and parallel worktree allocation.
+- [x] PORT-1: approved access, shared data/API authority and account continuity.
+- [x] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
+- [x] PORT-3: university discovery, map, comparison and saved choices on both clients.
+- [x] PORT-4: professions, private assessments and English learning on both clients.
+- [x] PORT-5: full client accompaniment and consultation requests on both clients.
+- [x] PORT-6: scoped integration, content completion and final UX pass. (кроме вычитки KY носителем — владельческий пункт)
+- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff. (владельческие внешние шаги: Apple Developer/подпись/TestFlight/store; агентская часть — done: review-аккаунт, документация)
+
+Финальные документы: [ведомость](EVO_PORTAL_FINAL_LEDGER_2026-09-20.md) · [handover и передача Astra](EVO_PORTAL_HANDOVER_2026-09-20.md).
+План продолжения: [EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md) (исполнитель — GPT-6 Astra).
+
+These checkboxes describe planned work, not existing feature readiness. Existing
+authentication, organization/case access and private assessment boundaries remain
+enforced; schema and API refinements are recorded before their implementation.
+
+The matching 2026-09-19 entry in [`PLAN_CHANGES.md`](PLAN_CHANGES.md) records
+the owner decision and the documentation-only validation boundary.
+
+## Portal identity retry incident — resolved and released 2026-09-19
+
+Owner approved the production fix and termination of the two confirmed looping
+database backends. No compute/plan upgrade, data deletion or Auth policy change.
+Live baseline: CPU 99–100%; 29,894 `portal_identity_conflict` / SQLSTATE `40001`
+events in five minutes, correlated to two PostgREST 14.5 backends. Official
+Supabase guidance identifies custom `40001` as an infinite-transaction-retry
+trigger in PostgREST 14. Preserve the existing identity denial, not the retry.
+
+- [x] Forward migration 186 replaces the incident RPC's business-conflict SQLSTATE
+  with a non-retryable error, preserving signature, grants and all identity checks.
+- [x] Update the server error mapping and directly affected assertions together.
+- [x] Independent exact-head review and protected short checks; PR #858 merged
+  as `b10034b1d93b89dfc520ef89c1ae182e64080938`. Exact migration 186 applied
+  once; the contiguous 001–186 ledger and both function definitions verified.
+- [x] Revalidate the two approved backend identities before guarded termination:
+  no matching rows remained at 02:50:36.556Z, so no backend was terminated and
+  no project restart occurred.
+- [x] Real PostgREST missing-receipt path returns HTTP 409 / `PT409` in 831 ms;
+  the actual server store with a real Supabase client returns `mismatch`.
+  Existing identity only; all receipt rows remain unchanged.
+- [x] Fresh exporter counter deltas show CPU falling from 98.774% before the
+  fix to 1.855% during 02:51:06.842–02:52:46.080 UTC. Logs from
+  02:50:30–02:52:03.192 UTC, filtered to `portal_identity_conflict`, contain
+  only the two expected `PT409` check calls and no `40001` for this conflict.
+- [x] Managed release 35416869712 passed after upstream 35416851038; accepted
+  `v3-r35416869712-a1-b10034b1` matches the reviewed merged SHA and image.
+  Acceptance/browser hashes match; app and scanner healthy, zero app restarts,
+  public health 200/live and no pending candidate. After the terminal workflow,
+  the release arm was manually reset and freshly read back as `false`.
+- [x] Accepted authenticated read-only browser smoke confirmed the staff case
+  and Student Portal entry paths.
+
+Evidence, exact hashes and limits: [incident receipt](qa/portal-identity-conflict-186-2026-09-19.md).
+No fake accounts, synthetic production records, compute purchase, broad suites
+or unrelated provider actions are part of this incident response.
+
+## Other staff UX — RELEASED 2026-09-19 as v3-r35425913124-a1-ad0b5267
+
+Migrations 187-191 were applied to iosckaqtovbbnssqcpde via the
+owner-delegated Management API path (per-migration object probes + ledger
+rows verified; final ledger tail 187-191 on top of 186). The first release
+attempt (v3-r35425318843-a1-bebe5df9) was HONESTLY ROLLED BACK by the
+pipeline: a Next.js route-slug collision from OTH-3
+(api/v2/payment-receipts mixing [paymentEventId]/[studentCaseId]) passes
+`next build` but kills every request at runtime; diagnosed by running the
+exact candidate image with its candidate env in an isolated container on
+Hermes, fixed in #875 (download route moved to payment-receipt-files/…)
+with a new route-walk guard `tests/next-route-slug-consistency.test.mjs`
+(red on the broken layout, green after). Second run 35425913124 accepted:
+container on Hermes reports revision ad0b5267 (healthy), accepted pointer
+updated with the acceptance record, crm health 200, arm read back false.
+Prod never degraded: the rollback restored the prior accepted release, and
+every 187-191 reader was engineered for the apply→release window. The
+release also carries the portal session's migration-free #867/#868.
+
+## Other staff UX — merged 2026-09-19 (receipts)
+
+All six slices of `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` are merged to
+main (5fbb1b08). Per the allocation update below-noted in the previous
+revision, the chain was renumbered 187-191 mid-flight: the parallel portal
+session shipped 186_platform_student_invite_conflict_codes first; ranges
+were agreed by cross-session message (OTH = 187-191 plus buffer 192-194,
+portal >= 195) and recorded in PLAN_CHANGES. Every migration slice passed
+the full local OrbStack boundary run (001->191, five new privilege suites
+at their checkpoints) and a full `npm run build` before its PR, plus two
+adversarial review lenses per slice with every confirmed finding fixed
+pre-merge. Remaining: owner applies migrations 187-191 in order, the
+managed release follows immediately (the portal session holds its 195
+until then; main also carries its migration-free #867/#868, which ride
+this release).
+
+- [x] OTH-0 (#857): plan committed; 11 explanatory paragraphs removed from
+  8 staff components; pinned by `tests/v3-quiet-interface.test.mjs`.
+- [x] OTH-1 (#861, migration 187): «Воронка поступления» board —
+  `pipeline_stage` + `move_case_pipeline_v1`, `/v3/admissions-pipeline`,
+  drag plus «Переместить в…», «Убрать из воронки»; «Мой день» retired.
+- [x] OTH-2 (#865, migration 188): unified task composer + task side panel;
+  notifications v2 (enriched rows, «Прочитать всё», case-task assignment
+  notifications, lazy due-tomorrow reminders; the old page RPC excludes the
+  new kinds, so the deployed app stays safe between apply and release).
+- [x] OTH-3 (#866, migration 189): «Договор и оплата» — contract files,
+  tranches on the canonical ledger (the 043 immutability/transition guards
+  replaced by a tranche-aware guard: money columns freeze once paid),
+  receipt files, оплачено/осталось from payments only; NULL-safe overdue
+  live-patches in 107/127 readers protect the deployed app from apply to
+  release; follow-up #870 fixed the missed canonical adapter pin.
+- [x] OTH-4 (#862, migration 190): «Добавить вуз» dialog over the case,
+  optional program, author attribution via _v2 readers (live-body
+  reconstruction incl. 176's LEFT JOIN patch), submission marking exposed.
+- [x] OTH-5 (#871, migration 191): per-case staff chat — /v3/messages
+  two-pane screen, same-case quotes, «Обсудить» link-cards to case
+  documents/tasks, await states with explicit «Ответ не требуется», board
+  «Нужен ответ» pill, curator notifications (ids only); the student side
+  stays an explicit portal-plan dependency, never claimed done.
+- [x] Migrations 187-191 applied (Management API, delegated path); release
+  v3-r35425913124-a1-ad0b5267 accepted; arm disarmed. Rollback of the first
+  attempt and the slug-collision fix are recorded above and in #875.
+
+## Auth email — SMTP and templates saved, delivery pending, 2026-09-19
+
+Owner approved Resend SMTP, replies forwarded to Gmail and Student email confirmation.
+Follow [the mail runbook](runbooks/resend-auth-email.md): DNS published, domain
+Verified and domain-restricted key transferred to Supabase. Custom SMTP, rate
+100/hour and Russian Invite/Confirm templates were saved and read back after
+PATCH at `2026-09-19T02:03:21.264Z`; existing callback links and Auth signup
+policy are unchanged. One plain forwarding-check mail was sent from the owner's
+personal Gmail to `evo@evoadmissions.com`; receipt is unverified. No Auth mail
+sent; approved test aliases remain pending.
+
+- [x] Sign in to Resend and Spaceship; create domain; inspect existing forwarding.
+- [x] Apply actual TXT/CNAME records; read authoritative DNS; confirm domain Verified.
+- [x] Create domain-restricted sending key and apply SMTP credentials.
+- [x] Save SMTP/rate limit and Russian templates; confirm exact Management API readback.
+- [ ] Confirm protected SOPS key archival; transport delivery is not yet proven.
+- [ ] Implement the separate `/apply` confirmation path; SMTP alone does not enable it.
+- [ ] Prove invitation, signup confirmation and reply delivery to approved recipients.
+
+## Unified workflow S8 — released 2026-09-19; план закрыт
+
+Owner applied migration 185 from main 9cdea7aa (#854), ledger 001-185
+confirmed; 185 replaces three RPC bodies with unchanged signatures and
+response shapes, so no degradation window occurred. Exact-main CI and managed
+release 35408839637 passed on `9cdea7aa6f55ae6e6c61286ef339ff311c10a686`;
+accepted release `v3-r35408839637-a1-9cdea7aa`; the running container reports
+the same revision, healthy, zero restarts; public health 200 on both origins;
+arm read back `false`. The cabinet-invite privilege boundary is covered by a
+real-Postgres suite executed at the 185 checkpoint of the authorization
+harness (this release's own review requirement).
+
+With S8 the unified-workflow plan (docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md)
+is fully implemented: an independent audit of all nine owner criteria against
+the shipped code found eight done and one gap — closed by this slice. The two
+remaining documented cosmetic follow-ups (full-row card save vs partial
+merge; playbook-bound legacy partner-details fail-closed) stay recorded in
+PLAN_CHANGES and are not plan criteria.
+
+
+## Unified workflow S8 — active 2026-09-19
+
+Final plan gap (§4): invite dispatch for cabinet cases. Journal entry
+2026-09-19 «unified workflow S8».
+
+- [ ] Migration 185: cabinet_pending receipt shape (no curator ever;
+  acceptance sets portal_activated_at only, case stays pending), Sales-or-
+  admin authority scoped to the linked lead, every receipt assertion call
+  site repointed consistently.
+- [ ] UI: three-way shape discriminator on the access card; Sales can
+  dispatch cabinet invites; admin flows for the two existing shapes intact.
+- [ ] Validation: scoped suites, S8 migration suite, full local boundary run,
+  smoke audit; release via the owner-migration path.
+
+
+## Unified workflow S7 — released 2026-09-19
+
+Owner applied migration 184 from main 28e8373f (#852), ledger 001-184
+confirmed. The pre-release no-degradation claim was wrong and is corrected
+here: staff_lead_sale_conditions_v1 was widened to 32 keys while the prior
+app validated 15, so lead cards and the sale-conditions preview could error
+in the window between apply and release — the owner flagged it and the
+release went out immediately. Exact-main CI and managed release 35399135860
+passed on `28e8373f6f0816cfa1890da28f03e1531e58103a`; accepted release
+`v3-r35399135860-a1-28e8373f`; running container reports the same revision,
+healthy, zero restarts; public health 200 on both origins; arm read back
+`false`. Follow-up discipline recorded: a widened read-RPC return shape is a
+compatibility change for the strict client validators — release immediately
+after apply, or version the RPC.
+
+
+## Unified workflow S7 — active 2026-09-19
+
+Closes the three recorded partial items of the released pivot (journal entry
+2026-09-19 «unified workflow S7»).
+
+- [x] Migration 184: card-fields allowlist widened (Пожелания/Образование/
+  Условия), prepare_lead_cabinet_v1 for site/WhatsApp leads, editable partner
+  facts RPC without a playbook binding.
+- [x] UI: three progressive card blocks, «Подготовить кабинет» on the access
+  block (invite dispatch itself stays the existing admin-gated case-page
+  flow — no 126 case shape fits a permanently curator-less cabinet yet, see
+  docs/PLAN_CHANGES.md's implementation entry), partner-facts form on «Вузы и
+  программы».
+- [x] Validation: scoped checks + full local migration-boundary run (OrbStack,
+  exit 0) + smoke anchor audit (unaffected) done before this note; release
+  via the standard owner-migration path is still pending the owner's actual
+  apply.
+
+
+## Unified workflow — released 2026-09-19
+
+Owner applied migrations 180-183 to iosckaqtovbbnssqcpde from main f2f64c8e
+(#849), ledger 001-183 confirmed. First release run 35389414703 deployed and
+then correctly rolled back on the browser proof: the smoke still waited for
+the route-tracker testid deleted by the pivot; during that window the prior
+app (97238e1e) ran against the new schema, so the replaced RPC surfaces
+(анкета approve, добавить продажу, директория, сводка) were degraded until
+the fix shipped. PR #850 repointed the smoke at the «Вузы и программы»
+anchor; exact-main CI and managed release 35390450281 passed on
+`f9a233c616e0438c837ed201ff66364468dbe516`. Accepted release
+`v3-r35390450281-a1-f9a233c6`; the running container reports the same OCI
+revision, healthy, zero restarts; public health 200 on both origins; release
+arm read back `false`. The automated proof covered admin login, case tabs,
+team chat and the student portal read-only path on the pivoted UI.
+
+
+## Unified workflow — active 2026-09-18
+
+Owner plan docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md supersedes conflicting
+earlier decisions. Contract entry: docs/PLAN_CHANGES.md (2026-09-18, «unified
+workflow: план-контракт реализации»). One release to production at the end.
+
+- [x] S1 Заявки и доступ: одна очередь трёх источников под Продажами; анкета
+  создаёт каноничного лида; одобрение — только доступ (pending-дело без
+  куратора и направления); отклонение сохраняет контакт и историю.
+  Receipt: a223bbd9 (feat), 51c6c68e (fix).
+- [x] S2 Карточка Sales: структурные блоки и условия продажи на карточке;
+  в отчёте — выбор лида и куратора с предпросмотром; обходная передача из
+  карточки убрана. Receipt: 2bb0e65c (feat), e266aa78 (fix).
+- [x] S3 Принятие дела: «Ожидает принятия», Принять/Отклонить; отклонение
+  возвращает дело в «Нужно назначить куратора»; админ назначает внутри дела.
+  Receipt: 0394c113 (feat), 65172df2 (fix).
+- [x] S4 Admissions без трекера: «Вузы и программы» вместо «Маршрута»; без
+  этапов, виз, подачи и прибытия; документы, пакет и история сохраняются.
+  Receipt: 83908ef9 (feat), 86aff708 (fix).
+- [x] S5 Портал одного дела: экран «Заявки и виза» убран; кабинет до продажи
+  (анкета, файлы по мере появления); этап-пилюля убрана. Receipt: 99d0dfdb.
+- [x] S6 Docs и наименования: без прямого создания студента; «Студенты»,
+  «Заявки», Inbox; связь карточка↔чат; сводка только по реальным данным.
+  Receipt: S6: this change (uncommitted at authoring time).
+- [ ] Финальная проверка слайсов, применение миграций владельцем и один
+  управляемый релиз с честной квитанцией.
+
+
 ## Admissions UX overhaul + baseline checklist — released 2026-09-18
 
 Owner-directed release of merged #840 (UX overhaul), #844 (staff baseline
@@ -4873,7 +5500,8 @@ OpenAI API or storing an API key.
    Codex-plan usage rather than OpenAI API billing.
 10. Keep the client-facing Obsidian vault outside direct ingestion. Only
     reviewed outputs may be promoted there under the knowledge authority rules
-    in `AGENTS.md`, `CONTEXT.md`, and ADR 0014.
+    in `AGENTS.md`, `CONTEXT.md`, and
+    [ADR 0029](adr/0029-resolve-knowledge-by-authority-order.md).
 
 ### Delivery blocks
 
@@ -9707,3 +10335,85 @@ production check additionally requires separately authorized deployment.
   <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html>,
   <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html> and
   <https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html>.
+
+## 2026-09-20 — KB: уточнение фактической координации и обслуживания
+
+Дополнение к сохранённой записи Portal #914: перед применением KB schema
+в #912 были опубликованы передача владельца выпуска (5745678648, 22:13:39Z)
+и резерв 201–204 (5745702031, 22:17:32Z). Выпуск/перенос подтверждены владельцем
+в задаче Astra. Миграции применены одним координатором и проверены по ledger
+и исходным SHA-256; детали — в KB execution receipt.
+
+`evo-knowledge-maintenance.timer` установлен, active/enabled; service завершился
+с Result=success и ExecMainStatus=0. Независимый reviewer повторно подтвердил
+это read-only через SSH, включая успешный запуск в 22:47:08 UTC, отмеченный в его квитанции.
+Таким образом, отсутствие уведомления до apply и ещё не установленный timer
+не являются текущими незавершёнными пунктами KB. История записи #914 сохранена.
+
+Реальный защищённый перенос завершён (32 оригинала + 25 записей), обычный
+перенос и полная сверка ZIP продолжаются. Завершение всего плана не объявляется.
+
+
+## AST-5 portal functional parity — 2026-09-20
+
+Owner explicitly approved closing the four reported gaps. Execution contract:
+1. iPhone admission: display the real operational stage, with the same RU/KY meanings as web, honest empty/error states.
+2. iPhone Home: real lesson/test continuation, favorites with nearest intakes, application status, and assisted next actions; preserve native navigation and private read contracts.
+3. Web notifications: Atlas UI, RU/KY, authoritative access tier, and refresh for current operational routes; preserve runner state.
+4. Web new catalogue entries: server-owned first-publication timestamp, preserved through edits/unpublish/republish, bounded recent list of currently published universities; no fabricated historical dates. Schema number reserved only after current coordination.
+
+Each block is a separate PR with independent exact-head review and focused real-path evidence. Use existing authenticated QA identity and real catalogue/learning data; no fabricated fixtures or writes to customer records. Read-only Student checks and local Simulator/browser builds are authorized. Production schema application/release requires the existing coordination/authority; do not silently deploy. Final product-wide E2E, content expansion and App Store remain deferred. Record limitations, never infer full acceptance from CI.
+
+Official implementation references: [SwiftUI task lifetime](https://developer.apple.com/documentation/swiftui/view/task(id:priority:_:)), [SwiftUI refreshable](https://developer.apple.com/documentation/swiftui/view/refreshable(action:)), [PostgreSQL triggers](https://www.postgresql.org/docs/current/trigger-definition.html). Context7 documentation lookup was unavailable (monthly quota); official documentation used directly.
+
+
+## AST-5 iPhone Home clarity — 2026-09-20
+
+Execute `docs/design/portal/ios-home-refinement.md`: surface genuine unfinished
+work, keep admission actions/errors first, clarify module progress, and enlarge
+the native continuation button. Preserve the user's selected EVO appearance.
+Acceptance: Xcode build, real QA Home/continuation/lesson paths, RU/KY and
+dark/large-text inspection, then independent exact-head review and short CI.
+No production migration/release or deferred final E2E/content/App Store work.
+
+
+## 2026-09-20 — EVO product-wide UX refinement
+
+Owner-authorized additive execution contract:
+[`EVO_UX_REFINEMENT_PLAN_2026-09-20.md`](EVO_UX_REFINEMENT_PLAN_2026-09-20.md).
+Analyze the entire CRM, product web (desktop/mobile), and iPhone experience against
+real tasks and the existing CRM/admissions functional plan. Preserve EVO/Atlas/native
+identity and useful functions; improve CRM composition, density, typography,
+navigation and state handling. Dedicated page agents may analyze in parallel with
+explicit ownership; one coordinator integrates shared contracts and components.
+The scope includes an inventory before removing/moving controls and a truthful
+per-page evidence matrix. Final E2E, content expansion, App Store and release remain
+separate. The first documentation pass is not a completed all-page runtime audit.
+
+
+## Parallel A/B execution — 2026-09-20
+
+Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
+Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+(items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
+installation and real local HTTP smoke, with unknown paths still fail-closed.
+This unblocks assessment of #847, not production release or provider acceptance.
+Root coordinates main/schema/release; A owns these shared planning appendices.
+
+B-1 (item 26): validate migrated photo objectPath against the existing manifest
+contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
+No Storage writes, license/catalog changes or broader bundle refactor. Validate
+resolver, all real manifest entries and read-only public URL/hash; authenticated
+render is not claimed. B owns its runtime files and detailed lane plan.
+
+B-1 merged as PR #937 into main `22404da81ab9398a28fdca99d879dc9f0b15a0d6`
+after independent review of `20229d1915ffd99d18e2caccc1fe3e0cd6634330` and
+required CI. This records source integration, not production delivery.
+
+B-5 (item 26): production-build analysis found the full photo audit manifest
+in browser JavaScript. Resolve photo URLs and attribution on the server; retain
+a minimal client image-error boundary for portal and staff catalogue images.
+Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
+when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
+this block. Verify bundle removal and real read-only catalogue rendering.
+No content, authentication, schema or Storage writes are included.

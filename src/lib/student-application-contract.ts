@@ -23,6 +23,12 @@ export type StudentApplication = {
   id: string; status: "pending" | "approved" | "rejected"; revision: number; email: string;
   questionnaire: StudentApplicationDraft; submittedAt: string; decidedAt: string | null;
   decisionReason: string | null; studentCaseId: string | null; admissionsDirection: AdmissionsDirection | null;
+  /**
+   * The unified-workflow canonical lead this application is linked to — set at
+   * submit time when Продажи has a configured intake owner, or at approval
+   * time otherwise (never both/neither). Null only before either has run.
+   */
+  canonicalLeadId: string | null;
 };
 export type StudentApplicationCurator = { membershipId: string; displayName: string; directions: AdmissionsDirection[] };
 export type StudentApplicationQueue = { applications: StudentApplication[]; curators: StudentApplicationCurator[]; pendingCount: number };

@@ -1,19 +1,13 @@
 import "server-only";
 
 import {
-  PLATFORM_APPLICATION_STATUSES,
-  type PlatformApplicationStatus,
-} from "../platform-application-contract.ts";
-import {
   type PlatformCaseTaskStatus,
 } from "../platform-admissions-task-contract.ts";
 import {
   PLATFORM_OBLIGATION_CATEGORIES,
   PLATFORM_OBLIGATION_STATUSES,
-  PLATFORM_VISA_STATUSES,
   type PlatformObligationCategory,
   type PlatformObligationStatus,
-  type PlatformVisaStatus,
 } from "../platform-case-operations-contract.ts";
 import {
   PLATFORM_DOCUMENT_REVIEW_DECISIONS,
@@ -32,7 +26,6 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const REQUIREMENT_KEY_PATTERN = /^[a-z][a-z0-9_.-]*$/;
 const NOTIFICATION_CODE_PATTERN = /^[a-z][a-z0-9_.-]*$/;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
-const TIMELINE_LIMIT = 50;
 const MAX_POSTGRES_BIGINT = BigInt("9223372036854775807");
 
 const DOCUMENT_MIME_TYPES = [
@@ -67,7 +60,11 @@ export type StudentPortalDocumentAction = Readonly<{
   documentSlotId: string;
 }>;
 export type StudentPortalPaymentAction = Readonly<{
-  kind: "payment"; label: string; dueAt: string; amountMinor: number; currency: string;
+  // Widened alongside StudentPortalPayment.dueAt (188_platform_case_agreement,
+  // the one allowed portal null-tolerance exception) — a case-agreement
+  // tranche can be undated. OverviewView.tsx already guards every dueAt
+  // read behind `&& action.dueAt`, so this needed no further UI change.
+  kind: "payment"; label: string; dueAt: string | null; amountMinor: number; currency: string;
 }>;
 export type StudentPortalAction = StudentPortalDocumentAction | StudentPortalPaymentAction;
 
@@ -86,39 +83,6 @@ export type StudentPortalOverview = Readonly<{
   studentActions: readonly StudentPortalAction[];
   evoAction: StudentPortalEvoAction | null;
   curatorDisplayName: string | null;
-}>;
-
-export type StudentPortalApplicationTimelineEntry = Readonly<{
-  previousStatus: PlatformApplicationStatus | null;
-  newStatus: PlatformApplicationStatus;
-  occurredAt: string;
-}>;
-
-export type StudentPortalApplication = Readonly<{
-  applicationId: string;
-  institutionName: string;
-  programName: string;
-  status: PlatformApplicationStatus;
-  isPrimary: boolean;
-  universityDeadlineOn: string | null;
-  timeline: readonly StudentPortalApplicationTimelineEntry[];
-}>;
-
-export type StudentPortalVisaTimelineEntry = Readonly<{
-  previousStatus: PlatformVisaStatus | null;
-  newStatus: PlatformVisaStatus;
-  occurredAt: string;
-}>;
-
-export type StudentPortalVisa = Readonly<{
-  visaCaseId: string;
-  status: PlatformVisaStatus;
-  timeline: readonly StudentPortalVisaTimelineEntry[];
-}>;
-
-export type StudentPortalApplications = Readonly<{
-  applications: readonly StudentPortalApplication[];
-  visa: StudentPortalVisa | null;
 }>;
 
 export type StudentPortalDocument = Readonly<{
@@ -149,10 +113,17 @@ export type StudentPortalPayment = Readonly<{
   refundedMinor: number;
   outstandingMinor: number;
   currency: string;
-  dueAt: string;
+  /**
+   * The one allowed null-tolerance exception for the portal
+   * (188_platform_case_agreement): a case-agreement tranche may have no due
+   * date at all ("срок при необходимости"), and the same
+   * platform.payment_obligations rows now feed this reader too. null means
+   * undated, not unknown — no portal UX change beyond accepting it.
+   */
+  dueAt: string | null;
   status: PlatformObligationStatus;
   overdue: boolean;
-  nextAction: string;
+  nextAction: string | null;
 }>;
 
 export type StudentPortalNotification = Readonly<{
@@ -464,84 +435,6 @@ export function normalizeStudentPortalOverview(
   });
 }
 
-function normalizeApplicationTimelineEntry(
-  value: unknown,
-): StudentPortalApplicationTimelineEntry {
-  const row = exactRecord(value, ["previous_status", "new_status", "occurred_at"]);
-  const previousStatus = row.previous_status === null
-    ? null
-    : enumValue(row.previous_status, PLATFORM_APPLICATION_STATUSES);
-  const newStatus = enumValue(row.new_status, PLATFORM_APPLICATION_STATUSES);
-  if (previousStatus === newStatus) return invalidShape();
-  return Object.freeze({
-    previousStatus,
-    newStatus,
-    occurredAt: requiredTimestamp(row.occurred_at),
-  });
-}
-
-function normalizeApplication(value: unknown): Omit<StudentPortalApplication, "timeline"> {
-  const row = exactRecord(value, [
-    "application_id",
-    "institution_name",
-    "program_name",
-    "application_status",
-    "is_primary",
-    "university_deadline_on",
-  ]);
-  if (typeof row.is_primary !== "boolean") return invalidShape();
-  return Object.freeze({
-    applicationId: requiredUuid(row.application_id),
-    institutionName: requiredText(row.institution_name, 300),
-    programName: requiredText(row.program_name, 300),
-    status: enumValue(row.application_status, PLATFORM_APPLICATION_STATUSES),
-    isPrimary: row.is_primary,
-    universityDeadlineOn: optionalDate(row.university_deadline_on),
-  });
-}
-
-function normalizeVisaTimelineEntry(value: unknown): StudentPortalVisaTimelineEntry {
-  const row = exactRecord(value, ["previous_status", "new_status", "occurred_at"]);
-  const previousStatus = row.previous_status === null
-    ? null
-    : enumValue(row.previous_status, PLATFORM_VISA_STATUSES);
-  const newStatus = enumValue(row.new_status, PLATFORM_VISA_STATUSES);
-  if (previousStatus === newStatus) return invalidShape();
-  return Object.freeze({
-    previousStatus,
-    newStatus,
-    occurredAt: requiredTimestamp(row.occurred_at),
-  });
-}
-
-function normalizeVisa(value: unknown): Omit<StudentPortalVisa, "timeline"> {
-  const row = exactRecord(value, ["visa_case_id", "visa_status"]);
-  return Object.freeze({
-    visaCaseId: requiredUuid(row.visa_case_id),
-    status: enumValue(row.visa_status, PLATFORM_VISA_STATUSES),
-  });
-}
-
-function assertTimelineContinuity<T extends Readonly<{
-  previousStatus: string | null;
-  newStatus: string;
-  occurredAt: string;
-}>>(timeline: readonly T[], currentStatus: string): void {
-  if (timeline[0] && timeline[0].newStatus !== currentStatus) {
-    return invalidShape();
-  }
-  for (let index = 1; index < timeline.length; index += 1) {
-    const newer = timeline[index - 1];
-    const older = timeline[index];
-    if (
-      Date.parse(newer.occurredAt) < Date.parse(older.occurredAt) ||
-      newer.previousStatus !== older.newStatus
-    ) {
-      return invalidShape();
-    }
-  }
-}
-
 export function normalizeStudentPortalDocument(
   value: unknown,
 ): StudentPortalDocument {
@@ -680,10 +573,10 @@ export function normalizeStudentPortalPayment(value: unknown): StudentPortalPaym
     currency: typeof row.currency === "string" && CURRENCY_PATTERN.test(row.currency)
       ? row.currency
       : invalidShape(),
-    dueAt: requiredTimestamp(row.due_at),
+    dueAt: optionalTimestamp(row.due_at),
     status,
     overdue: row.overdue,
-    nextAction: requiredText(row.next_action, 1000),
+    nextAction: optionalText(row.next_action, 1000),
   });
 }
 
@@ -813,65 +706,6 @@ export async function readStudentPortalDocuments(
       normalizeStudentPortalDocument,
       (row) => row.documentSlotId,
     );
-  } catch (error) {
-    return failClosed(error);
-  }
-}
-
-export async function readStudentPortalApplications(
-  dependencies: StudentPortalSourceDependencies = {},
-): Promise<StudentPortalApplications> {
-  try {
-    const client = await clientFor(dependencies);
-    const [applications, visas] = await Promise.all([
-      readRpcRows(
-        client,
-        "student_portal_applications_v2",
-        {},
-        normalizeApplication,
-        (row) => row.applicationId,
-      ),
-      readRpcRows(
-        client,
-        "student_portal_visa_cases_v2",
-        {},
-        normalizeVisa,
-        (row) => row.visaCaseId,
-      ),
-    ]);
-    if (visas.length > 1) return invalidShape();
-
-    const [applicationRows, visa] = await Promise.all([
-      Promise.all(applications.map(async (application) => {
-        const timeline = await readRpcRows(
-          client,
-          "student_portal_application_timeline_v1",
-          {
-            p_application_id: application.applicationId,
-            p_limit: TIMELINE_LIMIT,
-          },
-          normalizeApplicationTimelineEntry,
-        );
-        assertTimelineContinuity(timeline, application.status);
-        return Object.freeze({ ...application, timeline });
-      })),
-      (async (): Promise<StudentPortalVisa | null> => {
-        if (!visas[0]) return null;
-        const timeline = await readRpcRows(
-          client,
-          "student_portal_visa_timeline_v1",
-          { p_visa_case_id: visas[0].visaCaseId, p_limit: TIMELINE_LIMIT },
-          normalizeVisaTimelineEntry,
-        );
-        assertTimelineContinuity(timeline, visas[0].status);
-        return Object.freeze({ ...visas[0], timeline });
-      })(),
-    ]);
-
-    return Object.freeze({
-      applications: Object.freeze(applicationRows),
-      visa,
-    });
   } catch (error) {
     return failClosed(error);
   }

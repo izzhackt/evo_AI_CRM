@@ -880,6 +880,95 @@ const defaultStudentDependencies = createDefaultDependencies(
   createStudentDocumentAuthorizationFactory(),
 );
 
+// PORT-8a (ADR 0030 «Решение» п. 2): bounded bearer credential shape. This is
+// only a cheap gate before Supabase Auth verifies the token itself; it is not
+// JWT verification. The length bound mirrors the staff acceptance token bound.
+const BEARER_JWT_PATTERN =
+  /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+const MAX_BEARER_TOKEN_LENGTH = 16384;
+
+export type StudentPortalDocumentRouteTransport =
+  | Readonly<{ transport: "cookie" }>
+  | Readonly<{ transport: "bearer"; accessToken: string }>
+  | Readonly<{ transport: "invalid_bearer" }>;
+
+/**
+ * Precedence rule of PORT-8a: a PRESENT `Authorization` header always selects
+ * the bearer transport — the cookie session is then never consulted, even
+ * when the header is malformed or carries another scheme. Only a request
+ * without the header keeps today's cookie path.
+ */
+export function studentPortalDocumentRouteTransport(
+  request: Request,
+): StudentPortalDocumentRouteTransport {
+  const header = request.headers.get("authorization");
+  if (header === null) return { transport: "cookie" };
+  const separatorIndex = header.indexOf(" ");
+  if (separatorIndex < 1) return { transport: "invalid_bearer" };
+  const scheme = header.slice(0, separatorIndex);
+  const accessToken = header.slice(separatorIndex + 1);
+  if (
+    scheme.toLowerCase() !== "bearer"
+    || accessToken.length === 0
+    || accessToken.length > MAX_BEARER_TOKEN_LENGTH
+    || !BEARER_JWT_PATTERN.test(accessToken)
+  ) {
+    return { transport: "invalid_bearer" };
+  }
+  return { transport: "bearer", accessToken };
+}
+
+function createStudentBearerDocumentDependencies(
+  accessToken: string,
+): PlatformDocumentStorageRouteDependencies {
+  return {
+    ...createDefaultDependencies(
+      createStudentDocumentAuthorizationFactory(async () => {
+        const { resolveStudentPortalBearerActor } = await import(
+          "../student-portal-auth.ts"
+        );
+        return resolveStudentPortalBearerActor(accessToken);
+      }),
+    ),
+    // Every user-authorized RPC of the choreography runs on a client bound to
+    // the same verified token; cookies are never read on this path.
+    createUserClient: async () => {
+      const { createSupabaseBearerServerClient } = await import(
+        "../supabase/server.ts"
+      );
+      return createSupabaseBearerServerClient(accessToken);
+    },
+  };
+}
+
+// A present-but-invalid bearer fails closed with the handlers' existing 401
+// shape and must never continue as a cookie session: authorization stops the
+// request first, and the user-client constructor refuses to exist at all.
+const invalidBearerStudentDependencies: PlatformDocumentStorageRouteDependencies =
+  Object.freeze({
+    ...createDefaultDependencies(async () => ({
+      status: "anonymous" as const,
+      actor: null,
+    })),
+    createUserClient: async (): Promise<SupabaseClient> => {
+      throw new Error("student_document_bearer_invalid");
+    },
+  });
+
+export function selectStudentPortalDocumentRouteDependencies(
+  request: Request,
+): PlatformDocumentStorageRouteDependencies {
+  const routeTransport = studentPortalDocumentRouteTransport(request);
+  if (routeTransport.transport === "bearer") {
+    return createStudentBearerDocumentDependencies(routeTransport.accessToken);
+  }
+  if (routeTransport.transport === "invalid_bearer") {
+    return invalidBearerStudentDependencies;
+  }
+  // No Authorization header: the exact cookie dependencies used today.
+  return defaultStudentDependencies;
+}
+
 function errorResponse(status: number, code: string): Response {
   return Response.json({ error: code }, { status });
 }
@@ -1494,9 +1583,21 @@ export function createPlatformDocumentUploadHandler(
 }
 
 export function createStudentPortalDocumentUploadHandler(
-  dependencies: PlatformDocumentStorageRouteDependencies = defaultStudentDependencies,
+  dependencies?: PlatformDocumentStorageRouteDependencies,
 ) {
-  return createDocumentUploadHandler(dependencies, "student");
+  if (dependencies) return createDocumentUploadHandler(dependencies, "student");
+  // PORT-8a: without injected dependencies the transport is decided per
+  // request — a present Authorization header selects the bearer path, and a
+  // request without it keeps today's cookie dependencies unchanged.
+  return async function POST(
+    request: Request,
+    context: RouteContext<{ documentSlotId: string }>,
+  ): Promise<Response> {
+    return createDocumentUploadHandler(
+      selectStudentPortalDocumentRouteDependencies(request),
+      "student",
+    )(request, context);
+  };
 }
 
 function createDocumentDownloadHandler(
@@ -1605,7 +1706,19 @@ export function createPlatformDocumentDownloadHandler(
 }
 
 export function createStudentPortalDocumentDownloadHandler(
-  dependencies: PlatformDocumentStorageRouteDependencies = defaultStudentDependencies,
+  dependencies?: PlatformDocumentStorageRouteDependencies,
 ) {
-  return createDocumentDownloadHandler(dependencies, STUDENT_DOWNLOAD_POLICY);
+  if (dependencies) {
+    return createDocumentDownloadHandler(dependencies, STUDENT_DOWNLOAD_POLICY);
+  }
+  // PORT-8a: same per-request transport selection as the student upload.
+  return async function GET(
+    request: Request,
+    context: RouteContext<{ versionId: string }>,
+  ): Promise<Response> {
+    return createDocumentDownloadHandler(
+      selectStudentPortalDocumentRouteDependencies(request),
+      STUDENT_DOWNLOAD_POLICY,
+    )(request, context);
+  };
 }

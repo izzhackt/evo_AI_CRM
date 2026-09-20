@@ -90,3 +90,15 @@ B3b получил214, main/local порядок212→213→214.
 URL и результата, но uncontrolled select продолжает показывать старый option
 до reload (`pipeline/page.tsx:193`). Не исправлялось в212 и не скрывается общим
 утверждением «все фильтры готовы».
+
+### CRM-30 / 213 — grouped save подготовлен
+
+#945 merged285e784e; следующим реализован пункт30 в isolated
+`crm-grouped-card-saves`, contractdfb55be → runtimeeb4502c. Четыре формы
+сохраняют только свои9/6/5/6 ключей, сервер берёт соседние значения из текущей
+строки; исправлены stale sibling overwrite и финансовая форма12-vs29 keys.
+Старые v1/reader/финансовые snapshots сохранены, shared revision монотонна.
+См. `docs/qa/crm-30-grouped-card-saves-2026-09-20.md` для реального объёма proof.
+TypeScript/lint/source guards/syntax и read-only UI пройдены. Применение213,
+положительная QA-запись и final review/CI ещё не завершены. Порядок213→214.
+Пункт35/#42 теперь выполняет root, A не дублирует этот срез.

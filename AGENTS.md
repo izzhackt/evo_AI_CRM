@@ -1,5 +1,16 @@
 # AGENTS.md
 
+## UX/UI changes — owner instruction, 2026-09-21
+
+- Use the Impeccable skill for every change affecting CRM, portal, web or iPhone
+  design and interaction. Consult its relevant planning/critique guidance before
+  editing, and assess the implemented result through the real UI afterward.
+- Preserve the agreed EVO identity and functional requirements. Design advice
+  must account for permissions, data, states and existing user workflows.
+- Reuse the session's loaded context; follow the skill's bounded inspection
+  process. Record the advice applied and actual UI evidence in the slice's
+  plan or QA receipt. The skill does not replace functional validation.
+
 ## How To Work In This Repo
 
 - Treat this repo as the production EVO Admissions CRM workspace.

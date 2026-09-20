@@ -218,6 +218,45 @@ final class SupabaseService {
         }
     }
 
+    // MARK: - Application requirements (supabase/migrations/218)
+
+    /// Explicit Student command; a read never initializes requirements. Retain
+    /// this exact intent after an uncertain response and read current state separately.
+    func initializeApplicationRequirements(_ intent: ApplicationRequirementsIntent) async throws -> ApplicationRequirementsReceipt {
+        do {
+            let receipt: ApplicationRequirementsReceipt = try await client
+                .rpc("student_initialize_application_requirements_v1", params: intent)
+                .execute()
+                .value
+            try receipt.validate(for: intent)
+            return receipt
+        } catch let error as PostgrestError {
+            throw ApplicationRequirementsFailure.serverReason(code: error.code, message: error.message) ?? error
+        }
+    }
+
+    /// Current programme-scoped requirements; preserves uninitialized and
+    /// needs_configuration instead of treating them as an empty ready checklist.
+    func studentApplicationRequirements(studentCaseId: UUID, applicationId: UUID) async throws -> ApplicationRequirementsView {
+        struct Params: Encodable, Sendable {
+            let p_student_case_id: String
+            let p_application_id: String
+        }
+        do {
+            let result: ApplicationRequirementsView = try await client
+                .rpc("student_application_requirements_v1", params: Params(
+                    p_student_case_id: studentCaseId.uuidString.lowercased(),
+                    p_application_id: applicationId.uuidString.lowercased()
+                ))
+                .execute()
+                .value
+            try result.validate(studentCaseId: studentCaseId, applicationId: applicationId)
+            return result
+        } catch let error as PostgrestError {
+            throw ApplicationRequirementsFailure.serverReason(code: error.code, message: error.message) ?? error
+        }
+    }
+
     // MARK: - University favourites (supabase/migrations/195)
 
     /// `platform.set_university_favorite_v1(p_institution_id, p_favored)` —

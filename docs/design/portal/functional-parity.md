@@ -75,3 +75,69 @@ for the affected section. A boundary that cannot be exercised through the real
 local path must remain explicitly unverified. These checks are **pending**;
 the historical evidence above is unchanged. Local acceptance will not be
 reported as managed-environment or real-customer acceptance.
+
+### B-2 real local acceptance, completed 2026-09-20
+
+Source tested: `6b6153125a6cf722ea2712367ec24552ede90423`. SQL207 and its seven
+runtime/test files are unchanged from the previously reviewed `17ee1cb8`.
+The final browser environment was the composed local001–209 stack:207 from
+this PR,208 from PR935, and the separately reviewed prospective Student scope
+fix209 from PR942. The shared database is still untouched.
+
+The real empty Student RPC succeeded on the initial local001–208 stack.
+Ordinary public signup/approval exposed a pre-existing missing case-scope grant,
+so Home could not open for that account. The original case was preserved as
+failure evidence. After A applied209 through the local CLI, two NEW Students
+used the product registration helper, ordinary Auth/submission/Admin approval
+and fresh password sessions. The browser opened `/portal` and `/portal/home`.
+This is not a replay of the historical managed QA or a manually repaired fixture.
+
+Five existing reviewed China templates were actually staged and published by a
+normally signed-in local Admin using the product catalogue RPCs. Student207
+returned four, excluding the oldest. A subsequent supported overview revision
+of the second institution preserved all four first-publication timestamps and
+their order. An attempted identity rename was correctly rejected with22023;
+name/country/city are immutable in148, so latest-content differentiation within
+207's identity-only DTO is not independently claimed. No history timestamp was
+edited and no clock was replaced.
+
+Normal anonymous, Sales and Admissions calls to207 returned respectively
+401/403/403 with42501 and no data. The actual Home IDs/order matched the actual
+Student RPC. RU/KY were checked at1280×900 and390×844, with document width equal
+to viewport width. KY was selected and saved through the real profile form.
+
+The local-only `scripts/bind-local-student-intake.mjs` was independently reviewed
+and applied solely by A before registration. It checks disposable project,
+workdir/container ownership, loopback origins and local Docker/OrbStack, then
+binds one previously empty intake configuration to an existing active local
+organization/department. It creates no Student/case or authorization grant.
+Its SHA256 is `edad4bffabe12cc189215cde6c80e92024dcbf36462bc47d85ffa124c4334b4b`.
+Actual negative invocations rejected missing arguments, invalid UUIDs and a
+non-disposable workdir before database execution.
+
+Safe local artifacts under `/private/tmp/evo-database-foundation.WhSt8z`:
+
+| Artifact | SHA256 |
+|---|---|
+| b-home-ui-evidence.json | `056cd49497861d65e7172efbea286224218edea9053bd8067c5e6a8cebdc973d` |
+| b-209-home-desktop-ru.png | `9bb6baaadb68d060ec4a56c65126623aef6512f42cb28fa5fdec290dc1c52d01` |
+| b-209-home-mobile-ru.png | `74932df3ea8da7897aeb8470270ed8753637d9b61124224ed7421e9b4672f6ff` |
+| b-209-home-desktop-ky.png | `29e0c0dd1ee09ed9257989f56155081df93b608162930736bbc08b01989d45fb` |
+| b-209-home-mobile-ky.png | `ae00aa50aab5e66dd88cea89d39c009e841e33adacb59ba8c2c464206a75a7fd` |
+
+Limits: the true empty RPC was exercised, but the empty Home after209 was not;
+the immutable published catalogue was not erased for a screenshot. A second
+tenant, exact30-day/future timestamp boundaries, native iPhone and VoiceOver
+were not executed. No managed schema write, production deployment, provider or
+customer acceptance is claimed. Those limits remain visible at merge/release.
+
+### B-4 follow-up found during real approval acceptance
+
+Reproduction on the same source/composed schema: a freshly approved pending
+Student opens `/portal`. The sidebar correctly omits assisted-only sections,
+but the overview still offers “Все документы”, “Все начисления” and
+“Открыть обращения”, describes a curator and renders “Обращения пока
+недоступны”. Actual own-case help correctly returns42501 at the approved tier.
+Align the overview's actions/copy with the existing approved/assisted contract
+in a separate B-4 slice; keep those authorization boundaries intact. This is a
+UX inconsistency, not evidence that209 should grant assisted permissions.

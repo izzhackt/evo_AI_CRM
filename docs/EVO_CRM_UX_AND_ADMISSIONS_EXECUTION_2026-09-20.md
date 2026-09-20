@@ -209,7 +209,7 @@ Auth/DB/API-контуре; результаты приведены ниже.
 
 ## CRM-02a — настоящая локальная приёмка завершена
 
-[Квитанция с привязкой к runtime и хэшами снимков](qa/crm-02a-local-real-acceptance-2026-09-20.json)
+[Квитанция с привязкой к runtime и хэшами снимков](qa/crm-02a-local-real-acceptance-2026-09-20.md)
 фиксирует отдельный контур `evo-local-0fd3559d0240c989`, schema 001–208.
 Обычные Auth logins, Admin bootstrap, роли и приглашения через реальную форму
 и local Mailpit, RPC создания лидов/условий, browser Save и readback пройдены.

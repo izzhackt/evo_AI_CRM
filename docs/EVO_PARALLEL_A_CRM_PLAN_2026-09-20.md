@@ -4,7 +4,7 @@
 полосы B; общий main, миграции и release координирует root. Это план выполнения,
 не утверждение готовности. Пункты 37–50 не запускаются.
 
-Статусы пересверены 21 сентября (Asia/Dubai) на main `3ddb6f41` после #950.
+Статусы пересверены 21 сентября (Asia/Dubai) на main `fdbc7a4d` после #956.
 Root принял у A пункты 9, 35 и текущую сверку 36; A продолжает остальные срезы.
 Merge исходников, локальное QA и production delivery учитываются отдельно.
 
@@ -44,16 +44,16 @@ review одобрены. Это unit/source/harness-проверки; полно
 |---|---|---|
 | 3 | #905 MERGED; три тестовых файла сверены, 50/50 scoped checks | Старый отчёт 2179 не новый прогон; business acceptance не заявляется |
 | 1 | #935 MERGED `f5198c37`: Sales Manager, seller и месяц по sale date; reviewed local acceptance сохранена | Managed SQL/release не выполнены; локальная квитанция относится к 001–208 |
-| 6, 10 | CRM-01 MERGED #943 `1795bf23`; CRM-05 MERGED #945 `285e784e`: текущая воронка и подтверждённый handoff проверены через local RPC/UI, review/CI пройдены | Остальная мобильная композиция и сброс owner-filter открыты; case presence не равен handoff; production не заявляется |
-| 7 | Продажи: server search/filter, валюты, readonly detail и back | Не суммировать разные валюты; права и реальный UI |
+| 6, 10 | CRM-01 MERGED #943 `1795bf23`; CRM-05 MERGED #945 `285e784e`; сброс owner-filter исправлен в #953 `498c99bf` и проверен через реальный local UI | Остальная мобильная композиция открыта; case presence не равен handoff; production не заявляется |
+| 7 | #956 MERGED `fdbc7a4d`: просмотр записи перед явным исправлением, возврат к строке с фильтрами/offset; actual Sales/Admin UI, включая отказ edit=true, desktop/390px | Server search/filter до pagination и остальной отчёт открыты; валюты не суммировать; [квитанция](qa/sales-record-preview-2026-09-21.md) |
 | 8 | Заявки: фильтр до limit, pagination и полный «Все» | Проверка server query и списка |
-| 9 | Root: Inbox — различимые empty/channel/error states; реализация ещё впереди | Только разрешённый read-path; без отправки и настройки провайдеров |
-| 11 | A: Student messages — очереди и поиск без гонки; реализация ещё впереди | Не отправлять сообщения; прочитать реальные разрешённые данные |
+| 9 | #952 MERGED `f97122e8`: Inbox empty/filter/channel states; actual local read/UI desktop/390px | История выбранного диалога и provider/error-path приёмка этим срезом не доказаны; [квитанция](qa/crm-inbox-states-2026-09-21.md) |
+| 11 | #955 MERGED `fe26526c`: поиск Student messages с loading, отдельными empty/error/retry и защитой от устаревшего ответа; actual local read/UI desktop/390px | Очереди остаются у A; диалог не открывали, сообщений и mark-read не отправляли; [квитанция](qa/case-chat-search-2026-09-21.md) |
 | 12 | Договор, сумма, транши, платежи/чеки/остаток; после #933 остальной поток открыт | Согласовать profile-source/Profile и общие actions с B |
-| 30 | PR #948 открыт: отдельные сохранения блоков; обнаружен и исправляется отказ custom Sales Manager из-за старого role predicate | Локальная 213 — непринятый кандидат; четыре положительных QA-сохранения пока не выполнены; review не заменяет этот путь |
+| 30 | PR #948 открыт: grouped save и исправление custom Sales Manager reviewed; локальная 213 скорректирована, 10/10 ordinary Auth read/denial checks и parity пройдены | UPDATE/cross-group/UI acceptance ещё не выполнена; разрешённый B214 packet даёт только часть RPC-покрытия, не заменяет эту проверку |
 | 14 | Staff-каталог: поиск, фильтры, дедлайны, управление | Program IDs/schema принадлежат B |
 | 15 | Team chat: хронология, цитаты, поиск, composer, unread | История/read model до UI; не отправлять сообщения |
-| 16 | Личный календарь: назначенные мне задачи, явный case | Server scope до композиции |
+| 16 | #954 MERGED `aa663b3d`: явный выбор дела в календаре/global task dialog, закрытый/недоступный picker не назначает первое дело; actual local UI/drafts | Server scope «назначено мне» остаётся; задачи не создавали; [квитанция](qa/task-explicit-case-2026-09-21.md) |
 | 22 | CRM shell, типографика, навигация | Impeccable вместе с функциональной проверкой; EVO сохраняется |
 | 29 | Legacy China/Malaysia optional fields | Проверить валидатор на текущем контракте, сохранить данные |
 | 33 | #687: причина изменения срока/приоритета Admin | Аудит/права обязательны, schema через root |
@@ -67,8 +67,8 @@ review одобрены. Это unit/source/harness-проверки; полно
 
 ## Уточнённая очередь после #943
 
-212/CRM-05 принят через #945. Текущий следующий блок — пункт30 / открытый #948:
-проверить и устранить перезапись уже сохранённых соседних блоков условий продажи.
+212/CRM-05 принят через #945. Текущий незавершённый блок A — пункт30 / открытый #948:
+подтвердить сохранность уже сохранённых соседних блоков условий продажи.
 Root подтвердил на main1795bf23: LeadCardFieldsForm обновляет revision, но hidden
 sibling values остаются из старого SSR; action отправляет все26 полей, SQL181
 заменяет fields целиком. #852 сохраняет несохранённые sibling drafts, но не
@@ -92,10 +92,11 @@ Runtime55581820 независимо одобрен дважды; после и�
 пункт30 остаётся первым после merge212. Миграция213 зарезервирована root для A;
 B3b получил214, main/local порядок212→213→214.
 
-Отдельная находка для будущего блока фильтров: «Сбросить всё» снимает owner из
-URL и результата, но uncontrolled select продолжает показывать старый option
-до reload (`pipeline/page.tsx:193`). Не исправлялось в212 и не скрывается общим
-утверждением «все фильтры готовы».
+Находка 212: «Сбросить всё» снимало owner из URL и результата, но select
+показывал старый option до reload. Исправлена отдельным #953 `498c99bf`;
+реальные reset/search/history и mobile-проверки описаны в
+[квитанции](qa/pipeline-owner-filter-reset-2026-09-21.md). Это не завершает
+остальную мобильную композицию воронки.
 
 ### CRM-30 / 213 — grouped save подготовлен
 
@@ -122,3 +123,20 @@ function ACL/OID/attributes и ledger001–212 сохранены. Original appl
 PASS с unchanged business hashes/Auth users count. Literal-role blocker снят.
 Positive save/sibling persistence/replay/restore остаются owner-gated HOLD;
 пункт30 не завершён и release не заявляется. См. обновлённый CRM-30 QA receipt.
+
+### CRM-30 / 213 — положительная локальная приёмка завершена 21.09
+
+Предыдущие HOLD и отсутствие положительных saves выше — исторические состояния.
+Root ac83fc2c исправил избыточную трактовку полномочий A; после завершения окна B
+выполнен исходный пакет двух полей/четырёх saves, без нового решения владельца.
+Runtime52a00103, local schema001–214. Реальные UI wishes3→4 / education4→5
+сохранили соседний несохранённый draft и остальные24 поля. Ordinary Auth exact
+replay, conflict и stale прошли; guarded restore5→6→7 вернул все26 исходных полей.
+Финансовый snapshot и остальные20-table snapshots без побочных изменений;
+ровно4 append-only receipts/audits сохранены. UI reload подтвердил восстановление.
+B packet отдельно доказал sale-group INSERT0→1 и replay/conflict/stale; его
+handoff208 встретил identity guard126 и полностью откатился. Исправление этой
+отдельной зависимости выделено B215. Оно не отменяет acceptance grouped save213.
+Подробности, включая сохранённый parser failure, — в CRM-30 QA receipt.
+Merge948 ожидает final exact-head review/protected CI;946 следует после948.
+Managed DB и production release не выполнялись.

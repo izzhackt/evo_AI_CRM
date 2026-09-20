@@ -435,10 +435,10 @@ function threadRowBadges(row: CaseChatThreadRow) {
 }
 
 function CaseChatList({
-  threads, selectedCaseId, query, onQuery, membershipId, hidden,
+  threads, selectedCaseId, query, onQuery, membershipId, hidden, loading, failure, onRetry,
 }: Readonly<{
   threads: CaseChatThreadsList; selectedCaseId: string | null; query: string; onQuery: (value: string) => void;
-  membershipId: string; hidden: boolean;
+  membershipId: string; hidden: boolean; loading: boolean; failure: CaseChatFailure | null; onRetry: () => void;
 }>) {
   const router = useRouter();
   return (
@@ -452,8 +452,22 @@ function CaseChatList({
             className="min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 text-sm text-fg" />
         </form>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        {threads.rows.length === 0 ? <p className="p-4 text-sm text-fg-3">Переписок пока нет.</p> : threads.rows.map((row) => {
+      {loading ? <p role="status" className="p-4 text-sm text-fg-3">Ищем переписки…</p> : null}
+      {failure ? <div className="p-4">
+        <p role="alert" className="text-sm text-danger">{failure === "forbidden"
+          ? "Доступ к перепискам изменился. Обновите страницу."
+          : "Не удалось загрузить переписки. Повторите поиск."}</p>
+        <button type="button" onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
+          Повторить поиск
+        </button>
+      </div> : null}
+      <div className="flex-1 overflow-y-auto" aria-busy={loading}>
+        {!loading && !failure && (threads.rows.length === 0 ? <div className="p-4">
+          <p role="status" className="text-sm text-fg-3">{query.trim() ? "По вашему запросу переписок не найдено." : "Переписок пока нет."}</p>
+          {query.trim() ? <button type="button" onClick={() => onQuery("")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
+            Сбросить поиск
+          </button> : null}
+        </div> : threads.rows.map((row) => {
           const badges = threadRowBadges(row);
           return (
             <button key={row.studentCaseId} type="button"
@@ -470,8 +484,8 @@ function CaseChatList({
               {badges.length ? <span className="mt-0.5 flex flex-wrap gap-1">{badges.map((badge) => <Pill key={badge.text} tone={badge.tone}>{badge.text}</Pill>)}</span> : null}
             </button>
           );
-        })}
-        {threads.truncated ? <p className="p-3 text-xs text-fg-3">Показаны первые {threads.rows.length}. Уточните поиск.</p> : null}
+        }))}
+        {!loading && !failure && threads.truncated ? <p className="p-3 text-xs text-fg-3">Показаны первые {threads.rows.length}. Уточните поиск.</p> : null}
       </div>
     </nav>
   );
@@ -489,16 +503,46 @@ export function CaseChatWorkspace({
   const [threads, setThreads] = useState(initialThreads);
   const [query, setQuery] = useState(initialQuery);
   const [attachment, setAttachment] = useState(pendingAttachment);
+  const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState<CaseChatFailure | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const searchSequence = useRef(0);
+
+  useEffect(() => () => {
+    clearTimeout(debounceRef.current);
+    searchSequence.current += 1;
+  }, []);
+
+  async function search(value: string, sequence: number) {
+    try {
+      const result = await loadStaffCaseChatThreadsAction(value);
+      if (sequence !== searchSequence.current) return;
+      if (result.status === "ready") setThreads(result.list);
+      else setFailure(result.status);
+    } catch {
+      if (sequence !== searchSequence.current) return;
+      setFailure("unavailable");
+    } finally {
+      if (sequence === searchSequence.current) setLoading(false);
+    }
+  }
 
   function onQuery(value: string) {
     setQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      void loadStaffCaseChatThreadsAction(value).then((result) => {
-        if (result.status === "ready") setThreads(result.list);
-      });
-    }, 250);
+    clearTimeout(debounceRef.current);
+    // Invalidate immediately: an old response may arrive during the debounce.
+    const sequence = ++searchSequence.current;
+    setFailure(null);
+    setLoading(true);
+    debounceRef.current = setTimeout(() => { void search(value, sequence); }, 250);
+  }
+
+  function retrySearch() {
+    clearTimeout(debounceRef.current);
+    const sequence = ++searchSequence.current;
+    setFailure(null);
+    setLoading(true);
+    void search(query, sequence);
   }
 
   const row = threads.rows.find((item) => item.studentCaseId === selectedCaseId);
@@ -506,7 +550,7 @@ export function CaseChatWorkspace({
   return (
     <div className="flex min-h-0 flex-1 rounded-card border border-border bg-surface">
       <CaseChatList threads={threads} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
-        membershipId={membershipId} hidden={selectedCaseId !== null} />
+        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={retrySearch} />
       {selectedCaseId ? (
         <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
@@ -514,7 +558,7 @@ export function CaseChatWorkspace({
           listHref={query ? `/v3/messages?q=${encodeURIComponent(query)}` : "/v3/messages"} />
       ) : (
         <div className="hidden flex-1 items-center justify-center p-6 text-center text-sm text-fg-3 @2xl:flex">
-          Выберите переписку слева.
+          {!loading && !failure && threads.rows.length > 0 ? "Выберите переписку слева." : null}
         </div>
       )}
     </div>

@@ -33801,6 +33801,340 @@ format:check/lint/typecheck/test/build и semantic review. Результат le
 Inbox, ни managed DB/provider actions/миграции этим контрактом не разрешаются.
 A владеет только двумя shared docs; root выполняет код и merge.
 
+## 2026-09-21 — CRM-09: понятные состояния CRM Inbox
+
+Владелец реализации — root после передачи пункта9 от A; A пишет только этот
+контракт. Основание main6cc5590f после #951. Это действующий `/v3/inbox`,
+не retired Inbox companion и не командный чат. Student messages (пункт11)
+остаётся у A. Узкий срез не закрывает все возможности каналов или весь пункт9.
+
+Фактический baseline на собственном localhost33220: существующий ordinary Sales
+видит0 разрешённых диалогов, «Диалогов нет» слева и лишнее «Выберите диалог»
+справа. Authenticated DB GET `staff_waha_session_health(crm_primary)` вернул
+200/0rows/errorsnull (20.09 20:21:59Z). Это unknown, не disconnected/ready.
+Private receipt `/private/tmp/evo-inbox-health-read.json`. Health читает БД с
+organization + communication.read.full, не вызывает WAHA/provider. Наличие
+пустой доступной очереди не доказывает отсутствие диалогов во всей организации.
+
+Контракт до кода:
+1. Empty state отражает текущую навигацию в строгом порядке: cursor →
+   search/waiting filters → пустая доступная очередь. Cursor даёт действие
+   «К новым»; поиск/ожидание — ясный текст и сброс обоих фильтров. Не путать
+   «нет совпадений», «на этой странице пусто» и «доступных диалогов пока нет».
+   Reply-needed не равен unread; не менять расчёт ни одного показателя.
+2. При0 queue rows и отсутствии selected показывать одну полезную область
+   вместо пустой правой панели «Выберите диалог». Если selected открыта,
+   сохранять её transcript/действия даже при пустой отфильтрованной очереди.
+3. Для unselected queue либо selected crm_primary выполнить не более одного
+   optional health-read. Его отдельная ошибка → explicit unavailable; null →
+   unknown; только fresh WORKING → ready; остальное → attention. Прежний
+   freshness helper и timestamp semantics сохраняются. Для исторической иной
+   session не переносить статус crm_primary. Health не предоставляет право
+   отправки и не подменяет command/provider availability guards.
+4. Optional fallback ограничен этим health-read. Queue/thread/context/proposals/
+   reviews и остальные прежние обязательные failures остаются fail-closed
+   через существующий boundary. Не превращать permission/auth/read failure
+   в пустую очередь или успешный provider status.
+5. Сохранить tenant/current actor/permissions, Admin preview guards,
+   keyset cursors и50+1 pagination, фильтры, открытую selection, media/private
+   paths, snippets, provider/amoCRM controls и их ключи/историю. Это точечное
+   улучшение EVO по Impeccable, не замена дизайна или удаление функций.
+
+Реальные проверки: existing ordinary Sales empty queue, search/waiting/reset,
+«К новым» при настоящем допустимом cursor; desktop и actual390px, читаемость и
+отсутствие overflow. Чистую decision logic разрешено проверить scoped tests;
+они не заменяют реальный Auth/UI path. Состояния selected/history/channelerror/
+freshready, для которых нет разрешённых реальных данных, не фабриковать и не
+объявлять пройденными. Назвать фактические proof и ограничения в QA receipt.
+Не создавать новые диалоги/fixtures, не send/mark-read, не менять provider
+configuration, identities/roles/Auth, migrations или managed DB/production.
+Scope-local lint/typecheck и независимое exact-head review/CI перед root merge.
+
+## 2026-09-21 — CRM-06/10: сброс выбранного сотрудника в воронке
+
+Независимый малый остаток исходных пунктов6/10 после rootCRM09/#952. База
+`f97122e83ca65013eeac3eb51919477b9b0e16bd`; root реализует в отдельном
+`evo-pipeline-filter-reset`, A владеет только двумя shared contract docs.
+Не переносить pending948/946 и не связывать исправление с их positive QA.
+
+Фактическая проблема повторно доказана ordinary local Sales на33218:
+ownerLocalAdmin → Найти:1 карточка; «Сбросить всё»: URL безowner,7 доступных
+карточек, reset link исчезла, но select всё ещё Local Admin. Следующий поиск
+снова отправляет устаревший owner. Поиск q при reset очищается правильно;
+full reload возвращает «Все сотрудники». Pipeline source на tested35ce5c0,
+A52a00103 и mainf97122e8 побайтно одинаков
+(SHA256bb023c771c04c950caaef9e0ad96e99339a9fe7de0d720c6c45851e4dc55d2d0).
+Private observed evidence: `/private/tmp/evo-owner-filter-reset-baseline.json`,
+`evo-owner-filter-reset-baseline.png`, `evo-owner-filter-reset-followup.json`.
+
+Контракт до кода: синхронизировать только видимый owner select с нормализованным
+применённым URL owner при client navigation/reset/history. Минимальный вариант
+— remount самого select при изменении committed owner; не всей страницы, формы
+поиска, доски или карточек. Не менять рабочую семантику q, stage/due/assignment/
+handed, URL parameter names/validation/404, permission-gated owner options и
+placeholder недоступного в первой сотне выбранного сотрудника.
+
+После reset controls/URL/выдача должны согласоваться, последующий submit не
+должен заново отправлять сброшенный owner. Сохранять разрешённые board rows,
+counts/handoff grouping, текущие search/filter links и ограничения tenant/role.
+Не затрагивать unsaved business drafts/manual lead/decision forms, layout,
+existing actions, SQL/readers/API/migrations или provider paths. Исправление
+не создаёт/не меняет клиентов, продажи, назначения, Auth или данные QA.
+
+Scope-local реальная приёмка через GET и обычный existing Sales:
+- owner apply→reset: label «Все сотрудники», URL безowner, исходная полная
+  разрешённая выдача; следующий поиск не возвращает staleowner;
+- Back/Forward и stage/due links сохраняют согласованность с committedURL;
+  q очищается как прежде, другие фильтры и handed mode не переосмысляются;
+- не remount unrelated forms и не терять их незаписанные поля; только ввод
+  и навигация допустимы, никаких submit mutation commands;
+- desktop и actual390px: control доступен, нет нового overflow. Изменённый
+  source проходит scoped lint/typecheck, diff review и независимое exact-head
+  review/protected CI. Не вводить mock data или тест, просто зеркалящий JSX.
+
+Это подготовленный контракт, не утверждение исправления. Production/provider/
+managed mutations и завершение всех пунктов6/10 этим срезом не заявляются.
+
+## 2026-09-21 — CRM-16: явный выбор дела при создании задачи
+
+Root принял этот независимый срез от A после merge#953; base
+`498c99bf7aa482d9e902d82f457d0312c3c2ac6e`, отдельный worktree
+`evo-task-explicit-case`. A пишет только shared contract docs до кода.
+Pending948/946 и их положительные QA-пакеты остаются отдельными и не завершены.
+
+Основание: ordinary existing Sales, local001–214, реальный read-only baseline
+двух consumers в `/private/tmp/evo-task-case-choice-baseline.md`. Calendar
+открывает4 существующих дела с автоматически выбранным первым; поиск тоже
+автоматически выбирает первый результат. Global TaskComposerDialog в staffmode
+держит закрытый required select с disabled=false/willValidate=true/valueMissing;
+открытие пустого case panel оставляет staffmode и enabled create, поскольку
+caseMode сейчас зависит от непустогоcaseId. Submit не выполнялся.
+
+Разрешённые продуктовые файлы с прямой зависимостью:
+`src/components/v3/tasks/TaskCasePicker.tsx`,
+`src/components/v3/calendar/TaskControls.tsx`,
+`src/components/v3/tasks/TaskComposerDialog.tsx`.
+
+Контракт:
+- Без явно переданного pinned/selectedCase обе формы начинают с «Выберите дело».
+  Наличие SSR initialCases или результата поиска не означает выбор первого
+  студента. Существующий pinned case сохраняется, его hidden ID и eligible
+  assignees остаются привязаны к этому делу.
+- Поиск сохраняет ПОСЛЕДНИЙ явный выбор, если он есть в актуальных results;
+  иначе очищает выбор и сообщает пустойcaseId consumer. Никогда не выбирать
+  next[0]. Pagination, server-provided rows, query/cursor validation, ошибки
+  и sequence guard остаются. In-flight callback не должен использовать старый
+  selected из closure, чтобы подменить более позднее решение пользователя.
+- Explicit case intent определяется разрешённым выбранным режимом/open panel,
+  а не наличиемcaseId. В case mode без выбора или без проверенного eligible
+  assignee создание заблокировано и на кнопке, и в client submit guard; такой
+  intent не должен попадать в staff command. Права caseAllowed/staffAllowed,
+  preview, task.assign и серверные проверки не расширяются.
+- Закрытый optional picker disabled и не участвует в native required validation,
+  не блокирует обычную staff task. При pending/saved lock выбор/поиск тоже
+  заблокированы. Открытие/закрытие не должно создавать скрытую смену назначения.
+- Прямая зависимость сохранности черновика: результат старого поиска после
+  закрытия/блокировки picker не меняет выбранное дело через onCaseChange.
+  Source TaskComposer draftContext зависит отcaseId, поэтому такой late callback
+  мог бы переключить ключ draft в staffmode. Это выявленный source risk, не
+  заявление о воспроизведённой race. Защитить текущие query/sequence/active intent
+  и latest selection; не перестраивать политику хранения/ключей черновиков.
+- Сохранить title/description drafts и их current-context isolation, explicit
+  assignee/eligibility, deadline/timezone/priority, command/request IDs и retry
+  semantics, source lead/message context, закрытие/повторное открытие, старые
+  server commands и failure states. Не добавлять schema/API/provider actions.
+
+Проверки только существующего разрешённого UI и read/search RPC:
+calendar open безавтовыбора → search → explicit selection → refinement/empty
+results; latest selection при in-flight search; global dialog closed staffmode
+без скрытой required-blocking control → open empty case mode blocked → choice
+с правильными candidates → close/reopen; pinned context через существующий
+вход создания задачи без открытия чата. Проверять disabled/value/validity,
+сохранность локальных черновиков и отсутствие unexpected mode change, НЕ
+отправлять create/save command. Desktop и actual390px обоих consumers.
+Сценарии, которые нельзя реально проверить на доступных данных, назвать
+непроверенными; не выдавать source-only review за actual race proof.
+
+Scope-local lint/typecheck/необходимые существующие проверки и независимый
+exact-head review/CI. Никаких новых entities/fixtures/назначений/Auth writes,
+mark-read, бизнес-записей, managed DB/provider/deployment. Успешное создание
+задачи этим read-only срезом не доказывается и не заявляется. Это контракт
+для улучшения существующего EVO по Impeccable, без смены visual identity.
+
+Уточнение того же контракта16: если staffAllowed=false, разрешённый case intent
+не превращается в staffmode даже при collapse optional panel. Pending search
+теряет право менять selection при committed disabled transition или unmount;
+latest explicit selection должна читаться актуально, включая её очистку.
+Существующие query sequence/cleanup guards сохраняются/расширяются только
+для этой прямой зависимости; политика draft storage не меняется.
+
+## 2026-09-21 — CRM-11 subset: надёжный поиск списка сообщений
+
+Root владеет только этим переданным A срезом пункта11; остальная работа11
+остаётся у A. Base после#954: `aa663b3d151462e6a7bac6249c459b7ef4e8899e`,
+изолированный `evo-case-chat-search`. A записывает только shared contract до
+кода; pending948/946 и их положительная приёмка не затрагиваются.
+
+Фактический baseline root: existing ordinary Local QA Sales, owned local33222,
+`/v3/messages` безcase. Видны4 существующих QA rows; запрос
+`zz-no-matching-student` во время ожидания оставляет прежние4 строки без
+loading, затем показывает «Переписок пока нет» и «Выберите переписку слева».
+Никакая переписка не открывалась и mark-read не выполнялся. Source
+`src/components/v3/case-chat/CaseChatThread.tsx`, CaseChatWorkspace494–502:
+250ms debounce, без response sequence/catch/retry/unmount cleanup. Это source
+race risk; фактически доказаны прежние rows/loading gap и misleading empty,
+а не перестановка двух ответов или отказ настоящего RPC.
+
+Контракт до кода:
+- Latest query владеет результатом. Новое значение немедленно инвалидирует
+  старую работу, включая промежуток250ms debounce. Только ответ текущего
+  запроса может менять rows/loading/error; одинаковый guard нужен и для
+  success, typed failure и rejected promise. После unmount clear debounce и
+  invalidate pending callbacks. Не менять существующий read-only action/RPC.
+- Явно различать loading, ready, error и filtered-empty. Не представлять старые
+  строки без пометки как результаты нового запроса. Ошибка не превращается
+  в «переписок нет» или успешную выдачу. Использовать существующие failure
+  semantics, не обходить permission/tenant/current actor проверки.
+- Retry повторяет текущий query и состояние фильтра, не stale closure query.
+  Очистка поиска возвращает существующий обычный список. Debounce/empty retry
+  не создают новые очереди или альтернативный источник данных.
+- При отсутствии совпадений говорить об отсутствии совпадений и давать понятный
+  способ очистить запрос. Unfiltered empty — отдельное состояние. Когда нет
+  строк для выбора, не показывать вводящее в заблуждение «Выберите переписку».
+  Это уточнение существующего EVO по Impeccable, без смены visual identity.
+- Существующая selected conversation остаётся смонтированной при поиске,
+  loading/error/empty; не менять её key/selection/URL или пересоздавать workspace
+  при изменении query. Сохранить draft/reply/attachment, source-message context, back link,
+  существующие private scopes, badges/unread/await-state и truncation hint.
+  Изменение списка не вызывает open conversation/send/mark-read.
+- Сохранить SSR initial data/query, row URLs и выбранный case, доступные
+  permissions, текущий max/range/ordering. Не добавлять schema, queues, новые
+  server commands, сообщения/fixtures, provider calls или записи в базу.
+
+Реальная проверка только `/v3/messages` БЕЗcase под существующим Sales:
+initial4rows → поиск существующего имени → loading/ready → no-match/empty →
+clear/retry current query; desktop и actual390px. Не нажимать строки, не
+открывать дело/переписку для проверки: этот путь автоматическиmark-read.
+Последовательность async responses/errors/unmount допустимо проверить отдельно
+на decision logic; это не заменяет реальный Auth/RPC/UI и не считается proof
+реального provider failure. Недоступные actual error/reordering/selected-draft
+состояния честно указать как непроверенные, без подставных успешных ответов.
+Scope-local lint/typecheck/релевантные проверки + независимый exact-head review
+и protected CI. Никаких business/Auth/provider/managed/production mutations.
+Завершение этого subset не означает завершение всего пункта11.
+
+## 2026-09-21 — CRM-07 subset: просмотр продажи до редактирования и возврат
+
+Root владеет этим независимым срезом исходного пункта7 после#955. Base
+`fe26526c547ef2579f6c324da0edd8f8e024d57b`, isolated
+`evo-sales-record-preview`. A пишет только shared contract до кода.
+Основание — CRM-02 / §4 «Продажи» функционального плана: сначала краткий
+просмотр записи, отдельное исправление, сохранение контекста возврата.
+Не включать server search, новую мобильную таблицу или закрытие всего пункта7.
+
+Source: `SalesRegisterView.tsx` всегда ведёт строки на ?record, но selected
+показывает только внутри canManage form. Read-only reader получает список и
+сообщение о запрете исправления вместо самой записи. Общий href теряетoffset.
+Данные selected уже возвращает действующий read_sales_register_v1 с текущим
+actor/org/scoped record gate; новая миграция или RPC для просмотра не нужна.
+Source files неизменны относительно inspected A52a00103 и mainfe26526c.
+
+Реальная readiness до кода: ordinary existing local QA Admin и Sales вошли
+через Auth и прочитали4 продажи2026/3месяца, offset1 даёт3строки и selected
+existing record. Admin имеет sales.register.read и coarse manage permission,
+НО sales_register_write_access=false; Sales=true. Это подходящий существующий
+read-but-no-sales-write actor без создания роли/изменения permissions.
+Private receipt `/private/tmp/evo-sales-readonly-readiness.json`. Это RPC proof,
+не выполненная UI-приёмка нового preview. Root подтвердил обычный Sales UI:
+в сентябре1 существующая продажа, USD1000 и неизвестное оплаченное.
+
+Контракт до кода:
+- ?record открывает краткий read-only preview выбранной доступной записи для
+  всех readers. Только явное ?record&edit=true при canManage открывает прежнюю
+  форму исправления. Denied/unavailable write никогда не раскрывает edit/archive
+  controls; чтение сохраняется при разрешённом selected read. Ошибка/нет selected
+  остаётся честным unavailable/forbidden состоянием, без fallback на чужую запись.
+- Показать достаточно данных записи: человек/контакт/договор, программа/услуга,
+  продавец, дата продажи и report month, суммы и валюты, уточнения/комментарий,
+  понятное происхождение. Использовать прочитанный snapshot отчёта и егоversion.
+  Не подменять его текущими lead conditions, не пересчитывать исторические
+  дату/месяц/суммы, не скрывать неизвестные значения под нулём. Нулевые суммы
+  отличаются от неизвестных; исходные raw значения при неразобранной сумме
+  сохраняют смысл. Разные валюты не складывать.
+- Source/history marker — понятная безопасная подпись. Не выводить raw JSON,
+  технические payloads/source snapshots, секреты или посторонние персональные
+  сведения под видом истории. Этот срез не добавляет отдельный audit reader.
+- Сохранить year/month/archive/manager/direction/review/offset в переходах
+  row→preview→edit→cancel/back. Фильтр/смена периода по-прежнему начинает
+  соответствующую выдачу с её начала, pagination явно задаёт свойoffset.
+  Не переноситьrecord/edit/new/saved как случайные постоянные фильтры.
+  ?new flow, после-save banner/навигация, существующие commands/request IDs,
+  права Sales Manager и прежние form safeguards остаются без изменения.
+- Preview имеет явный возврат к отчёту и исправление только по canManage.
+  Сохранение позиции списка — отдельное исходное требование: подтвердить
+  фактическое возвращение к прежней позиции/строке, а если узкий срез доказывает
+  только filters+offset, явно оставить scroll restoration открытым. Не объявлять
+  весь CRM-02/pункт7 завершённым по одной URL-проверке.
+- Существующая EVO типографика/светлая и тёмная темы/контраст/компактность по
+  Impeccable; телефон может использовать отдельный читаемый экран preview.
+  Не редизайн всей таблицы/отчёта и не перенос создания/коррекции в новый backend.
+
+Проверки без business writes: actual ordinary Admin list→preview (selected
+read успешен, sales editing отсутствует), прямойedit URL не даёт форму;
+Sales list→preview→явноеedit→cancel/back, НИ ОДНОГО save/archive/create submit.
+Desktop и actual390px, известная сумма/unknown payment/date/month согласованы
+с тем же read DTO. Реальный nonzerooffset1 с3existingrows позволяет проверить
+контекст возврата; dataset<50, поэтому это НЕ proof полноценной второй страницы
+50+ или поиска до LIMIT. Проверить фильтры/архив/период только на имеющихся
+данных, не делать фиктивные записи. Negative/unavailable path не выдавать за
+проверенный без фактического ответа; scoped checks отделять от real-path proof.
+
+Основные source boundaries: `src/components/v3/SalesRegisterView.tsx`, при
+необходимости отдельный presentation component рядом; существующие
+`SalesRegisterForms.tsx`, `src/lib/v3/sales-register-source.ts` и
+`src/app/(v3)/v3/main/page.tsx` — сохранить совместимыми. Нет зависимостей от
+213/214 commands, новыхschema/RPC/actions/roles/provider/managed mutations.
+A948 и B946 положительная приёмка остаются HOLD; их код не cherry-pick сюда.
+Scope-local lint/typecheck/релевантные проверки, независимый exact-head review
+и protected CI. Source/UI proof не является подтверждением новой записи продажи.
+
+## 2026-09-21 — CRM-02: фильтры отчёта продаж и выход из пустого результата
+
+Основание до кода: main `0c3dfb86770b6663d8cffe893e13b14eff99ece2`.
+В `SalesRegisterView.tsx` отсутствует сброс дополнительных фильтров; пустой
+результат фильтра ошибочно описывается как отсутствие продаж за весь период.
+При пустом offset есть совет вернуться, но нет прямого перехода к началу.
+Форма без ключа может сохранять прежние uncontrolled values при client navigation;
+выбранный manager, которого нет в options, визуально превращается в «Все».
+В строках годового отчёта не показан существующий DTO `reportMonth`.
+
+Контракт этого среза пункта 7, до реализации root:
+- «Сбросить фильтры» очищает manager/direction/review/archived и offset,
+  сохраняет валидные year/month, включая «Весь год». Не переносить record/new/
+  edit/saved в ссылку сброса и не превращать неверный период в корректный молча.
+- Ключ только GET-формы строится из отправленных URL-значений, чтобы сброс,
+  client navigation и browser history показывали фактически применённые фильтры.
+  Не менять ключи форм записи продажи, их drafts, commands и права.
+- Выбранный manager, отсутствующий в текущих options, остаётся явным option
+  с тем же значением. Не выдавать неизвестное имя за «Все» и не подменять фильтр.
+- Пустой offset: «К началу списка» сохраняет все фильтры и период, сбрасывает
+  только offset. Пустой результат дополнительных фильтров: честное сообщение
+  о несовпадении и действие очистки с сохранением периода. Пустой период без
+  дополнительных фильтров: предложение выбрать месяц или весь год в controls.
+  Failed/invalid read сохраняет отдельное состояние ошибки.
+- Для «Весь год» показать месяц отчёта каждой строки из её `reportMonth`.
+  Дату продажи и финансовый snapshot не пересчитывать; не выводить report month
+  из signingDate и не менять сортировку, DTO, суммы или смысл неизвестной оплаты.
+
+Root владеет только `SalesRegisterView.tsx` и свидетельствами этого среза.
+A сохраняет остальную часть пункта 7; общие документы записывает A.
+Существующие parsing/validation, read RPC, права, finance, поля и бизнес-команды
+сохраняются; новых SQL, поиска, записей, providers или migrations нет.
+Проверить actual Sales UI на существующих local данных: сброс и browser history,
+годовой месяц строки, unknown manager, filtered empty и offset-empty → start,
+desktop и фактические 390px. Формы записи не отправлять, данные не создавать.
+Scope-local checks, независимый exact-head review и protected CI перед merge.
+
 ## 2026-09-20 — CRM-30: независимое сохранение блоков карточки (213)
 
 Основание: main `285e784e2a97aa42339cae1ca1d5aa6e465a3c7e` после #945;

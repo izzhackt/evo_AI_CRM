@@ -34313,3 +34313,13 @@ handed20/cap4000 не меняются. Mobile due/assignment раскрываю
 черновика без сохранения — в добавленном разделе EVO_LAUNCH_PLAN.md.
 Root временно владеет этими двумя appendices только в данном worktree;
 A сохраняет docs ownership для948/215. Managed writes/releases не входят.
+
+
+## 2026-09-21 — CRM-22: skip repeated navigation (до кода)
+
+В принятом keyboard-accessibility контракте подтверждён пропуск shell skip-link.
+Root добавляет только первый focus-visible «К содержимому» и стабильную цель
+вAppShell. Не дублировать main, не менять права/маршруты/preview/keys/commands,
+не ломать full-height страницы. ActualSales UI+keyboard proof без записей,
+узкие проверки и независимое exact-head review; полныйконтракт вEVO_LAUNCH_PLAN.
+Runtime начинается после959merge. Root owns толькоэтотisolatedworktree/docs.

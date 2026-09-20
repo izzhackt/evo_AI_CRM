@@ -11331,3 +11331,28 @@ desktop и mobile одним inspection pass; все этапы, пустой э
 exact-head review и protected CI. >20 terminal и cap4000 не заявлять как real
 proof без соответствующих настоящих данных. Это мобильный срез CRM-05,
 не завершение всего плана36 или production acceptance.
+
+
+## 2026-09-21 — CRM-22: клавиатурный переход к содержимому
+
+До кода, base main011c0e49: в общей CRM AppShell нет skip-link, поэтому
+клавиатурный путь каждый раз проходит повторяющуюся боковую навигацию и header.
+Root владеет только этим изолированным срезом и его двумя appendices в
+`evo-crm-skip-navigation`; runtime после merge959, независимо от217calendar.
+
+Первый focus-visible элемент оболочки — ссылка «К содержимому». Она переносит
+фокус на стабильную программно фокусируемую цель непосредственно у page children,
+минуя Sidebar и global header. Не добавлять второй main/landmark и не менять
+маршрут/данные/права/navigation builder/preview/actions. Не менять keys или
+пересоздавать page children. Сохранить размеры страниц сообщений/календаря и
+контейнерные breakpoint; EVO/Golos/tokens, видимый focus и44px цель. Ссылка
+остаётся скрытой до keyboard focus, не создаёт постоянного визуального баннера.
+
+Реальная read-only ordinary Sales localQA: desktop и390px на pipeline/messages,
+первый Tab раскрывает ссылку, Enter переносит реальный document.activeElement,
+следующий Tab достигает рабочего элемента. Back и unsaved search input без
+потери; не открывать диалоги/не отправлять сообщения/не создавать задачи.
+Admin preview только при существующей доступной сессии, иначе source-only.
+Scoped lint/types/существующие navigation/brand checks, independent exact-head
+review, protectedCI. Это один обоснованный срез22, не изменение всех экранов
+или доказательство screen-reader/live-device acceptance. Без SQL/DDL/release.

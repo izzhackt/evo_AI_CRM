@@ -9,6 +9,8 @@
  * Атрибуция (caption/author/license) остаётся на записи библиотеки и этим
  * модулем не затрагивается.
  */
+import "server-only";
+
 import manifest from "../../scripts/portal/university-photos-manifest.json" with { type: "json" };
 import { UNIVERSITY_PHOTOS } from "./platform-university-catalog.ts";
 

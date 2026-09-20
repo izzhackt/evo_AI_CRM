@@ -1,3 +1,4 @@
+import { parseRequestsReturnTo } from "@/lib/requests-queue-contract";
 import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import { Suspense } from "react";
@@ -121,7 +122,10 @@ export default async function ProfilePart({
   const docsMode = singleSearchParam(params.section) === "docs"
     && staffPresentationCan(actor, "admissions.read")
     && (isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"));
+  const requestsReturnTo = parseRequestsReturnTo(singleSearchParam(params.returnTo));
   const directoryHref = withDocsSection("/v3/profile", docsMode);
+  const withRequestsReturn = (href: string) => requestsReturnTo
+    ? `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(requestsReturnTo)}` : href;
 
   // Lead and Student Case are different canonical identities. A requested
   // value is never substituted with the first picker row, and the two query
@@ -187,7 +191,7 @@ export default async function ProfilePart({
     Boolean(view?.details.admissions),
   );
   const hrefFor = (next: string) => view
-    ? withDocsSection(buildV3ProfileHref(view.details.routeTarget, next), docsMode)
+    ? withRequestsReturn(withDocsSection(buildV3ProfileHref(view.details.routeTarget, next), docsMode))
     : directoryHref;
   const requestIds = {
     contract: randomUUID(),
@@ -250,9 +254,9 @@ export default async function ProfilePart({
           <>
             <Link
               className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
-              href={directoryHref}
+              href={requestsReturnTo ?? directoryHref}
             >
-              {docsMode ? "К списку EVO Docs" : "К списку поступления"}
+              {requestsReturnTo ? "К списку заявок" : docsMode ? "К списку EVO Docs" : "К списку поступления"}
             </Link>
             {view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
               <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
@@ -301,8 +305,8 @@ export default async function ProfilePart({
                   ? "Выберите студента в результатах поиска, чтобы открыть его профиль."
                   : "Здесь вы сможете открыть профиль студента: документы, заявки и задачи по поступлению."}
             {invalidIdentityShape || missing ? (
-              <Link href={directoryHref} className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
-                Найти студента
+              <Link href={requestsReturnTo ?? directoryHref} className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
+                {requestsReturnTo ? "К списку заявок" : "Найти студента"}
               </Link>
             ) : null}
           </p>

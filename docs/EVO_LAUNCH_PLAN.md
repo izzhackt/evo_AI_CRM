@@ -11884,6 +11884,200 @@ save packet remains separate and must bind to the corrected source revision;
 no business save has happened yet. No synthetic handoff, Auth/role mutation,
 provider/customer/managed writes, deployment, or claim of full product E2E.
 
+## 2026-09-21 — CRM-03 / 220: полная очередь заявок (контракт до кода)
+
+Root разрешил предварительную документацию в isolated `evo-requests-queue`
+(base5adce46e) и выделил220 A. Runtime начинается только после merge A216/#962
+и review этого контракта координатором; затем свежая интеграция main.218 остаётся
+B,219 — root optional fields,217 — personal calendar. Порядок общей схемы и
+main координирует root, A — sole local schema applier. Текущая локальная схема
+001–217; эта запись не разрешает220 apply или новый business write.
+
+Основание CRM-03/§6 принятого функционального плана: фильтр source в
+requests-source.ts применяется после slice100; «Все» не включает consultations;
+счётчик pending подменён длиной ограниченного массива, техническая ошибка анкет
+объявляется отсутствием прав. Эти дефекты подтверждены исходниками, не
+воспроизведённым положительным >100 runtime. Relevant source/page files на
+A5572f288 идентичны main5adce46e. CRM-02 direction facet, compact totals и mobile
+vertical rows остаются отдельными незавершёнными пунктами.
+
+### Результат и границы
+
+Один read-contract и /v3/requests объединяют три существующих kind:
+lead(sourcewebsite/whatsapp), application(sourceplatform_application),
+consultation(sourceportal_consultation). «Все» объединяет только разрешённые
+актеру виды; наличие вкладки не создаёт доступ к строкам. Kind+canonicalID
+являются идентичностью строки; связанные lead/application не дублируются под
+придуманным source. Нового комплекта документов EVO и новых business entities нет.
+
+Одна forward220 добавляет новую read-проекцию/RPC и закрытый helper при
+необходимости. Старые migrations/readers и pipeline/dashboard consumers не
+переписывать. Фильтрация source/kind/статуса и actor scope выполняется до LIMIT;
+строки, matched count и pagination берутся из одного snapshot/filtered relation.
+Не собирать результат из прежних capped page readers и не увеличивать100cap.
+
+В новой очереди сохраняются существующие действия: открыть canonical карточку
+lead; действующая approve/reject application команда; действующая handled
+consultation команда. Не менять их permissions, optimistic revision/status,
+request IDs, reason, idempotency, audit/history или последствия для Student.
+ApplicationDecision доступна только подходящей pending строке и не в preview.
+
+### Порядок, состояния и возврат
+
+Root принял хронологический порядок timestamp DESC, kind DESC, canonicalID DESC
+с детерминированным tie-breaker, без скрытого общего приоритета open/pending.
+Для lead использовать created_at, consultation — created_at/requestedAt,
+application — submitted_at текущей подачи. Это явное изменение прежнего lead
+updatedAt order. submitted_at стабилен во время pending, но existing
+rejected→resubmit обновляет его и revision у того же ID; не называть его
+неизменяемым за весь срок жизни application. Не обещать snapshot между
+переподачами, обработкой обращений либо сменой прав. Каждое чтение применяет
+актуальную authority; изменившийся набор честно перечитывается.
+
+Фильтры состояний типизированы по виду, как согласовано root: application
+pending(default, прежняя очередь)/all; consultation all(default, прежний охват)/
+requested/handled. Их текущие значения видны в UI и включены в cursor binding;
+не придумывать новый lead pending/handled и сохранять canonical lifecycle=open.
+Consultation history не теряется. Фильтры source сохраняют прежние URL значения.
+
+Курсор versioned, bounded и строгий: complete timestamp/kind/id tuple и echo
+активного source/status/limit, никакого частичного NULL cursor. Предусмотреть
+next/previous и возврат из карточки без offset-based сдвига; граница сравнения
+совпадает с ORDER BY и направлением обхода. При новом фильтре cursor очищается,
+при retry и back сохраняется. Return target только валидированный внутренний
+/v3/requests route. Cursor не является authority; чужой/устаревший доступ
+не возвращает данные. Не обещать стабильность при изменении самого набора.
+
+### Проверенная authority и сохраняемые защиты
+
+11 актуальных функций прочитаны readonly из local001–217, exact definitions/ACL
+сохранены в приватном crm03a-live-read-contracts.json. Перед runtime пересверить
+их against freshmain, не копировать исторический177/197 как якобы current.
+
+Lead путь: current_actor_authority + staff_has_permission(lead.read), затем
+lifecycle=open и staff_can_access(org,membership,lead.read,lead,id). Сохраняется
+также111-integrity guard receipt/audit/current workflow state, который выполняет
+нынешний private.staff_sales_lead_page ДО выдачи строк. Предлагаемый способ
+повторного использования: вызвать этот существующий reader с limit1 только
+для полной guard-проверки, не использовать его ограниченный результат, затем
+собрать минимальные поля новой проекции с теми же scope predicates. Root принял
+направление при условии отдельного SQL review; не ослаблять guard и не трогать
+shared reader ради новой страницы. Не раскрывать лишние stage/owner/workflow поля.
+
+Application путь: student_application_staff_org / student_application_visible /
+current can_manage с независимой triad profile.read.full, profile.manage,
+case.curator.assign и направлениями; DTO через current student_application_json
+и существующий строгий decoder. Новые signup/анкета поля не добавляются; item29
+принадлежит root219. Consultation сохраняет текущий non-Student staff guard
+с private.platform_has_permission(lead.read) и org-bound membership/profile joins.
+Расширение роли Sales не является решением общей очереди.
+
+DTO различает ready, forbidden, unavailable, not-requested perkind; forbidden
+или unread часть не превращаются в count0 либо полное «нет заявок». Данные
+и count недоступной части не раскрываются. Неожиданная integrity/SQL/transport
+ошибка должна быть явно unavailable; нельзя подавлять её как успешный empty.
+Если целиком read не удаётся, показывать общий error, сохранив выбранные фильтры.
+Для частично доступного набора явно назвать ограниченный охват и не суммировать
+unknown. Полная Student/private tests/docs информация в новый DTO не попадает.
+
+### UX и владение
+
+EVO/Golos/PartShell и текущие business actions сохраняются. Различать вид
+обращения и source, показывать корректное основное действие; precise labels
+«На странице», «Анкет ожидают решения», «Открытых консультаций» не выдаются
+за один общий pending total. Initial empty, filtered empty, forbidden, unavailable
+и partial имеют разные тексты/восстановление. Использовать существующие UI
+patterns, не строить новый shell/design system; разрешённые действия доступны
+с keyboard, длинные названия переносятся, mobile controls минимум44px.
+
+A owns requests source/page, новый strict queue contract/SQL220, необходимые
+узкие presentation/return adaptations и профильные tests/QA; A shared docs.
+B/root файлы соседних flows не менять; broad рефакторинг, full product E2E,
+контентная волна, AppStore и production release сюда не входят.
+
+### Реальная проверка и нынешний пробел данных
+
+Read-only inventory existing owned QA001–217 на20.09UTC22:13:04: lead other4/
+platform_application3, website0/whatsapp0; application approved3/pending0;
+consultation0. Это техническая инвентаризацияpostgres, не actor acceptance.
+Нельзя заявить positive3kind/cursor/>100 acceptance на пустом наборе. Не создавать
+fixtures/entities, не менять source/status/Auth/roles ради демонстрации.
+Source-reviewed implementation и ordinaryActor empty/denial проверки могут
+продвинуть срез, но он не полностью принят без подходящего positive path.
+Отдельно зафиксировать разрешённый existing populated источник либо missing proof.
+
+Требуются meaningful strict cursor/DTO tests, scoped types/lint, независимые
+exact-head source/SQL reviews и protectedCI. Actual ordinary Sales/Admissions/
+Admin чтения по реальным правам, Student/anon/tenant denials; filter-before-limit,
+counts, next/back при одинаковом timestamp; retry/error/preview/action visibility.
+Desktop+390/320CSS одной собранной проверкой, затем не более одного confirm-pass
+после пакета UI исправлений. No fake totals/fallback success. Read-only QA
+before/after сверяет затронутые business tables, Auth count, прежние functions и
+ledger. Managed writes/provider actions/release требуют собственной authority.
+
+Основание cursor: [PostgreSQL17 LIMIT/OFFSET](https://www.postgresql.org/docs/17/queries-limit.html),
+[row comparisons](https://www.postgresql.org/docs/17/functions-comparisons.html#FUNCTIONS-COMPARISONS-ROW),
+проверены20.09.2026UTC. Уникальный порядок и non-null tuple важны для предсказуемой
+страницы; сами по себе они не дают snapshot всей изменяющейся очереди.
+
+
+## 2026-09-21 — CRM-03: резерв очереди220 →221 до применения
+
+Координатор перенёс неприменённую requests queue с220 на221. Реальная function QA
+после schema-only219 выявила в существующем184 application_partner_detail_fields
+ошибку PostgreSQL regex repetition count. Применённая219 сохраняется без изменения
+ledger/hash; root выполняет её необходимое forward исправление новым220. Это
+изменение порядка, не новая продуктовая функциональность очереди. Предыдущий
+контракт CRM-03/220 выше остаётся историей первоначального выделения номера;
+все его runtime/authority/UX/QA условия теперь относятся к221. Source candidate
+7b4e6cd7 и correction abab969e ещё не применялись. Файл SQL переименован
+221_platform_requests_queue.sql с сохранением байтов, роли и данные не меняются.
+
+Актуальный порядок local219(APPLIED_QA_FAILED) → root220 → A221. A остаётся
+единственным local schema applier, root — координатором и владельцем releases.
+root task-reason переносится221→222, следующий B резерв223 при необходимости.
+Новое применение только после exact-head review и root GO; production сюда не входит.
+
+Независимое review очереди также выявило stale uncontrolled status selects при
+Back/Forward. Форма получила identity key по source/applicationStatus/
+consultationStatus/limit. Actual URL/history/visible-controls parity включена в
+ожидающий реальный UI проход; существующие business commands не менялись.
+
+## 2026-09-21 — CRM-03/221: shared presentation helper after real UI failure
+
+Actual ordinary Admin UI on integration b3b04d95 (main44092c57/#966) failed before
+rendering the populated requests list: server RequestsPage invoked submittedDate
+exported by the use-client StudentApplications entry. SQL221/Auth35 proof remains
+valid; UI is not accepted. Typecheck and source unit tests did not exercise this
+RSC boundary. Preserve the failure in the slice QA rather than substituting RPC
+success for the actual page.
+
+Minimal direct dependency: move the existing unchanged date formatter and status
+labels to the already shared pure src/lib/student-application-presentation.ts;
+server page and affected client consumers import from it directly. No new DTO,
+SQL, role, command, date locale/timezone or visual-world change. Impeccable
+Operate/craft-floor guidance preserves familiar controls and the existing text.
+Next.js documents use-client as the server/client module boundary:
+https://nextjs.org/docs/app/api-reference/directives/use-client and
+https://nextjs.org/docs/app/getting-started/server-and-client-components.
+Repeat only affected lint/types and the actual positive page/navigation/mobile
+path after this correction; final exact-head reviews must include the fix.
+
+## 2026-09-21 — CRM-03/221: restore native filter state with browser history
+
+Actual Chrome Back after submitting pending returned the saved all-status URL
+and its positive row while the native select still showed pending. The earlier
+form identity key alone did not reset the browser-restored form document; a
+second submit therefore sent stalepending. Keep this failed UI evidence.
+
+Move only the existing native GET status form into a small client component.
+Keep defaultValue and ordinary controls, and reset the form to the canonical
+server selection on navigation/props and pageshow restoration. Do not alter
+filters/cursors, SQL, authority, commands or visual layout. MDN pageshow covers
+returning to a document with browser Back/Forward, including bfcache:
+https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event.
+Actual Back/Forward plus resubmit must pass before acceptance.
+
 
 ## CRM-33 / SQL221 — причина изменения срока и приоритета case task — 21.09.2026
 

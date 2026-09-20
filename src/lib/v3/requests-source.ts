@@ -164,7 +164,7 @@ function isIsoDate(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
-function parsePortalConsultationRow(value: unknown): PortalConsultationRow {
+export function parsePortalConsultationRow(value: unknown): PortalConsultationRow {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("Consultation row shape");
   const row = value as Record<string, unknown>;
   if (Object.keys(row).sort().join(",") !== CONSULTATION_ROW_KEYS

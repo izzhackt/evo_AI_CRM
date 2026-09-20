@@ -11331,3 +11331,102 @@ desktop и mobile одним inspection pass; все этапы, пустой э
 exact-head review и protected CI. >20 terminal и cap4000 не заявлять как real
 proof без соответствующих настоящих данных. Это мобильный срез CRM-05,
 не завершение всего плана36 или production acceptance.
+
+## 2026-09-21 — CRM-16: серверный источник личного календаря (217)
+
+Основание: принятый UX/admissions-план §10 и
+`docs/design/ux-refinement/calendar.md`. База `011c0e49`, отдельная ветка
+`izzhackt/calendar-personal-source`. Root выделил
+`217_platform_personal_calendar.sql` и временно передал авторство этого
+календарного контракта исполнителю; чужие A/B-контракты не изменять.
+Сначала review этого плана; runtime начинается только после merge #959 и
+явного root GO. A остаётся единственным applier: 217 после 215/216, по сигналу
+координатора. Этот контракт не разрешает business/Auth/provider/managed writes.
+
+Текущий разрыв: календарь читает все разрешённые case-задачи; server predicates
+119/124 с authority-поправками156 не ограничивают assignee. Общий target156 тоже
+шире личного экрана. Staff-задачи отсутствуют, а admissions deadlines смешаны с
+задачами. #954 уже исправил явный выбор дела — его формы и команды сохраняются.
+
+Один функциональный срез, без переустройства всей оболочки:
+
+- Добавить только календарную read-проекцию над существующими case/staff tasks.
+  В каждой ветке требовать текущие actor/org/membership, собственное назначение
+  и прежнюю object authority: case — task.manage + active/closed handed-off case;
+  staff — staff.task.read. Ни creator, ни admin не заменяют assignee=current actor.
+  Все исходные статусы сохраняются, completed/cancelled не исключать.
+- Два новых public read-RPC в platform, без caller-supplied actor/assignee:
+  `staff_personal_calendar_page_v1(p_mode TEXT, p_due_from DATE DEFAULT NULL,
+  p_due_to DATE DEFAULT NULL, p_limit INTEGER DEFAULT 100,
+  p_after_sort_at TIMESTAMPTZ DEFAULT NULL, p_after_kind TEXT DEFAULT NULL,
+  p_after_task_id UUID DEFAULT NULL) RETURNS JSONB`;
+  `staff_personal_calendar_target_v1(p_kind TEXT, p_task_id UUID,
+  p_student_case_id UUID DEFAULT NULL) RETURNS JSONB`.
+  Mode — dated/undated; kind — case/staff. Проверять конечные даты, from<=to,
+  полную тройку курсора и limit1..100. Dated требует обе границы; undated —
+  отсутствие date bounds и канонический null-deadline sentinel в курсоре.
+- Page DTO: `{ rows, total_count, next_cursor }`. Отбор по authority, владельцу,
+  mode и датам предшествует count/keyset/LIMIT; total_count относится ко всему
+  этому отбору, не только оставшейся странице. Next cursor возвращается только
+  при наличии дополнительной строки за p_limit. Порядок
+  (sort_at, kind, task_id) детерминирован; в undated sort_at — прежний sentinel.
+  Dated sort_at — due_at либо due_on в Asia/Bishkek; диапазон сравнивает
+  канонический Bishkek day. Все проверки/count/page одного RPC видят один snapshot.
+- Общая строка содержит kind, task_id, organization_id, version, title,
+  description/details, status, priority, неизменные due_on/due_at, sort_at,
+  assignee и created/updated timestamps. Case-ветка дополнительно содержит
+  student_case_id/name/state, task_type и student_visible; у staff этих полей нет.
+  TS использует discriminated union; UI-key `kind:task_id` отдельный от UUID
+  команды, без коллизий между таблицами и без выдуманного studentCaseId.
+- Target возвращает ту же личную строку независимо от первой страницы.
+  Case target дополнительно использует текущие canonical assignees/capabilities
+  общего task target внутри того же STABLE вызова, после personal guard.
+  Staff target — собственная разрешённая задача с переходом к существующим
+  действиям в Tasks, без вызова case-команд. Чужой/недоступный target возвращает
+  одинаковую unavailable/42501 ошибку; общие Tasks/дело readers не урезаются.
+- STABLE SECURITY DEFINER, SET search_path='', квалифицированные ссылки.
+  REVOKE PUBLIC/anon/service_role и узкий EXECUTE новых двух RPC для authenticated
+  в одной migration transaction. Private helpers/tables не открываются.
+  Новых business permissions, assignments, ролей, task rows или write API нет.
+- Ветка без соответствующей permission не выполняется и не раскрывает данные;
+  если нет ни task.manage, ни staff.task.read, RPC возвращает42501.
+  Sales с staff.task.read вправе читать staff-ветку даже без case-permission.
+  Настоящий сбой разрешённого reader не подменяется пустым результатом.
+  Route/section hints учитывают staff.task.read, сохраняя preview limitations;
+  Auth/RPC остаются источником реальных прав.
+- Calendar source/contracts читают новый page/target; выбранный dated диапазон
+  исчерпывается страницами, undated остаётся ограниченной страницей с честным
+  count. Старые case/task ссылки и case-only cursor URL поддерживаются; новый
+  staff target явно различается по kind. View/date и undated cursor сохраняются
+  при открытии/закрытии target; UUID и машинные ключи в интерфейс не выводятся.
+- Убрать загрузку/рендер admissions deadline projections только из личного
+  календаря. Дело, поступление и сами deadlines сохраняются. Минимальная
+  адаптация Calendar/types/grids: union-key, staff detail/link, собственный
+  count и корректные empty/unavailable states. Текущие case controls, expected
+  version/request IDs, создание, черновики, Golos/EVO tokens и прочие views
+  сохраняются. Полная side-panel/mobile-композиция — отдельный будущий срез.
+
+Фактическая readiness21.09: ordinary owned-local Auth/RPC подтвердили Admissions
+12 own/open/undated case tasks; Admin12 other/open/undated, доступный чужой target;
+Sales case readers403/42501. Staff-list у всех трёх пуст. Undated keyset при
+limit2: две страницы2+2 без повторов и собственный target за первой страницей.
+Это исходная сверка, не proof новой217; секреты, task IDs/тексты не публикуются.
+
+Проверки после source review и отдельного разрешения root на применение A:
+ordinary Admissions сохраняет12 своих, Admin исключает чужие из list/target,
+их прежний общий reader продолжает работать; Sales читает только разрешённую
+staff-ветку. Проверить count/cursor/own target, desktop/390px, period/back,
+честные empty/error states и отсутствие новых admissions-deadline reads.
+Новых задач/ролей/фикстур не создавать. Dated/timezone-boundary, положительные
+staff-task, иные статусы, creator scenarios и полный UI page100 overflow не
+объявлять real-path PASS без существующих данных. Узкие TypeScript/lint,
+parser/cursor/source-contract checks дополняют, но не подменяют ordinary UI/RPC.
+Изменённый permission/deep-link путь проверяется в пределах имеющихся inputs.
+Независимое exact-head review и protected CI перед root merge; без release.
+
+Официальная сверка: PostgreSQL описывает общий snapshot для
+[STABLE read-функций](https://www.postgresql.org/docs/current/xfunc-volatility.html),
+[безопасный search_path и явные EXECUTE grants](https://www.postgresql.org/docs/current/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY)
+и необходимость [уникального ORDER BY перед LIMIT](https://www.postgresql.org/docs/current/queries-limit.html).
+Применение здесь: стабильный read, закрытые private объекты и составной keyset;
+не утверждение о выполнении будущей миграции.

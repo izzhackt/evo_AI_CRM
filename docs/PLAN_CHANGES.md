@@ -33420,3 +33420,23 @@ Retain the legacy class and staff tokens/components. Validate real authorized
 Student catalogue, favorites, detail and one compatible home/documents screen in
 light/dark themes and at 390 px, with computed contrast and screenshots.
 No authentication, schema, business writes, content expansion or redesign.
+
+## CRM-02a local acceptance environment — 2026-09-20
+
+Read-only preflight of deployed frontend `b7598a1c` and current role assignments
+proved a user-visible mismatch if migration 208 is applied independently:
+permission-only controls, cost-only readiness and stale report-month navigation.
+Shared 208 is therefore deferred to a separately authorized frontend+SQL release.
+No runtime or SQL contract is weakened to accelerate acceptance.
+
+Root confirmed reversible isolated local validation as part of assigned work.
+Use a new disposable local Auth/PostgREST/Postgres project and Next from #935,
+ordinary sign-in, supported provisioning and real application/RPC persistence.
+Create only the minimum explicitly marked local QA records; no production
+identities, credentials or customer records may be copied. Do not forge JWTs,
+mock responses, bypass RLS or call outbound providers. Reuse existing repo
+bootstrap tooling; report unsupported bootstrap as a concrete blocker.
+Source/local acceptance and independent exact-head review may complete before
+the deferred managed rollout. Local proof is not customer/managed acceptance.
+Detailed target checks and evidence boundaries are in
+`docs/qa/migrations-207-208-qa-packet-2026-09-20.md`.

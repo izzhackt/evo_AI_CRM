@@ -40,6 +40,7 @@ struct UniversityDetailView: View {
     let institutionId: UUID
     let initialItem: UniversityCatalogItem?
 
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var model = UniversityCardViewModel()
     @ObservedObject private var favorites = FavoritesStore.shared
     @State private var showsConsultationSheet = false
@@ -174,6 +175,7 @@ struct UniversityDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Color(.systemBackground), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(colorScheme, for: .navigationBar)
         .refreshable { await model.load(institutionId: institutionId) }
     }
 

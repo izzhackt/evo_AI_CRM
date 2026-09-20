@@ -64,20 +64,23 @@ requireEncryptionKey();
 requireEnv('NEXT_PUBLIC_SITE_URL', 'canonical app URL');
 requireEnv('EVO_INBOX_DOMAIN', 'DNS hostname expected by Caddy');
 requireEnv('EVO_CADDY_NETWORK', 'external Docker network shared with Caddy');
-requireEnv('EVO_INBOX_WAHA_BASE_URL', 'private WAHA base URL on Docker network');
+requireEnv(
+  'EVO_INBOX_WAHA_BASE_URL',
+  'private WAHA base URL on Docker network'
+);
 requireEnv('EVO_INBOX_WAHA_API_KEY', 'WAHA API key for proof setup');
 requireEnv('EVO_INBOX_WAHA_WEBHOOK_HMAC', 'WAHA webhook HMAC secret');
 requireEnv('EVO_INBOX_AMOCRM_BASE_URL', 'amoCRM account/domain URL');
 requireEnv('EVO_INBOX_AMOCRM_ACCESS_TOKEN', 'amoCRM token for proof setup');
 requireEnv(
   'EVO_INBOX_GEMINI_API_KEY',
-  'Gemini API key for EVO Companion draft proof',
+  'Gemini API key for EVO Companion draft proof'
 );
 requireEnum(
   'EVO_INBOX_EMBEDDINGS_PROVIDER',
   ['keyword', 'gemini', 'openai'],
   'AI knowledge retrieval provider selection',
-  'gemini',
+  'gemini'
 );
 requireEnv('EVO_INBOX_TEST_WHATSAPP_NUMBER', 'real WhatsApp number for proof');
 

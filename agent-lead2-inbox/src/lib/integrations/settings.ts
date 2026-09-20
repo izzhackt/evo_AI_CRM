@@ -26,7 +26,7 @@ function toPublicConfig(value: unknown): Record<string, unknown> {
 export async function getIntegrationSetting(
   db: SupabaseClient,
   accountId: string,
-  provider: IntegrationProvider,
+  provider: IntegrationProvider
 ): Promise<RuntimeIntegrationSetting | null> {
   const { data, error } = await db
     .from('integration_settings')
@@ -40,7 +40,10 @@ export async function getIntegrationSetting(
   }
   if (!data) return null;
 
-  const row = data as Pick<IntegrationSetting, 'id' | 'status' | 'public_config'>;
+  const row = data as Pick<
+    IntegrationSetting,
+    'id' | 'status' | 'public_config'
+  >;
   return {
     id: row.id,
     status: row.status,
@@ -50,7 +53,7 @@ export async function getIntegrationSetting(
 
 export async function getIntegrationSecrets(
   db: SupabaseClient,
-  settingId: string,
+  settingId: string
 ): Promise<Record<string, string>> {
   const { data, error } = await db
     .from('integration_secrets')
@@ -80,7 +83,7 @@ export async function upsertIntegrationSetting(
     status: 'not_configured' | 'configured' | 'blocked';
     lastError?: string | null;
     userId: string;
-  },
+  }
 ): Promise<string> {
   const { data, error } = await db
     .from('integration_settings')
@@ -94,7 +97,7 @@ export async function upsertIntegrationSetting(
         created_by: input.userId,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'account_id,provider' },
+      { onConflict: 'account_id,provider' }
     )
     .select('id')
     .single();
@@ -111,7 +114,7 @@ export async function upsertIntegrationSecrets(
     settingId: string;
     secrets: Partial<Record<IntegrationSecretName, string | null | undefined>>;
     userId: string;
-  },
+  }
 ): Promise<void> {
   const rows = Object.entries(input.secrets)
     .filter(([, value]) => typeof value === 'string' && value.length > 0)
@@ -137,7 +140,7 @@ export async function upsertIntegrationSecrets(
 export async function deleteIntegrationSetting(
   db: SupabaseClient,
   accountId: string,
-  provider: IntegrationProvider,
+  provider: IntegrationProvider
 ): Promise<void> {
   const { error } = await db
     .from('integration_settings')
@@ -151,9 +154,9 @@ export async function deleteIntegrationSetting(
 }
 
 export function secretBooleans(
-  secrets: Record<string, string>,
+  secrets: Record<string, string>
 ): Record<string, boolean> {
   return Object.fromEntries(
-    Object.entries(secrets).map(([name, value]) => [name, value.length > 0]),
+    Object.entries(secrets).map(([name, value]) => [name, value.length > 0])
   );
 }

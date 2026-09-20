@@ -168,7 +168,9 @@ export function AmoCrmConfig() {
     if (!confirm(t('settings.amocrm.resetConfirm'))) return;
     setResetting(true);
     try {
-      const res = await fetch('/api/integrations/amocrm/config', { method: 'DELETE' });
+      const res = await fetch('/api/integrations/amocrm/config', {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         const data = await res.json();
         toast.error(data.error || t('settings.amocrm.resetFailed'));
@@ -189,7 +191,10 @@ export function AmoCrmConfig() {
     }
   }
 
-  function secretFocus(setter: (value: string) => void, markEdited: () => void) {
+  function secretFocus(
+    setter: (value: string) => void,
+    markEdited: () => void
+  ) {
     return (value: string) => {
       if (value === MASKED_SECRET) {
         setter('');
@@ -206,7 +211,7 @@ export function AmoCrmConfig() {
           description={t('settings.amocrm.loadingDescription')}
         />
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <Loader2 className="text-primary size-6 animate-spin" />
         </div>
       </section>
     );
@@ -230,7 +235,9 @@ export function AmoCrmConfig() {
                 <CheckCircle2 className="size-4 text-emerald-500" />
               ) : (
                 <AlertTriangle
-                  className={blocked ? 'size-4 text-amber-500' : 'size-4 text-red-500'}
+                  className={
+                    blocked ? 'size-4 text-amber-500' : 'size-4 text-red-500'
+                  }
                 />
               )}
               <AlertTitle className="mb-0">
@@ -290,7 +297,9 @@ export function AmoCrmConfig() {
                   <Label>{t('settings.amocrm.responsibleUserId')}</Label>
                   <Input
                     value={responsibleUserId}
-                    onChange={(event) => setResponsibleUserId(event.target.value)}
+                    onChange={(event) =>
+                      setResponsibleUserId(event.target.value)
+                    }
                     placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
                   />
@@ -307,7 +316,9 @@ export function AmoCrmConfig() {
                     setAccessEdited(true);
                   }}
                   onFocus={() =>
-                    secretFocus(setAccessToken, () => setAccessEdited(true))(accessToken)
+                    secretFocus(setAccessToken, () => setAccessEdited(true))(
+                      accessToken
+                    )
                   }
                   placeholder={t('settings.amocrm.longLivedToken')}
                   disabled={!canEditSettings || saving}
@@ -325,9 +336,9 @@ export function AmoCrmConfig() {
                       setRefreshEdited(true);
                     }}
                     onFocus={() =>
-                      secretFocus(setRefreshToken, () => setRefreshEdited(true))(
-                        refreshToken,
-                      )
+                      secretFocus(setRefreshToken, () =>
+                        setRefreshEdited(true)
+                      )(refreshToken)
                     }
                     placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
@@ -343,7 +354,9 @@ export function AmoCrmConfig() {
                       setClientIdEdited(true);
                     }}
                     onFocus={() =>
-                      secretFocus(setClientId, () => setClientIdEdited(true))(clientId)
+                      secretFocus(setClientId, () => setClientIdEdited(true))(
+                        clientId
+                      )
                     }
                     placeholder={t('settings.amocrm.optional')}
                     disabled={!canEditSettings || saving}
@@ -360,7 +373,7 @@ export function AmoCrmConfig() {
                     }}
                     onFocus={() =>
                       secretFocus(setClientSecret, () =>
-                        setClientSecretEdited(true),
+                        setClientSecretEdited(true)
                       )(clientSecret)
                     }
                     placeholder={t('settings.amocrm.optional')}
@@ -375,8 +388,16 @@ export function AmoCrmConfig() {
                 onClick={() => setShowSecrets((value) => !value)}
                 className="w-full sm:w-auto"
               >
-                {showSecrets ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                {t(showSecrets ? 'settings.amocrm.hideSecrets' : 'settings.amocrm.showSecrets')}
+                {showSecrets ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
+                {t(
+                  showSecrets
+                    ? 'settings.amocrm.hideSecrets'
+                    : 'settings.amocrm.showSecrets'
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -411,7 +432,7 @@ export function AmoCrmConfig() {
               {t('settings.amocrm.identityBoundary')}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <CardContent className="text-muted-foreground space-y-3 text-sm">
             <p>{t('settings.amocrm.boundaryCanonical')}</p>
             <p>{t('settings.amocrm.boundaryShadow')}</p>
             <p>{t('settings.amocrm.boundaryBlocked')}</p>

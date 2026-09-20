@@ -1,40 +1,44 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
 import {
   getCurrentAccount,
   requireRole,
   toErrorResponse,
-} from '@/lib/auth/account'
+} from '@/lib/auth/account';
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
-} from '@/lib/rate-limit'
+} from '@/lib/rate-limit';
 import {
   deleteAiConfig,
   getAiConfigSummary,
   getStoredAiConfig,
   upsertAiConfig,
-} from '@/lib/ai/admin-store'
-import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
-import { validateAiCredentials } from '@/lib/ai/validate'
-import { embedTexts } from '@/lib/ai/embeddings'
-import { isEmbeddingsProvider } from '@/lib/ai/config'
-import { AiError, type AiProvider, type EmbeddingsProvider } from '@/lib/ai/types'
+} from '@/lib/ai/admin-store';
+import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
+import { validateAiCredentials } from '@/lib/ai/validate';
+import { embedTexts } from '@/lib/ai/embeddings';
+import { isEmbeddingsProvider } from '@/lib/ai/config';
+import {
+  AiError,
+  type AiProvider,
+  type EmbeddingsProvider,
+} from '@/lib/ai/types';
 
 function bad(message: string) {
-  return NextResponse.json({ error: message }, { status: 400 })
+  return NextResponse.json({ error: message }, { status: 400 });
 }
 
-type SemanticEmbeddingsProvider = Exclude<EmbeddingsProvider, 'keyword'>
+type SemanticEmbeddingsProvider = Exclude<EmbeddingsProvider, 'keyword'>;
 
 function resolveEmbeddingsCredential(args: {
-  embeddingsProvider: EmbeddingsProvider
-  provider: AiProvider
-  apiKeyPlain: string
-  rawEmbeddingsKey: string
-  clearEmbeddingsKey: boolean
-  existingEmbeddingsProvider: EmbeddingsProvider
-  existingEmbeddingsKeyCiphertext: string | null
+  embeddingsProvider: EmbeddingsProvider;
+  provider: AiProvider;
+  apiKeyPlain: string;
+  rawEmbeddingsKey: string;
+  clearEmbeddingsKey: boolean;
+  existingEmbeddingsProvider: EmbeddingsProvider;
+  existingEmbeddingsKeyCiphertext: string | null;
 }):
   | { config: { provider: SemanticEmbeddingsProvider; apiKey: string } | null }
   | { error: string } {
@@ -46,12 +50,14 @@ function resolveEmbeddingsCredential(args: {
     clearEmbeddingsKey,
     existingEmbeddingsProvider,
     existingEmbeddingsKeyCiphertext,
-  } = args
+  } = args;
 
-  if (embeddingsProvider === 'keyword') return { config: null }
+  if (embeddingsProvider === 'keyword') return { config: null };
 
   if (rawEmbeddingsKey) {
-    return { config: { provider: embeddingsProvider, apiKey: rawEmbeddingsKey } }
+    return {
+      config: { provider: embeddingsProvider, apiKey: rawEmbeddingsKey },
+    };
   }
 
   if (
@@ -65,23 +71,23 @@ function resolveEmbeddingsCredential(args: {
           provider: embeddingsProvider,
           apiKey: decrypt(existingEmbeddingsKeyCiphertext),
         },
-      }
+      };
     } catch {
       return {
         error:
           'Stored embeddings key could not be decrypted — re-enter the embeddings key.',
-      }
+      };
     }
   }
 
   if (provider === embeddingsProvider) {
-    return { config: { provider: embeddingsProvider, apiKey: apiKeyPlain } }
+    return { config: { provider: embeddingsProvider, apiKey: apiKeyPlain } };
   }
 
-  const label = embeddingsProvider === 'gemini' ? 'Gemini' : 'OpenAI'
+  const label = embeddingsProvider === 'gemini' ? 'Gemini' : 'OpenAI';
   return {
     error: `${label} embeddings require a ${label} API key. Enter an embeddings override key or switch the draft provider to ${label}.`,
-  }
+  };
 }
 
 /**
@@ -93,12 +99,12 @@ function resolveEmbeddingsCredential(args: {
  */
 export async function GET() {
   try {
-    const { accountId } = await getCurrentAccount()
-    const data = await getAiConfigSummary(accountId)
-    if (!data) return NextResponse.json({ configured: false })
+    const { accountId } = await getCurrentAccount();
+    const data = await getAiConfigSummary(accountId);
+    if (!data) return NextResponse.json({ configured: false });
     // The keys are selected only to derive the has_* flags; neither is
     // returned to the client.
-    const { api_key, embeddings_api_key, ...safe } = data
+    const { api_key, embeddings_api_key, ...safe } = data;
     return NextResponse.json({
       configured: true,
       has_key: !!api_key,
@@ -107,9 +113,9 @@ export async function GET() {
       embeddings_provider: safe.embeddings_provider ?? 'keyword',
       auto_reply_enabled: false,
       auto_reply_max_per_conversation: 1,
-    })
+    });
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
 }
 
@@ -124,41 +130,46 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const { accountId, userId } = await requireRole('admin')
+    const { accountId, userId } = await requireRole('admin');
 
-    const limit = checkRateLimit(`ai-config:${userId}`, RATE_LIMITS.adminAction)
-    if (!limit.success) return rateLimitResponse(limit)
+    const limit = checkRateLimit(
+      `ai-config:${userId}`,
+      RATE_LIMITS.adminAction
+    );
+    if (!limit.success) return rateLimitResponse(limit);
 
-    const body = await request.json().catch(() => null)
-    if (!body || typeof body !== 'object') return bad('Invalid request body')
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') return bad('Invalid request body');
 
-    const provider = body.provider as AiProvider
+    const provider = body.provider as AiProvider;
     if (
       provider !== 'openai' &&
       provider !== 'anthropic' &&
       provider !== 'gemini'
     ) {
-      return bad('provider must be "openai", "anthropic", or "gemini"')
+      return bad('provider must be "openai", "anthropic", or "gemini"');
     }
-    const model = typeof body.model === 'string' ? body.model.trim() : ''
-    if (!model) return bad('model is required')
+    const model = typeof body.model === 'string' ? body.model.trim() : '';
+    if (!model) return bad('model is required');
 
     const systemPrompt =
       typeof body.system_prompt === 'string' && body.system_prompt.trim()
         ? body.system_prompt.trim()
-        : null
-    const isActive = body.is_active === true
-    const autoReplyEnabled = false
-    const maxPer = 1
+        : null;
+    const isActive = body.is_active === true;
+    const autoReplyEnabled = false;
+    const maxPer = 1;
 
-    const rawKey = typeof body.api_key === 'string' ? body.api_key.trim() : ''
+    const rawKey = typeof body.api_key === 'string' ? body.api_key.trim() : '';
 
-    const requestedEmbeddingsProvider = body.embeddings_provider
+    const requestedEmbeddingsProvider = body.embeddings_provider;
     if (
       requestedEmbeddingsProvider !== undefined &&
       !isEmbeddingsProvider(requestedEmbeddingsProvider)
     ) {
-      return bad('embeddings_provider must be "keyword", "gemini", or "openai"')
+      return bad(
+        'embeddings_provider must be "keyword", "gemini", or "openai"'
+      );
     }
 
     // Embeddings key (optional, for semantic KB search): a non-empty
@@ -167,31 +178,33 @@ export async function POST(request: Request) {
     const rawEmbeddingsKey =
       typeof body.embeddings_api_key === 'string'
         ? body.embeddings_api_key.trim()
-        : ''
-    const clearEmbeddingsKey = body.embeddings_api_key === null
+        : '';
+    const clearEmbeddingsKey = body.embeddings_api_key === null;
 
     // Reuse the stored key when the form didn't send a fresh one.
-    const existing = await getStoredAiConfig(accountId)
+    const existing = await getStoredAiConfig(accountId);
 
     const existingEmbeddingsProvider = isEmbeddingsProvider(
-      existing?.embeddings_provider,
+      existing?.embeddings_provider
     )
       ? existing.embeddings_provider
-      : 'keyword'
+      : 'keyword';
     const embeddingsProvider =
-      requestedEmbeddingsProvider ?? existingEmbeddingsProvider
+      requestedEmbeddingsProvider ?? existingEmbeddingsProvider;
 
-    let apiKeyPlain: string
+    let apiKeyPlain: string;
     if (rawKey) {
-      apiKeyPlain = rawKey
+      apiKeyPlain = rawKey;
     } else if (existing?.api_key) {
       try {
-        apiKeyPlain = decrypt(existing.api_key)
+        apiKeyPlain = decrypt(existing.api_key);
       } catch {
-        return bad('Stored API key could not be decrypted — re-enter your key.')
+        return bad(
+          'Stored API key could not be decrypted — re-enter your key.'
+        );
       }
     } else {
-      return bad('api_key is required')
+      return bad('api_key is required');
     }
 
     // Only spend a provider round-trip when the credentials that affect
@@ -202,7 +215,7 @@ export async function POST(request: Request) {
       !existing ||
       rawKey !== '' ||
       provider !== existing.provider ||
-      model !== existing.model
+      model !== existing.model;
 
     if (credentialsChanged) {
       try {
@@ -216,16 +229,16 @@ export async function POST(request: Request) {
           autoReplyMaxPerConversation: maxPer,
           embeddingsProvider,
           embeddingsApiKey: null,
-        })
+        });
       } catch (err) {
         if (err instanceof AiError) {
           return NextResponse.json(
             { error: err.message, code: err.code },
             { status: 400 }
-          )
+          );
         }
-        console.error('[ai/config POST] validation error:', err)
-        return bad('Could not validate the API key with the provider.')
+        console.error('[ai/config POST] validation error:', err);
+        return bad('Could not validate the API key with the provider.');
       }
     }
 
@@ -240,8 +253,8 @@ export async function POST(request: Request) {
         typeof existing?.embeddings_api_key === 'string'
           ? existing.embeddings_api_key
           : null,
-    })
-    if ('error' in embeddingsResolution) return bad(embeddingsResolution.error)
+    });
+    if ('error' in embeddingsResolution) return bad(embeddingsResolution.error);
 
     // Validate semantic embeddings when the setting or credentials that
     // feed it changed. Keyword-only mode intentionally makes no provider
@@ -251,27 +264,24 @@ export async function POST(request: Request) {
       embeddingsProvider !== existingEmbeddingsProvider ||
       rawEmbeddingsKey !== '' ||
       clearEmbeddingsKey ||
-      (credentialsChanged && embeddingsProvider === provider)
+      (credentialsChanged && embeddingsProvider === provider);
 
-    if (
-      embeddingsResolution.config &&
-      embeddingsChanged
-    ) {
+    if (embeddingsResolution.config && embeddingsChanged) {
       try {
-        await embedTexts(embeddingsResolution.config, ['ping'], 'validation')
+        await embedTexts(embeddingsResolution.config, ['ping'], 'validation');
       } catch (err) {
         if (err instanceof AiError) {
           return NextResponse.json(
             { error: `Embeddings key: ${err.message}`, code: err.code },
             { status: 400 }
-          )
+          );
         }
-        console.error('[ai/config POST] embeddings validation error:', err)
-        return bad('Could not validate the embeddings key.')
+        console.error('[ai/config POST] embeddings validation error:', err);
+        return bad('Could not validate the embeddings key.');
       }
     }
 
-    const encryptedKey = rawKey ? encrypt(rawKey) : null
+    const encryptedKey = rawKey ? encrypt(rawKey) : null;
     const shared: Record<string, unknown> = {
       provider,
       model,
@@ -280,15 +290,15 @@ export async function POST(request: Request) {
       auto_reply_enabled: autoReplyEnabled,
       auto_reply_max_per_conversation: maxPer,
       embeddings_provider: embeddingsProvider,
-    }
+    };
     if (rawEmbeddingsKey) {
-      shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
+      shared.embeddings_api_key = encrypt(rawEmbeddingsKey);
     } else if (
       clearEmbeddingsKey ||
       (embeddingsProvider !== existingEmbeddingsProvider &&
         embeddingsProvider === provider)
     ) {
-      shared.embeddings_api_key = null
+      shared.embeddings_api_key = null;
     }
 
     if (existing) {
@@ -296,32 +306,32 @@ export async function POST(request: Request) {
         accountId,
         userId,
         existing.id,
-        encryptedKey ? { ...shared, api_key: encryptedKey } : shared,
-      )
+        encryptedKey ? { ...shared, api_key: encryptedKey } : shared
+      );
       if (error) {
-        console.error('[ai/config POST] update error:', error)
+        console.error('[ai/config POST] update error:', error);
         return NextResponse.json(
           { error: 'Failed to save AI configuration' },
           { status: 500 }
-        )
+        );
       }
     } else {
       const { error } = await upsertAiConfig(accountId, userId, null, {
         api_key: encryptedKey, // guaranteed non-null: rawKey required when no existing row
         ...shared,
-      })
+      });
       if (error) {
-        console.error('[ai/config POST] insert error:', error)
+        console.error('[ai/config POST] insert error:', error);
         return NextResponse.json(
           { error: 'Failed to save AI configuration' },
           { status: 500 }
-        )
+        );
       }
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
 }
 
@@ -333,17 +343,17 @@ export async function POST(request: Request) {
  */
 export async function DELETE() {
   try {
-    const { accountId } = await requireRole('admin')
-    const { error } = await deleteAiConfig(accountId)
+    const { accountId } = await requireRole('admin');
+    const { error } = await deleteAiConfig(accountId);
     if (error) {
-      console.error('[ai/config DELETE] error:', error)
+      console.error('[ai/config DELETE] error:', error);
       return NextResponse.json(
         { error: 'Failed to delete AI configuration' },
         { status: 500 }
-      )
+      );
     }
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (err) {
-    return toErrorResponse(err)
+    return toErrorResponse(err);
   }
 }

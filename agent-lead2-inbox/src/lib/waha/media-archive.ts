@@ -27,14 +27,19 @@ export async function archiveWahaInboundMedia(input: {
   if (!input.waha.apiKey) {
     throw new WahaMediaArchiveError('WAHA API key is unavailable');
   }
-  const source = requirePrivateWahaMediaUrl(input.media.url, input.waha.baseUrl);
+  const source = requirePrivateWahaMediaUrl(
+    input.media.url,
+    input.waha.baseUrl
+  );
   const response = await fetchImpl(source, {
     headers: { 'X-Api-Key': input.waha.apiKey },
     redirect: 'error',
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
-    throw new WahaMediaArchiveError(`WAHA media download failed with ${response.status}`);
+    throw new WahaMediaArchiveError(
+      `WAHA media download failed with ${response.status}`
+    );
   }
 
   const declaredLength = Number(response.headers.get('content-length') ?? 0);
@@ -98,24 +103,34 @@ export async function writeMediaAudit(
     objectPath: string;
     actorUserId?: string | null;
     sizeBytes?: number | null;
-  },
+  }
 ): Promise<void> {
   const { error } = await db.from('media_audit_events').insert({
     account_id: input.accountId,
     message_id: input.messageId,
     event_type: input.eventType,
     actor_user_id: input.actorUserId ?? null,
-    object_key_sha256: createHash('sha256').update(input.objectPath).digest('hex'),
+    object_key_sha256: createHash('sha256')
+      .update(input.objectPath)
+      .digest('hex'),
     size_bytes: input.sizeBytes ?? null,
   });
   if (error) throw new Error('Failed to write media audit event');
 }
 
-export function requirePrivateWahaMediaUrl(mediaUrl: string, baseUrl: string): URL {
+export function requirePrivateWahaMediaUrl(
+  mediaUrl: string,
+  baseUrl: string
+): URL {
   const media = new URL(mediaUrl);
   const waha = new URL(baseUrl);
-  if (media.origin !== waha.origin || !media.pathname.startsWith('/api/files/')) {
-    throw new WahaMediaArchiveError('WAHA media URL is outside the configured private service');
+  if (
+    media.origin !== waha.origin ||
+    !media.pathname.startsWith('/api/files/')
+  ) {
+    throw new WahaMediaArchiveError(
+      'WAHA media URL is outside the configured private service'
+    );
   }
   return media;
 }

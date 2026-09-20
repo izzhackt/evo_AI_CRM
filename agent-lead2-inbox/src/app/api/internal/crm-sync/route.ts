@@ -32,7 +32,7 @@ async function handleCrmSync(request: Request) {
     const options = await parseOptions(request);
     const result = await syncPendingAmoCrmConversations(
       integrationsAdminClient(),
-      options,
+      options
     );
     return NextResponse.json({ success: true, ...result });
   } catch (err) {
@@ -43,7 +43,7 @@ async function handleCrmSync(request: Request) {
           message: err.message,
           missing_fields: err.missingFields,
         },
-        { status: err.status },
+        { status: err.status }
       );
     }
     console.error('[crm-sync] failed:', err);
@@ -58,7 +58,8 @@ async function parseOptions(request: Request) {
     body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   }
 
-  const limit = numberOption(body.limit) ?? numberOption(url.searchParams.get('limit'));
+  const limit =
+    numberOption(body.limit) ?? numberOption(url.searchParams.get('limit'));
   const accountId =
     stringOption(body.account_id) ??
     stringOption(body.accountId) ??

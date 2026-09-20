@@ -15,17 +15,14 @@ export interface WahaRuntimeConfig {
   publicConfig: Record<string, unknown>;
 }
 
-function stringConfig(
-  value: Record<string, unknown>,
-  key: string,
-): string {
+function stringConfig(value: Record<string, unknown>, key: string): string {
   const raw = value[key];
   return typeof raw === 'string' ? raw.trim() : '';
 }
 
 export async function loadWahaRuntimeConfig(
   db: SupabaseClient,
-  accountId: string,
+  accountId: string
 ): Promise<WahaRuntimeConfig> {
   const setting = await getIntegrationSetting(db, accountId, 'waha');
   if (!setting) {
@@ -40,7 +37,8 @@ export async function loadWahaRuntimeConfig(
   const secrets = await getIntegrationSecrets(db, setting.id);
   const baseUrl = stringConfig(setting.publicConfig, 'baseUrl');
   const sessionName =
-    stringConfig(setting.publicConfig, 'sessionName') || DEFAULT_WAHA_SESSION_NAME;
+    stringConfig(setting.publicConfig, 'sessionName') ||
+    DEFAULT_WAHA_SESSION_NAME;
   const apiKey = secrets.api_key ?? '';
   const webhookHmacSecret = secrets.webhook_hmac_secret ?? '';
   const missingFields: string[] = [];
@@ -62,7 +60,7 @@ export async function loadWahaRuntimeConfig(
 
 export async function findWahaWebhookCandidates(
   db: SupabaseClient,
-  sessionName: string,
+  sessionName: string
 ): Promise<
   Array<{ settingId: string; accountId: string; webhookHmacSecret: string }>
 > {

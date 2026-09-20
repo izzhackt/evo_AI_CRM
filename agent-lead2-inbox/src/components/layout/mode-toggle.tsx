@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun } from 'lucide-react';
 
-import { useTheme } from "@/hooks/use-theme";
-import { useLanguage } from "@/hooks/use-language";
-import { cn } from "@/lib/utils";
+import { useTheme } from '@/hooks/use-theme';
+import { useLanguage } from '@/hooks/use-language';
+import { cn } from '@/lib/utils';
 
 /**
  * Light/dark mode toggle — a single icon button that flips the app
@@ -17,12 +17,12 @@ import { cn } from "@/lib/utils";
 export function ModeToggle({ className }: { className?: string }) {
   const { mode, toggleMode } = useTheme();
   const { locale } = useLanguage();
-  const goingTo = mode === "dark" ? "light" : "dark";
+  const goingTo = mode === 'dark' ? 'light' : 'dark';
   const label =
-    locale === "ru"
-      ? goingTo === "dark"
-        ? "Переключить на темный режим"
-        : "Переключить на светлый режим"
+    locale === 'ru'
+      ? goingTo === 'dark'
+        ? 'Переключить на темный режим'
+        : 'Переключить на светлый режим'
       : `Switch to ${goingTo} mode`;
   return (
     <button
@@ -31,11 +31,11 @@ export function ModeToggle({ className }: { className?: string }) {
       aria-label={label}
       title={label}
       className={cn(
-        "flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        className,
+        'text-muted-foreground hover:bg-muted hover:text-foreground flex h-10 w-10 items-center justify-center rounded-md transition-colors',
+        className
       )}
     >
-      {mode === "dark" ? (
+      {mode === 'dark' ? (
         <Moon className="h-5 w-5" />
       ) : (
         <Sun className="h-5 w-5" />

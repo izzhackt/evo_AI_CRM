@@ -43,12 +43,14 @@ export function ProductionReadiness() {
         method: 'GET',
         cache: 'no-store',
       });
-      const data = (await res.json().catch(() => null)) as PreflightResponse | null;
+      const data = (await res
+        .json()
+        .catch(() => null)) as PreflightResponse | null;
       if (!data || !Array.isArray(data.checks)) {
         setError(
           res.ok
             ? t('settings.readiness.invalidResponse')
-            : t('settings.readiness.checkFailed'),
+            : t('settings.readiness.checkFailed')
         );
         return;
       }
@@ -78,7 +80,7 @@ export function ProductionReadiness() {
           description={t('settings.readiness.loadingDescription')}
         />
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <Loader2 className="text-primary size-6 animate-spin" />
         </div>
       </section>
     );
@@ -109,7 +111,11 @@ export function ProductionReadiness() {
         </Alert>
       ) : result ? (
         <>
-          <Alert className={result.ready ? 'bg-card' : 'border-amber-900 bg-amber-950/20'}>
+          <Alert
+            className={
+              result.ready ? 'bg-card' : 'border-amber-900 bg-amber-950/20'
+            }
+          >
             {result.ready ? (
               <CheckCircle2 className="size-4 text-emerald-500" />
             ) : (
@@ -119,7 +125,7 @@ export function ProductionReadiness() {
               {t(
                 result.ready
                   ? 'settings.readiness.ready'
-                  : 'settings.readiness.blocked',
+                  : 'settings.readiness.blocked'
               )}
             </AlertTitle>
             <AlertDescription>
@@ -151,10 +157,10 @@ export function ProductionReadiness() {
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-foreground">
+                      <span className="text-foreground block text-sm font-semibold">
                         {check.label}
                       </span>
-                      <span className="mt-1 block text-sm text-muted-foreground">
+                      <span className="text-muted-foreground mt-1 block text-sm">
                         {check.message}
                       </span>
                       {check.missing.length > 0 ? (
@@ -162,7 +168,7 @@ export function ProductionReadiness() {
                           {check.missing.map((name) => (
                             <code
                               key={name}
-                              className="rounded border border-border bg-muted px-1.5 py-0.5 text-xs text-foreground"
+                              className="border-border bg-muted text-foreground rounded border px-1.5 py-0.5 text-xs"
                             >
                               {name}
                             </code>
@@ -176,11 +182,9 @@ export function ProductionReadiness() {
             })}
           </div>
 
-          <div className="flex items-start gap-3 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">
-            <ShieldCheck className="mt-0.5 size-4 text-primary" />
-            <p>
-              {t('settings.readiness.proofNote')}
-            </p>
+          <div className="border-border bg-card text-muted-foreground flex items-start gap-3 rounded-md border p-4 text-sm">
+            <ShieldCheck className="text-primary mt-0.5 size-4" />
+            <p>{t('settings.readiness.proofNote')}</p>
           </div>
         </>
       ) : null}

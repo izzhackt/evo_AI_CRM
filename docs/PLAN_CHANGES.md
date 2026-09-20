@@ -34408,3 +34408,87 @@ Root добавляет только первый focus-visible «К содер�
 не ломать full-height страницы. ActualSales UI+keyboard proof без записей,
 узкие проверки и независимое exact-head review; полныйконтракт вEVO_LAUNCH_PLAN.
 Runtime начинается после959merge. Root owns толькоэтотisolatedworktree/docs.
+
+
+## 2026-09-21 — item29: необязательные поля legacy-заявок CN/MY (219)
+
+До кода: base main `5adce46e`; root закрепил миграцию219 за этим срезом.
+Временное владение — только worktree `evo-cn-my-optional-fields`, ветка
+`izzhackt/admissions-optional-fields`, и эти два приложения к контракту.
+Runtime начинается после merge217 и отдельного root GO по этому контракту.
+A/B и другие номера миграций не занимать; применять схему и координировать
+общую локальную QA-базу может только назначенный root исполнитель.
+
+Подтверждённая причина: guard137 проверяет admissions_details заявки, если
+дело закреплено за admissions playbook. Его validator отвергает четыре
+snake_case ключа из184 как неизвестные, даже когда форма полностью заполнена.
+RPC184 всегда объединяет эти четыре поля с существующим JSON. В результате
+legacy-заявка не сохраняется; unpinned-дело обходит этот guard и уже работает.
+Это не запрос на переделку формы, данных или правил поступления.
+
+Единственное runtime-изменение —
+`supabase/migrations/219_platform_admissions_optional_partner_fields.sql`:
+`CREATE OR REPLACE` существующей
+`platform_private.admissions_validate_fields(TEXT, JSONB) RETURNS JSONB`.
+Сохранить PL/pgSQL, STABLE, SECURITY INVOKER, пустой search_path, сигнатуру,
+владельца и ACL; не добавлять public wrapper, EXECUTE, таблицы или роли.
+137 и184, admissions_field_schema, guard, UI/action/RPC184 остаются неизменными.
+
+После общего ограничения object/non-null/65536 bytes и до старой проверки
+rule добавить только application-ветку для точных ключей `partner_contact`,
+`external_link`, `decision_reference`, `decision_note`. Для каждого вызвать
+существующий `application_partner_detail_fields(jsonb_build_object(key,value))`
+через PERFORM и продолжить цикл. Его результат не подставлять вместо исходного
+JSON: validator возвращает прежний `p_value`, включая все camelCase факты.
+Нормализация blank/null остаётся обязанностью существующего RPC184.
+
+Повторное использование helper184 сохраняет уже принятые значения: строка,
+blank или JSON null; максимум300 символов contact/reference и2000 link/note,
+проверка запрещённых control characters и непустой HTTPS-ссылки. Неизвестный
+ключ, число/массив/object и остальные нарушения по-прежнему отклоняются.
+Старые application-поля сохраняют непустую строку, точные date/enum проверки;
+case/visa вообще не получают эту optional-ветку. Общая проверка размера остаётся
+перед циклом; ограничение отдельного helper не заменяет общий предел.
+
+Все caller paths учтены: guard applications/visa, case facts update и legacy
+application/visa details command из137. Новые четыре application-ключа допустимы
+последовательно в этих application-входах, а не только через RPC184; validator
+не получает country argument и не вводит новых правил страны. Snake_case
+`decision_reference` не заменяет `decisionReference`/`decisionEvidence`.
+Submission/offer/visa evidence, closed-case denial и case cross-field gates
+остаются прежними. Tenant/case authority, live recheck после locks, optimistic
+version, request replay, audit и исторические записи не изменяются. Без rename,
+backfill, pin/unpin, удаления или нормализации уже сохранённых фактов.
+
+Проверки после runtime GO: diff функции должен отличаться только узкой веткой;
+точечный source guard и независимое exact-head review; затем реальное выполнение
+SQL validator/helper в согласованной локальной базе без business writes.
+Проверить все четыре optional ключа: отсутствует/blank/null/допустимое значение,
+предельную длину, неверный тип/control/link; сохранение смешанного legacy JSON,
+unknown key, legacy blank, неверные date/enum, case/visa запрет optional ключей,
+case evidence и общий размер. Это запросы к реальным SQL-функциям с граничными
+аргументами, не fake entities и не замена persistence/UI acceptance. Сверить
+ACL/owner/function attributes и неизменность остальных функций/истории.
+
+Последняя readonly readiness-инвентаризация owned QA показала7 дел,0 playbook-
+pinned дел и1 существующую application; подходящих pinned CN/MY applications0.
+Это предыдущий snapshot, перед реальной приёмкой требуется новая проверка.
+Ordinary Auth read существующей unpinned application проверит незатронутый
+путь и доступ, но не докажет исправление legacy-сохранения. Нельзя создавать
+fixture-заявку, pin существующее дело, менять Auth/роли или имитировать ответ,
+чтобы объявить PASS. Если подходящей записи нет, итог явно разделяет source,
+local SQL proof, unaffected Auth parity и отсутствующий changed-path Auth/UI.
+
+Когда существующая подходящая owned запись действительно доступна и её writes
+разрешены root-пакетом: через обычный application.manage Auth сохранить одно
+поле при остальных blank, очистить, проверить legacy JSON, version/replay/stale,
+authority/tenant denial, evidence gates и неизменность прочих бизнес-фактов.
+Такой пакет не исполняется в pre-code и не разрешается самим этим документом.
+Managed/prod apply, release и внешние провайдеры сюда не входят; item29 нельзя
+объявить полностью принятым только по unaffected-пути или тестам функции.
+
+Проверено по [официальному PostgreSQL CREATE FUNCTION](https://www.postgresql.org/docs/current/sql-createfunction.html):
+CREATE OR REPLACE сохраняет owner/permissions, но остальные атрибуты задаются
+заново, поэтому они должны быть явно сохранены в219. Source: migration137
+`admissions_validate_fields`/`admissions_guard_related` и migration184
+`application_partner_detail_fields`/`update_application_partner_details_v1`.

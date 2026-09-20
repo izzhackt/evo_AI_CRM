@@ -57,11 +57,26 @@ test("URL helper prefers managed storage only for verified migrated manifest ent
   assert.equal(resolveUniversityPhotoUrl(null, FIXTURE_PHOTOS, { alpha: migratedEntry }, base), null);
   // Прототипные имена не читаются как записи.
   assert.equal(resolveUniversityPhotoUrl("toString", FIXTURE_PHOTOS, { alpha: migratedEntry }, base), null);
-  // Сегменты objectPath кодируются по одному.
-  assert.equal(
-    resolveUniversityPhotoUrl("alpha", FIXTURE_PHOTOS, { alpha: { ...migratedEntry, objectPath: "a b/ц.jpg" } }, base),
-    `${base}/a%20b/%D1%86.jpg`,
-  );
+  // Runtime obeys the same key-bound, flat filename contract as the manifest.
+  for (const extension of ["avif", "gif", "jpg", "png", "webp"]) {
+    assert.equal(
+      resolveUniversityPhotoUrl("alpha", FIXTURE_PHOTOS, {
+        alpha: { ...migratedEntry, objectPath: `alpha.${extension}` },
+      }, base), `${base}/alpha.${extension}`,
+    );
+  }
+  for (const objectPath of [
+    "a b/ц.jpg", "../alpha.jpg", "./alpha.jpg", "/alpha.jpg", "alpha/../alpha.jpg",
+    "alpha%2Ejpg", "alpha.jpg?download=1", "alpha.jpg#fragment", "alpha.jpg\n",
+    "alpha.jpg/", "alpha.JPG", "alpha.svg", "other.jpg", "alpha-extra.jpg", "alpha..jpg",
+    "https://example.org/alpha.jpg", "alpha\\alpha.jpg",
+  ]) {
+    assert.equal(
+      resolveUniversityPhotoUrl("alpha", FIXTURE_PHOTOS, {
+        alpha: { ...migratedEntry, objectPath },
+      }, base), FIXTURE_PHOTOS.alpha.path, objectPath,
+    );
+  }
 });
 
 test("committed manifest keeps the site on hotlinks until the coordinator flips migrated", () => {

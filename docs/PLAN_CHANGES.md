@@ -33022,3 +33022,14 @@ Runtime выпускает Astra по текущему managed контракт�
 The independent final audit of KB §§6–10 found three remaining paths: SPA/back navigation could discard an unsaved editor draft; file review questions could not be read/resolved in the UI; canonical CRM documents/company folders lacked selection/folder ZIP controls. Complete these within the existing KB contract before final acceptance.
 
 Keep draft contents only in editor memory and guard navigation until saved or explicitly discarded. Use the existing versioned edit command for file review metadata, without changing original bytes. Add forward migration 206 for an explicitly scoped canonical export selection (document/company version IDs, document-case folders and company-folder subtrees), preserving ordinary Admin authorization, tenant checks, immutable snapshots, existing downloads and all-base export behavior. A selected canonical file must not export its entire case, correspondence or unrelated library materials. Do not change Portal/App files or primary object ownership. Validate with existing QA documents, actual Auth denials, downloaded selected ZIP bytes, real navigation after a failed save, and independent exact-head review.
+
+## 2026-09-20 — KB canonical search proxy registration
+
+Real production HTTP/UI acceptance on `49f07148` returned HTTP 403
+`platform_route_not_connected` for the new canonical-search endpoint, while
+the normal Admin RPC checks had passed. Register only the exact
+`/api/v3/knowledge/search-canonical` path in the existing staff-cookie proxy
+contract. Keep live Admin/tenant checks in the handler/RPC unchanged. Verify
+the connected-route boundary locally and repeat actual Admin, staff, Student
+and anonymous HTTP checks plus the existing-document UI journey after release.
+No migration, Portal/App or primary-document mutation is required.

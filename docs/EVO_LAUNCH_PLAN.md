@@ -10660,3 +10660,35 @@ WhatsApp/provider acceptance и публикация сервиса этим с�
 Root добавит собственную квитанцию и статус очереди после проверки; слияние
 координируется последовательно с другими ветками, исходные append-only записи
 общего плана и журнала сохраняются.
+
+## 2026-09-20 — issue #42: узкий CI predecessor перед форматированием
+
+Read-only baseline показал347 форматируемых файлов companion вместо старого
+счётчика338 в issue. Действующий classifier признаёт только отдельные Inbox
+maintenance/edge paths; массовое форматирование source закономерно остаётся
+unknown и блокируется. Root назначил необходимый отдельный CI predecessor;
+до его контракта runtime/formatting source не менялись.
+
+Сначала отдельный PR добавляет fail-closed путь проверки format-only кандидатов:
+только изменения M существующих tracked regular файлов в явно поддерживаемом
+formatter scope `agent-lead2-inbox/`. Add/delete/rename, mode changes, symlinks,
+dependencies/lockfiles, formatter config, exclusions, vendor/generated и
+миграции исключаются. Для каждого кандидата обязательна точная побайтовая
+проверка: head равен результату существующего locked Prettier над base blob
+с неизменными formatter/config/exclusions. Одна классификация пути не является
+доказательством форматирования и не даёт общий allowlist для Inbox source.
+Неподдерживаемые или непроверенные изменения сохраняют unknown/fail-closed.
+
+Выбранная lane выполняет именно issue42 `format:check`, `lint`, `typecheck`,
+`test`, `build` на Node22, без credentials, provider actions и deployment.
+В CI predecessor не смешивать код нового gate с механическим форматированием
+347 source-файлов или runtime-изменениями. Нужны реальные проверки classifier/
+byte-proof границ, независимый review точного head и защищённый CI. Root проводит
+read-only независимую design-проверку и вправе переименовать эту ветку в
+`inbox-format-gate` до кода; это не меняет product/runtime scope.
+
+Только после merge этого predecessor — отдельный механический formatter PR
+по исходному контракту, с повторной проверкой фактического числа файлов и
+semantic-diff review. Issue42 не объявлять выполненным на одном CI gate. Это
+обслуживание существующего companion, не возобновление отдельного продукта,
+provider acceptance или разрешение изменять production.

@@ -6,6 +6,7 @@ import test from "node:test";
 import { build } from "esbuild";
 import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, parseUniversityPage, universityPublicUrl, universityIntakeLabel, UNIVERSITY_PHOTOS } from "../src/lib/platform-university-catalog.ts";
 import { universityBatchRequestId, universityContentHash, universityBatchRows } from "../src/lib/server/university-catalog-batch.ts";
+import { universityIntakeStatusKey } from "../src/lib/portal/universities.ts";
 const acceptedIdentities = JSON.parse(readFileSync(new URL("fixtures/university-catalog-accepted-identities.json", import.meta.url), "utf8"));
 const clone = () => structuredClone(current.find((entry) => entry.key === "apu").content);
 const id = "59948000-0000-4000-8000-000000000001";
@@ -136,8 +137,24 @@ test("dates, timezone, repeated program IDs and control characters are rejected"
 test("deadline display ages correctly in declared timezone without opening unknown intakes", () => {
   const intake = { ...clone().programs[0].intakes[0], applicationDeadline: "2026-09-23", deadlineTime: "17:00", timezone: "Asia/Shanghai", status: "open" };
   assert.match(universityIntakeLabel(intake, new Date("2026-09-23T08:59:00Z")), /открыт/);
-  assert.match(universityIntakeLabel(intake, new Date("2026-09-23T09:01:00Z")), /закрыт/);
+  assert.match(universityIntakeLabel(intake, new Date("2026-09-23T09:01:00Z")), /срок приёма прошёл/);
   assert.match(universityIntakeLabel({ ...intake, applicationDeadline: null, deadlineTime: null, status: "unknown" }, new Date("2026-09-23T09:01:00Z")), /уточнения/);
+});
+test("uncertain deadlines cannot become expired by a date comparison or an assumed UTC zone", () => {
+  const now = new Date("2026-09-23T09:01:00Z");
+  const past = { ...clone().programs[0].intakes[0], applicationDeadline: "2026-09-01", deadlineTime: "17:00", timezone: "Asia/Shanghai", status: "open" };
+  for (const [status, portalStatus, staffLabel] of [
+    ["unknown", "intakeStatus.unclear", /уточнения/],
+    ["needs_reconfirmation", "intakeStatus.needsConfirmation", /подтвердить/],
+  ]) {
+    assert.equal(universityIntakeStatusKey({ ...past, status }, now), portalStatus);
+    assert.match(universityIntakeLabel({ ...past, status }, now), staffLabel);
+  }
+  const unzoned = { ...past, deadlineTime: null, timezone: null };
+  assert.equal(universityIntakeStatusKey(unzoned, now), "intakeStatus.needsConfirmation");
+  assert.match(universityIntakeLabel(unzoned, now), /уточнить/);
+  assert.equal(universityIntakeStatusKey({ ...unzoned, status: "closed" }, now), "intakeStatus.closed");
+  assert.match(universityIntakeLabel({ ...unzoned, status: "closed" }, now), /закрыт/);
 });
 test("query filters reject duplicate/unknown fields and retain non-initial countries", () => {
   assert.deepEqual(parseUniversityFilters({ q: "University", country: "DE", level: "master", offset: "30" }), { query: "University", country: "DE", level: "master", offset: 30 });

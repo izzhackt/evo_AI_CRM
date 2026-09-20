@@ -99,11 +99,16 @@ export function parseUniversityContent(value: unknown): UniversityContent | null
   return { name: row.name, country: row.country, city: row.city, overview: row.overview, websiteUrl: row.websiteUrl, sourceUrl: row.sourceUrl, verifiedOn: row.verifiedOn, notes: row.notes, photoKey: row.photoKey as UniversityPhotoKey | null, programs };
 }
 export function universityIntakeLabel(intake: UniversityIntake, now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: intake.timezone ?? "UTC", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  if (intake.status === "closed") return "Приём закрыт по данным источника";
+  if (intake.status === "needs_reconfirmation") return "Дату нужно подтвердить";
+  if (intake.status === "unknown") return "Условия набора требуют уточнения";
+  // A disputed date or an absent time zone cannot establish expiry. This label
+  // is presentation only; selection eligibility remains the authority of 214.
+  if (!intake.applicationDeadline || !intake.timezone) return "Срок приёма нужно уточнить";
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: intake.timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const at = (key: string) => parts.find((part) => part.type === key)?.value ?? "";
   const day = `${at("year")}-${at("month")}-${at("day")}`;
-  if (intake.status === "closed" || (intake.applicationDeadline && (intake.applicationDeadline < day || (intake.applicationDeadline === day && intake.deadlineTime && intake.deadlineTime < `${at("hour")}:${at("minute")}`)))) return "Приём по опубликованному сроку закрыт";
-  if (intake.status === "needs_reconfirmation") return "Дату нужно подтвердить";
+  if (intake.applicationDeadline < day || (intake.applicationDeadline === day && intake.deadlineTime && intake.deadlineTime <= `${at("hour")}:${at("minute")}`)) return "Опубликованный срок приёма прошёл";
   if (intake.status === "open") return "Приём открыт по данным источника";
   if (intake.status === "announced") return "Набор объявлен";
   return "Условия набора требуют уточнения";

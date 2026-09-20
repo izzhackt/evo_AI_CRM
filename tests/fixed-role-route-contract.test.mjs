@@ -288,6 +288,20 @@ test("university routes admit only catalogue, management and bounded detail path
   assert.equal(isConnectedStudentPortalPage("/v3/universities/manage"), false);
 });
 
+test("program preparation detail connects only a bounded Student page, never new APIs or descendants", () => {
+  const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const path = `/portal/preparations/${id}`;
+  assert.equal(isConnectedStudentPortalPage(path), true);
+  assert.equal(isConnectedPlatformPage(path), true);
+  assert.equal(isConnectedStudentAuthPage(path), false);
+  for (const invalid of ["/portal/preparations", "/portal/preparations/new", `${path}/edit`,
+    `/portal/preparations/${id}/documents`, `/v3/preparations/${id}`]) {
+    assert.equal(isConnectedStudentPortalPage(invalid), false, invalid);
+    assert.equal(isConnectedPlatformPage(invalid), false, invalid);
+  }
+  assert.equal(isConnectedStudentPortalApi(`/api/portal/preparations/${id}`, "POST"), false);
+});
+
 test("Student Portal and auth-only routes are exact and disjoint from tombstones", () => {
   assert.equal(isConnectedStudentAuthPage("/auth/staff"), false);
   assert.equal(isConnectedStudentPortalPage("/auth/staff"), false);

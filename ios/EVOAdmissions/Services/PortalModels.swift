@@ -246,18 +246,21 @@ func universityIntakeDisplayStatus(
     _ intake: UniversityIntake,
     now: Date = Date()
 ) -> UniversityIntakeDisplayStatus {
+    if intake.status == "closed" { return .closed }
+    if intake.status == "needs_reconfirmation" { return .needsConfirmation }
+    guard intake.status == "open" || intake.status == "announced" else { return .unclear }
+    // A disputed/unknown deadline or absent timezone cannot become a definite
+    // expiry by interpreting it as UTC. The selection command is authoritative.
+    if intake.applicationDeadline != nil,
+       intake.timezone.flatMap(TimeZone.init(identifier:)) == nil { return .needsConfirmation }
     let calendarFormatter = DateFormatter()
     calendarFormatter.locale = Locale(identifier: "en_US_POSIX")
     calendarFormatter.timeZone = intake.timezone.flatMap(TimeZone.init(identifier:))
-        ?? TimeZone(identifier: "UTC")
     calendarFormatter.dateFormat = "yyyy-MM-dd"
     let day = calendarFormatter.string(from: now)
     calendarFormatter.dateFormat = "HH:mm"
     let minute = calendarFormatter.string(from: now)
 
-    if intake.status == "closed" {
-        return .closed
-    }
     if let deadline = intake.applicationDeadline {
         if deadline < day { return .closed }
         if deadline == day, let time = intake.deadlineTime, time < minute { return .closed }

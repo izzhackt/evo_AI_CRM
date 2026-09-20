@@ -42,8 +42,11 @@ struct UniversityDetailView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var model = UniversityCardViewModel()
+    @StateObject private var preparations = ProgramPreparationModel()
+    @EnvironmentObject private var preparationSession: ProgramPreparationSession
     @ObservedObject private var favorites = FavoritesStore.shared
     @State private var showsConsultationSheet = false
+    @State private var preparationRoute: ProgramPreparationRoute?
 
     private var item: UniversityCatalogItem? { model.item ?? initialItem }
 
@@ -77,6 +80,12 @@ struct UniversityDetailView: View {
         .task {
             await model.load(institutionId: institutionId)
             await favorites.loadIfNeeded()
+        }
+        .task(id: preparationSession.context?.scope) {
+            if let context = preparationSession.context { await preparations.load(context: context) }
+        }
+        .navigationDestination(item: $preparationRoute) { route in
+            ProgramPreparationView(applicationId: route.applicationId, initialSavedNotice: route.savedNotice)
         }
     }
 
@@ -155,8 +164,26 @@ struct UniversityDetailView: View {
                         .accessibilityAddTraits(.isHeader)
                         .id("university-programs")
 
+                    if preparations.isLoading {
+                        ProgressView("prep_loading")
+                    } else if preparations.loadFailed, let context = preparationSession.context {
+                        Text("prep_read_failed").font(.footnote).foregroundStyle(.secondary)
+                        Button("retry_button") { Task { await preparations.load(context: context) } }
+                            .frame(minHeight: 44)
+                    }
+                    if let key = preparations.errorKey, !preparations.savedNotice {
+                        Text(LocalizedStringKey(key)).font(.subheadline).foregroundStyle(.red)
+                    }
+
                     ForEach(item.content.programs) { program in
-                        UniversityProgramCard(program: program)
+                        UniversityProgramCard(program: program) { intake in
+                            AnyView(CatalogIntakePreparationAction(
+                                item: item, program: program, intake: intake,
+                                snapshotIsFresh: model.item != nil && !model.isLoading && !model.refreshFailed && !model.cardMissing,
+                                model: preparations,
+                                open: { preparationRoute = $0 }
+                            ))
+                        }
                             .tint(.primary)
                     }
 
@@ -176,7 +203,11 @@ struct UniversityDetailView: View {
         .toolbarBackground(Color(.systemBackground), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(colorScheme, for: .navigationBar)
-        .refreshable { await model.load(institutionId: institutionId) }
+        .refreshable {
+            async let card: () = model.load(institutionId: institutionId)
+            if let context = preparationSession.context { await preparations.load(context: context) }
+            await card
+        }
     }
 
     private func factsCard(_ content: UniversityContent) -> some View {
@@ -301,6 +332,7 @@ struct UniversityPhotoView: View {
 
 struct UniversityProgramCard: View {
     let program: UniversityProgram
+    var intakeAction: (UniversityIntake) -> AnyView = { _ in AnyView(EmptyView()) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -328,6 +360,7 @@ struct UniversityProgramCard: View {
                 Divider()
                     .padding(.vertical, 4)
                 UniversityIntakeView(intake: intake)
+                intakeAction(intake)
             }
 
             if let url = URL(string: program.sourceUrl) {

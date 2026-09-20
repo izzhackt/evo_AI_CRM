@@ -1,6 +1,950 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "prep_starting" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открываем подготовку…"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдык ачылууда…"
+          }
+        }
+      }
+    },
+    "prep_open" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть подготовку"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдыкты ачуу"
+          }
+        }
+      }
+    },
+    "prep_start" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать подготовку"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдыкты баштоо"
+          }
+        }
+      }
+    },
+    "prep_retry_selection" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить выбор"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандоону кайталоо"
+          }
+        }
+      }
+    },
+    "prep_continue" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить подготовку"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдыкты улантуу"
+          }
+        }
+      }
+    },
+    "prep_loading" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загружаем подготовку…"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдык жүктөлүүдө…"
+          }
+        }
+      }
+    },
+    "prep_read_failed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить подготовку. Попробуйте ещё раз."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдык жүктөлгөн жок. Кайра аракет кылыңыз."
+          }
+        }
+      }
+    },
+    "prep_empty" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбранные программы появятся здесь. Начать подготовку можно из карточки университета."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандалган программалар бул жерде көрүнөт. Даярдыкты университеттин баракчасынан баштасаңыз болот."
+          }
+        }
+      }
+    },
+    "prep_list_title" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбранные программы"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандалган программалар"
+          }
+        }
+      }
+    },
+    "prep_detail_title" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготовка"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдык"
+          }
+        }
+      }
+    },
+    "prep_requirements_title" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документы программы"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программанын документтери"
+          }
+        }
+      }
+    },
+    "prep_starter_title" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стартовые документы"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Баштапкы документтер"
+          }
+        }
+      }
+    },
+    "prep_starter_note" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это стартовый список. Полный перечень документов программы ещё нужно уточнить."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул баштапкы тизме. Программанын документтеринин толук тизмесин дагы тактоо керек."
+          }
+        }
+      }
+    },
+    "prep_all_documents" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все документы дела"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Иштин бардык документтери"
+          }
+        }
+      }
+    },
+    "prep_open_document" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть в документах"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документтерден ачуу"
+          }
+        }
+      }
+    },
+    "prep_upload_sends" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В разделе «Документы» загрузка сразу отправляет файл на проверку EVO."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Документтер» бөлүмүндө файл жүктөлгөндө дароо EVO текшерүүсүнө жөнөтүлөт."
+          }
+        }
+      }
+    },
+    "prep_required" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обязательный документ"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Милдеттүү документ"
+          }
+        }
+      }
+    },
+    "prep_not_initialized" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программа выбрана. Подготовка документов ещё не начата."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программа тандалды. Документтерди даярдоо баштала элек."
+          }
+        }
+      }
+    },
+    "prep_choice_saved" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбор сохранён. Продолжите подготовку документов."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандоо сакталды. Документтерди даярдоону улантыңыз."
+          }
+        }
+      }
+    },
+    "prep_needs_configuration" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список документов этой программы нужно уточнить. Текущие документы доступны в общем разделе."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул программанын документтеринин тизмесин тактоо керек. Учурдагы документтер жалпы бөлүмдө жеткиликтүү."
+          }
+        }
+      }
+    },
+    "prep_document_unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот пункт сейчас не найден. Остальные документы дела остаются доступны."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул документ азыр табылган жок. Иштин башка документтери жеткиликтүү."
+          }
+        }
+      }
+    },
+    "prep_deadline_confirmation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Срок подачи для выбранного набора нужно подтвердить."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандалган кабыл алуу мезгилинин тапшыруу мөөнөтүн тактоо керек."
+          }
+        }
+      }
+    },
+    "prep_case_ineligible" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сейчас нельзя начать новую подготовку. Сохранённый выбор остаётся доступным."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Азыр жаңы даярдыкты баштоо мүмкүн эмес. Сакталган тандоо жеткиликтүү бойдон калат."
+          }
+        }
+      }
+    },
+    "prep_refresh_catalog" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сведения изменились или не обновились. Обновите карточку перед новым выбором."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Маалымат өзгөргөн же жаңырган жок. Жаңы тандоодон мурун баракчаны жаңыртыңыз."
+          }
+        }
+      }
+    },
+    "prep_country_unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготовка для этой страны пока недоступна. Можно сохранить вуз или записаться на консультацию."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул өлкө үчүн даярдык азырынча жеткиликсиз. Университетти сактап же кеңеш алууга жазылсаңыз болот."
+          }
+        }
+      }
+    },
+    "prep_identity_unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбор этого набора пока недоступен. Сведения о нём нужно уточнить."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул кабыл алуу мезгилин азырынча тандоо мүмкүн эмес. Маалыматын тактоо керек."
+          }
+        }
+      }
+    },
+    "prep_intake_closed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый выбор этого набора уже недоступен."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул кабыл алуу мезгилин жаңыдан тандоо мүмкүн эмес."
+          }
+        }
+      }
+    },
+    "prep_access_unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготовка недоступна. Проверьте доступ к своему делу."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдык жеткиликсиз. Ишиңизге кирүү мүмкүнчүлүгүн текшериңиз."
+          }
+        }
+      }
+    },
+    "prep_request_conflict" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подтвердить действие. Обновите сведения и проверьте сохранённый выбор."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аракет ырасталган жок. Маалыматты жаңыртып, сакталган тандоону текшериңиз."
+          }
+        }
+      }
+    },
+    "prep_request_unconfirmed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответ не получен. Проверьте сохранённую подготовку или повторите действие."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жооп алынган жок. Сакталган даярдыкты текшериңиз же аракетти кайталаңыз."
+          }
+        }
+      }
+    },
+    "prep_file_available" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл технически доступен"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл техникалык жактан жеткиликтүү"
+          }
+        }
+      }
+    },
+    "prep_file_slot_missing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ сейчас недоступен. Связь с программой нужно уточнить."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ азыр жеткиликсиз. Программа менен байланышын тактоо керек."
+          }
+        }
+      }
+    },
+    "prep_file_slot_removed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ убран из текущего списка. Пункт программы сохранён."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ учурдагы тизмеден алынган. Программанын талабы сакталды."
+          }
+        }
+      }
+    },
+    "prep_file_application_link_missing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связь документа с программой нужно уточнить."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документтин программа менен байланышын тактоо керек."
+          }
+        }
+      }
+    },
+    "prep_file_slot_metadata_changed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Описание документа изменилось. Требование программы нужно уточнить."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документтин сүрөттөмөсү өзгөргөн. Программанын талабын тактоо керек."
+          }
+        }
+      }
+    },
+    "prep_file_file_missing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл ещё не загружен"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл жүктөлө элек"
+          }
+        }
+      }
+    },
+    "prep_file_upload_not_finalized" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка файла ещё не завершена"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлды жүктөө бүтө элек"
+          }
+        }
+      }
+    },
+    "prep_file_integrity_pending" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверяется целостность файла"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлдын бүтүндүгү текшерилүүдө"
+          }
+        }
+      }
+    },
+    "prep_file_integrity_failed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл не прошёл проверку целостности"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл бүтүндүк текшерүүсүнөн өткөн жок"
+          }
+        }
+      }
+    },
+    "prep_file_malware_pending" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Идёт проверка безопасности файла"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлдын коопсуздугу текшерилүүдө"
+          }
+        }
+      }
+    },
+    "prep_file_malware_infected" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл не прошёл проверку безопасности"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл коопсуздук текшерүүсүнөн өткөн жок"
+          }
+        }
+      }
+    },
+    "prep_file_malware_error" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверку безопасности файла не удалось завершить"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлдын коопсуздугун текшерүү аяктаган жок"
+          }
+        }
+      }
+    },
+    "prep_status_preparation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготовка"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даярдык"
+          }
+        }
+      }
+    },
+    "prep_status_ready" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово к подаче"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тапшырууга даяр"
+          }
+        }
+      }
+    },
+    "prep_status_submitted" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подано"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тапшырылды"
+          }
+        }
+      }
+    },
+    "prep_status_under_review" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На рассмотрении"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каралууда"
+          }
+        }
+      }
+    },
+    "prep_status_offer" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Получено предложение"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сунуш алынды"
+          }
+        }
+      }
+    },
+    "prep_status_rejected" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отказ в поступлении"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кабыл алуудан баш тартылды"
+          }
+        }
+      }
+    },
+    "prep_status_enrolled" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зачислен"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окууга кабыл алынды"
+          }
+        }
+      }
+    },
+    "prep_status_withdrawn" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заявка отозвана"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Арыз кайтарылып алынды"
+          }
+        }
+      }
+    },
+    "prep_status_closed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поступление закрыто"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кабыл алуу жабылды"
+          }
+        }
+      }
+    },
+    "prep_slot_required" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ожидает документ"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ күтүлүүдө"
+          }
+        }
+      }
+    },
+    "prep_slot_submitted" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ отправлен на проверку"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ текшерүүгө жөнөтүлдү"
+          }
+        }
+      }
+    },
+    "prep_slot_approved" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ принят"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ кабыл алынды"
+          }
+        }
+      }
+    },
+    "prep_slot_correction_required" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужны исправления"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оңдоолор керек"
+          }
+        }
+      }
+    },
+    "prep_slot_rejected" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ отклонён"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документ четке кагылды"
+          }
+        }
+      }
+    },
+    "prep_review_approved" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Решение EVO: принят"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EVO чечими: кабыл алынды"
+          }
+        }
+      }
+    },
+    "prep_review_correction_required" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Решение EVO: нужны исправления"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EVO чечими: оңдоолор керек"
+          }
+        }
+      }
+    },
+    "prep_review_rejected" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Решение EVO: отклонён"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EVO чечими: четке кагылды"
+          }
+        }
+      }
+    },
     "home_admission_heading" : {
       "localizations" : {
         "ru" : {

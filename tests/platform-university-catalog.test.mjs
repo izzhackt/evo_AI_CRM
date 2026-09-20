@@ -137,6 +137,8 @@ test("dates, timezone, repeated program IDs and control characters are rejected"
 test("deadline display ages correctly in declared timezone without opening unknown intakes", () => {
   const intake = { ...clone().programs[0].intakes[0], applicationDeadline: "2026-09-23", deadlineTime: "17:00", timezone: "Asia/Shanghai", status: "open" };
   assert.match(universityIntakeLabel(intake, new Date("2026-09-23T08:59:00Z")), /открыт/);
+  assert.match(universityIntakeLabel(intake, new Date("2026-09-23T09:00:00Z")), /срок приёма прошёл/);
+  assert.equal(universityIntakeStatusKey(intake, new Date("2026-09-23T09:00:00Z")), "intakeStatus.closed");
   assert.match(universityIntakeLabel(intake, new Date("2026-09-23T09:01:00Z")), /срок приёма прошёл/);
   assert.match(universityIntakeLabel({ ...intake, applicationDeadline: null, deadlineTime: null, status: "unknown" }, new Date("2026-09-23T09:01:00Z")), /уточнения/);
 });
@@ -153,6 +155,9 @@ test("uncertain deadlines cannot become expired by a date comparison or an assum
   const unzoned = { ...past, deadlineTime: null, timezone: null };
   assert.equal(universityIntakeStatusKey(unzoned, now), "intakeStatus.needsConfirmation");
   assert.match(universityIntakeLabel(unzoned, now), /уточнить/);
+  const abbreviated = { ...past, timezone: "CET" };
+  assert.equal(universityIntakeStatusKey(abbreviated, now), "intakeStatus.needsConfirmation");
+  assert.match(universityIntakeLabel(abbreviated, now), /уточнить/);
   assert.equal(universityIntakeStatusKey({ ...unzoned, status: "closed" }, now), "intakeStatus.closed");
   assert.match(universityIntakeLabel({ ...unzoned, status: "closed" }, now), /закрыт/);
 });

@@ -104,7 +104,9 @@ export function universityIntakeLabel(intake: UniversityIntake, now = new Date()
   if (intake.status === "unknown") return "Условия набора требуют уточнения";
   // A disputed date or an absent time zone cannot establish expiry. This label
   // is presentation only; selection eligibility remains the authority of 214.
-  if (!intake.applicationDeadline || !intake.timezone) return "Срок приёма нужно уточнить";
+  if (!intake.applicationDeadline || !intake.timezone
+    || (!(intake.timezone === "UTC" || intake.timezone === "GMT") && !/^[A-Za-z_]+\/[A-Za-z0-9_+/-]+$/.test(intake.timezone))
+    || /^(posix|right)\//.test(intake.timezone)) return "Срок приёма нужно уточнить";
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: intake.timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const at = (key: string) => parts.find((part) => part.type === key)?.value ?? "";
   const day = `${at("year")}-${at("month")}-${at("day")}`;

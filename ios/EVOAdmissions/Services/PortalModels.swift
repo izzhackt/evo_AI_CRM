@@ -251,8 +251,12 @@ func universityIntakeDisplayStatus(
     guard intake.status == "open" || intake.status == "announced" else { return .unclear }
     // A disputed/unknown deadline or absent timezone cannot become a definite
     // expiry by interpreting it as UTC. The selection command is authoritative.
-    if intake.applicationDeadline != nil,
-       intake.timezone.flatMap(TimeZone.init(identifier:)) == nil { return .needsConfirmation }
+    if intake.applicationDeadline != nil {
+        guard let zone = intake.timezone,
+              zone == "UTC" || zone == "GMT" || zone.range(of: "^[A-Za-z_]+/[A-Za-z0-9_+/-]+$", options: .regularExpression) != nil,
+              !zone.hasPrefix("posix/"), !zone.hasPrefix("right/"),
+              TimeZone(identifier: zone) != nil else { return .needsConfirmation }
+    }
     let calendarFormatter = DateFormatter()
     calendarFormatter.locale = Locale(identifier: "en_US_POSIX")
     calendarFormatter.timeZone = intake.timezone.flatMap(TimeZone.init(identifier:))
@@ -263,7 +267,7 @@ func universityIntakeDisplayStatus(
 
     if let deadline = intake.applicationDeadline {
         if deadline < day { return .closed }
-        if deadline == day, let time = intake.deadlineTime, time < minute { return .closed }
+        if deadline == day, let time = intake.deadlineTime, time <= minute { return .closed }
     }
     switch intake.status {
     case "needs_reconfirmation": return .needsConfirmation

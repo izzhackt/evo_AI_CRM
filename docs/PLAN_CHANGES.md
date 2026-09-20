@@ -34022,3 +34022,78 @@ clear/retry current query; desktop и actual390px. Не нажимать стр�
 Scope-local lint/typecheck/релевантные проверки + независимый exact-head review
 и protected CI. Никаких business/Auth/provider/managed/production mutations.
 Завершение этого subset не означает завершение всего пункта11.
+
+## 2026-09-21 — CRM-07 subset: просмотр продажи до редактирования и возврат
+
+Root владеет этим независимым срезом исходного пункта7 после#955. Base
+`fe26526c547ef2579f6c324da0edd8f8e024d57b`, isolated
+`evo-sales-record-preview`. A пишет только shared contract до кода.
+Основание — CRM-02 / §4 «Продажи» функционального плана: сначала краткий
+просмотр записи, отдельное исправление, сохранение контекста возврата.
+Не включать server search, новую мобильную таблицу или закрытие всего пункта7.
+
+Source: `SalesRegisterView.tsx` всегда ведёт строки на ?record, но selected
+показывает только внутри canManage form. Read-only reader получает список и
+сообщение о запрете исправления вместо самой записи. Общий href теряетoffset.
+Данные selected уже возвращает действующий read_sales_register_v1 с текущим
+actor/org/scoped record gate; новая миграция или RPC для просмотра не нужна.
+Source files неизменны относительно inspected A52a00103 и mainfe26526c.
+
+Реальная readiness до кода: ordinary existing local QA Admin и Sales вошли
+через Auth и прочитали4 продажи2026/3месяца, offset1 даёт3строки и selected
+existing record. Admin имеет sales.register.read и coarse manage permission,
+НО sales_register_write_access=false; Sales=true. Это подходящий существующий
+read-but-no-sales-write actor без создания роли/изменения permissions.
+Private receipt `/private/tmp/evo-sales-readonly-readiness.json`. Это RPC proof,
+не выполненная UI-приёмка нового preview. Root подтвердил обычный Sales UI:
+в сентябре1 существующая продажа, USD1000 и неизвестное оплаченное.
+
+Контракт до кода:
+- ?record открывает краткий read-only preview выбранной доступной записи для
+  всех readers. Только явное ?record&edit=true при canManage открывает прежнюю
+  форму исправления. Denied/unavailable write никогда не раскрывает edit/archive
+  controls; чтение сохраняется при разрешённом selected read. Ошибка/нет selected
+  остаётся честным unavailable/forbidden состоянием, без fallback на чужую запись.
+- Показать достаточно данных записи: человек/контакт/договор, программа/услуга,
+  продавец, дата продажи и report month, суммы и валюты, уточнения/комментарий,
+  понятное происхождение. Использовать прочитанный snapshot отчёта и егоversion.
+  Не подменять его текущими lead conditions, не пересчитывать исторические
+  дату/месяц/суммы, не скрывать неизвестные значения под нулём. Нулевые суммы
+  отличаются от неизвестных; исходные raw значения при неразобранной сумме
+  сохраняют смысл. Разные валюты не складывать.
+- Source/history marker — понятная безопасная подпись. Не выводить raw JSON,
+  технические payloads/source snapshots, секреты или посторонние персональные
+  сведения под видом истории. Этот срез не добавляет отдельный audit reader.
+- Сохранить year/month/archive/manager/direction/review/offset в переходах
+  row→preview→edit→cancel/back. Фильтр/смена периода по-прежнему начинает
+  соответствующую выдачу с её начала, pagination явно задаёт свойoffset.
+  Не переноситьrecord/edit/new/saved как случайные постоянные фильтры.
+  ?new flow, после-save banner/навигация, существующие commands/request IDs,
+  права Sales Manager и прежние form safeguards остаются без изменения.
+- Preview имеет явный возврат к отчёту и исправление только по canManage.
+  Сохранение позиции списка — отдельное исходное требование: подтвердить
+  фактическое возвращение к прежней позиции/строке, а если узкий срез доказывает
+  только filters+offset, явно оставить scroll restoration открытым. Не объявлять
+  весь CRM-02/pункт7 завершённым по одной URL-проверке.
+- Существующая EVO типографика/светлая и тёмная темы/контраст/компактность по
+  Impeccable; телефон может использовать отдельный читаемый экран preview.
+  Не редизайн всей таблицы/отчёта и не перенос создания/коррекции в новый backend.
+
+Проверки без business writes: actual ordinary Admin list→preview (selected
+read успешен, sales editing отсутствует), прямойedit URL не даёт форму;
+Sales list→preview→явноеedit→cancel/back, НИ ОДНОГО save/archive/create submit.
+Desktop и actual390px, известная сумма/unknown payment/date/month согласованы
+с тем же read DTO. Реальный nonzerooffset1 с3existingrows позволяет проверить
+контекст возврата; dataset<50, поэтому это НЕ proof полноценной второй страницы
+50+ или поиска до LIMIT. Проверить фильтры/архив/период только на имеющихся
+данных, не делать фиктивные записи. Negative/unavailable path не выдавать за
+проверенный без фактического ответа; scoped checks отделять от real-path proof.
+
+Основные source boundaries: `src/components/v3/SalesRegisterView.tsx`, при
+необходимости отдельный presentation component рядом; существующие
+`SalesRegisterForms.tsx`, `src/lib/v3/sales-register-source.ts` и
+`src/app/(v3)/v3/main/page.tsx` — сохранить совместимыми. Нет зависимостей от
+213/214 commands, новыхschema/RPC/actions/roles/provider/managed mutations.
+A948 и B946 положительная приёмка остаются HOLD; их код не cherry-pick сюда.
+Scope-local lint/typecheck/релевантные проверки, независимый exact-head review
+и protected CI. Source/UI proof не является подтверждением новой записи продажи.

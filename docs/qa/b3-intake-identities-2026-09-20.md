@@ -1,4 +1,4 @@
-# B3a — intake identity source/read receipt, 2026-09-20
+# B3a — intake identity source/read и локальная UI/RPC квитанция, 2026-09-20
 
 ## Статус и точная область
 
@@ -8,10 +8,13 @@ Source slice: optional intake UUID в TS/Swift/SQL; сохранение ID в �
 Спецификация до runtime: `5e179d1a`; shared contract принят в `8bd96f2d`.
 211 зарезервирована B, 210 принадлежит A/PR943; очередность интеграции — 210 → 211.
 
-**Это не готовность всего B3, не применение211 и не публикация данных.**
-Selection/documents, country allowlist, degree adapter и клиентский выбор здесь
-не меняются. Продакшен/симулятор не обновлялись. Новых QA identities, datasets,
-моков или бизнес-записей не создавалось. Старые local207–209 receipts не повторялись.
+**Текущий результат: local211 применена; одна существующая локальная карточка
+прошла ID-only Admin stage/review/publish, replay и Student readback.** Подробности
+ниже. Это не готовность всего B3 и не managed publication. Selection/documents,
+country allowlist, degree adapter и клиентский выбор здесь не меняются.
+Продакшен/симулятор не обновлялись. Новых QA identities/datasets/кейсов нет;
+единственные новые бизнес-записи — разрешённая publication и2 request receipts.
+Старые local207–209 receipts не переименованы в новый прогон.
 
 ## Реальный read-only baseline
 
@@ -45,7 +48,7 @@ SHA-256 исходных файлов:
 | 4 | 30 | `07cb5c8df56b831b73929435c13b3f396678918155481cf7b24f9e195fa325f6` |
 | 5 | 23 | `6a85be12b61cdcaa0cbdd86901d9e277870b53006e9a5162ae2341cd7abfffe2` |
 
-## Выполненные проверки
+## Source/read checkpoint до локальной записи
 
 - TS parser до/после изменения читает все пять настоящих страниц:143/251/145.
 - Изменённый Swift decoder читает те же страницы:143/251/145, без intake IDs.
@@ -89,7 +92,7 @@ SHA-256 `a1eb5a403753ea39226b1ff2fcb430a94b98e352e2271e5b309249209faa38dc`.
 - Technical checkbox прямо говорит об отсутствии новой проверки источников.
   Режим review берётся из server-stored immutable draft, не checkbox/формы.
 
-## Конкретный пакет следующей реальной проверки — требует authority
+## Следующий managed rollout — по-прежнему требует отдельной authority
 
 1. Root подтверждает интеграцию210 и exact reviewed211; сверяет live ledger/hash.
    Установка211 отдельно от публикаций, published content сама не меняет. Сначала
@@ -116,10 +119,10 @@ SHA-256 `a1eb5a403753ea39226b1ff2fcb430a94b98e352e2271e5b309249209faa38dc`.
    остальные технические редакции (максимум64 после первого из65 publish).
    Итог: supported/already identified/transitioned/still legacy/blocked counts.
 
-Не хватает: authority на211 и technical writes, действующего Admin login в новом
-runtime, реального stage/review/retry/readback и визуальной проверки. Управляемый
-релиз и финальный продуктовый E2E не входят в этот пакет. Согласованные обычные
-Auth/read-only вызовы выполнены; разрешение на них не расширялось до write authority.
+Для managed rollout не хватает authority на211/technical writes и проверки
+в соответствующем runtime. Локальная authority и результат следующего раздела
+на managed manifest65/131 не распространяются. Управляемый релиз и финальный
+продуктовый E2E не входят в этот пакет.
 
 ## Дополнительная проверка подготовленного manifest и batch-классификации
 
@@ -144,7 +147,99 @@ identified history может существовать. SQL211 остаётся 
 - С наложением подготовленных IDs states остаются current143; исходные content,
   template hashes и неизменность входных структур подтверждены.
 - Другие ветки не упражнялись новыми искусственными данными. Их source review не
-  заменяет выполнение. UI batch и SQL write proof по-прежнему не выполнены.
+  заменяет выполнение. UI batch не выполнен; ограниченный SQL write proof
+  technical-path приведён в следующем разделе.
 - После UI исправления production build прошёл; после финального уточнения
   facts-only classification TypeScript, scoped ESLint и фактическая проверка выше
   прошли. Build не переименован в новый runtime/write proof.
+
+## Разрешённая локальная проверка211 — завершена
+
+Владелец через root подтвердил конкретный пакет210→211 словами «continue ur
+work, complete the plans». Область: существующие local Admin/Student, одна
+карточка Guangdong University of Technology (CN), одна программа и один набор;
+без новых identities/ролей/кейсов/fixtures и без managed/provider операций.
+
+Main210 `1795bf2380344bdca059868aba57d033fa13a259` интегрирован один раз в
+`21eb53b39391d65182008d6aeac36936c1a691bb`; оба независимых delta review approved.
+SQL211 SHA256 неизменён: `0f6eea6c28ed9d29424b31a36c8d3f84bd151c8d73e4d380b11ddf66b9c60675`.
+CI35531268701 полностью green; typegen/tsc passed. Эти source checks повторно
+не запускались как якобы новое runtime-доказательство.
+
+A — единственный schema applier — применил211 после210 к owned local project
+`evo-local-0fd3559d0240c989`, API `127.0.0.1:57495`. На checkpoint проверки211
+подтверждён ledger001–211 (это не утверждение о последующих миграциях A);
+применение схемы не изменило content/историю/счётчики. Старые A readers33215/33217
+остановлены до публикации. B33216 заменён на совместимый runtime21eb53b3,
+cwd проверен; Student session сохранена. Существующий Admin вошёл отдельно на
+localhost33216, Student остался на127.0.0.1:33216.
+
+Реальный путь:
+
+1. Admin открыл существующую карточку → «Предложить обновление» → «закрепить
+   наборы без изменения карточки» → «Сохранить техническую версию» клавиатурой.
+   UI подтвердил один draft. Сравнение persisted content с baseline после удаления
+   только нового UUID: exact equality; программа/источники/verifiedOn неизменны.
+2. CUA не раскрывает hidden form values. Для replay использованы actual persisted
+   request ID/content/reason/baseVersion из read-only локального DB packet A,
+   после реальной UI-команды. Ordinary authenticated Admin RPC вернул exact тот
+   же receipt/draft; новые request IDs или подставные ответы не создавались.
+3. Admin открыл technical review с отдельным текстом об отсутствии повторной
+   проверки источников. До checkbox publish disabled; после подтверждения
+   «Подтвердить решение» перенаправило в действительную опубликованную карточку.
+   Snapshot v2 содержит ровно1 intake ID. Повтор publish с actual persisted
+   args/request ID тем же Admin вернул идентичную квитанцию.
+4. Существующий Student обычными Auth/RPC прочитал v2/1program/1intake/1ID;
+   content совпал с staged draft. В19:18:25.422Z отдельный
+   `student_recent_universities_v1` подтвердил неизменный firstPublishedAt.
+   Actual Student UI открыл эту карточку из Home. Действующие TS parser и уже
+   собранный Swift decoder прочитали этот настоящий RPC JSON:1/1/1 identified.
+   Swift suite не пересобиралась; это не новый iPhone UI/Simulator прогон.
+
+В первом private readback helper ошибочно проверялся firstPublishedAt внутри
+catalog DTO. Assertion failed; helper исправлен на отдельный207 RPC по его
+реальному контракту. Product-код из-за этого не менялся; исправленный реальный
+readback завершился успешно. UI uncertain-transport retry не вызывался искусственно:
+доказан persisted same-request RPC replay, UI frozen intent остаётся source proof.
+
+Финальный read-only DB snapshot A независимо сверен B:
+
+| Показатель | До | После |
+|---|---:|---:|
+| Все historical publications / published | 6 / 6 | 7 / 7 |
+| Request receipts | 12 | 14 |
+| Drafts | 0 | 0 |
+| Sources / institutions | 6 / 5 | 6 / 5 |
+| Auth users / leads / cases / sales | 6 / 7 / 7 / 4 | 6 / 7 / 7 / 4 |
+
+Original v1 id/status/version/reviewed_at/content_hash/source_registry_id совпали
+с baseline, firstPublishedAt сохранён. Ordinary login sessions допустимы и не
+выдаются за отсутствие Auth-событий. Остальные mutations не выполнялись.
+
+Impeccable: один объединённый проход формы/technical review и одна поправка
+текста «1 наборам» → «1 набору» (также корректен singular21/31…); runtime21eb53b3
+с этой единственной copy-правкой. Сохранение/SQL/Swift/права не менялись.
+Для финальной copy-правки scoped ESLint и `git diff --check` пройдены;
+build/SQL/Swift проверки без изменений соответствующего кода не повторялись.
+Desktop stage и actual technical review на390×640/320×640: без горизонтального
+overflow, select/button44px, checkbox label96/144px, видимый keyboard focus,
+disabled→enabled перед публикацией. Для скрытой IAB вкладки общий viewport
+первоначально действовал на другую вкладку; промежуточные captures не используются
+как доказательство. Итоговые размеры проверены в нужной вкладке; override сброшен.
+
+Пригодные визуальные артефакты (ignored `.next/b211-proof/`):
+`stage-desktop-copy-confirmed.jpg`, `review-mobile-390x640.png`,
+`review-mobile-320.png`, `review-natural-width.jpg`, `student-published-card.jpg`.
+Private mode600 JSON receipts находятся в `/private/tmp/evo-database-foundation.WhSt8z/`:
+`local211-receipt.json`, `b211-db-baseline.json`, `b211-actual-stage-replay.json`,
+`b211-stage-replay-result.json`, `b211-actual-publish-replay.json`,
+`b211-publish-replay-result.json`, `b211-student-published-page.json`,
+`b211-student-recent-page.json`, `b211-student-readback-result.json`,
+`b211-final-db-receipt.json`. Credentials/JWT в квитанции/репозиторий не включены.
+
+Открытые границы: managed211/65-card rollout, реальный iPhone UI, concurrent
+writers, parent-conflict/stale/deny execution, upload/selection/requirements и
+пакеты не проверены этим локальным срезом. Отдельный read-only обход3 существующих
+local Student credentials нашёл0 active+activated cases: original Student видит0,
+двое B209 — по1pending activated case. Для следующего positive selection proof
+нужен реальный подходящий разрешённый вход; никто не активирован/создан ради теста.

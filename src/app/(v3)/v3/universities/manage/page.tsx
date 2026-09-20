@@ -50,7 +50,7 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
     // Generate once on the server, then preserve the seed through edits and exact retries.
     const identifiedContent = withUniversityIntakeIds(content, randomUUID);
     if (identifyId) return <PartShell title={`Закрепление наборов: ${content.name}`}>{back}{missingIds === 0 ? <p role="status" className="text-sm leading-6 text-fg-2">Нет наборов, которым нужно добавить идентификатор. Техническая версия не требуется.</p> : <div className="space-y-6">
-      <p className="max-w-3xl text-sm leading-6 text-fg-2">Добавим постоянные идентификаторы {missingIds} наборам из опубликованной версии {version}. Это позволит сохранять их связь при обновлении карточки. Названия, сроки и даты проверки источников останутся прежними. Новую проверку источников эта операция не подтверждает.</p>
+      <p className="max-w-3xl text-sm leading-6 text-fg-2">Добавим постоянные идентификаторы {missingIds} {missingIds % 10 === 1 && missingIds % 100 !== 11 ? "набору" : "наборам"} из опубликованной версии {version}. Это позволит сохранять их связь при обновлении карточки. Названия, сроки и даты проверки источников останутся прежними. Новую проверку источников эта операция не подтверждает.</p>
       <UniversityContentView content={content} now={new Date()} />
       <UniversityIntakeIdentityForm content={identifiedContent} institutionId={identifyId} baseVersion={version} requestId={randomUUID()} />
     </div>}</PartShell>;

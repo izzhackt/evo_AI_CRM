@@ -33155,3 +33155,25 @@ Apple systemRed for Home text actions in dark mode only, retain brand accent
 for light mode and the filled continuation button, and let the continuation
 label occupy its row width at large text sizes. This is local to Home; no shared
 asset, descendant screen, or app-wide theme changes.
+
+
+## 2026-09-20 — принят план CRM UX и единого поступления
+
+Владелец передал `EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` и поручил
+реализацию с Impeccable. Неизменённая копия исходного документа включена в
+`docs/`; детализация и исключения §1–17 составляют scope. Начальная база —
+main `922483eb54c18a2da72bdd65fb503d728fa7af22`; прежний dirty checkout сохранён.
+Это дополнение разрешает выбранные staff CRM-изменения поверх прежнего
+portal-only scope PRODUCT.md. Для нового admissions-пути веб выпускается
+полностью первым, iPhone развивается на тех же контрактах. Только Sales Manager
+может создавать продажи; общее правило Admin-superset не является исключением
+для этой конкретной операции. Остальные полномочия Admin сохраняются.
+
+Последовательность: критические CRM-контракты → выбранные рабочие экраны →
+отдельные chat/calendar блоки → общие документы/пакеты → полный web/iPhone путь.
+Не добавлять KPI, коммерческие правила, новый контент и другие исключённые
+функции. Зафиксированные в §14 решения запрошены; зависимая реализация ждёт
+ответа. Существующий #913 использовать после проверки, не дублировать;
+#925–#928 и #930 составляют принятую базу iPhone/портала. #929 и migration 207
+остаются отдельным незавершённым блоком без новой production authority.
+Каждый блок получает точечную реальную проверку и независимый exact-head review.

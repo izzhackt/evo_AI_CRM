@@ -33851,3 +33851,43 @@ Managed DB/providers/production этим контрактом не разреш�
 удерживаются до конца транзакции, а exception откатывает эффекты; Supabase
 [database functions](https://supabase.com/docs/guides/database/functions)
 рекомендует задавать search_path для SECURITY DEFINER и ограничивать EXECUTE.
+
+## 2026-09-20 — CRM-30: custom staff authority и локальная correction213
+
+Реальный ordinary Auth существующего custom SalesManager успешен; его
+platform_role=NULL, а scoped lead.sales.workflow.manage и редактирование карточки
+доступны. Новый213 ошибочно скопировал из181 literal admin/sales и возвратил42501
+на заведомо неполный patch. Никаких положительных saves не было, business hashes
+не изменились. Это уточняет первоначальный пункт admin-or-sales: действующая
+модель156 разрешает custom staff через per-record permission, исключая Student.
+
+Разрешённый source delta: ровно два actor predicates нового213 заменить на
+IS DISTINCT FROM 'student'. Оставить оба fresh actor/org checks, membership
+continuity, точный staff_can_access(...,'lead.sales.workflow.manage','lead',id),
+locks, replay, ACL/SECURITY DEFINER/empty search_path. Старый v1/181 и208 неизменны;
+208 уже использует permission/workflow identity. Никаких новых grants/ролей.
+
+213 ещё не merged и не применена в managed DB. По правилу5
+`docs/platform/p2-supabase-foundation.md` неизменяемость начинается после merge.
+Root отдельно разрешил только одну bounded correction в owned local QA после
+двух независимых exact-head source/script reviews;214 сохраняет B,215 не занят:
+- доказать exact old213 SHA7b507099bd5433a507457e17f19b86374c201ab32b7fad00f6cd4977ed0c6ee7,
+  body, ACL/owner/OID/signature/attributes и полный ledger row; schema001–213,
+ 214 отсутствует,001–212 byte/ledger unchanged; проверить draft/main состояние;
+- сохранить original file/ledger/function и before business hashes в отдельном
+  create-only private receipt; initial apply receipt не переписывать;
+- одна guarded transaction: CREATE OR REPLACE только этой функции и явный
+  UPDATE statements ровно одной local ledger row213 с full-old-row CAS;
+  version/name и остальные ledger rows неизменны, no delete/reinsert/repair/reset;
+- проверить exact new body, все function attributes/ACL и business parity внутри
+  transaction; при различии ROLLBACK. После commit обновить только owned local
+  candidate file/config, записать append-only receipt exact DDL/ledger delta и
+  old/new hashes. Новый SQL SHA7e7e1fe8148f3cba4705d30f9fae25e45fa6e3c7f92b43c065a13b6be01e3e4d;
+- если old state не доказан,213 уже merged/применена вне owned local, есть214
+  или параллельное изменение — STOP и координация, без повторной починки ledger.
+
+Это разовая local candidate correction, не общее разрешение править историю.
+Original apply остаётся доказательством old hash, отдельная correction — нового.
+Затем обычный Auth read/denials с permission-based проверкой custom identity.
+Четыре положительных saves/restore, новые entities, Auth/provider/managed writes
+по-прежнему не разрешены этим решением; owner packet остаётся HOLD.

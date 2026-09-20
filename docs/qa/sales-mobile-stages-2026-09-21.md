@@ -56,3 +56,13 @@ Terminal20/show-all/latest logic and cap4000 are unchanged, source-reviewed.
 Actual data had4 terminal rows, so >20 and truncation are not runtime-proven.
 No workflow transition, sales handoff, customer acceptance or final E2E claim.
 This completes the mobile composition slice of CRM-05, not all36 plan items.
+
+
+## Integration after948
+
+Rebased onto main `011c0e49e7a95b845eb52d34e10cc2bfa00f9f1f`. Only two
+pre-code document append conflicts were resolved by retaining full new main
+and appending the original contract. All3 runtime files and the original QA
+receipt match reviewed4b4dff06 byte-for-byte before this integration note.
+Existing real-path evidence above keeps its original revision/schema boundary;
+no unchanged UI business path was rerun. Fresh final review/CI target this rebase.

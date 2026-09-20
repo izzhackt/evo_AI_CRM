@@ -85,8 +85,8 @@ Dynamic Type и сохранение фокуса после ошибки вхо
 Не строить новый клиентский алгоритм admission eligibility. Известные закрытые
 наборы не предлагают новый выбор. Для срока неизвестный/спорный status и отсутствие
 подтверждённой timezone не превращаются в «истёк» через fallback UTC; SQL214
-проверяет точный момент. Текущие `universityIntakeStatusKey`/`universityIntakeLabel`
-имеют такое упрощение: в затронутых представлениях убрать ложную достоверность,
+проверяет точный момент. Текущие `universityIntakeStatusKey`/`universityIntakeLabel` и native
+`universityIntakeDisplayStatus` в `Services/PortalModels.swift` имеют такое упрощение: в затронутых представлениях убрать ложную достоверность,
 не менять SQL. Текущие web Program-фильтры в portal Detail и staff UniversityCatalogue
 полностью скрывают unknown/needs_reconfirmation. В новом выборе такие реальные
 наборы доступны с пояснением неопределённого срока; старый фильтр нельзя перенести
@@ -150,7 +150,8 @@ slot_missing/removed, application_link_missing и metadata_changed не дают
   точечное подключение в текущий admissions workspace; legacy dialog не заменяется.
 - iPhone: новый preparation model/view, `UniversityDetailView`, `MyAdmissionView`,
   `AdmissionDocumentsView`, передача контекста через текущие catalog/favorites/home
-  entrypoints, RU/KY `Localizable.xcstrings`, регистрация новых файлов в pbxproj.
+  entrypoints, точечная truthful deadline presentation в `Services/PortalModels.swift`
+  без изменения DTO/tier, RU/KY `Localizable.xcstrings`, регистрация новых файлов в pbxproj.
 - Existing214/218 SQL, wire DTO, роли/Auth/RLS, общий case/finance workflow и
   данные каталога не меняются. Новые dependencies/font/assets не нужны.
 

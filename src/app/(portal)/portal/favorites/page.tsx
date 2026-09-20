@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { FavoritesView } from "@/components/portal/favorites/FavoritesView";
+import { UniversityCard } from "@/components/portal/universities/Catalog";
 import { getLocale } from "@/lib/i18n";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
 import { getPortalStrings } from "@/lib/portal/i18n";
@@ -25,6 +26,7 @@ export default async function FavoritesPage() {
   ]);
   const strings = getPortalStrings("favorites", locale);
   const universitiesStrings = getPortalStrings("universities", locale);
+  const now = new Date();
 
   let items: readonly PublishedUniversity[] | null = null;
   try {
@@ -58,10 +60,21 @@ export default async function FavoritesPage() {
       ) : (
         <FavoritesView
           items={items}
+          cards={Object.fromEntries(items.map((item) => [item.id, (
+            <UniversityCard
+              key={item.id}
+              item={item}
+              base="/portal/universities"
+              strings={universitiesStrings}
+              locale={locale}
+              now={now}
+              favored
+            />
+          )]))}
           strings={strings}
           universitiesStrings={universitiesStrings}
           locale={locale}
-          now={new Date()}
+          now={now}
         />
       )}
     </main>

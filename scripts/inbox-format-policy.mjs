@@ -1,4 +1,9 @@
 export const INBOX_PREFIX = "agent-lead2-inbox/";
+export const INBOX_CONTRACT_TEST_PATHS = new Set([
+  "agent-lead2-inbox/src/components/first-launch-ui.test.tsx",
+  "agent-lead2-inbox/src/lib/deployment-config.test.ts",
+  "agent-lead2-inbox/src/lib/supabase/schema-contract.test.ts",
+]);
 
 const TOP_LEVEL = new Set([
   "AGENTS.md", "eslint.config.mjs", "next.config.ts", "postcss.config.mjs",

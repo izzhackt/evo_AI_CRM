@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
@@ -13,8 +13,6 @@ import {
   universityLevels,
   universityMonthLabel,
 } from "@/lib/portal/universities";
-
-import { UniversityCard } from "../universities/Catalog";
 
 type FavoritesStrings = PortalStrings<"favorites">;
 type UniversitiesStrings = PortalStrings<"universities">;
@@ -133,12 +131,14 @@ function CompareTable({
 
 export function FavoritesView({
   items,
+  cards,
   strings,
   universitiesStrings,
   locale,
   now,
 }: {
   items: readonly PublishedUniversity[];
+  cards: Readonly<Record<string, ReactNode>>;
   strings: FavoritesStrings;
   universitiesStrings: UniversitiesStrings;
   locale: Locale;
@@ -171,14 +171,7 @@ export function FavoritesView({
                 {formatPortalString(strings.compareSelect, { name: item.content.name })}
               </span>
             </label>
-            <UniversityCard
-              item={item}
-              base="/portal/universities"
-              strings={universitiesStrings}
-              locale={locale}
-              now={now}
-              favored
-            />
+            {cards[item.id]}
           </li>
         ))}
       </ul>

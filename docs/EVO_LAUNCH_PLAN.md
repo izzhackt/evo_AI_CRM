@@ -12042,3 +12042,23 @@ root task-reason переносится221→222, следующий B резе�
 Back/Forward. Форма получила identity key по source/applicationStatus/
 consultationStatus/limit. Actual URL/history/visible-controls parity включена в
 ожидающий реальный UI проход; существующие business commands не менялись.
+
+## 2026-09-21 — CRM-03/221: shared presentation helper after real UI failure
+
+Actual ordinary Admin UI on integration b3b04d95 (main44092c57/#966) failed before
+rendering the populated requests list: server RequestsPage invoked submittedDate
+exported by the use-client StudentApplications entry. SQL221/Auth35 proof remains
+valid; UI is not accepted. Typecheck and source unit tests did not exercise this
+RSC boundary. Preserve the failure in the slice QA rather than substituting RPC
+success for the actual page.
+
+Minimal direct dependency: move the existing unchanged date formatter and status
+labels to the already shared pure src/lib/student-application-presentation.ts;
+server page and affected client consumers import from it directly. No new DTO,
+SQL, role, command, date locale/timezone or visual-world change. Impeccable
+Operate/craft-floor guidance preserves familiar controls and the existing text.
+Next.js documents use-client as the server/client module boundary:
+https://nextjs.org/docs/app/api-reference/directives/use-client and
+https://nextjs.org/docs/app/getting-started/server-and-client-components.
+Repeat only affected lint/types and the actual positive page/navigation/mobile
+path after this correction; final exact-head reviews must include the fix.

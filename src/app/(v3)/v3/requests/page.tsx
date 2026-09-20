@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Pill } from "@/components/v3/Pill";
-import { ApplicationDecision, STATUS_LABELS, StudentApplicationAnswers, submittedDate } from "@/components/v3/admissions/StudentApplications";
+import { ApplicationDecision, StudentApplicationAnswers } from "@/components/v3/admissions/StudentApplications";
 import { PortalConsultationDetails } from "@/components/v3/requests/PortalConsultations";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
@@ -12,6 +12,7 @@ import {
   type RequestSelection, type RequestSourceFilter, type RequestsQueue,
 } from "@/lib/requests-queue-contract";
 import { loadScopedRequestsQueue, RequestsQueueSourceError } from "@/lib/v3/requests-queue-source";
+import { STATUS_LABELS, submittedDate } from "@/lib/student-application-presentation";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "EVO · Заявки" };

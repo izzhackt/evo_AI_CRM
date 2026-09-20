@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { Pill } from "@/components/v3/Pill";
-import { submittedDate } from "@/components/v3/admissions/StudentApplications";
+import { submittedDate } from "@/lib/student-application-presentation";
 import { handlePortalConsultationAction } from "@/lib/platform-portal-consultation-actions";
 import type { PortalConsultationQueue, PortalConsultationRow } from "@/lib/v3/requests-source";
 import { portalConsultationStatus } from "@/lib/v3/wording";

@@ -132,3 +132,21 @@ v3-knowledge-student-documents-limited/studentDocuments.complete после#906.
 проекции. Неизменённые knowledge failures зарегистрированы отдельно; повтор
 ради зелёного результата или расширение scope на Knowledge не выполнялись.
 Эти source tests не являются реальной Auth/UI-проверкой.
+
+## Реальный UI нашёл ошибку server/client boundary
+
+После интеграции main44092c57/#966 (b3b04d95) typecheck и15 scoped tests снова
+прошли. Но обычный Local Admin на фактическом populated requests UI получил
+error boundary: серверная страница вызвала submittedDate из use-client
+StudentApplications.tsx. Это реальный отказ до исправления, сохранён отдельно
+в a221-first-ui-failure.json; успешные RPC не заменяют этот UI-путь.
+
+Неизменённые submittedDate и STATUS_LABELS перенесены в уже существующий чистый
+student-application-presentation.ts; серверная страница и клиентские consumers
+импортируют их напрямую. Locale ru-RU, UTC, формат даты, тексты статусов и
+команды сохранены. Граница подтверждена официальными
+[Next.js use client](https://nextjs.org/docs/app/api-reference/directives/use-client)
+и [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).
+Это scoped runtime correction; после неё lint четырёх затронутых файлов и tsc
+прошли. Фактический положительный UI/навигационный проход выполняется заново
+на исправленном коде; окончательный результат будет записан отдельно.

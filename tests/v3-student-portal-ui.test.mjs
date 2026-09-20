@@ -47,6 +47,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/english/page.tsx",
     "src/app/(portal)/portal/english/review/page.tsx",
     "src/app/(portal)/portal/favorites/page.tsx",
+    // PORT-9c: «Главная» — отдельный маршрут (корень /portal — смоук-якорь).
+    "src/app/(portal)/portal/home/page.tsx",
     "src/app/(portal)/portal/messages/page.tsx",
     "src/app/(portal)/portal/notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/notifications/page.tsx",
@@ -71,6 +73,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
   assert.deepEqual(
     [...shell.matchAll(/href: "([^"]+)"/gu)].map((match) => match[1]),
     [
+      // PORT-9c: «Главная» — первый пункт обоих tier'ов.
+      "/portal/home",
       "/portal",
       "/portal/documents",
       // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
@@ -115,10 +119,10 @@ test("Student render guard deduplicates only through React request-local cache",
 });
 
 test("route entry reads the notification badge without a duplicate route refresh", () => {
-  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
   assert.match(updates, /async function update\(refreshContent = true\)/u);
   assert.match(updates, /const result = await loadStudentPortalNotificationState\(\);\s*if \(disposed\) return;/u);
-  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); return; \}/u);
+  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); setUnread\(null\); return; \}/u);
   assert.match(updates, /if \(refreshContent && refreshPage\) \{\s*startTransition\(\(\) => router\.refresh\(\)\)/u);
   assert.match(updates, /void update\(false\);\s*return \(\) => \{\s*disposed = true;/u);
   assert.match(updates, /retry\.current = \(\) => \{ void update\(\); \}/u);
@@ -189,6 +193,70 @@ test("every page passes the direct strict E2 result to its view", () => {
     );
     assert.doesNotMatch(page, /createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   }
+});
+
+test("the home screen continues real work, keeps the smoke root and omits invented recency", () => {
+  // PORT-9c: «Главная» — отдельный маршрут /portal/home; корень /portal
+  // остаётся «Моим поступлением» (замороженные смоук-якоря production).
+  const page = source("src/app/(portal)/portal/home/page.tsx");
+  const view = source("src/components/portal/home/HomeView.tsx");
+  const homeRu = PORTAL_DICTIONARIES.home.ru;
+
+  assert.match(page, /requireStudentPortalActor\(\)/u);
+  // PORT-1a: граница уровня доступа — серверный accessTier authority, не
+  // повторная scattered-деривация из caseState (review #907, finding A).
+  assert.match(page, /const tier = actor\.accessTier;/u);
+  assert.doesNotMatch(page, /caseState === "pending"/u);
+
+  // Только существующие read model — никаких новых RPC и обёрточных DTO.
+  for (const reader of [
+    "readStudentPortalOverview",
+    "readLearningModules",
+    "readStudentAssessments",
+    "readStudentUniversityFavorites",
+    "readStudentUniversitiesByIds",
+  ]) assert.match(page, new RegExp(`\\b${reader}\\b`, "u"), reader);
+  assert.doesNotMatch(page, /\.rpc\(|\.schema\(|createClient|supabase|sqlite|drizzle|fixture|demo/iu);
+  assert.doesNotMatch(view, /\.rpc\(|\.schema\(|createClient|supabase|useEffect|fixture|demo/iu);
+
+  // Обзор дела читается только для assisted; каждый источник несёт свой
+  // честный fallback (catch -> null/failed), не роняя весь экран.
+  assert.match(page, /tier === "assisted"\s*\?\s*readStudentPortalOverview\(\)/u);
+  assert.match(page, /readLearningModules\(\)\.catch\(/u);
+  assert.match(page, /readStudentAssessments\(\)\.catch\(/u);
+  assert.match(view, /overviewFailed/u);
+  assert.equal(homeRu.caseUnavailable, "Не удалось загрузить действия по делу. Обновите страницу.");
+
+  // «Продолжить» — реальные состояния движка 198 и E2, не выдуманный прогресс.
+  assert.match(view, /draftAttemptId/u);
+  assert.match(view, /\/portal\/english\/lesson\/\$\{picked\.lesson\.lessonId\}/u);
+  assert.match(view, /assessmentPath\(draftInstrument\.instrumentKey\)/u);
+  assert.doesNotMatch(view, /готовност|processed|percent/iu);
+
+  // Избранное — с ближайшим интейком (только open/announced внутри helper'а).
+  assert.match(view, /nearestUniversityIntake/u);
+  assert.match(view, /\/portal\/universities\/\$\{item\.id\}/u);
+
+  // Assisted: та же модель действий, что у OverviewView «Моего поступления».
+  assert.match(view, /overview\?\.studentAction/u);
+  assert.match(view, /\/portal\/documents#document-\$\{action\.documentSlotId\}/u);
+  assert.match(view, /href="\/portal"/u);
+
+  // Честный пропуск: «новое в каталоге» не строится — publishedAt каталога
+  // не является признаком новизны (см. docs/PLAN_CHANGES.md PORT-9c); пропуск
+  // задокументирован в самом view, а поле не используется как «новизна».
+  assert.doesNotMatch(view, /item\.publishedAt|новинк/iu);
+  assert.match(view, /«Новое в каталоге» сознательно/u);
+
+  // Смоук-якоря корня не тронуты: /portal остаётся «Моим поступлением».
+  const rootPage = source("src/app/(portal)/portal/page.tsx");
+  assert.match(rootPage, /readStudentPortalOverview/u);
+  assert.match(rootPage, /strings\.overviewTitle/u);
+  assert.equal(PORTAL_DICTIONARIES.admission.ru.overviewTitle, "Моё поступление");
+
+  // «Главная» подключена за прокси (урок hotfix'а release-3).
+  const routeContract = source("src/lib/platform-route-contract.ts");
+  assert.match(routeContract, /"\/portal\/home",/u);
 });
 
 test("the retired applications route is an unconditional redirect, not a view", () => {
@@ -495,7 +563,7 @@ test("existing case portal views stay presentation-only and never render raw sta
   // PORT-5d: экраны «Моего поступления» живут в portal/admission. PORT-8c:
   // экраны тестов переехали в portal/tests (их клиентский раннер сохраняет
   // useEffect-механику и закреплён tests/student-assessments.test.mjs);
-  // в v3/portal остаётся только PortalNotificationUpdates (layout).
+  // Уведомления перенесены в Atlas header; admission views остаются presentation-only.
   const componentFiles = [
     ...filesUnder("src/components/v3/portal/")
       .filter((path) => path.endsWith(".tsx")),
@@ -516,7 +584,7 @@ test("existing case portal views stay presentation-only and never render raw sta
     .filter(path => !path.endsWith("/PortalNotificationUpdates.tsx"))
     .map(source).join("\n");
   assert.doesNotMatch(presentationViews, /useEffect/u);
-  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
   assert.match(updates, /loadStudentPortalNotificationState/u);
   assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);
   assert.match(components, /<PortalStatus[\s\S]*label=/u);

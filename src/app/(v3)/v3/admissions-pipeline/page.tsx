@@ -77,13 +77,14 @@ export default async function AdmissionsPipelinePart({
   return (
     <PartShell title="Воронка поступления">
       <form
+        key={boardHref(query)}
         method="get"
         action="/v3/admissions-pipeline"
         className="flex flex-wrap items-center gap-2"
       >
         <input type="hidden" name="tab" value={query.tab} />
 
-        <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
+        <label className="inline-flex items-center gap-1.5 text-xs text-fg-3">
           Поиск
           <input
             type="search"
@@ -95,7 +96,7 @@ export default async function AdmissionsPipelinePart({
           />
         </label>
 
-        <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
+        <label className="inline-flex items-center gap-1.5 text-xs text-fg-3">
           Страна
           <select name="country" defaultValue={query.country ?? ""} className={CONTROL_CLASS}>
             <option value="">Все страны</option>
@@ -111,7 +112,7 @@ export default async function AdmissionsPipelinePart({
           <input type="hidden" name="curator" value={query.curator} />
         ) : null}
         {curatorOptions.length > 0 ? (
-          <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
+          <label className="inline-flex items-center gap-1.5 text-xs text-fg-3">
             Куратор
             <select name="curator" defaultValue={query.curator ?? ""} className={CONTROL_CLASS}>
               <option value="">Все кураторы</option>

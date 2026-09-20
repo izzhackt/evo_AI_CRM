@@ -1,0 +1,8 @@
+[Unit]
+Description=EVO knowledge export recovery and temporary archive cleanup
+Requires=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec evo-crm-app-1 node /app/knowledge-maintenance.mjs
+TimeoutStartSec=7500

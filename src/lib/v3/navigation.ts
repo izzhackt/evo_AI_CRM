@@ -20,6 +20,8 @@ export type V3NavigationLinkId =
   | "calendar"
   | "tasks"
   | "team-chat"
+  | "documents"
+  | "reply-snippets"
   | "knowledge"
   | "settings";
 
@@ -100,6 +102,8 @@ const COMMON: readonly V3NavigationLink[] = [
   { id: "team-chat", href: "/v3/team-chat", route: "/v3/team-chat", label: "Командный чат" },
   { id: "inbox", href: "/v3/inbox", route: "/v3/inbox", label: "Inbox" },
   { id: "calendar", href: "/v3/calendar", route: "/v3/calendar", label: "Календарь" },
+  { id: "documents", href: "/v3/documents", route: "/v3/documents", label: "Документы" },
+  { id: "reply-snippets", href: "/v3/reply-snippets", route: "/v3/reply-snippets", label: "Шаблоны ответов" },
   { id: "knowledge", href: "/v3/knowledge", route: "/v3/knowledge", label: "База знаний" },
 ];
 
@@ -123,6 +127,7 @@ export function buildV3Navigation(
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
   const common = COMMON.filter((link) => allowed(link)
+    && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets"))
     && (link.id !== "inbox" || !staffPresentationCan(actor, "sales.read")));
   const visibleGroups = GROUPS.map((group) => ({
     ...group,

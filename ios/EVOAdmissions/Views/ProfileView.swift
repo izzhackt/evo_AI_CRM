@@ -229,6 +229,8 @@ struct ProfileView: View {
                     }
                 }
                 .disabled(model.languageState == .saving)
+                // A11y (9b): во время сохранения label — ProgressView.
+                .accessibilityLabel(Text("profile_language_save"))
             }
 
             switch model.languageState {
@@ -304,6 +306,8 @@ struct ProfileView: View {
                 }
             }
             .disabled(isSigningOut)
+            // A11y (9b): во время выхода label — ProgressView.
+            .accessibilityLabel(Text("sign_out_button"))
         }
     }
 
@@ -336,6 +340,8 @@ struct ProfileView: View {
                     }
                 }
                 .disabled(model.deletionState == .sending || model.profileLoadFailed)
+                // A11y (9b): во время отправки label — ProgressView.
+                .accessibilityLabel(Text("profile_delete_confirm"))
                 if model.deletionState == .failed {
                     Text("profile_delete_error")
                         .font(.footnote)
@@ -393,5 +399,7 @@ private struct ConsultationHistoryRow: View {
             }
         }
         .padding(.vertical, 2)
+        // A11y (9b): строка истории — один элемент VoiceOver, а не четыре.
+        .accessibilityElement(children: .combine)
     }
 }

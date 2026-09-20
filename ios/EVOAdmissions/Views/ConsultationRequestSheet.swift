@@ -117,6 +117,8 @@ struct ConsultationRequestSheet: View {
                             }
                         }
                         .disabled(!model.canSubmit)
+                        // A11y (9b): во время отправки label — ProgressView.
+                        .accessibilityLabel(Text("consultation_submit"))
                     case .sent(let receipt, let alreadyOpen):
                         VStack(alignment: .leading, spacing: 6) {
                             Label(

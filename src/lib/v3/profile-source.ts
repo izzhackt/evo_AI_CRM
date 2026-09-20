@@ -600,7 +600,6 @@ function fullCaseDetails(
   actor: ActivePlatformActor,
   data: FullCaseData,
   routeTarget: ProfileRouteTarget,
-  responsible: string | null,
   contractSignedAt: string | null,
   isCabinetCase: boolean,
 ): ProfileDraft {
@@ -630,7 +629,7 @@ function fullCaseDetails(
     profileFieldSources: profileFieldSourceVersions(data.documents, data.profileFields, isStaffPreview(actor)),
     studentApplication: data.studentApplication,
     routeTarget,
-    responsible,
+    responsible: data.studentCase.currentCuratorDisplayName,
     provider: null,
     ...facts,
     documents: data.documents ? profileDocuments(
@@ -731,7 +730,6 @@ async function readCaseProfile(
         actor,
         data,
         { leadId: null, studentCaseId: canonicalCaseId },
-        data.studentCase.currentCuratorDisplayName,
         null,
         isCabinetCase,
       ),
@@ -810,9 +808,9 @@ async function readLeadProfile(
   // canonical-lead read the rest of this branch already established.
   const leadStudentApplication = fullCase ? null : await loadStudentApplicationForLead(leadId);
   // «Условия продажи» (unified workflow S2): the same card block the report
-  // later reads back through platform.create_sales_report_handoff. Scoped to
-  // the lead-only branch — see the null case's own comment in fullCaseDetails.
-  const saleConditions = fullCase ? null : await readLeadSaleConditions(actor, leadId);
+  // later reads back through platform.create_sales_report_handoff. Keep this
+  // same revisioned row available after handoff for linked full-case cards.
+  const saleConditions = await readLeadSaleConditions(actor, leadId);
   // «Подготовить кабинет» (unified workflow S7): whether this lead already
   // has a linked case — regardless of anketa (site/WhatsApp leads never have
   // one) and regardless of admissions.read (a handed-off case the actor can't
@@ -823,14 +821,16 @@ async function readLeadProfile(
     ? await readStudentCaseCabinetOrigin(actor, caseId)
     : false;
   const details: ProfileDraft = fullCase
-    ? fullCaseDetails(
-        actor,
-        fullCase,
-        routeTarget,
-        lead.currentOwnerDisplayName,
-        gate.contractConfirmedAt ? formatDate(gate.contractConfirmedAt, true) : null,
-        isCabinetCase,
-      )
+    ? {
+        ...fullCaseDetails(
+          actor,
+          fullCase,
+          routeTarget,
+          gate.contractConfirmedAt ? formatDate(gate.contractConfirmedAt, true) : null,
+          isCabinetCase,
+        ),
+        saleConditions,
+      }
     : {
         access: { documents: false, finance: false, studentProfile: false, contract: false },
         routeTarget,

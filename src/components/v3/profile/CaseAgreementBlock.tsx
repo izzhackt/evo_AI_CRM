@@ -24,7 +24,7 @@ export async function CaseAgreementBlock({
 }: Readonly<{
   actor: ActivePlatformActor;
   studentCaseId: string | null;
-  saleConditionsHref: string;
+  saleConditionsHref: string | null;
 }>) {
   if (!studentCaseId) return null;
   const result = await readCaseAgreement(actor, studentCaseId);
@@ -62,10 +62,12 @@ export async function CaseAgreementBlock({
       <Card
         title="Договор и оплата"
         aside={
-          agreement.costMinor === null ? (
+          agreement.costMinor === null ? saleConditionsHref ? (
             <a className="text-sm font-semibold text-accent hover:underline" href={saleConditionsHref}>
               Стоимость не указана
             </a>
+          ) : (
+            <span className="text-sm text-fg-2">Стоимость не указана</span>
           ) : agreement.currencyMismatch ? (
             // FIX 8 (adversarial review): label the per-currency sums
             // explicitly and never render "Оплачено"/"Остаток" numbers here

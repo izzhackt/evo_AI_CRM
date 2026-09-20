@@ -1,5 +1,41 @@
 # EVO Launch Plan
 
+## CRM UX и единое поступление — принято к реализации 2026-09-20
+
+Владелец поручил реализовать [план CRM UX и поступления](EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md).
+Он определяет выбранные CRM-изменения и общий путь программа → документы →
+проверка EVO для CRM, веба и iPhone. Веб — первый полный рабочий выпуск;
+iPhone использует те же серверные операции. Этот порядок относится к новому
+admissions-пути и уточняет прежнее общее правило параллельной разработки.
+[Ведомость исполнения](EVO_CRM_UX_AND_ADMISSIONS_EXECUTION_2026-09-20.md)
+разделяет реализацию, review/merge, выпуск и реальные проверки.
+
+Решение §14.2 получено: клиент с сопровождением сразу начинает подготовку
+по выбранной программе, без отдельного одобрения выбора. Решение §14.1 также получено: сохранить нынешнее расположение сводки
+и списка студентов.
+Сопровождение остаётся обязательным условием нового клиентского пути.
+Общий финальный E2E, контентная волна и App Store остаются отложенными; точечная
+проверка изменённых функций обязательна. Поручение не включает применение
+миграций, production-записи или release-arm без отдельной действующей authority.
+
+## 2026-09-20 — точечная доработка карточки университета iPhone
+
+По поручению владельца выполняется Impeccable critique → план → реализация.
+Контракт и квитанция: [iPhone university refinement](design/portal/ios-university-refinement.md).
+Это текущая работа над UI; итоговый E2E и App Store readiness остаются отложены.
+
+## Текущий приоритет владельца — функциональность и интерфейс, 2026-09-20
+
+После #920 владелец уточнил: состав продукта ещё открыт, продолжаем
+действующий KB-контракт и доведение функций/UI. Закрытая портальная поставка
+не означает, что продукт закончен или все сценарии доказанно работают.
+Общий итоговый E2E (AST-2), контентная волна 2 (AST-3) и App Store readiness
+(AST-4) отложены до явного решения владельца о завершении нужного состава
+функций и переходе к этим этапам. Автоматически после KB их не запускать.
+Точечные реальные проверки изменений, независимое review и управляемые
+release-гейты сохраняются. Актуальный порядок и известные UI-пробелы:
+[план продолжения Astra, §4–6](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md#4-порядок-блоков).
+
 ## CRM Knowledge Base — план GPT-6 Astra, 2026-09-19
 
 Контракт отдельной задачи: [EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md](EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md).
@@ -11,11 +47,161 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 документные/Auth-контракты, номера миграций и выпуск координируются; worktree
 не изолирует общую БД. Это планирование, а не квитанция реализации или переноса.
 
-### KB-0 execution started
+### KB execution — 2026-09-20
 
-- Base `6a2a7829`; worktree `evo-crm-knowledge-implementation`, branch `izzhackt/crm-knowledge-implementation`. Canonical dirty checkout preserved.
-- Private source inventory and transfer constraints are being measured. No source bytes have been imported or published.
-- Runtime, client projections, SOPS interface, complete import/export reconciliation and managed delivery remain open. Fable retains schema/release coordination until explicit handoff.
+Перенос, сортировка и полный экспорт завершены; 6 568/6 568 исходников в
+скачанном ZIP проверены по исходным размерам и SHA-256 без пропусков и ошибок.
+Восстановление после ошибки Storage выполнено по [контракту изменения](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
+
+- KB-0 and runtime merged through #902/#906/#915/#916/#918/#919/#921/#924. Worktree `evo-crm-knowledge-implementation` preserves the canonical dirty checkout. Admin navigation is unified under Knowledge Base; staff document/template routes remain available.
+- Production ledger 001–206 is contiguous and matches applied hashes. SOPS runtime, external age key and export maintenance timer are provisioned. The owner transferred schema/release and actual import/export coordination to Astra; Portal/App remains Fable's scope.
+- The complete source plan covers 6,570 entries: 436 internal pages, 432 internal files, 5,668 raw files and 32 protected originals; two key files remain outside CRM. All 6,568 source originals and 25 structured protected records are imported. Full UI/API reconciliation: 6,568 verified, 0 missing, 0 mismatch; 5,961 unique blobs and 607 preserved duplicate source locations. After the first Storage failure, #924 was released and the same full snapshot resumed with all 206 verified parts retained. The 10,471,474,710-byte ZIP is downloaded and fully verified: 7,542 file entries, all 6,568 originals, 25 current protected records (26 versions) and 32 protected originals; zero missing/errors. All 2,655 review questions remain explicit; two key files stay outside the archive.
+- Real editor/navigation, file-review metadata, selected canonical ZIP, normal Auth denials, source-byte preservation and earlier UI journeys are recorded in the [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md). No Student customer acceptance or AI republication is claimed.
+- Current release `35481793583` accepted exact main `b7598a1c5046fe3c2b16fc014bc0c22044e64b27`; runtime/accepted pointer match, healthy, pending absent and arm=false. The changed Storage path passed a real one-file Admin export/download with exact source bytes and five role denials. Earlier canonical-search HTTP/UI acceptance and guarded release history remain in the execution receipt.
+
+## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
+
+- [x] Ledger this cycle: the production ledger gained migrations
+  201-204 (`platform_knowledge_*`, the Astra knowledge plan) — applied
+  OUTSIDE the portal coordinator's schema-ledger workflow and without a
+  pre-apply ping, which deviates from the cross-plan coordination
+  protocol recorded in this file's KB section; noted here honestly.
+  Both the coordinator and the peer session independently re-read the
+  ledger via the Management API before arm: count=204, min=001,
+  max=204 — contiguity intact, repo tree tail equals the live tail, so
+  the release gate was satisfied and no apply step was needed.
+- [x] Release from exact main `fd25b1ac9a3a4f7c31b7747b81bcba6e1c1fa8a9`.
+  Five commits since the previous release: #909 (PORT-9d prep:
+  photo-migration pipeline, manifest, URL-resolution switch), #910
+  (previous receipt), #911 (manifest flip after the coordinator ran
+  --apply: bucket `portal-university-photos` created and verified,
+  87/87 uploads with zero failures, public URLs spot-checked with
+  sha256 matches by two independent reviewers — this release makes the
+  catalog serve managed photo URLs; 57 official-source photos stay
+  hotlinks by license), #906 (Astra: Admin knowledge library, sealed
+  import, canonical exports — includes a Dockerfile change; the peer
+  session verified sops v3.13.2 is pinned by sha256 checksum for both
+  architectures, and the built image passed browser smoke and the
+  acceptance guard), and #912 (iOS wave 9b: catalog search/filters
+  with exact RPC parameter parity, MapKit map fed only by the repo geo
+  library with honest no-coordinates disclosure, app icon regenerated
+  byte-identically from the official brand asset, a11y pass 16+5
+  labels/traits/ScaledMetric across waves 1-7; 139/139 tests).
+  CI run 35473582066 green on the exact merge SHA; release run
+  35473599531 accepted; container `evo-crm-app-1` on hermes-vps
+  carries the exact OCI revision (healthy); `/api/health` live;
+  accepted pointer `v3-r35473599531-a1-fd25b1ac` with
+  acceptance-record sha256 recorded; `EVO_PRODUCTION_RELEASE_ARMED`
+  returned to `false` at 22:37 UTC.
+- Independent exact-head reviews, each PASS: #909 9/9 + #911 flip
+  delta-review (set-equality of the 87 flips, 5 reviewer-chosen public
+  URLs with sha256 matches); #912 11/11 with one medium finding (a
+  filter/collect race leaving stale map pins under new filter chips)
+  fixed pre-merge via a generation-counter gate with three
+  deterministic unit tests and delta-confirmed. Every merge-race
+  rebase carried patch-id --stable proofs.
+- Open item handed to Astra/the owner: #906's
+  `deploy/knowledge/*.service|*.timer` are HOST-side systemd units not
+  contained in the image — until someone installs and enables them on
+  hermes-vps the knowledge-maintenance job simply does not run (no
+  degradation of anything else). Who installs them is not decided in
+  the portal plan.
+- Not claimed: live authenticated render of managed photos in the
+  production catalog (no credentials in the agent session — the
+  managed URLs themselves return HTTP 200 with manifest-matching
+  bytes); live filtered-RPC run and manual VoiceOver pass on iOS
+  (static parity and attributes only); KY texts still await the
+  owner's native-speaker proofread.
+
+## Portal release v3-r35469103571-a1-b047e663 accepted 2026-09-20
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree, and
+  the released delta touches no `supabase/migrations/` files.
+- [x] Release from exact main `b047e663ebcd72c7fa599f276f532abcd9b5cc3e`
+  (wave 9). Web/shared deltas: #907 (PORT-9c: «Главная» кабинета at
+  /portal/home in «Атлас» — continue-lesson/test from real attempt
+  state, favorites with nearest open/announced intakes, анкета-status
+  card for approved, case next-actions first for assisted; /portal root
+  and the production smoke path byte-frozen; «новое в каталоге»
+  honestly omitted — the catalog exposes no first-published signal) and
+  the web half of #908 (two narrow intake endpoints: anonymous
+  registration delegating to the unchanged createPublicStudentAccount
+  with the same rate buckets and анкета validation, and bearer-only
+  invite acceptance over the PORT-8a transport reusing the exact web
+  callback seam). iOS half of #908 rides in the repo (9-step native
+  анкета wizard with rule-for-rule contract parity, application status
+  screen, invite flow, honest SessionRouter states, +188 RU/KY pairs,
+  115/115 tests) — this release is what makes the phone flow live,
+  since the endpoints now exist in production. CI run 35469083620
+  green on the exact merge SHA; release run 35469103571 accepted;
+  container `evo-crm-app-1` on hermes-vps carries the exact OCI
+  revision (healthy); `/api/health` live; accepted pointer
+  `v3-r35469103571-a1-b047e663` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 21:07 UTC.
+- Independent exact-head reviews, each PASS with reproduced validation:
+  #907 10/10 (no new RPCs, smoke-path safety, honest data blocks, axe
+  19/19; its finding A — a third copy of the tier derivation instead
+  of actor.accessTier — was fixed pre-merge and delta-confirmed);
+  #908 hostile security review 11/11 (registration parity incl. the
+  cannot-create-account-with-invalid-анкета trace, invite identity
+  binding in migration 126 SQL, proxy scoping, PostgREST GRANTs read
+  from migrations 177/180, 66/66 web + 115/115 iOS reproduced; three
+  non-blocking vocabulary/side-effect notes recorded in the review
+  comment). Cross-session protocol observed both ways.
+- Not claimed: no live registration or invite acceptance has been run
+  against production (no real accounts created); the wave-9a phone
+  flow is enabled by this release but not yet exercised end-to-end;
+  KY texts still await the owner's native-speaker proofread.
+
+## Portal release v3-r35465491203-a1-5ab34127 accepted 2026-09-19
+
+- [x] No migrations this cycle: Management API readback before arm
+  confirmed the live ledger tail `…196-200` equals the repo tree
+  (`200_platform_portal_case_chat.sql` is still the repo tail), so the
+  schema-ledger apply step was skipped by design.
+- [x] Release from exact main `5ab341278c0422e45b4a555aa95ccf1a9bc93eef`
+  (wave 8, closing plan-audit gaps). Web deltas: #899 (bearer-token path
+  on exactly the two student document endpoints per ADR 0030 «Решение»
+  п.2 — same authority chain on a token-bound publishable-key client, a
+  present-but-invalid header never falls back to cookies, plus the
+  narrowly-scoped proxy pass-through the middleware required) and #903
+  (PORT-8c: tests screens rebuilt in «Атлас» with the assessment contract
+  and the live e2e spec byte-untouched, full KY for the public /apply
+  анкета with RU strings byte-frozen and test-pinned, operational stage
+  rendered in «Моё поступление» mirroring the staff dictionary). iOS
+  delta #900 (wave 8: documents with frozen-idempotency upload and
+  bearer download, payments preserving the 189 null-semantics,
+  notifications with real in-app targets, read-only tasks/next actions;
+  the «доступны в веб-кабинете» deferral is gone) rides in the repo —
+  no store distribution exists yet, so the container ships the web
+  deltas. CI run 35465474055 green on the exact merge SHA; release run
+  35465491203 accepted; container `evo-crm-app-1` on hermes-vps carries
+  the exact OCI revision (healthy); `/api/health` live; accepted pointer
+  `v3-r35465491203-a1-5ab34127` with acceptance-record sha256 recorded;
+  `EVO_PRODUCTION_RELEASE_ARMED` returned to `false` at 19:54 UTC.
+- Independent exact-head reviews, each PASS with reproduced validation:
+  #899 hostile security review 9/9 (scope, no cookie fallback, identical
+  authority chain, supabase-js getClaims verification traced, proxy
+  anchored-regex scoping, adversarial sweep clean); #900 11/11 (every
+  cited SQL anchor opened, UUIDv5 request-id vectors independently
+  recomputed, cross-PR contract with #899 verified field-by-field,
+  92/92 tests reproduced); #903 11/11 (assessment runner semantics
+  diffed line-by-line against the deleted v3 components, e2e spec
+  zero-diff, 15/15 axe both themes). Every merge-race rebase carried a
+  patch-id --stable proof that the reviewed code commits were unchanged.
+  Cross-session protocol observed (peer ack before arm, main frozen,
+  accepted + disarm confirmed back); the parallel GPT-6 Astra knowledge
+  plan merged #901/#902 into main during the wave — both are inside the
+  released revision.
+- Not claimed: live iOS document upload/download against production
+  (the bearer path ships in this very release; a live pass needs a
+  signed-in device session); live post-release web render of the KY
+  tests/apply screens (no live credentials in the agent session); KY
+  texts still await the owner's native-speaker proofread; four
+  pre-existing local `test:ci:node` failures found on main by the #903
+  reviewer (environment-dependence suspected, CI is green) are spun off
+  as a separate task, not fixed here.
 
 ## Portal release v3-r35452266156-a1-b7052637 accepted 2026-09-19
 
@@ -189,14 +375,17 @@ staff and incident scopes below remain unchanged. The plan carries forward the
 owner's delegated release workflow, subject to real credentials and release
 controls; this documentation change itself performs no deployment or migration.
 
-- [ ] PORT-0: current-main inventory, contracts and parallel worktree allocation.
-- [ ] PORT-1: approved access, shared data/API authority and account continuity.
-- [ ] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
-- [ ] PORT-3: university discovery, map, comparison and saved choices on both clients.
-- [ ] PORT-4: professions, private assessments and English learning on both clients.
-- [ ] PORT-5: full client accompaniment and consultation requests on both clients.
-- [ ] PORT-6: scoped integration, content completion and final UX pass.
-- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff.
+- [x] PORT-0: current-main inventory, contracts and parallel worktree allocation.
+- [x] PORT-1: approved access, shared data/API authority and account continuity.
+- [x] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
+- [x] PORT-3: university discovery, map, comparison and saved choices on both clients.
+- [x] PORT-4: professions, private assessments and English learning on both clients.
+- [x] PORT-5: full client accompaniment and consultation requests on both clients.
+- [x] PORT-6: scoped integration, content completion and final UX pass. (кроме вычитки KY носителем — владельческий пункт)
+- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff. (владельческие внешние шаги: Apple Developer/подпись/TestFlight/store; агентская часть — done: review-аккаунт, документация)
+
+Финальные документы: [ведомость](EVO_PORTAL_FINAL_LEDGER_2026-09-20.md) · [handover и передача Astra](EVO_PORTAL_HANDOVER_2026-09-20.md).
+План продолжения: [EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md) (исполнитель — GPT-6 Astra).
 
 These checkboxes describe planned work, not existing feature readiness. Existing
 authentication, organization/case access and private assessment boundaries remain
@@ -10146,3 +10335,85 @@ production check additionally requires separately authorized deployment.
   <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html>,
   <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html> and
   <https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html>.
+
+## 2026-09-20 — KB: уточнение фактической координации и обслуживания
+
+Дополнение к сохранённой записи Portal #914: перед применением KB schema
+в #912 были опубликованы передача владельца выпуска (5745678648, 22:13:39Z)
+и резерв 201–204 (5745702031, 22:17:32Z). Выпуск/перенос подтверждены владельцем
+в задаче Astra. Миграции применены одним координатором и проверены по ledger
+и исходным SHA-256; детали — в KB execution receipt.
+
+`evo-knowledge-maintenance.timer` установлен, active/enabled; service завершился
+с Result=success и ExecMainStatus=0. Независимый reviewer повторно подтвердил
+это read-only через SSH, включая успешный запуск в 22:47:08 UTC, отмеченный в его квитанции.
+Таким образом, отсутствие уведомления до apply и ещё не установленный timer
+не являются текущими незавершёнными пунктами KB. История записи #914 сохранена.
+
+Реальный защищённый перенос завершён (32 оригинала + 25 записей), обычный
+перенос и полная сверка ZIP продолжаются. Завершение всего плана не объявляется.
+
+
+## AST-5 portal functional parity — 2026-09-20
+
+Owner explicitly approved closing the four reported gaps. Execution contract:
+1. iPhone admission: display the real operational stage, with the same RU/KY meanings as web, honest empty/error states.
+2. iPhone Home: real lesson/test continuation, favorites with nearest intakes, application status, and assisted next actions; preserve native navigation and private read contracts.
+3. Web notifications: Atlas UI, RU/KY, authoritative access tier, and refresh for current operational routes; preserve runner state.
+4. Web new catalogue entries: server-owned first-publication timestamp, preserved through edits/unpublish/republish, bounded recent list of currently published universities; no fabricated historical dates. Schema number reserved only after current coordination.
+
+Each block is a separate PR with independent exact-head review and focused real-path evidence. Use existing authenticated QA identity and real catalogue/learning data; no fabricated fixtures or writes to customer records. Read-only Student checks and local Simulator/browser builds are authorized. Production schema application/release requires the existing coordination/authority; do not silently deploy. Final product-wide E2E, content expansion and App Store remain deferred. Record limitations, never infer full acceptance from CI.
+
+Official implementation references: [SwiftUI task lifetime](https://developer.apple.com/documentation/swiftui/view/task(id:priority:_:)), [SwiftUI refreshable](https://developer.apple.com/documentation/swiftui/view/refreshable(action:)), [PostgreSQL triggers](https://www.postgresql.org/docs/current/trigger-definition.html). Context7 documentation lookup was unavailable (monthly quota); official documentation used directly.
+
+
+## AST-5 iPhone Home clarity — 2026-09-20
+
+Execute `docs/design/portal/ios-home-refinement.md`: surface genuine unfinished
+work, keep admission actions/errors first, clarify module progress, and enlarge
+the native continuation button. Preserve the user's selected EVO appearance.
+Acceptance: Xcode build, real QA Home/continuation/lesson paths, RU/KY and
+dark/large-text inspection, then independent exact-head review and short CI.
+No production migration/release or deferred final E2E/content/App Store work.
+
+
+## 2026-09-20 — EVO product-wide UX refinement
+
+Owner-authorized additive execution contract:
+[`EVO_UX_REFINEMENT_PLAN_2026-09-20.md`](EVO_UX_REFINEMENT_PLAN_2026-09-20.md).
+Analyze the entire CRM, product web (desktop/mobile), and iPhone experience against
+real tasks and the existing CRM/admissions functional plan. Preserve EVO/Atlas/native
+identity and useful functions; improve CRM composition, density, typography,
+navigation and state handling. Dedicated page agents may analyze in parallel with
+explicit ownership; one coordinator integrates shared contracts and components.
+The scope includes an inventory before removing/moving controls and a truthful
+per-page evidence matrix. Final E2E, content expansion, App Store and release remain
+separate. The first documentation pass is not a completed all-page runtime audit.
+
+
+## Parallel A/B execution — 2026-09-20
+
+Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
+Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+(items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
+installation and real local HTTP smoke, with unknown paths still fail-closed.
+This unblocks assessment of #847, not production release or provider acceptance.
+Root coordinates main/schema/release; A owns these shared planning appendices.
+
+B-1 (item 26): validate migrated photo objectPath against the existing manifest
+contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
+No Storage writes, license/catalog changes or broader bundle refactor. Validate
+resolver, all real manifest entries and read-only public URL/hash; authenticated
+render is not claimed. B owns its runtime files and detailed lane plan.
+
+B-1 merged as PR #937 into main `22404da81ab9398a28fdca99d879dc9f0b15a0d6`
+after independent review of `20229d1915ffd99d18e2caccc1fe3e0cd6634330` and
+required CI. This records source integration, not production delivery.
+
+B-5 (item 26): production-build analysis found the full photo audit manifest
+in browser JavaScript. Resolve photo URLs and attribution on the server; retain
+a minimal client image-error boundary for portal and staff catalogue images.
+Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
+when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
+this block. Verify bundle removal and real read-only catalogue rendering.
+No content, authentication, schema or Storage writes are included.

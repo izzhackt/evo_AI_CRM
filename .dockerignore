@@ -29,3 +29,6 @@ docs/evidence
 docs/SCENARIO_EVALUATION.md
 docs/PUBLIC_PROMISE_LIVE_AUDIT.md
 scripts/__pycache__
+
+# Private knowledge runtime material must never enter Git or build context.
+secrets/knowledge/

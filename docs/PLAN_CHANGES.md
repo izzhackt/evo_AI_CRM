@@ -32267,3 +32267,1077 @@ tests/ci-node-test-suite.test.mjs (состав suite не меняется — 
 - KY-тексты написаны агентом и ждут вычитки носителем языка.
 - Контент инструментов (вопросы/разборы/метаданные) остаётся RU из БД;
   перевод контента — отдельная контентная работа, не UI-слайс.
+
+## 2026-09-19 — KB-1/2: изолированный контракт Admin-библиотеки
+
+KB-0 merged as PR #902 (`7610579df`); exact-head independent review and protected short checks passed. The next slice adds the knowledge domain under `platform_private` with only explicitly granted Admin RPCs; no direct table grants, separate organization/scope-bounded blob identities, immutable page snapshots, optimistic versions and idempotent request receipts. It does not replace existing case documents/chat or the company-file authority.
+
+Names and current page text are searchable; raw files and encrypted payloads are opaque. Inbox is the absence of a parent in an area; review and trash are filters over the existing location. Folder cycles and cross-boundary moves are rejected. Page restores create a new immutable version. Source identities are unique and never overwrite a subsequently edited imported page.
+
+Measured 50 MiB Storage object limit and 2.27 GB source containers require 8 MiB immutable parts in private Supabase Storage. A file is published only after the server reads every stored part and verifies the entire SHA-256 and length. Client-declared hashes alone are not proof. Download/export reconstruct original bytes in order. Existing case-file malware/provenance controls remain unchanged; library raw containers are opaque attachments without active previews or claimed full-file malware scans.
+
+Schema source initially lives in `docs/design/knowledge/schema.sql` pending coordinator numbering; it is not an applied migration. Before shipping it is moved once to the assigned forward migration, reviewed and applied by the shared coordinator. The UI/API remains unpublished until its real database path is available. Shared route/navigation changes will be restricted to the new Admin boundary after Fable's acknowledgment. No key provisioning or runtime release is implied by this entry.
+
+### 2026-09-20 — KB: sealed records, canonical dossier projections and source filing
+
+- SOPS records use private versioned ciphertext and access facts without values; no plaintext fields are persisted in the generic node/index/receipt domain. Existing local vault decryption was verified process-only; production key and binary remain absent until coordinated provisioning.
+- Dossiers reuse the real case, document workspace, chat pagination and activity readers. Source files are not cloned and client identity is not recreated. Full export still needs canonical-source snapshots before acceptance.
+- Private metadata filing plan covers all 6,570 source entries; 436 approved/working general Markdown pages are editable, other originals remain files, 32 protected sources have a separate encrypted import, and two backup key files remain outside the library. Candidate/approval provenance is preserved; no AI bundle publication occurs.
+- Import checks source size/hash, resumes existing blobs/nodes, preserves user-edited pages and maps unambiguous local links to stable material IDs. Source originals remain immutable. SQL stays unnumbered until coordinator confirmation.
+
+### 2026-09-20 — KB: canonical export and protected source delivery (draft #906)
+
+- Dossier export projects existing case/document/company-file/chat/history records into one fixed database snapshot. It creates no second business identity. Explicit case selection includes its added KB materials; selecting a nested KB folder does not expand to the whole case. Existing scan proofs are checked again before reading original Storage bytes.
+- Reply snippets keep their staff permissions on `/v3/reply-snippets`; `/v3/knowledge` remains Admin-only. The shared navigation change is limited to this relocated entry.
+- Protected migration wraps all original vault files with the existing SOPS/age recipient and maps existing vault entries to structured records. Local preparation writes ciphertext only, verifies round trips and excludes key backups. Server import authenticates SOPS and verifies original hashes before persisting ciphertext.
+- Runtime proposal: checksum-pinned SOPS binary in the immutable image, age key in a read-only external directory, and a scheduled service-only export maintenance command. No production apply, key provisioning, timer installation or arm is implied; Fable coordination is pending in #906/#903.
+- Scope-local SQL validation uses a separate empty local database copied from the schema only; no customer/Auth records were copied. This is compilation evidence, not production business acceptance.
+
+### 2026-09-20 — KB: сохранение рабочих документов и явная привязка материалов
+
+- Existing staff documents remain reachable on `/v3/documents` through the same company/document sources and permissions. The Admin-only library does not remove this staff workflow.
+- Historical unassigned materials in the clients area can be attached to an existing case only after the Admin selects its actual CRM identity and confirms ownership. The whole selected subtree gains that case reference in one versioned transaction. Already-bound case materials cannot be reassigned through this action; no canonical business entity is mutated.
+- Retried generic browser commands retain their request identity across transient failures and page reloads. Browser session storage contains only a command hash and request UUID, never source text or secret values.
+- Export failures retain the failing item for the owner and remain unavailable as complete archives. Retry rechecks current scan proof and reuses verified output parts. Expired export paths are swept repeatedly to collect parts uploaded by a worker that was in flight at expiry.
+
+## 2026-09-20 — PORT-9c: «Главная» кабинета в «Атласе» (web, append-only)
+
+Контекст: дизайн-контракт (docs/design/portal/design-contract.md §«Карта
+экранов» п.1) описывает «Главную» — «продолжить» (урок/тест/анкета-статус),
+избранное с ближайшими интейками, новое в каталоге; assisted — ближайшие
+действия дела первым блоком. Аудит показал, что экран не был построен:
+корень /portal рендерит «Моё поступление» (PORT-5d). План §6 «Главная»:
+самостоятельному — сохранённые варианты и продолжение обучения, клиенту —
+также ближайшие действия своего дела; без вымышленных процентов готовности.
+
+### Решение по маршрутизации
+
+- «Главная» живёт на новом маршруте `/portal/home`; корень `/portal`
+  остаётся «Моим поступлением» без изменений. Причина — замороженные
+  смоук-якоря production (scripts/evo-production-browser-smoke.mjs,
+  студенческая фаза): вход обязан завершиться точно на
+  `app.evoadmissions.com/portal` (waitForURL), там же байт-в-байт заголовок
+  «Моё поступление», и клик по `a[href="/portal"]` в nav «Разделы кабинета»
+  снова обязан показать тот же заголовок. Перенос «Моего поступления» с
+  корня сломал бы все три проверки; смена якорей разрешена только вместе со
+  смоук-скриптом в одном PR и не входит в этот slice.
+- Навигация Shell: первым пунктом обоих tier'ов добавляется «Главная» →
+  `/portal/home` (ключ shell."nav.home", RU/KY); остальные пункты, включая
+  «Поступление» → `/portal`, не меняются — смоук-путь к якорям сохранён.
+- `/portal/home` вносится в STUDENT_PORTAL_PAGE_ALLOWLIST
+  (src/lib/platform-route-contract.ts) в этом же PR — урок hotfix'а
+  release-3 (экран без allowlist невидим за прокси); пин — в
+  tests/fixed-role-route-contract.test.mjs (список portalRoutes).
+
+### Состав блоков и их источники (никаких новых RPC и миграций)
+
+- approved и assisted (общие discovery-блоки):
+  - «Продолжить занятия»: readLearningModules (движок 198) — урок с
+    draftAttemptId («Продолжить»), иначе первый непройденный по orderIndex
+    («Начать»), иначе честное «модуль пройден» со входом в раздел; ссылка —
+    /portal/english/lesson/{id}. Сбой чтения — честная плашка, не пустота.
+  - «Продолжить тест»: readStudentAssessments (E2, student-assessment-source)
+    — инструмент с draftAttemptId и прогрессом answered/total («Продолжить»
+    → assessmentPath(key)?attempt=), иначе вход в /portal/tests. Тот же
+    честный сбой.
+  - «Избранное с ближайшими интейками»: student_university_favorites_v1 +
+    student_university_catalog_by_ids_v1 (миграция 195, PORT-3b), первые 4
+    записи в порядке избранного; «ближайший набор» — существующий помощник
+    nearestUniversityIntake (только open/announced — непроверенные даты не
+    факт). Пустое состояние — честное, со входом в каталог; сбой — честная
+    плашка favorites.unavailable.
+  - approved дополнительно: карточка «Ваша анкета» → /apply/status
+    (actor.caseState === "pending"; строки admission.pendingApplication* —
+    «честный статус анкеты/доступа» из дизайн-контракта).
+- assisted первым блоком: «Ближайшие действия дела» — readStudentPortalOverview
+  (та же модель, что OverviewView «Моего поступления»): главный шаг
+  (документ/оплата с реальным сроком и суммой), счётчик остальных, вход в
+  «Моё поступление» и в разделы сопровождения (Документы/Оплата/Сообщения).
+  overview=null — честное «действий сейчас нет»; сбой RPC — честная плашка.
+
+### Честные пропуски
+
+- «Новое в каталоге» НЕ строится: честного сигнала новизны в read model нет.
+  `publishedAt` каталога — это reviewed_at ТЕКУЩЕЙ версии публикации
+  (миграция 148): любая правка карточки поднимает версию и дату, то есть
+  «новое» показывало бы «недавно отредактированное». Даты первой публикации
+  RPC не отдаёт, сортировка каталога — по имени. Блок появится, когда
+  появится честный признак (отдельная серверная работа, не этот slice).
+- «Продолжить анкету» для незавершённой регистрации не входит: на /portal
+  попадают только аккаунты с делом; статус анкеты покрыт карточкой
+  «Ваша анкета».
+
+### UI, i18n, a11y, тесты
+
+- Вью — src/components/portal/home/HomeView.tsx (presentation-only, без
+  useEffect; точные E2/портальные DTO без обёрток), страница —
+  src/app/(portal)/portal/home/page.tsx (чтения — Promise.all, каждый
+  источник со своим честным fallback'ом). Стили — существующие pt-классы
+  (pt-card/pt-empty/pt-btn/pt-chip/pt-data) плюс небольшой набор pt-home-*
+  в portal.css, light+dark, узкий экран, reduced-motion наследуется.
+- Словарь: новый неймспейс home (RU+KY, строгая полнота ловится
+  tests/portal-i18n.test.mjs автоматически) + ключ shell."nav.home";
+  повторно используются существующие строки admission/english/tests/
+  favorites/universities, где смысл идентичен, — без дублей.
+- A11y: статический axe-гейт получает поверхности `home-approved` и
+  `home-assisted` (tests/e2e/portal-static-render.cjs + EXPECTED_SURFACES в
+  tests/e2e/portal-accessibility.spec.ts), light+dark.
+- Пины: tests/v3-student-portal-ui.test.mjs — список pageFiles получает
+  home/page.tsx, список href Shell — "/portal/home"; добавляются структурные
+  пины «Главной» в том же файле. Новые тест-файлы не создаются — пины
+  ci-node-test-suite (occurrenceCount/uniqueFileCount) не меняются;
+  tests/fixed-role-route-contract.test.mjs дополняется маршрутом.
+
+### План валидации (каждая команда отдельно, exit-код echo, без чейна с push)
+
+1. npx tsc --noEmit; 2. npx eslint (затронутые пути); 3. npx next build;
+4. node --test tests/portal-i18n.test.mjs; 5. node --test
+tests/v3-student-portal-ui.test.mjs; 6. node --test
+tests/fixed-role-route-contract.test.mjs; 7. npx playwright test
+-c playwright.portal-accessibility.config.ts; 8. node --test
+tests/ci-node-test-suite.test.mjs; 9. git diff --check.
+
+### Честные ограничения
+
+- Живой production-прогон и реальный Supabase-путь «Главной» в этой сессии
+  не выполняются; уверенность — статический axe-рендер реальных компонентов,
+  структурные пины и неизменность серверных контрактов (только существующие
+  RPC-чтения).
+- KY-строки написаны агентом и ждут вычитки носителем языка.
+
+### 2026-09-20 — KB: SQL draft location recognized by protected checks
+
+Fast checks on `441492b7` correctly failed closed: four proposed SQL files under
+`docs/design/knowledge` were unknown code paths. Move these unchanged SQL drafts
+to the already supported `docs/schemas/knowledge/` prefix. The existing classifier
+continues to require code lint/build and release contracts; no CI guard is changed
+or bypassed. These remain unnumbered proposals, not ledger migrations. Migration
+numbering and schema/release coordination are still required before delivery.
+
+## 2026-09-20 — PORT-9a: анкета, статус заявки и инвайт на iPhone (append-only)
+
+Волна 9a плана `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` (§2 «Регистрация»/«Приглашения», §5 оба пути, §10 PORT-1) в ветке
+izzhackt/portal-ios-wave9-anketa от origin/main (5ab34127). Закрывает
+аудит-разрыв «на iPhone есть только SignInView»: нативная анкета, создание
+аккаунта в конце, статус заявки, resubmit и invite-путь. Без миграций;
+серверная логика регистрации/одобрения и email_confirm-семантика не меняются.
+
+### Решение 1 — что НЕ становится новым endpoint'ом
+
+`platform.own_student_application_v1` и `platform.submit_student_application_v1`
+уже `GRANT EXECUTE TO authenticated` (177:506-512, 180:353-361; 193 меняет
+только тела). По ADR 0030 («никакого универсального bearer-гейтвея, оба
+клиента вызывают один контракт») iPhone вызывает их напрямую через PostgREST
+тем же путём, что и все волны 4-8: статус заявки, отправка анкеты signed-in
+пользователем и resubmit после отказа — это НЕ новые route handler'ы, а те же
+RPC с теми же definer-гейтами (identity-conflict 193(f), PT409, advisory
+locks). Новые HTTP-обёртки над ними дублировали бы существующую поверхность —
+осознанно отклонено.
+
+### Решение 2 — два узких route handler'а (ADR 0030 «Решение» п.3)
+
+1. **POST `/api/portal/registration`** (анонимный; создание аккаунта в конце
+   анкеты — единственный шаг, который клиентским ключом не воспроизводится:
+   `auth.admin.createUser`). Тонкий адаптер над ТЕМИ ЖЕ функциями веб-мастера
+   (`src/lib/student-signup-actions.ts` / `src/lib/server/student-public-registration.ts`):
+   - тело — только `application/json` (иначе 415), exact-ключи
+     `{questionnaire, email, password}` (дисциплина exactActionStringFields),
+     стрим-чтение с потолком 16 KiB и сериализованная анкета ≤ 12000 символов
+     (зеркало student-signup-actions.ts:32);
+   - email нормализуется как в action (trim+lowercase, ≤254, тот же regex);
+     анкета — `validateStudentApplicationDraft` (единственный валидатор);
+   - вызывает `createPublicStudentAccount(email, password, draft)` БЕЗ
+     изменений: та же `reserve_student_signup_attempt_v1` (глобально 100/час +
+     5/час на email, 177:8-48), тот же bcrypt-байтовый потолок, те же коды;
+   - ответ `{status}` — байт-в-байт статусы StudentSignupState:
+     201 created / 400 invalid|password|password_too_long / 409 conflict /
+     429 rate_limit / 503 unavailable. iPhone маппит их на существующие
+     `server.*`-строки словаря apply;
+   - CSRF/Origin-проверка веб-action защищает cookie-сессионную двойственность
+     формы (signed-in ветку). Endpoint cookies не читает и не пишет и
+     signed-in ветки не имеет, поэтому Origin-гейт заменяется контрактом
+     «только JSON + exact-ключи»; анти-abuse остаётся ТЕМ ЖЕ DB-постом
+     (bucket-RPC + Supabase 429). Идемпотентность создания — как на вебе:
+     дубликат email всегда отвергается admin.createUser (conflict), повтор
+     submit'а после входа идемпотентен по requestId анкеты в самой RPC.
+2. **POST `/api/portal/invite-acceptance`** (bearer; нативное потребление
+   инвайта «не выходя из приложения», ADR 0030 п.3(б)). Токен из письма
+   приложение потребляет само (`auth.verifyOTP(token_hash, type=invite)` — тот
+   же Auth-вызов, что у веб-callback'а, student-invite-callback-runtime.ts:27-30);
+   отметка получения receipt'а — service-role-only RPC, поэтому нужен узкий
+   handler:
+   - Authorization: Bearer → `createSupabaseBearerServerClient(token)` +
+     `auth.getClaims(token)` (паттерн PORT-8a, student-portal-auth.ts:122);
+     resolveStudentPortalBearerActor не переиспользуется целиком осознанно —
+     он требует портальную authority, которой у account-pending приглашённого
+     ещё нет;
+   - claims → `normalizeStudentInviteIdentity` →
+     `resolveStudentInviteReceiptIdentity(identity, createTrustedStudentInviteReceiptStore(), markAccepted=true)`
+     — РОВНО те же функции и тот же m126/186/193-seam, что у веб-callback'а
+     (student-invite-session.ts:38-93, student-invite-session-runtime.ts:13-18);
+     web-CSRF-cookie-церемония заменяется bearer'ом (cookies не участвуют);
+   - ответ: 200 `{status:"accepted", intakeFlow, accountPending, displayName}`
+     / 401 `{status:"authentication_required"}` / 409 `{status:"mismatch"}`
+     / 503 `{status:"unavailable"}`. Повтор идемпотентен: accept_e1 срабатывает
+     только если receipt ещё не accepted (126:2876-2884), затем тот же ответ.
+   - Установка пароля приглашённого — нативный `auth.updateUser({password})`
+     (та же операция, что set-password action, student-portal-auth-actions.ts:128),
+     границы длины 12..4096 зеркалятся в клиенте.
+
+Прокси/route-contract: `/api/portal/registration` (POST) добавляется как
+public-intake pass-through (класс `/api/public/website-leads`: handler владеет
+своей границей); `/api/portal/invite-acceptance` (POST) добавляется в
+`isConnectedStudentPortalApi` — существующий bearer-precedence проход PORT-8a
+покрывает его; без bearer-заголовка handler честно отвечает 401. Пины
+tests/fixed-role-route-contract.test.mjs обновляются в том же коммите.
+
+### Решение 3 — iOS: маршрутизация, wizard, статус, инвайт
+
+- **SessionRouter** заменяет «безликий» accessPending честными состояниями:
+  `needsApplication` (анкета) и `applicationStatus(StudentApplication)`.
+  Таблица решений (чистая политика, юнит-тесты):
+  - authority есть и не student → accessPending (staff-аккаунту в этом
+    приложении делать нечего — как сегодня);
+  - authority student: 1 кейс → active; >1 → accessPending (multi-case v1 не
+    поддержан — как сегодня); 0 кейсов → анкетный маршрут (приглашённый до
+    approve: membership привязан finalize'ом, но activation нет — 193(d));
+  - authority нет → анкетный маршрут;
+  - анкетный маршрут: не подтверждён email или стоит staff-маркер
+    `evo_staff_password_request_id` (student-signup-runtime.ts:10-13) →
+    accessPending; `own_student_application_v1` != null → applicationStatus;
+    null → resume-политика (зеркало resumeStudentApplication:40-61): валидный
+    draft в user_metadata → `submit_student_application_v1(requestId, draft, 0)`
+    → очистка metadata → applicationStatus; иначе → needsApplication.
+- **Анкета (ApplicationWizardView)** — те же 9 шагов STEP_KEYS и тот же
+  порядок валидационных сообщений (ApplicationWizard.tsx:135-149), канон
+  значений — RU-строки контракта (направления обучения — RU-текст, KY только
+  подпись, как PORT-8c); валидация draft'а зеркалит
+  `validateStudentApplicationDraft` правило-в-правило (телефон, диапазоны
+  экзаменов, год 2026-2036, балл ≤ шкалы, exact-состав ключей, consentVersion
+  2026-09-18). Анонимный режим: финальный шаг = контакты+email+пароль+согласие
+  → POST registration → `signIn(email, password)` → router-resume отправляет
+  draft из metadata (тот же путь, что веб-resume — идемпотентно по requestId).
+  Signed-in режим (приглашённый, resume, resubmit): email read-only, без
+  пароля, кнопка «Отправить анкету» → прямая RPC с expectedRevision (0 или
+  revision отклонённой заявки). Черновик — UserDefaults без пароля (аналог
+  sessionStorage веба), чистится при показе статуса, как ApplicationStatus.tsx.
+- **Статус (ApplicationStatusView)** — зеркало /apply/status: заголовок/лид по
+  статусу, причина отказа, «Исправить анкету» (rejected → wizard с
+  draft=questionnaire, expectedRevision=revision), «Обновить статус»/«Открыть
+  кабинет» = `auth.refreshSession()` + повторный resolve (семантика
+  refreshStudentApplicationAction), «Выйти», список ответов из 12 строк
+  (localizedAnswers: подписи answer.*, значения opt.*/шаблоны gradeOf,
+  englishExamAnswer/englishSelfAnswer, страны — Locale.localizedString с
+  ky-фолбэком на RU, как localizedCountryLabel).
+- **Инвайт (InviteEntryView)**: письмо ведёт на web-callback
+  (`…/auth/callback?token_hash=<56hex>&type=invite`, supabase/templates/invite.html:6);
+  приложение принимает ВСТАВЛЕННУЮ ссылку или сам token_hash, парсинг зеркалит
+  decodeStudentInviteCallbackQuery (ровно 2 параметра, 56-hex, type=invite) →
+  verifyOTP → POST invite-acceptance → установка пароля → anketa_v1 +
+  accountPending → wizard с префиллом имени (invitedNamePrefill,
+  apply/page.tsx:18-25). Приглашённый, прошедший callback на вебе, просто
+  входит по email+паролю — тот же анкетный маршрут; префилл добирается
+  оппортунистическим invite-acceptance (mismatch = «не приглашённый», не
+  ошибка; сетевой сбой префилла анкету не блокирует — та же позиция, что
+  try/catch на /apply). Signed-out экран получает «Подать анкету» рядом со
+  входом.
+- **RU/KY**: все новые строки в Localizable.xcstrings обеими локалями; RU
+  зеркалит словарь apply байт-в-байт там, где строка существует на вебе
+  (шаблоны {step}/{limit} переносятся в формат-строки), iOS-специфичные строки
+  (вставка ссылки, ошибки RPC-submit) — новые ключи с обеими локалями.
+  accessibilityLabel на всех новых контролах; вёрстка на системных шрифтах
+  (Dynamic Type), без фиксированных высот.
+
+### Валидация
+
+Веб (каждая команда отдельно, echo exit-кода): `npx tsc --noEmit` (через
+`npm run typecheck`), `npx eslint <затронутые пути>`, `npm run build`
+(`next build` + worker-бандлы), `node --conditions=react-server
+--experimental-strip-types --test tests/student-portal-intake-routes.test.mjs
+tests/student-public-application.test.mjs tests/fixed-role-route-contract.test.mjs
+tests/ci-node-test-suite.test.mjs`, `git diff --check`. Новый тест-файл
+tests/student-portal-intake-routes.test.mjs встаёт в test:u1/test:u7/
+test:unit:core; пины ci-node-test-suite (occurrenceCount/uniqueFileCount/
+duplicateCount/групповые length) обновляются в том же коммите.
+iOS: `xcodegen generate`, `xcodebuild build` и `xcodebuild test`
+(iPhone 17 Pro simulator) отдельными командами с индивидуальными exit-кодами
+и «Executed N tests» из полного лога. Тесты: decoder-фикстуры
+(own_student_application_v1 — exact-состав ключей student-application-source.ts:22,
+варианты english; draft round-trip — DRAFT_KEYS contract:52; ответы
+registration/invite-acceptance) и policy-юниты (parity валидации анкеты
+построчно с контрактом, порядок шаговых сообщений, resubmit-ревизия, таблица
+решений router'а, парсинг invite-ссылки, префилл имени, resume-политика).
+
+### Честные ограничения
+
+- Живая регистрация в production не прогоняется (реальные аккаунты не
+  создаются); уверенность — из переиспользования нетронутых серверных функций,
+  route-юнитов на DI-зависимостях и policy/decoder-parity тестов. Живой
+  инвайт-путь end-to-end (реальное письмо → verifyOTP → acceptance) не
+  прогоняется по той же причине.
+- Bearer-путь invite-acceptance зависит от релиза веб-кабинета; до деплоя
+  iOS-поток честно упирается в 404 (тот же временной зазор, что PORT-8a).
+- KY-строки написаны агентом и ждут вычитки носителем.
+- Оппортунистический префилл приглашённого требует сети до веб-кабинета;
+  без неё анкета работает, но без префилла и с PT409-конфликтом на submit,
+  если receipt ещё не accepted (крайний случай: токен потреблён, приложение
+  умерло до acceptance; повторный вход чинит — acceptance вызывается заново).
+
+## 2026-09-20 — PORT-9d: подготовка managed-хранения фото вузов (append-only)
+
+Контекст: план §6 «Каталог и материалы» требует «управляемое хранение при
+разрешённых правах, не случайные hotlink»; port-0-contracts.md (раздел «фото»)
+обещал миграцию фото каталога с hotlink Wikimedia на Supabase Storage ещё в
+PORT-3 — аудит подтвердил, что это не сделано:
+src/lib/university-photo-library.json (144 записи) целиком hotlink
+(87 — Wikimedia, 57 — официальные сайты вузов). Этот slice готовит миграцию
+кодом и манифестом; сам production-upload выполняет координатор позже.
+
+### Решение: право на копирование — фильтр отбора
+
+- Копировать байты в наше хранилище можно только там, где лицензия это
+  разрешает. Явный allowlist точных строк лицензий библиотеки: CC BY 3.0 /
+  3.0 pl / 4.0, CC BY-SA 2.0 / 2.5 / 3.0 / 4.0, CC0, FAL, Public domain
+  (все три варианта записи). Это 87 записей — ровно тот «Wikimedia + CC»
+  объём, который обещал port-0.
+- 57 записей «Official-source embedding / All rights reserved / supplier…»
+  НЕ мигрируют: право на перенос байтов не заявлено, embedding с
+  официального источника — осознанная правовая позиция PORT-3a. В манифесте
+  они помечаются status="ineligible" с причиной — честно видимы, не
+  выброшены. Неизвестная строка лицензии по умолчанию ineligible.
+
+### Решение: bucket и схема URL
+
+- Bucket: `portal-university-photos`, public-read (фото каталога — публичный
+  контент), file_size_limit 20 MiB, allowed_mime_types: image/avif,
+  image/gif, image/jpeg, image/png, image/webp (только растровые; SVG
+  запрещён намеренно). Создание — только через Storage API в --apply по
+  идиоме scripts/configure-university-template-storage.mjs (точный GET →
+  создание лишь при отсутствии → readback; существующий bucket с другими
+  настройками — конфликт, не перезапись). Без миграций и без RPC.
+- Путь объекта: `<photoKey>.<ext>`, ext выводится из проверенного
+  content-type скачанного оригинала и фиксируется в манифесте
+  (objectPath). Публичный URL:
+  `https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/object/public/portal-university-photos/<objectPath>`.
+- База URL — константа в коде (prod-проект iosckaqtovbbnssqcpde, как в
+  storage-скриптах репозитория): фото-библиотека — repo-контент, не зависящий
+  от окружения; сегодняшние hotlink точно так же указывают на внешние
+  фиксированные хосты. Новых env для рантайма не вводится.
+
+### Решение: pipeline-скрипт scripts/portal/migrate-university-photos.mjs
+
+- Три режима, по умолчанию офлайн-«plan» (идиома
+  configure-university-template-storage.mjs: план без сети и без кредов).
+  - `--plan` (и запуск без аргументов): без сети; читает библиотеку,
+    делит записи на eligible/ineligible, проверяет полноту метаданных
+    (path/license/licenseUrl/author/title/caption/sourceUrl непустые) —
+    неполная запись валит план с exit 1.
+  - `--check`: сеть, строго read-only: скачивает каждый eligible-оригинал,
+    проверяет HTTP 200 + image/* content-type + вменяемый размер
+    (1 KiB…20 MiB), считает sha256 и пишет манифест
+    scripts/portal/university-photos-manifest.json: photoKey → sourceUrl
+    (hotlink), pageUrl (страница-источник), sha256, bytes, contentType,
+    objectPath, license, licenseUrl, attribution (=author библиотеки,
+    байт-в-байт), status (verified|ineligible|failed), reason, migrated.
+    Сбой скачивания — честная запись status="failed" с причиной, не молча
+    выброшенная. Повторный --check сохраняет migrated=true записи, только
+    если sha256 и objectPath не изменились (дрейф оригинала честно
+    сбрасывает флаг с пометкой).
+  - `--apply` (координатор, позже): создаёт bucket при отсутствии,
+    пере-скачивает eligible-оригиналы, сверяет sha256 с манифестом
+    (расхождение — failed "content_drifted", без загрузки), загружает байты
+    (upsert=false; существующий объект сверяется по хешу публичного URL),
+    после readback ставит migrated=true и переписывает манифест.
+- Env-контракт --apply (и только его): NEXT_PUBLIC_SUPABASE_URL (ровно
+  https://iosckaqtovbbnssqcpde.supabase.co) + EVO_PLATFORM_SUPABASE_SECRET_KEY
+  (sb_secret_* или service-role JWT) через существующий
+  getPlatformSupabaseBackendConfig; env отсутствует/чужой проект — отказ до
+  какой-либо сети. Кредов в файлах/коде нет; plan и check работают без
+  кредов вовсе.
+
+### Решение: переключение кода (fallback-семантика)
+
+- Единый helper src/lib/university-photo-url.ts: managed-URL возвращается
+  только когда запись манифеста существует, status="verified",
+  migrated===true и objectPath задан; во всех остальных случаях — прежний
+  hotlink из библиотеки; неизвестный photoKey → null. Оба рендера
+  (портальный PhotoFigure и staff UniversityPhoto) берут src через helper;
+  атрибуция (caption, автор→источник, лицензия→licenseUrl, пометка о
+  кадрировании) не меняется ни байтом.
+- Коммитится манифест после реального --check с migrated=false у всех
+  записей: поведение сайта в этом PR не меняется вовсе. Переключение на
+  managed-URL — это последующий коммит манифеста с migrated=true после
+  --apply координатора (то есть обычный code-deploy, не runtime-тумблер);
+  до него сайт продолжает служить hotlink.
+
+### Тесты и валидация
+
+- Новый tests/university-photo-storage.test.mjs (канонические флаги
+  --conditions=react-server --experimental-strip-types): helper —
+  migrated/не-migrated/отсутствующий ключ/точная база URL; схема манифеста —
+  полнота полей, ключи ⊆ библиотеки, sha256-формат, license/attribution
+  байт-в-байт равны библиотеке, ineligible ⊂ allowlist-дополнение; скрипт —
+  офлайн-план без сети, отказ --apply без env, bucket-идиома на фикстурах
+  fetchImpl (по образцу tests/configure-university-template-storage.test.mjs).
+  Файл добавляется в test:frontend — пины ci-node-test-suite
+  (occurrenceCount/uniqueFileCount) обновляются в том же коммите.
+- Валидация slice: tsc, eslint, next build, новые тесты, git diff --check;
+  реальные --plan и --check прогоняются в сессии, их фактические счётчики
+  (ok/failed/ineligible) фиксируются в PR честно.
+
+### Честные ограничения
+
+- --apply в этой сессии НЕ выполняется: production-bucket не создан, байты
+  не загружены, сайт до прогона координатора служит прежние hotlink.
+- Перепроверка лицензий из port-0 автоматизирована на уровне метаданных
+  (строка лицензии + полнота атрибуции); содержательная сверка страницы
+  Commons остаётся ручной обязанностью прогона координатора.
+- 57 official-source записей остаются hotlink намеренно — до отдельного
+  решения о правах (запрос разрешения вузов или замена на CC-фото), это
+  не входит в slice.
+- Сбои скачивания в --check фиксируются в манифесте как failed и не
+  мигрируют; их починка (замена источника) — контентная работа вне slice.
+
+## 2026-09-20 — PORT-9d: выполнен --apply переноса фото вузов (координатор)
+
+Координатор выполнил scripts/portal/migrate-university-photos.mjs --apply
+против production (ключ получен из Management API в память процесса, на
+диск и в вывод не попадал; канонические node-флаги --conditions=react-server).
+Результат: bucketStatus=created_and_verified (бакет
+portal-university-photos создан этим прогоном), uploaded=87, failures=0,
+alreadyMigrated=0, totals migrated=87/144 (57 официальных источников
+остаются hotlink по лицензии — как решено в PORT-9d). Спот-чек публичных
+URL: peking-university.jpg и university-of-rome-tor-vergata.png отвечают
+HTTP 200 с верными content-type и байтами, совпадающими с манифестом.
+Этот коммит-флип манифеста — единственное кодовое изменение; сайт начнёт
+отдавать managed-URL после релиза, содержащего этот флип. Ручная
+ре-верификация лицензий на Commons-страницах, названная в PORT-9d,
+выполнена ревьюером #909 спот-чеками (6 записей в обе стороны через
+extmetadata API); полная построчная ре-верификация остаётся честным
+ограничением.
+
+
+## 2026-09-20 — KB: передача выпуска Astra и резерв миграций 201–204
+
+Владелец в текущей задаче явно подтвердил передачу Astra выпуска базы знаний,
+переноса реальных материалов и проверки экспорта. Fable уведомлён в #912:
+https://github.com/izzhackt/evo_AI_CRM/pull/912#issuecomment-5745678648.
+На момент резерва main `d564aefd`, production ledger заканчивается на 200,
+Portal release `35469103571` завершён, release arm выключен, pending отсутствует.
+Открытые #912/#905 не добавляют SQL. За KB резервируются 201–204 в порядке
+library → sealed records → canonical export → export jobs. SQL-проекты
+переносятся без изменения поведения в forward migrations. Единственный
+координатор schema apply и ближайшего выпуска — Astra; до dispatch отдельно
+фиксируется exact-main freeze. Portal/iOS-изменения сохраняются.
+
+Production apply выполняется только из проверенного commit с записью исходного
+SQL в общий ledger в одной транзакции; последующее чтение проверяет номера и
+SHA-256. Management API `/database/migrations` сам назначает версию и не принимает
+наш числовой version, поэтому используется `/database/query` для точного SQL и
+ledger insert. Официальный контракт: https://supabase.com/docs/reference/api/v1-run-a-query
+и https://supabase.com/docs/reference/api/v1-apply-a-migration (проверены 20.09.2026).
+Ключ SOPS передаётся только process-only из Keychain на внешний серверный путь.
+Эта запись фиксирует полномочия и порядок, но не объявляет применение,
+выпуск, импорт или проверку ZIP уже выполненными.
+
+
+## 2026-09-20 — PORT iOS волна 9b: карта, поиск и фильтры каталога, иконка, a11y-проход (append-only)
+
+Контекст (аудит плана): iOS-каталог — плоский пагинированный список без
+поиска, фильтров и карты, хотя RPC `student_university_catalog` давно
+принимает `p_query/p_country/p_level` (веб передаёт их с PORT-3a), веб
+показывает карту MapLibre на OpenFreeMap с репо-гео-библиотекой, а
+дизайн-контракт обещает «список⇄карта… веб и iPhone — одни возможности»
+(docs/design/portal/design-contract.md:55). Слот AppIcon пуст (appiconset без
+изображения), план §1 закрепляет «корректную адаптацию существующего знака
+для иконки приложения» за Fable. Вне экранов волн 8/9 во вьюхах всего
+3 accessibilityLabel (FavoritesView ×2, MessagesThreadView ×1).
+
+### Решение 1 — поиск и фильтры каталога (те же RPC-параметры, что веб)
+
+- `studentUniversityCatalog(query:country:level:offset:)` передаёт РОВНО те
+  имена параметров, что веб-обёртка `args` (src/lib/v3/university-source.ts:15):
+  `p_query`, `p_country`, `p_level`, `p_offset`. Семантика «пустое → NULL»
+  веба (`filters.query || null`) на iOS выражена пропуском параметра —
+  PostgREST-функция объявляет DEFAULT NULL для всех трёх (существующие
+  вызовы уже полагаются на это для `p_institution_id`/`p_query`).
+- Чистая политика `UniversityCatalogFilterPolicy` (юнит-тесты, hostless):
+  запрос обрезается до 100 символов (веб: `maxLength={100}` в Catalog.tsx:98 и
+  `text(query, 100, true)` в platform-university-catalog.ts:95), страна —
+  только код из списка `UNIVERSITY_COUNTRIES` (platform-university-catalog.ts:7,
+  249 кодов, продублирован строкой в Swift с тестом на счёт/состав), уровень —
+  только из 6 доменных значений (platform-university-catalog.ts:3). Пустые
+  строки — «фильтр не задан».
+- UI: системный `.searchable` (debounce 300 мс через отменяемый Task),
+  меню-фильтры «Страна» (полный ISO-список, локализованные имена, сортировка
+  коллацией активной локали — как веб) и «Уровень», кнопка сброса. Пустой
+  результат с активными фильтрами — честные `emptyTitle/emptyBody` веба и
+  кнопка сброса. Пагинация сохраняется: любое изменение фильтров перезагружает
+  первую страницу, `p_offset` продолжает листать в рамках тех же фильтров.
+
+### Решение 2 — карта (MapKit, стандартные тайлы Apple + наши пины)
+
+- Технология: **MapKit / SwiftUI Map (iOS 17)**, НЕ MapLibre Native.
+  Взвешено: MapLibre Native дал бы визуальный паритет с вебом (тот же стиль
+  OpenFreeMap liberty/dark), но приносит новую SPM-зависимость (maplibre-gl
+  native, BSD-2) и отдельный вопрос жизненного цикла GL-вью в SwiftUI;
+  MapKit — системный, без третьей стороны, без вопроса тайловых условий
+  (тайлы Apple — часть платформенного соглашения, атрибуция «Legal» рисуется
+  самим MKMapView/Map автоматически), тёмная тема — автоматически. План
+  прямо разрешает «подходящую поддерживаемую альтернативу» MapLibre
+  (EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md:256). Компромисс честно принят:
+  картографическая подложка iOS ≠ подложка веба; одинаковыми остаются данные
+  (одна гео-библиотека), фильтры и поведение.
+- Пины — ТОЛЬКО из репо-гео-библиотеки `src/lib/university-geo-library.json`
+  (126 записей, ключ = `photoKey`, провенанс Wikidata + verifiedOn), которая
+  бандлится ресурсом в app и test target — тот же паттерн единственного
+  источника, что `university-photo-library.json` (ios/project.yml). Вуз без
+  записи просто отсутствует на карте; выдуманных координат нет (план §6
+  «Карта»: «отсутствие координат не создаёт ложную точку»). Честная сводка
+  веба переносится: «На карте: N · Без точки на карте: M — эти вузы есть в
+  списке» (mapShown/mapWithoutPoint).
+- Полный отфильтрованный набор для карты собирается той же политикой, что
+  веб-`readStudentUniversitiesComplete` (src/lib/portal/university-catalog-reader.ts:26-39):
+  до 12 страниц, дедупликация по id, не движущийся вперёд `nextOffset` —
+  ошибка, 13-я страница — ошибка; сбой карты — явное состояние с кнопкой
+  повтора, список остаётся полноценным (план §6). Политика вынесена в чистую
+  функцию `UniversityMapPolicy.collectComplete` с юнитами.
+- Тап по пину — мини-карточка (название, «город · страна») с переходом на
+  существующий `UniversityDetailView`; закрытие возвращает выбор. Переключение
+  список⇄карта — сегмент-контрол над содержимым; фильтры и поиск общие для
+  обоих представлений (веб: те же `q/country/level` в обоих href).
+
+### Решение 3 — иконка приложения
+
+- Знак EVO (красная «книга-E» из официального лого `public/brand/evo-logo.png`,
+  того же файла, что рендерит EvoLogo.tsx) адаптируется программно: скрипт
+  Pillow вырезает альфа-bbox знака из левой части лого (без чёрной
+  словесной части), масштабирует с сохранением пропорций до ~62% холста и
+  центрирует на бумажном фоне `#f7f5f2` дизайн-контракта
+  (docs/design/portal/design-contract.md:24). Никакой перерисовки или новой
+  графики — пиксели знака берутся из оригинала как есть (брендовый красный
+  #d70217 уже в них). Результат — один PNG 1024×1024 в
+  `AppIcon.appiconset` (single-size iOS marketing icon), Contents.json
+  заполняется по формату Xcode.
+- Проверка: у проекта нет паттерна тестов на xcasset-ресурсы (hostless-тесты
+  не видят каталог активов приложения); честная проверка — компиляция
+  каталога `actool` в составе `xcodebuild build` (отсутствующий файл или
+  битый Contents.json валят сборку) и визуальный скрин иконки в PR.
+
+### Решение 4 — a11y-проход по экранам волн 1–7
+
+- Объём: SignInView, AccessPendingView, NetworkErrorView, HomeView,
+  UniversitiesView (+новые контролы), UniversityDetailView, FavoritesView,
+  ProfileView, TestsView, EnglishView, ProfessionsView, AssessmentRunnerView,
+  AssessmentResultView, ConsultationRequestSheet, LessonRunnerView,
+  ReviewRunnerView, MessagesThreadView. Без реструктуризации UI: только
+  `accessibilityLabel` на интерактивных контролах без текстовой подписи
+  (иконки-кнопки, ссылки-строки), `accessibilityElement(children: .combine)`
+  на карточных строках, `accessibilityHidden` на чисто декоративных
+  SF-символах.
+- Фиксированные размеры шрифта заменяются системными стилями/ScaledMetric:
+  AccessPendingView/NetworkErrorView `.font(.system(size: 40))` на иконках,
+  AssessmentRunnerView `.font(.system(size: 5))`. Ширины колонок таблицы
+  сравнения избранного не трогаются (это layout, не типографика, и таблица
+  скроллится).
+
+### RU/KY
+
+Все новые строки — в Localizable.xcstrings обеими локалями; формулировки
+зеркалят портальный словарь `universities` (src/lib/portal/i18n.ts:68-196)
+байт-в-байт там, где строка существует на вебе (поиск, страна/уровень,
+список/карта, пустое состояние, сводка карты, mapOpenCard/mapCloseCard,
+сброс фильтров); iOS-специфичные строки (ошибка карты с кнопкой повтора,
+a11y-подписи) — новые ключи с обеими локалями.
+
+### Валидация
+
+`xcodegen generate`; `xcodebuild build` и `xcodebuild test`
+(iPhone 17 Pro simulator) отдельными командами, индивидуальные exit-коды,
+«Executed N tests» из полного лога. Тесты: политика фильтров (parity имён
+параметров и границ с web-строками, процитированными выше), сборка полного
+набора для карты (дедуп, потолок 12 страниц, не движущийся offset), выбор
+пинов (photoKey с координатой / без / nil — без выдуманных точек),
+гео-библиотека (реальный файл: 126 записей, диапазоны lat/lng, https-провенанс,
+формат verifiedOn).
+
+### Честные ограничения
+
+- Подложка карты — Apple Maps, не OpenFreeMap: визуальный паритет с вебом
+  сознательно не цель этого среза (данные и поведение — одни).
+- Живой прогон RPC с q/country/level против production не выполняется;
+  уверенность — из паритета имён параметров с работающим веб-кодом и
+  policy-юнитов. Скрин-прогон VoiceOver руками не выполняется — проход
+  ограничен статическими атрибутами доступности.
+- KY-строки написаны агентом и ждут вычитки носителем.
+- Иконка проверяется сборкой каталога активов и глазами, юнит-теста на
+  xcasset нет (паттерн в проекте отсутствует).
+
+## 2026-09-20 — PORT iOS волна 9b: фикс гонки фильтров и уточнение тали a11y (append-only)
+
+- Review #912 (medium): guard'ы `isLoading`/`isMapLoading` в UniversitiesView
+  молча дропали перезагрузку, пришедшую во время полёта, а завершение
+  публиковало результат СТАРЫХ фильтров (смена A→B в середине сбора карты
+  оставляла пины A под чипами B до ручного toggle; тот же класс — для списка
+  при debounced-поиске). Фикс: `SingleFlightReloadGate` (generation counter,
+  выбран вместо Task-cancellation — загрузки зовутся из нескольких мест и
+  отмена потребовала бы владения Task-handle'ами; обоснование в doc-комменте
+  затвора). Юниты: устаревший результат отбрасывается, mid-flight смена
+  перезапускает полёт с новыми фильтрами, двойная смена не плодит
+  параллельных сборов; догрузка страницы со старым поколением отбрасывается.
+- Уточнение фактического тали a11y-прохода записи выше: 16 accessibilityLabel
+  добавлено на экранах волн 1–7 и 5 — на новых контролах каталога/карты
+  (16+5, а не «17», как значилось в первоначальном теле PR; PR-описание
+  поправлено).
+
+## 2026-09-20 — KB: исправления по реальной контрольной партии
+
+Managed release `35473287436` принят на main `2e72d5ad`, arm=false, pending
+отсутствует. Реальный UI перенёс 10 источников (2 страницы, 8 файлов), 3 049 345
+байт; 9 source blobs сохраняют обе логические позиции дубля. Через UI скачан
+ZIP; verifier проверил 19 материалов архива и точные байты 10 исходников.
+Это контрольная партия, не полный перенос 6 568 оригиналов.
+
+Проверка показала три необходимых уточнения реализации перед полной загрузкой:
+
+1. В разрешённой странице Notion два относительных CSV-адреса содержат старую
+   родительскую папку. Точные CSV с теми же Notion-id существуют в инвентаре;
+   совпадающие копии имеют одинаковый SHA-256. Дополнить resolver безопасным
+   поиском точного basename с Notion-id в той же области источников; неоднозначные
+   разные байты не выбирать. Заголовок страницы брать из её настоящего H1,
+   сохраняя исходное имя/байты отдельно. Уже импортированные страницы автоматически
+   не перезаписывать; исправление контрольной страницы — обычной редакцией CRM.
+2. Метаданные инвентаря показали 1 240 прежних кандидатов под «Входящими», из них
+   912 — извлечённые тексты конвейера. Файлы производных исходников расположить
+   в сыром архиве с прежней вложенностью; рабочие отчёты проверки — среди процессов
+   подготовки базы. Сохранять статус кандидата, происхождение и вопросы; не
+   объявлять факты утверждёнными, не читать чувствительный текст/OCR и не публиковать
+   ничего в ИИ. Это сортировка по назначению, не простое переименование Inbox.
+3. Контрольная партия выявила последовательную оплату сетевой задержки на каждый
+   файл (около 8 секунд на обычный небольшой файл). Для 6 536 файлов нужен
+   ограниченный параллельный перенос. Разрешить до 4 независимых файлов; один
+   и тот же area/hash/size обрабатывать последовательно. Сохранить общий останов
+   после текущих файлов, предел трёх ошибок, точные request-id/источники/хеши.
+
+DB/Auth/Storage-схема и права не меняются. Реальная проверка: повтор прежней
+партии без дублей и потери правки, новая партия файлов с проверкой ссылок и ZIP,
+затем полный перенос. Source originals и ключи остаются без изменений.
+
+## 2026-09-20 — KB: единый раздел Admin по замечанию владельца
+
+Владелец указал на дублирование «Документов», «Шаблонов ответов» и «Базы знаний»
+в основном меню. Для настоящего Admin остаётся один пункт «База знаний»;
+существующие документы CRM и шаблоны открываются внутри неё с общей навигацией.
+Их источники, серверные операции и права остаются каноническими. Старые адреса
+Admin перенаправляются на соответствующий раздел базы. Сотрудники и Admin
+в режиме просмотра роли сохраняют прежние рабочие маршруты и доступ, без
+доступа ко всей базе. Это объединение интерфейса, без копирования документов
+клиентов или расширения доступа. Проверка: реальные Admin/Staff маршруты,
+переходы в браузере и узкая проверка ролевой навигации.
+
+## 2026-09-20 — KB: убрать вложенное дерево документов после живого просмотра
+
+В новом Admin-разделе реальный desktop-просмотр выявил две соседние панели
+папок: общая навигация базы и прежний FileManager. Они сужают содержимое и
+обрезают названия папок. Встроенный режим FileManager использует общую панель
+базы; внутри остаются карточки папок, путь, поиск и прежние действия над файлами.
+Обычный рабочий экран сотрудников сохраняет собственное дерево. Источники и
+права не меняются. Это точечное исправление подтверждённого визуального дефекта.
+
+Живой переход к шаблонам также выявил повтор заголовка «Шаблоны ответов»:
+оставляем заголовок существующего канонического компонента; общий shell
+не добавляет второй.
+
+## 2026-09-20 — KB: закрытые производные переписки относятся к сырому архиву
+
+Проверка метаданных массового переноса выявила 1 415 файлов Markdown из старого
+раздела «Закрытые производные материалы / WhatsApp», ошибочно оставленных
+во внутренней области. Они перенесены как непрочитанные файлы, а не страницы;
+AI bundles не менялись. Однако прежнее расположение не подтверждает, что это
+общие или обезличенные знания. Исправленный план направляет группу в
+«Сырой архив / Производные исходников / Закрытые производные материалы /
+WhatsApp» с вопросом о назначении и принадлежности. Содержимое переписок
+для этого решения не извлекается; клиенты по именам не подбираются.
+
+Для уже записанных файлов готовятся проверенные raw blobs через штатный Admin
+upload API. Адресная транзакционная коррекция переносит существующие узлы,
+сохраняя ID, source key, прежние blobs и историю. Она проверяет организацию,
+версию, классификацию, SHA, размер и родительскую папку. Область существующего
+blob не меняется: она входит в Storage-путь. Эта исправительная операция
+отдельно отражается в квитанции; обычный импорт продолжается через Admin API.
+
+## 2026-09-20 — Финальная ведомость §11, handover §15 и передача исполнения Astra GPT-6
+
+Владелец инициировал продолжение исполнения через Astra GPT-6 («после этого
+давай сделаем продолжения через Astra gpt 6», 2026-09-20). Пакет закрывает
+финальные пункты плана `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`:
+
+- `docs/EVO_PORTAL_FINAL_LEDGER_2026-09-20.md` — финальная ведомость §11:
+  16 строк «функция → веб → iPhone → релиз/SHA → результат реальной проверки →
+  ограничение»; каждое «готово» прослеживается до release-receipt или
+  file:line, live-заявления — только из receipts.
+- `docs/EVO_PORTAL_HANDOVER_2026-09-20.md` — handover-пакет §15: ссылки и
+  точный статус, карта разделов, PR/релизы/архитектура/дизайн/блоки, результаты
+  реальных проверок и ограничения, оставшиеся действия владельца, плюс новая
+  финальная секция «Передача исполнения Astra GPT-6».
+
+К драфтам применены 14 коррекций адверсариальных факт-чекеров (10 — ведомость,
+4 — handover): сняты overclaim'ы о review-фиксации в receipts (#893, #894,
+подготовительные #864/#867/#868 в receipts отдельной строкой не записаны),
+исправлены неверные SHA-привязки (фото iOS, «Анкета», «Документы»), сужены до
+receipts заявления о smoke-якорях и KY-вычитке, исправлен список OTH staff-UX
+PR (чётные включены) и расширен состав live E2E-прогона до реального покрытия
+пп.1–5 ограничений; «стадия» в iOS «Моём поступлении» честно помечена как
+декодируемая, но не отображаемая.
+
+Момент передачи: schema/release-координация переходит от Fable к Astra после
+мержа этого пакета; до него — за Fable. Чекбоксы PORT-0..7 в
+`docs/EVO_LAUNCH_PLAN.md` проставляются этим же пакетом честно: PORT-0..5 —
+[x]; PORT-6 — [x] кроме владельческой вычитки KY носителем; PORT-7 остаётся
+[ ] (владельческие внешние шаги Apple; агентская часть выполнена). Изменение
+документационное, кода и схемы не трогает.
+
+## 2026-09-20 — KB: общий поиск включает канонические материалы CRM
+
+Независимая проверка §6–7 выявила пробел: режим «Вся база» ищет только
+`kb_nodes`, хотя существующие документы представлены внутри той же базы.
+Добавить отдельную постраничную группу результатов из канонических документов
+клиентов и компании, папок компании, шаблонов ответа и существующих дел.
+Поиск использует только названия и разрешённые поля/текст шаблонов, не содержимое
+документов, переписку, секреты или Student-private обучение. Результат ведёт
+к действующему источнику; копии в библиотеке и операции изменения первичных
+объектов через поиск не создаются. Поиск по текущей папке сохраняет прежнюю область.
+
+Astra резервирует migration 205: свежий main `7cc50dd8`, реальный ledger204,
+открытые #913/#905 миграций не содержат. Новый read-only RPC проверяет действующего
+Admin и организацию, курсор включает название, тип источника и UUID. Отдельная
+пагинация группы не выдаёт первую страницу за полный результат. Проверки:
+существующий документ через настоящий Admin поиск и UI; полный обход с малым
+лимитом; реальные staff/Student/anonymous denials; существующее скачивание.
+Runtime выпускает Astra по текущему managed контракту после завершения/штатной
+паузы двух потоков импорта. Portal/App и канонические правила записи не меняются.
+
+## 2026-09-20 — KB final acceptance: unsaved navigation, file questions and canonical selections
+
+The independent final audit of KB §§6–10 found three remaining paths: SPA/back navigation could discard an unsaved editor draft; file review questions could not be read/resolved in the UI; canonical CRM documents/company folders lacked selection/folder ZIP controls. Complete these within the existing KB contract before final acceptance.
+
+Keep draft contents only in editor memory and guard navigation until saved or explicitly discarded. Use the existing versioned edit command for file review metadata, without changing original bytes. Add forward migration 206 for an explicitly scoped canonical export selection (document/company version IDs, document-case folders and company-folder subtrees), preserving ordinary Admin authorization, tenant checks, immutable snapshots, existing downloads and all-base export behavior. A selected canonical file must not export its entire case, correspondence or unrelated library materials. Do not change Portal/App files or primary object ownership. Validate with existing QA documents, actual Auth denials, downloaded selected ZIP bytes, real navigation after a failed save, and independent exact-head review.
+
+## 2026-09-20 — KB canonical search proxy registration
+
+Real production HTTP/UI acceptance on `49f07148` returned HTTP 403
+`platform_route_not_connected` for the new canonical-search endpoint, while
+the normal Admin RPC checks had passed. Register only the exact
+`/api/v3/knowledge/search-canonical` path in the existing staff-cookie proxy
+contract. Keep live Admin/tenant checks in the handler/RPC unchanged. Verify
+the connected-route boundary locally and repeat actual Admin, staff, Student
+and anonymous HTTP checks plus the existing-document UI journey after release.
+No migration, Portal/App or primary-document mutation is required.
+
+
+## 2026-09-20 — План продолжения для GPT-6 Astra (по поручению владельца)
+
+Добавляется `docs/EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md` — план продолжения
+работы над EVO после закрытия портального плана: пять блоков AST-1..5
+(завершение KB-контракта как приоритет №1, живой E2E-прогон новых портальных
+флоу, контентная волна 2, App Store readiness агентской стороны, очередь
+UX/тех-долгов) под дисциплиной handover §6. К черновику применены все
+15 коррекций адверсариального факт-чека: актуальный base-SHA, knowledge-релизы
+#915/#916, миграция 205 занята #918 (при финальной сверке 206 занята #919 —
+следующая свободная 207), фактическое состояние KB-переноса (две контрольные
+партии, защищённый контур закрыт), снятое systemd-разночтение, полнота
+дисциплины §7 (node-флаги, iOS), PR #905 для 4 локальных падений,
+CaseHelpWorkspace как второй v3-компонент, dependabot PR #847, точный
+диапазон строк a11y §(e).
+Волатильные факты (origin/main SHA `49f07148`, хвост миграций, последние
+принятые релизы, статусы PR #905/#847/#918/#919) пересверены на момент
+составления — 2026-09-20 00:27 UTC — и датированы в §10 документа. Сам документ —
+предложение Fable: обязательным его делает владелец утверждением
+(и Astra — принятием); эта запись фиксирует появление документа, а не
+его вступление в силу. Ссылка на план добавляется в `EVO_LAUNCH_PLAN.md`
+рядом с финальными портальными документами.
+
+## 2026-09-20 — Решение владельца: сначала функциональность и интерфейс продукта
+
+Владелец уточнил порядок продолжения: состав продукта ещё не определён
+окончательно, возможны новые функции. Закрытие предыдущей портальной поставки
+не означает, что весь продукт закончен или все его сценарии доказанно работают.
+Сейчас продолжаются действующий KB-контракт и доведение функциональности/UI,
+включая известные пробелы AST-5 и последующие согласованные дополнения.
+
+Общий итоговый E2E (AST-2), контентная волна 2 (AST-3) и App Store readiness
+(AST-4) отложены до явного решения владельца, что нужный состав функций
+завершён и пора переходить к этим этапам. Не начинать их автоматически после
+KB и не запрашивать сейчас QA/симулятор/Apple-шаги ради отложенных блоков.
+Перенос существующей базы знаний остаётся частью действующего KB-контракта,
+а не отложенной контентной волной.
+
+Сохраняются точечные реальные проверки каждого изменённого поведения,
+затронутых границ доступа, защищённые PR-проверки, независимое exact-head
+review и управляемый выпуск. Уже известный функциональный дефект исправляется
+в текущем этапе, а отсутствие итогового E2E не превращается в доказательство
+готовности. Исторические receipts и непройденные пути сохраняются как факты.
+Обновляются текущий порядок и критерии завершения в плане Astra и указатель
+в launch-плане; это документационное изменение без кода, миграций и деплоя.
+
+
+## 2026-09-20 — KB: восстановление большой выгрузки после ошибки Storage
+
+Реальный полный ZIP `618d62c1-437e-4c80-a7b4-7ce122756d90` остановился
+на 1 620/7 897 материалах с `knowledge_storage_unavailable`; сохранено
+206 подтверждённых частей (1 728 053 248 байт). Указанный материал затем
+прочитан штатным Admin HTTP: 200, 86 821 байт, SHA-256 совпал. Точный
+первоначальный provider status не сохранён, поэтому причина не объявляется
+установленной. Полный архив пока не готов.
+
+В пределах KB добавляются ограниченные повторы чтения Storage и записи
+частей ZIP для временных сетевых/408/429/5xx ошибок. Повтор записи использует
+тот же уникальный путь без upsert; существующая часть принимается только
+после проверки размера и SHA-256. Ошибки доступа, отсутствующий объект и
+несовпадение суммы не превращаются в успешный результат. Snapshot, lease,
+Admin-права, области доступа и шифрование сохраняются. SQL не меняется.
+
+После точечных проверок, независимого ревью и управляемого выпуска
+повторяется то же задание через интерфейс; итоговая проверка включает
+скачивание всего архива и сверку всех 6 568 исходников. Официальная основа:
+[Supabase Storage error codes](https://supabase.com/docs/guides/storage/debugging/error-codes),
+проверено 20.09.2026: отдельные коды доступа/отсутствия и временные ошибки
+Storage, включая рекомендацию backoff для SlowDown.
+
+## 2026-09-20 — Impeccable: карточка университета iPhone
+
+Владелец поручил разобрать работающий экран в Simulator, составить план и
+внести улучшения. Два независимых обзора подтвердили перегруженное вступление,
+позднее появление программ и проблемы читаемости/размера вторичных действий.
+До кода фиксируется контракт `docs/design/portal/ios-university-refinement.md`:
+быстрый переход к программам, раскрытие атрибуции, источники после программ,
+адаптивные факты и нативные targets. Все данные, источники, лицензии, статусы,
+сроки и действующие бизнес-действия сохраняются. Нет миграций или серверного
+выпуска. Проверка — сборка и реальный изменённый экран в текущем QA Simulator;
+общий финальный E2E и App Store readiness не возобновляются.
+
+
+## 2026-09-20 — AST-5 scoped portal parity implementation
+
+Owner accepted the four gaps reported in this task: iPhone operational stage and Home parity, web catalogue novelty and notifications. Implement as four independently reviewed PRs per continuation plan. Add first-publication persistence rather than relabel current reviewed_at as novelty; keep existing catalogue DTO stable by using a dedicated recent-publications read RPC. Timestamp history/backfill policy and exact migration number will be recorded before schema code. No final E2E/content/App Store work or production writes are implied. Operational-stage empty values remain absent; unknown values use the existing localized custom-stage wording, never raw internal identifiers.
+
+
+### AST-5 Home implementation details
+
+Home uses independent read sections, maximum four favorites in existing server order, lesson draft before first incomplete lesson, first instrument with draft as web. Native TabView selection opens existing English/admission/university tabs rather than nested navigation stacks. Application reads own_student_application_v1 only for approved tier; an absent row is stated as absent, no approval status invented. Existing admission action row is reused. Nearest-intake policy mirrors current web (UTC day/month and open/announced only). Read paths refresh on entry, foreground and pull; test sheet dismissal reloads attempt state.
+
+
+### AST-5 notifications implementation details
+
+Move the polling component from v3 into the existing Atlas header bell; remove duplicate status strip. Render for assisted tier, matching notifications navigation; derive tier solely from actor.accessTier. Keep 30-second visible-page polling and focus/online/manual resume, no duplicate initial refresh. Add /portal/home to operational refresh; retain existing operational routes, exclude learning/test runners. RU/KY unread/loading/error/retry labels; retry is keyboard accessible. No new notifications or mark-read writes for validation. Next.js documents router.refresh as merging server payload while preserving unaffected client state: https://nextjs.org/docs/app/api-reference/functions/use-router.
+
+
+## 2026-09-20 — iPhone Home action hierarchy after Impeccable review
+
+Continue the owner's requested functional/UI work with a narrow native Home
+refinement. Preserve the #927 data and navigation contracts. Real required
+admission actions and load/error states stay first; a successfully loaded calm
+summary moves below continuation. A saved test attempt precedes the lesson
+section; without a draft, lessons remain first. Clarify module-level counts in
+RU/KY and size the continue-test label to a real 44-point minimum. No change to
+Auth, schema, private learning state, tab identity, or catalogue content. Plan
+and focused real Simulator acceptance: `docs/design/portal/ios-home-refinement.md`.
+PR #929 remains separately pending migration 207 and runtime acceptance; this
+refinement does not authorize or substitute for that production operation.
+
+Independent evidence review additionally confirmed a Kyrgyz naming mismatch:
+Home quotes «Менин тапшыруум» while the existing destination is «Менин кабыл
+алынышым». Align the shortcut to that existing title within this same copy slice.
+
+The first actual dark/default-size render confirmed low-contrast Home text
+links with the single brand accent. In the one bounded correction pass, use
+Apple systemRed for Home text actions in dark mode only, retain brand accent
+for light mode and the filled continuation button, and let the continuation
+label occupy its row width at large text sizes. This is local to Home; no shared
+asset, descendant screen, or app-wide theme changes.
+
+
+## 2026-09-20 — принят план CRM UX и единого поступления
+
+Владелец передал `EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` и поручил
+реализацию с Impeccable. Неизменённая копия исходного документа включена в
+`docs/`; детализация и исключения §1–17 составляют scope. Начальная база —
+main `922483eb54c18a2da72bdd65fb503d728fa7af22`; прежний dirty checkout сохранён.
+Это дополнение разрешает выбранные staff CRM-изменения поверх прежнего
+portal-only scope PRODUCT.md. Для нового admissions-пути веб выпускается
+полностью первым, iPhone развивается на тех же контрактах. Только Sales Manager
+может создавать продажи; общее правило Admin-superset не является исключением
+для этой конкретной операции. Остальные полномочия Admin сохраняются.
+
+Последовательность: критические CRM-контракты → выбранные рабочие экраны →
+отдельные chat/calendar блоки → общие документы/пакеты → полный web/iPhone путь.
+Не добавлять KPI, коммерческие правила, новый контент и другие исключённые
+функции. Зафиксированные в §14 решения запрошены; зависимая реализация ждёт
+ответа. Существующий #913 использовать после проверки, не дублировать;
+#925–#928 и #930 составляют принятую базу iPhone/портала. #929 и migration 207
+остаются отдельным незавершённым блоком без новой production authority.
+Каждый блок получает точечную реальную проверку и независимый exact-head review.
+
+
+## 2026-09-20 — Admissions pipeline: omit empty GET filters
+
+Owner-reported production failure at `/v3/admissions-pipeline` was reproduced
+with the existing authenticated Admin session: no curator filter produces
+«Не удалось загрузить воронку поступления», selecting a curator removes that
+error, and resetting filters reproduces it. Managed Postgres logs at the
+matching request times confirm `invalid input syntax for type uuid: "null"`.
+No customer data or permissions were changed during diagnosis.
+
+The board RPC uses Supabase GET transport. Pinned postgrest-js 2.111.0 omits
+undefined values but serializes JavaScript null as the literal string `null`.
+The optional UUID therefore fails before the SQL function executes; empty
+country/search values also become unintended text filters. Omit all three
+unset arguments and retain the RPC's existing SQL NULL defaults. Preserve
+GET/read-only transport, nonempty filters, authorization and the decoder.
+No migration or product-scope change is needed.
+
+Official source: https://github.com/supabase/supabase-js/blob/v2.111.0/packages/core/postgrest-js/src/PostgrestClient.ts
+
+Validation scope: existing focused pipeline source-contract checks and diff
+review; these static checks do not prove HTTP behavior. The real regression
+signal is the authenticated browser board after managed release, including
+resetting filters and both tabs. Until then the production fix is unverified.
+Do not interrupt Fable's active exact-main release to merge or deploy this fix;
+use the next coordinated release after the current owner completes/disarms.
+
+2026-09-20 continuation: the former release has completed. Live release arm is
+false and no pending receipt exists; accepted revision is `b7598a1c`. Current
+main is merged into this branch, retaining both appended decision histories.
+No production deployment or database write is performed by this continuation.
+
+
+### CRM-06 — filter reset and recovery on the same board
+
+The actual authenticated local UI against managed Supabase confirmed another
+part of the same filter path: after reset, the rows return to the complete
+set but the uncontrolled curator select retains its previous visible value.
+Key the GET filter form by the canonical query URL so every URL transition
+remounts its controls. This uses React's documented form reset with a key:
+https://react.dev/learn/preserving-and-resetting-state#resetting-a-form-with-a-key.
+
+Complete CRM-06's existing error requirement with retry of the current route
+and a Students link. Preserve the board, error-vs-empty distinction and all
+move permissions. Next.js refresh re-fetches the route's server data without
+changing the URL: https://nextjs.org/docs/app/api-reference/functions/use-router.
+No failure response or customer records are fabricated for validation.
+
+
+## 2026-09-20 — CRM-08: куратор шапки из текущего дела
+
+Живое чтение существующего тестового дела выявило расхождение: воронка
+показывает назначенного куратора, а шапка того же дела — владельца Sales-лида.
+`readCaseProfile` для Admin также делегирует в `readLeadProfile`, поэтому дефект
+затрагивает оба URL-входа. `fullCaseDetails` должен брать ответственного только
+из `data.studentCase.currentCuratorDisplayName`, без аргумента от вызывающего
+кода. Неназначенный куратор остаётся null и получает прежнюю явную подпись.
+Lead-only карточка продолжает показывать своего sales owner. Назначения,
+полномочия, handoff, данные продажи и регистрация не меняются. Это первый
+ограниченный срез CRM-08; объединение блоков доступа к порталу остаётся открыто.
+
+В кратком обзоре дела подпись ответственного становится «Куратор», а в Sales-блоке — «Менеджер продаж»: реальные сотрудники остаются разными, роль каждого названа явно.
+
+
+## 2026-09-20 — владелец подтвердил немедленное начало подготовки
+
+Ответ владельца на открытый вопрос §14.2: «Сразу открывать подготовку».
+После выбора программы клиентом с сопровождением создаётся/открывается единая
+подготовка по программе и набору; она сразу видна уполномоченному сотруднику.
+Отдельное одобрение самого выбора не требуется. Загрузка, отправка EVO и
+проверка документов остаются отдельными действиями. Доступ сопровождения,
+несколько программ и защита повторного выбора сохраняются по §11.
+Открытым остаётся только расположение сводки на странице студентов (§14.1).
+
+
+## 2026-09-20 — владелец сохранил компоновку страницы студентов
+
+Ответ на §14.1: «Оставить расположение как сейчас». Не переносить список,
+поиск или сводку этой страницы. Оба продуктовых решения §14 теперь закрыты;
+план, launch plan и ведомость обновлены прямо, без сохранения устаревшего
+ожидания ответов как действующего правила.
+
+## 2026-09-20 — CRM-09a: стоимость остаётся доступна после открытия дела
+
+На существующем связанном деле подтверждён разрыв: «Стоимость не указана»
+ведёт в обзор, но адаптер скрывает условия продажи, когда доступно полное дело.
+Сохраняем чтение той же revisioned строки canonical lead и после handoff;
+ссылка ведёт непосредственно к существующему редактору `#sale-conditions`.
+Без доступных условий карточка показывает отсутствие стоимости обычным текстом,
+без ложного перехода. Редактирование требует прежнего `lead.sales.workflow.manage`
+и не доступно в preview; серверные проверки, история продаж и деньги не меняются.
+Это ограниченный первый срез CRM-09: сведение финансовых форм в единый поток
+и стоимость у дел без canonical lead остаются открытыми пунктами.
+
+Реальный проход выявил связанную ошибку decoder: migration 184 возвращает
+пустой `wishes_intake_year` как JSON null, а TypeScript принимал только строку.
+Явный null теперь соответствует пустому полю формы; отсутствующий ключ,
+неверный тип и некорректный год по-прежнему отклоняются. Это чтение реального
+контракта, без подстановки выдуманных условий или изменения данных.
+
+## 2026-09-20 — CRM-08b: единый раздел доступа к порталу
+
+Объединяем сведения о заявке, ручную подготовку кабинета и существующее управление
+приглашением в один раздел обзора «Доступ к порталу». Реальная карточка уже
+созданного дела показывала ложное «Подготовить кабинет», потому что адаптер
+полного дела намеренно оставлял leadCabinetCase пустым. Для отображения используем
+уже прочитанное дело; наличие дела не выдаём за активированный доступ.
+
+Статусы заявки, решение/отказ, приглашение, сверка неизвестного результата и
+явное повторное приглашение сохраняются. У приглашения остаётся прежний gate
+Admin / Sales cabinet_pending, вне preview. Для просмотра без Sales не добавляем
+прав решения по заявке или ручной подготовки. Серверные операции и их payload,
+регистрация, привязки, назначения и provider-поведение не меняются. Живая проверка
+этого среза ограничена отображением и навигацией, без отправки писем и auth writes.
+
+
+## 2026-09-20 — Whole-product refinement with dedicated page agents
+
+The owner explicitly expanded UX analysis/refinement to staff CRM, desktop and
+mobile product web, and the iPhone app. Preserve the recognizable EVO identity
+and useful functionality; CRM may receive substantial task/layout improvements.
+Assess functions, permissions, data/state, cross-surface outcomes and the existing
+CRM/admissions plan together with visual design, typography and responsive use.
+Dedicated agents per page are authorized. Initial independent page analyses are
+read-only and may run alongside the pending #929/#935 acceptance; shared schema,
+API, CSS/shell integration and release retain one coordinator.
+
+The additive contract is `docs/EVO_UX_REFINEMENT_PLAN_2026-09-20.md`; detailed
+page briefs are in `docs/design/ux-refinement/`. The earlier business scope and
+owner decisions remain: immediate program preparation, Students directory layout
+unchanged, deferred final E2E/content/App Store. All-page analysis does not silently
+add business features, rebuild the knowledge pipeline or alter provider settings.
+No code/schema/production change is part of this documentation block. No repeated
+approval is needed for ordinary design choices within the accepted direction;
+production migration/Auth/provider writes and release keep their own authority.
+
+
+## Parallel A/B execution — 2026-09-20
+
+Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
+Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+(items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
+installation and real local HTTP smoke, with unknown paths still fail-closed.
+This unblocks assessment of #847, not production release or provider acceptance.
+Root coordinates main/schema/release; A owns these shared planning appendices.
+
+B-1 (item 26): validate migrated photo objectPath against the existing manifest
+contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
+No Storage writes, license/catalog changes or broader bundle refactor. Validate
+resolver, all real manifest entries and read-only public URL/hash; authenticated
+render is not claimed. B owns its runtime files and detailed lane plan.
+
+B-1 merged as PR #937 into main `22404da81ab9398a28fdca99d879dc9f0b15a0d6`
+after independent review of `20229d1915ffd99d18e2caccc1fe3e0cd6634330` and
+required CI. This records source integration, not production delivery.
+
+B-5 (item 26): production-build analysis found the full photo audit manifest
+in browser JavaScript. Resolve photo URLs and attribution on the server; retain
+a minimal client image-error boundary for portal and staff catalogue images.
+Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
+when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
+this block. Verify bundle removal and real read-only catalogue rendering.
+No content, authentication, schema or Storage writes are included.

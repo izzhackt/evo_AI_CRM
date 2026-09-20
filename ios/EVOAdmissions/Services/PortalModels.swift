@@ -164,3 +164,30 @@ func universityIntakeDisplayStatus(
     default: return .unclear
     }
 }
+
+/// Same nearest-intake rule as web portal/universities.ts: trusted statuses,
+/// future deadline first, otherwise earliest start day/month, UTC comparison.
+struct NearestUniversityIntake {
+    enum Kind { case deadline, start, startMonth }
+    let kind: Kind
+    let value: String
+}
+
+func nearestUniversityIntake(_ content: UniversityContent, now: Date) -> NearestUniversityIntake? {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = "yyyy-MM-dd"
+    let today = formatter.string(from: now)
+    let month = String(today.prefix(7))
+    let intakes = content.programs.flatMap(\.intakes).filter { $0.status == "open" || $0.status == "announced" }
+    if let deadline = intakes.compactMap(\.applicationDeadline).filter({ $0 >= today }).min() {
+        return .init(kind: .deadline, value: deadline)
+    }
+    let start = intakes.compactMap(\.startDate).filter { $0 >= today }.min()
+    let startMonth = intakes.filter { $0.startDate == nil }.compactMap(\.startMonth).filter { $0 >= month }.min()
+    if let start, startMonth == nil || String(start.prefix(7)) <= startMonth! {
+        return .init(kind: .start, value: start)
+    }
+    return startMonth.map { .init(kind: .startMonth, value: $0) }
+}

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
 import { Shell } from "@/components/portal/Shell";
-import { PortalNotificationUpdates } from "@/components/v3/portal/PortalNotificationUpdates";
 import { getLocale } from "@/lib/i18n";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
@@ -18,14 +17,9 @@ export default async function StudentPortalLayout({
     getLocale(),
   ]);
 
-  // PORT-1a добавит accessTier в серверный authority с той же семантикой; до
-  // его merge уровень выводится локально: pending-дело — самостоятельный
-  // approved-доступ, active/closed — сопровождение (assisted).
-  const accessTier = actor.caseState === "pending" ? "approved" : "assisted";
 
   return (
-    <Shell displayName={actor.displayName} accessTier={accessTier} locale={locale}>
-      <PortalNotificationUpdates />
+    <Shell displayName={actor.displayName} accessTier={actor.accessTier} locale={locale}>
       {children}
     </Shell>
   );

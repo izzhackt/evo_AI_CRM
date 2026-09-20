@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KNOWLEDGE_AREAS, KNOWLEDGE_AREA_NAMES, type KnowledgeArea, type KnowledgeItem, type KnowledgePage, type KnowledgeQuery } from "@/lib/knowledge-library-contract";
 import { command, configureKnowledgeCommands, knowledgeFetch, knowledgeSourceKey, uploadKnowledgeFile } from "./client";
 import { KnowledgeImport } from "./KnowledgeImport";
 import { KnowledgeSecret } from "./KnowledgeSecret";
 import { KnowledgeDossiers } from "./KnowledgeDossiers";
+import { KnowledgeCanonicalSearch } from "./KnowledgeCanonicalSearch";
 import { KnowledgeAssignCase } from "./KnowledgeAssignCase";
 import { KnowledgeExport } from "./KnowledgeExport";
 import { KnowledgeEditor } from "./KnowledgeEditor";
@@ -14,11 +15,11 @@ import styles from "./KnowledgeLibrary.module.css";
 
 type View = "list" | "trash" | "review" | "archive" | "inbox";
 const kindNames = { folder: "Папка", page: "Страница", file: "Файл", secret: "Доступ" };
-export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
+export function KnowledgeLibrary({ commandScope, section = null, children }: { commandScope: string; section?: "documents" | "snippets" | null; children?: ReactNode }) {
   useLayoutEffect(() => { configureKnowledgeCommands(commandScope); }, [commandScope]);
   const router = useRouter(); const params = useSearchParams();
   const area = (KNOWLEDGE_AREAS.includes(params.get("area") as KnowledgeArea) ? params.get("area") : "internal") as KnowledgeArea;
-  const parentId = params.get("folder"); const itemId = params.get("item");
+  const parentId = section ? null : params.get("folder"); const itemId = section ? null : params.get("item");
   const view: View = ["trash", "review", "archive", "inbox"].includes(params.get("view") ?? "") ? params.get("view") as View : "list";
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [folders, setFolders] = useState<KnowledgeItem[]>([]);
@@ -54,6 +55,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
     return Object.fromEntries(Object.entries(value).filter(([, val]) => val !== null && val !== undefined).map(([key, val]) => [key, String(val)]));
   }, [area, parentId, search, searchScope, view]);
   useEffect(() => {
+    if (section) return;
     const abort = new AbortController();
     const timer = setTimeout(() => {
       setLoading(true); setError(""); setSelected(new Set());
@@ -62,7 +64,7 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
       }).catch((cause) => { if (!abort.signal.aborted) setError(cause.message); }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     }, search ? 250 : 0);
     return () => { clearTimeout(timer); abort.abort(); };
-  }, [query, refresh, search]);
+  }, [query, refresh, search, section]);
   useEffect(() => {
     let stopped = false;
     void (async () => {
@@ -163,8 +165,10 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
     <div className={styles.layout}>
       <aside className={`${styles.tree} ${treeOpen ? styles.treeOpen : ""}`} aria-label="Папки базы знаний">
         <div className={styles.treeHeading}>Папки<button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(false)}>Закрыть</button></div>
-        {KNOWLEDGE_AREAS.map((nodeArea) => <section key={nodeArea}><Link className={area === nodeArea && !parentId && view === "list" ? styles.active : ""} href={href({ area: nodeArea, folder: null })}>{KNOWLEDGE_AREA_NAMES[nodeArea]}</Link><div className={styles.branch}>{tree(null, nodeArea)}</div></section>)}
-        <nav className={styles.special} aria-label="Состояния материалов"><Link href="/v3/documents">Документы CRM</Link><Link href="/v3/reply-snippets">Шаблоны ответов</Link>
+        {KNOWLEDGE_AREAS.map((nodeArea) => <section key={nodeArea}><Link className={!section && area === nodeArea && !parentId && view === "list" ? styles.active : ""} href={href({ area: nodeArea, folder: null })}>{KNOWLEDGE_AREA_NAMES[nodeArea]}</Link><div className={styles.branch}>{tree(null, nodeArea)}</div></section>)}
+        <nav className={styles.special} aria-label="Разделы базы знаний">
+          <Link href="/v3/knowledge?section=documents" className={section === "documents" ? styles.active : ""} aria-current={section === "documents" ? "page" : undefined} onClick={() => setTreeOpen(false)}>Документы</Link>
+          <Link href="/v3/knowledge?section=snippets" className={section === "snippets" ? styles.active : ""} aria-current={section === "snippets" ? "page" : undefined} onClick={() => setTreeOpen(false)}>Шаблоны ответов</Link>
           <Link href={href({ folder: null, view: "inbox" })}>Входящие</Link>
           <Link href={href({ folder: null, view: "review" })}>На уточнении</Link>
           <Link href={href({ folder: null, view: "archive" })}>Архив</Link>
@@ -172,6 +176,13 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
         </nav>
       </aside>
       <section className={styles.contents} aria-label="Материалы">
+        {section ? <>
+          <div className={styles.toolbar}>
+            <button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(true)}>Папки</button>
+            {section === "documents" && <h2 className={styles.sectionHeading}>Документы</h2>}
+          </div>
+          {children}
+        </> : <>
         <KnowledgeImport onChanged={reload} />
         <div className={styles.toolbar}>
           <button type="button" className={styles.mobileOnly} onClick={() => setTreeOpen(true)}>Папки</button>
@@ -182,10 +193,11 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
           <input ref={directoryRef} type="file" multiple hidden {...{ webkitdirectory: "" }} onChange={(event) => { void upload(event.target.files); event.target.value = ""; }} />
         </div>
         <div className={styles.actions}>{area === "secrets" && <button type="button" onClick={() => setNewSecret(true)}>Добавить доступ</button>}<KnowledgeExport ids={parentId ? [parentId] : undefined} area={area} label="Выгрузить папку" /><KnowledgeExport label="Выгрузить всю базу" /></div>
-        <div className={styles.search}><input type="search" aria-label="Поиск по базе знаний" placeholder="Найти материал" value={search} onChange={(event) => setSearch(event.target.value)} /><select aria-label="Область поиска" value={searchScope} onChange={(event) => setSearchScope(event.target.value)}><option value="all">Вся база</option><option value="folder">Текущая папка</option></select></div>
+        <div className={styles.search}><input type="search" maxLength={240} aria-label="Поиск по базе знаний" placeholder="Найти материал" value={search} onChange={(event) => setSearch(event.target.value)} /><select aria-label="Область поиска" value={searchScope} onChange={(event) => setSearchScope(event.target.value)}><option value="all">Вся база</option><option value="folder">Текущая папка</option></select></div>
         {error && <div className={styles.error} role="alert">{error}<button type="button" onClick={reload}>Повторить</button></div>}
         {status && <p role="status" aria-live="polite" className={styles.status}>{status}</p>}
-        {area === "clients" && !parentId && view === "list" && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} search={search} />}
+        {search.trim() && searchScope === "all" && <KnowledgeCanonicalSearch key={search.trim()} search={search.trim()} onOpen={() => setSearch("")} />}
+        {area === "clients" && !parentId && view === "list" && !(search.trim() && searchScope === "all") && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} search={search} />}
         {selected.size > 0 && <div className={styles.selection}>
           <span>Выбрано: {selected.size}</span><KnowledgeExport ids={[...selected]} label="Выгрузить выбранное" />
           {view === "trash" ? <button type="button" disabled={busy} onClick={() => void mutate("restore")}>Восстановить</button> : <>
@@ -205,10 +217,11 @@ export function KnowledgeLibrary({ commandScope }: { commandScope: string }) {
             <td>{kindNames[item.kind]}</td><td>{new Date(item.updated_at).toLocaleDateString("ru")}</td>
           </tr>)}</tbody>
         </table>
-        {!loading && !error && !items.length && <div className={styles.empty}><p>{search ? "Ничего не найдено" : view === "trash" ? "Корзина пуста" : "Материалов пока нет"}</p>{view === "list" && !search && area !== "secrets" && <button type="button" onClick={() => { setName(""); setDialog("page"); }}>Создать страницу</button>}</div>}
+        {!loading && !error && !items.length && <div className={styles.empty}><p>{search ? "В материалах библиотеки ничего не найдено" : view === "trash" ? "Корзина пуста" : "Материалов пока нет"}</p>{view === "list" && !search && area !== "secrets" && <button type="button" onClick={() => { setName(""); setDialog("page"); }}>Создать страницу</button>}</div>}
         {loading && <p className={styles.status} role="status">Загрузка…</p>}
         {page?.hasMore && <button type="button" disabled={loading} onClick={() => void more()}>Показать ещё</button>}
         </div>
+        </>}
       </section>
     </div>
     {assignCase && folderRevision === refresh && <KnowledgeAssignCase items={chosen} folders={folders} onClose={() => setAssignCase(false)} onSaved={reload} />}

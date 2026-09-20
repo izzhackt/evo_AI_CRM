@@ -3,6 +3,8 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
+import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
+
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -26,9 +28,8 @@ import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
  */
 
 /**
- * Уровень доступа по дизайн-контракту. До merge PORT-1a выводится в layout
- * из caseState той же семантикой, что закрепит сервер: pending-дело —
- * самостоятельный approved-доступ, active/closed — сопровождение (assisted).
+ * Уровень доступа из серверного actor.accessTier: единый authority для
+ * главной, навигации и уведомлений.
  */
 export type PortalAccessTier = "approved" | "assisted";
 
@@ -111,20 +112,6 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
   );
 }
 
-function BellIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M10 3a4.5 4.5 0 0 1 4.5 4.5c0 3.2 1 4.5 1.5 5H4c.5-.5 1.5-1.8 1.5-5A4.5 4.5 0 0 1 10 3zM8.5 15.5a1.5 1.5 0 0 0 3 0"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 export function Shell({
   children,
   displayName,
@@ -152,13 +139,7 @@ export function Shell({
           <EvoLogo width={104} />
         </Link>
         <div className="pt-topbar-actions">
-          <Link
-            href="/portal/notifications"
-            aria-label={strings.notifications}
-            className="pt-bell"
-          >
-            <BellIcon />
-          </Link>
+          {accessTier === "assisted" ? <PortalNotificationUpdates locale={locale} /> : null}
           <details className="pt-user-menu">
             <summary className="pt-user-summary">
               <span className="pt-user-summary-name">{displayName}</span>

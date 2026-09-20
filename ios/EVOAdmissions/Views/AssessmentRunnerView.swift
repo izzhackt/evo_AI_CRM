@@ -246,6 +246,9 @@ struct AssessmentRunnerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isExiting = false
     @State private var confirmReload = false
+    // A11y (9b): буллеты инструкции масштабируются с Dynamic Type вместо
+    // фиксированных 5pt.
+    @ScaledMetric(relativeTo: .subheadline) private var bulletSize: CGFloat = 5
 
     var body: some View {
         NavigationStack {
@@ -322,6 +325,10 @@ struct AssessmentRunnerView: View {
             }
         }
         .disabled(isExiting)
+        // A11y (9b): во время выхода label — ProgressView без текста.
+        .accessibilityLabel(model.attempt?.isDraft == true
+            ? Text("runner_save_exit")
+            : Text("runner_close"))
     }
 
     // MARK: - Intro
@@ -337,8 +344,10 @@ struct AssessmentRunnerView: View {
                             Text(line)
                         } icon: {
                             Image(systemName: "circle.fill")
-                                .font(.system(size: 5))
+                                .font(.system(size: bulletSize))
                                 .padding(.top, 7)
+                                // A11y (9b): буллет — декорация.
+                                .accessibilityHidden(true)
                         }
                         .font(.subheadline)
                     }
@@ -382,6 +391,8 @@ struct AssessmentRunnerView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
+                // A11y (9b): во время старта label — ProgressView.
+                .accessibilityLabel(Text("tests_start"))
                 .disabled(model.isStarting)
             }
             .padding(20)
@@ -544,6 +555,8 @@ struct AssessmentRunnerView: View {
             HStack {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
                     .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    // A11y (9b): кружок — декорация, состояние несёт trait.
+                    .accessibilityHidden(true)
                 Text(option.label)
                     .font(.subheadline)
                     .multilineTextAlignment(.leading)
@@ -559,6 +572,8 @@ struct AssessmentRunnerView: View {
         }
         .buttonStyle(.plain)
         .disabled(model.completing)
+        // A11y (9b): выбранность варианта — не только цвет/иконка.
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     private func reviewCard(total: Int) -> some View {
@@ -603,6 +618,8 @@ struct AssessmentRunnerView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color("AccentColor"))
                 .disabled(model.answeredCount != total || model.isWriting || model.failure != nil)
+                // A11y (9b): во время завершения label — ProgressView.
+                .accessibilityLabel(Text("runner_complete"))
             }
             .padding(.top, 4)
         }

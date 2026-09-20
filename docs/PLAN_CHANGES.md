@@ -32741,6 +32741,444 @@ ledger insert. Официальный контракт: https://supabase.com/doc
 выпуск, импорт или проверку ZIP уже выполненными.
 
 
+## 2026-09-20 — PORT iOS волна 9b: карта, поиск и фильтры каталога, иконка, a11y-проход (append-only)
+
+Контекст (аудит плана): iOS-каталог — плоский пагинированный список без
+поиска, фильтров и карты, хотя RPC `student_university_catalog` давно
+принимает `p_query/p_country/p_level` (веб передаёт их с PORT-3a), веб
+показывает карту MapLibre на OpenFreeMap с репо-гео-библиотекой, а
+дизайн-контракт обещает «список⇄карта… веб и iPhone — одни возможности»
+(docs/design/portal/design-contract.md:55). Слот AppIcon пуст (appiconset без
+изображения), план §1 закрепляет «корректную адаптацию существующего знака
+для иконки приложения» за Fable. Вне экранов волн 8/9 во вьюхах всего
+3 accessibilityLabel (FavoritesView ×2, MessagesThreadView ×1).
+
+### Решение 1 — поиск и фильтры каталога (те же RPC-параметры, что веб)
+
+- `studentUniversityCatalog(query:country:level:offset:)` передаёт РОВНО те
+  имена параметров, что веб-обёртка `args` (src/lib/v3/university-source.ts:15):
+  `p_query`, `p_country`, `p_level`, `p_offset`. Семантика «пустое → NULL»
+  веба (`filters.query || null`) на iOS выражена пропуском параметра —
+  PostgREST-функция объявляет DEFAULT NULL для всех трёх (существующие
+  вызовы уже полагаются на это для `p_institution_id`/`p_query`).
+- Чистая политика `UniversityCatalogFilterPolicy` (юнит-тесты, hostless):
+  запрос обрезается до 100 символов (веб: `maxLength={100}` в Catalog.tsx:98 и
+  `text(query, 100, true)` в platform-university-catalog.ts:95), страна —
+  только код из списка `UNIVERSITY_COUNTRIES` (platform-university-catalog.ts:7,
+  249 кодов, продублирован строкой в Swift с тестом на счёт/состав), уровень —
+  только из 6 доменных значений (platform-university-catalog.ts:3). Пустые
+  строки — «фильтр не задан».
+- UI: системный `.searchable` (debounce 300 мс через отменяемый Task),
+  меню-фильтры «Страна» (полный ISO-список, локализованные имена, сортировка
+  коллацией активной локали — как веб) и «Уровень», кнопка сброса. Пустой
+  результат с активными фильтрами — честные `emptyTitle/emptyBody` веба и
+  кнопка сброса. Пагинация сохраняется: любое изменение фильтров перезагружает
+  первую страницу, `p_offset` продолжает листать в рамках тех же фильтров.
+
+### Решение 2 — карта (MapKit, стандартные тайлы Apple + наши пины)
+
+- Технология: **MapKit / SwiftUI Map (iOS 17)**, НЕ MapLibre Native.
+  Взвешено: MapLibre Native дал бы визуальный паритет с вебом (тот же стиль
+  OpenFreeMap liberty/dark), но приносит новую SPM-зависимость (maplibre-gl
+  native, BSD-2) и отдельный вопрос жизненного цикла GL-вью в SwiftUI;
+  MapKit — системный, без третьей стороны, без вопроса тайловых условий
+  (тайлы Apple — часть платформенного соглашения, атрибуция «Legal» рисуется
+  самим MKMapView/Map автоматически), тёмная тема — автоматически. План
+  прямо разрешает «подходящую поддерживаемую альтернативу» MapLibre
+  (EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md:256). Компромисс честно принят:
+  картографическая подложка iOS ≠ подложка веба; одинаковыми остаются данные
+  (одна гео-библиотека), фильтры и поведение.
+- Пины — ТОЛЬКО из репо-гео-библиотеки `src/lib/university-geo-library.json`
+  (126 записей, ключ = `photoKey`, провенанс Wikidata + verifiedOn), которая
+  бандлится ресурсом в app и test target — тот же паттерн единственного
+  источника, что `university-photo-library.json` (ios/project.yml). Вуз без
+  записи просто отсутствует на карте; выдуманных координат нет (план §6
+  «Карта»: «отсутствие координат не создаёт ложную точку»). Честная сводка
+  веба переносится: «На карте: N · Без точки на карте: M — эти вузы есть в
+  списке» (mapShown/mapWithoutPoint).
+- Полный отфильтрованный набор для карты собирается той же политикой, что
+  веб-`readStudentUniversitiesComplete` (src/lib/portal/university-catalog-reader.ts:26-39):
+  до 12 страниц, дедупликация по id, не движущийся вперёд `nextOffset` —
+  ошибка, 13-я страница — ошибка; сбой карты — явное состояние с кнопкой
+  повтора, список остаётся полноценным (план §6). Политика вынесена в чистую
+  функцию `UniversityMapPolicy.collectComplete` с юнитами.
+- Тап по пину — мини-карточка (название, «город · страна») с переходом на
+  существующий `UniversityDetailView`; закрытие возвращает выбор. Переключение
+  список⇄карта — сегмент-контрол над содержимым; фильтры и поиск общие для
+  обоих представлений (веб: те же `q/country/level` в обоих href).
+
+### Решение 3 — иконка приложения
+
+- Знак EVO (красная «книга-E» из официального лого `public/brand/evo-logo.png`,
+  того же файла, что рендерит EvoLogo.tsx) адаптируется программно: скрипт
+  Pillow вырезает альфа-bbox знака из левой части лого (без чёрной
+  словесной части), масштабирует с сохранением пропорций до ~62% холста и
+  центрирует на бумажном фоне `#f7f5f2` дизайн-контракта
+  (docs/design/portal/design-contract.md:24). Никакой перерисовки или новой
+  графики — пиксели знака берутся из оригинала как есть (брендовый красный
+  #d70217 уже в них). Результат — один PNG 1024×1024 в
+  `AppIcon.appiconset` (single-size iOS marketing icon), Contents.json
+  заполняется по формату Xcode.
+- Проверка: у проекта нет паттерна тестов на xcasset-ресурсы (hostless-тесты
+  не видят каталог активов приложения); честная проверка — компиляция
+  каталога `actool` в составе `xcodebuild build` (отсутствующий файл или
+  битый Contents.json валят сборку) и визуальный скрин иконки в PR.
+
+### Решение 4 — a11y-проход по экранам волн 1–7
+
+- Объём: SignInView, AccessPendingView, NetworkErrorView, HomeView,
+  UniversitiesView (+новые контролы), UniversityDetailView, FavoritesView,
+  ProfileView, TestsView, EnglishView, ProfessionsView, AssessmentRunnerView,
+  AssessmentResultView, ConsultationRequestSheet, LessonRunnerView,
+  ReviewRunnerView, MessagesThreadView. Без реструктуризации UI: только
+  `accessibilityLabel` на интерактивных контролах без текстовой подписи
+  (иконки-кнопки, ссылки-строки), `accessibilityElement(children: .combine)`
+  на карточных строках, `accessibilityHidden` на чисто декоративных
+  SF-символах.
+- Фиксированные размеры шрифта заменяются системными стилями/ScaledMetric:
+  AccessPendingView/NetworkErrorView `.font(.system(size: 40))` на иконках,
+  AssessmentRunnerView `.font(.system(size: 5))`. Ширины колонок таблицы
+  сравнения избранного не трогаются (это layout, не типографика, и таблица
+  скроллится).
+
+### RU/KY
+
+Все новые строки — в Localizable.xcstrings обеими локалями; формулировки
+зеркалят портальный словарь `universities` (src/lib/portal/i18n.ts:68-196)
+байт-в-байт там, где строка существует на вебе (поиск, страна/уровень,
+список/карта, пустое состояние, сводка карты, mapOpenCard/mapCloseCard,
+сброс фильтров); iOS-специфичные строки (ошибка карты с кнопкой повтора,
+a11y-подписи) — новые ключи с обеими локалями.
+
+### Валидация
+
+`xcodegen generate`; `xcodebuild build` и `xcodebuild test`
+(iPhone 17 Pro simulator) отдельными командами, индивидуальные exit-коды,
+«Executed N tests» из полного лога. Тесты: политика фильтров (parity имён
+параметров и границ с web-строками, процитированными выше), сборка полного
+набора для карты (дедуп, потолок 12 страниц, не движущийся offset), выбор
+пинов (photoKey с координатой / без / nil — без выдуманных точек),
+гео-библиотека (реальный файл: 126 записей, диапазоны lat/lng, https-провенанс,
+формат verifiedOn).
+
+### Честные ограничения
+
+- Подложка карты — Apple Maps, не OpenFreeMap: визуальный паритет с вебом
+  сознательно не цель этого среза (данные и поведение — одни).
+- Живой прогон RPC с q/country/level против production не выполняется;
+  уверенность — из паритета имён параметров с работающим веб-кодом и
+  policy-юнитов. Скрин-прогон VoiceOver руками не выполняется — проход
+  ограничен статическими атрибутами доступности.
+- KY-строки написаны агентом и ждут вычитки носителем.
+- Иконка проверяется сборкой каталога активов и глазами, юнит-теста на
+  xcasset нет (паттерн в проекте отсутствует).
+
+## 2026-09-20 — PORT iOS волна 9b: фикс гонки фильтров и уточнение тали a11y (append-only)
+
+- Review #912 (medium): guard'ы `isLoading`/`isMapLoading` в UniversitiesView
+  молча дропали перезагрузку, пришедшую во время полёта, а завершение
+  публиковало результат СТАРЫХ фильтров (смена A→B в середине сбора карты
+  оставляла пины A под чипами B до ручного toggle; тот же класс — для списка
+  при debounced-поиске). Фикс: `SingleFlightReloadGate` (generation counter,
+  выбран вместо Task-cancellation — загрузки зовутся из нескольких мест и
+  отмена потребовала бы владения Task-handle'ами; обоснование в doc-комменте
+  затвора). Юниты: устаревший результат отбрасывается, mid-flight смена
+  перезапускает полёт с новыми фильтрами, двойная смена не плодит
+  параллельных сборов; догрузка страницы со старым поколением отбрасывается.
+- Уточнение фактического тали a11y-прохода записи выше: 16 accessibilityLabel
+  добавлено на экранах волн 1–7 и 5 — на новых контролах каталога/карты
+  (16+5, а не «17», как значилось в первоначальном теле PR; PR-описание
+  поправлено).
+
+## 2026-09-20 — KB: исправления по реальной контрольной партии
+
+Managed release `35473287436` принят на main `2e72d5ad`, arm=false, pending
+отсутствует. Реальный UI перенёс 10 источников (2 страницы, 8 файлов), 3 049 345
+байт; 9 source blobs сохраняют обе логические позиции дубля. Через UI скачан
+ZIP; verifier проверил 19 материалов архива и точные байты 10 исходников.
+Это контрольная партия, не полный перенос 6 568 оригиналов.
+
+Проверка показала три необходимых уточнения реализации перед полной загрузкой:
+
+1. В разрешённой странице Notion два относительных CSV-адреса содержат старую
+   родительскую папку. Точные CSV с теми же Notion-id существуют в инвентаре;
+   совпадающие копии имеют одинаковый SHA-256. Дополнить resolver безопасным
+   поиском точного basename с Notion-id в той же области источников; неоднозначные
+   разные байты не выбирать. Заголовок страницы брать из её настоящего H1,
+   сохраняя исходное имя/байты отдельно. Уже импортированные страницы автоматически
+   не перезаписывать; исправление контрольной страницы — обычной редакцией CRM.
+2. Метаданные инвентаря показали 1 240 прежних кандидатов под «Входящими», из них
+   912 — извлечённые тексты конвейера. Файлы производных исходников расположить
+   в сыром архиве с прежней вложенностью; рабочие отчёты проверки — среди процессов
+   подготовки базы. Сохранять статус кандидата, происхождение и вопросы; не
+   объявлять факты утверждёнными, не читать чувствительный текст/OCR и не публиковать
+   ничего в ИИ. Это сортировка по назначению, не простое переименование Inbox.
+3. Контрольная партия выявила последовательную оплату сетевой задержки на каждый
+   файл (около 8 секунд на обычный небольшой файл). Для 6 536 файлов нужен
+   ограниченный параллельный перенос. Разрешить до 4 независимых файлов; один
+   и тот же area/hash/size обрабатывать последовательно. Сохранить общий останов
+   после текущих файлов, предел трёх ошибок, точные request-id/источники/хеши.
+
+DB/Auth/Storage-схема и права не меняются. Реальная проверка: повтор прежней
+партии без дублей и потери правки, новая партия файлов с проверкой ссылок и ZIP,
+затем полный перенос. Source originals и ключи остаются без изменений.
+
+## 2026-09-20 — KB: единый раздел Admin по замечанию владельца
+
+Владелец указал на дублирование «Документов», «Шаблонов ответов» и «Базы знаний»
+в основном меню. Для настоящего Admin остаётся один пункт «База знаний»;
+существующие документы CRM и шаблоны открываются внутри неё с общей навигацией.
+Их источники, серверные операции и права остаются каноническими. Старые адреса
+Admin перенаправляются на соответствующий раздел базы. Сотрудники и Admin
+в режиме просмотра роли сохраняют прежние рабочие маршруты и доступ, без
+доступа ко всей базе. Это объединение интерфейса, без копирования документов
+клиентов или расширения доступа. Проверка: реальные Admin/Staff маршруты,
+переходы в браузере и узкая проверка ролевой навигации.
+
+## 2026-09-20 — KB: убрать вложенное дерево документов после живого просмотра
+
+В новом Admin-разделе реальный desktop-просмотр выявил две соседние панели
+папок: общая навигация базы и прежний FileManager. Они сужают содержимое и
+обрезают названия папок. Встроенный режим FileManager использует общую панель
+базы; внутри остаются карточки папок, путь, поиск и прежние действия над файлами.
+Обычный рабочий экран сотрудников сохраняет собственное дерево. Источники и
+права не меняются. Это точечное исправление подтверждённого визуального дефекта.
+
+Живой переход к шаблонам также выявил повтор заголовка «Шаблоны ответов»:
+оставляем заголовок существующего канонического компонента; общий shell
+не добавляет второй.
+
+## 2026-09-20 — KB: закрытые производные переписки относятся к сырому архиву
+
+Проверка метаданных массового переноса выявила 1 415 файлов Markdown из старого
+раздела «Закрытые производные материалы / WhatsApp», ошибочно оставленных
+во внутренней области. Они перенесены как непрочитанные файлы, а не страницы;
+AI bundles не менялись. Однако прежнее расположение не подтверждает, что это
+общие или обезличенные знания. Исправленный план направляет группу в
+«Сырой архив / Производные исходников / Закрытые производные материалы /
+WhatsApp» с вопросом о назначении и принадлежности. Содержимое переписок
+для этого решения не извлекается; клиенты по именам не подбираются.
+
+Для уже записанных файлов готовятся проверенные raw blobs через штатный Admin
+upload API. Адресная транзакционная коррекция переносит существующие узлы,
+сохраняя ID, source key, прежние blobs и историю. Она проверяет организацию,
+версию, классификацию, SHA, размер и родительскую папку. Область существующего
+blob не меняется: она входит в Storage-путь. Эта исправительная операция
+отдельно отражается в квитанции; обычный импорт продолжается через Admin API.
+
+## 2026-09-20 — Финальная ведомость §11, handover §15 и передача исполнения Astra GPT-6
+
+Владелец инициировал продолжение исполнения через Astra GPT-6 («после этого
+давай сделаем продолжения через Astra gpt 6», 2026-09-20). Пакет закрывает
+финальные пункты плана `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`:
+
+- `docs/EVO_PORTAL_FINAL_LEDGER_2026-09-20.md` — финальная ведомость §11:
+  16 строк «функция → веб → iPhone → релиз/SHA → результат реальной проверки →
+  ограничение»; каждое «готово» прослеживается до release-receipt или
+  file:line, live-заявления — только из receipts.
+- `docs/EVO_PORTAL_HANDOVER_2026-09-20.md` — handover-пакет §15: ссылки и
+  точный статус, карта разделов, PR/релизы/архитектура/дизайн/блоки, результаты
+  реальных проверок и ограничения, оставшиеся действия владельца, плюс новая
+  финальная секция «Передача исполнения Astra GPT-6».
+
+К драфтам применены 14 коррекций адверсариальных факт-чекеров (10 — ведомость,
+4 — handover): сняты overclaim'ы о review-фиксации в receipts (#893, #894,
+подготовительные #864/#867/#868 в receipts отдельной строкой не записаны),
+исправлены неверные SHA-привязки (фото iOS, «Анкета», «Документы»), сужены до
+receipts заявления о smoke-якорях и KY-вычитке, исправлен список OTH staff-UX
+PR (чётные включены) и расширен состав live E2E-прогона до реального покрытия
+пп.1–5 ограничений; «стадия» в iOS «Моём поступлении» честно помечена как
+декодируемая, но не отображаемая.
+
+Момент передачи: schema/release-координация переходит от Fable к Astra после
+мержа этого пакета; до него — за Fable. Чекбоксы PORT-0..7 в
+`docs/EVO_LAUNCH_PLAN.md` проставляются этим же пакетом честно: PORT-0..5 —
+[x]; PORT-6 — [x] кроме владельческой вычитки KY носителем; PORT-7 остаётся
+[ ] (владельческие внешние шаги Apple; агентская часть выполнена). Изменение
+документационное, кода и схемы не трогает.
+
+## 2026-09-20 — KB: общий поиск включает канонические материалы CRM
+
+Независимая проверка §6–7 выявила пробел: режим «Вся база» ищет только
+`kb_nodes`, хотя существующие документы представлены внутри той же базы.
+Добавить отдельную постраничную группу результатов из канонических документов
+клиентов и компании, папок компании, шаблонов ответа и существующих дел.
+Поиск использует только названия и разрешённые поля/текст шаблонов, не содержимое
+документов, переписку, секреты или Student-private обучение. Результат ведёт
+к действующему источнику; копии в библиотеке и операции изменения первичных
+объектов через поиск не создаются. Поиск по текущей папке сохраняет прежнюю область.
+
+Astra резервирует migration 205: свежий main `7cc50dd8`, реальный ledger204,
+открытые #913/#905 миграций не содержат. Новый read-only RPC проверяет действующего
+Admin и организацию, курсор включает название, тип источника и UUID. Отдельная
+пагинация группы не выдаёт первую страницу за полный результат. Проверки:
+существующий документ через настоящий Admin поиск и UI; полный обход с малым
+лимитом; реальные staff/Student/anonymous denials; существующее скачивание.
+Runtime выпускает Astra по текущему managed контракту после завершения/штатной
+паузы двух потоков импорта. Portal/App и канонические правила записи не меняются.
+
+## 2026-09-20 — KB final acceptance: unsaved navigation, file questions and canonical selections
+
+The independent final audit of KB §§6–10 found three remaining paths: SPA/back navigation could discard an unsaved editor draft; file review questions could not be read/resolved in the UI; canonical CRM documents/company folders lacked selection/folder ZIP controls. Complete these within the existing KB contract before final acceptance.
+
+Keep draft contents only in editor memory and guard navigation until saved or explicitly discarded. Use the existing versioned edit command for file review metadata, without changing original bytes. Add forward migration 206 for an explicitly scoped canonical export selection (document/company version IDs, document-case folders and company-folder subtrees), preserving ordinary Admin authorization, tenant checks, immutable snapshots, existing downloads and all-base export behavior. A selected canonical file must not export its entire case, correspondence or unrelated library materials. Do not change Portal/App files or primary object ownership. Validate with existing QA documents, actual Auth denials, downloaded selected ZIP bytes, real navigation after a failed save, and independent exact-head review.
+
+## 2026-09-20 — KB canonical search proxy registration
+
+Real production HTTP/UI acceptance on `49f07148` returned HTTP 403
+`platform_route_not_connected` for the new canonical-search endpoint, while
+the normal Admin RPC checks had passed. Register only the exact
+`/api/v3/knowledge/search-canonical` path in the existing staff-cookie proxy
+contract. Keep live Admin/tenant checks in the handler/RPC unchanged. Verify
+the connected-route boundary locally and repeat actual Admin, staff, Student
+and anonymous HTTP checks plus the existing-document UI journey after release.
+No migration, Portal/App or primary-document mutation is required.
+
+
+## 2026-09-20 — План продолжения для GPT-6 Astra (по поручению владельца)
+
+Добавляется `docs/EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md` — план продолжения
+работы над EVO после закрытия портального плана: пять блоков AST-1..5
+(завершение KB-контракта как приоритет №1, живой E2E-прогон новых портальных
+флоу, контентная волна 2, App Store readiness агентской стороны, очередь
+UX/тех-долгов) под дисциплиной handover §6. К черновику применены все
+15 коррекций адверсариального факт-чека: актуальный base-SHA, knowledge-релизы
+#915/#916, миграция 205 занята #918 (при финальной сверке 206 занята #919 —
+следующая свободная 207), фактическое состояние KB-переноса (две контрольные
+партии, защищённый контур закрыт), снятое systemd-разночтение, полнота
+дисциплины §7 (node-флаги, iOS), PR #905 для 4 локальных падений,
+CaseHelpWorkspace как второй v3-компонент, dependabot PR #847, точный
+диапазон строк a11y §(e).
+Волатильные факты (origin/main SHA `49f07148`, хвост миграций, последние
+принятые релизы, статусы PR #905/#847/#918/#919) пересверены на момент
+составления — 2026-09-20 00:27 UTC — и датированы в §10 документа. Сам документ —
+предложение Fable: обязательным его делает владелец утверждением
+(и Astra — принятием); эта запись фиксирует появление документа, а не
+его вступление в силу. Ссылка на план добавляется в `EVO_LAUNCH_PLAN.md`
+рядом с финальными портальными документами.
+
+## 2026-09-20 — Решение владельца: сначала функциональность и интерфейс продукта
+
+Владелец уточнил порядок продолжения: состав продукта ещё не определён
+окончательно, возможны новые функции. Закрытие предыдущей портальной поставки
+не означает, что весь продукт закончен или все его сценарии доказанно работают.
+Сейчас продолжаются действующий KB-контракт и доведение функциональности/UI,
+включая известные пробелы AST-5 и последующие согласованные дополнения.
+
+Общий итоговый E2E (AST-2), контентная волна 2 (AST-3) и App Store readiness
+(AST-4) отложены до явного решения владельца, что нужный состав функций
+завершён и пора переходить к этим этапам. Не начинать их автоматически после
+KB и не запрашивать сейчас QA/симулятор/Apple-шаги ради отложенных блоков.
+Перенос существующей базы знаний остаётся частью действующего KB-контракта,
+а не отложенной контентной волной.
+
+Сохраняются точечные реальные проверки каждого изменённого поведения,
+затронутых границ доступа, защищённые PR-проверки, независимое exact-head
+review и управляемый выпуск. Уже известный функциональный дефект исправляется
+в текущем этапе, а отсутствие итогового E2E не превращается в доказательство
+готовности. Исторические receipts и непройденные пути сохраняются как факты.
+Обновляются текущий порядок и критерии завершения в плане Astra и указатель
+в launch-плане; это документационное изменение без кода, миграций и деплоя.
+
+
+## 2026-09-20 — KB: восстановление большой выгрузки после ошибки Storage
+
+Реальный полный ZIP `618d62c1-437e-4c80-a7b4-7ce122756d90` остановился
+на 1 620/7 897 материалах с `knowledge_storage_unavailable`; сохранено
+206 подтверждённых частей (1 728 053 248 байт). Указанный материал затем
+прочитан штатным Admin HTTP: 200, 86 821 байт, SHA-256 совпал. Точный
+первоначальный provider status не сохранён, поэтому причина не объявляется
+установленной. Полный архив пока не готов.
+
+В пределах KB добавляются ограниченные повторы чтения Storage и записи
+частей ZIP для временных сетевых/408/429/5xx ошибок. Повтор записи использует
+тот же уникальный путь без upsert; существующая часть принимается только
+после проверки размера и SHA-256. Ошибки доступа, отсутствующий объект и
+несовпадение суммы не превращаются в успешный результат. Snapshot, lease,
+Admin-права, области доступа и шифрование сохраняются. SQL не меняется.
+
+После точечных проверок, независимого ревью и управляемого выпуска
+повторяется то же задание через интерфейс; итоговая проверка включает
+скачивание всего архива и сверку всех 6 568 исходников. Официальная основа:
+[Supabase Storage error codes](https://supabase.com/docs/guides/storage/debugging/error-codes),
+проверено 20.09.2026: отдельные коды доступа/отсутствия и временные ошибки
+Storage, включая рекомендацию backoff для SlowDown.
+
+## 2026-09-20 — Impeccable: карточка университета iPhone
+
+Владелец поручил разобрать работающий экран в Simulator, составить план и
+внести улучшения. Два независимых обзора подтвердили перегруженное вступление,
+позднее появление программ и проблемы читаемости/размера вторичных действий.
+До кода фиксируется контракт `docs/design/portal/ios-university-refinement.md`:
+быстрый переход к программам, раскрытие атрибуции, источники после программ,
+адаптивные факты и нативные targets. Все данные, источники, лицензии, статусы,
+сроки и действующие бизнес-действия сохраняются. Нет миграций или серверного
+выпуска. Проверка — сборка и реальный изменённый экран в текущем QA Simulator;
+общий финальный E2E и App Store readiness не возобновляются.
+
+
+## 2026-09-20 — AST-5 scoped portal parity implementation
+
+Owner accepted the four gaps reported in this task: iPhone operational stage and Home parity, web catalogue novelty and notifications. Implement as four independently reviewed PRs per continuation plan. Add first-publication persistence rather than relabel current reviewed_at as novelty; keep existing catalogue DTO stable by using a dedicated recent-publications read RPC. Timestamp history/backfill policy and exact migration number will be recorded before schema code. No final E2E/content/App Store work or production writes are implied. Operational-stage empty values remain absent; unknown values use the existing localized custom-stage wording, never raw internal identifiers.
+
+
+### AST-5 Home implementation details
+
+Home uses independent read sections, maximum four favorites in existing server order, lesson draft before first incomplete lesson, first instrument with draft as web. Native TabView selection opens existing English/admission/university tabs rather than nested navigation stacks. Application reads own_student_application_v1 only for approved tier; an absent row is stated as absent, no approval status invented. Existing admission action row is reused. Nearest-intake policy mirrors current web (UTC day/month and open/announced only). Read paths refresh on entry, foreground and pull; test sheet dismissal reloads attempt state.
+
+
+### AST-5 notifications implementation details
+
+Move the polling component from v3 into the existing Atlas header bell; remove duplicate status strip. Render for assisted tier, matching notifications navigation; derive tier solely from actor.accessTier. Keep 30-second visible-page polling and focus/online/manual resume, no duplicate initial refresh. Add /portal/home to operational refresh; retain existing operational routes, exclude learning/test runners. RU/KY unread/loading/error/retry labels; retry is keyboard accessible. No new notifications or mark-read writes for validation. Next.js documents router.refresh as merging server payload while preserving unaffected client state: https://nextjs.org/docs/app/api-reference/functions/use-router.
+
+
+## 2026-09-20 — iPhone Home action hierarchy after Impeccable review
+
+Continue the owner's requested functional/UI work with a narrow native Home
+refinement. Preserve the #927 data and navigation contracts. Real required
+admission actions and load/error states stay first; a successfully loaded calm
+summary moves below continuation. A saved test attempt precedes the lesson
+section; without a draft, lessons remain first. Clarify module-level counts in
+RU/KY and size the continue-test label to a real 44-point minimum. No change to
+Auth, schema, private learning state, tab identity, or catalogue content. Plan
+and focused real Simulator acceptance: `docs/design/portal/ios-home-refinement.md`.
+PR #929 remains separately pending migration 207 and runtime acceptance; this
+refinement does not authorize or substitute for that production operation.
+
+Independent evidence review additionally confirmed a Kyrgyz naming mismatch:
+Home quotes «Менин тапшыруум» while the existing destination is «Менин кабыл
+алынышым». Align the shortcut to that existing title within this same copy slice.
+
+The first actual dark/default-size render confirmed low-contrast Home text
+links with the single brand accent. In the one bounded correction pass, use
+Apple systemRed for Home text actions in dark mode only, retain brand accent
+for light mode and the filled continuation button, and let the continuation
+label occupy its row width at large text sizes. This is local to Home; no shared
+asset, descendant screen, or app-wide theme changes.
+
+
+## 2026-09-20 — принят план CRM UX и единого поступления
+
+Владелец передал `EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` и поручил
+реализацию с Impeccable. Неизменённая копия исходного документа включена в
+`docs/`; детализация и исключения §1–17 составляют scope. Начальная база —
+main `922483eb54c18a2da72bdd65fb503d728fa7af22`; прежний dirty checkout сохранён.
+Это дополнение разрешает выбранные staff CRM-изменения поверх прежнего
+portal-only scope PRODUCT.md. Для нового admissions-пути веб выпускается
+полностью первым, iPhone развивается на тех же контрактах. Только Sales Manager
+может создавать продажи; общее правило Admin-superset не является исключением
+для этой конкретной операции. Остальные полномочия Admin сохраняются.
+
+Последовательность: критические CRM-контракты → выбранные рабочие экраны →
+отдельные chat/calendar блоки → общие документы/пакеты → полный web/iPhone путь.
+Не добавлять KPI, коммерческие правила, новый контент и другие исключённые
+функции. Зафиксированные в §14 решения запрошены; зависимая реализация ждёт
+ответа. Существующий #913 использовать после проверки, не дублировать;
+#925–#928 и #930 составляют принятую базу iPhone/портала. #929 и migration 207
+остаются отдельным незавершённым блоком без новой production authority.
+Каждый блок получает точечную реальную проверку и независимый exact-head review.
+
+
 ## 2026-09-20 — Admissions pipeline: omit empty GET filters
 
 Owner-reported production failure at `/v3/admissions-pipeline` was reproduced
@@ -32766,3 +33204,8 @@ signal is the authenticated browser board after managed release, including
 resetting filters and both tabs. Until then the production fix is unverified.
 Do not interrupt Fable's active exact-main release to merge or deploy this fix;
 use the next coordinated release after the current owner completes/disarms.
+
+2026-09-20 continuation: the former release has completed. Live release arm is
+false and no pending receipt exists; accepted revision is `b7598a1c`. Current
+main is merged into this branch, retaining both appended decision histories.
+No production deployment or database write is performed by this continuation.

@@ -210,6 +210,8 @@ struct ReviewRunnerView: View {
                             .buttonStyle(.borderedProminent)
                             .tint(Color("AccentColor"))
                             .disabled(!model.canSubmit)
+                            // A11y (9b): во время проверки label — ProgressView.
+                            .accessibilityLabel(Text("english_answer_button"))
                         }
                     }
                     .padding(16)

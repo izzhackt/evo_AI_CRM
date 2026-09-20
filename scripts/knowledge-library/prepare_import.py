@@ -57,11 +57,17 @@ def plan(row):
             editable = row['extension'] == '.md' and row['bytes'] <= 2_097_152
         elif 'Входящие кандидаты' in within:
             classification = 'unapproved_candidate'
-            folders = ['Входящие', 'Кандидаты из локальной базы', *folders[1:]]
+            if 'Извлеченный текст' in within or 'Извлечённый текст' in within:
+                area = 'raw'
+                folders = ['Производные исходников', *folders[1:]]
+            else:
+                folders = ['Процессы и инструкции', 'Подготовка базы знаний', *folders[1:]]
             question = 'Материал был кандидатом. Нужна проверка источника и актуальности; перенос не означает утверждение.'
         elif 'Закрытые производные материалы' in within:
             classification = 'restricted_derivative'
-            folders = ['Внутренние знания', 'Закрытые производные материалы', *folders[1:]]
+            area = 'raw'
+            folders = ['Производные исходников', 'Закрытые производные материалы', *folders[1:]]
+            question = 'Уточнить назначение и подтверждённую принадлежность закрытой производной переписки. Это не утверждённое общее знание.'
         elif 'Архив версий' in within:
             classification = 'historical_version'
         else:
@@ -105,6 +111,21 @@ def classify_reviewed_text(entry, root):
         for line in lines[1:100]:
             if line.strip() == '---': break
             frontmatter.append(line)
+    title = entry['title']
+    start = len(frontmatter) + 2 if frontmatter else 0
+    fence = None
+    for line in lines[start:]:
+        marker = re.match(r'^\s*(`{3,}|~{3,})', line)
+        if marker:
+            current = marker.group(1)[0]
+            fence = None if fence == current else current if fence is None else fence
+            continue
+        heading = re.match(r'^#\s+(.+?)(?:\s+#+)?\s*$', line) if fence is None else None
+        if heading:
+            candidate = heading.group(1).strip()
+            if 1 <= len(candidate) <= 240 and not re.search(r'[\x00-\x1f/\\]', candidate):
+                title = candidate
+            break
     headings = [line.lstrip('# ').strip().lower() for line in lines if line.startswith('#')][:30]
     heading_text = ' '.join([entry['title'].lower(), *headings])
     topics = {topic for token, topic in TOPICS.items() if token in heading_text}
@@ -115,7 +136,7 @@ def classify_reviewed_text(entry, root):
     review = entry.get('reviewQuestion','')
     if any(re.search(r'^(?:status|статус)\s*:.*(?:conflict|needs.review|на уточнении|конфликт)', line, re.I) for line in frontmatter):
         review = 'В исходной странице отмечен конфликт или необходимость проверки. Требуется подтверждение.'
-    return {**entry, 'folders': folders, 'reviewQuestion': review,
+    return {**entry, 'title': title, 'folders': folders, 'reviewQuestion': review,
             'reason': 'Существующая группировка, заголовки и статус разрешённой текстовой страницы; факты и признаки утверждения сохранены.'}
 
 def main():

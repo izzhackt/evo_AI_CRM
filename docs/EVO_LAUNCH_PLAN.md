@@ -1,5 +1,40 @@
 # EVO Launch Plan
 
+## CRM UX и единое поступление — принято к реализации 2026-09-20
+
+Владелец поручил реализовать [план CRM UX и поступления](EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md).
+Он определяет выбранные CRM-изменения и общий путь программа → документы →
+проверка EVO для CRM, веба и iPhone. Веб — первый полный рабочий выпуск;
+iPhone использует те же серверные операции. Этот порядок относится к новому
+admissions-пути и уточняет прежнее общее правило параллельной разработки.
+[Ведомость исполнения](EVO_CRM_UX_AND_ADMISSIONS_EXECUTION_2026-09-20.md)
+разделяет реализацию, review/merge, выпуск и реальные проверки.
+
+Два решения из §14 пока открыты: расположение сводки студентов и необходимость
+одобрения самого выбора программы. Они не блокируют независимые CRM-изменения.
+Сопровождение остаётся обязательным условием нового клиентского пути.
+Общий финальный E2E, контентная волна и App Store остаются отложенными; точечная
+проверка изменённых функций обязательна. Поручение не включает применение
+миграций, production-записи или release-arm без отдельной действующей authority.
+
+## 2026-09-20 — точечная доработка карточки университета iPhone
+
+По поручению владельца выполняется Impeccable critique → план → реализация.
+Контракт и квитанция: [iPhone university refinement](design/portal/ios-university-refinement.md).
+Это текущая работа над UI; итоговый E2E и App Store readiness остаются отложены.
+
+## Текущий приоритет владельца — функциональность и интерфейс, 2026-09-20
+
+После #920 владелец уточнил: состав продукта ещё открыт, продолжаем
+действующий KB-контракт и доведение функций/UI. Закрытая портальная поставка
+не означает, что продукт закончен или все сценарии доказанно работают.
+Общий итоговый E2E (AST-2), контентная волна 2 (AST-3) и App Store readiness
+(AST-4) отложены до явного решения владельца о завершении нужного состава
+функций и переходе к этим этапам. Автоматически после KB их не запускать.
+Точечные реальные проверки изменений, независимое review и управляемые
+release-гейты сохраняются. Актуальный порядок и известные UI-пробелы:
+[план продолжения Astra, §4–6](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md#4-порядок-блоков).
+
 ## CRM Knowledge Base — план GPT-6 Astra, 2026-09-19
 
 Контракт отдельной задачи: [EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md](EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md).
@@ -13,10 +48,70 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 
 ### KB execution — 2026-09-20
 
+Дополнение к историческому снимку ниже: перенос 6 568 исходников и 25
+защищённых записей завершён, полная сверка дала 0 missing/0 mismatch.
+Полный ZIP встретил ошибку Storage; текущий шаг — ограниченные безопасные
+повторы запросов и завершение того же снимка. Контракт изменения:
+[PLAN_CHANGES](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
+
 - KB-0 merged as #902 (`7610579df`). Implementation is in draft #906, branch `izzhackt/crm-knowledge-core`, isolated worktree `evo-crm-knowledge-implementation`; canonical dirty checkout is preserved.
 - Private inventory covers 6,570 source entries. The filing plan retains 436 editable pages, 6,100 ordinary source files and 32 protected originals; two backup key files remain outside CRM. Protected preparation adds 25 structured records and verifies 57 ciphertext round trips without writing plaintext files.
 - The candidate implements Admin library, existing CRM dossiers, protected records, resumable import, reconciliation and ZIP export. Details and actual evidence: [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).
 - Production schema, key provisioning, release, real UI acceptance, control batch, complete import and downloaded ZIP verification remain open. Zero source entries have been imported into CRM. The owner explicitly transferred KB schema/release coordination to Astra; Fable was notified in #912. Forward migrations 201–204 are reserved; application is not yet claimed.
+
+## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
+
+- [x] Ledger this cycle: the production ledger gained migrations
+  201-204 (`platform_knowledge_*`, the Astra knowledge plan) — applied
+  OUTSIDE the portal coordinator's schema-ledger workflow and without a
+  pre-apply ping, which deviates from the cross-plan coordination
+  protocol recorded in this file's KB section; noted here honestly.
+  Both the coordinator and the peer session independently re-read the
+  ledger via the Management API before arm: count=204, min=001,
+  max=204 — contiguity intact, repo tree tail equals the live tail, so
+  the release gate was satisfied and no apply step was needed.
+- [x] Release from exact main `fd25b1ac9a3a4f7c31b7747b81bcba6e1c1fa8a9`.
+  Five commits since the previous release: #909 (PORT-9d prep:
+  photo-migration pipeline, manifest, URL-resolution switch), #910
+  (previous receipt), #911 (manifest flip after the coordinator ran
+  --apply: bucket `portal-university-photos` created and verified,
+  87/87 uploads with zero failures, public URLs spot-checked with
+  sha256 matches by two independent reviewers — this release makes the
+  catalog serve managed photo URLs; 57 official-source photos stay
+  hotlinks by license), #906 (Astra: Admin knowledge library, sealed
+  import, canonical exports — includes a Dockerfile change; the peer
+  session verified sops v3.13.2 is pinned by sha256 checksum for both
+  architectures, and the built image passed browser smoke and the
+  acceptance guard), and #912 (iOS wave 9b: catalog search/filters
+  with exact RPC parameter parity, MapKit map fed only by the repo geo
+  library with honest no-coordinates disclosure, app icon regenerated
+  byte-identically from the official brand asset, a11y pass 16+5
+  labels/traits/ScaledMetric across waves 1-7; 139/139 tests).
+  CI run 35473582066 green on the exact merge SHA; release run
+  35473599531 accepted; container `evo-crm-app-1` on hermes-vps
+  carries the exact OCI revision (healthy); `/api/health` live;
+  accepted pointer `v3-r35473599531-a1-fd25b1ac` with
+  acceptance-record sha256 recorded; `EVO_PRODUCTION_RELEASE_ARMED`
+  returned to `false` at 22:37 UTC.
+- Independent exact-head reviews, each PASS: #909 9/9 + #911 flip
+  delta-review (set-equality of the 87 flips, 5 reviewer-chosen public
+  URLs with sha256 matches); #912 11/11 with one medium finding (a
+  filter/collect race leaving stale map pins under new filter chips)
+  fixed pre-merge via a generation-counter gate with three
+  deterministic unit tests and delta-confirmed. Every merge-race
+  rebase carried patch-id --stable proofs.
+- Open item handed to Astra/the owner: #906's
+  `deploy/knowledge/*.service|*.timer` are HOST-side systemd units not
+  contained in the image — until someone installs and enables them on
+  hermes-vps the knowledge-maintenance job simply does not run (no
+  degradation of anything else). Who installs them is not decided in
+  the portal plan.
+- Not claimed: live authenticated render of managed photos in the
+  production catalog (no credentials in the agent session — the
+  managed URLs themselves return HTTP 200 with manifest-matching
+  bytes); live filtered-RPC run and manual VoiceOver pass on iOS
+  (static parity and attributes only); KY texts still await the
+  owner's native-speaker proofread.
 
 ## Portal release v3-r35469103571-a1-b047e663 accepted 2026-09-20
 
@@ -280,14 +375,17 @@ staff and incident scopes below remain unchanged. The plan carries forward the
 owner's delegated release workflow, subject to real credentials and release
 controls; this documentation change itself performs no deployment or migration.
 
-- [ ] PORT-0: current-main inventory, contracts and parallel worktree allocation.
-- [ ] PORT-1: approved access, shared data/API authority and account continuity.
-- [ ] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
-- [ ] PORT-3: university discovery, map, comparison and saved choices on both clients.
-- [ ] PORT-4: professions, private assessments and English learning on both clients.
-- [ ] PORT-5: full client accompaniment and consultation requests on both clients.
-- [ ] PORT-6: scoped integration, content completion and final UX pass.
-- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff.
+- [x] PORT-0: current-main inventory, contracts and parallel worktree allocation.
+- [x] PORT-1: approved access, shared data/API authority and account continuity.
+- [x] PORT-2: selected design, RU/KY content system, web and iPhone foundations.
+- [x] PORT-3: university discovery, map, comparison and saved choices on both clients.
+- [x] PORT-4: professions, private assessments and English learning on both clients.
+- [x] PORT-5: full client accompaniment and consultation requests on both clients.
+- [x] PORT-6: scoped integration, content completion and final UX pass. (кроме вычитки KY носителем — владельческий пункт)
+- [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff. (владельческие внешние шаги: Apple Developer/подпись/TestFlight/store; агентская часть — done: review-аккаунт, документация)
+
+Финальные документы: [ведомость](EVO_PORTAL_FINAL_LEDGER_2026-09-20.md) · [handover и передача Astra](EVO_PORTAL_HANDOVER_2026-09-20.md).
+План продолжения: [EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md) (исполнитель — GPT-6 Astra).
 
 These checkboxes describe planned work, not existing feature readiness. Existing
 authentication, organization/case access and private assessment boundaries remain
@@ -10237,3 +10335,43 @@ production check additionally requires separately authorized deployment.
   <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html>,
   <https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html> and
   <https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html>.
+
+## 2026-09-20 — KB: уточнение фактической координации и обслуживания
+
+Дополнение к сохранённой записи Portal #914: перед применением KB schema
+в #912 были опубликованы передача владельца выпуска (5745678648, 22:13:39Z)
+и резерв 201–204 (5745702031, 22:17:32Z). Выпуск/перенос подтверждены владельцем
+в задаче Astra. Миграции применены одним координатором и проверены по ledger
+и исходным SHA-256; детали — в KB execution receipt.
+
+`evo-knowledge-maintenance.timer` установлен, active/enabled; service завершился
+с Result=success и ExecMainStatus=0. Независимый reviewer повторно подтвердил
+это read-only через SSH, включая успешный запуск в 22:47:08 UTC, отмеченный в его квитанции.
+Таким образом, отсутствие уведомления до apply и ещё не установленный timer
+не являются текущими незавершёнными пунктами KB. История записи #914 сохранена.
+
+Реальный защищённый перенос завершён (32 оригинала + 25 записей), обычный
+перенос и полная сверка ZIP продолжаются. Завершение всего плана не объявляется.
+
+
+## AST-5 portal functional parity — 2026-09-20
+
+Owner explicitly approved closing the four reported gaps. Execution contract:
+1. iPhone admission: display the real operational stage, with the same RU/KY meanings as web, honest empty/error states.
+2. iPhone Home: real lesson/test continuation, favorites with nearest intakes, application status, and assisted next actions; preserve native navigation and private read contracts.
+3. Web notifications: Atlas UI, RU/KY, authoritative access tier, and refresh for current operational routes; preserve runner state.
+4. Web new catalogue entries: server-owned first-publication timestamp, preserved through edits/unpublish/republish, bounded recent list of currently published universities; no fabricated historical dates. Schema number reserved only after current coordination.
+
+Each block is a separate PR with independent exact-head review and focused real-path evidence. Use existing authenticated QA identity and real catalogue/learning data; no fabricated fixtures or writes to customer records. Read-only Student checks and local Simulator/browser builds are authorized. Production schema application/release requires the existing coordination/authority; do not silently deploy. Final product-wide E2E, content expansion and App Store remain deferred. Record limitations, never infer full acceptance from CI.
+
+Official implementation references: [SwiftUI task lifetime](https://developer.apple.com/documentation/swiftui/view/task(id:priority:_:)), [SwiftUI refreshable](https://developer.apple.com/documentation/swiftui/view/refreshable(action:)), [PostgreSQL triggers](https://www.postgresql.org/docs/current/trigger-definition.html). Context7 documentation lookup was unavailable (monthly quota); official documentation used directly.
+
+
+## AST-5 iPhone Home clarity — 2026-09-20
+
+Execute `docs/design/portal/ios-home-refinement.md`: surface genuine unfinished
+work, keep admission actions/errors first, clarify module progress, and enlarge
+the native continuation button. Preserve the user's selected EVO appearance.
+Acceptance: Xcode build, real QA Home/continuation/lesson paths, RU/KY and
+dark/large-text inspection, then independent exact-head review and short CI.
+No production migration/release or deferred final E2E/content/App Store work.

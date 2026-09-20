@@ -179,7 +179,7 @@ function SnippetRow({
   const archiveLocked = archiving || archiveState.status === "saved";
 
   return (
-    <li className="border-t border-border py-4 first:border-t-0 first:pt-0 last:pb-0">
+    <li id={`reply-snippet-${snippet.replySnippetId}`} className="border-t border-border py-4 first:border-t-0 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

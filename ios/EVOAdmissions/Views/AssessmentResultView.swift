@@ -153,6 +153,11 @@ struct AssessmentResultView: View {
             HStack(spacing: 8) {
                 Image(systemName: item.correct ? "checkmark.circle.fill" : "xmark.circle")
                     .foregroundStyle(item.correct ? Color.green : Color("AccentColor"))
+                    // A11y (9b): вердикт несла только иконка+цвет — VoiceOver
+                    // теперь слышит «верно/неверно».
+                    .accessibilityLabel(item.correct
+                        ? Text("result_answer_correct")
+                        : Text("result_answer_incorrect"))
                 Text("\(index + 1). \(topicLabel(item.topic))")
                     .font(.subheadline)
             }

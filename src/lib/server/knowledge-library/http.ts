@@ -1,4 +1,5 @@
 import "server-only";
+import { searchKnowledgeCanonical } from "./search";
 import { importKnowledgeProtected } from "./protected-import";
 import { readKnowledgeDossier, readKnowledgeDossiers } from "./dossiers";
 import { knowledgeSecretsStatus, readKnowledgeSecret, saveKnowledgeSecret } from "./secrets";
@@ -97,6 +98,7 @@ export async function knowledgeHttp(request: Request, segments: string[]): Promi
         }
       }
     }
+    if (request.method === "GET" && route === "search-canonical" && segments.length === 1) return json(await searchKnowledgeCanonical(actor, url));
     if (request.method === "GET" && route === "list" && segments.length === 1) {
       const query = Object.fromEntries(url.searchParams) as KnowledgeQuery;
       if (url.searchParams.has("limit")) query.limit = Number(url.searchParams.get("limit"));

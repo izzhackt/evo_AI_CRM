@@ -127,6 +127,7 @@ export function buildV3Navigation(
   const home = allowed(HOME) ? HOME : null;
   const settings = allowed(SETTINGS) ? SETTINGS : null;
   const common = COMMON.filter((link) => allowed(link)
+    && (!staffCanAccessRoute(actor, "/v3/knowledge") || (link.id !== "documents" && link.id !== "reply-snippets"))
     && (link.id !== "inbox" || !staffPresentationCan(actor, "sales.read")));
   const visibleGroups = GROUPS.map((group) => ({
     ...group,

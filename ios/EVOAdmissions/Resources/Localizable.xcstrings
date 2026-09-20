@@ -1,6 +1,486 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "home_admission_heading" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ближайшие действия по делу"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Иш боюнча жакынкы аракеттер"
+          }
+        }
+      }
+    },
+    "home_open_admission" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть «Моё поступление»"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Менин кабыл алынышым» бөлүмүн ачуу"
+          }
+        }
+      }
+    },
+    "home_learning_heading" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обучение"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окуу"
+          }
+        }
+      }
+    },
+    "home_module_progress" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В модуле: %d из %d уроков"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модулдагы сабактар: %d / %d"
+          }
+        }
+      }
+    },
+    "home_start_lesson" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать урок"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабакты баштоо"
+          }
+        }
+      }
+    },
+    "home_resume_lesson" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить урок"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабакты улантуу"
+          }
+        }
+      }
+    },
+    "home_lessons_done" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все доступные уроки пройдены. Можно повторить материал."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жеткиликтүү сабактар өтүлдү. Материалды кайталоого болот."
+          }
+        }
+      }
+    },
+    "home_open_english" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все уроки"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык сабактар"
+          }
+        }
+      }
+    },
+    "home_open_tests" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все тесты и результаты"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык тесттер жана жыйынтыктар"
+          }
+        }
+      }
+    },
+    "home_test_progress" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отвечено: %d из %d"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жооп берилди: %d / %d"
+          }
+        }
+      }
+    },
+    "home_application_unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить анкету. Попробуйте ещё раз."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Анкета жүктөлгөн жок. Кайра аракет кылыңыз."
+          }
+        }
+      }
+    },
+    "home_open_application" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Посмотреть анкету"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Анкетаны көрүү"
+          }
+        }
+      }
+    },
+    "home_application_absent" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этого аккаунта анкета не найдена."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул аккаунттун анкетасы табылган жок."
+          }
+        }
+      }
+    },
+    "home_all_favorites" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всё избранное"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык тандалмалар"
+          }
+        }
+      }
+    },
+    "home_intake_pending" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даты ближайшего набора уточняются"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жакынкы кабыл алуунун даталары такталууда"
+          }
+        }
+      }
+    },
+    "home_intake_deadline" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подать до %@"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ чейин тапшыруу"
+          }
+        }
+      }
+    },
+    "home_intake_start" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начало: %@"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Башталышы: %@"
+          }
+        }
+      }
+    },
+    "adm_stage_label" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этап сопровождения"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коштоо этабы"
+          }
+        }
+      }
+    },
+    "adm_stage_custom" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "индивидуальный этап сопровождения"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "коштоонун жеке этабы"
+          }
+        }
+      }
+    },
+    "adm_stage_contract_confirmed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "договор подтверждён"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "келишим ырасталды"
+          }
+        }
+      }
+    },
+    "adm_stage_admissions_handoff" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "передано в приёмную"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "кабыл алуу тобуна өткөрүлдү"
+          }
+        }
+      }
+    },
+    "adm_stage_intake" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "приём дела"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ишти кабыл алуу"
+          }
+        }
+      }
+    },
+    "adm_stage_profile_and_route" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "выбор программы"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "программаны тандоо"
+          }
+        }
+      }
+    },
+    "adm_stage_documents" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сбор документов"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "документтерди чогултуу"
+          }
+        }
+      }
+    },
+    "adm_stage_applications" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подача через партнёра"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "өнөктөш аркылуу тапшыруу"
+          }
+        }
+      }
+    },
+    "adm_stage_decisions" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "решения университетов"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "университеттердин чечимдери"
+          }
+        }
+      }
+    },
+    "adm_stage_visa_and_predeparture" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "виза и подготовка к отъезду"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "виза жана жол сапарга даярдык"
+          }
+        }
+      }
+    },
+    "adm_stage_arrival_and_adaptation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "поездка и прибытие"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сапар жана келүү"
+          }
+        }
+      }
+    },
+    "adm_stage_completed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "поступление завершено"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "тапшыруу аяктады"
+          }
+        }
+      }
+    },
+    "adm_stage_closed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "дело закрыто"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "иш жабылды"
+          }
+        }
+      }
+    },
     "access_pending_body" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7583,6 +8063,40 @@
         }
       }
     },
+    "result_answer_correct" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верно"
+          }
+        }
+      }
+    },
+    "result_answer_incorrect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туура эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверно"
+          }
+        }
+      }
+    },
     "result_band_fallback" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8790,6 +9304,57 @@
         }
       }
     },
+    "universities_all_countries" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык өлкөлөр"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все страны"
+          }
+        }
+      }
+    },
+    "universities_all_levels" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык деңгээлдер"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все уровни"
+          }
+        }
+      }
+    },
+    "universities_country" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өлкө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страна"
+          }
+        }
+      }
+    },
     "universities_empty" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8803,6 +9368,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Опубликованных карточек пока нет"
+          }
+        }
+      }
+    },
+    "universities_filtered_empty_body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чыпкаларды алып салып көрүңүз. Жаңы маалымат текшерүүдөн жана жарыялоодон кийин чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попробуйте убрать фильтры. Новые сведения появятся после проверки и публикации."
+          }
+        }
+      }
+    },
+    "universities_filtered_empty_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул суроо боюнча жарыяланган карточкалар азырынча жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По этому запросу пока нет опубликованных карточек"
+          }
+        }
+      }
+    },
+    "universities_level" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Деңгээл"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уровень"
           }
         }
       }
@@ -8841,6 +9457,142 @@
         }
       }
     },
+    "universities_map_close_card" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жабуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть"
+          }
+        }
+      }
+    },
+    "universities_map_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта жүктөлгөн жок. Тизме толук иштейт — «Тизме» көрүнүшүнө өтүңүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карту не удалось загрузить. Список работает полностью — переключитесь на «Список»."
+          }
+        }
+      }
+    },
+    "universities_map_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Университеттердин картасы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта университетов"
+          }
+        }
+      }
+    },
+    "universities_map_open_card" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карточканы ачуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть карточку"
+          }
+        }
+      }
+    },
+    "universities_map_shown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Картада: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На карте: %lld"
+          }
+        }
+      }
+    },
+    "universities_map_without_point" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Картада чекити жоктор: %lld — бул ЖОЖдор тизмеде бар."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без точки на карте: %lld — эти вузы есть в списке."
+          }
+        }
+      }
+    },
+    "universities_reset_filters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чыпкаларды алып салуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить фильтры"
+          }
+        }
+      }
+    },
+    "universities_search_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Университет издөө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найти университет"
+          }
+        }
+      }
+    },
     "universities_unavailable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8854,6 +9606,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось загрузить каталог. Это не означает, что опубликованных университетов нет."
+          }
+        }
+      }
+    },
+    "universities_view_list" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тизме"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список"
+          }
+        }
+      }
+    },
+    "universities_view_map" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Карта"
+          }
+        }
+      }
+    },
+    "universities_view_toggle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каталогдун көрүнүшү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Представление каталога"
           }
         }
       }
@@ -9181,6 +9984,23 @@
         }
       }
     },
+    "university_official_information" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расмий маалымат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Официальная информация"
+          }
+        }
+      }
+    },
     "university_photo_by" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9211,6 +10031,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Кадрирование в карточке."
+          }
+        }
+      }
+    },
+    "university_photo_details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сүрөт жөнүндө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "О фотографии"
           }
         }
       }

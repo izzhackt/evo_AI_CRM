@@ -3491,3 +3491,20 @@ main.pt-page > .pt-card {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
 }
+
+/* Live notifications share the Atlas header; no second navigation strip. */
+.pt-notification-updates { position: relative; flex-shrink: 0; }
+.pt-notification-updates .pt-bell { position: relative; }
+.pt-notification-count {
+  position: absolute; top: 2px; right: 0; min-width: 18px; padding: 1px 4px;
+  border-radius: 999px; background: var(--pt-accent); color: var(--pt-on-accent);
+  font-size: var(--pt-size-caption); font-weight: 600; line-height: 1.3; text-align: center;
+}
+.pt-notification-error {
+  position: fixed; z-index: 20; top: calc(var(--pt-topbar-height) + 8px);
+  right: 16px; width: min(320px, calc(100vw - 32px));
+  padding: 12px; border: 1px solid var(--pt-line); border-radius: var(--pt-radius-control);
+  background: var(--pt-surface); color: var(--pt-text); font-size: var(--pt-size-caption);
+}
+.pt-notification-error p { margin: 0; }
+.pt-notification-error button { min-height: 44px; }

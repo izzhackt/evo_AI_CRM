@@ -94,82 +94,116 @@ struct UniversityDetailView: View {
     }
 
     private func content(for item: UniversityCatalogItem) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                UniversityPhotoView(photoKey: item.content.photoKey)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.content.name)
+                            .font(.title2.bold())
+                            .accessibilityAddTraits(.isHeader)
+                        Text(universityPlaceLine(item.content))
+                            .font(.subheadline)
+                        if !item.content.programs.isEmpty {
+                            Button {
+                                proxy.scrollTo("university-programs", anchor: .top)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Text("university_programs_heading")
+                                    Text(item.content.programs.count, format: .number)
+                                        .fontWeight(.semibold)
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "arrow.down")
+                                        .accessibilityHidden(true)
+                                }
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(item.content.name)
-                        .font(.title2.bold())
-                    Text(universityPlaceLine(item.content))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    UniversityPhotoView(photoKey: item.content.photoKey)
+                        .tint(.primary)
+
+                    if model.refreshFailed {
+                        Text("university_card_refresh_failed")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    }
+
+                    Text(item.content.overview)
+                        .font(.body)
+
+                    // Запрос консультации из карточки вуза (миграция 197).
+                    Button {
+                        showsConsultationSheet = true
+                    } label: {
+                        Label("consultation_cta", systemImage: "bubble.left.and.bubble.right")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Text("university_programs_heading")
+                        .font(.title3.bold())
+                        .accessibilityAddTraits(.isHeader)
+                        .id("university-programs")
+
+                    ForEach(item.content.programs) { program in
+                        UniversityProgramCard(program: program)
+                            .tint(.primary)
+                    }
+
+                    if !item.content.notes.isEmpty {
+                        Text(item.content.notes)
+                            .font(.footnote)
+                    }
+
+                    factsCard(item.content)
+                        .tint(.primary)
                 }
-
-                if model.refreshFailed {
-                    Text("university_card_refresh_failed")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                }
-
-                Text(item.content.overview)
-                    .font(.body)
-
-                // Запрос консультации из карточки вуза (миграция 197).
-                Button {
-                    showsConsultationSheet = true
-                } label: {
-                    Label("consultation_cta", systemImage: "bubble.left.and.bubble.right")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-
-                factsCard(item.content)
-
-                Text("university_programs_heading")
-                    .font(.title3.bold())
-
-                ForEach(item.content.programs) { program in
-                    UniversityProgramCard(program: program)
-                }
-
-                if !item.content.notes.isEmpty {
-                    Text(item.content.notes)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                .padding(20)
             }
-            .padding(20)
         }
         .navigationTitle(item.content.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color(.systemBackground), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .refreshable { await model.load(institutionId: institutionId) }
     }
 
     private func factsCard(_ content: UniversityContent) -> some View {
         VStack(alignment: .leading, spacing: 10) {
+            Divider()
+                .padding(.bottom, 8)
+            Text("university_official_information")
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            if let verified = CatalogDate.dayLabel(from: content.verifiedOn, locale: AppLocale.current) {
+                Text(String(format: String(localized: "university_verified_on"), verified))
+                    .font(.footnote)
+            }
             if let url = URL(string: content.websiteUrl) {
                 Link(destination: url) {
                     Label("university_website", systemImage: "safari")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
             }
             if let url = URL(string: content.sourceUrl) {
                 Link(destination: url) {
                     Label("university_card_source", systemImage: "doc.text.magnifyingglass")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
-            }
-            if let verified = CatalogDate.dayLabel(from: content.verifiedOn, locale: AppLocale.current) {
-                Text(String(format: String(localized: "university_verified_on"), verified))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -190,15 +224,16 @@ struct UniversityPhotoView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 210)
+                            .frame(height: 180)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .accessibilityLabel(photo.caption)
                     case .failure:
                         placeholder("university_photo_failed")
                     case .empty:
                         ZStack {
                             RoundedRectangle(cornerRadius: 14)
                                 .fill(.thinMaterial)
-                                .frame(height: 210)
+                                .frame(height: 180)
                             ProgressView()
                         }
                     @unknown default:
@@ -206,31 +241,41 @@ struct UniversityPhotoView: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(photo.caption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 4) {
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(photo.caption)
+                            .font(.footnote)
                         if let sourceUrl = URL(string: photo.sourceUrl) {
-                            Link(
-                                String(format: String(localized: "university_photo_by"), photo.author),
-                                destination: sourceUrl
-                            )
+                            Link(destination: sourceUrl) {
+                                Text(String(format: String(localized: "university_photo_by"), photo.author))
+                                    .underline()
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
                         } else {
                             Text(String(format: String(localized: "university_photo_by"), photo.author))
                         }
-                        Text("·")
                         if let licenseUrl = URL(string: photo.licenseUrl) {
-                            Link(photo.license, destination: licenseUrl)
+                            Link(destination: licenseUrl) {
+                                Text(photo.license)
+                                    .underline()
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
                         } else {
                             Text(photo.license)
                         }
+                        Text("university_photo_crop")
+                            .font(.footnote)
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    Text("university_photo_crop")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                } label: {
+                    Text("university_photo_details")
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
             }
         } else {
@@ -259,6 +304,7 @@ struct UniversityProgramCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(program.title)
                 .font(.headline)
+                .accessibilityAddTraits(.isHeader)
             Text(levelLabel(program.level))
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 10)
@@ -274,31 +320,43 @@ struct UniversityProgramCard: View {
             if !program.summary.isEmpty {
                 Text(program.summary)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
 
             ForEach(Array(program.intakes.enumerated()), id: \.offset) { _, intake in
+                Divider()
+                    .padding(.vertical, 4)
                 UniversityIntakeView(intake: intake)
             }
 
             if let url = URL(string: program.sourceUrl) {
-                Link("university_program_page", destination: url)
-                    .font(.footnote)
+                Link(destination: url) {
+                    Label("university_program_page", systemImage: "arrow.up.right")
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func factLine(_ key: LocalizedStringKey, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(key)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.subheadline)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(key).font(.footnote)
+                Text(value).font(.subheadline.weight(.medium))
+            }
+            .fixedSize(horizontal: true, vertical: false)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(key).font(.footnote)
+                Text(value).font(.subheadline.weight(.medium))
+            }
+            .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func levelLabel(_ level: String) -> String {
@@ -313,9 +371,9 @@ struct UniversityIntakeView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(intake.label)
                 .font(.subheadline.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
             Text(statusText)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(.footnote.weight(.medium))
 
             if let start = startLine {
                 Text(start)
@@ -328,16 +386,19 @@ struct UniversityIntakeView: View {
             if !intake.note.isEmpty {
                 Text(intake.note)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
             if let url = URL(string: intake.sourceUrl) {
-                Link("university_intake_source", destination: url)
-                    .font(.caption)
+                Link(destination: url) {
+                    Text("university_intake_source")
+                        .underline()
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var statusText: LocalizedStringKey {

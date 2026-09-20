@@ -9504,6 +9504,23 @@
         }
       }
     },
+    "university_official_information" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Расмий маалымат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Официальная информация"
+          }
+        }
+      }
+    },
     "university_photo_by" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9534,6 +9551,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Кадрирование в карточке."
+          }
+        }
+      }
+    },
+    "university_photo_details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сүрөт жөнүндө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "О фотографии"
           }
         }
       }

@@ -87,7 +87,10 @@ Dynamic Type и сохранение фокуса после ошибки вхо
 подтверждённой timezone не превращаются в «истёк» через fallback UTC; SQL214
 проверяет точный момент. Текущие `universityIntakeStatusKey`/`universityIntakeLabel`
 имеют такое упрощение: в затронутых представлениях убрать ложную достоверность,
-не менять SQL. Сохранённый `deadlineStateAtSelection=needs_confirmation` остаётся
+не менять SQL. Текущие web Program-фильтры в portal Detail и staff UniversityCatalogue
+полностью скрывают unknown/needs_reconfirmation. В новом выборе такие реальные
+наборы доступны с пояснением неопределённого срока; старый фильтр нельзя перенести
+в selector. Политику видимости целевого native списка сверить так же. Сохранённый `deadlineStateAtSelection=needs_confirmation` остаётся
 видимым уточнением срока; это не запрет на уже созданную подготовку.
 
 ## Экраны и права
@@ -102,7 +105,13 @@ Case берётся из `VerifiedStudentPortalAuthority.studentCaseId`; route I
 
 **CRM.** В `UniversityProgramsTab` добавляется каталоговый picker с конкретным
 набором и действие214. Ручной `ApplicationCreateDialog` и legacy applications,
-статусы/дедлайны/partner packets остаются. Case видимость не заменяет
+статусы/дедлайны/partner packets остаются. Каталоговый picker отдельно требует
+`catalog.read`: его denied/unavailable не закрывает ручной путь и чтение уже
+сохранённых подготовок. Новый ограниченный server action использует
+`readStaffUniversities(actor, filters, institutionId)`; прежний search action
+возвращает только id/name/country и для214 недостаточен, его контракт сохраняется.
+Подготовка подключается к существующей application row, без второй визуальной
+копии той же заявки. Case видимость не заменяет
 `application.manage`; чтение требований требует `document.read.full`, init —
 `document.manage`, preview не пишет. Успешный выбор с отсутствующим document.manage
 не становится ошибкой всего выбора: сотрудник видит сохранённую заявку, требования
@@ -136,7 +145,8 @@ slot_missing/removed, application_link_missing и metadata_changed не дают
 - Student web: detail route/component каталога, portal home, новая preparation
   detail/list, локальный CSS текущего portal, `src/lib/portal/i18n.ts` и существующие
   словари по их текущей структуре; Docs anchor/пояснение без смены upload protocol.
-- Staff: `UniversityProgramsTab.tsx`, новый catalog picker и preparation panel,
+- Staff: `UniversityProgramsTab.tsx`, новый catalog picker, ограниченный catalog
+  server action и preparation panel,
   точечное подключение в текущий admissions workspace; legacy dialog не заменяется.
 - iPhone: новый preparation model/view, `UniversityDetailView`, `MyAdmissionView`,
   `AdmissionDocumentsView`, передача контекста через текущие catalog/favorites/home

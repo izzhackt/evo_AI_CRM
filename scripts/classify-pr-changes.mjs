@@ -44,6 +44,10 @@ const INBOX_DEPENDENCY_PATHS = new Set([
   "agent-lead2-inbox/package.json",
   "agent-lead2-inbox/package-lock.json",
 ]);
+const LEAD_AGENT_DEPENDENCY_PATHS = new Set([
+  "evo-lead-agent/pyproject.toml",
+  "evo-lead-agent/uv.lock",
+]);
 const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
   ".env.example",
@@ -163,7 +167,8 @@ function isOrdinaryProsePath(path) {
 }
 
 function isKnownCodePath(path) {
-  return INBOX_DEPENDENCY_PATHS.has(path)
+  return LEAD_AGENT_DEPENDENCY_PATHS.has(path)
+    || INBOX_DEPENDENCY_PATHS.has(path)
     || KNOWN_CODE_PATHS.has(path)
     || hasPrefix(path, KNOWN_CODE_PREFIXES)
     || /^playwright\..+\.config\.ts$/u.test(path);
@@ -185,7 +190,10 @@ export function classifyChangedEntries(entries) {
   ]);
   const strongPaths = paths.filter((path) => !knownLightweight.has(path));
   const inboxDependencyPaths = paths.filter((path) => INBOX_DEPENDENCY_PATHS.has(path));
-  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path));
+  const leadAgentDependencies = paths.some((path) => LEAD_AGENT_DEPENDENCY_PATHS.has(path)
+    || path === "scripts/smoke-lead-agent-dependencies.py"
+    || path === ".github/workflows/evo-fast-pr-checks.yml");
+  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path) && !LEAD_AGENT_DEPENDENCY_PATHS.has(path));
   const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path));
   const codeRequired = strongPaths.length > 0;
   const buildRequired = strongPaths.some(requiresProductionBuild) || unknownPaths.length > 0;
@@ -199,6 +207,7 @@ export function classifyChangedEntries(entries) {
     lint: rootCodePaths.length > 0,
     build: buildRequired,
     inbox_dependencies: inboxDependencyPaths.length > 0,
+    lead_agent_dependencies: leadAgentDependencies,
     unknown: paths.length === 0 || unknownPaths.length > 0,
     paths,
     ordinary_prose_paths: ordinaryProsePaths,

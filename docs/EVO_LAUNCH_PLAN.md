@@ -10389,3 +10389,19 @@ explicit ownership; one coordinator integrates shared contracts and components.
 The scope includes an inventory before removing/moving controls and a truthful
 per-page evidence matrix. Final E2E, content expansion, App Store and release remain
 separate. The first documentation pass is not a completed all-page runtime audit.
+
+
+## Parallel A/B execution — 2026-09-20
+
+Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
+Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+(items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
+installation and real local HTTP smoke, with unknown paths still fail-closed.
+This unblocks assessment of #847, not production release or provider acceptance.
+Root coordinates main/schema/release; A owns these shared planning appendices.
+
+B-1 (item 26): validate migrated photo objectPath against the existing manifest
+contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
+No Storage writes, license/catalog changes or broader bundle refactor. Validate
+resolver, all real manifest entries and read-only public URL/hash; authenticated
+render is not claimed. B owns its runtime files and detailed lane plan.

@@ -34687,3 +34687,16 @@ slots других программ того же дела. Изменённые
 без молчаливого reuse/retyping/replacement. Новый113 link сохраняет aggregate
 slot-version bump. Root согласовал правила legacy/reuse/metadata; runtime
 ждёт main946+960. Wire фиксирует детали принятого API-контракта.
+
+
+### B3c /218 — локальное подтверждение RPC и DTO, 2026-09-21
+
+[QA B218](platform/b3c-application-requirements-qa.md): exact source `bf52b38a`,
+SQL `b20efabd…18f9d`, два независимых source review, schema-only apply и13 фаз
+обычного Auth на прежнем QA-деле — PASS. Exact/new-request replay, staff existing
+revision, foreign/conflict denials, metadata/unlink/no-auto-repair и явное
+восстановление проверены с read-only before/after. Реальные TS-ответы и59 Swift
+payloads декодированы; новое UI не заявляется. Root/A/B окна разделены, B writer
+освобождён. Старые перечни и функции сохранены, Фото/Паспорт — только EVO starter.
+Полный перечень/mapping старых файлов, draft/submit/package/review и UI остаются
+обязательными следующими срезами; весь admissions-план не завершён.

@@ -27,7 +27,7 @@ export async function searchKnowledgeCanonical(actor: ActivePlatformActor, url: 
       || ((kind === "case" || kind === "document") && !caseId)) throw new KnowledgeError("knowledge_response_invalid");
     const href = kind === "document" || kind === "case" ? `/v3/knowledge?area=clients&case=${caseId}`
       : kind === "snippet" ? `/v3/knowledge?section=snippets#reply-snippet-${id}`
-      : `/v3/knowledge?section=documents${folderId ? `&documentFolder=${folderId}` : ""}`;
+      : `/v3/knowledge?section=documents&documentFolder=${folderId ?? "company"}`;
     const downloadHref = kind === "document" ? `/api/v2/document-versions/${id}/download`
       : kind === "company" ? `/api/v3/company-file-versions/${id}/download` : null;
     return { id, kind: kind as KnowledgeCanonicalKind, title, context, href, downloadHref, updatedAt };

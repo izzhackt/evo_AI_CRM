@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useActionState,
   useEffect,
@@ -675,7 +675,11 @@ export function FileManager({
   createFolderRequestId: string;
   createFileRequestId: string;
 }>) {
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const params = useSearchParams();
+  const [currentId, setCurrentId] = useState<string | null>(() => {
+    const requested = embedded ? params.get("documentFolder") : null;
+    return requested && folders.some((folder) => folder.id === requested) ? requested : null;
+  });
   const [query, setQuery] = useState("");
   const byId = useMemo(
     () => new Map(folders.map((folder) => [folder.id, folder] as const)),

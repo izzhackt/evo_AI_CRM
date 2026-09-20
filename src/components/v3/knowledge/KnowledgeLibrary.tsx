@@ -7,6 +7,7 @@ import { command, configureKnowledgeCommands, knowledgeFetch, knowledgeSourceKey
 import { KnowledgeImport } from "./KnowledgeImport";
 import { KnowledgeSecret } from "./KnowledgeSecret";
 import { KnowledgeDossiers } from "./KnowledgeDossiers";
+import { KnowledgeCanonicalSearch } from "./KnowledgeCanonicalSearch";
 import { KnowledgeAssignCase } from "./KnowledgeAssignCase";
 import { KnowledgeExport } from "./KnowledgeExport";
 import { KnowledgeEditor } from "./KnowledgeEditor";
@@ -192,10 +193,11 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
           <input ref={directoryRef} type="file" multiple hidden {...{ webkitdirectory: "" }} onChange={(event) => { void upload(event.target.files); event.target.value = ""; }} />
         </div>
         <div className={styles.actions}>{area === "secrets" && <button type="button" onClick={() => setNewSecret(true)}>Добавить доступ</button>}<KnowledgeExport ids={parentId ? [parentId] : undefined} area={area} label="Выгрузить папку" /><KnowledgeExport label="Выгрузить всю базу" /></div>
-        <div className={styles.search}><input type="search" aria-label="Поиск по базе знаний" placeholder="Найти материал" value={search} onChange={(event) => setSearch(event.target.value)} /><select aria-label="Область поиска" value={searchScope} onChange={(event) => setSearchScope(event.target.value)}><option value="all">Вся база</option><option value="folder">Текущая папка</option></select></div>
+        <div className={styles.search}><input type="search" maxLength={240} aria-label="Поиск по базе знаний" placeholder="Найти материал" value={search} onChange={(event) => setSearch(event.target.value)} /><select aria-label="Область поиска" value={searchScope} onChange={(event) => setSearchScope(event.target.value)}><option value="all">Вся база</option><option value="folder">Текущая папка</option></select></div>
         {error && <div className={styles.error} role="alert">{error}<button type="button" onClick={reload}>Повторить</button></div>}
         {status && <p role="status" aria-live="polite" className={styles.status}>{status}</p>}
-        {area === "clients" && !parentId && view === "list" && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} search={search} />}
+        {search.trim() && searchScope === "all" && <KnowledgeCanonicalSearch key={search.trim()} search={search.trim()} />}
+        {area === "clients" && !parentId && view === "list" && !(search.trim() && searchScope === "all") && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} search={search} />}
         {selected.size > 0 && <div className={styles.selection}>
           <span>Выбрано: {selected.size}</span><KnowledgeExport ids={[...selected]} label="Выгрузить выбранное" />
           {view === "trash" ? <button type="button" disabled={busy} onClick={() => void mutate("restore")}>Восстановить</button> : <>
@@ -215,7 +217,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
             <td>{kindNames[item.kind]}</td><td>{new Date(item.updated_at).toLocaleDateString("ru")}</td>
           </tr>)}</tbody>
         </table>
-        {!loading && !error && !items.length && <div className={styles.empty}><p>{search ? "Ничего не найдено" : view === "trash" ? "Корзина пуста" : "Материалов пока нет"}</p>{view === "list" && !search && area !== "secrets" && <button type="button" onClick={() => { setName(""); setDialog("page"); }}>Создать страницу</button>}</div>}
+        {!loading && !error && !items.length && <div className={styles.empty}><p>{search ? "В материалах библиотеки ничего не найдено" : view === "trash" ? "Корзина пуста" : "Материалов пока нет"}</p>{view === "list" && !search && area !== "secrets" && <button type="button" onClick={() => { setName(""); setDialog("page"); }}>Создать страницу</button>}</div>}
         {loading && <p className={styles.status} role="status">Загрузка…</p>}
         {page?.hasMore && <button type="button" disabled={loading} onClick={() => void more()}>Показать ещё</button>}
         </div>

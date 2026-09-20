@@ -179,3 +179,44 @@ candidate снимков пока нет. Private evidence: `/private/tmp/evo-b3
 review, required CI и независимое exact-head review итоговых артефактов.
 Полный admissions-план, требования/сопоставление документов, versioned packages
 и итоговый E2E этим PR не закрываются.
+
+## Покрытие каталога: разрешённая metadata inventory после222
+
+Выполнен один SELECT-only inventory существующей локальной организации Student1
+на ledger001–222 (`2026-09-20T23:46:47Z`). Observer сверил Unix Docker endpoint,
+контейнер/project/workdir с exact release receipt222; app server, Auth, UI,
+baseline freeze и business writes не запускались. Inventory advisory: это не
+разрешение на последующий выбор и не runtime acceptance.
+
+В latest published карточках **с наборами** найдено5 вузов,5 программ,6 наборов:
+
+| Карточка | Наборы | С постоянным ID | Новый выбор для этого дела |
+| --- | ---: | ---: | --- |
+| Guangdong University of Technology | 1 | 1 | Уже сохранён; доступно открытие |
+| South China University of Technology | 1 | 0 | Недоступен без технической публикации |
+| University of Nottingham Ningbo China | 1 | 0 | Недоступен без технической публикации |
+| Xi’an Jiaotong-Liverpool University | 1 | 0 | Недоступен без технической публикации |
+| Zhejiang University of Technology | 2 | 0 | Недоступен без технической публикации |
+
+UUID проверены отдельно по строгому214 format (lowercase, version1–8,
+variant8/9/a/b), поскольку predictor observer допускает более широкий UUID.
+Дело active/portal activated, без country checklist;218 material blockers не
+найдены. Но допустимых ещё не выбранных tuple здесь **нет**. Existing Student2
+может рассматриваться только после отдельной проверки его текущих прав/дела и
+согласования exact target; автоматического переключения нет.
+
+Это продуктовый пробел покрытия, а не только ограничение QA. Продолжение уже
+описано в [контракте B3a](../design/portal/intake-identities-slice-2026-09-20.md):
+отдельно согласованные technical `intake_ids` stage/review/publication211,
+привязанные к exact текущей редакции. Сохраняются все факты, порядок, старые ID,
+verifiedOn и immutable history; меняются только отсутствовавшие идентификаторы.
+После публикации нужны обычные Student web/iPhone readback и итоговые counts
+identified/legacy/blocked. Новый writer/backfill механизма для B3d не добавляется.
+Никакие публикации не выполнялись ради успешного теста.
+
+Эти числа относятся только к названной локальной организации и карточкам,
+имеющим наборы. Они не описывают managed/production каталог, пустые карточки или
+исторический managed manifest65/131. По одному GDUT весь каталог готовым не
+объявляется. Private inventory SHA256:
+`4d924934c6d40cfd9e00d1b1e3e60779122a3361dc0c5b66efd46ab2c973b767`;
+артефакты `/private/tmp/evo-b3d-ui-observer/`, без публикации identity/credentials.

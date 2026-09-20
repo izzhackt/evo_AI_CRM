@@ -39,7 +39,7 @@ review одобрены. Это unit/source/harness-проверки; полно
 | Пункты | Срез и приёмка | Зависимость / граница |
 |---|---|---|
 | 3 | #905 MERGED; три тестовых файла сверены, 50/50 scoped checks | Старый отчёт 2179 не новый прогон; business acceptance не заявляется |
-| 1 | #935: актуализировать SalesManager, seller и месяц по sale date | Root координирует conflict и migration 208; shared QA ещё не разрешена |
+| 1 | #935 MERGED `f5198c37`: Sales Manager, seller и месяц по sale date; reviewed local acceptance сохранена | Managed SQL/release не выполнены; локальная квитанция относится к 001–208 |
 | 6, 10 | Текущая воронка и мобильное управление | Реальная staff UI, сохранение stage/ownership |
 | 7 | Продажи: server search/filter, валюты, readonly detail и back | Не суммировать разные валюты; права и реальный UI |
 | 8 | Заявки: фильтр до limit, pagination и полный «Все» | Проверка server query и списка |

@@ -38,6 +38,9 @@ final class AdmissionHubModel: ObservableObject {
             )
             isLoaded = true
         } catch {
+            overview = nil
+            actions = []
+            isLoaded = false
             loadFailed = true
         }
     }
@@ -64,6 +67,16 @@ struct MyAdmissionView: View {
                         Text(statusKey)
                     } label: {
                         Text("home_case_status_label")
+                    }
+                    if let stage = model.overview.flatMap({ AdmissionStageLabel.key(for: $0.operationalStage) }) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("adm_stage_label")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(stage)
+                                .font(.headline)
+                        }
+                        .accessibilityElement(children: .combine)
                     }
                     if let nextAction = session.portalCase.nextAction, !nextAction.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
@@ -266,6 +279,28 @@ private struct AdmissionActionRow: View {
         case .uploadDocument: return "adm_action_upload"
         case .replaceDocument: return "adm_action_replace"
         case .payment: return "adm_action_payment"
+        }
+    }
+}
+
+/// Shared web/iPhone stage vocabulary; absent values are not invented.
+enum AdmissionStageLabel {
+    static func key(for stage: String) -> LocalizedStringKey? {
+        let value = stage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        switch value {
+        case "contract_confirmed": return "adm_stage_contract_confirmed"
+        case "admissions_handoff": return "adm_stage_admissions_handoff"
+        case "intake": return "adm_stage_intake"
+        case "profile_and_route": return "adm_stage_profile_and_route"
+        case "documents": return "adm_stage_documents"
+        case "applications": return "adm_stage_applications"
+        case "decisions": return "adm_stage_decisions"
+        case "visa_and_predeparture": return "adm_stage_visa_and_predeparture"
+        case "arrival_and_adaptation": return "adm_stage_arrival_and_adaptation"
+        case "completed": return "adm_stage_completed"
+        case "closed": return "adm_stage_closed"
+        default: return "adm_stage_custom"
         }
     }
 }

@@ -33115,3 +33115,8 @@ Storage, включая рекомендацию backoff для SlowDown.
 сроки и действующие бизнес-действия сохраняются. Нет миграций или серверного
 выпуска. Проверка — сборка и реальный изменённый экран в текущем QA Simulator;
 общий финальный E2E и App Store readiness не возобновляются.
+
+
+## 2026-09-20 — AST-5 scoped portal parity implementation
+
+Owner accepted the four gaps reported in this task: iPhone operational stage and Home parity, web catalogue novelty and notifications. Implement as four independently reviewed PRs per continuation plan. Add first-publication persistence rather than relabel current reviewed_at as novelty; keep existing catalogue DTO stable by using a dedicated recent-publications read RPC. Timestamp history/backfill policy and exact migration number will be recorded before schema code. No final E2E/content/App Store work or production writes are implied. Operational-stage empty values remain absent; unknown values use the existing localized custom-stage wording, never raw internal identifiers.

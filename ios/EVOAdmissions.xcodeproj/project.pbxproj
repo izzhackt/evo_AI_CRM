@@ -22,6 +22,7 @@
 		1BDC9CAAAABDAA7C6E7FA15B /* UniversityMapPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D0DCF549065FDBFC3000A7 /* UniversityMapPolicy.swift */; };
 		2113273D75E7D064E2AF1115 /* UniversityCatalogFilterPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D552D1FAB72B356FDF47B8 /* UniversityCatalogFilterPolicy.swift */; };
 		2AB8613C508450F9DB82FA37 /* CatalogPreparationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */; };
+		337B5C2E9571C48347652970 /* ApplicationRequirementsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE33C27219C730ACC8BE309 /* ApplicationRequirementsModels.swift */; };
 		2EBF539E80CC079239E5AD98 /* ProfessionDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1649B16320704E7A7DCB7DC /* ProfessionDecodingTests.swift */; };
 		2F5CBCD5E81892EAB2A05255 /* ProfessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3A48D9B01EEF280AD9AD95 /* ProfessionModels.swift */; };
 		381095ABB7804218C6DAB59F /* AdmissionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32E74D315F6147AFDA53377 /* AdmissionModels.swift */; };
@@ -185,6 +186,7 @@
 		D84614ADA0499B575C9815ED /* ReviewRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewRunnerView.swift; sourceTree = "<group>"; };
 		D8F3E3772ADCC2E62305E0B8 /* LearningModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningModels.swift; sourceTree = "<group>"; };
 		DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPreparationModels.swift; sourceTree = "<group>"; };
+		7FE33C27219C730ACC8BE309 /* ApplicationRequirementsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationRequirementsModels.swift; sourceTree = "<group>"; };
 		DD0867288823B7DC31CC77AD /* ApplicationIntakePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIntakePolicy.swift; sourceTree = "<group>"; };
 		E2D38B1BB66FCFD684D4F792 /* InviteEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteEntryView.swift; sourceTree = "<group>"; };
 		EC32638A6EB200A2EF0217B0 /* MessagesThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesThreadView.swift; sourceTree = "<group>"; };
@@ -349,6 +351,7 @@
 				91DA8F62CFB34037771B79D1 /* ApplicationIntakeModels.swift */,
 				DD0867288823B7DC31CC77AD /* ApplicationIntakePolicy.swift */,
 				12EC9356EC02D17EF1D12164 /* ApplicationIntakeTransfer.swift */,
+				7FE33C27219C730ACC8BE309 /* ApplicationRequirementsModels.swift */,
 				28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */,
 				DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */,
 				A437F63DD1A066A64F901E16 /* ConsultationModels.swift */,
@@ -545,6 +548,7 @@
 				3DC1B17D442042B0F376579D /* ApplicationIntakeModels.swift in Sources */,
 				581F1E43B1C6A533A50176A2 /* ApplicationIntakePolicy.swift in Sources */,
 				C06B819DB3A34C38FFD852FD /* ApplicationIntakeTransfer.swift in Sources */,
+				337B5C2E9571C48347652970 /* ApplicationRequirementsModels.swift in Sources */,
 				CF2D2E0E22170543B0179AFB /* ApplicationStatusView.swift in Sources */,
 				A58A3762C665294A1745FEC6 /* ApplicationWizardView.swift in Sources */,
 				03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */,

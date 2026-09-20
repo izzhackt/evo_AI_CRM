@@ -33125,3 +33125,8 @@ Owner accepted the four gaps reported in this task: iPhone operational stage and
 ### AST-5 Home implementation details
 
 Home uses independent read sections, maximum four favorites in existing server order, lesson draft before first incomplete lesson, first instrument with draft as web. Native TabView selection opens existing English/admission/university tabs rather than nested navigation stacks. Application reads own_student_application_v1 only for approved tier; an absent row is stated as absent, no approval status invented. Existing admission action row is reused. Nearest-intake policy mirrors current web (UTC day/month and open/announced only). Read paths refresh on entry, foreground and pull; test sheet dismissal reloads attempt state.
+
+
+### AST-5 notifications implementation details
+
+Move the polling component from v3 into the existing Atlas header bell; remove duplicate status strip. Render for assisted tier, matching notifications navigation; derive tier solely from actor.accessTier. Keep 30-second visible-page polling and focus/online/manual resume, no duplicate initial refresh. Add /portal/home to operational refresh; retain existing operational routes, exclude learning/test runners. RU/KY unread/loading/error/retry labels; retry is keyboard accessible. No new notifications or mark-read writes for validation. Next.js documents router.refresh as merging server payload while preserving unaffected client state: https://nextjs.org/docs/app/api-reference/functions/use-router.

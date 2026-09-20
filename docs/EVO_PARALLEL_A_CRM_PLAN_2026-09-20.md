@@ -114,3 +114,11 @@ TypeScript/lint/source guards/syntax и read-only UI пройдены. Прим�
 но старый literal-role predicate213 отказывает42501 при editable UI. Это
 блокирует завершение30. Готовится узкая correction только213; старые receipts
 и ledger сохранены, положительные QA writes пока не разрешены/не выполнены.
+
+После contract amendmentd5216ab6 и двух независимых approvals exactae83aedd
+bounded local candidate correction выполнена: новый213SHA7e7e1fe8, прежние
+function ACL/OID/attributes и ledger001–212 сохранены. Original apply history
+остаётся, correction записана отдельно. Actual ordinary Auth read/denials10/10
+PASS с unchanged business hashes/Auth users count. Literal-role blocker снят.
+Positive save/sibling persistence/replay/restore остаются owner-gated HOLD;
+пункт30 не завершён и release не заявляется. См. обновлённый CRM-30 QA receipt.

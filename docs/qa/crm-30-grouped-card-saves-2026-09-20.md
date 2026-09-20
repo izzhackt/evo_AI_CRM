@@ -3,11 +3,11 @@
 Исходный main285e784e (#945), контрактdfb55be до кода, runtimeeb4502c.
 Дата20.09.2026. Worktree `crm-grouped-card-saves`, Node22.23.1.
 
-Текущее состояние после локального применения:213 установлена, но проверка
-обнаружила блокирующий literal-role gate для существующего custom SalesManager.
-Source correction двух predicates подготовлена; локально пока действует исходная213.
-Положительные saves не выполнены. Подробности ниже; первоначальные разделы
-«до применения» и «ещё не доказано» сохраняют хронологию исходного receipt.
+Текущее состояние: локальная213 исправлена до reviewed SHA7e7e1fe8; custom staff
+проходит scoped authority и достигает field/revision validation. Два независимых
+source/script review и10 actual Auth read/denials PASS, business hashes неизменны.
+Положительные saves не выполнены. Первоначальные разделы ниже сохраняют
+хронологию первоначального применения и обнаруженного блокера.
 
 ## Исправление
 
@@ -140,3 +140,51 @@ source и script/transaction. Исправлен local denial harness: custom st
 проверяется по настоящему Auth + staff_access_snapshot/permission, Student —
 по прежнему отдельному identity path. Его read/denials ещё не выполнены.
 Owner positive packet остаётся HOLD.
+
+## Выполненная bounded local correction и10 проверок
+
+Два независимых reviewers (pr935_spec, pr935_standards) одобрили exact source
+`ae83aedd863ed70b08d4fe989a53bb69d5e3cc4e`, script
+`bdc9fdd59ecb2f5042ba5eff696ab82f642d476bcd72214c00144eec39a84c1e` и prepared SQL
+`435da496d7e65894bc00b2ab72687a1ec414d2fa307e40ebf46cc1efabbdcba4`.
+После этого разрешённая correction выполнена один раз: PASS. Source/local file
+и ledger213 statements соответствуют новому SHA
+`7e7e1fe8148f3cba4705d30f9fae25e45fa6e3c7f92b43c065a13b6be01e3e4d`.
+Весь pg_proc row изменился только в prosrc; ACL/owner/OID/signature/SECURITY
+DEFINER/search_path и остальные attributes прежние. Ledger001–212 неизменен,
+214 отсутствовала. Все11 перечисленных business table hashes/counts и число
+Auth users совпали. Это проверка числа Auth users, не hash всего Auth content.
+
+Original apply receipt и schemaExtensions entry остались с исходным hash7b507099;
+отдельный candidateCorrections entry и create-only correction receipt содержат
+старое/новое состояния, exact DDL и ledger delta. Body hashes:
+old `e614a28cb70a638c7f928a68ea6d5dae270df48bff10c24441dc5e49782d4a86`,
+new `621650c385121da6be4385cc5d273771213ef9e94a9b380103a85363f6b72c88`.
+Private receipts в существующем owned QA root:
+`a213-correction-prepared.json`, `a213-correction-transaction.json`,
+`a213-correction-receipt.json`; initial `local213-receipt.json` не переписан.
+
+Затем на том же reviewed source выполнен normal Auth harness:10/10 PASS:
+1. Существующий custom SalesManager читает реальные revision/поля выбранного lead.
+2. Anonymous writer denied42501.
+3. Existing Student writer denied42501.
+4. Existing Admissions без workflow permission denied42501.
+5. Unknown group22023.
+6. Missing own key22023.
+7. Sibling extra key22023.
+8. Null request ID22023.
+9. Actual revision minus1 rejectedPT409.
+10. Невалидный wishes year22023.
+
+`a213-local-denials-receipt.json` фиксирует каждый ответ/data-null и before/after
+business parity. Неполный patch теперь доходит до22023 вместо ошибочного42501,
+а stale request — доPT409: выявленный literal-role blocker снят. Все проверки
+использовали существующие inputs и обычный Auth, без новых entities/назначений.
+Positive saves, sibling persistence после save, replay/conflict и restore всё ещё
+не выполнены; отдельный owner packet остаётся HOLD. Нельзя считать10 denials
+доказательством успешного сохранения или deployment.
+
+После proof интегрированы main#950/#951 без конфликтов: diff ae83aedd→merge head
+в src/supabase/tests пуст. Их changes относятся к отдельным Inbox/docs slices;
+этот proof относится к неизменному runtime ae83aedd. Финальный docs/merge delta
+review и protected CI проверяются на новом head отдельно.

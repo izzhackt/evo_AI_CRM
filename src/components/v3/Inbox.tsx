@@ -43,7 +43,7 @@ export type InboxSelectedConversation = InboxConversation &
     latestInboundSourceMessageId: string | null;
     newestMessagesHref: string | null;
     olderMessagesHref: string | null;
-    channelState: "ready" | "attention" | "unknown";
+    channelState: "ready" | "attention" | "unknown" | "unavailable";
     channelObservedAt: string | null;
     canonicalContext: InboxCanonicalContext;
   }>;
@@ -57,6 +57,8 @@ export type InboxView = Readonly<{
   searchQuery: string | null;
   waitingOnly: boolean;
   waitingToggleHref: string;
+  channelState: InboxSelectedConversation["channelState"];
+  channelObservedAt: string | null;
 }>;
 
 function channelLabel(
@@ -64,6 +66,7 @@ function channelLabel(
 ): string {
   if (state === "ready") return "WhatsApp подключён";
   if (state === "attention") return "WhatsApp требует проверки";
+  if (state === "unavailable") return "Не удалось получить состояние WhatsApp";
   return "Состояние WhatsApp не подтверждено";
 }
 
@@ -81,10 +84,19 @@ export function Inbox({
   mediaAttachmentContext?: V3InboxMediaAttachmentContext | null;
 }>) {
   const open = view.selected;
+  const hasConversations = view.conversations.length > 0;
+  const hasFilters = Boolean(view.searchQuery) || view.waitingOnly;
+  const emptyTitle = view.queueNewestHref
+    ? "На этой странице диалогов нет"
+    : hasFilters
+      ? "По выбранным условиям диалогов нет"
+      : "Пока нет доступных диалогов";
 
   return (
     <div
-      className="grid min-h-0 flex-1 gap-4 @4xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+      className={`grid min-h-0 flex-1 gap-4 ${
+        open || hasConversations ? "@4xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]" : ""
+      }`}
       data-testid="v3-inbox"
       data-source="supabase-platform"
     >
@@ -95,6 +107,20 @@ export function Inbox({
           open ? "hidden @4xl:block" : ""
         }`}
       >
+        {!open ? (
+          <div
+            className="border-b border-border px-4 py-3"
+            role="status"
+            data-testid="v3-inbox-channel-status"
+          >
+            <p className="text-sm font-medium text-fg-2">
+              {channelLabel(view.channelState)}
+            </p>
+            {view.channelObservedAt ? (
+              <p className="mt-1 text-xs text-fg-3">Проверено {view.channelObservedAt}</p>
+            ) : null}
+          </div>
+        ) : null}
         <form
           action="/v3/inbox"
           method="get"
@@ -107,7 +133,7 @@ export function Inbox({
           <label htmlFor="v3-inbox-search" className="sr-only">
             Найти диалог
           </label>
-          <div className="flex gap-2">
+          <div className="flex max-w-lg gap-2">
             <input
               id="v3-inbox-search"
               name="q"
@@ -137,32 +163,34 @@ export function Inbox({
           </Link>
         </form>
 
-        <nav
-          aria-label="Страницы диалогов"
-          className="flex min-h-12 items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs"
-        >
-          {view.queueNewestHref ? (
-            <Link
-              href={view.queueNewestHref}
-              className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
-              data-testid="v3-inbox-queue-newest"
-            >
-              ← К новым
-            </Link>
-          ) : (
-            <span />
-          )}
-          {view.queueOlderHref ? (
-            <Link
-              href={view.queueOlderHref}
-              rel="next"
-              className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
-              data-testid="v3-inbox-queue-older"
-            >
-              Ранее →
-            </Link>
-          ) : null}
-        </nav>
+        {view.queueNewestHref || view.queueOlderHref ? (
+          <nav
+            aria-label="Страницы диалогов"
+            className="flex min-h-12 items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs"
+          >
+            {view.queueNewestHref ? (
+              <Link
+                href={view.queueNewestHref}
+                className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
+                data-testid="v3-inbox-queue-newest"
+              >
+                ← К новым
+              </Link>
+            ) : (
+              <span />
+            )}
+            {view.queueOlderHref ? (
+              <Link
+                href={view.queueOlderHref}
+                rel="next"
+                className="inline-flex min-h-9 items-center rounded-ctl px-2 text-fg-2 hover:bg-surface-2"
+                data-testid="v3-inbox-queue-older"
+              >
+                Ранее →
+              </Link>
+            ) : null}
+          </nav>
+        ) : null}
 
         <ol>
           {view.conversations.map((conversation) => {
@@ -201,9 +229,25 @@ export function Inbox({
               </li>
             );
           })}
-          {view.conversations.length === 0 ? (
-            <li className="px-4 py-8 text-center text-sm text-fg-3">
-              Диалогов нет.
+          {!hasConversations ? (
+            <li className="px-4 py-10 sm:px-6" data-testid="v3-inbox-empty">
+              <h2 className="text-base font-semibold text-fg">{emptyTitle}</h2>
+              <p className="mt-2 max-w-prose text-sm leading-6 text-fg-2">
+                {view.queueNewestHref
+                  ? "Вернитесь к новым диалогам, чтобы обновить список."
+                  : hasFilters
+                    ? "Попробуйте другой запрос или сбросьте фильтры."
+                    : "Здесь отображаются диалоги, к которым у вас есть доступ."}
+              </p>
+              {hasFilters && !view.queueNewestHref ? (
+                <Link
+                  href="/v3/inbox"
+                  className="mt-4 inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-4 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  data-testid="v3-inbox-clear-filters"
+                >
+                  Сбросить фильтры
+                </Link>
+              ) : null}
             </li>
           ) : null}
         </ol>
@@ -345,13 +389,13 @@ export function Inbox({
             ) : null}
           </div>
         </section>
-      ) : (
+      ) : hasConversations ? (
         <section className="hidden place-items-center rounded-card border border-border bg-surface p-8 text-center text-sm text-fg-3 @4xl:grid">
           <div>
             <p className="font-semibold text-fg-2">Выберите диалог</p>
           </div>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -102,6 +102,32 @@ function formatInboxTime(value: string): string {
   return BISHKEK_TIME.format(parsed).replace(",", "");
 }
 
+type InboxChannelStatus = Pick<
+  InboxSelectedConversation,
+  "channelState" | "channelObservedAt"
+>;
+
+async function readInboxChannelStatus(
+  actor: ActivePlatformActor,
+): Promise<InboxChannelStatus> {
+  try {
+    const health = await getPlatformWahaSessionHealth(actor, "crm_primary");
+    return Object.freeze({
+      channelState:
+        health === null
+          ? "unknown"
+          : isFreshWorkingWahaSession(health)
+            ? "ready"
+            : "attention",
+      channelObservedAt: health ? formatInboxTime(health.observedAt) : null,
+    });
+  } catch {
+    // Session health is informational. Queue, transcript and command-authority
+    // failures retain their existing fail-closed path; no send gate uses this.
+    return Object.freeze({ channelState: "unavailable", channelObservedAt: null });
+  }
+}
+
 function formatWaitingRu(sinceIso: string): string | null {
   const since = new Date(sinceIso);
   if (!Number.isFinite(since.valueOf())) return null;
@@ -204,13 +230,18 @@ export async function readInbox(
   let selected: InboxSelectedConversation | null = null;
   let providerWorkflow: InboxProviderWorkflow | null = null;
   let amoCrmCommand: InboxAmoCrmCommand | null = null;
+  const channelStatusPromise =
+    !thread || thread.conversation.wahaSessionName === "crm_primary"
+      ? readInboxChannelStatus(actor)
+      : Promise.resolve<InboxChannelStatus>({
+          channelState: "unknown",
+          channelObservedAt: null,
+        });
   if (thread) {
     const staffClient = await createSupabaseServerClient();
-    const [context, health, proposal, reviews, latestAttempt] = await Promise.all([
+    const [context, channelStatus, proposal, reviews, latestAttempt] = await Promise.all([
       getPlatformConversationCommandContext(actor, thread.conversation.id),
-      thread.conversation.wahaSessionName === "crm_primary"
-        ? getPlatformWahaSessionHealth(actor, "crm_primary")
-        : Promise.resolve(null),
+      channelStatusPromise,
       readStaffGeminiProposal(staffClient, {
         organizationId: actor.organizationId,
         conversationId: thread.conversation.id,
@@ -255,13 +286,8 @@ export async function readInbox(
             filters,
           })
         : null,
-      channelState:
-        health === null
-          ? "unknown"
-          : isFreshWorkingWahaSession(health)
-            ? "ready"
-            : "attention",
-      channelObservedAt: health ? formatInboxTime(health.observedAt) : null,
+      channelState: channelStatus.channelState,
+      channelObservedAt: channelStatus.channelObservedAt,
       canonicalContext: Object.freeze({
         leadId: context.canonicalLeadId,
         clientId: context.canonicalClientId,
@@ -277,8 +303,10 @@ export async function readInbox(
     );
   }
 
+  const channelStatus = await channelStatusPromise;
   return Object.freeze({
     view: Object.freeze({
+      ...channelStatus,
       conversations: Object.freeze(
         queue.rows.map((summary) =>
           toInboxConversation(summary, options.queueCursor, filters),

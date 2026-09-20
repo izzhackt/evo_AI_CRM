@@ -10793,3 +10793,52 @@ format:check/lint/typecheck/test/build и semantic review. Результат le
 явно отделять от реального provider/business proof. Ни deployment, ни revival
 Inbox, ни managed DB/provider actions/миграции этим контрактом не разрешаются.
 A владеет только двумя shared docs; root выполняет код и merge.
+
+## 2026-09-21 — CRM-09: понятные состояния CRM Inbox
+
+Владелец реализации — root после передачи пункта9 от A; A пишет только этот
+контракт. Основание main6cc5590f после #951. Это действующий `/v3/inbox`,
+не retired Inbox companion и не командный чат. Student messages (пункт11)
+остаётся у A. Узкий срез не закрывает все возможности каналов или весь пункт9.
+
+Фактический baseline на собственном localhost33220: существующий ordinary Sales
+видит0 разрешённых диалогов, «Диалогов нет» слева и лишнее «Выберите диалог»
+справа. Authenticated DB GET `staff_waha_session_health(crm_primary)` вернул
+200/0rows/errorsnull (20.09 20:21:59Z). Это unknown, не disconnected/ready.
+Private receipt `/private/tmp/evo-inbox-health-read.json`. Health читает БД с
+organization + communication.read.full, не вызывает WAHA/provider. Наличие
+пустой доступной очереди не доказывает отсутствие диалогов во всей организации.
+
+Контракт до кода:
+1. Empty state отражает текущую навигацию в строгом порядке: cursor →
+   search/waiting filters → пустая доступная очередь. Cursor даёт действие
+   «К новым»; поиск/ожидание — ясный текст и сброс обоих фильтров. Не путать
+   «нет совпадений», «на этой странице пусто» и «доступных диалогов пока нет».
+   Reply-needed не равен unread; не менять расчёт ни одного показателя.
+2. При0 queue rows и отсутствии selected показывать одну полезную область
+   вместо пустой правой панели «Выберите диалог». Если selected открыта,
+   сохранять её transcript/действия даже при пустой отфильтрованной очереди.
+3. Для unselected queue либо selected crm_primary выполнить не более одного
+   optional health-read. Его отдельная ошибка → explicit unavailable; null →
+   unknown; только fresh WORKING → ready; остальное → attention. Прежний
+   freshness helper и timestamp semantics сохраняются. Для исторической иной
+   session не переносить статус crm_primary. Health не предоставляет право
+   отправки и не подменяет command/provider availability guards.
+4. Optional fallback ограничен этим health-read. Queue/thread/context/proposals/
+   reviews и остальные прежние обязательные failures остаются fail-closed
+   через существующий boundary. Не превращать permission/auth/read failure
+   в пустую очередь или успешный provider status.
+5. Сохранить tenant/current actor/permissions, Admin preview guards,
+   keyset cursors и50+1 pagination, фильтры, открытую selection, media/private
+   paths, snippets, provider/amoCRM controls и их ключи/историю. Это точечное
+   улучшение EVO по Impeccable, не замена дизайна или удаление функций.
+
+Реальные проверки: existing ordinary Sales empty queue, search/waiting/reset,
+«К новым» при настоящем допустимом cursor; desktop и actual390px, читаемость и
+отсутствие overflow. Чистую decision logic разрешено проверить scoped tests;
+они не заменяют реальный Auth/UI path. Состояния selected/history/channelerror/
+freshready, для которых нет разрешённых реальных данных, не фабриковать и не
+объявлять пройденными. Назвать фактические proof и ограничения в QA receipt.
+Не создавать новые диалоги/fixtures, не send/mark-read, не менять provider
+configuration, identities/roles/Auth, migrations или managed DB/production.
+Scope-local lint/typecheck и независимое exact-head review/CI перед root merge.

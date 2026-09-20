@@ -1720,7 +1720,7 @@ test("active platform CI executes only the root successor product", () => {
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Fast checks$/gmu) ?? []).length, 1);
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
   assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$BASE_SHA" --head "\$HEAD_SHA" --github-output "\$GITHUB_OUTPUT"/u);
-  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "inbox_dependencies", "unknown"]) {
+  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "inbox_dependencies", "lead_agent_dependencies", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }
   assert.doesNotMatch(fastPr, /^  classification_guard:/mu);
@@ -1769,7 +1769,7 @@ test("retired Inbox dependency maintenance runs in isolation without deployment 
   assert.doesNotMatch(lane, /secrets\.|docker|ssh|continue-on-error|npm test|ENCRYPTION_KEY|META_APP_SECRET/u);
 });
 
-test("actual Fast checks shell requires selected Inbox maintenance to succeed", () => {
+test("actual Fast checks shell requires selected dependency maintenance to succeed", () => {
   const workflow = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
   const gate = workflow.split("      - name: Require selected fast PR checks\n")[1];
   assert.ok(gate);
@@ -1780,9 +1780,16 @@ test("actual Fast checks shell requires selected Inbox maintenance to succeed", 
     CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
     INBOX_DEPENDENCIES_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: "success",
+    LEAD_AGENT_DEPENDENCIES_REQUIRED: "false", LEAD_AGENT_DEPENDENCIES_RESULT: "skipped",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
   assert.equal(run({}), 0);
+  assert.equal(run({ LEAD_AGENT_DEPENDENCIES_REQUIRED: "true", LEAD_AGENT_DEPENDENCIES_RESULT: "success" }), 0);
+  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
+    assert.notEqual(run({ LEAD_AGENT_DEPENDENCIES_REQUIRED: "true", LEAD_AGENT_DEPENDENCIES_RESULT: result }), 0, result);
+  }
+  for (const required of ["", "unknown"]) assert.notEqual(run({ LEAD_AGENT_DEPENDENCIES_REQUIRED: required }), 0);
+  assert.notEqual(run({ LEAD_AGENT_DEPENDENCIES_RESULT: "success" }), 0);
   for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
     assert.notEqual(run({ INBOX_DEPENDENCIES_RESULT: result }), 0, result);
   }

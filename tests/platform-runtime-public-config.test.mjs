@@ -30,6 +30,7 @@ function chatPage(runtimeEnv, authorize = async () => ({
   const { default: page } = loadSource("src/app/(v3)/v3/team-chat/page.tsx", {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "next/navigation": { notFound() { throw new Error("not_found"); } },
+    "@/components/ui": { Card: "Card" },
     "@/components/v3/PartShell": { PartShell: "PartShell" },
     "@/components/v3/team-chat/TeamChat": { TeamChat: "TeamChat" },
     "@/lib/platform-guards": { requireV3PageActor: authorize },

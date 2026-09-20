@@ -33781,7 +33781,8 @@ private boundaries; историческая105 присутствует, contai
 `supabase/config.toml:65–87` с прежними MIME literals и лимитами:
 platform-documents25MiB, platform-document-exports50MiB,
 platform-company-files25MiB, platform-whatsapp-media50MiB.
-Сохранить server-only signing и запреты browser INSERT. Не «лечить» проверки
+Сохранить существующие ограничения browser upload (включая разрешённый exact
+reserved INSERT), server-only чтение/signing, без расширения доступа. Не «лечить» проверки
 изменением текущих продуктовых конфигов/миграций или ослаблением assertions.
 
 Для этих ровно трёх файлов добавить отдельный закрытый CI selection flag с

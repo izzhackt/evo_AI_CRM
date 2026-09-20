@@ -1,12 +1,25 @@
 import "server-only";
-import { staffHasPermission } from "../platform-access.ts";
-import type { PlatformActor } from "../platform-auth";
+import { isStaffPreview, staffHasPermission } from "../platform-access.ts";
+import type { ActivePlatformActor, PlatformActor } from "../platform-auth";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseSalesInteger, parseSalesUuid, parseSalesRegisterWorkspace, parseSalesRegisterIntakeOptions, type SalesRegisterWorkspace, type SalesRegisterIntakeOptions } from "../platform-sales-register-contract";
 
-export async function readSalesRegisterIntakeOptions(actor: PlatformActor, query = ""): Promise<SalesRegisterIntakeOptions> {
+/** Database authority deliberately has no implicit system-Admin grant. */
+export async function readSalesRegisterWriteAccess(actor: ActivePlatformActor): Promise<"allowed" | "denied" | "unavailable"> {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "sales.register.manage")) return "denied";
+  try {
+    const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("sales_register_write_access", {
+      p_organization_id: actor.organizationId,
+    });
+    if (error || typeof data !== "boolean") return "unavailable";
+    return data ? "allowed" : "denied";
+  } catch { return "unavailable"; }
+}
+
+export async function readSalesRegisterIntakeOptions(actor: ActivePlatformActor, query = ""): Promise<SalesRegisterIntakeOptions> {
   if (!staffHasPermission(actor, "sales.register.manage") || !staffHasPermission(actor, "lead.sales.workflow.manage")
     || query.length > 200 || /[\u0000-\u001f\u007f]/.test(query)) throw new Error("Sales intake unavailable.");
+  if (await readSalesRegisterWriteAccess(actor) !== "allowed") throw new Error("Sales intake unavailable.");
   const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("sales_register_intake_options", {
     p_organization_id: actor.organizationId, p_query: query.trim(),
   });

@@ -10444,3 +10444,71 @@ Retain the legacy class and staff tokens/components. Validate real authorized
 Student catalogue, favorites, detail and one compatible home/documents screen in
 light/dark themes and at 390 px, with computed contrast and screenshots.
 No authentication, schema, business writes, content expansion or redesign.
+
+## Shared local acceptance for CRM-02a and B-2 — 2026-09-20
+
+A owns one disposable local Supabase project and its schema/bootstrap. Apply the
+immutable PR #929 migration 207 before the PR #935 migration 208 inside that
+project; keep 207 out of the PR #935 source diff. B owns recent-university
+Student RPC and Home verification against its current #929 source. Separate
+Next dev origins serve A and B; local Auth permits both callback origins.
+
+Use real local Auth, PostgREST and Postgres, ordinary logins, supported product
+provisioning/publishing and only the minimum explicitly marked QA records.
+Begin with an empty local Student catalogue, then publish local QA universities
+through supported Admin commands and verify the bounded recent list. Verify
+no-session and wrong-role denial. A second local Student tenant may be added
+for tenant isolation if supported onboarding allows it. Preserve publication
+history; do not fabricate timestamps or bypass access checks.
+
+This reversible local verification is authorized within development. Do not
+copy managed identities, credentials or customer records, forge JWTs, mock RPCs,
+or send external provider messages. Source/local acceptance remains separate
+from the deferred, separately authorized managed frontend and SQL rollout.
+
+### CRM-02a local manager role binding
+
+Migration 208 deliberately leaves new organizations without an implicit manager.
+Root approved a narrow reproducible local setup helper after supported bootstrap
+and role publication. Bind exactly the newly created QA role, guarded by the
+owned disposable project/workdir, exact organization/role IDs, active role,
+current published bundle containing sales.register.manage, and a one-row
+transaction. Reject managed/remote Docker endpoints and mismatched ownership.
+Do not change the production role editor/API or migration 208, copy production
+IDs, seed a completed sale, or bypass the runtime authorization gate. Subsequent
+sales operations use ordinary Auth and genuine application/RPC persistence.
+
+### B-2 local public intake binding
+
+The disposable database applies migration 177 before the first organization
+exists, leaving its private intake singleton empty. After the ordinary Admin
+command creates the QA review department, A may run B's reviewed guarded local
+helper to bind exactly that new organization and department. Require the owned
+local project/container, active same-organization department, empty singleton,
+and one-row transaction; retain intake owner NULL. No second tenant, Student
+row, case or application is inserted directly. Subsequent signup, submission
+and approval use current product paths (migration 180 approval signature).
+
+## B-2a public approval own-case scope — migration 209
+
+Local ordinary public signup, submission and approval produced an active Student
+and portal-activated pending case, but no case membership scope assignment.
+The fresh Student session therefore cannot read that case. Root reserved 209
+for B's separate minimal correction; A remains the sole local schema applier.
+
+In the current five-argument approval path, after creating/activating its exact
+case, append one scope assignment for the newly created Student membership via
+the existing append_scope_event contract, using a deterministic child request
+and the actual Admin audit identity. Preserve organization, case, revision,
+replay checks and the existing access-version bump. Keep RLS, JWT, access-tier,
+email and program-registration contracts unchanged. No historical backfill,
+regrant after a prior revocation, or repair of the already failed QA case.
+Assess existing affected records read-only in a separate plan.
+
+Validate a NEW ordinary signup, submission and approval on composed local
+207/208/209: fresh Auth reads exactly its own pending case and Home; replay adds
+neither a second case nor grant; another Student/case, staff and anonymous
+requests cannot cross Student boundaries; pending documents/help stay denied.
+A applies exact reviewed 209 locally after review; managed SQL and production
+release remain separately authorized and deferred. Earlier #935 evidence from
+001–208 remains explicitly bounded to its original schema and runtime.

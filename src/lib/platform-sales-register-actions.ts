@@ -7,7 +7,7 @@ import { requirePlatformStaffActor } from "./platform-guards";
 import { createSupabaseServerClient } from "./supabase/server";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { parseSalesDate, parseSalesInteger, parseSalesUuid, SALES_CURRENCIES } from "./platform-sales-register-contract";
-import { readSalesRegisterIntakeOptions } from "./v3/sales-register-source";
+import { readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess } from "./v3/sales-register-source";
 import { readLeadSaleConditions } from "./v3/lead-sale-conditions-source";
 import type { LeadSaleConditions } from "./lead-sale-conditions-contract";
 import { refreshConfirmedSelfHandoffSession } from "./server/self-handoff-session";
@@ -15,13 +15,14 @@ import { refreshConfirmedSelfHandoffSession } from "./server/self-handoff-sessio
 export type SalesRegisterActionState = Readonly<{
   status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable" | "already_transferred" | "conditions_missing";
   requestId: string; recordId: string | null; leadId: string | null;
+  reportMonth?: string; studentCaseId?: string;
 }>;
 const BASE = ["operation", "request_id", "record_id", "expected_version"] as const;
 const REASON = ["reason"] as const;
 // The report chooses an existing lead + curator (unified workflow S2, plan
 // §6); conditions themselves are never re-entered here — they live on the
 // lead card and platform.create_sales_report_handoff reads them server-side.
-const INTAKE = ["lead_id", "curator_membership_id", "report_month"] as const;
+const INTAKE = ["lead_id", "curator_membership_id"] as const;
 const EDIT = ["report_month", "signing_date", "applicant_name", "phone", "country", "university", "program", "direction", "intake",
   "contract_number", "manager_label", "status_raw", "owner_membership_id", "service_cost_raw", "service_cost_minor",
   "service_cost_currency", "paid_raw", "paid_minor", "paid_currency", "needs_review", "notes"] as const;
@@ -37,6 +38,8 @@ function outcome(form: FormData, status: SalesRegisterActionState["status"], rec
 export async function saveSalesRegisterAction(_previous: SalesRegisterActionState, form: FormData): Promise<SalesRegisterActionState> {
   const actor = await requirePlatformStaffActor();
   if (!staffHasPermission(actor, "sales.register.manage") || isStaffPreview(actor)) return outcome(form, "forbidden");
+  const access = await readSalesRegisterWriteAccess(actor);
+  if (access !== "allowed") return outcome(form, access === "denied" ? "forbidden" : "unavailable");
   const operation = candidate(form, "operation");
   if (operation !== "create" && operation !== "update" && operation !== "archive" && operation !== "restore") return outcome(form, "invalid");
   const fields = exactActionStringFields(form, operation === "create" ? [...BASE, ...INTAKE]
@@ -51,14 +54,12 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
   const payload: Record<string, string | number | boolean | null> = {};
   let leadId: string | null = null;
   let curatorId: string | null = null;
-  let reportMonth: string | null = null;
   let reason = "";
   if (operation === "create") {
     if (!staffHasPermission(actor, "lead.sales.workflow.manage")) return outcome(form, "invalid");
     leadId = parseSalesUuid(fields.get("lead_id"));
     curatorId = parseSalesUuid(fields.get("curator_membership_id"));
-    reportMonth = parseSalesDate(fields.get("report_month"));
-    if (!leadId || !curatorId || !reportMonth?.endsWith("-01")) return outcome(form, "invalid");
+    if (!leadId || !curatorId) return outcome(form, "invalid");
   } else {
     reason = fields.get("reason")?.trim() ?? "";
     if (reason.length < 1 || reason.length > 1000) return outcome(form, "invalid");
@@ -85,12 +86,14 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
       || Object.values(payload).some(value => typeof value === "string" && (value.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)))) return outcome(form, "invalid");
   }
   let savedRecordId: string;
+  let savedReportMonth: string | undefined;
+  let savedCaseId: string | undefined;
   let needsLogin = false;
   try {
     const client = await createSupabaseServerClient();
     const { data, error } = operation === "create" ? await client.schema("platform").rpc("create_sales_report_handoff", {
       p_organization_id: actor.organizationId, p_request_id: requestId, p_lead_id: leadId,
-      p_curator_membership_id: curatorId, p_report_month: reportMonth,
+      p_curator_membership_id: curatorId,
     }) : await client.schema("platform").rpc("manage_sales_register_v1", {
       p_organization_id: actor.organizationId, p_operation: operation, p_record_id: recordId,
       p_expected_version: version, p_fields: payload, p_reason: reason, p_request_id: requestId,
@@ -107,7 +110,11 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
       || data.operation !== operation || data.request_id !== requestId || !parseSalesUuid(data.record_id)
       || (recordId !== null && data.record_id !== recordId) || parseSalesInteger(data.version) !== version + 1) return outcome(form, "unavailable");
     if (operation === "create") {
-      if (!parseSalesUuid(data.student_case_id) || data.curator_membership_id !== curatorId) return outcome(form, "unavailable");
+      const actualMonth = parseSalesDate(data.report_month);
+      const caseId = parseSalesUuid(data.student_case_id);
+      if (!caseId || data.curator_membership_id !== curatorId || !actualMonth?.endsWith("-01")) return outcome(form, "unavailable");
+      savedReportMonth = actualMonth;
+      savedCaseId = caseId;
       // Assignment is already committed. Session recovery is not a reason to
       // invite a second save of this sale.
       if (actor.systemRole === "admin" && curatorId === actor.membershipId) {
@@ -122,11 +129,11 @@ export async function saveSalesRegisterAction(_previous: SalesRegisterActionStat
     savedRecordId = data.record_id;
   } catch { return outcome(form, "unavailable"); }
   if (needsLogin) redirect("/login?error=session_invalid");
-  return outcome(form, "saved", savedRecordId);
+  return { ...outcome(form, "saved", savedRecordId), reportMonth: savedReportMonth, studentCaseId: savedCaseId };
 }
 
 export type SalesReportConditionsPreview =
-  | Readonly<{ status: "ready"; conditions: LeadSaleConditions }>
+  | Readonly<{ status: "ready"; conditions: LeadSaleConditions; reportMonth: string | null }>
   | Readonly<{ status: "unavailable" }>;
 
 /** Read-only preview for «Отчёт продаж → Добавить продажу» once a lead is picked. */
@@ -134,7 +141,10 @@ export async function readSalesReportConditionsPreviewAction(leadId: string): Pr
   const actor = await requirePlatformStaffActor();
   if (isStaffPreview(actor) || !parseSalesUuid(leadId)) return { status: "unavailable" };
   try {
-    return { status: "ready", conditions: await readLeadSaleConditions(actor, leadId) };
+    if (await readSalesRegisterWriteAccess(actor) !== "allowed") return { status: "unavailable" };
+    const conditions = await readLeadSaleConditions(actor, leadId);
+    if (conditions.leadId !== leadId) return { status: "unavailable" };
+    return { status: "ready", conditions, reportMonth: conditions.signingDate ? `${conditions.signingDate.slice(0, 7)}-01` : null };
   } catch { return { status: "unavailable" }; }
 }
 

@@ -34398,3 +34398,13 @@ Changed-intent и чужое дело отклонены. A подтвердил
 документов, managed rollout и production release ещё не завершены. Порядок
 слияния #946 →215 →216 →217 и root как единственный merge/release coordinator
 сохраняются. Эта запись не разрешает новые бизнес-записи или deployment.
+
+
+## 2026-09-21 — CRM-22: skip repeated navigation (до кода)
+
+В принятом keyboard-accessibility контракте подтверждён пропуск shell skip-link.
+Root добавляет только первый focus-visible «К содержимому» и стабильную цель
+вAppShell. Не дублировать main, не менять права/маршруты/preview/keys/commands,
+не ломать full-height страницы. ActualSales UI+keyboard proof без записей,
+узкие проверки и независимое exact-head review; полныйконтракт вEVO_LAUNCH_PLAN.
+Runtime начинается после959merge. Root owns толькоэтотisolatedworktree/docs.

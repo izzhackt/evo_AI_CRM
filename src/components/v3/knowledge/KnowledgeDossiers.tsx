@@ -8,6 +8,7 @@ import type { CaseChatPage } from "@/lib/platform-case-chat-contract";
 import type { ProfileEvent } from "@/components/v3/profile/types";
 import { journalEvent } from "@/lib/v3/wording";
 import { knowledgeFetch, command } from "./client";
+import { KnowledgeCaseDocuments } from "./KnowledgeCaseDocuments";
 import { KnowledgeExport } from "./KnowledgeExport";
 import styles from "./KnowledgeLibrary.module.css";
 
@@ -90,16 +91,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
         {(["documents", "chat", "history"] as const).map((key) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{({ documents: "Документы", chat: "Переписка", history: "История" })[key]}</button>)}
       </div>
       {tab === "documents" && record && !record.handoffAt && <p>Рабочий список документов появится после передачи дела.</p>}
-      {tab === "documents" && documents && <>
-        {!documents.slots.length && <p>В деле пока нет документов.</p>}
-        {documents.slots.map((slot) => <section key={slot.documentSlotId}><h3>{slot.requirementLabel}</h3>
-          <ul>{slot.versions.map((version) => <li key={version.documentVersionId}>
-            {version.downloadReady ? <a href={`/api/v2/document-versions/${version.documentVersionId}/download`}>{version.originalFilename}</a> : <span>{version.originalFilename} · недоступен для скачивания</span>}
-            <span> · версия {version.versionNumber} · {(version.byteSize / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} КБ</span>
-          </li>)}</ul>
-        </section>)}
-        {documents.removedSlots.length > 0 && <p><Link href={`/v3/profile?case=${caseId}&tab=documents`}>Удалённые пункты и архив документов ({documents.removedSlots.length})</Link></p>}
-      </>}
+      {tab === "documents" && documents && <KnowledgeCaseDocuments key={caseId} caseId={caseId} documents={documents} />}
       {tab === "chat" && chat && <>
         {chat.hasMore && <button disabled={busy} type="button" onClick={() => void more()}>Загрузить предыдущие сообщения</button>}
         {!chat.messages.length && <p>Переписки пока нет.</p>}

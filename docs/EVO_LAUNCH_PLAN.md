@@ -10702,3 +10702,74 @@ denial пути; positive selection/readback/replay/staff visibility остаю�
 фиксируется без synthetic fixtures. Требуются два независимых exact-head review,
 scope-local checks и ограниченный визуальный проход для затронутых UI. Финальный
 E2E, контент, App Store, managed writes и production deployment сюда не входят.
+
+## 2026-09-21 — B215: согласовать handoff продажи с защитой identity дела
+
+Root выделил `215_platform_sales_handoff_owner_guard.sql` как узкую зависимость
+приёмки B214. Основание stacked #946 `36f4b440`; до этого append код215 не менялся.
+Обычный Auth208 вызов завершился `40001 portal_identity_conflict`: pending-ветка
+208 синхронизирует seller с canonical lead, а guard126 запрещает изменение seller.
+Read-only before/after подтвердили полный rollback20 таблиц, scopes/access versions,
+продажи и receipt. Owner assignment и conditions revision1 выполнены раньше и
+сохраняются. Это исправление обнаруженного продуктового дефекта, не ремонт QA-данных.
+
+Контракт до кода, подтверждённый root:
+- Одна forward migration215; исторические001–214 неизменны. Новая private
+  append-only таблица разрешений owner-sync; изменить только две существующие
+  функции: `create_sales_report_handoff` и `guard_student_case_identity_e1`.
+  Общий curator helper и публичные RPC/grants не менять.
+- Receipt связывает UUID, текущий xid8, org/request/case/canonical lead,
+  actor membership/profile/Auth identity, nullable old seller, new seller,
+  прежний scope/version и curator. Old/new различаются; tenant-aware составные
+  ссылки, unique org/request, FORCE RLS, REVOKE ALL для PUBLIC/anon/authenticated/
+  service_role/supabase_auth_admin. Deferred initially-deferred FK org/request
+  на окончательный handoff receipt запрещает commit незавершённого разрешения.
+- Первым взять org row FOR UPDATE вместо KEY SHARE. Это явно одобренная root
+  поправка после выявленного cross-case lock cycle: сериализация handoff внутри
+  одной организации предотвращает поздний upgrade и взаимное ожидание profile
+  locks с sibling KEY SHARE handoff. Late upgrade и sorted-profile prelocks
+  не добавлять. Затем сохранить request advisory → canonical lead advisory/row
+  → case row ordering; независимо проверить compatibility и предел tradeoff.
+- После ожидания locks повторить fresh actor authority/scoped permission,
+  canonical current owner и его действующие права на lead. Сохранить caller/
+  manager checks, idempotency, seller/month snapshot, no-existing-sale/handoff,
+  curator validation и прежний exact replay до создания нового context.
+- Только pending-ветка создаёт private receipt и transaction-local GUC pointer
+  перед единственным seller UPDATE. Guard проверяет private receipt и текущую
+  транзакцию, exact OLD/NEW owner, org/case/canonical lead/scope, pending state и
+  свежую actor authority. Сравнить весь OLD/NEW row кроме seller и updated_at:
+  simultaneous Student/tenant/source/contract/lead/curator/state/scope mutation
+  запрещена. Прежнее отдельное E1 Student-binding исключение сохранить; нельзя
+  совмещать его с owner-sync. Сам GUC не является authority, прошлый receipt
+  не работает в следующей транзакции. Сразу после UPDATE очистить pointer.
+- После прежнего curator helper отозвать прежнего non-NULL seller из old scope
+  через append_scope_event(FALSE), с детерминированным derived request ID;
+  bump его profile access_version только если helper ещё не затронул тот же
+  PROFILE через new seller/Student/curator. Не сохранять лишний доступ бывшему
+  seller и не делать double bump. Любая следующая ошибка откатывает весь handoff.
+
+Проверка: реальные существующие local inputs и bounded rollback-only SQL probes
+для отсутствующего/поддельного/stale/неподходящего context, combined identity,
+не-pending case и downstream rollback. Эти SQL probes root разрешены только
+в собственном local QA и являются технической проверкой guard, не Auth acceptance.
+Не создавать entities, не менять Auth/роли и не производить data repair. Existing
+Student/anon/cross-case RPC denials не выдавать за достижение trigger, если ACL
+отказал раньше. Non-NULL old-seller ветка отдельно source-reviewed; NULL-case
+не доказывает её выполнение. Полный UI/native/E2E этим блоком не заявлять.
+
+A — единственный local schema applier: после SQL review и root GO применить215
+к001–214, сверить прежний ledger, точные functions/ACL и business parity. Затем B
+получает отдельное writer окно и повторяет исходную frozen команду208 с прежним
+request ID/payload и новым append-only attempt receipt, связывающим первоначальный
+FAIL/rollback и SQL215 SHA. Удалять FAIL/started markers нельзя. После успешного
+handoff проверить same case, seller/month, sale/receipt, activation/scope effects;
+затем выполнить исходный214 selection/readback/replay/denials. Не расширять packet.
+Техническая приёмка B214 указывает фактическую схему001–215.
+
+Работа в isolated `evo-sales-handoff-owner-guard`, PR stacked на946. Merge order
+948→946→215, затем retarget/rebase215 на main с повторным independent exact-head
+review/CI. A пишет только эти shared appendices, B runtime/QA; root merge/release.
+Managed DB, provider, production release и следующая функциональность не включены.
+PostgreSQL основание: [xid8](https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT),
+[transaction-local context](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-SET),
+[SECURITY DEFINER](https://www.postgresql.org/docs/current/sql-createfunction.html).

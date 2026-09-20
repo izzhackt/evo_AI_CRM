@@ -197,3 +197,11 @@ CRM-02a, обновление полосы A 20.09.2026: #935 синхрониз
 sales QA tenant. [Конкретный пакет применения и QA](qa/migrations-207-208-qa-packet-2026-09-20.md)
 подготовлен; общей DB/Auth/business-write authority пока нет. Draft и прежняя
 граница бизнес-приёмки сохранены; server release не выполнялся.
+
+Read-only impact preflight подтвердил deployed frontend `b7598a1c`: его формы
+ещё разрешают cost-only ввод, сохраняют прежний фильтр и permission-only controls.
+С SQL 208 это даёт отказ/скрытую в другом месяце строку; совпадение RPC signatures
+не устраняет UX-разрыв. Из двух текущих manage identities только одна проходит
+будущий manager gate. Поэтому standalone shared 208 ради QA не предлагается:
+схема ждёт согласованного frontend+SQL выпуска. Возможна отдельная техническая
+premerge-проверка в одноразовом локальном Auth/DB/API-контуре; он пока не создан.

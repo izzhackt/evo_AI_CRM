@@ -50,7 +50,7 @@ review одобрены. Это unit/source/harness-проверки; полно
 | 9 | #952 MERGED `f97122e8`: Inbox empty/filter/channel states; actual local read/UI desktop/390px | История выбранного диалога и provider/error-path приёмка этим срезом не доказаны; [квитанция](qa/crm-inbox-states-2026-09-21.md) |
 | 11 | #955 MERGED `fe26526c`: поиск Student messages с loading, отдельными empty/error/retry и защитой от устаревшего ответа; actual local read/UI desktop/390px | Очереди остаются у A; диалог не открывали, сообщений и mark-read не отправляли; [квитанция](qa/case-chat-search-2026-09-21.md) |
 | 12 | Договор, сумма, транши, платежи/чеки/остаток; после #933 остальной поток открыт | Согласовать profile-source/Profile и общие actions с B |
-| 30 | PR #948 открыт: grouped save и исправление custom Sales Manager reviewed; локальная 213 скорректирована, 10/10 ordinary Auth read/denial checks и parity пройдены | UPDATE/cross-group/UI acceptance ещё не выполнена; разрешённый B214 packet даёт только часть RPC-покрытия, не заменяет эту проверку |
+| 30 | PR #948 открыт: actual UI UPDATE двух блоков, соседний draft, replay/conflict/stale и guarded restore всех26 полей PASS; отдельно B sale-group INSERT PASS; локальная213 reviewed | Финальные exact-head review/CI ожидаются; runtime неизменен. B handoff208/126 defect выделен215; managed/release не выполнены |
 | 14 | Staff-каталог: поиск, фильтры, дедлайны, управление | Program IDs/schema принадлежат B |
 | 15 | Team chat: хронология, цитаты, поиск, composer, unread | История/read model до UI; не отправлять сообщения |
 | 16 | #954 MERGED `aa663b3d`: явный выбор дела в календаре/global task dialog, закрытый/недоступный picker не назначает первое дело; actual local UI/drafts | Server scope «назначено мне» остаётся; задачи не создавали; [квитанция](qa/task-explicit-case-2026-09-21.md) |
@@ -67,8 +67,9 @@ review одобрены. Это unit/source/harness-проверки; полно
 
 ## Уточнённая очередь после #943
 
-212/CRM-05 принят через #945. Текущий незавершённый блок A — пункт30 / открытый #948:
-подтвердить сохранность уже сохранённых соседних блоков условий продажи.
+212/CRM-05 принят через #945. Текущий блок A — пункт30 / открытый #948:
+целевая локальная приёмка завершена, остаются финальный exact-head review/CI и merge.
+Исходная причина этого блока:
 Root подтвердил на main1795bf23: LeadCardFieldsForm обновляет revision, но hidden
 sibling values остаются из старого SSR; action отправляет все26 полей, SQL181
 заменяет fields целиком. #852 сохраняет несохранённые sibling drafts, но не

@@ -237,7 +237,7 @@ struct MyAdmissionView: View {
 
 /// Одна строка очереди действий: глагол + предмет, срок (или честное «Не
 /// указан»), сумма для оплаты; ведёт в свой раздел.
-private struct AdmissionActionRow: View {
+struct AdmissionActionRow: View {
     let action: AdmissionAction
     let isPrimary: Bool
 

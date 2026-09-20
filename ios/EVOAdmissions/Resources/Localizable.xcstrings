@@ -1,6 +1,278 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "home_admission_heading" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ближайшие действия по делу"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Иш боюнча жакынкы аракеттер"
+          }
+        }
+      }
+    },
+    "home_open_admission" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть «Моё поступление»"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Менин тапшыруум» бөлүмүн ачуу"
+          }
+        }
+      }
+    },
+    "home_learning_heading" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить обучение"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окууну улантуу"
+          }
+        }
+      }
+    },
+    "home_module_progress" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пройдено уроков: %d из %d"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өтүлгөн сабактар: %d / %d"
+          }
+        }
+      }
+    },
+    "home_start_lesson" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать урок"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабакты баштоо"
+          }
+        }
+      }
+    },
+    "home_resume_lesson" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить урок"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сабакты улантуу"
+          }
+        }
+      }
+    },
+    "home_lessons_done" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все доступные уроки пройдены. Можно повторить материал."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жеткиликтүү сабактар өтүлдү. Материалды кайталоого болот."
+          }
+        }
+      }
+    },
+    "home_open_english" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все уроки"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык сабактар"
+          }
+        }
+      }
+    },
+    "home_open_tests" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все тесты и результаты"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык тесттер жана жыйынтыктар"
+          }
+        }
+      }
+    },
+    "home_test_progress" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отвечено: %d из %d"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жооп берилди: %d / %d"
+          }
+        }
+      }
+    },
+    "home_application_unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить анкету. Попробуйте ещё раз."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Анкета жүктөлгөн жок. Кайра аракет кылыңыз."
+          }
+        }
+      }
+    },
+    "home_open_application" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Посмотреть анкету"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Анкетаны көрүү"
+          }
+        }
+      }
+    },
+    "home_application_absent" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этого аккаунта анкета не найдена."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бул аккаунттун анкетасы табылган жок."
+          }
+        }
+      }
+    },
+    "home_all_favorites" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всё избранное"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бардык тандалмалар"
+          }
+        }
+      }
+    },
+    "home_intake_pending" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даты ближайшего набора уточняются"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жакынкы кабыл алуунун даталары такталууда"
+          }
+        }
+      }
+    },
+    "home_intake_deadline" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подать до %@"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ чейин тапшыруу"
+          }
+        }
+      }
+    },
+    "home_intake_start" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начало: %@"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Башталышы: %@"
+          }
+        }
+      }
+    },
     "adm_stage_label" : {
       "localizations" : {
         "ru" : {

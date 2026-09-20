@@ -33120,3 +33120,8 @@ Storage, включая рекомендацию backoff для SlowDown.
 ## 2026-09-20 — AST-5 scoped portal parity implementation
 
 Owner accepted the four gaps reported in this task: iPhone operational stage and Home parity, web catalogue novelty and notifications. Implement as four independently reviewed PRs per continuation plan. Add first-publication persistence rather than relabel current reviewed_at as novelty; keep existing catalogue DTO stable by using a dedicated recent-publications read RPC. Timestamp history/backfill policy and exact migration number will be recorded before schema code. No final E2E/content/App Store work or production writes are implied. Operational-stage empty values remain absent; unknown values use the existing localized custom-stage wording, never raw internal identifiers.
+
+
+### AST-5 Home implementation details
+
+Home uses independent read sections, maximum four favorites in existing server order, lesson draft before first incomplete lesson, first instrument with draft as web. Native TabView selection opens existing English/admission/university tabs rather than nested navigation stacks. Application reads own_student_application_v1 only for approved tier; an absent row is stated as absent, no approval status invented. Existing admission action row is reused. Nearest-intake policy mirrors current web (UTC day/month and open/announced only). Read paths refresh on entry, foreground and pull; test sheet dismissal reloads attempt state.

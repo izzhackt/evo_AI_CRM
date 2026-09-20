@@ -33341,3 +33341,27 @@ Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
 when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
 this block. Verify bundle removal and real read-only catalogue rendering.
 No content, authentication, schema or Storage writes are included.
+
+### Parallel checkpoint and portal background — 2026-09-20
+
+A-1 PR #938 merged at `7b0cfc7e1c603952e3cf44e77aa4c1943ece74f9` after
+independent exact-head review and CI. Dependency PR #847 then merged at
+`d2452b6876ef38ccbf6934b82a4bbf34e0c4543c`; the new required dependency lane
+and real isolated HTTP smoke passed. GitHub alerts 15/16/17 became `fixed` at
+2026-09-20T16:40:17Z. PR #905 merged at
+`b38c6f166b404fc6c0a1083db6b96cecef17dedc`: its three affected Node test files
+passed 50/50 checks on the reviewed head, with independent review and scoped CI.
+These are source/CI results; no production deployment or business-write acceptance.
+
+B-5 clarification: the client FavoritesView imported the photo-bearing Catalog.
+The server favorites page now supplies card nodes; selection, comparison and
+favorite actions retain their existing contracts. This is a direct dependency of
+the approved photo boundary, detailed in PR #939's receipt.
+
+B-4: observed portal dark text tokens paired with the light background inherited
+from `pt-content v3-world`. B owns a scoped background override for
+`.pt-content.v3-world` to `var(--pt-bg)` in `src/app/(portal)/portal.css`.
+Retain the legacy class and staff tokens/components. Validate real authorized
+Student catalogue, favorites, detail and one compatible home/documents screen in
+light/dark themes and at 390 px, with computed contrast and screenshots.
+No authentication, schema, business writes, content expansion or redesign.

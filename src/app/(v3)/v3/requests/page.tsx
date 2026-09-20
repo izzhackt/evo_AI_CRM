@@ -3,158 +3,140 @@ import Link from "next/link";
 
 import { PartShell } from "@/components/v3/PartShell";
 import { Pill } from "@/components/v3/Pill";
-import { ApplicationDecision, StudentApplicationAnswers, submittedDate } from "@/components/v3/admissions/StudentApplications";
+import { ApplicationDecision, STATUS_LABELS, StudentApplicationAnswers, submittedDate } from "@/components/v3/admissions/StudentApplications";
+import { PortalConsultationDetails } from "@/components/v3/requests/PortalConsultations";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { PortalConsultations } from "@/components/v3/requests/PortalConsultations";
 import {
-  filterRequestsQueue,
-  loadPortalConsultationQueue,
-  loadRequestsQueue,
-  parseRequestSourceFilter,
-  REQUEST_SOURCE_FILTERS,
-  type PortalConsultationQueue,
-  type RequestSourceFilter,
-} from "@/lib/v3/requests-source";
-import { source as sourceWord } from "@/lib/v3/wording";
+  parseRequestSelection, requestsHref, requestKindSelected, REQUEST_KINDS, REQUEST_SOURCE_FILTERS,
+  type RequestSelection, type RequestSourceFilter, type RequestsQueue,
+} from "@/lib/requests-queue-contract";
+import { loadScopedRequestsQueue, RequestsQueueSourceError } from "@/lib/v3/requests-queue-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "EVO · Заявки" };
-
 const FILTER_LABELS: Record<RequestSourceFilter, string> = {
-  all: "Все",
-  website: "Сайт",
-  platform_application: "Платформа",
-  whatsapp: "WhatsApp",
-  portal_consultation: "Кабинет: консультации",
+  all: "Все", website: "Сайт", platform_application: "Платформа", whatsapp: "WhatsApp", portal_consultation: "Кабинет: консультации",
 };
+const KIND_LABELS = { lead: "Обращения с сайта и WhatsApp", application: "Анкеты платформы", consultation: "Консультации из кабинета" };
+const linkClass = "inline-flex min-h-11 items-center rounded-nav border border-control-edge px-3 text-sm font-medium text-fg hover:bg-surface-2";
+const selectClass = "min-h-11 w-full rounded-nav border border-control-edge bg-surface px-3 text-sm text-fg";
 
-function FilterNav({ filter }: { filter: RequestSourceFilter }) {
-  return (
+function Filters({ selection }: { selection: RequestSelection }) {
+  return <div className="space-y-4">
     <nav aria-label="Источник заявки" className="flex flex-wrap gap-2">
-      {REQUEST_SOURCE_FILTERS.map((value) => (
-        <Link
-          key={value}
-          href={value === "all" ? "/v3/requests" : `/v3/requests?source=${value}`}
-          aria-current={filter === value ? "page" : undefined}
-          className={`inline-flex min-h-11 items-center rounded-nav border px-3 text-sm font-medium ${
-            filter === value ? "border-accent bg-accent-weak text-accent" : "border-control-edge text-fg-2 hover:bg-surface-2"
-          }`}
-        >
-          {FILTER_LABELS[value]}
-        </Link>
-      ))}
+      {REQUEST_SOURCE_FILTERS.map((source) => <Link key={source}
+        href={requestsHref({ ...selection, source, cursor: null })}
+        aria-current={selection.source === source ? "page" : undefined}
+        className={selection.source === source ? `${linkClass} border-accent bg-accent-weak text-accent` : linkClass}>
+        {FILTER_LABELS[source]}
+      </Link>)}
     </nav>
-  );
+    {(requestKindSelected("application", selection.source) || requestKindSelected("consultation", selection.source)) ? (
+      <form action="/v3/requests" className="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="source" value={selection.source} />
+        {selection.limit !== 50 ? <input type="hidden" name="limit" value={selection.limit} /> : null}
+        {requestKindSelected("application", selection.source) ? <label className="grid min-w-0 w-full gap-1 text-sm text-fg-2 sm:flex-1 sm:max-w-64">
+          Анкеты платформы
+          <select className={selectClass} name="applications" defaultValue={selection.applicationStatus}>
+            <option value="pending">Ожидают решения</option><option value="all">Все статусы</option>
+          </select>
+        </label> : <input type="hidden" name="applications" value={selection.applicationStatus} />}
+        {requestKindSelected("consultation", selection.source) ? <label className="grid min-w-0 w-full gap-1 text-sm text-fg-2 sm:flex-1 sm:max-w-64">
+          Консультации
+          <select className={selectClass} name="consultations" defaultValue={selection.consultationStatus}>
+            <option value="all">Все статусы</option><option value="requested">Открытые</option><option value="handled">Обработанные</option>
+          </select>
+        </label> : <input type="hidden" name="consultations" value={selection.consultationStatus} />}
+        <button type="submit" className={linkClass}>Применить</button>
+      </form>
+    ) : null}
+  </div>;
 }
 
-export default async function RequestsPage({
-  searchParams,
-}: {
+export default async function RequestsPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const actor = await requireV3PageActor("/v3/requests");
   const params = await searchParams;
-  const filter = parseRequestSourceFilter(typeof params.source === "string" ? params.source : undefined);
+  let selection: RequestSelection;
+  try { selection = parseRequestSelection(params); }
+  catch {
+    return <PartShell title="Заявки"><div role="alert" className="space-y-3 text-sm text-fg-2">
+      <p>Не удалось открыть эту страницу очереди: параметры ссылки неверны.</p>
+      <Link href="/v3/requests" className={linkClass}>Открыть начало очереди</Link>
+    </div></PartShell>;
+  }
+  const currentHref = requestsHref(selection);
+  const firstHref = requestsHref({ ...selection, cursor: null });
   const readOnly = isStaffPreview(actor);
-
-  // «Кабинет: консультации» (PORT-5b) — отдельный источник за своей пилюлей:
-  // очередь лидов и анкет при этом фильтре не читается вовсе.
-  if (filter === "portal_consultation") {
-    const rawOffset = typeof params.offset === "string" ? Number(params.offset) : 0;
-    const offset = Number.isSafeInteger(rawOffset) && rawOffset > 0 ? rawOffset : 0;
-    let consultations: PortalConsultationQueue | null = null;
-    try {
-      consultations = await loadPortalConsultationQueue(offset);
-    } catch {
-      consultations = null;
-    }
-    return (
-      <PartShell title="Заявки" count={consultations?.items.length}>
-        <div className="space-y-6">
-          <FilterNav filter={filter} />
-          {consultations === null ? (
-            <p role="alert" className="text-sm text-fg-2">
-              Не удалось загрузить запросы консультаций. Проверьте доступ и повторите попытку.{" "}
-              <a href="/v3/requests?source=portal_consultation" className="font-semibold text-accent hover:underline">Повторить</a>
-            </p>
-          ) : (
-            <PortalConsultations queue={consultations} readOnly={readOnly} />
-          )}
-        </div>
-      </PartShell>
-    );
-  }
-
-  const queue = await loadRequestsQueue(actor);
-  if (queue.applicationsUnavailable && queue.leadsUnavailable) {
-    return (
-      <PartShell title="Заявки">
-        <div role="alert" className="space-y-2 text-sm text-fg-2">
-          <p>Не удалось загрузить заявки. Проверьте доступ и повторите попытку.</p>
-          <a href="/v3/requests" className="inline-flex min-h-11 items-center font-semibold text-accent hover:underline">Повторить</a>
-        </div>
-      </PartShell>
-    );
-  }
-  const rows = filterRequestsQueue(queue, filter);
-
-  return (
-    <PartShell title="Заявки" count={rows.length}>
-      <div className="space-y-6">
-        <FilterNav filter={filter} />
-        <p className="text-sm text-fg-2">На рассмотрении: {queue.pendingApplicationCount}</p>
-        {rows.length === 0 ? (
-          <p className="text-sm text-fg-2">Заявок пока нет.</p>
-        ) : (
-          <ul className="space-y-4">
-            {rows.map((row) => (
-              <li key={`${row.kind}:${row.id}`} className="min-w-0 rounded-[10px] border border-border bg-surface p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  {row.leadId ? (
-                    <Link href={`/v3/profile?id=${encodeURIComponent(row.leadId)}`} className="min-h-11 text-sm font-semibold text-accent hover:underline">
-                      {row.personName}
-                    </Link>
-                  ) : (
-                    <span className="text-sm font-semibold text-fg">{row.personName}</span>
-                  )}
-                  <span className="flex items-center gap-2 text-xs text-fg-2">
-                    <Pill tone="neutral">{sourceWord(row.source) ?? row.source}</Pill>
-                    {submittedDate(row.occurredAt)}
-                  </span>
-                </div>
-                {row.kind === "lead" ? (
-                  <p className="mt-2 text-sm text-fg-2">{[row.email, row.phone].filter(Boolean).join(" · ") || "Контакты не указаны"}</p>
-                ) : row.leadId ? (
-                  <p className="mt-2 text-sm text-fg-2">{row.email}</p>
-                ) : (
-                  <div className="mt-3">
-                    <StudentApplicationAnswers application={row.application} />
-                  </div>
-                )}
-                {row.kind === "application" ? (
-                  readOnly ? (
-                    <p className="mt-3 text-sm text-fg-2">В режиме просмотра решения недоступны.</p>
-                  ) : (
-                    <div className="mt-3">
-                      <ApplicationDecision application={row.application} requestId={randomUUID()} />
-                    </div>
-                  )
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-        {queue.applicationsUnavailable ? (
-          <p role="alert" className="text-sm text-fg-2">Анкеты платформы недоступны вашей роли — показаны только обращения с сайта и WhatsApp.</p>
-        ) : null}
-        {queue.leadsUnavailable ? (
-          <p role="alert" className="text-sm text-fg-2">Обращения с сайта и WhatsApp сейчас недоступны — показаны только анкеты платформы. <a href="/v3/requests" className="font-semibold text-accent hover:underline">Повторить</a></p>
-        ) : null}
-        {queue.truncated ? (
-          <p className="text-sm text-fg-2">Показаны недавние обращения с сайта и WhatsApp; более старые не подгружены.</p>
-        ) : null}
-      </div>
-    </PartShell>
-  );
+  let queue: RequestsQueue | null = null;
+  let failure: "forbidden" | "invalid" | "unavailable" = "unavailable";
+  try { queue = await loadScopedRequestsQueue(actor, selection); }
+  catch (error) { if (error instanceof RequestsQueueSourceError) failure = error.code; }
+  const inaccessible = queue ? REQUEST_KINDS.filter((kind) => ["forbidden", "unavailable"].includes(queue.states[kind])) : [];
+  const readable = queue ? REQUEST_KINDS.filter((kind) => queue.states[kind] === "ready") : [];
+  const availableCount = queue && readable.length ? readable.reduce((total, kind) => total + queue.counts[kind]!, 0) : null;
+  return <PartShell title="Заявки">
+    <div className="min-w-0 space-y-6">
+      <Filters selection={selection} />
+      {!queue ? <div role="alert" className="space-y-3 text-sm text-fg-2">
+        <p>{failure === "forbidden" ? "У вашей роли нет доступа к этой очереди."
+          : failure === "invalid" ? "Не удалось открыть выбранную страницу. Вернитесь к началу очереди."
+            : "Не удалось загрузить заявки. Количество и список сейчас неизвестны."}</p>
+        <div className="flex flex-wrap gap-2"><a href={currentHref} className={linkClass}>Повторить</a>
+          <Link href={firstHref} className={linkClass}>К началу очереди</Link></div>
+      </div> : <>
+        {inaccessible.length ? <div role="status" className="space-y-1 text-sm text-fg-2">
+          {inaccessible.map((kind) => <p key={kind}>{KIND_LABELS[kind]}: {queue.states[kind] === "forbidden"
+            ? "недоступны вашей роли." : "не удалось загрузить."}</p>)}
+          {readable.length ? <p>Список и счётчики ниже относятся только к доступным обращениям.</p> : null}
+        </div> : null}
+        {availableCount !== null ? <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-fg-2">
+          <div className="flex gap-2"><dt>На странице</dt><dd className="font-semibold tabular-nums text-fg">{queue.rows.length}</dd></div>
+          <div className="flex gap-2"><dt>{inaccessible.length ? "Доступных по фильтру" : "Всего по фильтру"}</dt><dd className="font-semibold tabular-nums text-fg">{availableCount}</dd></div>
+          {queue.counts.pendingApplications !== null ? <div className="flex gap-2"><dt>Анкет ожидают решения</dt><dd className="font-semibold tabular-nums text-fg">{queue.counts.pendingApplications}</dd></div> : null}
+          {queue.counts.openConsultations !== null ? <div className="flex gap-2"><dt>Открытых консультаций</dt><dd className="font-semibold tabular-nums text-fg">{queue.counts.openConsultations}</dd></div> : null}
+        </dl> : null}
+        {queue.rows.length === 0 ? <div className="space-y-2 text-sm text-fg-2">
+          <p>{!readable.length ? "В выбранном разделе нет доступных вашей роли видов обращений."
+            : selection.cursor ? "На этой странице больше нет обращений. Список мог измениться."
+              : inaccessible.length ? "В доступной части очереди нет обращений по выбранным фильтрам."
+                : "Нет обращений по выбранным фильтрам."}</p>
+          {selection.cursor ? <Link href={firstHref} className={linkClass}>К началу очереди</Link> : null}
+        </div> : <ul className="divide-y divide-border border-y border-border">
+          {queue.rows.map((row) => <li key={`${row.kind}:${row.id}`} className="min-w-0 space-y-3 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div className="min-w-0 flex-1">
+                {row.kind !== "consultation" && row.leadId ? <Link
+                  href={`/v3/profile?id=${encodeURIComponent(row.leadId)}&returnTo=${encodeURIComponent(currentHref)}`}
+                  className="inline-flex min-h-11 items-center break-words text-base font-semibold text-fg hover:text-accent hover:underline">
+                  {row.personName}
+                </Link> : <h2 className="break-words text-base font-semibold text-fg">{row.personName}</h2>}
+                <p className="mt-1 text-sm text-fg-2">{row.kind === "application" ? "Анкета платформы" : row.kind === "consultation" ? "Консультация" : `Обращение · ${FILTER_LABELS[row.source]}`}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-fg-2">
+                {row.kind === "application" ? <Pill tone={row.application.status === "pending" ? "info" : "neutral"}>{STATUS_LABELS[row.application.status]}</Pill> : null}
+                {row.kind === "consultation" ? <Pill tone={row.consultation.status === "requested" ? "info" : "neutral"}>{row.consultation.status === "requested" ? "Открыта" : "Обработана"}</Pill> : null}
+                <time dateTime={row.occurredAt}>{submittedDate(row.occurredAt)}</time>
+              </div>
+            </div>
+            {row.kind === "lead" ? <p className="break-words text-sm text-fg-2">{[row.email, row.phone].filter(Boolean).join(" · ") || "Контакты не указаны"}</p> : null}
+            {row.kind === "application" ? <>
+              <p className="break-words text-sm text-fg-2">{row.email}</p>
+              {!row.leadId ? <StudentApplicationAnswers application={row.application} /> : null}
+              {row.application.status === "pending" ? readOnly
+                ? <p className="text-sm text-fg-2">В режиме просмотра решения недоступны.</p>
+                : <ApplicationDecision application={row.application} requestId={randomUUID()} /> : null}
+            </> : null}
+            {row.kind === "consultation" ? <PortalConsultationDetails row={row.consultation} readOnly={readOnly} refreshHref={currentHref} /> : null}
+          </li>)}
+        </ul>}
+        {(queue.previousCursor || queue.nextCursor) ? <nav aria-label="Страницы заявок" className="flex flex-wrap gap-3">
+          {queue.previousCursor ? <Link className={linkClass} href={requestsHref({ ...selection, cursor: queue.previousCursor })}>Предыдущая страница</Link> : null}
+          {queue.nextCursor ? <Link className={linkClass} href={requestsHref({ ...selection, cursor: queue.nextCursor })}>Следующая страница</Link> : null}
+        </nav> : null}
+      </>}
+    </div>
+  </PartShell>;
 }

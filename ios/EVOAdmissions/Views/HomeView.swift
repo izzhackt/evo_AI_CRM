@@ -60,6 +60,7 @@ struct HomeView: View {
     @StateObject private var admission = AdmissionHubModel()
     @State private var runContext: AssessmentRunContext?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -67,9 +68,15 @@ struct HomeView: View {
                 Section {
                     Text(session.authority.displayName).font(.title2.bold())
                 }
-                if session.accessTier == .assisted { admissionSection }
-                learningSection
-                testsSection
+                if session.accessTier == .assisted && admissionNeedsAttention { admissionSection }
+                if hasTestDraft {
+                    testsSection
+                    learningSection
+                } else {
+                    learningSection
+                    testsSection
+                }
+                if session.accessTier == .assisted && !admissionNeedsAttention { admissionSection }
                 if session.accessTier == .approved { applicationSection }
                 favoritesSection
                 if session.accessTier == .assisted {
@@ -100,6 +107,21 @@ struct HomeView: View {
         await model.refresh(tier: session.accessTier, admission: admission)
     }
 
+    // Keep the filled brand CTA, but use a readable native red for dark text links.
+    private var linkTint: Color {
+        colorScheme == .dark ? Color(uiColor: .systemRed) : Color("AccentColor")
+    }
+
+    // Never move an unknown/failed admission state below optional learning.
+    private var admissionNeedsAttention: Bool {
+        !admission.isLoaded || admission.loadFailed || admission.primaryAction != nil
+    }
+
+    private var hasTestDraft: Bool {
+        guard case .loaded(let catalog) = model.tests else { return false }
+        return catalog.instruments.contains { $0.draftAttemptId != nil }
+    }
+
     private var admissionSection: some View {
         Section("home_admission_heading") {
             if admission.loadFailed {
@@ -121,6 +143,7 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                 }
                 Button("home_open_admission") { selectedTab = .admission }
+                    .tint(linkTint)
             }
         }
     }
@@ -142,7 +165,7 @@ struct HomeView: View {
                             Text(String(format: String(localized: "home_module_progress"), picked.module.lessonsCompleted, picked.module.lessonsTotal))
                                 .font(.subheadline).foregroundStyle(.secondary)
                             Text(picked.lesson.draftAttemptId == nil ? "home_start_lesson" : "home_resume_lesson")
-                                .foregroundStyle(.tint)
+                                .foregroundStyle(linkTint)
                         }
                         .padding(.vertical, 4)
                     }
@@ -151,6 +174,7 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                 }
                 Button("home_open_english") { selectedTab = .english }
+                    .tint(linkTint)
             }
         }
     }
@@ -169,11 +193,13 @@ struct HomeView: View {
                             Text(String(format: String(localized: "home_test_progress"), attempt.answeredCount, attempt.questionCount))
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
-                        Button("tests_continue") {
+                        Button {
                             runContext = AssessmentRunContext(instrument: instrument, draftAttemptId: instrument.draftAttemptId)
+                        } label: {
+                            Text("tests_continue")
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .buttonStyle(.borderedProminent)
-                        .frame(minHeight: 44)
                     }
                     .padding(.vertical, 4)
                 }
@@ -216,6 +242,7 @@ struct HomeView: View {
                 if items.isEmpty {
                     Text("favorites_empty_title").foregroundStyle(.secondary)
                     Button("tab_universities") { selectedTab = .universities }
+                        .tint(linkTint)
                 }
                 ForEach(items) { item in
                     NavigationLink {
@@ -237,7 +264,9 @@ struct HomeView: View {
     private func retryRow(_ key: LocalizedStringKey, retry: @escaping () async -> Void) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(key).foregroundStyle(.secondary)
-            Button("retry_button") { Task { await retry() } }.frame(minHeight: 44)
+            Button("retry_button") { Task { await retry() } }
+                .tint(linkTint)
+                .frame(minHeight: 44)
         }
     }
 

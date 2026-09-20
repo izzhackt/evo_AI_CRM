@@ -33144,3 +33144,14 @@ Auth, schema, private learning state, tab identity, or catalogue content. Plan
 and focused real Simulator acceptance: `docs/design/portal/ios-home-refinement.md`.
 PR #929 remains separately pending migration 207 and runtime acceptance; this
 refinement does not authorize or substitute for that production operation.
+
+Independent evidence review additionally confirmed a Kyrgyz naming mismatch:
+Home quotes «Менин тапшыруум» while the existing destination is «Менин кабыл
+алынышым». Align the shortcut to that existing title within this same copy slice.
+
+The first actual dark/default-size render confirmed low-contrast Home text
+links with the single brand accent. In the one bounded correction pass, use
+Apple systemRed for Home text actions in dark mode only, retain brand accent
+for light mode and the filled continuation button, and let the continuation
+label occupy its row width at large text sizes. This is local to Home; no shared
+asset, descendant screen, or app-wide theme changes.

@@ -10953,3 +10953,10 @@ exact-head review/CI. Никаких новых entities/fixtures/назначе
 mark-read, бизнес-записей, managed DB/provider/deployment. Успешное создание
 задачи этим read-only срезом не доказывается и не заявляется. Это контракт
 для улучшения существующего EVO по Impeccable, без смены visual identity.
+
+Уточнение того же контракта16: если staffAllowed=false, разрешённый case intent
+не превращается в staffmode даже при collapse optional panel. Pending search
+теряет право менять selection при committed disabled transition или unmount;
+latest explicit selection должна читаться актуально, включая её очистку.
+Существующие query sequence/cleanup guards сохраняются/расширяются только
+для этой прямой зависимости; политика draft storage не меняется.

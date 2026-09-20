@@ -189,6 +189,7 @@ export default async function PipelinePart({
           <label className="inline-flex items-center gap-1.5 text-2xs text-fg-3">
             Сотрудник
             <select
+              key={query.owner ?? "all"}
               name="owner"
               defaultValue={query.owner ?? ""}
               className={CONTROL_CLASS}

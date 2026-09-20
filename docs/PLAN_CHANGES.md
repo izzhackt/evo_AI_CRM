@@ -33849,3 +33849,48 @@ freshready, для которых нет разрешённых реальных
 Не создавать новые диалоги/fixtures, не send/mark-read, не менять provider
 configuration, identities/roles/Auth, migrations или managed DB/production.
 Scope-local lint/typecheck и независимое exact-head review/CI перед root merge.
+
+## 2026-09-21 — CRM-06/10: сброс выбранного сотрудника в воронке
+
+Независимый малый остаток исходных пунктов6/10 после rootCRM09/#952. База
+`f97122e83ca65013eeac3eb51919477b9b0e16bd`; root реализует в отдельном
+`evo-pipeline-filter-reset`, A владеет только двумя shared contract docs.
+Не переносить pending948/946 и не связывать исправление с их positive QA.
+
+Фактическая проблема повторно доказана ordinary local Sales на33218:
+ownerLocalAdmin → Найти:1 карточка; «Сбросить всё»: URL безowner,7 доступных
+карточек, reset link исчезла, но select всё ещё Local Admin. Следующий поиск
+снова отправляет устаревший owner. Поиск q при reset очищается правильно;
+full reload возвращает «Все сотрудники». Pipeline source на tested35ce5c0,
+A52a00103 и mainf97122e8 побайтно одинаков
+(SHA256bb023c771c04c950caaef9e0ad96e99339a9fe7de0d720c6c45851e4dc55d2d0).
+Private observed evidence: `/private/tmp/evo-owner-filter-reset-baseline.json`,
+`evo-owner-filter-reset-baseline.png`, `evo-owner-filter-reset-followup.json`.
+
+Контракт до кода: синхронизировать только видимый owner select с нормализованным
+применённым URL owner при client navigation/reset/history. Минимальный вариант
+— remount самого select при изменении committed owner; не всей страницы, формы
+поиска, доски или карточек. Не менять рабочую семантику q, stage/due/assignment/
+handed, URL parameter names/validation/404, permission-gated owner options и
+placeholder недоступного в первой сотне выбранного сотрудника.
+
+После reset controls/URL/выдача должны согласоваться, последующий submit не
+должен заново отправлять сброшенный owner. Сохранять разрешённые board rows,
+counts/handoff grouping, текущие search/filter links и ограничения tenant/role.
+Не затрагивать unsaved business drafts/manual lead/decision forms, layout,
+existing actions, SQL/readers/API/migrations или provider paths. Исправление
+не создаёт/не меняет клиентов, продажи, назначения, Auth или данные QA.
+
+Scope-local реальная приёмка через GET и обычный existing Sales:
+- owner apply→reset: label «Все сотрудники», URL безowner, исходная полная
+  разрешённая выдача; следующий поиск не возвращает staleowner;
+- Back/Forward и stage/due links сохраняют согласованность с committedURL;
+  q очищается как прежде, другие фильтры и handed mode не переосмысляются;
+- не remount unrelated forms и не терять их незаписанные поля; только ввод
+  и навигация допустимы, никаких submit mutation commands;
+- desktop и actual390px: control доступен, нет нового overflow. Изменённый
+  source проходит scoped lint/typecheck, diff review и независимое exact-head
+  review/protected CI. Не вводить mock data или тест, просто зеркалящий JSX.
+
+Это подготовленный контракт, не утверждение исправления. Production/provider/
+managed mutations и завершение всех пунктов6/10 этим срезом не заявляются.

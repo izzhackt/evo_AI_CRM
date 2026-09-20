@@ -59,3 +59,20 @@ Auth/роли, продажи и финансовая форма этим пак
 
 После source review и согласованного окна A применяет213 перед214. Даже успешная
 локальная QA-проверка является техническим доказательством, не клиентской приёмкой.
+
+## Поправка после независимого review
+
+Spec review ae8dd7a7: source APPROVED. Standards review обнаружило P2:
+название группы читалось из raw FormData до распаковки React19 envelope;
+outcome также должен брать исходные ID из декодированной формы. Добавлен
+`decodeLeadSaleConditionsGroupForm`: перебирает четыре закрытые exact schemas,
+затем читает discriminator и нормализует commandForm для всего нового action.
+Старый v1 action и SQL213 остаются неизменными.
+
+Шесть новых runtime parser-проверок: четыре direct формы; четыре React envelopes
+с сохранением command IDs; duplicates; missing/sibling keys; mismatched/unknown
+groups; mixed/incomplete envelopes. Все6 PASS, без RPC/Auth mocks. Scoped lint PASS.
+Прямой tsc во время dev-сервера встретил повреждённый generated
+`.next/dev/types/routes.d.ts`; после остановки своего33219 выполнен штатный
+`npm run typecheck` с предусмотренной cleanup/typegen: PASS. Продуктовый source
+ради этого не менялся. Positive save/apply по-прежнему pending, нужен delta review.

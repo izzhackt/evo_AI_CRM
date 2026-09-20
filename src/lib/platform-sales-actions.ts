@@ -14,13 +14,13 @@ import {
   type PlatformSalesWorkflowMutationInput,
 } from "./platform-sales";
 import { exactActionStringFields } from "./server/action-form-fields";
+import { decodeLeadSaleConditionsGroupForm } from "./server/lead-sale-conditions-form";
 import { createSupabaseServerClient } from "./supabase/server";
 import {
   CONDITIONS_BUDGET_PERIODS,
   LEAD_SALE_CONDITION_GROUP_KEYS,
   SALE_CONDITION_CURRENCIES,
   type ConditionsBudgetPeriod,
-  type LeadSaleConditionsGroup,
   type SaleConditionCurrency,
 } from "./lead-sale-conditions-contract";
 import { parseSalesDate, parseSalesInteger } from "./platform-sales-register-contract";
@@ -395,14 +395,13 @@ export async function saveLeadSaleConditionsGroupAction(
   form: FormData,
 ): Promise<SaveLeadSaleConditionsActionState> {
   const actor = await requirePlatformMutationCapability("sales.write", "/v3/profile");
-  const groupValue = form.get("field_group");
-  if (typeof groupValue !== "string" || !Object.hasOwn(LEAD_SALE_CONDITION_GROUP_KEYS, groupValue)) {
-    return saleConditionsOutcome(form, "invalid");
-  }
-  const group = groupValue as LeadSaleConditionsGroup;
+  const decoded = decodeLeadSaleConditionsGroupForm(form);
+  if (!decoded) return saleConditionsOutcome(form, "invalid");
+  const { group, fields } = decoded;
+  // Outcomes must read the decoded IDs too: unavailable/stale keeps the same
+  // command ID even when React sent its prefixed useActionState envelope.
+  form = decoded.commandForm;
   const groupKeys = LEAD_SALE_CONDITION_GROUP_KEYS[group];
-  const fields = exactActionStringFields(form, ["lead_id", "expected_revision", "request_id", "field_group", ...groupKeys]);
-  if (!fields) return saleConditionsOutcome(form, "invalid");
   const leadId = parsePlatformSalesUuid(fields.get("lead_id"));
   const requestIdValue = fields.get("request_id") ?? "";
   const requestId = REQUEST_UUID_PATTERN.test(requestIdValue) ? requestIdValue.toLowerCase() : null;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { Pill } from "@/components/v3/Pill";
-import { submittedDate } from "@/components/v3/admissions/StudentApplications";
+import { submittedDate } from "@/lib/student-application-presentation";
 import { handlePortalConsultationAction } from "@/lib/platform-portal-consultation-actions";
 import type { PortalConsultationQueue, PortalConsultationRow } from "@/lib/v3/requests-source";
 import { portalConsultationStatus } from "@/lib/v3/wording";
@@ -17,7 +17,7 @@ import { portalConsultationStatus } from "@/lib/v3/wording";
  * обновится.
  */
 
-function HandleButton({ row }: { row: PortalConsultationRow }) {
+function HandleButton({ row, refreshHref }: { row: PortalConsultationRow; refreshHref: string }) {
   const [outcome, setOutcome] = useState<"idle" | "conflict" | "failed">("idle");
   const [pending, startTransition] = useTransition();
   return (
@@ -39,7 +39,7 @@ function HandleButton({ row }: { row: PortalConsultationRow }) {
       </button>
       {outcome === "conflict" ? (
         <p role="alert" className="text-sm text-fg-2">
-          Запрос уже обработан. <Link href="/v3/requests?source=portal_consultation" className="font-semibold text-accent hover:underline">Обновить список</Link>
+          Запрос уже обработан. <Link href={refreshHref} className="font-semibold text-accent hover:underline">Обновить список</Link>
         </p>
       ) : null}
       {outcome === "failed" ? (
@@ -90,7 +90,7 @@ export function PortalConsultations({
                 readOnly ? (
                   <p className="mt-3 text-sm text-fg-2">В режиме просмотра действия недоступны.</p>
                 ) : (
-                  <HandleButton row={row} />
+                  <HandleButton row={row} refreshHref="/v3/requests?source=portal_consultation" />
                 )
               ) : null}
             </li>
@@ -110,4 +110,17 @@ export function PortalConsultations({
       ) : null}
     </section>
   );
+}
+
+/** Row details shared by the unified queue; existing command and status guard stay intact. */
+export function PortalConsultationDetails({ row, readOnly, refreshHref }: {
+  row: PortalConsultationRow; readOnly: boolean; refreshHref: string;
+}) {
+  return <div className="space-y-2 text-sm text-fg-2">
+    {row.institutionName !== null ? <p className="break-words">Университет: {row.institutionName}</p> : null}
+    {row.note !== null ? <p className="whitespace-pre-wrap break-words text-fg">{row.note}</p> : null}
+    {row.status === "handled" && row.handledAt !== null ? <p>Обработано {submittedDate(row.handledAt)}{row.handledByName !== null ? ` · ${row.handledByName}` : ""}</p> : null}
+    {row.status === "requested" ? readOnly ? <p>В режиме просмотра действия недоступны.</p>
+      : <HandleButton row={row} refreshHref={refreshHref} /> : null}
+  </div>;
 }

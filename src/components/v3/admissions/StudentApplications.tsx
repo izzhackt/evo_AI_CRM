@@ -7,16 +7,9 @@ import {
   type StudentApplication,
   type StudentApplicationActionState,
 } from "@/lib/student-application-contract";
-import { formatStudentApplicationAnswers } from "@/lib/student-application-presentation";
+import { formatStudentApplicationAnswers, submittedDate } from "@/lib/student-application-presentation";
 
-const STATUS_LABELS = { pending: "На рассмотрении", approved: "Одобрена", rejected: "Отклонена" };
 const inputClass = "mt-1 min-h-11 w-full rounded-lg border border-control-edge bg-surface px-3 py-2 text-sm text-fg";
-
-function submittedDate(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(value));
-}
-
-export { STATUS_LABELS, submittedDate };
 
 export function StudentApplicationAnswers({ application }: { application: StudentApplication }) {
   const answers = [...formatStudentApplicationAnswers(application.questionnaire), { label: "Почта", value: application.email }];

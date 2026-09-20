@@ -11512,3 +11512,48 @@ Admin preview только при существующей доступной с
 Scoped lint/types/существующие navigation/brand checks, independent exact-head
 review, protectedCI. Это один обоснованный срез22, не изменение всех экранов
 или доказательство screen-reader/live-device acceptance. Без SQL/DDL/release.
+
+
+## 2026-09-21 — B3c/218: требования выбранной программы (до реализации)
+
+Root зарезервировал218 для B;216 — A sales search,217 — root calendar.
+Направление принято root; runtime ждёт main946+960 и review этого контракта.
+B владеет только этими двумя appendices в isolated evo-application-requirements-b;
+параллельные worktrees и старый dirty checkout сохраняются. Исходники изучены
+на941a42ae, contract branch основан на215 integration32f53535.
+
+[Полный контракт B3c](platform/b3c-application-requirements-contract.md):
+неизменяемая редакция требований preparation214 и обязательность каждого пункта,
+явная идемпотентная инициализация и read-only Student/staff readers, TS/Swift DTO.
+Данные документов остаются в существующих same-case slots/versions; двух приватных
+append-only таблиц достаточно для первой редакции и её состава. GET не пишет.
+
+Для новой простой подготовки — Фото и Загранпаспорт как старт EVO, оба required.
+needs_confirmation сообщает о неподтверждённой полноте перечня вуза; не вводит
+одобрение выбора сотрудником и не блокирует начало подготовки. Existing app/full
+case checklist не заменяется двумя пунктами: needs_configuration без изменений,
+до отдельного явного принятия полного состава. Автоматическое reuse только для
+типизированных218 совместимых материалов; одинаковое название старого файла
+не доказывает совместимость. Файлы, review и binary не копируются/переписываются.
+
+Старые113 unlink/108 soft-delete остаются доступны; immutable обязательный пункт
+reader сохраняет видимым как unavailable, не исключает из состава. Старые179
+whole-case route binding и137 approved gate не служат новым программным checklist
+или готовностью к первой Student-отправке. Staff documents требуют read.full/
+manage в действующем scope; case.read.full недостаточно. Student — только своё
+active portal-eligible дело; authority повторно проверяется после блокировок.
+
+В218 нет UI, upload/draft/submit separation, пакета/очереди/review, external
+submitted, новых ролей/Auth, провайдеров или production. Последующее принятие
+полных перечней и сопоставление прежних файлов остаются частью принятого плана.
+Проверка — обычный Auth в существующей local QA, реальные RPC/TS/Swift, replay/
+duplicate/conflict и границы доступа, точный before/after. Нет подходящего случая
+для положительного init — явно непроверенный результат, не замена его отказом.
+Сначала scoped source review, затем согласованное DB writer window; runtime218
+этой документацией ещё не заявляется выполненным.
+
+Независимое pre-code review уточнило: fresh authority до replay, existing receipt/
+revision до active/preparation/legacy eligibility; unique application revision и
+item key, case-level сериализация reuse между программами; повтор не восстанавливает
+удалённые links/slots. DTO разделяет required, slotStatus, reviewDecision, technical
+availability/reasons и nullable configuration revision без фиктивной revision0.

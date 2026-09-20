@@ -50,7 +50,10 @@ export async function readUniversityBatchSnapshot(actor: ActivePlatformActor): P
 export async function readUniversityDrafts(actor: ActivePlatformActor, id: string | null = null) {
   if (!staffHasPermission(actor, "catalog.import.manage") || (id !== null && !universityUuid(id))) throw new Error("Drafts unavailable");
   const client = await createSupabaseServerClient();
-  const { data, error } = await client.schema("platform").rpc("admin_university_catalog_drafts", { p_organization_id: actor.organizationId, p_draft_id: id });
+  const args = { p_organization_id: actor.organizationId, p_draft_id: id };
+  // The release requires 211. Never fall back to the filtered legacy reader:
+  // a stale schema cache could otherwise hide technical drafts as a success.
+  const { data, error } = await client.schema("platform").rpc("admin_university_catalog_drafts_with_review_kind", args);
   const drafts = !error && parseUniversityDrafts(data);
   if (!drafts || (id !== null && drafts.some((draft) => draft.id !== id))) throw new Error("Drafts unavailable");
   return drafts;

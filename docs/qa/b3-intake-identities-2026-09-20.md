@@ -120,3 +120,31 @@ SHA-256 `a1eb5a403753ea39226b1ff2fcb430a94b98e352e2271e5b309249209faa38dc`.
 runtime, реального stage/review/retry/readback и визуальной проверки. Управляемый
 релиз и финальный продуктовый E2E не входят в этот пакет. Согласованные обычные
 Auth/read-only вызовы выполнены; разрешение на них не расширялось до write authority.
+
+## Дополнительная проверка подготовленного manifest и batch-классификации
+
+Swift `UniversityContent` напрямую декодировал `manifest.entries[].content`:
+65 редакций /131 набор /131 уникальный ID. RPC-ответ не фабриковался. Это чтение
+реально подготовленных кандидатов, отдельно от подтверждённых legacy RPC reads.
+
+Independent standards review head `1dde2aa7` обнаружил P2: batch видел ID-only
+разницу как update и отправлял ID-less template, который SQL211 отвергает.
+Исправлено: facts-only equality исключительно для read-only классификации даёт
+`current`; при реальном изменении identified content — `editor_required`, отдельный
+счётчик и ссылка на actual institution editor, без включения в legacy batch.
+Пустой latest + добавляемые template intakes также требует редактора: прежняя
+identified history может существовать. SQL211 остаётся authority при race;
+дополнительного pre-read перед frozen request нет, replay/digest не менялись.
+
+Проверка на actual snapshots + том же неопубликованном manifest:
+
+- Все65 same-facts кандидатов классифицируются current.
+- Все143 repository templates совпадают с actual baseline по фактам; states:
+  current143, new/update/identity_conflict/editor_required0.
+- С наложением подготовленных IDs states остаются current143; исходные content,
+  template hashes и неизменность входных структур подтверждены.
+- Другие ветки не упражнялись новыми искусственными данными. Их source review не
+  заменяет выполнение. UI batch и SQL write proof по-прежнему не выполнены.
+- После UI исправления production build прошёл; после финального уточнения
+  facts-only classification TypeScript, scoped ESLint и фактическая проверка выше
+  прошли. Build не переименован в новый runtime/write proof.

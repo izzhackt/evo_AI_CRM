@@ -6,7 +6,7 @@ import type { UniversityActionState } from "@/lib/platform-university-catalog";
 import type { UniversityBatchRow } from "@/lib/server/university-catalog-batch";
 
 const button = "inline-flex min-h-11 items-center justify-center rounded-ctl border border-border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
-const labels = { new: "Новая карточка", update: "Обновление", current: "Уже актуальна", identity_conflict: "Нужно сверить название или город" };
+const labels = { new: "Новая карточка", update: "Обновление", current: "Уже актуальна", identity_conflict: "Нужно сверить название или город", editor_required: "Обновление через карточку вуза" };
 const errors: Partial<Record<UniversityActionState["status"], string>> = {
   unavailable: "Нет подтверждения от сервера. Повтор использует тот же запрос и не создаст дубликат.",
   stale: "Карточка или подготовленные сведения изменились. Обновите страницу и проверьте новую версию.",
@@ -48,6 +48,7 @@ export function UniversityBatchReview({ initialRows }: { initialRows: readonly U
   return <div className="space-y-6">
     <p className="max-w-3xl text-sm leading-6 text-fg-2">Существующие сведения не удаляются.</p>
     <p className="text-sm text-fg-2">Подготовлено: {rows.length}. Уже актуальны: {rows.filter((row) => row.state === "current").length}. Требуют сверки: {rows.filter((row) => row.state === "identity_conflict").length}.</p>
+    {rows.some((row) => row.state === "editor_required") ? <p className="max-w-3xl text-sm leading-6 text-fg-2">Отдельно через карточку: {rows.filter((row) => row.state === "editor_required").length}. Наборы этих вузов нужно добавлять и обновлять в актуальной карточке, чтобы сохранить их связь с прежними версиями. Они не входят в пакет публикации.</p> : null}
     <fieldset disabled={running} className="space-y-3">
       <legend className="mb-3 font-semibold text-fg">Страны и карточки для проверки</legend>
       {countries.map((country) => <div key={country} className="rounded-card border border-border bg-surface p-4">
@@ -55,7 +56,7 @@ export function UniversityBatchReview({ initialRows }: { initialRows: readonly U
         <details className="mt-2"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-accent-text">Посмотреть карточки</summary>
           <ul className="divide-y divide-border">{rows.filter((row) => row.country === country).map((row) => <li key={row.key} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
             <div><p className="font-medium text-fg">{row.name}</p><p className="mt-1 text-xs text-fg-3">{completed.has(row.key) ? "Опубликована" : labels[row.state]} · программ: {row.programs}{row.baseVersion ? ` · текущая версия ${row.baseVersion}` : ""}</p></div>
-            <Link href={`/v3/universities/manage?template=${row.key}`} target="_blank" className={button}>Просмотреть<span className="sr-only"> {row.name} (в новой вкладке)</span></Link>
+            <Link href={row.state === "editor_required" ? `/v3/universities/manage?edit=${row.institutionId}` : `/v3/universities/manage?template=${row.key}`} target="_blank" className={button}>{row.state === "editor_required" ? "Открыть редактор" : "Просмотреть"}<span className="sr-only"> {row.name} (в новой вкладке)</span></Link>
           </li>)}</ul>
         </details>
       </div>)}

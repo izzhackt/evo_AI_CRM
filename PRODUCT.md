@@ -1,5 +1,15 @@
 # Product
 
+## Current UX scope — owner decision 2026-09-20
+
+The owner has expanded task-based UX analysis and refinement to all CRM, product
+web (desktop/mobile) and iPhone surfaces. Preserve existing brand and capabilities;
+CRM may receive substantial workflow/layout improvements. Follow the additive
+[UX plan](docs/EVO_UX_REFINEMENT_PLAN_2026-09-20.md) together with the current
+CRM/admissions functional contract. Older portal-only scope below is historical
+for that plan and does not exclude this new staff work. Dedicated page agents
+are authorized; production mutations and release are not implied.
+
 <!-- impeccable:product-schema 1 -->
 
 ## Platform

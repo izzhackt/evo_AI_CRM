@@ -10376,3 +10376,17 @@ the native continuation button. Preserve the user's selected EVO appearance.
 Acceptance: Xcode build, real QA Home/continuation/lesson paths, RU/KY and
 dark/large-text inspection, then independent exact-head review and short CI.
 No production migration/release or deferred final E2E/content/App Store work.
+
+
+## 2026-09-20 — EVO product-wide UX refinement
+
+Owner-authorized additive execution contract:
+[`EVO_UX_REFINEMENT_PLAN_2026-09-20.md`](EVO_UX_REFINEMENT_PLAN_2026-09-20.md).
+Analyze the entire CRM, product web (desktop/mobile), and iPhone experience against
+real tasks and the existing CRM/admissions functional plan. Preserve EVO/Atlas/native
+identity and useful functions; improve CRM composition, density, typography,
+navigation and state handling. Dedicated page agents may analyze in parallel with
+explicit ownership; one coordinator integrates shared contracts and components.
+The scope includes an inventory before removing/moving controls and a truthful
+per-page evidence matrix. Final E2E, content expansion, App Store and release remain
+separate. The first documentation pass is not a completed all-page runtime audit.

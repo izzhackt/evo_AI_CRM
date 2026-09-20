@@ -35044,3 +35044,26 @@ filters/cursors, SQL, authority, commands or visual layout. MDN pageshow covers
 returning to a document with browser Back/Forward, including bfcache:
 https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event.
 Actual Back/Forward plus resubmit must pass before acceptance.
+
+
+## 2026-09-21 — A / item15a: staff chat task-action removal boundary
+
+After PR#968 merged, fresh main43bd20c8 confirms accepted product plan §9
+explicitly removes Create task, generated task cards/links and task-link loading
+from staff chat while retaining Tasks/history/manual links. This is the next
+bounded slice; the wider flat-feed/read-state work is not bundled into it.
+
+The adapter's extra team_chat_task_links read can currently fail the entire
+canonical snapshot. Remove that enrichment and the corresponding UI actions in
+exactly team-chat-source.ts, TeamChatMessageRow.tsx and TeamChat.tsx. The optional
+DTO field and Tasks provenance/deep-link commands stay for compatibility.
+No schema, authority, realtime, message mutation or draft behavior changes.
+
+Impeccable Operate/refinement advises removing the excluded action while
+preserving familiar EVO controls and typography. Inspect current actual staff UI
+before editing and verify the result in a bounded desktop/mobile pass. The
+read-only actual check needs a coordinator-granted local QA window and existing
+populated history; no new messages/tasks or Mark read command. Missing history
+limits the claim rather than authorizing fabricated data. ROOT retains existing
+independent reviewers and merge ownership. This precode records the boundary;
+implementation awaits its review.

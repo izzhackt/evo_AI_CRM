@@ -696,7 +696,7 @@ async function readCaseProfile(
   }
 
   const data = await loadFullCase(actor, view.studentCase);
-  if (link && data.handoff?.leadId !== link.leadId) {
+  if (link && data.handoff && data.handoff.leadId !== link.leadId) {
     throw new Error("V3 profile handoff lead does not match the canonical case link.");
   }
   // S8: only a 'pending' case can ever be cabinet_pending (184's shape) —
@@ -757,7 +757,18 @@ async function readLeadProfile(
   );
   if (salesContext === null) return null;
   const { gate, handoff } = salesContext;
-  const caseId = handoff.caseId;
+  // Migration181 can activate a canonical case without a legacy handoff row.
+  // An explicit case route has already verified its canonical lead via105.
+  const needsCaseDiscovery = handoff.caseId === null && expectedStudentCaseId === null;
+  const discoveredCase = needsCaseDiscovery ? await readLeadCabinetCase(actor, leadId) : null;
+  let caseId = handoff.caseId ?? expectedStudentCaseId;
+  if (discoveredCase) {
+    //184 also discovers same-client cases: adopt only an authorized exact lead link.
+    const links = await listPlatformStudentCaseLeadLinks(actor, [discoveredCase.studentCaseId]);
+    if (links.some((link) => link.studentCaseId === discoveredCase.studentCaseId && link.leadId === leadId)) {
+      caseId = discoveredCase.studentCaseId;
+    }
+  }
   if (expectedStudentCaseId !== null && caseId !== expectedStudentCaseId) return null;
   const caseView = caseId ? await getPlatformStudentCaseView(actor, caseId) : null;
   const studentCase = caseView?.access === "full" ? caseView.studentCase : null;
@@ -768,7 +779,7 @@ async function readLeadProfile(
   const salesHandoffAcknowledgement = !fullCase && caseId && handoff.handedOffAt
     ? await getSalesHandoffAcknowledgement(actor, leadId, caseId)
     : null;
-  if (fullCase && fullCase.handoff?.leadId !== lead.leadId) {
+  if (fullCase?.handoff && fullCase.handoff.leadId !== lead.leadId) {
     throw new Error("V3 profile handoff lead does not match the requested lead.");
   }
   const applications = fullCase?.applications ?? [];
@@ -815,7 +826,9 @@ async function readLeadProfile(
   // has a linked case — regardless of anketa (site/WhatsApp leads never have
   // one) and regardless of admissions.read (a handed-off case the actor can't
   // fully open still means "don't show the prepare button again").
-  const leadCabinetCase = fullCase ? null : await readLeadCabinetCase(actor, leadId);
+  const leadCabinetCase = fullCase ? null : needsCaseDiscovery
+    ? discoveredCase
+    : await readLeadCabinetCase(actor, leadId);
   // S8: same pending-only optimization as readCaseProfile above.
   const isCabinetCase = fullCase && fullCase.studentCase.state === "pending" && caseId
     ? await readStudentCaseCabinetOrigin(actor, caseId)

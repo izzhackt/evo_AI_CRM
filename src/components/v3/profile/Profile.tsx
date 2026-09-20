@@ -10,9 +10,9 @@ import { personState } from "@/lib/v3/wording";
 import { Documents } from "./Documents";
 import { ProfileContractWorkspace } from "./ProfileContractWorkspace";
 import { ProfileNotes } from "./ProfileNotes";
-import { StudentPortalAccessCard } from "./StudentPortalAccessCard";
+import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
 import { profileNotesSubjectKey } from "./profile-notes-view";
-import { Anketa, History, Money, Overview } from "./tabs";
+import { Anketa, History, Money, Overview, PlatformAccessCard } from "./tabs";
 import {
   tabsFor,
   type PersonProfile,
@@ -172,6 +172,40 @@ export function Profile({
       {current === "route" ? universityProgramsTab : null}
       {current === "overview" ? (
         <div className="space-y-4">
+          {sales || draft.admissions || draft.studentApplication ? (
+            <PlatformAccessCard
+              application={draft.studentApplication}
+              requestId={requestIds.platformAccess}
+              readOnly={isStaffPreview(actor) || sales === null}
+              leadId={sales?.lead.leadId ?? null}
+              leadCabinetCase={draft.admissions ? {
+                studentCaseId: draft.admissions.studentCaseId,
+                state: draft.admissions.caseState,
+              } : draft.leadCabinetCase}
+              prepareRequestId={requestIds.prepareLeadCabinet}
+            >
+              {!isStaffPreview(actor) &&
+              profile.student &&
+              draft.admissions &&
+              (actor.systemRole === "admin" ||
+                (draft.admissions.isCabinetCase && staffCan(actor, "sales.write"))) ? (
+                <StudentPortalAccessControls
+                  organizationId={organizationId}
+                  studentCaseId={draft.admissions.studentCaseId}
+                  email={profile.email}
+                  displayName={profile.person}
+                  caseState={draft.admissions.caseState}
+                  isCabinetCase={draft.admissions.isCabinetCase}
+                  requestId={studentPortalProvisioningRequestId(
+                    organizationId,
+                    draft.admissions.studentCaseId,
+                  )}
+                  curatorOptions={studentPortalCurators}
+                  curatorOptionsAvailable={studentPortalCuratorsAvailable}
+                />
+              ) : null}
+            </PlatformAccessCard>
+          ) : null}
           <Overview
             profile={profile}
             draft={draft}
@@ -180,26 +214,6 @@ export function Profile({
             requestIds={requestIds}
             tabHref={hrefFor}
           />
-          {!isStaffPreview(actor) &&
-          profile.student &&
-          draft.admissions &&
-          (actor.systemRole === "admin" ||
-            (draft.admissions.isCabinetCase && staffCan(actor, "sales.write"))) ? (
-            <StudentPortalAccessCard
-              organizationId={organizationId}
-              studentCaseId={draft.admissions.studentCaseId}
-              email={profile.email}
-              displayName={profile.person}
-              caseState={draft.admissions.caseState}
-              isCabinetCase={draft.admissions.isCabinetCase}
-              requestId={studentPortalProvisioningRequestId(
-                organizationId,
-                draft.admissions.studentCaseId,
-              )}
-              curatorOptions={studentPortalCurators}
-              curatorOptionsAvailable={studentPortalCuratorsAvailable}
-            />
-          ) : null}
           <ProfileNotes
             key={profileNotesSubjectKey(notes.subject)}
             notes={notes}

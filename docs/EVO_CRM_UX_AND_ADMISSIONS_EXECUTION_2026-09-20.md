@@ -11,9 +11,9 @@
 |---|---|---|
 | Этап 0: контракт, worktree, координация | Изолированный worktree; исходный план сохранён без изменений; launch/decisions обновлены | MERGED #931, `8ef2aef01` |
 | CRM-06: загрузка admissions board | Продолжен #913: unset GET args, сброс видимых фильтров, retry/Students; реальные чтения и desktop/390px UI пройдены, см. квитанцию ниже | MERGED #913, `fc13ed96d`; production не обновлён |
-| CRM-08: правильный куратор, портал-доступ | Источник куратора и явные названия ролей исправлены; локальный реальный UI пройден. Объединение portal-access блоков ещё открыто | MERGED #932, `819cd17d9`; production не обновлён |
+| CRM-08: правильный куратор, портал-доступ | Источник куратора и роли исправлены (#932); единый portal-access блок реализован, см. CRM-08b | MERGED #932, `819cd17d9`; production не обновлён |
 | CRM-02: права, продавец, дата/месяц, поиск/финансы/UX | Ожидает реализации | — |
-| CRM-09: стоимость → договор → платежи | CRM-09a: редактор стоимости снова доступен после handoff; прочий единый финансовый поток ещё открыт | PR текущего среза; production не обновлён |
+| CRM-09: стоимость → договор → платежи | CRM-09a: редактор стоимости снова доступен после handoff; прочий единый финансовый поток ещё открыт | MERGED #933, `dbb3f1d1f`; production не обновлён |
 | CRM-03: заявки, источники и пагинация | Ожидает реализации | — |
 | CRM-01: текущие количества в воронке продаж | Ожидает реализации | — |
 | CRM-04/05/07: inbox, мобильная воронка, сообщения | Ожидает реализации | — |
@@ -119,3 +119,29 @@ SHA-256 изменённых runtime-файлов:
 - `src/components/v3/profile/tabs.tsx`: `0a4b7959fbe151812c095bf80a6eefc097b95062815d8fa5e6bf48a72fdf5fd4`
 - `src/components/v3/profile/CaseAgreementBlock.tsx`: `191248d3fb71d0e455562eb031cbea280be1bf02b0ca372fea87b9bcfbc40fe7`
 - `src/components/v3/profile/LeadSaleConditions.tsx`: `4775a02e3c4435a13219f6cafce70f26372fa554a7fd5994786209ee4001ba3c`
+
+## CRM-08b — единый блок доступа, 2026-09-20
+
+На том же существующем тестовом деле реальный локальный Next.js / managed
+Supabase / Admin проверен через оба входа: `/profile?id=` и `/profile?case=`.
+В обзоре ровно один раздел «Доступ к порталу», ноль кнопок «Подготовить кабинет»
+для уже созданного дела и один набор существующих invite controls. «Открыть дело»
+ведёт в анкету именно связанного дела. Desktop и 390×844 осмотрены; снимки только
+в ignored `.next/crm-ux-proof/portal-access-*.png`, без публикации личных данных.
+
+Приглашения, повторные приглашения, решения по заявкам и Auth не изменяли:
+этот runtime receipt подтверждает чтение/компоновку/навигацию. Все mutation forms,
+request IDs, поля, state machine и прежний gate Admin / Sales cabinet_pending
+сохранены; их provider-выполнение в этом срезе не заявляется.
+
+TypeScript, scoped ESLint и diff check прошли. 11 provisioning contract-проверок
+прошли с обязательным для server-only `--conditions=react-server`; 7 профильных
+проверок прошли. Первый запуск provisioning без этого флага завершился ошибкой
+окружения, затем команда исправлена. Один существующий source assertion обновлён
+под имя вынесенных Controls, без изменения проверяемого gate. Detector новых
+компонентов чист; прежний `border-s-2` стопа в tabs остаётся вне этого среза.
+
+SHA-256 runtime-файлов:
+- `src/components/v3/profile/Profile.tsx`: `56da8b7885aca3c2b6e1caa84e729e3860fd495cbb52c0b7fe1bbd21cf15bcc1`
+- `src/components/v3/profile/tabs.tsx`: `cf5cbe894c01855bcd9db90ab91c2a9163713a382d560f5c73803da1a39606e9`
+- `src/components/v3/profile/StudentPortalAccessCard.tsx`: `fbd292ca3eeeff6c4c239c890a17f06fd6e2c63b560b1e67cf968ce7e90b6193`

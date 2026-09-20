@@ -1,7 +1,7 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Pill, type PillTone } from "@/components/v3/Pill";
 import {
   allDayDate,
@@ -77,28 +77,29 @@ const tone = (s: string): PillTone => STATUS_TONE[s] ?? "neutral";
  * анкета never assigns a curator or direction, only opens the portal
  * cabinet. Admissions handoff stays a separate, later fact (Sales report).
  */
-function PlatformAccessCard({ application, requestId, readOnly, leadId, leadCabinetCase, prepareRequestId }: {
+export function PlatformAccessCard({ application, requestId, readOnly, leadId, leadCabinetCase, prepareRequestId, children }: {
   application: StudentApplication | null; requestId: string; readOnly: boolean;
   /** «Подготовить кабинет» (unified workflow S7): for a lead with no анкета and no linked case. */
-  leadId: string; leadCabinetCase: LeadCabinetCase | null; prepareRequestId: string;
+  leadId: string | null; leadCabinetCase: LeadCabinetCase | null; prepareRequestId: string;
+  children?: ReactNode;
 }) {
   return (
-    <Card eyebrow title="Доступ к платформе">
+    <Card title="Доступ к порталу" id="portal-access">
       <div className="space-y-3 px-4 py-3">
         {application === null && leadCabinetCase !== null ? (
           <p className="text-sm text-fg-2">
-            Кабинет подготовлен.{" "}
+            {leadCabinetCase.state === "closed" ? "Дело закрыто." : "Дело уже создано."}{" "}
             <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(leadCabinetCase.studentCaseId)}&tab=anketa`}>
               Открыть дело
             </Link>
           </p>
-        ) : application === null && readOnly ? (
-          <p className="text-sm text-fg-2">Анкета в платформе не заполнена. В режиме просмотра действия недоступны.</p>
-        ) : application === null ? (
+        ) : application === null ? (readOnly || leadId === null ? (
+          <p className="text-sm text-fg-2">Заявка на доступ не заполнена. Подготовка кабинета недоступна в этом режиме.</p>
+        ) : (
           <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} />
-        ) : application.status === "approved" ? (
+        )) : application.status === "approved" ? (
           <p className="text-sm text-fg-2">
-            Доступ открыт.{" "}
+            Заявка на доступ одобрена.{" "}
             {application.studentCaseId ? (
               <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(application.studentCaseId)}&tab=anketa`}>
                 Открыть дело
@@ -119,6 +120,7 @@ function PlatformAccessCard({ application, requestId, readOnly, leadId, leadCabi
           </>
         )}
       </div>
+      {children ? <div className="border-t border-border">{children}</div> : null}
     </Card>
   );
 }
@@ -213,15 +215,6 @@ export function Overview({
               </div>
             ) : null}
           </Card>
-
-          <PlatformAccessCard
-            application={draft.studentApplication}
-            requestId={requestIds.platformAccess}
-            readOnly={isStaffPreview(actor)}
-            leadId={sales.lead.leadId}
-            leadCabinetCase={draft.leadCabinetCase}
-            prepareRequestId={requestIds.prepareLeadCabinet}
-          />
 
           <ProfileSalesTransition
             actor={actor}

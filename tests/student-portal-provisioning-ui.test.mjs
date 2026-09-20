@@ -15,9 +15,9 @@ test("V3 profile exposes Student Portal provisioning to Admin always, and to Sal
   // Sales must be able to dispatch a cabinet case's own invite) — it is
   // "not preview" AND ("is admin" OR "is a cabinet case AND holds
   // sales.write"), never derived from caseState alone.
-  assert.match(profile, /!isStaffPreview\(actor\) &&\s*profile\.student &&\s*draft\.admissions &&\s*\(actor\.systemRole === "admin" \|\|\s*\(draft\.admissions\.isCabinetCase && staffCan\(actor, "sales\.write"\)\)\)[\s\S]*<StudentPortalAccessCard/u);
+  assert.match(profile, /!isStaffPreview\(actor\) &&\s*profile\.student &&\s*draft\.admissions &&\s*\(actor\.systemRole === "admin" \|\|\s*\(draft\.admissions\.isCabinetCase && staffCan\(actor, "sales\.write"\)\)\)[\s\S]*<StudentPortalAccessControls/u);
   assert.match(profile, /isCabinetCase=\{draft\.admissions\.isCabinetCase\}/u);
-  assert.doesNotMatch(profile, /authorityRole === "admin"[\s\S]*<StudentPortalAccessCard/u);
+  assert.doesNotMatch(profile, /authorityRole === "admin"[\s\S]*<StudentPortalAccessControls/u);
   // Curator options are only ever consumed by the legacy_pending picker
   // (never cabinet_pending, which has no curator at all) — that fetch stays
   // admin-only, byte-unchanged from before S8.

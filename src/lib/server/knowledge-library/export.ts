@@ -10,6 +10,7 @@ import { checkedBlob, KnowledgeError, knowledgeRpcError, requireKnowledgeAdmin }
 import { createPlatformSupabaseServiceClient } from "../platform-supabase-service-client";
 import { getPlatformSupabaseBackendConfig } from "../platform-supabase-backend-config";
 import { KNOWLEDGE_BUCKET, knowledgeBlobBytes } from "./storage";
+import { knowledgeStorageConflict, knowledgeStorageRequest } from "./storage-retry";
 
 export type KnowledgeExport = {
   id: string; organization_id: string; owner_membership_id: string;
@@ -80,7 +81,7 @@ function portableMarkdown(body: string, filePath: string, paths: Map<string, str
   });
 }
 async function verifiedStorage(path: string, expected: { sha256: string; byte_size: number }) {
-  const { data, error } = await service().storage.from(KNOWLEDGE_BUCKET).download(path);
+  const { data, error } = await knowledgeStorageRequest("read", () => service().storage.from(KNOWLEDGE_BUCKET).download(path));
   if (error || !data) throw new KnowledgeError("knowledge_storage_unavailable");
   const bytes = new Uint8Array(await data.arrayBuffer());
   if (bytes.length !== expected.byte_size || sha256(bytes) !== expected.sha256) throw new KnowledgeError("knowledge_integrity_failed");
@@ -142,7 +143,7 @@ export async function buildKnowledgeExport(id: string) {
             const file = await worker<ExternalFile>(id, lease, "external", { id: item.id });
             if (!["platform-documents", "platform-company-files"].includes(file.bucket) || !/^[0-9a-f]{2}\/[0-9a-f]{62}$/.test(file.path)
               || !Number.isSafeInteger(file.byteSize) || file.byteSize < 1 || file.byteSize > 26_214_400) throw new KnowledgeError("knowledge_integrity_failed");
-            const result = await service().storage.from(file.bucket).download(file.path);
+            const result = await knowledgeStorageRequest("read", () => service().storage.from(file.bucket).download(file.path));
             if (result.error || !result.data) throw new KnowledgeError("knowledge_storage_unavailable");
             const bytes = new Uint8Array(await result.data.arrayBuffer());
             if (bytes.length !== file.byteSize || sha256(bytes) !== file.sha256) throw new KnowledgeError("knowledge_integrity_failed");
@@ -174,9 +175,10 @@ export async function buildKnowledgeExport(id: string) {
       if (cached && cached.sha256 === part.sha256 && cached.byte_size === part.byte_size) {
         await verifiedStorage(cached.path, cached); part = cached;
       } else {
-      const { error } = await service().storage.from(KNOWLEDGE_BUCKET).upload(path, bytes, { upsert: false, contentType: "application/octet-stream" });
-      if (error) throw new KnowledgeError("knowledge_storage_unavailable");
-      await verifiedStorage(path, part);
+        const { error } = await knowledgeStorageRequest("write", () => service().storage.from(KNOWLEDGE_BUCKET).upload(path, bytes, { upsert: false, contentType: "application/octet-stream" }));
+        // A timed-out upload may have committed. Never overwrite it: verify it below.
+        if (error && !knowledgeStorageConflict(error)) throw new KnowledgeError("knowledge_storage_unavailable");
+        await verifiedStorage(path, part);
       }
       digest.update(bytes); parts.push(part); written += bytes.length;
       await worker(id, lease, "progress", { bytes: written, entries: completed, parts });

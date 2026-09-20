@@ -10348,3 +10348,13 @@ Owner explicitly approved closing the four reported gaps. Execution contract:
 Each block is a separate PR with independent exact-head review and focused real-path evidence. Use existing authenticated QA identity and real catalogue/learning data; no fabricated fixtures or writes to customer records. Read-only Student checks and local Simulator/browser builds are authorized. Production schema application/release requires the existing coordination/authority; do not silently deploy. Final product-wide E2E, content expansion and App Store remain deferred. Record limitations, never infer full acceptance from CI.
 
 Official implementation references: [SwiftUI task lifetime](https://developer.apple.com/documentation/swiftui/view/task(id:priority:_:)), [SwiftUI refreshable](https://developer.apple.com/documentation/swiftui/view/refreshable(action:)), [PostgreSQL triggers](https://www.postgresql.org/docs/current/trigger-definition.html). Context7 documentation lookup was unavailable (monthly quota); official documentation used directly.
+
+
+## AST-5 iPhone Home clarity — 2026-09-20
+
+Execute `docs/design/portal/ios-home-refinement.md`: surface genuine unfinished
+work, keep admission actions/errors first, clarify module progress, and enlarge
+the native continuation button. Preserve the user's selected EVO appearance.
+Acceptance: Xcode build, real QA Home/continuation/lesson paths, RU/KY and
+dark/large-text inspection, then independent exact-head review and short CI.
+No production migration/release or deferred final E2E/content/App Store work.

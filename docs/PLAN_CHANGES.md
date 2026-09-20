@@ -33130,3 +33130,28 @@ Home uses independent read sections, maximum four favorites in existing server o
 ### AST-5 notifications implementation details
 
 Move the polling component from v3 into the existing Atlas header bell; remove duplicate status strip. Render for assisted tier, matching notifications navigation; derive tier solely from actor.accessTier. Keep 30-second visible-page polling and focus/online/manual resume, no duplicate initial refresh. Add /portal/home to operational refresh; retain existing operational routes, exclude learning/test runners. RU/KY unread/loading/error/retry labels; retry is keyboard accessible. No new notifications or mark-read writes for validation. Next.js documents router.refresh as merging server payload while preserving unaffected client state: https://nextjs.org/docs/app/api-reference/functions/use-router.
+
+
+## 2026-09-20 — iPhone Home action hierarchy after Impeccable review
+
+Continue the owner's requested functional/UI work with a narrow native Home
+refinement. Preserve the #927 data and navigation contracts. Real required
+admission actions and load/error states stay first; a successfully loaded calm
+summary moves below continuation. A saved test attempt precedes the lesson
+section; without a draft, lessons remain first. Clarify module-level counts in
+RU/KY and size the continue-test label to a real 44-point minimum. No change to
+Auth, schema, private learning state, tab identity, or catalogue content. Plan
+and focused real Simulator acceptance: `docs/design/portal/ios-home-refinement.md`.
+PR #929 remains separately pending migration 207 and runtime acceptance; this
+refinement does not authorize or substitute for that production operation.
+
+Independent evidence review additionally confirmed a Kyrgyz naming mismatch:
+Home quotes «Менин тапшыруум» while the existing destination is «Менин кабыл
+алынышым». Align the shortcut to that existing title within this same copy slice.
+
+The first actual dark/default-size render confirmed low-contrast Home text
+links with the single brand accent. In the one bounded correction pass, use
+Apple systemRed for Home text actions in dark mode only, retain brand accent
+for light mode and the filled continuation button, and let the continuation
+label occupy its row width at large text sizes. This is local to Home; no shared
+asset, descendant screen, or app-wide theme changes.

@@ -6,7 +6,7 @@ import { useActionState, useEffect, useState } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
-  saveLeadSaleConditionsAction,
+  saveLeadSaleConditionsGroupAction,
   type SaveLeadSaleConditionsActionState,
 } from "@/lib/platform-sales-actions";
 import {
@@ -87,7 +87,7 @@ export function LeadSaleConditions({
   const { revision, bump } = useSaleConditionsRevision();
   const [draft, setDraft] = useState(() => draftFrom(conditions));
   const [state, action, pending] = useActionState(
-    saveLeadSaleConditionsAction,
+    saveLeadSaleConditionsGroupAction,
     { status: "idle", requestId, leadId, revision: null } as SaveLeadSaleConditionsActionState,
   );
   const locked = readOnly || pending || state.status === "saved";
@@ -142,6 +142,7 @@ export function LeadSaleConditions({
           <input type="hidden" name="lead_id" value={leadId} />
           <input type="hidden" name="expected_revision" value={revision} />
           <input type="hidden" name="request_id" value={state.requestId} />
+          <input type="hidden" name="field_group" value="sale" />
           <label className="block">
             <span className={labelCls}>Услуга/пакет</span>
             <input

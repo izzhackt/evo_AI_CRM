@@ -637,3 +637,11 @@ test("proxy hands a present-Authorization student document request to its fail-c
     "requests without the header keep the unchanged cookie gate",
   );
 });
+
+
+test("canonical knowledge search crosses the staff proxy only at its exact endpoint", () => {
+  assert.equal(isConnectedPlatformApi("/api/v3/knowledge/search-canonical"), true);
+  for (const path of ["/api/v3/knowledge/search-canonical/", "/api/v3/knowledge/search-canonical/extra", "/api/v3/knowledge/search-other"]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});

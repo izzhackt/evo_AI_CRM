@@ -49,12 +49,12 @@ export default async function MainPart({
     return <PartShell title="Рабочий обзор"><OperationsOverview snapshot={operations} /></PartShell>;
   }
   const period = resolvePeriod(query);
-  const [{ figures, trend }, operations, currentFunnel] = await Promise.all([
-    readPeriodDashboard(actor, period),
+  const [periodDashboard, operations, currentFunnel] = await Promise.all([
+    readPeriodDashboard(actor, period).catch(() => null),
     readV3OperationalDashboard(actor),
     readCurrentSalesFunnel(actor),
   ]);
-  const { counts, metrics } = figures;
+  const trend = periodDashboard?.trend;
 
   // Нажатие на «Период», когда он уже выбран, не должно терять выбранные
   // даты: ссылка несёт их с собой. Даты берутся уже разобранные, поэтому в
@@ -121,14 +121,19 @@ export default async function MainPart({
           <h2 id="period-leads-title" className="mb-3 text-md font-bold text-fg">Лиды за период</h2>
           <MainHeader choices={choices} range={period.key === "custom"
             ? { from: period.from, to: period.to, max: period.today } : null} />
-          {counts.leads === 0 ? (
+          {!periodDashboard ? (
+            <div className="mt-4 rounded-card border border-border bg-surface px-4 py-6 text-sm text-fg-3">
+              <p>Не удалось загрузить данные за выбранный период.</p>
+              <a className="mt-3 inline-flex min-h-11 items-center text-accent underline underline-offset-4" href={currentHref}>Повторить загрузку</a>
+            </div>
+          ) : periodDashboard.figures.counts.leads === 0 ? (
             <p className="mt-4 rounded-card border border-border bg-surface px-4 py-10 text-center text-sm text-fg-3">
               За этот период лидов нет.
             </p>
           ) : (
             <>
               <ul className="mt-4 grid grid-cols-2 gap-3 @2xl:grid-cols-3">
-                {metrics.map(metric => <MetricCard key={metric.label} metric={metric} />)}
+                {periodDashboard.figures.metrics.map(metric => <MetricCard key={metric.label} metric={metric} />)}
               </ul>
               <section className="mt-4 min-w-0 rounded-card border border-border bg-surface p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">

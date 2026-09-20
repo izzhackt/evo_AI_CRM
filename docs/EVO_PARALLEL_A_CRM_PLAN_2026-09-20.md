@@ -102,3 +102,9 @@ URL и результата, но uncontrolled select продолжает по�
 TypeScript/lint/source guards/syntax и read-only UI пройдены. Применение213,
 положительная QA-запись и final review/CI ещё не завершены. Порядок213→214.
 Пункт35/#42 теперь выполняет root, A не дублирует этот срез.
+
+После двух source approvals d3cd9025 local213 применена без business deltas.
+Реальная проверка остановлена: custom SalesManager имеет workflow permission,
+но старый literal-role predicate213 отказывает42501 при editable UI. Это
+блокирует завершение30. Готовится узкая correction только213; старые receipts
+и ledger сохранены, положительные QA writes пока не разрешены/не выполнены.

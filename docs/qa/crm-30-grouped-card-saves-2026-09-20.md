@@ -3,6 +3,11 @@
 Исходный main285e784e (#945), контрактdfb55be до кода, runtimeeb4502c.
 Дата20.09.2026. Worktree `crm-grouped-card-saves`, Node22.23.1.
 
+Текущее состояние после локального применения:213 установлена, но проверка
+обнаружила блокирующий literal-role gate для существующего custom SalesManager.
+Положительные saves не выполнены. Подробности ниже; первоначальные разделы
+«до применения» и «ещё не доказано» сохраняют хронологию исходного receipt.
+
 ## Исправление
 
 Три формы отправляли соседние значения из старого SSR с уже новой revision,
@@ -76,3 +81,35 @@ groups; mixed/incomplete envelopes. Все6 PASS, без RPC/Auth mocks. Scoped 
 `.next/dev/types/routes.d.ts`; после остановки своего33219 выполнен штатный
 `npm run typecheck` с предусмотренной cleanup/typegen: PASS. Продуктовый source
 ради этого не менялся. Positive save/apply по-прежнему pending, нужен delta review.
+
+## Локальное применение и реальный authority blocker
+
+Два независимых source delta review одобрилиd3cd90254b610910f5372dfbe175e443028bc1ee.
+После отдельного решения root213 применена только в существующей локальной QA:
+schema001–213, SHA7b507099bd5433a507457e17f19b86374c201ab32b7fad00f6cd4977ed0c6ee7.
+Проверены прежние212 migration bytes и contiguous ledger. Counts/hashes leads,
+cases, sales, handoffs, conditions/receipts, audit, document slots/versions/reviews,
+applications и число Auth users не изменились. Private `local213-receipt.json`.
+
+Подготовленный10-check script остановился на preflight: он ошибочно ожидал
+literal `platform_role=sales`, тогда как настоящий существующий SalesManager
+имеет `platform_role=NULL` и действующее `lead.sales.workflow.manage`.
+Это не отказ Auth: обычный sign-in и authority/snapshot RPC успешны. Реальная
+карточка разрешает редактирование по permission (`tabs.tsx:154`), а SQL213
+копирует из181 literal `IN ('admin','sales')` и исключает custom role.
+Отдельный заведомо неполный wishes patch подтверждённо вернул42501
+`lead_sale_conditions_forbidden`, data=null. После него hashes тоже неизменны.
+Это одна диагностическая denial-проверка, не10/10PASS и не proof успешного save.
+
+Минимальный кандидат correction: два actor predicates заменить на
+`IS DISTINCT FROM 'student'`, сохранив fresh organization/actor и точный
+per-record `staff_can_access(...,'lead.sales.workflow.manage','lead',id)` перед
+и после locks, включая replay. Это существующая scoped-staff модель156.
+v1 остаётся историческим без изменения,208 уже permission-based и отдельно
+проверяется B; не расширять этот срез на208.
+
+213 ещё draft и не main/managed. Политика `docs/platform/p2-supabase-foundation.md`
+правило5 запрещает изменение после merge; отдельная local candidate correction
+процедура требует согласования root. Исходные applied hash/ledger/receipt не
+изменялись. Кандидат пока private NOTAPPLIED, номер215 не занят. Owner-пакет
+четырёх положительных технических saves остаётся HOLD.

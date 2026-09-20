@@ -33894,3 +33894,76 @@ Scope-local реальная приёмка через GET и обычный exi
 
 Это подготовленный контракт, не утверждение исправления. Production/provider/
 managed mutations и завершение всех пунктов6/10 этим срезом не заявляются.
+
+## 2026-09-21 — CRM-16: явный выбор дела при создании задачи
+
+Root принял этот независимый срез от A после merge#953; base
+`498c99bf7aa482d9e902d82f457d0312c3c2ac6e`, отдельный worktree
+`evo-task-explicit-case`. A пишет только shared contract docs до кода.
+Pending948/946 и их положительные QA-пакеты остаются отдельными и не завершены.
+
+Основание: ordinary existing Sales, local001–214, реальный read-only baseline
+двух consumers в `/private/tmp/evo-task-case-choice-baseline.md`. Calendar
+открывает4 существующих дела с автоматически выбранным первым; поиск тоже
+автоматически выбирает первый результат. Global TaskComposerDialog в staffmode
+держит закрытый required select с disabled=false/willValidate=true/valueMissing;
+открытие пустого case panel оставляет staffmode и enabled create, поскольку
+caseMode сейчас зависит от непустогоcaseId. Submit не выполнялся.
+
+Разрешённые продуктовые файлы с прямой зависимостью:
+`src/components/v3/tasks/TaskCasePicker.tsx`,
+`src/components/v3/calendar/TaskControls.tsx`,
+`src/components/v3/tasks/TaskComposerDialog.tsx`.
+
+Контракт:
+- Без явно переданного pinned/selectedCase обе формы начинают с «Выберите дело».
+  Наличие SSR initialCases или результата поиска не означает выбор первого
+  студента. Существующий pinned case сохраняется, его hidden ID и eligible
+  assignees остаются привязаны к этому делу.
+- Поиск сохраняет ПОСЛЕДНИЙ явный выбор, если он есть в актуальных results;
+  иначе очищает выбор и сообщает пустойcaseId consumer. Никогда не выбирать
+  next[0]. Pagination, server-provided rows, query/cursor validation, ошибки
+  и sequence guard остаются. In-flight callback не должен использовать старый
+  selected из closure, чтобы подменить более позднее решение пользователя.
+- Explicit case intent определяется разрешённым выбранным режимом/open panel,
+  а не наличиемcaseId. В case mode без выбора или без проверенного eligible
+  assignee создание заблокировано и на кнопке, и в client submit guard; такой
+  intent не должен попадать в staff command. Права caseAllowed/staffAllowed,
+  preview, task.assign и серверные проверки не расширяются.
+- Закрытый optional picker disabled и не участвует в native required validation,
+  не блокирует обычную staff task. При pending/saved lock выбор/поиск тоже
+  заблокированы. Открытие/закрытие не должно создавать скрытую смену назначения.
+- Прямая зависимость сохранности черновика: результат старого поиска после
+  закрытия/блокировки picker не меняет выбранное дело через onCaseChange.
+  Source TaskComposer draftContext зависит отcaseId, поэтому такой late callback
+  мог бы переключить ключ draft в staffmode. Это выявленный source risk, не
+  заявление о воспроизведённой race. Защитить текущие query/sequence/active intent
+  и latest selection; не перестраивать политику хранения/ключей черновиков.
+- Сохранить title/description drafts и их current-context isolation, explicit
+  assignee/eligibility, deadline/timezone/priority, command/request IDs и retry
+  semantics, source lead/message context, закрытие/повторное открытие, старые
+  server commands и failure states. Не добавлять schema/API/provider actions.
+
+Проверки только существующего разрешённого UI и read/search RPC:
+calendar open безавтовыбора → search → explicit selection → refinement/empty
+results; latest selection при in-flight search; global dialog closed staffmode
+без скрытой required-blocking control → open empty case mode blocked → choice
+с правильными candidates → close/reopen; pinned context через существующий
+вход создания задачи без открытия чата. Проверять disabled/value/validity,
+сохранность локальных черновиков и отсутствие unexpected mode change, НЕ
+отправлять create/save command. Desktop и actual390px обоих consumers.
+Сценарии, которые нельзя реально проверить на доступных данных, назвать
+непроверенными; не выдавать source-only review за actual race proof.
+
+Scope-local lint/typecheck/необходимые существующие проверки и независимый
+exact-head review/CI. Никаких новых entities/fixtures/назначений/Auth writes,
+mark-read, бизнес-записей, managed DB/provider/deployment. Успешное создание
+задачи этим read-only срезом не доказывается и не заявляется. Это контракт
+для улучшения существующего EVO по Impeccable, без смены visual identity.
+
+Уточнение того же контракта16: если staffAllowed=false, разрешённый case intent
+не превращается в staffmode даже при collapse optional panel. Pending search
+теряет право менять selection при committed disabled transition или unmount;
+latest explicit selection должна читаться актуально, включая её очистку.
+Существующие query sequence/cleanup guards сохраняются/расширяются только
+для этой прямой зависимости; политика draft storage не меняется.

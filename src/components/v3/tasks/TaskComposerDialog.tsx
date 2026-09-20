@@ -163,7 +163,7 @@ function TaskComposerModal({
     return () => { cancelled = true; };
   }, [caseId, initialCase?.id]);
 
-  const caseMode = caseAllowed && caseSectionOpen && caseId !== "";
+  const caseMode = caseAllowed && (caseSectionOpen || !staffAllowed);
   const candidatesReady = caseCandidates.caseId === caseId && caseCandidates.status === "ready";
   // Mirrors CalendarCreateTaskForm's own availableAssignees guard
   // (../calendar/TaskControls.tsx:245-247): without "task.assign" the actor
@@ -178,10 +178,13 @@ function TaskComposerModal({
   // new case's candidate list no longer contains it.
   const eligibleCaseAssignee = caseAssigneeOptions.some((person) => person.membershipId === caseAssignee);
   const locked = pending || state.status === "saved";
+  const submitBlocked = locked || (caseMode
+    ? !caseId || !candidatesReady || !eligibleCaseAssignee
+    : !staffAllowed);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (locked) return;
+    if (submitBlocked) return;
     const raw = new FormData(event.currentTarget);
     const text = (name: string) => String(raw.get(name) ?? "").trim();
     setPending(true);
@@ -279,7 +282,7 @@ function TaskComposerModal({
         </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)}>
           <summary className="min-h-11 cursor-pointer py-2 text-sm text-fg-2">Студент/дело · необязательно</summary>
           <div className="grid gap-3 pt-2 sm:grid-cols-2">
-            <TaskCasePicker initialCases={[]} initialHasMore={false} onCaseChange={setCaseId} />
+            <TaskCasePicker initialCases={[]} initialHasMore={false} onCaseChange={setCaseId} disabled={locked || !caseMode} />
           </div>
         </details>) : null}
 
@@ -294,7 +297,7 @@ function TaskComposerModal({
                 {!participants.some((person) => person.membershipId === staffAssignee) ? <option value={staffAssignee} disabled>Выберите сотрудника</option> : null}
                 {participants.map((person) => <option key={person.membershipId} value={person.membershipId}>{person.displayName}</option>)}
               </select>}
-          {caseMode && !candidatesReady ? <span className="mt-1 block text-xs text-fg-2">{caseCandidates.caseId === caseId && caseCandidates.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу." : "Проверяем исполнителей выбранного дела…"}</span> : null}
+          {caseMode && !candidatesReady ? <span className="mt-1 block text-xs text-fg-2">{!caseId ? "Выберите дело студента." : caseCandidates.caseId === caseId && caseCandidates.status === "unavailable" ? "Не удалось проверить исполнителей. Обновите страницу." : "Проверяем исполнителей выбранного дела…"}</span> : null}
         </label>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -318,7 +321,7 @@ function TaskComposerModal({
 
         {state.status !== "idle" && errorCopy[state.status] ? <p role="alert" className="text-sm text-danger">{errorCopy[state.status]}</p> : null}
         <div className="flex flex-wrap gap-3 border-t border-border pt-4">
-          <button type="submit" disabled={locked || (caseMode && (!candidatesReady || !eligibleCaseAssignee))} className={PRIMARY}>
+          <button type="submit" disabled={submitBlocked} className={PRIMARY}>
             {pending ? "Создаём…" : "Создать задачу"}
           </button>
           <button type="button" className={SECONDARY} onClick={onClose}>Отмена</button>

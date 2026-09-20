@@ -9,7 +9,7 @@ import {
   calendarUndatedContinuationHref,
 } from "../src/components/v3/calendar/types.ts";
 
-import { comparePersonalCalendarCursor, parsePersonalCalendarCursor, parsePersonalCalendarPage, PersonalCalendarReadError } from "../src/lib/v3/personal-calendar-contract.ts";
+import { comparePersonalCalendarCursor, parsePersonalCalendarCursor, parsePersonalCalendarPage, personalCalendarPageArgs, personalCalendarTargetArgs, PersonalCalendarReadError } from "../src/lib/v3/personal-calendar-contract.ts";
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -316,4 +316,32 @@ test("page envelope cannot claim invalid totals or continuation without a row", 
     { rows: [], total_count: 1, next_cursor: { sort_at: sentinel, kind: "case", task_id: taskId } },
     { rows: [], total_count: 0, next_cursor: null, hidden_extra: true },
   ]) assert.throws(() => parsePersonalCalendarPage(value, {}, { mode: "undated" }), PersonalCalendarReadError);
+});
+
+
+test("calendar GET arguments omit SQL-default nulls and retain date bounds and exact cursor", () => {
+  assert.deepEqual(personalCalendarPageArgs({ mode: "undated", cursor: null }), { p_mode: "undated", p_limit: 100 });
+  const dated = personalCalendarPageArgs({ mode: "dated", from: "2026-09-01", to: "2026-09-30", cursor: null });
+  assert.deepEqual(dated, { p_mode: "dated", p_limit: 100, p_due_from: "2026-09-01", p_due_to: "2026-09-30" });
+  const cursor = { sortAt: "2026-09-21T00:00:00.000001Z", kind: "staff", taskId };
+  assert.deepEqual(personalCalendarPageArgs({ mode: "dated", from: "2026-09-01", to: "2026-09-30", pageSize: 2, cursor }), {
+    ...dated, p_limit: 2, p_after_sort_at: cursor.sortAt, p_after_kind: cursor.kind, p_after_task_id: taskId,
+  });
+  // Preserve partial input for the RPC's validation instead of silently
+  // widening a malformed date range or translating failure into an empty page.
+  assert.deepEqual(personalCalendarPageArgs({ mode: "dated", from: "2026-09-01" }), {
+    p_mode: "dated", p_limit: 100, p_due_from: "2026-09-01",
+  });
+});
+
+test("calendar target GET omits an absent case UUID only and preserves supplied target identity", () => {
+  assert.deepEqual(personalCalendarTargetArgs({ kind: "staff", taskId, studentCaseId: null }), {
+    p_kind: "staff", p_task_id: taskId,
+  });
+  assert.deepEqual(personalCalendarTargetArgs({ kind: "case", taskId, studentCaseId: taskId }), {
+    p_kind: "case", p_task_id: taskId, p_student_case_id: taskId,
+  });
+  assert.deepEqual(personalCalendarTargetArgs({ kind: "staff", taskId, studentCaseId: taskId }), {
+    p_kind: "staff", p_task_id: taskId, p_student_case_id: taskId,
+  });
 });

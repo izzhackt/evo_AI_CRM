@@ -135,22 +135,34 @@ async function client(): Promise<CalendarRpcClient> {
 function rpcFailure(error: unknown): never {
   throw new PersonalCalendarReadError(record(error).code === "42501");
 }
+// PostgREST GET encodes explicit null as the string "null". Omit optional
+// arguments so PostgreSQL applies their declared NULL defaults instead.
+export function personalCalendarPageArgs(options: PersonalCalendarPageOptions) {
+  return {
+    p_mode: options.mode, p_limit: options.pageSize ?? 100,
+    ...(options.from != null ? { p_due_from: options.from } : {}),
+    ...(options.to != null ? { p_due_to: options.to } : {}),
+    ...(options.cursor ? { p_after_sort_at: options.cursor.sortAt, p_after_kind: options.cursor.kind, p_after_task_id: options.cursor.taskId } : {}),
+  };
+}
+type PersonalCalendarTarget = Readonly<{ kind: PersonalCalendarKind; taskId: string; studentCaseId: string | null }>;
+export function personalCalendarTargetArgs(target: PersonalCalendarTarget) {
+  return {
+    p_kind: target.kind, p_task_id: target.taskId,
+    ...(target.studentCaseId !== null ? { p_student_case_id: target.studentCaseId } : {}),
+  };
+}
 export async function readPersonalCalendarPage(actor: ActivePlatformActor, options: PersonalCalendarPageOptions) {
   if (!personalCalendarAccess(actor).tasks) throw new PersonalCalendarReadError(true);
-  const response = await (await client()).schema("platform").rpc("staff_personal_calendar_page_v1", {
-    p_mode: options.mode, p_due_from: options.from ?? null, p_due_to: options.to ?? null, p_limit: options.pageSize ?? 100,
-    p_after_sort_at: options.cursor?.sortAt ?? null, p_after_kind: options.cursor?.kind ?? null, p_after_task_id: options.cursor?.taskId ?? null,
-  }, { get: true });
+  const response = await (await client()).schema("platform").rpc("staff_personal_calendar_page_v1", personalCalendarPageArgs(options), { get: true });
   if (response.error) return rpcFailure(response.error);
   return parsePersonalCalendarPage(response.data, actor, options);
 }
 
-export async function readPersonalCalendarTarget(actor: ActivePlatformActor, target: Readonly<{ kind: PersonalCalendarKind; taskId: string; studentCaseId: string | null }>) {
+export async function readPersonalCalendarTarget(actor: ActivePlatformActor, target: PersonalCalendarTarget) {
   const access = personalCalendarAccess(actor);
   if (target.kind === "case" ? !access.caseTasks : !access.staffTasks) throw new PersonalCalendarReadError(true);
-  const response = await (await client()).schema("platform").rpc("staff_personal_calendar_target_v1", {
-    p_kind: target.kind, p_task_id: target.taskId, p_student_case_id: target.studentCaseId,
-  }, { get: true });
+  const response = await (await client()).schema("platform").rpc("staff_personal_calendar_target_v1", personalCalendarTargetArgs(target), { get: true });
   if (response.error) return rpcFailure(response.error);
   const result = exact(response.data, ["task", "case_target"]);
   const { task } = parseRow(result.task, actor, new Date());

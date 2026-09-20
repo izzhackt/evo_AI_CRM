@@ -86,6 +86,8 @@ DECLARE actor RECORD; snapshot JSONB; fingerprint TEXT;
   report_month_value DATE; normalized JSONB;
   pending_case platform.student_cases%ROWTYPE; command_reason TEXT:='Sale saved from the report'; source_snapshot JSONB;
 BEGIN
+  -- Pair with staff_role_request_begin FOR UPDATE before any other lock.
+  PERFORM 1 FROM platform.organizations WHERE id=p_organization_id FOR KEY SHARE;
   SELECT * INTO actor FROM platform_private.sales_register_actor(p_organization_id);
   IF NOT platform_private.staff_is_sales_manager(p_organization_id,actor.membership_id)
     OR NOT platform_private.staff_has_permission(p_organization_id,actor.membership_id,'sales.register.manage')
@@ -198,6 +200,7 @@ DECLARE handoff platform.sales_admissions_handoffs%ROWTYPE; actor RECORD;
 BEGIN
   SELECT * INTO handoff FROM platform.sales_admissions_handoffs WHERE id=p_handoff_id AND handoff_state='completed';
   IF NOT FOUND THEN RAISE EXCEPTION 'sales_register_handoff_missing' USING ERRCODE='22023'; END IF;
+  PERFORM 1 FROM platform.organizations WHERE id=handoff.organization_id FOR KEY SHARE;
   PERFORM pg_advisory_xact_lock(hashtextextended('sales-register:'||handoff.organization_id::TEXT,0));
   IF EXISTS(SELECT 1 FROM platform_private.sales_register r
     WHERE r.organization_id=handoff.organization_id AND r.lead_id=handoff.lead_id) THEN RETURN; END IF;
@@ -225,7 +228,7 @@ BEGIN
   definition:=pg_get_functiondef('private.manage_sales_register_v1(uuid,text,uuid,bigint,jsonb,text,uuid)'::regprocedure);
   IF (length(definition)-length(replace(definition,needle,'')))/length(needle)<>2 THEN
     RAISE EXCEPTION 'sales_register_manage_definition_changed'; END IF;
-  EXECUTE replace(definition,needle,needle||E'\n IF NOT platform_private.staff_is_sales_manager(p_organization_id,actor.membership_id) THEN\n   RAISE EXCEPTION ''sales_register_forbidden'' USING ERRCODE=''42501''; END IF;');
+  EXECUTE replace(definition,needle,E' PERFORM 1 FROM platform.organizations WHERE id=p_organization_id FOR KEY SHARE;\n'||needle||E'\n IF NOT platform_private.staff_is_sales_manager(p_organization_id,actor.membership_id) THEN\n   RAISE EXCEPTION ''sales_register_forbidden'' USING ERRCODE=''42501''; END IF;');
 END $guard$;
 
 REVOKE ALL ON FUNCTION platform_private.staff_is_sales_manager(UUID,UUID),

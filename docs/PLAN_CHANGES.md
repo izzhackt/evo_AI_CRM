@@ -33331,3 +33331,16 @@ ledger 206; 207 остаётся у PR #929. Она не назначает ро
 [Supabase database functions](https://supabase.com/docs/guides/database/functions).
 До отдельного разрешения production SQL, QA writes и release не выполняются.
 Схемная проверка в отдельной локальной БД не заменяет живую бизнес-приёмку.
+
+
+CRM-02a, уточнение после независимого review: write-entry отчёта и исторической
+правки удерживают organization FOR KEY SHARE до конца транзакции, до проверки
+актора и ожидания request/lead/case/conditions locks. Это существующий порядок
+legacy handoff; staff_role_request_begin меняет роли под FOR UPDATE той же
+организации. Без этой пары отзыв роли мог завершиться, пока сохранение ждёт
+строку, и первоначальный gate устаревал. Повторной проверки до следующего
+ожидания недостаточно; новые права не выдаются.
+
+Поведение блокировок сверено с
+[PostgreSQL Row-Level Locks](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS):
+KEY SHARE конфликтует с FOR UPDATE и удерживается до завершения транзакции.

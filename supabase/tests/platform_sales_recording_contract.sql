@@ -23,6 +23,16 @@ BEGIN
     RAISE EXCEPTION 'workflow binding is directly editable'; END IF;
   IF platform_private.staff_is_sales_manager(NULL,NULL) IS DISTINCT FROM FALSE THEN
     RAISE EXCEPTION 'missing identity admitted as manager'; END IF;
+  FOREACH fn IN ARRAY ARRAY[
+    'platform.create_sales_report_handoff(uuid,uuid,uuid,uuid,date)'::REGPROCEDURE,
+    'private.manage_sales_register_v1(uuid,text,uuid,bigint,jsonb,text,uuid)'::REGPROCEDURE
+  ] LOOP
+    SELECT prosrc INTO body FROM pg_proc WHERE oid=fn;
+    IF strpos(body,'FROM platform.organizations WHERE id=p_organization_id FOR KEY SHARE')=0
+      OR strpos(body,'FROM platform.organizations WHERE id=p_organization_id FOR KEY SHARE')
+        >strpos(body,'FROM platform_private.sales_register_actor(p_organization_id)') THEN
+      RAISE EXCEPTION 'sales mutation does not lock authority before checking it'; END IF;
+  END LOOP;
   SELECT prosrc INTO body FROM pg_proc WHERE oid='private.manage_sales_register_v1(uuid,text,uuid,bigint,jsonb,text,uuid)'::REGPROCEDURE;
   IF (length(body)-length(replace(body,'staff_is_sales_manager','')))/length('staff_is_sales_manager')<>2 THEN
     RAISE EXCEPTION 'historical writes lost initial or post-lock authority check'; END IF;

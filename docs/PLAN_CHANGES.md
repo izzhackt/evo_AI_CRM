@@ -33519,3 +33519,24 @@ requests cannot cross Student boundaries; pending documents/help stay denied.
 A applies exact reviewed 209 locally after review; managed SQL and production
 release remain separately authorized and deferred. Earlier #935 evidence from
 001–208 remains explicitly bounded to its original schema and runtime.
+
+## 2026-09-20 — B3a/211: совместимость списка drafts и порядок публикации
+
+Продолжение согласованного B-3 контракта `8bd96f2dfc23dc7fc574ecee2591383e05ba311c`
+(общие intake IDs, шесть стран подготовки, неизменяемые snapshots).
+
+B3a/211: действующий legacy `admin_university_catalog_drafts` сохраняет прежний
+exact DTO и скрывает технические drafts. Новый UI обязан использовать новый
+guarded `admin_university_catalog_drafts_with_review_kind` и требовать валидный
+`reviewKind`; без PGRST202 fallback (этот код также означает stale signature/schema
+cache и нельзя показывать неполный список как успешный).
+
+Managed release gates требуют ledger211 до нового runtime. Применение211 само
+не меняет published content. Публикация `intake.id` разрешается отдельным решением
+только после нового reader; rollback на старый web image после ID-publication
+может быть несовместим из-за strict parser, поэтому нужен заранее проверенный
+совместимый rollback image/forward recovery; snapshots не переписывать.
+
+Source/read совместимость и сохранение outer draft DTO не являются доказательством
+полного rollout. Этот контракт не разрешает применение миграций, публикацию
+контента, новые QA inputs или production release.

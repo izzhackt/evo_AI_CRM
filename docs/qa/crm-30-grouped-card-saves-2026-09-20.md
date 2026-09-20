@@ -5,6 +5,7 @@
 
 Текущее состояние после локального применения:213 установлена, но проверка
 обнаружила блокирующий literal-role gate для существующего custom SalesManager.
+Source correction двух predicates подготовлена; локально пока действует исходная213.
 Положительные saves не выполнены. Подробности ниже; первоначальные разделы
 «до применения» и «ещё не доказано» сохраняют хронологию исходного receipt.
 
@@ -113,3 +114,29 @@ v1 остаётся историческим без изменения,208 уж�
 процедура требует согласования root. Исходные applied hash/ledger/receipt не
 изменялись. Кандидат пока private NOTAPPLIED, номер215 не занят. Owner-пакет
 четырёх положительных технических saves остаётся HOLD.
+
+## Correction candidate перед повторным независимым review
+
+Контракт amendment d5216ab6 записан до code. Изменены ровно два actor predicates
+213; SQL/PLpgSQL parse PASS (5 statements /1 function). Никакие UI/TS/старые
+миграции не менялись; ранее полученное parser/lint/typecheck proof относится
+к неизменному TypeScript d3cd9025. Установленная локальная213 пока old hash.
+
+Root выбрал explicit one-time local candidate correction: full original
+ledger/function/archive + original apply receipt сохраняются; guarded transaction
+меняет только эту function body и statements одной ledger row213 с full-old-row
+CAS. Все function attributes/ACL/owner/OID/signature и001–212 ledger неизменны,
+214 отсутствует, protected business hashes равны. Local candidate file/config
+выравниваются после COMMIT; original schemaExtensions apply запись сохранена,
+correction добавляется отдельно. При любом неизвестном состоянии STOP; нет
+reset/delete/reinsert, Auth/business/provider/managed writes.
+
+Private review script `/private/tmp/evo-a213-correct-candidate.py`, SHA256
+`bdc9fdd59ecb2f5042ba5eff696ab82f642d476bcd72214c00144eec39a84c1e`. `py_compile` PASS; execution ещё не выполнена.
+`--prepare` читает только owned local/current GitHub, архивирует baseline и
+точный transaction SQL; `--apply` требует exact reviewed source/script, проверяет
+open draft/not-main и повторяет guards. Перед DDL нужны два независимых review
+source и script/transaction. Исправлен local denial harness: custom staff
+проверяется по настоящему Auth + staff_access_snapshot/permission, Student —
+по прежнему отдельному identity path. Его read/denials ещё не выполнены.
+Owner positive packet остаётся HOLD.

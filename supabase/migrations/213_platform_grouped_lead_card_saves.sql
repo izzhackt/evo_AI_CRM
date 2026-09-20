@@ -20,7 +20,7 @@ DECLARE
   receipt JSONB;
 BEGIN
   SELECT a.* INTO actor FROM platform.current_actor_authority() a
-    WHERE a.organization_id = p_organization_id AND a.platform_role IN ('admin', 'sales');
+    WHERE a.organization_id = p_organization_id AND a.platform_role IS DISTINCT FROM 'student';
   IF NOT FOUND OR platform_private.staff_can_access(
     p_organization_id, actor.membership_id, 'lead.sales.workflow.manage', 'lead', p_lead_id
   ) IS NOT TRUE THEN
@@ -66,7 +66,7 @@ BEGIN
   -- Authority can change while waiting. Historical replay also requires current
   -- per-record access; it must not disclose a past receipt after access is lost.
   SELECT a.* INTO actor FROM platform.current_actor_authority() a
-    WHERE a.organization_id = p_organization_id AND a.platform_role IN ('admin', 'sales');
+    WHERE a.organization_id = p_organization_id AND a.platform_role IS DISTINCT FROM 'student';
   IF NOT FOUND OR actor.membership_id IS DISTINCT FROM original_membership_id OR platform_private.staff_can_access(
     p_organization_id, actor.membership_id, 'lead.sales.workflow.manage', 'lead', p_lead_id
   ) IS NOT TRUE THEN

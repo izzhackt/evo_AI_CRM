@@ -10433,8 +10433,11 @@ B-5 clarification: the client FavoritesView imported the photo-bearing Catalog.
 The server favorites page now supplies card nodes; selection, comparison and
 favorite actions retain their existing contracts. This is a direct dependency of
 the approved photo boundary, detailed in PR #939's receipt.
+PR #939 merged at `87514d276b439fa45b75664d8194ed48415dabb1` after independent
+review and scoped CI. Reused real UI evidence remains bounded by that receipt;
+source integration does not claim production deployment.
 
-B-4: observed portal dark text tokens paired with the light background inherited
+B-4: observed portal dark-theme foreground tokens paired with the light background inherited
 from `pt-content v3-world`. B owns a scoped background override for
 `.pt-content.v3-world` to `var(--pt-bg)` in `src/app/(portal)/portal.css`.
 Retain the legacy class and staff tokens/components. Validate real authorized

@@ -114,6 +114,11 @@
   outline: none;
 }
 
+/* Legacy components keep v3 tokens; the page background follows portal theme. */
+.pt-content.v3-world {
+  background: var(--pt-bg);
+}
+
 /* ---------- Скрытый текст и skip-link ---------- */
 
 .pt-sr-only {

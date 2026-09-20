@@ -25,6 +25,10 @@ jobs:
       lint: ${{ steps.classify.outputs.lint }}
       build: ${{ steps.classify.outputs.build }}
       inbox_dependencies: ${{ steps.classify.outputs.inbox_dependencies }}
+      inbox_formatting: ${{ steps.classify.outputs.inbox_formatting }}
+      inbox_contract_tests: ${{ steps.classify.outputs.inbox_contract_tests }}
+      format_base_sha: ${{ steps.classify.outputs.format_base_sha }}
+      format_head_sha: ${{ steps.classify.outputs.format_head_sha }}
       lead_agent_dependencies: ${{ steps.classify.outputs.lead_agent_dependencies }}
       unknown: ${{ steps.classify.outputs.unknown }}
     steps:
@@ -46,7 +50,10 @@ jobs:
           HEAD_SHA: HEAD
         run: |
           set -Eeuo pipefail
-          node scripts/classify-pr-changes.mjs --base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT"
+          format_base_sha=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          format_head_sha=$(git rev-parse "$HEAD_SHA")
+          printf 'format_base_sha=%s\nformat_head_sha=%s\n' "$format_base_sha" "$format_head_sha" >> "$GITHUB_OUTPUT"
+          node scripts/classify-pr-changes.mjs --base "$format_base_sha" --head "$format_head_sha" --github-output "$GITHUB_OUTPUT"
 
       - name: Validate classifier outputs
         env:
@@ -58,11 +65,13 @@ jobs:
           LINT: ${{ steps.classify.outputs.lint }}
           BUILD: ${{ steps.classify.outputs.build }}
           INBOX_DEPENDENCIES: ${{ steps.classify.outputs.inbox_dependencies }}
+          INBOX_FORMATTING: ${{ steps.classify.outputs.inbox_formatting }}
+          INBOX_CONTRACT_TESTS: ${{ steps.classify.outputs.inbox_contract_tests }}
           LEAD_AGENT_DEPENDENCIES: ${{ steps.classify.outputs.lead_agent_dependencies }}
           UNKNOWN: ${{ steps.classify.outputs.unknown }}
         run: |
           set -Eeuo pipefail
-          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$LEAD_AGENT_DEPENDENCIES" "$UNKNOWN"; do
+          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$INBOX_FORMATTING" "$INBOX_CONTRACT_TESTS" "$LEAD_AGENT_DEPENDENCIES" "$UNKNOWN"; do
             case "$value" in
               true|false) ;;
               *)
@@ -331,7 +340,7 @@ jobs:
   inbox_dependencies:
     name: Inbox dependency maintenance
     needs: changed-range
-    if: ${{ needs.changed-range.outputs.inbox_dependencies == 'true' && needs.changed-range.outputs.unknown != 'true' }}
+    if: ${{ (needs.changed-range.outputs.inbox_dependencies == 'true' || needs.changed-range.outputs.inbox_formatting == 'true' || needs.changed-range.outputs.inbox_contract_tests == 'true') && needs.changed-range.outputs.unknown != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -339,9 +348,14 @@ jobs:
         working-directory: agent-lead2-inbox
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      FORMAT_BASE_SHA: ${{ needs.changed-range.outputs.format_base_sha }}
+      FORMAT_HEAD_SHA: ${{ needs.changed-range.outputs.format_head_sha }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.changed-range.outputs.format_head_sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -350,11 +364,26 @@ jobs:
           cache: npm
           cache-dependency-path: agent-lead2-inbox/package-lock.json
 
+      - name: Reject unsafe Inbox formatting scope before dependency installation
+        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
+        run: node ../scripts/verify-inbox-format.mjs --base "$FORMAT_BASE_SHA" --head "$FORMAT_HEAD_SHA" --scope-only
+
       - name: Install locked Inbox dependencies
         run: npm ci --ignore-scripts
 
+      - name: Prove exact output of the unchanged locked formatter
+        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
+        run: node ../scripts/verify-inbox-format.mjs --base "$FORMAT_BASE_SHA" --head "$FORMAT_HEAD_SHA"
+
+      - name: Check the complete Inbox formatting baseline
+        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
+        run: npm run format:check
+
       - name: Audit all installed Inbox dependencies
         run: npm audit --audit-level=low
+
+      - name: Exercise formatter proof with actual Git and locked Prettier
+        run: node --test ../tests/inbox-format-verifier.test.mjs
 
       - name: Typecheck Inbox
         run: npm run typecheck
@@ -363,6 +392,7 @@ jobs:
         run: npm run lint
 
       - name: Test pure Inbox helpers without provider adapters
+        if: ${{ needs.changed-range.outputs.inbox_formatting != 'true' }}
         run: |
           node --input-type=module <<'NODE'
           import { startVitest } from "vitest/node";
@@ -388,6 +418,15 @@ jobs:
             await context?.close();
           }
           NODE
+
+      - name: Test the three explicit legacy contract files
+        if: ${{ needs.changed-range.outputs.inbox_contract_tests == 'true' && needs.changed-range.outputs.inbox_formatting != 'true' }}
+        run: npm test -- src/components/first-launch-ui.test.tsx src/lib/deployment-config.test.ts src/lib/supabase/schema-contract.test.ts
+
+      # Existing offline unit suite (uses its original mocks); not provider proof.
+      - name: Run legacy Inbox tests for the formatter baseline
+        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
+        run: npm test
 
       - name: Build Inbox with TypeScript authority
         run: npm run build
@@ -418,16 +457,21 @@ jobs:
           LEAD_AGENT_DEPENDENCIES_RESULT: ${{ needs.lead_agent_dependencies.result }}
           INBOX_DEPENDENCIES_REQUIRED: ${{ needs.changed-range.outputs.inbox_dependencies }}
           INBOX_DEPENDENCIES_RESULT: ${{ needs.inbox_dependencies.result }}
+          INBOX_FORMATTING_REQUIRED: ${{ needs.changed-range.outputs.inbox_formatting }}
+          INBOX_CONTRACT_TESTS_REQUIRED: ${{ needs.changed-range.outputs.inbox_contract_tests }}
         run: |
           set -Eeuo pipefail
           test "$RANGE_RESULT" = "success"
           test "$HAS_CHANGES" = "true"
           test "$UNKNOWN" = "false"
-          case "$INBOX_DEPENDENCIES_REQUIRED" in
-            true) test "$INBOX_DEPENDENCIES_RESULT" = "success" ;;
-            false) test "$INBOX_DEPENDENCIES_RESULT" = "skipped" ;;
-            *) exit 1 ;;
-          esac
+          for required in "$INBOX_DEPENDENCIES_REQUIRED" "$INBOX_FORMATTING_REQUIRED" "$INBOX_CONTRACT_TESTS_REQUIRED"; do
+            case "$required" in true|false) ;; *) exit 1 ;; esac
+          done
+          if test "$INBOX_DEPENDENCIES_REQUIRED" = "true" || test "$INBOX_FORMATTING_REQUIRED" = "true" || test "$INBOX_CONTRACT_TESTS_REQUIRED" = "true"; then
+            test "$INBOX_DEPENDENCIES_RESULT" = "success"
+          else
+            test "$INBOX_DEPENDENCIES_RESULT" = "skipped"
+          fi
           case "$LEAD_AGENT_DEPENDENCIES_REQUIRED" in
             true) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "success" ;;
             false) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "skipped" ;;

@@ -1,25 +1,25 @@
-import { AiError, type ChatMessage } from '../types'
-import { MAX_OUTPUT_TOKENS } from '../defaults'
+import { AiError, type ChatMessage } from '../types';
+import { MAX_OUTPUT_TOKENS } from '../defaults';
 import {
   mergeConsecutive,
   providerHttpError,
   toNetworkError,
   type ProviderArgs,
-} from './shared'
+} from './shared';
 
 const GEMINI_GENERATE_CONTENT_BASE_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models'
+  'https://generativelanguage.googleapis.com/v1beta/models';
 
-type GeminiPart = { text?: unknown; thought?: unknown }
+type GeminiPart = { text?: unknown; thought?: unknown };
 
 interface GeminiCandidate {
   content?: {
-    parts?: GeminiPart[]
-  }
+    parts?: GeminiPart[];
+  };
 }
 
 interface GeminiResponse {
-  candidates?: GeminiCandidate[]
+  candidates?: GeminiCandidate[];
 }
 
 /**
@@ -30,9 +30,9 @@ interface GeminiResponse {
  * parsing.
  */
 export async function generateGemini(args: ProviderArgs): Promise<string> {
-  const { apiKey, model, systemPrompt, messages, timeoutMs } = args
+  const { apiKey, model, systemPrompt, messages, timeoutMs } = args;
 
-  let res: Response
+  let res: Response;
   try {
     res = await fetch(geminiGenerateContentUrl(model), {
       method: 'POST',
@@ -54,86 +54,86 @@ export async function generateGemini(args: ProviderArgs): Promise<string> {
         generationConfig: geminiGenerationConfig(model, MAX_OUTPUT_TOKENS),
       }),
       signal: AbortSignal.timeout(timeoutMs),
-    })
+    });
   } catch (err) {
-    throw toNetworkError(err)
+    throw toNetworkError(err);
   }
 
   if (!res.ok) {
-    throw await providerHttpError('Gemini', res)
+    throw await providerHttpError('Gemini', res);
   }
 
-  const data = (await res.json().catch(() => null)) as GeminiResponse | null
-  const text = extractGeminiText(data)
+  const data = (await res.json().catch(() => null)) as GeminiResponse | null;
+  const text = extractGeminiText(data);
   if (!text) {
     throw new AiError('Gemini returned an empty response.', {
       code: 'empty_response',
-    })
+    });
   }
-  return text
+  return text;
 }
 
 function geminiGenerateContentUrl(model: string): string {
-  const modelId = model.replace(/^models\//, '')
-  return `${GEMINI_GENERATE_CONTENT_BASE_URL}/${encodeURIComponent(modelId)}:generateContent`
+  const modelId = model.replace(/^models\//, '');
+  return `${GEMINI_GENERATE_CONTENT_BASE_URL}/${encodeURIComponent(modelId)}:generateContent`;
 }
 
 function geminiGenerationConfig(
   model: string,
-  maxOutputTokens: number,
+  maxOutputTokens: number
 ): { maxOutputTokens: number; thinkingConfig?: { thinkingLevel: 'MINIMAL' } } {
   const config: {
-    maxOutputTokens: number
-    thinkingConfig?: { thinkingLevel: 'MINIMAL' }
-  } = { maxOutputTokens }
+    maxOutputTokens: number;
+    thinkingConfig?: { thinkingLevel: 'MINIMAL' };
+  } = { maxOutputTokens };
 
   if (supportsThinkingLevel(model)) {
-    config.thinkingConfig = { thinkingLevel: 'MINIMAL' }
+    config.thinkingConfig = { thinkingLevel: 'MINIMAL' };
   }
 
-  return config
+  return config;
 }
 
 function supportsThinkingLevel(model: string): boolean {
-  const modelId = model.replace(/^models\//, '')
-  return /^gemini-3(?:[.-]|$)/i.test(modelId)
+  const modelId = model.replace(/^models\//, '');
+  return /^gemini-3(?:[.-]|$)/i.test(modelId);
 }
 
 function buildGeminiInput(messages: ChatMessage[]): string {
   const transcript = mergeConsecutive(messages)
     .map((message) => {
-      const speaker = message.role === 'assistant' ? 'Business' : 'Customer'
-      return `${speaker}: ${message.content}`
+      const speaker = message.role === 'assistant' ? 'Business' : 'Customer';
+      return `${speaker}: ${message.content}`;
     })
-    .join('\n\n')
+    .join('\n\n');
 
   return [
     'Recent WhatsApp conversation, oldest first:',
     transcript || 'Customer: ping',
     'Write only the next business reply.',
-  ].join('\n\n')
+  ].join('\n\n');
 }
 
 function extractGeminiText(data: GeminiResponse | null): string {
-  if (!data) return ''
+  if (!data) return '';
 
-  const candidates = Array.isArray(data.candidates) ? data.candidates : []
+  const candidates = Array.isArray(data.candidates) ? data.candidates : [];
   for (const candidate of candidates) {
-    const text = extractPartsText(candidate.content?.parts)
-    if (text) return text
+    const text = extractPartsText(candidate.content?.parts);
+    if (text) return text;
   }
-  return ''
+  return '';
 }
 
 function extractPartsText(parts: GeminiPart[] | undefined): string {
-  if (!Array.isArray(parts)) return ''
+  if (!Array.isArray(parts)) return '';
 
   return parts
     .map((part) => {
-      if (part?.thought === true) return ''
-      if (typeof part?.text === 'string') return part.text
-      return ''
+      if (part?.thought === true) return '';
+      if (typeof part?.text === 'string') return part.text;
+      return '';
     })
     .join('')
-    .trim()
+    .trim();
 }

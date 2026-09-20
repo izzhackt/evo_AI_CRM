@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextResponse } from 'next/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   requireRole: vi.fn(),
@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   generateReply: vi.fn(),
   loadConfig: vi.fn(),
   audit: vi.fn(),
-}))
+}));
 
 vi.mock('@/lib/auth/account', () => ({
   requireRole: h.requireRole,
@@ -18,36 +18,36 @@ vi.mock('@/lib/auth/account', () => ({
       { status: 500 }
     )
   ),
-}))
+}));
 vi.mock('@/lib/rate-limit', () => ({
   RATE_LIMITS: { aiDraft: {} },
   checkRateLimit: h.checkRateLimit,
   rateLimitResponse: vi.fn(),
-}))
-vi.mock('@/lib/ai/config', () => ({ loadAiConfigForAccount: h.loadConfig }))
+}));
+vi.mock('@/lib/ai/config', () => ({ loadAiConfigForAccount: h.loadConfig }));
 vi.mock('@/lib/ai/knowledge', () => ({
   retrieveKnowledgeWithEvidence: h.retrieveKnowledgeWithEvidence,
-}))
-vi.mock('@/lib/ai/generate', () => ({ generateReply: h.generateReply }))
-vi.mock('@/lib/ai/defaults', () => ({ buildSystemPrompt: vi.fn() }))
+}));
+vi.mock('@/lib/ai/generate', () => ({ generateReply: h.generateReply }));
+vi.mock('@/lib/ai/defaults', () => ({ buildSystemPrompt: vi.fn() }));
 vi.mock('@/lib/ai/assistant-audit', () => ({
   AssistantAuditError: class extends Error {},
   recordAssistantAudit: h.audit,
-}))
+}));
 vi.mock('@/lib/supabase/admin-client', () => ({
   supabaseAdminClient: vi.fn(() => ({ admin: true })),
-}))
+}));
 
-import { POST } from './route'
+import { POST } from './route';
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.clearAllMocks();
   h.requireRole.mockResolvedValue({
     supabase: {},
     accountId: 'acct-1',
     userId: 'user-1',
-  })
-  h.checkRateLimit.mockReturnValue({ success: true })
+  });
+  h.checkRateLimit.mockReturnValue({ success: true });
   h.loadConfig.mockResolvedValue({
     provider: 'gemini',
     model: 'gemini-3.5-flash',
@@ -58,7 +58,7 @@ beforeEach(() => {
     embeddingsProvider: 'gemini',
     embeddingsApiKey: 'key',
     apiKey: 'key',
-  })
+  });
   h.retrieveKnowledgeWithEvidence.mockResolvedValue({
     excerpts: ['Документы Китая'],
     chunkIds: ['11111111-1111-4111-8111-111111111111'],
@@ -68,13 +68,13 @@ beforeEach(() => {
         source_path: 'Страны/Китай.md',
       },
     ],
-  })
+  });
   h.generateReply.mockResolvedValue({
     text: 'Подготовьте документы.',
     handoff: false,
-  })
-  h.audit.mockResolvedValue('22222222-2222-4222-8222-222222222222')
-})
+  });
+  h.audit.mockResolvedValue('22222222-2222-4222-8222-222222222222');
+});
 
 describe('POST /api/ai/playground', () => {
   it('rejects attempts to select the internal knowledge audience', async () => {
@@ -87,16 +87,16 @@ describe('POST /api/ai/playground', () => {
           messages: [{ role: 'user', content: 'Вопрос' }],
         }),
       })
-    )
+    );
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: 'Некорректный запрос.',
       code: 'invalid_request',
-    })
-    expect(h.retrieveKnowledgeWithEvidence).not.toHaveBeenCalled()
-    expect(h.generateReply).not.toHaveBeenCalled()
-  })
+    });
+    expect(h.retrieveKnowledgeWithEvidence).not.toHaveBeenCalled();
+    expect(h.generateReply).not.toHaveBeenCalled();
+  });
 
   it('hard-codes client retrieval and returns source/audit identities', async () => {
     const response = await POST(
@@ -107,19 +107,19 @@ describe('POST /api/ai/playground', () => {
           evaluation_case_id: 'client_china_documents',
         }),
       })
-    )
-    expect(response.status).toBe(200)
+    );
+    expect(response.status).toBe(200);
     expect(h.retrieveKnowledgeWithEvidence).toHaveBeenCalledWith(
       {},
       'acct-1',
       'client',
       expect.any(Object),
       'Документы Китая?'
-    )
+    );
     expect(h.audit).toHaveBeenCalledWith(
       { admin: true },
       expect.objectContaining({ audience: 'client', actorUserId: 'user-1' })
-    )
+    );
     await expect(response.json()).resolves.toEqual({
       reply: 'Подготовьте документы.',
       handoff: false,
@@ -130,6 +130,6 @@ describe('POST /api/ai/playground', () => {
         },
       ],
       audit_id: '22222222-2222-4222-8222-222222222222',
-    })
-  })
-})
+    });
+  });
+});

@@ -18,13 +18,13 @@ is shown once; the app stores only a SHA-256 hash.
 
 First-launch createable scopes:
 
-| Scope | Purpose |
-| --- | --- |
-| `messages:read` | Read messages and delivery status |
-| `contacts:read` | List and read contacts |
-| `contacts:write` | Create and update contacts |
-| `conversations:read` | List and read conversations |
-| `webhooks:manage` | Register and manage outbound event webhooks |
+| Scope                | Purpose                                     |
+| -------------------- | ------------------------------------------- |
+| `messages:read`      | Read messages and delivery status           |
+| `contacts:read`      | List and read contacts                      |
+| `contacts:write`     | Create and update contacts                  |
+| `conversations:read` | List and read conversations                 |
+| `webhooks:manage`    | Register and manage outbound event webhooks |
 
 The historical WACRM scopes `messages:send` and `broadcasts:send` are not
 createable in EVO Inbox first launch.

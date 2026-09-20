@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
   type ReactNode,
-} from "react";
+} from 'react';
 
 import {
   DEFAULT_LOCALE,
@@ -17,7 +17,7 @@ import {
   type Locale,
   type TranslationKey,
   type TranslationParams,
-} from "@/lib/i18n";
+} from '@/lib/i18n';
 
 interface LanguageContextValue {
   locale: Locale;
@@ -29,7 +29,7 @@ interface LanguageContextValue {
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 function readInitialLocale(): Locale {
-  if (typeof window === "undefined") return DEFAULT_LOCALE;
+  if (typeof window === 'undefined') return DEFAULT_LOCALE;
   const fromAttr = document.documentElement.dataset.locale;
   if (isLocale(fromAttr)) return fromAttr;
   try {
@@ -61,13 +61,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleLocale = useCallback(() => {
-    setLocale(locale === "ru" ? "en" : "ru");
+    setLocale(locale === 'ru' ? 'en' : 'ru');
   }, [locale, setLocale]);
 
   const t = useCallback(
     (key: TranslationKey, params?: TranslationParams) =>
       translate(locale, key, params),
-    [locale],
+    [locale]
   );
 
   useEffect(() => {
@@ -82,8 +82,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         applyLocale(e.newValue);
       }
     }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, [locale]);
 
   return (

@@ -50,7 +50,7 @@ const ALLOWED_CONTENT_TYPES = new Set<ContentType>([
 ]);
 
 export function parseWahaInboundMessageEvent(
-  body: unknown,
+  body: unknown
 ): WahaInboundMessageParseResult {
   const root = asRecord(body);
   const sessionName = extractWahaWebhookSessionName(body);
@@ -108,7 +108,7 @@ export function parseWahaInboundMessageEvent(
 }
 
 function extractInboundMedia(
-  payload: Record<string, unknown>,
+  payload: Record<string, unknown>
 ): WahaInboundMedia | null {
   if (payload.hasMedia !== true) return null;
   const media = asRecord(payload.media);

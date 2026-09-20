@@ -25,8 +25,8 @@ export function CustomFieldsSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-foreground">
-          <SlidersHorizontal className="size-4 text-primary" />
+        <CardTitle className="text-foreground flex items-center gap-2">
+          <SlidersHorizontal className="text-primary size-4" />
           {t('settings.fields.customTitle')}
           <SettingsChip variant="admin" className="font-medium">
             <Shield />

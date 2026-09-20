@@ -1,36 +1,36 @@
-import { createHash } from 'node:crypto'
+import { createHash } from 'node:crypto';
 
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { AiProvider } from './types'
+import type { AiProvider } from './types';
 
 export interface AssistantSource {
-  chunk_id: string
-  source_path: string
+  chunk_id: string;
+  source_path: string;
 }
 
 export class AssistantAuditError extends Error {
-  readonly code = 'assistant_audit_failed'
-  readonly status = 502
+  readonly code = 'assistant_audit_failed';
+  readonly status = 502;
 
   constructor() {
-    super('Черновик создан, но безопасный аудит не сохранился.')
-    this.name = 'AssistantAuditError'
+    super('Черновик создан, но безопасный аудит не сохранился.');
+    this.name = 'AssistantAuditError';
   }
 }
 
 export async function recordAssistantAudit(
   db: SupabaseClient,
   input: {
-    accountId: string
-    audience: 'client' | 'internal'
-    evaluationCaseId: string | null
-    provider: AiProvider
-    model: string
-    sources: AssistantSource[]
-    response: string
-    handoff: boolean
-    actorUserId: string
+    accountId: string;
+    audience: 'client' | 'internal';
+    evaluationCaseId: string | null;
+    provider: AiProvider;
+    model: string;
+    sources: AssistantSource[];
+    response: string;
+    handoff: boolean;
+    actorUserId: string;
   }
 ): Promise<string> {
   const { data, error } = await db
@@ -50,7 +50,7 @@ export async function recordAssistantAudit(
       actor_user_id: input.actorUserId,
     })
     .select('id')
-    .single()
-  if (error || !data?.id) throw new AssistantAuditError()
-  return String(data.id)
+    .single();
+  if (error || !data?.id) throw new AssistantAuditError();
+  return String(data.id);
 }

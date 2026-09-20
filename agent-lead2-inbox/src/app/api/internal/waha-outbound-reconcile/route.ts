@@ -42,13 +42,13 @@ async function handleReconciliation(request: Request) {
           message: err.message,
           missing_fields: err.missingFields,
         },
-        { status: err.status },
+        { status: err.status }
       );
     }
     console.error('[waha-outbound-reconcile] failed:', err);
     return NextResponse.json(
       { error: 'waha_outbound_reconcile_failed' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -62,7 +62,9 @@ async function parseLimit(request: Request): Promise<number | undefined> {
       body = parsed as Record<string, unknown>;
     }
   }
-  return numberOption(body.limit) ?? numberOption(url.searchParams.get('limit'));
+  return (
+    numberOption(body.limit) ?? numberOption(url.searchParams.get('limit'))
+  );
 }
 
 function secretEquals(left: string, right: string): boolean {

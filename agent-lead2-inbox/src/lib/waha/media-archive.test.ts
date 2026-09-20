@@ -10,8 +10,8 @@ describe('WAHA private media URL boundary', () => {
     expect(
       requirePrivateWahaMediaUrl(
         'http://evo-inbox-waha:3000/api/files/message.pdf',
-        'http://evo-inbox-waha:3000',
-      ).pathname,
+        'http://evo-inbox-waha:3000'
+      ).pathname
     ).toBe('/api/files/message.pdf');
   });
 
@@ -19,8 +19,8 @@ describe('WAHA private media URL boundary', () => {
     expect(() =>
       requirePrivateWahaMediaUrl(
         'https://public.example/customer.pdf',
-        'http://evo-inbox-waha:3000',
-      ),
+        'http://evo-inbox-waha:3000'
+      )
     ).toThrow(WahaMediaArchiveError);
   });
 
@@ -28,8 +28,8 @@ describe('WAHA private media URL boundary', () => {
     expect(() =>
       requirePrivateWahaMediaUrl(
         'http://evo-inbox-waha:3000/api/sessions',
-        'http://evo-inbox-waha:3000',
-      ),
+        'http://evo-inbox-waha:3000'
+      )
     ).toThrow(WahaMediaArchiveError);
   });
 });

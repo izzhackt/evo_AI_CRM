@@ -436,8 +436,10 @@ function p7aAllowlist(functionName: string): Set<string> {
 }
 
 describe('Unified EVO Supabase schema contract', () => {
-  it('preserves containment through the current platform migration boundary', () => {
-    expect(migrationFiles.at(-1)).toBe(
+  it('preserves containment through the historical companion migration boundary', () => {
+    // Root migration checks own the evolving full ledger; this retired
+    // companion contract still verifies the substantive boundary below.
+    expect(migrationFiles).toContain(
       '105_platform_student_case_sales_links.sql'
     );
     expect(platformExactManualSendClaimMigration).toMatch(
@@ -531,9 +533,7 @@ describe('Unified EVO Supabase schema contract', () => {
     expect(platformManualSendWahaRuntimeMigration).toMatch(
       /CHECK\s*\(waha_session_name\s*=\s*'evo-inbox'\)/i
     );
-    expect(platformManualSendWahaRuntimeMigration).not.toMatch(
-      /crm_primary/i
-    );
+    expect(platformManualSendWahaRuntimeMigration).not.toMatch(/crm_primary/i);
     expect(platformManualSendWahaProvisioningMigration).toMatch(
       /ADD\s+COLUMN\s+api_key_sha256\s+TEXT/i
     );
@@ -1379,8 +1379,16 @@ describe('Unified EVO Supabase schema contract', () => {
 
     expect(bucketDeclarations).toEqual([
       'platform-documents',
+      'platform-document-exports',
+      'platform-company-files',
       'platform-whatsapp-media',
     ]);
+    expect(supabaseConfig).toMatch(
+      /\[storage\.buckets\.platform-document-exports\]\s*public\s*=\s*false\s*file_size_limit\s*=\s*"50MiB"\s*allowed_mime_types\s*=\s*\["application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document",\s*"application\/pdf",\s*"application\/zip"\]/m
+    );
+    expect(supabaseConfig).toMatch(
+      /\[storage\.buckets\.platform-company-files\]\s*public\s*=\s*false\s*file_size_limit\s*=\s*"25MiB"\s*allowed_mime_types\s*=\s*\["application\/pdf",\s*"image\/jpeg",\s*"image\/png",\s*"text\/plain",\s*"text\/csv",\s*"application\/msword",\s*"application\/vnd\.ms-excel",\s*"application\/vnd\.ms-powerpoint",\s*"application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document",\s*"application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet",\s*"application\/vnd\.openxmlformats-officedocument\.presentationml\.presentation"\]/m
+    );
     expect(supabaseConfig).toMatch(
       /\[storage\.buckets\.platform-documents\]\s*public\s*=\s*false\s*file_size_limit\s*=\s*"25MiB"\s*allowed_mime_types\s*=\s*\["application\/pdf",\s*"image\/jpeg",\s*"image\/png"\]/m
     );

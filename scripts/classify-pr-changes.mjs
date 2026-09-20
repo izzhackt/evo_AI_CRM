@@ -2,6 +2,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
+import { INBOX_CONTRACT_TEST_PATHS, isInboxFormatCandidate } from "./inbox-format-policy.mjs";
 
 const CONTRACT_PATHS = new Set([
   "AGENTS.md",
@@ -190,11 +191,16 @@ export function classifyChangedEntries(entries) {
   ]);
   const strongPaths = paths.filter((path) => !knownLightweight.has(path));
   const inboxDependencyPaths = paths.filter((path) => INBOX_DEPENDENCY_PATHS.has(path));
+  const inboxContractTestPaths = new Set(entries.filter((entry) => entry.status === "M")
+    .flatMap((entry) => entry.paths).filter((path) => INBOX_CONTRACT_TEST_PATHS.has(path)));
+  const inboxFormatPaths = new Set(entries.filter((entry) => entry.status === "M")
+    .flatMap((entry) => entry.paths).filter((path) => !isKnownCodePath(path)
+      && !inboxContractTestPaths.has(path) && isInboxFormatCandidate(path)));
   const leadAgentDependencies = paths.some((path) => LEAD_AGENT_DEPENDENCY_PATHS.has(path)
     || path === "scripts/smoke-lead-agent-dependencies.py"
     || path === ".github/workflows/evo-fast-pr-checks.yml");
-  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path) && !LEAD_AGENT_DEPENDENCY_PATHS.has(path));
-  const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path));
+  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path) && !LEAD_AGENT_DEPENDENCY_PATHS.has(path) && !inboxFormatPaths.has(path) && !inboxContractTestPaths.has(path));
+  const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path) && !inboxFormatPaths.has(path) && !inboxContractTestPaths.has(path));
   const codeRequired = strongPaths.length > 0;
   const buildRequired = strongPaths.some(requiresProductionBuild) || unknownPaths.length > 0;
 
@@ -206,7 +212,12 @@ export function classifyChangedEntries(entries) {
     code: codeRequired,
     lint: rootCodePaths.length > 0,
     build: buildRequired,
-    inbox_dependencies: inboxDependencyPaths.length > 0,
+    inbox_dependencies: inboxDependencyPaths.length > 0 || paths.some((path) => [
+      "scripts/inbox-format-policy.mjs", "scripts/verify-inbox-format.mjs",
+      "tests/inbox-format-verifier.test.mjs",
+    ].includes(path)),
+    inbox_formatting: inboxFormatPaths.size > 0,
+    inbox_contract_tests: inboxContractTestPaths.size > 0,
     lead_agent_dependencies: leadAgentDependencies,
     unknown: paths.length === 0 || unknownPaths.length > 0,
     paths,

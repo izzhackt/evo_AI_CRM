@@ -90,7 +90,7 @@ describe('amoCRM identity resolver', () => {
         localConversationId: 'conversation-local',
         client,
         persist,
-      }),
+      })
     ).rejects.toMatchObject({
       code: 'amocrm_identity_resolution_failed',
     } satisfies Partial<AmoCrmIdentityError>);

@@ -175,7 +175,7 @@ export async function POST(request: Request) {
       if (err instanceof WahaMediaArchiveError) {
         return NextResponse.json(
           { error: err.code, message: err.message },
-          { status: err.status },
+          { status: err.status }
         );
       }
       throw err;

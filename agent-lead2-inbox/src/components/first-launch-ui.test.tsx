@@ -1,17 +1,17 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
 
-import { QuickActions } from "@/components/dashboard/quick-actions";
-import { MessageComposer } from "@/components/inbox/message-composer";
+import { QuickActions } from '@/components/dashboard/quick-actions';
+import { MessageComposer } from '@/components/inbox/message-composer';
 
-vi.mock("@/hooks/use-can", () => ({
+vi.mock('@/hooks/use-can', () => ({
   useCan: () => true,
 }));
 
-vi.mock("@/lib/storage/upload-media", () => ({
+vi.mock('@/lib/storage/upload-media', () => ({
   deleteAccountMedia: vi.fn(),
   uploadAccountMedia: vi.fn(),
   MEDIA_MAX_BYTES_BY_KIND: {
@@ -29,29 +29,29 @@ function renderComposer(sessionExpired: boolean) {
       sessionExpired={sessionExpired}
       onSend={vi.fn()}
       onSendMedia={vi.fn()}
-    />,
+    />
   );
 }
 
-describe("first-launch retained UI", () => {
-  it("does not describe disabled bulk modules in active dashboard copy", () => {
+describe('first-launch retained UI', () => {
+  it('does not describe disabled bulk modules in active dashboard copy', () => {
     const dashboardSource = readFileSync(
-      join(process.cwd(), "src/app/(dashboard)/dashboard/page.tsx"),
-      "utf8",
+      join(process.cwd(), 'src/app/(dashboard)/dashboard/page.tsx'),
+      'utf8'
     );
     const activitySource = readFileSync(
-      join(process.cwd(), "src/components/dashboard/activity-feed.tsx"),
-      "utf8",
+      join(process.cwd(), 'src/components/dashboard/activity-feed.tsx'),
+      'utf8'
     );
 
     expect(`${dashboardSource}\n${activitySource}`).not.toMatch(/broadcasts/i);
     expect(`${dashboardSource}\n${activitySource}`).not.toMatch(/automations/i);
   });
 
-  it("does not load disabled modules into retained dashboard activity", () => {
+  it('does not load disabled modules into retained dashboard activity', () => {
     const source = readFileSync(
-      join(process.cwd(), "src/lib/dashboard/queries.ts"),
-      "utf8",
+      join(process.cwd(), 'src/lib/dashboard/queries.ts'),
+      'utf8'
     );
 
     expect(source).not.toContain(".from('broadcasts')");
@@ -59,16 +59,16 @@ describe("first-launch retained UI", () => {
     expect(source).not.toContain("href: '/broadcasts'");
   });
 
-  it("does not expose disabled broadcast or automation quick actions", () => {
+  it('does not expose disabled broadcast or automation quick actions', () => {
     const html = renderToStaticMarkup(<QuickActions />);
 
-    expect(html).not.toContain("/broadcasts/new");
-    expect(html).not.toContain("/automations/new");
-    expect(html).not.toContain("New Broadcast");
-    expect(html).not.toContain("New Automation");
+    expect(html).not.toContain('/broadcasts/new');
+    expect(html).not.toContain('/automations/new');
+    expect(html).not.toContain('New Broadcast');
+    expect(html).not.toContain('New Automation');
   });
 
-  it("does not expose template sending from the retained inbox composer", () => {
+  it('does not expose template sending from the retained inbox composer', () => {
     const activeHtml = renderComposer(false);
     const expiredHtml = renderComposer(true);
     const combinedHtml = `${activeHtml}\n${expiredHtml}`;
@@ -79,57 +79,54 @@ describe("first-launch retained UI", () => {
     expect(combinedHtml).not.toMatch(/Session expired - use a template/i);
   });
 
-  it("does not wire the template picker into the retained message thread", () => {
+  it('does not wire the template picker into the retained message thread', () => {
     const source = readFileSync(
-      join(process.cwd(), "src/components/inbox/message-thread.tsx"),
-      "utf8",
+      join(process.cwd(), 'src/components/inbox/message-thread.tsx'),
+      'utf8'
     );
 
-    expect(source).not.toContain("TemplatePicker");
-    expect(source).not.toContain("handleOpenTemplates");
-    expect(source).not.toContain("handleSendTemplate");
-    expect(source).not.toContain("onOpenTemplates");
+    expect(source).not.toContain('TemplatePicker');
+    expect(source).not.toContain('handleOpenTemplates');
+    expect(source).not.toContain('handleSendTemplate');
+    expect(source).not.toContain('onOpenTemplates');
   });
 
-  it("keeps retained settings branded around EVO Inbox production launch", () => {
+  it('keeps retained settings branded around EVO Inbox production launch', () => {
     const settingsPage = readFileSync(
-      join(process.cwd(), "src/app/(dashboard)/settings/page.tsx"),
-      "utf8",
+      join(process.cwd(), 'src/app/(dashboard)/settings/page.tsx'),
+      'utf8'
     );
     const settingsSections = readFileSync(
-      join(process.cwd(), "src/components/settings/settings-sections.ts"),
-      "utf8",
+      join(process.cwd(), 'src/components/settings/settings-sections.ts'),
+      'utf8'
     );
     const aiConfig = readFileSync(
-      join(process.cwd(), "src/components/settings/ai-config.tsx"),
-      "utf8",
+      join(process.cwd(), 'src/components/settings/ai-config.tsx'),
+      'utf8'
     );
-    const i18n = readFileSync(
-      join(process.cwd(), "src/lib/i18n.ts"),
-      "utf8",
-    );
+    const i18n = readFileSync(join(process.cwd(), 'src/lib/i18n.ts'), 'utf8');
 
-    expect(settingsPage).toContain("settings.title");
+    expect(settingsPage).toContain('settings.title');
     expect(i18n).toContain("'settings.title': 'EVO Inbox settings'");
-    expect(settingsSections).toContain("amocrm");
-    expect(settingsSections).toContain("readiness");
-    expect(aiConfig).toContain("ai.config.title");
-    expect(aiConfig).toContain("ai.config.description");
-    expect(i18n).toContain("EVO Companion AI Assistant");
-    expect(i18n).toContain("Automatic WhatsApp replies are disabled");
+    expect(settingsSections).toContain('amocrm');
+    expect(settingsSections).toContain('readiness');
+    expect(aiConfig).toContain('ai.config.title');
+    expect(aiConfig).toContain('ai.config.description');
+    expect(i18n).toContain('EVO Companion AI Assistant');
+    expect(i18n).toContain('Automatic WhatsApp replies are disabled');
   });
 
-  it("does not expose disabled module routes in primary navigation", () => {
+  it('does not expose disabled module routes in primary navigation', () => {
     const source = readFileSync(
-      join(process.cwd(), "src/components/layout/sidebar.tsx"),
-      "utf8",
+      join(process.cwd(), 'src/components/layout/sidebar.tsx'),
+      'utf8'
     );
 
-    expect(source).not.toContain('href: "/broadcasts"');
-    expect(source).not.toContain('href: "/automations"');
-    expect(source).not.toContain('href: "/flows"');
-    expect(source).toContain('labelKey: "nav.inbox"');
-    expect(source).toContain('labelKey: "nav.contacts"');
-    expect(source).toContain('labelKey: "nav.aiDrafts"');
+    expect(source).not.toMatch(/href:\s*["']\/broadcasts["']/);
+    expect(source).not.toMatch(/href:\s*["']\/automations["']/);
+    expect(source).not.toMatch(/href:\s*["']\/flows["']/);
+    expect(source).toMatch(/labelKey:\s*["']nav\.inbox["']/);
+    expect(source).toMatch(/labelKey:\s*["']nav\.contacts["']/);
+    expect(source).toMatch(/labelKey:\s*["']nav\.aiDrafts["']/);
   });
 });

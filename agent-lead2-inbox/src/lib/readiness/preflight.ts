@@ -1,52 +1,52 @@
-export type PreflightStatus = 'pass' | 'blocked'
+export type PreflightStatus = 'pass' | 'blocked';
 
 export interface IntegrationReadinessState {
-  configured: boolean
-  connected?: boolean
-  status?: string | null
-  message?: string | null
-  missingFields?: string[]
-  pendingSyncCount?: number
-  notConfiguredSyncCount?: number
-  blockedSyncCount?: number
+  configured: boolean;
+  connected?: boolean;
+  status?: string | null;
+  message?: string | null;
+  missingFields?: string[];
+  pendingSyncCount?: number;
+  notConfiguredSyncCount?: number;
+  blockedSyncCount?: number;
 }
 
 export interface AiReadinessState {
-  configured: boolean
-  active?: boolean
-  hasKey?: boolean
-  provider?: string | null
-  message?: string | null
+  configured: boolean;
+  active?: boolean;
+  hasKey?: boolean;
+  provider?: string | null;
+  message?: string | null;
 }
 
 export interface PreflightInput {
-  env: NodeJS.ProcessEnv
-  waha: IntegrationReadinessState
-  amocrm: IntegrationReadinessState
-  ai: AiReadinessState
+  env: NodeJS.ProcessEnv;
+  waha: IntegrationReadinessState;
+  amocrm: IntegrationReadinessState;
+  ai: AiReadinessState;
 }
 
 export interface PreflightCheck {
-  id: string
-  label: string
-  status: PreflightStatus
-  missing: string[]
-  message: string
+  id: string;
+  label: string;
+  status: PreflightStatus;
+  missing: string[];
+  message: string;
 }
 
 export interface PreflightResult {
-  ready: boolean
-  checks: PreflightCheck[]
-  blockers: string[]
+  ready: boolean;
+  checks: PreflightCheck[];
+  blockers: string[];
 }
 
 function present(env: NodeJS.ProcessEnv, name: string): boolean {
-  return typeof env[name] === 'string' && env[name]!.trim().length > 0
+  return typeof env[name] === 'string' && env[name]!.trim().length > 0;
 }
 
 function encryptedKeyOk(env: NodeJS.ProcessEnv): boolean {
-  const value = env.ENCRYPTION_KEY?.trim() ?? ''
-  return /^[a-f0-9]{64}$/i.test(value)
+  const value = env.ENCRYPTION_KEY?.trim() ?? '';
+  return /^[a-f0-9]{64}$/i.test(value);
 }
 
 function checkRequiredEnv(
@@ -56,24 +56,24 @@ function checkRequiredEnv(
   required: string[],
   message: string
 ): PreflightCheck {
-  const missing = required.filter((name) => !present(env, name))
+  const missing = required.filter((name) => !present(env, name));
   return {
     id,
     label,
     status: missing.length === 0 ? 'pass' : 'blocked',
     missing,
     message: missing.length === 0 ? message : `Missing ${missing.join(', ')}`,
-  }
+  };
 }
 
 export function buildProductionPreflight(
   input: PreflightInput
 ): PreflightResult {
-  const { env, waha, amocrm, ai } = input
+  const { env, waha, amocrm, ai } = input;
   const crmSyncBacklog =
     (amocrm.pendingSyncCount ?? 0) +
     (amocrm.notConfiguredSyncCount ?? 0) +
-    (amocrm.blockedSyncCount ?? 0)
+    (amocrm.blockedSyncCount ?? 0);
   const checks: PreflightCheck[] = [
     checkRequiredEnv(
       env,
@@ -157,17 +157,17 @@ export function buildProductionPreflight(
       ['EVO_INBOX_TEST_WHATSAPP_NUMBER'],
       'Dedicated test WhatsApp number is declared for the proof run.'
     ),
-  ]
+  ];
 
   const blockers = checks
     .filter((check) => check.status === 'blocked')
     .flatMap((check) =>
       check.missing.length > 0 ? check.missing : [check.label]
-    )
+    );
 
   return {
     ready: blockers.length === 0,
     checks,
     blockers,
-  }
+  };
 }

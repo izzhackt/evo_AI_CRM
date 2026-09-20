@@ -13,7 +13,7 @@ export function SecurityPanel() {
   const { t } = useLanguage();
 
   return (
-    <section className="max-w-2xl animate-in fade-in-50 duration-200">
+    <section className="animate-in fade-in-50 max-w-2xl duration-200">
       <SettingsPanelHead
         title={t('settings.security.title')}
         description={t('settings.security.description')}

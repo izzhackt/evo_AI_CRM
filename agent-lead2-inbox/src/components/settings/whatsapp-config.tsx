@@ -71,7 +71,7 @@ export function WhatsAppConfig() {
       typeof window === 'undefined'
         ? ''
         : `${window.location.origin}/api/waha/webhook`,
-    [],
+    []
   );
 
   const loadConfig = useCallback(async () => {
@@ -87,7 +87,7 @@ export function WhatsAppConfig() {
       setSessionName(data.public_config?.sessionName ?? DEFAULT_SESSION);
       setApiKey(data.has_secrets?.api_key ? MASKED_SECRET : '');
       setWebhookSecret(
-        data.has_secrets?.webhook_hmac_secret ? MASKED_SECRET : '',
+        data.has_secrets?.webhook_hmac_secret ? MASKED_SECRET : ''
       );
       setApiKeyEdited(false);
       setWebhookSecretEdited(false);
@@ -199,7 +199,7 @@ export function WhatsAppConfig() {
           description={t('settings.whatsapp.loadingDescription')}
         />
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <Loader2 className="text-primary size-6 animate-spin" />
         </div>
       </section>
     );
@@ -290,7 +290,7 @@ export function WhatsAppConfig() {
                   <button
                     type="button"
                     onClick={() => setShowApiKey((value) => !value)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2"
                   >
                     {showApiKey ? (
                       <EyeOff className="size-4" />
@@ -323,7 +323,7 @@ export function WhatsAppConfig() {
                   <button
                     type="button"
                     onClick={() => setShowWebhookSecret((value) => !value)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    className="text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2"
                   >
                     {showWebhookSecret ? (
                       <EyeOff className="size-4" />
@@ -345,7 +345,11 @@ export function WhatsAppConfig() {
             </CardHeader>
             <CardContent>
               <div className="flex gap-2">
-                <Input readOnly value={webhookUrl} className="font-mono text-sm" />
+                <Input
+                  readOnly
+                  value={webhookUrl}
+                  className="font-mono text-sm"
+                />
                 <Button
                   type="button"
                   variant="outline"
@@ -401,8 +405,12 @@ export function WhatsAppConfig() {
                 {t('settings.whatsapp.sessionContract')}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>{t('settings.whatsapp.defaultSession', { session: DEFAULT_SESSION })}</p>
+            <CardContent className="text-muted-foreground space-y-3 text-sm">
+              <p>
+                {t('settings.whatsapp.defaultSession', {
+                  session: DEFAULT_SESSION,
+                })}
+              </p>
               <p>{t('settings.whatsapp.sendApi')}</p>
               <p>{t('settings.whatsapp.chatIds')}</p>
             </CardContent>
@@ -415,7 +423,7 @@ export function WhatsAppConfig() {
                 {t('settings.whatsapp.webhookAuth')}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <CardContent className="text-muted-foreground space-y-3 text-sm">
               <p>{t('settings.whatsapp.hmacBodies')}</p>
               <p>{t('settings.whatsapp.rejectInvalid')}</p>
               <p>{t('settings.whatsapp.keepPrivate')}</p>

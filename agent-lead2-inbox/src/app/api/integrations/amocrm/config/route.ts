@@ -65,7 +65,9 @@ export async function GET() {
       });
     }
 
-    const configured = Boolean(setting.publicConfig.baseUrl && secrets.access_token);
+    const configured = Boolean(
+      setting.publicConfig.baseUrl && secrets.access_token
+    );
     return NextResponse.json({
       provider: 'amocrm',
       configured,
@@ -90,7 +92,7 @@ export async function POST(request: Request) {
       responsibleUserId: optionalId(
         body,
         'responsible_user_id',
-        'responsibleUserId',
+        'responsibleUserId'
       ),
     };
 
@@ -98,7 +100,7 @@ export async function POST(request: Request) {
     const existingSetting = await getIntegrationSetting(
       admin,
       ctx.accountId,
-      'amocrm',
+      'amocrm'
     );
     const existingSecrets = existingSetting
       ? await getIntegrationSecrets(admin, existingSetting.id)
@@ -115,7 +117,7 @@ export async function POST(request: Request) {
           error: 'amocrm_not_configured',
           missing_fields: missingFields,
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -151,14 +153,14 @@ export async function POST(request: Request) {
         access_token: Boolean(accessToken || existingSecrets.access_token),
         refresh_token: Boolean(
           textField(body, 'refresh_token', 'refreshToken') ||
-            existingSecrets.refresh_token,
+          existingSecrets.refresh_token
         ),
         client_id: Boolean(
-          textField(body, 'client_id', 'clientId') || existingSecrets.client_id,
+          textField(body, 'client_id', 'clientId') || existingSecrets.client_id
         ),
         client_secret: Boolean(
           textField(body, 'client_secret', 'clientSecret') ||
-            existingSecrets.client_secret,
+          existingSecrets.client_secret
         ),
       },
     });
@@ -173,7 +175,7 @@ export async function DELETE() {
     await deleteIntegrationSetting(
       integrationsAdminClient(),
       ctx.accountId,
-      'amocrm',
+      'amocrm'
     );
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -51,7 +51,7 @@ export default function SettingsPage() {
       appearance: t(mode === 'dark' ? 'common.dark' : 'common.light'),
       deals: defaultCurrency,
     }),
-    [mode, defaultCurrency, t],
+    [mode, defaultCurrency, t]
   );
 
   const panel: Record<SettingsSection, ReactNode> = {
@@ -72,10 +72,10 @@ export default function SettingsPage() {
   return (
     <div>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="text-foreground text-2xl font-bold tracking-tight">
           {t('settings.title')}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-1 text-sm">
           {t('settings.description')}
         </p>
       </div>

@@ -39,7 +39,7 @@ export function PasswordForm() {
     }
     if (next.length < MIN_PASSWORD) {
       setConfirmError(
-        t('settings.security.passwordTooShort', { count: MIN_PASSWORD }),
+        t('settings.security.passwordTooShort', { count: MIN_PASSWORD })
       );
       return;
     }
@@ -71,7 +71,7 @@ export function PasswordForm() {
         toast.error(
           t('settings.security.passwordUpdateFailed', {
             message: updateError.message,
-          }),
+          })
         );
         return;
       }
@@ -91,12 +91,12 @@ export function PasswordForm() {
   return (
     <Card>
       <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <KeyRound className="size-4 text-primary" />
-            {t('settings.security.passwordTitle')}
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            {t('settings.security.passwordDescription')}
+        <CardTitle className="text-foreground flex items-center gap-2">
+          <KeyRound className="text-primary size-4" />
+          {t('settings.security.passwordTitle')}
+        </CardTitle>
+        <CardDescription className="text-muted-foreground">
+          {t('settings.security.passwordDescription')}
         </CardDescription>
       </CardHeader>
 
@@ -151,7 +151,7 @@ export function PasswordForm() {
           </div>
 
           {confirmError && (
-            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <p className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-xs">
               {confirmError}
             </p>
           )}

@@ -101,7 +101,7 @@ describe('WAHA inbound message parser', () => {
           fromMe: true,
           body: 'Sent by us',
         },
-      }),
+      })
     ).toEqual({ kind: 'ignored', reason: 'from_me' });
   });
 
@@ -116,7 +116,7 @@ describe('WAHA inbound message parser', () => {
           from: '120363000000000000@g.us',
           body: 'Group message',
         },
-      }),
+      })
     ).toEqual({ kind: 'ignored', reason: 'unsupported_chat' });
   });
 
@@ -130,7 +130,7 @@ describe('WAHA inbound message parser', () => {
           from: '14155551212@c.us',
           body: 'Missing id',
         },
-      }),
+      })
     ).toThrow(WahaInboundMessageParseError);
 
     try {

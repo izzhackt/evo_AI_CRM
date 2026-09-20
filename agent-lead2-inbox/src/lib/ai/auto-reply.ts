@@ -1,15 +1,15 @@
 interface DispatchArgs {
   /** Tenancy key — drives config, contact, and whatsapp_config lookups. */
-  accountId: string
-  conversationId: string
-  contactId: string
+  accountId: string;
+  conversationId: string;
+  contactId: string;
   /** The account's WhatsApp config owner, used for the outbound send's
    *  audit columns (mirrors how the flow runner passes it through). */
-  configOwnerUserId: string
+  configOwnerUserId: string;
 }
 
 export const AI_AUTO_REPLY_DISABLED_REASON =
-  'EVO Inbox first launch is draft-only. Automatic AI WhatsApp replies are unavailable.'
+  'EVO Inbox first launch is draft-only. Automatic AI WhatsApp replies are unavailable.';
 
 /**
  * AI auto-reply for a freshly-arrived inbound message.
@@ -19,8 +19,8 @@ export const AI_AUTO_REPLY_DISABLED_REASON =
  * replies through any legacy path.
  */
 export async function dispatchInboundToAiReply(
-  _args: DispatchArgs,
+  _args: DispatchArgs
 ): Promise<void> {
-  void _args
-  return
+  void _args;
+  return;
 }

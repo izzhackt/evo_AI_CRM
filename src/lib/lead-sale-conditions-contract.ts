@@ -8,11 +8,9 @@
  * same card-fields store with three more progressive-fill blocks —
  * «Пожелания», «Образование», «Условия» — sharing this one revision-versioned
  * row (migration 184's platform_private.lead_sale_condition_fields()). The
- * save RPC still replaces the WHOLE row on every save (181, unchanged), so
- * every field below round-trips through this same contract regardless of
- * which card block a given save came from — see LeadCardFieldsForm.tsx for
- * how each block submits its own edited slice alongside the other blocks'
- * unedited, current values.
+ * legacy v1 save still replaces the whole row. Card forms use migration213's
+ * grouped writer: only their own keys round-trip, and the server preserves
+ * other groups from the locked current row. The complete read DTO stays here.
  */
 import { SALES_CURRENCIES, parseSalesDate, parseSalesInteger, parseSalesUuid, type SalesCurrency } from "./platform-sales-register-contract";
 
@@ -20,6 +18,15 @@ export const SALE_CONDITION_CURRENCIES = SALES_CURRENCIES;
 export type SaleConditionCurrency = SalesCurrency;
 export const CONDITIONS_BUDGET_PERIODS = ["year", "program"] as const;
 export type ConditionsBudgetPeriod = (typeof CONDITIONS_BUDGET_PERIODS)[number];
+
+/** Exact payload keys for each independently saved card block (migration213). */
+export const LEAD_SALE_CONDITION_GROUP_KEYS = {
+  sale: ["service_label", "signing_date", "service_cost_raw", "service_cost_minor", "service_cost_currency", "paid_raw", "paid_minor", "paid_currency", "payment_note"],
+  wishes: ["wishes_countries", "wishes_study_fields", "wishes_education_level", "wishes_intake_year", "wishes_intake_season", "wishes_universities"],
+  education: ["education_current", "education_grade", "education_marks", "education_english", "education_certificates"],
+  conditions: ["conditions_budget_raw", "conditions_budget_minor", "conditions_budget_currency", "conditions_budget_period", "conditions_scholarship", "conditions_note"],
+} as const;
+export type LeadSaleConditionsGroup = keyof typeof LEAD_SALE_CONDITION_GROUP_KEYS;
 
 export type LinkedSalesRegisterRow = Readonly<{ id: string; reportMonth: string; archived: boolean }>;
 

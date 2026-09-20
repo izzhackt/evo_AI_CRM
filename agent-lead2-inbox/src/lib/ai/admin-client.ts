@@ -1,7 +1,7 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { supabaseAdminClient } from '@/lib/supabase/admin-client'
+import { supabaseAdminClient } from '@/lib/supabase/admin-client';
 
 export function supabaseAdmin(): SupabaseClient {
-  return supabaseAdminClient()
+  return supabaseAdminClient();
 }

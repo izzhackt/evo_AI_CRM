@@ -43,6 +43,18 @@ export function inspectInboxFormatScope(root, base, head) {
   return paths;
 }
 
+export async function stableFormat(prettier, source, options) {
+  let current = source;
+  // Some existing member chains need two passes with the locked formatter.
+  // Accept at most three transformations, then require a stable confirmation.
+  for (let pass = 0; pass <= 3; pass += 1) {
+    const next = await prettier.format(current, options);
+    if (next === current) return current;
+    current = next;
+  }
+  throw new Error("Locked formatter did not converge within three transformations");
+}
+
 export async function verifyInboxFormat({ root, base, head, scopeOnly = false }) {
   const paths = inspectInboxFormatScope(root, base, head);
   if (scopeOnly) return { base, head, files: paths.length, scopeOnly: true };
@@ -62,7 +74,7 @@ export async function verifyInboxFormat({ root, base, head, scopeOnly = false })
       if (!options) throw new Error(`Missing formatter config: ${path}`);
       const original = git(root, ["show", `${base}:${path}`]);
       const proposed = git(root, ["show", `${head}:${path}`]);
-      const formatted = await prettier.format(original, { ...options, filepath });
+      const formatted = await stableFormat(prettier, original, { ...options, filepath });
       if (formatted !== proposed) throw new Error(`Not the exact base formatting result: ${path}`);
       if (readFileSync(filepath, "utf8") !== proposed) throw new Error(`Checkout differs from head: ${path}`);
     }

@@ -5,12 +5,27 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { inspectInboxFormatScope, verifyInboxFormat } from "../scripts/verify-inbox-format.mjs";
+import { inspectInboxFormatScope, stableFormat, verifyInboxFormat } from "../scripts/verify-inbox-format.mjs";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const companion = resolve(repository, "agent-lead2-inbox");
 const prettier = await import(pathToFileURL(resolve(companion, "node_modules/prettier/index.mjs")).href);
 const sourcePath = "agent-lead2-inbox/src/lib/utils.ts";
+
+test("the locked formatter reaches a verified fixed point for the two affected real sources", async () => {
+  const cwd = process.cwd();
+  process.chdir(companion);
+  try {
+    for (const relative of ["src/components/pipelines/deal-form.tsx", "src/lib/automations/engine.ts"]) {
+      const filepath = resolve(companion, relative);
+      const options = { ...await prettier.resolveConfig(filepath, { editorconfig: true, useCache: false }), filepath };
+      const original = readFileSync(filepath, "utf8");
+      const formatted = await stableFormat(prettier, original, options);
+      assert.equal(await prettier.format(formatted, options), formatted, relative);
+      assert.equal(await prettier.check(formatted, options), true, relative);
+    }
+  } finally { process.chdir(cwd); }
+});
 
 // Exercise the actual Git/Prettier toolchain using a copy of an existing source
 // blob; this is a CI-gate test, not simulated product/provider acceptance.

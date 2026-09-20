@@ -26,6 +26,7 @@ jobs:
       build: ${{ steps.classify.outputs.build }}
       inbox_dependencies: ${{ steps.classify.outputs.inbox_dependencies }}
       inbox_formatting: ${{ steps.classify.outputs.inbox_formatting }}
+      inbox_contract_tests: ${{ steps.classify.outputs.inbox_contract_tests }}
       format_base_sha: ${{ steps.classify.outputs.format_base_sha }}
       format_head_sha: ${{ steps.classify.outputs.format_head_sha }}
       lead_agent_dependencies: ${{ steps.classify.outputs.lead_agent_dependencies }}
@@ -65,11 +66,12 @@ jobs:
           BUILD: ${{ steps.classify.outputs.build }}
           INBOX_DEPENDENCIES: ${{ steps.classify.outputs.inbox_dependencies }}
           INBOX_FORMATTING: ${{ steps.classify.outputs.inbox_formatting }}
+          INBOX_CONTRACT_TESTS: ${{ steps.classify.outputs.inbox_contract_tests }}
           LEAD_AGENT_DEPENDENCIES: ${{ steps.classify.outputs.lead_agent_dependencies }}
           UNKNOWN: ${{ steps.classify.outputs.unknown }}
         run: |
           set -Eeuo pipefail
-          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$INBOX_FORMATTING" "$LEAD_AGENT_DEPENDENCIES" "$UNKNOWN"; do
+          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$INBOX_FORMATTING" "$INBOX_CONTRACT_TESTS" "$LEAD_AGENT_DEPENDENCIES" "$UNKNOWN"; do
             case "$value" in
               true|false) ;;
               *)
@@ -338,7 +340,7 @@ jobs:
   inbox_dependencies:
     name: Inbox dependency maintenance
     needs: changed-range
-    if: ${{ (needs.changed-range.outputs.inbox_dependencies == 'true' || needs.changed-range.outputs.inbox_formatting == 'true') && needs.changed-range.outputs.unknown != 'true' }}
+    if: ${{ (needs.changed-range.outputs.inbox_dependencies == 'true' || needs.changed-range.outputs.inbox_formatting == 'true' || needs.changed-range.outputs.inbox_contract_tests == 'true') && needs.changed-range.outputs.unknown != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -417,6 +419,10 @@ jobs:
           }
           NODE
 
+      - name: Test the three explicit legacy contract files
+        if: ${{ needs.changed-range.outputs.inbox_contract_tests == 'true' && needs.changed-range.outputs.inbox_formatting != 'true' }}
+        run: npm test -- src/components/first-launch-ui.test.tsx src/lib/deployment-config.test.ts src/lib/supabase/schema-contract.test.ts
+
       # Existing offline unit suite (uses its original mocks); not provider proof.
       - name: Run legacy Inbox tests for the formatter baseline
         if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
@@ -452,16 +458,20 @@ jobs:
           INBOX_DEPENDENCIES_REQUIRED: ${{ needs.changed-range.outputs.inbox_dependencies }}
           INBOX_DEPENDENCIES_RESULT: ${{ needs.inbox_dependencies.result }}
           INBOX_FORMATTING_REQUIRED: ${{ needs.changed-range.outputs.inbox_formatting }}
+          INBOX_CONTRACT_TESTS_REQUIRED: ${{ needs.changed-range.outputs.inbox_contract_tests }}
         run: |
           set -Eeuo pipefail
           test "$RANGE_RESULT" = "success"
           test "$HAS_CHANGES" = "true"
           test "$UNKNOWN" = "false"
-          case "$INBOX_DEPENDENCIES_REQUIRED:$INBOX_FORMATTING_REQUIRED" in
-            true:true|true:false|false:true) test "$INBOX_DEPENDENCIES_RESULT" = "success" ;;
-            false:false) test "$INBOX_DEPENDENCIES_RESULT" = "skipped" ;;
-            *) exit 1 ;;
-          esac
+          for required in "$INBOX_DEPENDENCIES_REQUIRED" "$INBOX_FORMATTING_REQUIRED" "$INBOX_CONTRACT_TESTS_REQUIRED"; do
+            case "$required" in true|false) ;; *) exit 1 ;; esac
+          done
+          if test "$INBOX_DEPENDENCIES_REQUIRED" = "true" || test "$INBOX_FORMATTING_REQUIRED" = "true" || test "$INBOX_CONTRACT_TESTS_REQUIRED" = "true"; then
+            test "$INBOX_DEPENDENCIES_RESULT" = "success"
+          else
+            test "$INBOX_DEPENDENCIES_RESULT" = "skipped"
+          fi
           case "$LEAD_AGENT_DEPENDENCIES_REQUIRED" in
             true) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "success" ;;
             false) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "skipped" ;;

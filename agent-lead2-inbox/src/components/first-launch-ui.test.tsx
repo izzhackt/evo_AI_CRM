@@ -122,11 +122,11 @@ describe('first-launch retained UI', () => {
       'utf8'
     );
 
-    expect(source).not.toContain('href: "/broadcasts"');
-    expect(source).not.toContain('href: "/automations"');
-    expect(source).not.toContain('href: "/flows"');
-    expect(source).toContain('labelKey: "nav.inbox"');
-    expect(source).toContain('labelKey: "nav.contacts"');
-    expect(source).toContain('labelKey: "nav.aiDrafts"');
+    expect(source).not.toMatch(/href:\s*["']\/broadcasts["']/);
+    expect(source).not.toMatch(/href:\s*["']\/automations["']/);
+    expect(source).not.toMatch(/href:\s*["']\/flows["']/);
+    expect(source).toMatch(/labelKey:\s*["']nav\.inbox["']/);
+    expect(source).toMatch(/labelKey:\s*["']nav\.contacts["']/);
+    expect(source).toMatch(/labelKey:\s*["']nav\.aiDrafts["']/);
   });
 });

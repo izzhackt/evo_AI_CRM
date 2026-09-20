@@ -33303,3 +33303,79 @@ Admin / Sales cabinet_pending, вне preview. Для просмотра без 
 прав решения по заявке или ручной подготовки. Серверные операции и их payload,
 регистрация, привязки, назначения и provider-поведение не меняются. Живая проверка
 этого среза ограничена отображением и навигацией, без отправки писем и auth writes.
+
+
+## 2026-09-20 — Whole-product refinement with dedicated page agents
+
+The owner explicitly expanded UX analysis/refinement to staff CRM, desktop and
+mobile product web, and the iPhone app. Preserve the recognizable EVO identity
+and useful functionality; CRM may receive substantial task/layout improvements.
+Assess functions, permissions, data/state, cross-surface outcomes and the existing
+CRM/admissions plan together with visual design, typography and responsive use.
+Dedicated agents per page are authorized. Initial independent page analyses are
+read-only and may run alongside the pending #929/#935 acceptance; shared schema,
+API, CSS/shell integration and release retain one coordinator.
+
+The additive contract is `docs/EVO_UX_REFINEMENT_PLAN_2026-09-20.md`; detailed
+page briefs are in `docs/design/ux-refinement/`. The earlier business scope and
+owner decisions remain: immediate program preparation, Students directory layout
+unchanged, deferred final E2E/content/App Store. All-page analysis does not silently
+add business features, rebuild the knowledge pipeline or alter provider settings.
+No code/schema/production change is part of this documentation block. No repeated
+approval is needed for ordinary design choices within the accepted direction;
+production migration/Auth/provider writes and release keep their own authority.
+
+
+## Parallel A/B execution — 2026-09-20
+
+Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
+Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+(items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
+installation and real local HTTP smoke, with unknown paths still fail-closed.
+This unblocks assessment of #847, not production release or provider acceptance.
+Root coordinates main/schema/release; A owns these shared planning appendices.
+
+B-1 (item 26): validate migrated photo objectPath against the existing manifest
+contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
+No Storage writes, license/catalog changes or broader bundle refactor. Validate
+resolver, all real manifest entries and read-only public URL/hash; authenticated
+render is not claimed. B owns its runtime files and detailed lane plan.
+
+B-1 merged as PR #937 into main `22404da81ab9398a28fdca99d879dc9f0b15a0d6`
+after independent review of `20229d1915ffd99d18e2caccc1fe3e0cd6634330` and
+required CI. This records source integration, not production delivery.
+
+B-5 (item 26): production-build analysis found the full photo audit manifest
+in browser JavaScript. Resolve photo URLs and attribution on the server; retain
+a minimal client image-error boundary for portal and staff catalogue images.
+Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
+when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
+this block. Verify bundle removal and real read-only catalogue rendering.
+No content, authentication, schema or Storage writes are included.
+
+### Parallel checkpoint and portal background — 2026-09-20
+
+A-1 PR #938 merged at `7b0cfc7e1c603952e3cf44e77aa4c1943ece74f9` after
+independent exact-head review and CI. Dependency PR #847 then merged at
+`d2452b6876ef38ccbf6934b82a4bbf34e0c4543c`; the new required dependency lane
+and real isolated HTTP smoke passed. GitHub alerts 15/16/17 became `fixed` at
+2026-09-20T16:40:17Z. PR #905 merged at
+`b38c6f166b404fc6c0a1083db6b96cecef17dedc`: its three affected Node test files
+passed 50/50 checks on the reviewed head, with independent review and scoped CI.
+These are source/CI results; no production deployment or business-write acceptance.
+
+B-5 clarification: the client FavoritesView imported the photo-bearing Catalog.
+The server favorites page now supplies card nodes; selection, comparison and
+favorite actions retain their existing contracts. This is a direct dependency of
+the approved photo boundary, detailed in PR #939's receipt.
+PR #939 merged at `87514d276b439fa45b75664d8194ed48415dabb1` after independent
+review and scoped CI. Reused real UI evidence remains bounded by that receipt;
+source integration does not claim production deployment.
+
+B-4: observed portal dark-theme foreground tokens paired with the light background inherited
+from `pt-content v3-world`. B owns a scoped background override for
+`.pt-content.v3-world` to `var(--pt-bg)` in `src/app/(portal)/portal.css`.
+Retain the legacy class and staff tokens/components. Validate real authorized
+Student catalogue, favorites, detail and one compatible home/documents screen in
+light/dark themes and at 390 px, with computed contrast and screenshots.
+No authentication, schema, business writes, content expansion or redesign.

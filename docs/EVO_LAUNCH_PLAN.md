@@ -49,16 +49,15 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 
 ### KB execution — 2026-09-20
 
-Дополнение к историческому снимку ниже: перенос 6 568 исходников и 25
-защищённых записей завершён, полная сверка дала 0 missing/0 mismatch.
-Полный ZIP встретил ошибку Storage; текущий шаг — ограниченные безопасные
-повторы запросов и завершение того же снимка. Контракт изменения:
-[PLAN_CHANGES](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
+Перенос, сортировка и полный экспорт завершены; 6 568/6 568 исходников в
+скачанном ZIP проверены по исходным размерам и SHA-256 без пропусков и ошибок.
+Восстановление после ошибки Storage выполнено по [контракту изменения](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
 
-- KB-0 merged as #902 (`7610579df`). Implementation is in draft #906, branch `izzhackt/crm-knowledge-core`, isolated worktree `evo-crm-knowledge-implementation`; canonical dirty checkout is preserved.
-- Private inventory covers 6,570 source entries. The filing plan retains 436 editable pages, 6,100 ordinary source files and 32 protected originals; two backup key files remain outside CRM. Protected preparation adds 25 structured records and verifies 57 ciphertext round trips without writing plaintext files.
-- The candidate implements Admin library, existing CRM dossiers, protected records, resumable import, reconciliation and ZIP export. Details and actual evidence: [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).
-- Production schema, key provisioning, release, real UI acceptance, control batch, complete import and downloaded ZIP verification remain open. Zero source entries have been imported into CRM. The owner explicitly transferred KB schema/release coordination to Astra; Fable was notified in #912. Forward migrations 201–204 are reserved; application is not yet claimed.
+- KB-0 and runtime merged through #902/#906/#915/#916/#918/#919/#921/#924. Worktree `evo-crm-knowledge-implementation` preserves the canonical dirty checkout. Admin navigation is unified under Knowledge Base; staff document/template routes remain available.
+- Production ledger 001–206 is contiguous and matches applied hashes. SOPS runtime, external age key and export maintenance timer are provisioned. The owner transferred schema/release and actual import/export coordination to Astra; Portal/App remains Fable's scope.
+- The complete source plan covers 6,570 entries: 436 internal pages, 432 internal files, 5,668 raw files and 32 protected originals; two key files remain outside CRM. All 6,568 source originals and 25 structured protected records are imported. Full UI/API reconciliation: 6,568 verified, 0 missing, 0 mismatch; 5,961 unique blobs and 607 preserved duplicate source locations. After the first Storage failure, #924 was released and the same full snapshot resumed with all 206 verified parts retained. The 10,471,474,710-byte ZIP is downloaded and fully verified: 7,542 file entries, all 6,568 originals, 25 current protected records (26 versions) and 32 protected originals; zero missing/errors. All 2,655 review questions remain explicit; two key files stay outside the archive.
+- Real editor/navigation, file-review metadata, selected canonical ZIP, normal Auth denials, source-byte preservation and earlier UI journeys are recorded in the [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md). No Student customer acceptance or AI republication is claimed.
+- Current release `35481793583` accepted exact main `b7598a1c5046fe3c2b16fc014bc0c22044e64b27`; runtime/accepted pointer match, healthy, pending absent and arm=false. The changed Storage path passed a real one-file Admin export/download with exact source bytes and five role denials. Earlier canonical-search HTTP/UI acceptance and guarded release history remain in the execution receipt.
 
 ## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
 
@@ -10376,3 +10375,72 @@ the native continuation button. Preserve the user's selected EVO appearance.
 Acceptance: Xcode build, real QA Home/continuation/lesson paths, RU/KY and
 dark/large-text inspection, then independent exact-head review and short CI.
 No production migration/release or deferred final E2E/content/App Store work.
+
+
+## 2026-09-20 — EVO product-wide UX refinement
+
+Owner-authorized additive execution contract:
+[`EVO_UX_REFINEMENT_PLAN_2026-09-20.md`](EVO_UX_REFINEMENT_PLAN_2026-09-20.md).
+Analyze the entire CRM, product web (desktop/mobile), and iPhone experience against
+real tasks and the existing CRM/admissions functional plan. Preserve EVO/Atlas/native
+identity and useful functions; improve CRM composition, density, typography,
+navigation and state handling. Dedicated page agents may analyze in parallel with
+explicit ownership; one coordinator integrates shared contracts and components.
+The scope includes an inventory before removing/moving controls and a truthful
+per-page evidence matrix. Final E2E, content expansion, App Store and release remain
+separate. The first documentation pass is not a completed all-page runtime audit.
+
+
+## Parallel A/B execution — 2026-09-20
+
+Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
+Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+(items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
+installation and real local HTTP smoke, with unknown paths still fail-closed.
+This unblocks assessment of #847, not production release or provider acceptance.
+Root coordinates main/schema/release; A owns these shared planning appendices.
+
+B-1 (item 26): validate migrated photo objectPath against the existing manifest
+contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
+No Storage writes, license/catalog changes or broader bundle refactor. Validate
+resolver, all real manifest entries and read-only public URL/hash; authenticated
+render is not claimed. B owns its runtime files and detailed lane plan.
+
+B-1 merged as PR #937 into main `22404da81ab9398a28fdca99d879dc9f0b15a0d6`
+after independent review of `20229d1915ffd99d18e2caccc1fe3e0cd6634330` and
+required CI. This records source integration, not production delivery.
+
+B-5 (item 26): production-build analysis found the full photo audit manifest
+in browser JavaScript. Resolve photo URLs and attribution on the server; retain
+a minimal client image-error boundary for portal and staff catalogue images.
+Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
+when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
+this block. Verify bundle removal and real read-only catalogue rendering.
+No content, authentication, schema or Storage writes are included.
+
+### Parallel checkpoint and portal background — 2026-09-20
+
+A-1 PR #938 merged at `7b0cfc7e1c603952e3cf44e77aa4c1943ece74f9` after
+independent exact-head review and CI. Dependency PR #847 then merged at
+`d2452b6876ef38ccbf6934b82a4bbf34e0c4543c`; the new required dependency lane
+and real isolated HTTP smoke passed. GitHub alerts 15/16/17 became `fixed` at
+2026-09-20T16:40:17Z. PR #905 merged at
+`b38c6f166b404fc6c0a1083db6b96cecef17dedc`: its three affected Node test files
+passed 50/50 checks on the reviewed head, with independent review and scoped CI.
+These are source/CI results; no production deployment or business-write acceptance.
+
+B-5 clarification: the client FavoritesView imported the photo-bearing Catalog.
+The server favorites page now supplies card nodes; selection, comparison and
+favorite actions retain their existing contracts. This is a direct dependency of
+the approved photo boundary, detailed in PR #939's receipt.
+PR #939 merged at `87514d276b439fa45b75664d8194ed48415dabb1` after independent
+review and scoped CI. Reused real UI evidence remains bounded by that receipt;
+source integration does not claim production deployment.
+
+B-4: observed portal dark-theme foreground tokens paired with the light background inherited
+from `pt-content v3-world`. B owns a scoped background override for
+`.pt-content.v3-world` to `var(--pt-bg)` in `src/app/(portal)/portal.css`.
+Retain the legacy class and staff tokens/components. Validate real authorized
+Student catalogue, favorites, detail and one compatible home/documents screen in
+light/dark themes and at 390 px, with computed contrast and screenshots.
+No authentication, schema, business writes, content expansion or redesign.

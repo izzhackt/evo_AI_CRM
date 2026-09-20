@@ -93,10 +93,10 @@ test("opt-in lifecycle CI output reprojects private file and preserves command a
     assert.match(runner, /if \(process\.env\.EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC === "1"\) transportLifecycle = await observeProfileTransportLifecycle/u);
     assert.match(harness, /if \[\[ "\$\{EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC:-0\}" == "1" \]\]/u);
     assert.ok(harness.includes('fail "The bounded real Student Profile browser proof failed; no live business acceptance is implied"'));
-    const workflow = readFileSync(new URL("../.github/workflows/evo-platform-ci.yml", import.meta.url), "utf8");
-    assert.equal((workflow.match(/EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC:/gu) ?? []).length, 1);
-    assert.equal((workflow.match(/EVO_D2_BROWSER_RUNTIME:/gu) ?? []).length, 1);
-    assert.match(workflow, /timeout-minutes: 35\n        env:\n          EVO_D2_TRANSPORT_LIFECYCLE_DIAGNOSTIC: "1"\n          EVO_D2_BROWSER_RUNTIME: production\n        run: npm run test:database:local/u);
+    // The workflow_dispatch full-proof job that set EVO_D2_* in
+    // .github/workflows/evo-platform-ci.yml was retired by the scoped release
+    // contract (#821, pinned in tests/p6d-release-candidate). The opt-in
+    // diagnostic remains a local harness path via test:database:local.
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

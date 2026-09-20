@@ -1,8 +1,4 @@
-"use client";
-/* eslint-disable @next/next/no-img-element -- Проверенные фиксированные фото кампусов из фото-библиотеки; произвольного image-прокси нет (то же правило, что у staff UniversityPhoto). */
-
-import { useState } from "react";
-
+import { UniversityPhotoFrame } from "@/components/platform/universities/UniversityPhotoFrame";
 import { UNIVERSITY_PHOTOS, type UniversityContent } from "@/lib/platform-university-catalog";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { universityPhotoUrl } from "@/lib/university-photo-url";
@@ -27,30 +23,26 @@ export function PhotoFigure({
   large?: boolean;
   strings: PhotoFigureStrings;
 }) {
-  const [failed, setFailed] = useState(false);
   const photo = content.photoKey ? UNIVERSITY_PHOTOS[content.photoKey] : null;
   // PORT-9d: managed-URL после migrated=true в манифесте, иначе прежний hotlink.
   const src = universityPhotoUrl(content.photoKey) ?? photo?.path ?? null;
-  if (!photo || src === null || failed) {
+  const emptyClassName = `pt-photo-empty${large ? " pt-photo-empty-large" : ""}`;
+  if (!photo || src === null) {
     return (
-      <div className={`pt-photo-empty${large ? " pt-photo-empty-large" : ""}`}>
-        {failed ? strings.photoFailed : strings.photoMissing}
+      <div className={emptyClassName}>
+        {strings.photoMissing}
       </div>
     );
   }
   return (
-    <figure className="pt-photo">
-      <img
-        src={src}
-        alt={photo.caption}
-        width={1280}
-        height={850}
-        loading="lazy"
-        decoding="async"
-        referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
-        className={`pt-photo-img${large ? " pt-photo-img-large" : ""}`}
-      />
+    <UniversityPhotoFrame
+      src={src}
+      alt={photo.caption}
+      className="pt-photo"
+      imageClassName={`pt-photo-img${large ? " pt-photo-img-large" : ""}`}
+      emptyClassName={emptyClassName}
+      failedText={strings.photoFailed}
+    >
       <figcaption className="pt-photo-caption">
         <span className="pt-photo-caption-title">{photo.caption}</span>
         <span>
@@ -67,6 +59,6 @@ export function PhotoFigure({
           {strings.photoCrop}
         </span>
       </figcaption>
-    </figure>
+    </UniversityPhotoFrame>
   );
 }

@@ -33209,3 +33209,19 @@ use the next coordinated release after the current owner completes/disarms.
 false and no pending receipt exists; accepted revision is `b7598a1c`. Current
 main is merged into this branch, retaining both appended decision histories.
 No production deployment or database write is performed by this continuation.
+
+
+### CRM-06 — filter reset and recovery on the same board
+
+The actual authenticated local UI against managed Supabase confirmed another
+part of the same filter path: after reset, the rows return to the complete
+set but the uncontrolled curator select retains its previous visible value.
+Key the GET filter form by the canonical query URL so every URL transition
+remounts its controls. This uses React's documented form reset with a key:
+https://react.dev/learn/preserving-and-resetting-state#resetting-a-form-with-a-key.
+
+Complete CRM-06's existing error requirement with retry of the current route
+and a Students link. Preserve the board, error-vs-empty distinction and all
+move permissions. Next.js refresh re-fetches the route's server data without
+changing the URL: https://nextjs.org/docs/app/api-reference/functions/use-router.
+No failure response or customer records are fabricated for validation.

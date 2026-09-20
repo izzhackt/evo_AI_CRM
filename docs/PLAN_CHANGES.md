@@ -33329,3 +33329,15 @@ contract `<photoKey>.(avif|gif|jpg|png|webp)`; otherwise retain library hotlink.
 No Storage writes, license/catalog changes or broader bundle refactor. Validate
 resolver, all real manifest entries and read-only public URL/hash; authenticated
 render is not claimed. B owns its runtime files and detailed lane plan.
+
+B-1 merged as PR #937 into main `22404da81ab9398a28fdca99d879dc9f0b15a0d6`
+after independent review of `20229d1915ffd99d18e2caccc1fe3e0cd6634330` and
+required CI. This records source integration, not production delivery.
+
+B-5 (item 26): production-build analysis found the full photo audit manifest
+in browser JavaScript. Resolve photo URLs and attribution on the server; retain
+a minimal client image-error boundary for portal and staff catalogue images.
+Preserve photos, attribution, RU/KY, styles, no-referrer, lazy loading and retry
+when the source changes. B owns `UniversityPhoto.tsx` and its photo boundary for
+this block. Verify bundle removal and real read-only catalogue rendering.
+No content, authentication, schema or Storage writes are included.

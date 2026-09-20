@@ -10335,3 +10335,16 @@ production check additionally requires separately authorized deployment.
 
 Реальный защищённый перенос завершён (32 оригинала + 25 записей), обычный
 перенос и полная сверка ZIP продолжаются. Завершение всего плана не объявляется.
+
+
+## AST-5 portal functional parity — 2026-09-20
+
+Owner explicitly approved closing the four reported gaps. Execution contract:
+1. iPhone admission: display the real operational stage, with the same RU/KY meanings as web, honest empty/error states.
+2. iPhone Home: real lesson/test continuation, favorites with nearest intakes, application status, and assisted next actions; preserve native navigation and private read contracts.
+3. Web notifications: Atlas UI, RU/KY, authoritative access tier, and refresh for current operational routes; preserve runner state.
+4. Web new catalogue entries: server-owned first-publication timestamp, preserved through edits/unpublish/republish, bounded recent list of currently published universities; no fabricated historical dates. Schema number reserved only after current coordination.
+
+Each block is a separate PR with independent exact-head review and focused real-path evidence. Use existing authenticated QA identity and real catalogue/learning data; no fabricated fixtures or writes to customer records. Read-only Student checks and local Simulator/browser builds are authorized. Production schema application/release requires the existing coordination/authority; do not silently deploy. Final product-wide E2E, content expansion and App Store remain deferred. Record limitations, never infer full acceptance from CI.
+
+Official implementation references: [SwiftUI task lifetime](https://developer.apple.com/documentation/swiftui/view/task(id:priority:_:)), [SwiftUI refreshable](https://developer.apple.com/documentation/swiftui/view/refreshable(action:)), [PostgreSQL triggers](https://www.postgresql.org/docs/current/trigger-definition.html). Context7 documentation lookup was unavailable (monthly quota); official documentation used directly.

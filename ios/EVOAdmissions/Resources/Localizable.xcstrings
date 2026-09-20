@@ -1,6 +1,214 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "adm_stage_label" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этап сопровождения"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коштоо этабы"
+          }
+        }
+      }
+    },
+    "adm_stage_custom" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "индивидуальный этап сопровождения"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "коштоонун жеке этабы"
+          }
+        }
+      }
+    },
+    "adm_stage_contract_confirmed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "договор подтверждён"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "келишим ырасталды"
+          }
+        }
+      }
+    },
+    "adm_stage_admissions_handoff" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "передано в приёмную"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "кабыл алуу тобуна өткөрүлдү"
+          }
+        }
+      }
+    },
+    "adm_stage_intake" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "приём дела"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ишти кабыл алуу"
+          }
+        }
+      }
+    },
+    "adm_stage_profile_and_route" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "выбор программы"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "программаны тандоо"
+          }
+        }
+      }
+    },
+    "adm_stage_documents" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сбор документов"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "документтерди чогултуу"
+          }
+        }
+      }
+    },
+    "adm_stage_applications" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "подача через партнёра"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "өнөктөш аркылуу тапшыруу"
+          }
+        }
+      }
+    },
+    "adm_stage_decisions" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "решения университетов"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "университеттердин чечимдери"
+          }
+        }
+      }
+    },
+    "adm_stage_visa_and_predeparture" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "виза и подготовка к отъезду"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "виза жана жол сапарга даярдык"
+          }
+        }
+      }
+    },
+    "adm_stage_arrival_and_adaptation" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "поездка и прибытие"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сапар жана келүү"
+          }
+        }
+      }
+    },
+    "adm_stage_completed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "поступление завершено"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "тапшыруу аяктады"
+          }
+        }
+      }
+    },
+    "adm_stage_closed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "дело закрыто"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "иш жабылды"
+          }
+        }
+      }
+    },
     "access_pending_body" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -34700,3 +34700,153 @@ payloads декодированы; новое UI не заявляется. Root
 освобождён. Старые перечни и функции сохранены, Фото/Паспорт — только EVO starter.
 Полный перечень/mapping старых файлов, draft/submit/package/review и UI остаются
 обязательными следующими срезами; весь admissions-план не завершён.
+
+
+## 2026-09-21 — item29: необязательные поля legacy-заявок CN/MY (219)
+
+До кода: base main `5adce46e`; root закрепил миграцию219 за этим срезом.
+Временное владение — только worktree `evo-cn-my-optional-fields`, ветка
+`izzhackt/admissions-optional-fields`, и эти два приложения к контракту.
+Runtime начинается после merge217 и отдельного root GO по этому контракту.
+A/B и другие номера миграций не занимать; применять схему и координировать
+общую локальную QA-базу может только назначенный root исполнитель.
+
+Подтверждённая причина: guard137 проверяет admissions_details заявки, если
+дело закреплено за admissions playbook. Его validator отвергает четыре
+snake_case ключа из184 как неизвестные, даже когда форма полностью заполнена.
+RPC184 всегда объединяет эти четыре поля с существующим JSON. В результате
+legacy-заявка не сохраняется; unpinned-дело обходит этот guard и уже работает.
+Это не запрос на переделку формы, данных или правил поступления.
+
+Единственное runtime-изменение —
+`supabase/migrations/219_platform_admissions_optional_partner_fields.sql`:
+`CREATE OR REPLACE` существующей
+`platform_private.admissions_validate_fields(TEXT, JSONB) RETURNS JSONB`.
+Сохранить PL/pgSQL, STABLE, SECURITY INVOKER, пустой search_path, сигнатуру,
+владельца и ACL; не добавлять public wrapper, EXECUTE, таблицы или роли.
+137 и184, admissions_field_schema, guard, UI/action/RPC184 остаются неизменными.
+
+После общего ограничения object/non-null/65536 bytes и до старой проверки
+rule добавить только application-ветку для точных ключей `partner_contact`,
+`external_link`, `decision_reference`, `decision_note`. Для каждого вызвать
+существующий `application_partner_detail_fields(jsonb_build_object(key,value))`
+через PERFORM и продолжить цикл. Его результат не подставлять вместо исходного
+JSON: validator возвращает прежний `p_value`, включая все camelCase факты.
+Нормализация blank/null остаётся обязанностью существующего RPC184.
+
+Повторное использование helper184 сохраняет уже принятые значения: строка,
+blank или JSON null; максимум300 символов contact/reference и2000 link/note,
+проверка запрещённых control characters и непустой HTTPS-ссылки. Неизвестный
+ключ, число/массив/object и остальные нарушения по-прежнему отклоняются.
+Старые application-поля сохраняют непустую строку, точные date/enum проверки;
+case/visa вообще не получают эту optional-ветку. Общая проверка размера остаётся
+перед циклом; ограничение отдельного helper не заменяет общий предел.
+
+Все caller paths учтены: guard applications/visa, case facts update и legacy
+application/visa details command из137. Новые четыре application-ключа допустимы
+последовательно в этих application-входах, а не только через RPC184; validator
+не получает country argument и не вводит новых правил страны. Snake_case
+`decision_reference` не заменяет `decisionReference`/`decisionEvidence`.
+Submission/offer/visa evidence, closed-case denial и case cross-field gates
+остаются прежними. Tenant/case authority, live recheck после locks, optimistic
+version, request replay, audit и исторические записи не изменяются. Без rename,
+backfill, pin/unpin, удаления или нормализации уже сохранённых фактов.
+
+Проверки после runtime GO: diff функции должен отличаться только узкой веткой;
+точечный source guard и независимое exact-head review; затем реальное выполнение
+SQL validator/helper в согласованной локальной базе без business writes.
+Проверить все четыре optional ключа: отсутствует/blank/null/допустимое значение,
+предельную длину, неверный тип/control/link; сохранение смешанного legacy JSON,
+unknown key, legacy blank, неверные date/enum, case/visa запрет optional ключей,
+case evidence и общий размер. Это запросы к реальным SQL-функциям с граничными
+аргументами, не fake entities и не замена persistence/UI acceptance. Сверить
+ACL/owner/function attributes и неизменность остальных функций/истории.
+
+Последняя readonly readiness-инвентаризация owned QA показала7 дел,0 playbook-
+pinned дел и1 существующую application; подходящих pinned CN/MY applications0.
+Это предыдущий snapshot, перед реальной приёмкой требуется новая проверка.
+Ordinary Auth read существующей unpinned application проверит незатронутый
+путь и доступ, но не докажет исправление legacy-сохранения. Нельзя создавать
+fixture-заявку, pin существующее дело, менять Auth/роли или имитировать ответ,
+чтобы объявить PASS. Если подходящей записи нет, итог явно разделяет source,
+local SQL proof, unaffected Auth parity и отсутствующий changed-path Auth/UI.
+
+Когда существующая подходящая owned запись действительно доступна и её writes
+разрешены root-пакетом: через обычный application.manage Auth сохранить одно
+поле при остальных blank, очистить, проверить legacy JSON, version/replay/stale,
+authority/tenant denial, evidence gates и неизменность прочих бизнес-фактов.
+Такой пакет не исполняется в pre-code и не разрешается самим этим документом.
+Managed/prod apply, release и внешние провайдеры сюда не входят; item29 нельзя
+объявить полностью принятым только по unaffected-пути или тестам функции.
+
+Проверено по [официальному PostgreSQL CREATE FUNCTION](https://www.postgresql.org/docs/current/sql-createfunction.html):
+CREATE OR REPLACE сохраняет owner/permissions, но остальные атрибуты задаются
+заново, поэтому они должны быть явно сохранены в219. Source: migration137
+`admissions_validate_fields`/`admissions_guard_related` и migration184
+`application_partner_detail_fields`/`update_application_partner_details_v1`.
+
+
+## 2026-09-21 — item29: forward fix for discovered HTTPS validator dependency
+
+The actual owned-local219 function run failed with `invalid regular expression:
+invalid repetition count(s)` in the existing184
+`platform_private.application_partner_detail_fields(JSONB)`.219 applied correctly;
+its SQL stays immutable and its receipt remains `APPLIED_QA_FAILED`. No business
+or Auth data changed. The failed run will not be relabeled or silently repeated.
+
+The old HTTPS predicate uses `{1,1990}`. PostgreSQL bounds allow at most255:
+[official pattern matching reference](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-POSIX-REGEXP).
+The required repair is part of the current item29 dependency, not new product
+scope. Allocate new forward migration220; the unapplied A queue moves220→221,
+root reason guard pre-code221→222, and future B schema starts223 if needed.
+
+Before implementation, preserve the complete184 helper except the HTTPS
+predicate: a nonempty value must have length9..1998 and match
+`^https://[^\s<>"]+$`. This preserves the intended1..1990 suffix bound after
+`https://`, optional blank/null normalization, four-key allowlist, per-key length
+and control-character checks, signature, STABLE/invoker/search_path and ACL.
+Keep all historical migrations,219, caller authority/replay/version/evidence
+rules and stored fields unchanged. No backfill or synthetic candidate records.
+
+After exact-head independent review, designated A may apply the frozen220 only
+to the existing owned local project under an exclusive schema window. Compare
+all existing business/Auth/ledger/function metadata; only this helper and the220
+ledger entry may change. Run the already-reviewed real-function QA once against
+the changed dependency, retain the original failure, and report both revisions.
+Extend direct boundary checks only if the original packet omits a demonstrated
+risk. Suitable pinned legacy Auth/UI data is still absent; successful pure SQL
+validation is not authenticated persistence or browser acceptance. Production,
+provider, customer and Auth-identity mutations remain outside this block.
+
+
+## 2026-09-21 — item29 UI prerequisite: canonical profile without legacy handoff
+
+The actual ordinary-Admin route on owned-local001–220 failed before any save:
+`V3 profile handoff lead does not match the canonical case link`. Four existing
+Auth reads confirm the authorized canonical case→lead link and readable lead,
+but no case handoff and a null lead handoff case. Migration181 explicitly allows
+this pending-case activation branch without a `sales_admissions_handoffs` row.
+Absent optional legacy context must not be treated as a contradictory context.
+
+Before code, scope the fix to `src/lib/v3/profile-source.ts`. Both explicit case
+and direct lead routes must resolve the same authorized case. An explicit case
+has already passed full case access and the105 canonical link reader. For direct
+lead routing, reuse the existing184 cabinet discovery read as a candidate only:
+it may return a different lead's same-client case, so require an exact105
+case→requested-lead match before adopting it. Keep nonnull legacy handoff case
+and lead consistency checks, authorization/read errors, tenant boundaries,
+section permissions and the original handoff snapshot; never synthesize a
+handoff, expand permissions or change stored records. No new SQL migration.
+
+This is a demonstrated dependency of the current real save path, also needed by
+A221 queue navigation and B3d staff UI. Root owns this file; parallel UI edits
+must avoid it. Impeccable `harden` advice applies: a lawful missing optional read
+must not blank the whole working screen, while contradictory or failed reads
+must remain visible errors. No visual redesign or new copy is part of this fix.
+
+Verify real existing case and direct-lead URLs through the same ordinary Auth
+and existing data after exact-head independent review. Confirm the same case,
+application and available tabs, and preserve role/section access. The local220
+save packet remains separate and must bind to the corrected source revision;
+no business save has happened yet. No synthetic handoff, Auth/role mutation,
+provider/customer/managed writes, deployment, or claim of full product E2E.

@@ -43,8 +43,8 @@ BEGIN
  END IF;
  IF EXISTS(SELECT 1 FROM unnest(doc_ids) x(id) WHERE NOT EXISTS(SELECT 1 FROM platform.document_versions v WHERE v.organization_id=p_org AND v.id=x.id))
    OR EXISTS(SELECT 1 FROM unnest(company_ids) x(id) WHERE NOT EXISTS(SELECT 1 FROM platform.company_file_versions v WHERE v.organization_id=p_org AND v.id=x.id))
-   OR EXISTS(SELECT 1 FROM unnest(requested_folders) x(id) WHERE NOT EXISTS(SELECT 1 FROM platform.company_file_folders f WHERE f.organization_id=p_org AND f.id=x.id))
-   OR EXISTS(SELECT 1 FROM unnest(case_ids) x(id) WHERE NOT EXISTS(SELECT 1 FROM platform.student_cases c WHERE c.organization_id=p_org AND c.id=x.id)) THEN
+   OR EXISTS(SELECT 1 FROM unnest(requested_folders) x(id) WHERE NOT EXISTS(SELECT 1 FROM platform.company_file_folders requested_folder WHERE requested_folder.organization_id=p_org AND requested_folder.id=x.id))
+   OR EXISTS(SELECT 1 FROM unnest(case_ids) x(id) WHERE NOT EXISTS(SELECT 1 FROM platform.student_cases requested_case WHERE requested_case.organization_id=p_org AND requested_case.id=x.id)) THEN
    RAISE EXCEPTION 'knowledge_not_found' USING ERRCODE='P0002';
  END IF;
  -- Documents only: no overview, chat, activity or unrelated manual materials.
@@ -75,14 +75,14 @@ BEGIN
  END LOOP;
  IF all_company OR cardinality(company_ids)>0 OR cardinality(requested_folders)>0 THEN
    WITH RECURSIVE chosen AS (
-     SELECT f.id FROM platform.company_file_folders f WHERE f.organization_id=p_org AND (all_company OR f.id=ANY(requested_folders)) AND (archive OR f.archived_at IS NULL)
-     UNION SELECT f.id FROM platform.company_file_folders f JOIN chosen c ON f.parent_folder_id=c.id WHERE f.organization_id=p_org AND (archive OR f.archived_at IS NULL)
+     SELECT source_folder.id FROM platform.company_file_folders source_folder WHERE source_folder.organization_id=p_org AND (all_company OR source_folder.id=ANY(requested_folders)) AND (archive OR source_folder.archived_at IS NULL)
+     UNION SELECT source_folder.id FROM platform.company_file_folders source_folder JOIN chosen chosen_parent ON source_folder.parent_folder_id=chosen_parent.id WHERE source_folder.organization_id=p_org AND (archive OR source_folder.archived_at IS NULL)
    ) SELECT coalesce(array_agg(id),'{}') INTO selected_folders FROM chosen;
    WITH RECURSIVE ancestors AS (
-     SELECT f.id,f.parent_folder_id FROM platform.company_file_folders f WHERE f.organization_id=p_org AND (
-       f.id=ANY(selected_folders) OR EXISTS(SELECT 1 FROM platform.company_files cf JOIN platform.company_file_versions v ON v.company_file_id=cf.id AND v.organization_id=cf.organization_id
-         WHERE cf.organization_id=p_org AND cf.folder_id=f.id AND v.id=ANY(company_ids)))
-     UNION SELECT f.id,f.parent_folder_id FROM platform.company_file_folders f JOIN ancestors a ON a.parent_folder_id=f.id WHERE f.organization_id=p_org
+     SELECT source_folder.id,f.parent_folder_id FROM platform.company_file_folders source_folder WHERE source_folder.organization_id=p_org AND (
+       source_folder.id=ANY(selected_folders) OR EXISTS(SELECT 1 FROM platform.company_files cf JOIN platform.company_file_versions v ON v.company_file_id=cf.id AND v.organization_id=cf.organization_id
+         WHERE cf.organization_id=p_org AND cf.folder_id=source_folder.id AND v.id=ANY(company_ids)))
+     UNION SELECT source_folder.id,f.parent_folder_id FROM platform.company_file_folders source_folder JOIN ancestors a ON a.parent_folder_id=source_folder.id WHERE source_folder.organization_id=p_org
    ) SELECT coalesce(array_agg(id),'{}') INTO visible_folders FROM ancestors;
    RETURN NEXT platform_private.kb_projection(company_root,p_org,'internal',NULL,'folder','Документы компании',coalesce((SELECT max(updated_at) FROM platform.company_files WHERE organization_id=p_org),'2000-01-01'::TIMESTAMPTZ));
    FOR f IN SELECT * FROM platform.company_file_folders WHERE organization_id=p_org AND id=ANY(visible_folders) ORDER BY id LOOP

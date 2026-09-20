@@ -185,6 +185,39 @@ final class SupabaseService {
             .execute()
             .value
     }
+    // MARK: - Catalog preparation (supabase/migrations/214)
+
+    /// Student-only command. Keep the same frozen intent after an uncertain
+    /// outcome. The receipt pins selection facts; read current status separately.
+    func selectCatalogIntake(_ intent: CatalogPreparationIntent) async throws -> CatalogPreparationReceipt {
+        do {
+            let receipt: CatalogPreparationReceipt = try await client
+                .rpc("student_select_catalog_intake_v1", params: intent)
+                .execute()
+                .value
+            try receipt.validate(for: intent)
+            return receipt
+        } catch let error as PostgrestError {
+            throw CatalogPreparationFailure.serverReason(code: error.code, message: error.message) ?? error
+        }
+    }
+
+    /// Original selected snapshots with CURRENT application status/version.
+    /// This independent reader does not depend on the finance/overview request.
+    func studentCatalogPreparations(studentCaseId: UUID) async throws -> [CatalogPreparation] {
+        struct Params: Encodable, Sendable { let p_student_case_id: UUID }
+        do {
+            let result: CatalogPreparationList = try await client
+                .rpc("student_catalog_preparations_v1", params: Params(p_student_case_id: studentCaseId))
+                .execute()
+                .value
+            try result.validate(studentCaseId: studentCaseId)
+            return result.items
+        } catch let error as PostgrestError {
+            throw CatalogPreparationFailure.serverReason(code: error.code, message: error.message) ?? error
+        }
+    }
+
     // MARK: - University favourites (supabase/migrations/195)
 
     /// `platform.set_university_favorite_v1(p_institution_id, p_favored)` —

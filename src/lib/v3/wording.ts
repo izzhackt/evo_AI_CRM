@@ -373,6 +373,7 @@ const COUNTRY: Record<string, string> = {
 const DEGREE: Record<string, string> = {
   foundation: "Фаундейшн",
   language: "Языковые курсы",
+  diploma: "Диплом",
   bachelor: "Бакалавриат",
   master: "Магистратура",
   phd: "Докторантура",

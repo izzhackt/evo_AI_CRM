@@ -239,6 +239,8 @@ export function AppShell({
   const query = useSearchParams();
   const navigation = buildV3Navigation(actor, pathname, query);
   const previewing = isStaffPreview(actor);
+  const contentId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
 
   return (
     <div
@@ -247,6 +249,16 @@ export function AppShell({
       data-system-role={actor.systemRole}
       data-presentation-role={actor.presentationRole ?? "actual"}
     >
+      <a
+        href={`#${contentId}`}
+        onClick={(event) => {
+          event.preventDefault();
+          contentRef.current?.focus();
+        }}
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-2 focus-visible:top-2 focus-visible:z-50 focus-visible:inline-flex focus-visible:min-h-11 focus-visible:items-center focus-visible:rounded-ctl focus-visible:bg-accent focus-visible:px-4 focus-visible:py-2 focus-visible:text-sm focus-visible:font-medium focus-visible:text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      >
+        К содержимому
+      </a>
       <Sidebar
         key={navigation.destinationKey}
         actor={actor}
@@ -274,7 +286,9 @@ export function AppShell({
             </div>
           )}
         </div>
-        {children}
+        <div id={contentId} ref={contentRef} tabIndex={-1} className="min-w-0 outline-none">
+          {children}
+        </div>
       </div>
     </div>
   );

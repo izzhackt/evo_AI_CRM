@@ -11,10 +11,11 @@ import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesReportNavigation } from "./SalesReportNavigation";
 import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./SalesRegisterForms";
 import { SalesRecordPreview } from "./SalesRecordPreview";
+import { parseSalesRegisterSearchQuery } from "@/lib/sales-register-search";
 
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
-  manager?: string; direction?: string; review?: string; saved?: string; edit?: string;
+  manager?: string; direction?: string; review?: string; saved?: string; edit?: string; q?: string;
 }>;
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
@@ -26,7 +27,8 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   const year = query.year === undefined ? Number(now.find(p => p.type === "year")!.value) : Number(query.year);
   const month = query.month === undefined ? Number(now.find(p => p.type === "month")!.value) : query.month === "all" ? undefined : Number(query.month);
   const offset = query.offset === undefined ? 0 : Number(query.offset);
-  const valid = Number.isInteger(year) && year >= 1900 && year <= 2100
+  const searchQuery = parseSalesRegisterSearchQuery(query.q);
+  const valid = searchQuery !== null && Number.isInteger(year) && year >= 1900 && year <= 2100
     && (query.year === undefined || /^\d{4}$/.test(query.year))
     && (month === undefined || (Number.isInteger(month) && month >= 1 && month <= 12))
     && Number.isInteger(offset) && offset >= 0 && offset <= 1_000_000
@@ -44,7 +46,8 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   if (valid) {
     [workspace, cash, intakeOptions] = await Promise.all([
       readSalesRegisterWorkspace(actor, { year, month, offset, recordId: query.record ?? query.saved, archived: query.archived === "true",
-        manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null }).catch(() => null),
+        manager: query.manager, direction: query.direction, needsReview: query.review ? query.review === "true" : null,
+        query: searchQuery }).catch(() => null),
       checkFinanceAccess && month ? readMonthlyPaymentSummary(actor, year, month)
         .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
       query.new === "true" && !query.record && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
@@ -52,7 +55,8 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   }
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
   const clearFiltersHref = `/v3/main?${params.toString()}`;
-  const hasFilters = Boolean(query.manager || query.direction || query.review || query.archived === "true");
+  const hasFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true");
+  if (searchQuery) params.set("q", searchQuery);
   if (query.archived === "true") params.set("archived", "true");
   if (query.manager) params.set("manager", query.manager);
   if (query.direction) params.set("direction", query.direction);
@@ -102,6 +106,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
           <option value="all">Весь год</option>{MONTHS.map((title, i) => <option key={title} value={i + 1}>{title}</option>)}
         </select></label>
+        <label className="col-span-2 min-w-0 @2xl:min-w-60 @2xl:flex-1"><span className={labelCls}>Имя, телефон или договор</span><input name="q" type="search" defaultValue={searchQuery ?? (typeof query.q === "string" ? query.q : "")} maxLength={200} className={`${inputCls} min-h-11`} /></label>
         <label className="min-w-0 @2xl:w-40"><span className={labelCls}>Записи</span><select name="archived" defaultValue={query.archived === "true" ? "true" : "false"} className={`${inputCls} min-h-11`}>
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
@@ -112,7 +117,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         {valid && hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`}>Сбросить фильтры</Link> : null}
       </form>
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
-        <p>{valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
+        <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
         <Link href="/v3/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
       </div> : <>
         <section aria-labelledby="sales-period-totals" className="mt-8 border-b border-border pb-6">

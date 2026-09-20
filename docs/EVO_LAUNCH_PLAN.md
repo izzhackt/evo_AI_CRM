@@ -49,16 +49,15 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 
 ### KB execution — 2026-09-20
 
-Дополнение к историческому снимку ниже: перенос 6 568 исходников и 25
-защищённых записей завершён, полная сверка дала 0 missing/0 mismatch.
-Полный ZIP встретил ошибку Storage; текущий шаг — ограниченные безопасные
-повторы запросов и завершение того же снимка. Контракт изменения:
-[PLAN_CHANGES](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
+Перенос, сортировка и полный экспорт завершены; 6 568/6 568 исходников в
+скачанном ZIP проверены по исходным размерам и SHA-256 без пропусков и ошибок.
+Восстановление после ошибки Storage выполнено по [контракту изменения](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
 
-- KB-0 merged as #902 (`7610579df`). Implementation is in draft #906, branch `izzhackt/crm-knowledge-core`, isolated worktree `evo-crm-knowledge-implementation`; canonical dirty checkout is preserved.
-- Private inventory covers 6,570 source entries. The filing plan retains 436 editable pages, 6,100 ordinary source files and 32 protected originals; two backup key files remain outside CRM. Protected preparation adds 25 structured records and verifies 57 ciphertext round trips without writing plaintext files.
-- The candidate implements Admin library, existing CRM dossiers, protected records, resumable import, reconciliation and ZIP export. Details and actual evidence: [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).
-- Production schema, key provisioning, release, real UI acceptance, control batch, complete import and downloaded ZIP verification remain open. Zero source entries have been imported into CRM. The owner explicitly transferred KB schema/release coordination to Astra; Fable was notified in #912. Forward migrations 201–204 are reserved; application is not yet claimed.
+- KB-0 and runtime merged through #902/#906/#915/#916/#918/#919/#921/#924. Worktree `evo-crm-knowledge-implementation` preserves the canonical dirty checkout. Admin navigation is unified under Knowledge Base; staff document/template routes remain available.
+- Production ledger 001–206 is contiguous and matches applied hashes. SOPS runtime, external age key and export maintenance timer are provisioned. The owner transferred schema/release and actual import/export coordination to Astra; Portal/App remains Fable's scope.
+- The complete source plan covers 6,570 entries: 436 internal pages, 432 internal files, 5,668 raw files and 32 protected originals; two key files remain outside CRM. All 6,568 source originals and 25 structured protected records are imported. Full UI/API reconciliation: 6,568 verified, 0 missing, 0 mismatch; 5,961 unique blobs and 607 preserved duplicate source locations. After the first Storage failure, #924 was released and the same full snapshot resumed with all 206 verified parts retained. The 10,471,474,710-byte ZIP is downloaded and fully verified: 7,542 file entries, all 6,568 originals, 25 current protected records (26 versions) and 32 protected originals; zero missing/errors. All 2,655 review questions remain explicit; two key files stay outside the archive.
+- Real editor/navigation, file-review metadata, selected canonical ZIP, normal Auth denials, source-byte preservation and earlier UI journeys are recorded in the [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md). No Student customer acceptance or AI republication is claimed.
+- Current release `35481793583` accepted exact main `b7598a1c5046fe3c2b16fc014bc0c22044e64b27`; runtime/accepted pointer match, healthy, pending absent and arm=false. The changed Storage path passed a real one-file Admin export/download with exact source bytes and five role denials. Earlier canonical-search HTTP/UI acceptance and guarded release history remain in the execution receipt.
 
 ## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
 

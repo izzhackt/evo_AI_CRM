@@ -334,8 +334,7 @@ async function main() {
           model,
           embeddings_provider: embeddingsProvider,
           live_provider_call: true,
-          gemini_embeddings_live_provider_call:
-            embeddingsProvider === 'gemini',
+          gemini_embeddings_live_provider_call: embeddingsProvider === 'gemini',
         },
         ai_config: {
           id: config.id,

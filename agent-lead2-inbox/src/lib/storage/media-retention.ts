@@ -4,14 +4,14 @@ import { writeMediaAudit } from '@/lib/waha/media-archive';
 
 export async function deleteExpiredInboxMedia(
   db: SupabaseClient,
-  input: { limit?: number; now?: Date } = {},
+  input: { limit?: number; now?: Date } = {}
 ): Promise<{ deleted: number; failed: number }> {
   const limit = Math.max(1, Math.min(input.limit ?? 100, 500));
   const now = input.now ?? new Date();
   const { data, error } = await db
     .from('messages')
     .select(
-      'id, media_bucket, media_path, media_size_bytes, conversations!inner(account_id)',
+      'id, media_bucket, media_path, media_size_bytes, conversations!inner(account_id)'
     )
     .not('media_path', 'is', null)
     .is('media_deleted_at', null)

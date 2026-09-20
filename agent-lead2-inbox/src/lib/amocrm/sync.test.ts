@@ -6,7 +6,8 @@ import type { PersistAmoCrmShadowInput } from './identity';
 import { syncPendingAmoCrmConversations } from './sync';
 
 type Row = Record<string, unknown>;
-type TableName = 'contacts' | 'conversations' | 'messages' | 'integration_settings';
+type TableName =
+  'contacts' | 'conversations' | 'messages' | 'integration_settings';
 type Filter =
   | { op: 'eq'; column: string; value: unknown }
   | { op: 'in'; column: string; value: unknown[] };
@@ -19,7 +20,7 @@ class MemoryBuilder {
 
   constructor(
     private readonly db: MemoryDb,
-    private readonly table: TableName,
+    private readonly table: TableName
   ) {}
 
   select() {
@@ -113,12 +114,14 @@ class MemoryDb {
 
   select(table: TableName, filters: Filter[], limit: number | null) {
     let rows = this.tables[table].filter((row) =>
-      filters.every((filter) => matchesFilter(row, filter)),
+      filters.every((filter) => matchesFilter(row, filter))
     );
     if (table === 'conversations') {
       rows = rows.map((row) => ({
         ...row,
-        contact: this.tables.contacts.find((contact) => contact.id === row.contact_id),
+        contact: this.tables.contacts.find(
+          (contact) => contact.id === row.contact_id
+        ),
       }));
     }
     return {
@@ -145,29 +148,34 @@ function matchesFilter(row: Row, filter: Filter): boolean {
 describe('syncPendingAmoCrmConversations', () => {
   it('resolves pending conversations and persists amoCRM shadow ids', async () => {
     const db = new MemoryDb();
-    const persist = vi.fn(async (
-      _db: unknown,
-      input: PersistAmoCrmShadowInput,
-    ) => {
-      Object.assign(db.tables.contacts[0], {
-        amo_contact_id: input.amoContactId,
-        amo_contact_synced_at: '2026-07-08T10:00:00.000Z',
-      });
-      Object.assign(db.tables.conversations[0], {
-        amo_lead_id: input.amoLeadId,
-        amo_lead_synced_at: '2026-07-08T10:00:00.000Z',
-      });
-    });
+    const persist = vi.fn(
+      async (_db: unknown, input: PersistAmoCrmShadowInput) => {
+        Object.assign(db.tables.contacts[0], {
+          amo_contact_id: input.amoContactId,
+          amo_contact_synced_at: '2026-07-08T10:00:00.000Z',
+        });
+        Object.assign(db.tables.conversations[0], {
+          amo_lead_id: input.amoLeadId,
+          amo_lead_synced_at: '2026-07-08T10:00:00.000Z',
+        });
+      }
+    );
 
     const result = await syncPendingAmoCrmConversations(
       db as never,
       { limit: 5, accountId: 'acct-1' },
       {
-        loadAmoCrmConfig: vi.fn(async () => ({
-          settingId: 'amocrm-setting-1',
-          config: { baseUrl: 'https://evo.amocrm.ru', accessToken: 'token' },
-          publicConfig: {},
-        } satisfies AmoCrmRuntimeConfig)),
+        loadAmoCrmConfig: vi.fn(
+          async () =>
+            ({
+              settingId: 'amocrm-setting-1',
+              config: {
+                baseUrl: 'https://evo.amocrm.ru',
+                accessToken: 'token',
+              },
+              publicConfig: {},
+            }) satisfies AmoCrmRuntimeConfig
+        ),
         createAmoCrmClient: vi.fn(() => ({}) as AmoCrmClient),
         resolveAmoCrmIdentityFromProvider: vi.fn(async () => ({
           amoContactId: '101',
@@ -175,7 +183,7 @@ describe('syncPendingAmoCrmConversations', () => {
         })),
         persistAmoCrmShadowIdentity: persist,
         now: () => new Date('2026-07-08T10:01:00.000Z'),
-      },
+      }
     );
 
     expect(result).toEqual({
@@ -193,7 +201,7 @@ describe('syncPendingAmoCrmConversations', () => {
         localConversationId: 'conversation-1',
         amoContactId: '101',
         amoLeadId: '202',
-      }),
+      })
     );
     expect(db.tables.contacts[0]).toMatchObject({ amo_contact_id: '101' });
     expect(db.tables.conversations[0]).toMatchObject({

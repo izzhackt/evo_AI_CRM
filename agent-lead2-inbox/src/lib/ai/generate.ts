@@ -3,18 +3,18 @@ import {
   type AiConfig,
   type ChatMessage,
   type GenerateResult,
-} from './types'
-import { HANDOFF_SENTINEL, aiRequestTimeoutMs } from './defaults'
-import { generateOpenAi } from './providers/openai'
-import { generateAnthropic } from './providers/anthropic'
-import { generateGemini } from './providers/gemini'
+} from './types';
+import { HANDOFF_SENTINEL, aiRequestTimeoutMs } from './defaults';
+import { generateOpenAi } from './providers/openai';
+import { generateAnthropic } from './providers/anthropic';
+import { generateGemini } from './providers/gemini';
 
 export interface GenerateArgs {
-  config: AiConfig
+  config: AiConfig;
   /** Fully-built system prompt (see `buildSystemPrompt`). */
-  systemPrompt: string
+  systemPrompt: string;
   /** Recent conversation turns, oldest first. */
-  messages: ChatMessage[]
+  messages: ChatMessage[];
 }
 
 /**
@@ -25,35 +25,35 @@ export interface GenerateArgs {
 export async function generateReply(
   args: GenerateArgs
 ): Promise<GenerateResult> {
-  const { config, systemPrompt, messages } = args
-  const timeoutMs = aiRequestTimeoutMs()
+  const { config, systemPrompt, messages } = args;
+  const timeoutMs = aiRequestTimeoutMs();
   const providerArgs = {
     apiKey: config.apiKey,
     model: config.model,
     systemPrompt,
     messages,
     timeoutMs,
-  }
+  };
 
-  let raw: string
+  let raw: string;
   switch (config.provider) {
     case 'openai':
-      raw = await generateOpenAi(providerArgs)
-      break
+      raw = await generateOpenAi(providerArgs);
+      break;
     case 'anthropic':
-      raw = await generateAnthropic(providerArgs)
-      break
+      raw = await generateAnthropic(providerArgs);
+      break;
     case 'gemini':
-      raw = await generateGemini(providerArgs)
-      break
+      raw = await generateGemini(providerArgs);
+      break;
     default:
       throw new AiError(`Unsupported AI provider: ${config.provider}`, {
         code: 'unsupported_provider',
         status: 400,
-      })
+      });
   }
 
-  return parseGeneration(raw)
+  return parseGeneration(raw);
 }
 
 /**
@@ -62,7 +62,7 @@ export async function generateReply(
  * turn as a handoff and strip the marker from any remaining text.
  */
 export function parseGeneration(raw: string): GenerateResult {
-  const handoff = raw.includes(HANDOFF_SENTINEL)
-  const text = raw.split(HANDOFF_SENTINEL).join('').trim()
-  return { text, handoff }
+  const handoff = raw.includes(HANDOFF_SENTINEL);
+  const text = raw.split(HANDOFF_SENTINEL).join('').trim();
+  return { text, handoff };
 }

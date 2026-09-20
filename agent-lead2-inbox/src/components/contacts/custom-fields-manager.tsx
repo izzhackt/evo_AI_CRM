@@ -171,7 +171,9 @@ export function CustomFieldsPanel() {
       toast.error(t('settings.fields.deleteFieldFailed'));
       return;
     }
-    toast.success(t('settings.fields.fieldDeleted', { name: field.field_name }));
+    toast.success(
+      t('settings.fields.fieldDeleted', { name: field.field_name })
+    );
     await fetchFields();
   }
 
@@ -206,18 +208,18 @@ export function CustomFieldsPanel() {
       </div>
 
       {/* List */}
-      <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+      <div className="border-border max-h-72 overflow-y-auto rounded-md border">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+          <div className="text-muted-foreground flex items-center justify-center gap-2 py-8 text-sm">
             <Loader2 className="size-4 animate-spin" />
             {t('common.loading')}
           </div>
         ) : fields.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground py-8 text-center text-sm">
             {t('settings.fields.noCustomFields')}
           </p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="divide-border divide-y">
             {fields.map((field) => (
               <FieldRow
                 key={field.id}
@@ -272,7 +274,7 @@ function FieldRow({
         aria-label={t('settings.fields.renameField', {
           name: field.field_name,
         })}
-        className="focus:border-primary h-8 border-transparent bg-transparent text-foreground hover:border-border"
+        className="focus:border-primary text-foreground hover:border-border h-8 border-transparent bg-transparent"
       />
       <Button
         variant="ghost"
@@ -280,7 +282,7 @@ function FieldRow({
         disabled={busy}
         onClick={() => onDelete(field)}
         title={t('settings.fields.deleteField')}
-        className="shrink-0 text-muted-foreground hover:text-red-400"
+        className="text-muted-foreground shrink-0 hover:text-red-400"
       >
         {busy ? (
           <Loader2 className="size-4 animate-spin" />

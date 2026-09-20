@@ -11,7 +11,7 @@ import { GET as getPublicBroadcast } from './v1/broadcasts/[id]/route';
 
 async function expectDisabled(
   response: Response,
-  feature: 'broadcasts' | 'meta_transport',
+  feature: 'broadcasts' | 'meta_transport'
 ) {
   const json = await response.json();
   expect(response.status).toBe(410);

@@ -1,14 +1,10 @@
-"use client";
+'use client';
 
-import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useLanguage } from "@/hooks/use-language";
-import {
-  DEFAULT_LOCALE,
-  translate,
-  type TranslationKey,
-} from "@/lib/i18n";
-import type { Message } from "@/types";
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useLanguage } from '@/hooks/use-language';
+import { DEFAULT_LOCALE, translate, type TranslationKey } from '@/lib/i18n';
+import type { Message } from '@/types';
 
 interface ReplyQuoteProps {
   /** Sender label of the quoted message: "You" for our own messages,
@@ -37,20 +33,20 @@ export function ReplyQuote({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 border-l-2 px-2 py-1",
-        onPrimary ? "border-primary-foreground/50" : "border-primary",
+        'flex items-start gap-2 border-l-2 px-2 py-1',
+        onPrimary ? 'border-primary-foreground/50' : 'border-primary',
         isChip
-          ? "rounded-md bg-muted/80"
+          ? 'bg-muted/80 rounded-md'
           : onPrimary
-            ? "mb-1.5 rounded-md bg-primary-foreground/15"
-            : "mb-1.5 rounded-md bg-background/20",
+            ? 'bg-primary-foreground/15 mb-1.5 rounded-md'
+            : 'bg-background/20 mb-1.5 rounded-md'
       )}
     >
       <div className="min-w-0 flex-1 overflow-hidden">
         <div
           className={cn(
-            "truncate text-[11px] font-medium",
-            onPrimary ? "text-primary-foreground" : "text-primary",
+            'truncate text-[11px] font-medium',
+            onPrimary ? 'text-primary-foreground' : 'text-primary'
           )}
         >
           {authorLabel}
@@ -62,7 +58,7 @@ export function ReplyQuote({
          *  layout wider, shoving the contact sidebar off-screen.
          *  `break-words` also wraps long URLs that have no whitespace
          *  to break on. Issue #165. */}
-        <div className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+        <div className="text-foreground/80 text-xs break-words whitespace-pre-wrap">
           {preview}
         </div>
       </div>
@@ -70,8 +66,8 @@ export function ReplyQuote({
         <button
           type="button"
           onClick={onDismiss}
-          aria-label={t("inbox.message.cancelReply")}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={t('inbox.message.cancelReply')}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -83,25 +79,25 @@ export function ReplyQuote({
 /** Build the one-line preview text shown inside a reply quote. */
 export function buildReplyPreview(
   message: Message,
-  t?: (key: TranslationKey) => string,
+  t?: (key: TranslationKey) => string
 ): string {
   if (message.content_text) return message.content_text;
   const label = (key: TranslationKey) =>
     t ? t(key) : translate(DEFAULT_LOCALE, key);
   switch (message.content_type) {
-    case "image":
-      return `[${label("inbox.message.image")}]`;
-    case "video":
-      return `[${label("inbox.message.video")}]`;
-    case "audio":
-      return `[${label("inbox.message.audio")}]`;
-    case "document":
-      return `[${label("inbox.message.document")}]`;
-    case "location":
-      return `[${label("inbox.message.locationShared")}]`;
-    case "template":
-      return `[${label("inbox.message.template")}]`;
+    case 'image':
+      return `[${label('inbox.message.image')}]`;
+    case 'video':
+      return `[${label('inbox.message.video')}]`;
+    case 'audio':
+      return `[${label('inbox.message.audio')}]`;
+    case 'document':
+      return `[${label('inbox.message.document')}]`;
+    case 'location':
+      return `[${label('inbox.message.locationShared')}]`;
+    case 'template':
+      return `[${label('inbox.message.template')}]`;
     default:
-      return `[${label("inbox.message.unsupportedType")}]`;
+      return `[${label('inbox.message.unsupportedType')}]`;
   }
 }

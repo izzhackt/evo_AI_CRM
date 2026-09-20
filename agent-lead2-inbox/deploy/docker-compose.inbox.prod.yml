@@ -9,25 +9,25 @@ services:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.production and pass with docker compose --env-file}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set in .env.production and pass with docker compose --env-file}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://inbox.evoadmissions.com}
-        EVO_IMAGE_SOURCE: "${EVO_IMAGE_SOURCE:-https://github.com/izzhackt/evo_AI_CRM}"
-        EVO_IMAGE_REVISION: "${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
-        EVO_IMAGE_VERSION: "${EVO_RELEASE_VERSION:?set EVO_RELEASE_VERSION}"
-    image: "evo-inbox:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}"
+        EVO_IMAGE_SOURCE: '${EVO_IMAGE_SOURCE:-https://github.com/izzhackt/evo_AI_CRM}'
+        EVO_IMAGE_REVISION: '${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}'
+        EVO_IMAGE_VERSION: '${EVO_RELEASE_VERSION:?set EVO_RELEASE_VERSION}'
+    image: 'evo-inbox:${EVO_RELEASE_REVISION:?set EVO_RELEASE_REVISION to the exact full 40-character Git commit SHA}'
     labels:
-      org.opencontainers.image.revision: "${EVO_RELEASE_REVISION}"
-      org.opencontainers.image.version: "${EVO_RELEASE_VERSION}"
+      org.opencontainers.image.revision: '${EVO_RELEASE_REVISION}'
+      org.opencontainers.image.version: '${EVO_RELEASE_VERSION}'
     restart: unless-stopped
     init: true
-    cpus: "1.50"
+    cpus: '1.50'
     mem_limit: 1536m
     pids_limit: 256
     logging: &bounded-logging
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: '10m'
+        max-file: '5'
     env_file:
-      - "${EVO_INBOX_APP_ENV_FILE:-../.env.production}"
+      - '${EVO_INBOX_APP_ENV_FILE:-../.env.production}'
     environment:
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: '1'
@@ -61,18 +61,18 @@ services:
       start_period: 30s
 
   waha:
-    image: "${EVO_WAHA_IMAGE_REPOSITORY:-devlikeapro/waha}@${EVO_WAHA_IMAGE_DIGEST:?set EVO_WAHA_IMAGE_DIGEST to an immutable sha256 digest}"
+    image: '${EVO_WAHA_IMAGE_REPOSITORY:-devlikeapro/waha}@${EVO_WAHA_IMAGE_DIGEST:?set EVO_WAHA_IMAGE_DIGEST to an immutable sha256 digest}'
     labels:
-      com.evo.image.provenance: "third-party-digest"
+      com.evo.image.provenance: 'third-party-digest'
     container_name: evo-inbox-waha
     restart: unless-stopped
     init: true
-    cpus: "2.00"
+    cpus: '2.00'
     mem_limit: 2048m
     pids_limit: 512
     logging: *bounded-logging
     env_file:
-      - "${EVO_INBOX_WAHA_ENV_FILE:-../.env.waha}"
+      - '${EVO_INBOX_WAHA_ENV_FILE:-../.env.waha}'
     expose:
       - '3000'
     volumes:

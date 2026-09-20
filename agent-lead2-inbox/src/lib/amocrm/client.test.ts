@@ -9,10 +9,10 @@ import {
 describe('amoCRM client', () => {
   it('normalizes account domains into API base URLs', () => {
     expect(normalizeAmoCrmBaseUrl('evo.amocrm.ru')).toBe(
-      'https://evo.amocrm.ru',
+      'https://evo.amocrm.ru'
     );
     expect(normalizeAmoCrmBaseUrl('https://evo.amocrm.com/')).toBe(
-      'https://evo.amocrm.com',
+      'https://evo.amocrm.com'
     );
   });
 
@@ -21,7 +21,7 @@ describe('amoCRM client', () => {
       createAmoCrmClient({
         baseUrl: '',
         accessToken: '',
-      }),
+      })
     ).toThrow(AmoCrmConfigurationError);
 
     try {
@@ -52,14 +52,14 @@ describe('amoCRM client', () => {
             },
           ],
         },
-      }),
+      })
     );
     const client = createAmoCrmClient(
       {
         baseUrl: 'https://evo.amocrm.ru',
         accessToken: 'access-token',
       },
-      fetchMock,
+      fetchMock
     );
 
     const contact = await client.findContactByPhone('+1 (415) 555-1212');
@@ -70,7 +70,7 @@ describe('amoCRM client', () => {
         headers: expect.objectContaining({
           Authorization: 'Bearer access-token',
         }),
-      }),
+      })
     );
     expect(contact).toMatchObject({
       id: '101',
@@ -102,17 +102,19 @@ describe('amoCRM client', () => {
             },
           ],
         },
-      }),
+      })
     );
     const client = createAmoCrmClient(
       {
         baseUrl: 'https://evo.amocrm.ru',
         accessToken: 'access-token',
       },
-      fetchMock,
+      fetchMock
     );
 
-    await expect(client.findContactByPhone('+1 (415) 555-1212')).resolves.toBeNull();
+    await expect(
+      client.findContactByPhone('+1 (415) 555-1212')
+    ).resolves.toBeNull();
   });
 
   it('creates contacts and leads with amoCRM v4 payload contracts', async () => {
@@ -121,12 +123,12 @@ describe('amoCRM client', () => {
       .mockResolvedValueOnce(
         Response.json({
           _embedded: { contacts: [{ id: 101, name: 'Alice' }] },
-        }),
+        })
       )
       .mockResolvedValueOnce(
         Response.json({
           _embedded: { leads: [{ id: 202, name: 'WhatsApp - Alice' }] },
-        }),
+        })
       );
     const client = createAmoCrmClient(
       {
@@ -135,7 +137,7 @@ describe('amoCRM client', () => {
         pipelineId: 333,
         statusId: 444,
       },
-      fetchMock,
+      fetchMock
     );
 
     const contact = await client.createContact({
@@ -163,12 +165,12 @@ describe('amoCRM client', () => {
             ],
           },
         ]),
-      }),
+      })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'https://evo.amocrm.ru/api/v4/leads',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'POST' })
     );
     const leadRequest = fetchMock.mock.calls[1][1] as RequestInit;
     expect(JSON.parse(String(leadRequest.body))).toEqual([
@@ -189,11 +191,13 @@ describe('amoCRM client', () => {
         accessToken: 'access-token',
       },
       vi.fn(async () =>
-        Response.json({ title: 'provider down' }, { status: 503 }),
-      ),
+        Response.json({ title: 'provider down' }, { status: 503 })
+      )
     );
 
-    await expect(client.findContactByPhone('+14155551212')).rejects.toMatchObject({
+    await expect(
+      client.findContactByPhone('+14155551212')
+    ).rejects.toMatchObject({
       code: 'amocrm_provider_error',
       status: 503,
     });

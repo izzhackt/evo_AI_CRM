@@ -1,9 +1,4 @@
-import {
-  DEFAULT_LOCALE,
-  isLocale,
-  translate,
-  type Locale,
-} from '@/lib/i18n';
+import { DEFAULT_LOCALE, isLocale, translate, type Locale } from '@/lib/i18n';
 
 export const FIRST_LAUNCH_DISABLED_STATUS = 410;
 
@@ -52,17 +47,17 @@ function matchesPrefix(pathname: string, prefix: string): boolean {
 }
 
 export function resolveFirstLaunchDisabledPath(
-  pathname: string,
+  pathname: string
 ): FirstLaunchDisabledMatch | null {
   const apiMatch = DISABLED_API_PREFIXES.find(({ prefix }) =>
-    matchesPrefix(pathname, prefix),
+    matchesPrefix(pathname, prefix)
   );
   if (apiMatch) {
     return { feature: apiMatch.feature, surface: 'api' };
   }
 
   const pageMatch = DISABLED_PAGE_PREFIXES.find(({ prefix }) =>
-    matchesPrefix(pathname, prefix),
+    matchesPrefix(pathname, prefix)
   );
   if (pageMatch) {
     return { feature: pageMatch.feature, surface: 'page' };
@@ -73,7 +68,7 @@ export function resolveFirstLaunchDisabledPath(
 
 export function firstLaunchDisabledPayload(
   feature: FirstLaunchDisabledFeature,
-  locale: Locale = DEFAULT_LOCALE,
+  locale: Locale = DEFAULT_LOCALE
 ) {
   return {
     error: FIRST_LAUNCH_DISABLED_CODE,

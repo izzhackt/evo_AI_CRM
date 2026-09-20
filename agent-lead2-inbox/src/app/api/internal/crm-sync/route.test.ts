@@ -7,7 +7,9 @@ vi.mock('@/lib/integrations/admin-client', () => ({
     readonly missingFields: string[];
 
     constructor(missingFields: string[]) {
-      super(`Supabase service configuration is missing: ${missingFields.join(', ')}`);
+      super(
+        `Supabase service configuration is missing: ${missingFields.join(', ')}`
+      );
       this.name = 'IntegrationsAdminConfigurationError';
       this.missingFields = missingFields;
     }
@@ -35,14 +37,17 @@ function request(input: {
   url?: string;
   body?: Record<string, unknown>;
 }) {
-  return new Request(input.url ?? 'https://inbox.example.com/api/internal/crm-sync', {
-    method: input.method ?? 'GET',
-    headers: {
-      ...(input.cronHeader ? { 'x-cron-secret': input.cronHeader } : {}),
-      ...(input.body ? { 'content-type': 'application/json' } : {}),
-    },
-    body: input.body ? JSON.stringify(input.body) : undefined,
-  });
+  return new Request(
+    input.url ?? 'https://inbox.example.com/api/internal/crm-sync',
+    {
+      method: input.method ?? 'GET',
+      headers: {
+        ...(input.cronHeader ? { 'x-cron-secret': input.cronHeader } : {}),
+        ...(input.body ? { 'content-type': 'application/json' } : {}),
+      },
+      body: input.body ? JSON.stringify(input.body) : undefined,
+    }
+  );
 }
 
 describe('/api/internal/crm-sync', () => {
@@ -94,7 +99,7 @@ describe('/api/internal/crm-sync', () => {
       request({
         cronHeader: 'valid-cron-header',
         url: 'https://inbox.example.com/api/internal/crm-sync?limit=7&include_blocked=true&account_id=acct-1',
-      }),
+      })
     );
     const json = await response.json();
 
@@ -113,7 +118,7 @@ describe('/api/internal/crm-sync', () => {
         limit: 7,
         accountId: 'acct-1',
         includeBlocked: true,
-      },
+      }
     );
   });
 
@@ -123,7 +128,7 @@ describe('/api/internal/crm-sync', () => {
         method: 'POST',
         cronHeader: 'valid-cron-header',
         body: { limit: 3, include_blocked: false },
-      }),
+      })
     );
 
     expect(syncPendingAmoCrmConversations).toHaveBeenCalledWith(
@@ -132,7 +137,7 @@ describe('/api/internal/crm-sync', () => {
         limit: 3,
         accountId: undefined,
         includeBlocked: false,
-      },
+      }
     );
   });
 });

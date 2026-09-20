@@ -21,6 +21,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const requested = Number((body as { limit?: unknown }).limit ?? 100);
   const limit = Number.isFinite(requested) ? requested : 100;
-  const result = await deleteExpiredInboxMedia(integrationsAdminClient(), { limit });
+  const result = await deleteExpiredInboxMedia(integrationsAdminClient(), {
+    limit,
+  });
   return NextResponse.json({ success: true, ...result });
 }

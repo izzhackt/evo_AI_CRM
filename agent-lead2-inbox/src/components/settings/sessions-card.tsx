@@ -38,7 +38,7 @@ export function SessionsCard() {
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) {
         toast.error(
-          t('settings.security.signOutFailed', { message: error.message }),
+          t('settings.security.signOutFailed', { message: error.message })
         );
         return;
       }
@@ -55,8 +55,8 @@ export function SessionsCard() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <LogOut className="size-4 text-primary" />
+          <CardTitle className="text-foreground flex items-center gap-2">
+            <LogOut className="text-primary size-4" />
             {t('settings.security.sessionsTitle')}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -64,11 +64,7 @@ export function SessionsCard() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setOpen(true)}
-          >
+          <Button type="button" variant="outline" onClick={() => setOpen(true)}>
             <LogOut className="size-4" />
             {t('settings.security.signOutAllDevices')}
           </Button>
@@ -78,7 +74,9 @@ export function SessionsCard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('settings.security.signOutEverywhereTitle')}</DialogTitle>
+            <DialogTitle>
+              {t('settings.security.signOutEverywhereTitle')}
+            </DialogTitle>
             <DialogDescription>
               {t('settings.security.signOutEverywhereDescription')}
             </DialogDescription>

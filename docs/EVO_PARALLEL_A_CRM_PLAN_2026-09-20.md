@@ -4,6 +4,10 @@
 полосы B; общий main, миграции и release координирует root. Это план выполнения,
 не утверждение готовности. Пункты 37–50 не запускаются.
 
+Статусы пересверены 21 сентября (Asia/Dubai) на main `3ddb6f41` после #950.
+Root принял у A пункты 9, 35 и текущую сверку 36; A продолжает остальные срезы.
+Merge исходников, локальное QA и production delivery учитываются отдельно.
+
 ## Первый срез A-1 — пункты 4 и 34
 
 PR #847 меняет AnyIO lockfile; текущий classifier считает его unknown и блокирует
@@ -40,19 +44,21 @@ review одобрены. Это unit/source/harness-проверки; полно
 |---|---|---|
 | 3 | #905 MERGED; три тестовых файла сверены, 50/50 scoped checks | Старый отчёт 2179 не новый прогон; business acceptance не заявляется |
 | 1 | #935 MERGED `f5198c37`: Sales Manager, seller и месяц по sale date; reviewed local acceptance сохранена | Managed SQL/release не выполнены; локальная квитанция относится к 001–208 |
-| 6, 10 | CRM-01 MERGED #943 `1795bf23`: текущая воронка, actual local001–210 RPC/UI. 212/CRM-05: PR #945, source review и actual local RPC/UI пройдены, final delta review/CI/merge pending | Canonical funnel и terminal board — разные группировки; case presence не равен handoff |
+| 6, 10 | CRM-01 MERGED #943 `1795bf23`; CRM-05 MERGED #945 `285e784e`: текущая воронка и подтверждённый handoff проверены через local RPC/UI, review/CI пройдены | Остальная мобильная композиция и сброс owner-filter открыты; case presence не равен handoff; production не заявляется |
 | 7 | Продажи: server search/filter, валюты, readonly detail и back | Не суммировать разные валюты; права и реальный UI |
 | 8 | Заявки: фильтр до limit, pagination и полный «Все» | Проверка server query и списка |
-| 9, 11 | Inbox и Student messages: честные состояния, очереди, поиск без гонки | Не отправлять сообщения; прочитать реальные разрешённые данные |
-| 12, 30 | Договор, сумма, транши, платежи/чеки/остаток; save отдельных блоков | Согласовать profile-source/Profile и общие actions с B |
+| 9 | Root: Inbox — различимые empty/channel/error states; реализация ещё впереди | Только разрешённый read-path; без отправки и настройки провайдеров |
+| 11 | A: Student messages — очереди и поиск без гонки; реализация ещё впереди | Не отправлять сообщения; прочитать реальные разрешённые данные |
+| 12 | Договор, сумма, транши, платежи/чеки/остаток; после #933 остальной поток открыт | Согласовать profile-source/Profile и общие actions с B |
+| 30 | PR #948 открыт: отдельные сохранения блоков; обнаружен и исправляется отказ custom Sales Manager из-за старого role predicate | Локальная 213 — непринятый кандидат; четыре положительных QA-сохранения пока не выполнены; review не заменяет этот путь |
 | 14 | Staff-каталог: поиск, фильтры, дедлайны, управление | Program IDs/schema принадлежат B |
 | 15 | Team chat: хронология, цитаты, поиск, composer, unread | История/read model до UI; не отправлять сообщения |
 | 16 | Личный календарь: назначенные мне задачи, явный case | Server scope до композиции |
 | 22 | CRM shell, типографика, навигация | Impeccable вместе с функциональной проверкой; EVO сохраняется |
 | 29 | Legacy China/Malaysia optional fields | Проверить валидатор на текущем контракте, сохранить данные |
 | 33 | #687: причина изменения срока/приоритета Admin | Аудит/права обязательны, schema через root |
-| 35 | #42: форматирование Inbox | Только заданный legacy scope; без revival/deploy |
-| 5, 36 | Актуальные docs и подготовка доставки merged исправлений | Exact main/image/smoke/rollback; production release отдельно |
+| 35 | Завершён в исходниках: #947/#949 prerequisites, #950 MERGED `3ddb6f41`, #42 CLOSED; пять checks и 842/842 legacy tests, независимый semantic review | Только форматирование legacy Inbox; без revival/deploy/provider proof; [квитанция](qa/inbox-format-baseline-2026-09-21.md) |
+| 5, 36 | Root: текущая сверка docs; отдельный delivery packet и дальнейшее обновление статусов остаются | Exact main/image/smoke/rollback; production release отдельно |
 
 Каждый срез: живой source → минимальный diff → точечная реальная проверка →
 отдельный PR → независимое exact-head review. Не запускать общий финальный E2E,
@@ -61,7 +67,7 @@ review одобрены. Это unit/source/harness-проверки; полно
 
 ## Уточнённая очередь после #943
 
-Сначала212/CRM-05 (контракт выше в общих launch/decisions), затем пункт30:
+212/CRM-05 принят через #945. Текущий следующий блок — пункт30 / открытый #948:
 проверить и устранить перезапись уже сохранённых соседних блоков условий продажи.
 Root подтвердил на main1795bf23: LeadCardFieldsForm обновляет revision, но hidden
 sibling values остаются из старого SSR; action отправляет все26 полей, SQL181

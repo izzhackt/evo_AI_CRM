@@ -11127,3 +11127,169 @@ A сохраняет остальную часть пункта 7; общие д
 годовой месяц строки, unknown manager, filtered empty и offset-empty → start,
 desktop и фактические 390px. Формы записи не отправлять, данные не создавать.
 Scope-local checks, независимый exact-head review и protected CI перед merge.
+
+## 2026-09-20 — CRM-30: независимое сохранение блоков карточки (213)
+
+Основание: main `285e784e2a97aa42339cae1ca1d5aa6e465a3c7e` после #945;
+213 выделена root для A, 214 — B. При чтении настоящей карточки Sales обнаружены
+две связанные ошибки: три блока отправляют скрытые соседние поля из старого SSR,
+хотя shared revision уже обновлена; «Условия продажи» отправляет12 полей,
+а общий action требует29 и отказывает до RPC. SQL181 заменяет весь fields.
+
+Контракт до кода:
+- Добавить отдельный grouped-patch RPC с четырьмя закрытыми группами: sale9,
+  wishes6, education5, conditions6. Требовать ровно все собственные ключи
+  выбранной группы; чужие/лишние/пропущенные ключи отклонять. Старые v1 RPC,
+  fingerprint, full-replacement API и reader DTO сохраняются.
+- Новый action и четыре формы отправляют только command metadata, group и свои
+  поля. Сервер берёт остальные поля из актуальной строки под тем же lead lock,
+  проверяет expected revision и использует существующий normalizer184.
+  Никакие поля из старого SSR не могут заменить соседнюю сохранённую группу.
+- Fresh actor/org/admin-or-sales и scoped lead.sales.workflow.manage обязательны,
+  в том числе до выдачи исторической квитанции и после ожидания блокировки.
+  authenticated-only SECURITY DEFINER, пустой search_path; прежние права не расширять.
+- Fingerprint включает original patch, group, actor, lead, expected revision и
+  отдельный operation discriminator, вычисляется до объединения с текущей БД.
+  Exact replay возвращает исходную immutable receipt даже после других saves;
+  changed-intent/request reuse конфликтует; stale revision не пишет. Общая
+  таблица receipts и её уникальность остаются; ошибка конфликта откатывает
+  всю транзакцию, включая предварительное обновление строки.
+- Сохранять существующие receipts/audit, tenant и Student-private границы,
+  sales register, handoff, case/docs и финансовые snapshots. Формы сохраняют
+  расположение/состав/читаемость EVO, видимые labels, controls и несохранённые
+  sibling drafts. Shared revision растёт монотонно: поздняя старая receipt
+  не понижает ожидаемую версию. Не добавлять автоматический refresh/remount.
+- Impeccable Operate применяется к сохранению предсказуемого поведения формы;
+  визуальный redesign/перестановка сводки студентов сюда не входят.
+
+Проверки: typegen/TypeScript, scoped lint, реальные формы с exact own-key payload,
+existing-input ordinary Auth read/denial. Положительная local UI/API проверка
+требует отдельного конкретного решения после reviewable реализации: один уже
+существующий lead, два временных технических текста в wishes/education, четыре
+сохранения включая восстановление исходных пустых значений, без новых сущностей,
+продаж, Auth-изменений или удаления audit. Проверить sibling draft/persisted
+preservation, exact replay, changed-intent conflict и stale, unchanged financial
+snapshot/case/docs. До разрешения эта часть не выполнена и не заявляется PASS.
+A — единственный local schema applier; local/main порядок212→213→214.
+Два независимых exact-head review и protected CI перед root merge обязательны.
+Managed DB/providers/production этим контрактом не разрешены.
+
+Архитектурная сверка20.09: PostgreSQL [row/advisory transaction locks](https://www.postgresql.org/docs/current/explicit-locking.html)
+удерживаются до конца транзакции, а exception откатывает эффекты; Supabase
+[database functions](https://supabase.com/docs/guides/database/functions)
+рекомендует задавать search_path для SECURITY DEFINER и ограничивать EXECUTE.
+
+## 2026-09-20 — CRM-30: custom staff authority и локальная correction213
+
+Реальный ordinary Auth существующего custom SalesManager успешен; его
+platform_role=NULL, а scoped lead.sales.workflow.manage и редактирование карточки
+доступны. Новый213 ошибочно скопировал из181 literal admin/sales и возвратил42501
+на заведомо неполный patch. Никаких положительных saves не было, business hashes
+не изменились. Это уточняет первоначальный пункт admin-or-sales: действующая
+модель156 разрешает custom staff через per-record permission, исключая Student.
+
+Разрешённый source delta: ровно два actor predicates нового213 заменить на
+IS DISTINCT FROM 'student'. Оставить оба fresh actor/org checks, membership
+continuity, точный staff_can_access(...,'lead.sales.workflow.manage','lead',id),
+locks, replay, ACL/SECURITY DEFINER/empty search_path. Старый v1/181 и208 неизменны;
+208 уже использует permission/workflow identity. Никаких новых grants/ролей.
+
+213 ещё не merged и не применена в managed DB. По правилу5
+`docs/platform/p2-supabase-foundation.md` неизменяемость начинается после merge.
+Root отдельно разрешил только одну bounded correction в owned local QA после
+двух независимых exact-head source/script reviews;214 сохраняет B,215 не занят:
+- доказать exact old213 SHA7b507099bd5433a507457e17f19b86374c201ab32b7fad00f6cd4977ed0c6ee7,
+  body, ACL/owner/OID/signature/attributes и полный ledger row; schema001–213,
+ 214 отсутствует,001–212 byte/ledger unchanged; проверить draft/main состояние;
+- сохранить original file/ledger/function и before business hashes в отдельном
+  create-only private receipt; initial apply receipt не переписывать;
+- одна guarded transaction: CREATE OR REPLACE только этой функции и явный
+  UPDATE statements ровно одной local ledger row213 с full-old-row CAS;
+  version/name и остальные ledger rows неизменны, no delete/reinsert/repair/reset;
+- проверить exact new body, все function attributes/ACL и business parity внутри
+  transaction; при различии ROLLBACK. После commit обновить только owned local
+  candidate file/config, записать append-only receipt exact DDL/ledger delta и
+  old/new hashes. Новый SQL SHA7e7e1fe8148f3cba4705d30f9fae25e45fa6e3c7f92b43c065a13b6be01e3e4d;
+- если old state не доказан,213 уже merged/применена вне owned local, есть214
+  или параллельное изменение — STOP и координация, без повторной починки ledger.
+
+Это разовая local candidate correction, не общее разрешение править историю.
+Original apply остаётся доказательством old hash, отдельная correction — нового.
+Затем обычный Auth read/denials с permission-based проверкой custom identity.
+Четыре положительных saves/restore, новые entities, Auth/provider/managed writes
+по-прежнему не разрешены этим решением; owner packet остаётся HOLD.
+
+## 2026-09-21 — A213/B214: совместная локальная проверка сохранения условий
+
+Владелец одобрил подготовленный B214 QA-пакет для существующего
+QA B209 Student 1; root подтвердил его границы. §2 файла
+`EVO_B214_LOCAL_QA_AUTHORIZATION_PACKET_2026-09-20.md` повторно используется
+для части acceptance A213. Основание A — reviewed head
+`52a00103449d703d2f675e98770a9fbb21e95075`, локальная схема 001–214.
+Согласованные девять полей группы `sale`, включая буквальные raw-значения,
+не меняются: стоимость 1 KGS, оплачено 0 KGS, дата 2026-09-20 и отметки LOCAL QA.
+
+После review этого docs delta root открывает одно локальное окно: B — единственный
+исполнитель бизнес-команд, A — единственный наблюдатель сверки данных.
+Свежий baseline для A фиксируется после согласованного назначения владельца
+лида, до сохранения условий. Все следующие проверки A заканчиваются до
+`create_sales_report_handoff` из миграции 208, чтобы не смешивать их с разрешёнными
+изменениями продажи, дела и областей доступа:
+
+- Один `save_lead_sale_conditions_group_v1`, `sale`, revision0 и фиксированный
+  request R создаёт строку revision1, одну receipt и один audit. Readback сверяет
+  все девять полей и неизменность остальных 17 полей относительно свежего baseline.
+- Exact replay R/revision0 с теми же полями возвращает исходную receipt.
+  R/revision1 с теми же полями отвергается как request conflict22023.
+  Новый заранее фиксированный R2/revision0 с теми же полями отвергается PT409.
+  После каждого повтора/отказа revision, receipts, audit и данные неизменны.
+- Несовпавший baseline, неожиданный ответ или эффект останавливает окно.
+  Дополнительных успешных сохранений, полей, дел или cleanup не добавлять.
+
+Планируемое покрытие: INSERT/readback/replay/conflict/stale и сохранность
+17 исходно пустых соседних полей. Он не доказывает UPDATE существующей строки,
+сохранность непустых данных другого блока или несохранённых UI-черновиков,
+две формы из общего SSR и обновление shared revision в интерфейсе. Буквальный
+RPC payload B не подменять UI-значениями и не выдавать за React/action/UI proof.
+
+Меняется только порядок локальной acceptance: согласованный B QA на reviewed
+A213 и B214 может пройти до merge #948. Merge #948 остаётся HOLD до полного
+UPDATE/cross-group/UI acceptance; merge #946 остаётся после #948.
+Исходный A-пакет четырёх saves/restore на SaleCurrent — отдельный HOLD.
+Новый runtime-блок, расширение QA-пакета, managed DB или production не разрешены.
+На момент записи этого delta указанные положительные проверки не выполнены.
+
+## 2026-09-21 — CRM-30: исправление избыточного ожидания разрешения на локальный QA
+
+Root отменяет введённый агентами HOLD исходного A-пакета четырёх saves/restore.
+Это исправление нашей интерпретации действующего поручения владельца продолжить
+и завершить работу, а не новое точечное подтверждение владельцем этого пакета.
+Прямого запрета владельца на необходимую обратимую проверку существующих local
+QA-данных не найдено. AGENTS отдельно требует authority для production/providers;
+проверка настоящего UI → Auth → owned local DB не подменяет поведение mock-ответом.
+
+Разрешён только ранее подготовленный пакет `a213-validation-packet.json`:
+существующий SaleCurrent, поля `wishes_countries` и `education_english`,
+два явных временных QA-текста и четыре успешных сохранения с восстановлением.
+Перед работой перечитать обычным Auth revision3, оба пустых поля, все26 исходных
+полей и связанную финансовую запись. Любое расхождение — остановка для чтения и
+анализа, не разрешение выбрать другой record, поле или расширить изменения.
+Обновить устаревшие source/schema labels пакета: reviewed runtime A213,
+действующая локальная схема001–214; request IDs UI фиксировать из actual requests.
+
+До первого submit ввести оба черновика; сохранить wishes, убедиться в сохранности
+education draft, затем сохранить education с обновлённой shared revision.
+Проверить оба значения, остальные24 поля и неизменность finance/case/docs.
+Exact replay первого запроса после второго save возвращает прежнюю receipt без
+записи; другой intent с тем же ID конфликтует, новая команда со старой revision
+отклоняется. Возвратить исходные пустые значения обычным API, предварительно
+сверив текущую revision и совпадение именно наших маркеров; чужие изменения
+не перезаписывать. Ожидаются revision3→7 и ровно4 receipts/audit; история остаётся.
+
+B сохраняет единоличное выполнение своего окна. A готовит проверку, но запускает
+её только после завершения/сдачи B write-окна и отдельного сигнала root.
+Новых сущностей, Auth identity/ролей, реальных клиентских, managed/provider
+изменений, direct SQL writes или удаления истории пакет не включает.
+Merge #948 остаётся после фактического UPDATE/cross-group/UI acceptance,
+финального QA-документа, независимого exact-head review и protected CI.
+Частичный B INSERT proof не подменяет эту проверку; merge #946 следует за #948.

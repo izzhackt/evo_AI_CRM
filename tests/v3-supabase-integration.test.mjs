@@ -216,7 +216,7 @@ test("V3 owns the only Sales decision, gate and handoff interface", () => {
   assert.match(tabs, /<LeadSaleConditions/);
   assert.match(
     source("src/components/v3/profile/LeadSaleConditions.tsx"),
-    /saveLeadSaleConditionsAction/,
+    /saveLeadSaleConditionsGroupAction/,
   );
 
   for (const path of [

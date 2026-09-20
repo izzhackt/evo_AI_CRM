@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useActionState, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useActionState, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { btnCls, btnGhostCls, Card, cn, inputCls, labelCls } from "@/components/ui";
 import {
-  saveLeadSaleConditionsAction,
+  saveLeadSaleConditionsGroupAction,
   type SaveLeadSaleConditionsActionState,
 } from "@/lib/platform-sales-actions";
 import {
@@ -21,11 +21,9 @@ import {
  * workflow S7 adds beside «Условия продажи» (`LeadSaleConditions.tsx`) —
  * «Пожелания», «Образование», «Условия». All four blocks read and write the
  * SAME revision-versioned row (`platform_private.lead_sale_conditions`,
- * migration 181/184): `save_lead_sale_conditions_v1` still replaces the row
- * whole on every save (181, unchanged in this slice), so every block
- * submits the FULL 26-key set — its own edited slice as visible fields,
- * every other key as a hidden passthrough carrying the OTHER blocks'
- * current, unedited values.
+ * migration 181/184). Each block submits only its own closed key group to
+ * migration213's writer. The server preserves siblings from the locked row,
+ * so an older SSR snapshot cannot overwrite an already saved sibling.
  *
  * Post-review fix: a save used to bump the shared revision by calling
  * `router.refresh()`, which made the parent (`tabs.tsx`) remount every one
@@ -37,13 +35,10 @@ import {
  * (not from its own `conditions.revision` prop, which is only the page's
  * last SSR snapshot) and, on its own saved result, calls `bump` with the
  * action's returned revision — no refresh, no remount, sibling drafts
- * untouched. The trade-off: `conditions` itself (every OTHER field these
- * blocks read for their hidden passthrough / initial draft, and the linked
- * sales-register preview in `LeadSaleConditions.tsx`) still reflects only
- * the last SSR fetch and can go stale across saves until an explicit
- * refresh — acceptable per review, and why the "stale"/"request_conflict"
- * outcomes below keep their own explicit «Обновить» button instead of
- * auto-refreshing.
+ * untouched. The revision only increases; a delayed older receipt cannot
+ * move it backwards. Initial drafts and the linked sales-register preview
+ * still reflect the last SSR fetch. Explicit «Обновить» stays available for
+ * stale/request_conflict instead of silently discarding an unsaved draft.
  */
 
 type SaleConditionsRevisionState = Readonly<{ revision: string; bump: (next: string) => void }>;
@@ -55,8 +50,11 @@ export function SaleConditionsRevisionProvider({
   children,
 }: Readonly<{ initialRevision: number; children: ReactNode }>) {
   const [revision, setRevision] = useState(() => String(initialRevision));
+  const bump = useCallback((next: string) => {
+    setRevision((current) => Number(next) > Number(current) ? next : current);
+  }, []);
   return (
-    <SaleConditionsRevisionContext.Provider value={{ revision, bump: setRevision }}>
+    <SaleConditionsRevisionContext.Provider value={{ revision, bump }}>
       {children}
     </SaleConditionsRevisionContext.Provider>
   );
@@ -118,7 +116,7 @@ function useCardFieldsAction(requestId: string) {
   const router = useRouter();
   const { revision, bump } = useSaleConditionsRevision();
   const [state, action, pending] = useActionState(
-    saveLeadSaleConditionsAction,
+    saveLeadSaleConditionsGroupAction,
     { status: "idle", requestId, leadId: null, revision: null } as SaveLeadSaleConditionsActionState,
   );
   // No router.refresh()/remount on save (see the doc comment above): bump
@@ -134,16 +132,6 @@ function useCardFieldsAction(requestId: string) {
     if (state.status === "saved" && state.revision !== null) bump(state.revision);
   }, [bump, state.status, state.revision]);
   return { state, action, pending, router, revision };
-}
-
-function HiddenPassthrough({ values, own }: Readonly<{ values: Record<string, string>; own: ReadonlySet<string> }>) {
-  return (
-    <>
-      {Object.entries(values)
-        .filter(([key]) => !own.has(key))
-        .map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />)}
-    </>
-  );
 }
 
 function StatusRow({
@@ -181,17 +169,17 @@ type SimpleField = Readonly<{
 }>;
 
 function SimpleFieldsCard({
-  leadId, conditions, requestId, readOnly, title, testId, fields,
+  leadId, conditions, requestId, readOnly, title, testId, fields, fieldGroup,
 }: Readonly<{
   leadId: string; conditions: LeadSaleConditionsSnapshot; requestId: string; readOnly: boolean;
   title: string; testId: string; fields: readonly SimpleField[];
+  fieldGroup: "wishes" | "education";
 }>) {
   const { state, action, pending, router, revision } = useCardFieldsAction(requestId);
   const base = allFieldValues(conditions);
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((field) => [field.key, base[field.key]])));
   const locked = readOnly || pending || state.status === "saved";
-  const own = new Set(fields.map((field) => field.key));
 
   return (
     <Card eyebrow title={title}>
@@ -200,6 +188,7 @@ function SimpleFieldsCard({
           <input type="hidden" name="lead_id" value={leadId} />
           <input type="hidden" name="expected_revision" value={revision} />
           <input type="hidden" name="request_id" value={state.requestId} />
+          <input type="hidden" name="field_group" value={fieldGroup} />
           {fields.map((field) => (
             <label key={field.key} className="block">
               <span className={labelCls}>{field.label}</span>
@@ -238,7 +227,6 @@ function SimpleFieldsCard({
               )}
             </label>
           ))}
-          <HiddenPassthrough values={base} own={own} />
           <StatusRow state={state} pending={pending} router={router} />
         </form>
       </div>
@@ -255,6 +243,7 @@ export function LeadWishesCard(props: Readonly<{
       {...props}
       readOnly={props.readOnly ?? false}
       title="Пожелания"
+      fieldGroup="wishes"
       testId="v3-lead-wishes"
       fields={[
         { key: "wishes_countries", label: "Страны", kind: "text", maxLength: 500 },
@@ -277,6 +266,7 @@ export function LeadEducationCard(props: Readonly<{
       {...props}
       readOnly={props.readOnly ?? false}
       title="Образование"
+      fieldGroup="education"
       testId="v3-lead-education"
       fields={[
         { key: "education_current", label: "Текущее образование", kind: "text", maxLength: 300 },
@@ -315,7 +305,6 @@ export function LeadConditionsCard({
   const [scholarship, setScholarship] = useState(() => base.conditions_scholarship);
   const [note, setNote] = useState(() => base.conditions_note);
   const locked = readOnly || pending || state.status === "saved";
-  const own = new Set(["conditions_budget_raw", "conditions_budget_minor", "conditions_budget_currency", "conditions_budget_period", "conditions_scholarship", "conditions_note"]);
 
   return (
     <Card eyebrow title="Условия">
@@ -324,6 +313,7 @@ export function LeadConditionsCard({
           <input type="hidden" name="lead_id" value={leadId} />
           <input type="hidden" name="expected_revision" value={revision} />
           <input type="hidden" name="request_id" value={state.requestId} />
+          <input type="hidden" name="field_group" value="conditions" />
           <div className="grid gap-3 @2xl:grid-cols-2">
             <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
               <label>
@@ -387,7 +377,6 @@ export function LeadConditionsCard({
           <input type="hidden" name="conditions_budget_period" value={budgetPeriod} />
           <input type="hidden" name="conditions_scholarship" value={scholarship} />
           <input type="hidden" name="conditions_note" value={note} />
-          <HiddenPassthrough values={base} own={own} />
           <StatusRow state={state} pending={pending} router={router} />
         </form>
       </div>

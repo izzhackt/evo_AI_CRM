@@ -400,3 +400,25 @@ test("Inbox formatting candidates require byte proof and preserve unknown/rename
   assert.equal(classifyNameStatus(nul("M", "agent-lead2-inbox/deploy/docker-compose.edge.yml")).inbox_formatting, false);
   assert.equal(classifyNameStatus(nul("M", "scripts/verify-inbox-format.mjs")).inbox_dependencies, true);
 });
+
+
+test("only modified legacy contract tests select the bounded test maintenance lane", () => {
+  for (const path of ["agent-lead2-inbox/src/components/first-launch-ui.test.tsx", "agent-lead2-inbox/src/lib/deployment-config.test.ts", "agent-lead2-inbox/src/lib/supabase/schema-contract.test.ts"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.inbox_contract_tests, true);
+    assert.equal(result.inbox_formatting, false);
+    assert.equal(result.unknown, false);
+    for (const status of ["A", "D", "T"]) {
+      const changed = classifyNameStatus(nul(status, path));
+      assert.equal(changed.inbox_contract_tests, false);
+      assert.equal(changed.unknown, true);
+    }
+    assert.equal(classifyNameStatus(nul("R100", path, path + ".old")).unknown, true);
+  }
+  const otherTest = classifyNameStatus(nul("M", "agent-lead2-inbox/src/lib/unreviewed.test.ts"));
+  assert.equal(otherTest.inbox_contract_tests, false);
+  assert.equal(otherTest.inbox_formatting, true);
+  const mixed = classifyNameStatus(nul("M", "agent-lead2-inbox/src/lib/deployment-config.test.ts", "M", "agent-lead2-inbox/src/lib/utils.ts"));
+  assert.equal(mixed.inbox_contract_tests, true);
+  assert.equal(mixed.inbox_formatting, true);
+});

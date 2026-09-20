@@ -24,6 +24,7 @@ import type {
   CalendarAssigneeOption,
   CalendarCaseOption,
   CalendarTask,
+  CalendarCaseTask,
   CalendarTaskCapabilities,
   CalendarTaskRequestIds,
   Day,
@@ -176,7 +177,7 @@ export function DeadlineFields({
 
 function initialState(
   requestId: string,
-  task?: CalendarTask,
+  task?: CalendarCaseTask,
 ): PlatformAdmissionsTaskActionState {
   return {
     status: "idle",
@@ -335,7 +336,7 @@ function CanonicalTaskFields({
   status,
   requestId,
 }: Readonly<{
-  task: CalendarTask;
+  task: CalendarCaseTask;
   status: PlatformCaseTaskStatus;
   requestId: string;
 }>) {
@@ -366,7 +367,7 @@ function CalendarTerminalTaskForm({
   requestId,
   status,
 }: Readonly<{
-  task: CalendarTask;
+  task: CalendarCaseTask;
   requestId: string;
   status: "done" | "cancelled";
 }>) {
@@ -410,7 +411,7 @@ function CalendarChangeTaskForm({
   capabilities,
   requestId,
 }: Readonly<{
-  task: CalendarTask;
+  task: CalendarCaseTask;
   day: Day;
   assignees: readonly CalendarAssigneeOption[];
   actor: ActivePlatformActor;
@@ -594,7 +595,7 @@ export function CalendarTaskControls({
   capabilities,
   requestIds,
 }: Readonly<{
-  task: CalendarTask;
+  task: CalendarCaseTask;
   day: Day;
   assignees: readonly CalendarAssigneeOption[];
   actor: ActivePlatformActor;

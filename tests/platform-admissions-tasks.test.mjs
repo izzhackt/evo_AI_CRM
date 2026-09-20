@@ -233,13 +233,13 @@ test("task reads expose exact versions and bounded case choices", () => {
   assert.match(repositorySource, /platformTaskDeadlineSortTime\(task\.dueOn, task\.dueAt\)/);
   assert.doesNotMatch(repositorySource, /Date\.parse\(sortAt\) !== Date\.parse\(task\.updatedAt\)/);
   assert.match(taskContractSource, /version: string/);
-  assert.match(adapterSource, /listPlatformAdmissionsTaskQueue/);
+  assert.match(adapterSource, /readPersonalCalendarPage/);
   assert.match(adapterSource, /listPlatformStudentCases/);
   assert.match(adapterSource, /getPlatformAdmissionsTaskTarget/);
   assert.doesNotMatch(adapterSource, /getPlatformAdmissionsTaskWorkspace/);
   assert.match(adapterSource, /const QUEUE_PAGE_SIZE = 100/);
   assert.match(adapterSource, /const CASE_PAGE_SIZE = 100/);
-  assert.match(adapterSource, /casesHaveMore:\s*cases\.hasNext/);
+  assert.match(adapterSource, /casesHaveMore:\s*cases\?\.hasNext/);
   assert.match(controlsSource, /<TaskCasePicker initialCases=\{cases\} initialHasMore=\{casesHaveMore\} selectedCase=\{selectedCase\}/);
   assert.match(casePickerSource, /searchTaskCasesAction\(query, more \? cursor : null\)/);
   assert.match(casePickerSource, /setHasMore\(result\.nextCursor !== null\)/);

@@ -149,6 +149,7 @@ export function Overview({
 }) {
   const application = profile.applications.find((candidate) => candidate.isPrimary) ?? null;
   const stage = sales ? leadStage(sales.lead.stageKey) : null;
+  const saleConditionsReadOnly = isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage");
 
   // Плитка здесь ровно одна, и это не оплошность.
   //
@@ -243,25 +244,25 @@ export function Overview({
                 leadId={draft.saleConditions.leadId}
                 conditions={draft.saleConditions}
                 requestId={requestIds.saleConditions}
-                readOnly={isStaffPreview(actor)}
+                readOnly={saleConditionsReadOnly}
               />
               <LeadWishesCard
                 leadId={draft.saleConditions.leadId}
                 conditions={draft.saleConditions}
                 requestId={requestIds.wishesCard}
-                readOnly={isStaffPreview(actor)}
+                readOnly={saleConditionsReadOnly}
               />
               <LeadEducationCard
                 leadId={draft.saleConditions.leadId}
                 conditions={draft.saleConditions}
                 requestId={requestIds.educationCard}
-                readOnly={isStaffPreview(actor)}
+                readOnly={saleConditionsReadOnly}
               />
               <LeadConditionsCard
                 leadId={draft.saleConditions.leadId}
                 conditions={draft.saleConditions}
                 requestId={requestIds.conditionsCard}
-                readOnly={isStaffPreview(actor)}
+                readOnly={saleConditionsReadOnly}
               />
             </SaleConditionsRevisionProvider>
           ) : null}
@@ -427,7 +428,7 @@ export function Money({
   draft: ProfileDraft;
   actor: ActivePlatformActor;
   salesCaseId?: string | null;
-  saleConditionsHref: string;
+  saleConditionsHref: string | null;
 }) {
   const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId;
   return (

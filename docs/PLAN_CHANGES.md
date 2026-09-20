@@ -33520,6 +33520,109 @@ A applies exact reviewed 209 locally after review; managed SQL and production
 release remain separately authorized and deferred. Earlier #935 evidence from
 001–208 remains explicitly bounded to its original schema and runtime.
 
+## 2026-09-20 — CRM-01 current sales funnel (migration 210)
+
+Source base: main `f5198c3789f88606177788e0a2ceb3d7202f4607`, after PR935.
+Root reserves 210 for A. This implements accepted CRM-01; it does not alter
+sales workflow, admissions rules, report amounts or historical cohort dynamics.
+
+The present funnel uses a lead-creation cohort and treats a linked Student case
+as a handoff. Public approval can create a case without a sale. Replace only
+the current funnel with six existing canonical stage counts over the complete
+current open-lead set authorized by the existing `lead.read` record resolver.
+No lead creation-date filter, pagination truncation, conversion or new KPI.
+A zero stage is genuine only after a successful complete read. Geometry may
+expand between stages; do not force independent counts into a decreasing shape.
+
+One read-only snapshot RPC returns stage counts and a separately labelled count
+of sales visible in the actor's report for those same leads. A sale means an
+unarchived `pipeline` row in `platform_private.sales_register`, linked to an
+actual lead and authorized by `sales.register.read` for that record. This follows
+the working report's `archived = false` contract (144); manual/import rows with
+no lead are excluded. Preserve archived rows and all history. Report visibility
+does not follow implicitly from `lead.read`; absence of report permission is
+`denied`, not zero. RPC/read/shape failure is `unavailable`, not an empty dataset.
+
+The six stage counts and report sales are different observations, not seven
+mutually exclusive stages. Keep report sales separately labelled “Продажи в
+вашем отчёте” / “По лидам текущей воронки”; do not add them to stage totals.
+Return no report fields, amounts, hidden IDs or per-lead hidden-sale classification.
+Resolve current identity/tenant in SQL; preserve Student/anonymous denial,
+record scopes and current access-version checks. Use one database snapshot
+without a row limit; preserve the existing full-read/truncation guard for the
+unchanged period dynamics. A failed report section must not erase stage counts.
+
+Keep “Воронка продаж” visible even when the neighbouring period has no newly
+created leads. Place that period control with its cohort metrics/dynamics.
+Reuse EVO type, colours, spacing and accessible native links; show a readable
+connected stage path at desktop and 320/390 CSS px, with no forced page overflow.
+Impeccable refinement preserves the product's existing identity.
+
+Validate against authorized existing real records and actual services/paths:
+stage counts, period independence, a case without sale, accessible active sale,
+archived sale policy, denied report access and empty/unavailable states when
+those inputs actually exist. Do not manufacture records to satisfy the matrix.
+No synthetic/demo datasets, mock successes, SQL business-row seeds or forged
+sessions. Missing data/authority for a real scenario is an explicit verification
+blocker. Static checks are not RPC/UI acceptance. Prior local QA receipts retain
+their original source/schema/local-only limits. Managed schema/business writes
+and release remain outside current authority.
+
+
+## 2026-09-20 — B-3 stable intake selection and country decision
+
+Direct owner decision: document preparation is supported only for CN, MY, AE,
+TR, IT and CZ (China, Malaysia, UAE, Turkey, Italy, Czechia). Other countries
+remain available in the catalogue and favourites; both UI and server reject
+preparation outside this list. Never substitute a country or use NULL to bypass
+it. Existing assisted Students with an active, activated, authorized case start
+preparation immediately after selection in that same case; no extra approval,
+new sale, external submission, second case or arbitrary programme cap.
+
+Use existing institution UUID, stable program.id and immutable publication
+UUID/version. Add optional stable intake.id to compatible TS/SQL/Swift readers;
+legacy JSON remains readable. A canonical UUID is generated once for a new
+intake or an explicitly reviewed legacy transition and is retained across edits,
+retries and uncertain responses. A genuinely new intake gets a new ID. No new
+identity registry or duplicate revision store. Do not infer identity from name,
+date, array index or a new publication version. Keep diploma as its own level;
+explicit doctorate-to-phd vocabulary adaptation retains exact catalog_level and
+source in the selection snapshot and does not rewrite the original degree.
+
+Before B runtime code, its transition contract covers platform-university-catalog
+TS parsing, SQL valid_university_content, Swift UniversityIntake, UniversityEditor
+and the existing protected stage/review workflow. New selectable publication
+writes require IDs; old drafts/readers need an explicit compatible transition.
+The server checks ID uniqueness and immutable institution/program parent binding
+against all published history, including removed entries, at publish under one
+consistent lock order. New preparation is unique by org + case + institution +
+program.id + intake.id; publication/version records the chosen facts rather than
+creating duplicate identity. Replays/new requests for an existing preparation
+return it; terminal applications are not silently reopened.
+
+Legacy rollout is part of completion: read current real publication/version/hash,
+prepare one persisted manifest adding only missing intake IDs, preserve existing
+IDs, and prove structural equality after removing only the added ID fields.
+Recheck the exact base after locking before publish; a changed base or content
+requires renewed review. Never rewrite immutable snapshots, sort/deduplicate
+entries, refresh verifiedOn, invent dates or claim fresh official-source research.
+Technical ID-only review must state the actual comparison performed, and SQL
+must enforce exact-content equality against that base. A reason, checkbox or
+external manifest alone is not proof. Any factual change uses ordinary content
+review. New reviewed_at/version does not reset the first-publication date from207.
+
+Deploy compatible readers/writers/SQL before publishing ID-bearing content.
+The ordinary authenticated stage/review/readback and final real Student selection
+need their own authority; this architecture decision grants none. Report supported,
+already identified, transitioned, still legacy and blocked/stale/error counts.
+A legacy entry without ID remains visible but cannot be selected until transitioned;
+UI must explain the state. B-3 is not complete until existing supported entries
+and the actual web/iPhone selection path are covered. No synthetic/demo datasets
+or substitute success checks; missing access/records is a concrete blocker, while
+old isolated receipts remain technical history. B owns runtime/catalogue/native
+files; A alone maintains these shared launch/decision contracts; root coordinates
+migration allocation, integration and production authority.
+
 ## 2026-09-20 — B3a/211: совместимость списка drafts и порядок публикации
 
 Продолжение согласованного B-3 контракта `8bd96f2dfc23dc7fc574ecee2591383e05ba311c`

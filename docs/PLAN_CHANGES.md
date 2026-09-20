@@ -34300,3 +34300,16 @@ B сохраняет единоличное выполнение своего о
 Merge #948 остаётся после фактического UPDATE/cross-group/UI acceptance,
 финального QA-документа, независимого exact-head review и protected CI.
 Частичный B INSERT proof не подменяет эту проверку; merge #946 следует за #948.
+
+
+## 2026-09-21 — CRM-05: mobile stage viewport (до реализации)
+
+Root на main3500fa8b добавляет только responsive композицию воронки:
+client viewport сохраняет server-rendered формы всех колонок в DOM,
+локальное переключение stage=all; отдельный URL-stage снимается явной ссылкой,
+не фиктивными счётчиками непрочитанных этапов. Desktop/RPC/workflow/permissions/
+handed20/cap4000 не меняются. Mobile due/assignment раскрываются одним блоком,
+поиск и owner953 остаются доступны. Полный контракт и реальная проверка
+черновика без сохранения — в добавленном разделе EVO_LAUNCH_PLAN.md.
+Root временно владеет этими двумя appendices только в данном worktree;
+A сохраняет docs ownership для948/215. Managed writes/releases не входят.

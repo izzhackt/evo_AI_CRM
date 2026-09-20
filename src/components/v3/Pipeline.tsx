@@ -2,6 +2,7 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
 
+import { PipelineStageViewport } from "@/components/v3/PipelineStageViewport";
 import { Pill } from "@/components/v3/Pill";
 import { PipelineDecisionForm } from "@/components/v3/PipelineDecisionForm";
 import type {
@@ -179,6 +180,9 @@ export function Pipeline({
   handedExpanded,
   handedShowAllHref,
   handedShowLatestHref,
+  filteredStage,
+  allStagesHref,
+  truncated,
 }: {
   stages: readonly PipelineStage[];
   leads: readonly PipelineLead[];
@@ -190,6 +194,9 @@ export function Pipeline({
   handedExpanded: boolean;
   handedShowAllHref: string;
   handedShowLatestHref: string;
+  filteredStage: PipelineStageKey | "all";
+  allStagesHref: string;
+  truncated: boolean;
 }) {
   const workflowStages = stages.flatMap((stage) =>
     stage.key === "handed_off"
@@ -198,27 +205,21 @@ export function Pipeline({
   );
 
   return (
-    <div
-      role="group"
-      aria-label="Воронка продаж"
-      tabIndex={0}
-      className="max-w-full overflow-x-auto rounded-card"
-    >
-      <ol className="flex flex-col gap-3 @2xl:w-max @2xl:flex-row md:items-start">
-        {stages.map((stage) => {
+    <PipelineStageViewport
+      filteredStage={filteredStage}
+      allStagesHref={allStagesHref}
+      truncated={truncated}
+      panels={stages.map((stage) => {
           const inStage = leads.filter((lead) => lead.stageKey === stage.key);
           const visible =
             stage.terminal && !handedExpanded
               ? inStage.slice(0, HANDED_VISIBLE_LIMIT)
               : inStage;
-          return (
-            <li
-              key={stage.key}
-              className="min-w-0 rounded-card bg-surface-2 @2xl:w-[280px] md:shrink-0"
-            >
-              {/* У каждой колонки своя вертикальная прокрутка: без неё длинная
-                  стадия растянула бы доску в бесконечную страницу. Заголовок
-                  липнет внутри прокрутки, чтобы имя стадии не уезжало. */}
+          return {
+            key: stage.key,
+            title: stage.title,
+            count: inStage.length,
+            content: (
               <div
                 role="group"
                 aria-label={`Стадия «${stage.title}»`}
@@ -285,10 +286,9 @@ export function Pipeline({
                   ) : null}
                 </ul>
               </div>
-            </li>
-          );
+            ),
+          };
         })}
-      </ol>
-    </div>
+    />
   );
 }

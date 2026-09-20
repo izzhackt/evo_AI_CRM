@@ -11293,3 +11293,41 @@ B сохраняет единоличное выполнение своего о
 Merge #948 остаётся после фактического UPDATE/cross-group/UI acceptance,
 финального QA-документа, независимого exact-head review и protected CI.
 Частичный B INSERT proof не подменяет эту проверку; merge #946 следует за #948.
+
+
+## 2026-09-21 — CRM-05: мобильная воронка с переключением этапов
+
+До кода: main `3500fa8b4ef708358cc4a240656be9dbd43415b6`; root владеет
+этим изолированным срезом и двумя appendices только в worktree
+`evo-sales-mobile-stages`. A948 и B946/215 продолжаются отдельно.
+
+На телефоне текущая доска последовательно показывает все семь колонок,
+включая пустые. Контракт: при URL stage=all один мобильный переключатель
+меняет видимую колонку без навигации и размонтирования карточек/форм.
+Изначально выбран первый непустой этап, иначе первый. Доступны все этапы,
+счётчики относятся к текущей загруженной и отфильтрованной выборке; при
+truncated это явно подписано. Не менять read RPC, cap4000 или серверные фильтры.
+При отдельном URL stage показать только выбранный этап и явную ссылку
+«Показать все этапы», снимающую только stage; остальные счётчики неизвестны
+и не показываются как нули. Эта ссылка меняет запрос и не обещает сохранение
+черновика при навигации. Desktop-фильтр стадии и полная доска сохраняются.
+Срок/назначение свернуть на mobile в один раскрываемый блок с числом активных
+фильтров, сохранив единственные DOM-экземпляры и desktop-доступность.
+Поиск/owner/reset953, q/due/assignment/owner/handed сохраняют контракт.
+
+Server Pipeline передаёт содержимое колонок небольшому client viewport:
+скрытие только responsive CSS, без selected ? mount : null, key=stage или
+router navigation. Полный stages продолжает задавать доступные workflow-переходы.
+Не менять ключ leadId:workflowVersion, request IDs, права, drafts/results,
+заметки, задачи, preview и links. Handed_off остаётся производным; terminal
+limit20 и show-all/latest прежние; счётчик не обрезать до20. Без SQL/команд,
+сохранений business data, смены ролей, fake data или deployment.
+
+Impeccable adapt/Operate: сохранены EVO/Golos/tokens, явное выбранное состояние,
+44px touch targets, keyboard/focus и reflow320/390. Actual owned local Sales UI:
+desktop и mobile одним inspection pass; все этапы, пустой этап, deep-stage URL
+с фильтрами, раскрытие фильтров, unsaved draft+requestID до/после переключения.
+Никакого submit. Scoped lint/types/существующие pipeline checks, independent
+exact-head review и protected CI. >20 terminal и cap4000 не заявлять как real
+proof без соответствующих настоящих данных. Это мобильный срез CRM-05,
+не завершение всего плана36 или production acceptance.

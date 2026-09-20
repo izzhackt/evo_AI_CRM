@@ -130,9 +130,8 @@ export function parseUniversityDrafts(value: unknown): readonly UniversityDraft[
   const drafts: UniversityDraft[] = [];
   for (const entry of value) {
     const row = object(entry), content = parseUniversityContent(row?.content), id = universityUuid(row?.id);
-    const hasReviewKind = row !== null && Object.hasOwn(row, "reviewKind");
-    const reviewKind = hasReviewKind ? row?.reviewKind : "content";
-    if (!row || !exact(row, ["id", "institutionId", "baseVersion", "createdAt", "content", "reason", "status", ...(hasReviewKind ? ["reviewKind"] : [])]) || !["content", "intake_ids"].includes(reviewKind as string) || !id || drafts.some((draft) => draft.id === id) || !content || !(row.institutionId === null || universityUuid(row.institutionId)) || !Number.isSafeInteger(row.baseVersion) || Number(row.baseVersion) < 0 || !text(row.reason, 500) || row.status !== "draft" || typeof row.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(row.createdAt) || Number.isNaN(Date.parse(row.createdAt))) return null;
+    const reviewKind = row?.reviewKind;
+    if (!row || !exact(row, ["id", "institutionId", "baseVersion", "createdAt", "content", "reason", "status", "reviewKind"]) || !["content", "intake_ids"].includes(reviewKind as string) || !id || drafts.some((draft) => draft.id === id) || !content || !(row.institutionId === null || universityUuid(row.institutionId)) || !Number.isSafeInteger(row.baseVersion) || Number(row.baseVersion) < 0 || !text(row.reason, 500) || row.status !== "draft" || typeof row.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(row.createdAt) || Number.isNaN(Date.parse(row.createdAt))) return null;
     if (reviewKind === "intake_ids" && (!row.institutionId || Number(row.baseVersion) < 1)) return null;
     drafts.push({ id, institutionId: row.institutionId as string | null, baseVersion: row.baseVersion as number, createdAt: row.createdAt, content, reason: row.reason, status: "draft", reviewKind: reviewKind as UniversityReviewKind });
   }

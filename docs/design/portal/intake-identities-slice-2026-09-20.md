@@ -62,8 +62,9 @@ legacy workflow лишь пока его база тоже не идентифи
   Старый RPC сохраняет прежний exact DTO и показывает только `content` drafts:
   иначе schema-first rollout ломает уже опубликованный strict TS parser и может
   показать технический черновик с ложной галочкой проверки источников. Новый
-  reader использует старый только при PGRST202 (новый RPC ещё отсутствует),
-  отсутствующий `reviewKind` трактует как content. Ошибки Auth/данных не скрываются.
+  reader требует новый RPC и валидный `reviewKind`, без fallback/default.
+  PGRST202 также означает stale signature/schema cache; неполный legacy список
+  нельзя показывать как успешный. Общая поправка до коррекции runtime: `efbd82bb`.
 - Technical proof привязан к exact existing base (org/institution/version,
   соответствующие publication UUID и content hash). Сервер сравнивает candidate
   с base после удаления ТОЛЬКО добавленных intake.id. Прежние ID, program IDs,
@@ -131,3 +132,16 @@ selection/documents пути web/iPhone; финальный продуктовы
 и [transaction/advisory locks](https://www.postgresql.org/docs/current/explicit-locking.html).
 Взаимные блокировки проектируются единым порядком, межстрочные доказательства
 не помещаются в некорректный CHECK, зависящий от чужих mutable строк.
+
+## Порядок поставки и откат
+
+Release ledger требует211 до нового runtime. Установка211 сама не добавляет
+intake.id к published content. Технические публикации выполняются отдельно лишь
+после нового reader. Старый strict web parser отвергает intake.id: откат к старому
+image после первой ID-publication не считается безопасным; заранее нужен
+проверенный совместимый rollback image либо forward recovery, без переписывания
+immutable snapshots. Сохранение старого draft DTO не доказывает весь rollout.
+
+[PostgREST PGRST202](https://docs.postgrest.org/en/stable/references/errors.html#group-2-schema-cache)
+описывает и устаревшую сигнатуру, и отсутствие функции. Новый reader при любой
+такой ошибке честно показывает unavailable.

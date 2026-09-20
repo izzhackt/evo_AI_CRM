@@ -27,7 +27,9 @@ ID есть у **0**, legacy **145**. Дубли institution IDs и немоно
 записью обязательна повторная проверка baseVersion/immutable base сервером.
 
 CN/MY/AE/TR/IT/CZ: **116 вузов**, **131 набор**, все без ID. Наборы есть у
-**65** из этих вузов; остальные не становятся selectable без реального набора.
+**65** из этих вузов; оставшиеся **51** не содержат intake. Exact set этих65
+совпадает с manifest: пропусков0, дубликатов вузов/ID0, изменённых фактов0.
+Вузы без наборов технически публиковать не требуется; selectable они не становятся.
 Переход выполнен: **0**. Legacy остаётся: **131**. Все131 ожидают разрешённой
 технической публикации после211; stale/error на write path не проверялись.
 
@@ -82,14 +84,19 @@ SHA-256 `a1eb5a403753ea39226b1ff2fcb430a94b98e352e2271e5b309249209faa38dc`.
 - Техническая версия сохраняет original reviewed source_registry_id и verifiedOn.
   Reject не отвергает исходный source. Publish повторяет exact-base/ID-only proof.
 - Legacy Admin RPC сохраняет exact DTO и видит только content drafts. Новый
-  guarded RPC возвращает reviewKind; fallback лишь PGRST202 до211.
+  guarded RPC возвращает обязательный reviewKind; fallback/default отсутствуют.
+  PGRST202 может означать stale schema cache, поэтому скрывать ошибку нельзя.
 - Technical checkbox прямо говорит об отсутствии новой проверки источников.
   Режим review берётся из server-stored immutable draft, не checkbox/формы.
 
 ## Конкретный пакет следующей реальной проверки — требует authority
 
 1. Root подтверждает интеграцию210 и exact reviewed211; сверяет live ledger/hash.
-   Применение211 отдельно от публикаций, rollback runtime не переписывает snapshots.
+   Установка211 отдельно от публикаций, published content сама не меняет. Сначала
+   совместимый новый runtime, затем отдельно разрешённые ID-publications. Старый
+   strict web parser отвергает intake.id, поэтому после них rollback к старому
+   image несовместим: заранее нужен проверенный совместимый rollback image либо
+   forward recovery. Immutable snapshots не переписывать.
 2. Разрешённая обычная действующая Admin-сессия в runtime с этим кодом; права не
    создавать/расширять, cookies с production не извлекать для переноса.
 3. Выбрать существующий опубликованный вуз из сохранённого manifest и перечитать
@@ -106,7 +113,7 @@ SHA-256 `a1eb5a403753ea39226b1ff2fcb430a94b98e352e2271e5b309249209faa38dc`.
    недоступные сценарии перечислить как unverified. Concurrency/SQL semantics ещё
    не проверены исполнением. Отказные сценарии не считать PASS по чтению кода.
 7. Только после успешной ограниченной проверки отдельным решением разрешить
-   остальные65 технических редакций (фактический остаток после первого publish).
+   остальные технические редакции (максимум64 после первого из65 publish).
    Итог: supported/already identified/transitioned/still legacy/blocked counts.
 
 Не хватает: authority на211 и technical writes, действующего Admin login в новом

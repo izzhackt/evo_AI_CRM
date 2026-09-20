@@ -10637,6 +10637,143 @@ Source/read совместимость и сохранение outer draft DTO �
 полного rollout. Этот контракт не разрешает применение миграций, публикацию
 контента, новые QA inputs или production release.
 
+## 2026-09-20 — B3b / 214: выбор программы и существующая подготовка
+
+Владелец подтвердил: выбор программы сразу открывает подготовку документов,
+без ожидания одобрения сотрудника. Root согласовал узкий следующий срез B3b
+после B3a/#944 и выделил миграцию214; A владеет212/213. Порядок main/local:
+211 →212 →213 →214, A — единственный local schema applier, root — merge/release
+coordinator. Параллельная работа веток не разрешает менять этот порядок.
+
+Реализация214 ограничена service/domain-контрактом выбора, идемпотентной связью
+с подготовкой в существующем деле, immutable snapshot выбранных фактов и общим
+reader/DTO для web/iPhone/staff. Узкая навигация в сохранённую подготовку допустима.
+Это не завершение всего B3 или §11.4–11.6: редакции требований, начальные
+Фото/Загранпаспорт, semantic mapping требований программы к existing/custom slots,
+черновики загрузок, отдельная отправка и review пакетов — обязательные следующие
+срезы. Не менять маршрут/degree всего дела и не использовать case-wide seeding
+043/179 для произвольной программы. Существующие applications, documents, slots,
+revisions и файлы сохраняются. Отсутствие ещё не настроенных требований не
+означает «всё готово»; UI не обещает готовность, отсутствующую в этом срезе.
+
+Контракт выбора:
+- Student действует только со своим существующим делом. Для НОВОГО выбора нужны
+  active + portalActivatedAt и свежая server authority; case ownership проверяется
+  сервером. Student не получает `application.manage`. Отдельные Student/staff
+  wrappers используют действующие полномочия и одну закрытую domain-операцию.
+- Вход содержит case/institution/program/intake/publicationVersion/requestId;
+  остальные факты берутся сервером из точной immutable опубликованной карточки.
+  Новый выбор сверяется с текущей публикацией, принадлежностью intake программе
+  и направлениями CN/MY/AE/TR/IT/CZ. Legacy без intake.id остаётся читаемым, но
+  не получает выдуманный ID из названия, даты или позиции массива.
+- Уникальность org + case + institution + program + intake, без версии.
+  После свежей проверки текущего доступа, под locks, exact replay и существующая
+  связанная preparation проверяются до новых eligibility-ограничений. Replay
+  возвращает первоначальный результат; новый request к уже выбранному варианту
+  открывает ту же запись. Другой intent с тем же requestId отвергается. Новая
+  публикация/истечение срока не уничтожают прежний выбор; terminal application
+  не переоткрывается и не перепривязывается обычными staff-командами.
+- Хранить exact catalog_level; doctorate отображается в существующий application
+  phd, diploma сохраняется самостоятельным значением. Не подменять страну,
+  не разрешать NULL bypass и не вводить новый лимит программ.
+- Общий reader показывает сохранённые выбранные факты и настоящий статус,
+  независимо от доступности финансового блока. Не добавлять продажу, новое дело,
+  внешнюю подачу или новую auth-сущность как побочный эффект выбора.
+
+Сроки — явно принятое координатором допущение, не новый ответ/checkbox владельца:
+явно closed запрещает НОВУЮ подготовку; unknown/needs_reconfirmation либо спорная
+прошедшая дата допускают подготовку с «Срок уточняется». Подтверждённо open/announced
+становится просроченным только при достоверной дате и authoritative IANA timezone;
+date-only deadline действует до конца местного дня. Отсутствие timezone означает
+неопределённость, а не автоматический UTC. Server eligibility общая для web/iPhone;
+позднее решение владельца заменяет это допущение. Подготовка не равна внешней подаче.
+
+Impeccable: сохранять EVO identity/tokens, текущую навигацию iPhone, SF и RU/KY.
+Не добавлять глобальную вкладку, второй Docs, выдуманный процент готовности или
+скрытый fallback success. Различать saving, confirmed, uncertain/retry exact intent,
+stale publication, unavailable case, unsupported country и legacy without ID.
+
+Доказательства и ограничения: существующие доступные local Student accounts пока
+не имеют active+activated eligible case. Не активировать pending case, создавать
+фиктивную продажу, выдавать auth/role grant или переносить production data ради
+положительной проверки. Завершить reviewable code и реальные доступные readonly/
+denial пути; positive selection/readback/replay/staff visibility остаются pending
+до подходящего разрешённого входа. Отсутствие doctorate в реальном manifest также
+фиксируется без synthetic fixtures. Требуются два независимых exact-head review,
+scope-local checks и ограниченный визуальный проход для затронутых UI. Финальный
+E2E, контент, App Store, managed writes и production deployment сюда не входят.
+
+## 2026-09-21 — B215: согласовать handoff продажи с защитой identity дела
+
+Root выделил `215_platform_sales_handoff_owner_guard.sql` как узкую зависимость
+приёмки B214. Основание stacked #946 `36f4b440`; до этого append код215 не менялся.
+Обычный Auth208 вызов завершился `40001 portal_identity_conflict`: pending-ветка
+208 синхронизирует seller с canonical lead, а guard126 запрещает изменение seller.
+Read-only before/after подтвердили полный rollback20 таблиц, scopes/access versions,
+продажи и receipt. Owner assignment и conditions revision1 выполнены раньше и
+сохраняются. Это исправление обнаруженного продуктового дефекта, не ремонт QA-данных.
+
+Контракт до кода, подтверждённый root:
+- Одна forward migration215; исторические001–214 неизменны. Новая private
+  append-only таблица разрешений owner-sync; изменить только две существующие
+  функции: `create_sales_report_handoff` и `guard_student_case_identity_e1`.
+  Общий curator helper и публичные RPC/grants не менять.
+- Receipt связывает UUID, текущий xid8, org/request/case/canonical lead,
+  actor membership/profile/Auth identity, nullable old seller, new seller,
+  прежний scope/version и curator. Old/new различаются; tenant-aware составные
+  ссылки, unique org/request, FORCE RLS, REVOKE ALL для PUBLIC/anon/authenticated/
+  service_role/supabase_auth_admin. Deferred initially-deferred FK org/request
+  на окончательный handoff receipt запрещает commit незавершённого разрешения.
+- Первым взять org row FOR UPDATE вместо KEY SHARE. Это явно одобренная root
+  поправка после выявленного cross-case lock cycle: сериализация handoff внутри
+  одной организации предотвращает поздний upgrade и взаимное ожидание profile
+  locks с sibling KEY SHARE handoff. Late upgrade и sorted-profile prelocks
+  не добавлять. Затем сохранить request advisory → canonical lead advisory/row
+  → case row ordering; независимо проверить compatibility и предел tradeoff.
+- После ожидания locks повторить fresh actor authority/scoped permission,
+  canonical current owner и его действующие права на lead. Сохранить caller/
+  manager checks, idempotency, seller/month snapshot, no-existing-sale/handoff,
+  curator validation и прежний exact replay до создания нового context.
+- Только pending-ветка создаёт private receipt и transaction-local GUC pointer
+  перед единственным seller UPDATE. Guard проверяет private receipt и текущую
+  транзакцию, exact OLD/NEW owner, org/case/canonical lead/scope, pending state и
+  свежую actor authority. Сравнить весь OLD/NEW row кроме seller и updated_at:
+  simultaneous Student/tenant/source/contract/lead/curator/state/scope mutation
+  запрещена. Прежнее отдельное E1 Student-binding исключение сохранить; нельзя
+  совмещать его с owner-sync. Сам GUC не является authority, прошлый receipt
+  не работает в следующей транзакции. Сразу после UPDATE очистить pointer.
+- После прежнего curator helper отозвать прежнего non-NULL seller из old scope
+  через append_scope_event(FALSE), с детерминированным derived request ID;
+  bump его profile access_version только если helper ещё не затронул тот же
+  PROFILE через new seller/Student/curator. Не сохранять лишний доступ бывшему
+  seller и не делать double bump. Любая следующая ошибка откатывает весь handoff.
+
+Проверка: реальные существующие local inputs и bounded rollback-only SQL probes
+для отсутствующего/поддельного/stale/неподходящего context, combined identity,
+не-pending case и downstream rollback. Эти SQL probes root разрешены только
+в собственном local QA и являются технической проверкой guard, не Auth acceptance.
+Не создавать entities, не менять Auth/роли и не производить data repair. Existing
+Student/anon/cross-case RPC denials не выдавать за достижение trigger, если ACL
+отказал раньше. Non-NULL old-seller ветка отдельно source-reviewed; NULL-case
+не доказывает её выполнение. Полный UI/native/E2E этим блоком не заявлять.
+
+A — единственный local schema applier: после SQL review и root GO применить215
+к001–214, сверить прежний ledger, точные functions/ACL и business parity. Затем B
+получает отдельное writer окно и повторяет исходную frozen команду208 с прежним
+request ID/payload и новым append-only attempt receipt, связывающим первоначальный
+FAIL/rollback и SQL215 SHA. Удалять FAIL/started markers нельзя. После успешного
+handoff проверить same case, seller/month, sale/receipt, activation/scope effects;
+затем выполнить исходный214 selection/readback/replay/denials. Не расширять packet.
+Техническая приёмка B214 указывает фактическую схему001–215.
+
+Работа в isolated `evo-sales-handoff-owner-guard`, PR stacked на946. Merge order
+948→946→215, затем retarget/rebase215 на main с повторным independent exact-head
+review/CI. A пишет только эти shared appendices, B runtime/QA; root merge/release.
+Managed DB, provider, production release и следующая функциональность не включены.
+PostgreSQL основание: [xid8](https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT),
+[transaction-local context](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-SET),
+[SECURITY DEFINER](https://www.postgresql.org/docs/current/sql-createfunction.html).
+
 ## 2026-09-20 — CRM-05: подтверждённая передача на рабочей доске (212)
 
 Основание: main `1795bf2380344bdca059868aba57d033fa13a259` после #943.
@@ -11293,6 +11430,88 @@ B сохраняет единоличное выполнение своего о
 Merge #948 остаётся после фактического UPDATE/cross-group/UI acceptance,
 финального QA-документа, независимого exact-head review и protected CI.
 Частичный B INSERT proof не подменяет эту проверку; merge #946 следует за #948.
+
+
+## 2026-09-21 — CRM-05: мобильная воронка с переключением этапов
+
+До кода: main `3500fa8b4ef708358cc4a240656be9dbd43415b6`; root владеет
+этим изолированным срезом и двумя appendices только в worktree
+`evo-sales-mobile-stages`. A948 и B946/215 продолжаются отдельно.
+
+На телефоне текущая доска последовательно показывает все семь колонок,
+включая пустые. Контракт: при URL stage=all один мобильный переключатель
+меняет видимую колонку без навигации и размонтирования карточек/форм.
+Изначально выбран первый непустой этап, иначе первый. Доступны все этапы,
+счётчики относятся к текущей загруженной и отфильтрованной выборке; при
+truncated это явно подписано. Не менять read RPC, cap4000 или серверные фильтры.
+При отдельном URL stage показать только выбранный этап и явную ссылку
+«Показать все этапы», снимающую только stage; остальные счётчики неизвестны
+и не показываются как нули. Эта ссылка меняет запрос и не обещает сохранение
+черновика при навигации. Desktop-фильтр стадии и полная доска сохраняются.
+Срок/назначение свернуть на mobile в один раскрываемый блок с числом активных
+фильтров, сохранив единственные DOM-экземпляры и desktop-доступность.
+Поиск/owner/reset953, q/due/assignment/owner/handed сохраняют контракт.
+
+Server Pipeline передаёт содержимое колонок небольшому client viewport:
+скрытие только responsive CSS, без selected ? mount : null, key=stage или
+router navigation. Полный stages продолжает задавать доступные workflow-переходы.
+Не менять ключ leadId:workflowVersion, request IDs, права, drafts/results,
+заметки, задачи, preview и links. Handed_off остаётся производным; terminal
+limit20 и show-all/latest прежние; счётчик не обрезать до20. Без SQL/команд,
+сохранений business data, смены ролей, fake data или deployment.
+
+Impeccable adapt/Operate: сохранены EVO/Golos/tokens, явное выбранное состояние,
+44px touch targets, keyboard/focus и reflow320/390. Actual owned local Sales UI:
+desktop и mobile одним inspection pass; все этапы, пустой этап, deep-stage URL
+с фильтрами, раскрытие фильтров, unsaved draft+requestID до/после переключения.
+Никакого submit. Scoped lint/types/существующие pipeline checks, independent
+exact-head review и protected CI. >20 terminal и cap4000 не заявлять как real
+proof без соответствующих настоящих данных. Это мобильный срез CRM-05,
+не завершение всего плана36 или production acceptance.
+
+## 2026-09-21 — B3b/214: актуализация локального доказательства после 215
+
+Исходный контракт B3b выше сохранён как решение до реализации. Его прежний
+блокер pending-дела снят в отдельно согласованном frozen QA packet: после
+исправления215 обычный Sales handoff активировал то же существующее дело.
+Обычный Student Auth создал одну подготовку; Student и Admissions прочитали
+её через продуктовые readers. Exact replay не изменил состояние; новый
+request того же выбора вернул ту же preparation и добавил только audit команды.
+Changed-intent и чужое дело отклонены. A подтвердил ожидаемые изменения и
+неизменность прочих строк, функций, ledger и числа Auth users на21 таблице.
+
+Подробности, исходный failed handoff, точные reviewed revisions и границы
+доказательства: [локальная QA-квитанция B3b](qa/b3b-catalog-preparation-2026-09-20.md).
+Текущая локальная схема001–215. Это изолированные QA Auth/RPC проверки и
+декодирование реальных ответов; полный web/iPhone UI-путь, требования и пакет
+документов, managed rollout и production release ещё не завершены. Порядок
+слияния #946 →215 →216 →217 и root как единственный merge/release coordinator
+сохраняются. Эта запись не разрешает новые бизнес-записи или deployment.
+
+
+## 2026-09-21 — CRM-22: клавиатурный переход к содержимому
+
+До кода, base main011c0e49: в общей CRM AppShell нет skip-link, поэтому
+клавиатурный путь каждый раз проходит повторяющуюся боковую навигацию и header.
+Root владеет только этим изолированным срезом и его двумя appendices в
+`evo-crm-skip-navigation`; runtime после merge959, независимо от217calendar.
+
+Первый focus-visible элемент оболочки — ссылка «К содержимому». Она переносит
+фокус на стабильную программно фокусируемую цель непосредственно у page children,
+минуя Sidebar и global header. Не добавлять второй main/landmark и не менять
+маршрут/данные/права/navigation builder/preview/actions. Не менять keys или
+пересоздавать page children. Сохранить размеры страниц сообщений/календаря и
+контейнерные breakpoint; EVO/Golos/tokens, видимый focus и44px цель. Ссылка
+остаётся скрытой до keyboard focus, не создаёт постоянного визуального баннера.
+
+Реальная read-only ordinary Sales localQA: desktop и390px на pipeline/messages,
+первый Tab раскрывает ссылку, Enter переносит реальный document.activeElement,
+следующий Tab достигает рабочего элемента. Back и unsaved search input без
+потери; не открывать диалоги/не отправлять сообщения/не создавать задачи.
+Admin preview только при существующей доступной сессии, иначе source-only.
+Scoped lint/types/существующие navigation/brand checks, independent exact-head
+review, protectedCI. Это один обоснованный срез22, не изменение всех экранов
+или доказательство screen-reader/live-device acceptance. Без SQL/DDL/release.
 
 ## 2026-09-21 — CRM-02b: серверный поиск продаж (216, до кода)
 

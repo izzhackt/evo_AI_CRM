@@ -7,20 +7,22 @@
 
 ## Текущий checkpoint — 21 сентября 2026
 
-Срез исходников: immutable main `401069a4a7aa15a3420b0685ba28fb7fb373c956`
-после #963. #946, #948, #958, #959, #961, #960, #962 и #963 — MERGED.
-Это source/local QA статусы, не managed DB или production delivery; весь объём
-1–36 не завершён, пункты 37–50 не запускаются. Датированные квитанции ниже
-сохраняют исходные ревизии и пределы, их проверки повторно не запускались.
+Срез исходников: main `c803d393369a22d62af65c81036584ec1fc5fe27`
+после #964. #946, #948, #958, #959, #961, #960, #962, #963 и #964 — MERGED.
+Это статусы исходников и локальных проверок; доставка в managed DB и production
+учитывается отдельно. Весь объём 1–36 не завершён, пункты 37–50 не запускаются.
+Датированные квитанции ниже сохраняют исходные ревизии и пределы проверки.
 
-Вне этого main, по текущей координации: B218 (`bf52b38a`, SQL `b20efabd`)
-прошла local schema check и все 13 фаз ordinary Auth QA: initialization,
-replay, доступ, отсутствие автоматического восстановления связей и явное
-восстановление. Реальные TS readers и Swift decoding 59 payloads прошли;
-новый UI, upload/submit и готовность в production этим не проверялись. Root219 —
-runtime-кандидат `f4e0ffdb` на независимом review, подходящий pinned QA positive
-не подтверждён; 221 — только pre-code. A220 — runtime после `e789`, работа
-продолжается. Эти статусы не означают merge или завершение всех блоков.
+B218 принята через #964: проверка схемы, все 13 фаз обычного Auth и Swift decode
+59 фактических ответов прошли. Новый UI, upload/submit и production этим не
+проверялись. Следующий B-срез — общие web/iPhone входы в подготовку.
+
+Локальная 219 применена, но проверка функций завершилась ошибкой в прежнем
+HTTPS validator184: `APPLIED_QA_FAILED`, исходная квитанция сохранена.
+Исправление зависимости вынесено в новую 220, кандидат `10f4edc1` на review;
+219 не переписывается. Подходящих pinned legacy данных для Auth/UI пока нет.
+Неприменённая очередь A перенесена с220 на221 (`583bd631`, review), причина
+изменения задачи root — с221 на222 (pre-code). Эти изменения ещё не в main.
 
 ## Блоки
 
@@ -36,13 +38,13 @@ runtime-кандидат `f4e0ffdb` на независимом review, подх
 | CRM-05: операционная воронка | Подтверждённый handoff, owner-filter и mobile stage tabs проверены локально на320/390 и desktop | MERGED #945/#953/#959; реальные stage mutations не выполнялись этим UI-срезом |
 | CRM-04/07: inbox и сообщения | Inbox empty/filter/channel states и поиск Student messages с loading/empty/error/retry защищены от устаревшего ответа; actual local read/UI desktop/390px проверены. Очереди и остальные сценарии остаются | MERGED #952 `f97122e8`, #955 `fe26526c`; [Inbox](qa/crm-inbox-states-2026-09-21.md), [messages](qa/case-chat-search-2026-09-21.md); без send/mark-read/provider actions |
 | Сохранение отдельных блоков карточки / пункт 30 | LOCAL213: actual UPDATE двух блоков, sibling draft, replay/conflict/stale и restore26 полей; B sale INSERT отдельно | MERGED #948; не UI-приёмка всех групп, managed/production delivery отдельно |
-| CRM-10: EVO Docs и университеты | Existing Docs сохранён; B218 требования/общие файлы — текущий независимый срез, schema check и все 13 фаз Auth QA PASS, новый UI ещё не реализован | Не завершён; upload/submit/versioned packages/review и полный путь остаются |
+| CRM-10: EVO Docs и университеты | Existing Docs сохранён; B218 требования/общие файлы приняты через #964: schema check и все 13 фаз Auth QA PASS; новый UI ещё не реализован | Не завершён; upload/submit/versioned packages/review и полный путь остаются |
 | Командный чат | Ожидает реализации; стратегия старых ответов/read перед UI | — |
 | Личный календарь | #954 explicit case choice; #963 личные case/staff задачи, exact count/keyset и own target; LOCAL217 Auth/denials + UI320/390/desktop | MERGED #963 `401069a4`; dated/staff positive, >100 UI и concurrent reassignment не доказаны; [receipt](qa/personal-calendar-2026-09-21.md) |
-| §11: общие программы, требования, версии, пакеты и review | #944 stable intake IDs; #946 selection/preparation. LOCAL214 positive ordinary Auth + TS/Swift read/decode; нового web/iPhone UI proof нет. B218 requirements association в работе | MERGED #944/#946; 218 вне main, локальный Auth-пакет завершён; дальнейшие packages/review и managed delivery не приняты |
+| §11: общие программы, требования, версии, пакеты и review | #944 stable intake IDs; #946 selection/preparation. LOCAL214 positive ordinary Auth + TS/Swift read/decode; нового web/iPhone UI proof нет. B218 requirements association принята через #964 | MERGED #944/#946; #964 MERGED, локальный Auth-пакет завершён; дальнейшие packages/review и managed delivery не приняты |
 | Web и iPhone полного нового admissions-пути | Общие214 readers проверены, полный новый UI-путь ожидает следующих операций | Не завершён; не расширять TS/Swift evidence до browser/device acceptance |
 | CRM shell / пункт 22 | #961 keyboard skip-navigation MERGED | Узкий срез, остальная оболочка и полная a11y-приёмка открыты |
-| Legacy optional application fields / пункт 29 | Root219 runtime-кандидат `f4e0ffdb` на review; 221 pre-code отдельно | Нет suitable pinned QA positive; не завершено |
+| Legacy optional application fields / пункт 29 | Root219 applied / function QA failed; forward repair220 на review; 222 pre-code отдельно | Нет suitable pinned QA positive; не завершено |
 | Точечная приёмка §13, итоговый аудит scope | Ожидает реализации блоков | — |
 
 ## Решения владельца и границы

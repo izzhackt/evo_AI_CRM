@@ -6,20 +6,22 @@
 
 ## Текущий checkpoint — 21 сентября 2026
 
-Срез исходников: immutable main `401069a4a7aa15a3420b0685ba28fb7fb373c956`
-после #963. #946, #948, #958, #959, #961, #960, #962 и #963 — MERGED.
-Это source/local QA статусы, не managed DB или production delivery; весь объём
-1–36 не завершён, пункты 37–50 не запускаются. Датированные квитанции ниже
-сохраняют исходные ревизии и пределы, их проверки повторно не запускались.
+Срез исходников: main `c803d393369a22d62af65c81036584ec1fc5fe27`
+после #964. #946, #948, #958, #959, #961, #960, #962, #963 и #964 — MERGED.
+Это статусы исходников и локальных проверок; доставка в managed DB и production
+учитывается отдельно. Весь объём 1–36 не завершён, пункты 37–50 не запускаются.
+Датированные квитанции ниже сохраняют исходные ревизии и пределы проверки.
 
-Вне этого main, по текущей координации: B218 (`bf52b38a`, SQL `b20efabd`)
-прошла local schema check и все 13 фаз ordinary Auth QA: initialization,
-replay, доступ, отсутствие автоматического восстановления связей и явное
-восстановление. Реальные TS readers и Swift decoding 59 payloads прошли;
-новый UI, upload/submit и готовность в production этим не проверялись. Root219 —
-runtime-кандидат `f4e0ffdb` на независимом review, подходящий pinned QA positive
-не подтверждён; 221 — только pre-code. A220 — runtime после `e789`, работа
-продолжается. Эти статусы не означают merge или завершение всех блоков.
+B218 принята через #964: проверка схемы, все 13 фаз обычного Auth и Swift decode
+59 фактических ответов прошли. Новый UI, upload/submit и production этим не
+проверялись. Следующий B-срез — общие web/iPhone входы в подготовку.
+
+Локальная 219 применена, но проверка функций завершилась ошибкой в прежнем
+HTTPS validator184: `APPLIED_QA_FAILED`, исходная квитанция сохранена.
+Исправление зависимости вынесено в новую 220, кандидат `10f4edc1` на review;
+219 не переписывается. Подходящих pinned legacy данных для Auth/UI пока нет.
+Неприменённая очередь A перенесена с220 на221 (`583bd631`, review), причина
+изменения задачи root — с221 на222 (pre-code). Эти изменения ещё не в main.
 
 ## Первый срез A-1 — пункты 4 и 34
 
@@ -59,7 +61,7 @@ review одобрены. Это unit/source/harness-проверки; полно
 | 1 | #935 и #960 MERGED: Sales Manager, seller, месяц по sale date и исправление pending-case handoff; LOCAL208/215 acceptance | Production отдельно; previous-seller non-null и concurrency не объявляются проверенными |
 | 6, 10 | #943/#945/#953/#959 MERGED: текущая воронка, подтверждённый handoff, owner-filter, stage tabs и mobile320/390 | Реальные перемещения стадий этим UI-срезом не исполнялись; delivery отдельно |
 | 7 | #956/#958/#962 MERGED: preview/edit/back, filter/reset/годовой месяц, серверный literal search до count/totals/page; LOCAL216 Auth/UI320/390 | Phone/contract positive, >50 и salesOther не доказаны; direction facet, плотность отчёта и mobile-record остаются; [search receipt](qa/crm-sales-search-2026-09-21.md) |
-| 8 | Full requests queue: A220 runtime после `e789`, вне main этого checkpoint | Server filter до limit, полный «Все», курсор и context; завершение ещё не принято |
+| 8 | Full requests queue: A221 runtime `583bd631` после перенумерации, вне main этого checkpoint | Server filter до limit, полный «Все», курсор и context; завершение ещё не принято |
 | 9 | #952 MERGED `f97122e8`: Inbox empty/filter/channel states; actual local read/UI desktop/390px | История выбранного диалога и provider/error-path приёмка этим срезом не доказаны; [квитанция](qa/crm-inbox-states-2026-09-21.md) |
 | 11 | #955 MERGED `fe26526c`: поиск Student messages с loading, отдельными empty/error/retry и защитой от устаревшего ответа; actual local read/UI desktop/390px | Очереди остаются у A; диалог не открывали, сообщений и mark-read не отправляли; [квитанция](qa/case-chat-search-2026-09-21.md) |
 | 12 | Договор, сумма, транши, платежи/чеки/остаток; после #933 остальной поток открыт | Согласовать profile-source/Profile и общие actions с B |
@@ -68,10 +70,10 @@ review одобрены. Это unit/source/harness-проверки; полно
 | 15 | Team chat: хронология, цитаты, поиск, composer, unread | История/read model до UI; не отправлять сообщения |
 | 16 | #954/#963 MERGED: explicit case choice и личный case/staff reader; LOCAL217 Auth/target/denials и UI320/390/desktop | Положительные dated/staff и >100 UI overflow отсутствуют; commands/concurrent reassignment не исполнены; [receipt](qa/personal-calendar-2026-09-21.md) |
 | 22 | #961 MERGED: keyboard skip-navigation slice | Остальной shell/типографика открыты; не полная a11y-приёмка |
-| 29 | Root219 runtime-кандидат `f4e0ffdb` на review: узкая optional-fields correction137/184 | Вне snapshot main; подходящий pinned QA positive пока отсутствует, не подменять function proof UI-приёмкой |
+| 29 | Root219 applied / function QA failed; forward repair220 на review: узкая optional-fields correction137/184 | Вне snapshot main; подходящий pinned QA positive пока отсутствует, не подменять function proof UI-приёмкой |
 | 33 | #687: причина изменения срока/приоритета Admin | Аудит/права обязательны, schema через root |
 | 35 | Завершён в исходниках: #947/#949 prerequisites, #950 MERGED `3ddb6f41`, #42 CLOSED; пять checks и 842/842 legacy tests, независимый semantic review | Только форматирование legacy Inbox; без revival/deploy/provider proof; [квитанция](qa/inbox-format-baseline-2026-09-21.md) |
-| 5, 36 | Текущая docs-сверка обновлена на401069a4; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
+| 5, 36 | Текущая docs-сверка обновлена наc803d393; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
 
 Каждый срез: живой source → минимальный diff → точечная реальная проверка →
 отдельный PR → независимое exact-head review. Не запускать общий финальный E2E,

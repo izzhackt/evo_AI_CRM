@@ -10488,3 +10488,27 @@ local project/container, active same-organization department, empty singleton,
 and one-row transaction; retain intake owner NULL. No second tenant, Student
 row, case or application is inserted directly. Subsequent signup, submission
 and approval use current product paths (migration 180 approval signature).
+
+## B-2a public approval own-case scope — migration 209
+
+Local ordinary public signup, submission and approval produced an active Student
+and portal-activated pending case, but no case membership scope assignment.
+The fresh Student session therefore cannot read that case. Root reserved 209
+for B's separate minimal correction; A remains the sole local schema applier.
+
+In the current five-argument approval path, after creating/activating its exact
+case, append one scope assignment for the newly created Student membership via
+the existing append_scope_event contract, using a deterministic child request
+and the actual Admin audit identity. Preserve organization, case, revision,
+replay checks and the existing access-version bump. Keep RLS, JWT, access-tier,
+email and program-registration contracts unchanged. No historical backfill,
+regrant after a prior revocation, or repair of the already failed QA case.
+Assess existing affected records read-only in a separate plan.
+
+Validate a NEW ordinary signup, submission and approval on composed local
+207/208/209: fresh Auth reads exactly its own pending case and Home; replay adds
+neither a second case nor grant; another Student/case, staff and anonymous
+requests cannot cross Student boundaries; pending documents/help stay denied.
+A applies exact reviewed 209 locally after review; managed SQL and production
+release remain separately authorized and deferred. Earlier #935 evidence from
+001–208 remains explicitly bounded to its original schema and runtime.

@@ -7,6 +7,7 @@ import { KnowledgeError, checkedBlob, knowledgeRpcError, readKnowledgeBlob, requ
 import { createPlatformSupabaseServiceClient } from "@/lib/server/platform-supabase-service-client";
 import { getPlatformSupabaseBackendConfig } from "@/lib/server/platform-supabase-backend-config";
 import { scanBytesWithClamd } from "@/lib/server/clamd-malware-scanner";
+import { knowledgeStorageRequest } from "./storage-retry";
 
 export const KNOWLEDGE_BUCKET = "platform-knowledge-library";
 function service() { return createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig()); }
@@ -15,7 +16,7 @@ export function knowledgeObjectPath(blob: KnowledgeBlob, index: number) {
 }
 function sha256(bytes: Uint8Array) { return createHash("sha256").update(bytes).digest("hex"); }
 async function readPart(blob: KnowledgeBlob, index: number): Promise<Uint8Array> {
-  const { data, error } = await service().storage.from(KNOWLEDGE_BUCKET).download(knowledgeObjectPath(blob, index));
+  const { data, error } = await knowledgeStorageRequest("read", () => service().storage.from(KNOWLEDGE_BUCKET).download(knowledgeObjectPath(blob, index)));
   if (error || !data) throw new KnowledgeError("knowledge_storage_unavailable");
   const bytes = new Uint8Array(await data.arrayBuffer());
   const expected = blob.parts?.find((p) => p.part_index === index);

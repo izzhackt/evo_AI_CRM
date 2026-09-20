@@ -25,6 +25,12 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 
 ### KB execution — 2026-09-20
 
+Дополнение к историческому снимку ниже: перенос 6 568 исходников и 25
+защищённых записей завершён, полная сверка дала 0 missing/0 mismatch.
+Полный ZIP встретил ошибку Storage; текущий шаг — ограниченные безопасные
+повторы запросов и завершение того же снимка. Контракт изменения:
+[PLAN_CHANGES](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
+
 - KB-0 merged as #902 (`7610579df`). Implementation is in draft #906, branch `izzhackt/crm-knowledge-core`, isolated worktree `evo-crm-knowledge-implementation`; canonical dirty checkout is preserved.
 - Private inventory covers 6,570 source entries. The filing plan retains 436 editable pages, 6,100 ordinary source files and 32 protected originals; two backup key files remain outside CRM. Protected preparation adds 25 structured records and verifies 57 ciphertext round trips without writing plaintext files.
 - The candidate implements Admin library, existing CRM dossiers, protected records, resumable import, reconciliation and ZIP export. Details and actual evidence: [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).

@@ -195,14 +195,12 @@ export function DealForm({
         setSaving(false);
         return;
       }
-      const { error } = await supabase
-        .from('deals')
-        .insert({
-          ...payload,
-          user_id: user.id,
-          account_id: accountId,
-          status: 'open',
-        });
+      const { error } = await supabase.from('deals').insert({
+        ...payload,
+        user_id: user.id,
+        account_id: accountId,
+        status: 'open',
+      });
       if (error) {
         toast.error(t('pipelines.deal.createFailed'));
         setSaving(false);

@@ -600,7 +600,6 @@ function fullCaseDetails(
   actor: ActivePlatformActor,
   data: FullCaseData,
   routeTarget: ProfileRouteTarget,
-  responsible: string | null,
   contractSignedAt: string | null,
   isCabinetCase: boolean,
 ): ProfileDraft {
@@ -630,7 +629,7 @@ function fullCaseDetails(
     profileFieldSources: profileFieldSourceVersions(data.documents, data.profileFields, isStaffPreview(actor)),
     studentApplication: data.studentApplication,
     routeTarget,
-    responsible,
+    responsible: data.studentCase.currentCuratorDisplayName,
     provider: null,
     ...facts,
     documents: data.documents ? profileDocuments(
@@ -731,7 +730,6 @@ async function readCaseProfile(
         actor,
         data,
         { leadId: null, studentCaseId: canonicalCaseId },
-        data.studentCase.currentCuratorDisplayName,
         null,
         isCabinetCase,
       ),
@@ -827,7 +825,6 @@ async function readLeadProfile(
         actor,
         fullCase,
         routeTarget,
-        lead.currentOwnerDisplayName,
         gate.contractConfirmedAt ? formatDate(gate.contractConfirmedAt, true) : null,
         isCabinetCase,
       )

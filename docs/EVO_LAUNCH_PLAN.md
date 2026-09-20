@@ -1,5 +1,23 @@
 # EVO Launch Plan
 
+## CRM UX и единое поступление — принято к реализации 2026-09-20
+
+Владелец поручил реализовать [план CRM UX и поступления](EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md).
+Он определяет выбранные CRM-изменения и общий путь программа → документы →
+проверка EVO для CRM, веба и iPhone. Веб — первый полный рабочий выпуск;
+iPhone использует те же серверные операции. Этот порядок относится к новому
+admissions-пути и уточняет прежнее общее правило параллельной разработки.
+[Ведомость исполнения](EVO_CRM_UX_AND_ADMISSIONS_EXECUTION_2026-09-20.md)
+разделяет реализацию, review/merge, выпуск и реальные проверки.
+
+Решение §14.2 получено: клиент с сопровождением сразу начинает подготовку
+по выбранной программе, без отдельного одобрения выбора. Решение §14.1 также получено: сохранить нынешнее расположение сводки
+и списка студентов.
+Сопровождение остаётся обязательным условием нового клиентского пути.
+Общий финальный E2E, контентная волна и App Store остаются отложенными; точечная
+проверка изменённых функций обязательна. Поручение не включает применение
+миграций, production-записи или release-arm без отдельной действующей authority.
+
 ## 2026-09-20 — точечная доработка карточки университета iPhone
 
 По поручению владельца выполняется Impeccable critique → план → реализация.
@@ -10348,3 +10366,13 @@ Owner explicitly approved closing the four reported gaps. Execution contract:
 Each block is a separate PR with independent exact-head review and focused real-path evidence. Use existing authenticated QA identity and real catalogue/learning data; no fabricated fixtures or writes to customer records. Read-only Student checks and local Simulator/browser builds are authorized. Production schema application/release requires the existing coordination/authority; do not silently deploy. Final product-wide E2E, content expansion and App Store remain deferred. Record limitations, never infer full acceptance from CI.
 
 Official implementation references: [SwiftUI task lifetime](https://developer.apple.com/documentation/swiftui/view/task(id:priority:_:)), [SwiftUI refreshable](https://developer.apple.com/documentation/swiftui/view/refreshable(action:)), [PostgreSQL triggers](https://www.postgresql.org/docs/current/trigger-definition.html). Context7 documentation lookup was unavailable (monthly quota); official documentation used directly.
+
+
+## AST-5 iPhone Home clarity — 2026-09-20
+
+Execute `docs/design/portal/ios-home-refinement.md`: surface genuine unfinished
+work, keep admission actions/errors first, clarify module progress, and enlarge
+the native continuation button. Preserve the user's selected EVO appearance.
+Acceptance: Xcode build, real QA Home/continuation/lesson paths, RU/KY and
+dark/large-text inspection, then independent exact-head review and short CI.
+No production migration/release or deferred final E2E/content/App Store work.

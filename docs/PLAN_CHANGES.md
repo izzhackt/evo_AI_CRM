@@ -33141,3 +33141,165 @@ Migration 148 already protects every published revision against update/delete. T
 Home uses an independent server read and an explicit unavailable state. UI reuses the incumbent Atlas list, section title, typography and links, RU/KY, with full-width touch rows on mobile. Impeccable adapt/craft-floor used; no redesign of the accepted visual style. First publish means entry into the EVO catalogue, not foundation date or latest edit. The catalogue currently has no unpublish operation; future lifecycle work must preserve history and align visible filtering.
 
 Official source: [PostgreSQL window functions](https://www.postgresql.org/docs/current/tutorial-window.html) (full partition without ORDER BY; outer filtering after the window calculation). Context7 unavailable due to quota, as recorded above. Validate the exact selection against live read-only data and real Student detail reads, then parser/type/lint/contracts. Successful new-RPC UI validation requires applying migration 207 with production authority; absent RPC must surface a real error, never substituted data. Deployment remains separately coordinated.
+
+
+## 2026-09-20 — iPhone Home action hierarchy after Impeccable review
+
+Continue the owner's requested functional/UI work with a narrow native Home
+refinement. Preserve the #927 data and navigation contracts. Real required
+admission actions and load/error states stay first; a successfully loaded calm
+summary moves below continuation. A saved test attempt precedes the lesson
+section; without a draft, lessons remain first. Clarify module-level counts in
+RU/KY and size the continue-test label to a real 44-point minimum. No change to
+Auth, schema, private learning state, tab identity, or catalogue content. Plan
+and focused real Simulator acceptance: `docs/design/portal/ios-home-refinement.md`.
+PR #929 remains separately pending migration 207 and runtime acceptance; this
+refinement does not authorize or substitute for that production operation.
+
+Independent evidence review additionally confirmed a Kyrgyz naming mismatch:
+Home quotes «Менин тапшыруум» while the existing destination is «Менин кабыл
+алынышым». Align the shortcut to that existing title within this same copy slice.
+
+The first actual dark/default-size render confirmed low-contrast Home text
+links with the single brand accent. In the one bounded correction pass, use
+Apple systemRed for Home text actions in dark mode only, retain brand accent
+for light mode and the filled continuation button, and let the continuation
+label occupy its row width at large text sizes. This is local to Home; no shared
+asset, descendant screen, or app-wide theme changes.
+
+
+## 2026-09-20 — принят план CRM UX и единого поступления
+
+Владелец передал `EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` и поручил
+реализацию с Impeccable. Неизменённая копия исходного документа включена в
+`docs/`; детализация и исключения §1–17 составляют scope. Начальная база —
+main `922483eb54c18a2da72bdd65fb503d728fa7af22`; прежний dirty checkout сохранён.
+Это дополнение разрешает выбранные staff CRM-изменения поверх прежнего
+portal-only scope PRODUCT.md. Для нового admissions-пути веб выпускается
+полностью первым, iPhone развивается на тех же контрактах. Только Sales Manager
+может создавать продажи; общее правило Admin-superset не является исключением
+для этой конкретной операции. Остальные полномочия Admin сохраняются.
+
+Последовательность: критические CRM-контракты → выбранные рабочие экраны →
+отдельные chat/calendar блоки → общие документы/пакеты → полный web/iPhone путь.
+Не добавлять KPI, коммерческие правила, новый контент и другие исключённые
+функции. Зафиксированные в §14 решения запрошены; зависимая реализация ждёт
+ответа. Существующий #913 использовать после проверки, не дублировать;
+#925–#928 и #930 составляют принятую базу iPhone/портала. #929 и migration 207
+остаются отдельным незавершённым блоком без новой production authority.
+Каждый блок получает точечную реальную проверку и независимый exact-head review.
+
+
+## 2026-09-20 — Admissions pipeline: omit empty GET filters
+
+Owner-reported production failure at `/v3/admissions-pipeline` was reproduced
+with the existing authenticated Admin session: no curator filter produces
+«Не удалось загрузить воронку поступления», selecting a curator removes that
+error, and resetting filters reproduces it. Managed Postgres logs at the
+matching request times confirm `invalid input syntax for type uuid: "null"`.
+No customer data or permissions were changed during diagnosis.
+
+The board RPC uses Supabase GET transport. Pinned postgrest-js 2.111.0 omits
+undefined values but serializes JavaScript null as the literal string `null`.
+The optional UUID therefore fails before the SQL function executes; empty
+country/search values also become unintended text filters. Omit all three
+unset arguments and retain the RPC's existing SQL NULL defaults. Preserve
+GET/read-only transport, nonempty filters, authorization and the decoder.
+No migration or product-scope change is needed.
+
+Official source: https://github.com/supabase/supabase-js/blob/v2.111.0/packages/core/postgrest-js/src/PostgrestClient.ts
+
+Validation scope: existing focused pipeline source-contract checks and diff
+review; these static checks do not prove HTTP behavior. The real regression
+signal is the authenticated browser board after managed release, including
+resetting filters and both tabs. Until then the production fix is unverified.
+Do not interrupt Fable's active exact-main release to merge or deploy this fix;
+use the next coordinated release after the current owner completes/disarms.
+
+2026-09-20 continuation: the former release has completed. Live release arm is
+false and no pending receipt exists; accepted revision is `b7598a1c`. Current
+main is merged into this branch, retaining both appended decision histories.
+No production deployment or database write is performed by this continuation.
+
+
+### CRM-06 — filter reset and recovery on the same board
+
+The actual authenticated local UI against managed Supabase confirmed another
+part of the same filter path: after reset, the rows return to the complete
+set but the uncontrolled curator select retains its previous visible value.
+Key the GET filter form by the canonical query URL so every URL transition
+remounts its controls. This uses React's documented form reset with a key:
+https://react.dev/learn/preserving-and-resetting-state#resetting-a-form-with-a-key.
+
+Complete CRM-06's existing error requirement with retry of the current route
+and a Students link. Preserve the board, error-vs-empty distinction and all
+move permissions. Next.js refresh re-fetches the route's server data without
+changing the URL: https://nextjs.org/docs/app/api-reference/functions/use-router.
+No failure response or customer records are fabricated for validation.
+
+
+## 2026-09-20 — CRM-08: куратор шапки из текущего дела
+
+Живое чтение существующего тестового дела выявило расхождение: воронка
+показывает назначенного куратора, а шапка того же дела — владельца Sales-лида.
+`readCaseProfile` для Admin также делегирует в `readLeadProfile`, поэтому дефект
+затрагивает оба URL-входа. `fullCaseDetails` должен брать ответственного только
+из `data.studentCase.currentCuratorDisplayName`, без аргумента от вызывающего
+кода. Неназначенный куратор остаётся null и получает прежнюю явную подпись.
+Lead-only карточка продолжает показывать своего sales owner. Назначения,
+полномочия, handoff, данные продажи и регистрация не меняются. Это первый
+ограниченный срез CRM-08; объединение блоков доступа к порталу остаётся открыто.
+
+В кратком обзоре дела подпись ответственного становится «Куратор», а в Sales-блоке — «Менеджер продаж»: реальные сотрудники остаются разными, роль каждого названа явно.
+
+
+## 2026-09-20 — владелец подтвердил немедленное начало подготовки
+
+Ответ владельца на открытый вопрос §14.2: «Сразу открывать подготовку».
+После выбора программы клиентом с сопровождением создаётся/открывается единая
+подготовка по программе и набору; она сразу видна уполномоченному сотруднику.
+Отдельное одобрение самого выбора не требуется. Загрузка, отправка EVO и
+проверка документов остаются отдельными действиями. Доступ сопровождения,
+несколько программ и защита повторного выбора сохраняются по §11.
+Открытым остаётся только расположение сводки на странице студентов (§14.1).
+
+
+## 2026-09-20 — владелец сохранил компоновку страницы студентов
+
+Ответ на §14.1: «Оставить расположение как сейчас». Не переносить список,
+поиск или сводку этой страницы. Оба продуктовых решения §14 теперь закрыты;
+план, launch plan и ведомость обновлены прямо, без сохранения устаревшего
+ожидания ответов как действующего правила.
+
+## 2026-09-20 — CRM-09a: стоимость остаётся доступна после открытия дела
+
+На существующем связанном деле подтверждён разрыв: «Стоимость не указана»
+ведёт в обзор, но адаптер скрывает условия продажи, когда доступно полное дело.
+Сохраняем чтение той же revisioned строки canonical lead и после handoff;
+ссылка ведёт непосредственно к существующему редактору `#sale-conditions`.
+Без доступных условий карточка показывает отсутствие стоимости обычным текстом,
+без ложного перехода. Редактирование требует прежнего `lead.sales.workflow.manage`
+и не доступно в preview; серверные проверки, история продаж и деньги не меняются.
+Это ограниченный первый срез CRM-09: сведение финансовых форм в единый поток
+и стоимость у дел без canonical lead остаются открытыми пунктами.
+
+Реальный проход выявил связанную ошибку decoder: migration 184 возвращает
+пустой `wishes_intake_year` как JSON null, а TypeScript принимал только строку.
+Явный null теперь соответствует пустому полю формы; отсутствующий ключ,
+неверный тип и некорректный год по-прежнему отклоняются. Это чтение реального
+контракта, без подстановки выдуманных условий или изменения данных.
+
+## 2026-09-20 — CRM-08b: единый раздел доступа к порталу
+
+Объединяем сведения о заявке, ручную подготовку кабинета и существующее управление
+приглашением в один раздел обзора «Доступ к порталу». Реальная карточка уже
+созданного дела показывала ложное «Подготовить кабинет», потому что адаптер
+полного дела намеренно оставлял leadCabinetCase пустым. Для отображения используем
+уже прочитанное дело; наличие дела не выдаём за активированный доступ.
+
+Статусы заявки, решение/отказ, приглашение, сверка неизвестного результата и
+явное повторное приглашение сохраняются. У приглашения остаётся прежний gate
+Admin / Sales cabinet_pending, вне preview. Для просмотра без Sales не добавляем
+прав решения по заявке или ручной подготовки. Серверные операции и их payload,
+регистрация, привязки, назначения и provider-поведение не меняются. Живая проверка
+этого среза ограничена отображением и навигацией, без отправки писем и auth writes.

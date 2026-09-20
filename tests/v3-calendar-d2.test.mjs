@@ -118,15 +118,11 @@ test("calendar coordinator propagates every authorized reader failure, never an 
   }
 });
 
-test("calendar permissions are unavailable states, not empty tasks or a missing nearest deadline", () => {
-  assert.equal(calendarAccessNotice({ tasks: false, applicationDeadlines: false }), "Нет доступа к общему списку задач и срокам поступления.");
+test("personal calendar distinguishes denied access from an empty task period", () => {
+  assert.equal(calendarAccessNotice({ tasks: false, applicationDeadlines: false }), "Нет доступа к личному списку задач.");
   assert.equal(calendarEmptyPeriodLabel({ tasks: false, applicationDeadlines: false }), null);
-  assert.equal(calendarAccessNotice({ tasks: false, applicationDeadlines: true }, true), "Нет доступа к общему списку задач. Открыта задача выбранного студента.");
-  assert.equal(calendarEmptyPeriodLabel({ tasks: false, applicationDeadlines: true }), "На этот период сроков поступления нет.");
-  assert.equal(calendarAccessNotice({ tasks: true, applicationDeadlines: false }), "Нет доступа к срокам поступления.");
-  assert.equal(calendarEmptyPeriodLabel({ tasks: true, applicationDeadlines: false }), "На этот период задач нет.");
-  assert.equal(calendarAccessNotice({ tasks: true, applicationDeadlines: true }), null);
-  assert.equal(calendarEmptyPeriodLabel({ tasks: true, applicationDeadlines: true }), "На этот период событий нет.");
+  assert.equal(calendarAccessNotice({ tasks: true, applicationDeadlines: false }), null);
+  assert.equal(calendarEmptyPeriodLabel({ tasks: true, applicationDeadlines: false }), "На этот период вам не назначены задачи.");
 });
 
 function undatedRow(id) {
@@ -391,12 +387,12 @@ test("D2 nearest deadline distinguishes an empty result from a malformed row", a
 
 test("D2 calendar exhausts bounded ranges but reads only one undated page", () => {
   const adapter = source("src/lib/v3/calendar-source.ts");
-  assert.match(adapter, /dueFrom: from,[\s\S]*dueTo: to/u);
-  assert.match(adapter, /do \{[\s\S]*listPlatformAdmissionsTaskQueue[\s\S]*\} while \(datedCursor !== null\)/u);
-  assert.match(adapter, /const undatedPage = await listCalendarUndatedTaskPage/u);
+  assert.match(adapter, /mode: "dated", from, to/u);
+  assert.match(adapter, /do \{[\s\S]*readPersonalCalendarPage[\s\S]*\} while \(datedCursor !== null\)/u);
+  assert.match(adapter, /const undated = await readPersonalCalendarPage/u);
   assert.doesNotMatch(adapter, /while \(undatedCursor !== null\)/u);
-  assert.match(adapter, /undatedNextCursor: undatedPage\.nextCursor/u);
-  assert.match(adapter, /do \{[\s\S]*listCalendarApplicationDeadlinePage[\s\S]*\} while \(cursor !== null\)/u);
+  assert.match(adapter, /undatedNextCursor: undated\.nextCursor/u);
+  assert.doesNotMatch(adapter, /listCalendarApplicationDeadlinePage/u);
   assert.doesNotMatch(adapter, /tasksTruncatedAfter|periodComplete|truncatedAfter/u);
 });
 
@@ -412,7 +408,7 @@ test("D2 undated continuation is URL-backed and never silently claims completene
     href,
     "/v3/calendar?view=week&date=2026-09-10&undated_after_sort_at=9999-12-31T00%3A00%3A00%2B00%3A00&undated_after_case_task_id=12400000-0000-4000-8000-000000000101",
   );
-  assert.match(page, /undatedCursorFromParams[\s\S]*parseCalendarUndatedTaskCursor/u);
+  assert.match(page, /undatedCursorFromParams[\s\S]*parsePersonalCalendarCursor/u);
   assert.match(page, /undatedNextHref=\{workspace\.undatedNextCursor/u);
   assert.match(page, /undatedContinuationPage=\{workspace\.access\.tasks && undatedCursor !== null\}/u);
   assert.equal(calendarUndatedPageNotice(false, false, 12), null);
@@ -427,7 +423,7 @@ test("D2 undated continuation is URL-backed and never silently claims completene
   assert.doesNotMatch(calendar, /Все задачи без срока показаны/u);
 });
 
-test("application deadlines are read-only calendar items linked to exact Admissions case", () => {
+test("admissions deadline links remain available but personal calendar does not load them", () => {
   const component = source("src/components/v3/calendar/ApplicationDeadline.tsx");
   const calendar = source("src/components/v3/calendar/Calendar.tsx");
   assert.match(component, /kind: "application_deadline"|CalendarApplicationDeadline/u);
@@ -437,7 +433,8 @@ test("application deadlines are read-only calendar items linked to exact Admissi
   assert.match(component, /tab=documents/u);
   assert.match(component, /tab=route#applications/u);
   assert.doesNotMatch(component, /TaskControls|complete|cancel|changePlatform/u);
-  assert.match(calendar, /NearestApplicationDeadline/u);
+  assert.doesNotMatch(calendar, /NearestApplicationDeadline/u);
+  assert.doesNotMatch(source("src/lib/v3/calendar-source.ts"), /readCalendarApplicationDeadlines|readNearestCalendarApplicationDeadline/);
   assert.match(calendar, /Без срока/u);
   assert.doesNotMatch(calendar, /прочитан.*не до конца|tasksTruncatedAfter/u);
 });

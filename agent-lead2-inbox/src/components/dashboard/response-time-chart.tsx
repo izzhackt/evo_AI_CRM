@@ -1,36 +1,45 @@
-"use client"
+'use client';
 
-import { Clock } from 'lucide-react'
-import { DOW_SHORT_MON_FIRST } from '@/lib/dashboard/date-utils'
-import type { ResponseTimeSummary } from '@/lib/dashboard/types'
-import { BarChart } from '@/components/tremor/bar-chart'
-import { useLanguage } from '@/hooks/use-language'
-import { EmptyState } from './empty-state'
-import { Skeleton } from './skeleton'
+import { Clock } from 'lucide-react';
+import { DOW_SHORT_MON_FIRST } from '@/lib/dashboard/date-utils';
+import type { ResponseTimeSummary } from '@/lib/dashboard/types';
+import { BarChart } from '@/components/tremor/bar-chart';
+import { useLanguage } from '@/hooks/use-language';
+import { EmptyState } from './empty-state';
+import { Skeleton } from './skeleton';
 
 interface ResponseTimeChartProps {
-  data: ResponseTimeSummary | null
-  loading: boolean
+  data: ResponseTimeSummary | null;
+  loading: boolean;
   /** Minutes. Surfaced as a "target" pill in the header. The
    *  hand-rolled SVG version drew this as a horizontal dashed
    *  line on the chart; Tremor BarChart doesn't expose Recharts
    *  primitives, so we promote it to the header for now. A
    *  follow-up can introduce an overlay or extend the vendored
    *  BarChart with a `referenceLines` prop. */
-  thresholdMinutes?: number
+  thresholdMinutes?: number;
 }
 
-const DOW_SHORT_RU_MON_FIRST = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const
+const DOW_SHORT_RU_MON_FIRST = [
+  'Пн',
+  'Вт',
+  'Ср',
+  'Чт',
+  'Пт',
+  'Сб',
+  'Вс',
+] as const;
 
 export function ResponseTimeChart({
   data,
   loading,
   thresholdMinutes = 5,
 }: ResponseTimeChartProps) {
-  const { locale, t } = useLanguage()
-  const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
-  const category = t('dashboard.response.category')
-  const dayLabels = locale === 'ru' ? DOW_SHORT_RU_MON_FIRST : DOW_SHORT_MON_FIRST
+  const { locale, t } = useLanguage();
+  const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false;
+  const category = t('dashboard.response.category');
+  const dayLabels =
+    locale === 'ru' ? DOW_SHORT_RU_MON_FIRST : DOW_SHORT_MON_FIRST;
 
   // Map buckets → Tremor rows. Null `avgMinutes` (no samples)
   // collapses to 0; the chart will render an empty slot for it.
@@ -41,16 +50,16 @@ export function ResponseTimeChart({
       day: dayLabels[i],
       [category]: b.avgMinutes ?? 0,
       samples: b.samples,
-    })) ?? []
+    })) ?? [];
 
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+    <section className="border-border bg-card rounded-xl border">
+      <header className="border-border flex items-center justify-between gap-3 border-b px-5 py-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-foreground text-sm font-semibold">
             {t('dashboard.response.title')}
           </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="text-muted-foreground mt-0.5 text-xs">
             {t('dashboard.response.description')}
           </p>
         </div>
@@ -64,7 +73,7 @@ export function ResponseTimeChart({
             <div>
               <div className="text-muted-foreground">
                 {t('dashboard.response.thisWeek')}{' '}
-                <span className="font-medium text-foreground tabular-nums">
+                <span className="text-foreground font-medium tabular-nums">
                   {fmt(data.thisWeekAvg)}
                 </span>
               </div>
@@ -104,12 +113,12 @@ export function ResponseTimeChart({
         )}
       </div>
     </section>
-  )
+  );
 }
 
 function fmt(mins: number | null): string {
-  if (mins == null) return '—'
-  if (mins < 1) return `${Math.max(1, Math.round(mins * 60))}s`
-  if (mins < 60) return `${mins.toFixed(1)}m`
-  return `${(mins / 60).toFixed(1)}h`
+  if (mins == null) return '—';
+  if (mins < 1) return `${Math.max(1, Math.round(mins * 60))}s`;
+  if (mins < 60) return `${mins.toFixed(1)}m`;
+  return `${(mins / 60).toFixed(1)}h`;
 }

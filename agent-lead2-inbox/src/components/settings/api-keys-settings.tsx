@@ -59,11 +59,14 @@ const SCOPE_LABEL_KEYS = {
 } as const;
 
 function fmtDate(iso: string, locale: 'en' | 'ru'): string {
-  return new Date(iso).toLocaleDateString(locale === 'ru' ? 'ru-RU' : undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return new Date(iso).toLocaleDateString(
+    locale === 'ru' ? 'ru-RU' : undefined,
+    {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }
+  );
 }
 
 function keyStatus(k: ApiKey): 'active' | 'revoked' | 'expired' {

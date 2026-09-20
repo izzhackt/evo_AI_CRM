@@ -42,12 +42,15 @@ describe('first-launch disabled route map', () => {
     ['/api/flows', 'flows'],
     ['/api/flows/cron', 'flows'],
     ['/api/flows/abc123/activate', 'flows'],
-  ])('blocks automation or flow-driven scheduling path %s', (pathname, feature) => {
-    expect(resolveFirstLaunchDisabledPath(pathname)).toEqual({
-      feature,
-      surface: 'api',
-    });
-  });
+  ])(
+    'blocks automation or flow-driven scheduling path %s',
+    (pathname, feature) => {
+      expect(resolveFirstLaunchDisabledPath(pathname)).toEqual({
+        feature,
+        surface: 'api',
+      });
+    }
+  );
 
   it.each([
     ['/broadcasts', 'broadcasts'],

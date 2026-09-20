@@ -108,7 +108,10 @@ export function ContactDetailView({
 
     const [tagsRes, contactTagsRes] = await Promise.all([
       supabase.from('tags').select('*').order('name'),
-      supabase.from('contact_tags').select('tag_id').eq('contact_id', contactId),
+      supabase
+        .from('contact_tags')
+        .select('tag_id')
+        .eq('contact_id', contactId),
     ]);
 
     if (tagsRes.data) setAllTags(tagsRes.data);
@@ -174,7 +177,15 @@ export function ContactDetailView({
       fetchCustomFields();
       fetchDeals();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals]);
+  }, [
+    open,
+    contactId,
+    fetchContact,
+    fetchTags,
+    fetchNotes,
+    fetchCustomFields,
+    fetchDeals,
+  ]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -331,38 +342,38 @@ export function ContactDetailView({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="bg-popover border-border text-popover-foreground sm:max-w-lg w-full p-0"
+        className="bg-popover border-border text-popover-foreground w-full p-0 sm:max-w-lg"
       >
         {loading || !contact ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="size-6 animate-spin text-primary" />
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="text-primary size-6 animate-spin" />
           </div>
         ) : (
-          <div className="flex flex-col h-full">
+          <div className="flex h-full flex-col">
             {/* Header */}
-            <SheetHeader className="p-4 border-b border-border/50">
+            <SheetHeader className="border-border/50 border-b p-4">
               <div className="flex items-center gap-3">
-                <Avatar className="size-12 bg-muted border border-border">
+                <Avatar className="bg-muted border-border size-12 border">
                   <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
                     {getInitials(contact.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <SheetTitle className="text-popover-foreground truncate">
                     {contact.name || t('common.unknown')}
                   </SheetTitle>
-                  <SheetDescription className="text-muted-foreground text-xs mt-0.5">
+                  <SheetDescription className="text-muted-foreground mt-0.5 text-xs">
                     {t('contacts.detail.leadProfile')}
                   </SheetDescription>
-                  <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-3 text-xs">
                     <button
                       onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                      className="hover:text-primary flex cursor-pointer items-center gap-1 transition-colors"
                     >
                       <Phone className="size-3" />
                       {contact.phone}
                       {copiedPhone ? (
-                        <Check className="size-3 text-primary" />
+                        <Check className="text-primary size-3" />
                       ) : (
                         <Copy className="size-3" />
                       )}
@@ -393,8 +404,11 @@ export function ContactDetailView({
             </SheetHeader>
 
             {/* Tabs */}
-            <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3">
+            <Tabs
+              defaultValue="details"
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <TabsList className="bg-muted/50 border-border mx-4 mt-3 border-b">
                 <TabsTrigger
                   value="details"
                   className="data-active:bg-muted data-active:text-primary text-muted-foreground"
@@ -428,10 +442,13 @@ export function ContactDetailView({
               </TabsList>
 
               {/* Details Tab */}
-              <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent
+                value="details"
+                className="flex-1 overflow-y-auto px-4 py-3"
+              >
                 <div className="space-y-3">
-                  <div className="rounded-md border border-border bg-muted/40 p-3">
-                    <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <div className="border-border bg-muted/40 rounded-md border p-3">
+                    <div className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wider uppercase">
                       <Link2 className="size-3" />
                       {t('contacts.detail.amoIdentity')}
                     </div>
@@ -443,10 +460,12 @@ export function ContactDetailView({
                         <span
                           className={
                             contact.amo_contact_id
-                              ? 'min-w-0 truncate font-mono text-foreground'
+                              ? 'text-foreground min-w-0 truncate font-mono'
                               : 'text-amber-300'
                           }
-                          title={contact.amo_contact_id ?? t('common.unresolved')}
+                          title={
+                            contact.amo_contact_id ?? t('common.unresolved')
+                          }
                         >
                           {contact.amo_contact_id ?? t('common.unresolved')}
                         </span>
@@ -458,13 +477,15 @@ export function ContactDetailView({
                         <span className="text-muted-foreground">
                           {contact.amo_contact_synced_at
                             ? new Date(
-                                contact.amo_contact_synced_at,
-                              ).toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US')
+                                contact.amo_contact_synced_at
+                              ).toLocaleString(
+                                locale === 'ru' ? 'ru-RU' : 'en-US'
+                              )
                             : t('common.notSynced')}
                         </span>
                       </div>
                     </div>
-                    <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                    <p className="text-muted-foreground mt-2 text-[11px] leading-4">
                       {t('contacts.detail.amoHint')}
                     </p>
                   </div>
@@ -480,7 +501,8 @@ export function ContactDetailView({
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">
-                      {t('common.phone')} <span className="text-red-400">*</span>
+                      {t('common.phone')}{' '}
+                      <span className="text-red-400">*</span>
                     </Label>
                     <Input
                       value={editPhone}
@@ -525,13 +547,16 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Tags Tab */}
-              <TabsContent value="tags" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent
+                value="tags"
+                className="flex-1 overflow-y-auto px-4 py-3"
+              >
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     {t('contacts.detail.tagHint')}
                   </p>
                   {allTags.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-muted-foreground text-sm">
                       {t('contacts.detail.noTagsAvailable')}
                     </p>
                   ) : (
@@ -543,9 +568,9 @@ export function ContactDetailView({
                             key={tag.id}
                             onClick={() => toggleTag(tag.id)}
                             disabled={savingTags}
-                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            className={`inline-flex cursor-pointer items-center rounded-full px-3 py-1 text-xs font-medium transition-all ${
                               selected
-                                ? 'ring-2 ring-primary ring-offset-1 ring-offset-border'
+                                ? 'ring-primary ring-offset-border ring-2 ring-offset-1'
                                 : 'opacity-50 hover:opacity-80'
                             }`}
                             style={{
@@ -553,7 +578,7 @@ export function ContactDetailView({
                               color: tag.color,
                             }}
                           >
-                            {selected && <Check className="size-3 mr-1" />}
+                            {selected && <Check className="mr-1 size-3" />}
                             {tag.name}
                           </button>
                         );
@@ -564,13 +589,16 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Notes Tab */}
-              <TabsContent value="notes" className="flex-1 flex flex-col min-h-0 px-4 py-3">
-                <div className="space-y-2 mb-3">
+              <TabsContent
+                value="notes"
+                className="flex min-h-0 flex-1 flex-col px-4 py-3"
+              >
+                <div className="mb-3 space-y-2">
                   <Textarea
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
                     placeholder={t('contacts.detail.writeNote')}
-                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground min-h-[60px] text-sm resize-none"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground min-h-[60px] resize-none text-sm"
                   />
                   <Button
                     onClick={addNote}
@@ -587,40 +615,43 @@ export function ContactDetailView({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2">
+                <div className="flex-1 space-y-2 overflow-y-auto">
                   {loadingNotes ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                      <Loader2 className="text-muted-foreground size-5 animate-spin" />
                     </div>
                   ) : notes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
+                    <p className="text-muted-foreground py-8 text-center text-sm">
                       {t('contacts.detail.noNotes')}
                     </p>
                   ) : (
                     notes.map((note) => (
                       <div
                         key={note.id}
-                        className="rounded-lg bg-muted/50 border border-border/50 p-3 group"
+                        className="bg-muted/50 border-border/50 group rounded-lg border p-3"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap flex-1">
+                          <p className="text-muted-foreground flex-1 text-sm whitespace-pre-wrap">
                             {note.note_text}
                           </p>
                           <button
                             onClick={() => deleteNote(note.id)}
-                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
+                            className="text-muted-foreground shrink-0 cursor-pointer opacity-0 transition-all group-hover:opacity-100 hover:text-red-400"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1.5">
-                          {new Date(note.created_at).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                        <p className="text-muted-foreground mt-1.5 text-xs">
+                          {new Date(note.created_at).toLocaleDateString(
+                            locale === 'ru' ? 'ru-RU' : 'en-US',
+                            {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }
+                          )}
                         </p>
                       </div>
                     ))
@@ -629,13 +660,16 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Custom Fields Tab */}
-              <TabsContent value="custom" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent
+                value="custom"
+                className="flex-1 overflow-y-auto px-4 py-3"
+              >
                 {loadingCustom ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    <Loader2 className="text-muted-foreground size-5 animate-spin" />
                   </div>
                 ) : customFields.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
+                  <p className="text-muted-foreground py-8 text-center text-sm">
                     {t('contacts.detail.noCustomFields')}
                   </p>
                 ) : (
@@ -656,7 +690,7 @@ export function ContactDetailView({
                           placeholder={t('contacts.detail.enterCustomField', {
                             field: field.field_name,
                           })}
-                          className="bg-muted border-border text-foreground h-8 text-sm placeholder:text-muted-foreground"
+                          className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-8 text-sm"
                         />
                       </div>
                     ))}
@@ -678,13 +712,16 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Deals Tab */}
-              <TabsContent value="deals" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent
+                value="deals"
+                className="flex-1 overflow-y-auto px-4 py-3"
+              >
                 {loadingDeals ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="size-5 animate-spin text-primary" />
+                    <Loader2 className="text-primary size-5 animate-spin" />
                   </div>
                 ) : deals.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     {t('contacts.detail.noDeals')}
                   </p>
                 ) : (
@@ -692,10 +729,10 @@ export function ContactDetailView({
                     {deals.map((deal) => (
                       <div
                         key={deal.id}
-                        className="rounded-lg border border-border bg-muted/50 p-3"
+                        className="border-border bg-muted/50 rounded-lg border p-3"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-foreground">
+                          <p className="text-foreground text-sm font-medium">
                             {deal.title}
                           </p>
                           {deal.stage && (
@@ -710,12 +747,12 @@ export function ContactDetailView({
                             </span>
                           )}
                         </div>
-                        <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="text-muted-foreground mt-1.5 flex items-center justify-between text-xs">
                           <span className="flex items-center gap-1">
                             <DollarSign className="size-3" />
                             {formatCurrency(
                               deal.value ?? 0,
-                              deal.currency || defaultCurrency,
+                              deal.currency || defaultCurrency
                             )}
                           </span>
                           {deal.status && deal.status !== 'open' && (

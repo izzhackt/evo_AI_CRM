@@ -21,7 +21,10 @@ export interface AmoCrmLead {
 
 export interface AmoCrmClient {
   findContactByPhone(phone: string): Promise<AmoCrmContact | null>;
-  createContact(input: { phone: string; name?: string | null }): Promise<AmoCrmContact>;
+  createContact(input: {
+    phone: string;
+    name?: string | null;
+  }): Promise<AmoCrmContact>;
   createLead(input: { contactId: string; name: string }): Promise<AmoCrmLead>;
 }
 
@@ -68,7 +71,9 @@ function normalizePhoneE164(phone: string): string {
   return digits ? `+${digits}` : '';
 }
 
-function numericId(value: string | number | null | undefined): number | undefined {
+function numericId(
+  value: string | number | null | undefined
+): number | undefined {
   if (value == null || value === '') return undefined;
   const n = Number(value);
   return Number.isFinite(n) ? n : undefined;
@@ -102,7 +107,10 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-function firstEmbedded(data: unknown, key: 'contacts' | 'leads'): Record<string, unknown> | null {
+function firstEmbedded(
+  data: unknown,
+  key: 'contacts' | 'leads'
+): Record<string, unknown> | null {
   if (!data || typeof data !== 'object') return null;
   const embedded = (data as Record<string, unknown>)._embedded;
   if (!embedded || typeof embedded !== 'object') return null;
@@ -161,11 +169,14 @@ function toLead(row: Record<string, unknown>): AmoCrmLead {
 
 export function createAmoCrmClient(
   config: AmoCrmConfig,
-  fetchImpl: FetchLike = fetch,
+  fetchImpl: FetchLike = fetch
 ): AmoCrmClient {
   const safeConfig = validateConfig(config);
 
-  async function request(path: string, init: RequestInit = {}): Promise<unknown> {
+  async function request(
+    path: string,
+    init: RequestInit = {}
+  ): Promise<unknown> {
     const response = await fetchImpl(`${safeConfig.baseUrl}${path}`, {
       ...init,
       headers: {
@@ -180,7 +191,7 @@ export function createAmoCrmClient(
       throw new AmoCrmProviderError(
         `amoCRM API failed with ${response.status}`,
         response.status,
-        data,
+        data
       );
     }
     return data;
@@ -235,7 +246,7 @@ export function createAmoCrmClient(
         throw new AmoCrmProviderError(
           'amoCRM contact create response did not include a contact id',
           502,
-          data,
+          data
         );
       }
       return toContact(row);
@@ -271,7 +282,7 @@ export function createAmoCrmClient(
         throw new AmoCrmProviderError(
           'amoCRM lead create response did not include a lead id',
           502,
-          data,
+          data
         );
       }
       return toLead(row);

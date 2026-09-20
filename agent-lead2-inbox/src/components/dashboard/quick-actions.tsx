@@ -1,48 +1,67 @@
-"use client"
+'use client';
 
-import Link from 'next/link'
-import { Briefcase, MessageSquare, UserPlus } from 'lucide-react'
-import type { ComponentType } from 'react'
-import { useLanguage } from '@/hooks/use-language'
-import type { TranslationKey } from '@/lib/i18n'
+import Link from 'next/link';
+import { Briefcase, MessageSquare, UserPlus } from 'lucide-react';
+import type { ComponentType } from 'react';
+import { useLanguage } from '@/hooks/use-language';
+import type { TranslationKey } from '@/lib/i18n';
 
 // Quick-action shortcuts. Each navigates to the page that owns the
 // relevant "create" flow. We deliberately don't try to auto-open any
 // modal on the target page — that'd require touching those pages,
 // which is out of scope here.
 interface Action {
-  labelKey: TranslationKey
-  href: string
-  icon: ComponentType<{ className?: string }>
-  tint: string
+  labelKey: TranslationKey;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  tint: string;
 }
 
 const ACTIONS: Action[] = [
-  { labelKey: 'dashboard.quick.inbox', href: '/inbox', icon: MessageSquare, tint: 'text-primary' },
-  { labelKey: 'dashboard.quick.newLead', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
-  { labelKey: 'dashboard.quick.pipeline', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
-]
+  {
+    labelKey: 'dashboard.quick.inbox',
+    href: '/inbox',
+    icon: MessageSquare,
+    tint: 'text-primary',
+  },
+  {
+    labelKey: 'dashboard.quick.newLead',
+    href: '/contacts',
+    icon: UserPlus,
+    tint: 'text-primary',
+  },
+  {
+    labelKey: 'dashboard.quick.pipeline',
+    href: '/pipelines',
+    icon: Briefcase,
+    tint: 'text-blue-400',
+  },
+];
 
 export function QuickActions() {
-  const { t } = useLanguage()
+  const { t } = useLanguage();
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {ACTIONS.map((a) => {
-        const Icon = a.icon
+        const Icon = a.icon;
         return (
           <Link
             key={a.href}
             href={a.href}
-            className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-border hover:bg-muted/60"
+            className="group border-border bg-card hover:border-border hover:bg-muted/60 flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors"
           >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${a.tint}`}>
+            <div
+              className={`bg-muted flex h-9 w-9 items-center justify-center rounded-lg ${a.tint}`}
+            >
               <Icon className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium text-foreground">{t(a.labelKey)}</span>
+            <span className="text-foreground text-sm font-medium">
+              {t(a.labelKey)}
+            </span>
           </Link>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

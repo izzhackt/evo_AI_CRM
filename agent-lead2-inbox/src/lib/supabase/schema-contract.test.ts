@@ -531,9 +531,7 @@ describe('Unified EVO Supabase schema contract', () => {
     expect(platformManualSendWahaRuntimeMigration).toMatch(
       /CHECK\s*\(waha_session_name\s*=\s*'evo-inbox'\)/i
     );
-    expect(platformManualSendWahaRuntimeMigration).not.toMatch(
-      /crm_primary/i
-    );
+    expect(platformManualSendWahaRuntimeMigration).not.toMatch(/crm_primary/i);
     expect(platformManualSendWahaProvisioningMigration).toMatch(
       /ADD\s+COLUMN\s+api_key_sha256\s+TEXT/i
     );

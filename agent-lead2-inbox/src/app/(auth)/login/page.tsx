@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { useLanguage } from "@/hooks/use-language";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { useLanguage } from '@/hooks/use-language';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { MessageSquare, UsersRound } from "lucide-react";
-import { LanguageToggle } from "@/components/layout/language-toggle";
+} from '@/components/ui/card';
+import { MessageSquare, UsersRound } from 'lucide-react';
+import { LanguageToggle } from '@/components/layout/language-toggle';
 
 // `useSearchParams` opts the component out of static prerendering
 // unless it sits under a Suspense boundary. We split the form into
@@ -36,10 +36,10 @@ function LoginPageInner() {
   // Forwarded from `/join/<token>` when the visitor already has an
   // account. After a successful sign-in we send them to the join
   // page to accept rather than to /dashboard.
-  const inviteToken = searchParams.get("invite");
+  const inviteToken = searchParams.get('invite');
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -65,31 +65,31 @@ function LoginPageInner() {
     if (inviteToken) {
       router.push(`/join/${encodeURIComponent(inviteToken)}`);
     } else {
-      router.push("/dashboard");
+      router.push('/dashboard');
     }
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="absolute right-4 top-4">
+    <div className="bg-background relative flex min-h-screen items-center justify-center px-4">
+      <div className="absolute top-4 right-4">
         <LanguageToggle />
       </div>
-      <Card className="w-full max-w-md border-border bg-card">
+      <Card className="border-border bg-card w-full max-w-md">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
             {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
+              <UsersRound className="text-primary h-6 w-6" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <MessageSquare className="text-primary h-6 w-6" />
             )}
           </div>
-          <CardTitle className="text-xl text-foreground">
-            {inviteToken ? t("auth.login.inviteTitle") : t("auth.login.title")}
+          <CardTitle className="text-foreground text-xl">
+            {inviteToken ? t('auth.login.inviteTitle') : t('auth.login.title')}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             {inviteToken
-              ? t("auth.login.inviteDescription")
-              : t("auth.login.description")}
+              ? t('auth.login.inviteDescription')
+              : t('auth.login.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -102,12 +102,12 @@ function LoginPageInner() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-muted-foreground">
-                {t("common.email")}
+                {t('common.email')}
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder={t("auth.login.emailPlaceholder")}
+                placeholder={t('auth.login.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -118,19 +118,19 @@ function LoginPageInner() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-muted-foreground">
-                  {t("auth.login.password")}
+                  {t('auth.login.password')}
                 </Label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm text-primary hover:text-primary/80"
+                  className="text-primary hover:text-primary/80 text-sm"
                 >
-                  {t("auth.login.forgotPassword")}
+                  {t('auth.login.forgotPassword')}
                 </Link>
               </div>
               <Input
                 id="password"
                 type="password"
-                placeholder={t("auth.login.passwordPlaceholder")}
+                placeholder={t('auth.login.passwordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -141,23 +141,23 @@ function LoginPageInner() {
             <Button
               type="submit"
               disabled={loading}
-              className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 h-10 w-full disabled:opacity-50"
             >
-              {loading ? t("auth.login.submitting") : t("auth.login.submit")}
+              {loading ? t('auth.login.submitting') : t('auth.login.submit')}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t("auth.login.noAccount")}{" "}
+          <p className="text-muted-foreground mt-6 text-center text-sm">
+            {t('auth.login.noAccount')}{' '}
             <Link
               href={
                 inviteToken
                   ? `/signup?invite=${encodeURIComponent(inviteToken)}`
-                  : "/signup"
+                  : '/signup'
               }
               className="text-primary hover:text-primary/80"
             >
-              {t("auth.login.createAccount")}
+              {t('auth.login.createAccount')}
             </Link>
           </p>
         </CardContent>

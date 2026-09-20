@@ -27,12 +27,14 @@ describe('verifySignatureHeader', () => {
 
   it('rejects a wrong secret', () => {
     expect(
-      verifySignatureHeader(header, body, ['whsec', 'other'].join('_'), now),
+      verifySignatureHeader(header, body, ['whsec', 'other'].join('_'), now)
     ).toBe(false);
   });
 
   it('rejects a stale timestamp (replay protection)', () => {
-    expect(verifySignatureHeader(header, body, secret, now + 10_000)).toBe(false);
+    expect(verifySignatureHeader(header, body, secret, now + 10_000)).toBe(
+      false
+    );
   });
 
   it('rejects a malformed header', () => {

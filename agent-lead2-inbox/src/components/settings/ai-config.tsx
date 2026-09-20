@@ -294,7 +294,9 @@ export function AiConfig() {
                   <SelectTrigger>
                     <SelectValue>
                       {(selected: AiProvider | null) =>
-                        selected ? PROVIDER_LABEL[selected] : t('ai.config.selectProvider')
+                        selected
+                          ? PROVIDER_LABEL[selected]
+                          : t('ai.config.selectProvider')
                       }
                     </SelectValue>
                   </SelectTrigger>
@@ -349,8 +351,12 @@ export function AiConfig() {
                   <button
                     type="button"
                     onClick={() => setShowKey((s) => !s)}
-                    aria-label={showKey ? t('ai.config.hideKey') : t('ai.config.showKey')}
-                    title={showKey ? t('ai.config.hideKey') : t('ai.config.showKey')}
+                    aria-label={
+                      showKey ? t('ai.config.hideKey') : t('ai.config.showKey')
+                    }
+                    title={
+                      showKey ? t('ai.config.hideKey') : t('ai.config.showKey')
+                    }
                     className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
                     tabIndex={-1}
                   >
@@ -441,7 +447,9 @@ export function AiConfig() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{t('ai.config.behaviour')}</CardTitle>
+            <CardTitle className="text-base">
+              {t('ai.config.behaviour')}
+            </CardTitle>
             <CardDescription>
               {t('ai.config.behaviourDescription')}
             </CardDescription>
@@ -459,12 +467,12 @@ export function AiConfig() {
               />
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+            <div className="border-border flex items-center justify-between gap-4 rounded-md border p-3">
               <div>
-                <p className="text-sm font-medium text-foreground">
+                <p className="text-foreground text-sm font-medium">
                   {t('ai.config.enable')}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   {t('ai.config.enableHelp')}
                 </p>
               </div>
@@ -475,11 +483,11 @@ export function AiConfig() {
               />
             </div>
 
-            <div className="rounded-md border border-border bg-muted/30 p-3">
-              <p className="text-sm font-medium text-foreground">
+            <div className="border-border bg-muted/30 rounded-md border p-3">
+              <p className="text-foreground text-sm font-medium">
                 {t('ai.config.autoReplyDisabled')}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-1 text-xs">
                 {t('ai.config.autoReplyDisabledHelp')}
               </p>
             </div>

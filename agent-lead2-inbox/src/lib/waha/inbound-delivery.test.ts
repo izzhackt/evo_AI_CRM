@@ -14,7 +14,8 @@ import {
 } from './inbound-delivery';
 
 type Row = Record<string, unknown>;
-type TableName = 'contacts' | 'integration_settings' | 'conversations' | 'messages';
+type TableName =
+  'contacts' | 'integration_settings' | 'conversations' | 'messages';
 type Filter =
   | { op: 'eq'; column: string; value: unknown }
   | { op: 'neq'; column: string; value: unknown }
@@ -29,7 +30,7 @@ class MemoryBuilder {
 
   constructor(
     private readonly db: MemoryDb,
-    private readonly table: TableName,
+    private readonly table: TableName
   ) {}
 
   select() {
@@ -131,7 +132,14 @@ class MemoryDb {
   }
 
   from(table: string) {
-    if (!['contacts', 'integration_settings', 'conversations', 'messages'].includes(table)) {
+    if (
+      ![
+        'contacts',
+        'integration_settings',
+        'conversations',
+        'messages',
+      ].includes(table)
+    ) {
       throw new Error(`Unexpected table ${table}`);
     }
     return new MemoryBuilder(this, table as TableName);
@@ -139,7 +147,7 @@ class MemoryDb {
 
   select(table: TableName, filters: Filter[], limit: number | null) {
     const rows = this.tables[table].filter((row) =>
-      filters.every((filter) => matchesFilter(row, filter)),
+      filters.every((filter) => matchesFilter(row, filter))
     );
     return {
       data: limit == null ? rows : rows.slice(0, limit),
@@ -158,10 +166,13 @@ class MemoryDb {
       this.tables.messages.some(
         (row) =>
           row.waha_session_name === value.waha_session_name &&
-          row.waha_message_id === value.waha_message_id,
+          row.waha_message_id === value.waha_message_id
       )
     ) {
-      return { data: null, error: { code: '23505', message: 'duplicate waha id' } };
+      return {
+        data: null,
+        error: { code: '23505', message: 'duplicate waha id' },
+      };
     }
 
     const row = {
@@ -208,14 +219,17 @@ type TestDeps = WahaInboundDeliveryDeps & {
 };
 
 function createDeps(
-  overrides: Partial<WahaInboundDeliveryDeps> = {},
+  overrides: Partial<WahaInboundDeliveryDeps> = {}
 ): TestDeps {
   const base = {
-    loadAmoCrmConfig: vi.fn(async () => ({
-      settingId: 'amocrm-setting-1',
-      config: { baseUrl: 'https://evo.amocrm.ru', accessToken: 'token' },
-      publicConfig: {},
-    } satisfies AmoCrmRuntimeConfig)),
+    loadAmoCrmConfig: vi.fn(
+      async () =>
+        ({
+          settingId: 'amocrm-setting-1',
+          config: { baseUrl: 'https://evo.amocrm.ru', accessToken: 'token' },
+          publicConfig: {},
+        }) satisfies AmoCrmRuntimeConfig
+    ),
     createAmoCrmClient: vi.fn(() => ({}) as AmoCrmClient),
     resolveAmoCrmIdentityFromProvider: vi.fn(async () => ({
       amoContactId: '101',
@@ -239,7 +253,7 @@ describe('deliverWahaInboundMessage', () => {
 
     const result = await deliverWahaInboundMessage(
       { db, accountId: 'acct-1', message: inboundMessage },
-      deps,
+      deps
     );
 
     expect(result).toEqual({
@@ -256,9 +270,9 @@ describe('deliverWahaInboundMessage', () => {
       phone: '+14155551212',
       name: 'Alice Applicant',
     });
-    expect(
-      deps.findOrCreateContact.mock.invocationCallOrder[0],
-    ).toBeLessThan(deps.resolveAmoCrmIdentityFromProvider.mock.invocationCallOrder[0]);
+    expect(deps.findOrCreateContact.mock.invocationCallOrder[0]).toBeLessThan(
+      deps.resolveAmoCrmIdentityFromProvider.mock.invocationCallOrder[0]
+    );
     expect(deps.persistAmoCrmShadowIdentity).toHaveBeenCalledWith(
       db,
       expect.objectContaining({
@@ -267,7 +281,7 @@ describe('deliverWahaInboundMessage', () => {
         localConversationId: 'conversations-1',
         amoContactId: '101',
         amoLeadId: '202',
-      }),
+      })
     );
     expect(db.tables.messages).toEqual([
       expect.objectContaining({
@@ -309,7 +323,10 @@ describe('deliverWahaInboundMessage', () => {
     const deps = createDeps();
 
     await expect(
-      deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
+      deliverWahaInboundMessage(
+        { db, accountId: 'acct-1', message: inboundMessage },
+        deps
+      )
     ).resolves.toEqual({
       status: 'duplicate',
       conversationId: 'conversation-existing',
@@ -330,7 +347,10 @@ describe('deliverWahaInboundMessage', () => {
     });
 
     await expect(
-      deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
+      deliverWahaInboundMessage(
+        { db, accountId: 'acct-1', message: inboundMessage },
+        deps
+      )
     ).resolves.toMatchObject({
       status: 'received',
       conversationId: 'conversations-1',
@@ -366,7 +386,10 @@ describe('deliverWahaInboundMessage', () => {
     });
 
     await expect(
-      deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
+      deliverWahaInboundMessage(
+        { db, accountId: 'acct-1', message: inboundMessage },
+        deps
+      )
     ).resolves.toMatchObject({
       status: 'received',
       conversationId: 'conversations-1',
@@ -378,11 +401,13 @@ describe('deliverWahaInboundMessage', () => {
     expect(db.tables.messages).toHaveLength(1);
     expect(db.tables.conversations[0]).toMatchObject({
       crm_sync_status: 'pending',
-      crm_sync_error: 'amoCRM identity sync is pending after provider HTTP 503.',
+      crm_sync_error:
+        'amoCRM identity sync is pending after provider HTTP 503.',
     });
     expect(db.tables.messages[0]).toMatchObject({
       crm_sync_status: 'pending',
-      crm_sync_error: 'amoCRM identity sync is pending after provider HTTP 503.',
+      crm_sync_error:
+        'amoCRM identity sync is pending after provider HTTP 503.',
     });
     expect(db.tables.integration_settings[0]).toMatchObject({
       status: 'configured',
@@ -401,7 +426,10 @@ describe('deliverWahaInboundMessage', () => {
     });
 
     await expect(
-      deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
+      deliverWahaInboundMessage(
+        { db, accountId: 'acct-1', message: inboundMessage },
+        deps
+      )
     ).resolves.toMatchObject({
       status: 'received',
       conversationId: 'conversations-1',
@@ -429,7 +457,10 @@ describe('deliverWahaInboundMessage', () => {
     const deps = createDeps();
 
     await expect(
-      deliverWahaInboundMessage({ db, accountId: 'acct-1', message: inboundMessage }, deps),
+      deliverWahaInboundMessage(
+        { db, accountId: 'acct-1', message: inboundMessage },
+        deps
+      )
     ).rejects.toMatchObject({
       code: 'supabase_error',
       status: 500,

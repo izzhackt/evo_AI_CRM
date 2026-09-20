@@ -57,7 +57,10 @@ export async function resolveAmoCrmIdentityFromProvider(input: {
 interface ShadowDb {
   from(table: string): {
     update(value: Record<string, unknown>): {
-      eq(column: string, value: unknown): {
+      eq(
+        column: string,
+        value: unknown
+      ): {
         eq(column: string, value: unknown): unknown;
       };
     };
@@ -99,7 +102,7 @@ export async function resolveAmoCrmIdentity(input: {
 
 export async function persistAmoCrmShadowIdentity(
   db: ShadowDb,
-  input: PersistAmoCrmShadowInput,
+  input: PersistAmoCrmShadowInput
 ): Promise<void> {
   const now = new Date().toISOString();
   const contactResult = await db

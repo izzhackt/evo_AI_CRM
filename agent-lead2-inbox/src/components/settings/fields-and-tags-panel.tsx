@@ -19,7 +19,7 @@ export function FieldsAndTagsPanel() {
   const { t } = useLanguage();
 
   return (
-    <section className="max-w-3xl animate-in fade-in-50 space-y-4 duration-200">
+    <section className="animate-in fade-in-50 max-w-3xl space-y-4 duration-200">
       <SettingsPanelHead
         title={t('settings.fields.title')}
         description={t('settings.fields.description')}

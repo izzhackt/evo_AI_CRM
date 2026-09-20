@@ -8,7 +8,8 @@ export const LOCALE_STORAGE_KEY = 'evo-inbox.locale';
 
 export function isLocale(value: unknown): value is Locale {
   return (
-    typeof value === 'string' && (LOCALES as ReadonlyArray<string>).includes(value)
+    typeof value === 'string' &&
+    (LOCALES as ReadonlyArray<string>).includes(value)
   );
 }
 
@@ -138,21 +139,24 @@ const TRANSLATIONS = {
     'ai.tabs.setup': 'Setup',
     'ai.playground.subtitle': 'test draft language before staff send it',
     'ai.playground.reset': 'Reset',
-    'ai.playground.emptyTitle': 'Send a message to see how your agent would reply.',
+    'ai.playground.emptyTitle':
+      'Send a message to see how your agent would reply.',
     'ai.playground.emptyHint':
       'It uses your knowledge base to produce draft language only; automatic WhatsApp replies are disabled for first launch.',
     'ai.playground.setupLink': 'Not set up yet? Go to Setup',
     'ai.playground.handoff': 'Would hand off to a human here',
     'ai.playground.thinking': 'Thinking...',
     'ai.playground.placeholder': 'Type a customer message...',
-    'ai.playground.notConfigured': 'No agent configured yet - finish Setup first.',
+    'ai.playground.notConfigured':
+      'No agent configured yet - finish Setup first.',
     'ai.playground.replyFailed': "Couldn't get a reply.",
     'ai.playground.unreachable': "Couldn't reach the agent.",
 
     'ai.config.title': 'EVO Companion AI Assistant',
     'ai.config.description':
       'Bring your own OpenAI, Anthropic, or Gemini key. EVO Inbox uses it for draft replies and knowledge-grounded review only. Automatic WhatsApp replies are disabled for first launch.',
-    'ai.config.adminOnly': 'Only admins and owners can change the AI configuration.',
+    'ai.config.adminOnly':
+      'Only admins and owners can change the AI configuration.',
     'ai.config.loadFailed': 'Failed to load AI configuration',
     'ai.config.testSuccess': 'Key works - the provider responded.',
     'ai.config.testRejected': 'The provider rejected the request.',
@@ -275,7 +279,8 @@ const TRANSLATIONS = {
     'inbox.networkError': 'network error',
     'inbox.composer.sessionExpired':
       '24-hour WhatsApp session expired. First-launch outbound messaging is unavailable for this conversation.',
-    'inbox.composer.readOnlyCannotSend': "Read-only - your role can't send messages",
+    'inbox.composer.readOnlyCannotSend':
+      "Read-only - your role can't send messages",
     'inbox.composer.readOnlyPlaceholder':
       'Read-only - viewers can browse but not reply',
     'inbox.composer.sessionExpiredPlaceholder':
@@ -284,7 +289,8 @@ const TRANSLATIONS = {
     'inbox.session.expired': 'Expired',
     'inbox.session.hoursRemaining': '{count}h remaining',
     'inbox.session.minutesRemaining': '{count}m remaining',
-    'inbox.composer.placeholder': 'Type a message... (Shift+Enter for new line)',
+    'inbox.composer.placeholder':
+      'Type a message... (Shift+Enter for new line)',
     'inbox.composer.attachMedia': 'Attach media',
     'inbox.composer.mediaUnavailable':
       'Media sending is unavailable: this Inbox transport is verified only for text replies.',
@@ -348,7 +354,8 @@ const TRANSLATIONS = {
     'inbox.contact.addNote': 'Add a note...',
 
     'contacts.title': 'Lead profiles',
-    'contacts.description': 'Review WhatsApp lead profiles and amoCRM identity shadow records.',
+    'contacts.description':
+      'Review WhatsApp lead profiles and amoCRM identity shadow records.',
     'contacts.totalProfiles': '{count} total profiles.',
     'contacts.customFields': 'Custom fields',
     'contacts.import': 'Import',
@@ -388,11 +395,13 @@ const TRANSLATIONS = {
     'contacts.form.editTitle': 'Edit lead profile',
     'contacts.form.addTitle': 'Add lead profile',
     'contacts.form.editDescription': 'Update the contact details below.',
-    'contacts.form.addDescription': 'Fill in the details to create a new contact.',
+    'contacts.form.addDescription':
+      'Fill in the details to create a new contact.',
     'contacts.form.namePlaceholder': 'John Doe',
     'contacts.form.companyPlaceholder': 'Acme Inc.',
     'contacts.form.phoneRequired': 'Phone number is required',
-    'contacts.form.duplicateExact': 'A contact with this phone number already exists.',
+    'contacts.form.duplicateExact':
+      'A contact with this phone number already exists.',
     'contacts.form.duplicateSimilar':
       'A contact with a very similar number already exists.',
     'contacts.form.viewExisting': 'View existing contact',
@@ -415,8 +424,10 @@ const TRANSLATIONS = {
     'contacts.detail.amoHint':
       'amoCRM remains the canonical identity and sales-status source. EVO Inbox stores this read-only shadow id for operator context.',
     'contacts.detail.saveChanges': 'Save changes',
-    'contacts.detail.tagHint': 'Click a tag to add or remove it from this contact.',
-    'contacts.detail.noTagsAvailable': 'No tags available. Create tags in Settings.',
+    'contacts.detail.tagHint':
+      'Click a tag to add or remove it from this contact.',
+    'contacts.detail.noTagsAvailable':
+      'No tags available. Create tags in Settings.',
     'contacts.detail.writeNote': 'Write a note...',
     'contacts.detail.addNote': 'Add note',
     'contacts.detail.noNotes': 'No notes yet.',
@@ -490,7 +501,8 @@ const TRANSLATIONS = {
     'pipelines.settings.saveFailed': 'Failed to save pipeline',
     'pipelines.settings.saved': 'Pipeline saved',
     'pipelines.settings.addStageFailed': 'Failed to add stage',
-    'pipelines.settings.moveDealsFirst': 'Move or delete deals in this stage first',
+    'pipelines.settings.moveDealsFirst':
+      'Move or delete deals in this stage first',
     'pipelines.settings.deleteStageFailed': 'Failed to delete stage',
     'pipelines.settings.deleteFailed': 'Failed to delete pipeline',
     'pipelines.settings.deleted': 'Pipeline deleted',
@@ -561,7 +573,8 @@ const TRANSLATIONS = {
       'Password must be at least {count} characters',
     'settings.security.passwordMismatch':
       'New password and confirmation do not match',
-    'settings.security.currentPasswordIncorrect': 'Current password is incorrect',
+    'settings.security.currentPasswordIncorrect':
+      'Current password is incorrect',
     'settings.security.passwordUpdateFailed':
       'Password update failed: {message}',
     'settings.security.passwordUpdated': 'Password updated',
@@ -592,7 +605,8 @@ const TRANSLATIONS = {
     'settings.deals.defaultCurrencyDescription':
       'New deals default to this currency, and pipeline and dashboard totals are shown in it. Existing deals keep the currency they were saved with.',
     'settings.deals.currency': 'Currency',
-    'settings.deals.adminOnly': 'Only account admins can change the default currency.',
+    'settings.deals.adminOnly':
+      'Only account admins can change the default currency.',
     'settings.deals.saveFailed': 'Failed to save default currency',
     'settings.deals.saved': 'Default currency updated',
     'settings.fields.title': 'Fields & tags',
@@ -668,7 +682,8 @@ const TRANSLATIONS = {
       'Send API: POST /api/sendText with session, chatId, and text.',
     'settings.whatsapp.chatIds': 'Direct chat IDs use phone digits plus @c.us.',
     'settings.whatsapp.webhookAuth': 'Webhook auth',
-    'settings.whatsapp.hmacBodies': 'WAHA signs raw webhook bodies with sha512 HMAC.',
+    'settings.whatsapp.hmacBodies':
+      'WAHA signs raw webhook bodies with sha512 HMAC.',
     'settings.whatsapp.rejectInvalid':
       'Unsigned or invalid-HMAC session.status events are rejected.',
     'settings.whatsapp.keepPrivate':
@@ -770,11 +785,13 @@ const TRANSLATIONS = {
       'A key with no scopes can still call {path} to verify it works.',
     'settings.api.creating': 'Creating...',
     'settings.api.createKey': 'Create key',
-    'settings.api.scope.messagesRead': 'Read messages and their delivery status',
+    'settings.api.scope.messagesRead':
+      'Read messages and their delivery status',
     'settings.api.scope.contactsRead': 'List and read contacts',
     'settings.api.scope.contactsWrite': 'Create and update contacts',
     'settings.api.scope.conversationsRead': 'List and read conversations',
-    'settings.api.scope.webhooksManage': 'Register and manage outbound event webhooks',
+    'settings.api.scope.webhooksManage':
+      'Register and manage outbound event webhooks',
 
     'settings.members.title': 'Team members',
     'settings.members.description':
@@ -820,7 +837,8 @@ const TRANSLATIONS = {
     'settings.members.removeAction': 'Remove member',
 
     'settings.invite.createFailed': 'Failed to create invitation',
-    'settings.invite.serverUnreachable': 'Could not reach the server. Try again?',
+    'settings.invite.serverUnreachable':
+      'Could not reach the server. Try again?',
     'settings.invite.copied': 'Invite link copied',
     'settings.invite.clipboardBlocked':
       'Clipboard blocked — copy the link manually',
@@ -913,7 +931,8 @@ const TRANSLATIONS = {
     'inbox.template.preview': 'Preview',
     'inbox.template.headerValue': 'Value for the header variable',
     'inbox.template.valueFor': 'Value for {{value}}',
-    'inbox.template.urlButtonValue': 'URL button "{label}" — value for {{value}}',
+    'inbox.template.urlButtonValue':
+      'URL button "{label}" — value for {{value}}',
     'inbox.template.urlSuffix': 'URL suffix value',
     'inbox.template.finalUrl': 'Final URL: {url}',
 
@@ -1126,8 +1145,10 @@ const TRANSLATIONS = {
     'dashboard.quick.newLead': 'Новый профиль лида',
     'dashboard.quick.pipeline': 'Доска воронки',
     'dashboard.conversations.title': 'Диалоги во времени',
-    'dashboard.conversations.description': 'Дневной объем сообщений по направлению',
-    'dashboard.conversations.emptyTitle': 'Нет активности сообщений за этот период',
+    'dashboard.conversations.description':
+      'Дневной объем сообщений по направлению',
+    'dashboard.conversations.emptyTitle':
+      'Нет активности сообщений за этот период',
     'dashboard.conversations.emptyHint':
       'Отправьте или получите сообщения, чтобы заполнить этот график.',
     'dashboard.conversations.incoming': 'Входящие',
@@ -1164,23 +1185,27 @@ const TRANSLATIONS = {
       'Настройте генерацию черновиков через ваш OpenAI, Anthropic или Gemini ключ, поиск по базе знаний и проверку оператором. Автоответы отключены для первого запуска.',
     'ai.tabs.playground': 'Песочница',
     'ai.tabs.setup': 'Настройка',
-    'ai.playground.subtitle': 'проверьте текст черновика до отправки оператором',
+    'ai.playground.subtitle':
+      'проверьте текст черновика до отправки оператором',
     'ai.playground.reset': 'Сбросить',
-    'ai.playground.emptyTitle': 'Отправьте сообщение, чтобы увидеть ответ агента.',
+    'ai.playground.emptyTitle':
+      'Отправьте сообщение, чтобы увидеть ответ агента.',
     'ai.playground.emptyHint':
       'Он использует базу знаний только для черновиков; автоматические WhatsApp-ответы отключены для первого запуска.',
     'ai.playground.setupLink': 'Еще не настроено? Перейти к настройке',
     'ai.playground.handoff': 'Здесь был бы перевод на человека',
     'ai.playground.thinking': 'Думаем...',
     'ai.playground.placeholder': 'Введите сообщение клиента...',
-    'ai.playground.notConfigured': 'Агент еще не настроен - сначала завершите настройку.',
+    'ai.playground.notConfigured':
+      'Агент еще не настроен - сначала завершите настройку.',
     'ai.playground.replyFailed': 'Не удалось получить ответ.',
     'ai.playground.unreachable': 'Не удалось связаться с агентом.',
 
     'ai.config.title': 'AI-ассистент EVO Companion',
     'ai.config.description':
       'Подключите ваш ключ OpenAI, Anthropic или Gemini. EVO Inbox использует его только для черновиков ответов и проверки по базе знаний. Автоматические WhatsApp-ответы отключены для первого запуска.',
-    'ai.config.adminOnly': 'Только админы и владельцы могут менять AI-настройки.',
+    'ai.config.adminOnly':
+      'Только админы и владельцы могут менять AI-настройки.',
     'ai.config.loadFailed': 'Не удалось загрузить AI-настройки',
     'ai.config.testSuccess': 'Ключ работает - провайдер ответил.',
     'ai.config.testRejected': 'Провайдер отклонил запрос.',
@@ -1240,7 +1265,8 @@ const TRANSLATIONS = {
     'ai.knowledge.reindexFailed': 'Переиндексация не удалась.',
     'ai.knowledge.empty': 'Документов пока нет.',
     'ai.knowledge.titleLabel': 'Название',
-    'ai.knowledge.titlePlaceholder': 'например, чеклист поступления на бакалавриат в Италии',
+    'ai.knowledge.titlePlaceholder':
+      'например, чеклист поступления на бакалавриат в Италии',
     'ai.knowledge.contentLabel': 'Содержимое',
     'ai.knowledge.contentPlaceholder':
       'Вставьте утвержденный гайд EVO, чеклист, политику или заметку оператора.',
@@ -1420,7 +1446,8 @@ const TRANSLATIONS = {
     'contacts.form.editTitle': 'Изменить профиль лида',
     'contacts.form.addTitle': 'Добавить профиль лида',
     'contacts.form.editDescription': 'Обновите данные контакта ниже.',
-    'contacts.form.addDescription': 'Заполните данные, чтобы создать новый контакт.',
+    'contacts.form.addDescription':
+      'Заполните данные, чтобы создать новый контакт.',
     'contacts.form.namePlaceholder': 'Иван Иванов',
     'contacts.form.companyPlaceholder': 'EVO Admissions',
     'contacts.form.phoneRequired': 'Телефон обязателен',
@@ -1447,8 +1474,10 @@ const TRANSLATIONS = {
     'contacts.detail.amoHint':
       'amoCRM остается каноничным источником identity и статуса продаж. EVO Inbox хранит этот read-only shadow id для контекста оператора.',
     'contacts.detail.saveChanges': 'Сохранить изменения',
-    'contacts.detail.tagHint': 'Нажмите тег, чтобы добавить или убрать его у контакта.',
-    'contacts.detail.noTagsAvailable': 'Доступных тегов нет. Создайте теги в настройках.',
+    'contacts.detail.tagHint':
+      'Нажмите тег, чтобы добавить или убрать его у контакта.',
+    'contacts.detail.noTagsAvailable':
+      'Доступных тегов нет. Создайте теги в настройках.',
     'contacts.detail.writeNote': 'Напишите заметку...',
     'contacts.detail.addNote': 'Добавить заметку',
     'contacts.detail.noNotes': 'Заметок пока нет.',
@@ -1523,7 +1552,8 @@ const TRANSLATIONS = {
     'pipelines.settings.saveFailed': 'Не удалось сохранить воронку',
     'pipelines.settings.saved': 'Воронка сохранена',
     'pipelines.settings.addStageFailed': 'Не удалось добавить этап',
-    'pipelines.settings.moveDealsFirst': 'Сначала переместите или удалите сделки на этом этапе',
+    'pipelines.settings.moveDealsFirst':
+      'Сначала переместите или удалите сделки на этом этапе',
     'pipelines.settings.deleteStageFailed': 'Не удалось удалить этап',
     'pipelines.settings.deleteFailed': 'Не удалось удалить воронку',
     'pipelines.settings.deleted': 'Воронка удалена',
@@ -1543,7 +1573,8 @@ const TRANSLATIONS = {
     'notifications.description':
       'Здесь появляются диалоги, которые другие участники назначают вам.',
     'notifications.markAllRead': 'Отметить все прочитанными',
-    'notifications.markReadFailed': 'Не удалось отметить уведомление прочитанным',
+    'notifications.markReadFailed':
+      'Не удалось отметить уведомление прочитанным',
     'notifications.markAllFailed': 'Не удалось отметить все прочитанными',
     'notifications.emptyTitle': 'Уведомлений пока нет',
     'notifications.emptyHint':
@@ -1554,7 +1585,8 @@ const TRANSLATIONS = {
     'settings.profile.description':
       'Так вы отображаетесь в приложении. Аватар и имя видны в шапке, сайдбаре и там, где вас видят коллеги.',
     'settings.profile.unsupportedImage': 'Неподдерживаемый тип изображения',
-    'settings.profile.supportedImageTypes': 'Используйте PNG, JPG, WebP или GIF.',
+    'settings.profile.supportedImageTypes':
+      'Используйте PNG, JPG, WebP или GIF.',
     'settings.profile.imageTooLarge': 'Изображение слишком большое',
     'settings.profile.maxAvatar': 'Максимум 2 МБ.',
     'settings.profile.nameRequired': 'Отображаемое имя обязательно.',
@@ -1625,7 +1657,8 @@ const TRANSLATIONS = {
     'settings.deals.defaultCurrencyDescription':
       'Новые сделки получают эту валюту по умолчанию, а итоги воронки и дашборда показываются в ней. Существующие сделки сохраняют свою валюту.',
     'settings.deals.currency': 'Валюта',
-    'settings.deals.adminOnly': 'Только админы аккаунта могут менять валюту по умолчанию.',
+    'settings.deals.adminOnly':
+      'Только админы аккаунта могут менять валюту по умолчанию.',
     'settings.deals.saveFailed': 'Не удалось сохранить валюту по умолчанию',
     'settings.deals.saved': 'Валюта по умолчанию обновлена',
     'settings.fields.title': 'Поля и теги',
@@ -1654,7 +1687,8 @@ const TRANSLATIONS = {
     'settings.fields.newFieldPlaceholder': 'Название нового поля...',
     'settings.fields.addField': 'Добавить',
     'settings.fields.noCustomFields': 'Пользовательских полей пока нет.',
-    'settings.fields.duplicateField': 'Поле с названием "{name}" уже существует.',
+    'settings.fields.duplicateField':
+      'Поле с названием "{name}" уже существует.',
     'settings.fields.createFieldFailed':
       'Не удалось создать поле. Возможно, нет прав.',
     'settings.fields.fieldCreated': 'Создано "{name}".',
@@ -1699,9 +1733,11 @@ const TRANSLATIONS = {
     'settings.whatsapp.defaultSession': 'Сессия по умолчанию: {session}',
     'settings.whatsapp.sendApi':
       'Send API: POST /api/sendText с session, chatId и text.',
-    'settings.whatsapp.chatIds': 'Прямые chat ID используют цифры телефона плюс @c.us.',
+    'settings.whatsapp.chatIds':
+      'Прямые chat ID используют цифры телефона плюс @c.us.',
     'settings.whatsapp.webhookAuth': 'Webhook auth',
-    'settings.whatsapp.hmacBodies': 'WAHA подписывает raw webhook body через sha512 HMAC.',
+    'settings.whatsapp.hmacBodies':
+      'WAHA подписывает raw webhook body через sha512 HMAC.',
     'settings.whatsapp.rejectInvalid':
       'Unsigned или invalid-HMAC session.status события отклоняются.',
     'settings.whatsapp.keepPrivate':
@@ -1806,7 +1842,8 @@ const TRANSLATIONS = {
     'settings.api.scope.messagesRead': 'Читать сообщения и статусы доставки',
     'settings.api.scope.contactsRead': 'Смотреть список контактов и их данные',
     'settings.api.scope.contactsWrite': 'Создавать и обновлять контакты',
-    'settings.api.scope.conversationsRead': 'Смотреть список диалогов и их данные',
+    'settings.api.scope.conversationsRead':
+      'Смотреть список диалогов и их данные',
     'settings.api.scope.webhooksManage':
       'Регистрировать и управлять исходящими webhook-событиями',
 
@@ -1815,12 +1852,14 @@ const TRANSLATIONS = {
       'Люди с доступом к этому аккаунту. Роли определяют, что может делать каждый участник.',
     'settings.members.inviteMember': 'Пригласить участника',
     'settings.members.loadFailed': 'Не удалось загрузить участников',
-    'settings.members.invitationsLoadFailed': 'Не удалось загрузить приглашения',
+    'settings.members.invitationsLoadFailed':
+      'Не удалось загрузить приглашения',
     'settings.members.updateFailed': 'Не удалось обновить участника',
     'settings.members.roleUpdated': '{name}: роль изменена на {role}',
     'settings.members.removeFailed': 'Не удалось удалить участника',
     'settings.members.removed': '{name} удален из аккаунта',
-    'settings.members.revokeInvitationFailed': 'Не удалось отозвать приглашение',
+    'settings.members.revokeInvitationFailed':
+      'Не удалось отозвать приглашение',
     'settings.members.invitationRevoked': 'Приглашение отозвано',
     'settings.members.online': '{count} онлайн',
     'settings.members.away': '{count} отошли',
@@ -1854,7 +1893,8 @@ const TRANSLATIONS = {
     'settings.members.removeAction': 'Удалить участника',
 
     'settings.invite.createFailed': 'Не удалось создать приглашение',
-    'settings.invite.serverUnreachable': 'Не удалось связаться с сервером. Попробовать еще раз?',
+    'settings.invite.serverUnreachable':
+      'Не удалось связаться с сервером. Попробовать еще раз?',
     'settings.invite.copied': 'Ссылка приглашения скопирована',
     'settings.invite.clipboardBlocked':
       'Буфер обмена заблокирован — скопируйте ссылку вручную',
@@ -1947,7 +1987,8 @@ const TRANSLATIONS = {
     'inbox.template.preview': 'Предпросмотр',
     'inbox.template.headerValue': 'Значение переменной header',
     'inbox.template.valueFor': 'Значение для {{value}}',
-    'inbox.template.urlButtonValue': 'URL-кнопка "{label}" — значение для {{value}}',
+    'inbox.template.urlButtonValue':
+      'URL-кнопка "{label}" — значение для {{value}}',
     'inbox.template.urlSuffix': 'Значение URL suffix',
     'inbox.template.finalUrl': 'Итоговый URL: {url}',
 
@@ -2014,7 +2055,8 @@ const TRANSLATIONS = {
     'auth.join.createInstead': 'Создать новый аккаунт',
     'auth.join.signIn': 'Войти',
     'auth.join.invitedTo': 'Вас пригласили в {account}',
-    'auth.join.joinAs': 'Вы войдете с ролью {role}. Ссылка действует до {date}.',
+    'auth.join.joinAs':
+      'Вы войдете с ролью {role}. Ссылка действует до {date}.',
     'auth.join.accepting': 'Принимаем...',
     'auth.join.accept': 'Принять приглашение',
     'auth.join.acceptHint':
@@ -2084,9 +2126,10 @@ export type TranslationParams = Record<string, string | number>;
 export function translate(
   locale: Locale,
   key: TranslationKey,
-  params?: TranslationParams,
+  params?: TranslationParams
 ): string {
-  let text: string = TRANSLATIONS[locale][key] ?? TRANSLATIONS[DEFAULT_LOCALE][key];
+  let text: string =
+    TRANSLATIONS[locale][key] ?? TRANSLATIONS[DEFAULT_LOCALE][key];
   if (!params) return text;
   for (const [name, value] of Object.entries(params)) {
     text = text.replaceAll(`{${name}}`, String(value));

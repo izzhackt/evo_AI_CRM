@@ -33292,3 +33292,24 @@ Admin / Sales cabinet_pending, вне preview. Для просмотра без 
 прав решения по заявке или ручной подготовки. Серверные операции и их payload,
 регистрация, привязки, назначения и provider-поведение не меняются. Живая проверка
 этого среза ограничена отображением и навигацией, без отправки писем и auth writes.
+
+
+## 2026-09-20 — Whole-product refinement with dedicated page agents
+
+The owner explicitly expanded UX analysis/refinement to staff CRM, desktop and
+mobile product web, and the iPhone app. Preserve the recognizable EVO identity
+and useful functionality; CRM may receive substantial task/layout improvements.
+Assess functions, permissions, data/state, cross-surface outcomes and the existing
+CRM/admissions plan together with visual design, typography and responsive use.
+Dedicated agents per page are authorized. Initial independent page analyses are
+read-only and may run alongside the pending #929/#935 acceptance; shared schema,
+API, CSS/shell integration and release retain one coordinator.
+
+The additive contract is `docs/EVO_UX_REFINEMENT_PLAN_2026-09-20.md`; detailed
+page briefs are in `docs/design/ux-refinement/`. The earlier business scope and
+owner decisions remain: immediate program preparation, Students directory layout
+unchanged, deferred final E2E/content/App Store. All-page analysis does not silently
+add business features, rebuild the knowledge pipeline or alter provider settings.
+No code/schema/production change is part of this documentation block. No repeated
+approval is needed for ordinary design choices within the accepted direction;
+production migration/Auth/provider writes and release keep their own authority.

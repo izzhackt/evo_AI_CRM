@@ -47,6 +47,15 @@ BEGIN
    OR EXISTS(SELECT 1 FROM unnest(case_ids) x(id) WHERE NOT EXISTS(SELECT 1 FROM platform.student_cases requested_case WHERE requested_case.organization_id=p_org AND requested_case.id=x.id)) THEN
    RAISE EXCEPTION 'knowledge_not_found' USING ERRCODE='P0002';
  END IF;
+ IF NOT trash AND EXISTS(SELECT 1 FROM platform.document_versions v JOIN platform.document_slots s ON s.id=v.document_slot_id AND s.organization_id=v.organization_id
+   WHERE v.organization_id=p_org AND v.id=ANY(doc_ids) AND s.removed_at IS NOT NULL) THEN
+   RAISE EXCEPTION 'knowledge_in_trash' USING ERRCODE='PT409';
+ END IF;
+ IF NOT archive AND (EXISTS(SELECT 1 FROM platform.company_file_versions v JOIN platform.company_files cf ON cf.id=v.company_file_id AND cf.organization_id=v.organization_id
+   WHERE v.organization_id=p_org AND v.id=ANY(company_ids) AND cf.archived_at IS NOT NULL)
+   OR EXISTS(SELECT 1 FROM platform.company_file_folders requested_folder WHERE requested_folder.organization_id=p_org AND requested_folder.id=ANY(requested_folders) AND requested_folder.archived_at IS NOT NULL)) THEN
+   RAISE EXCEPTION 'knowledge_invalid' USING ERRCODE='22023';
+ END IF;
  -- Documents only: no overview, chat, activity or unrelated manual materials.
  FOR c IN SELECT sc.* FROM platform.student_cases sc WHERE sc.organization_id=p_org AND (
    all_documents OR sc.id=ANY(case_ids) OR EXISTS(
@@ -79,10 +88,10 @@ BEGIN
      UNION SELECT source_folder.id FROM platform.company_file_folders source_folder JOIN chosen chosen_parent ON source_folder.parent_folder_id=chosen_parent.id WHERE source_folder.organization_id=p_org AND (archive OR source_folder.archived_at IS NULL)
    ) SELECT coalesce(array_agg(id),'{}') INTO selected_folders FROM chosen;
    WITH RECURSIVE ancestors AS (
-     SELECT source_folder.id,f.parent_folder_id FROM platform.company_file_folders source_folder WHERE source_folder.organization_id=p_org AND (
+     SELECT source_folder.id,source_folder.parent_folder_id FROM platform.company_file_folders source_folder WHERE source_folder.organization_id=p_org AND (
        source_folder.id=ANY(selected_folders) OR EXISTS(SELECT 1 FROM platform.company_files cf JOIN platform.company_file_versions v ON v.company_file_id=cf.id AND v.organization_id=cf.organization_id
          WHERE cf.organization_id=p_org AND cf.folder_id=source_folder.id AND v.id=ANY(company_ids)))
-     UNION SELECT source_folder.id,f.parent_folder_id FROM platform.company_file_folders source_folder JOIN ancestors a ON a.parent_folder_id=source_folder.id WHERE source_folder.organization_id=p_org
+     UNION SELECT source_folder.id,source_folder.parent_folder_id FROM platform.company_file_folders source_folder JOIN ancestors a ON a.parent_folder_id=source_folder.id WHERE source_folder.organization_id=p_org
    ) SELECT coalesce(array_agg(id),'{}') INTO visible_folders FROM ancestors;
    RETURN NEXT platform_private.kb_projection(company_root,p_org,'internal',NULL,'folder','Документы компании',coalesce((SELECT max(updated_at) FROM platform.company_files WHERE organization_id=p_org),'2000-01-01'::TIMESTAMPTZ));
    FOR f IN SELECT * FROM platform.company_file_folders WHERE organization_id=p_org AND id=ANY(visible_folders) ORDER BY id LOOP

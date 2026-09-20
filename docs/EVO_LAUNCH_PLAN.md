@@ -12172,3 +12172,17 @@ restoration of original business values. Keep every audit/version increment;
 no history deletion or claimed exact raw-state restoration. Existing UI is
 unchanged; Impeccable harden advice is to keep clear required-reason feedback,
 and actual UI inspection covers that existing behavior.
+
+
+## 2026-09-21 — case-task reason guard: local QA complete
+
+Source9f63/SQL222f2e0c8bd applied once to owned-local only after reviewed local
+Docker/source/ledger guards. Existing ordinary Auth actors:8 denial commands,
+4 reasoned writes plus exact replay/conflict/stale; business fields restored,
+version+4 and4audits retained. Actual existing Tasks form rejected empty/blank
+reason with0network commands.279other tables/Auth/schema/functions/ledger stable.
+Local release receipt0c029bc4; original preAuth observer failure and offline
+handover aggregate correction preserved. UI successful writes and managed rollout
+not claimed. Details: docs/qa/case-task-change-reason-2026-09-21.md.
+PR968 is merged43bd20c8; source222 remains separate until exact-head review/CI/merge.
+Issue687 owner/managed exit and all remaining accepted1–36 work stay open.

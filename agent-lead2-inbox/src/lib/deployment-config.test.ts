@@ -9,7 +9,7 @@ function read(path: string) {
 
 describe('EVO Inbox production deployment config', () => {
   it('enables Next standalone output for the Docker image', () => {
-    expect(read('next.config.ts')).toContain('output: "standalone"');
+    expect(read('next.config.ts')).toMatch(/output:\s*["']standalone["']/);
   });
 
   it('copies the standalone server plus static and public assets', () => {
@@ -69,9 +69,10 @@ describe('EVO Inbox production deployment config', () => {
     expect(edgeCompose).toContain('container_name: evo-edge-caddy');
     expect(edgeCompose).toContain('evo_public_web');
     expect(edgeCaddy).not.toContain('inbox.evoadmissions.com');
-    expect(edgeCaddy).toContain('evo-inbox.72.62.119.112.sslip.io');
-    expect(edgeCaddy).toContain('reverse_proxy evo-inbox-app:3000');
-    expect(edgeCaddy).not.toContain('crm.evoadmissions.com');
+    expect(edgeCaddy).not.toContain('evo-inbox.72.62.119.112.sslip.io');
+    expect(edgeCaddy).not.toContain('reverse_proxy evo-inbox-app:3000');
+    expect(edgeCaddy).toContain('crm.evoadmissions.com, app.evoadmissions.com');
+    expect(edgeCaddy).toContain('reverse_proxy evo-crm-app:3000');
     expect(edgeCaddy).not.toContain('acadis');
   });
 
@@ -120,8 +121,8 @@ describe('EVO Inbox production deployment config', () => {
     const compose = read('deploy/docker-compose.inbox.prod.yml');
 
     expect(compose).toContain('logging: &bounded-logging');
-    expect(compose).toContain('max-size: "10m"');
-    expect(compose).toContain('max-file: "5"');
+    expect(compose).toMatch(/max-size:\s*["']10m["']/);
+    expect(compose).toMatch(/max-file:\s*["']5["']/);
     expect(compose.match(/^    logging:/gm)).toHaveLength(2);
     expect(compose).toContain('logging: *bounded-logging');
   });

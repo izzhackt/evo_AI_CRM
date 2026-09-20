@@ -33745,3 +33745,58 @@ read-only независимую design-проверку и вправе пер�
 semantic-diff review. Issue42 не объявлять выполненным на одном CI gate. Это
 обслуживание существующего companion, не возобновление отдельного продукта,
 provider acceptance или разрешение изменять production.
+
+## 2026-09-20 — #42: bounded formatter и обслуживание трёх legacy guards
+
+Основание: main `79624c2f821b9aa9082108eb8d9684d37db41179` (#947).
+Первый CI prerequisite смержен. Реальная formatter-проверка выявила два
+дополнительных основания для отдельного узкого prerequisite PR перед347-файловым
+format-only PR. Старый formatter WIP сохраняется отдельно; этот срез его не
+подменяет и не закрывает #42.
+
+1. Существующий locked Prettier для двух файлов цепочек
+   `deal-form.tsx` и automations engine достигает стабильных байтов после двух
+   применений (третье не меняет результат). Canonical output определяется
+   ограниченным fixed-point проходом: максимум3 преобразования плюс отдельная
+   проверка стабильности. Не сошедшийся результат, неподдерживаемый путь или
+   неравенство head canonical bytes отклоняются. Не менять Prettier version,
+   plugins/config/exclusions. Сохранять все guards из#947: только existing regular
+   tracked supported files, без add/delete/rename/mode/symlink и смешанной
+   семантической правки; configuration/proof выполняются до допуска.
+2. На unchanged main три существующие проверки уже падают: текущий shared Caddy,
+   устаревшее требование последней миграции105 и устаревший список buckets.
+   Зафиксировано3FAIL/47PASS в трёх тестовых файлах. После форматирования ещё
+   три assertions зависят от кавычек; отрицательная проверка disabled navigation
+   тоже должна проверять запрещённый href при обоих стилях кавычек.
+
+Разрешённый test-maintenance allowlist ровно:
+- `agent-lead2-inbox/src/components/first-launch-ui.test.tsx`;
+- `agent-lead2-inbox/src/lib/deployment-config.test.ts`;
+- `agent-lead2-inbox/src/lib/supabase/schema-contract.test.ts`.
+
+Семантика guards сохраняется/усиливается: quote-agnostic exact values и forbidden
+hrefs; текущие crm/app в shared Caddy и отсутствие retired Inbox route при прежних
+private boundaries; историческая105 присутствует, containment остаётся, текущим
+реестром владеет root migrations; точный allowlist четырёх private buckets из
+`supabase/config.toml:65–87` с прежними MIME literals и лимитами:
+platform-documents25MiB, platform-document-exports50MiB,
+platform-company-files25MiB, platform-whatsapp-media50MiB.
+Сохранить существующие ограничения browser upload (включая разрешённый exact
+reserved INSERT), server-only чтение/signing, без расширения доступа. Не «лечить» проверки
+изменением текущих продуктовых конфигов/миграций или ослаблением assertions.
+
+Для этих ровно трёх файлов добавить отдельный закрытый CI selection flag с
+обязательным maintenance job/result. Legacy50 проверок относятся к этому lane;
+полный legacy suite842 — к последующему actual formatted PR. Эти UI-тесты имеют
+старые mocks и не являются pure helpers: не включать их в обычный dependency
+lane, где остаются прежние три pure helpers. Не пропускать падающие проверки и
+не вводить широкий source allowlist. Новые Git/classifier/workflow checks должны
+доказать закрытость маршрутизации и formatter fail-closed.
+
+Последовательность: этот contract до кода → минимальный отдельный prerequisite
+PR → targeted verification + независимый exact-head review + protected CI →
+root merge → отдельный pure formatter PR с исходными пятью acceptance checks
+format:check/lint/typecheck/test/build и semantic review. Результат legacy tests
+явно отделять от реального provider/business proof. Ни deployment, ни revival
+Inbox, ни managed DB/provider actions/миграции этим контрактом не разрешаются.
+A владеет только двумя shared docs; root выполняет код и merge.

@@ -5,9 +5,20 @@
 Статус: реализация начата; весь план не завершён. Здесь нет утверждения о
 доставке в production без отдельной квитанции.
 
-Текущая таблица пересверена 21 сентября (Asia/Dubai) на main `fdbc7a4d`.
-Датированные runtime-квитанции ниже сохранены как история, без повторного
-присвоения их доказательств новым ревизиям.
+## Текущий checkpoint — 21 сентября 2026
+
+Срез исходников: immutable main `401069a4a7aa15a3420b0685ba28fb7fb373c956`
+после #963. #946, #948, #958, #959, #961, #960, #962 и #963 — MERGED.
+Это source/local QA статусы, не managed DB или production delivery; весь объём
+1–36 не завершён, пункты 37–50 не запускаются. Датированные квитанции ниже
+сохраняют исходные ревизии и пределы, их проверки повторно не запускались.
+
+Вне этого main, по текущей координации: B218 (`bf52b38a`, SQL `b20efabd`)
+прошла local schema check и начальную Student initialization; пакет из 13 фаз
+ещё выполняется, полный Auth/Docs/UI результат не принят. Root219 — runtime
+`2b75` в работе, подходящий pinned QA positive не подтверждён; 221 — только
+pre-code. A220 — runtime после `e789`, работа продолжается. Эти статусы не
+означают merge, завершение блоков или разрешение новых записей.
 
 ## Блоки
 
@@ -16,18 +27,20 @@
 | Этап 0: контракт, worktree, координация | Изолированный worktree; исходный план сохранён без изменений; launch/decisions обновлены | MERGED #931, `8ef2aef01` |
 | CRM-06: загрузка admissions board | Продолжен #913: unset GET args, сброс видимых фильтров, retry/Students; реальные чтения и desktop/390px UI пройдены, см. квитанцию ниже | MERGED #913, `fc13ed96d`; production не обновлён |
 | CRM-08: правильный куратор, портал-доступ | Источник куратора и роли исправлены (#932); единый portal-access блок реализован, см. CRM-08b | MERGED #932, `819cd17d9`; #934, `dc3c246d4`; production не обновлён |
-| CRM-02: права, продавец, дата/месяц, поиск/финансы/UX | CRM-02a: scoped local Auth/UI/RPC приёмка пройдена; #956: просмотр записи, явное исправление и возврат к строке с фильтрами/offset проверены через Sales/Admin UI desktop/390px. Server search/filter и остальной отчёт открыты | MERGED #935 `f5198c37`, #956 `fdbc7a4d`; [квитанция preview](qa/sales-record-preview-2026-09-21.md); managed 208 и production не изменены этими блоками |
+| CRM-02: права, продавец, дата/месяц, поиск/финансы/UX | #935/#956/#958: права и preview/edit/filter/reset/back; #960: pending-case handoff; #962: literal search до count/totals/page, LOCAL216 Auth/UI320/390 | MERGED; phone/contract positive, >50 и salesOther остаются недоказанными; direction facet/layout ещё открыты; [search receipt](qa/crm-sales-search-2026-09-21.md); production отдельно |
 | CRM-09: стоимость → договор → платежи | CRM-09a: редактор стоимости снова доступен после handoff; прочий единый финансовый поток ещё открыт | MERGED #933, `dbb3f1d1f`; production не обновлён |
-| CRM-03: заявки, источники и пагинация | Ожидает реализации | — |
+| CRM-03: заявки, источники и пагинация | A220 runtime после `e789`, вне immutable main этого checkpoint | Ещё не принято; полный «Все», cursor/context и scoped server filter — текущая работа |
 | CRM-01: текущие количества в воронке продаж | Обычные Auth/RPC/UI на прежних локальных QA-входах проверены; [квитанция](qa/crm-01-current-funnel-2026-09-20.md) | MERGED #943 `1795bf23`; SQL210 применена только локально, production не изменён этим блоком |
-| CRM-05: операционная воронка | Подтверждённый handoff отделён от наличия дела; local RPC/UI и filters/search/keyboard проверены; [квитанция](qa/crm-05-operational-handoff-2026-09-20.md). Сброс owner-filter исправлен и проверен отдельно в #953 | MERGED #945 `285e784e`, #953 `498c99bf`; оставшаяся мобильная композиция открыта |
+| CRM-05: операционная воронка | Подтверждённый handoff, owner-filter и mobile stage tabs проверены локально на320/390 и desktop | MERGED #945/#953/#959; реальные stage mutations не выполнялись этим UI-срезом |
 | CRM-04/07: inbox и сообщения | Inbox empty/filter/channel states и поиск Student messages с loading/empty/error/retry защищены от устаревшего ответа; actual local read/UI desktop/390px проверены. Очереди и остальные сценарии остаются | MERGED #952 `f97122e8`, #955 `fe26526c`; [Inbox](qa/crm-inbox-states-2026-09-21.md), [messages](qa/case-chat-search-2026-09-21.md); без send/mark-read/provider actions |
-| Сохранение отдельных блоков карточки / пункт 30 | PR #948: source correction custom staff authority reviewed, локальная 213 скорректирована; 10/10 ordinary Auth read/denial checks и parity пройдены | OPEN; UPDATE/cross-group/UI acceptance ещё нет; разрешённый B packet покрывает лишь часть RPC-пути, не managed/production delivery |
-| CRM-10: EVO Docs и университеты | Ожидает реализации | — |
+| Сохранение отдельных блоков карточки / пункт 30 | LOCAL213: actual UPDATE двух блоков, sibling draft, replay/conflict/stale и restore26 полей; B sale INSERT отдельно | MERGED #948; не UI-приёмка всех групп, managed/production delivery отдельно |
+| CRM-10: EVO Docs и университеты | Existing Docs сохранён; B218 требования/общие файлы — текущий независимый срез, initial Student init и schema check PASS, 13 фаз ещё выполняются | Не завершён; upload/submit/versioned packages/review и полный путь остаются |
 | Командный чат | Ожидает реализации; стратегия старых ответов/read перед UI | — |
-| Личный календарь | Явный выбор дела в календаре/global task dialog проверен через actual local UI/drafts; серверная область «назначено мне» остаётся | MERGED #954 `aa663b3d`; [квитанция](qa/task-explicit-case-2026-09-21.md); задачи не создавали |
-| §11: общие программы, требования, версии, пакеты и review | Устойчивые intake IDs и техническая публикация проверены через actual local Admin/Student UI/RPC. #946 source-reviewed; 214 применена локально, 11/11 ordinary Auth read/denial checks и parity пройдены. Положительный QA-пакет разрешён владельцем, ещё не выполнен; requirements/upload/submit/packages/review остаются | MERGED #944 `1e03c6be`; #946 OPEN, интеграция после #948. Подготовка сразу после выбора, только CN/MY/AE/TR/IT/CZ; managed DB/production не изменены |
-| Web и iPhone полного нового admissions-пути | Ожидает общих операций | — |
+| Личный календарь | #954 explicit case choice; #963 личные case/staff задачи, exact count/keyset и own target; LOCAL217 Auth/denials + UI320/390/desktop | MERGED #963 `401069a4`; dated/staff positive, >100 UI и concurrent reassignment не доказаны; [receipt](qa/personal-calendar-2026-09-21.md) |
+| §11: общие программы, требования, версии, пакеты и review | #944 stable intake IDs; #946 selection/preparation. LOCAL214 positive ordinary Auth + TS/Swift read/decode; нового web/iPhone UI proof нет. B218 requirements association в работе | MERGED #944/#946; 218 вне main, пакет не завершён; дальнейшие packages/review и managed delivery не приняты |
+| Web и iPhone полного нового admissions-пути | Общие214 readers проверены, полный новый UI-путь ожидает следующих операций | Не завершён; не расширять TS/Swift evidence до browser/device acceptance |
+| CRM shell / пункт 22 | #961 keyboard skip-navigation MERGED | Узкий срез, остальная оболочка и полная a11y-приёмка открыты |
+| Legacy optional application fields / пункт 29 | Root219 runtime `2b75` в работе; 221 pre-code отдельно | Нет suitable pinned QA positive; не завершено |
 | Точечная приёмка §13, итоговый аудит scope | Ожидает реализации блоков | — |
 
 ## Решения владельца и границы
@@ -38,11 +51,12 @@
   записи не удалять и не выбирать по похожему имени.
 - Production-миграции, записи и release требуют отдельной действующей authority.
 - Конкретный B214 local QA packet разрешён владельцем ответом «ок» в задаче B.
-  Root/A фиксируют последовательность до его запуска. Один literal save группы
-  sale даёт INSERT/replay/conflict/stale proof, но не закрывает A213
-  UPDATE/cross-group/UI acceptance; отдельный A-пакет остаётся на HOLD.
+  Выполненный literal save группы sale дал INSERT/replay/conflict/stale proof;
+  отдельный A213 UPDATE/cross-group/UI пакет затем принят в #948. Это разные
+  доказательства; разрешение того пакета не расширяет текущие QA-полномочия.
 - #929 / migration 207 — соседний блок, не доказательство готовности этого плана.
-- Общие final E2E, контент, App Store и KB вне текущего плана.
+- Общие final E2E, массовая контентная волна и App Store (37–50) исключены.
+  Содержательная KB-очередь31–32 остаётся в принятом объёме; перенос не повторять.
 
 ## Метод проверки
 

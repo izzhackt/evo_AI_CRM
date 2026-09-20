@@ -4,9 +4,20 @@
 полосы B; общий main, миграции и release координирует root. Это план выполнения,
 не утверждение готовности. Пункты 37–50 не запускаются.
 
-Статусы пересверены 21 сентября (Asia/Dubai) на main `fdbc7a4d` после #956.
-Root принял у A пункты 9, 35 и текущую сверку 36; A продолжает остальные срезы.
-Merge исходников, локальное QA и production delivery учитываются отдельно.
+## Текущий checkpoint — 21 сентября 2026
+
+Срез исходников: immutable main `401069a4a7aa15a3420b0685ba28fb7fb373c956`
+после #963. #946, #948, #958, #959, #961, #960, #962 и #963 — MERGED.
+Это source/local QA статусы, не managed DB или production delivery; весь объём
+1–36 не завершён, пункты 37–50 не запускаются. Датированные квитанции ниже
+сохраняют исходные ревизии и пределы, их проверки повторно не запускались.
+
+Вне этого main, по текущей координации: B218 (`bf52b38a`, SQL `b20efabd`)
+прошла local schema check и начальную Student initialization; пакет из 13 фаз
+ещё выполняется, полный Auth/Docs/UI результат не принят. Root219 — runtime
+`2b75` в работе, подходящий pinned QA positive не подтверждён; 221 — только
+pre-code. A220 — runtime после `e789`, работа продолжается. Эти статусы не
+означают merge, завершение блоков или разрешение новых записей.
 
 ## Первый срез A-1 — пункты 4 и 34
 
@@ -43,29 +54,29 @@ review одобрены. Это unit/source/harness-проверки; полно
 | Пункты | Срез и приёмка | Зависимость / граница |
 |---|---|---|
 | 3 | #905 MERGED; три тестовых файла сверены, 50/50 scoped checks | Старый отчёт 2179 не новый прогон; business acceptance не заявляется |
-| 1 | #935 MERGED `f5198c37`: Sales Manager, seller и месяц по sale date; reviewed local acceptance сохранена | Managed SQL/release не выполнены; локальная квитанция относится к 001–208 |
-| 6, 10 | CRM-01 MERGED #943 `1795bf23`; CRM-05 MERGED #945 `285e784e`; сброс owner-filter исправлен в #953 `498c99bf` и проверен через реальный local UI | Остальная мобильная композиция открыта; case presence не равен handoff; production не заявляется |
-| 7 | #956 MERGED `fdbc7a4d`: просмотр записи перед явным исправлением, возврат к строке с фильтрами/offset; actual Sales/Admin UI, включая отказ edit=true, desktop/390px | Server search/filter до pagination и остальной отчёт открыты; валюты не суммировать; [квитанция](qa/sales-record-preview-2026-09-21.md) |
-| 8 | Заявки: фильтр до limit, pagination и полный «Все» | Проверка server query и списка |
+| 1 | #935 и #960 MERGED: Sales Manager, seller, месяц по sale date и исправление pending-case handoff; LOCAL208/215 acceptance | Production отдельно; previous-seller non-null и concurrency не объявляются проверенными |
+| 6, 10 | #943/#945/#953/#959 MERGED: текущая воронка, подтверждённый handoff, owner-filter, stage tabs и mobile320/390 | Реальные перемещения стадий этим UI-срезом не исполнялись; delivery отдельно |
+| 7 | #956/#958/#962 MERGED: preview/edit/back, filter/reset/годовой месяц, серверный literal search до count/totals/page; LOCAL216 Auth/UI320/390 | Phone/contract positive, >50 и salesOther не доказаны; direction facet, плотность отчёта и mobile-record остаются; [search receipt](qa/crm-sales-search-2026-09-21.md) |
+| 8 | Full requests queue: A220 runtime после `e789`, вне main этого checkpoint | Server filter до limit, полный «Все», курсор и context; завершение ещё не принято |
 | 9 | #952 MERGED `f97122e8`: Inbox empty/filter/channel states; actual local read/UI desktop/390px | История выбранного диалога и provider/error-path приёмка этим срезом не доказаны; [квитанция](qa/crm-inbox-states-2026-09-21.md) |
 | 11 | #955 MERGED `fe26526c`: поиск Student messages с loading, отдельными empty/error/retry и защитой от устаревшего ответа; actual local read/UI desktop/390px | Очереди остаются у A; диалог не открывали, сообщений и mark-read не отправляли; [квитанция](qa/case-chat-search-2026-09-21.md) |
 | 12 | Договор, сумма, транши, платежи/чеки/остаток; после #933 остальной поток открыт | Согласовать profile-source/Profile и общие actions с B |
-| 30 | PR #948 открыт: actual UI UPDATE двух блоков, соседний draft, replay/conflict/stale и guarded restore всех26 полей PASS; отдельно B sale-group INSERT PASS; локальная213 reviewed | Финальные exact-head review/CI ожидаются; runtime неизменен. B handoff208/126 defect выделен215; managed/release не выполнены |
+| 30 | #948 MERGED: LOCAL213 actual UPDATE двух UI-блоков, sibling draft, replay/conflict/stale и restore26 полей; B sale INSERT отдельно | Не browser-proof всех групп; handoff correction215 вошла #960; managed/release не выполнены |
 | 14 | Staff-каталог: поиск, фильтры, дедлайны, управление | Program IDs/schema принадлежат B |
 | 15 | Team chat: хронология, цитаты, поиск, composer, unread | История/read model до UI; не отправлять сообщения |
-| 16 | #954 MERGED `aa663b3d`: явный выбор дела в календаре/global task dialog, закрытый/недоступный picker не назначает первое дело; actual local UI/drafts | Server scope «назначено мне» остаётся; задачи не создавали; [квитанция](qa/task-explicit-case-2026-09-21.md) |
-| 22 | CRM shell, типографика, навигация | Impeccable вместе с функциональной проверкой; EVO сохраняется |
-| 29 | Legacy China/Malaysia optional fields | Проверить валидатор на текущем контракте, сохранить данные |
+| 16 | #954/#963 MERGED: explicit case choice и личный case/staff reader; LOCAL217 Auth/target/denials и UI320/390/desktop | Положительные dated/staff и >100 UI overflow отсутствуют; commands/concurrent reassignment не исполнены; [receipt](qa/personal-calendar-2026-09-21.md) |
+| 22 | #961 MERGED: keyboard skip-navigation slice | Остальной shell/типографика открыты; не полная a11y-приёмка |
+| 29 | Root219 runtime `2b75` в работе: узкая optional-fields correction137/184 | Вне snapshot main; подходящий pinned QA positive пока отсутствует, не подменять function proof UI-приёмкой |
 | 33 | #687: причина изменения срока/приоритета Admin | Аудит/права обязательны, schema через root |
 | 35 | Завершён в исходниках: #947/#949 prerequisites, #950 MERGED `3ddb6f41`, #42 CLOSED; пять checks и 842/842 legacy tests, независимый semantic review | Только форматирование legacy Inbox; без revival/deploy/provider proof; [квитанция](qa/inbox-format-baseline-2026-09-21.md) |
-| 5, 36 | Root: текущая сверка docs; отдельный delivery packet и дальнейшее обновление статусов остаются | Exact main/image/smoke/rollback; production release отдельно |
+| 5, 36 | Текущая docs-сверка обновлена на401069a4; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
 
 Каждый срез: живой source → минимальный diff → точечная реальная проверка →
 отдельный PR → независимое exact-head review. Не запускать общий финальный E2E,
 контентную волну или App Store. Сохранять историю, tenant/Student boundaries,
 пользовательский checkout и работу B. Миграции только после выделения номера root.
 
-## Уточнённая очередь после #943
+## Историческая очередь после #943 (до текущего checkpoint)
 
 212/CRM-05 принят через #945. Текущий блок A — пункт30 / открытый #948:
 целевая локальная приёмка завершена, остаются финальный exact-head review/CI и merge.

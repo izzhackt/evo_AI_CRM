@@ -11782,3 +11782,36 @@ Extend direct boundary checks only if the original packet omits a demonstrated
 risk. Suitable pinned legacy Auth/UI data is still absent; successful pure SQL
 validation is not authenticated persistence or browser acceptance. Production,
 provider, customer and Auth-identity mutations remain outside this block.
+
+
+## 2026-09-21 — item29 UI prerequisite: canonical profile without legacy handoff
+
+The actual ordinary-Admin route on owned-local001–220 failed before any save:
+`V3 profile handoff lead does not match the canonical case link`. Four existing
+Auth reads confirm the authorized canonical case→lead link and readable lead,
+but no case handoff and a null lead handoff case. Migration181 explicitly allows
+this pending-case activation branch without a `sales_admissions_handoffs` row.
+Absent optional legacy context must not be treated as a contradictory context.
+
+Before code, scope the fix to `src/lib/v3/profile-source.ts`. Both explicit case
+and direct lead routes must resolve the same authorized case. An explicit case
+has already passed full case access and the105 canonical link reader. For direct
+lead routing, reuse the existing184 cabinet discovery read as a candidate only:
+it may return a different lead's same-client case, so require an exact105
+case→requested-lead match before adopting it. Keep nonnull legacy handoff case
+and lead consistency checks, authorization/read errors, tenant boundaries,
+section permissions and the original handoff snapshot; never synthesize a
+handoff, expand permissions or change stored records. No new SQL migration.
+
+This is a demonstrated dependency of the current real save path, also needed by
+A221 queue navigation and B3d staff UI. Root owns this file; parallel UI edits
+must avoid it. Impeccable `harden` advice applies: a lawful missing optional read
+must not blank the whole working screen, while contradictory or failed reads
+must remain visible errors. No visual redesign or new copy is part of this fix.
+
+Verify real existing case and direct-lead URLs through the same ordinary Auth
+and existing data after exact-head independent review. Confirm the same case,
+application and available tabs, and preserve role/section access. The local220
+save packet remains separate and must bind to the corrected source revision;
+no business save has happened yet. No synthetic handoff, Auth/role mutation,
+provider/customer/managed writes, deployment, or claim of full product E2E.

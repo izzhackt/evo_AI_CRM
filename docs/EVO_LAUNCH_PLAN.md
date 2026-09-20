@@ -344,6 +344,7 @@ controls; this documentation change itself performs no deployment or migration.
 - [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff. (владельческие внешние шаги: Apple Developer/подпись/TestFlight/store; агентская часть — done: review-аккаунт, документация)
 
 Финальные документы: [ведомость](EVO_PORTAL_FINAL_LEDGER_2026-09-20.md) · [handover и передача Astra](EVO_PORTAL_HANDOVER_2026-09-20.md).
+План продолжения: [EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md) (исполнитель — GPT-6 Astra).
 
 These checkboxes describe planned work, not existing feature readiness. Existing
 authentication, organization/case access and private assessment boundaries remain

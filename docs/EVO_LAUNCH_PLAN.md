@@ -49,14 +49,15 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 
 ### KB execution — 2026-09-20
 
-Полная выгрузка пока не завершена. Восстановление после ошибки Storage
-следует [контракту изменения](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
+Перенос, сортировка и полный экспорт завершены; 6 568/6 568 исходников в
+скачанном ZIP проверены по исходным размерам и SHA-256 без пропусков и ошибок.
+Восстановление после ошибки Storage выполнено по [контракту изменения](PLAN_CHANGES.md#2026-09-20--kb-восстановление-большой-выгрузки-после-ошибки-storage).
 
-- KB-0 and runtime merged through #902/#906/#915/#916/#918/#919/#921. Worktree `evo-crm-knowledge-implementation` preserves the canonical dirty checkout. Admin navigation is unified under Knowledge Base; staff document/template routes remain available.
+- KB-0 and runtime merged through #902/#906/#915/#916/#918/#919/#921/#924. Worktree `evo-crm-knowledge-implementation` preserves the canonical dirty checkout. Admin navigation is unified under Knowledge Base; staff document/template routes remain available.
 - Production ledger 001–206 is contiguous and matches applied hashes. SOPS runtime, external age key and export maintenance timer are provisioned. The owner transferred schema/release and actual import/export coordination to Astra; Portal/App remains Fable's scope.
-- The complete source plan covers 6,570 entries: 436 internal pages, 432 internal files, 5,668 raw files and 32 protected originals; two key files remain outside CRM. All 6,568 source originals and 25 structured protected records are imported. Full UI/API reconciliation: 6,568 verified, 0 missing, 0 mismatch; 5,961 unique blobs and 607 preserved duplicate source locations. The full ZIP stopped on a Storage availability error; #924 adds bounded safe retries, with download and byte verification still pending.
+- The complete source plan covers 6,570 entries: 436 internal pages, 432 internal files, 5,668 raw files and 32 protected originals; two key files remain outside CRM. All 6,568 source originals and 25 structured protected records are imported. Full UI/API reconciliation: 6,568 verified, 0 missing, 0 mismatch; 5,961 unique blobs and 607 preserved duplicate source locations. After the first Storage failure, #924 was released and the same full snapshot resumed with all 206 verified parts retained. The 10,471,474,710-byte ZIP is downloaded and fully verified: 7,542 file entries, all 6,568 originals, 25 current protected records (26 versions) and 32 protected originals; zero missing/errors. All 2,655 review questions remain explicit; two key files stay outside the archive.
 - Real editor/navigation, file-review metadata, selected canonical ZIP, normal Auth denials, source-byte preservation and earlier UI journeys are recorded in the [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md). No Student customer acceptance or AI republication is claimed.
-- Current release `35479396937` accepted exact main `a0684b404c152c51ecdf47037c72c6f4722185b7`; runtime/accepted pointer match, healthy, pending absent and arm=false. Canonical-search HTTP role checks and the existing-document UI journey passed. A preceding attempt safely stopped before deploy after docs-only #920 advanced main; no release guard was bypassed.
+- Current release `35481793583` accepted exact main `b7598a1c5046fe3c2b16fc014bc0c22044e64b27`; runtime/accepted pointer match, healthy, pending absent and arm=false. The changed Storage path passed a real one-file Admin export/download with exact source bytes and five role denials. Earlier canonical-search HTTP/UI acceptance and guarded release history remain in the execution receipt.
 
 ## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
 

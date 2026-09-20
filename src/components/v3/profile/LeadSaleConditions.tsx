@@ -110,13 +110,16 @@ export function LeadSaleConditions({
     if (state.status === "saved" && state.revision !== null) bump(state.revision);
   }, [bump, state.status, state.revision]);
 
-  const currencySelect = (value: string, onChange: (value: string) => void) => (
-    <select value={value} disabled={locked} onChange={(event) => onChange(event.target.value)} className={cn(inputCls, "min-h-11 w-full")}>
-      <option value="">Не указана</option>
-      {SALE_CONDITION_CURRENCIES.map((code: SaleConditionCurrency) => (
-        <option key={code} value={code}>{code}</option>
-      ))}
-    </select>
+  const currencySelect = (label: string, value: string, onChange: (value: string) => void) => (
+    <label>
+      <span className={labelCls}>{label}</span>
+      <select value={value} disabled={locked} onChange={(event) => onChange(event.target.value)} className={cn(inputCls, "min-h-11 w-full")}>
+        <option value="">Не указана</option>
+        {SALE_CONDITION_CURRENCIES.map((code: SaleConditionCurrency) => (
+          <option key={code} value={code}>{code}</option>
+        ))}
+      </select>
+    </label>
   );
 
   return (
@@ -164,7 +167,7 @@ export function LeadSaleConditions({
             />
           </label>
           <div className="grid gap-3 @2xl:grid-cols-2">
-            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_8.5rem] gap-3">
               <label>
                 <span className={labelCls}>Сумма</span>
                 <input
@@ -176,9 +179,9 @@ export function LeadSaleConditions({
                   className={cn(inputCls, "min-h-11 w-full")}
                 />
               </label>
-              {currencySelect(draft.costCurrency, (value) => update("costCurrency", value))}
+              {currencySelect("Валюта стоимости", draft.costCurrency, (value) => update("costCurrency", value))}
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_8.5rem] gap-3">
               <label>
                 <span className={labelCls}>Оплачено</span>
                 <input
@@ -190,7 +193,7 @@ export function LeadSaleConditions({
                   className={cn(inputCls, "min-h-11 w-full")}
                 />
               </label>
-              {currencySelect(draft.paidCurrency, (value) => update("paidCurrency", value))}
+              {currencySelect("Валюта оплаты", draft.paidCurrency, (value) => update("paidCurrency", value))}
             </div>
           </div>
           <label className="block">

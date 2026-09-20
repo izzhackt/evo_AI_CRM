@@ -76,6 +76,8 @@ function budgetPeriod(value: unknown): ConditionsBudgetPeriod | null {
   return (CONDITIONS_BUDGET_PERIODS as readonly string[]).includes(value as string) ? value as ConditionsBudgetPeriod : fail();
 }
 function intakeYear(value: unknown): string {
+  // Migration 184 normalizes an unfilled year to JSON null.
+  if (value === null) return "";
   const text = str(value, 4);
   return text === "" || /^(19|20|21)[0-9]{2}$/.test(text) ? text : fail();
 }

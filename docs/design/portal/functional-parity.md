@@ -24,3 +24,18 @@ Real checks: successful Xcode builds (`home-build.log`, `home-final-build.log`).
 - [Dark / largest text](evidence/functional-parity-2026-09-20/home-dark-large.png)
 
 An empty-state localization-key mismatch found during source inspection was corrected and the app rebuilt/reinstalled. No fabricated data. Approved-tier application UI, actual lesson-draft resumption, all-complete/empty/error states, KY render and hardware were not exercised: current QA account is assisted, has content/favorites and no lesson draft. No result submission or production deployment.
+
+
+## Web notifications / authority
+
+Single Atlas header bell replaces the old v3 status strip; RU/KY label/count/error/retry, assisted-only navigation, `actor.accessTier` authority in layout. Existing polling retained, Home included among operational refresh destinations; test/lesson runners excluded.
+
+Real browser check on local Next development server port 3105 connected to live Supabase, existing QA Student. Normal login form submitted credentials process-only. Actual zero unread notifications rendered correctly in RU and KY; bell opened Notifications. Desktop 1365×900 and mobile 390×844 inspected, no horizontal page overflow or JS errors. One real Home RSC refresh observed after the 30-second polling interval. Browser receipt `.next/parity-proof/notifications-receipt.json`; script `.next/parity-proof/web-smoke.mjs`. Playwright CLI could not load process-local credentials (no filesystem API); direct Playwright library drove the same actual login form, without fixtures or bypassing Auth. No tokens/passwords in artifacts.
+
+Screenshots (development server, Next dev indicator visible): [desktop](evidence/functional-parity-2026-09-20/notifications-desktop.png), [mobile RU](evidence/functional-parity-2026-09-20/notifications-mobile.png), [mobile KY](evidence/functional-parity-2026-09-20/notifications-mobile-ky.png).
+
+Typecheck, scoped ESLint and two existing source-contract checks passed. First contract invocation missed the required react-server condition; corrected invocation passed. Impeccable detector reported only four pre-existing side-border declarations outside changed styles. No synthetic notifications/network responses; positive badge not exercised, approved-tier navigation source-reviewed only. No production release or full E2E.
+
+Independent review found that the original absolute error panel could leave the mobile viewport. It now anchors to the viewport below the header. Real local-server outage exercised the error at 390 px (x=54, width=320) and 320 px (x=16, width=288), both fully inside the viewport. Manual Retry issued a real server-action POST while the outage continued. Restart restored the genuine zero-unread state. Successful manual recovery is not claimed: Next development reconnection reloaded before the first retry-after-restart attempt. Only this task’s port-3105 server was stopped; Supabase/production stayed untouched.
+
+Error evidence: [390 px](evidence/functional-parity-2026-09-20/notifications-error-390.png), [320 px](evidence/functional-parity-2026-09-20/notifications-error-320.png). Local receipt `.next/parity-proof/notification-outage.json`.

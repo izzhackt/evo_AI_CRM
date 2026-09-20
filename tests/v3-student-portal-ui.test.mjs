@@ -119,10 +119,10 @@ test("Student render guard deduplicates only through React request-local cache",
 });
 
 test("route entry reads the notification badge without a duplicate route refresh", () => {
-  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
   assert.match(updates, /async function update\(refreshContent = true\)/u);
   assert.match(updates, /const result = await loadStudentPortalNotificationState\(\);\s*if \(disposed\) return;/u);
-  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); return; \}/u);
+  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); setUnread\(null\); return; \}/u);
   assert.match(updates, /if \(refreshContent && refreshPage\) \{\s*startTransition\(\(\) => router\.refresh\(\)\)/u);
   assert.match(updates, /void update\(false\);\s*return \(\) => \{\s*disposed = true;/u);
   assert.match(updates, /retry\.current = \(\) => \{ void update\(\); \}/u);
@@ -563,7 +563,7 @@ test("existing case portal views stay presentation-only and never render raw sta
   // PORT-5d: экраны «Моего поступления» живут в portal/admission. PORT-8c:
   // экраны тестов переехали в portal/tests (их клиентский раннер сохраняет
   // useEffect-механику и закреплён tests/student-assessments.test.mjs);
-  // в v3/portal остаётся только PortalNotificationUpdates (layout).
+  // Уведомления перенесены в Atlas header; admission views остаются presentation-only.
   const componentFiles = [
     ...filesUnder("src/components/v3/portal/")
       .filter((path) => path.endsWith(".tsx")),
@@ -584,7 +584,7 @@ test("existing case portal views stay presentation-only and never render raw sta
     .filter(path => !path.endsWith("/PortalNotificationUpdates.tsx"))
     .map(source).join("\n");
   assert.doesNotMatch(presentationViews, /useEffect/u);
-  const updates = source("src/components/v3/portal/PortalNotificationUpdates.tsx");
+  const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
   assert.match(updates, /loadStudentPortalNotificationState/u);
   assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);
   assert.match(components, /<PortalStatus[\s\S]*label=/u);

@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import type { Locale } from "@/lib/i18n-data";
+import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
 import { loadStudentPortalNotificationState } from "@/lib/student-portal-notification-updates";
 
-export function PortalNotificationUpdates() {
+export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
+  const strings = getPortalStrings("shell", locale);
   const router = useRouter();
   const pathname = usePathname();
   const [unread, setUnread] = useState<number | null>(null);
@@ -15,7 +18,7 @@ export function PortalNotificationUpdates() {
   useEffect(() => {
     let disposed = false;
     let running = false;
-    const refreshPage = ["/portal", "/portal/documents", "/portal/applications", "/portal/payments", "/portal/notifications"].includes(pathname)
+    const refreshPage = ["/portal/home", "/portal", "/portal/documents", "/portal/applications", "/portal/payments", "/portal/notifications"].includes(pathname)
       || pathname.startsWith("/portal/notifications/");
     async function update(refreshContent = true) {
       if (disposed || running || document.visibilityState !== "visible") return;
@@ -23,7 +26,7 @@ export function PortalNotificationUpdates() {
       try {
         const result = await loadStudentPortalNotificationState();
         if (disposed) return;
-        if (!result.ok) { setFailed(true); return; }
+        if (!result.ok) { setFailed(true); setUnread(null); return; }
         setFailed(false);
         setUnread(result.unread);
         // Refresh operational pages even when no notification was emitted (for
@@ -32,7 +35,7 @@ export function PortalNotificationUpdates() {
           startTransition(() => router.refresh());
         }
       } catch {
-        if (!disposed) setFailed(true);
+        if (!disposed) { setFailed(true); setUnread(null); }
       } finally {
         running = false;
       }
@@ -56,17 +59,25 @@ export function PortalNotificationUpdates() {
     };
   }, [pathname, router]);
 
+
+  const label = unread === null ? strings.notifications
+    : unread > 0 ? formatPortalString(strings.notificationsUnread, { count: String(unread) })
+      : strings.notificationsNone;
+
   return (
-    <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 border-b border-border px-4 py-1 sm:px-6">
-      <Link href="/portal/notifications" className="inline-flex min-h-11 items-center text-sm font-medium text-accent-text underline">
-        <span aria-live="polite">{unread === null ? "Уведомления" : unread > 0 ? `Новых уведомлений: ${unread}` : "Новых уведомлений нет"}</span>
+    <div className="pt-notification-updates">
+      <Link href="/portal/notifications" className="pt-bell" aria-label={label}>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M10 3a4.5 4.5 0 0 1 4.5 4.5c0 3.2 1 4.5 1.5 5H4c.5-.5 1.5-1.8 1.5-5A4.5 4.5 0 0 1 10 3zM8.5 15.5a1.5 1.5 0 0 0 3 0"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {unread !== null && unread > 0 ? <span className="pt-notification-count" aria-hidden="true">{unread > 99 ? "99+" : unread}</span> : null}
       </Link>
+      <span className="pt-sr-only" role="status">{label}</span>
       {failed ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <p role="alert" className="text-danger">Не удалось обновить уведомления.</p>
-          <button type="button" className="min-h-11 font-medium text-accent-text underline" onClick={() => retry.current()}>
-            Повторить
-          </button>
+        <div className="pt-notification-error">
+          <p role="alert">{strings.notificationsFailed}</p>
+          <button type="button" className="pt-link" onClick={() => retry.current()}>{strings.notificationsRetry}</button>
         </div>
       ) : null}
     </div>

@@ -10682,3 +10682,54 @@ controls, mobile и denied actors. В текущем QA нет208 activation, ar
 Новые business writes, managed SQL, provider actions и production не разрешены
 этим контрактом. После212 очередь A: сначала сохранение соседних блоков условий
 продажи (#30), затем CRM-02b search/read-detail и остальные согласованные1–36.
+
+## 2026-09-20 — CRM-30: независимое сохранение блоков карточки (213)
+
+Основание: main `285e784e2a97aa42339cae1ca1d5aa6e465a3c7e` после #945;
+213 выделена root для A, 214 — B. При чтении настоящей карточки Sales обнаружены
+две связанные ошибки: три блока отправляют скрытые соседние поля из старого SSR,
+хотя shared revision уже обновлена; «Условия продажи» отправляет12 полей,
+а общий action требует29 и отказывает до RPC. SQL181 заменяет весь fields.
+
+Контракт до кода:
+- Добавить отдельный grouped-patch RPC с четырьмя закрытыми группами: sale9,
+  wishes6, education5, conditions6. Требовать ровно все собственные ключи
+  выбранной группы; чужие/лишние/пропущенные ключи отклонять. Старые v1 RPC,
+  fingerprint, full-replacement API и reader DTO сохраняются.
+- Новый action и четыре формы отправляют только command metadata, group и свои
+  поля. Сервер берёт остальные поля из актуальной строки под тем же lead lock,
+  проверяет expected revision и использует существующий normalizer184.
+  Никакие поля из старого SSR не могут заменить соседнюю сохранённую группу.
+- Fresh actor/org/admin-or-sales и scoped lead.sales.workflow.manage обязательны,
+  в том числе до выдачи исторической квитанции и после ожидания блокировки.
+  authenticated-only SECURITY DEFINER, пустой search_path; прежние права не расширять.
+- Fingerprint включает original patch, group, actor, lead, expected revision и
+  отдельный operation discriminator, вычисляется до объединения с текущей БД.
+  Exact replay возвращает исходную immutable receipt даже после других saves;
+  changed-intent/request reuse конфликтует; stale revision не пишет. Общая
+  таблица receipts и её уникальность остаются; ошибка конфликта откатывает
+  всю транзакцию, включая предварительное обновление строки.
+- Сохранять существующие receipts/audit, tenant и Student-private границы,
+  sales register, handoff, case/docs и финансовые snapshots. Формы сохраняют
+  расположение/состав/читаемость EVO, видимые labels, controls и несохранённые
+  sibling drafts. Shared revision растёт монотонно: поздняя старая receipt
+  не понижает ожидаемую версию. Не добавлять автоматический refresh/remount.
+- Impeccable Operate применяется к сохранению предсказуемого поведения формы;
+  визуальный redesign/перестановка сводки студентов сюда не входят.
+
+Проверки: typegen/TypeScript, scoped lint, реальные формы с exact own-key payload,
+existing-input ordinary Auth read/denial. Положительная local UI/API проверка
+требует отдельного конкретного решения после reviewable реализации: один уже
+существующий lead, два временных технических текста в wishes/education, четыре
+сохранения включая восстановление исходных пустых значений, без новых сущностей,
+продаж, Auth-изменений или удаления audit. Проверить sibling draft/persisted
+preservation, exact replay, changed-intent conflict и stale, unchanged financial
+snapshot/case/docs. До разрешения эта часть не выполнена и не заявляется PASS.
+A — единственный local schema applier; local/main порядок212→213→214.
+Два независимых exact-head review и protected CI перед root merge обязательны.
+Managed DB/providers/production этим контрактом не разрешены.
+
+Архитектурная сверка20.09: PostgreSQL [row/advisory transaction locks](https://www.postgresql.org/docs/current/explicit-locking.html)
+удерживаются до конца транзакции, а exception откатывает эффекты; Supabase
+[database functions](https://supabase.com/docs/guides/database/functions)
+рекомендует задавать search_path для SECURITY DEFINER и ограничивать EXECUTE.

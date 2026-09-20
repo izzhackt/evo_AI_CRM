@@ -34,8 +34,11 @@ export function resolveUniversityPhotoUrl(
   if (photoKey === null || !Object.hasOwn(photos, photoKey)) return null;
   const hotlink = photos[photoKey].path;
   const entry = Object.hasOwn(entries, photoKey) ? entries[photoKey] : null;
+  // Require the flat, key-bound manifest filename; the final lookahead also rejects trailing newlines.
   if (!entry || entry.status !== "verified" || entry.migrated !== true
-    || typeof entry.objectPath !== "string" || entry.objectPath.length === 0) {
+    || typeof entry.objectPath !== "string"
+    || !/^[a-z0-9][a-z0-9-]*\.(?:avif|gif|jpg|png|webp)(?![\s\S])/u.test(entry.objectPath)
+    || !entry.objectPath.startsWith(`${photoKey}.`)) {
     return hotlink;
   }
   return `${baseUrl}/${entry.objectPath.split("/").map(encodeURIComponent).join("/")}`;

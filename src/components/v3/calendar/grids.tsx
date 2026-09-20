@@ -106,7 +106,7 @@ export function TaskChip({
   return (
     <button
       type="button"
-      id={`task-${task.id}`}
+      id={`task-${task.key}`}
       onClick={onSelect}
       aria-expanded={selected}
       aria-controls={selected && panelId ? panelId : undefined}
@@ -199,12 +199,12 @@ function Chips({ tasks, chip }: { tasks: readonly CalendarTask[]; chip: ChipProp
     <div className="flex flex-col gap-1">
       {tasks.map((task) => (
         <TaskChip
-          key={task.id}
+          key={task.key}
           task={task}
           today={chip.today}
-          selected={task.id === chip.selectedId}
+          selected={task.key === chip.selectedId}
           panelId={chip.panelId}
-          onSelect={() => chip.onSelect(task.id)}
+          onSelect={() => chip.onSelect(task.key)}
         />
       ))}
     </div>
@@ -228,12 +228,12 @@ function CalendarItems({
       ))}
       {tasks.map((task) => (
         <TaskChip
-          key={task.id}
+          key={task.key}
           task={task}
           today={chip.today}
-          selected={task.id === chip.selectedId}
+          selected={task.key === chip.selectedId}
           panelId={chip.panelId}
-          onSelect={() => chip.onSelect(task.id)}
+          onSelect={() => chip.onSelect(task.key)}
         />
       ))}
     </div>

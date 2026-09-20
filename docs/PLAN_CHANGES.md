@@ -33622,3 +33622,49 @@ or substitute success checks; missing access/records is a concrete blocker, whil
 old isolated receipts remain technical history. B owns runtime/catalogue/native
 files; A alone maintains these shared launch/decision contracts; root coordinates
 migration allocation, integration and production authority.
+
+## 2026-09-20 — CRM-05: подтверждённая передача на рабочей доске (212)
+
+Основание: main `1795bf2380344bdca059868aba57d033fa13a259` после #943.
+При реальной локальной проверке210 доска `/v3/pipeline` отправила все7
+case-linked лидов в «Переданы»: `pipeline-source.ts` использует наличие любого
+связанного дела. В существующих данных лишь4 имеют completed handoff; ещё3 —
+дело кабинета без передачи. Root согласовал этот срез и выделил212.
+
+Доменный контракт:
+- Сохранить терминальную колонку «Переданы». Её основание — durable completed
+  `platform.sales_admissions_handoffs` (088/174), либо точное доказательство
+  ветки pending-case activation из208: append-only create receipt, та же
+  pipeline-запись с `source_snapshot.activation=pending_case`, тот же связанный
+  student_case и lead в одной организации. Само дело или imported/manual sale
+  не доказывают передачу. Не добавлять новые записи для конструирования proof.
+- Передача остаётся фактом истории при архивировании финансовой записи,
+  изменении куратора/состояния дела; отсутствие текущего report permission не
+  должно менять операционный этап. Не раскрывать суммы, snapshot, request IDs,
+  case IDs или другую финансовую/Student-private информацию.
+- Новая readonly staff-проекция212 возвращает только lead ID, признак и время
+  подтверждённой передачи для текущих разрешённых открытых лидов. Проверять
+  fresh actor/organization/lead.read/record scope, запретить Student/anonymous,
+  отказать целиком при недоступном запрошенном lead. Старые RPC/DTO не менять.
+  Preview/неполный или ошибочный ответ не превращать в «не передан».
+- На доске подтверждённые передачи отделяются от канонических этапов. Остальные
+  лиды сохраняют canonical stage и управление следующими действиями. Сохранить
+  owner/search/due/stage filters, terminal protection, mobile controls и
+  существующий сигнал усечения чтения. Не переоткрывать закрытый lifecycle.
+- 210 намеренно считает все разрешённые открытые canonical stages: completed
+  handoff оставляет lead open и прежний stage (в QA new3/qualified1). Поэтому
+  новая доска ожидает new3/handed_off4, а210 остаётся new6/qualified1 + sales4.
+  Это разные группировки; stage-parity и sale=handoff не утверждать. Соседнюю
+  cohort-динамику и workflow commands в этом срезе не менять.
+
+Порядок и доказательства: работа в отдельном A-worktree параллельно B211,
+но local apply и main merge строго211→212; A — единственный local schema applier,
+root — единственный merge/release coordinator. Перед кодом сохранён этот контракт.
+UI сохраняет EVO и существующий Operate-контекст Impeccable; новых визуальных
+систем/полной переработки доски здесь нет. Проверка на тех же разрешённых
+существующих local QA-входах: raw queue/projection/board, stage filters, terminal
+controls, mobile и denied actors. В текущем QA нет208 activation, archived/closed
+или второго tenant; соответствующие ветки остаются source-only, без fixtures.
+Новые business writes, managed SQL, provider actions и production не разрешены
+этим контрактом. После212 очередь A: сначала сохранение соседних блоков условий
+продажи (#30), затем CRM-02b search/read-detail и остальные согласованные1–36.

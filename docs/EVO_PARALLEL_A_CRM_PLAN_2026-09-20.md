@@ -40,7 +40,7 @@ review одобрены. Это unit/source/harness-проверки; полно
 |---|---|---|
 | 3 | #905 MERGED; три тестовых файла сверены, 50/50 scoped checks | Старый отчёт 2179 не новый прогон; business acceptance не заявляется |
 | 1 | #935 MERGED `f5198c37`: Sales Manager, seller и месяц по sale date; reviewed local acceptance сохранена | Managed SQL/release не выполнены; локальная квитанция относится к 001–208 |
-| 6, 10 | Текущая воронка и мобильное управление | Реальная staff UI, сохранение stage/ownership |
+| 6, 10 | CRM-01 MERGED #943 `1795bf23`: текущая воронка, actual local001–210 RPC/UI. Далее212: подтверждённая операционная передача на доске | Canonical funnel и terminal board — разные группировки; case presence не равен handoff |
 | 7 | Продажи: server search/filter, валюты, readonly detail и back | Не суммировать разные валюты; права и реальный UI |
 | 8 | Заявки: фильтр до limit, pagination и полный «Все» | Проверка server query и списка |
 | 9, 11 | Inbox и Student messages: честные состояния, очереди, поиск без гонки | Не отправлять сообщения; прочитать реальные разрешённые данные |
@@ -58,3 +58,22 @@ review одобрены. Это unit/source/harness-проверки; полно
 отдельный PR → независимое exact-head review. Не запускать общий финальный E2E,
 контентную волну или App Store. Сохранять историю, tenant/Student boundaries,
 пользовательский checkout и работу B. Миграции только после выделения номера root.
+
+## Уточнённая очередь после #943
+
+Сначала212/CRM-05 (контракт выше в общих launch/decisions), затем пункт30:
+проверить и устранить перезапись уже сохранённых соседних блоков условий продажи.
+Root подтвердил на main1795bf23: LeadCardFieldsForm обновляет revision, но hidden
+sibling values остаются из старого SSR; action отправляет все26 полей, SQL181
+заменяет fields целиком. #852 сохраняет несохранённые sibling drafts, но не
+доказывает защиту от этого overwrite. Следующий срез требует отдельного контракта
+server-authoritative partial update/replay до кода и отдельно разрешённого
+existing QA write-пути. CRM-02b следует за сохранностью данных, не перед ней.
+
+Для дальнейших пунктов: #687 уже не включает повторное удаление portal-v1
+(оно сделано152); остаётся Admin deadline/priority reason exception с сохранением
+11-arg API/coverage locks. #42 — только formatting legacy Inbox. В29 проверить
+legacy CN/MY schema137 против четырёх новых snake_case partner fields184, не
+ослабляя общий validator. #777/#693 не закрывать по одному техническому deployment:
+исторические owner-acceptance исключения остаются. Это выравнивание очереди,
+не реализация перечисленных срезов и не разрешение на managed/prod mutations.

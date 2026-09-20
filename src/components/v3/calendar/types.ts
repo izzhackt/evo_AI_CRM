@@ -18,19 +18,12 @@
 
 import type { CalendarReadAccess } from "../../../lib/v3/calendar-contract.ts";
 
-export function calendarAccessNotice(access: CalendarReadAccess, hasSelectedTask = false): string | null {
-  if (access.tasks && access.applicationDeadlines) return null;
-  const unavailable = !access.tasks && !access.applicationDeadlines
-    ? "Нет доступа к общему списку задач и срокам поступления."
-    : !access.tasks ? "Нет доступа к общему списку задач." : "Нет доступа к срокам поступления.";
-  return !access.tasks && hasSelectedTask ? `${unavailable} Открыта задача выбранного студента.` : unavailable;
+export function calendarAccessNotice(access: CalendarReadAccess): string | null {
+  return access.tasks ? null : "Нет доступа к личному списку задач.";
 }
 
 export function calendarEmptyPeriodLabel(access: CalendarReadAccess): string | null {
-  if (access.tasks && access.applicationDeadlines) return "На этот период событий нет.";
-  if (access.tasks) return "На этот период задач нет.";
-  if (access.applicationDeadlines) return "На этот период сроков поступления нет.";
-  return null;
+  return access.tasks ? "На этот период вам не назначены задачи." : null;
 }
 
 export type CalendarView = "day" | "week" | "month";
@@ -99,21 +92,18 @@ export type CalendarApplicationDeadline = Readonly<{
 }>;
 
 /**
- * Задача приёмной кампании.
+ * Назначенная сотруднику задача из дела или рабочего раздела «Задачи».
  *
  * ЧЕГО ЗДЕСЬ НЕТ И НЕ БУДЕТ: длительности. У задачи один срок, а не начало и
  * конец, поэтому в сетке дня она занимает свой час, а не выдуманный интервал.
- * Нет и исполнителя: задача принадлежит роли приёмной, а роль — не человек,
- * рисовать её аватаром значило бы придумать сотрудника.
  *
  * `student_case_id`, исполнитель, видимость и версия команды остаются в
  * клиентском контракте, потому что они обязательны для точной серверной
  * мутации. На экран UUID и машинные ключи не выводятся.
  */
-export type CalendarTask = Readonly<{
+type CalendarTaskFields = Readonly<{
   id: string;
-  studentCaseId: string;
-  taskType: string;
+  key: string;
   title: string;
   /** Описание. null — рисовать нечего. */
   details: string | null;
@@ -136,13 +126,29 @@ export type CalendarTask = Readonly<{
   /** Чей это студент. null — не рисуется. */
   person: string | null;
   priority: "low" | "normal" | "high" | "urgent";
-  studentVisible: boolean;
   assigneeMembershipId: string;
   assigneeDisplayName: string;
-  caseState: "active" | "closed";
   /** Decimal BIGINT returned by Supabase without JavaScript precision loss. */
   version: string;
 }>;
+
+export type CalendarCaseTask = CalendarTaskFields & Readonly<{
+  kind: "case";
+  studentCaseId: string;
+  taskType: string;
+  studentVisible: boolean;
+  caseState: "active" | "closed";
+}>;
+
+export type CalendarStaffTask = CalendarTaskFields & Readonly<{
+  kind: "staff";
+  studentCaseId?: never;
+  taskType?: never;
+  studentVisible?: never;
+  caseState?: never;
+}>;
+
+export type CalendarTask = CalendarCaseTask | CalendarStaffTask;
 
 /**
  * Day/week grids share one all-day row between tasks without a time and
@@ -274,13 +280,15 @@ export function calendarUndatedContinuationHref(
   basePath: string,
   view: CalendarView,
   day: Day,
-  cursor: Readonly<{ sortAt: string; caseTaskId: string }>,
+  cursor: Readonly<{ sortAt: string; caseTaskId: string }> | Readonly<{ sortAt: string; kind: "case" | "staff"; taskId: string }>,
 ): string {
   const params = new URLSearchParams({
     view,
     date: day,
     undated_after_sort_at: cursor.sortAt,
-    undated_after_case_task_id: cursor.caseTaskId,
+    ...("kind" in cursor
+      ? { undated_after_kind: cursor.kind, undated_after_task_id: cursor.taskId }
+      : { undated_after_case_task_id: cursor.caseTaskId }),
   });
   return `${basePath}?${params.toString()}`;
 }

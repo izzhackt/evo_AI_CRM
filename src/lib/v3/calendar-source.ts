@@ -1,39 +1,19 @@
 import "server-only";
 
-import type {
-  CalendarApplicationDeadline,
-  CalendarAssigneeOption,
-  CalendarCaseOption,
-  CalendarTask,
-  CalendarTaskCapabilities,
-  Day,
-} from "@/components/v3/calendar/types";
+import type { CalendarCaseOption, CalendarCaseTask, CalendarTask, Day } from "@/components/v3/calendar/types";
+import { getPlatformAdmissionsTaskTarget } from "@/lib/platform-admissions-workspace";
 import { listPlatformStudentCases } from "@/lib/platform-admissions";
-import type {
-  PlatformAdmissionsTaskQueueCursor,
-  PlatformAdmissionsTaskQueueRow,
-} from "@/lib/platform-admissions-task-contract";
-import {
-  getPlatformAdmissionsTaskTarget,
-  listPlatformAdmissionsTaskQueue,
-} from "@/lib/platform-admissions-workspace";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { staffPresentationCan } from "@/lib/platform-access";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
+import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import {
-  dayInOrganizationTimezone,
-  projectPlatformTaskDeadline,
-} from "@/lib/platform-task-deadline";
-import {
-  assertCalendarDatedTaskPageOrder,
-  listCalendarApplicationDeadlinePage,
-  listCalendarUndatedTaskPage,
-  readNearestCalendarApplicationDeadline,
-  readCalendarWorkspaceBranches,
-  type CalendarReadAccess,
-  type CalendarApplicationDeadlineCursor,
-  type CalendarApplicationDeadlineRow,
-  type CalendarUndatedTaskCursor,
-} from "@/lib/v3/calendar-contract";
+  personalCalendarAccess,
+  readPersonalCalendarPage,
+  readPersonalCalendarTarget,
+  type PersonalCalendarCursor,
+  type PersonalCalendarKind,
+} from "@/lib/v3/personal-calendar-contract";
 
 const QUEUE_PAGE_SIZE = 100;
 const CASE_PAGE_SIZE = 100;
@@ -62,139 +42,33 @@ export async function readNowMinutes(): Promise<number> {
   return minutes;
 }
 
-export type CalendarTasksRead = Readonly<{
-  tasks: readonly CalendarTask[];
-  undatedNextCursor: CalendarUndatedTaskCursor | null;
-}>;
-
-function calendarTaskFromRow(
-  row: Omit<PlatformAdmissionsTaskQueueRow, "sortAt">,
-  now: Date,
-): CalendarTask {
-  const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, now);
-  return Object.freeze({
-    id: row.caseTaskId,
-    studentCaseId: row.studentCaseId,
-    taskType: row.taskType,
-    title: row.title,
-    details: null,
-    dueOn: row.dueOn,
-    dueAt: row.dueAt,
-    day: deadline.day,
-    minutes: deadline.minutes,
-    overdue: deadline.overdue,
-    state: row.status,
-    cancelReason: null,
-    person: row.studentDisplayName,
-    priority: row.priority,
-    studentVisible: row.studentVisible,
-    assigneeMembershipId: row.assigneeMembershipId,
-    assigneeDisplayName: row.assigneeDisplayName,
-    caseState: row.caseState,
-    version: row.version,
-  });
-}
-
-/**
- * Exhaust the selected dated task range and read one bounded page from the
- * dedicated undated projection. The adapter never scans dated history to
- * discover NULL deadlines and never materializes the full undated history.
- */
 export async function readCalendarTasks(
-  actor: ActivePlatformActor,
-  from: Day,
-  to: Day,
-  undatedCursor: CalendarUndatedTaskCursor | null = null,
-): Promise<CalendarTasksRead> {
-  const now = new Date();
+  actor: ActivePlatformActor, from: Day, to: Day,
+  undatedCursor: PersonalCalendarCursor | null = null,
+) {
   const tasks: CalendarTask[] = [];
-  const seenTaskIds = new Set<string>();
-
-  let datedCursor: PlatformAdmissionsTaskQueueCursor | null = null;
+  const seen = new Set<string>();
+  let datedCursor: PersonalCalendarCursor | null = null;
   do {
-    const page = await listPlatformAdmissionsTaskQueue(actor, {
-      pageSize: QUEUE_PAGE_SIZE,
-      cursor: datedCursor,
-      dueFrom: from,
-      dueTo: to,
+    const page = await readPersonalCalendarPage(actor, {
+      mode: "dated", from, to, pageSize: QUEUE_PAGE_SIZE, cursor: datedCursor,
     });
-    assertCalendarDatedTaskPageOrder(page.rows, datedCursor);
-    for (const row of page.rows) {
-      const task = calendarTaskFromRow(row, now);
-      if (
-        task.day === null ||
-        task.day < from ||
-        task.day > to ||
-        seenTaskIds.has(task.id)
-      ) {
-        throw new Error("V3 calendar received an invalid dated task page.");
-      }
-      seenTaskIds.add(task.id);
+    for (const task of page.tasks) {
+      if (seen.has(task.key)) throw new Error("Personal calendar received a duplicate task.");
+      seen.add(task.key);
       tasks.push(task);
     }
     datedCursor = page.nextCursor;
   } while (datedCursor !== null);
-
-  const undatedPage = await listCalendarUndatedTaskPage(actor, {
-    pageSize: QUEUE_PAGE_SIZE,
-    cursor: undatedCursor,
+  const undated = await readPersonalCalendarPage(actor, {
+    mode: "undated", pageSize: QUEUE_PAGE_SIZE, cursor: undatedCursor,
   });
-  for (const row of undatedPage.rows) {
-    const task = calendarTaskFromRow(row, now);
-    if (task.day !== null || seenTaskIds.has(task.id)) {
-      throw new Error("V3 calendar received an invalid undated task page.");
-    }
-    seenTaskIds.add(task.id);
+  for (const task of undated.tasks) {
+    if (seen.has(task.key)) throw new Error("Personal calendar received a duplicate task.");
+    seen.add(task.key);
     tasks.push(task);
   }
-
-  return Object.freeze({
-    tasks: Object.freeze(tasks),
-    undatedNextCursor: undatedPage.nextCursor,
-  });
-}
-
-function calendarDeadlineFromRow(
-  row: CalendarApplicationDeadlineRow,
-): CalendarApplicationDeadline {
-  return Object.freeze({
-    kind: "application_deadline",
-    id: row.sourceKey,
-    deadlineKind: row.deadlineKind,
-    studentCaseId: row.studentCaseId,
-    studentDisplayName: row.studentDisplayName,
-    universityName: row.universityName,
-    programName: row.programName,
-    status: row.status,
-    day: row.deadline,
-  });
-}
-
-async function readCalendarApplicationDeadlines(
-  actor: ActivePlatformActor,
-  from: Day,
-  to: Day,
-): Promise<readonly CalendarApplicationDeadline[]> {
-  const deadlines: CalendarApplicationDeadline[] = [];
-  const seenApplicationIds = new Set<string>();
-  let cursor: CalendarApplicationDeadlineCursor | null = null;
-  do {
-    const page = await listCalendarApplicationDeadlinePage(actor, {
-      pageSize: QUEUE_PAGE_SIZE,
-      cursor,
-      from,
-      to,
-    });
-    for (const row of page.rows) {
-      if (seenApplicationIds.has(row.sourceKey)) {
-        throw new Error("V3 calendar received a duplicate application deadline.");
-      }
-      seenApplicationIds.add(row.sourceKey);
-      deadlines.push(calendarDeadlineFromRow(row));
-    }
-    cursor = page.nextCursor;
-  } while (cursor !== null);
-  return Object.freeze(deadlines);
+  return { tasks: Object.freeze(tasks), undatedNextCursor: undated.nextCursor, undatedCount: undated.totalCount };
 }
 
 async function readActiveCases(
@@ -230,78 +104,51 @@ async function readActiveCases(
   });
 }
 
-export type CalendarWorkspace = Readonly<{
-  access: CalendarReadAccess;
-  tasks: readonly CalendarTask[];
-  undatedNextCursor: CalendarUndatedTaskCursor | null;
-  applicationDeadlines: readonly CalendarApplicationDeadline[];
-  nearestApplicationDeadline: CalendarApplicationDeadline | null;
-  cases: readonly CalendarCaseOption[];
-  casesHaveMore: boolean;
-  assignees: readonly CalendarAssigneeOption[];
-}>;
-
-export type CalendarTaskTarget = Readonly<{
-  task: CalendarTask;
-  assignees: readonly CalendarAssigneeOption[];
-  capabilities: CalendarTaskCapabilities;
-}>;
-
-/** A deep link reads one exact task, never the full case or a paged task guess. */
-export async function readCalendarTaskTarget(
-  actor: ActivePlatformActor,
-  studentCaseId: string,
-  caseTaskId: string,
-): Promise<CalendarTaskTarget> {
-  const target = await getPlatformAdmissionsTaskTarget(actor, studentCaseId, caseTaskId);
-  return Object.freeze({
-    task: calendarTaskFromRow(target.task, new Date()),
-    assignees: target.assignees.map((row) => ({
-      membershipId: row.membershipId,
-      displayName: row.displayName,
-    })),
-    capabilities: Object.freeze({ taskId: target.task.caseTaskId, studentCaseId: target.studentCaseId, ...target.capabilities }),
-  });
+export async function readPersonalCalendarTaskTarget(
+  actor: ActivePlatformActor, studentCaseId: string | null, taskId: string,
+  kind: PersonalCalendarKind = "case",
+) {
+  return readPersonalCalendarTarget(actor, { kind, taskId, studentCaseId });
 }
 
-/**
- * One write-ready V3 calendar projection. Cases and assignees come from the
- * same authorized Supabase repositories as the task commands; there is no
- * browser-only picker data or an unbound task path.
- */
-export async function readCalendarWorkspace(
-  actor: ActivePlatformActor,
-  from: Day,
-  to: Day,
-  undatedCursor: CalendarUndatedTaskCursor | null = null,
-  target: CalendarTaskTarget | null = null,
-): Promise<CalendarWorkspace> {
-  const branches = await readCalendarWorkspaceBranches(actor, {
-    tasks: (current) => readCalendarTasks(current, from, to, undatedCursor),
-    deadlines: (current) => readCalendarApplicationDeadlines(current, from, to),
-    nearest: readNearestCalendarApplicationDeadline,
-    cases: readActiveCases,
-  });
-  const read = branches.tasks ?? { tasks: [], undatedNextCursor: null };
-  const applicationDeadlines = branches.deadlines ?? [];
-  const nearestDeadline = branches.nearest;
-  const cases = branches.cases ?? { rows: [], hasNext: false };
-  // Editing uses the exact target's candidates. Creation resolves candidates
-  // after the user selects its case; the first list row is not its authority.
-  const assignees = target?.assignees ?? [];
+// Shared Tasks inspector keeps its existing object scope, independently of the
+// personal calendar. Its write controls continue to use canonical authority.
+export async function readCalendarTaskTarget(actor: ActivePlatformActor, studentCaseId: string, taskId: string) {
+  const target = await getPlatformAdmissionsTaskTarget(actor, studentCaseId, taskId);
+  const row = target.task;
+  const deadline = projectPlatformTaskDeadline(row.dueOn, row.dueAt, new Date());
+  const task: CalendarCaseTask = {
+    kind: "case", key: `case:${row.caseTaskId}`, id: row.caseTaskId, studentCaseId: row.studentCaseId,
+    taskType: row.taskType, title: row.title, details: null, dueOn: row.dueOn, dueAt: row.dueAt,
+    day: deadline.day, minutes: deadline.minutes, overdue: deadline.overdue,
+    state: row.status, cancelReason: null, person: row.studentDisplayName, priority: row.priority,
+    studentVisible: row.studentVisible, assigneeMembershipId: row.assigneeMembershipId,
+    assigneeDisplayName: row.assigneeDisplayName, caseState: row.caseState, version: row.version,
+  };
+  return { task, assignees: target.assignees.map(item => ({ membershipId: item.membershipId, displayName: item.displayName })),
+    capabilities: { taskId: task.id, studentCaseId: task.studentCaseId, ...target.capabilities } };
+}
 
+export type CalendarTaskTarget = Awaited<ReturnType<typeof readPersonalCalendarTaskTarget>>;
+
+export async function readCalendarWorkspace(
+  actor: ActivePlatformActor, from: Day, to: Day,
+  undatedCursor: PersonalCalendarCursor | null = null,
+  target: CalendarTaskTarget | null = null,
+) {
+  const access = personalCalendarAccess(actor);
+  // An unavailable branch is never called; an allowed read failure propagates.
+  const [read, cases] = await Promise.all([
+    access.tasks ? readCalendarTasks(actor, from, to, undatedCursor) : null,
+    staffPresentationCan(actor, "admissions.read") ? readActiveCases(actor) : null,
+  ]);
+  const tasks = read?.tasks ?? [];
   return Object.freeze({
-    access: branches.access,
-    tasks: target
-      ? Object.freeze([target.task, ...read.tasks.filter((task) => task.id !== target.task.id)])
-      : read.tasks,
-    undatedNextCursor: read.undatedNextCursor,
-    applicationDeadlines,
-    nearestApplicationDeadline: nearestDeadline
-      ? calendarDeadlineFromRow(nearestDeadline)
-      : null,
-    cases: cases.rows,
-    casesHaveMore: cases.hasNext,
-    assignees: Object.freeze(assignees),
+    access,
+    tasks: target ? Object.freeze([target.task, ...tasks.filter(task => task.key !== target.task.key)]) : tasks,
+    undatedNextCursor: read?.undatedNextCursor ?? null,
+    undatedCount: read?.undatedCount ?? 0,
+    cases: cases?.rows ?? [], casesHaveMore: cases?.hasNext ?? false,
+    assignees: target?.assignees ?? [],
   });
 }

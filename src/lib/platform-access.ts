@@ -44,7 +44,7 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
   if (route === "/v3/knowledge") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
   if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
-  if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage");
+  if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage") || staffHasPermission(actor, "staff.task.read");
   if (route === "/v3/tasks") return staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create")
     || staffHasPermission(actor, "task.manage")
     || (staffCan(actor, "admissions.read") && staffHasPermission(actor, "task.create"));

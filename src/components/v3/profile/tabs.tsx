@@ -176,7 +176,7 @@ export function Overview({
             <FactList
               facts={[
                 {
-                  label: "Ответственный",
+                  label: "Менеджер продаж",
                   value: sales.lead.currentOwnerDisplayName ?? "не назначен",
                 },
                 {
@@ -351,7 +351,7 @@ export function Overview({
       <Card eyebrow title="Коротко">
         <FactList
           facts={[
-            { label: "Ответственный", value: draft.responsible },
+            { label: draft.admissions ? "Куратор" : "Менеджер продаж", value: draft.responsible },
             { label: "Поставщик услуг", value: draft.provider },
             ...draft.study.slice(0, 2),
           ]}

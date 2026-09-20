@@ -34524,3 +34524,13 @@ revision до active/preparation/legacy eligibility; unique application revision
 item key, case-level сериализация reuse между программами; повтор не восстанавливает
 удалённые links/slots. DTO разделяет required, slotStatus, reviewDecision, technical
 availability/reasons и nullable configuration revision без фиктивной revision0.
+
+
+Уточнение B218 до кода: [wire-контракт](platform/b3c-application-requirements-contract.md)
+фиксирует immutable receipt/current reader, поля/nullability/decimal versions и
+именованные причины отказа. Case legacy gate исключает уже доказанные218 typed
+slots других программ того же дела. Изменённые108 metadata сохраняются, но
+несовпадение с immutable label/group/intent возвращает needs_configuration,
+без молчаливого reuse/retyping/replacement. Новый113 link сохраняет aggregate
+slot-version bump. Root согласовал правила legacy/reuse/metadata; runtime
+ждёт main946+960. Wire фиксирует детали принятого API-контракта.

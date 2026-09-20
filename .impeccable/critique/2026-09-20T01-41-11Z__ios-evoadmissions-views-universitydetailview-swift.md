@@ -10,6 +10,7 @@ target_fingerprint: "sha256:abe39d4b3ae06f6c9c946db18781ee31e3913e27f4c6f33899ad
 target_path: /Users/iskhak.tazhibaev/.codex/worktrees/ios-university-refinement/evo_AI_CRM/ios/EVOAdmissions/Views/UniversityDetailView.swift
 timestamp: 2026-09-20T01-41-11Z
 slug: ios-evoadmissions-views-universitydetailview-swift
+closed: true
 ---
 # Impeccable: карточка университета iPhone
 

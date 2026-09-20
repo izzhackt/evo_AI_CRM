@@ -13,11 +13,13 @@
 сохраняют исходные ревизии и пределы, их проверки повторно не запускались.
 
 Вне этого main, по текущей координации: B218 (`bf52b38a`, SQL `b20efabd`)
-прошла local schema check и начальную Student initialization; пакет из 13 фаз
-ещё выполняется, полный Auth/Docs/UI результат не принят. Root219 — runtime
-`2b75` в работе, подходящий pinned QA positive не подтверждён; 221 — только
-pre-code. A220 — runtime после `e789`, работа продолжается. Эти статусы не
-означают merge, завершение блоков или разрешение новых записей.
+прошла local schema check и все 13 фаз ordinary Auth QA: initialization,
+replay, доступ, отсутствие автоматического восстановления связей и явное
+восстановление. Реальные TS readers и Swift decoding 59 payloads прошли;
+новый UI, upload/submit и готовность в production этим не проверялись. Root219 —
+runtime-кандидат `f4e0ffdb` на независимом review, подходящий pinned QA positive
+не подтверждён; 221 — только pre-code. A220 — runtime после `e789`, работа
+продолжается. Эти статусы не означают merge или завершение всех блоков.
 
 ## Первый срез A-1 — пункты 4 и 34
 
@@ -66,7 +68,7 @@ review одобрены. Это unit/source/harness-проверки; полно
 | 15 | Team chat: хронология, цитаты, поиск, composer, unread | История/read model до UI; не отправлять сообщения |
 | 16 | #954/#963 MERGED: explicit case choice и личный case/staff reader; LOCAL217 Auth/target/denials и UI320/390/desktop | Положительные dated/staff и >100 UI overflow отсутствуют; commands/concurrent reassignment не исполнены; [receipt](qa/personal-calendar-2026-09-21.md) |
 | 22 | #961 MERGED: keyboard skip-navigation slice | Остальной shell/типографика открыты; не полная a11y-приёмка |
-| 29 | Root219 runtime `2b75` в работе: узкая optional-fields correction137/184 | Вне snapshot main; подходящий pinned QA positive пока отсутствует, не подменять function proof UI-приёмкой |
+| 29 | Root219 runtime-кандидат `f4e0ffdb` на review: узкая optional-fields correction137/184 | Вне snapshot main; подходящий pinned QA positive пока отсутствует, не подменять function proof UI-приёмкой |
 | 33 | #687: причина изменения срока/приоритета Admin | Аудит/права обязательны, schema через root |
 | 35 | Завершён в исходниках: #947/#949 prerequisites, #950 MERGED `3ddb6f41`, #42 CLOSED; пять checks и 842/842 legacy tests, независимый semantic review | Только форматирование legacy Inbox; без revival/deploy/provider proof; [квитанция](qa/inbox-format-baseline-2026-09-21.md) |
 | 5, 36 | Текущая docs-сверка обновлена на401069a4; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |

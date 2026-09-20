@@ -11,11 +11,13 @@
 сохраняют исходные ревизии и пределы, их проверки повторно не запускались.
 
 Вне этого main, по текущей координации: B218 (`bf52b38a`, SQL `b20efabd`)
-прошла local schema check и начальную Student initialization; пакет из 13 фаз
-ещё выполняется, полный Auth/Docs/UI результат не принят. Root219 — runtime
-`2b75` в работе, подходящий pinned QA positive не подтверждён; 221 — только
-pre-code. A220 — runtime после `e789`, работа продолжается. Эти статусы не
-означают merge, завершение блоков или разрешение новых записей.
+прошла local schema check и все 13 фаз ordinary Auth QA: initialization,
+replay, доступ, отсутствие автоматического восстановления связей и явное
+восстановление. Реальные TS readers и Swift decoding 59 payloads прошли;
+новый UI, upload/submit и готовность в production этим не проверялись. Root219 —
+runtime-кандидат `f4e0ffdb` на независимом review, подходящий pinned QA positive
+не подтверждён; 221 — только pre-code. A220 — runtime после `e789`, работа
+продолжается. Эти статусы не означают merge или завершение всех блоков.
 
 #946 / LOCAL214: положительный обычный Auth-путь и реальные TS/Swift readers
 проверены; это не новый web/iPhone UI-проход. Подготовка/привязка не означает
@@ -26,7 +28,7 @@ pre-code. A220 — runtime после `e789`, работа продолжает�
 
 1. **B-1 / пункт 26: выполнен, #937 MERGED `22404da8`.** Resolver принимает managed objectPath только по существующему контракту манифеста: `<photoKey>.(avif|gif|jpg|png|webp)`, ASCII lowercase, без сегментов, dot traversal, query, fragment и percent escapes. Невалидная запись сохраняет уже существующий library URL; неизвестный photoKey остаётся null. Атрибуция, фото, Storage и UI сохранены. Проверены положительные расширения, отрицательные пути/чужой ключ, вся действительная библиотека, read-only GET существующих managed URL и SHA-256. Это точечная защита, не заявление о live authenticated render.
 2. **B-2 / пункт 2:** PR #929 смержен 20 сентября в17:46:11Z, `0aca60dd26c7d8cb72d3b3b75c53d957145e6ed0`. Прежний OPEN/MERGEABLE относился к началу плана. 207 уже применена в локальной проверке; текущий211 Student readback снова подтвердил сохранение первого появления в каталоге после обновления карточки. Это не новая managed/production квитанция.
-3. **B-3 / пункты 13, 17–21:** общий контракт принят; #944 и #946 MERGED, identities/selection/preparation подтверждены в пределах своих receipts. Следующий B218 requirements/Docs association — вне main, локальный пакет из 13 фаз продолжается. Submit/versioned packages/review и полный web/iPhone путь ещё не завершены; номера и QA-окна координирует root.
+3. **B-3 / пункты 13, 17–21:** общий контракт принят; #944 и #946 MERGED, identities/selection/preparation подтверждены в пределах своих receipts. Следующий B218 requirements/Docs association — вне main, локальный пакет из 13 фаз завершён; TS/Swift decoding PASS. Submit/versioned packages/review и полный web/iPhone путь ещё не завершены; номера и QA-окна координирует root.
 4. **B-4 / пункты 23–25:** карта покрываемых portal/iOS экранов по настоящим задачам; отдельный дефектный блок focus/ExplainPanel/localized title после проверки актуального кода. Desktop + 320/390px, RU/KY, light/dark, клавиатура; native Dynamic Type и back. Аудит не означает наличие багов. Общие CSS и переводные файлы согласовывать секциями до правки.
 5. **B-5 / остаток 26: выполнен, #939 MERGED `87514d27`.** Audit metadata отделена от клиентских runtime-полей; single source of truth и генерация сохранены. Это не массовый перенос фотографий. Смежное исправление portal theme вошло через #941 `6ceccf83` и не означает завершения всех пунктов 23–25.
 6. **B-6 / пункты 27–28:** выполнить уже принятое владельцем решение о Student email confirmation от2026-09-19 ([действующий контракт](EVO_LAUNCH_PLAN.md#auth-email--smtp-and-templates-saved-delivery-pending-2026-09-19)), сверив текущий `/apply` и прежний `email_confirm: true`. Не переоткрывать вопрос о самой политике. SMTP/шаблоны не доказывают ни реализацию этого пути, ни доставку. Конкретные Auth/provider writes и отправка одобренному получателю требуют своей authority; реальная Resend delivery пока не подтверждена этим потоком.

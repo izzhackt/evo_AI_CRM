@@ -52,3 +52,26 @@ New RPC genuinely returns HTTP 404 / PGRST202 until migration 207 is applied. No
 Evidence (Next development indicator visible): [desktop RU error](evidence/functional-parity-2026-09-20/recent-error-ru-1365.png), [mobile RU error](evidence/functional-parity-2026-09-20/recent-error-ru-390.png), [mobile KY error](evidence/functional-parity-2026-09-20/recent-error-ky-390.png). Local scripts/receipts: `.next/parity-proof/recent-live.py`, `recent-live.json`, `recent-ui.mjs`, `recent-ui.json`.
 
 TypeScript, scoped ESLint and existing Home/route-entry contracts passed. Impeccable detector found no issues in the changed HomeView. Migration DDL parsed successfully on local PostgreSQL inside BEGIN/ROLLBACK; nothing persisted. Local schema stops at 125, so this is syntax/ACL-statement evidence only, not runtime evidence. No migration applied to production, no web release, no broad E2E, content expansion or App Store work.
+
+### B-2 follow-up: isolated source acceptance, 2026-09-20
+
+After PR #941, the coordinator authorized continuing source acceptance on a
+disposable local Supabase with real Auth, PostgREST and PostgreSQL, using
+ordinary sign-in and the actual Next.js/RPC path. Shared migrations and release
+remain deferred. This environment change is necessary to test the new function
+without treating a shared production schema change as harmless QA setup;
+the related SQL208 changes existing production behavior before frontend rollout.
+
+A owns local schema/bootstrap exclusively. B supplies the exact migration207
+from PR #929 (`8e76b8b3e5a20f6236d616b870df88b55395c72e5eea69359ec90f65d5852707`)
+and uses explicitly isolated QA identities and the minimum QA records created
+through supported paths. No customer records, forged JWTs, response mocks,
+disabled RLS, or invented RPC success are part of this acceptance.
+
+Planned checks: normal Student login, real RPC result matching Home, populated
+and empty states, first-publication/latest-content behavior, four-item limit,
+other-role/unauthenticated denial and tenant isolation; RU/KY and desktop/mobile
+for the affected section. A boundary that cannot be exercised through the real
+local path must remain explicitly unverified. These checks are **pending**;
+the historical evidence above is unchanged. Local acceptance will not be
+reported as managed-environment or real-customer acceptance.

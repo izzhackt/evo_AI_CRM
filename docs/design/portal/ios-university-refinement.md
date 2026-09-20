@@ -11,7 +11,7 @@
 EVO/«Атлас», реальные фото, авторство/лицензия, полные данные, URL, локали RU/KY,
 навигация, избранное, форма консультации и все состояния загрузки/ошибки.
 
-Разбор: [Impeccable snapshot](../../../.impeccable/critique/2026-09-20T01-41-11Z__ios-evoadmissions-views-universitydetailview-swift.md).
+Разбор: [Impeccable snapshot](ios-university-refinement-critique.md).
 Два независимых assessment; 24/36 — экспертная оценка, не бизнес-приёмка.
 
 ## Изменения
@@ -117,3 +117,8 @@ switch и отсутствие AppIntents metadata; ошибки сборки о
 
 - `ios/EVOAdmissions/Views/UniversityDetailView.swift`: `91d640ee4d401701568939c0c618a5921e874acd563a19e59cc7dfb2d2b2420a`
 - `ios/EVOAdmissions/Resources/Localizable.xcstrings`: `0e9ca3bf9db3845afd51703de4af63b03d2d3738941945345abac7255056e3f5`
+
+Архив отчёта Impeccable перенесён в `docs/design/portal/`: служебный путь
+`.impeccable/critique/` не входит в существующую классификацию PR. Первый CI
+отклонил неизвестный путь; правила CI сохранены, отчёт помещён в обычную
+документацию. iOS-код и проверенные исходники не изменены.

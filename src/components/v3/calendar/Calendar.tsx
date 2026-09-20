@@ -241,7 +241,7 @@ export function Calendar({
                 Открыть раздел «Студенты»
               </Link> : null}
               {open.kind === "staff" ? (
-                <Link href={`/v3/tasks?domain=staff&view=mine&status=all&task=${encodeURIComponent(open.id)}`} className="mt-2 inline-flex text-sm text-brand underline-offset-4 hover:underline">
+                <Link href={`/v3/tasks?domain=staff&view=mine&status=all&task=${encodeURIComponent(open.id)}`} className="mt-2 inline-flex min-h-11 items-center text-sm text-brand underline-offset-4 hover:underline">
                   Открыть задачу и действия
                 </Link>
               ) : null}

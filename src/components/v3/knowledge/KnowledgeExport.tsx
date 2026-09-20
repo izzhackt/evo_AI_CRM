@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { KnowledgeCanonicalSelection } from "@/lib/knowledge-canonical-export-contract";
 import type { KnowledgeArea } from "@/lib/knowledge-library-contract";
 import { knowledgeMessage } from "@/lib/knowledge-library-contract";
 import { knowledgeFetch } from "./client";
@@ -10,7 +11,7 @@ type ExportJob = {
   entry_count: number; completed_entries: number; written_bytes: number;
   created_at: string; expires_at: string; lease_until: string | null; error_code: string | null; error_title?: string | null;
 };
-export function KnowledgeExport({ ids, area, caseIds, label = "Выгрузить" }: { ids?: string[]; area?: KnowledgeArea; caseIds?: string[]; label?: string }) {
+export function KnowledgeExport({ ids, area, caseIds, canonical, buttonClassName, label = "Выгрузить" }: { ids?: string[]; area?: KnowledgeArea; caseIds?: string[]; canonical?: KnowledgeCanonicalSelection; buttonClassName?: string; label?: string }) {
   const [now, setNow] = useState(0);
   const [open, setOpen] = useState(false); const [jobs, setJobs] = useState<ExportJob[]>([]);
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
@@ -33,7 +34,7 @@ export function KnowledgeExport({ ids, area, caseIds, label = "Выгрузит�
   }, [open, jobs, refresh]);
   async function start() {
     setBusy(true); setError("");
-    const options = { ids, area, caseIds, includeHistory: history, includeArchive: archive, includeTrash: trash };
+    const options = { ids, area, caseIds, canonical, includeHistory: history, includeArchive: archive, includeTrash: trash };
     const fingerprint = JSON.stringify(options);
     if (request.current?.fingerprint !== fingerprint) request.current = { id: crypto.randomUUID(), fingerprint };
     try {
@@ -49,7 +50,7 @@ export function KnowledgeExport({ ids, area, caseIds, label = "Выгрузит�
     finally { setBusy(false); }
   }
   return <>
-    <button type="button" onClick={() => setOpen(true)}>{label}</button>
+    <button type="button" className={buttonClassName} onClick={() => setOpen(true)}>{label}</button>
     <dialog ref={modal} className={styles.modal} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
       <h2>{label}</h2>
       <div className={styles.exportOptions}>

@@ -115,7 +115,7 @@ export async function KnowledgeDocuments({ actor, embedded = false }: { actor: A
 
   return <>
     {!studentDocuments.complete && <p role="alert">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране.</p>}
-    <FileManager embedded={embedded} rootLabel="Документы" folders={folders} files={files} canManage={surface.canManageCompanyFiles}
+    <FileManager embedded={embedded} allowKnowledgeExport={embedded} rootLabel="Документы" folders={folders} files={files} canManage={surface.canManageCompanyFiles}
       canUpload={surface.canUploadCompanyFiles} createFolderRequestId={randomUUID()} createFileRequestId={randomUUID()} />
   </>;
 }

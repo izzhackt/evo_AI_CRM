@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { installKnowledgeEditorExitGuard } from "@/lib/knowledge-editor-exit-guard";
 import type { KnowledgeItem, KnowledgeVersion } from "@/lib/knowledge-library-contract";
 import { command, knowledgeFetch, KnowledgeClientError, uploadKnowledgeFile } from "./client";
 import { KnowledgeExport } from "./KnowledgeExport";
@@ -12,6 +13,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
   const [draft, setDraft] = useState<Draft>({ title: item.title, body: item.body ?? "", reviewQuestion: item.review_question });
   const [state, setState] = useState("Сохранено");
   const [error, setError] = useState("");
+  const [exitWarning, setExitWarning] = useState(false);
   const [mode, setMode] = useState<"edit" | "read">("read");
   const [versions, setVersions] = useState<KnowledgeVersion[]>([]);
   const [history, setHistory] = useState(false);
@@ -29,15 +31,14 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
   const attachmentRef = useRef<HTMLInputElement>(null);
   const dirty = JSON.stringify(draft) !== savedDraft;
   const editable = item.kind === "page" && !item.deleted_at;
+  const canEditMetadata = (item.kind === "page" || item.kind === "file") && !item.deleted_at;
   useEffect(() => { draftRef.current = draft; }, [draft]);
-  useEffect(() => {
-    if (!dirty) return;
-    const guard = (event: BeforeUnloadEvent) => { event.preventDefault(); };
-    window.addEventListener("beforeunload", guard);
-    return () => window.removeEventListener("beforeunload", guard);
-  }, [dirty]);
+  useEffect(() => installKnowledgeEditorExitGuard({
+    blocked: () => JSON.stringify(draftRef.current) !== savedRef.current || busyRef.current,
+    notify: () => setExitWarning(true),
+  }), [item.id]);
   const save = useCallback(async () => {
-    if (busyRef.current || !editable) return;
+    if (busyRef.current || !canEditMetadata) return;
     const current = draftRef.current;
     if (JSON.stringify(current) === savedRef.current && !pendingRef.current) return;
     if (!current.title.trim()) { setError("Укажите название."); return; }
@@ -45,7 +46,7 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
     const pending = pendingRef.current ?? { id: crypto.randomUUID(), draft: { ...current } };
     pendingRef.current = pending;
     try {
-      const saved = await command({ op: "edit", id: item.id, expectedVersion: versionRef.current, ...pending.draft }, pending.id);
+      const saved = await command({ op: "edit", id: item.id, expectedVersion: versionRef.current, title: pending.draft.title, reviewQuestion: pending.draft.reviewQuestion, ...(item.kind === "page" ? { body: pending.draft.body } : {}) }, pending.id);
       versionRef.current = saved.version; savedRef.current = JSON.stringify(pending.draft); setSavedDraft(savedRef.current); pendingRef.current = null;
       setState("Сохранено"); setSaveRevision((value) => value + 1); onSaved(saved);
     } catch (cause) {
@@ -55,12 +56,12 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
         catch { setError("Не удалось открыть текущую версию. Ваш текст остаётся в редакторе."); }
       }
     } finally { busyRef.current = false; }
-  }, [editable, item.id, onSaved]);
+  }, [canEditMetadata, item.id, item.kind, onSaved]);
   useEffect(() => {
-    if (!editable || !dirty || error || conflict) return;
+    if (!canEditMetadata || !dirty || error || conflict) return;
     const timer = setTimeout(() => { void save(); }, 900);
     return () => clearTimeout(timer);
-  }, [draft, dirty, editable, error, conflict, saveRevision, save]);
+  }, [draft, dirty, canEditMetadata, error, conflict, saveRevision, save]);
   async function loadHistory(append = false) {
     try {
       const last = append ? versions.at(-1)?.version : undefined;
@@ -94,12 +95,21 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
       {item.kind === "page" ? <KnowledgeExport ids={[item.id]} label="Выгрузить страницу" /> : <a href={`/api/v3/knowledge/download/${item.id}`}>Скачать</a>}
       {editable && <button type="button" onClick={() => void loadHistory()}>История</button>}
     </div>
+    {exitWarning && dirty && <div className={styles.error} role="alert">
+      Изменения ещё не сохранены. Сохраните их или закройте материал без сохранения.
+      <button type="button" onClick={() => void save()}>Сохранить</button>
+      <button type="button" disabled={state === "Сохраняется"} onClick={() => {
+        if (busyRef.current) return;
+        const previous: Draft = JSON.parse(savedRef.current);
+        draftRef.current = previous; pendingRef.current = null; setDraft(previous); onClose();
+      }}>Закрыть без сохранения</button>
+    </div>}
     {error && <div className={styles.error} role="alert">{error}{!conflict && <button type="button" onClick={() => void save()}>Повторить сохранение</button>}</div>}
     {conflict && <div className={styles.conflict}>
-      <h3>Текущая версия</h3><pre>{conflict.body}</pre>
+      <h3>Текущая версия</h3><pre>{item.kind === "page" ? conflict.body : conflict.review_question}</pre>
       <button type="button" onClick={() => {
         versionRef.current = conflict.version; pendingRef.current = null; setConflict(null); setError(""); void save();
-      }}>Сохранить мой текст</button>
+      }}>{item.kind === "page" ? "Сохранить мой текст" : "Сохранить мои изменения"}</button>
       <button type="button" onClick={() => {
         const next = { title: conflict.title, body: conflict.body ?? "", reviewQuestion: conflict.review_question };
         versionRef.current = conflict.version; savedRef.current = JSON.stringify(next); setSavedDraft(savedRef.current); pendingRef.current = null;
@@ -123,13 +133,16 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
         </div>
         {mode === "edit" ? <textarea ref={textRef} className={styles.bodyInput} aria-label="Текст страницы" value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
           : <div className={styles.markdown}><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ a: (props) => <a {...props} rel="noreferrer" /> }}>{draft.body}</Markdown></div>}
-        {editable && <label className={styles.question}>Вопрос для уточнения<input value={draft.reviewQuestion} onChange={(event) => setDraft({ ...draft, reviewQuestion: event.target.value })} maxLength={4000} /></label>}
         {item.source_blob_id && <a href={`/api/v3/knowledge/download/${item.id}?original=1`}>Скачать исходник</a>}
       </> : <>
         {["application/pdf", "image/png", "image/jpeg"].includes(item.mime_type) && item.area !== "raw" && item.area !== "secrets"
           ? <iframe title={item.title} sandbox="" className={styles.preview} src={`/api/v3/knowledge/download/${item.id}?preview=1`} />
           : <p>Предпросмотр этого формата недоступен. <a href={`/api/v3/knowledge/download/${item.id}`}>Скачать файл</a></p>}
       </>}
+      {(canEditMetadata || draft.reviewQuestion) && <label className={styles.question}>Вопрос для уточнения
+        <input value={draft.reviewQuestion} readOnly={!canEditMetadata} onChange={(event) => setDraft({ ...draft, reviewQuestion: event.target.value })} maxLength={4000} />
+        {canEditMetadata && <span>Очистите поле, когда вопрос решён.</span>}
+      </label>}
     </div>
     {history && <aside className={styles.history} aria-label="История версий">
       <div className={styles.editorBar}><h3>История версий</h3><button type="button" onClick={() => setHistory(false)}>Закрыть</button></div>

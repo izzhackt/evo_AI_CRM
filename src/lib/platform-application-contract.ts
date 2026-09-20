@@ -55,6 +55,7 @@ export type PlatformApplicationCountry =
 export const PLATFORM_APPLICATION_DEGREES = [
   "foundation",
   "language",
+  "diploma",
   "bachelor",
   "master",
   "phd",

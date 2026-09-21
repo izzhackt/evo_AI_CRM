@@ -101,7 +101,7 @@ UI/новый server-action через реальную страницу ещё 
 Приватный каталог `/private/tmp/evo-a225-qa-packet-20260921`:
 
 - `qa.py` — QA-only, без apply path. SHA256
-  `34c5cf91784751e410604fe637aee7a45086d236025ac622dc6b645c9b31168a`.
+  `cf82809e651b6e8f15b7eea14ad26f3a1984c2641084d6b0e0e6264d5e08aa53`.
 - `decode.mjs` — decoder настоящих RPC ответов. SHA256
   `98ae752c6cb7488c725efcaed0a34d376c23c6209658fd75bc8d5d6f2f1422ac`.
 - `manifest.example.json` — незаполненные future apply/release bindings;
@@ -113,3 +113,19 @@ UI/новый server-action через реальную страницу ещё 
 output предусмотрен в новом `/private/tmp/evo-a225-local-qa-20260921`; повторный
 старт при существующем output запрещён. Никаких новых runtime dependencies
 или приватных файлов для CI/clone этот документ не вводит.
+
+## Узкая коррекция transport guard после offline review
+
+Независимый review предложенного QA executable нашёл один P2: HTTP путь
+нужно связать с проверяемым локальным проектом до передачи credentials.
+В новой версии отключены ambient proxies (`ProxyHandler({})`). Перед каждым
+API-запросом через явно заданный Docker Unix socket повторно проверяются
+DB/Kong ID и running state, Kong image, project/workdir labels, общий точный
+network ID и публикация Kong8000 на57495 с IPv4-доступом к127.0.0.1.
+Ожидаемые значения взяты из сохранённого ROOT27c plan, не из нового live inspect.
+Redirects по-прежнему запрещены.
+
+Прежний executable сохранён как `qa-v1.py`; исходный review не переписан.
+Повторена только проверка синтаксиса Python; Docker/SQL/Auth/API не запускались.
+Decoder, бизнес-последовательность и runtime source не изменены. Финальный
+manifest/apply packet по-прежнему ожидают224, свежую baseline и отдельное review.

@@ -12586,3 +12586,14 @@ QA-only executable is syntax checked but not run; its manifest deliberately
 has no future225 apply/release bindings.224 source/release, fresh baseline,
 separate apply driver/packet review and ROOT window GO still precede execution.
 See docs/qa/crm-team-chat-sparse-seen-225-packet-2026-09-21.md.
+
+
+### A15d QA transport guard correction — offline only
+
+Independent packet review found one P2: bind credentialed HTTP to the pinned
+local Kong/project before login. The proposed helper now disables ambient
+proxies and freshly checks pinned DB/Kong, Kong image, project/workdir, common
+network ID and port57495 before every API request. Expected topology comes
+from saved ROOT27c evidence; no current environment claim or execution.
+Runtime/decoder/business QA sequence remain unchanged. Python syntax and docs
+diff checks only; final224 release/apply packet/review/ROOT GO remain required.

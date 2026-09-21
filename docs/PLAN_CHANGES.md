@@ -37025,3 +37025,14 @@ Shared QA остаётся ROOT236, затемB1015; apply237/Auth/browser/serve
 Фиктивные actors/messages/grants не разрешены; protected CI, independent review
 и отдельный принятый actual packet остаются обязательными до merge. Rail UI
 начинается после первого merge; весь15/1–36/production не объявляется готовым.
+
+
+### A237 — source clarification before decoder hardening
+
+Message id and sequence_id are globally unique in migration141. The strict
+channels decoder will also reject repeated latest-message id or sequence across
+different channel projections: this is an impossible wire snapshot, not a second
+valid copy. Add a meaningful protocol case for this invariant; no SQL/UI scope
+change. The first15 protocol cases passed before this addition. Initial local
+SQL-parity extractor selected225's earlier seen function; scoping extraction to
+team_chat_channels confirms unchanged actor/unread/ACL source. No DB ran.

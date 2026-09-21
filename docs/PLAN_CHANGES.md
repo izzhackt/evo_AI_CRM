@@ -35585,7 +35585,7 @@ refund для cleanup и production не разрешены этим сцена�
 На frozen2c0755c1 настоящий payment form имел hidden empty note без видимого
 редактора. Перед submit сохранено это значение; QA-маркер оставлен в названии
 собственного транша, вместо предположенного текстового комментария. Hidden
-at/request UUID не менялись; scope остаётся one tranche100minor + payment50KGS,
+at/request UUID не менялись; scope остаётся транш 1,00 KGS и оплата 0,50 KGS,
 без receipt/refund/provider. Actual09:40 подтверждает ordinary action/RPC/date
 путь и общий баланс CRM/Student; ночные границы покрывает отдельный pure test.
 

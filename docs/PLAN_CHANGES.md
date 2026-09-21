@@ -35549,6 +35549,36 @@ diff-check PASS, independent source review APPROVED. Full282/Storage/Auth
 равны завершённому content snapshot. Download-byte proof остаётся BLOCKED;
 не весь32 и не1–36 complete. Production и clientAI не публиковались.
 
+
+## 2026-09-21 — B3e-2 / 226: редактор требований (до реализации)
+
+#982 merged2b23285d: v2 readers уже в main, полный backend ещё не реализован.
+Root резервирует226 после A225 для полного staff editor/immutable revisions/
+explicit legacy mapping. [Точный контракт](platform/b3e2-requirements-editor-contract.md)
+закрепляет scoped document права, стабильные IDs, полный inventory113/137/179,
+точное idempotent intent и совместимость v1; не ослабляет mandatory gates.
+Новый согласованный editor-read и один atomic save расширяют таблицы218 без
+backfill старых строк, upload/submit/package процесса или правки214 binding.
+Impeccable Operate сохраняет EVO/Атлас и функции, максимум две visual rounds.
+Source work разрешён; DB/Auth/UI queue A225→root32, B226 window ещё не выдан.
+Перед реализацией independent exact precode review; перед apply/QA отдельный
+reviewed effects packet. Production и публикация старым native clients отдельно.
+
+### B3e-2 implementation review and local QA proposal
+
+Source implemented at3fcac02d and reconciled with main418521f5 at e41390ae.
+246 targeted protocol/pending/draft tests, full TypeScript and scoped lint passed;
+SQL grammar passed, lazy PL/pgSQL name resolution remains unexecuted. Independent
+source review found pending recovery hidden after lifecycle change. The entry
+now remains visible for retained226 intents under existing read access; new saves
+still require fresh context.canSave. Legacy218 initialization remains unchanged.
+Wire clarifies JSONB serialized byte count, NUL and existing108 custom-label Cc
+constraints. These storage-format rules add no business capability or permission.
+[Proposed QA](platform/b3e2-requirements-editor-qa-plan.md) bounds three ordinary
+saves and a separately reviewed rollback-only engine preflight. ROOT09d owns the
+shared runtime; its future final release/fresh baseline is required before226.
+No226 DB/Auth/UI execution, production action or full feature acceptance yet.
+
 ## 2026-09-21 — CRM-09d: ошибка календарной даты в оплате из карточки
 
 Source67934327: `financeDateTime` возвращает UTC ISO; `recordCasePaymentAction`
@@ -35596,3 +35626,17 @@ Auth users/identities8/8, не blanket equality всех Auth rows. Тестов
 не удалялись. Window released→B226, receipt cce0f273; PR984 source/runtime
 не менялись после reviewed72d. Детальная квитанция —
 `docs/qa/payment-calendar-date-2026-09-21.md`. Production не затронут.
+
+
+## 2026-09-21 — B3e-2 / 226: локальный editor/save/readback подтверждён
+
+На frozen `6cdacc76` после ROOT09d локально применена226 один раз, затем ordinary
+Admin UI выполнил Q1 A2, Q2 B2 и Q3 A3. Ровно +3 revisions/+7 items/+1 empty
+optional QA slot/+1 link/+3 audit; прежние строки всех282 tables сохранены.
+14 ordinary HTTP reads и Student A/B desktop/mobile пройдены. Own sessions
+logout local204, Next33236 остановлен; Storage и Auth identities сохранены.
+[Фактический отчёт](platform/b3e2-requirements-editor-qa.md) разделяет executed
+proof, сохранённые helper failures и runtime gaps. Независимая сверка результата,
+актуальный main, PR review/CI остаются merge-gates; production не разрешён.
+Это завершение bounded core-сценария, не всех recovery/concurrency/legacy/native
+расширений и не всего плана1–36. Нового scope/API во время QA не добавлено.

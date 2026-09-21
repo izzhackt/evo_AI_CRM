@@ -36951,3 +36951,8 @@ records this actual result. Four shell/navigation files retain 32f50df4 bytes;
 other incoming product files retain main bytes. Documentation diff/marker/parity
 review and git diff --check only; no product tests, runtime or production action.
 Final exact-head documentation review and protected CI still gate #1010 merge.
+
+
+## 2026-09-21 — ROOT14 country facet implementation contract
+
+After #1010 merged at59a726b5, implement the bounded [staff country facet](platform/staff-catalog-country-facet.md). ROOT reserves236 after fresh source inventory001–235. The current static ISO menu will use the complete authorized published-country projection for staff only; Student controls, six-country admissions scope, compact rows and existing readers stay intact. One additive staff-only RPC, strict DTO, explicit failure and preserved absent-country deep links. Precode review08c1a108 approved; Impeccable Operate applies. A1014 retains sole shared-QA ownership until strict release; this contract authorizes source work, not concurrent runtime or production. Source/actual/final review and protected CI remain required; known single-country data cannot prove multi-country/pagination positives.

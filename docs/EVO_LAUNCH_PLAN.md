@@ -12314,3 +12314,39 @@ Actual existing Admin Money/Contract,1280/390/320px; явные денежные
 48scoped tests/lint/typecheck PASS;281business/schema/functions/ledger/Authcounts
 без изменений. См. [QA](qa/crm-finance-hierarchy-2026-09-21.md) для runtime/proof
 и отсутствующих финансовых datasets. Полный item12 и managed delivery открыты.
+
+
+## 2026-09-21 — A / item15b: composer autosize precode
+
+After A15a/#970, source analysis of main686b7f41 is recorded in
+`docs/EVO_TEAM_CHAT_REMAINDER_ANALYSIS_2026-09-21.md`. Flat feed requires changing
+the root-only reader, reply-to-reply/rollback contract and old draft recovery;
+removing the thread UI alone would lose visible history. Sparse seen cannot
+reuse the whole-channel read_sequence command. No migration number is reserved.
+
+The next minimal accepted §9 slice is automatic composer height: currently
+rows1 with manual resize and CSS44..160; no autosize effect exists. A owns only
+TeamChatComposer.tsx and its existing team-chat.module.css textarea sizing.
+Grow/shrink from actual current body and width, keep the existing limits and
+internal overflow, restore saved drafts at proper height, clean up observers,
+and preserve every draft/request/command/IME/focus/authority behavior. No new
+history, SQL, message writes, DTO or stylesheet redesign.
+
+Impeccable Operate/refinement preserves EVO and space for conversation; no
+height animation. Official React/MDN sizing references, the complete invariants,
+real unsent-input QA steps and known empty-history limits are in the analysis.
+Source/doc work only while B owns the writer window. Precode approval precedes
+runtime changes; actual UI needs a separately coordinated read-only window.
+Independent exact-head review and protected short CI remain required. This
+slice does not claim flat chronology, shared quoted composer or sparse seen.
+
+
+### A15b offline implementation and incumbent evidence reuse
+
+ROOT approved implementation on reviewed precode918c6edd while B211 owns the
+shared QA writer. Reuse A15a actual staff composer evidence at10aa2617: both
+TeamChatComposer.tsx and team-chat.module.css are byte-identical in this
+precode. This replaces the earlier reopen-before-edit sequence for this block;
+no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
+the next coordinator-released QA window, with calibrated CSS viewport widths.
+Existing empty-history limits on edit/reply/saved-path proof remain unchanged.

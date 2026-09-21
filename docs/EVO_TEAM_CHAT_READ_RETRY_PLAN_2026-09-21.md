@@ -1,6 +1,7 @@
 # A15g-1 — ошибки чтения и точный повтор командного чата
 
-Статус: precode, 21 сентября2026. Основание: принятый ROOT минимальный остаток
+Статус: precode a90fda0c независимо одобрен; source-реализация подготовлена,
+actual и source review ожидаются. 21 сентября2026. Основание: принятый ROOT минимальный остаток
 пункта15 после A15f/#992 и завершённого A11/#1002. Входящий main
 `479dd6788b87fc14d4d9e3e809c16e9efff1badd`; исходники повторно прочитаны на нём.
 Сохранённый [A15f actual](qa/crm-team-chat-unified-feed-actual-2026-09-21.md)
@@ -81,5 +82,7 @@ DTO, server actions, permissions, package/lock. Нет новой миграци
   confirmation batch. Нет canned responses/подмены успеха. Недоступные реальные
   состояния отмечать как непроверенные. Production не относится к этой партии.
 
-До кода требуется независимое precode review этого контракта. Пока исходники
-не изменены, общий runtime/DB/Auth/browser не используются.
+До кода пройдено независимое precode review a90fda0c.
+[Source receipt](qa/crm-team-chat-read-retry-source-2026-09-21.md) фиксирует
+27/27 unit checks, typecheck и lint; actual UI остаётся будущим отдельным окном.
+Общий runtime/DB/Auth/browser этой партии ещё не использовался.

@@ -97,9 +97,25 @@ TS — успешным `Intl.DateTimeFormat` с этим timeZone, Swift — н
 `UTC`, `GMT`, `Asia/Shanghai`, `Asia/Dubai`, `Europe/Prague`, date-only и invalid
 prefix/name/offset случаи в обеих реализациях. Date-only не получает полночь/смещение.
 Timezone при date-only может быть null или проходить тот же predicate.
-SourceUrl — null либо безопасный публичный
-https URL без embedded credentials; null допускает непубличное основание,
-сохраняемое будущим staff-save в private provenance. Present deadline требует
+SourceUrl — null либо display-only HTTPS URL по одному v2 predicate в TS/Swift:
+1–1000 Unicode scalar values, точный префикс `https://`, без Unicode White_Space
+плюс U+FEFF, C0/DEL, backslash и `#`. Та же явная whitespace-группа используется
+для trim v2 текстов, чтобы JS/Swift одинаково оценивали U+0085 и BOM;
+v1 validators остаются прежними. Raw authority до первого `/` или `?` после префикса
+должен целиком соответствовать ASCII DNS regex
+`^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`
+без учёта регистра. Запрещены suffix `.localhost`, `.local`, `.internal`, `.test`,
+`.invalid`, `.example`; raw authority исключает credentials, IP literals,
+encoded authority и любой explicit port, в том числе `:443`.
+В raw query, разделённом по `&`, key до первого `=` не содержит `%` и после
+замены `+` на пробел не совпадает с `token|secret|password|auth|api.?key`
+без учёта регистра. Runtime URL parser также должен принять строку как HTTPS
+без user/password. Это syntactic display-link policy без server fetch или DNS
+проверки; существующий catalog-v1 helper не меняется. Общий corpus включает
+positive Unicode path/uppercase DNS и negative ports/credentials/private suffix/
+encoded query key/secret query/scalar length случаи.
+Null допускает непубличное основание, сохраняемое будущим staff-save в private
+provenance. Present deadline требует
 verifiedOn; это дата проверки, не дата наступления срока. V2 не содержит private
 source URLs, registry payload, Storage keys, reviewer identity или Auth data.
 

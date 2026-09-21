@@ -1,6 +1,102 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "prep_optional" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Необязательно"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Милдеттүү эмес"
+          }
+        }
+      }
+    },
+    "prep_confirmed_note" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список подтверждён EVO. Решение по каждому файлу показано отдельно."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тизме EVO тарабынан ырасталды. Ар бир файл боюнча чечим өзүнчө көрсөтүлөт."
+          }
+        }
+      }
+    },
+    "prep_requirement_deadline" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Срок документа"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Документтин мөөнөтү"
+          }
+        }
+      }
+    },
+    "prep_deadline_source" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник срока"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мөөнөттүн булагы"
+          }
+        }
+      }
+    },
+    "prep_deadline_verified" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник проверен:"
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Булак текшерилген:"
+          }
+        }
+      }
+    },
+    "prep_definition_changed" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Требование изменилось. Проверьте, соответствует ли ему прежний файл."
+          }
+        },
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Талап өзгөрдү. Мурунку файл жаңы талапка туура келерин текшериңиз."
+          }
+        }
+      }
+    },
     "prep_starting" : {
       "localizations" : {
         "ru" : {
@@ -902,13 +998,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Решение EVO: принят"
+            "value" : "Проверка файла: принят"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "EVO чечими: кабыл алынды"
+            "value" : "Файлды текшерүү: кабыл алынды"
           }
         }
       }
@@ -918,13 +1014,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Решение EVO: нужны исправления"
+            "value" : "Проверка файла: нужны исправления"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "EVO чечими: оңдоолор керек"
+            "value" : "Файлды текшерүү: оңдоолор керек"
           }
         }
       }
@@ -934,13 +1030,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Решение EVO: отклонён"
+            "value" : "Проверка файла: отклонён"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "EVO чечими: четке кагылды"
+            "value" : "Файлды текшерүү: четке кагылды"
           }
         }
       }

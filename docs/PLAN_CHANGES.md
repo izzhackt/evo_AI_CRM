@@ -35163,3 +35163,14 @@ can prove geometry without creating messages; empty history still limits actual
 reply/edit/saved-path evidence and must stay explicit. Impeccable guidance and
 current official layout references are recorded in the remainder analysis.
 Precode only; larger flat-feed/search/seen scopes await their own design/review.
+
+
+### A15b offline implementation and incumbent evidence reuse
+
+ROOT approved implementation on reviewed precode918c6edd while B211 owns the
+shared QA writer. Reuse A15a actual staff composer evidence at10aa2617: both
+TeamChatComposer.tsx and team-chat.module.css are byte-identical in this
+precode. This replaces the earlier reopen-before-edit sequence for this block;
+no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
+the next coordinator-released QA window, with calibrated CSS viewport widths.
+Existing empty-history limits on edit/reply/saved-path proof remain unchanged.

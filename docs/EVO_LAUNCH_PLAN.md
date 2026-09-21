@@ -12522,6 +12522,27 @@ Other-Sales observer and real other-tenant coverage remain unproved. Final exact
 PR-head review/short CI and merge are separate; no production apply/release or
 flat UI cutover is claimed. See docs/qa/crm-team-chat-flat-reader-223-2026-09-21.md.
 
+
+### A15d precode: sparse seen before flat UI cutover
+
+A15c PR#976 merged at03068e1f; additive223 is already installed locally and must
+not be reapplied. A bounded actual Sales read-only UI critique at1280x900/390x844
+confirmed excessive message spacing, missing channel previews, separate thread
+composer and history-position loss after search. Full281-table/data/schema and
+Auth user/identity-count parity passed; ordinary sessions changed. Own browser
+and dev server are closed. Receipt7c2da6de7ebb35611d49bf6f022164260278fbcb29eaa96dd92634bcc735e3bf.
+
+The next proposed code slice is A15d only: private per-actor seen IDs, additive
+idempotent mark_seen and compatible unread calculation, preserving historical
+read_sequence and all current UI/commands/drafts. Later quote compatibility,
+draft recovery, flat-feed/search/scroll integration and density/previews remain
+separate dependent slices. Do not remove thread UI before these prerequisites.
+See docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md and its actual QA receipt.
+
+This append is precode only, awaiting independent exact-head review.224 remains
+B-reserved; A has no new migration number or apply/Auth-write window. Production
+release and new QA identities are not authorized by this planning slice.
+
 ## 2026-09-21 — B3e-1 / 224: read-only v2 protocol (до реализации)
 
 После #979 root выделил224 для authenticated v2 requirements readers.

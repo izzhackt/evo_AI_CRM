@@ -13766,3 +13766,14 @@ and one bounded ordinary local UI batch at1440/390/320 follow. Actual QA waits B
 then A1008 resource release, using an existing authorized staff account without
 business writes or role changes. This slice does not finish all item22 typography,
 header or density work and does not authorize production delivery.
+
+
+## 2026-09-21 — ROOT22 sidebar destination source implementation
+
+[Source proof](qa/crm-sidebar-destination-state-source-2026-09-21.md) records
+product d4c7dcdf: key now follows authorized activeId (tagged pathname fallback),
+with unchanged role/access-version boundaries. AppShell, visibility/guards,
+forms and visual styles are untouched.19 real navigation-builder tests, scoped
+lint, typecheck and diff-check passed. This establishes source behavior only;
+ordinary calendar Next Link/Back/Forward and1440/390/320 acceptance await the
+coordinated window after B32/A1008. Native GET/reload remain outside the guarantee.

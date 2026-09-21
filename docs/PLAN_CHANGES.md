@@ -36594,3 +36594,14 @@ Meaningful key/authorization tests, scoped checks and actual ordinary UI are kep
 separate. B32/A1008 own the earlier local windows; no runtime or data mutation is
 part of this precode entry. Public planning follows private approved plan8125ecd2
 and source-path correction927dd0e4; the complete item22 remains open.
+
+
+## 2026-09-21 — ROOT22 sidebar destination source implementation
+
+[Source proof](qa/crm-sidebar-destination-state-source-2026-09-21.md) records
+product d4c7dcdf: key now follows authorized activeId (tagged pathname fallback),
+with unchanged role/access-version boundaries. AppShell, visibility/guards,
+forms and visual styles are untouched.19 real navigation-builder tests, scoped
+lint, typecheck and diff-check passed. This establishes source behavior only;
+ordinary calendar Next Link/Back/Forward and1440/390/320 acceptance await the
+coordinated window after B32/A1008. Native GET/reload remain outside the guarantee.

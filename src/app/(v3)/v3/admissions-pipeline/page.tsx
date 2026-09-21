@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
 import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { PackageQueue } from "@/components/portal/applicationPackages/PackageQueue";
+import { readStaffApplicationPackageQueueAction } from "@/lib/portal/application-packages-actions";
 import { ProgramDocumentQueue } from "@/components/v3/admissions/ProgramDocumentQueue";
 import { readStaffApplicationDocumentSubmissionQueueAction } from "@/lib/portal/application-documents-actions";
 import { requireV3PageActor } from "@/lib/platform-guards";
@@ -60,12 +62,21 @@ export default async function AdmissionsPipelinePart({
   ]);
   const query = parseBoardQuery(params);
   const view = singleValue(params.view);
-  if (view !== undefined && view !== "documents") notFound();
+  if (view !== undefined && view !== "documents" && view !== "packages") notFound();
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
   const navigation = canReadDocuments ? <nav className="mb-5 flex flex-wrap gap-3" aria-label="Разделы поступления">
     <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={boardHref(query)} aria-current={view === undefined ? "page" : undefined}>Воронка</Link>
     <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=documents`} aria-current={view === "documents" ? "page" : undefined}>Документы на проверку</Link>
+    <Link className="inline-flex min-h-11 items-center rounded-ctl px-3 text-sm font-medium underline-offset-4 hover:underline aria-[current=page]:bg-surface aria-[current=page]:underline" href={`${boardHref(query)}${boardHref(query).includes("?") ? "&" : "?"}view=packages`} aria-current={view === "packages" ? "page" : undefined}>Комплекты на проверку</Link>
   </nav> : null;
+  if (view === "packages") {
+    if (!canReadDocuments) notFound();
+    const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
+    const result = await readStaffApplicationPackageQueueAction(owner);
+    return <PartShell title="Комплекты на проверку">{navigation}
+      <PackageQueue key={`${owner.organizationId}:${owner.membershipId}`} owner={owner} initial={result.ok ? result.queue : null} canReview={staffHasPermission(actor, "document.review")} />
+    </PartShell>;
+  }
   if (view === "documents") {
     if (!canReadDocuments) notFound();
     const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };

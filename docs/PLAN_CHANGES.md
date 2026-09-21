@@ -36091,3 +36091,44 @@ contract dependency. Existing local checks remain attributed to their original
 heads; this integration receives independent exact-head delta review and fresh CI.
 Shared runtime remains exclusively A15f; B232 actual QA follows ROOT995 and ROOT231.
 No UI implementation, DB/Auth/Storage/browser action or production claim is added.
+
+
+## 2026-09-21 — B3g.2: package UI implementation admitted
+
+After #999 merged as `47d4a474613e76a1b0d1790922db9fd6bd945831`, ROOT admitted
+web/CRM/iPhone implementation under the accepted B3g contract and wire. No new
+business policy, RPC or migration is introduced. Worktree `evo-program-package-ui`,
+branch `izzhackt/program-package-ui`, starts at that fresh main.
+
+File ownership: web worker owns new applicationPackages components, Student and
+staff preparation integration, admissions package queue/detail, package notification
+route/policy and web RU/KY strings. Native worker owns iOS package service/model/views,
+preparation/notification integration, localization and native validation support.
+Parent owns `src/lib/portal/application-package-ui.ts`, its focused pure-contract
+tests, plan logs and integration. Workers preserve each other's edits.
+
+Use package readiness's100-item projection directly instead of the old50-item
+Documents aggregate; existing individual upload/review/download controls remain.
+Queue rows load exact package detail lazily for deadlines/composition/current file
+reviews. Historical notifications render their frozen decision separately from newer
+package/file reviews. Detached owner-scoped recovery remains available across
+revision and queue changes. Impeccable Operate/craft-floor preserves EVO/Golos and
+native patterns, RU/KY, explicit selection, readable states and focused actions.
+
+Only source and focused checks are currently admitted. No local DB/Auth/Storage,
+browser, simulator or UI runtime before ROOT995 then ROOT231 hands the window to
+B232; A15f currently owns it. Later narrow actual-path/visual proof remains required.
+This UI source block does not close all20/21, accessibility25 or the entire1–36.
+
+
+B3g.2 source checkpoint: web and native implementation complete for independent
+source review. Added dedicated Student owner recovery access from portal home,
+explicit optional-without-file feedback, preserved selection on revision change,
+and owner isolation for delayed responses/retries; these implement the accepted
+contract without a new RPC or policy. See [implementation and evidence](platform/b3g-package-ui.md).
+Checks: 10 pure UI-contract tests, 11 command/presentation tests, 17 Swift
+selection/navigation checks, Next typegen, TypeScript, scoped ESLint, full Swift
+source typecheck, RU/KY/membership/plutil and diff checks passed. Native input
+hashes were verified after the shared disk recovery. Synthetic action ports test
+local orchestration only. Authenticated web/native UI, 232 actual-path QA and
+production remain unclaimed and held for the coordinator's runtime handoff.

@@ -6,7 +6,7 @@ import { universityUuid } from "@/lib/platform-university-catalog";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { universityDateLabel } from "@/lib/portal/universities";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
-import { readStudentApplicationDocuments } from "@/lib/portal/application-documents-source";
+import { readStudentApplicationPackageReadiness } from "@/lib/portal/application-packages-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export default async function StudentPreparationPage({ params }: { params: Promi
   const saved = preparations.find((item) => item.applicationId === applicationId) ?? notFound();
   const program = saved.content.programs.find((item) => item.id === saved.programId);
   const intake = program?.intakes.find((item) => item.id === saved.intakeId);
-  const documents = await readStudentApplicationDocuments(actor.studentCaseId, applicationId).catch(() => null);
+  const documents = await readStudentApplicationPackageReadiness(actor.studentCaseId, applicationId).catch(() => null);
   return <main className="pt-page pt-prep-detail">
     <Link className="pt-link" href="/portal">{strings.back}</Link>
     <header className="pt-page-header">
@@ -52,6 +52,6 @@ export default async function StudentPreparationPage({ params }: { params: Promi
     <ApplicationRequirementsUI key={`${actor.organizationId}:${actor.membershipId}:${actor.studentCaseId}:${applicationId}`} scope={{ organizationId: actor.organizationId, membershipId: actor.membershipId, studentCaseId: actor.studentCaseId }}
       applicationId={applicationId} initial={documents}
       canInitialize={actor.caseState === "active" && Boolean(actor.portalActivatedAt) && saved.applicationStatus === "preparation"}
-      strings={strings} documentStrings={documentStrings}/>
+      strings={strings} documentStrings={documentStrings} locale={locale}/>
   </main>;
 }

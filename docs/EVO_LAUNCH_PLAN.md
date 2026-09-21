@@ -12911,3 +12911,23 @@ historical incumbent evidence and UI/CSS source remains unchanged since then.
 A15g owns density/grouping/channel previews. ROOT retains CaseAgreement and
 SalesRegisterView mobile work; B retains portal/requirements/iPhone. No UI
 implementation or actual UI acceptance is claimed by this precode commit.
+
+
+### A15f implementation staged — actual UI acceptance pending
+
+Draft PR#992 now wires the V2 feed/context, shared composer, direct quotes, V1
+draft recovery, search/anchor return and bounded sparse-seen client. Accepted
+171/223/225/227 contracts are unchanged. Source validation and its limits are
+recorded in docs/qa/crm-team-chat-unified-feed-source-2026-09-21.md. The old
+public-config test boundary was adapted to the additive reader, and the mute
+regression now asserts sparse seen rather than requiring the retired UI read
+button. Neither test is actual UI proof. Independent implementation review and
+ROOT-allocated actual browser window remain required; item15 is still open.
+
+No shared runtime access in this source step. ROOT provided the current queue
+cleanup990 → readonly991 → B228 → ROOT229. The A15f runtime effects will be
+bound separately after that window is released. No merge/release is claimed.
+
+Coordination update after source checks: ROOT reports991 merged at82260fdc and
+runtime handed to B228, followed by ROOT229. A15f remains source/review-only;
+its window is not opened by completion of source validation.

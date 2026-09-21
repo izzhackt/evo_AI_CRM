@@ -3,71 +3,111 @@
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { readTeamChatAction, teamChatCommandAction } from "@/lib/platform-team-chat-actions";
-import {
-  TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, TEAM_CHAT_LABELS, teamChatMergeMessages,
-  type TeamChatChannelKey, type TeamChatFailure, type TeamChatMessage, type TeamChatPage,
-  type TeamChatQuery, type TeamChatSnapshot,
-} from "@/lib/platform-team-chat";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { readTeamChatAction } from "@/lib/platform-team-chat-actions";
+import { readTeamChatTimelineV2Action } from "@/lib/platform-team-chat-v2-actions";
+import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_LABELS, teamChatMergeMessages, type TeamChatChannelKey, type TeamChatFailure, type TeamChatPage } from "@/lib/platform-team-chat";
+import type { TeamChatTimelineQuery } from "@/lib/platform-team-chat-timeline";
+import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v2";
+import { emptyTeamChatFeed, extendTeamChatFeedRange, mergeTeamChatFeedChanges, mergeTeamChatFeedPage, mergeTeamChatSearchChanges, teamChatFeedMessage, teamChatFeedQuote, teamChatFeedRange, teamChatFeedRows, type TeamChatFeedSnapshot, type TeamChatFeedStore, type TeamChatFeedRange, type TeamChatScrollAnchor } from "@/lib/team-chat-feed";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
-import { Icon } from "@/components/icons";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
-import { TeamChatComposer } from "./TeamChatComposer";
-import { TeamChatMessageRow } from "./TeamChatMessageRow";
+import { Icon } from "@/components/icons";
+import { TeamChatComposer, type TeamChatComposerHandle } from "./TeamChatComposer";
+import { TeamChatDeleteConfirmation, TeamChatMessageRow, type TeamChatDeletionAttempt } from "./TeamChatMessageRow";
+import { useTeamChatSeen } from "./useTeamChatSeen";
 import styles from "./team-chat.module.css";
 
+type Feed = { store: TeamChatFeedStore; range: TeamChatFeedRange };
+type ReturnPoint = { range: TeamChatFeedRange; view: "feed" | "search"; anchor: TeamChatScrollAnchor | null; focusId: string | null };
+type ScrollRequest = { kind: "anchor"; anchor: TeamChatScrollAnchor | null; focusId?: string | null } | { kind: "bottom" | "top" } | { kind: "message"; id: string };
+
+function captureAnchor(root: HTMLElement | null): TeamChatScrollAnchor | null {
+  if (!root) return null;
+  const top = root.getBoundingClientRect().top;
+  for (const row of root.querySelectorAll<HTMLElement>("[data-chat-row]")) {
+    if (row.getBoundingClientRect().bottom > top) return { messageId: row.dataset.chatRow!, offset: row.getBoundingClientRect().top - top };
+  }
+  return null;
+}
+function restoreAnchor(root: HTMLElement, anchor: TeamChatScrollAnchor | null) {
+  if (!anchor) return;
+  const row = Array.from(root.querySelectorAll<HTMLElement>("[data-chat-row]")).find((element) => element.dataset.chatRow === anchor.messageId);
+  if (row) root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - anchor.offset;
+}
+const nearBottom = (root: HTMLElement | null) => Boolean(root && root.scrollHeight - root.scrollTop - root.clientHeight < 48);
+
 export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, realtimeConfig, initialMessageId = null, showChannelsInitially = false }: {
-  initial: TeamChatSnapshot; channel: TeamChatChannelKey; organizationId: string;
-  realtimeConfig: SupabasePublicConfig;
-  membershipId: string; canModerate: boolean; initialMessageId?: string | null;
-  showChannelsInitially?: boolean;
+  initial: TeamChatFeedSnapshot; channel: TeamChatChannelKey; organizationId: string;
+  realtimeConfig: SupabasePublicConfig; membershipId: string; canModerate: boolean;
+  initialMessageId?: string | null; showChannelsInitially?: boolean;
 }) {
-  const [messages, setMessages] = useState<readonly TeamChatMessage[]>(initial.page.messages.filter((message) => message.parentMessageId === null));
+  const [feed, setFeed] = useState<Feed>(() => ({ store: mergeTeamChatFeedPage(emptyTeamChatFeed(), initial.page), range: teamChatFeedRange(initial.page) }));
+  const current = useRef(feed);
   const [channels, setChannels] = useState(initial.channels);
   const [participants, setParticipants] = useState(initial.participants);
-  const [page, setPage] = useState(initial.page);
-  const [thread, setThread] = useState<{ root: TeamChatMessage; page: TeamChatPage } | null>(null);
-  const [panel, setPanel] = useState<"channels" | "messages" | "thread">(showChannelsInitially ? "channels" : "messages");
+  const [panel, setPanel] = useState<"channels" | "messages">(showChannelsInitially ? "channels" : "messages");
+  const [view, setView] = useState<"feed" | "search">("feed");
+  const viewRef = useRef(view);
   const [query, setQuery] = useState("");
-  const [channelQuery, setChannelQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState<{ term: string; page: TeamChatPage } | null>(null);
+  const [returns, setReturns] = useState<ReturnPoint[]>([]);
+  const returnsRef = useRef(returns);
+  const searchOrigin = useRef<ReturnPoint | null>(null);
   const [error, setError] = useState<TeamChatFailure | null>(null);
   const [busy, setBusy] = useState(false);
   const [transport, setTransport] = useState<"connecting" | "live" | "error">("connecting");
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [newMessages, setNewMessages] = useState(false);
   const [highlighted, setHighlighted] = useState<string | null>(initialMessageId);
+  const [deletion, setDeletion] = useState<TeamChatDeletionAttempt | null>(null);
+  const [deletionVisible, setDeletionVisible] = useState(false);
+  const deletionFocus = useRef<HTMLElement | null>(null);
+  const composer = useRef<TeamChatComposerHandle>(null);
   const watermark = useRef(initial.page.watermark);
+  const latestId = useRef(initial.page.latestMessageId);
+  const [latestMessageId, setLatestMessageId] = useState(initial.page.latestMessageId);
   const catchupRunning = useRef(false);
   const catchupAgain = useRef(false);
   const alive = useRef(true);
   const revoked = useRef(false);
-  const threadRoot = useRef<string | null>(null);
-  const viewport = useRef<HTMLDivElement>(null);
-  const closeThreadButton = useRef<HTMLButtonElement>(null);
-  const threadReturnFocus = useRef<HTMLElement | null>(null);
   const contextRequest = useRef(0);
-  const storageScope = `${organizationId}:${membershipId}`;
+  const viewport = useRef<HTMLDivElement>(null);
+  const workspace = useRef<HTMLDivElement>(null);
+  const searchField = useRef<HTMLInputElement>(null);
+  const scroll = useRef<ScrollRequest | null>(initialMessageId ? { kind: "message", id: initialMessageId } : { kind: "bottom" });
+  const stableAnchor = useRef<TeamChatScrollAnchor | null>(null);
+  const wasAtBottom = useRef(false);
   const forbidden = error === "forbidden";
-  const needsHistoryRecovery = !forbidden && (transport === "error" || error !== null);
-  const transportLabel = forbidden ? "Доступ к каналу закрыт"
-    : transport === "live" ? error ? "Соединение установлено" : null
-    : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
+  useLayoutEffect(() => { viewRef.current = view; returnsRef.current = returns; }, [view, returns]);
 
-  const accept = useCallback((snapshot: TeamChatSnapshot) => {
-    setChannels(snapshot.channels);
-    setParticipants(snapshot.participants);
-    setError(null);
+  const preserveScroll = useCallback(() => {
+    if (!scroll.current) scroll.current = { kind: "anchor", anchor: captureAnchor(viewport.current) };
   }, []);
+  const commit = useCallback((next: Feed) => {
+    preserveScroll(); current.current = next; setFeed(next);
+  }, [preserveScroll]);
   const reportFailure = useCallback((status: TeamChatFailure) => {
+    if (!alive.current) return;
     setError(status);
     if (status === "forbidden") {
-      revoked.current = true;
-      setMessages([]); setChannels([]); setParticipants([]); setThread(null); setSearch(null);
+      revoked.current = true; contextRequest.current += 1;
+      const cleared = { store: emptyTeamChatFeed(), range: { ids: [], beforeCursor: "0", afterCursor: "0", hasBefore: false, hasAfter: false } };
+      current.current = cleared; setFeed(cleared);
+      setChannels([]); setParticipants([]); setSearch(null); setQuery(""); setReturns([]); searchOrigin.current = null; setDeletion(null);
     }
   }, []);
+
+  const readPage = useCallback(async (input: TeamChatTimelineQuery): Promise<TeamChatTimelineV2Page | null> => {
+    if (!alive.current || revoked.current) return null;
+    try {
+      const result = await readTeamChatTimelineV2Action(input);
+      if (!alive.current || revoked.current) return null;
+      if (result.status !== "loaded") { reportFailure(result.status); return null; }
+      return result.page;
+    } catch { reportFailure("unavailable"); return null; }
+  }, [reportFailure]);
 
   const refresh = useCallback(async () => {
     if (!alive.current || revoked.current) return;
@@ -80,32 +120,56 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         if (!alive.current || revoked.current) return;
         if (result.status !== "ready") { reportFailure(result.status); return; }
         const snapshot = result.snapshot;
-        accept(snapshot);
-        const roots = snapshot.page.messages.filter((message) => message.parentMessageId === null);
-        setMessages((previous) => teamChatMergeMessages(previous, roots));
-        setPage((previous) => ({ ...previous, latestMessageId: snapshot.page.latestMessageId }));
-        setThread((previous) => previous ? {
-          root: roots.find((message) => message.id === previous.root.id) ?? previous.root,
-          page: { ...previous.page, messages: teamChatMergeMessages(previous.page.messages,
-            snapshot.page.messages.filter((message) => message.parentMessageId === previous.root.id)) },
-        } : null);
-        setSearch((previous) => previous ? { ...previous, page: { ...previous.page,
-          messages: previous.page.messages.map((message) => snapshot.page.messages.find((updated) => updated.id === message.id) ?? message)
-            .filter((message) => message.deletedAt === null),
-        } } : null);
-        if (snapshot.page.messages.length) setNewMessages(true);
+        setChannels(snapshot.channels); setParticipants(snapshot.participants); setError(null);
+        if (snapshot.page.messages.length) {
+          const merged = mergeTeamChatFeedChanges(current.current.store, snapshot.page.messages);
+          commit({ ...current.current, store: merged.store });
+          setSearch((previous) => previous ? { ...previous, page: { ...previous.page, messages: mergeTeamChatSearchChanges(previous.page.messages, snapshot.page.messages) } } : null);
+          // A V1 changes response has no direct quote identity. Hydrate unknown rows with V2.
+          const latest = await readPage({ channel, mode: "latest" });
+          if (!latest) return;
+          commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, latest) });
+          const tailChanged = latest.latestMessageId !== latestId.current;
+          latestId.current = latest.latestMessageId; setLatestMessageId(latest.latestMessageId);
+          for (const id of merged.unknownIds) {
+            if (teamChatFeedMessage(current.current.store, id)) continue;
+            const context = await readPage({ channel, mode: "context", messageId: id });
+            if (!context) return;
+            commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, context) });
+          }
+          if (tailChanged) {
+            setNewMessages(true);
+            const range = current.current.range;
+            const epoch = contextRequest.current;
+            if (!range.hasAfter && !returnsRef.current.length && viewRef.current === "feed") {
+              const follow = nearBottom(viewport.current);
+              const after = range.afterCursor === "0" ? latest : await readPage({ channel, mode: "after", cursor: range.afterCursor });
+              if (!after) return;
+              if (epoch === contextRequest.current) {
+                const nextRange = range.afterCursor === "0" ? teamChatFeedRange(after) : extendTeamChatFeedRange(current.current.range, after, "after", range.afterCursor);
+                if (follow) scroll.current = { kind: "bottom" };
+                commit({ store: mergeTeamChatFeedPage(current.current.store, after), range: nextRange });
+                if (follow && !nextRange.hasAfter) setNewMessages(false);
+              }
+            }
+          }
+        }
         watermark.current = snapshot.page.cursor;
         if (snapshot.page.hasMore) catchupAgain.current = true;
       } while (catchupAgain.current && alive.current && !revoked.current);
-    } catch { if (alive.current) reportFailure("unavailable"); }
+    } catch { reportFailure("unavailable"); }
     finally { catchupRunning.current = false; }
-  }, [accept, channel, reportFailure]);
+  }, [channel, commit, readPage, reportFailure]);
+  const isRevoked = useCallback(() => revoked.current, []);
+  const onSeenForbidden = useCallback(() => reportFailure("forbidden"), [reportFailure]);
+  const onSeen = useCallback(() => { void refresh(); }, [refresh]);
+  const seen = useTeamChatSeen({ viewport, workspace, channel, isRevoked, revoked: forbidden, enabled: !forbidden && !busy && view === "feed", revision: feed,
+    onAcknowledged: onSeen, onForbidden: onSeenForbidden });
 
   useEffect(() => {
     alive.current = true;
     return () => { alive.current = false; contextRequest.current += 1; };
   }, []);
-
   useEffect(() => {
     if (forbidden) return;
     let cancelled = false;
@@ -114,11 +178,9 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     let subscription: RealtimeChannel | undefined;
     const requestRefresh = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { if (!cancelled) startTransition(() => { void refresh(); }); }, 120);
+      timer = setTimeout(() => { if (!cancelled) void refresh(); }, 120);
     };
-    const reconnect = () => {
-      if (document.visibilityState === "visible") requestRefresh();
-    };
+    const reconnect = () => { if (document.visibilityState === "visible") requestRefresh(); };
     async function connect() {
       try {
         setTransport("connecting");
@@ -129,8 +191,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         await client.realtime.setAuth(data.session.access_token);
         if (cancelled) return;
         subscription = client.channel(`team-chat:${organizationId}:${channel}`, { config: { private: true } })
-          .on("broadcast", { event: "invalidate" }, requestRefresh)
-          .subscribe((status) => {
+          .on("broadcast", { event: "invalidate" }, requestRefresh).subscribe((status) => {
             if (cancelled) return;
             if (status === "SUBSCRIBED") { setTransport("live"); requestRefresh(); }
             else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setTransport("error");
@@ -138,200 +199,204 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       } catch { if (!cancelled) setTransport("error"); }
     }
     void connect();
-    // Recheck current DB authority even on an idle, already-connected channel.
-    // This is also required when there is no message event after a revocation.
     const authorityCheck = setInterval(reconnect, 30000);
-    document.addEventListener("visibilitychange", reconnect);
-    window.addEventListener("online", requestRefresh);
+    document.addEventListener("visibilitychange", reconnect); window.addEventListener("online", requestRefresh);
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      clearInterval(authorityCheck);
-      document.removeEventListener("visibilitychange", reconnect);
-      window.removeEventListener("online", requestRefresh);
+      cancelled = true; if (timer) clearTimeout(timer); clearInterval(authorityCheck);
+      document.removeEventListener("visibilitychange", reconnect); window.removeEventListener("online", requestRefresh);
       if (subscription && client) void client.removeChannel(subscription);
     };
   }, [channel, organizationId, connectionAttempt, refresh, reportFailure, forbidden, realtimeConfig.url, realtimeConfig.publishableKey]);
 
-  async function load(queryInput: TeamChatQuery, apply: (snapshot: TeamChatSnapshot) => void) {
-    const request = ++contextRequest.current;
-    setBusy(true);
-    try {
-      const result = await readTeamChatAction(queryInput);
-      if (!alive.current || revoked.current || request !== contextRequest.current) return;
-      if (result.status !== "ready") { reportFailure(result.status); return; }
-      accept(result.snapshot);
-      apply(result.snapshot);
-    } catch { if (alive.current && request === contextRequest.current) reportFailure("unavailable"); }
-    finally { if (alive.current && request === contextRequest.current) setBusy(false); }
-  }
-
-  async function openThread(message: TeamChatMessage) {
-    threadReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const rootId = message.parentMessageId ?? message.id;
-    await load({ channel, mode: "message", messageId: rootId }, (rootSnapshot) => {
-      const root = rootSnapshot.page.messages[0];
-      if (!root) return;
-      threadRoot.current = root.id;
-      setThread({ root, page: { messages: [], cursor: "0", watermark: "0", hasMore: false, latestMessageId: null, rootId: root.id } });
-      setPanel("thread");
+  useLayoutEffect(() => {
+    const root = viewport.current;
+    if (!root || !root.getBoundingClientRect().height) return;
+    const requested = scroll.current; scroll.current = null;
+    if (requested?.kind === "bottom") root.scrollTop = root.scrollHeight;
+    else if (requested?.kind === "top") root.scrollTop = 0;
+    else if (requested?.kind === "anchor") {
+      restoreAnchor(root, requested.anchor);
+      if (requested.focusId) document.getElementById(requested.focusId)?.focus({ preventScroll: true });
+    } else if (requested?.kind === "message") {
+      const row = document.getElementById(`team-message-channel-${requested.id}`);
+      if (row) { root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - root.clientHeight / 3; row.focus({ preventScroll: true }); }
+    }
+    stableAnchor.current = captureAnchor(root); wasAtBottom.current = nearBottom(root);
+  }, [feed, view, search, panel]);
+  useLayoutEffect(() => {
+    const root = viewport.current;
+    if (!root) return;
+    let width = root.clientWidth, height = root.clientHeight;
+    const observer = new ResizeObserver(() => {
+      if (root.clientWidth === width && root.clientHeight === height) return;
+      width = root.clientWidth; height = root.clientHeight;
+      if (wasAtBottom.current && !current.current.range.hasAfter && viewRef.current === "feed") root.scrollTop = root.scrollHeight;
+      else restoreAnchor(root, stableAnchor.current);
+      stableAnchor.current = captureAnchor(root);
     });
-    if (threadRoot.current !== rootId) return;
-    await load({ channel, mode: "thread", messageId: rootId,
-      ...(message.parentMessageId ? { cursor: (BigInt(message.sequence) + BigInt(1)).toString() } : {}),
-    }, (snapshot) => {
-      setThread((previous) => previous?.root.id === rootId ? { ...previous, page: snapshot.page } : previous);
-    });
-    if (message.parentMessageId) {
-      setHighlighted(message.id);
-      requestAnimationFrame(() => document.getElementById(`team-message-thread-${message.id}`)?.focus());
-    } else closeThreadButton.current?.focus();
-  }
-
-  function closeThread() {
-    contextRequest.current += 1;
-    threadRoot.current = null;
-    setThread(null); setPanel("messages"); setBusy(false);
-    threadReturnFocus.current?.focus();
-  }
-
-  function openMessage(id: string) {
-    startTransition(() => {
-      void load({ channel, mode: "message", messageId: id }, (snapshot) => {
-        setMessages((previous) => teamChatMergeMessages(previous, snapshot.page.messages.filter((message) => message.parentMessageId === null)));
-        setSearch(null); setPanel("messages"); setHighlighted(id);
-        const root = snapshot.page.messages[0];
-        if (root && id !== root.id) void openThread(snapshot.page.messages.find((message) => message.id === id) ?? root);
-        else requestAnimationFrame(() => document.getElementById(`team-message-channel-${id}`)?.focus());
-      });
-    });
-  }
-
-  useEffect(() => {
-    if (initialMessageId && initial.page.messages[0]?.id !== initialMessageId) {
-      const target = initial.page.messages.find((message) => message.id === initialMessageId);
-      if (target) startTransition(() => { void openThread(target); });
-    } else if (initialMessageId) document.getElementById(`team-message-channel-${initialMessageId}`)?.focus();
-    else if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
-    // Initial deep link is evaluated once. Subsequent selections are explicit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    observer.observe(root); return () => observer.disconnect();
   }, []);
 
-  async function markRead(messageId: string) {
+  async function navigate(input: TeamChatTimelineQuery, returnPoint = false) {
+    const epoch = ++contextRequest.current;
+    const saved: ReturnPoint = { range: current.current.range, view: viewRef.current, anchor: captureAnchor(viewport.current),
+      focusId: document.activeElement instanceof HTMLElement ? document.activeElement.id || null : null };
     setBusy(true);
-    try {
-      const form = new FormData();
-      form.set("request_id", crypto.randomUUID()); form.set("channel", channel); form.set("input", JSON.stringify({ operation: "read", messageId }));
-      const result = await teamChatCommandAction(TEAM_CHAT_INITIAL_ACTION, form);
-      if (result.status !== "saved") { if (result.status !== "idle") reportFailure(result.status); return; }
-      await refresh();
-    } catch { reportFailure("unavailable"); }
-    finally { setBusy(false); }
+    const page = await readPage(input);
+    if (!alive.current || revoked.current || epoch !== contextRequest.current) return;
+    setBusy(false);
+    if (!page) return;
+    if (returnPoint) setReturns((previous) => [...previous, saved].slice(-10));
+    else setReturns([]);
+    setView("feed"); setPanel("messages"); setError(null);
+    setHighlighted(input.mode === "context" ? input.messageId : null);
+    scroll.current = input.mode === "context" ? { kind: "message", id: input.messageId } : { kind: "bottom" };
+    commit({ store: mergeTeamChatFeedPage(current.current.store, page), range: teamChatFeedRange(page) });
+    if (input.mode === "latest") {
+      latestId.current = page.latestMessageId; setLatestMessageId(page.latestMessageId); setNewMessages(false);
+      searchOrigin.current = null; setSearchOpen(false); setSearch(null);
+    }
   }
+  async function loadMore(direction: "before" | "after") {
+    const epoch = ++contextRequest.current;
+    const cursor = current.current.range[direction === "before" ? "beforeCursor" : "afterCursor"];
+    setBusy(true);
+    const page = await readPage({ channel, mode: direction, cursor });
+    if (!alive.current || revoked.current || epoch !== contextRequest.current) return;
+    setBusy(false);
+    if (page) commit({ store: mergeTeamChatFeedPage(current.current.store, page), range: extendTeamChatFeedRange(current.current.range, page, direction, cursor) });
+  }
+  function back() {
+    const saved = returns.at(-1);
+    if (!saved) return;
+    contextRequest.current += 1; setBusy(false); setReturns((previous) => previous.slice(0, -1));
+    setView(saved.view); setHighlighted(null);
+    scroll.current = { kind: "anchor", anchor: saved.anchor, focusId: saved.focusId };
+    commit({ ...current.current, range: saved.range });
+  }
+  async function runSearch(more = false) {
+    const term = more && search ? search.term : query.trim();
+    if (term.length < 2) return;
+    const origin: ReturnPoint = { range: current.current.range, view: "feed", anchor: captureAnchor(viewport.current), focusId: null };
+    const epoch = ++contextRequest.current; setBusy(true);
+    try {
+      const result = await readTeamChatAction({ channel, mode: "search", query: term, ...(more && search ? { cursor: search.page.cursor } : {}) });
+      if (!alive.current || revoked.current) return;
+      if (result.status === "forbidden") { reportFailure("forbidden"); return; }
+      if (epoch !== contextRequest.current) return;
+      if (result.status !== "ready") { reportFailure(result.status); return; }
+      setChannels(result.snapshot.channels); setParticipants(result.snapshot.participants); setError(null);
+      if (!searchOrigin.current && viewRef.current === "feed") searchOrigin.current = origin;
+      if (!more) scroll.current = { kind: "top" }; else preserveScroll();
+      setSearch((previous) => ({ term, page: { ...result.snapshot.page, messages: more && previous?.term === term ? teamChatMergeMessages(previous.page.messages, result.snapshot.page.messages) : result.snapshot.page.messages } }));
+      setReturns([]); setView("search");
+    } catch { if (epoch === contextRequest.current) reportFailure("unavailable"); }
+    finally { if (alive.current && epoch === contextRequest.current) setBusy(false); }
+  }
+  async function resumeEdit(id: string) {
+    const page = await readPage({ channel, mode: "context", messageId: id });
+    if (!page) return null;
+    commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, page) });
+    const row = teamChatFeedMessage(current.current.store, id);
+    return row?.authorMembershipId === membershipId ? row : null;
+  }
+  const rows = teamChatFeedRows(feed.store, feed.range);
+  const latestMessage = latestMessageId ? teamChatFeedMessage(feed.store, latestMessageId) : null;
   const currentChannel = channels.find((item) => item.key === channel);
-  const visibleMessages = search?.page.messages ?? messages;
-  const afterSave = () => startTransition(() => { void refresh(); });
-  const renderRow = (message: TeamChatMessage, location: "channel" | "thread" = "channel") => <TeamChatMessageRow key={message.id} message={message} location={location}
-    ownMembershipId={membershipId} canModerate={canModerate} participants={participants}
-    storageScope={storageScope} onReply={(row) => startTransition(() => { void openThread(row); })}
-    onSaved={afterSave} highlighted={highlighted === message.id} />;
-  const latestMessage = messages.find((message) => message.id === page.latestMessageId);
-  const visibleChannels = channels.filter((item) => TEAM_CHAT_LABELS[item.key].toLocaleLowerCase("ru-RU").includes(channelQuery.trim().toLocaleLowerCase("ru-RU")));
+  const transportLabel = forbidden ? "Доступ к каналу закрыт" : transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
+  const afterSave = () => { void refresh(); };
 
-  return (
-    <div className={styles.workspace} data-panel={panel} aria-busy={busy}>
-      <nav className={styles.channels} aria-label="Каналы команды">
-        <h1 className={styles.channelTitle}>Командный чат</h1>
-        <div className={styles.channelSearch}>
-          <Icon name="search" size={18} />
-          <label className={styles.srOnly} htmlFor="team-channel-search">Поиск по каналам</label>
-          <input id="team-channel-search" type="search" placeholder="Поиск по каналам" value={channelQuery} onChange={(event) => setChannelQuery(event.target.value)} />
-        </div>
-        {visibleChannels.map((item) => <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`}
-          className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
-          onClick={() => { if (item.key === channel) setPanel("messages"); }}>
-          <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true">{TEAM_CHAT_LABELS[item.key][0]}</span>
-          <span className={styles.channelCopy}><span className={styles.channelName}>{TEAM_CHAT_LABELS[item.key]}</span>
-            {item.key === channel && latestMessage ? <span className={styles.channelPreview}>{latestMessage.deletedAt ? "Сообщение удалено" : `${latestMessage.authorMembershipId === membershipId ? "Вы" : latestMessage.authorName}: ${latestMessage.body}`}</span> : null}
-          </span>
-          {item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
-        </Link>)}
-        {!visibleChannels.length ? <p className={styles.empty}>Канал не найден.</p> : null}
-      </nav>
-      <section className={styles.conversation} aria-label={`Канал ${TEAM_CHAT_LABELS[channel]}`}>
-        <div className={styles.conversationHeader}>
-          <button type="button" className={`${styles.secondary} ${styles.mobileBack}`} onClick={() => setPanel("channels")}>← Каналы</button>
-          <span className={styles.channelAvatar} data-channel={channel} aria-hidden="true">{TEAM_CHAT_LABELS[channel][0]}</span>
-          <h2>{TEAM_CHAT_LABELS[channel]}</h2>
-          <button type="button" className={styles.iconButton} aria-label={searchOpen ? "Закрыть поиск" : "Поиск в канале"} aria-expanded={searchOpen} aria-controls="team-chat-search-form" onClick={() => {
-            setSearchOpen((open) => !open);
-            if (searchOpen) { setSearch(null); setQuery(""); }
-          }}><Icon name={searchOpen ? "x" : "search"} size={22} /></button>
-        </div>
-        {transportLabel ? <div className={styles.transport} role="status">
-          {transportLabel}
-          {needsHistoryRecovery ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { void refresh(); })}>Обновить историю</button> : null}
-          {transport === "error" && !forbidden ? <button type="button" className={styles.textButton} onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
-        </div> : null}
-        {error ? <div role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[error]}</div> : null}
-        {error === "forbidden" ? <a className={styles.secondary} href="/login">Войти снова</a> : <>
-          {searchOpen ? <form id="team-chat-search-form" className={styles.search} onSubmit={(event) => {
-            event.preventDefault();
-            startTransition(() => { void load({ channel, mode: "search", query: query.trim() }, (snapshot) => setSearch({ term: query.trim(), page: snapshot.page })); });
+  return <div ref={workspace} className={styles.workspace} data-panel={panel} aria-busy={busy}>
+    <nav className={styles.channels} aria-label="Каналы команды">
+      <h1 className={styles.channelTitle}>Командный чат</h1>
+      {channels.map((item) => <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`} className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
+        onClick={(event) => { if (item.key === channel) { event.preventDefault(); setPanel("messages"); } }}>
+        <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true">{TEAM_CHAT_LABELS[item.key][0]}</span>
+        <span className={styles.channelCopy}><span className={styles.channelName}>{TEAM_CHAT_LABELS[item.key]}</span>
+          {item.key === channel && latestMessage ? <span className={styles.channelPreview}>{latestMessage.deletedAt ? "Сообщение удалено" : `${latestMessage.authorMembershipId === membershipId ? "Вы" : latestMessage.authorName}: ${latestMessage.body}`}</span> : null}
+        </span>{item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
+      </Link>)}
+    </nav>
+    <section className={styles.conversation} aria-label={`Канал ${TEAM_CHAT_LABELS[channel]}`}>
+      <div className={styles.conversationHeader}>
+        <button type="button" className={`${styles.secondary} ${styles.mobileBack}`} onClick={() => setPanel("channels")}><Icon name="arrow-left" size={18} />Каналы</button>
+        <span className={styles.channelAvatar} data-channel={channel} aria-hidden="true">{TEAM_CHAT_LABELS[channel][0]}</span><h2>{TEAM_CHAT_LABELS[channel]}</h2>
+        <button type="button" className={styles.iconButton} disabled={forbidden} aria-label={searchOpen ? "Закрыть поиск" : "Поиск в этом канале"} aria-expanded={searchOpen} aria-controls="team-chat-search-form" onClick={() => {
+          setSearchOpen((value) => !value);
+          if (searchOpen) {
+            contextRequest.current += 1; setBusy(false); setView("feed"); setSearch(null); setReturns([]);
+            const origin = searchOrigin.current; searchOrigin.current = null;
+            if (origin) { scroll.current = { kind: "anchor", anchor: origin.anchor }; commit({ ...current.current, range: origin.range }); }
+          }
+          else requestAnimationFrame(() => searchField.current?.focus());
+        }}><Icon name={searchOpen ? "x" : "search"} size={22} /></button>
+      </div>
+      {transportLabel || error ? <div className={styles.transport} role="status">{transportLabel}
+        {!forbidden && (transport === "error" || error) ? <button className={styles.textButton} type="button" disabled={busy} onClick={afterSave}>Обновить историю</button> : null}
+        {transport === "error" && !forbidden ? <button className={styles.textButton} type="button" onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
+      </div> : null}
+      {error ? <p role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[error]}</p> : null}
+      {forbidden ? <a className={styles.secondary} href="/login">Войти снова</a> : <>
+        {searchOpen ? <form id="team-chat-search-form" className={styles.search} onSubmit={(event) => { event.preventDefault(); void runSearch(); }}>
+          <label className={styles.srOnly} htmlFor="team-chat-search">Поиск в этом канале</label>
+          <input ref={searchField} id="team-chat-search" type="search" placeholder="В этом канале" value={query} minLength={2} maxLength={200} onChange={(event) => setQuery(event.target.value)} />
+          <button className={styles.secondary} disabled={busy || query.trim().length < 2}>Найти</button>
+        </form> : null}
+        {returns.length ? <div className={styles.readActions}><button type="button" className={styles.textButton} onClick={back}><Icon name="arrow-left" size={18} />{returns.at(-1)?.view === "search" ? "К результатам поиска" : "Назад к сообщениям"}</button></div> : null}
+        <div className={styles.history} ref={viewport} tabIndex={0} aria-label={view === "search" ? "Результаты поиска" : "История сообщений"}
+          onScroll={() => {
+            stableAnchor.current = captureAnchor(viewport.current); wasAtBottom.current = nearBottom(viewport.current);
+            if (wasAtBottom.current && !feed.range.hasAfter && view === "feed" && !returns.length) setNewMessages(false);
           }}>
-            <label className={styles.srOnly} htmlFor="team-chat-search">Поиск в канале</label>
-            <input id="team-chat-search" autoFocus type="search" placeholder="Поиск в этом канале" minLength={2} maxLength={200} value={query} onChange={(event) => setQuery(event.target.value)} />
-            <button className={styles.secondary} disabled={busy || query.trim().length < 2}>Найти</button>
-            {search ? <button type="button" className={styles.textButton} onClick={() => { setSearch(null); setQuery(""); }}>Закрыть поиск</button> : null}
-          </form> : null}
-          <div className={styles.history} ref={viewport} tabIndex={0} aria-label={search ? "Результаты поиска" : "История сообщений"}>
-            {search ? <p className={styles.muted}>Результаты: «{search.term}». Новые изменения появятся после повторного поиска.</p> : null}
-            {(search ? search.page.hasMore : page.hasMore) ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => startTransition(() => {
-              const position = viewport.current?.scrollTop ?? 0;
-              const height = viewport.current?.scrollHeight ?? 0;
-              void load(search ? { channel, mode: "search", query: search.term, cursor: search.page.cursor } : { channel, mode: "before", cursor: page.cursor }, (snapshot) => {
-                if (search) setSearch({ term: search.term, page: { ...snapshot.page, messages: teamChatMergeMessages(search.page.messages, snapshot.page.messages) } });
-                else { setMessages((previous) => teamChatMergeMessages(previous, snapshot.page.messages)); setPage(snapshot.page); }
-                requestAnimationFrame(() => { if (viewport.current) viewport.current.scrollTop = position + viewport.current.scrollHeight - height; });
-              });
-            })}>Показать более ранние</button> : null}
-            {visibleMessages.length ? visibleMessages.map((message, index) => {
-              const date = new Date(message.createdAt).toLocaleDateString("ru-RU", { dateStyle: "long", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
-              const previousDate = index > 0 ? new Date(visibleMessages[index - 1].createdAt).toLocaleDateString("ru-RU", { dateStyle: "long", timeZone: PLATFORM_ORGANIZATION_TIMEZONE }) : null;
-              return <div key={message.id}>{date !== previousDate ? <div className={styles.dateDivider}><span>{date}</span></div> : null}{renderRow(message)}</div>;
-            }) : <div className={styles.empty}>{search ? "Ничего не найдено в этом канале." : "Пока нет сообщений. Начните обсуждение с коллегами."}</div>}
-          </div>
-          <div className={styles.readActions}>
-            {currentChannel?.firstUnreadId ? <button type="button" className={styles.textButton} onClick={() => openMessage(currentChannel.firstUnreadId!)}>К первому непрочитанному · {currentChannel.unreadCount}</button> : null}
-            {page.latestMessageId && currentChannel?.unreadCount ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => { if (page.latestMessageId) void markRead(page.latestMessageId); })}>Отметить канал прочитанным</button> : null}
-            {newMessages || initialMessageId ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => startTransition(() => {
-              void load({ channel, mode: "latest" }, (snapshot) => {
-                setMessages(snapshot.page.messages); setPage(snapshot.page); setSearch(null); setNewMessages(false);
-                requestAnimationFrame(() => { if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight; });
-              });
-            })}>{newMessages ? "Новые сообщения ↓" : "К последним сообщениям ↓"}</button> : null}
-          </div>
-          <TeamChatComposer key={channel} channel={channel} participants={participants} storageScope={storageScope} onSaved={afterSave} />
-        </>}
-      </section>
-      {thread && error !== "forbidden" ? <aside className={styles.thread} aria-label="Обсуждение"
-        onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeThread(); } }}>
-        <div className={styles.conversationHeader}><h2>Обсуждение</h2><button ref={closeThreadButton} type="button" className={styles.secondary} onClick={closeThread}>← Назад</button></div>
-        <div className={styles.history} tabIndex={0} aria-label="Ответы в обсуждении">
-          {renderRow(thread.root, "thread")}
-          {thread.page.hasMore ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => startTransition(() => {
-            void load({ channel, mode: "thread", messageId: thread.root.id, cursor: thread.page.cursor }, (snapshot) => setThread((previous) => previous ? {
-              ...previous, page: { ...snapshot.page, messages: teamChatMergeMessages(previous.page.messages, snapshot.page.messages) },
-            } : null));
-          })}>Ранние ответы</button> : null}
-          <button type="button" className={styles.textButton} disabled={busy} onClick={() => startTransition(() => {
-            void load({ channel, mode: "thread", messageId: thread.root.id }, (snapshot) => setThread((previous) => previous ? { ...previous, page: snapshot.page } : null));
-          })}>Последние ответы ↓</button>
-          {thread.page.messages.map((message) => renderRow(message, "thread"))}
-          {!thread.page.messages.length && !busy ? <p className={styles.empty}>Пока нет ответов.</p> : null}
+          {view === "search" && search ? <>
+            <p className={styles.muted}>Результаты: «{search.term}»</p>
+            {search.page.messages.map((message) => <div key={message.id} data-chat-row={message.id} className={styles.searchResult}>
+              <strong>{message.authorName}</strong><p className={styles.body}><SearchText text={message.body} term={search.term} /></p>
+              <button id={`team-search-${message.id}`} type="button" className={styles.textButton} disabled={busy} onClick={() => { void navigate({ channel, mode: "context", messageId: message.id }, true); }}>Показать в переписке</button>
+            </div>)}
+            {!search.page.messages.length ? <p className={styles.empty}>Сообщения не найдены.</p> : null}
+            {search.page.hasMore ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => { void runSearch(true); }}>Ещё результаты</button> : null}
+          </> : <>
+            {feed.range.hasBefore ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => { void loadMore("before"); }}>Предыдущие сообщения</button> : null}
+            {rows.map((message, index) => {
+              const date = new Date(message.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+              const priorDate = index ? new Date(rows[index - 1].createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: PLATFORM_ORGANIZATION_TIMEZONE }) : null;
+              return <div key={message.id}>{date !== priorDate ? <div className={styles.dateDivider}><span>{date}</span></div> : null}
+                <TeamChatMessageRow message={message} quote={message.quoteMessageId ? teamChatFeedQuote(feed.store, message.quoteMessageId) : null}
+                  ownMembershipId={membershipId} canModerate={canModerate} participants={participants} highlighted={highlighted === message.id}
+                  onReply={(row) => composer.current?.reply(row)} onEdit={(row) => composer.current?.edit(row)}
+                  onQuote={(id) => { void navigate({ channel, mode: "context", messageId: id }, true); }}
+                  onDelete={(row) => { if (!deletion) { deletionFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>("[data-chat-row]") ?? document.activeElement : null; setDeletion({ message: row, requestId: crypto.randomUUID(), isOwn: row.authorMembershipId === membershipId }); } setDeletionVisible(true); }} />
+              </div>;
+            })}
+            {!rows.length ? <p className={styles.empty}>В канале пока нет сообщений. Напишите коллегам.</p> : null}
+            {feed.range.hasAfter ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => { void loadMore("after"); }}>Следующие сообщения</button> : null}
+          </>}
         </div>
-        <TeamChatComposer key={`${channel}:${thread.root.id}`} channel={channel} parentId={thread.root.id} participants={participants} storageScope={storageScope} onSaved={afterSave} />
-      </aside> : null}
-    </div>
-  );
+        <div className={styles.readActions}>
+          {newMessages || feed.range.hasAfter ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => { void navigate({ channel, mode: "latest" }); }}>К новым сообщениям</button> : null}
+          {currentChannel?.firstUnreadId ? <button type="button" className={styles.textButton} disabled={busy} onClick={() => { void navigate({ channel, mode: "context", messageId: currentChannel.firstUnreadId! }, true); }}>К непрочитанным · {currentChannel.unreadCount}</button> : null}
+          {deletion && !deletionVisible ? <button type="button" className={styles.textButton} onClick={() => setDeletionVisible(true)}>Проверить удаление сообщения</button> : null}
+        </div>
+        {seen.error ? <div role="alert" className={styles.error}>Не удалось сохранить просмотр {seen.queued} сообщений. <button className={styles.textButton} type="button" onClick={seen.retry}>Повторить</button></div> : null}
+        {deletion ? <TeamChatDeleteConfirmation key={deletion.requestId} attempt={deletion} visible={deletionVisible} onFailure={reportFailure}
+          onCancel={(uncertain) => { setDeletionVisible(false); if (!uncertain) setDeletion(null); deletionFocus.current?.focus(); }}
+          onSaved={() => { setDeletionVisible(false); setDeletion(null); afterSave(); deletionFocus.current?.focus(); }} /> : null}
+        <TeamChatComposer ref={composer} channel={channel} participants={participants} storageScope={`${organizationId}:${membershipId}`} quotes={feed.store.quotes}
+          onSaved={afterSave} onFailure={reportFailure} onResumeEdit={resumeEdit} />
+      </>}
+    </section>
+  </div>;
+}
+
+function SearchText({ text, term }: { text: string; term: string }) {
+  const parts: React.ReactNode[] = [];
+  const lower = text.toLocaleLowerCase("ru-RU"), needle = term.toLocaleLowerCase("ru-RU");
+  let offset = 0, found = lower.indexOf(needle);
+  while (found >= 0) {
+    parts.push(text.slice(offset, found), <mark key={found}>{text.slice(found, found + term.length)}</mark>);
+    offset = found + term.length; found = lower.indexOf(needle, offset);
+  }
+  parts.push(text.slice(offset));
+  return parts;
 }

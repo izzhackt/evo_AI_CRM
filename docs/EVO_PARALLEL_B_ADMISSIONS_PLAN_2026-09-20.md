@@ -22,9 +22,10 @@ B228 не применена; production authority отсутствует.
 
 ## Исторический checkpoint до #988 — 21 сентября 2026
 
-Срез исходников: main `684f7f31b644d98759482af099056a9b976cb8bc` после #984.
+Срез исходников: main `82260fdc2df3b6d370092633cf1ac1c350fe9af6` после #991.
 Прежние принятые блоки сохраняются; #967, #975–#979 и #981–#986 — MERGED.
-#980, #987 и #988 остаются DRAFT. MERGED означает исходники, LOCAL — ограниченную
+#987/#988/#991 также MERGED; #980/#990/#992/#993 остаются DRAFT на этом срезе.
+MERGED означает исходники, LOCAL — ограниченную
 фактическую проверку. Managed DB/production apply и release этим checkpoint не
 подтверждаются. Весь объём 1–36 не завершён; 37–50 исключены. Исторические
 квитанции ниже сохраняют свои ревизии и пределы проверки.
@@ -47,8 +48,10 @@ B228 не применена; production authority отсутствует.
   #976/LOCAL223 добавил flat-history reader; #981 — план, #983/LOCAL225 —
   sparse seen без потери непрочитанных промежутков. Это реальные локальные
   Auth/RPC-проверки, не переключение UI на плоскую ленту. #986 — precode
-  direct quotes; #987 с реализацией227 остаётся DRAFT, actual apply/QA ещё не
-  приняты. Quotes/search/read/scroll и весь пункт15 не завершены.
+  direct quotes; #987/LOCAL227 принят: четыре сообщения, две direct-quote связи,
+  шесть эффектов, 43 отказа и три конфликта. Это Auth/RPC proof; переключение
+  на единую ленту #992 — source-only, actual UI ещё не принят. Search/read/scroll
+  и весь пункт15 не завершены; [227](qa/crm-team-chat-direct-quotes-227-2026-09-21.md).
   [223](qa/crm-team-chat-flat-reader-223-2026-09-21.md),
   [225](qa/crm-team-chat-sparse-seen-225-2026-09-21.md).
 - **Договор и оплата / пункт 12:** #971/#973 объединили договорный workflow
@@ -77,9 +80,23 @@ receipt `44c0f7`; факты/порядок/прежние IDs сохранен�
 #979 задаёт полный requirements-контракт; #982/LOCAL224 принял v2 readers:
 12 ordinary Auth reads, фактические TS/Swift decoders и CRM/Student desktop390
 на существующем starter, release `a6e53f58`. Это не positive full requirements.
-#988 (редактор226) — DRAFT; upload отдельно от submit, versioned packages/review
-и полный web/iPhone путь остаются открытыми.
+#988/LOCAL226 принят: обычный Admin сохранил три immutable revisions,
+существующий Student получил обновлённые требования. Replay проверен в rollback
+probe; stale/rebase/unknown/concurrency и native UI не приняты этой серией.
+[226](platform/b3e2-requirements-editor-qa.md). #993/228 — DRAFT/source-only:
+CI guard исправляется, actual apply/QA не приняты. Upload отдельно от submit,
+versioned packages/review и полный web/iPhone путь остаются открытыми.
 [224](platform/b3e1-requirements-v2-read-qa.md).
+
+#991/CRM-02c принят: actual source `26c8b4c2`, final `13d375a4`, merge `82260fdc`.
+Пять существующих строк и ссылки сохранены; desktop1440/mobile390/320,
+browser AX и поиск→preview→возврат проверены. CI35567157624; full283/Storage
+неизменны, собственные Auth sessions восстановлены. Summary400px, VoiceOver,
+остальные требования7 и production не покрыты.
+#990 — DRAFT: три попытки завершились без receipt/business/Storage effects.
+Последний blocker — service SELECT42501, ошибочно показанный как404; dependency229
+имеет исправленный source `8bcd` (ещё не main), actual ждёт B228. Успешные
+receipt upload/download и полный пункт12 не приняты.
 
 Root27/28: #978 — MERGED inactive primitives; #980 — DRAFT с локальным
 web/API/Mailpit confirmation/resend/denial/replay и восстановленной Auth-конфигурацией.
@@ -110,7 +127,7 @@ service scope и по123 применимость конфликтующих б�
 
 1. **B-1 / пункт 26: выполнен, #937 MERGED `22404da8`.** Resolver принимает managed objectPath только по существующему контракту манифеста: `<photoKey>.(avif|gif|jpg|png|webp)`, ASCII lowercase, без сегментов, dot traversal, query, fragment и percent escapes. Невалидная запись сохраняет уже существующий library URL; неизвестный photoKey остаётся null. Атрибуция, фото, Storage и UI сохранены. Проверены положительные расширения, отрицательные пути/чужой ключ, вся действительная библиотека, read-only GET существующих managed URL и SHA-256. Это точечная защита, не заявление о live authenticated render.
 2. **B-2 / пункт 2:** PR #929 смержен 20 сентября в17:46:11Z, `0aca60dd26c7d8cb72d3b3b75c53d957145e6ed0`. Прежний OPEN/MERGEABLE относился к началу плана. 207 уже применена в локальной проверке; текущий211 Student readback снова подтвердил сохранение первого появления в каталоге после обновления карточки. Это не новая managed/production квитанция.
-3. **B-3 / пункты 13, 17–21:** #944/#946/#964/#967 MERGED: identities/selection/preparation/association и один actual web214→218 путь приняты в пределах receipts. Chrome390 dark проверен отдельно. #979 — полный requirements-план, #982/LOCAL224 — v2 readers, реальные TS/Swift ответы и starter CRM/Student UI; #988 editor226 DRAFT. Полные требования, отдельные upload/submit, packages/review и native UI ещё не завершены.
+3. **B-3 / пункты 13, 17–21:** #944/#946/#964/#967 MERGED: identities/selection/preparation/association и один actual web214→218 путь приняты в пределах receipts. Chrome390 dark проверен отдельно. #979 — полный requirements-план, #982/LOCAL224 — v2 readers, реальные TS/Swift ответы и starter CRM/Student UI; #988/LOCAL226 редактор принят в пределах [QA](platform/b3e2-requirements-editor-qa.md). Полные требования, отдельные upload/submit, packages/review и native UI ещё не завершены.
 4. **B-4 / пункты 23–25:** карта покрываемых portal/iOS экранов по настоящим задачам; отдельный дефектный блок focus/ExplainPanel/localized title после проверки актуального кода. Desktop + 320/390px, RU/KY, light/dark, клавиатура; native Dynamic Type и back. Аудит не означает наличие багов. Общие CSS и переводные файлы согласовывать секциями до правки.
 5. **B-5 / остаток 26: выполнен, #939 MERGED `87514d27`.** Audit metadata отделена от клиентских runtime-полей; single source of truth и генерация сохранены. Это не массовый перенос фотографий. Смежное исправление portal theme вошло через #941 `6ceccf83` и не означает завершения всех пунктов 23–25.
 6. **B-6 / пункты 27–28:** политика Student email confirmation уже принята; #978 inactive primitives MERGED, #980 coordinated flow DRAFT после actual local web/API/Mailpit и восстановления Auth. Native UI и перечисленные выше negative/expiry limits остаются. Receiving mailbox недоступен без его существующей сессии; проверка28 не отправляла новых писем. Exact real recipients/delivery/reply и SOPS archival не подтверждены. Local Mailpit не означает Resend delivery или production activation.

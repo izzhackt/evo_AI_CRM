@@ -661,7 +661,6 @@ DO $guards$ DECLARE signature TEXT;definition TEXT;body TEXT;guard TEXT;BEGIN
  'platform.admit_student_document_upload_scan(uuid,uuid,uuid)',
  'platform.preflight_document_upload(uuid,uuid,text,text,bigint,text,uuid)',
  'platform.record_document_version_metadata(uuid,uuid,uuid,text,text,bigint,text,text,uuid)',
- 'platform.reserve_document_upload(uuid,uuid,text,text,bigint,text,uuid)',
  'platform.reserve_document_upload_after_ingress_scan(uuid,uuid,uuid,text,text,bigint,text,text,text,text,text,text,timestamp with time zone,uuid)',
  'private.claim_student_document_upload_scan(uuid,uuid,uuid,uuid)',
  'private.complete_student_document_upload_scan_admission(uuid,uuid,uuid,uuid,text)',

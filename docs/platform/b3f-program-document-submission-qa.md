@@ -1,6 +1,8 @@
 # B3f / 228 — проверка и оставшиеся шаги
 
-Статус: исходники реализованы, независимое source review и интеграция продолжаются.
+Статус: исходники реализованы; три независимых source review для `9b66b27c`
+APPROVED, но последующий CI выявил ошибку применения228. Исправленный HEAD
+требует нового delta review и успешной проверки миграций.
 Миграция228 не применена; фактические Auth, DB, Storage, browser и iPhone UI
 сценарии B3f ещё не исполнены. Production и внешние провайдеры не затронуты.
 Основание — [контракт](b3f-program-document-submission-contract.md).
@@ -29,12 +31,14 @@ slot lock, чтобы не конфликтовать с непубликуем�
 
 ## Офлайн-доказательство
 
-- 42 scoped Node checks PASS: codecs/pending/actions, transport, SQL source
-  transformations, route reachability, notification targets и RU/KY keys.
+- 43 scoped Node checks PASS: codecs/pending/actions, transport, SQL source
+  transformations, route reachability, notification targets и RU/KY keys;
+  новый regression следует истории CREATE/DROP/SET SCHEMA/RENAME001–227
+  и проверяет все16 inherited function identities из228.
 - 39 прежних transport checks PASS на неизменённых legacy implementations;
   это dependency-injected protocol evidence, не Auth/Storage acceptance.
 - TypeScript `tsc --noEmit` PASS; scoped web/server ESLint PASS после последних
-  исправлений. `git diff --check` PASS.
+  исправлений. TypeScript повторён после интеграции ROOT991; `git diff --check` PASS.
 - Swift: 59 protocol/persistence checks PASS, cached-dependency iOS typecheck
   PASS; единственное предупреждение — прежнее `SessionRouter.swift:90`.
 - SQL parse: 166 statements, 34 PL/pgSQL/DO bodies и четыре наследуемых
@@ -51,12 +55,31 @@ assertions в `tests/v3-student-portal-ui.test.mjs` уже расходятся 
 `evo-b3f-implementation-tsc.log`, `evo-b3f-implementation-eslint.log`,
 `evo-b3f-portal-tests-final.log`;
 Swift commands/logs/source hashes — `/private/tmp/evo-b3f-swift-zpr6abmx/`.
+Последний scoped run с обязательным `--conditions=react-server` —
+`/private/tmp/evo-b3f-corrected-scoped-react-server.log` (43/43). Предыдущий
+вызов без этого флага остановился на `server-only` import: это ошибка запуска,
+не продуктовая проверка. TypeScript после ROOT991 —
+`/private/tmp/evo-b3f-root991-integration-tsc.log`.
 Ни один fixture/result из unit tests не выдаётся за реальную пользовательскую проверку.
 
 ## Предлагаемое локальное окно после ROOT991
 
 Root обновил порядок: ROOT990 освобождает227 → ROOT991 read-only UI → B228 →
 ROOT229.228 сохраняется за B;229 относится к отдельному receipt-пути.
+
+ROOT991 теперь MERGED `82260fdc`; B интегрировал его мобильный список продаж
+и сохранил оба append-only документа. CI `35566781600` на `9b66b27c` прошёл
+build, lint и release contracts, но migration boundary остановился на неверной
+ссылке228 на `platform.reserve_document_upload(uuid,uuid,text,text,bigint,text,uuid)`.
+Эта функция удалена116; действующий `reserve_document_upload_after_ingress_scan`
+защищается отдельно. Исправление убирает только отсутствующий predecessor,
+сохраняя строгое разрешение всех действующих функций. Статический SQL parse
+и прежние source reviews эту ошибку не обнаружили и не заменяют проверку DDL.
+
+ROOT991 передал свежий release receipt (`16ece6aa4a6e6ef8…`) с ledger227 и283
+business tables. Подготовка private packet допускается офлайн; его lifecycle
+pins, точные commands и отдельный read-only/DDL-rollback запуск требуют review
+и передачи окна координатором. До этого локальный runtime B не использует.
 
 Это перечень требуемых сценариев, а не разрешение на apply или записи. Root
 передаёт эксклюзивное окно после своего final release. До исполнения отдельный

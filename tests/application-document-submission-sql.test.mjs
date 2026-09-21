@@ -58,11 +58,64 @@ test('all directly created and cloned functions have an explicit revoked baselin
 });
 test('legacy authoritative entries are guarded before their original BEGIN body and public readers only', () => {
   const guards = source.slice(source.indexOf('DO $guards$'), source.indexOf('END $guards$'));
-  for (const name of ['platform.admit_student_document_upload_scan(', 'platform.preflight_document_upload(', 'platform.record_document_version_metadata(', 'platform.reserve_document_upload(', 'platform.reserve_document_upload_after_ingress_scan(', 'private.claim_student_document_upload_scan(', 'private.complete_student_document_upload_scan_admission(', 'platform_private.finalize_document_upload_storage_step(', 'platform.finalize_document_upload_with_scan(']) assert.ok(guards.includes(name), name);
+  for (const name of ['platform.admit_student_document_upload_scan(', 'platform.preflight_document_upload(', 'platform.record_document_version_metadata(', 'platform.reserve_document_upload_after_ingress_scan(', 'private.claim_student_document_upload_scan(', 'private.complete_student_document_upload_scan_admission(', 'platform_private.finalize_document_upload_storage_step(', 'platform.finalize_document_upload_with_scan(']) assert.ok(guards.includes(name), name);
   for (const version of [1, 2]) for (const audience of ['student', 'staff']) assert.ok(guards.includes(`platform.${audience}_application_requirements_v${version}(`));
   assert.ok(!guards.includes('platform_private.application_requirements_v2_view('));
   assert.ok(!guards.includes('platform.staff_save_application_requirements_v1('));
   assert.match(guards, /placing E'\\nBEGIN'\|\|guard/);
+});
+test('every inherited regprocedure reference resolves after historical drops, schema moves and renames', () => {
+  // This is a source-lifecycle regression, not a substitute for applying SQL.
+  // Mask bodies, literals and comments so dynamic SQL examples cannot invent
+  // top-level function definitions. The referenced signatures use simple types.
+  const topLevel = sql => sql.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|\$([a-z_]\w*)?\$[\s\S]*?\$\1\$|'(?:''|\\.|[^'])*'/gi, match => ' '.repeat(match.length));
+  const type = value => {
+    const normalized = value.trim().toLowerCase().replace(/\s+/g, ' ');
+    return ({ timestamptz: 'timestamp with time zone', int8: 'bigint', int4: 'integer', int: 'integer', bool: 'boolean' })[normalized] ?? normalized;
+  };
+  const identity = (name, args, declaration = false) => {
+    const inputs = args.trim() ? args.split(',').filter(arg => !/^\s*OUT\s/i.test(arg)).map(arg => {
+      const value = arg.replace(/\s+DEFAULT\b[\s\S]*|\s*=[\s\S]*/i, '').trim().replace(/^(?:IN|INOUT|VARIADIC)\s+/i, '');
+      return type(declaration ? value.replace(/^\w+\s+/, '') : value);
+    }) : [];
+    return `${name.toLowerCase()}(${inputs.join(',')})`;
+  };
+  const live = new Map();
+  const dropped = new Set();
+  const historical = readdirSync(directory).filter(name => /^\d{3}_.*\.sql$/.test(name) && Number(name.slice(0, 3)) < 228).sort();
+  const operations = /\b(CREATE\s+(?:OR\s+REPLACE\s+)?|ALTER\s+|DROP\s+)FUNCTION\s+(?:IF\s+EXISTS\s+)?([\w.]+)\s*\(([^()]*)\)\s*(?:(SET\s+SCHEMA|RENAME\s+TO)\s+(\w+))?/gi;
+  for (const filename of historical) {
+    for (const [, verb, name, args, move, target] of topLevel(readFileSync(new URL(filename, directory), 'utf8')).matchAll(operations)) {
+      const signature = identity(name, args, /^CREATE/i.test(verb));
+      if (/^CREATE/i.test(verb)) live.set(signature, [filename]);
+      else if (/^DROP/i.test(verb)) {
+        live.delete(signature);
+        dropped.add(signature);
+      } else if (move) {
+        const provenance = live.get(signature);
+        live.delete(signature);
+        const [schema, basename] = name.split('.');
+        const next = /^SET/i.test(move) ? `${target}.${basename}` : `${schema}.${target}`;
+        if (provenance) live.set(identity(next, args), [...provenance, filename]);
+      }
+    }
+  }
+  // Read the actual clone, guard, notification and allocator identities from
+  // 228 rather than duplicating their argument lists in an expected fixture.
+  const references = [...new Set([...source.matchAll(/'((?:platform|platform_private|private)\.\w+\([^'()]*\))'/g)].map(([, value]) => {
+    const [, name, args] = value.match(/^([^()]+)\((.*)\)$/);
+    return identity(name, args);
+  }))];
+  assert.ok(references.length > 0);
+  for (const reference of references) assert.ok(live.has(reference), `228 references a missing historical function: ${reference}`);
+  // Prove that the source registry tracks both stages of the 116 move/rename,
+  // and catches the predecessor responsible for the actual CI apply failure.
+  const storage = live.get(references.find(value => value.includes('.finalize_document_upload_storage_step(')));
+  assert.ok(storage?.length >= 3, 'CREATE, SET SCHEMA and RENAME are all followed');
+  const retired = [...dropped].find(value => value.startsWith('platform.reserve_document_upload('));
+  assert.ok(retired, 'historical migration explicitly drops the old reservation RPC');
+  assert.ok(!live.has(retired), 'the dropped RPC is not revived by earlier definitions');
+  assert.ok(!references.includes(retired), '228 must guard the live successor, not the dropped predecessor');
 });
 test('notification augmentation preserves all existing 153 branches and read replay code', () => {
   const block = source.slice(source.indexOf('DO $notification$'), source.indexOf('END $notification$'));

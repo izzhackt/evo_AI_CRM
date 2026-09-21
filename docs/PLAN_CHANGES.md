@@ -37385,3 +37385,20 @@ main и полные собственные дополнения журнало�
 побайтно равны c59. Контракт и архитектура не расширяются. Прежние source checks
 и actual используются со своим SHA и пределами; итоговому head требуются
 независимое exact-head review и protected CI. Пункт24 и production не закрыты.
+
+
+### 2026-09-22 — B native: принятый precode локального выхода
+
+После merge #1018 в main2b25a431 подтверждён scope mismatch: web Portal
+использует local logout, native wrapper полагается на SDK default global,
+хотя invite-комментарий прямо обещает локальный выход. ROOT принял
+[узкий production-контракт](platform/native-local-signout.md) до Swift-кода:
+один аргумент `.local` и пояснение, без QA business-веток, UI/Auth/RLS/SDK
+изменений. Все существующие callers и оформление EVO сохраняются.
+
+Сначала app build и доказанная изоляция нового QA bundle на том же Simulator;
+native launch/Auth ждут отдельной передачи общей среды. Реальный ordinary
+logout должен завершить только собственную сессию с сохранением остальных.
+Текущий try?/offline limit не исправляется этим scope-изменением; экран входа
+не считается доказательством серверного отзыва. Нет новых аккаунтов, fixtures,
+широкого E2E, signup-приёмки или production-доставки.

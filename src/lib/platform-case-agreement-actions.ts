@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { isStaffPreview } from "./platform-access.ts";
-import { decimalToMinor, financeDateTime } from "./platform-finance-entry-contract";
+import { decimalToMinor, financeLocalDate } from "./platform-finance-entry-contract";
 import type { CaseAgreementState } from "./platform-case-agreement-contract";
 import { parseSalesDate, parseSalesUuid } from "./platform-sales-register-contract";
 import { exactActionStringFields } from "./server/action-form-fields";
@@ -109,11 +109,8 @@ export async function recordCasePaymentAction(
   const obligationId = parseSalesUuid(text("payment_obligation_id"));
   const amount = decimalToMinor(text("amount"));
   const currency = text("currency").toUpperCase();
-  // "at" reuses the same datetime-local Bishkek-wall-clock parser the
-  // admin ledger form already uses, then the card only needs the calendar
-  // date part — occurred_on is a DATE, not a timestamp.
-  const occurredAtIso = financeDateTime(text("at"));
-  const occurredOn = occurredAtIso ? occurredAtIso.slice(0, 10) : null;
+  // occurred_on is a DATE: preserve the validated Bishkek calendar day.
+  const occurredOn = financeLocalDate(text("at"));
   const note = text("note");
   if (
     !studentCaseId || !obligationId || !amount || !occurredOn ||

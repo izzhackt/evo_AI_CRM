@@ -7,7 +7,9 @@
 сохраняет её пределы. [Второй rail UI блок](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md)
 реализован в #1020, его [ограниченная actual-проверка](qa/team-chat-channel-rail-actual-2026-09-22.md)
 и закрытие ресурсов независимо приняты (2de97c08). QA передана B1018 по решению
-ROOT; после интеграции main e8fc98dc остаются final-head review/CI и merge #1020.
+ROOT; после интеграции main e8fc98dc final-head177e8dc2 прошёл review5ae91c79
+и CI35665853126. #1020 смержен ROOT вeec9c548; прежние STOP и пределы actual
+сохранены в квитанции.
 Это не production-доставка и не завершение всего item15.
 
 ## Исходное принятие precode и база анализа

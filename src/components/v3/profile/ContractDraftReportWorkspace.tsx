@@ -80,12 +80,12 @@ const RESULT_COPY: Record<
   draft_generated: {
     tone: "info",
     title: "Черновик договора создан",
-    description: "Текст сформирован сервером только из разрешённых типизированных полей и ещё не утверждён.",
+    description: "Черновик подготовлен и ожидает проверки.",
   },
   draft_approved: {
     tone: "info",
     title: "Версия договора утверждена",
-    description: "Решение и неизменяемый hash записаны в аудит EVO Platform.",
+    description: "Решение сохранено в истории проверки.",
   },
   draft_rejected: {
     tone: "warning",
@@ -94,7 +94,7 @@ const RESULT_COPY: Record<
   },
   items_seeded: {
     tone: "info",
-    title: "Постдоговорный чек-лист создан",
+    title: "Список работ после договора создан",
     description: "Пункты созданы из утверждённой версии шаблона и теперь требуют фактического статуса.",
   },
   item_updated: {
@@ -105,12 +105,12 @@ const RESULT_COPY: Record<
   report_generated: {
     tone: "info",
     title: "Черновик отчёта создан",
-    description: "Отчёт зафиксировал текущие валидные пункты и остаётся неизменяемым черновиком до review.",
+    description: "Отчёт содержит текущее состояние работ и ожидает проверки.",
   },
   report_approved: {
     tone: "info",
     title: "Отчёт утверждён",
-    description: "Версия отчёта и её hash сохранены вместе с решением reviewer.",
+    description: "Версия отчёта и решение проверяющего сохранены.",
   },
   report_rejected: {
     tone: "warning",
@@ -130,7 +130,7 @@ const RESULT_COPY: Record<
   not_allowed: {
     tone: "danger",
     title: "Действие недоступно",
-    description: "Роль, назначение или состояние кейса не разрешают эту операцию. Данные не изменены.",
+    description: "Роль, назначение или состояние дела не разрешают эту операцию. Данные не изменены.",
   },
 };
 
@@ -170,7 +170,7 @@ function ReasonField({ id }: { id: string }) {
 function EvidenceHash({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 border-b border-border pb-3">
-      <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">{label}</dt>
+      <dt className="text-xs text-fg-3">{label}</dt>
       <dd className="mt-1 break-all font-mono text-xs text-fg-2">{value}</dd>
     </div>
   );
@@ -195,7 +195,7 @@ function ArtifactMeta({
         <dd className="mt-1 font-mono text-2xs text-fg-3">{createdAt}</dd>
       </div>
       <div className="min-w-0 border-b border-border pb-3">
-        <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">Review</dt>
+        <dt className="text-xs font-semibold uppercase tracking-[0.04em] text-fg-3">Проверил</dt>
         <dd className="mt-1 break-all font-mono text-xs text-fg-2">{reviewedBy ?? "—"}</dd>
         <dd className="mt-1 font-mono text-2xs text-fg-3">{reviewedAt ?? "—"}</dd>
       </div>
@@ -289,11 +289,15 @@ function TemplateLifecycle({
             ) : "Источник недоступен этой роли"}
           </dd>
           <dd className="mt-1 font-mono text-2xs text-fg-3">
-            revision: {template.sourceRevision}
+            Версия источника: {template.sourceRevision}
           </dd>
         </div>
-        <EvidenceHash label="Template SHA-256" value={template.templateSha256} />
-        <EvidenceHash label="Checklist SHA-256" value={template.blueprintSha256} />
+      </dl>
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
+      <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
+        <EvidenceHash label="Шаблон · SHA-256" value={template.templateSha256} />
+        <EvidenceHash label="Список работ · SHA-256" value={template.blueprintSha256} />
       </dl>
       <ArtifactMeta
         createdBy={template.createdByMembershipId}
@@ -301,6 +305,7 @@ function TemplateLifecycle({
         reviewedBy={template.retiredByMembershipId ?? template.approvedByMembershipId}
         reviewedAt={template.retiredAt ?? template.approvedAt}
       />
+      </details>
       {workspace.canManageTemplates && (template.status === "draft" || template.status === "approved") ? (
         <form
           action={template.status === "draft" ? actions.approveTemplate : actions.retireTemplate}
@@ -359,9 +364,11 @@ function DraftArtifact({
       <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-nav border border-border bg-surface-2 p-4 font-mono text-xs leading-6 text-fg" data-testid="platform-contract-rendered-draft">
         {draft.renderedText}
       </pre>
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
-        <EvidenceHash label="Input SHA-256" value={draft.inputSha256} />
-        <EvidenceHash label="Rendered SHA-256" value={draft.renderedSha256} />
+        <EvidenceHash label="Исходные данные · SHA-256" value={draft.inputSha256} />
+        <EvidenceHash label="Текст договора · SHA-256" value={draft.renderedSha256} />
       </dl>
       <ArtifactMeta
         createdBy={draft.createdByMembershipId}
@@ -369,6 +376,7 @@ function DraftArtifact({
         reviewedBy={draft.reviewedByMembershipId}
         reviewedAt={draft.reviewedAt}
       />
+      </details>
       {workspace.canReviewContract && draft.status === "draft" ? (
         <ReviewForms
           kind="draft"
@@ -527,8 +535,10 @@ function ReportArtifact({
           </li>
         ))}
       </ul>
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Служебные сведения о версии</summary>
       <dl>
-        <EvidenceHash label="Report SHA-256" value={report.reportSha256} />
+        <EvidenceHash label="Отчёт · SHA-256" value={report.reportSha256} />
       </dl>
       <ArtifactMeta
         createdBy={report.createdByMembershipId}
@@ -536,6 +546,7 @@ function ReportArtifact({
         reviewedBy={report.reviewedByMembershipId}
         reviewedAt={report.reviewedAt}
       />
+      </details>
       {workspace.canReviewReport && report.status === "draft" ? (
         <ReviewForms
           kind="report"
@@ -580,14 +591,14 @@ export function ContractDraftReportWorkspace({
       id="contract-workflow"
       data-testid="platform-contract-draft-report-workspace"
       aria-labelledby="contract-workflow-title"
-      className="scroll-mt-24 space-y-4 rounded-card border border-border bg-surface p-4 shadow-evo sm:p-5"
+      className="scroll-mt-24 space-y-4 border-t border-border pt-4"
     >
       <div>
         <h2 id="contract-workflow-title" className="mt-1 text-lg font-black tracking-[-0.02em] text-fg">
-          Договор и постдоговорный отчёт
+          Подготовка договора и отчёты
         </h2>
         <p className="mt-1 max-w-[56ch] text-sm leading-5 text-fg-3">
-          Версии создаются только из проверенного источника и разрешённых типизированных полей. Черновик не является подписанным юридическим договором или доказательством доставки.
+          Выберите утверждённый шаблон, подготовьте черновик и передайте его на проверку.
         </p>
       </div>
 
@@ -595,25 +606,19 @@ export function ContractDraftReportWorkspace({
         <ContextBanner tone={banner.tone} title={banner.title} description={banner.description} />
       ) : null}
 
-      <ContextBanner
-        tone="info"
-        title="Без provider claims и скрытого HTML"
-        description="EVO Platform показывает детерминированный plain-text draft, версии и hash. PDF/DOCX, e-sign, отправка клиенту и содержимое внешних документов здесь не выполняются и не заявляются."
-      />
-
       {!hasReviewedSource || approvedTemplates.length === 0 ? (
         <ContextBanner
           tone="warning"
-          title="Нет утверждённого реального шаблона"
+          title="Нужен утверждённый шаблон"
           description={!hasReviewedSource
-            ? "Сначала Admin должен зарегистрировать и review проверяемый источник. До этого договор не генерируется и production content не подменяется примером."
-            : "Проверенный источник доступен, но ни одна версия шаблона ещё не утверждена. Генерация остаётся fail-closed."}
+            ? "Администратору нужно добавить и проверить источник шаблона."
+            : "Источник проверен. Утвердите версию шаблона, чтобы подготовить черновик."}
         />
       ) : null}
 
       {workspace.canManageTemplates ? (
         <details className="rounded-nav border border-border bg-surface-2 p-4" data-testid="platform-contract-template-create-panel">
-          <summary className="cursor-pointer text-base font-bold text-fg">Создать версию шаблона</summary>
+          <summary className="min-h-11 cursor-pointer py-2 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Создать версию шаблона</summary>
           <form
             action={actions.createTemplate}
             data-testid="platform-contract-template-create-form"
@@ -641,7 +646,7 @@ export function ContractDraftReportWorkspace({
             <label className={cn(labelCls, "sm:col-span-2")}>
               Проверенный источник
               <select name="source_registry_id" required className={cn(inputCls, "mt-1")} defaultValue="">
-                <option value="" disabled>Выберите source URL и revision</option>
+                <option value="" disabled>Выберите источник и версию</option>
                 {workspace.reviewedSources.filter((source) => source.reviewStatus === "reviewed").map((source) => (
                   <option key={source.sourceRegistryId} value={source.sourceRegistryId}>
                     {source.sourceUrl} · {source.sourceRevision}
@@ -653,7 +658,7 @@ export function ContractDraftReportWorkspace({
               Plain-text шаблон
               <textarea name="template_text" required minLength={10} maxLength={20_000} rows={8} className={textAreaCls} aria-describedby="contract-template-text-hint" />
               <span id="contract-template-text-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
-                Только текст и объявленные placeholders. Значение никогда не вставляется как HTML.
+                Текст договора с полями подстановки, указанными в списке ниже.
               </span>
             </label>
             <label className={labelCls}>
@@ -672,26 +677,26 @@ export function ContractDraftReportWorkspace({
             </label>
             <div className="sm:col-span-2">
               <ReasonField id="contract-template-create-reason" />
-              <button type="submit" className={btnCls} disabled={!hasReviewedSource}>Создать неизменяемую версию</button>
+              <button type="submit" className={btnCls} disabled={!hasReviewedSource}>Создать версию шаблона</button>
             </div>
           </form>
         </details>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <section className="min-w-0 rounded-nav border border-border p-4" aria-labelledby="contract-template-list-title">
-          <h3 id="contract-template-list-title" className="text-base font-bold text-fg">Версии шаблона</h3>
+      <div className="space-y-4">
+        <details className="min-w-0 self-start rounded-nav border border-border p-4">
+          <summary id="contract-template-list-title" className="min-h-11 cursor-pointer py-2 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Шаблоны договора</summary>
           <div className="mt-4 space-y-4" data-testid="platform-contract-template-list">
             {workspace.templates.length > 0 ? workspace.templates.map((template) => (
               <TemplateLifecycle key={template.contractTemplateVersionId} workspace={workspace} template={template} actions={actions} requestIdFor={requestIdFor} />
             )) : <EmptyState text="Версий шаблона нет." />}
           </div>
-        </section>
+        </details>
 
         <section className="min-w-0 rounded-nav border border-border p-4" aria-labelledby="contract-draft-list-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 id="contract-draft-list-title" className="text-base font-bold text-fg">Неизменяемые версии договора</h3>
+              <h3 id="contract-draft-list-title" className="text-base font-bold text-fg">Черновики договора</h3>
               <p className="mt-1 text-xs leading-4 text-fg-3">Новая генерация всегда создаёт новую версию.</p>
             </div>
           </div>
@@ -711,13 +716,13 @@ export function ContractDraftReportWorkspace({
                 </select>
               </label>
               <ReasonField id="contract-draft-generate-reason" />
-              <button type="submit" className={btnCls} disabled={approvedTemplates.length === 0}>Сгенерировать plain-text draft</button>
+              <button type="submit" className={btnCls} disabled={approvedTemplates.length === 0}>Подготовить черновик</button>
             </form>
           ) : null}
           <div className="mt-4 space-y-4" data-testid="platform-contract-draft-list">
             {workspace.drafts.length > 0 ? workspace.drafts.map((draft) => (
               <DraftArtifact key={draft.studentCaseContractDraftId} workspace={workspace} draft={draft} actions={actions} requestIdFor={requestIdFor} />
-            )) : <EmptyState text="Версий договора нет. Генерация заблокирована до утверждённого шаблона и разрешённого состояния кейса." />}
+            )) : <EmptyState text="Черновиков пока нет. Для подготовки нужны утверждённый шаблон и доступное для работы дело." />}
           </div>
         </section>
       </div>
@@ -725,7 +730,7 @@ export function ContractDraftReportWorkspace({
       <section className="rounded-nav border border-border p-4" aria-labelledby="post-contract-items-title">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 id="post-contract-items-title" className="text-base font-bold text-fg">Постдоговорный чек-лист</h3>
+            <h3 id="post-contract-items-title" className="text-base font-bold text-fg">Работа после договора</h3>
             <p className="mt-1 text-xs leading-4 text-fg-3">«Выполнен» требует подтверждения; открытым пунктам нужны ответственный и следующее действие.</p>
           </div>
         </div>
@@ -733,7 +738,7 @@ export function ContractDraftReportWorkspace({
           <form action={actions.seedItems} data-testid="platform-post-contract-seed-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <HiddenContext studentCaseId={workspace.studentCaseId} requestId={requestIdFor("seed_items", retrySubjectId)} />
             <label className={labelCls}>
-              Утверждённый blueprint
+              Шаблон списка работ
               <select
                 name="contract_template_version_id"
                 required
@@ -784,7 +789,7 @@ export function ContractDraftReportWorkspace({
       <section className="rounded-nav border border-border p-4" aria-labelledby="post-contract-report-title">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 id="post-contract-report-title" className="text-base font-bold text-fg">Версии постдоговорного отчёта</h3>
+            <h3 id="post-contract-report-title" className="text-base font-bold text-fg">Отчёты по делу</h3>
             <p className="mt-1 text-xs leading-4 text-fg-3">Каждая версия фиксирует статусы пунктов, ответственных, подтверждения и следующие действия на момент генерации.</p>
           </div>
         </div>

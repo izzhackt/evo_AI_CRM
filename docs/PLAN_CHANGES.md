@@ -36132,3 +36132,10 @@ source typecheck, RU/KY/membership/plutil and diff checks passed. Native input
 hashes were verified after the shared disk recovery. Synthetic action ports test
 local orchestration only. Authenticated web/native UI, 232 actual-path QA and
 production remain unclaimed and held for the coordinator's runtime handoff.
+
+
+B3g.2 exact-head review of52426ca requested two historical-display corrections.
+Both retain frozen notification evidence while separately exposing later package
+and current file decisions; no contract/policy/API changes. Added2 codec-backed
+Node regressions; native suite now24 checks. Scoped lint/TypeScript and final
+69-input Swift typecheck passed. Actual-path QA remains a separate unclaimed gate.

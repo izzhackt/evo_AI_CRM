@@ -39,3 +39,17 @@ struct ProgramPackageSelectionState {
         readiness.requirements.items.contains { !$0.required && includedOptional.contains($0.id.uuidString.lowercased()) && choices[$0.id.uuidString.lowercased()] == nil }
     }
 }
+
+/// A historical review remains the source of frozen file evidence. Package
+/// decisions can change even when every individual file review is unchanged.
+struct ProgramPackageReviewPresentation {
+    let displayed: ApplicationPackageReview?
+    let later: ApplicationPackageReview?
+    init(historical: ApplicationPackageReview?, latest: ApplicationPackageReview?) {
+        displayed = historical ?? latest
+        if let historical, let latest, historical.packageId == latest.packageId,
+           historical.packageReviewId != latest.packageReviewId {
+            later = latest
+        } else { later = nil }
+    }
+}

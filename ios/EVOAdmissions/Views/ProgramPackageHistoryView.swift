@@ -55,22 +55,26 @@ struct ProgramPackageDetailView: View {
         List {
             if visibleScope == session.context?.scope {
                 if let detail {
+                    let reviews = ProgramPackageReviewPresentation(historical: historicalReview, latest: detail.package.latestReview)
                     Section {
                         Text(detail.program.programTitle).font(.headline)
                         Text(detail.program.universityTitle)
                         Text(detail.program.intakeLabel).font(.subheadline)
-                        ProgramPackageSummaryLabel(package: detail.package, review: historicalReview)
+                        ProgramPackageSummaryLabel(package: detail.package, review: reviews.displayed)
                         if historicalReview != nil { Text("package_notification_snapshot").font(.footnote).foregroundStyle(.secondary) }
                         if detail.package.origin == .evoStarter { Text("package_starter_note").font(.footnote) }
                     }
-                    if let review = historicalReview ?? detail.package.latestReview {
+                    if let review = reviews.displayed {
                         Section { ProgramPackageReviewSummary(review: review, items: detail.items) } header: { Text("package_review") }
+                    }
+                    if let later = reviews.later {
+                        Section { ProgramPackageReviewSummary(review: later, items: detail.items) } header: { Text("package_later_review") }
                     }
                     ForEach(detail.items) { item in
                         Section {
                             ProgramPackageDefinitionView(definition: item.definition, material: item.materialSnapshot)
                             ProgramDocumentFileLabel(file: item.submission.file)
-                            if let evidence = (historicalReview ?? detail.package.latestReview)?.documentReviews.first(where: { $0.requirementItemId == item.requirementItemId }), let review = evidence.review {
+                            if let evidence = reviews.displayed?.documentReviews.first(where: { $0.requirementItemId == item.requirementItemId }), let review = evidence.review {
                                 Text(LocalizedStringKey("prep_review_\(review.decision.rawValue)"))
                                 if let reason = review.reason { Text(reason) }
                                 ProgramPackageTimestamp(raw: review.reviewedAt)

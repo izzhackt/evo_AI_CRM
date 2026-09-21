@@ -6,6 +6,7 @@ import { readApplicationPackageDetailAction, readApplicationPackageReviewHistory
 import type { ApplicationDocumentCursor } from "@/lib/portal/application-documents";
 import { ProgramDocumentTime, ProgramFileEvidence, type ProgramDocumentStrings } from "../admissionPreparations/ProgramDocumentEvidence";
 import { ProgramDocumentReview } from "../admissionPreparations/ProgramDocumentReview";
+import { packageReviewPresentation } from "./presentation";
 import { packageScopeKey } from "./pending";
 import { PackageReview } from "./PackageReview";
 import type { PackageAudience } from "./commands";
@@ -48,7 +49,7 @@ export function PackageDetail({ detail, scope, audience, strings: t, documentStr
   detail: Detail; scope: ApplicationPackageScope; audience: PackageAudience; strings: PackageStrings; documentStrings: ProgramDocumentStrings;
   frozenReview?: ApplicationPackageReview; canReview?: boolean; onSaved: (message?: string) => void; epoch?: number; showDecision?: boolean;
 }) {
-  const review = frozenReview ?? detail.package.latestReview;
+  const { review, newerReview, items, warnings } = packageReviewPresentation(detail, frozenReview);
   return <section className={p.preview} aria-label={`${t.version} ${detail.package.packageVersion}`}>
     <h3 className={s.heading}>{t.version} {detail.package.packageVersion}</h3>
     <p>{detail.program.programTitle} · {detail.program.intakeLabel}</p>
@@ -58,18 +59,17 @@ export function PackageDetail({ detail, scope, audience, strings: t, documentStr
     {frozenReview ? <p className={s.note}>{t.historical}</p> : null}
     {showDecision && review ? <PackageDecision review={review} strings={t} /> : showDecision ? <p className={s.note}>{t.awaiting}</p> : null}
     {review ? <AffectedMaterials review={review} detail={detail} strings={t} /> : null}
-    {frozenReview && detail.package.latestReview && detail.package.latestReview.packageReviewId !== frozenReview.packageReviewId ? <p className={s.note}>{t.newerDecision}</p> : null}
-    {detail.currentWarnings.length ? <div><h4 className={s.heading}>{t.currentWarnings}</h4><ul>{detail.currentWarnings.map(warning => <li key={`${warning.requirementItemId}:${warning.reason}`}>{detail.items.find(item => item.requirementItemId === warning.requirementItemId)?.definition.label}: {warning.reason === "review_changed" ? t.reviewChanged : t.fileUnavailable}</li>)}</ul></div> : null}
-    <ol className={p.rows}>{detail.items.map(item => {
+    {newerReview ? <section aria-label={t.newerDecision}><h4 className={s.heading}>{t.newerDecision}</h4><PackageDecision review={newerReview} strings={t} /><AffectedMaterials review={newerReview} detail={detail} strings={t} /></section> : null}
+    {warnings.length ? <div><h4 className={s.heading}>{t.currentWarnings}</h4><ul>{warnings.map(warning => <li key={`${warning.requirementItemId}:${warning.reason}`}>{detail.items.find(item => item.requirementItemId === warning.requirementItemId)?.definition.label}: {warning.reason === "review_changed" ? t.reviewChanged : t.fileUnavailable}</li>)}</ul></div> : null}
+    <ol className={p.rows}>{items.map(({ item, evidence, currentReview }) => {
       const target = { studentCaseId: scope.studentCaseId, applicationId: scope.applicationId, requirementsRevisionId: item.submission.requirementsRevisionId, requirementItemId: item.requirementItemId, documentSlotId: item.definition.documentSlotId };
-      const evidence = review?.documentReviews.find(value => value.requirementItemId === item.requirementItemId);
       return <li key={item.packageItemId} className={p.row} id={`package-item-${detail.package.packageId}-${item.requirementItemId}`}>
         <h4 className={s.heading}>{item.definition.label}</h4><p className={s.meta}>{item.definition.groupLabel} · {item.definition.required ? t.required : t.optionalLabel}</p>
         <p className={s.reason}>{item.definition.instructions}</p>
         {item.definition.deadline ? <p className={s.note}>{t.deadline}: <time dateTime={item.definition.deadline.date}>{item.definition.deadline.date}</time>{item.definition.deadline.time ? ` ${item.definition.deadline.time}` : ""}{item.definition.deadline.timezone ? ` (${item.definition.deadline.timezone})` : ""}{item.definition.deadline.sourceUrl ? <> · <a className={s.link} href={item.definition.deadline.sourceUrl} target="_blank" rel="noopener noreferrer">{t.deadlineSource}</a></> : null}</p> : null}
         <ProgramFileEvidence file={item.submission.file} target={target} audience={audience} strings={documentStrings} />
         {evidence ? <ReviewEvidence evidence={evidence} strings={t} documentStrings={documentStrings} /> : null}
-        {!frozenReview ? <div><p className={s.note}>{item.submission.review ? documentStrings[`review.${item.submission.review.decision}`] : documentStrings.waitingReview}</p>{item.submission.review?.reason ? <p className={s.reason}>{item.submission.review.reason}</p> : null}</div> : null}
+        <div><p className={s.meta}>{t.currentFileReview}</p><p className={s.note}>{currentReview ? documentStrings[`review.${currentReview.decision}`] : documentStrings.waitingReview}</p>{currentReview ? <p className={s.meta}><ProgramDocumentTime value={currentReview.reviewedAt} /></p> : null}{currentReview?.reason ? <p className={s.reason}>{currentReview.reason}</p> : null}</div>
         {audience === "staff" && canReview ? <ProgramDocumentReview scope={scope} submission={item.submission} strings={documentStrings} canReview onSaved={onSaved} /> : null}
       </li>;
     })}</ol>

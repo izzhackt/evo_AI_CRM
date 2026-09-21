@@ -94,6 +94,52 @@ import Foundation
 
         try check(AdmissionNotificationPolicy.target(category: "document", eventCode: "application_package_review") == .programPackageReview, "package event takes exact package-review target before category fallback")
         try check(AdmissionNotificationPolicy.target(category: "document", eventCode: "application_document_review") == .programDocumentReview, "individual review navigation preserved")
+
+        func review(_ value: [String: Any]) throws -> ApplicationPackageReview {
+            try JSONDecoder().decode(ApplicationPackageReview.self, from: JSONSerialization.data(withJSONObject: value))
+        }
+        let notification = fixture["notification"] as! [String: Any]
+        let approvedRaw = notification["review"] as! [String: Any], approved = try review(approvedRaw)
+        var oldCorrectionRaw = approvedRaw
+        oldCorrectionRaw["packageReviewId"] = "b3a10000-0000-4000-8000-000000000904"
+        oldCorrectionRaw["decision"] = "correction_required"
+        oldCorrectionRaw["reason"] = "Уточните состав пакета."
+        oldCorrectionRaw["affectedItemIds"] = [approved.documentReviews[0].requirementItemId]
+        oldCorrectionRaw["reviewedAt"] = "2026-09-21T09:00:00.000000+00:00"
+        let oldCorrection = try review(oldCorrectionRaw)
+        let corrected = ProgramPackageReviewPresentation(historical: oldCorrection, latest: approved)
+        try check(corrected.displayed?.packageReviewId == oldCorrection.packageReviewId && corrected.displayed?.reason == oldCorrection.reason,
+            "historical correction and reason remain the displayed decision")
+        try check(corrected.later?.decision == .approved && corrected.later?.reviewedAt == approved.reviewedAt
+            && corrected.displayed?.documentReviews.map({ $0.review?.reviewId }) == corrected.later?.documentReviews.map({ $0.review?.reviewId }),
+            "later package approval is visible even when all file review IDs are unchanged")
+
+        var laterCorrectionRaw = oldCorrectionRaw
+        laterCorrectionRaw["reviewedAt"] = "2026-09-21T11:00:00.000000+00:00"
+        let laterCorrection = try review(laterCorrectionRaw)
+        let returned = ProgramPackageReviewPresentation(historical: approved, latest: laterCorrection)
+        try check(returned.displayed?.decision == .approved && returned.later?.decision == .correctionRequired
+            && returned.later?.reason == laterCorrection.reason && returned.later?.affectedItemIds == laterCorrection.affectedItemIds,
+            "later correction keeps reason and affected material references separately from old approval")
+
+        var changedFileRaw = laterCorrectionRaw
+        var changedEvidence = changedFileRaw["documentReviews"] as! [[String: Any]]
+        var changedFileReview = changedEvidence[0]["review"] as! [String: Any]
+        changedFileReview["reviewId"] = "b3a10000-0000-4000-8000-000000000905"
+        changedFileReview["reviewedAt"] = "2026-09-21T10:45:00.000000+00:00"
+        changedEvidence[0]["review"] = changedFileReview; changedFileRaw["documentReviews"] = changedEvidence
+        let fileChanged = ProgramPackageReviewPresentation(historical: approved, latest: try review(changedFileRaw))
+        try check(fileChanged.displayed?.documentReviews[0].review?.reviewId == approved.documentReviews[0].review?.reviewId
+            && fileChanged.later?.documentReviews[0].review?.reviewId == changedFileReview["reviewId"] as? String,
+            "changed file reviews never replace frozen historical evidence while later package decision remains visible")
+        try check(ProgramPackageReviewPresentation(historical: approved, latest: approved).later == nil,
+            "same package review is not duplicated as a later decision")
+        let currentOnly = ProgramPackageReviewPresentation(historical: nil, latest: approved)
+        try check(currentOnly.displayed?.packageReviewId == approved.packageReviewId && currentOnly.later == nil,
+            "ordinary current detail displays its latest decision once")
+        let historicalOnly = ProgramPackageReviewPresentation(historical: oldCorrection, latest: nil)
+        try check(historicalOnly.displayed?.packageReviewId == oldCorrection.packageReviewId && historicalOnly.later == nil,
+            "missing current decision does not hide historical decision")
         print("PASS \(count) offline package selection/navigation checks; no native runtime acceptance claimed")
     }
 }

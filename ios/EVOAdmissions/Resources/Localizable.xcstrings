@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "package_later_review": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более позднее решение по пакету"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Топтом боюнча кийинки чечим"
+          }
+        }
+      }
+    },
     "package_choose_submission": {
       "localizations": {
         "ru": {

@@ -12709,6 +12709,21 @@ diff-check PASS, independent source review APPROVED. Full282/Storage/Auth
 равны завершённому content snapshot. Download-byte proof остаётся BLOCKED;
 не весь32 и не1–36 complete. Production и clientAI не публиковались.
 
+
+## 2026-09-21 — B3e-2 / 226: редактор требований (до реализации)
+
+#982 merged2b23285d: v2 readers уже в main, полный backend ещё не реализован.
+Root резервирует226 после A225 для полного staff editor/immutable revisions/
+explicit legacy mapping. [Точный контракт](platform/b3e2-requirements-editor-contract.md)
+закрепляет scoped document права, стабильные IDs, полный inventory113/137/179,
+точное idempotent intent и совместимость v1; не ослабляет mandatory gates.
+Новый согласованный editor-read и один atomic save расширяют таблицы218 без
+backfill старых строк, upload/submit/package процесса или правки214 binding.
+Impeccable Operate сохраняет EVO/Атлас и функции, максимум две visual rounds.
+Source work разрешён; DB/Auth/UI queue A225→root32, B226 window ещё не выдан.
+Перед реализацией independent exact precode review; перед apply/QA отдельный
+reviewed effects packet. Production и публикация старым native clients отдельно.
+
 ## 2026-09-21 — CRM-09d: сохранить местную дату оплаты
 
 В рамках пункта12 найден отдельный дефект: `recordCasePaymentAction` получает
@@ -12752,6 +12767,69 @@ APPROVED a0747bd3, final a2df3c2f. Own sessions/runtime завершены; full
 handoff cce0f273 передан B226 для fresh baseline. Подробности и пределы:
 `docs/qa/payment-calendar-date-2026-09-21.md`. Это ограниченная локальная
 проверка оплаты, не весь12/1–36 и не production release.
+
+
+## 2026-09-21 — B3e-2 / 226: локальный editor/save/readback подтверждён
+
+На frozen `6cdacc76` после ROOT09d локально применена226 один раз, затем ordinary
+Admin UI выполнил Q1 A2, Q2 B2 и Q3 A3. Ровно +3 revisions/+7 items/+1 empty
+optional QA slot/+1 link/+3 audit; прежние строки всех282 tables сохранены.
+14 ordinary HTTP reads и Student A/B desktop/mobile пройдены. Own sessions
+logout local204, Next33236 остановлен; Storage и Auth identities сохранены.
+[Фактический отчёт](platform/b3e2-requirements-editor-qa.md) разделяет executed
+proof, сохранённые helper failures и runtime gaps. Независимая сверка результата,
+актуальный main, PR review/CI остаются merge-gates; production не разрешён.
+Это завершение bounded core-сценария, не всех recovery/concurrency/legacy/native
+расширений и не всего плана1–36. Нового scope/API во время QA не добавлено.
+
+
+### A15e offline implementation227 prepared; actual database/UI work pending
+
+Accepted precode PR986 merged418521f5. Runtime7a54f4e3 from main d02d15b7
+adds one closed direct-quote map, post_v2 and STABLE timeline_v2, strict pure
+DTOs plus ordinary SSR repositories/actions. Existing171/223/225 and V1 UI,
+commands, decoder, parent roots, drafts, messages, read/seen state stay intact.
+Direct-target identity is retained in the existing receipts; current quote text
+is projected from originals. No cloned body or V2→V1 fallback.
+
+Source checks:16 pure decoder tests PASS (7 new+9 existing), scoped lint and
+TypeScript PASS, outer SQL and both PL/pgSQL bodies parse. Fresh-worktree PNG
+type-reference setup is documented in the QA note, not a product fix. Current
+implementation has not been applied or exercised through Auth/DB/UI. Independent
+exact-head review, protected CI and actual226 source/release integration remain.
+
+ROOT retains shared-window authority.227 apply/QA needs a fresh post226 baseline
+and separately reviewed bounded packet/GO. Four new posts plus edit/delete of
+its own new reply remain the six-command budget; empty mentions on all post/edit
+inputs preserve the zero-notification budget. Full catalog deltas/table count
+will be enumerated after226. See docs/qa/crm-team-chat-direct-quotes-227-2026-09-21.md.
+
+
+### A15e local227 apply/API verified; UI remains A15f
+
+After accepted B226 merge28613990 and full RAW release bcb7ed6d, sourceec18763c
+integrated current main with all six reviewed runtime/test files unchanged.
+Fresh282-table baseline matched that release. Independent final binding review
+151fa95d covered the unchanged apply mechanics, bounded QA and own-session
+scope=local logout. ROOT conditional authority was satisfied before execution.
+
+A single local CLI apply passed exact additive catalog/ledger checks; all old
+282 business tables and old functions/ACL remained unchanged, quote map empty.
+Ordinary Admin/Sales/Student QA then passed43 prewrite denials and3 replay
+conflicts. Exactly6 effective commands created4 new messages/2 direct maps and
+edited/deleted only the new legacy reply. Frozen replay, identical concurrent
+requests and current edited/deleted off-page quotes passed. Actual production
+DTOs decoded9 receipts,6 V2 pages and2 V1 pages. All prior rows, notifications,
+seen/preferences and unrelated data remained unchanged; final283 tables checked.
+The three own sessions logged out with204. No browser/app server was started.
+
+Apply receipt0fb6ce37 and QA receipta16cc76d plus full hashes/paths are recorded
+in docs/qa/crm-team-chat-direct-quotes-227-2026-09-21.md. Cross-tenant execution
+was not claimed because no other existing org was available. No new identity,
+role, provider/production action or source/server-action/UI/native acceptance.
+Final independent actual-evidence/exact-head review, protected CI/merge and
+fresh full RAW release to ROOT990 remain. Only then start A15f UI code, preserving
+ROOT's separate mobile-sales presentation ownership. This does not close item15.
 
 
 ## CRM-02c — вертикальные записи продаж на телефоне (2026-09-21)

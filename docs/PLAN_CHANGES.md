@@ -36464,3 +36464,24 @@ unchanged, exact own profile/draft/two receipts, full catalog/ledger unchanged,
 two Auth audits added. Own browser/Auth/server closed. Transfer schema001–234
 and immutable private receipts to ROOT235; final-head review/CI and normal PR1003
 merge remain required before ROOT integrates main for235. Item25 stays partial.
+
+## 2026-09-21 — ROOT item7a local235 closure
+
+[Actual management report](qa/crm-sales-management-actual-2026-09-21.md):
+source3616ea179b91b54d000c5cba5284a6cbb77ccb3a integrates main7f444455
+without changing the reviewed product files. One local235 apply added two
+read-only functions; 290 business and 33 Auth/Storage tables unchanged at apply.
+Ordinary Sales/Admin RPC and UI1440/390/320 confirm scoped management visibility,
+allowed-empty target, rights-only annual/archive state, invalid date rejection,
+and old-v2 body parity. Student/anon/service-role authority denials are actual.
+The initial Student QA binding mismatch stopped after one login before RPC;
+immutable evidence retained, independently reviewed metadata correction reused
+the same captured session for one denial and own logout, without a new login.
+Final business/catalog/Storage equality and all224 incoming sessions/239 refresh
+rows are exact. Only ordinary Auth metadata/audits changed; three owned logouts
+204 and own browser/server closure completed. No target/import writes or fixtures.
+Populated target/other-org/custom-grant combinations and refresh/unavailable/revoke
+retention remain unverified; no acceptance claim is made for those branches.
+The next7b UI block preserves forms and will retain these proof gaps explicitly.
+Final-head review/CI/merge are still required; local235 transfers next to A1005.
+Production authority and delivery are separate.

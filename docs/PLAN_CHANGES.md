@@ -37209,3 +37209,10 @@ Accepted contract: [staff catalogue manage search](platform/staff-catalog-manage
 Actual source f3871a0537605fd23ff847a2e312291de098a3e1 was inspected once by ordinary local Admin at 1440/390/320. The index has no search; Add is below 143 templates and the batch action dominates. Queue is empty, so draft detail/editor were not inspected. Incumbent receipt SHA256 89c0d3587dd84ade2ad7e09fc57b51cdec86dcb84ee869890e3e64f3a8a82528; strict final290/33 passed after own logout. Intermediate live AMR verifier STOP is retained; no allowlist was changed.
 
 Implement the approved manage contract: one header Add, labelled native GET name search, real238 pending page/count/cursor, independent name filtering of all templates, secondary batch and canonical listContext return links. Preserve forms/actions/template bytes and EVO/Golos. This authorizes source work only; migration238 and post-change UI acceptance remain pending after the current shared QA owner closes.
+
+
+### ROOT238 manage — real local acceptance, 2026-09-22
+
+Source `4bf6b9dbec8f04fc36db74a1f8547939c84081c6`: one local apply238, ordinary Admin empty/literal RPC reads and Student/anonymous/service/mismatched-organization denials; one ordinary Admin UI batch1440/390/320. Native search of the existing143 templates, template view/context Back, reset, browser history and real Tab passed. All290 business tables and33 Auth/Storage invariants passed strict final after own logout204. Own browser/child process closed and reaped; an initial post-stop socket-bind OSError is retained, with later read-only confirmation of group/listener absence and a free port. No second signal or UI rerun.
+
+[Actual receipt](qa/staff-catalog-manage-search-actual-2026-09-22.md) preserves the exact evidence and remaining zero-pending limitations: no positive draft search, >50/Next, existing editor or writes. This completes the implemented narrow local check, not production, whole item14 or1–36. Product files are unchanged by this documentation checkpoint; final-head review/CI remain required.

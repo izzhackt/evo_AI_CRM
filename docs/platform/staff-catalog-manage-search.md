@@ -1,6 +1,6 @@
 # Staff catalogue manage search — implementation contract
 
-Current checkpoint: 2026-09-22. A1017 main `c675d4b4d735ccbcc51dc162265e31d64e193990` is integrated in `f3871a0537605fd23ff847a2e312291de098a3e1`; backend238 is source-reviewed. Ordinary local Admin incumbent inspection at 1440/390/320 and strict closure passed (empty pending queue; draft/editor not inspected). UI source now connects the approved reader and context contract. Actual migration238, post-change UI and independent final source review remain pending; no production acceptance.
+Current checkpoint: 2026-09-22. Product source `4bf6b9dbec8f04fc36db74a1f8547939c84081c6` includes main `c675d4b4d735ccbcc51dc162265e31d64e193990`. Local migration238, ordinary Admin/Student RPC and one real Admin UI batch at1440/390/320 passed. Strict final comparison and own resource closure passed; the initial post-stop port-bind STOP is preserved. [Actual evidence and limits](../qa/staff-catalog-manage-search-actual-2026-09-22.md) distinguish empty pending-queue proof from unexecuted positive pagination/editor paths. Final independent actual/head review and protected CI govern merge; no production acceptance.
 
 # Item 14 — минимальный следующий блок управления университетами
 

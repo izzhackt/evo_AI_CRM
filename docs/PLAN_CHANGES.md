@@ -36757,3 +36757,9 @@ the environment to A15; product acceptance=false and #1010 remains draft.
 Only documentation changes; both product/test files retain 34b6bd0b bytes. Preserve
 current main rows 14/32 and update only the sidebar row 22/intro. Diff/marker review
 and git diff --check only; exact-head independent review/CI still gate merge.
+
+Corrected remainder script04f53dc1 / independent inert review9f334e2a is prepared
+only: bare Calendar expects week;320 selects the real «Месяц» Link before monthly
+checks. Passed390 Week/Back/Escape and1440 are excluded. It remains UNBOUND and
+unexecuted, queued after A15 and B1006 with fresh source/release/actor binding;
+no runtime admission or full item22 acceptance follows from this preparation.

@@ -112,3 +112,15 @@ The documentation integration retains main #1013's two Company download result
 and current rows 14/32 alongside this branch's sidebar history. The two sidebar
 product/test files are unchanged from 34b6bd0b; no product tests or runtime were
 repeated for this checkpoint. Final independent review and CI still gate merge.
+
+
+### Prepared remainder — not executed or admitted
+
+The corrected inert script `04f53dc175ee005260ba637ed8f4e14cf29877d5be305fe62d1535c048f1b253`
+passed independent preparation-only review
+`9f334e2a548a74b29364ecc76fa26ac4c9883c504e9bdfce9be7457d0ccb4379`.
+Bare Calendar expects week; at 320 the ordinary «Месяц» Link precedes the monthly
+sequence. Already passed 390 Week/Back/Escape and 1440 are excluded. The remaining
+390 same/different-destination and 320 checks stay queued after A15 and B1006,
+with a new fresh source/release/actor binding. The proposal is UNBOUND and is not
+execution or runtime admission; neither item22 nor full UI acceptance is complete.

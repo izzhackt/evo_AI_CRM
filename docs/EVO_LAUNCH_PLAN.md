@@ -14371,3 +14371,25 @@ nonblank истории родителей41810d1b/436865af. Пять A237 sourc
 source-only этапы и принятое узкое RPC доказательство. Runtime не повторялся.
 Fresh protected CI и независимый exact-head review впереди; #1017 пока draft,
 rail UI ждёт merge. Production и whole15/1–36 не закрыты.
+
+
+### A15 — rail previews precode после merge #1017
+
+#1017 смержен вc675d4b4 после exact-head reviewf36fec39 и CI35645855198
+(6SUCCESS/2SKIP) наab45c3a6. Новый isolated branch team-chat-channel-preview-rail
+содержит только [предложение второго блока](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md),
+ещё без product edits/runtime. Общие request tickets на refresh/search и
+принятый acceptor; latestPreview каждой строки; только presentation latest state
+удаляется, обязательные tail refs/hydration сохраняются. Mobile nav показывает
+существующий background failure/retry и forbidden, conversation ownership прежний.
+
+Impeccable4.3.1/Operate context переиспользован: сохраняем EVO/Golos/rail/unread.
+Прочитаны три сохранённых1014 PNG; восемь source/token/brand файлов равны1014,
+290 business-table snapshots1014→237 совпали (только saved evidence). Desktop
+rail имеет частичную visual basis;390/320 feed PNG не являются mobile rail
+baseline. Evidenceb28b4823; план задаёт точный будущий incumbent batch и scoped
+actual с предварительным seen binding. Craft-floor непосредственно до UI edit.
+
+QA у ROOT→manage incumbent→B1018; сейчас нет Auth/SQL/browser/server. Новая
+миграция не требуется,238 зарезервирована ROOT. Precode/source review перед
+реализацией; это не весь15/1–36 и не production.

@@ -35241,3 +35241,13 @@ no existing function or composer is replaced, and no read cursor is automated.
 This is precode only; ROOT has not allocated a migration or granted a QA writer.
 Actual populated-reader evidence must come from existing real history or a
 separately authorized controlled QA packet, never from a fabricated success.
+
+
+### A15c precode approval and migration reservation before code
+
+Independent inventory_plans approved exact55109f62. ROOT reserved223 exclusively
+and authorized offline implementation of the additive reader/types/decoder/server
+repository and scoped tests. Clarify UUID uniqueness with monotonic sequence only;
+channel authority must reject NULL (`IS NOT TRUE`). Preserve every v1 path and
+current UI. Migration apply/Auth/positive controlled QA still await a separately
+reviewed local packet and coordinator window; B currently owns that environment.

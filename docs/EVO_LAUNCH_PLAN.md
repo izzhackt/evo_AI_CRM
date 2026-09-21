@@ -12389,3 +12389,13 @@ Auth or QA writes. Independent precode review and ROOT migration reservation/GO
 precede implementation; populated QA requires a separately reviewed packet.
 The existing flat-feed/quote/shared-composer/sparse-seen dependency analysis is
 retained; this foundation does not claim full item15 delivery.
+
+
+### A15c precode approval and migration reservation before code
+
+Independent inventory_plans approved exact55109f62. ROOT reserved223 exclusively
+and authorized offline implementation of the additive reader/types/decoder/server
+repository and scoped tests. Clarify UUID uniqueness with monotonic sequence only;
+channel authority must reject NULL (`IS NOT TRUE`). Preserve every v1 path and
+current UI. Migration apply/Auth/positive controlled QA still await a separately
+reviewed local packet and coordinator window; B currently owns that environment.

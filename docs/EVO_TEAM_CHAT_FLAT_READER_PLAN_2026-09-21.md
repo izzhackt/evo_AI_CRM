@@ -1,11 +1,13 @@
 # A15c — чтение общей хронологии командного чата
 
-Статус: **precode, требуется независимое ревью и GO координатора**.
+Статус: **precode55109f62 одобрен независимым review; ROOT дал GO на код**.
+Применение миграции, Auth и QA-записи требуют отдельного окна/пакета.
 Источник: main `6d01bc8106eeef5c5e397255418d5f584bfdfa0e` после PR#974,
 21 сентября2026. Анализ выполнен по исходникам; БД/Auth/UI не использовались.
 После анализа интегрирован main `925cf1996e0b2c08e968d513da149793f9c774be`
 (PR#973); chat runtime и миграции между этими ревизиями идентичны.
-Владелец A. Номер миграции **не зарезервирован**;223 не считается свободным.
+Владелец A. ROOT эксклюзивно зарезервировал **223** после сверки main/PR.
+Резерв номера не является разрешением применять миграцию.
 
 ## Зачем этот блок и где заканчивается результат
 
@@ -95,7 +97,7 @@ changes, обязан обновить и его цитаты. Нельзя хр
 
 Строгий decoder проверяет размеры, UUID, положительные decimal-bigint
 sequence/version без Number-преобразования, timestamps, текущий channel,
-уникальность и возрастающий порядок ID/sequence, соответствие min/max cursors,
+уникальность UUID и возрастающий порядок только sequence, соответствие min/max cursors,
 focus в context и допустимость quote IDs только среди parentMessageId этой
 страницы. Все необходимые parent-проекции должны присутствовать; повреждённый
 контракт возвращает unavailable вместо тихого исключения ответов/цитат.
@@ -107,7 +109,8 @@ repository reader живут отдельно; общий рефакторинг
 Функция STABLE SECURITY DEFINER, search_path='', все relations/helper names
 полностью квалифицированы. Внутри только SELECT; каждый путь включая quote,
 anchor, tail, watermark и existence probes ограничен organization+channel.
-Использовать текущий team_chat_can_access, дополнительно связывать repository
+Использовать текущий team_chat_can_access с проверкой `IS NOT TRUE`, чтобы
+NULL тоже запрещал доступ; дополнительно связывать repository
 query с actor.organizationId и staffCanAccessChatChannel, включая существующее
 ограничение staff preview. DB остаётся окончательным источником авторизации.
 
@@ -142,10 +145,9 @@ supabase_auth_admin, затем GRANT EXECUTE только authenticated — в 
 
 ## Владение файлами и границы реализации
 
-После независимого precode review, решения ROOT и выделения номера:
+После независимого precode review55109f62 и решения ROOT зарезервирован scope:
 
-1. Одна новая миграция `NNN_platform_team_chat_flat_reader.sql` (NNN только
-   placeholder в этом документе; такой файл пока не создаётся).
+1. Одна новая миграция `223_platform_team_chat_flat_reader.sql`.
 2. Новый `src/lib/platform-team-chat-timeline.ts`: DTO/query/decoder.
 3. Новый `src/lib/server/platform-team-chat-timeline-repository.ts`: actual
    authenticated RPC с текущими guard/error semantics.

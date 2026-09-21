@@ -37225,3 +37225,7 @@ After #1019 merged in43410559, implement [two-class mobile header refinement](pl
 ## 2026-09-22 — Item22 mobile header actual and item36 checkpoint
 
 One ordinary Admin header batch at1440/390/320/focus on e999 accepted with independent actual/closure review441f869a. [Receipt](qa/crm-mobile-header-spacing-actual-2026-09-22.md) records measured geometry, preserved data, text-onlyzoom gap and original cleanup port timeout followed by verified closure. No new product scope or production change. Status checkpoint records #1019/#1015 merges, A1020 partial actual, and narrow KB141/144/145 owner decisions; it does not approve whole KB articles or declare all1–36 complete.
+
+## 2026-09-22 — служебная продажа и точечная сверка KB
+
+По прямому поручению владельца найдена и штатно архивирована одна служебная продажа в production001–206. [Квитанция](qa/service-sale-archive-actual-2026-09-22.md) подтверждает scoped1→0, организационные7→6, сохранение остальных209 продаж/истории и независимое actual review91c4d18b. Ранний STOP до записи сохранён. Релиз/схема/права не менялись. В KB153/156 добавлены только [подтверждения существующих фактов](qa/knowledge-source-reconciliation-2026-09-21.md) с сохранением candidate-статуса; новой политики или публикации нет. #1021 уже вmainfd77f2e2; остальной план остаётся в работе.

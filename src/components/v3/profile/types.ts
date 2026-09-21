@@ -336,8 +336,7 @@ export const TABS = [
   { key: "route", title: "Вузы и программы" },
   { key: "anketa", title: "Анкета" },
   { key: "documents", title: "Документы" },
-  { key: "money", title: "Деньги" },
-  { key: "contract", title: "Договор" },
+  { key: "money", title: "Договор и оплата" },
   { key: "history", title: "История" },
 ] as const;
 
@@ -367,9 +366,8 @@ export function tabsFor(
 ): readonly (typeof TABS)[number][] {
   return TABS.filter((tab) => {
     if (tab.key === "documents") return student && access.documents;
-    if (tab.key === "contract") return student && access.contract;
     if (tab.key === "anketa") return !student || access.studentProfile;
-    if (tab.key === "money") return !student || access.finance;
+    if (tab.key === "money") return !student || access.finance || access.contract;
     if (tab.key === "route") return student && hasAdmissions;
     return true;
   });
@@ -385,6 +383,9 @@ export function resolveTab(
   access: ProfileDraft["access"],
   hasAdmissions: boolean,
 ): TabKey {
+  // Existing contract links keep their outcome/retry parameters in place.
+  // The alias grants navigation only to the independently authorized section.
+  if (value === "contract") return student && access.contract ? "money" : "overview";
   const found = tabsFor(student, access, hasAdmissions).find((tab) => tab.key === value);
   return found ? found.key : "overview";
 }

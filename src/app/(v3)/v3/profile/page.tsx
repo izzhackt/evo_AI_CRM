@@ -187,7 +187,11 @@ export default async function ProfilePart({
   const tab = resolveTab(
     singleSearchParam(params.tab),
     Boolean(view?.profile.student),
-    view?.details.access ?? { documents: false, finance: false, studentProfile: false, contract: false },
+    view ? {
+      ...view.details.access,
+      finance: view.details.access.finance || (!isStaffPreview(actor) && !!view.sales?.handoff.caseId
+        && staffHasPermission(actor, "finance.event.confirm")),
+    } : { documents: false, finance: false, studentProfile: false, contract: false },
     Boolean(view?.details.admissions),
   );
   const hrefFor = (next: string) => view

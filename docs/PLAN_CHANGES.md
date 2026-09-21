@@ -35197,3 +35197,31 @@ precode. This replaces the earlier reopen-before-edit sequence for this block;
 no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
 the next coordinator-released QA window, with calibrated CSS viewport widths.
 Existing empty-history limits on edit/reply/saved-path proof remain unchanged.
+
+## 2026-09-21 — CRM-09c: единая оболочка не объединяет права
+
+Разбор item12 после #971 выявил разные contract/finance capabilities. Простое
+удаление contract tab потеряло бы contract-only доступ и retry/results; вставка
+внутрь прежней финансовой ветви скрыла бы договор при отказе/ошибке finance RPC.
+До реализации принят отдельный slot с независимыми gates, совместимый alias и
+новый redirect destination без изменения команд/reader/DTO/SQL. Page resolver
+должен учитывать тот же существующий Sales finance-confirm entry, что Profile.
+
+План: docs/design/v3/contract-payment-workspace-2026-09-21.md, базаea3cb758.
+Существующие assertions старой contract navigation заменяются содержательной
+capability/alias/redirect проверкой; девять actions, identity/retry, provider
+границы и preview safeguards остаются. Incumbent UI #971 используется с точной
+ревизией и лимитами, а не объявляется новым прогоном. Весь item12 этим не закрыт.
+
+### CRM-09c — одна коррекция по фактическому UI
+
+Первая batched проверка ordinary Admin runtimeb7790931 на1280/390/320 показала:
+на320 существующий file input шириной295.5px выходит за214px контент и увеличивает
+body до349px. В owned scope добавляется только className этого input в
+CaseAgreementForms.tsx: ограничение ширины без изменения загрузки/валидации.
+Пустые post-contract/report секции отодвигают транши на несколько экранов;
+переводим их в native details без unmount форм. Непустые данные и любой outcome
+открывают соответствующие секции по умолчанию; причины/retry не скрываются после
+ответа. Убираем лишние внутренние рамки/отступы вокруг подготовки, сохраняя
+разделы, все формы и состояния. Одна общая коррекция, затем последняя batched
+visual проверка; дальнейшая декоративная полировка не входит в срез.

@@ -205,7 +205,6 @@ export function ProfileContractWorkspace({
       data-testid="v3-profile-contract-workspace"
       data-student-case-id={snapshot.workspace.studentCaseId}
     >
-      {snapshot.handoff && <HandoffContext handoff={snapshot.handoff} />}
       <ContractDraftReportWorkspace
         workspace={snapshot.workspace}
         actions={CONTRACT_ACTIONS}
@@ -213,11 +212,19 @@ export function ProfileContractWorkspace({
         result={result}
         retrySubjectId={retry?.subjectId}
       />
-      {snapshot.handoff && <ProfileAmoCrmCommandSection
-        organizationId={organizationId}
-        actor={actor}
-        handoff={snapshot.handoff}
-      />}
+      {snapshot.handoff && <details className="border-t border-border pt-2">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          Передача дела и служебные операции
+        </summary>
+        <div className="space-y-4 pt-2">
+          <HandoffContext handoff={snapshot.handoff} />
+          <ProfileAmoCrmCommandSection
+            organizationId={organizationId}
+            actor={actor}
+            handoff={snapshot.handoff}
+          />
+        </div>
+      </details>}
     </div>
   );
 }

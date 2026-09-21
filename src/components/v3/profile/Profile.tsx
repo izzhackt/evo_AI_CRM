@@ -93,14 +93,15 @@ export function Profile({
   tab: TabKey;
   hrefFor: (tab: string) => string;
 }) {
-  const tabs = tabsFor(profile.student, {
+  const tabAccess = {
     ...draft.access,
     finance: draft.access.finance || (!isStaffPreview(actor) && !!sales?.handoff.caseId
       && staffHasPermission(actor, "finance.event.confirm")),
-  }, draft.admissions !== null);
+  };
+  const tabs = tabsFor(profile.student, tabAccess, draft.admissions !== null);
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
-  if (current === "contract" && draft.contract === null) {
-    throw new Error("V3 contract tab has no canonical contract workspace.");
+  if (current === "money" && draft.access.contract && draft.contract === null) {
+    throw new Error("V3 contract section has no canonical contract workspace.");
   }
 
   const state = personState({
@@ -244,16 +245,16 @@ export function Profile({
       {current === "money" ? (
         <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId}
           saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}#sale-conditions` : null}
-          contractPreparationHref={tabs.some((entry) => entry.key === "contract") ? hrefFor("contract") : null} />
-      ) : null}
-      {current === "contract" && draft.contract ? (
-        <ProfileContractWorkspace
-          snapshot={draft.contract}
-          actor={actor}
-          organizationId={organizationId}
-          result={contractResult}
-          retry={contractRetry}
-        />
+          financeVisible={!profile.student || tabAccess.finance}
+          contractWorkspace={draft.access.contract && draft.contract ? (
+            <ProfileContractWorkspace
+              snapshot={draft.contract}
+              actor={actor}
+              organizationId={organizationId}
+              result={contractResult}
+              retry={contractRetry}
+            />
+          ) : null} />
       ) : null}
       {current === "history" ? <History profile={profile} /> : null}
     </div>

@@ -12350,3 +12350,24 @@ precode. This replaces the earlier reopen-before-edit sequence for this block;
 no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
 the next coordinator-released QA window, with calibrated CSS viewport widths.
 Existing empty-history limits on edit/reply/saved-path proof remain unchanged.
+
+## 2026-09-21 — CRM-09c / item12: перенос договорного workflow (до кода)
+
+После #971/#972 выполняется [контракт](design/v3/contract-payment-workspace-2026-09-21.md):
+единая вкладка «Договор и оплата», старый contract alias, независимые finance/contract
+gates, все девять договорных actions и amoCRM section сохранены. Техническая
+вкладка снимается только вместе с переносом полного workflow. SQL/readers/actions
+не меняются. Impeccable Operate и существующее visual proof #971 задают компоновку;
+новый actual read-only UI после освобождения окна B211. Ограничения populated
+данных и managed delivery остаются явными. Scope-local checks, independent
+exact-head review и protected CI обязательны; contract-only не получает finance RPC.
+
+### CRM-09c — локальная проверка общего раздела
+
+Runtime5b49a9c7: actual ordinary Admin old contract link/new money tab, сохранность
+несохранённой формы и её фактического request UUID, secondary/service controls,
+keyboard focus и1280/390/320 без переполнения после одной коррекции.281business,
+schema/ledger/Authcounts без изменений; см. [receipt](qa/crm-contract-payment-workspace-2026-09-21.md).
+Lint/types PASS; scoped92/93 и40/41 содержат одно подтверждённое прежнее
+source-assertion падение. Full item12/managed delivery и отсутствующие populated
+сценарии не объявляются завершёнными. Финальное review/CI остаются merge gates.

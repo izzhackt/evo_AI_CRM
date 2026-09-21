@@ -416,16 +416,20 @@ export function Money({
   actor,
   salesCaseId,
   saleConditionsHref,
-  contractPreparationHref,
+  financeVisible,
+  contractWorkspace,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
   actor: ActivePlatformActor;
   salesCaseId?: string | null;
   saleConditionsHref: string | null;
-  contractPreparationHref: string | null;
+  financeVisible: boolean;
+  contractWorkspace: React.ReactNode;
 }) {
   const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId;
+  // Navigation to the shared section does not grant any financial read access.
+  if (!financeVisible) return contractWorkspace;
   return (
     <div className="flex flex-col gap-4">
       {/*
@@ -440,9 +444,9 @@ export function Money({
           actor={actor}
           studentCaseId={financeCaseId}
           saleConditionsHref={saleConditionsHref}
-          contractPreparationHref={contractPreparationHref}
+          contractWorkspace={contractWorkspace}
         />
-      ) : null}
+      ) : contractWorkspace}
 
       {profile.financeStop ? (
         <p className="v3-edge-danger flex flex-wrap items-start gap-2 rounded-card border border-border border-s-2 bg-surface px-4 py-3 text-sm leading-5 text-fg">

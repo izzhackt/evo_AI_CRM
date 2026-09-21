@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import { startTransition, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { readTeamChatAction, teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import {
   TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, TEAM_CHAT_LABELS, teamChatMergeMessages,
@@ -17,11 +17,11 @@ import { TeamChatComposer } from "./TeamChatComposer";
 import { TeamChatMessageRow } from "./TeamChatMessageRow";
 import styles from "./team-chat.module.css";
 
-export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, realtimeConfig, initialMessageId = null, showChannelsInitially = false, renderMessageAction }: {
+export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, realtimeConfig, initialMessageId = null, showChannelsInitially = false }: {
   initial: TeamChatSnapshot; channel: TeamChatChannelKey; organizationId: string;
   realtimeConfig: SupabasePublicConfig;
   membershipId: string; canModerate: boolean; initialMessageId?: string | null;
-  showChannelsInitially?: boolean; renderMessageAction?: (message: TeamChatMessage) => ReactNode;
+  showChannelsInitially?: boolean;
 }) {
   const [messages, setMessages] = useState<readonly TeamChatMessage[]>(initial.page.messages.filter((message) => message.parentMessageId === null));
   const [channels, setChannels] = useState(initial.channels);
@@ -234,7 +234,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const renderRow = (message: TeamChatMessage, location: "channel" | "thread" = "channel") => <TeamChatMessageRow key={message.id} message={message} location={location}
     ownMembershipId={membershipId} canModerate={canModerate} participants={participants}
     storageScope={storageScope} onReply={(row) => startTransition(() => { void openThread(row); })}
-    onSaved={afterSave} renderMessageAction={renderMessageAction} highlighted={highlighted === message.id} />;
+    onSaved={afterSave} highlighted={highlighted === message.id} />;
   const latestMessage = messages.find((message) => message.id === page.latestMessageId);
   const visibleChannels = channels.filter((item) => TEAM_CHAT_LABELS[item.key].toLocaleLowerCase("ru-RU").includes(channelQuery.trim().toLocaleLowerCase("ru-RU")));
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, type ReactNode } from "react";
+import { useActionState, useRef, useState } from "react";
 import { teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
@@ -11,11 +11,11 @@ import { Icon } from "@/components/icons";
 
 type DeletionAttempt = { message: TeamChatMessage; requestId: string; isOwn: boolean };
 
-export function TeamChatMessageRow({ message, ownMembershipId, canModerate, participants, storageScope, onReply, onSaved, renderMessageAction, highlighted = false, location = "channel" }: {
+export function TeamChatMessageRow({ message, ownMembershipId, canModerate, participants, storageScope, onReply, onSaved, highlighted = false, location = "channel" }: {
   message: TeamChatMessage; ownMembershipId: string; canModerate: boolean;
   participants: readonly TeamChatParticipant[]; storageScope: string;
   onReply: (message: TeamChatMessage) => void; onSaved: () => void;
-  renderMessageAction?: (message: TeamChatMessage) => ReactNode; highlighted?: boolean; location?: "channel" | "thread";
+  highlighted?: boolean; location?: "channel" | "thread";
 }) {
   const [editing, setEditing] = useState<TeamChatMessage | null>(null);
   const [deleting, setDeleting] = useState<DeletionAttempt | null>(null);
@@ -44,7 +44,6 @@ export function TeamChatMessageRow({ message, ownMembershipId, canModerate, part
           <Icon name="message-circle" size={16} />
           {message.parentMessageId ? "К обсуждению" : message.replyCount ? `Ответы · ${message.replyCount}` : "Ответить"}
         </button>
-        {message.linkedTaskIds?.map((id) => <a className={styles.textButton} key={id} href={`/v3/tasks?task=${id}`}>Задача создана ↗</a>)}
         <details className={styles.messageMenu}>
           <summary aria-label="Действия с сообщением" title="Действия с сообщением"><span aria-hidden="true">···</span></summary>
           <div className={styles.menuItems}>
@@ -53,8 +52,6 @@ export function TeamChatMessageRow({ message, ownMembershipId, canModerate, part
           onClick={() => { if (!deleting) setDeleting({ message, requestId: crypto.randomUUID(), isOwn }); setConfirmingDeletion(true); }}>
           {isOwn ? "Удалить" : "Модерация"}
         </button> : null}
-        {!message.deletedAt && !editing && !confirmingDeletion ? renderMessageAction ? renderMessageAction(message) : <a className={styles.textButton}
-          href={`/v3/tasks?create=staff&message=${message.id}&channel=${message.channelKey}`}>Создать задачу</a> : null}
         <a className={styles.textButton} href={`/v3/team-chat?channel=${message.channelKey}&message=${message.id}`}>Ссылка</a>
           </div>
         </details>

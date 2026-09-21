@@ -12856,3 +12856,25 @@ sale-ID для возврата к строке. На узком контейн�
 создавать финансовые данные. Один общий visual pass и максимум один fix/confirm.
 Merge/source, local UI и managed delivery явно различаются; весь пункт7 этим
 срезом не закрывается. Production/providers/финансовые writes не выполняются.
+
+## CRM-02c — локальная приёмка мобильного списка продаж (2026-09-21)
+
+На source `26c8b4c268b628563b5dd5b3226bea47c0866631` ordinary existing Sales
+проверил пять сохранённых локальных QA-записей; новых записей и sales writes нет.
+При baseline 115 список оставался шириной 960 px на телефоне; candidate сохраняет
+таблицу 1120 px при viewport 1440 и вертикальные строки без list overflow:
+390→346/346px, 320→286/286px (region/scrollWidth). Все значения и ссылки пяти
+строк совпали с baseline; browser AX сохранил таблицу, заголовки и пять строк,
+keyboard focus видим. Сентябрьский поиск → preview → «Назад» сохранил query,
+year/month, единственный sale-anchor и видимую строку. Impeccable Operate/adapt
+подтверждён на этом реальном read-only UI пути; native VoiceOver не запускался.
+
+Все 283 бизнес-таблицы/schema и Storage objects/buckets неизменны; собственная
+Auth-сессия восстановлена, сервер/вкладка закрыты. CI source 26c8:
+[35566545192](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35566545192),
+5 PASS / 3 SKIP. Private evidence: `/private/tmp/evo-sales-mobile-actual-20260921/`
+`actual-receipt.json` SHA256 `0c6cd413884449f4ecfca3d3ab41208d3cf9e30f5193d19e491c7f4c086e4626`;
+`release-receipt.json` SHA256 `16ece6aa4a6e6ef84cfae0fae9e0e1caf5a119b0c261b41f96e9607e2cd105c4`.
+Отдельная таблица сводки с min-width400px не менялась; эти замеры доказывают
+ширину списка продаж. Весь пункт 7 и production не объявляются завершёнными.
+После этой приёмки добавлена только документация; runtime-файл сохранён побайтно.

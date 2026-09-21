@@ -94,9 +94,9 @@ test("the staff queue source pins the migration-197 contract", () => {
 test("the requests screen adds the consultation pill additively", () => {
   const page = source("src/app/(v3)/v3/requests/page.tsx");
   assert.match(page, /portal_consultation: "Кабинет: консультации"/u);
-  // Очередь лидов и анкет при этом фильтре не читается вовсе.
-  assert.match(page, /filter === "portal_consultation"/u);
-  assert.match(page, /<PortalConsultations queue=\{consultations\} readOnly=\{readOnly\} \/>/u);
+  // CRM-03 keeps the pill and command while consultations join «Все».
+  assert.match(page, /loadScopedRequestsQueue/u);
+  assert.match(page, /<PortalConsultationDetails row=\{row.consultation\} readOnly=\{readOnly\} refreshHref=\{currentHref\}/u);
 });
 
 // Портальная сторона: карточка вуза передаёт institution_id, профиль — нет;

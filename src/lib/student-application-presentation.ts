@@ -1,5 +1,11 @@
 import type { StudentApplicationDraft } from "./student-application-contract.ts";
 
+export const STATUS_LABELS = { pending: "На рассмотрении", approved: "Одобрена", rejected: "Отклонена" };
+
+export function submittedDate(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(value));
+}
+
 export const APPLICATION_LABELS: Record<string, string> = {
   CN: "Китай", MY: "Малайзия", DE: "Германия", FR: "Франция", ES: "Испания", IT: "Италия",
   NL: "Нидерланды", PL: "Польша", HU: "Венгрия", AT: "Австрия", CZ: "Чехия", GB: "Великобритания",

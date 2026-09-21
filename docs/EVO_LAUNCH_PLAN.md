@@ -11904,3 +11904,434 @@ application and available tabs, and preserve role/section access. The local220
 save packet remains separate and must bind to the corrected source revision;
 no business save has happened yet. No synthetic handoff, Auth/role mutation,
 provider/customer/managed writes, deployment, or claim of full product E2E.
+
+## 2026-09-21 — CRM-03 / 220: полная очередь заявок (контракт до кода)
+
+Root разрешил предварительную документацию в isolated `evo-requests-queue`
+(base5adce46e) и выделил220 A. Runtime начинается только после merge A216/#962
+и review этого контракта координатором; затем свежая интеграция main.218 остаётся
+B,219 — root optional fields,217 — personal calendar. Порядок общей схемы и
+main координирует root, A — sole local schema applier. Текущая локальная схема
+001–217; эта запись не разрешает220 apply или новый business write.
+
+Основание CRM-03/§6 принятого функционального плана: фильтр source в
+requests-source.ts применяется после slice100; «Все» не включает consultations;
+счётчик pending подменён длиной ограниченного массива, техническая ошибка анкет
+объявляется отсутствием прав. Эти дефекты подтверждены исходниками, не
+воспроизведённым положительным >100 runtime. Relevant source/page files на
+A5572f288 идентичны main5adce46e. CRM-02 direction facet, compact totals и mobile
+vertical rows остаются отдельными незавершёнными пунктами.
+
+### Результат и границы
+
+Один read-contract и /v3/requests объединяют три существующих kind:
+lead(sourcewebsite/whatsapp), application(sourceplatform_application),
+consultation(sourceportal_consultation). «Все» объединяет только разрешённые
+актеру виды; наличие вкладки не создаёт доступ к строкам. Kind+canonicalID
+являются идентичностью строки; связанные lead/application не дублируются под
+придуманным source. Нового комплекта документов EVO и новых business entities нет.
+
+Одна forward220 добавляет новую read-проекцию/RPC и закрытый helper при
+необходимости. Старые migrations/readers и pipeline/dashboard consumers не
+переписывать. Фильтрация source/kind/статуса и actor scope выполняется до LIMIT;
+строки, matched count и pagination берутся из одного snapshot/filtered relation.
+Не собирать результат из прежних capped page readers и не увеличивать100cap.
+
+В новой очереди сохраняются существующие действия: открыть canonical карточку
+lead; действующая approve/reject application команда; действующая handled
+consultation команда. Не менять их permissions, optimistic revision/status,
+request IDs, reason, idempotency, audit/history или последствия для Student.
+ApplicationDecision доступна только подходящей pending строке и не в preview.
+
+### Порядок, состояния и возврат
+
+Root принял хронологический порядок timestamp DESC, kind DESC, canonicalID DESC
+с детерминированным tie-breaker, без скрытого общего приоритета open/pending.
+Для lead использовать created_at, consultation — created_at/requestedAt,
+application — submitted_at текущей подачи. Это явное изменение прежнего lead
+updatedAt order. submitted_at стабилен во время pending, но existing
+rejected→resubmit обновляет его и revision у того же ID; не называть его
+неизменяемым за весь срок жизни application. Не обещать snapshot между
+переподачами, обработкой обращений либо сменой прав. Каждое чтение применяет
+актуальную authority; изменившийся набор честно перечитывается.
+
+Фильтры состояний типизированы по виду, как согласовано root: application
+pending(default, прежняя очередь)/all; consultation all(default, прежний охват)/
+requested/handled. Их текущие значения видны в UI и включены в cursor binding;
+не придумывать новый lead pending/handled и сохранять canonical lifecycle=open.
+Consultation history не теряется. Фильтры source сохраняют прежние URL значения.
+
+Курсор versioned, bounded и строгий: complete timestamp/kind/id tuple и echo
+активного source/status/limit, никакого частичного NULL cursor. Предусмотреть
+next/previous и возврат из карточки без offset-based сдвига; граница сравнения
+совпадает с ORDER BY и направлением обхода. При новом фильтре cursor очищается,
+при retry и back сохраняется. Return target только валидированный внутренний
+/v3/requests route. Cursor не является authority; чужой/устаревший доступ
+не возвращает данные. Не обещать стабильность при изменении самого набора.
+
+### Проверенная authority и сохраняемые защиты
+
+11 актуальных функций прочитаны readonly из local001–217, exact definitions/ACL
+сохранены в приватном crm03a-live-read-contracts.json. Перед runtime пересверить
+их against freshmain, не копировать исторический177/197 как якобы current.
+
+Lead путь: current_actor_authority + staff_has_permission(lead.read), затем
+lifecycle=open и staff_can_access(org,membership,lead.read,lead,id). Сохраняется
+также111-integrity guard receipt/audit/current workflow state, который выполняет
+нынешний private.staff_sales_lead_page ДО выдачи строк. Предлагаемый способ
+повторного использования: вызвать этот существующий reader с limit1 только
+для полной guard-проверки, не использовать его ограниченный результат, затем
+собрать минимальные поля новой проекции с теми же scope predicates. Root принял
+направление при условии отдельного SQL review; не ослаблять guard и не трогать
+shared reader ради новой страницы. Не раскрывать лишние stage/owner/workflow поля.
+
+Application путь: student_application_staff_org / student_application_visible /
+current can_manage с независимой triad profile.read.full, profile.manage,
+case.curator.assign и направлениями; DTO через current student_application_json
+и существующий строгий decoder. Новые signup/анкета поля не добавляются; item29
+принадлежит root219. Consultation сохраняет текущий non-Student staff guard
+с private.platform_has_permission(lead.read) и org-bound membership/profile joins.
+Расширение роли Sales не является решением общей очереди.
+
+DTO различает ready, forbidden, unavailable, not-requested perkind; forbidden
+или unread часть не превращаются в count0 либо полное «нет заявок». Данные
+и count недоступной части не раскрываются. Неожиданная integrity/SQL/transport
+ошибка должна быть явно unavailable; нельзя подавлять её как успешный empty.
+Если целиком read не удаётся, показывать общий error, сохранив выбранные фильтры.
+Для частично доступного набора явно назвать ограниченный охват и не суммировать
+unknown. Полная Student/private tests/docs информация в новый DTO не попадает.
+
+### UX и владение
+
+EVO/Golos/PartShell и текущие business actions сохраняются. Различать вид
+обращения и source, показывать корректное основное действие; precise labels
+«На странице», «Анкет ожидают решения», «Открытых консультаций» не выдаются
+за один общий pending total. Initial empty, filtered empty, forbidden, unavailable
+и partial имеют разные тексты/восстановление. Использовать существующие UI
+patterns, не строить новый shell/design system; разрешённые действия доступны
+с keyboard, длинные названия переносятся, mobile controls минимум44px.
+
+A owns requests source/page, новый strict queue contract/SQL220, необходимые
+узкие presentation/return adaptations и профильные tests/QA; A shared docs.
+B/root файлы соседних flows не менять; broad рефакторинг, full product E2E,
+контентная волна, AppStore и production release сюда не входят.
+
+### Реальная проверка и нынешний пробел данных
+
+Read-only inventory existing owned QA001–217 на20.09UTC22:13:04: lead other4/
+platform_application3, website0/whatsapp0; application approved3/pending0;
+consultation0. Это техническая инвентаризацияpostgres, не actor acceptance.
+Нельзя заявить positive3kind/cursor/>100 acceptance на пустом наборе. Не создавать
+fixtures/entities, не менять source/status/Auth/roles ради демонстрации.
+Source-reviewed implementation и ordinaryActor empty/denial проверки могут
+продвинуть срез, но он не полностью принят без подходящего positive path.
+Отдельно зафиксировать разрешённый existing populated источник либо missing proof.
+
+Требуются meaningful strict cursor/DTO tests, scoped types/lint, независимые
+exact-head source/SQL reviews и protectedCI. Actual ordinary Sales/Admissions/
+Admin чтения по реальным правам, Student/anon/tenant denials; filter-before-limit,
+counts, next/back при одинаковом timestamp; retry/error/preview/action visibility.
+Desktop+390/320CSS одной собранной проверкой, затем не более одного confirm-pass
+после пакета UI исправлений. No fake totals/fallback success. Read-only QA
+before/after сверяет затронутые business tables, Auth count, прежние functions и
+ledger. Managed writes/provider actions/release требуют собственной authority.
+
+Основание cursor: [PostgreSQL17 LIMIT/OFFSET](https://www.postgresql.org/docs/17/queries-limit.html),
+[row comparisons](https://www.postgresql.org/docs/17/functions-comparisons.html#FUNCTIONS-COMPARISONS-ROW),
+проверены20.09.2026UTC. Уникальный порядок и non-null tuple важны для предсказуемой
+страницы; сами по себе они не дают snapshot всей изменяющейся очереди.
+
+
+## 2026-09-21 — CRM-03: резерв очереди220 →221 до применения
+
+Координатор перенёс неприменённую requests queue с220 на221. Реальная function QA
+после schema-only219 выявила в существующем184 application_partner_detail_fields
+ошибку PostgreSQL regex repetition count. Применённая219 сохраняется без изменения
+ledger/hash; root выполняет её необходимое forward исправление новым220. Это
+изменение порядка, не новая продуктовая функциональность очереди. Предыдущий
+контракт CRM-03/220 выше остаётся историей первоначального выделения номера;
+все его runtime/authority/UX/QA условия теперь относятся к221. Source candidate
+7b4e6cd7 и correction abab969e ещё не применялись. Файл SQL переименован
+221_platform_requests_queue.sql с сохранением байтов, роли и данные не меняются.
+
+Актуальный порядок local219(APPLIED_QA_FAILED) → root220 → A221. A остаётся
+единственным local schema applier, root — координатором и владельцем releases.
+root task-reason переносится221→222, следующий B резерв223 при необходимости.
+Новое применение только после exact-head review и root GO; production сюда не входит.
+
+Независимое review очереди также выявило stale uncontrolled status selects при
+Back/Forward. Форма получила identity key по source/applicationStatus/
+consultationStatus/limit. Actual URL/history/visible-controls parity включена в
+ожидающий реальный UI проход; существующие business commands не менялись.
+
+## 2026-09-21 — CRM-03/221: shared presentation helper after real UI failure
+
+Actual ordinary Admin UI on integration b3b04d95 (main44092c57/#966) failed before
+rendering the populated requests list: server RequestsPage invoked submittedDate
+exported by the use-client StudentApplications entry. SQL221/Auth35 proof remains
+valid; UI is not accepted. Typecheck and source unit tests did not exercise this
+RSC boundary. Preserve the failure in the slice QA rather than substituting RPC
+success for the actual page.
+
+Minimal direct dependency: move the existing unchanged date formatter and status
+labels to the already shared pure src/lib/student-application-presentation.ts;
+server page and affected client consumers import from it directly. No new DTO,
+SQL, role, command, date locale/timezone or visual-world change. Impeccable
+Operate/craft-floor guidance preserves familiar controls and the existing text.
+Next.js documents use-client as the server/client module boundary:
+https://nextjs.org/docs/app/api-reference/directives/use-client and
+https://nextjs.org/docs/app/getting-started/server-and-client-components.
+Repeat only affected lint/types and the actual positive page/navigation/mobile
+path after this correction; final exact-head reviews must include the fix.
+
+## 2026-09-21 — CRM-03/221: restore native filter state with browser history
+
+Actual Chrome Back after submitting pending returned the saved all-status URL
+and its positive row while the native select still showed pending. The earlier
+form identity key alone did not reset the browser-restored form document; a
+second submit therefore sent stalepending. Keep this failed UI evidence.
+
+Move only the existing native GET status form into a small client component.
+Keep defaultValue and ordinary controls, and reset the form to the canonical
+server selection on navigation/props and pageshow restoration. Do not alter
+filters/cursors, SQL, authority, commands or visual layout. MDN pageshow covers
+returning to a document with browser Back/Forward, including bfcache:
+https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event.
+Actual Back/Forward plus resubmit must pass before acceptance.
+
+
+## CRM-33 / SQL221 — причина изменения срока и приоритета case task — 21.09.2026
+
+Pre-code контракт на main `5adce46e`; отдельная ветка
+`izzhackt/task-change-reason`. Root выделил221 и остаётся единственным
+координатором миграций и назначения applier. Сейчас разрешены только эти docs;
+реализация начинается после merge219 и отдельного root pre-code GO.
+
+Цель: закрыть остаток пункта33 / issue687 — прямой Admin RPC сейчас может
+менять срок/приоритет case task без причины, хотя действующие UI/action уже
+требуют её. Portal v1 уже удалён152; его повторное удаление и staff tasks
+не входят. Исторический rollback prerequisite issue687 учитывается root
+при принятии текущего поручения и delivery; этот контракт не означает
+managed применение или production acceptance.
+
+Изменение: новая forward221 изменяет только каноническое
+`platform_private.coverage_change_task_body` с существующими11 аргументами.
+В актуальном теле после133/156 удалить protected-Admin исключение из условия
+`p_reason IS NULL ... AND (priority/due_at/due_on IS DISTINCT FROM ...)`.
+Остальные bytes тела сохранить; перед заменой проверить точную текущую
+сигнатуру/definition и единственное совпадение. Не копировать старое129 поверх
+scoped authority, не редактировать исторические миграции, не вводить overload.
+
+Инварианты:
+- Причина обязательна только при фактическом изменении priority/due_at/due_on.
+  Сохранить прежнюю проверку явно переданной причины1..1000 после btrim,
+  статусные/no-op правила, API/default NULL и protected audit.
+- Сохранить wrapper assignment/coverage locks, request lock, row lock, tenant,
+  fresh task.manage/task.assign/task.visibility.manage и assignee authority.
+- Guard остаётся после authority, replay и version check на прежнем месте.
+  Исторический успешный request с прежней причиной возвращает прежнюю receipt
+  после fresh authority check; новый NULL-reason change отклоняется22023.
+  Stale остаётсяPT409; same-request changed payload/reason не создаёт запись.
+- Не менять отдельные lifecycle/closed-case правила Admin, transitions,
+  reason visibility, DTO, UI, staff-task API или данные. Deadline-only change
+  остаётся audit event, а не выдуманным status transition.
+
+Приёмка: existing LOCAL217 receipts показывают12 доступных Admin canonical
+case tasks и12 own Admissions; Admin personal calendar0 не препятствует
+проверке через общий Tasks. Сначала свежий read существующей задачи и версии.
+В выделенное root writer window допустим ограниченный обратимый owned-QA
+сценарий: новый request с реальным priority/deadline change и NULL/blank reason
+отклоняется без row/version/audit mutation; обычный Admin с осмысленной причиной
+сохраняет изменение, readback/audit подтверждают его; replay не дублирует,
+changed request/stale отклоняются. Проверить обе ветки priority и deadline.
+Вернуть исходные значения отдельной reasoned versioned командой только при
+совпадении ожидаемого post-write version/state; при чужом изменении остановить
+restore, не перезаписывать его. Audit/version историю не удалять.
+
+Проверить существующий UI required reason и обычные authority denials в рамках
+этого пути. Не создавать задачи/пользователей/роли/фикстуры; не менять provider,
+Auth или Storage. Existing reversible owned-QA continuation не превращать
+в повторный общий запрос; непосредственный applier/window назначает root.
+Исторические129 test assertions оставить как provenance; новые scoped checks
+проверяют forward exception removal и сохранение остального тела. Source tests
+не подменяют actual Auth/RPC. Независимое exact-head review, protected CI,
+точная local receipt с ограничениями; managed rollout и общийE2E вне среза.
+
+
+## 2026-09-21 — CRM-33 reservation and implementation clarification
+
+The earlier221 reservation is superseded: root219+220 repair optional fields;
+A221 owns the requests queue; this reason-only forward migration is222. Runtime
+starts after root219+220 merge and uses a fresh main. Local apply follows221
+under the root-coordinated single schema writer; no managed authority is added.
+
+Use a guarded `pg_get_functiondef` replacement of the exact eleven-argument
+`platform_private.coverage_change_task_body` as it exists after156. Require
+the source-derived body hash and exactly one known Admin exception anchor.
+Replace only its obsolete rollback comment and predicate with a current comment
+and `IF p_reason IS NULL AND (`; fail on source drift and assert exact resulting
+body and unchanged pg_proc metadata apart from prosrc.
+Keep the rest of the function, signature, attributes/owner/ACL and all wrappers
+unchanged. Do not reintroduce removed student_portal_overview_v1 or modify the
+separate Admin lifecycle exception. Current official PostgreSQL documentation
+states that pg_get_functiondef reconstructs a complete CREATE OR REPLACE command:
+https://www.postgresql.org/docs/current/functions-info.html.
+
+The reason is required for a NEW effective priority/due_at/due_on change by
+Admin as for other staff. Existing replay ordering, status-only/no-op behavior,
+nonblank1..1000 validation, stale-version and authority gates remain unchanged.
+The accepted item33 continuation authorizes this source/local slice; issue687's
+managed deployment and owner acceptance exit conditions remain separately
+unfulfilled, so a local PASS alone must not close that issue.
+
+Use the existing owned task and approved scope-local QA packet only after fresh
+readiness. No new entity/identity/role or synthetic response. Check isolated
+NULL-reason changes for all three fields, explicit blank/length validation,
+current Sales/Student denials, existing UI reason blocking, reasoned priority
+and deadline changes, exact replay/conflicts/stale behavior, and guarded reasoned
+restoration of original business values. Keep every audit/version increment;
+no history deletion or claimed exact raw-state restoration. Existing UI is
+unchanged; Impeccable harden advice is to keep clear required-reason feedback,
+and actual UI inspection covers that existing behavior.
+
+
+## 2026-09-21 — case-task reason guard: local QA complete
+
+Source9f63/SQL222f2e0c8bd applied once to owned-local only after reviewed local
+Docker/source/ledger guards. Existing ordinary Auth actors:8 denial commands,
+4 reasoned writes plus exact replay/conflict/stale; business fields restored,
+version+4 and4audits retained. Actual existing Tasks form rejected empty/blank
+reason with0network commands.279other tables/Auth/schema/functions/ledger stable.
+Local release receipt0c029bc4; original preAuth observer failure and offline
+handover aggregate correction preserved. UI successful writes and managed rollout
+not claimed. Details: docs/qa/case-task-change-reason-2026-09-21.md.
+PR968 is merged43bd20c8; source222 remains separate until exact-head review/CI/merge.
+Issue687 owner/managed exit and all remaining accepted1–36 work stay open.
+
+
+## 2026-09-21 — A / item15a: remove automatic task actions from staff chat (precode)
+
+Contract: `docs/EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` §9,
+«Задачи из чата убираются». Previous A block CRM-03/221 merged as PR#968,
+main `43bd20c802ef2e9789463548ef1a1e3c3cbcf09d`. This is a bounded first slice
+of item15, not completion of the whole chat redesign.
+
+Source was freshly checked at that main: the three target files, canonical chat
+repository/type and Tasks route are identical to the previously inspected
+583bd631. `readV3TeamChat` enriches each canonical page through
+`team_chat_task_links` in batches of100. An auxiliary error/malformed response
+currently throws unavailable for the entire snapshot. Every query mode uses
+this adapter. `renderMessageAction` has no caller outside the two chat
+components; `linkedTaskIds` is optional in the type and canonical decoder.
+
+### Owned implementation
+
+Only these three runtime files may change for this slice:
+
+- `src/lib/v3/team-chat-source.ts`: return the existing canonical page with the
+  same channels/participants and channel filtering; remove task-link RPC,
+  batching/enrichment and dead imports. Preserve real errors from canonical
+  readers; no fallback empty snapshot.
+- `src/components/v3/team-chat/TeamChatMessageRow.tsx`: remove generated task
+  links and Create task entry, plus its unused callback/ReactNode type.
+- `src/components/v3/team-chat/TeamChat.tsx`: remove only the now-dead callback
+  argument/type/forwarding. Keep all state and existing interactions.
+
+No migration, DTO rewrite, package change or provider operation. Preserve
+Tasks and all existing message history, IDs, bodies, authors, timestamps,
+versions, reply relationships, deleted markers, mentions and plainTextLinks.
+Preserve reply/edit/delete/moderation, direct message links, pagination/search,
+realtime, channel authority and periodic recheck, current read state, drafts,
+immutable uncertain retry payload and request identity. Existing Tasks
+source/back URLs and command authority remain unchanged; older optional
+linkedTaskIds payloads remain valid. Student case chat is outside this slice.
+
+### Impeccable decision and verification
+
+Operate/refinement guidance was consulted without rerunning session context:
+familiar controls and consistent EVO/Golos/tokens stay; removing task actions
+must not become an unrelated visual rewrite. This accepted functional reduction
+also removes the source-observed auxiliary read failure coupling; no measured
+latency improvement is claimed. Inspect incumbent actual UI before runtime
+edits and read craft-floor immediately before the UI edit. After implementation,
+inspect desktop/mobile together once; correct observed issues in one batch and
+confirm at most once. Record advice → decision → actual result in slice QA.
+
+Actual inspection waits for the coordinator's local QA window (B currently
+owns it). Use existing ordinary staff Auth and authorized populated history;
+do not create messages/accounts/tasks to obtain positive evidence. No Send,
+Edit, Delete, Moderate or Mark read commands in this read-only check. Compare
+canonical/rendered message identity/version/parent/body and channel metadata;
+verify task actions absent, ordinary body links retained, and existing Tasks
+source/back paths when suitable real history exists. Exercise query modes only
+where history supports them; report absent coverage explicitly. Check business,
+read-state/Auth-count and schema/function parity before/after. Runtime secrets
+and raw message data stay private, outside Git/chat.
+
+Run scoped lint/typecheck and the existing chat-mute, runtime-public-config and
+staff-task-context checks for direct risks; these are source/unit evidence,
+not real Auth/UI acceptance. Reuse the recorded unrelated knowledge failures
+in v3-supabase-integration unless this diff demonstrates a new dependency;
+do not broaden into fixing them or rerun unchanged failures to obtain green.
+Do not add a test that merely repeats the deleted strings. Independent exact-head
+reviews and protected short CI remain required; ROOT routes reviewers/merge.
+
+Precode must be approved before runtime changes. Full item15's flat chronology,
+quotes/old reply and draft compatibility, search context, channel previews,
+autosize/scroll and sparse seen-message tracking remain separate work.
+
+
+### A15a menu acceptance clarification before implementation
+
+Fresh exact82c800 source, TeamChatMessageRow.tsx:48–60: the menu includes an
+unconditional «Ссылка» deep link at line58. After Create task is removed, that
+useful action remains for other-author/non-moderator and deleted messages.
+Therefore this slice does not create an empty menu, and must not hide it based
+only on edit/delete/moderation authority. Keep the current menu and Link action,
+plus unchanged edit/delete/moderation conditions and focus refs. Actual UI
+verification includes another author's menu where existing history allows it.
+No conditional-menu rewrite is added to the three-file scope.
+
+
+### A15a execution and evidence boundary
+
+Runtime10aa2617 implements the approved three-file removal; scoped13 tests,
+lint/types and diffcheck passed. Actual ordinary staff empty-history SSR/action
+reads and desktop/mobile channel navigation passed. Full281/Auth/schema parity
+held before/after both coordinated read-only windows. Local history is globally
+empty, so populated menu/manual-link/task-link acceptance remains unverified;
+no fake messages or mutations were introduced to fill that gap. Exact widths
+and evidence limits are in docs/qa/crm-team-chat-task-actions-2026-09-21.md.
+Final reviews/CI and merge remain separate; broader item15 is unfinished.
+
+
+## 2026-09-21 — CRM-09b / item12: иерархия договора и оплаты (до кода)
+
+После объединения #969 (`d3ceed4078`) root выполняет узкий presentation-срез
+[контракта](design/v3/finance-hierarchy-slice-2026-09-21.md): стоимость услуг EVO →
+договор → транши → оплаты/чеки → остаток. Вторичные общие обязательства и
+дополнительные операции остаются доступными с прежними формами и правами.
+
+Пять owned-файлов: Profile.tsx (только Money props), profile/tabs.tsx (только Money),
+CaseAgreementBlock.tsx, CaseAgreementForms.tsx (только summary),
+FinanceEntryWorkspace.tsx. Reader/DTO/SQL/команды/финансовые значения не меняются.
+Не переносить весь contract workflow и не удалять вкладку: полный item12 остаётся
+открытым. Доступный переход «Подготовка договора и отчёты» ведёт в существующий
+workflow только при разрешённой вкладке. Preview не показывает write controls.
+
+Impeccable Operate: существующие Golos/токены/компоненты, короткие предметные
+подписи, раскрываемые вторичные разделы без unmount форм, минимум44px для действий.
+До UI-правок — actual ordinary QA baseline и craft-floor; затем bounded
+desktop/320/390 проверка, доступность и сохранность несохранённого ввода.
+Сохранения финансовых операций/загрузки/production не нужны и сюда не входят.
+Недоступные реальные финансовые варианты фиксируются как непройденные.
+Scoped checks и independent exact-head review перед merge; managed delivery отдельно.
+
+
+### CRM-09b: UI-срез проверен локально
+
+Actual existing Admin Money/Contract,1280/390/320px; явные денежные подписи,
+разделы и secondary disclosures, сохранность draft fields и правильные ссылки.
+48scoped tests/lint/typecheck PASS;281business/schema/functions/ledger/Authcounts
+без изменений. См. [QA](qa/crm-finance-hierarchy-2026-09-21.md) для runtime/proof
+и отсутствующих финансовых datasets. Полный item12 и managed delivery открыты.

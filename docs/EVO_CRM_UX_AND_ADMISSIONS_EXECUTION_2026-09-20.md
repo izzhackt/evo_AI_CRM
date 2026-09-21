@@ -7,22 +7,43 @@
 
 ## Текущий checkpoint — 21 сентября 2026
 
-Срез исходников: main `c803d393369a22d62af65c81036584ec1fc5fe27`
-после #964. #946, #948, #958, #959, #961, #960, #962, #963 и #964 — MERGED.
-Это статусы исходников и локальных проверок; доставка в managed DB и production
-учитывается отдельно. Весь объём 1–36 не завершён, пункты 37–50 не запускаются.
-Датированные квитанции ниже сохраняют исходные ревизии и пределы проверки.
+Срез исходников: main `95cc9277db178e39466349a4ae9985f90887ad38` после #971.
+#946, #948, #958, #959, #961, #960, #962, #963, #964, #966, #968, #969, #970
+и #971 — MERGED. MERGED означает исходники, LOCAL — ограниченные фактические
+проверки. Новые managed DB/production apply и release этим checkpoint не
+подтверждаются. Весь объём 1–36 не завершён; 37–50 исключены. Датированные
+квитанции ниже сохраняют свои ревизии и пределы проверки.
 
-B218 принята через #964: проверка схемы, все 13 фаз обычного Auth и Swift decode
-59 фактических ответов прошли. Новый UI, upload/submit и production этим не
-проверялись. Следующий B-срез — общие web/iPhone входы в подготовку.
+- **#966:** 219/220 и canonical-profile repair в main. Исходный 219
+  `APPLIED_QA_FAILED` сохранён; forward220 прошёл function QA, ordinary Admin
+  UI save четырёх существующих пустых полей и exact Auth replay. Это не
+  положительная pinned219/nonemptyHTTPS UI-проверка.
+- **#968:** очередь221 принята: 35 Auth reads и фактический UI1280/390/320,
+  «Все»/filter/cursor/context/BackForward. Положительных данных других типов
+  и pending decisions в этом наборе не было.
+- **#969:** 222 требует причину изменения срока/приоритета у всех ролей.
+  Локально пройдены отказы, replay/conflict/stale и четыре reasoned RPC;
+  бизнес-поля восстановлены, version+4/audit+4 сохранены. UI доказал блокировку
+  пустой причины; успешное UI-сохранение не заявляется. Issue687 остаётся открыт
+  до отдельных managed/owner exit criteria.
+- **#970:** из staff chat убраны автоматические task actions/enrichment.
+  Local ordinary Sales UI проверен на существующих пустых каналах. A15b autosize
+  находится в реализации после pre-code review; плоская хронология, цитаты,
+  поиск/read/scroll — последующие согласованные срезы.
+- **#971:** явные суммы и разделы договора/оплаты, сохранённые дополнительные
+  операции и права. Local ordinary Admin UI1280/390/320 и parity пройдены без
+  финансовых записей. Полный перенос договорного workflow и положительные
+  транши/возвраты/чеки/mixed-currency/other-role UI ещё не завершены.
 
-Локальная 219 применена, но проверка функций завершилась ошибкой в прежнем
-HTTPS validator184: `APPLIED_QA_FAILED`, исходная квитанция сохранена.
-Исправление зависимости вынесено в новую 220, кандидат `10f4edc1` на review;
-219 не переписывается. Подходящих pinned legacy данных для Auth/UI пока нет.
-Неприменённая очередь A перенесена с220 на221 (`583bd631`, review), причина
-изменения задачи root — с221 на222 (pre-code). Эти изменения ещё не в main.
+#964/B218: 13 фаз обычного Auth и 59 Swift decode PASS. Полные program requirements,
+upload/save→submit→package/review остаются открытыми. B967 — DRAFT, head `8e8c81e1`,
+runtime `2516de2d`: independent review, build и CI PASS, чтение существующей
+подготовки в web проверено; первый новый выбор/init и native UI ещё pending.
+Native UI ограничен заблокированным Mac. Локальное покрытие stable IDs через
+существующий211 для четырёх карточек/пяти наборов: пакет и точные UI-intents
+проверены, последовательная техническая публикация выполняется; результата
+ещё нет в этом checkpoint. Факты каталога/порядок/прежние IDs сохраняются.
+Это не managed publication или подтверждение всего admissions-пути.
 
 ## Блоки
 
@@ -32,19 +53,19 @@ HTTPS validator184: `APPLIED_QA_FAILED`, исходная квитанция с�
 | CRM-06: загрузка admissions board | Продолжен #913: unset GET args, сброс видимых фильтров, retry/Students; реальные чтения и desktop/390px UI пройдены, см. квитанцию ниже | MERGED #913, `fc13ed96d`; production не обновлён |
 | CRM-08: правильный куратор, портал-доступ | Источник куратора и роли исправлены (#932); единый portal-access блок реализован, см. CRM-08b | MERGED #932, `819cd17d9`; #934, `dc3c246d4`; production не обновлён |
 | CRM-02: права, продавец, дата/месяц, поиск/финансы/UX | #935/#956/#958: права и preview/edit/filter/reset/back; #960: pending-case handoff; #962: literal search до count/totals/page, LOCAL216 Auth/UI320/390 | MERGED; phone/contract positive, >50 и salesOther остаются недоказанными; direction facet/layout ещё открыты; [search receipt](qa/crm-sales-search-2026-09-21.md); production отдельно |
-| CRM-09: стоимость → договор → платежи | CRM-09a: редактор стоимости снова доступен после handoff; прочий единый финансовый поток ещё открыт | MERGED #933, `dbb3f1d1f`; production не обновлён |
-| CRM-03: заявки, источники и пагинация | A221 runtime `583bd631` после перенумерации, вне main этого checkpoint | Ещё не принято; полный «Все», cursor/context и scoped server filter — текущая работа |
+| CRM-09: стоимость → договор → платежи | #933 и #971: доступ к стоимости после handoff, понятные суммы/разделы и сохранённые дополнительные операции; actual Admin read-only UI1280/390/320 | MERGED; полный перенос договорных команд ещё открыт, managed отдельно |
+| CRM-03: заявки, источники и пагинация | #968: LOCAL221, 35 Auth reads и actual UI1280/390/320, server filter/cursor/return/history | MERGED; другие источники/pending positive отсутствовали, managed отдельно |
 | CRM-01: текущие количества в воронке продаж | Обычные Auth/RPC/UI на прежних локальных QA-входах проверены; [квитанция](qa/crm-01-current-funnel-2026-09-20.md) | MERGED #943 `1795bf23`; SQL210 применена только локально, production не изменён этим блоком |
 | CRM-05: операционная воронка | Подтверждённый handoff, owner-filter и mobile stage tabs проверены локально на320/390 и desktop | MERGED #945/#953/#959; реальные stage mutations не выполнялись этим UI-срезом |
 | CRM-04/07: inbox и сообщения | Inbox empty/filter/channel states и поиск Student messages с loading/empty/error/retry защищены от устаревшего ответа; actual local read/UI desktop/390px проверены. Очереди и остальные сценарии остаются | MERGED #952 `f97122e8`, #955 `fe26526c`; [Inbox](qa/crm-inbox-states-2026-09-21.md), [messages](qa/case-chat-search-2026-09-21.md); без send/mark-read/provider actions |
 | Сохранение отдельных блоков карточки / пункт 30 | LOCAL213: actual UPDATE двух блоков, sibling draft, replay/conflict/stale и restore26 полей; B sale INSERT отдельно | MERGED #948; не UI-приёмка всех групп, managed/production delivery отдельно |
-| CRM-10: EVO Docs и университеты | Existing Docs сохранён; B218 требования/общие файлы приняты через #964: schema check и все 13 фаз Auth QA PASS; новый UI ещё не реализован | Не завершён; upload/submit/versioned packages/review и полный путь остаются |
-| Командный чат | Ожидает реализации; стратегия старых ответов/read перед UI | — |
+| CRM-10: EVO Docs и университеты | B218 общие требования/файлы MERGED #964, 13 фаз Auth; B967 новый UI DRAFT с review/build и ограниченным web-read proof | Полные requirements, upload/submit/versioned packages/review не завершены; native UI pending |
+| Командный чат | #970 убрал task actions/enrichment; A15b autosize в реализации после pre-code review | Частично MERGED; flat chronology/quotes/search/read/scroll остаются |
 | Личный календарь | #954 explicit case choice; #963 личные case/staff задачи, exact count/keyset и own target; LOCAL217 Auth/denials + UI320/390/desktop | MERGED #963 `401069a4`; dated/staff positive, >100 UI и concurrent reassignment не доказаны; [receipt](qa/personal-calendar-2026-09-21.md) |
 | §11: общие программы, требования, версии, пакеты и review | #944 stable intake IDs; #946 selection/preparation. LOCAL214 positive ordinary Auth + TS/Swift read/decode; нового web/iPhone UI proof нет. B218 requirements association принята через #964 | MERGED #944/#946; #964 MERGED, локальный Auth-пакет завершён; дальнейшие packages/review и managed delivery не приняты |
 | Web и iPhone полного нового admissions-пути | Общие214 readers проверены, полный новый UI-путь ожидает следующих операций | Не завершён; не расширять TS/Swift evidence до browser/device acceptance |
 | CRM shell / пункт 22 | #961 keyboard skip-navigation MERGED | Узкий срез, остальная оболочка и полная a11y-приёмка открыты |
-| Legacy optional application fields / пункт 29 | Root219 applied / function QA failed; forward repair220 на review; 222 pre-code отдельно | Нет suitable pinned QA positive; не завершено |
+| Legacy optional application fields / пункт 29 | #966 MERGED: исходный failed219 сохранён; forward220 function QA, actual Admin UI четырёх пустых полей и exact Auth replay PASS | Pinned219/nonemptyHTTPS UI positive отсутствует; managed отдельно |
 | Точечная приёмка §13, итоговый аудит scope | Ожидает реализации блоков | — |
 
 ## Решения владельца и границы

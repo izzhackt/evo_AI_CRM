@@ -306,3 +306,17 @@ Managed/production покрытие и весь admissions-план этим н�
 - Before snapshot SHA256 `7cc60af5c78dd3874dadcf4eaa03d681cc1cc4e600387e8ab8df9a02ef801208`.
 - Released snapshot SHA256 `05a082df0b1fd753bca8cb0d97c1048aaaaaa28fda299e376b4c511b0e5b0b42`.
 - Offline verifier SHA256 `9b123f27c593aafe63319e9f5873567d5a846831881211a8ac03546e61de2b36`.
+
+
+## Интеграция main после972
+
+В ветку B3d объединён `origin/main` `ea3cb758` с уже принятыми CRM requests,
+team chat, task reasons и finance hierarchy. Конфликтов не было. Root-owned
+`Profile.tsx`, `tabs.tsx` и profile page совпадают с main; B3d workspace подготовки,
+SelectionAction/server UI actions и native исходники не изменились относительно
+`2516de2d`. Прежние доказательства относятся к своим указанным ревизиям; новый
+runtime/UI запуск после интеграции пока не выполнялся.
+
+TypeScript `--noEmit --incremental false` PASS. Узкие проверки маршрутов,
+agreement и requests queue —72/72 PASS на Node22.23.1; `git diff --check` PASS.
+Это проверка композиции кода, без новых DB/Auth/UI/provider действий.

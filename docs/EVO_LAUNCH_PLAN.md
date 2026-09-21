@@ -13925,3 +13925,24 @@ APPROVED_SCOPED_ACTUAL_AND_CLOSURE831b1f6d принято для actual6e401f9c:
 [Квитанция](qa/team-chat-message-grouping-actual-2026-09-21.md) сохраняет всеgaps.
 B1006 получил окно через ROOT; A больше не использует sharedruntime.
 Final-head review/CI/merge остаются отдельными; product bytes не менялись.
+
+
+## 2026-09-21 — A15: общая строка времени и действий сообщения
+
+PR #1012 принят в main `7faa4748c899b58e25d630f6c3942a6dd21ff663`: final review
+`0036d57d`, CI35631741403 SUCCESS (5 PASS / 3 ожидаемых SKIP), ordinary squash
+exact head88f0479c. Предыдущие actual/gaps сохраняются, production не запускался.
+
+Следующий [двухфайловый контракт](EVO_TEAM_CHAT_SERVICE_ROW_PLAN_2026-09-21.md)
+принят до кода: precode83cf1217, независимое APPROVED_PRECODEeeceef77 и разрешение
+ROOT на source-only реализацию. В Row переносим единственные time/edited в footer
+с прежними Ответить/menu; полный автор остаётся над body, continuation header
+целиком srOnly. Новый scoped CSS не меняет shared messageActions/textButton,
+44px controls,16px body, права, callbacks, keys, details, grouping и seen.
+
+Причина: повторный time line box у коротких продолжений. Выигрыш остаётся
+проверяемой гипотезой; baseline112.1875/136.984375/161.78125px для1440/390/320
+сохраняется без выдуманного процента. Разрешены scope lint/typecheck и независимое
+source review; actual UI/anchors/draft/ширина нужны позже в отдельном окне ROOT.
+Сейчас QA у ROOT22G; Auth/DB/Storage/browser/server не трогаем. Превью всех каналов,
+DTO, миграции и весь item15 вне этого PR.

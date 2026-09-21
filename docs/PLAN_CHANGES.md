@@ -35759,9 +35759,22 @@ The function signature changes, so the migration drops/recreates that function
 within one transaction and explicitly restores only the required grants.
 
 Schema coordination confirmed before migration implementation: Astra reserves
-`230_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230,
+`231_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230 → 231,
 owned by the shared coordinator. No separate migration apply, arm or release.
 
 Implementation/check receipt: [website enquiry context](design/v3/references/2026-09-21-website-enquiry-context.md).
 Parser tests, focused lint, Next typegen/typecheck and diff check passed.
 No database execution or real enquiry submission is claimed; owner will submit.
+
+
+## 2026-09-21 — website enquiry migration reservation moved to 231
+
+Coordinator requested migration230 for the receipt audit namespace repair after
+the real229 path rejected. The unapplied PR996 website enquiry migration moves
+from `230_platform_website_enquiry_context.sql` to
+`231_platform_website_enquiry_context.sql`; its SQL remains byte-identical,
+SHA256 `d2cdcc54faa4f9514a148e3736977df2dbcfa7076252d5be2a0b385ad3a72eb3`.
+Only this slice's migration references are updated. Prior source/review receipts
+at `d7a7d1d7457783c97b2e1792f730464c07b25494` remain historical evidence for the
+unchanged implementation; the rename commit needs its own narrow independent
+review. No rebase, database apply, lead submission or deployment is performed.

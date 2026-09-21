@@ -27,17 +27,17 @@ put the new fact beside country without extra narration.
 
 ## Coordinated migration and rollout
 
-Astra reserved `230_platform_website_enquiry_context.sql`. Only the existing
-schema/release coordinator applies the ordered chain 228 → 229 → 230 and releases
+Astra reserved `231_platform_website_enquiry_context.sql`. Only the existing
+schema/release coordinator applies the ordered chain 228 → 229 → 230 → 231 and releases
 the shared CRM candidate. Website publishing follows the compatible CRM receiver.
 
-Migration230 atomically drops the old ten-argument RPC and creates one function
+Migration231 atomically drops the old ten-argument RPC and creates one function
 with final `p_university JSONB DEFAULT NULL`, explicitly restricting EXECUTE to
 service_role and reloading PostgREST's schema cache. It preserves old calls that
 omit the new named argument; there is no overload, duplicate writer or wrapper.
 No table/column, staff identity or permissions are added. The read RPC keeps its
 existing authority checks. Rolling back the app remains compatible with this
-additive data contract; migration230 and new receipts must not be removed.
+additive data contract; migration231 and new receipts must not be removed.
 
 [PostgreSQL default arguments](https://www.postgresql.org/docs/current/sql-createfunction.html)
 apply when an argument is omitted; changing an input signature requires a new
@@ -63,3 +63,13 @@ path, successful persistence or populated CRM UI. The user declines agent-led
 business submission and will perform it personally. The coordinator owns the
 migration/rollout check; an independent exact-head reviewer must approve first.
 No full schema replay, broad browser suite or fake lead was used.
+
+
+Coordination update: the original 230 reservation was reassigned to 231 before
+apply; 230 is required for the coordinator's receipt audit namespace repair.
+The SQL hash remains
+`d2cdcc54faa4f9514a148e3736977df2dbcfa7076252d5be2a0b385ad3a72eb3`.
+Earlier implementation checks/review refer to
+`d7a7d1d7457783c97b2e1792f730464c07b25494` and remain valid only for the unchanged
+runtime/SQL body. The rename and documentation need a separate narrow review;
+no product checks are rerun for this filename-only change.

@@ -12924,9 +12924,16 @@ into a short Russian label, and allow long names to wrap. Actual populated CRM
 UI proof depends on the owner's submission; static checks cannot replace it.
 
 Schema coordination confirmed before migration implementation: Astra reserves
-`230_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230,
+`231_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230 → 231,
 owned by the shared coordinator. No separate migration apply, arm or release.
 
 Implementation/check receipt: [website enquiry context](design/v3/references/2026-09-21-website-enquiry-context.md).
 Parser tests, focused lint, Next typegen/typecheck and diff check passed.
 No database execution or real enquiry submission is claimed; owner will submit.
+
+
+Website enquiry coordination update: the coordinator reassigned the unapplied
+website migration from 230 to 231 so migration230 can repair the receipt audit
+namespace required by the real229 path. Only the filename and this slice's
+references change; SQL/runtime behavior and prior validation remain unchanged.
+The shared coordinator owns ordered apply 228 → 229 → 230 → 231 and release.

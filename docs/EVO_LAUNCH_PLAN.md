@@ -12188,6 +12188,102 @@ PR968 is merged43bd20c8; source222 remains separate until exact-head review/CI/m
 Issue687 owner/managed exit and all remaining accepted1–36 work stay open.
 
 
+## 2026-09-21 — A / item15a: remove automatic task actions from staff chat (precode)
+
+Contract: `docs/EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` §9,
+«Задачи из чата убираются». Previous A block CRM-03/221 merged as PR#968,
+main `43bd20c802ef2e9789463548ef1a1e3c3cbcf09d`. This is a bounded first slice
+of item15, not completion of the whole chat redesign.
+
+Source was freshly checked at that main: the three target files, canonical chat
+repository/type and Tasks route are identical to the previously inspected
+583bd631. `readV3TeamChat` enriches each canonical page through
+`team_chat_task_links` in batches of100. An auxiliary error/malformed response
+currently throws unavailable for the entire snapshot. Every query mode uses
+this adapter. `renderMessageAction` has no caller outside the two chat
+components; `linkedTaskIds` is optional in the type and canonical decoder.
+
+### Owned implementation
+
+Only these three runtime files may change for this slice:
+
+- `src/lib/v3/team-chat-source.ts`: return the existing canonical page with the
+  same channels/participants and channel filtering; remove task-link RPC,
+  batching/enrichment and dead imports. Preserve real errors from canonical
+  readers; no fallback empty snapshot.
+- `src/components/v3/team-chat/TeamChatMessageRow.tsx`: remove generated task
+  links and Create task entry, plus its unused callback/ReactNode type.
+- `src/components/v3/team-chat/TeamChat.tsx`: remove only the now-dead callback
+  argument/type/forwarding. Keep all state and existing interactions.
+
+No migration, DTO rewrite, package change or provider operation. Preserve
+Tasks and all existing message history, IDs, bodies, authors, timestamps,
+versions, reply relationships, deleted markers, mentions and plainTextLinks.
+Preserve reply/edit/delete/moderation, direct message links, pagination/search,
+realtime, channel authority and periodic recheck, current read state, drafts,
+immutable uncertain retry payload and request identity. Existing Tasks
+source/back URLs and command authority remain unchanged; older optional
+linkedTaskIds payloads remain valid. Student case chat is outside this slice.
+
+### Impeccable decision and verification
+
+Operate/refinement guidance was consulted without rerunning session context:
+familiar controls and consistent EVO/Golos/tokens stay; removing task actions
+must not become an unrelated visual rewrite. This accepted functional reduction
+also removes the source-observed auxiliary read failure coupling; no measured
+latency improvement is claimed. Inspect incumbent actual UI before runtime
+edits and read craft-floor immediately before the UI edit. After implementation,
+inspect desktop/mobile together once; correct observed issues in one batch and
+confirm at most once. Record advice → decision → actual result in slice QA.
+
+Actual inspection waits for the coordinator's local QA window (B currently
+owns it). Use existing ordinary staff Auth and authorized populated history;
+do not create messages/accounts/tasks to obtain positive evidence. No Send,
+Edit, Delete, Moderate or Mark read commands in this read-only check. Compare
+canonical/rendered message identity/version/parent/body and channel metadata;
+verify task actions absent, ordinary body links retained, and existing Tasks
+source/back paths when suitable real history exists. Exercise query modes only
+where history supports them; report absent coverage explicitly. Check business,
+read-state/Auth-count and schema/function parity before/after. Runtime secrets
+and raw message data stay private, outside Git/chat.
+
+Run scoped lint/typecheck and the existing chat-mute, runtime-public-config and
+staff-task-context checks for direct risks; these are source/unit evidence,
+not real Auth/UI acceptance. Reuse the recorded unrelated knowledge failures
+in v3-supabase-integration unless this diff demonstrates a new dependency;
+do not broaden into fixing them or rerun unchanged failures to obtain green.
+Do not add a test that merely repeats the deleted strings. Independent exact-head
+reviews and protected short CI remain required; ROOT routes reviewers/merge.
+
+Precode must be approved before runtime changes. Full item15's flat chronology,
+quotes/old reply and draft compatibility, search context, channel previews,
+autosize/scroll and sparse seen-message tracking remain separate work.
+
+
+### A15a menu acceptance clarification before implementation
+
+Fresh exact82c800 source, TeamChatMessageRow.tsx:48–60: the menu includes an
+unconditional «Ссылка» deep link at line58. After Create task is removed, that
+useful action remains for other-author/non-moderator and deleted messages.
+Therefore this slice does not create an empty menu, and must not hide it based
+only on edit/delete/moderation authority. Keep the current menu and Link action,
+plus unchanged edit/delete/moderation conditions and focus refs. Actual UI
+verification includes another author's menu where existing history allows it.
+No conditional-menu rewrite is added to the three-file scope.
+
+
+### A15a execution and evidence boundary
+
+Runtime10aa2617 implements the approved three-file removal; scoped13 tests,
+lint/types and diffcheck passed. Actual ordinary staff empty-history SSR/action
+reads and desktop/mobile channel navigation passed. Full281/Auth/schema parity
+held before/after both coordinated read-only windows. Local history is globally
+empty, so populated menu/manual-link/task-link acceptance remains unverified;
+no fake messages or mutations were introduced to fill that gap. Exact widths
+and evidence limits are in docs/qa/crm-team-chat-task-actions-2026-09-21.md.
+Final reviews/CI and merge remain separate; broader item15 is unfinished.
+
+
 ## 2026-09-21 — CRM-09b / item12: иерархия договора и оплаты (до кода)
 
 После объединения #969 (`d3ceed4078`) root выполняет узкий presentation-срез

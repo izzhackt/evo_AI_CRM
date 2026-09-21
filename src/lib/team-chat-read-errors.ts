@@ -25,6 +25,19 @@ export function emptyTeamChatReadErrors(): TeamChatReadErrors {
   return { forbidden: false, foreground: null, background: null };
 }
 
+/** A partially hydrated refresh must leave its tail marker available to retry. */
+export async function hydrateTeamChatRefreshTail(input: {
+  tailChanged: boolean;
+  hydrateContexts: () => Promise<boolean>;
+  hydrateAfter: () => Promise<boolean>;
+  commitTail: () => void;
+}): Promise<boolean> {
+  if (!await input.hydrateContexts()) return false;
+  if (input.tailChanged && !await input.hydrateAfter()) return false;
+  input.commitTail();
+  return true;
+}
+
 /** Read errors belong to a particular operation, never to a write or another lane. */
 export function reduceTeamChatReadErrors(state: TeamChatReadErrors, event: TeamChatReadEvent): TeamChatReadErrors {
   if (state.forbidden) return state;

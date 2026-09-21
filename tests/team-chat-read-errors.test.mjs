@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  emptyTeamChatReadErrors, reduceTeamChatReadErrors, teamChatReadFailureCopy, visibleTeamChatReadFailure,
+  emptyTeamChatReadErrors, hydrateTeamChatRefreshTail, reduceTeamChatReadErrors, teamChatReadFailureCopy, visibleTeamChatReadFailure,
 } from "../src/lib/team-chat-read-errors.ts";
+import { extendTeamChatFeedRange } from "../src/lib/team-chat-feed.ts";
 
 const search = { kind: "search", channel: "general", term: "прежний запрос", cursor: "41", append: true };
 const refresh = { kind: "refresh", channel: "general", cursor: "120" };
@@ -70,6 +71,67 @@ test("periodic background retry keeps its failure visible until success is confi
   state = settle(state, "background", 2, null);
   assert.equal(visibleTeamChatReadFailure(state), null);
 });
+
+for (const failedPhase of ["context", "after"]) {
+  test(`partial refresh with failed ${failedPhase} retries hydration before committing the tail`, async () => {
+    const oldId = "10000000-0000-4000-8000-000000000001";
+    const newId = "10000000-0000-4000-8000-000000000002";
+    let latestId = oldId;
+    let watermark = refresh.cursor;
+    let range = { ids: [oldId], beforeCursor: "1", afterCursor: "1", hasBefore: false, hasAfter: false };
+    let state = emptyTeamChatReadErrors();
+    const phases = [];
+    const after = { messages: [{ id: newId }], afterCursor: "2", hasAfter: false };
+
+    // Latest has already loaded the same new tail on both attempts. This tests
+    // the hydration/commit protocol, without impersonating a live API response.
+    const attempt = async (id, failure) => {
+      state = begin(state, "background", id, { ...refresh, cursor: watermark });
+      const hydrated = await hydrateTeamChatRefreshTail({
+        tailChanged: latestId !== newId,
+        hydrateContexts: async () => {
+          phases.push("context");
+          assert.equal(latestId, oldId);
+          if (failure === "context") {
+            state = settle(state, "background", id, "unavailable");
+            return false;
+          }
+          return true;
+        },
+        hydrateAfter: async () => {
+          phases.push("after");
+          assert.equal(latestId, oldId);
+          if (failure === "after") {
+            state = settle(state, "background", id, "unavailable");
+            return false;
+          }
+          range = extendTeamChatFeedRange(range, after, "after", "1");
+          return true;
+        },
+        commitTail: () => { phases.push("commit"); latestId = newId; },
+      });
+      if (hydrated) {
+        watermark = "121";
+        state = settle(state, "background", id, null);
+      }
+    };
+
+    await attempt(1, failedPhase);
+    assert.equal(latestId, oldId);
+    assert.equal(watermark, "120");
+    assert.deepEqual(range.ids, [oldId]);
+    assert.equal(visibleTeamChatReadFailure(state).ticket.attempt.cursor, "120");
+    assert.deepEqual(phases, failedPhase === "context" ? ["context"] : ["context", "after"]);
+
+    phases.length = 0;
+    await attempt(2, null);
+    assert.deepEqual(phases, ["context", "after", "commit"]);
+    assert.deepEqual(range.ids, [oldId, newId]);
+    assert.equal(latestId, newId);
+    assert.equal(watermark, "121");
+    assert.equal(visibleTeamChatReadFailure(state), null);
+  });
+}
 
 test("a delayed old failure or success cannot replace the new foreground attempt", () => {
   let state = begin(emptyTeamChatReadErrors(), "foreground", 1, search);

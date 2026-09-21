@@ -18,7 +18,9 @@ Precode `a90fda0c413a680073e18c8db02bdb27ef1e3812` независимо одоб
   search pagination остаются и объединяются обычным способом после успеха.
 - Background refresh success не очищает foreground failure. Его собственная
   ошибка остаётся видимой во время автоматического повтора до подтверждённого
-  успеха. Watermark продвигается после успешного changes read и V2 hydration.
+  успеха. Watermark и latest tail marker продвигаются после успешного changes
+  read и всей необходимой V2 hydration. Частичный успех latest с ошибкой context
+  или after оставляет прежний marker: повтор снова выполняет нужную догрузку.
 - Ошибка чтения сообщает про поиск/чтение. Missing/invalid не предлагают
   бесконечный повтор. Resume-edit использует прежнюю кнопку/handshake редактора;
   общий alert не выбирает новый draft. Ошибка соединения и reconnect сохраняют
@@ -30,10 +32,17 @@ Precode `a90fda0c413a680073e18c8db02bdb27ef1e3812` независимо одоб
 Node22.23.1, matching existing dependencies, без установки:
 
 - `team-chat-read-errors`, `team-chat-feed`, `team-chat-drafts`, `team-chat-seen`:
-  **27/27 PASS**, включая9 новых поведенческих проверок reducer/argument capture.
+  **29/29 PASS**, включая11 новых поведенческих проверок reducer/argument capture
+  и hydration commit protocol.
   Проверяются mutation isolation, сохранение term/cursor/append, независимые
   владельцы ошибок, pending refresh, старые failure/success, отмена и terminal
   late forbidden. Это чистые unit-проверки, не подмена API/real-auth доказательств.
+- Независимое source review `2941170b` обнаружило ранний commit latest marker.
+  Исправление переносит его после context/after через используемый TeamChat helper.
+  Две регрессии проходят partial-success → context/after failure → exact retry:
+  старые marker/cursor и видимый диапазон сохраняются при ошибке; реальный helper
+  расширения диапазона добавляет сообщение перед успешным commit. Ответы сервера
+  не подменялись; это unit evidence, не actual UI proof.
 - Стандартный `npm run typecheck` (scope-local Next typegen + tsc): PASS.
   Первый прямой tsc в новой рабочей копии не имел generated next-env.d.ts и
   сообщал об отсутствующих PNG declarations. После обычной подготовки типов

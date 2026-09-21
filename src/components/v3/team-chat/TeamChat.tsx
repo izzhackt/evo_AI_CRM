@@ -7,7 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { readTeamChatAction } from "@/lib/platform-team-chat-actions";
 import { readTeamChatTimelineV2Action } from "@/lib/platform-team-chat-v2-actions";
 import { TEAM_CHAT_LABELS, teamChatMergeMessages, type TeamChatChannelKey, type TeamChatFailure, type TeamChatPage } from "@/lib/platform-team-chat";
-import { emptyTeamChatReadErrors, reduceTeamChatReadErrors, teamChatReadFailureCopy, visibleTeamChatReadFailure, type TeamChatReadAttempt, type TeamChatReadEvent, type TeamChatReadOwner } from "@/lib/team-chat-read-errors";
+import { emptyTeamChatReadErrors, hydrateTeamChatRefreshTail, reduceTeamChatReadErrors, teamChatReadFailureCopy, visibleTeamChatReadFailure, type TeamChatReadAttempt, type TeamChatReadEvent, type TeamChatReadOwner } from "@/lib/team-chat-read-errors";
 import type { TeamChatTimelineQuery } from "@/lib/platform-team-chat-timeline";
 import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v2";
 import { emptyTeamChatFeed, extendTeamChatFeedRange, mergeTeamChatFeedChanges, mergeTeamChatFeedPage, mergeTeamChatSearchChanges, teamChatFeedMessage, teamChatFeedQuote, teamChatFeedRange, teamChatFeedRows, type TeamChatFeedSnapshot, type TeamChatFeedStore, type TeamChatFeedRange, type TeamChatScrollAnchor } from "@/lib/team-chat-feed";
@@ -149,30 +149,40 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
           const latest = await readPage({ channel, mode: "latest" }, "background", request);
           if (!latest) return;
           commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, latest) });
-          const tailChanged = latest.latestMessageId !== latestId.current;
-          latestId.current = latest.latestMessageId; setLatestMessageId(latest.latestMessageId);
-          for (const id of merged.unknownIds) {
-            if (teamChatFeedMessage(current.current.store, id)) continue;
-            const context = await readPage({ channel, mode: "context", messageId: id }, "background", request);
-            if (!context) return;
-            commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, context) });
-          }
-          if (tailChanged) {
-            setNewMessages(true);
-            const range = current.current.range;
-            const epoch = contextRequest.current;
-            if (!range.hasAfter && !returnsRef.current.length && viewRef.current === "feed") {
-              const follow = nearBottom(viewport.current);
-              const after = range.afterCursor === "0" ? latest : await readPage({ channel, mode: "after", cursor: range.afterCursor }, "background", request);
-              if (!after) return;
-              if (epoch === contextRequest.current) {
-                const nextRange = range.afterCursor === "0" ? teamChatFeedRange(after) : extendTeamChatFeedRange(current.current.range, after, "after", range.afterCursor);
-                if (follow) scroll.current = { kind: "bottom" };
-                commit({ store: mergeTeamChatFeedPage(current.current.store, after), range: nextRange });
-                if (follow && !nextRange.hasAfter) setNewMessages(false);
+          const hydrated = await hydrateTeamChatRefreshTail({
+            tailChanged: latest.latestMessageId !== latestId.current,
+            hydrateContexts: async () => {
+              for (const id of merged.unknownIds) {
+                if (teamChatFeedMessage(current.current.store, id)) continue;
+                const context = await readPage({ channel, mode: "context", messageId: id }, "background", request);
+                if (!context) return false;
+                commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, context) });
               }
-            }
-          }
+              return true;
+            },
+            hydrateAfter: async () => {
+              setNewMessages(true);
+              const range = current.current.range;
+              const epoch = contextRequest.current;
+              if (!range.hasAfter && !returnsRef.current.length && viewRef.current === "feed") {
+                const follow = nearBottom(viewport.current);
+                const after = range.afterCursor === "0" ? latest : await readPage({ channel, mode: "after", cursor: range.afterCursor }, "background", request);
+                if (!after) return false;
+                if (epoch === contextRequest.current) {
+                  const nextRange = range.afterCursor === "0" ? teamChatFeedRange(after) : extendTeamChatFeedRange(current.current.range, after, "after", range.afterCursor);
+                  if (follow) scroll.current = { kind: "bottom" };
+                  commit({ store: mergeTeamChatFeedPage(current.current.store, after), range: nextRange });
+                  if (follow && !nextRange.hasAfter) setNewMessages(false);
+                }
+              }
+              return true;
+            },
+            commitTail: () => {
+              if (!alive.current || revoked.current) return;
+              latestId.current = latest.latestMessageId; setLatestMessageId(latest.latestMessageId);
+            },
+          });
+          if (!hydrated || !alive.current || revoked.current) return;
         }
         watermark.current = snapshot.page.cursor;
         finishRead("background", request, null);

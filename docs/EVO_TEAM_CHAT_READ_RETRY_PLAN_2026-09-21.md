@@ -84,5 +84,5 @@ DTO, server actions, permissions, package/lock. Нет новой миграци
 
 До кода пройдено независимое precode review a90fda0c.
 [Source receipt](qa/crm-team-chat-read-retry-source-2026-09-21.md) фиксирует
-27/27 unit checks, typecheck и lint; actual UI остаётся будущим отдельным окном.
+29/29 unit checks, typecheck и lint; actual UI остаётся будущим отдельным окном.
 Общий runtime/DB/Auth/browser этой партии ещё не использовался.

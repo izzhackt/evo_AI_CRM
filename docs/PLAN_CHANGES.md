@@ -36723,3 +36723,37 @@ full relevant UI proof, independent review and CI remain required for merge.
 Integrate accepted main d6add883 (#1008) and KB #1011. Both journal conflict
 blocks are retained; the two ROOT product files remain byte-identical to32f50df4,
 and incoming catalogue product files match main. Reuse unchanged scope checks.
+
+## 2026-09-21 — B32: два Company download и закрытие local QA
+
+Документировать уже выполненные два скачивания существующих опубликованных TXT
+ordinary Admin через Company UI: app GET → 307 → Storage 200, сохранённые байты
+совпали с оригиналами. Source e0276ecd, scoped parity пяти файлов с main d6add883;
+[actual-квитанция](qa/company-material-download-actual-2026-09-21.md) содержит
+полные hashes. Strict final290/33 подтвердил только grants2/consumptions2/
+receipts4/audits4 и собственный Auth lifecycle, сохранив старые данные/сессии.
+Own local logout204 и закрытие ресурсов подтверждены; UI logout не заявляется.
+Release50fe4292 передал среду B1006; независимое review2abe1d27 принято.
+Исторические STOP и redirect-target net::ERR_ABORTED сохранены без утверждения
+о причине сетевого события. Меняются только эта квитанция, текущие intro/row32
+ведомости и addendum KB execution; весь пункт32/клиентский AI/production не закрыт.
+Никаких runtime/KB/publication изменений в этом срезе. Prose-only: diff review,
+git diff --check; отдельные exact-head review и protected CI перед merge.
+
+
+## 2026-09-21 — ROOT22F partial functional result and main1013 integration
+
+Preserve both main c42f3963 Company-download checkpoint and ROOT22 history.
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) adds the
+single 34b6bd0b functional attempt: 390 Week/Back/Escape passed; same-sidebar's
+10-second waiter stopped because it defaulted month while the bare route defaults
+week. This is a proven harness/source mismatch, not a product bug or completed
+same-sidebar acceptance. Different destination and 320 were not run; no 1440 repeat,
+screenshots or retry. Any corrected inert proposal remains unexecuted preparation.
+Strict final 290/33/catalogue/effects and old sessions/refresh/AMR reconciliation
+passed; only own Auth metadata/two audits changed. Own API logout 204, browser/token/
+process/port closure and actual Ctrl-C exit 1 are retained. Release 11e05efb passed
+the environment to A15; product acceptance=false and #1010 remains draft.
+Only documentation changes; both product/test files retain 34b6bd0b bytes. Preserve
+current main rows 14/32 and update only the sidebar row 22/intro. Diff/marker review
+and git diff --check only; exact-head independent review/CI still gate merge.

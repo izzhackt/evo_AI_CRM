@@ -69,3 +69,46 @@ required; this prepared plan is not an executed result.
 Native GET submission, hard reload/new document and persistence across sessions
 remain outside the code guarantee. Broader typography/header work, iPhone and
 production are not established by this slice.
+
+
+## ROOT22F continuation — partial functional result and release
+
+A single functional attempt on source `34b6bd0b21cc148e81635ff46e552f0227345c06`
+completed 390 Week and Back with changed/restored period, unchanged document epoch,
+zero document requests and preserved groups; Escape closed the mobile menu and
+restored toggle focus. No 1440 repeat, screenshot or retry was performed.
+
+The next same-sidebar stage stopped after its 10-second waiter. The saved source
+comparison proves a harness mismatch: the sidebar uses bare `/v3/calendar`, whose
+resolver defaults to week, while the waiter defaulted a missing view to month.
+That contradictory predicate explains this timeout; no product navigation bug
+is inferred. The click/menu-close observation alone does not complete same-sidebar
+acceptance: final rendered-period/group/epoch assertions for the stage are absent.
+Different-destination and 320 stages were not run. This STOP and the two earlier
+STOPs remain separate, unchanged evidence.
+
+A future corrected inert proposal is preparation only, with no execution or
+runtime admission claimed. Keep the real bare-link/week behavior and explicitly
+select Month before any later month-only sequence. Do not alter the product to
+fit the old waiter. Product acceptance remains false; PR #1010 stays draft.
+
+Strict final reconciled all 290 business and 33 Auth/Storage tables, catalogue and
+effects. Business/Storage writes are zero; prior sessions, refresh tokens and AMR
+were restored, with only own sign-in metadata and two login/logout audits.
+Own Auth API `scope=local` logout returned 204; UI logout is not claimed. The owned
+browser closed and captured Auth file was deleted. Server 19605, launcher 19581,
+process group 19564 and port 33254 were closed; user port 33216 remained unchanged.
+Intentional Ctrl-C exit 1 is retained separately from resource closure. Resource
+release passed to A15, independently of incomplete product acceptance.
+
+| Private evidence | SHA-256 |
+|---|---|
+| ROOT22F release | `11e05efb15e557b7d8e8eb15ba9b55f35b370015f7bc13f08d416074f228d199` |
+| Fresh final | `e2c3ee441c1a3ef86e1eed5529687b19a8701278cc24e1ac02fc16559f608b60` |
+| Strict final verifier | `dcab67dc8b21155a899f9055bc8d4b8fbae50d2fcd9e1f1854e177b4cdb40f41` |
+| Saved STOP/source diagnosis | `d2119336b4089f26e0234c0ebe6b9dd5251d36a7b0d53b6e46ef83ae0730deed` |
+
+The documentation integration retains main #1013's two Company download result
+and current rows 14/32 alongside this branch's sidebar history. The two sidebar
+product/test files are unchanged from 34b6bd0b; no product tests or runtime were
+repeated for this checkpoint. Final independent review and CI still gate merge.

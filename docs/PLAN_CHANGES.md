@@ -35112,3 +35112,37 @@ handover aggregate correction preserved. UI successful writes and managed rollou
 not claimed. Details: docs/qa/case-task-change-reason-2026-09-21.md.
 PR968 is merged43bd20c8; source222 remains separate until exact-head review/CI/merge.
 Issue687 owner/managed exit and all remaining accepted1–36 work stay open.
+
+
+## 2026-09-21 — A / item15a: staff chat task-action removal boundary
+
+After PR#968 merged, fresh main43bd20c8 confirms accepted product plan §9
+explicitly removes Create task, generated task cards/links and task-link loading
+from staff chat while retaining Tasks/history/manual links. This is the next
+bounded slice; the wider flat-feed/read-state work is not bundled into it.
+
+The adapter's extra team_chat_task_links read can currently fail the entire
+canonical snapshot. Remove that enrichment and the corresponding UI actions in
+exactly team-chat-source.ts, TeamChatMessageRow.tsx and TeamChat.tsx. The optional
+DTO field and Tasks provenance/deep-link commands stay for compatibility.
+No schema, authority, realtime, message mutation or draft behavior changes.
+
+Impeccable Operate/refinement advises removing the excluded action while
+preserving familiar EVO controls and typography. Inspect current actual staff UI
+before editing and verify the result in a bounded desktop/mobile pass. The
+read-only actual check needs a coordinator-granted local QA window and existing
+populated history; no new messages/tasks or Mark read command. Missing history
+limits the claim rather than authorizing fabricated data. ROOT retains existing
+independent reviewers and merge ownership. This precode records the boundary;
+implementation awaits its review.
+
+
+## 2026-09-21 — A15a review fact check: preserve the remaining message link
+
+A precode review raised a possible empty··· menu after task-action removal.
+Exact82c800 TeamChatMessageRow.tsx:58 instead retains unconditional «Ссылка»
+inside that menu. Preserve that existing useful action for every message, along
+with current edit/delete/moderation conditions and focus refs. Hiding the menu
+by mutation authority would remove direct message navigation. Clarify actual UI
+acceptance for another author's remaining menu; no new runtime scope follows
+from the unconfirmed empty-menu concern.

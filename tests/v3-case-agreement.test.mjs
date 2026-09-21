@@ -337,9 +337,10 @@ test("tabs.tsx Money() renders CaseAgreementBlock before ProfileFinanceControls/
   assert.doesNotMatch(body, /Card eyebrow title="Договор"/u);
 });
 
-test("ContractDraftReportWorkspace's production smoke anchor is untouched (tab=contract stays a separate surface, rendered from Profile.tsx not this block)", () => {
-  assert.match(profileSource, /current === "contract"/u);
+test("Profile mounts the contract workspace once through the authorized unified slot", () => {
+  assert.match(profileSource, /contractWorkspace=\{draft\.access\.contract && draft\.contract/u);
   assert.match(profileSource, /<ProfileContractWorkspace/u);
+  assert.equal((profileSource.match(/<ProfileContractWorkspace/gu) ?? []).length, 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -463,11 +464,14 @@ test("FIX 6: readCaseAgreement returns a discriminated ok/forbidden/unavailable 
   assert.doesNotMatch(sourceSource, /export async function readCaseAgreement[\s\S]*?: Promise<CaseAgreement \| null>/u);
 });
 
-test("FIX 6: CaseAgreementBlock renders nothing on forbidden, and the FinanceEntryWorkspace alert-card pattern on unavailable", () => {
-  assert.match(blockSource, /if \(result\.status === "forbidden"\) return null;/u);
+test("CaseAgreementBlock preserves its independent contract slot when finance is forbidden or unavailable", () => {
+  assert.match(blockSource, /if \(result\.status === "forbidden"\) return contractWorkspace;/u);
   assert.match(blockSource, /if \(result\.status === "unavailable"\) \{/u);
   assert.match(blockSource, /role="alert" className="px-4 py-3 text-sm text-fg-2"/u);
-  assert.match(blockSource, /сейчас недоступна\. Обновите страницу/u);
+  const unavailableStart = blockSource.indexOf('if (result.status === "unavailable")');
+  const unavailableEnd = blockSource.indexOf('const agreement =', unavailableStart);
+  assert.ok(unavailableStart >= 0 && unavailableEnd > unavailableStart);
+  assert.match(blockSource.slice(unavailableStart, unavailableEnd), /\{contractWorkspace\}/u);
 });
 
 // ---------------------------------------------------------------------------

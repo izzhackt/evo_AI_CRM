@@ -35190,3 +35190,59 @@ from the unconfirmed empty-menu concern.
 финансовые записи не создавались, full snapshot совпал. Единственная существующая
 source-проверка currencyMismatch привязана к aside: разрешено обновить её locator
 на новую ветку с обязательным nonempty guard, сохранив проверяемую денежную защиту.
+
+
+## 2026-09-21 — A15b sequencing from verified chat dependencies
+
+Fresh main686b7f41 shows root-only history pagination, root-only parent acceptance,
+separate thread drafts with immutable retryInput, no per-message seen store and
+no all-channel preview DTO. These are real dependencies of the accepted overall
+chat plan, not permission to flatten history with a cosmetic UI deletion.
+
+Select the separately accepted composer autosize as the next two-file block:
+TeamChatComposer.tsx and existing textarea sizing CSS, current44..160 bounds.
+Preserve all draft keys/state, command payload and IME/Enter/focus protections.
+No migration reservation or new server history is needed. Local unsent UI input
+can prove geometry without creating messages; empty history still limits actual
+reply/edit/saved-path evidence and must stay explicit. Impeccable guidance and
+current official layout references are recorded in the remainder analysis.
+Precode only; larger flat-feed/search/seen scopes await their own design/review.
+
+
+### A15b offline implementation and incumbent evidence reuse
+
+ROOT approved implementation on reviewed precode918c6edd while B211 owns the
+shared QA writer. Reuse A15a actual staff composer evidence at10aa2617: both
+TeamChatComposer.tsx and team-chat.module.css are byte-identical in this
+precode. This replaces the earlier reopen-before-edit sequence for this block;
+no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
+the next coordinator-released QA window, with calibrated CSS viewport widths.
+Existing empty-history limits on edit/reply/saved-path proof remain unchanged.
+
+## 2026-09-21 — CRM-09c: единая оболочка не объединяет права
+
+Разбор item12 после #971 выявил разные contract/finance capabilities. Простое
+удаление contract tab потеряло бы contract-only доступ и retry/results; вставка
+внутрь прежней финансовой ветви скрыла бы договор при отказе/ошибке finance RPC.
+До реализации принят отдельный slot с независимыми gates, совместимый alias и
+новый redirect destination без изменения команд/reader/DTO/SQL. Page resolver
+должен учитывать тот же существующий Sales finance-confirm entry, что Profile.
+
+План: docs/design/v3/contract-payment-workspace-2026-09-21.md, базаea3cb758.
+Существующие assertions старой contract navigation заменяются содержательной
+capability/alias/redirect проверкой; девять actions, identity/retry, provider
+границы и preview safeguards остаются. Incumbent UI #971 используется с точной
+ревизией и лимитами, а не объявляется новым прогоном. Весь item12 этим не закрыт.
+
+### CRM-09c — одна коррекция по фактическому UI
+
+Первая batched проверка ordinary Admin runtimeb7790931 на1280/390/320 показала:
+на320 существующий file input шириной295.5px выходит за214px контент и увеличивает
+body до349px. В owned scope добавляется только className этого input в
+CaseAgreementForms.tsx: ограничение ширины без изменения загрузки/валидации.
+Пустые post-contract/report секции отодвигают транши на несколько экранов;
+переводим их в native details без unmount форм. Непустые данные и любой outcome
+открывают соответствующие секции по умолчанию; причины/retry не скрываются после
+ответа. Убираем лишние внутренние рамки/отступы вокруг подготовки, сохраняя
+разделы, все формы и состояния. Одна общая коррекция, затем последняя batched
+visual проверка; дальнейшая декоративная полировка не входит в срез.

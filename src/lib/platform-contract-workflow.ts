@@ -1663,7 +1663,7 @@ export function buildPlatformContractRedirectTarget(
     : "unavailable";
   const params = new URLSearchParams();
   if (parsedCaseId) params.set("case", parsedCaseId);
-  params.set("tab", "contract");
+  params.set("tab", "money");
   params.set("bw6_result", safeOutcome);
   if (retry && (safeOutcome === "invalid" || safeOutcome === "unavailable")) {
     const requestId = parsePlatformContractUuid(retry.requestId);

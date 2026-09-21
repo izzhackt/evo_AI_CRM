@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, useSyncExternalStore } from "react";
+import { useActionState, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/icons";
 import { teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_INITIAL_ACTION, type TeamChatChannelKey, type TeamChatMessage, type TeamChatParticipant } from "@/lib/platform-team-chat";
@@ -10,6 +10,16 @@ type Draft = { body: string; mentions: string[]; requestId: string; retryInput?:
 const subscribe = () => () => {};
 const clientSnapshot = () => true;
 const serverSnapshot = () => false;
+
+function resizeComposer(field: HTMLTextAreaElement) {
+  if (field.getBoundingClientRect().width === 0) return;
+  field.style.overflowY = "hidden";
+  field.style.height = "auto";
+  // This borderless, border-box field includes padding in scrollHeight;
+  // its existing CSS min/max-height keeps the visible size within 44–160px.
+  field.style.height = `${field.scrollHeight}px`;
+  field.style.overflowY = "auto";
+}
 
 type ComposerProps = {
   channel: TeamChatChannelKey; parentId?: string | null; edit?: TeamChatMessage;
@@ -41,6 +51,27 @@ function MountedTeamChatComposer({ channel, parentId = null, edit, participants,
   const textarea = useRef<HTMLTextAreaElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const composing = useRef(false);
+  useLayoutEffect(() => {
+    if (textarea.current) resizeComposer(textarea.current);
+  }, [draft.body]);
+  useLayoutEffect(() => {
+    const field = textarea.current;
+    if (!field) return;
+    let width = field.getBoundingClientRect().width;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      const nextWidth = field.getBoundingClientRect().width;
+      if (nextWidth === width) return;
+      width = nextWidth;
+      cancelAnimationFrame(frame);
+      if (width > 0) frame = requestAnimationFrame(() => resizeComposer(field));
+    });
+    observer.observe(field);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
   const [state, action, pending] = useActionState(async (previous: typeof TEAM_CHAT_INITIAL_ACTION, submitted: FormData) => {
     const attempted = { ...draft, retryInput: String(submitted.get("input")) };
     setDraft(attempted);

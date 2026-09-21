@@ -12335,3 +12335,60 @@ Actual existing Admin Money/Contract,1280/390/320px; явные денежные
 48scoped tests/lint/typecheck PASS;281business/schema/functions/ledger/Authcounts
 без изменений. См. [QA](qa/crm-finance-hierarchy-2026-09-21.md) для runtime/proof
 и отсутствующих финансовых datasets. Полный item12 и managed delivery открыты.
+
+
+## 2026-09-21 — A / item15b: composer autosize precode
+
+After A15a/#970, source analysis of main686b7f41 is recorded in
+`docs/EVO_TEAM_CHAT_REMAINDER_ANALYSIS_2026-09-21.md`. Flat feed requires changing
+the root-only reader, reply-to-reply/rollback contract and old draft recovery;
+removing the thread UI alone would lose visible history. Sparse seen cannot
+reuse the whole-channel read_sequence command. No migration number is reserved.
+
+The next minimal accepted §9 slice is automatic composer height: currently
+rows1 with manual resize and CSS44..160; no autosize effect exists. A owns only
+TeamChatComposer.tsx and its existing team-chat.module.css textarea sizing.
+Grow/shrink from actual current body and width, keep the existing limits and
+internal overflow, restore saved drafts at proper height, clean up observers,
+and preserve every draft/request/command/IME/focus/authority behavior. No new
+history, SQL, message writes, DTO or stylesheet redesign.
+
+Impeccable Operate/refinement preserves EVO and space for conversation; no
+height animation. Official React/MDN sizing references, the complete invariants,
+real unsent-input QA steps and known empty-history limits are in the analysis.
+Source/doc work only while B owns the writer window. Precode approval precedes
+runtime changes; actual UI needs a separately coordinated read-only window.
+Independent exact-head review and protected short CI remain required. This
+slice does not claim flat chronology, shared quoted composer or sparse seen.
+
+
+### A15b offline implementation and incumbent evidence reuse
+
+ROOT approved implementation on reviewed precode918c6edd while B211 owns the
+shared QA writer. Reuse A15a actual staff composer evidence at10aa2617: both
+TeamChatComposer.tsx and team-chat.module.css are byte-identical in this
+precode. This replaces the earlier reopen-before-edit sequence for this block;
+no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
+the next coordinator-released QA window, with calibrated CSS viewport widths.
+Existing empty-history limits on edit/reply/saved-path proof remain unchanged.
+
+## 2026-09-21 — CRM-09c / item12: перенос договорного workflow (до кода)
+
+После #971/#972 выполняется [контракт](design/v3/contract-payment-workspace-2026-09-21.md):
+единая вкладка «Договор и оплата», старый contract alias, независимые finance/contract
+gates, все девять договорных actions и amoCRM section сохранены. Техническая
+вкладка снимается только вместе с переносом полного workflow. SQL/readers/actions
+не меняются. Impeccable Operate и существующее visual proof #971 задают компоновку;
+новый actual read-only UI после освобождения окна B211. Ограничения populated
+данных и managed delivery остаются явными. Scope-local checks, independent
+exact-head review и protected CI обязательны; contract-only не получает finance RPC.
+
+### CRM-09c — локальная проверка общего раздела
+
+Runtime5b49a9c7: actual ordinary Admin old contract link/new money tab, сохранность
+несохранённой формы и её фактического request UUID, secondary/service controls,
+keyboard focus и1280/390/320 без переполнения после одной коррекции.281business,
+schema/ledger/Authcounts без изменений; см. [receipt](qa/crm-contract-payment-workspace-2026-09-21.md).
+Lint/types PASS; scoped92/93 и40/41 содержат одно подтверждённое прежнее
+source-assertion падение. Full item12/managed delivery и отсутствующие populated
+сценарии не объявляются завершёнными. Финальное review/CI остаются merge gates.

@@ -1,9 +1,11 @@
 # B3d — проверка интерфейса подготовки
 
-Статус: исходники реализованы и независимо одобрены; runtime-проверка неполная.
-Локальное покрытие intake IDs211 дополнено 21.09: все6 известных наборов имеют ID;
-подробности и оставшиеся ограничения — в последнем разделе этого документа.
-Актуальные результаты и ограничения — в разделе «Candidate 2516de2d» ниже.
+Статус: первый обычный Student web-выбор214 → подготовка218 проверен локально
+21.09 на `284eeb31`; повторное открытие и ссылки на документы не создают дублей.
+Это стартовые фото/паспорт, не полный перечень требований университета.
+Локальные intake IDs211 дополнены: все6 известных наборов имеют ID.
+Последние результаты — в разделах «Первый Student UI-выбор» и «Интеграция main
+после973». Native и визуальное завершение Impeccable остаются открытыми.
 Исходные наблюдения сохранены как история, не приёмка новых экранов.
 Контракт: [B3d](b3d-program-preparation-ui-contract.md).
 
@@ -320,3 +322,92 @@ runtime/UI запуск после интеграции пока не выпол
 TypeScript `--noEmit --incremental false` PASS. Узкие проверки маршрутов,
 agreement и requests queue —72/72 PASS на Node22.23.1; `git diff --check` PASS.
 Это проверка композиции кода, без новых DB/Auth/UI/provider действий.
+
+## Первый Student UI-выбор, 2026-09-21
+
+Source `284eeb31c982d35ffeafbe4e761edd35a7c96e06`, отдельный Next33232,
+существующая обычная Student1-сессия IAB на127.0.0.1, local ledger001–222.
+Root отдельно согласовал READ ONLY observer и один обычный клик по фактической
+XJTLU version2 / BEng Computer Science / «Сентябрь2027». Target взят из настоящей
+211-публикации. UUID запросов создало приложение; nonce/storage/ответы не
+подставлялись. Нового входа, другого дела или активации Student2 не было.
+
+Первый observer остановился до SQL: его сборка metadata пропускала третий
+Docker label `com.docker.compose.project`, поэтому строгая проверка не совпала
+с сохранённым контейнером. Container ID, endpoint и остальные metadata совпадали.
+Исправление добавило чтение и проверку этого label, сохранив полное равенство;
+новый source и новый GO независимо одобрены. Старый отказ и receipt сохранены.
+
+Fresh baseline подтвердил canonical active owner/case, отсутствие выбранной
+tuple, неизменную публикацию и два совместимых existing typed материала.
+Обычная загрузка карточки не изменила full281/scope; действующая Student UI
+сессия показала один доступный выбор, без pending/retry/error. Это отдельно
+от metadata SELECT, который сам по себе не доказывает Student authorization.
+
+Один «Выбрать и начать подготовку» выполнил214, затем218 и открыл сохранённую
+подготовку с Фото/Загранпаспортом. Не было второго клика, retry или partial repair.
+Подтверждённые эффекты:
+
+| Таблица | До → после | Проверка |
+| --- | --- | --- |
+| university_applications / catalog_preparation_bindings / university_application_events | каждая1 →2 | Одна exact программа/набор/дело; preparation, не primary; deadlineNULL |
+| application_requirement_revisions | 1 →2 | evo_starter, needs_confirmation, revision1 |
+| application_requirement_items / document_slot_case_links | каждая2 →4 | Два требования связаны с прежними Фото/Паспортом |
+| document_slots | 2 →2 | Только version+1/updated_at у двух frozen slots, без новых slots |
+| audit_events | 124 →126 | Две actions, разные actual request UUID; exact actor/intent/receipt |
+
+Whole hashes остальных273 business tables и exact complements прежних строк
+совпали. Schema/functions/ledger не менялись; каталог211 и его receipts неизменны.
+Auth users/identities — только равенство counts, без утверждения о всех Auth rows.
+
+Реальный UI-путь после сохранения: refresh → «Моё поступление» с прежним GDUT
+и новым XJTLU → открыть XJTLU → обе ссылки на same-case Фото/Паспорт → исходная
+карточка с «Открыть подготовку» вместо выбора → та же подготовка. Все переходы
+сохранили полное равенство after-selection snapshot; новых audit/command effects
+нет. Это отсутствие дублей при открытии, не exact-request RPC replay.
+
+Desktop capture просмотрен. При390px DOM scrollWidth=clientWidth=390; мобильный
+full-page capture снова имеет несогласованную правую полосу/геометрию. Это не
+доказанный CSS-дефект и не visual PASS: Impeccable disposition остаётся **recapture**.
+Временный viewport сброшен, собственная вкладка14 закрыта, Next33232 остановлен,
+отсутствие listener проверено. Финальная parity равна after-selection; окно
+освобождено root. Нативная сборка по-прежнему ожидает доступного Mac.
+
+Private0600 evidence: `/private/tmp/evo-b3d-first-selection/`; credentials и
+идентификаторы QA-учётных записей/дел в repo не добавляются.
+
+- Release receipt SHA256 `337b730ff14b6edc3e214f4014c9fedfaaf7f612ebb74e824d04dae0d41580ed`.
+- Baseline SHA256 `789a39d266f60bbd5e14f6f420bc5cf33d26abb91605ac3bf3ca1de6ae023a39`.
+- After-selection SHA256 `55de9560342f3f8748e3d90ecbb329f321a05ee11dc640584a04d0c301d7fe33`.
+- Released parity SHA256 `dc816076309b1f107e4b60abd658b2a9d148accbe8a81ab751952e76a1a2d73c`.
+- Reviewed observer SHA256 `4bdcdc18e5970a8dac3a0280bafb36204d03e3bd9aefd835201dfe844f63ad43`.
+
+Не выполнялись upload/download/review/package, consultation/favorite, native,
+provider, managed или production actions. Полный university checklist, отправка
+пакета и весь admissions-план этой проверкой не закрываются.
+
+## Интеграция main после973
+
+После закрытия QA-окна source284 в ветку объединён main
+`925cf1996e0b2c08e968d513da149793f9c774be`: root объединяет договор и оплату,
+а composer чата растёт с текстом. Конфликтов не было; изменения root в Profile,
+tabs, profile page и contract workspace сохранены. Исходники выбора/подготовки
+B3d и native не изменились.
+Проверка Student UI выше относится к284; повторной runtime-приёмки нового merge
+нет. Узкие результаты композиции кода фиксируются отдельно от неё.
+
+TypeScript `--noEmit --incremental false` и `git diff --check` PASS.
+Первый запуск четырёх scoped файлов (route, agreement, profile contract,
+contract workflow) дал91/92 PASS: `v3-profile-contract.test.mjs:31` ожидает
+прежнее `link && data.handoff?.leadId`, хотя принятый adapter проверяет
+`link && data.handoff && data.handoff.leadId`. И тест, и adapter совпадают
+с main925; это отдельное устаревшее source assertion. Runtime guard не менялся.
+
+CI на284, [run35547698931](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35547698931):
+Build/Lint PASS; Release contracts FAIL на
+`tests/v3-managed-supabase-export.test.mjs:1325` —
+`Storage downloader permits progressive streams longer than the idle window`,
+`storage_object_download_timed_out`. Fast checks наследует этот отказ. Тест и
+exporter совпадали с main `ea3cb758`, вне B3d diff; причина таймаута не объявляется
+доказанной. Unchanged run не перезапускался ради green. Следующий CI относится
+к реальному обновлению QA-документа и интеграции main, а не стирает этот отказ.

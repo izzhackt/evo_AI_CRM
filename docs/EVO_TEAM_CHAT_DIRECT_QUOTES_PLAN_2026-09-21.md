@@ -230,10 +230,16 @@ focused tests, этим планом и append-only launch/PLAN_CHANGES. Сущ�
 плана; документация PostgreSQL не доказывает runtime-поведение ещё не написанного RPC.
 
 
-## Implementation status — source only, 21 September
+## Implementation status — local API/database verified, 21 September
 
 PR986 precode merged418521f5. Runtime7a54f4e3 implements the additive contract;
 16 pure tests, scoped lint/TypeScript and SQL/PLpgSQL parsing passed.
 [Evidence and actual-QA boundary](qa/crm-team-chat-direct-quotes-227-2026-09-21.md).
-227 has not been applied; actual Auth/RPC/concurrency and UI remain unverified.
-No whole-item15 or product acceptance is claimed.
+On integratedec18763c,227 was applied once after the full B226 release.
+Independent binding review and conditional ROOT authority preceded actual
+ordinary-Auth/API QA:43 prewrite denials,3 replay conflicts,6 effects,
+4 messages/2 maps, current edited/deleted quotes and all old rows preserved.
+All three own sessions logged out locally with204. Final evidence review,
+protected CI/merge and full raw release to ROOT990 remain required.
+A15f UI hookup follows merge; no UI/native/production, whole-item15 or
+product acceptance is claimed.

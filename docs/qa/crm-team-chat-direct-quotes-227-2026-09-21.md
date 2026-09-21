@@ -1,12 +1,18 @@
-# A15e / direct quotes227: source validation, awaiting actual local QA
+# A15e / direct quotes227: verified local API and database behavior
 
 21 September 2026. Runtime source `7a54f4e3cc564d0e02797ebde932e3d6f28833d9`, base main
 `d02d15b75919dcca94b79c0e3efdd05da0f3b701` (includes ROOT32 PR985).
 Contract: [accepted precode](../EVO_TEAM_CHAT_DIRECT_QUOTES_PLAN_2026-09-21.md),
 merged PR986 / `418521f5b43a1461af11be01b6169430c21f2a6e`.
 
-**Source implementation only. Migration227 is not applied. No actual RPC,
-Auth, server-action, UI, native or production acceptance is claimed here.**
+Actual local apply/API QA used integrated source
+`ec18763c96e60870a9fcc8baa4f24635d51f8ca4`, including accepted B226 merge
+`28613990d3b3ba3b66053571cc3c6e8391cc35e7`. All six runtime/test files remained
+byte-identical to independently reviewed `06198eea`.
+
+**Migration227 was applied once to the coordinated local test database and
+the bounded ordinary-Auth/API scenario passed. UI, server-action, native,
+provider and production behavior remain outside this evidence.**
 
 ## Changed behavior
 
@@ -44,36 +50,74 @@ will be wired separately in A15f.
 - `git diff --check` — **PASS**.
 - Dependencies reused only after matching package-lock SHA256 `86fc8affba3bce2c732ea4e1c5b51b9f34601819b6ffab9eee6b950b7ec570e0`. Test/lint/typecheck commands used Node22.23.1 explicitly.
 
-Decoder examples are pure malformed/current wire-contract fixtures. They do
-not stand in for Auth, SQL effects, idempotency, concurrent writes or UI use.
-Protected CI and independent exact-head source review remain separately required.
+These source checks were performed before the main integration and are reused
+for unchanged runtime bytes, not reported as a new run. Independent source
+review approved06198eea; protected CI35558215610 passed at that earlier head.
+The final evidence head still requires its own protected CI and exact-head review.
 
-## Required next evidence
+## Actual coordinated local evidence
 
-ROOT owns local DB/Auth/UI coordination; B owns226, A owns reserved227. Do not
-apply227 before actual226 release, current source integration, fresh full-state
-baseline and independently reviewed single-use apply/QA packets with ROOT GO.
-Current source review can proceed offline while B works.
+B226 released the shared local window after its accepted merge. A fresh READ
+ONLY snapshot matched its complete raw-row release for all282 current business
+tables, including226 columns. Source/config/CLI/observer/actor-history bindings
+and the own-session logout delta received independent approval before execution.
+ROOT's conditional authority covered one local CLI apply and, only after exact
+apply PASS, the already bounded QA scenario. No production action was performed.
 
-The precode's bounded QA remains four new labelled posts (V2 root, V1 reply,
-V2 quote of that reply, V2 quote of the preceding reply), then edit/delete only
-that new V1 reply: six effective commands, four message rows and two map rows.
-Freeze empty `mentionedMembershipIds` on all effective post/edit inputs; delete
-has no mentions field in the unchanged V1 contract. All posts and the edited
-row therefore have empty mentions; notifications are outside the effect budget.
+The single CLI apply exited0. Verification preserved every old business row,
+function body/metadata/ACL and ledger prefix. The initially empty private quote
+table added exactly one table, seven catalog columns (four table plus three
+index columns), one PK index, four constraints, eight internal FK triggers,
+two functions and one ledger row. Local config advanced to001–227 only after
+these checks passed.
 
-Exercise identical concurrent requests, exact replay after target changes,
-same-root changed-target conflict and V1/V2 collisions using retained intents.
-Decode actual responses, verify quotes of an edited/deleted target outside the
-page and retained old context, preserve all old seen/read/receipt/message state.
-Negative ordinary Student/anon/forbidden-channel and malformed calls must have
-zero effects. No new identities, role resets or known-invalid salesOther login.
+Existing ordinary Admin, Sales and Student signed in and passed actual actor,
+staff and channel-scope readiness. The retained56 A223 messages were read without
+rewriting them. **43 prewrite negative cases** had zero effects, including
+anonymous/Student/scoped-channel denial and malformed input/target cases.
+No other existing organization was available: cross-tenant execution is not
+claimed. No identity or role was created or reset.
 
-After226, enumerate actual current tables/catalog rather than assuming282.
-Expected additive227 objects: one private table/RLS/closed ACL, one PK index,
-four table plus three index catalog columns, four constraints, eight internal
-FK triggers, two new functions and one migration ledger row. No replacement of
-existing function bodies/ACL. Reconcile any uncertain write before retrying.
+Exactly **six effective commands** created a V2 root R, a V1 reply L to R,
+a V2 reply D quoting L and a V2 reply E quoting D, then edited and deleted only
+the new L. Two concurrent identical D requests returned the same result and
+created one effect. All post/edit mentions were empty; notifications, sparse
+seen rows, preferences and old messages were unchanged.
+
+Frozen requests replayed after target edit/deletion without new effects.
+Three additional conflicts returned40001: a different direct target under
+the same root, V2-to-V1 request reuse, and V1-to-V2 request reuse. A page excluding
+L projected its current edited Unicode preview and then an empty tombstone.
+Retained off-page legacy-root fallback, V1 thread/search/timeline and all four
+V2 page modes were exercised. Production decoders accepted **nine V2 receipts,
+six V2 pages and two V1 pages** captured from these real calls.
+
+Final reconciliation covered283 business tables: exactly four new messages,
+two quote mappings and six new receipts/changes/audits, with all prior rows
+preserved by full-row hashes and only the exact owned IDs excluded. Catalog,
+other business data and Auth user/identity counts remained unchanged. All three
+own sessions were logged out using scope=local with204 responses before token
+discard. Session-row equality is not claimed. No browser or app server was
+started. All188 evidence-file hashes were checked after the run.
+
+## Private evidence receipts
+
+These local files contain the reproducible snapshots and command receipts;
+private row values and tokens are not copied into Git.
+
+| Evidence | Local path | SHA256 |
+|---|---|---|
+| B226 full raw release | `/private/tmp/evo-b226-write-qa/release-receipt.json` | `bcb7ed6db93f0bf21ed91fb41e9032e7cc67ccb767757325f77e9337f8ae74cf` |
+| Fresh226 baseline | `/private/tmp/evo-a227-final-binding-20260921/fresh-baseline226.json` | `79ed76f4264228f8f52b55724a8bdabfeea94215f03dd083bccfaf9e7a8c062e` |
+| Independent final binding review | `/private/tmp/evo-a227-final-binding-independent-review.md` | `151fa95dc440330cec1bba3ccd3ca60faf3953c33639e4962cf7fe2af481e2c0` |
+| Actual227 apply | `/private/tmp/evo-a227-apply-20260921/apply-receipt.json` | `0fb6ce3702497488edebea2b16e3084360c601a63d8ad6bb82721abca9664406` |
+| Actual bounded QA | `/private/tmp/evo-a227-local-qa-20260921/qa-receipt.json` | `a16cc76d9fc51144d02d8df06d3a16028df72626630d5fe922b3c1f51f6381e2` |
+| Verified final candidate | `/private/tmp/evo-a227-local-qa-20260921/verified-release-candidate.json` | `5f6950eaca9e411cb422bc59471cc22a1c9516e6d72419f4b7ea8123d2511a30` |
+
+The QA receipt deliberately remains released:false. Final independent evidence
+review, protected CI/merge and a fresh complete raw release to ROOT990 are the
+remaining handoff gates. A15f UI hookup starts only after227 is merged; neither
+this backend result nor its technical QA completes all of product item15.
 
 ## Source hashes
 

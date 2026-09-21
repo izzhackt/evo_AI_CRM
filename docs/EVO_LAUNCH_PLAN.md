@@ -12803,3 +12803,30 @@ and separately reviewed bounded packet/GO. Four new posts plus edit/delete of
 its own new reply remain the six-command budget; empty mentions on all post/edit
 inputs preserve the zero-notification budget. Full catalog deltas/table count
 will be enumerated after226. See docs/qa/crm-team-chat-direct-quotes-227-2026-09-21.md.
+
+
+### A15e local227 apply/API verified; UI remains A15f
+
+After accepted B226 merge28613990 and full RAW release bcb7ed6d, sourceec18763c
+integrated current main with all six reviewed runtime/test files unchanged.
+Fresh282-table baseline matched that release. Independent final binding review
+151fa95d covered the unchanged apply mechanics, bounded QA and own-session
+scope=local logout. ROOT conditional authority was satisfied before execution.
+
+A single local CLI apply passed exact additive catalog/ledger checks; all old
+282 business tables and old functions/ACL remained unchanged, quote map empty.
+Ordinary Admin/Sales/Student QA then passed43 prewrite denials and3 replay
+conflicts. Exactly6 effective commands created4 new messages/2 direct maps and
+edited/deleted only the new legacy reply. Frozen replay, identical concurrent
+requests and current edited/deleted off-page quotes passed. Actual production
+DTOs decoded9 receipts,6 V2 pages and2 V1 pages. All prior rows, notifications,
+seen/preferences and unrelated data remained unchanged; final283 tables checked.
+The three own sessions logged out with204. No browser/app server was started.
+
+Apply receipt0fb6ce37 and QA receipta16cc76d plus full hashes/paths are recorded
+in docs/qa/crm-team-chat-direct-quotes-227-2026-09-21.md. Cross-tenant execution
+was not claimed because no other existing org was available. No new identity,
+role, provider/production action or source/server-action/UI/native acceptance.
+Final independent actual-evidence/exact-head review, protected CI/merge and
+fresh full RAW release to ROOT990 remain. Only then start A15f UI code, preserving
+ROOT's separate mobile-sales presentation ownership. This does not close item15.

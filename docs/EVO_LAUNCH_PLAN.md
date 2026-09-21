@@ -13692,6 +13692,41 @@ Final docs-head review/CI/merge remain; immutable candidatea5e7567c is released=
 ROOT must accept the final release before B1006 binds the local235 environment.
 Item15 and all1–36 remain partial. Historical receipts retain their original limits.
 
+
+## 2026-09-21 — A14a compact staff catalogue, precode
+
+A1005 merged29e0fb46a; its local235 window released to ROOT/B1006.
+[Item14 contract](EVO_STAFF_CATALOG_COMPACT_PLAN_2026-09-21.md) independently
+approvedca49e8fb on plan8f081b63. Target source33966da1 is byte-identical on
+incoming29e0fb46a. A owns staff-only UniversityList, optional compact UniversityPhoto,
+a pure program/intake deadline selector+tests, and staff page's shared now.
+Keep query/country/level/pagination30/scoped reads and management rights unchanged.
+Retain actual photo attribution and existing EVO/Golos. Date selection needs
+open/announced source-backed deadline, nonfuture verifiedOn and explicit supported
+UTC/GMT/IANA zone (never posix/right or missing-zone fallback); same-day timed
+expiry follows existing label semantics. Rank published calendar dates, never
+claim earliest absolute instant; keep program/intake/source/time/TZ context.
+No start-date substitution, synthetic intake identity, SQL, Student/detail changes,
+country facet from30 rows, management redesign, provider writes or new fixtures.
+Source checks/review/CI first; actual1440/390/320 and decoded-data comparison await
+ROOT's shared-window handoff after B1006→ROOT7b→B32. No fresh staff baseline is
+available yet and no source-only result claims UI/production acceptance.
+
+
+### A14a source implementation — 2026-09-21
+
+Source030d7c2e implements only the five planned files. Staff rows retain real
+photo attribution, links/filters/permissions and expose a source-backed calendar
+deadline with exact programme/intake context. Explicit zone and local expiry
+parity, level selection, no start-date fallback, no synthetic identity; potential
+portal and default/large photo paths unchanged. [Source receipt](qa/staff-catalog-compact-source-2026-09-21.md):
+10 new temporal checks, typecheck and scoped lint pass. Combined37 checks:35 PASS,
+2 existing failures reproduced on clean main29e0fb46 (old draft lacks reviewKind;
+old SSR child hits server-only photo resolver). Retain both failures, do not
+change unrelated tests or claim full suite/SSR acceptance. No actual UI or shared
+QA/Auth/DB/server/browser use; independent exact-head source review/CI next,
+then ordinary staff UI/data comparison only after ROOT handoff. Whole item14,
+full country facet, management changes and production remain open.
 ## 2026-09-21 — ROOT item7b import management precode
 
 After accepted #1004 (main d68ce587), implement the already approved
@@ -13731,6 +13766,23 @@ all290 business/catalog/effects and33 Auth/Storage preservation, with only owned
 sign-in metadata/four Auth audits. Both logouts204, browsers and owned Next closed.
 The launch-binding stop guard and exact-owned-process cleanup are retained.
 Final docs review/CI/merge and release to B32 remain; no production authority.
+
+
+### A14a / PR1008 integration with accepted main e0276ecd — 2026-09-21
+
+PR1007 merged e0276ecd5a7a0488370745d84d9b983334d85f52 after its independent
+reviews, CI and bounded local235 acceptance. Integrate that immutable main into
+A1008; keep reviewed catalogue product030d7c2e/head3d21b54d byte-identical.
+Resolve only additive launch/decision text and current ledger statuses, preserving
+both parents' evidence and B1006's unaccepted profile/login boundary. Source
+review8b620d9e and CI35611424947 are accepted for3d21; combined source checks
+remain35/37 with two reproduced baseline failures. Do not rerun unchanged product
+checks or treat them as full PASS. Exact integration review/CI remain required.
+ROOT has closed7b and handed the runtime to B32; A catalogue actual waits its
+subsequent immutable release. Inert templatev3 corrections02caf8a0 are approved
+only as offline preparation; all runtime pins remain null, no actual UI/resources
+are used, and no further iteration is planned before a concrete binding/failure.
+Country facet, management, full item14 and production remain outside this slice.
 
 ## 2026-09-21 — KB31 bounded provenance checkpoint
 
@@ -13777,3 +13829,46 @@ forms and visual styles are untouched.19 real navigation-builder tests, scoped
 lint, typecheck and diff-check passed. This establishes source behavior only;
 ordinary calendar Next Link/Back/Forward and1440/390/320 acceptance await the
 coordinated window after B32/A1008. Native GET/reload remain outside the guarantee.
+
+## 2026-09-21 — A14a / PR1008: реальный каталог и закрытие local QA
+
+Product b8497ad44cd020f0abf112b92a5b4a7c7d459651 прошёл existing Admin ordinary
+Auth и scoped catalogue UI: поиск/страна/уровень/combined/reset/detail/back,
+loaded compact photo/caption/author/source/license/focus и1440/390/320 без
+horizontal overflow. [Actual-квитанция](qa/staff-catalog-compact-actual-2026-09-21.md).
+Первый STOP exact-label select сохранён, одна reviewed confirmation с четырьмя
+select[name] заменами прошла; product не менялся. Набор из пяти опубликованных
+вузов не покрывает positive future deadline или Next: это открытые data gaps.
+
+Strict final: все290 business tables, catalogue/effects неизменны;33 Auth/Storage
+сверены, incoming sessions/refresh/AMR сохранены. Только собственные Auth metadata
+и2 login/logout audit. Own logout204, browser/PID77446+77465/group77417/33252
+закрыты, собственный captured tokenfile удалён. Release047b2e0c передал QA ROOT22;
+B32 STOP не считается product acceptance. Source10/10+types/lint и прежние35/37
+baseline результаты переиспользованы. Docs-only main06bec2b2 сохранён вместе с
+KB row31 и полными append-only журналами; product retests не требуются.
+Финальные independent exact-head review/CI/merge ещё нужны; production не запускался.
+
+## 2026-09-21 — KB31 first-read completion checkpoint
+
+Record the completed bounded first review of the admitted 31-candidate set:
+16 candidates have narrow provenance appendices, 15 retain unresolved claims
+without an appendix, and none await first review. These are work groups, not
+whole-material approvals; unresolved claims also remain in appended materials.
+Last batches 146/147 and 153/154/327 passed independent exact-byte closure
+4a37d170/36e759a2: original prefixes, frontmatter, status, source chains and
+publication manifests were preserved. Retain earlier 11/9/11 history and all
+raw/applicant/trash/secret exclusions, including 125/321–325/328. Update only
+the knowledge QA report, execution checkpoint and item31 row; no product,
+KB or publication writes in this documentation slice. Item31 still needs
+specific business decisions and applicable official-source verification;
+item32 ordinary company downloads remain unproved by this evidence.
+Prose-only validation: diff review and git diff --check; independent exact-head
+review and protected CI remain required before merge. No production claim.
+
+
+### A1008 — финальная интеграция docs-only #1011
+
+Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранением KB row31
+(16/15/0), пяти входящих docs и всех append-only записей. Runtime/source/test
+дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.

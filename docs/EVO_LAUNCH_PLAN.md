@@ -12926,3 +12926,35 @@ integration review. [Отчёт](platform/b3f-program-document-submission-qa.md)
 actual changed-path сценарии. Это не применённая228 и не готовый production flow.
 Root сохраняет228 за B, резервирует229 для receipt-пути; актуальное runtime окно
 после ROOT990: ROOT991 → B228 → ROOT229. Разрешение на запуск B ещё не передано.
+
+
+### B3f — локальная проверка сохранения, отправки и решения завершена
+
+На неизменном runtime HEAD `571d65a8645b518c3513d8a9eebe36410f929e8e`
+миграция228 применена один раз в согласованной локальной QA-базе. CI
+[35567860470](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35567860470)
+прошёл: шесть выбранных проверок успешны, две maintenance-проверки пропущены.
+
+Обычный Student/Admin UI подтвердил отдельные Save → Submit → Review: V1 принята
+по программе A; новая V2 остаётся черновиком; повторно выбранная V1 получила
+отдельное замечание по B. Старое уведомление A ведёт к принятой V1. Три browser
+скачивания вернули точные bytes V1, V1 и V2. Общий legacy slot целиком неизменён.
+Два ограниченных прохода Impeccable покрыли desktop/mobile web; native iPhone UI
+не проверен. [QA-отчёт](platform/b3f-program-document-submission-qa.md) отделяет
+исполненный основной сценарий от ещё не выполненных recovery/concurrency,
+changed-requirements и legacy-вариантов; весь объём13/17–21 не объявляется готовым.
+
+Итоговая проверка `72d19741efbbc37028ce0e5cb76fa19356e6867349da410207065c6ce82654df`
+подтвердила52 новых строки в17 таблицах,16 audit events, два Storage-объекта;
+прежние строки всех287 таблиц и прежние Storage-объекты сохранены. После выхода
+Auth sessions/refresh tokens вернулись к исходным полным хешам223/238; все три
+созданные этим прогоном сессии отсутствуют. Собственные browser/Next/scanner
+остановлены; точный Next child exit code неизвестен после прерывания supervisor,
+поэтому подтверждены лишь фактическое отсутствие процессов и закрытый порт.
+
+RAW release `/private/tmp/evo-b228-core-ui/release-receipt.json`, SHA256
+`f375371369becc30f1f873badb6a45d182580813ad9829f6e017042fdff39b6a`, передаёт
+локальное окно `nextOwner: ROOT990` с ledger001–228, полным состоянием и рецептом
+сверки. ROOT принял передачу; PR #993 смержен в `f712db2f2b0cdb623f82ea8f5fe048cda7e0d2ee`.
+Отдельный docs-only PR фиксирует результат без изменения проверенных исходников;
+production, внешние провайдеры, полная финальная E2E и App Store не затронуты.

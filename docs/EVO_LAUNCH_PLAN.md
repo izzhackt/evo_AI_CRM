@@ -14531,3 +14531,15 @@ Impeccable clarify/Operate сохраняет нынешний интерфей�
 исход без обещания сохранённого черновика при удалении. Последующая bounded
 offline UI-проверка без online submit/delete требует отдельного QA handoff;
 общий стенд сейчас B1018 → ROOT16. Source review/short CI прежде actual.
+
+
+### A15 command feedback — source prepared, 22.09
+
+[Source evidence](qa/team-chat-command-feedback-source-2026-09-22.md): typed
+operation/status copy table и два прежних alert selectors. Handler/input/ID/
+retry semantics побайтно сохранены после только presentation normalization;
+43-file parityb1598006. Targeted lint и tsc после штатного next typegen PASS.
+Первый fresh-worktree PNG declaration STOP отмечен, product fix не требовался.
+Новых string-mirroring tests нет. Следуют independent source review и short CI;
+actual UI ждёт отдельного QA окна после B1018 → ROOT16. Это source-only стадия
+того же плана, не merge-ready или production. Timestamp block сохранён далее.

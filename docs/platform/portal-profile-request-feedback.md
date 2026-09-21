@@ -78,3 +78,22 @@ requestId, RPC и success-focus сохранены. На Node22.23.1 прошл�
 Прежний MODULE_TYPELESS_PACKAGE_JSON warning не блокирует проверки. Эти тесты
 проверяют словари, profile/receipt parsing и существующий wiring; transport catch
 в браузере ими не доказан. Source review/CI и будущее actual окно — отдельные gates.
+
+
+## Второй actual checkpoint и оставшаяся проверка — 2026-09-21
+
+[Дополнение к actual report](../qa/portal-profile-request-feedback-actual-2026-09-21.md)
+сохраняет оба STOP. Прежний alias относится к pre209 case; миграция209 уже
+исправляет новые approvals. Для нового окна явно выбран ранее существовавший
+разрешённый Student из receipt209, без изменения config, grants или данных.
+Обычный вход и hydrated profile подтверждены на5c0da6fa. После остановки своего
+Next dev профиль заменён error-page; точная причина неизвестна, выполнение
+deletion action не доказано. Второй action и layout не выполнялись. Cleanup
+прошёл обычным собственным API logout204, закрытием своего браузера и строгим
+final290/33, без UI logout claim. PR1006 остаётся draft; product acceptance нет.
+
+Предложение для будущего окна после ROOT22F → A15: один browser-context offline
+attempt на уже загруженном профиле при работающем сервере, с записью stage/message,
+реального POST/requestfailed и неизменности документа. Без route mocks/patches,
+повторного клика или screenshots. Это пока files-only предложение, не выполненная
+проверка, не разрешение нового окна и не заявление о retry semantics.

@@ -59,3 +59,73 @@ Private packet: `/private/tmp/evo-b1006-local-20260921`. Значения creden
 Среда передана ROOT7b; это не merge PR1006. Следующий шаг B — read-only разбор
 маршрута по сохранённым метаданным и исходникам. Без подтверждённой причины не
 менять доступ/данные и не подбирать другого актора ради зелёного результата.
+
+
+## Дополнение: существующий Student после209; новый UI STOP и закрытие PASS
+
+Второй локальный прогон на чистом source
+`5c0da6fad771132d052cd7a4100606c18eab312a` подтвердил обычный вход в `/portal`
+и открытие `/portal/profile` существующим Student из сохранённого receipt209.
+Это не новый актор и не восстановление прав. Разбор первого STOP установил, что
+исторический alias в `local-qa.json` указывал на дело, одобренное до миграции209.
+Миграция209 уже исправляет новые обычные approvals; повторная миграция или backfill
+не нужны. Config и прежние доказательства не изменены; разрешённая identity
+выбиралась явно только в памяти процесса. Прежний STOP остаётся историей.
+
+Source-код исправления совпал с ранее reviewed08b90ed1; изменения main до
+`d6add88372778758b23686fb0bba6ae74181e15b` не затрагивали portal/Auth или зависимости.
+Новый binding прошёл один независимый конкретный review. Fresh before совпал с
+переданным состоянием локальной схемы001–235/290 business/33 AuthStorage. Готовность
+профиля, enabled button и наличие React onClick проверены; это не подтверждает
+исполнение нужного business handler.
+
+После остановки только своего Next dev-процесса первая проверка закрытия порта
+получила OSError. Read-only наблюдение подтвердило отсутствие listener,
+connection refused и TIME_WAIT; позднее bind стал доступен, тот же неизменённый
+closure helper завершился успешно. Первый outage-вызов затем вернул STOP;
+сохранённый CLI output показывает `chrome-error://chromewebdata/`. По одному
+errorName нельзя установить упавшую assertion или доказать activation/POST.
+Transport rejection, повтор, keyboard action и layout этим прогоном **не приняты**.
+Второго действия, перезапуска теста и положительного deletion request не было.
+
+Установленный Next содержит HMR reload при исчерпании reconnect, а журнал содержит
+ошибки соединения после остановки dev-сервера. Это правдоподобное объяснение;
+инициатор навигации не записан, точная причина замены страницы остаётся UNKNOWN.
+Не объявлять это дефектом продуктового deletion handler или Auth.
+
+Отдельно reviewed минимальный cleanup завершился обычным собственным Auth API
+logout `scope=local`, HTTP204. Cookies своего контекста очищены, именно
+`b1006-valid-student` закрыт; собственные Auth-файлы удалены. Next11461 остался
+остановлен,33248 закрыт. Не было новой навигации, нового входа или перезапуска
+Next; UI logout не заявлен. Вкладка пользователя33216 не затронута.
+
+Строгий final сохранил все290 business-таблиц, каталог и эффекты, полный33-табличный
+Auth/Storage complement. Входящие sessions/refresh/AMR восстановлены; допустимы
+только timestamp собственного Auth-входа и две login/logout audit-записи. API
+cleanup adapter заменяет лишь проверку доказательств закрытия; SQL и строгий
+`verify_final` не изменены. Это PASS закрытия ресурсов при productAcceptancefalse
+и testOutcomeSTOP. Среда released следующему владельцу **ROOT22F**, затем очередь
+A15; нового B UI-окна этим результатом не открыто. PR1006 остаётся draft.
+
+Private packet: `/private/tmp/evo-b1006-valid-student-local-20260921`.
+Ни credentials, ни cookie values в репозиторий не перенесены.
+
+| Артефакт | SHA-256 |
+| --- | --- |
+| `binding.json` | `483407b8f037b84b97ff53443dd988b4ac5445d2233ce073e144dfc7dd051097` |
+| `observer/before.json` | `4fdc6e828aba491261358bee173b65f56dd2818c686b74657a85b1a498bae5de` |
+| `observer/after-ui.json` (OBSERVED) | `ffc826a00ada70643a78f5aba3da00c995adecb3287291ca2ab3bcbc4d23e890` |
+| `observer/final.json` | `88d7a5e92d64e910b7f0d5a3f3edd52e8dd6737ae40bc97308487d7b40ecc673` |
+| `runtime/ui-outage-first.failed.json` | `993766e35bffb42f5bbdc02f41b0ac0971ae7e87ca2c9437d734b3c28d1de296` |
+| `runtime/ui-outage-first.raw.json` (redacted) | `e85cd09fb2ad2b6c45a37093ad6a1aff5740de79bc164fb46b1921a624afe9f2` |
+| `runtime/api-abort-closure.json` | `b5ef9d7607284a4f11b21cbee5974e0535fb45541aee92698f691fc49002ea46` |
+| `abort-reconciliation.json` | `e4800a5e33295819c3e730af02c959c9a6a8e94f9f65f9f561581b67335ed214` |
+| Независимый API closure delta review | `f09bb7393305f45e85d04c327eeef8d5ee601db8c623d79df1ab5804f0b0c0ed` |
+| `release-receipt.json` → ROOT22F | `d26f3f48878364f41c52297fa8e622bae711b8d9ee47460c8e33c35030a5e100` |
+
+Следующий минимальный сценарий пока предложен только на бумаге: один настоящий
+browser-offline transport failure уже загруженного профиля при работающем
+сервере. Без mock responses, route interception, retry или нового visual-прохода;
+потеря документа означает STOP. Он требует будущего отдельного QA-окна после
+ROOT22F → A15 и не выполнен. Сохранённый proposal SHA
+`42739d31a72ea96e210d4663e1467176e01a390af6e6c8bcf0f7095a54048d98`.

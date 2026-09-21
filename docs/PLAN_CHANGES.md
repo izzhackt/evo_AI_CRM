@@ -36576,3 +36576,21 @@ hands off to ROOT7b with testOutcomeSTOP and productAcceptancefalse. Preserve
 initial guard/closure-probe failures; no fixture/auth/backend edits or new login
 are authorized by this outcome. Investigate dispatcher eligibility from existing
 captured metadata/source only before proposing the smallest remedy.
+
+
+## 2026-09-21 — B1006 valid existing Student, outage STOP, strict release ROOT22F
+
+[Actual supplement](qa/portal-profile-request-feedback-actual-2026-09-21.md): the
+historical configured alias was a pre209 approval; migration209 already covers
+new approvals, so no duplicate migration/backfill/config/grant changes. A reviewed
+new packet selected the explicit existing authorized post209 Student in memory.
+Clean source5c0da6fa, unchanged product bytes versus reviewed08b90ed1: ordinary
+portal login and hydrated profile PASS. Own dev Next shutdown was followed by a
+saved chrome-error page/first-outage STOP; exact replacement cause UNKNOWN,
+command activation/rejection unproven, no retry/layout/product acceptance.
+Reviewed own API logout204 plus cookie cleanup/exact browser close completed
+without navigation or Next restart. Strict final88d7a5e9 preserved full290/33
+except permitted own Auth metadata and two audits. Resource released to ROOT22F
+by d26f3f48; PR1006 remains draft. Preserve both historical STOP packets. Future
+browser-offline confirmation is files-only proposal after ROOT22F then A15;
+no new UI admission or widened functionality is implied.

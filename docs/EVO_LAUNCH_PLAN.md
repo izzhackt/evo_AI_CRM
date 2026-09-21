@@ -13503,3 +13503,11 @@ Contract: docs/EVO_SALES_MANAGEMENT_STATE_PLAN_2026-09-21.md, independentprecode
 approveded9a5f93. Reserve235 behindA234; actualexisting-actor/read-onlyQA after
 B1003 releases sharedruntime. No production/fixtures/targetwrites/importsubmit
 or newAuthactors. Missing actor/data combinations remain explicitly unclaimed.
+
+
+CRM-02f source implementation: additive RPC235 and strict management DTO,
+new authoritative View gates, preserved disabled target/import drafts on unknown
+read. Existing commands, v1/v2 and cash remain unchanged. Eight DTO tests,
+scoped lint, typecheck, whitespace and staticSQL parse PASS. Actual local235
+and browser acceptance pending shared-window release; no database/Auth or
+production use here. See docs/qa/crm-sales-management-source-2026-09-21.md.

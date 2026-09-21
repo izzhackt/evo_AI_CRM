@@ -381,7 +381,6 @@ export function ExplainPanel({
   return (
     <section
       className={verdict.correct ? "pt-ex-explain pt-ex-explain-ok" : "pt-ex-explain pt-ex-explain-bad"}
-      role="status"
     >
       <h3 className="pt-ex-explain-heading">{heading}</h3>
       {body}

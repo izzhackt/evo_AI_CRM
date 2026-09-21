@@ -83,6 +83,7 @@ export function LessonRunner({
     view.draft ? firstUnansweredIndex(exercises, view.draft.answers) : 0);
   const [value, setValue] = useState<ExerciseValue | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resultAnnouncement, setResultAnnouncement] = useState("");
   const [error, setError] = useState<LearningActionError["code"] | null>(null);
   const [exitNotice, setExitNotice] = useState(false);
   const pendingSave = useRef<PendingSave | null>(null);
@@ -115,10 +116,11 @@ export function LessonRunner({
     });
   }, [attempt, completed]);
 
-  function focusHeading() {
+  function focusHeading(result?: string) {
     requestAnimationFrame(() => {
       heading.current?.focus();
       heading.current?.scrollIntoView({ block: "start" });
+      if (result) setResultAnnouncement(result);
     });
   }
 
@@ -127,6 +129,7 @@ export function LessonRunner({
     busyRef.current = true;
     setBusy(true);
     setError(null);
+    setResultAnnouncement("");
     startRequestId.current ??= crypto.randomUUID();
     try {
       const response = await startLearningLessonAction(view.lesson.lessonId, startRequestId.current);
@@ -149,7 +152,7 @@ export function LessonRunner({
   }
 
   async function submitAnswer() {
-    if (busyRef.current || !attempt || !current || currentEntry) return;
+    if (busy || busyRef.current || !attempt || !current || currentEntry) return;
     const request = pendingSave.current ?? (() => {
       if (!currentValue) return null;
       const answer = exerciseValueToAnswer(currentValue);
@@ -168,6 +171,7 @@ export function LessonRunner({
     setBusy(true);
     setError(null);
     setExitNotice(false);
+    setResultAnnouncement("");
     try {
       const response = await saveLearningAnswerAction({
         attemptId: attempt.attemptId,
@@ -196,7 +200,7 @@ export function LessonRunner({
       // A11y (PORT-6a): успешный ответ заменяет кнопку «Ответить» разбором —
       // без переноса фокуса он молча падал на <body>. Тот же focusHeading(),
       // что уже используют start()/complete().
-      focusHeading();
+      focusHeading(response.save.verdict.correct ? strings.verdictCorrect : strings.verdictWrong);
     } catch {
       setError("unavailable");
     } finally {
@@ -380,13 +384,15 @@ export function LessonRunner({
   return (
     <div className="pt-lesson-flow">
       {/*
-        A11y (PORT-6a): live-областью остаётся только часть «Сохраняем…» —
-        сам счётчик уже объявляется переносом фокуса на sr-only заголовок
-        ниже, и role="status" на всём абзаце дублировал каждое объявление.
+        Счётчик объявляется переносом фокуса на заголовок. Постоянная live-область
+        обновляет только сохранение и короткий подтверждённый вердикт; подробный
+        разбор не объявляется целиком. Вердикт обновляется после переноса фокуса.
       */}
       <p className="pt-ex-progress">
         {formatPortalString(strings.exerciseCounter, { n: String(index + 1), total: String(total) })}
-        <span role="status">{busy ? ` · ${strings.saving}` : ""}</span>
+        <span role="status" aria-live="polite" aria-atomic="true">
+          {busy ? ` · ${strings.saving}` : resultAnnouncement ? ` · ${resultAnnouncement}` : ""}
+        </span>
       </p>
       <section className="pt-lesson-card">
         <h2 ref={heading} tabIndex={-1} className="pt-sr-only">
@@ -427,6 +433,7 @@ export function LessonRunner({
               onClick={() => {
                 setIndex(index + 1);
                 setValue(null);
+                setResultAnnouncement("");
                 focusHeading();
               }}
             >
@@ -436,7 +443,8 @@ export function LessonRunner({
             <button
               type="button"
               className="pt-btn"
-              disabled={busy || !submittable}
+              disabled={!submittable}
+              aria-disabled={busy || !submittable}
               onClick={() => void submitAnswer()}
             >
               {busy ? strings.saving : strings.answerButton}

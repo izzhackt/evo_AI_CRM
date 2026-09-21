@@ -13,7 +13,10 @@ import {
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Профессия — EVO Admissions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("professions", await getLocale());
+  return { title: `${strings.cardTitle} — EVO Admissions` };
+}
 
 /**
  * Карточка профессии (PORT-4c, план §6 «Профессии»): день/среда/навыки/

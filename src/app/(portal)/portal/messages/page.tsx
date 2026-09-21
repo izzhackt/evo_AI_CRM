@@ -11,9 +11,10 @@ import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Сообщения — EVO Admissions",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("messages", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
 
 /**
  * Экран «Сообщения» (PORT-5c, план §6 «Общение»; дизайн-контракт §7 «Моё

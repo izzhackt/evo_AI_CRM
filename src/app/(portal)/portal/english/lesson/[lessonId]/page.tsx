@@ -10,7 +10,10 @@ import { LearningSourceError, readLearningLesson } from "@/lib/portal/learning-s
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Урок английского — EVO Admissions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("english", await getLocale());
+  return { title: `${strings.lessonTitle} — EVO Admissions` };
+}
 
 /**
  * Урок (PORT-4c): безопасная проекция контента + собственный черновик из

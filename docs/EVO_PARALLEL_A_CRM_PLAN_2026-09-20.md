@@ -6,11 +6,11 @@
 
 ## Текущий checkpoint — 21 сентября 2026
 
-Срез исходников: main `925cf1996e0b2c08e968d513da149793f9c774be` после #973/#974.
-#946, #948, #958, #959, #961, #960, #962, #963, #964, #966, #968, #969, #970
-и #971–#974 — MERGED. MERGED означает исходники, LOCAL — ограниченные фактические
-проверки. Новые managed DB/production apply и release этим checkpoint не
-подтверждаются. Весь объём 1–36 не завершён; 37–50 исключены. Датированные
+Срез исходников: main `684f7f31b644d98759482af099056a9b976cb8bc` после #984.
+Прежние принятые блоки сохраняются; #967, #975–#979 и #981–#986 — MERGED.
+#980, #987 и #988 остаются DRAFT. MERGED означает исходники, LOCAL — ограниченную
+фактическую проверку. Managed DB/production apply и release этим checkpoint не
+подтверждаются. Весь объём 1–36 не завершён; 37–50 исключены. Исторические
 квитанции ниже сохраняют свои ревизии и пределы проверки.
 
 - **#966:** 219/220 и canonical-profile repair в main. Исходный 219
@@ -25,44 +25,65 @@
   бизнес-поля восстановлены, version+4/audit+4 сохранены. UI доказал блокировку
   пустой причины; успешное UI-сохранение не заявляется. Issue687 остаётся открыт
   до отдельных managed/owner exit criteria.
-- **#970/#974:** из staff chat убраны автоматические task actions/enrichment;
-  autosize MERGED через #974 (`6d01bc81`). Actual ordinary Sales UI доказал
-  рост/сжатие, перенос при1280/390/320 и восстановление собственного черновика.
-  После reload320 root-width330 остаётся явным ограничением; native IME Enter,
-  nonce и populated/save не заявлены. Flat feed и цитаты не завершены: A223
-  additive reader в реализации, pre-code `55109` reviewed; apply не выполнен.
-- **#971/#973:** договорный workflow перенесён в «Договор и оплата» с alias,
-  независимыми правами и сохранёнными девятью actions. #973 принят после
-  independent review `09e3332d` и CI `35548203929` PASS. Actual ordinary Admin
-  UI1280/390/320 и full281 parity пройдены без финансовых записей. Scoped92/93
-  (после коррекции40/41) сохраняют одно прежнее assertion-падение, доказанное
-  на exact main. Contract-only/populated templates, транши/возвраты/чеки,
-  mixed-currency и реальные команды не доказаны; весь item12 остаётся открыт.
+- **Командный чат / пункт 15:** #970/#974 сохраняют удаление task actions и
+  прежнее actual unsent Sales UI autosize/draft1280/390/320. Историческое
+  ограничение reload320/root-width330 не закрыто этим checkpoint.
+  #976/LOCAL223 добавил flat-history reader; #981 — план, #983/LOCAL225 —
+  sparse seen без потери непрочитанных промежутков. Это реальные локальные
+  Auth/RPC-проверки, не переключение UI на плоскую ленту. #986 — precode
+  direct quotes; #987 с реализацией227 остаётся DRAFT, actual apply/QA ещё не
+  приняты. Quotes/search/read/scroll и весь пункт15 не завершены.
+  [223](qa/crm-team-chat-flat-reader-223-2026-09-21.md),
+  [225](qa/crm-team-chat-sparse-seen-225-2026-09-21.md).
+- **Договор и оплата / пункт 12:** #971/#973 объединили договорный workflow
+  с alias, независимыми правами и девятью actions; прежний actual read-only
+  UI1280/390/320 сохранён. Историческое assertion-падение исправлено #977,
+  scoped92/92 PASS зафиксирован в B3d QA; старые неуспешные результаты сохранены.
+  #984 MERGED `684f7f31`: local ordinary Admin создал один QA-транш1,00 KGS и
+  оплату0,50; тот же Student увидел остаток0,50 и частичную оплату. Final
+  `a2df3c2f`, independent review `a0747bd3`, release `cce0f273` приняты.
+  Фактическая форма имела09:40; ночные границы покрывают отдельные pure tests.
+  Contract-only/populated artifacts, refunds, receipt upload, mixed-currency,
+  весь пункт12 и managed delivery остаются вне этой приёмки.
+  [Квитанция](qa/payment-calendar-date-2026-09-21.md).
 
-#964/B218: 13 фаз обычного Auth и 59 Swift decode PASS. Полные program requirements,
-upload/save→submit→package/review остаются открытыми. B967 — DRAFT, frozen head
-`284eeb31` — текущая ревизия фактической web QA; `2516de2d` — историческая
-ревизия собственных B UI-файлов, сохранённых при интеграции main.
-CI `35547698931` сохраняет известное падение Storage idle-window, не новый
-зелёный прогон. Чтение существующей подготовки в web
-проверено; actual first-selection214→218 на `284eeb31` завершился положительно:
-подготовка открылась сразу, два starter slots переиспользованы без insert,
-неизвестный deadline не придуман; reopen/refresh/saved list сохранили прежний
-GDUT, оба Docs anchors и возврат к карточке проверены. After-selection
-`55de9560…` — PASS_EXPECTED_GRAPH (ожидаемые изменения восьми таблиц), journey
-`eaae467b…`. Final readback `dc816076…` подтвердил отсутствие новых эффектов;
-окно освобождено, receipt `337b730f…`. Desktop capture выполнен; на390 DOM не
-переполняется, но capture непоследователен и visual PASS не заявлен — нужен
-корректный повтор снимка. Это один web-путь, не полный requirements/submit/review.
-Native UI не проверен: запрос разблокировки Mac остаётся pending. LOCAL211 завершён:
-четыре технические публикации, восемь requests, пять stable IDs; final receipt
-`44c0f7…`. Факты каталога/порядок/прежние IDs сохранены. Это не managed publication
-или подтверждение всего admissions-пути.
+#964/B218 сохраняет13 фаз обычного Auth и59 Swift decode. #967 MERGED:
+actual first-selection214→218 на `284eeb31` сразу открыл подготовку, переиспользовал
+два starter slots и сохранил reopen/Docs/back. After-selection `55de9560`,
+journey `eaae467b`, final readback `dc816076` и release `337b730f` сохранены.
+Отдельный Chrome390 dark проход на `12a6951b` закрыл прежний recapture:
+visual APPROVED, release `81ba8b8e`; старые неудачные captures и CI timeout
+`35547698931` остаются историей. Native UI, light/320 и полный finish не приняты.
+LOCAL211: четыре технические публикации, восемь requests и пять stable IDs,
+receipt `44c0f7`; факты/порядок/прежние IDs сохранены, managed publication не заявлена.
+[UI-квитанция](platform/b3d-program-preparation-ui-qa.md).
 
-KB31/32: metadata-сверка328 позиций и пакет двух ранее одобренных материалов
-подготовлены; [квитанция подготовки](qa/knowledge-source-reconciliation-2026-09-21.md).
-Canonical objects/dedup и записи ещё не подтверждены; массового approval,
-AI-bundle publication и завершения всего31/32 нет.
+#979 задаёт полный requirements-контракт; #982/LOCAL224 принял v2 readers:
+12 ordinary Auth reads, фактические TS/Swift decoders и CRM/Student desktop390
+на существующем starter, release `a6e53f58`. Это не positive full requirements.
+#988 (редактор226) — DRAFT; upload отдельно от submit, versioned packages/review
+и полный web/iPhone путь остаются открытыми.
+[224](platform/b3e1-requirements-v2-read-qa.md).
+
+Root27/28: #978 — MERGED inactive primitives; #980 — DRAFT с локальным
+web/API/Mailpit confirmation/resend/denial/replay и восстановленной Auth-конфигурацией.
+Native UI, настоящая24h expiry и owned Invite negative не подтверждены;
+production activation/delivery не заявляется. По28 существующий receiving mailbox
+не удалось открыть: нет его активной сессии (receipt `3cf7297d`), новых писем0.
+Нужны receiving delivery/reply и точные два разрешённых реальных получателя;
+политика подтверждения уже принята и не переоткрывается. SOPS archival не подтверждён.
+
+KB31/32: перенос6568 и maintenance уже выполнены. Metadata-сверка328 позиций
+и bounded provenance не закрывают весь backlog. KB31-128 получил только связь
+с ранее approved ядром (target `5f761bc3`, receipt `27e5896e`); новое FX-правило
+не подтверждено, approval/status/client publication не менялись. По136 коммерческий
+service scope и по123 применимость конфликтующих банковских сумм остаются открытыми.
+#985 сохранил через actual local Admin UI два approved snippets и две TXT-версии
+с ClamAV/Storage/parity; Student denials и contrast/toolbar1440/390/320 проверены.
+Первый browser download — `ERR_BLOCKED_BY_CLIENT`, второй не запускался:
+скачивание и весь32 не приняты. Массового approval/AI publication нет.
+[Подготовка](qa/knowledge-source-reconciliation-2026-09-21.md),
+[actual32](qa/knowledge-approved-materials-local-2026-09-21.md).
 
 ## Первый срез A-1 — пункты 4 и 34
 
@@ -105,16 +126,16 @@ review одобрены. Это unit/source/harness-проверки; полно
 | 8 | #968 MERGED: LOCAL221, 35 Auth reads, actualUI1280/390/320, полный «Все», filter/cursor/context/BackForward | Основной queue-срез принят; positive другие типы/pending отсутствовали, managed отдельно |
 | 9 | #952 MERGED `f97122e8`: Inbox empty/filter/channel states; actual local read/UI desktop/390px | История выбранного диалога и provider/error-path приёмка этим срезом не доказаны; [квитанция](qa/crm-inbox-states-2026-09-21.md) |
 | 11 | #955 MERGED `fe26526c`: поиск Student messages с loading, отдельными empty/error/retry и защитой от устаревшего ответа; actual local read/UI desktop/390px | Очереди остаются у A; диалог не открывали, сообщений и mark-read не отправляли; [квитанция](qa/case-chat-search-2026-09-21.md) |
-| 12 | #933/#971/#973 MERGED: единый договорный workflow, независимые права, alias и девять actions; actual Admin read-only UI1280/390/320 | Полный item12 открыт: contract-only/populated artifacts, реальные финансовые команды и managed delivery не доказаны |
+| 12 | #933/#971/#973/#984 MERGED: договорный workflow и local DATE fix; actual Admin QA-транш1,00KGS/оплата0,50 → own Student остаток0,50 | Ограниченный путь принят; contract-only/populated artifacts, refunds/receipt/mixed-currency, весь12 и managed отдельно |
 | 30 | #948 MERGED: LOCAL213 actual UPDATE двух UI-блоков, sibling draft, replay/conflict/stale и restore26 полей; B sale INSERT отдельно | Не browser-proof всех групп; handoff correction215 вошла #960; managed/release не выполнены |
 | 14 | Staff-каталог: поиск, фильтры, дедлайны, управление | Program IDs/schema принадлежат B |
-| 15 | #970/#974 MERGED: task actions/enrichment убраны, autosize подтверждён actual unsent Sales UI | Flat chronology/quotes/search/read/scroll открыты; A223 reader в реализации, без apply |
+| 15 | #970/#974 autosize/task removal; #976 LOCAL223 flat reader и #983 LOCAL225 sparse seen; #981/#986 plans MERGED | #987 direct-quotes227 DRAFT; actual227 и flat UI/search/read/scroll не приняты; старые сообщения/seen сохраняются |
 | 16 | #954/#963 MERGED: explicit case choice и личный case/staff reader; LOCAL217 Auth/target/denials и UI320/390/desktop | Положительные dated/staff и >100 UI overflow отсутствуют; commands/concurrent reassignment не исполнены; [receipt](qa/personal-calendar-2026-09-21.md) |
 | 22 | #961 MERGED: keyboard skip-navigation slice | Остальной shell/типографика открыты; не полная a11y-приёмка |
 | 29 | #966 MERGED: failed219 сохранён; forward220 function QA, actual Admin UI четырёх пустых полей и exact Auth replay PASS | Pinned219/nonemptyHTTPS UI positive отсутствует; managed отдельно |
 | 33 | #969 MERGED: LOCAL222 требует причину срока/приоритета у всех ролей; RPC denials/replay/conflict/stale, reasoned updates и restore пройдены | UI доказал отказ без причины; positive UI save не заявляется, #687 открыт до managed/owner exit criteria |
 | 35 | Завершён в исходниках: #947/#949 prerequisites, #950 MERGED `3ddb6f41`, #42 CLOSED; пять checks и 842/842 legacy tests, независимый semantic review | Только форматирование legacy Inbox; без revival/deploy/provider proof; [квитанция](qa/inbox-format-baseline-2026-09-21.md) |
-| 5, 36 | Текущая docs-сверка обновлена на925cf199 после #973/#974; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
+| 5, 36 | Текущая docs-сверка — main684f7f31 после #984; source/local proof/drafts отражены раздельно | Отдельный delivery packet открыт; source merge ≠ managed delivery, остатки1–36 сохраняются |
 
 Каждый срез: живой source → минимальный diff → точечная реальная проверка →
 отдельный PR → независимое exact-head review. Не запускать общий финальный E2E,

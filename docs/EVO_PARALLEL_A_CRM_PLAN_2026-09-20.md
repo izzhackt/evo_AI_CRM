@@ -41,16 +41,20 @@
 
 #964/B218: 13 фаз обычного Auth и 59 Swift decode PASS. Полные program requirements,
 upload/save→submit→package/review остаются открытыми. B967 — DRAFT, frozen head
-`284eeb31`, runtime `2516de2d`; CI `35547698931` сохраняет известное падение
-Storage idle-window, не новый зелёный прогон. Чтение существующей подготовки в web
+`284eeb31` — текущая ревизия фактической web QA; `2516de2d` — историческая
+ревизия собственных B UI-файлов, сохранённых при интеграции main.
+CI `35547698931` сохраняет известное падение Storage idle-window, не новый
+зелёный прогон. Чтение существующей подготовки в web
 проверено; actual first-selection214→218 на `284eeb31` завершился положительно:
 подготовка открылась сразу, два starter slots переиспользованы без insert,
 неизвестный deadline не придуман; reopen/refresh/saved list сохранили прежний
 GDUT, оба Docs anchors и возврат к карточке проверены. After-selection
 `55de9560…` — PASS_EXPECTED_GRAPH (ожидаемые изменения восьми таблиц), journey
-`eaae467b…`; финальные zero-effect readback/release и визуальная проверка ещё
-в работе. Это один web-путь, не полный requirements/submit/review. Native UI
-не проверен: Mac заблокирован. LOCAL211 завершён:
+`eaae467b…`. Final readback `dc816076…` подтвердил отсутствие новых эффектов;
+окно освобождено, receipt `337b730f…`. Desktop capture выполнен; на390 DOM не
+переполняется, но capture непоследователен и visual PASS не заявлен — нужен
+корректный повтор снимка. Это один web-путь, не полный requirements/submit/review.
+Native UI не проверен: запрос разблокировки Mac остаётся pending. LOCAL211 завершён:
 четыре технические публикации, восемь requests, пять stable IDs; final receipt
 `44c0f7…`. Факты каталога/порядок/прежние IDs сохранены. Это не managed publication
 или подтверждение всего admissions-пути.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptTeamChatChannels, decodeTeamChatChannels } from "../src/lib/team-chat-channel-previews.ts";
+import { acceptTeamChatChannels, decodeTeamChatChannels, teamChatChannelPreviewText } from "../src/lib/team-chat-channel-previews.ts";
 
 // Pure wire/order examples only, not Auth, SQL or live-channel acceptance.
 const id = (number) => `a0000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
@@ -153,4 +153,27 @@ test("merge preserves immutable inputs and returns a separate preview projection
   incoming[0].unreadCount = 9;
   assert.deepEqual(next.channels, [channel()]);
   assert.deepEqual(previous, state([channel()]));
+});
+
+test("only a confirmed null preview formats as an empty channel", () => {
+  assert.equal(teamChatChannelPreviewText(null, id(7)), "Пока нет сообщений");
+  assert.equal(teamChatChannelPreviewText(preview(), id(8)), "Участник: Привет");
+});
+
+test("own preview uses the membership identity regardless of UUID letter case", () => {
+  const own = preview({ authorMembershipId: id(7).toUpperCase(), authorName: "Другое отображаемое имя" });
+  assert.equal(teamChatChannelPreviewText(own, id(7)), "Вы: Привет");
+  assert.equal(teamChatChannelPreviewText(own, id(8)), "Другое отображаемое имя: Привет");
+});
+
+test("deleted preview never exposes its author or retained text", () => {
+  const deleted = preview({ deletedAt: "2026-09-21T12:00:00Z", bodyPreview: "" });
+  assert.equal(teamChatChannelPreviewText(deleted, id(7)), "Сообщение удалено");
+  // Defensive formatting is not a claim that the strict decoder accepts old bodies.
+  assert.equal(teamChatChannelPreviewText({ ...deleted, bodyPreview: "Старый текст" }, id(8)), "Сообщение удалено");
+});
+
+test("preview formatting preserves literal Unicode text without parsing markup or changing its meaning", () => {
+  const literal = preview({ authorName: "Алия & Тимур", bodyPreview: "<b>Саламатсызбы 👋</b>\nУниверситет — 北京" });
+  assert.equal(teamChatChannelPreviewText(literal, id(8)), "Алия & Тимур: <b>Саламатсызбы 👋</b>\nУниверситет — 北京");
 });

@@ -5,6 +5,8 @@
 ROOT разрешил первый source-only этап: общие tickets/metadata acceptance и pure
 formatter с tests; разметка/CSS и нынешнее отображение пока остаются прежними.
 Мобильная композиция ждёт отсутствующий incumbent batch. Это не UI/actual GO.
+Первый logic-only этап реализован: [source-проверки](qa/team-chat-channel-rail-logic-source-2026-09-21.md)
+прошли; независимый source review впереди. Formatter пока не подключён к JSX.
 База `c675d4b4d735ccbcc51dc162265e31d64e193990`: #1017 смержен после final review
 `f36fec39` и CI35645855198. [Первый контракт](EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md)
 и [узкая actual-проверка reader/DTO](qa/team-chat-channel-previews-actual-2026-09-21.md)

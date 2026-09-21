@@ -12,6 +12,7 @@ import type { TeamChatTimelineQuery } from "@/lib/platform-team-chat-timeline";
 import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v2";
 import { emptyTeamChatFeed, extendTeamChatFeedRange, mergeTeamChatFeedChanges, mergeTeamChatFeedPage, mergeTeamChatSearchChanges, teamChatFeedMessage, teamChatFeedQuote, teamChatFeedRange, teamChatFeedRows, type TeamChatFeedSnapshot, type TeamChatFeedStore, type TeamChatFeedRange, type TeamChatScrollAnchor } from "@/lib/team-chat-feed";
 import { teamChatMessageContinuations } from "@/lib/team-chat-message-grouping";
+import { acceptTeamChatChannels, type TeamChatChannelsState } from "@/lib/team-chat-channel-previews";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { Icon } from "@/components/icons";
@@ -47,6 +48,8 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const [feed, setFeed] = useState<Feed>(() => ({ store: mergeTeamChatFeedPage(emptyTeamChatFeed(), initial.page), range: teamChatFeedRange(initial.page) }));
   const current = useRef(feed);
   const [channels, setChannels] = useState(initial.channels);
+  const channelsSnapshot = useRef<TeamChatChannelsState>({ requestId: 0, channels: initial.channels });
+  const channelsRequest = useRef(0);
   const [participants, setParticipants] = useState(initial.participants);
   const [panel, setPanel] = useState<"channels" | "messages">(showChannelsInitially ? "channels" : "messages");
   const [view, setView] = useState<"feed" | "search">("feed");
@@ -98,6 +101,17 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     if (next === readErrorsRef.current) return;
     readErrorsRef.current = next; setReadErrors(next);
   }, []);
+  const commitChannels = useCallback((incoming: TeamChatChannelsState["channels"], requestId: number) => {
+    if (!alive.current || revoked.current) return false;
+    const next = acceptTeamChatChannels(channelsSnapshot.current, incoming, requestId);
+    if (!next) return false;
+    if (next !== channelsSnapshot.current) {
+      channelsSnapshot.current = next;
+      setChannels(next.channels);
+    }
+    // An older metadata ticket must not discard a valid feed/search response.
+    return true;
+  }, []);
   const reportFailure = useCallback((status: TeamChatFailure) => {
     // Revocation is terminal for this actor/channel instance, including late failures.
     if (!alive.current || revoked.current || status !== "forbidden") return;
@@ -106,6 +120,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       revoked.current = true; contextRequest.current += 1;
       const cleared = { store: emptyTeamChatFeed(), range: { ids: [], beforeCursor: "0", afterCursor: "0", hasBefore: false, hasAfter: false } };
       current.current = cleared; setFeed(cleared);
+      channelsSnapshot.current = { requestId: channelsRequest.current, channels: [] };
       setChannels([]); setParticipants([]); setSearch(null); setQuery(""); setReturns([]); searchOrigin.current = null; setDeletion(null);
     }
   }, [updateReadErrors]);
@@ -137,11 +152,13 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
         const cursor = retryCursor ?? watermark.current; retryCursor = undefined;
         request = ++backgroundRequest.current;
         updateReadErrors({ type: "begin", owner: "background", id: request, attempt: { kind: "refresh", channel, cursor } });
+        const channelsTicket = ++channelsRequest.current;
         const result = await readTeamChatAction({ channel, mode: "changes", cursor });
         if (!alive.current || revoked.current) return;
         if (result.status !== "ready") { finishRead("background", request, result.status); return; }
         const snapshot = result.snapshot;
-        setChannels(snapshot.channels); setParticipants(snapshot.participants);
+        if (!commitChannels(snapshot.channels, channelsTicket)) { finishRead("background", request, "unavailable"); return; }
+        setParticipants(snapshot.participants);
         if (snapshot.page.messages.length) {
           const merged = mergeTeamChatFeedChanges(current.current.store, snapshot.page.messages);
           commit({ ...current.current, store: merged.store });
@@ -191,7 +208,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       } while (catchupAgain.current && alive.current && !revoked.current);
     } catch { finishRead("background", request, "unavailable"); }
     finally { catchupRunning.current = false; }
-  }, [channel, commit, readPage, finishRead, updateReadErrors]);
+  }, [channel, commit, commitChannels, readPage, finishRead, updateReadErrors]);
   const isRevoked = useCallback(() => revoked.current, []);
   const onSeenForbidden = useCallback(() => reportFailure("forbidden"), [reportFailure]);
   const onSeen = useCallback(() => { void refresh(); }, [refresh]);
@@ -324,12 +341,14 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     const epoch = ++contextRequest.current; setBusy(true);
     updateReadErrors({ type: "begin", owner: "foreground", id: epoch, attempt });
     try {
+      const channelsTicket = ++channelsRequest.current;
       const result = await readTeamChatAction({ channel: attempt.channel, mode: "search", query: term, ...(attempt.cursor !== undefined ? { cursor: attempt.cursor } : {}) });
       if (!alive.current || revoked.current) return;
       if (result.status === "forbidden") { reportFailure("forbidden"); return; }
       if (epoch !== contextRequest.current) return;
       if (result.status !== "ready") { finishRead("foreground", epoch, result.status); return; }
-      setChannels(result.snapshot.channels); setParticipants(result.snapshot.participants); finishRead("foreground", epoch, null);
+      if (!commitChannels(result.snapshot.channels, channelsTicket)) { finishRead("foreground", epoch, "unavailable"); return; }
+      setParticipants(result.snapshot.participants); finishRead("foreground", epoch, null);
       if (!searchOrigin.current && viewRef.current === "feed") searchOrigin.current = origin;
       if (!append) scroll.current = { kind: "top" }; else preserveScroll();
       setSearch((previous) => ({ term, page: { ...result.snapshot.page, messages: append && previous?.term === term ? teamChatMergeMessages(previous.page.messages, result.snapshot.page.messages) : result.snapshot.page.messages } }));

@@ -14406,3 +14406,17 @@ formatter к JSX пока не подключается. Это стадия о�
 недостающего incumbent. План/журналы обновлены до source edit; craft-floor
 перечитан перед правкой component logic. QA остаётся ROOT→B1018; A готовит
 только inert incumbent packet, без Auth/SQL/browser/server/runtime.
+
+
+### A15 rail — logic-only source подготовлен к независимому review
+
+В двух существующих refresh/search путях подключён общий metadata ticket и
+прежний strict acceptor; stale metadata не отменяет feed/search, contradiction
+даёт unavailable прежнему owner до participant/feed/watermark. Revoked очищает
+ref/state. Additive pure formatter имеет null/own/other/tombstone/literal-text
+cases. Весь JSX/CSS и decoder/acceptor prefix побайтно прежние; formatter ещё
+не используется, presentation latest state сохранён до visual этапа.
+[Source evidence](qa/team-chat-channel-rail-logic-source-2026-09-21.md):31/31 pure
+tests, typecheck и targeted lint PASS; parity9173d669. No actual/UI/runtime,
+исторические screenshot ограничения остаются. Независимый source review впереди;
+это стадия одного rail блока, не отдельный завершённый UI или merge.

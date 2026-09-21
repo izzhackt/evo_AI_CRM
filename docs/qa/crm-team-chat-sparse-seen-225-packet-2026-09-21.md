@@ -3,8 +3,9 @@
 Статус: **предложение, не запуск**. Runtime `fb12146e5fdd3470c061ac7c321ddeadb7cc7e53`,
 source PR#983 `63dfdb008df928c72653ca391c4d013d2b0f2c3c` независимо одобрен;
 CI35552439001 прошёл, включая Migration boundary.225 ещё не установлена локально.
-ROOT выполняет другой сценарий на общем стенде. Этот пакет не даёт права занять
-его окно или применить225 перед зарезервированной B миграцией224.
+B уже применил224 и передал release; ROOT выделил A исключительное окно225.
+Применение225 и обычный Auth ещё не выполнялись. Нужны интеграция принятого
+source224 и независимое review окончательного apply packet/manifest.
 
 ## Последовательность допуска
 
@@ -24,7 +25,7 @@ ROOT выполняет другой сценарий на общем стенд
    к exact source head, apply/release receipts и их SHA256. Получить ROOT GO
    для обычного Auth и **только** перечисленных ниже QA-записей.
 
-Пункты1–5 пока не завершены. Отсутствующие hashes в example manifest намеренны:
+Применение225 и QA пока не выполнены. Отсутствующие hashes в example manifest намеренны:
 он прекращает работу до Docker/SQL/Auth. Нельзя подставлять старую baseline,
 ослаблять guard или создавать новую identity ради прохождения проверки.
 
@@ -129,3 +130,35 @@ Redirects по-прежнему запрещены.
 Повторена только проверка синтаксиса Python; Docker/SQL/Auth/API не запускались.
 Decoder, бизнес-последовательность и runtime source не изменены. Финальный
 manifest/apply packet по-прежнему ожидают224, свежую baseline и отдельное review.
+
+## Actual224 release и свежая baseline перед225
+
+B release `a6e53f58da9b204d4658e8be80468aecbc37de857845d99ab3b38498c6754224`
+подтверждает local001–224; SQL224
+`99f0a1567b9e51786a26ed728fb69a321252ddf92e7c9cc2bc208bb601c2917a`,
+исходники B `1fa3ef0e92477090d06f3a49db72708674d149f6`. Его принятие в main
+и интеграция source в225 проверяются отдельно от факта local apply.
+
+A действительно снял новый READ ONLY snapshot после передачи окна. Все281
+business tables, ledger001–224 и Auth user/identity counts8/8 совпали с final
+B release, включая сохранённые данные ROOT27c. Sessions не сравнивались.
+Приватный `fresh-baseline-224.json` в
+`/private/tmp/evo-a225-apply-packet-20260921` имеет SHA256
+`3c224eb87648c980b7896b20badcc1fabef6ccc36a2f0b78423a6202a74723ef`.
+Там же `baseline-validation.json` сохраняет hashes всех224 локальных SQL.
+
+Подготовленный apply driver пока **не исполнялся**. Он повторно сверяет эту
+baseline непосредственно перед штатным однократным local migration CLI.
+После225 проверяет все281 старые таблицы и metadata/ACL, точные тела двух
+функций и SQL statements ledger. Разрешённые новые объекты: private RLS
+seen table,4 её столбца, PK index с4 catalog columns,3 constraints и8 внутренних
+FK triggers; новый mark_seen RPC и изменение только body прежнего channels.
+Новая seen table должна остаться пустой. Права старых функций сохраняются,
+прямой доступ к seen разрешён только владельцу таблицы, RPC — authenticated.
+
+Config переходит224→225 только после проверки. Любая ошибка сохраняет
+результат и запрещает автоматический повтор/cleanup. Финальный apply receipt
+содержит полный282 after_state и точный SELECT SQL для следующего координатора.
+Окончательный QA manifest привязывается к реальным будущим apply/release
+receipts; несуществующие hashes не подставляются. Текущий approved QA helper
+`cf82809e…` и его business scope не изменены.

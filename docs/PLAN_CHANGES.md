@@ -35437,3 +35437,17 @@ network ID and port57495 before every API request. Expected topology comes
 from saved ROOT27c evidence; no current environment claim or execution.
 Runtime/decoder/business QA sequence remain unchanged. Python syntax and docs
 diff checks only; final224 release/apply packet/review/ROOT GO remain required.
+
+
+### A15d local225 window — actual224 baseline accepted, apply pending
+
+B applied224 once and released the shared local environment. ROOT transferred
+the exclusive225 window to A. A ran a fresh READ ONLY full281/catalog snapshot;
+it exactly matches B final state, ledger001–224 and Auth8/8, including ROOT27c
+retained QA. Sessions are outside that equality claim. No225 apply/Auth yet.
+
+The prepared single-use driver preserves all old data/metadata/ACL and verifies
+new table/RLS,4 table+4 PK index catalog columns,3 constraints,8 internal FK
+triggers, one RPC and only the reviewed channels body. Full282 SQL/state will
+be retained for ROOT32. Independent driver review and exact source224/main
+integration/manifest binding still precede apply and the approved scoped QA.

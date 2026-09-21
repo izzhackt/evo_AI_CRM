@@ -13410,6 +13410,27 @@ applied once with no Auth/submission/business writes; window passed B232.
 No production delivery or whole1–36 completion claimed.
 
 
+### CRM-02e: authorized direction options —2026-09-21 precode
+
+After #995 merge a23490f7, implement accepted item7 direction selector using
+separate read-only RPC233. Existing v1/v2 report and writes stay unchanged.
+Organization and per-row authority precede DISTINCT; include all authorized
+periods/archive states, preserve exact strings/C order, reject overflow above
+1000 or unfilterable legacy values instead of silently truncating/normalizing.
+Strict DTO and shared500-code-point validator; native GET select retains
+unknown current URL values, filters/period/Back/reset. Explicit option error
+keeps exact-text input available without pretending empty success.
+See docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md for scope, grants and acceptance.
+Source-only while B232 owns QA; ROOT coordinates any later local apply.
+No production or fixture creation is authorized by this entry.
+
+
+CRM-02e source implementation: separate RPC233, strict options DTO and shared
+500-code-point validator; native select/error/empty/current-URL identity retained.
+17 targeted Node tests, scoped lint, normal typecheck and static SQL parse PASS.
+Actual local SQL/Auth/UI not run while B232 owns QA. See
+`docs/qa/crm-sales-directions-source-2026-09-21.md`; no deployment claim.
+
 ## 2026-09-21 — B3g.2 latest-main integration before actual QA
 
 Merge main `a23490f746c9d13398712eed5e26dffd2330760b` into reviewed UI head
@@ -13437,3 +13458,24 @@ obtain independent delta review and current CI, then inspect the existing actual
 notification/recovery and staff detail at desktop/mobile sizes. Do not repeat
 submissions, add actors/fixtures, rerun unchanged DB flows, or claim native UI or
 production acceptance. Existing actual receipts remain the evidence for writes.
+
+
+### CRM-02e local233 acceptance and integration —2026-09-21
+
+Local apply233 at35499c33 passed exact functions/ledger/ACL preservation. Ordinary
+Sales/Admin directions are ready-empty, consistent with all five retained QA
+sales having no populated direction. The previous v2 report, totals, native GET
+and record/back period survive. An observed alignment/accessible-name defect was
+corrected in1b903e23 and confirmed at1440/390/320 for both roles in the second
+bounded visual pass. Populated selection, other-tenant positive data, overflow,
+VoiceOver and production are not claimed. See
+`docs/qa/crm-sales-directions-actual-2026-09-21.md`.
+
+Full290 business tables/catalog/effects/Storage and incoming224 sessions/239
+refresh rows equal baseline after own logout. Only ordinary Auth user metadata
+and six Auth audits changed. Own runtimes closed; released233 window to A234.
+Mainc47a8137 package UI is integrated without changing either product scope;
+only additive plan appendices conflict. Update the1–36 ledger with completed
+B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gaps.
+Remaining item7 work is department-target visibility and import placement, not
+an already-correct cash-summary permission rewrite.

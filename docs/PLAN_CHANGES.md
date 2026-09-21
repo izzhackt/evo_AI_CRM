@@ -35503,3 +35503,22 @@ No production/UI/server-action journey or whole-item15 completion claimed.
 два download hashes и scoped data reconciliation. Production не разрешён.
 Пакет: `docs/qa/knowledge-approved-materials-local-2026-09-21.md`.
 Подготовка scanner завершена; actual canonical write ещё не выполнен.
+
+## 2026-09-21 — KB32 actual local evidence и ограниченная UX-коррекция
+
+На frozen63e8ef9a реально сохранены2 approved snippets и2 scanned private files.
+Первый audited download307 остановлен Chrome ERR_BLOCKED_BY_CLIENT; второго
+не было, byte-download proof остаётся открытым. Actual budget8 receipts/10audit,
+1grant/consume;184 прежних audit,271 посторонняя таблица и схема сохранены.
+Student RPC403 и staff API401 проверены с тем же cookie positive /portal200.
+См. docs/qa/knowledge-approved-materials-local-2026-09-21.md. Не full32 complete.
+
+До следующей UI-правки принят малый scope по actual screenshots/computed style
+и Impeccable clarify/harden: устранить override primary bg/text в KnowledgeLibrary
+и столкновение breadcrumb/search на320px в FileManager. Сохранить EVO/Golos,
+подписи, все actions/forms/rights и внутреннюю прокрутку таблицы. Только local CSS
+и responsive layout; без новых бизнес-записей/миграций/provider/production.
+Проверка одной общей партией desktop+390/320, включая create/update contrast,
+поиск/очистку, breadcrumb и table actions; максимум одно подтверждение после
+правки. Первоначальный content proof остаётся привязан к63e8ef9a, UI proof
+получит отдельный новый SHA. Это исправление наблюдённых дефектов, не redesign.

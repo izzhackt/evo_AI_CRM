@@ -237,14 +237,14 @@ final class SupabaseService {
 
     /// Current programme-scoped requirements; preserves uninitialized and
     /// needs_configuration instead of treating them as an empty ready checklist.
-    func studentApplicationRequirements(studentCaseId: UUID, applicationId: UUID) async throws -> ApplicationRequirementsView {
+    func studentApplicationRequirements(studentCaseId: UUID, applicationId: UUID) async throws -> ApplicationRequirementsV2View {
         struct Params: Encodable, Sendable {
             let p_student_case_id: String
             let p_application_id: String
         }
         do {
-            let result: ApplicationRequirementsView = try await client
-                .rpc("student_application_requirements_v1", params: Params(
+            let result: ApplicationRequirementsV2View = try await client
+                .rpc("student_application_requirements_v2", params: Params(
                     p_student_case_id: studentCaseId.uuidString.lowercased(),
                     p_application_id: applicationId.uuidString.lowercased()
                 ))

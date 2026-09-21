@@ -12542,3 +12542,17 @@ See docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md and its actual QA receipt.
 This append is precode only, awaiting independent exact-head review.224 remains
 B-reserved; A has no new migration number or apply/Auth-write window. Production
 release and new QA identities are not authorized by this planning slice.
+
+
+## 2026-09-21 — CRM-09d: сохранить местную дату оплаты
+
+В рамках пункта12 найден отдельный дефект: `recordCasePaymentAction` получает
+время Бишкека из формы, переводит его в UTC и отрезает дату UTC. До06:00
+местная дата становится предыдущей; на границе месяца меняется и месяц.
+Исправить только получение DATE для `record_case_payment_v1`, сохранив
+проверку календаря/времени, права, request ID и существующий timestamp-путь
+общего финансового журнала. Миграция и изменение прежних записей не нужны.
+Проверить чистый parser на границах дня/месяца/года и invalid input; после
+окна KB32 проверить существующий ordinary UI путь без подмены hidden времени.
+Финансовый CRM→Student путь остаётся отдельной фактической приёмкой;
+чистый тест даты не выдаётся за исполнение оплаты или production release.

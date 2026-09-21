@@ -35382,3 +35382,17 @@ See docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md and its actual QA receipt.
 This append is precode only, awaiting independent exact-head review.224 remains
 B-reserved; A has no new migration number or apply/Auth-write window. Production
 release and new QA identities are not authorized by this planning slice.
+
+
+## 2026-09-21 — CRM-09d: ошибка календарной даты в оплате из карточки
+
+Source67934327: `financeDateTime` возвращает UTC ISO; `recordCasePaymentAction`
+применяет `slice(0,10)` к UTC, хотя RPC189 принимает местный DATE и сам
+считает midnight Asia/Bishkek. Чистое исполнение текущего parser подтверждает
+ошибку для00:00–05:59, в том числе первого дня месяца и года. Выбран узкий
+fix: валидировать исходный datetime-local существующим parser, затем брать
+его местную календарную дату. Существующий timestamp-parser общего журнала
+не меняется, финансовые записи и SQL не переписываются. Это независимо от
+KB32/A225/B224; реализация offline, фактическая UI-проверка после их окон.
+Impeccable не требует визуальной правки для этого backend-дефекта; если
+связанный UI покажет проблему, его scope и совет фиксируются отдельно.

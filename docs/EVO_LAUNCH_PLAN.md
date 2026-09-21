@@ -13410,6 +13410,27 @@ applied once with no Auth/submission/business writes; window passed B232.
 No production delivery or whole1–36 completion claimed.
 
 
+### CRM-02e: authorized direction options —2026-09-21 precode
+
+After #995 merge a23490f7, implement accepted item7 direction selector using
+separate read-only RPC233. Existing v1/v2 report and writes stay unchanged.
+Organization and per-row authority precede DISTINCT; include all authorized
+periods/archive states, preserve exact strings/C order, reject overflow above
+1000 or unfilterable legacy values instead of silently truncating/normalizing.
+Strict DTO and shared500-code-point validator; native GET select retains
+unknown current URL values, filters/period/Back/reset. Explicit option error
+keeps exact-text input available without pretending empty success.
+See docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md for scope, grants and acceptance.
+Source-only while B232 owns QA; ROOT coordinates any later local apply.
+No production or fixture creation is authorized by this entry.
+
+
+CRM-02e source implementation: separate RPC233, strict options DTO and shared
+500-code-point validator; native select/error/empty/current-URL identity retained.
+17 targeted Node tests, scoped lint, normal typecheck and static SQL parse PASS.
+Actual local SQL/Auth/UI not run while B232 owns QA. See
+`docs/qa/crm-sales-directions-source-2026-09-21.md`; no deployment claim.
+
 ## 2026-09-21 — B3g.2 latest-main integration before actual QA
 
 Merge main `a23490f746c9d13398712eed5e26dffd2330760b` into reviewed UI head
@@ -13474,3 +13495,79 @@ Primary behavior references checked 2026-09-21:
 - MDN aria-live: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-live — pre-existing polite regions expose later short updates.
 - W3C status messages: https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html — expose action outcomes without unnecessary focus changes.
 - Next generateMetadata: https://nextjs.org/docs/app/api-reference/functions/generate-metadata — use the existing server metadata API with request locale.
+
+### CRM-02e local233 acceptance and integration —2026-09-21
+
+Local apply233 at35499c33 passed exact functions/ledger/ACL preservation. Ordinary
+Sales/Admin directions are ready-empty, consistent with all five retained QA
+sales having no populated direction. The previous v2 report, totals, native GET
+and record/back period survive. An observed alignment/accessible-name defect was
+corrected in1b903e23 and confirmed at1440/390/320 for both roles in the second
+bounded visual pass. Populated selection, other-tenant positive data, overflow,
+VoiceOver and production are not claimed. See
+`docs/qa/crm-sales-directions-actual-2026-09-21.md`.
+
+Full290 business tables/catalog/effects/Storage and incoming224 sessions/239
+refresh rows equal baseline after own logout. Only ordinary Auth user metadata
+and six Auth audits changed. Own runtimes closed; released233 window to A234.
+Mainc47a8137 package UI is integrated without changing either product scope;
+only additive plan appendices conflict. Update the1–36 ledger with completed
+B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gaps.
+Remaining item7 work is department-target visibility and import placement, not
+an already-correct cash-summary permission rewrite.
+
+
+### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
+
+A15f is merged in #992 / ca7c98ec2. Implement the bounded contract in
+[case-chat queue plan](EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md): three queues
+from existing await_state, additive staff reader v2 with q/filter before the
+200-row limit, shared search race guard, current-list invalidation and durable
+selected conversation context. Existing v1, commands, rights, drafts and EVO
+identity remain. Selected-case title outside the queue uses the existing
+authorized full-case snapshot only after chat access; no extra list scan.
+Native history replaceState preserves q/queue without remounting the composer.
+
+ROOT reserved 234 for A; ROOT233 must merge first. Source-only work and review
+can proceed while B owns local QA. Actual migration/API/browser work requires
+ROOT's scheduled window and separately pinned effects. No full item11, shared
+runtime or production success is claimed by this precode entry.
+
+#### A11 / CRM-07 first QA correction — 2026-09-21
+
+Local234 first real UI pass at999040d0 found history-restoration and320px
+selected-chat defects. Apply the bounded correction in the case-chat queue plan:
+URL-owned filter context, fresh authorized history reads and shrinking mobile
+layout, retaining draft/attachment and commands/rights. SQL/apply234 unchanged;
+three permitted await commands restored none. Independent correction review,
+then at most one read-only confirmation batch and full finite-effects closure.
+
+#### A11 / CRM-07 actual local234 result — 2026-09-21
+
+[Actual report](qa/case-chat-queues-actual-2026-09-21.md): SQL234 applied once on
+999040d0; ordinary staff/Student boundaries and three await transitions passed.
+Actual history/320px defects were corrected and one confirmation batch passed
+on37f3d9860. Draft/document card persisted; no messages/file bytes/new actors.
+Full290-table/33-Auth-Storage reconciliation passed with exactly one thread,
+three await receipts/audits, finalnone; incoming224sessions/239refresh preserved.
+Own Auth/browser/server closed. Independent actual/closure review approved;
+window released B1003, which waits for merge1002. Final-head review/merge remain
+gates; production, broad E2E and unsupported positive QA states unclaimed.
+
+## 2026-09-21 — B item25 integration and admitted local234 UI window
+
+After merged PR1002/main `479dd6788b87fc14d4d9e3e809c16e9efff1badd`,
+merge that main once into reviewed PR1003/source `622e40e209e8b3ead33ddb0c04d849654110f7a2`.
+Resolve only additive plan conflicts, preserving both parents and all product
+code. A234 release `bb97645c266ea2fedcfb8ce97d28560313bdf74ff324989421953b1d4050bf90`
+transfers the existing local schema001–234 to B1003; do not reapply SQL234.
+Independent integration review precedes the finite UI check: existing ordinary
+Student, own language RU→KY→RU, affected route titles, pending focus/repeated
+activation, at most one existing available lesson draft/start and one answer,
+and an existing review item only if present. No completed lessons or fixtures
+are created to populate the review bank. Preserve incoming business/Auth/Storage
+state except exact ordinary owned effects; capture complete before/final state
+and close own browser/Auth/server. Desktop/320px observations are actual visual
+evidence; speech is unclaimed unless a screen reader is actually exercised.
+No native unlock, production action, installs or full builds. Release the window
+with raw state/schema001–234 and exact runtime/config/observer pins to ROOT235.

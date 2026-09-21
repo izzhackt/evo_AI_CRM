@@ -35952,6 +35952,65 @@ Owner-scoped восстановление package intent поэтому дост
 не переписываются; новая нумерация не даёт B права на локальное применение.
 
 
+## 2026-09-21 — B3g.1: серверный контракт комплекта, offline implementation
+
+После принятого precode #998 (`8b942d506ab575042a1684bdccbd685d566d84fc`)
+координатор разрешил первый кодовый блок: миграция 232, атомарная отправка/проверка
+комплекта, чтение/история/уведомления, общий TypeScript/Swift codec и восстановление
+запроса. UI входит в следующий блок; текущий сохраняет все правила
+[контракта B3g](platform/b3g-program-package-contract.md).
+
+В отдельном worktree SQL-агент владеет только новой миграцией и SQL-тестами,
+серверный агент — новыми adapters/routes и их тестами, native-агент — новыми
+Swift models/pending и codec-тестами. B владеет общим wire, TypeScript codec,
+fixtures, pending и документацией. Общие файлы меняются только своим владельцем.
+Перед реализацией фиксируется точный JSON/RPC контракт; 1–100 пунктов комплекта
+не ограничиваются прежним лимитом 50 отдельных document DTO.
+
+Сейчас разрешены только offline проверки исходников, парсинга и codec; локальное
+окно DB/Auth/Storage/browser остаётся у ROOT для 229/230, затем A15f. Миграции
+230 ROOT и 231 website не копируются и не меняются из чужих PR. Их интеграция
+выполняется явно после слияния; CI может ожидать эти зависимости. До independent
+review и узкой реальной проверки функция не объявляется принятой или готовой
+в production. Native typecheck также не является UI acceptance.
+
+
+B3g.1 wire уточнение до review: оба ответа восстановления (`committed` и
+`not_written`) содержат requestId и case/application, проверяемые по frozen intent.
+Одного operation недостаточно: запоздавшее подтверждение отсутствия записи для
+другого запроса не должно очищать pending. SQL, TypeScript и Swift используют
+одинаковую корреляцию; бизнес-операции и полномочия не расширяются.
+
+
+B3g.1 initial offline validation: 73 scope-local Node checks passed (package
+codec/pending/actions/SQL source and affected 228 document contracts), TypeScript
+noEmit passed, scoped ESLint and diff-check passed. Swift author ran the shared
+fixture and pending/recovery checks: 92 passed. SQL author parsed 96 statements
+and 19 PL/pgSQL bodies with pglast. These are source/codec checks only; SQL object
+resolution, real ordinary-Auth transactions, Storage effects, UI and native screen
+behavior remain unverified until a separately coordinated runtime packet. The
+source block now goes to independent exact-head review; it does not complete B3g.
+
+
+B3g.1 independent review at `071dd526` requested two bounded corrections:
+use the inherited two-valued Student classification for configurable staff whose
+coarse platform role is NULL, and reject U+0000 in package correction reasons
+before TypeScript/Swift pending persistence. PostgreSQL JSONB cannot represent
+U+0000, so both mutation and recovery would fail before entering the RPC
+([PostgreSQL 17](https://www.postgresql.org/docs/17/datatype-json.html)). Other
+supported controls and the 5000-scalar limit remain unchanged. Swift also aligns
+with TypeScript by rejecting reuse from the same submission. Pending retention,
+authorization and request correlation are preserved; these fixes require fresh
+scoped checks and exact-head delta review, not new runtime claims.
+
+Bounded-fix validation: 43 TypeScript codec/pending/action checks and 22 SQL
+source checks passed; the Swift author ran 101 checks successfully. TypeScript
+noEmit, scoped ESLint and diff-check passed; SQL parsing still covers 96 statements
+and 19 PL/pgSQL bodies. These fresh checks cover the changed boundaries; the
+unchanged 228 document-codec evidence remains from `071dd526`. Actual runtime
+validation is still pending coordination.
+
+
 ## 2026-09-21 — CRM-09e: local acceptance и передача окна A15f
 
 [Фактический QA-отчёт](platform/payment-receipt-local-qa-2026-09-21.md) фиксирует
@@ -36020,3 +36079,15 @@ Only this slice's migration references are updated. Prior source/review receipts
 at `d7a7d1d7457783c97b2e1792f730464c07b25494` remain historical evidence for the
 unchanged implementation; the rename commit needs its own narrow independent
 review. No rebase, database apply, lead submission or deployment is performed.
+
+
+## 2026-09-21 — B3g.1: integration after 229–231 source merges
+
+At coordinator GO, integrate main `b4aed5e348c31fee43fe820179a8e8aade73763d`
+(#990 and #996) into the reviewed package source `6635d454`. Preserve all reviewed
+232, TypeScript and Swift implementation/test bytes and both additive document
+branches. Incoming231 changes only website enquiry RPCs; it adds no package
+contract dependency. Existing local checks remain attributed to their original
+heads; this integration receives independent exact-head delta review and fresh CI.
+Shared runtime remains exclusively A15f; B232 actual QA follows ROOT995 and ROOT231.
+No UI implementation, DB/Auth/Storage/browser action or production claim is added.

@@ -67,7 +67,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   }
   if (!data.user?.email_confirmed_at) {
     const pending = await readPendingStudentSignup();
-    if (pending) return <SignupConfirmationFrame><SignupConfirmationPending initial={pending} locale={locale} /></SignupConfirmationFrame>;
+    if (pending) return <SignupConfirmationFrame><SignupConfirmationPending initial={pending} locale={locale} restored /></SignupConfirmationFrame>;
   }
   return <ApplicationWizard requestId={randomUUID()} draft={draft} signedInEmail={email} draftOwnerId={email ? data.user?.id : null} expectedRevision={revision} namePrefill={namePrefill} year={new Date().getUTCFullYear()} locale={locale} />;
 }

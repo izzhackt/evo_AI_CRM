@@ -66,3 +66,9 @@ protected reader pattern. These sources do not replace the tenant/staff checks.
 
 Independent precode approval: `08c1a1082a3477aa78e5e2aa2100ff41dde2e8261cfb925385845c1ff9fa21ad`
 for proposal `d8bf2a20ca7c21d9d4087bd62ed0bf410bca5e57395fc1a75a68d01bb40ad7f1`.
+
+Source review found that React's uncontrolled select does not apply a changed
+defaultValue on client Link reset when its options remain. Key only the staff
+country select by the committed country filter, so reset reflects the URL while
+unrelated controls and the Student branch retain their identity. Real reset
+acceptance remains part of the planned UI pass.

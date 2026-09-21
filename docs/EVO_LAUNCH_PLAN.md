@@ -14133,3 +14133,8 @@ After #1010 merged at59a726b5, implement the bounded [staff country facet](platf
 ## 2026-09-21 — ROOT14 published-country source implementation
 
 [Source evidence](qa/staff-catalog-country-facet-source-2026-09-21.md) records productf8622d86: additive236 staff-only scoped country RPC, strict complete-facet DTO and staff select wiring. Seven pure tests, scoped lint/typecheck and SQL/PLpgSQL syntax checks passed. The selected missing country remains explicit; no static-list/empty-success fallback masks errors. Existing Student rendering, data and other readers are preserved. Exact-head source review, CI and coordinated local migration/ordinary Auth/UI remain pending; no runtime or production acceptance is inferred.
+
+
+## 2026-09-21 — ROOT14 source review correction: country reset
+
+Independent source review3f5c74a4 found one P2: the uncontrolled country select can retain CN after a client Link resets the URL. Key only the staff select by committed country; preserve other controls and Student behavior. This implements the existing filter/reset contract, not a new feature. Actual reset remains unverified until the coordinated UI pass; the earlier failed source verdict is retained.

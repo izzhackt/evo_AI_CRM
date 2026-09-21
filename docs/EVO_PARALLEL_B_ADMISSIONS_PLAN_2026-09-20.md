@@ -2,7 +2,25 @@
 
 Исходная ревизия при создании плана: `3ac6f326c`. Владелец потока: B; координация main, схемы и выпусков — root. Каждый владелец может вести согласованные appendices в своём изолированном worktree; root координирует интеграцию всех сторон. Разрешённый scope: пункты 2, 13, 17–21, 23–28, 31–32; пункты 37–50 не запускаются. Текущие проверенные статусы ниже не означают завершение всего плана или production delivery.
 
-## Текущий checkpoint — 21 сентября 2026
+## Текущий B checkpoint после редактора226
+
+#988 MERGED `28613990d3b3ba3b66053571cc3c6e8391cc35e7`; actual local source
+`6cdacc76`, reviewed integration `b884900a`, CI35562845122 green. Три Admin UI
+save,14 ordinary reads и Student desktop/mobile выполнены в пределах
+[квитанции](platform/b3e2-requirements-editor-qa.md). Полный RAW226/282 tables
+release `bcb7ed6d` передан A227; это не production delivery или весьB-3.
+
+Следующий B3f — один документ: сохранить → явно отправить → получить scoped
+решение → исправить. Root резервирует228, [precode](platform/b3f-program-document-submission-contract.md)
+принят независимым review на `b81c338c`. Web/iPhone/SQL исходники реализованы;
+исправления независимого source review и exact-head интеграция продолжаются.
+[Проверки и remaining QA](platform/b3f-program-document-submission-qa.md) отделяют
+офлайн-доказательства от ещё не исполненных реальных сценариев. Отдельный полный
+packageB3g, native UI и оставшийсяB-план не завершены. Root обновил очередь:
+ROOT990 закрывает своё окно на227 → ROOT991 read-only UI → B228 → ROOT229.
+B228 не применена; production authority отсутствует.
+
+## Исторический checkpoint до #988 — 21 сентября 2026
 
 Срез исходников: main `82260fdc2df3b6d370092633cf1ac1c350fe9af6` после #991.
 Прежние принятые блоки сохраняются; #967, #975–#979 и #981–#986 — MERGED.

@@ -5,7 +5,7 @@ import { requirePlatformStaffActor } from "../platform-guards";
 import { parseUniversityFilters, universityUuid, type UniversityPage } from "../platform-university-catalog";
 import { readStaffCaseCatalogPreparations } from "../portal/catalog-preparations-source";
 import type { ApplicationRequirementsV2 } from "../portal/application-requirements-v2";
-import { readStaffApplicationRequirements } from "../portal/application-requirements-source";
+import { readStaffApplicationDocuments } from "../portal/application-documents-source";
 import { parseApplicationRequirementsTarget } from "../portal/application-requirements";
 import type { CatalogPreparation } from "../portal/catalog-preparations";
 import { readStaffUniversities } from "./university-source";
@@ -65,7 +65,10 @@ export async function readStaffPreparationRequirementsAction(input: unknown): Pr
   const target = parseApplicationRequirementsTarget(input);
   if (!target) return { status: "invalid" };
   try {
-    return { status: "ready", value: await readStaffApplicationRequirements(target.studentCaseId, target.applicationId) };
+    // Initialization only needs the definition state. New document UI consumes the
+    // full program reader so legacy material reviews cannot become program acceptance.
+    const documents = await readStaffApplicationDocuments(target.studentCaseId, target.applicationId);
+    return { status: "ready", value: documents.requirements };
   } catch {
     return { status: "unavailable" };
   }

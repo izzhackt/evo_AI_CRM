@@ -42,6 +42,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
   // with its own reader/view — see the "direct strict E2 result" test below.
   assert.deepEqual(pageFiles, [
     "src/app/(portal)/portal/applications/page.tsx",
+    "src/app/(portal)/portal/document-notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/documents/page.tsx",
     "src/app/(portal)/portal/english/lesson/[lessonId]/page.tsx",
     "src/app/(portal)/portal/english/page.tsx",
@@ -54,6 +55,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/notifications/page.tsx",
     "src/app/(portal)/portal/page.tsx",
     "src/app/(portal)/portal/payments/page.tsx",
+    "src/app/(portal)/portal/preparations/[applicationId]/page.tsx",
     "src/app/(portal)/portal/professions/[cardId]/page.tsx",
     "src/app/(portal)/portal/professions/page.tsx",
     "src/app/(portal)/portal/profile/page.tsx",

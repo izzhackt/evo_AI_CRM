@@ -12889,3 +12889,40 @@ Docs-only на main `82260fdc`: обновлены current fronts execution/A/B 
 сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
 DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
 Проверка: diff review и git diff --check; независимое exact-head review до merge.
+## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
+
+#988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
+release `bcb7ed6d` передан A227, B больше не использует общий runtime.
+Root резервирует228 только для следующего single-document B3f; очередь
+A227→ROOT990→ROOT991 сохраняется, apply не разрешён.
+
+Source inventory055/043/116/128/226 показал, что общий current/status и прежний
+review автоматически связали бы A/B. Принято направление отдельных immutable
+program upload/submission/review/download contexts при тех же canonical bytes
+и scan/Storage transport. Старые Docs/manual/visa и approved ZIP guards сохраняются.
+[Precode228](platform/b3f-program-document-submission-contract.md) фиксирует
+approved-current replacement, exact historical-version download, fail-closed
+old readers и узкий SQL context-exclusion на legacy replay-входах. Последнее —
+явное compatibility amendment для review, не глобальное изменение legacy-процесса.
+До кода — независимое exact precode review; следующий полный package B3g отдельно.
+Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
+состояния. Runtime/новые файлы/production/native acceptance не заявлены.
+
+Независимый precode review64d4324e потребовал два уточнения до реализации:
+история следует server-proven predecessor-цепочке226 и доступна также для
+удалённых требований; прежнее решение не переносится в новую definition.
+Old-reader PT409 ограничен публичными entrypoints; общий v2 helper сохраняет
+внутреннюю projection для свежего editor/save226 и authorized pending recovery.
+Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
+не исполненное runtime-доказательство.
+
+### B3f — исходники и независимое source review
+
+Precode `b81c338c` APPROVED. Реализованы SQL228, web/CRM и iPhone save/submit/
+review/history/notification flow. Source reviews проверили отдельно transport,
+SQL, native и web/UX; конкретные найденные ошибки исправляются до immutable
+integration review. [Отчёт](platform/b3f-program-document-submission-qa.md)
+содержит офлайн-проверки, прежние несвязанные source-test failures и предложенные
+actual changed-path сценарии. Это не применённая228 и не готовый production flow.
+Root сохраняет228 за B, резервирует229 для receipt-пути; актуальное runtime окно
+после ROOT990: ROOT991 → B228 → ROOT229. Разрешение на запуск B ещё не передано.

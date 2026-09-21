@@ -36983,6 +36983,20 @@ review and git diff --check only; no product tests, runtime or production action
 Final exact-head documentation review and protected CI still gate #1010 merge.
 
 
+## 2026-09-21 — ROOT14 country facet implementation contract
+
+After #1010 merged at59a726b5, implement the bounded [staff country facet](platform/staff-catalog-country-facet.md). ROOT reserves236 after fresh source inventory001–235. The current static ISO menu will use the complete authorized published-country projection for staff only; Student controls, six-country admissions scope, compact rows and existing readers stay intact. One additive staff-only RPC, strict DTO, explicit failure and preserved absent-country deep links. Precode review08c1a108 approved; Impeccable Operate applies. A1014 retains sole shared-QA ownership until strict release; this contract authorizes source work, not concurrent runtime or production. Source/actual/final review and protected CI remain required; known single-country data cannot prove multi-country/pagination positives.
+
+
+## 2026-09-21 — ROOT14 published-country source implementation
+
+[Source evidence](qa/staff-catalog-country-facet-source-2026-09-21.md) records productf8622d86: additive236 staff-only scoped country RPC, strict complete-facet DTO and staff select wiring. Seven pure tests, scoped lint/typecheck and SQL/PLpgSQL syntax checks passed. The selected missing country remains explicit; no static-list/empty-success fallback masks errors. Existing Student rendering, data and other readers are preserved. Exact-head source review, CI and coordinated local migration/ordinary Auth/UI remain pending; no runtime or production acceptance is inferred.
+
+
+## 2026-09-21 — ROOT14 source review correction: country reset
+
+Independent source review3f5c74a4 found one P2: the uncontrolled country select can retain CN after a client Link resets the URL. Key only the staff select by committed country; preserve other controls and Student behavior. This implements the existing filter/reset contract, not a new feature. Actual reset remains unverified until the coordinated UI pass; the earlier failed source verdict is retained.
+
 ### A1014 — actual принят, строгая передача QA и интеграция main
 
 Exact source2f467e5b прошёл один existing-data UI batch1440/390/320 без коррекций.
@@ -37048,3 +37062,37 @@ cases, typecheck и targeted lint PASS; exact actor/unread/ACL source225 preserv
 ROOT236/#1016 ещё не в базе main24e78024:001–235,236 не дублируется. До finalCI/
 actual237 — интеграция ROOT236 после merge и отдельный handoff послеB1015.
 Draft PR/source review впереди; actual/review/protectedCI остаются merge gate.
+
+## 2026-09-21 — ROOT14 country facet actual and main integration
+
+Actual deeaed89 passed one local236 CLI apply and one ordinary Admin/Student
+RPC/UI batch1440/390/320. Published CN, absent MY, native GET search/level/combined,
+country Link reset and full reset passed. No suspected inherited reset failure
+occurred. Own logouts204/browser/server closure and strict final290/33 preserved
+all business data and incoming224/239/224 sessions/refresh/AMR; only two own users'
+sign-in metadata and four Auth audits differ. [Actual evidence](qa/staff-catalog-country-facet-actual-2026-09-21.md)
+records the finite scope, missing datasets and independent review28f1a365.
+No production or catalogue write occurred. QA was released to ROOT, then a
+separate coordinator handoff assigned B1015 with a fresh binding still required.
+
+Integrate main24e78024 after #1014's accepted final head5f46d6ac and CI35635247615;
+retain both journal histories, unchanged country product bytes from deeaed89
+and incoming chat files from main. Correct current item14/15/22 and local236
+status without rewriting historical receipts. Source checks and unchanged
+runtime evidence are reused; integration/docs need diff/parity review and the
+protected final PR checks, not another visual cycle. Whole item14/manage,
+whole items1–36 and production remain incomplete.
+
+
+### A237 — интеграция канонической236, source перед повторным exact-head review
+
+ROOT1016 смержен в main9f7dde1d8b040d555af647a2b89628d06d6b921f
+2026-09-21T18:33:21Z. Интегрируем этот main в проверенный9fc0785c; все пять
+A237 source/test/SQL файлов побайтно сохранены, импортированные файлы ROOT236
+равны main. Оба append-only журнала сохраняют записи обоих родителей. Repo
+миграции теперь001–237; это не подтверждение применения237 к локальной базе.
+
+Источник и16 protocol cases прежние; повтор локальных product tests не нужен
+из-за одной интеграции независимого staff country reader. Проверяем diff,
+parity и fresh protected CI. Exact-head review впереди. Shared QA остаётсяB1015;
+apply/RPC237 и второй rail UI блок не запускались.

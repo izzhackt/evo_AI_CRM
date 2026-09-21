@@ -13675,3 +13675,12 @@ Precode independent review APPROVED (private SHA
 ROOT source work is isolated; A1005 then B1006 own the shared local runtime.
 Actual7b verification waits its coordinated window; populated/custom-role and
 refresh-retention scenarios are only claimed when really exercised.
+
+## 2026-09-21 — ROOT item7b source implementation
+
+[Source proof](qa/crm-sales-import-placement-source-2026-09-21.md): existing
+import form now mounts only in its own guarded mode; report and Settings keep
+scoped links. Safe internal Back retains the report context; explicit editor/row
+destinations retain precedence. Forms/actions/SQL/readers are unchanged. Seven
+navigation tests, scoped lint and typecheck passed; ordinary UI/Auth/refresh
+acceptance remains pending after A1005 and B1006. No import or production write.

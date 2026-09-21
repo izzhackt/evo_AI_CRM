@@ -13017,3 +13017,28 @@ Add regression coverage for no-current versions and malformed/current-pointer
 mismatches, then reopen this same actual case and complete the ordinary receipt
 journey. Source229 apply proof remains atfcfabafa with unchanged SQL; subsequent
 UI evidence must record its newer runtime head separately, never relabel the apply.
+
+
+## 2026-09-21 — CRM-09e actual audit-action failure and forward migration230
+
+Actual ordinary Admin upload on e17e1e52/schema229 reached real ClamAV and
+Storage (POST200), then PostgreSQL rejected `case.payment_receipt.upload` against
+the existing041 `audit_events_action_check`: every dot-separated action segment
+permits lowercase letters/digits, not underscores. The handler returned503 and
+removed only its new object (DELETE200). Full287-table, financial, audit, Storage,
+prefix and Auth-session before/after comparisons are exactly equal; no successful
+receipt exists and no retry has been performed.
+
+Before coding, ROOT reserves230 for a forward-only fix of this receipt function's
+two internal action literals to canonical `case.payment.receipt.upload`. Preserve
+the041 constraint,229 SQL/ledger, all auth/lock/idempotency/body/ACL semantics,
+receipt result and financial data. Assert the expected two replacements and exact
+function identity; fail on an unexpected predecessor. No contract-file expansion.
+Use the canonical action in later actual metadata replay/evidence. The former
+action could not persist under the unchanged mandatory audit constraint.
+
+Website receiver PR996 moves its unapplied migration230 to231; B3g package
+precode moves231 to232. OnlyROOT applies, in order. Verify230 on the actual local
+229 baseline with rollback first, canonicalCLI apply once, preserved full state,
+then a separately recorded new ordinary UI attempt. The prior503 remains failure
+evidence; never relabel it or rewrite migration229.

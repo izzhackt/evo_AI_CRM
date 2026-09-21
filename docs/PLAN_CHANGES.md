@@ -36983,6 +36983,20 @@ review and git diff --check only; no product tests, runtime or production action
 Final exact-head documentation review and protected CI still gate #1010 merge.
 
 
+## 2026-09-21 — ROOT14 country facet implementation contract
+
+After #1010 merged at59a726b5, implement the bounded [staff country facet](platform/staff-catalog-country-facet.md). ROOT reserves236 after fresh source inventory001–235. The current static ISO menu will use the complete authorized published-country projection for staff only; Student controls, six-country admissions scope, compact rows and existing readers stay intact. One additive staff-only RPC, strict DTO, explicit failure and preserved absent-country deep links. Precode review08c1a108 approved; Impeccable Operate applies. A1014 retains sole shared-QA ownership until strict release; this contract authorizes source work, not concurrent runtime or production. Source/actual/final review and protected CI remain required; known single-country data cannot prove multi-country/pagination positives.
+
+
+## 2026-09-21 — ROOT14 published-country source implementation
+
+[Source evidence](qa/staff-catalog-country-facet-source-2026-09-21.md) records productf8622d86: additive236 staff-only scoped country RPC, strict complete-facet DTO and staff select wiring. Seven pure tests, scoped lint/typecheck and SQL/PLpgSQL syntax checks passed. The selected missing country remains explicit; no static-list/empty-success fallback masks errors. Existing Student rendering, data and other readers are preserved. Exact-head source review, CI and coordinated local migration/ordinary Auth/UI remain pending; no runtime or production acceptance is inferred.
+
+
+## 2026-09-21 — ROOT14 source review correction: country reset
+
+Independent source review3f5c74a4 found one P2: the uncontrolled country select can retain CN after a client Link resets the URL. Key only the staff select by committed country; preserve other controls and Student behavior. This implements the existing filter/reset contract, not a new feature. Actual reset remains unverified until the coordinated UI pass; the earlier failed source verdict is retained.
+
 ### A1014 — actual принят, строгая передача QA и интеграция main
 
 Exact source2f467e5b прошёл один existing-data UI batch1440/390/320 без коррекций.
@@ -37051,3 +37065,42 @@ module; общий Portal/Auth/Next contract не менялся. B product/test
 ещё равныfd7f0900, без новых исправлений или повторного runtime. Предыдущий
 headf0c346cd не получил CI из-за опередившего merge; новый frozen head должен
 получить свои checks. Actual B остаётся после ROOT_COUNTRY236handoff.
+## 2026-09-21 — ROOT14 country facet actual and main integration
+
+Actual deeaed89 passed one local236 CLI apply and one ordinary Admin/Student
+RPC/UI batch1440/390/320. Published CN, absent MY, native GET search/level/combined,
+country Link reset and full reset passed. No suspected inherited reset failure
+occurred. Own logouts204/browser/server closure and strict final290/33 preserved
+all business data and incoming224/239/224 sessions/refresh/AMR; only two own users'
+sign-in metadata and four Auth audits differ. [Actual evidence](qa/staff-catalog-country-facet-actual-2026-09-21.md)
+records the finite scope, missing datasets and independent review28f1a365.
+No production or catalogue write occurred. QA was released to ROOT, then a
+separate coordinator handoff assigned B1015 with a fresh binding still required.
+
+Integrate main24e78024 after #1014's accepted final head5f46d6ac and CI35635247615;
+retain both journal histories, unchanged country product bytes from deeaed89
+and incoming chat files from main. Correct current item14/15/22 and local236
+status without rewriting historical receipts. Source checks and unchanged
+runtime evidence are reused; integration/docs need diff/parity review and the
+protected final PR checks, not another visual cycle. Whole item14/manage,
+whole items1–36 and production remain incomplete.
+
+
+### B1015 — один offline single-form actual, закрытие и main9f7dde1d
+
+На frozenfa4ad8e8 существующий Student выполнил один Enter в одиночной форме
+уведомления с offline только собственного browser context. Единственный matching
+POST отказал ERR_INTERNET_DISCONNECTED; RU local alert, pending, восстановление
+кнопки/фокуса и неизменное read-state/list/document наблюдались. Retry/positive/
+bulk/detail не выполнялись. Своя local Auth logout204, cookies/browser/captures
+и Next закрыты; strict final290/33 PASS, zero business/Storage writes.
+[Actual](qa/portal-notification-read-feedback-actual-2026-09-21.md) сохраняет
+полные SHA и ограничения. Среда передана ROOT_COORDINATOR; independent actual
+review `94914f03` принято координатором. Пункты23–24, native, полный E2E и production не закрыты.
+
+После закрытия согласована files-only интеграция main9f7dde1d (#1016/236).
+Все6 B product/test files побайтно равныfd7f0900, incoming main code и полные
+ordered истории обоих journals сохранены. Строки14/15/22/31/32 ведомости
+сохранены изmain; строка24 дополнена узким actual и gaps. Повторного QA или
+тестов не было; прежний CI35635859635 относится кfa4ad8e8. Интегрированному
+final head ещё нужны независимое review и protected CI перед merge.

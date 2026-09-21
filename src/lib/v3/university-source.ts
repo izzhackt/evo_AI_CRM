@@ -4,6 +4,7 @@ import type { ActivePlatformActor } from "../platform-auth";
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
 import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityFilters, type PublishedUniversity } from "../platform-university-catalog";
 import { createSupabaseServerClient } from "../supabase/server";
+import { parseStaffUniversityCountries } from "../university-staff-countries.ts";
 import chinaContent from "../server/university-catalog-reviewed-china.json";
 import malaysiaContent from "../server/university-catalog-reviewed-malaysia.json";
 import europeContent from "../server/university-catalog-reviewed-europe.json";
@@ -20,6 +21,14 @@ export async function readStaffUniversities(actor: ActivePlatformActor, filters 
   const page = !error && parseUniversityPage(data);
   if (!page || (id !== null && page.items.some((item) => item.id !== id))) throw new Error("Catalogue unavailable");
   return page;
+}
+export async function readStaffUniversityCountries(actor: ActivePlatformActor) {
+  if (!staffHasPermission(actor, "catalog.read")) throw new Error("Catalogue unavailable");
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_university_catalog_countries", { p_organization_id: actor.organizationId });
+  const facet = !error && parseStaffUniversityCountries(data, actor.organizationId);
+  if (!facet) throw new Error("Catalogue unavailable");
+  return facet;
 }
 export async function readStudentUniversities(_actor: ActiveStudentPortalActor, filters = EMPTY_UNIVERSITY_FILTERS, id: string | null = null) {
   if (id !== null && !universityUuid(id)) throw new Error("Catalogue unavailable");

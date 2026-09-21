@@ -124,3 +124,52 @@ sequence. Already passed 390 Week/Back/Escape and 1440 are excluded. The remaini
 390 same/different-destination and 320 checks stay queued after A15 and B1006,
 with a new fresh source/release/actor binding. The proposal is UNBOUND and is not
 execution or runtime admission; neither item22 nor full UI acceptance is complete.
+
+
+## Latest checkpoint — ROOT22G remaining functional PASS and closure
+
+The single admitted remainder ran on unchanged product source
+`f5f8fef267dee7f8d7b42ae75edfb7b8dc2d1755`, after the incoming B1006 release.
+At 390 it completed same-sidebar group preservation/mobile close and a different
+navigation destination resetting the groups. At 320 it completed the ordinary
+bare Calendar return, explicit Month selection, next month, Back/Forward,
+Week/back-month, Escape/focus, same-sidebar preservation and different-destination
+reset. Exact rendered URL/period and trusted client Link assertions passed;
+the document epoch stayed unchanged and main-document requests stayed zero.
+History transitions were checked separately from Link clicks.
+
+Independent review **APPROVED_SCOPED_FUNCTIONAL_AND_CLOSURE** accepts this saved
+functional remainder. Combined with the prior accepted partial checks, the narrow
+client-navigation function is locally accepted. The earlier STOPs remain intact;
+this pass does not establish a cause for the older same-document STOP. No 1440
+or already-passed 390 Week/Back/Escape repeat, screenshots, visual correction,
+native-fallback success or automatic retry occurred in ROOT22G.
+
+Strict final reconciled all 290 business and 33 Auth/Storage tables, catalogue and
+effects: no business/Storage writes; original sessions, refresh tokens and AMR
+restored, only own sign-in metadata and two login/logout audits. Own ordinary
+Auth API logout(scope=local) returned 204, the owned browser closed, captured Auth
+file was removed, and the owned server/process group/port 33254 closed. User 33216
+remained untouched. Intentional Ctrl-C launcher exit 1 is preserved; UI logout
+and separate browser-cookie absence are not claimed. Release passed to A1014.
+
+| Private evidence | SHA-256 |
+|---|---|
+| Actual functional CLI result | `c6231c9a9899bdeee9cd251ea83c2e8fb1d1e73c22a6e0d9b65b71f92dd61b7e` |
+| Fresh final | `6e6e61bf757b8ac2163e14fbd14f30bfcd52eb6283945503256667cafe4d467a` |
+| Strict final verifier | `b431d34eec5646356bda3950300e094d55e04d73c2e2c407822b6390758bf846` |
+| ROOT22G release | `77a637144bd212ae2329d38ba6a21b25b822c34aed6b2592a4c5dff22b96e80a` |
+| Independent actual/closure review | `799f96ff3107f7b6514fe7588fa0cf508ade9ac846fd1e5f208304e3cc43eaaf` |
+
+The release's immutable productAcceptance=false records its creation before the
+independent actual review; it is retained, not rewritten. This checkpoint accepts
+only the scoped function, not all item 22, a new visual cycle, native GET/reload or
+session persistence, other roles, iPhone/VoiceOver, production or deployment.
+Final-head documentation review, protected CI and PR #1010 merge remain separate.
+
+Integration with main 8b6259ec retains both append-only histories, A1012 grouping,
+B1006's first negative profile path, and current catalogue/KB/download status.
+The four relevant shell/navigation files remain byte-identical to 32f50df4;
+all other incoming product files retain main bytes. Existing 19 pure-test and
+source-check evidence is reused; this documentation-only integration runs no
+product tests or runtime.

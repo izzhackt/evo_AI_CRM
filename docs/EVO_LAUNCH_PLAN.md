@@ -13479,3 +13479,27 @@ only additive plan appendices conflict. Update the1–36 ledger with completed
 B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gaps.
 Remaining item7 work is department-target visibility and import placement, not
 an already-correct cash-summary permission rewrite.
+
+
+### CRM-02f / item7a: atomic management state —2026-09-21 precode
+
+After #1001 mergece0ef573, ROOT implements only the confirmed department-target
+state/authority mismatch. New read-only RPC235 returns scoped target/import flags
+and the selected department target in one STABLE snapshot. Keep existing
+organization grant pairs and the current TS/UI report-read entry requirement;
+add that requirement to this new endpoint, without rewriting oldv1/v2 SQL.
+No extra finance rights, role changes, writes or target-history repairs.
+
+Target summary/form use the same authoritative result: confirmed denial hides;
+unknown stops submission and preserves mounted drafts; allowed empty alone means
+“Не задан”. Preserve version/reason/request conflict handling and selected import
+File across transient reader failure; existing save/import commands unchanged.
+All-year/archive fetch rights only; preview/invalid/record/editor skip this read.
+Cash already has correct scoped authority and is not part of this fix. Moving
+the import form remains the later7b block. Impeccable Operate applies within
+current EVO; inspect historical233 baseline, reread craft-floor beforeUIediting.
+
+Contract: docs/EVO_SALES_MANAGEMENT_STATE_PLAN_2026-09-21.md, independentprecode
+approveded9a5f93. Reserve235 behindA234; actualexisting-actor/read-onlyQA after
+B1003 releases sharedruntime. No production/fixtures/targetwrites/importsubmit
+or newAuthactors. Missing actor/data combinations remain explicitly unclaimed.

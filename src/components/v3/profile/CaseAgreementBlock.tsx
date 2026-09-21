@@ -2,6 +2,7 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview } from "@/lib/platform-access";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { Card } from "@/components/ui";
+import { CasePaymentReceiptUpload } from "./CasePaymentReceiptUpload";
 import { Pill } from "@/components/v3/Pill";
 import { financeMoney } from "@/lib/platform-case-agreement-contract";
 import { readCaseAgreement } from "@/lib/v3/case-agreement-source";
@@ -213,6 +214,7 @@ export async function CaseAgreementBlock({
                     {financeMoney(payment.amountMinor, payment.currency)}
                   </span>
                   <span className="text-xs text-fg-2">{payment.actorDisplayName ?? "—"}</span>
+                  {canWrite && payment.eventType === "payment" && payment.receipts.length === 0 ? <CasePaymentReceiptUpload paymentEventId={payment.id} /> : null}
                   {payment.receipts.map((receipt) => (
                     <a
                       key={receipt.id}

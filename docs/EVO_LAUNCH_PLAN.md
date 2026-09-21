@@ -12752,3 +12752,18 @@ APPROVED a0747bd3, final a2df3c2f. Own sessions/runtime завершены; full
 handoff cce0f273 передан B226 для fresh baseline. Подробности и пределы:
 `docs/qa/payment-calendar-date-2026-09-21.md`. Это ограниченная локальная
 проверка оплаты, не весь12/1–36 и не production release.
+
+### CRM-09e — следующий локальный срез: чек к существующей оплате
+
+Контракт исходного CRM-09 сохраняется. На main `70da1ed9` найден отсутствующий
+UI-вход к уже существующему receipt endpoint: после сохранения без файла и
+повторного открытия дела чек добавить нельзя. Добавить inline upload к
+receiptless payment под прежними write/preview gates; не создавать повторную
+оплату, не менять ledger, SQL, Storage policy или финансовые права.
+
+Сначала минимальная реализация и scoped checks; после общей очереди B226/A227
+один ordinary Admin upload к сохранённой fictional QA оплате и проверка
+сохранности суммы/баланса, metadata, scanner и Storage. Снимки до/после,
+неопределённый ответ без автоматического retry, desktop/mobile с Impeccable,
+независимое exact-head review и короткий CI. Actual upload, Student download,
+production и весь пункт12 до соответствующей квитанции не заявляются.

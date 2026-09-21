@@ -37020,6 +37020,94 @@ profile не входит в staff chat flow. Final exact-head review/CI/merge �
 весь item15/production этим срезом не закрывается.
 
 
+### A15 — bounded channel preview reader/DTO до кода, 2026-09-21
+
+После merge #1014 / main24e78024 независимый precode review7a844584 принял
+предложение1ee57581. [Контракт](EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md)
+разделяет reader/DTO и последующий rail UI. ROOT резервирует237 и разрешает
+только первый source блок: additive latestPreview в существующем channels RPC,
+strict decoder и pure monotonic snapshot/preview acceptance с protocol tests.
+Сохранить authority156, sparse unread225, current signature/grants/STABLE/DEFINER,
+index223; latest включает replies/tombstones, body cap240 Unicode characters.
+Нет новых таблиц/index/subscriptions/N reads/timers; права/Composer/feed/seen
+и UI не меняются. Late search/background metadata не должны воскресить закрытый
+канал или старое тело после удаления; null и malformed/failure различаются.
+
+План/journals записаны до кода в isolated izzhackt/team-chat-channel-previews.
+Shared QA остаётся ROOT236, затемB1015; apply237/Auth/browser/server/runtime
+здесь не разрешены. Source checks и draft PR — ещё не actual acceptance/merge.
+Фиктивные actors/messages/grants не разрешены; protected CI, independent review
+и отдельный принятый actual packet остаются обязательными до merge. Rail UI
+начинается после первого merge; весь15/1–36/production не объявляется готовым.
+
+
+### A237 — source clarification before decoder hardening
+
+Message id and sequence_id are globally unique in migration141. The strict
+channels decoder will also reject repeated latest-message id or sequence across
+different channel projections: this is an impossible wire snapshot, not a second
+valid copy. Add a meaningful protocol case for this invariant; no SQL/UI scope
+change. The first15 protocol cases passed before this addition. Initial local
+SQL-parity extractor selected225's earlier seen function; scoping extraction to
+team_chat_channels confirms unchanged actor/unread/ACL source. No DB ran.
+
+
+### A237 — reader/DTO source готов, actual ожидает окна
+
+Source8104e106 реализует bounded latestPreview в237 и strict decode единственного
+channels RPC; pure acceptance helper подготовлен для следующего rail UI блока.
+[Source evidence](qa/team-chat-channel-previews-source-2026-09-21.md):16/16 protocol
+cases, typecheck и targeted lint PASS; exact actor/unread/ACL source225 preserved.
+Никакой SQL/Auth/RPC/UI/runtime проверки ещё нет; helper в UI не подключён.
+ROOT236/#1016 ещё не в базе main24e78024:001–235,236 не дублируется. До finalCI/
+actual237 — интеграция ROOT236 после merge и отдельный handoff послеB1015.
+Draft PR/source review впереди; actual/review/protectedCI остаются merge gate.
+
+## 2026-09-21 — B24 notification feedback: предложение до реализации
+
+Прежний блок #1006 смержен в8b6259ec. Следующий ограниченный web-сценарий —
+[прочтение уведомлений](platform/portal-notification-read-feedback.md): существующие
+формы single/bulk не показывают локальную ошибку, а bulk может частично сохраниться.
+Включён второй single-consumer — ответ куратора; polling bell не затрагивается.
+Предлагается клиентская оболочка с нейтральным RU/KY сообщением и ручным повтором,
+без optimistic state и изменений серверного контракта/SQL. Catch не должен
+проглатывать Auth redirects; публичный unstable_rethrow остаётся явно указанной
+нестабильной зависимостью, которую координатор должен принять до coding.
+Это files-only precode, не новая authority для runtime/данных. QA сейчас A1014.
+
+### B24 — решение precode и source checkpoint
+
+Независимое APPROVED_PRECODE49b1f3e2 для0e4317c5 принято координатором;
+разрешён минимальный UI/source блок с публичным unstable_rethrow и сохранением
+его оговорки о стабильности. Наfd7f0900 реализован согласованный wrapper;
+восстановление потерянного при disabled фокуса ограничено исходной формой и
+body, без перехвата другого выбранного контрола. Серверный контракт, bulk loop,
+RPC, SQL и styling не менялись. Source проверки/четыре подтверждённых прежних
+UI-contract failures описаны в [checkpoint](platform/portal-notification-read-feedback.md).
+Реальный browser/Auth/DB actual не выполнялся и остаётся отдельным gate.
+
+
+### B1015 — source approval и интеграция main59a726b
+
+Независимое APPROVED_SOURCE_ONLYff585096 для1c296e85 принято координатором.
+Интегрирован свежий main59a726b (#1010): обе ordered journal histories сохранены,
+актуальные строки ведомости приняты без изменений. Все6 B product/test files
+побайтно сохраняют sourcefd7f0900; другие incoming main files сохранены.
+Никаких новых product edits, тестовых повторов или runtime-действий. Прежние
+source checks сохраняют свои ограничения, включая4 baseline UI-contract failures.
+Draft #1015 ждёт CI интеграционного head; прежний DIRTY/zero-CI не считается
+проверкой. Actual B только после handoff ROOT_COUNTRY236 и отдельного admission.
+
+
+### B1015 — свежий main24e78024 после параллельного merge #1014
+
+Пока отправлялась интеграция59a726b, A1014 вошёл вmain24e78024. Он также
+интегрирован files-only: сохранены актуальные статусы и полные ordered истории
+обоих потоков. Входящий код относится только к staff team-chat component/CSS
+module; общий Portal/Auth/Next contract не менялся. B product/test bytes всё
+ещё равныfd7f0900, без новых исправлений или повторного runtime. Предыдущий
+headf0c346cd не получил CI из-за опередившего merge; новый frozen head должен
+получить свои checks. Actual B остаётся после ROOT_COUNTRY236handoff.
 ## 2026-09-21 — ROOT14 country facet actual and main integration
 
 Actual deeaed89 passed one local236 CLI apply and one ordinary Admin/Student
@@ -37039,6 +37127,76 @@ status without rewriting historical receipts. Source checks and unchanged
 runtime evidence are reused; integration/docs need diff/parity review and the
 protected final PR checks, not another visual cycle. Whole item14/manage,
 whole items1–36 and production remain incomplete.
+
+
+### A237 — интеграция канонической236, source перед повторным exact-head review
+
+ROOT1016 смержен в main9f7dde1d8b040d555af647a2b89628d06d6b921f
+2026-09-21T18:33:21Z. Интегрируем этот main в проверенный9fc0785c; все пять
+A237 source/test/SQL файлов побайтно сохранены, импортированные файлы ROOT236
+равны main. Оба append-only журнала сохраняют записи обоих родителей. Repo
+миграции теперь001–237; это не подтверждение применения237 к локальной базе.
+
+Источник и16 protocol cases прежние; повтор локальных product tests не нужен
+из-за одной интеграции независимого staff country reader. Проверяем diff,
+parity и fresh protected CI. Exact-head review впереди. Shared QA остаётсяB1015;
+apply/RPC237 и второй rail UI блок не запускались.
+
+
+### A237 — local reader/DTO actual принят, ресурс возвращён ROOT
+
+На sourcebb24f35f выполнены один canonical local apply237 и четыре ordinary
+Auth/PostgREST probes. Ledger001–236→001–237; изменено только тело существующего
+channels(uuid),1191 identities/OID/owner/ACL сохранены. DDL reviewe133a066 принято.
+Admin200 дал3 канала,2 latest/1 empty, exact production decoder и независимая
+canonical projection совпали. Admin nil-org403, Student403, anonymous401 —
+реальные42501 отказы. [Actual-квитанция](qa/team-chat-channel-previews-actual-2026-09-21.md)
+сохраняет неподтверждённые custom/inactive/no-scope/foreign-tenant и latest
+own-author/reply/tombstone/long-body варианты; UI/native/races не заявлены.
+
+Полный final3610d43f/closure3d267de8 сохранил290 business/33AuthStorage; отличия
+только timestamps двух existing users и4 own login/logout audits, zero seen.
+Входящие224/239/224 sessions/refresh/AMR сохранены; own logout204 оба, два своих
+private Auth captures удалены. Independent RPC/strict-closure review97acb1ae
+принято; отдельный ROOT handoff07d28083 передал ресурс ROOT_COORDINATOR. A больше
+не выполняет runtime. Старые STOP и подтверждённая ROOT recovery сохранены.
+
+Следующий шаг — интеграция main436865af после #1015 с сохранением обоих журналов
+и всех пяти A237 source/test/SQL bytesbb24. Неизменные scoped source/actual
+результаты переиспользуются; diff/parity, fresh protected CI и независимый
+final-head review обязательны. CI35639431195 наbb24 принят ранее и не заменяет
+новый CI. Rail UI начинается после merge #1017; whole15/1–36/production не закрыты.
+### B1015 — один offline single-form actual, закрытие и main9f7dde1d
+
+На frozenfa4ad8e8 существующий Student выполнил один Enter в одиночной форме
+уведомления с offline только собственного browser context. Единственный matching
+POST отказал ERR_INTERNET_DISCONNECTED; RU local alert, pending, восстановление
+кнопки/фокуса и неизменное read-state/list/document наблюдались. Retry/positive/
+bulk/detail не выполнялись. Своя local Auth logout204, cookies/browser/captures
+и Next закрыты; strict final290/33 PASS, zero business/Storage writes.
+[Actual](qa/portal-notification-read-feedback-actual-2026-09-21.md) сохраняет
+полные SHA и ограничения. Среда передана ROOT_COORDINATOR; independent actual
+review `94914f03` принято координатором. Пункты23–24, native, полный E2E и production не закрыты.
+
+После закрытия согласована files-only интеграция main9f7dde1d (#1016/236).
+Все6 B product/test files побайтно равныfd7f0900, incoming main code и полные
+ordered истории обоих journals сохранены. Строки14/15/22/31/32 ведомости
+сохранены изmain; строка24 дополнена узким actual и gaps. Повторного QA или
+тестов не было; прежний CI35635859635 относится кfa4ad8e8. Интегрированному
+final head ещё нужны независимое review и protected CI перед merge.
+
+
+### A237 — main436865af интегрирован после actual, final-head gate
+
+Merge0a1cdeb11533d408b56e99bdc1431ea1549dfab1 сохраняет обе полные ordered
+nonblank истории родителей41810d1b/436865af. Пять A237 source/test/SQL files
+побайтно равны actualbb24; шесть входящих B product/test и две B-документации
+равны main. Ведомость обновляет только текущий срез/local237/пункт15, сохраняя
+остальные строки main. [Source/integration](qa/team-chat-channel-previews-source-2026-09-21.md)
+и [actual](qa/team-chat-channel-previews-actual-2026-09-21.md) различают прежние
+source-only этапы и принятое узкое RPC доказательство. Runtime не повторялся.
+Fresh protected CI и независимый exact-head review впереди; #1017 пока draft,
+rail UI ждёт merge. Production и whole15/1–36 не закрыты.
 
 
 ## 2026-09-21 — Item14 manage search / additive238 precode

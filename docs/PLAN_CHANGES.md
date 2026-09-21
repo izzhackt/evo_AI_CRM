@@ -36693,3 +36693,14 @@ scope lint/typecheck и прямые feed/read-errors/seen/drafts проверк
 Auth/DB/Storage/browser/server runtime остаётся в очереди B32 → B1006 →
 ROOT22F → A15. Actual1440/390/320, anchors/actions/draft и честный учёт
 возможного seen требуют будущего согласованного окна; production не заявляется.
+
+
+### A15g-2 — source готов, actual UI ожидает окна
+
+После precode6a128cbc реализован source05705f7a: pure grouping только видимых
+соседних строк, известные highlighted/unread boundaries, сохранённые действия
+и screen-reader авторы. 39/39 целевых tests, scope lint и typecheck PASS.
+Первый typecheck выявил `1n` при текущем target; `BigInt(1)` исправляет это без
+изменения конфигурации. [Source receipt](qa/team-chat-message-grouping-source-2026-09-21.md)
+сохраняет оба результата. Никаких Auth/DB/Storage/server/browser действий;
+actual UI/anchors/draft, независимое review и merge ещё впереди.

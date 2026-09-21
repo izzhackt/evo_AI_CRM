@@ -4,6 +4,8 @@
 
 Принятый частный план SHA-256: `51ded3855666a6eeb793cae8cf99912a6e453667628d7734d711bf452e953e67`; независимое review: `b42dbc42a69b03f9c449754a8c2babf16f90cd575c95ed536451204b32d27631`. Ни approval плана, ни source tests не означают actual UI acceptance.
 
+Текущее выполнение: source `05705f7a` готов, 39/39 tests, scope lint/typecheck PASS; [квитанция](qa/team-chat-message-grouping-source-2026-09-21.md). Независимое code review и actual UI ещё впереди.
+
 Источник: main `29e0fb46a8067a6a4f5a9bedce81971aba2f56ff`; просмотрен worktree evo-team-chat-read-retry/evo_AI_CRM. `git diff` от фактически проверенного A1005 `7d70a71d8156c70195567d9ee8c44e7cc6c2d5ae` до main пуст для всей папки team-chat, team-chat-feed.ts, team-chat-read-errors.ts и platform-team-chat.ts. Перед будущей реализацией после A1008 повторить только эту проверку актуальности.
 
 Impeccable: прочитаны SKILL, Operate и critique reference; это ограниченное планирование refinement, НЕ запуск полного critique/detector и не новый context. PRODUCT и DESIGN сохраняют вариант «Мессенджер», EVO shell, нейтральные чужие/мягкие красные свои сообщения, закреплённый composer. Основание принятого остатка: EVO_TEAM_CHAT_FLAT_UI_PLAN § таблица проблем/отдельный A15g; READ_RETRY_PLAN прямо оставляет grouping/density/previews вне A1005.

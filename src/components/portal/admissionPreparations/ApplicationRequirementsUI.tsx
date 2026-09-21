@@ -2,15 +2,25 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import type { ApplicationRequirementItemV2, ApplicationRequirementsV2 } from "@/lib/portal/application-requirements-v2";
+import type { ApplicationRequirementItemV2 } from "@/lib/portal/application-requirements-v2";
+import type { ApplicationDocuments } from "@/lib/portal/application-documents";
 import type { PortalStrings } from "@/lib/portal/i18n";
 import { clearPreparationIntent, persistPreparationIntent, readPendingRequirements, type StudentPreparationScope } from "@/lib/portal/student-preparation-pending";
 import { initializeStudentPreparationUIAction, readStudentPreparationUIAction } from "@/lib/portal/student-preparation-ui-actions";
+import { ProgramDocumentItem } from "./ProgramDocumentItem";
+import { ProgramDocumentHistory } from "./ProgramDocumentHistory";
+import { ProgramDocumentRecovery } from "./ProgramDocumentRecovery";
+import type { ProgramDocumentScope } from "./ProgramDocumentControls";
 
-function Requirement({ item, strings }: { item: ApplicationRequirementItemV2; strings: PortalStrings<"preparations"> }) {
+function Requirement({ item, programState, scope, revisionId, strings, documentStrings, onSaved, historyEpoch }: {
+  item: ApplicationRequirementItemV2; programState: ApplicationDocuments["items"][number];
+  scope: ProgramDocumentScope; revisionId: string; strings: PortalStrings<"preparations">;
+  documentStrings: PortalStrings<"programDocuments">; onSaved: () => void;
+  historyEpoch: number;
+}) {
   const associationUnavailable = item.unavailableReasons.some((reason) =>
     ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].includes(reason));
-  return <li className="pt-prep-requirement">
+  return <li className="pt-prep-requirement" id={`requirement-${item.requirementItemId}`}>
     <div className="pt-prep-row-heading"><h3>{item.label}</h3><span className="pt-prep-tag">{item.required ? strings.required : strings.optional}</span></div>
     <p className="pt-prep-note">{item.groupLabel}</p>
     <p className="pt-prep-instructions">{item.instructions}</p>
@@ -22,25 +32,28 @@ function Requirement({ item, strings }: { item: ApplicationRequirementItemV2; st
         <p className="pt-prep-note">{strings.deadlineVerified} <time dateTime={item.deadline.verifiedOn}>{item.deadline.verifiedOn.split("-").reverse().join(".")}</time></p>
         {item.deadline.sourceUrl ? <a href={item.deadline.sourceUrl} target="_blank" rel="noopener noreferrer" className="pt-link">{strings.deadlineSource}</a> : null}
       </dd></div> : null}
-      <div><dt>{strings.file}</dt><dd>{item.technicalAvailability === "available" ? strings.fileAvailable :
-        <ul>{item.unavailableReasons.map((reason) => <li key={reason}>{strings[`technical.${reason}`]}</li>)}</ul>}</dd></div>
-      {!associationUnavailable ? <div><dt>{strings.review}</dt><dd>{strings[`review.${item.reviewDecision ?? "none"}`]}</dd></div> : null}
+      {associationUnavailable ? <div><dt>{strings.file}</dt><dd><ul>{item.unavailableReasons.filter(reason =>
+        ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].includes(reason))
+        .map(reason => <li key={reason}>{strings[`technical.${reason}`]}</li>)}</ul></dd></div> : null}
     </dl>
-    {item.reviewReason ? <p className="pt-prep-review-reason">{item.reviewReason}</p> : null}
-    {!associationUnavailable ? <Link className="pt-link pt-prep-document-link" href={`/portal/documents#document-${item.documentSlotId}`}>
-      {item.currentVersionId ? strings.openDocument : strings.uploadDocument}
-    </Link> : null}
+    <ProgramDocumentItem item={programState} scope={scope} target={{ studentCaseId: scope.studentCaseId, applicationId: scope.applicationId,
+      requirementsRevisionId: revisionId, requirementItemId: item.requirementItemId, documentSlotId: item.documentSlotId }}
+      audience="student" strings={documentStrings} onSaved={onSaved} historyEpoch={historyEpoch} />
   </li>;
 }
 
-export function ApplicationRequirementsUI({ scope, applicationId, initial, canInitialize, strings }: {
+export function ApplicationRequirementsUI({ scope, applicationId, initial, canInitialize, strings, documentStrings }: {
   scope: StudentPreparationScope;
   applicationId: string;
-  initial: ApplicationRequirementsV2 | null;
+  initial: ApplicationDocuments | null;
   canInitialize: boolean;
   strings: PortalStrings<"preparations">;
+  documentStrings: PortalStrings<"programDocuments">;
 }) {
-  const [current, setCurrent] = useState(initial);
+  const [documents, setDocuments] = useState(initial);
+  const [historyEpoch, setHistoryEpoch] = useState(0);
+  const current = documents?.requirements ?? null;
+  const documentScope = { ...scope, applicationId };
   const [eligible, setEligible] = useState(canInitialize);
   const [busy, setBusy] = useState<"read" | "initialize" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,17 +61,18 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
   async function update(initialize: boolean) {
     if (lock.current) return;
     lock.current = true;
+    setHistoryEpoch(value => value + 1);
     setBusy(initialize ? "initialize" : "read");
     setError(null);
     try {
       const latest = await readStudentPreparationUIAction(scope, applicationId);
       if (!latest.ok) {
-        setCurrent(null);
+        setDocuments(null);
         setEligible(false);
         setError(strings.requirementsUnavailable);
         return;
       }
-      setCurrent(latest.requirements);
+      setDocuments(latest.documents);
       setEligible(latest.canInitialize);
       if (!initialize || latest.requirements.state !== "uninitialized" || !latest.canInitialize) return;
       let intent;
@@ -80,12 +94,12 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
       }
       // A receipt is never rendered as a current checklist.
       const readback = await readStudentPreparationUIAction(scope, applicationId);
-      if (readback.ok) { setCurrent(readback.requirements); setEligible(readback.canInitialize); }
-      else { setCurrent(null); setEligible(false); if (result.ok) setError(strings.requirementsUnavailable); }
+      if (readback.ok) { setDocuments(readback.documents); setEligible(readback.canInitialize); }
+      else { setDocuments(null); setEligible(false); if (result.ok) setError(strings.requirementsUnavailable); }
     } catch {
       // A failed fresh read cannot leave an old file/review projection current.
       // Retained command intents remain available for a later explicit retry.
-      setCurrent(null);
+      setDocuments(null);
       setEligible(false);
       setError(strings.unavailable);
     }
@@ -104,9 +118,17 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
     {current?.state === "needs_configuration" ? <div className="pt-prep-notice"><h3>{strings.needsConfiguration}</h3><p>{strings.configurationHelp}</p>
       <ul>{current.configurationReasons.map((reason) => <li key={reason}>{strings[`config.${reason}`]}</li>)}</ul>
     </div> : null}
-    {current && current.items.length > 0 ? <ol className="pt-prep-requirement-list">{current.items.map((item) => <Requirement key={item.requirementItemId} item={item} strings={strings}/>)}</ol> : null}
+    {current && current.revisionId && documents && current.items.length > 0 ? <ol className="pt-prep-requirement-list">{current.items.map((item, index) =>
+      <Requirement key={item.requirementItemId} item={item} programState={documents.items[index]} scope={documentScope}
+        revisionId={current.revisionId!} strings={strings} documentStrings={documentStrings} onSaved={() => void update(false)} historyEpoch={historyEpoch} />)}</ol> : null}
+    <ProgramDocumentRecovery scope={documentScope} audience="student" strings={documentStrings}
+      currentItemIds={documents?.items.map(item => item.requirementItemId) ?? []}
+      currentSubmissionIds={documents?.items.flatMap(item => item.submission ? [item.submission.submissionId] : []) ?? []}
+      onSaved={() => void update(false)} />
+    <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId }} requirementItemId={null}
+      audience="student" strings={documentStrings} onSaved={() => void update(false)} />
     {error ? <p className="pt-prep-error" role="alert">{error}</p> : null}
-    <p className="pt-prep-note">{strings.uploadCopy}</p>
+    <p className="pt-prep-note">{documentStrings.saveHint}</p>
     <div className="pt-prep-actions"><Link className="pt-btn-ghost" href="/portal/documents">{strings.allDocuments}</Link><Link className="pt-link" href="/portal#case-help">{strings.help}</Link></div>
   </section>;
 }

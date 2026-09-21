@@ -7,7 +7,8 @@ import { readStudentCatalogPreparations } from "./catalog-preparations-source";
 import { initializeStudentApplicationRequirementsAction } from "./application-requirements-actions";
 import { parseApplicationRequirementsIntent, type ApplicationRequirementsActionResult } from "./application-requirements";
 import type { ApplicationRequirementsV2 } from "./application-requirements-v2";
-import { readStudentApplicationRequirements } from "./application-requirements-source";
+import type { ApplicationDocuments } from "./application-documents";
+import { readStudentApplicationDocuments } from "./application-documents-source";
 import type { StudentPreparationScope } from "./student-preparation-pending";
 
 async function scopedActor(scope: StudentPreparationScope) {
@@ -36,7 +37,7 @@ export async function selectStudentPreparationUIAction(scope: StudentPreparation
 }
 
 export async function readStudentPreparationUIAction(scope: StudentPreparationScope, applicationId: string): Promise<
-  { ok: true; requirements: ApplicationRequirementsV2; canInitialize: boolean } | { ok: false }
+  { ok: true; requirements: ApplicationRequirementsV2; documents: ApplicationDocuments; canInitialize: boolean } | { ok: false }
 > {
   const actor = await scopedActor(scope);
   if (!actor) return { ok: false };
@@ -44,8 +45,8 @@ export async function readStudentPreparationUIAction(scope: StudentPreparationSc
     const items = await readStudentCatalogPreparations(actor.studentCaseId);
     const saved = items.find((item) => item.applicationId === applicationId);
     if (!saved) return { ok: false };
-    const requirements = await readStudentApplicationRequirements(actor.studentCaseId, applicationId);
-    return { ok: true, requirements, canInitialize: actor.caseState === "active" && Boolean(actor.portalActivatedAt)
+    const documents = await readStudentApplicationDocuments(actor.studentCaseId, applicationId);
+    return { ok: true, requirements: documents.requirements, documents, canInitialize: actor.caseState === "active" && Boolean(actor.portalActivatedAt)
       && saved.applicationStatus === "preparation" };
   } catch {
     return { ok: false };

@@ -166,6 +166,9 @@ export function portalNotificationTarget(
   notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">,
   strings: AdmissionStrings,
 ): PortalNotificationTarget {
+  if (notification.eventCode === "application_document_review") {
+    return { href: `/portal/document-notifications/${notification.notificationId}`, label: strings.targetProgramDocument };
+  }
   if (notification.eventCode === "case_help_answer") {
     return {
       href: `/portal/notifications/${notification.notificationId}`,

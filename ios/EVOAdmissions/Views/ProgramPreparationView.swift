@@ -1,4 +1,5 @@
 import SwiftUI
+import QuickLook
 
 struct ProgramPreparationRoute: Hashable {
     let applicationId: UUID
@@ -117,6 +118,7 @@ struct ProgramPreparationView: View {
     @EnvironmentObject private var session: ProgramPreparationSession
     @Environment(\.locale) private var locale
     @StateObject private var model = ProgramPreparationDetailModel()
+    @StateObject private var documentModel = ProgramDocumentModel()
 
     private struct ReadTarget: Hashable {
         let scope: ProgramPreparationContext.Scope?
@@ -152,6 +154,14 @@ struct ProgramPreparationView: View {
             } else if let requirements = model.requirements {
                 requirementsSection(requirements)
             }
+            ProgramDocumentPendingSection(model: documentModel)
+            if let error = documentModel.errorKey {
+                Section { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+            }
+            if let notice = documentModel.noticeKey {
+                Section { Text(LocalizedStringKey(notice)) }
+            }
+            if documentModel.busy { Section { ProgressView("prep_loading") } }
             if let error = model.errorKey {
                 Section { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
             }
@@ -163,6 +173,7 @@ struct ProgramPreparationView: View {
                         guard let context = session.context else { return }
                         Task {
                             await model.continuePreparation(applicationId: applicationId, context: context, session: session)
+                            await refresh()
                         }
                     } label: {
                         HStack {
@@ -174,6 +185,9 @@ struct ProgramPreparationView: View {
                 }
             }
             Section {
+                NavigationLink { ProgramDocumentHistoryView(applicationId: applicationId, model: documentModel) } label: {
+                    Label("program_document_history", systemImage: "clock.arrow.circlepath")
+                }
                 NavigationLink { AdmissionDocumentsView() } label: {
                     Label("prep_all_documents", systemImage: "doc.text")
                 }
@@ -181,15 +195,19 @@ struct ProgramPreparationView: View {
                 Text("prep_upload_sends")
             }
         }
+        .quickLookPreview($documentModel.previewURL)
         .navigationTitle("prep_detail_title")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: ReadTarget(scope: session.context?.scope, applicationId: applicationId)) { await refresh() }
+        .onChange(of: session.refreshSignal) { Task { await refresh() } }
         .refreshable { await refresh() }
     }
 
     private func refresh() async {
-        guard let context = session.context else { return }
+        guard let context = session.context else { documentModel.deactivate(); return }
+        documentModel.beginRead(context: context, applicationId: applicationId)
         await model.load(applicationId: applicationId, context: context)
+        if session.context?.scope == context.scope, let documents = model.documents { documentModel.activate(documents, context: context) }
     }
 
     @ViewBuilder
@@ -225,28 +243,19 @@ struct ProgramPreparationView: View {
                     if item.definitionImpact == .changed {
                         Text("prep_definition_changed").font(.footnote)
                     }
-                    if let status = item.slotStatus {
-                        Text(LocalizedStringKey("prep_slot_\(status.rawValue)"))
-                            .font(.subheadline)
+                    if let document = documentModel.documents?.items.first(where: { $0.id == item.id.uuidString.lowercased() }),
+                       let revision = requirements.revision {
+                        ProgramDocumentControls(item: document, revisionId: revision.revisionId.uuidString.lowercased(),
+                            applicationId: applicationId, model: documentModel)
                     }
-                    if let decision = item.reviewDecision {
-                        Text(LocalizedStringKey("prep_review_\(decision.rawValue)"))
-                            .font(.footnote)
-                        if let reason = item.reviewReason { Text(reason).font(.footnote) }
-                    }
-                    if item.technicalAvailability == .available {
-                        Text("prep_file_available").font(.footnote).foregroundStyle(.secondary)
-                    } else {
-                        ForEach(item.unavailableReasons, id: \.rawValue) { reason in
-                            Text(LocalizedStringKey("prep_file_\(reason.rawValue)"))
-                                .font(.footnote).foregroundStyle(.secondary)
-                        }
+                    ForEach(item.unavailableReasons.filter { ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].contains($0.rawValue) }, id: \.rawValue) { reason in
+                        Text(LocalizedStringKey("prep_file_\(reason.rawValue)")).font(.footnote).foregroundStyle(.secondary)
                     }
                     if item.slotStatus != nil {
                         NavigationLink {
                             AdmissionDocumentsView(focusedSlotId: item.documentSlotId)
                         } label: {
-                            Text("prep_open_document").frame(minHeight: 44)
+                            Text("program_document_open_legacy").frame(minHeight: 44)
                         }
                     }
                 }.padding(.vertical, 4)

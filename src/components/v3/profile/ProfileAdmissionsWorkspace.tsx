@@ -539,6 +539,7 @@ export function ProfileAdmissionsWorkspacePanel({
   const scope = { organizationId: actor.organizationId, membershipId: actor.membershipId, studentCaseId: workspace.studentCaseId };
   const canReadRequirements = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
   const canInitializeRequirements = canWrite && staffHasPermission(actor, "document.manage");
+  const canReviewDocuments = canWrite && staffHasPermission(actor, "document.review");
 
   return (
     <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
@@ -629,9 +630,11 @@ export function ProfileAdmissionsWorkspacePanel({
                   </details>
                 ) : null}
                 {preparation ? <StaffPreparationPanel
+                  key={`${scope.organizationId}:${scope.membershipId}:${preparation.applicationId}`}
                   preparation={preparation}
                   scope={scope}
                   canRead={canReadRequirements}
+                  canReview={canReviewDocuments}
                   canInitialize={canInitializeRequirements && preparation.applicationStatus === "preparation"}
                 /> : null}
               </article>
@@ -640,7 +643,7 @@ export function ProfileAdmissionsWorkspacePanel({
               <p className="break-words font-medium text-fg">{preparation.content.name}</p>
               <p className="mt-1 break-words text-sm text-fg-3">{preparation.content.programs.find((program) => program.id === preparation.programId)?.title}</p>
               <p className="mt-1 text-sm text-fg-2">{applicationStatus(preparation.applicationStatus)}</p>
-              <StaffPreparationPanel preparation={preparation} scope={scope} canRead={canReadRequirements} canInitialize={canInitializeRequirements && preparation.applicationStatus === "preparation"} />
+              <StaffPreparationPanel key={`${scope.organizationId}:${scope.membershipId}:${preparation.applicationId}`} preparation={preparation} scope={scope} canRead={canReadRequirements} canReview={canReviewDocuments} canInitialize={canInitializeRequirements && preparation.applicationStatus === "preparation"} />
             </article>)}
           </div>
         )}

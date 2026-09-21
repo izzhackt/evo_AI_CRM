@@ -68,6 +68,7 @@ const STAFF_UNIVERSITY_FORMS_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_PREPARATION_DETAIL_PATH = /^\/portal\/preparations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/document-notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_LESSON_DETAIL_PATH = /^\/portal\/english\/lesson\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_PROFESSION_DETAIL_PATH = /^\/portal\/professions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -160,6 +161,7 @@ export function isConnectedStudentPortalPage(path: string): boolean {
   return STUDENT_PORTAL_PAGE_ALLOWLIST.has(path) || STUDENT_UNIVERSITY_DETAIL_PATH.test(path)
     || STUDENT_PREPARATION_DETAIL_PATH.test(path)
     || STUDENT_NOTIFICATION_DETAIL_PATH.test(path)
+    || STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH.test(path)
     || STUDENT_LESSON_DETAIL_PATH.test(path)
     || STUDENT_PROFESSION_DETAIL_PATH.test(path);
 }
@@ -177,6 +179,8 @@ export function isConnectedStudentPortalApi(
   return (
     (method === "POST" && STUDENT_DOCUMENT_VERSION_UPLOAD_PATH.test(path))
     || (method === "GET" && STUDENT_DOCUMENT_DOWNLOAD_PATH.test(path))
+    || (method === "POST" && path === "/api/portal/application-document-uploads")
+    || (method === "GET" && path === "/api/portal/application-document-downloads")
     // PORT-9a: bearer-only invite acceptance; the handler answers 401 for a
     // missing/rejected credential and never consults cookies.
     || (method === "POST" && path === STUDENT_INVITE_ACCEPTANCE_API_PATH)
@@ -221,13 +225,20 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  * staff assistant deliberately uses the separate direct-route predicate above
  * because its handler owns the full disabled/configuration/Auth boundary.
  */
+const PAYMENT_RECEIPT_UPLOAD_PATH = /^\/api\/v2\/payment-receipts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PAYMENT_RECEIPT_DOWNLOAD_PATH = /^\/api\/v2\/payment-receipt-files\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+
 export function isConnectedPlatformApi(path: string): boolean {
   return (
     path === "/api/v3/knowledge/search-canonical" ||
     /^\/api\/v3\/knowledge\/(?:list|command|item|blob|download|exports|clients|secrets|source)(?:\/[0-9a-z-]+){0,2}$/.test(path) ||
     path === PLATFORM_AUDIT_EXPORT_PATH ||
+    PAYMENT_RECEIPT_UPLOAD_PATH.test(path) ||
+    PAYMENT_RECEIPT_DOWNLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_DOCUMENT_DOWNLOAD_PATH.test(path) ||
+    path === "/api/v3/application-document-uploads" ||
+    path === "/api/v3/application-document-downloads" ||
     PRIVATE_COMPANY_FILE_VERSION_UPLOAD_PATH.test(path) ||
     PRIVATE_COMPANY_FILE_DOWNLOAD_PATH.test(path) ||
     DOCUMENT_RECOGNITION_JOBS_PATH.test(path) ||

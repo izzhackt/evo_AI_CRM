@@ -12845,3 +12845,10 @@ receiptless payment под прежними write/preview gates; не созда
 неопределённый ответ без автоматического retry, desktop/mobile с Impeccable,
 независимое exact-head review и короткий CI. Actual upload, Student download,
 production и весь пункт12 до соответствующей квитанции не заявляются.
+
+
+### CRM-09e — hydration hardening, 2026-09-21
+
+Actual first upload click on source d3fe39b55a12d581f34fc3318369f47e0b5e52dc navigated by native GET to /v3/profile?; no payment-receipts POST occurred. Root receipt first-click-no-effect.json records exact before/after full 283-table, financial and Storage parity. The cause of the missing hydration handler remains unknown; document readiness and native file selection do not prove React hydration.
+
+Before another actual upload, reuse the existing stable useSyncExternalStore client/server snapshot pattern in CasePaymentReceiptUpload: keep file input and submit disabled during SSR/pre-hydration, expose busy state, retain immediate preventDefault and all in-flight/unknown/no-auto-retry guards. No layout, API, payment, Storage or legacy form changes. Scoped lint/typecheck validate source; root owns independent review and one actual UI confirmation round. This hardening is not proof of a successful upload or identification of the hydration root cause.

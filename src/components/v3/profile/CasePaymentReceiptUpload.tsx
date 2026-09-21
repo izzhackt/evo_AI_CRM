@@ -1,8 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { btnCls, btnGhostCls, labelCls } from "@/components/ui";
+
+const subscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -17,6 +21,7 @@ const REJECTIONS: Record<string, string> = {
 };
 
 export function CasePaymentReceiptUpload({ paymentEventId }: { paymentEventId: string }) {
+  const hydrated = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
@@ -26,7 +31,7 @@ export function CasePaymentReceiptUpload({ paymentEventId }: { paymentEventId: s
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (inFlight.current || stopped.current) return;
+    if (!hydrated || inFlight.current || stopped.current) return;
     const file = input.current?.files?.[0];
     if (!file || !TYPES.has(file.type) || file.size < 1 || file.size > MAX_BYTES) {
       setStatus("rejected");
@@ -71,12 +76,12 @@ export function CasePaymentReceiptUpload({ paymentEventId }: { paymentEventId: s
 
   return <details className="w-full min-w-0 py-1">
     <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-accent-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Загрузить чек</summary>
-    <form onSubmit={upload} className="min-w-0 space-y-3 pt-2" aria-busy={status === "pending"}>
+    <form onSubmit={upload} className="min-w-0 space-y-3 pt-2" aria-busy={!hydrated || status === "pending"}>
       <label className="block min-w-0">
         <span className={labelCls}>Чек · PDF, JPEG или PNG, до 25 МБ</span>
-        <input ref={input} type="file" required accept="application/pdf,image/jpeg,image/png" disabled={status === "pending" || status === "saved" || status === "unknown"} className="block w-full min-w-0 max-w-full text-sm text-fg-2" />
+        <input ref={input} type="file" required accept="application/pdf,image/jpeg,image/png" disabled={!hydrated || status === "pending" || status === "saved" || status === "unknown"} className="block w-full min-w-0 max-w-full text-sm text-fg-2" />
       </label>
-      <button type="submit" className={btnCls} disabled={status === "pending" || status === "saved" || status === "unknown"}>{status === "pending" ? "Загружаем…" : "Загрузить чек"}</button>
+      <button type="submit" className={btnCls} disabled={!hydrated || status === "pending" || status === "saved" || status === "unknown"}>{status === "pending" ? "Загружаем…" : "Загрузить чек"}</button>
       {message ? <p role={status === "rejected" || status === "unknown" ? "alert" : "status"} className="break-words text-sm text-fg-2">{message}</p> : null}
       {status === "unknown" ? <button type="button" className={btnGhostCls} onClick={() => router.refresh()}>Обновить историю оплаты</button> : null}
     </form>

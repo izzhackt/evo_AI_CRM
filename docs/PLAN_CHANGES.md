@@ -35727,3 +35727,25 @@ Docs-only на main `82260fdc`: обновлены current fronts execution/A/B 
 сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
 DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
 Проверка: diff review и git diff --check; независимое exact-head review до merge.
+
+### A15f unified chat UI — decisions recorded before code
+
+A15d225/A15e227 are merged; current base main115b895a. A227 actual local apply/API
+passed and full raw window was released to ROOT990. Start A15f source work in an
+isolated chat-only worktree while ROOT owns runtime. No migration or database/
+Auth/browser/server work belongs to this offline step.
+
+Update docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md with the current dependency
+state and concrete SSR/V2 timeline, one composer, V1 draft recovery, context/
+search/anchor, invalidation and seen integration. Pin a500ms stable body dwell
+with visible height at least min(50%body,160px), active visible window, overlay/
+search/quote exclusions and bounded1–50 IDs; never advance legacy read_sequence.
+V1 changes cannot invent direct quote identity; preserve or hydrate from V2.
+Existing unknown operation identities, rights, authored content and dates remain.
+
+DESIGN.md now reflects the already accepted single-feed/direct-quote decision;
+EVO/Golos/themes/AppShell are preserved. Reused A15d desktop/mobile captures are
+historical incumbent evidence and UI/CSS source remains unchanged since then.
+A15g owns density/grouping/channel previews. ROOT retains CaseAgreement and
+SalesRegisterView mobile work; B retains portal/requirements/iPhone. No UI
+implementation or actual UI acceptance is claimed by this precode commit.

@@ -4,6 +4,8 @@
 
 Это только чтение исходников и уже сохранённых метрик. Нового браузера, login, сервера, БД, screenshot или повторного visual pass нет. После закрытия B offlineflow общим QA владеет ROOT22G; A/B остаются только в files/source precode/docs. Impeccable: сохраняем EVO, режим Operate, типографику и знакомые действия; context уже был загружен в этой сессии и повторно не запускался. Новая визуальная концепция не нужна.
 
+Текущее выполнение: после precode commit `be254e6f` реализован product source `30f8fa3fbd400ac42bcdcfcb18080995b75ebbbd`; scope ESLint и typecheck PASS. [Source-квитанция](qa/team-chat-service-row-source-2026-09-21.md). Реального UI-прохода новой раскладки пока нет; source review и actual окно ожидаются.
+
 ## Подтверждённая проблема и границы вывода
 
 В `TeamChatMessageRow.tsx:28–51` время находится в messageHeader над bubble, а «Ответить» и menu — в messageActions под bubble. После #1012 имя продолжения становится srOnly, но содержащая время верхняя строка по-прежнему занимает высоту. Каждое короткое продолжение поэтому сохраняет два отдельных служебных ряда.

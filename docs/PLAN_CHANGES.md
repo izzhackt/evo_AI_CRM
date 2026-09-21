@@ -36774,3 +36774,13 @@ ROOT на source-only реализацию. В Row переносим единс
 source review; actual UI/anchors/draft/ширина нужны позже в отдельном окне ROOT.
 Сейчас QA у ROOT22G; Auth/DB/Storage/browser/server не трогаем. Превью всех каналов,
 DTO, миграции и весь item15 вне этого PR.
+
+
+### A15 service row — source готов к независимому review
+
+Контрактbe254e6f → product30f8fa3f: время/edited перенесены к действиям,
+повторный авторский header сохраняется через srOnly; Row и scoped CSS,
+shared classes/права/DTO/grouping/seen неизменны. Scope ESLint и typecheck PASS
+на Node22.23.1; [source-квитанция](qa/team-chat-service-row-source-2026-09-21.md).
+Прежние39/39 не повторялись. Actual1440/390/320, anchors/menu/draft и выигрыш
+плотности ещё не доказаны. QA остаётся у ROOT22G, runtime не открывался.

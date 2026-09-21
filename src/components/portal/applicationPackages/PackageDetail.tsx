@@ -73,8 +73,8 @@ export function PackageDetail({ detail, scope, audience, strings: t, documentStr
         {audience === "staff" && canReview ? <ProgramDocumentReview scope={scope} submission={item.submission} strings={documentStrings} canReview onSaved={onSaved} /> : null}
       </li>;
     })}</ol>
-    {audience === "staff" && canReview ? <PackageReview key={`${packageScopeKey(scope)}:${detail.package.packageId}:${epoch}`} scope={scope} detail={detail} strings={t} onSaved={onSaved} /> : null}
-    <ReviewHistory key={`${packageScopeKey(scope)}:${detail.package.packageId}:${epoch}`} scope={scope} detail={detail} strings={t} documentStrings={documentStrings} />
+    {audience === "staff" && canReview ? <PackageReview key={`review:${packageScopeKey(scope)}:${detail.package.packageId}:${epoch}`} scope={scope} detail={detail} strings={t} onSaved={onSaved} /> : null}
+    <ReviewHistory key={`history:${packageScopeKey(scope)}:${detail.package.packageId}:${epoch}`} scope={scope} detail={detail} strings={t} documentStrings={documentStrings} />
   </section>;
 }
 type LoaderProps = {

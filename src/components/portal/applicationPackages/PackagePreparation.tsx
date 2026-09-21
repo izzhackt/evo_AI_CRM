@@ -82,7 +82,7 @@ function PreparationState({ scope, readiness, audience, strings: t, documentStri
           </li>;
         })}</ul>
         {shown.missingRequiredItemIds.length ? <><p className={s.note}>{t.missing}</p><ul>{shown.missingRequiredItemIds.map(id => <li key={id}>{shown.requirements.items.find(item => item.requirementItemId === id)?.label ?? t.document}</li>)}</ul></> : null}
-        {shown.reasons.map(reason => <p key={reason} className={s.note}>{readyReason(reason)}</p>)}
+        {shown.reasons.filter(reason => reason !== "missing_required" || shown.missingRequiredItemIds.length === 0).map(reason => <p key={reason} className={s.note}>{readyReason(reason)}</p>)}
         {shown.canSubmit ? <p role="status" className={s.note}>{t.ready}</p> : null}
         <div className={s.actions}><button type="button" className={s.button} disabled={(!busy && blocked) || !shown.canSubmit} aria-disabled={busy || blocked} onClick={() => void submit()}>{busy ? t.submitting : t.submit}</button><button type="button" className={s.secondary} disabled={blocked} onClick={edit}>{t.edit}</button></div>
       </div>}

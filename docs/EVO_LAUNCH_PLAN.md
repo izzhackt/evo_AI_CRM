@@ -13420,3 +13420,20 @@ byte-identical to the independently reviewed source. Incoming chat/sales changes
 stay intact. Existing source checks retain their exact revisions and limits;
 narrow integration review and current CI are required for this new head.
 No Auth, Storage, DB migration or user-interface action occurred in this merge.
+
+
+## 2026-09-21 — B3g.2 scoped fixes from ordinary package UI verification
+
+The authorized local232 Student/staff journey on de4bf800 submitted an actual
+package, requested corrections, approved its two files and then approved the
+package. It exposed duplicate sibling keys for the review/history components
+(which duplicated the staff form after refresh), repeated missing-material copy,
+and missing exact Student page allowances for package notifications/recovery.
+Fix those three defects together: preserve owner/package/epoch reset identity,
+suppress only redundant aggregate missing-material copy, and add the exact
+recovery pathname plus the fully anchored package-notification UUID pattern.
+Keep ownership checks and all other route denials. Add focused route regressions,
+obtain independent delta review and current CI, then inspect the existing actual
+notification/recovery and staff detail at desktop/mobile sizes. Do not repeat
+submissions, add actors/fixtures, rerun unchanged DB flows, or claim native UI or
+production acceptance. Existing actual receipts remain the evidence for writes.

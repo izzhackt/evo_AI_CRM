@@ -15,7 +15,8 @@ export async function WebsiteLeadSubmissions({ actor, leadId }: { actor: Platfor
       }).format(new Date(submission.createdAt))} (Бишкек)</time>
       <p className="mt-1">{submission.name} · {submission.phone}</p>
       <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-        <div><dt className="text-fg-2">Страна обучения</dt><dd>{submission.country}</dd></div>
+        <div><dt className="text-fg-2">Страна обучения</dt><dd>{submission.country === "Undecided" ? "Пока не определился" : submission.country}</dd></div>
+        {submission.university ? <div className="min-w-0 max-w-full"><dt className="text-fg-2">Выбранный университет</dt><dd className="break-words">{submission.university.name}</dd></div> : null}
         {submission.city ? <div><dt className="text-fg-2">Город</dt><dd>{submission.city}</dd></div> : null}
         {submission.age !== null ? <div><dt className="text-fg-2">Возраст на дату заявки</dt><dd>{submission.age}</dd></div> : null}
       </dl>

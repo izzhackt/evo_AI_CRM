@@ -1,8 +1,9 @@
 # Командный чат: переход к общей ленте
 
-Статус на 21 сентября 2026: A15f реализован в draft PR#992; source review
-одобрен на f8a32eb9 после одной коррекции. CI итоговой интеграции и реальный
-UI-проход пока не завершены.
+Статус на 21 сентября 2026: A15f реализован в PR#992; source review
+одобрен на f8a32eb9 после одной коррекции. Ограниченный реальный UI-проход
+и сверка сохранённых данных пройдены на e1250b58; итоговые CI/review интеграции
+с main47d4a4746 фиксируются в PR. [Фактический отчёт](qa/crm-team-chat-unified-feed-actual-2026-09-21.md).
 Исходная база реализации: main `115b895a55b4c8e9994f41a1289c09f1ffe676ac` (PR#987).
 223/225/227 приняты с локальной проверкой. В main страница ещё использует
 v1 root/thread reader; ветка PR#992 подключает V2 общую ленту. Ниже сохранён первоначальный precode от03068e1f;
@@ -13,8 +14,8 @@ v1 root/thread reader; ветка PR#992 подключает V2 общую ле
 [A15c](EVO_TEAM_CHAT_FLAT_READER_PLAN_2026-09-21.md) и
 [оставшаяся работа](EVO_TEAM_CHAT_REMAINDER_ANALYSIS_2026-09-21.md).
 Пункт15 целиком остаётся открытым. Повторять установки223/225/227 не нужно;
-A15f не добавляет миграций. Shared runtime после227 передан ROOT990;
-подготовка UI идёт отдельно до следующего согласованного окна.
+A15f не добавляет миграций. После локального230 UI-проход завершён;
+собственные сессии закрыты, проверенная среда передана ROOT995.
 Состояние реализации и границы доказательств: [source receipt](qa/crm-team-chat-unified-feed-source-2026-09-21.md).
 
 ## Короткий UX-бриф — Impeccable shape / Operate
@@ -341,3 +342,13 @@ Impeccable: craft-floor непосредственно перед первым U
 реального desktop/mobile, light/dark,320/390px, focus/keyboard/IME; исправления
 пакетом и максимум один подтверждающий визуальный раунд. Не заявлять native,
 screen-reader, provider, production или полноту пункта15 по этому срезу.
+
+
+## A15f actual acceptance update — 2026-09-21
+
+The bounded actual local UI/data window passed at e1250b58 and was released to
+ROOT995 after a separately verified recovery epoch. See
+[actual report](qa/crm-team-chat-unified-feed-actual-2026-09-21.md) for source,
+receipt pins, preserved rows and unverified journeys. A15g remains open, including
+a read-error copy correction found during the offline-search check. This does
+not claim completion of all team-chat UX or production acceptance.

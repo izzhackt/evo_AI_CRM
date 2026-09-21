@@ -1,7 +1,9 @@
 # A15f: source implementation of the unified chat feed
 
-Status: implementation in draft PR#992; independent source review approved at
-f8a32eb9. Final integration/CI and actual browser acceptance remain pending.
+Status: implementation in PR#992; independent source review approved at
+f8a32eb9. Scoped actual local UI and data reconciliation passed at e1250b58:
+[actual QA report](crm-team-chat-unified-feed-actual-2026-09-21.md).
+This source-stage record below retains its historical execution boundary.
 This document is not a
 runtime, migration, deployment or visual acceptance receipt.
 
@@ -58,7 +60,7 @@ checks substitutes for actual Auth, database, browser, keyboard or assistive
 technology verification. Exact command results and source hashes accompany the
 implementation commit in the local source evidence manifest.
 
-## Next acceptance boundary
+## Historical source-only acceptance boundary
 
 ROOT owns the shared local runtime. This source work made no database, Auth,
 Storage, application HTTP, browser or app-server calls. ROOT subsequently reported

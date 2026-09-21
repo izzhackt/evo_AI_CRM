@@ -14373,6 +14373,92 @@ Fresh protected CI и независимый exact-head review впереди; #
 rail UI ждёт merge. Production и whole15/1–36 не закрыты.
 
 
+### A15 — rail previews precode после merge #1017
+
+#1017 смержен вc675d4b4 после exact-head reviewf36fec39 и CI35645855198
+(6SUCCESS/2SKIP) наab45c3a6. Новый isolated branch team-chat-channel-preview-rail
+содержит только [предложение второго блока](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md),
+ещё без product edits/runtime. Общие request tickets на refresh/search и
+принятый acceptor; latestPreview каждой строки; только presentation latest state
+удаляется, обязательные tail refs/hydration сохраняются. Mobile nav показывает
+существующий background failure/retry и forbidden, conversation ownership прежний.
+
+Impeccable4.3.1/Operate context переиспользован: сохраняем EVO/Golos/rail/unread.
+Прочитаны три сохранённых1014 PNG; восемь source/token/brand файлов равны1014,
+290 business-table snapshots1014→237 совпали (только saved evidence). Desktop
+rail имеет частичную visual basis;390/320 feed PNG не являются mobile rail
+baseline. Evidenceb28b4823; план задаёт точный будущий incumbent batch и scoped
+actual с предварительным seen binding. Craft-floor непосредственно до UI edit.
+
+QA у ROOT→manage incumbent→B1018; сейчас нет Auth/SQL/browser/server. Новая
+миграция не требуется,238 зарезервирована ROOT. Precode/source review перед
+реализацией; это не весь15/1–36 и не production.
+
+
+### A15 rail — принят precode, ограниченный logic-only этап до UI
+
+Независимый APPROVED_PRECODE430b613f на9eb9f51f принят ROOT. Разрешены общие
+request tickets и strict metadata acceptance в двух прежних refresh/search
+путях, pure preview formatter и целевые tests. На этом этапе существующие
+markup/CSS, latest presentation state, hydration/seen/feed/actions сохраняются;
+formatter к JSX пока не подключается. Это стадия одного coherent rail блока,
+не отдельное завершение UI/merge. Мобильная композиция выбирается после
+недостающего incumbent. План/журналы обновлены до source edit; craft-floor
+перечитан перед правкой component logic. QA остаётся ROOT→B1018; A готовит
+только inert incumbent packet, без Auth/SQL/browser/server/runtime.
+
+
+### A15 rail — logic-only source подготовлен к независимому review
+
+В двух существующих refresh/search путях подключён общий metadata ticket и
+прежний strict acceptor; stale metadata не отменяет feed/search, contradiction
+даёт unavailable прежнему owner до participant/feed/watermark. Revoked очищает
+ref/state. Additive pure formatter имеет null/own/other/tombstone/literal-text
+cases. Весь JSX/CSS и decoder/acceptor prefix побайтно прежние; formatter ещё
+не используется, presentation latest state сохранён до visual этапа.
+[Source evidence](qa/team-chat-channel-rail-logic-source-2026-09-21.md):31/31 pure
+tests, typecheck и targeted lint PASS; parity9173d669. No actual/UI/runtime,
+исторические screenshot ограничения остаются. Независимый source review впереди;
+это стадия одного rail блока, не отдельный завершённый UI или merge.
+
+
+### A15 rail — actual incumbent получен, UI source этап разрешён — 22.09
+
+ROOT просмотрел один c675 Admin batch390/320/1440 и разрешил следующий UI этап
+[того же плана](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md). Mobile rail gap
+закрыт: links68–69.6px/no overflow/Enter-back на320; desktop288px, preview13px.
+Короткий Impeccable critique записан до product edit: selected-only preview
+скрывает последнее сообщение «Продаж» (unread1), пустое «Поступление» не объяснено.
+Сохраняем принятую композицию; подключаем latestPreview ко всем строкам,
+mobile background error/retry и forbidden. Unknown остаётся failed read,
+не empty; foreground ownership, feed/seen/Composer и обязательный latestId
+сохраняются. Craft-floor перечитан, launcher не повторялся.
+
+[Actual evidence](qa/team-chat-channel-rail-incumbent-2026-09-22.md): summary3db207bf,
+final2d7889b8/strict6936f53d,290 business exact/seen0, inherited Auth rows exact,
+own logout204/browser/server closed/cookie removed. Независимое actual closure
+review у ROOT. Новый runtime/postchange UI batch отдельно по общей очереди;
+здесь только source. Ни238, ни production, ни весь15/1–36 не закрываются.
+
+Независимое incumbent actual/closure review5113321d принято ROOT; normalized
+release5902ec18 передал общий runtime ROOT238. Raw proof/verifier неизменны.
+Следующий этап A — только согласованные UI source edits и source проверки.
+
+
+### A15 rail — source UI подключён, actual после изменения впереди — 22.09
+
+После891653d4 brief/incumbent critique подключён approved formatter к каждой
+строке latestPreview. Mobile nav показывает прежний background ticket/error/
+retry/pending либо forbidden/login; conversation JSX остаётся побайтно прежним.
+Удалён только presentation latestMessageId state/lookup, обязательный latestId
+и hydration сохранены. CSS добавляет только desktop-hidden/mobile feedback.
+
+[UI source evidence](qa/team-chat-channel-rail-ui-source-2026-09-22.md): новый
+typecheck и targeted lint PASS;31 pure cases переиспользованы с2c442162 по12-file
+byte parity (не новый прогон). Unknown не выдаётся за empty, tombstone не выдаёт
+старый текст. Нового runtime не было; independent source review/new PR и один
+future postchange batch впереди. Shared runtime ROOT238; production не менялась.
+
 ## 2026-09-21 — Item14 manage search / additive238 precode
 
 Accepted contract: [staff catalogue manage search](platform/staff-catalog-manage-search.md). Base9f7dde1d; ROOT reserves238 after A237. Implement scoped pending-draft literal search and mixed keyset50+1, strict DTO/query/listContext and additive reader first. Preserve legacy readers, commands, publications, permissions, all143 editorial templates and exact retry. UI index/editor remain unchanged until actual incumbent inspection; no SQL/Auth/runtime execution in this checkpoint. Integration of actual237 is required before protected migration checks; no fabricated predecessor. Plan approval is not actual acceptance.
@@ -14410,6 +14496,69 @@ One ordinary Admin header batch at1440/390/320/focus on e999 accepted with indep
 После merge #1022 вb983a45e KB157/158 получили только источник и дату к существующим фразам об e-Visa и проверке признания образования. [Квитанции и карта остатка](qa/knowledge-source-reconciliation-2026-09-21.md): independent reviews687d6d62/f17b7f87, applied receiptscfc377cb/954a7aa7. Другие утверждения/status/publication сохранены; статьи целиком не одобрены. Содержательное уточнение159 подтверждено официальным источником и независимо проверено, но ожидает решения владельца и не применено. Остаток разделён на дополнительные коммерческие правила, применимые официальные источники и допуск публикации. Решения владельца141/144/145 не пересматриваются.
 
 
+### A15 rail — bounded actual accepted and main integration, 22.09
+
+[Фактическая проверка](qa/team-chat-channel-rail-actual-2026-09-22.md) на bab531ae
+принята независимым review2de97c08:390/320/1440, search/context/draft, реальный
+offline background failure, один same-cursor retry с pending и online recovery.
+Первый UI STOP на global alert assertion сохранён; scoped продолжение выполнило
+только недостающее.290 business tables неизменны/seen0; inherited Auth restored,
+own logout204/browser/server closed/cookie removed. Cleanup helper STOP
+сохранён вместе с последующей отдельной closure receipt. QA передана B1018
+по решению ROOT (handoff75bfdaa6), новый UI replay не разрешался и не выполнялся.
+
+После закрытия интегрирован main e8fc98dc, merge e4c74b52. Append-only журналы
+сохранены с обеих сторон.43-file paritycd75ebe6: chat source/tests/SQL, package
+и globals CSS точные bab; отдельно принятая AppShell spacing правка #1021
+имеет собственную actual receipt. Старые PNG не названы новым combined UI run.
+Final exact-head review/CI остаются merge gate; merge owner ROOT. Полный15,
+production и следующие command feedback/time блоки здесь не закрываются.
+
+
+### B24 — принятый precode: повтор операции урока
+
+После merge #1015 (main436865af) source-разбор обнаружил конкретную ошибку:
+после conflict → reloadDraft → unavailable кнопка «Повторить» выбирает
+start/save/complete по состоянию экрана, никогда reload. Принят
+[узкий контракт](platform/portal-lesson-retry-operation.md) и независимое
+precode review6f458939: явная идентичность отказавшей операции, сохранение
+существующих request IDs/snapshots, busy guard, draft и всего оформления.
+Actions/RPC/SQL и другие runners не меняются. Восемь incumbent-файлов и
+lesson320/1440 база сверены с acceptedf77a457b; это не actual ошибки reload.
+
+Контракт записан до UI-кода. Реальный Student-путь ждёт отдельного admission
+и восстановления локальной среды (отсутствующий OrbStack socket); Docker не
+перезапускаем, конфликт fixtures не создаём. Следующий PR остаётся draft с
+QA pending. Этот блок не закрывает весь пункт24, native или production.
+
+### B24 — source checkpoint: повтор операции урока
+
+Precode-контракт `0eea93dc` предшествует реализации `0f5fca638f195967d0601427e228b264ef43bd90`.
+Retry теперь выбирает сохранённое имя отказавшей команды; payload/request IDs,
+actions и оформление сохранены. Две проверки воспроизвели прежний неверный
+выбор; после исправления 20 адресных unit-проверок, scoped lint, TypeScript и
+diff check прошли. [Контракт и пределы доказательства](platform/portal-lesson-retry-operation.md#source-checkpoint--2026-09-21)
+содержат команды и raw spans. Независимое source review, protected CI и реальный
+Student conflict/reload/retry пока pending. QA/Docker/Auth/DB не запускались,
+общий пункт24 и production не закрыты.
+
+
+### 2026-09-22 — B24: actual повтора урока и интеграция #1018
+
+[Узкая квитанция](qa/portal-lesson-retry-actual-2026-09-22.md): на frozen
+c59e93cf существующий Student сохранил один ответ, получил конфликт во второй
+вкладке, отказ загрузки при browser-offline и успешный ручной retry той же
+read-команды. Strict final290/33 и independent actual/closure review752f71b0
+приняты ROOT. Исходный closure OSError STOP сохранён, причина unknown;
+последующая отдельная проверка закрытия разрешена после новых PID/port данных
+и завершилась CLOSED. Повтора бизнес-сценария не было.
+
+Среда передана ROOT_COORDINATOR по handofff1126aac. После этого выполнена
+files-only интеграция main eec9c548, уже включающего #1020. Входящие изменения
+main и полные собственные дополнения журналов сохранены; LessonRunner/test
+побайтно равны c59. Контракт и архитектура не расширяются. Прежние source checks
+и actual используются со своим SHA и пределами; итоговому head требуются
+независимое exact-head review и protected CI. Пункт24 и production не закрыты.
 ## 2026-09-22 — календарь16a: сворачиваемый список без срока, до кода
 
 После #1023 (main e8fc98dc) ROOT принимает независимый срез16a; A сохраняет командный чат. [Контракт](platform/crm-calendar-undated-disclosure.md) переносит ранее одобренный precode review4995fae6: серверный count, cursor/target, ручное раскрытие, клавиатура и ссылки сохраняются. Родительский key, reader, команды и форма не меняются. До UI-правки требуется текущий Admissions baseline в выделенном окне после A1020/B1018; подготовка пока файловая. Это исходное требование §10, не расширение календаря или доказательство завершения16b.

@@ -1,11 +1,14 @@
 # A15: последние сообщения всех доступных каналов — предложение до кода
 
-Текущий статус, 2026-09-21: первый reader/DTO блок реализован в #1017 и прошёл
-ограниченную локальную SQL/Auth/RPC-проверку на `bb24f35f6d44ed227021368acbc41f9c0f8e7278`.
-Независимые DDL и RPC/strict-closure reviews приняты; [actual-квитанция](qa/team-chat-channel-previews-actual-2026-09-21.md)
-содержит точные пределы. QA передана ROOT_COORDINATOR. Main436865af интегрирован
-в0a1cdeb1 с неизменными пятью A237 source/test/SQL файлами. Protected CI и
-final-head review ещё впереди; rail UI не подключён и начнётся после merge.
+Текущий статус, 2026-09-22: первый reader/DTO блок #1017 смержен в
+`c675d4b4d735ccbcc51dc162265e31d64e193990` после final-head reviewf36fec39
+и CI35645855198 (6 SUCCESS/2 SKIP) наab45c3a6. Узкая локальная SQL/Auth/RPC
+проверка относится к неизменному sourcebb24f35f; [actual-квитанция](qa/team-chat-channel-previews-actual-2026-09-21.md)
+сохраняет её пределы. [Второй rail UI блок](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md)
+реализован в #1020, его [ограниченная actual-проверка](qa/team-chat-channel-rail-actual-2026-09-22.md)
+и закрытие ресурсов независимо приняты (2de97c08). QA передана B1018 по решению
+ROOT; после интеграции main e8fc98dc остаются final-head review/CI и merge #1020.
+Это не production-доставка и не завершение всего item15.
 
 ## Исходное принятие precode и база анализа
 

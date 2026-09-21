@@ -36519,3 +36519,43 @@ pixel anchors, other channels and screen reader/device acceptance are unclaimed.
 Final docs-head review/CI/merge remain; immutable candidatea5e7567c is released=false.
 ROOT must accept the final release before B1006 binds the local235 environment.
 Item15 and all1–36 remain partial. Historical receipts retain their original limits.
+
+## 2026-09-21 — ROOT item7b import management precode
+
+After accepted #1004 (main d68ce587), implement the already approved
+[import placement plan](EVO_SALES_IMPORT_MANAGEMENT_PLAN_2026-09-21.md).
+Move the existing import mount out of the daily report into its own internal
+mode=import view; preserve a scoped report entry for authorized custom staff
+and add an independently scoped Admin Settings entry. Preserve existing forms,
+actions, SQL, permission checks and request/File state on router refresh.
+Parse and allowlist report context for a safe Back link; record/editor/saved
+contexts retain precedence. No new writes, migration, content or import submit.
+Impeccable Operate refinement preserves EVO and reduces daily-report noise.
+Precode independent review APPROVED (private SHA
+274c606ed5adbebed2b260c3c7b5aab585dabe29d8653810b5859991b13a0281).
+ROOT source work is isolated; A1005 then B1006 own the shared local runtime.
+Actual7b verification waits its coordinated window; populated/custom-role and
+refresh-retention scenarios are only claimed when really exercised.
+
+## 2026-09-21 — ROOT item7b source implementation
+
+[Source proof](qa/crm-sales-import-placement-source-2026-09-21.md): existing
+import form now mounts only in its own guarded mode; report and Settings keep
+scoped links. Safe internal Back retains the report context; explicit editor/row
+destinations retain precedence. Forms/actions/SQL/readers are unchanged. Seven
+navigation tests, scoped lint and typecheck passed; ordinary UI/Auth/refresh
+acceptance remains pending after A1005 and B1006. No import or production write.
+
+## 2026-09-21 — ROOT7b / PR1007 actual local235 closure
+
+[Import placement acceptance](qa/crm-sales-import-placement-actual-2026-09-21.md)
+on clean3035e912 confirms scoped Admin/custom-staff entry/denial, context-preserving
+Back, annual/archive/invalid contexts, existing record/editor precedence and Admin
+Settings entry.1440/390/320 inspected; original importer/actions/SQL unchanged.
+No file selection or submission. Two driver STOPs remain; an independently reviewed
+finite functional continuation completed remaining branches without another visual
+round or login. Sales passed its first batch. Final6fd1ecbd/verifierf2bdbb91 prove
+all290 business/catalog/effects and33 Auth/Storage preservation, with only owned
+sign-in metadata/four Auth audits. Both logouts204, browsers and owned Next closed.
+The launch-binding stop guard and exact-owned-process cleanup are retained.
+Final docs review/CI/merge and release to B32 remain; no production authority.

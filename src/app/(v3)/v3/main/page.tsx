@@ -5,6 +5,8 @@ import { OperationsOverview } from "@/components/v3/OperationsOverview";
 import { PartShell } from "@/components/v3/PartShell";
 import { TrendChart } from "@/components/v3/TrendChart";
 import { SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
+import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
+import { isSalesImportQuery } from "@/lib/sales-register-navigation";
 import { SalesReportNavigation } from "@/components/v3/SalesReportNavigation";
 import { isStaffPreview, staffCan, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
@@ -33,6 +35,7 @@ export default async function MainPart({
   const canReadReport = isStaffPreview(actor) ? canReadSales : staffCan(actor, "sales.report.read");
   if (query.view === "sales" || (!canReadSales && canReadReport)) {
     if (!canReadReport) redirect("/access-denied?from=%2Fv3%2Fmain");
+    if (isSalesImportQuery(query)) return <SalesRegisterImportView actor={actor} query={query} />;
     return <SalesRegisterView actor={actor} query={query} />;
   }
   if (!canReadSales) {

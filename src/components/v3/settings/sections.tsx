@@ -400,7 +400,7 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
 
 /* ------------------------------------------------------------ Платформа */
 
-export function PlatformSection({ platform }: { platform: string }) {
+export function PlatformSection({ platform, salesImportHref }: { platform: string; salesImportHref?: string }) {
   return (
     <div className="flex flex-col gap-4">
       <Card title="Что сейчас запущено">
@@ -410,11 +410,20 @@ export function PlatformSection({ platform }: { platform: string }) {
             <dd className="min-w-0 flex-1 text-sm text-fg">{platform}</dd>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-4 py-2.5">
-            <dt className="w-44 shrink-0 text-2xs text-fg-3">Настройки</dt>
+            <dt className="w-44 shrink-0 text-2xs text-fg-3">Настройки окружения</dt>
             <dd className="min-w-0 flex-1 text-sm text-fg">только для чтения</dd>
           </div>
         </dl>
       </Card>
+
+      {salesImportHref ? (
+        <Link
+          href={salesImportHref}
+          className="inline-flex min-h-11 items-center self-start rounded-ctl text-sm font-medium text-accent underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          Перенос данных отчёта продаж
+        </Link>
+      ) : null}
 
       <Card title="Требует внимания">
         <ul>

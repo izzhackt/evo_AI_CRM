@@ -9,16 +9,14 @@ import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesReportNavigation } from "./SalesReportNavigation";
-import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./SalesRegisterForms";
+import { SalesRegisterForm, SalesTargetForm } from "./SalesRegisterForms";
 import { SalesRecordPreview } from "./SalesRecordPreview";
-import { parseSalesRegisterSearchQuery } from "@/lib/sales-register-search";
-import { parseSalesRegisterDirection, salesDirectionControl } from "@/lib/sales-register-directions";
+import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 
-export type SalesReportQuery = Readonly<{
-  year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
-  manager?: string; direction?: string; review?: string; saved?: string; edit?: string; q?: string;
-}>;
+import { salesReportContext, type SalesReportQuery } from "@/lib/sales-register-navigation";
+export type { SalesReportQuery } from "@/lib/sales-register-navigation";
+
 const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 const money = (minor: number | null, currency: string | null) => minor === null || !currency ? "Не уточнено" : `${number.format(minor / 100)} ${currency}`;
@@ -26,24 +24,15 @@ const dateLabel = (date: string | null) => date ? date.split("-").reverse().join
 
 export async function SalesRegisterView({ actor, query }: { actor: ActivePlatformActor; query: SalesReportQuery }) {
   const now = new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date());
-  const year = query.year === undefined ? Number(now.find(p => p.type === "year")!.value) : Number(query.year);
-  const month = query.month === undefined ? Number(now.find(p => p.type === "month")!.value) : query.month === "all" ? undefined : Number(query.month);
-  const offset = query.offset === undefined ? 0 : Number(query.offset);
-  const searchQuery = parseSalesRegisterSearchQuery(query.q);
-  const valid = searchQuery !== null && Number.isInteger(year) && year >= 1900 && year <= 2100
-    && (query.year === undefined || /^\d{4}$/.test(query.year))
-    && (month === undefined || (Number.isInteger(month) && month >= 1 && month <= 12))
-    && Number.isInteger(offset) && offset >= 0 && offset <= 1_000_000
-    && (query.manager === undefined || (typeof query.manager === "string" && query.manager.length <= 300))
-    && parseSalesRegisterDirection(query.direction) !== null
-    && (query.review === undefined || ["", "true", "false"].includes(query.review));
+  const { year, month, offset, searchQuery, valid, reportMonth, params, href, clearFiltersHref, importHref } = salesReportContext(query, {
+    year: Number(now.find(p => p.type === "year")!.value), month: Number(now.find(p => p.type === "month")!.value),
+  });
   const writeAccess = await readSalesRegisterWriteAccess(actor);
   const canManage = writeAccess === "allowed";
   const viewingRecord = Boolean(query.record);
   const editing = (query.new === "true" && !viewingRecord) || (viewingRecord && query.edit === "true");
   const directionsPromise = !viewingRecord && !(editing && canManage)
     ? readSalesRegisterDirections(actor).catch(() => null) : Promise.resolve(null);
-  const reportMonth = `${year}-${String(month ?? Number(now.find(p => p.type === "month")!.value)).padStart(2, "0")}-01`;
   const managementPromise: Promise<SalesRegisterManagementRead> = valid && !viewingRecord && !(editing && canManage)
     ? readSalesRegisterManagement(actor, month && query.archived !== "true" ? reportMonth : null)
     : Promise.resolve({ status: "denied" });
@@ -67,27 +56,13 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
   const managementUnavailable = management.status === "unavailable";
   // Hints only retain disabled drafts on a failed read; they never grant a write.
   const showTargetForm = canTarget || (managementUnavailable && !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage"));
-  const showImportForm = canImport || (managementUnavailable && !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.import"));
   const directionControl = salesDirectionControl(await directionsPromise, query.direction);
   const directionHelp = directionControl.kind === "input"
     ? directionControl.reason === "invalid"
       ? "Введите направление до 500 символов без переносов строк и служебных символов."
       : "Не удалось загрузить список. Введите направление как в записи или обновите страницу."
     : directionControl.empty ? "В доступных записях нет заполненных направлений." : null;
-  const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
-  const clearFiltersHref = `/v3/main?${params.toString()}`;
   const hasFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true");
-  if (searchQuery) params.set("q", searchQuery);
-  if (query.archived === "true") params.set("archived", "true");
-  if (query.manager) params.set("manager", query.manager);
-  if (query.direction) params.set("direction", query.direction);
-  if (query.review) params.set("review", query.review);
-  if (valid && offset > 0) params.set("offset", String(offset));
-  const href = (extra: Record<string, string> = {}) => {
-    const next = new URLSearchParams(params);
-    for (const [key, value] of Object.entries(extra)) next.set(key, value);
-    return `/v3/main?${next.toString()}`;
-  };
   const saved = !editing && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
@@ -219,10 +194,10 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           {workspace.hasMore ? <Link href={href({ offset: String(offset + 50) })} className={`${btnGhostCls} min-h-11`}>Далее</Link> : <span />}
         </nav>
       </>}
-      {(showTargetForm && month && query.archived !== "true") || showImportForm ? <div className="mt-8 space-y-5 border-t border-border pt-5">
+      {(showTargetForm && month && query.archived !== "true") || canImport || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
         {managementUnavailable ? <p role="alert" className="text-sm text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
         {showTargetForm && month && query.archived !== "true" ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Изменить план месяца</summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}
-        {showImportForm ? <details><summary className="cursor-pointer py-3 text-sm font-medium">Начальный перенос данных</summary><SalesRegisterImport requestId={randomUUID()} readUnavailable={managementUnavailable} /></details> : null}
+        {canImport ? <Link href={importHref} className={`${btnGhostCls} min-h-11`}>Перенос данных</Link> : null}
       </div> : null}
     </>}
   </main>;

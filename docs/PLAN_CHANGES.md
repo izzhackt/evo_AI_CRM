@@ -35845,3 +35845,9 @@ Impeccable Operate/adapt сохраняет EVO и existing controls на web/iP
 два ограниченных visual passes только в будущем выделенном runtime окне.
 Precode требует independent exact-head review. Broad E2E/content/App Store,
 production и весь1–36 остаются вне объявления о завершении этого этапа.
+
+Независимое UI review уточнило обязательный сценарий: успешная запись с потерянным
+ответом может убрать строку из очереди, а новая редакция — заменить форму.
+Owner-scoped восстановление package intent поэтому доступно отдельно от этих
+элементов и повторяет точный исходный запрос. Receipt либо доказанный `not_written`
+разрешает очистку. Это включено в scoped QA; SQL/API/бизнес-границы не расширены.

@@ -35689,3 +35689,30 @@ role, provider/production action or source/server-action/UI/native acceptance.
 Final independent actual-evidence/exact-head review, protected CI/merge and
 fresh full RAW release to ROOT990 remain. Only then start A15f UI code, preserving
 ROOT's separate mobile-sales presentation ownership. This does not close item15.
+
+
+## 2026-09-21 — CRM-02c: mobile sales presentation, precode
+
+Принятое требование пункта7 реализуется локальной адаптацией существующей
+таблицы `SalesRegisterView.tsx`, а не сменой модели продаж. Impeccable
+Operate/adapt рекомендует один DOM/anchor и вертикальный mobile layout с
+сохранением desktop и всех исходных полей/ссылок/прав. ROOT отдельно владеет
+этой presentation; A/B файлы не пересекаются. Пользователь разрешил параллельную
+работу: source-подготовка идёт независимо от #990, общий runtime остаётся у
+текущего владельца, actual проверка следует после передачи окна. Остальные
+остатки7 (полный direction facet, сводка, import) не включены. Критерии и пределы
+приёмки записаны в CRM-02c launch appendix до изменения UI.
+
+## 2026-09-21 — CRM-02c: actual UI принятие, без изменения runtime
+
+Source `26c8b4c268b628563b5dd5b3226bea47c0866631`: existing ordinary Sales,
+пять сохранённых QA-строк, desktop 1440 и mobile 390/320 PASS; ширина списка
+совпадает со scrollWidth 346/286 px. Значения/ссылки, browser AX table/headers/rows,
+видимый keyboard focus и поиск → preview → возврат к той же строке сохранены.
+Full 283/schema, Storage objects/buckets без изменений, собственная Auth-сессия
+восстановлена; runtime закрыт. Actual receipt SHA256 `0c6cd413884449f4ecfca3d3ab41208d3cf9e30f5193d19e491c7f4c086e4626`,
+release SHA256 `16ece6aa4a6e6ef84cfae0fae9e0e1caf5a119b0c261b41f96e9607e2cd105c4`
+в `/private/tmp/evo-sales-mobile-actual-20260921/`; CI 35566545192: 5 PASS / 3 SKIP.
+Это локальная приёмка списка без новых fixtures/financial writes. Отдельная
+сводка 400 px, остатки пункта 7, native VoiceOver и production не покрыты.
+Текущий follow-up только фиксирует evidence; UI/SQL/API не меняются.

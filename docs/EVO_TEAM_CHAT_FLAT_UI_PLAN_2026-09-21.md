@@ -4,9 +4,11 @@
 использует V2 timeline reader и существующий changes/search read path.
 [Принятый ограниченный actual](qa/crm-team-chat-unified-feed-actual-2026-09-21.md)
 относится к `e1250b58`; его ограничения и история review сохранены. Входящий
-main для следующего блока — `479dd6788` после A11/#1002. Следующий минимальный
-блок: [A15g-1 read errors/exact retry](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md),
-precode одобрен, source-реализация подготовлена; actual ещё ожидается.
+main для старта A15g-1 — `479dd6788` после A11/#1002, интегрирован d68ce587/#1004.
+[A15g-1 read errors/exact retry](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md)
+прошёл source/integration review и ограниченный local235 actual на7d70a71d;
+[квитанция](qa/crm-team-chat-read-retry-actual-2026-09-21.md). Собственные сессии
+закрыты, финальный docs-head review/CI/merge и ROOT handoff ещё требуются.
 Группировка/плотность/серверные channel previews остаются отдельно.
 Ниже сохранён первоначальный precode от03068e1f; его будущие A15d/A15e уже
 уточнены принятыми контрактами225/227 и реализованным разделом A15f.

@@ -36496,3 +36496,26 @@ retention remain unverified; no acceptance claim is made for those branches.
 The next7b UI block preserves forms and will retain these proof gaps explicitly.
 Final-head review/CI/merge are still required; local235 transfers next to A1005.
 Production authority and delivery are separate.
+
+
+## 2026-09-21 — A15g-1 / PR1005 actual local235 closure
+
+[Actual read-retry report](qa/crm-team-chat-read-retry-actual-2026-09-21.md):
+clean source7d70a71d integrates main d68ce587/#1004 without changing reviewed
+f882fedc product code. Existing custom scoped staff, ordinary Auth and real
+network offline/online confirm original search retry despite changed unsent
+input,50→61 unique search results, context/return,64 history and retained draft;
+1440/390/320 have one composer and no document overflow. Initial driver sequencing
+STOP and intermediate live-session AMR verifier STOP remain separate; the single
+same-session confirmation passed, and unchanged strict final verifier passed
+only after own logout/browser/server closure. No additional product correction.
+
+Independent actual/closure review3796fde3 approved full290-table/catalog/effects
+parity, zero new seen, restored224 sessions/239 refresh/224 AMR hashes, preserved
+8 users/stable fields and old Auth audits; only own sign-in metadata and two
+login/logout audit rows differ. No messages/new actors/fixtures/SQL/providers or
+production actions. Late forbidden/partial hydration remain source regressions;
+pixel anchors, other channels and screen reader/device acceptance are unclaimed.
+Final docs-head review/CI/merge remain; immutable candidatea5e7567c is released=false.
+ROOT must accept the final release before B1006 binds the local235 environment.
+Item15 and all1–36 remain partial. Historical receipts retain their original limits.

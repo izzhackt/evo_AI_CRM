@@ -1,7 +1,10 @@
 # A15g-1 — ошибки чтения и точный повтор командного чата
 
-Статус: precode a90fda0c и source f882fedc независимо одобрены;
-actual ожидается. 21 сентября2026. Основание: принятый ROOT минимальный остаток
+Статус на21 сентября2026: precode a90fda0c, source f882fedc и integration
+7d70a71d независимо одобрены. Ограниченный local235 actual и закрытие собственной
+QA-сессии также одобрены; [квитанция](qa/crm-team-chat-read-retry-actual-2026-09-21.md).
+Финальный docs-head review, CI и merge остаются отдельными gates.
+Основание: принятый ROOT минимальный остаток
 пункта15 после A15f/#992 и завершённого A11/#1002. Входящий main
 `479dd6788b87fc14d4d9e3e809c16e9efff1badd`; исходники повторно прочитаны на нём.
 Сохранённый [A15f actual](qa/crm-team-chat-unified-feed-actual-2026-09-21.md)
@@ -84,5 +87,11 @@ DTO, server actions, permissions, package/lock. Нет новой миграци
 
 До кода пройдено независимое precode review a90fda0c.
 [Source receipt](qa/crm-team-chat-read-retry-source-2026-09-21.md) фиксирует
-29/29 unit checks, typecheck и lint; actual UI остаётся будущим отдельным окном.
-Общий runtime/DB/Auth/browser этой партии ещё не использовался.
+29/29 unit checks, typecheck и lint на f882fedc; исходники продукта byte-identical
+на actual7d70a71d после интеграции main d68ce587. Local235 UI подтвердил offline
+search/append/context и точный online retry, сохранение результатов/черновика,
+один composer и отсутствие переполнения1440/390/320. Первая UI-попытка STOP и
+промежуточный Auth-verifier STOP сохранены отдельно; окончательная проверка
+прошла без ослабления verifier. Все290 business tables неизменны, новых seen0;
+собственные Auth/browser/server закрыты. Late forbidden, partial hydration,
+точный pixel-anchor и screen reader не объявляются actual-доказательствами.

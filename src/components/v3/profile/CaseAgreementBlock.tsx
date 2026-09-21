@@ -1,4 +1,6 @@
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { isStaffPreview } from "@/lib/platform-access";
+import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { Card } from "@/components/ui";
 import { Pill } from "@/components/v3/Pill";
 import { financeMoney } from "@/lib/platform-case-agreement-contract";
@@ -21,10 +23,12 @@ export async function CaseAgreementBlock({
   actor,
   studentCaseId,
   saleConditionsHref,
+  contractPreparationHref,
 }: Readonly<{
   actor: ActivePlatformActor;
   studentCaseId: string | null;
   saleConditionsHref: string | null;
+  contractPreparationHref: string | null;
 }>) {
   if (!studentCaseId) return null;
   const result = await readCaseAgreement(actor, studentCaseId);
@@ -46,6 +50,11 @@ export async function CaseAgreementBlock({
     );
   }
   const agreement = result.agreement;
+  const canWrite = agreement.canWrite && !isStaffPreview(actor);
+  const costCurrency = agreement.costCurrency;
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PLATFORM_ORGANIZATION_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
 
   const perCurrency = agreement.currencyMismatch
     ? Object.entries(
@@ -59,91 +68,85 @@ export async function CaseAgreementBlock({
 
   return (
     <div data-testid="v3-case-agreement">
-      <Card
-        title="Договор и оплата"
-        aside={
-          agreement.costMinor === null ? saleConditionsHref ? (
-            <a className="text-sm font-semibold text-accent hover:underline" href={saleConditionsHref}>
-              Стоимость не указана
-            </a>
-          ) : (
-            <span className="text-sm text-fg-2">Стоимость не указана</span>
-          ) : agreement.currencyMismatch ? (
-            // FIX 8 (adversarial review): label the per-currency sums
-            // explicitly and never render "Оплачено"/"Остаток" numbers here
-            // — the server cannot honestly aggregate mixed currencies into
-            // one total, so it stays omitted rather than shown unlabeled.
-            <span className="font-mono text-sm tabular-nums text-fg">
-              Транши по валютам: {perCurrency.map(([currency, sum]) =>
-                financeMoney(sum.toString(), currency)
-              ).join(" · ")}
-            </span>
-          ) : (
-            <span className="font-mono text-sm tabular-nums text-fg">
-              {financeMoney(agreement.costMinor, agreement.costCurrency ?? "USD")}
-              {" → "}
-              {financeMoney(agreement.paidMinor, agreement.costCurrency ?? "USD")}
-              {" → "}
-              {agreement.remainingMinor !== null
-                ? financeMoney(agreement.remainingMinor, agreement.costCurrency ?? "USD")
-                : "—"}
-            </span>
-          )
-        }
-      >
+      <Card title="Договор и оплата">
         <div className="flex flex-col gap-4 px-4 py-3">
-          {agreement.costMismatch ? (
-            <p className="text-xs text-fg-3">
-              Транши: {financeMoney(agreement.trancheSumMinor, agreement.costCurrency ?? "")} из{" "}
-              {agreement.costMinor !== null
-                ? financeMoney(agreement.costMinor, agreement.costCurrency ?? "")
-                : "—"}
-            </p>
-          ) : null}
+          <div>
+            <dl className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <dt className="text-sm text-fg-2">Стоимость услуг EVO</dt>
+                <dd className="mt-1 font-semibold tabular-nums text-fg">
+                  {agreement.costMinor === null ? "Не указана" : costCurrency
+                    ? financeMoney(agreement.costMinor, costCurrency) : "Валюта не указана"}
+                </dd>
+              </div>
+              {!agreement.currencyMismatch && costCurrency && agreement.costMinor !== null ? <>
+                <div>
+                  <dt className="text-sm text-fg-2">Оплачено с учётом возвратов</dt>
+                  <dd className="mt-1 font-semibold tabular-nums text-fg">{financeMoney(agreement.paidMinor, costCurrency)}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-fg-2">Остаток</dt>
+                  <dd className="mt-1 font-semibold tabular-nums text-fg">{agreement.remainingMinor !== null
+                    ? financeMoney(agreement.remainingMinor, costCurrency) : "—"}</dd>
+                </div>
+              </> : null}
+            </dl>
+            {agreement.currencyMismatch ? (
+              <p className="mt-3 text-sm tabular-nums text-fg-2">
+                Транши по валютам: {perCurrency.map(([currency, sum]) =>
+                  financeMoney(sum.toString(), currency)
+                ).join(" · ")}
+              </p>
+            ) : agreement.costMismatch && costCurrency ? (
+              <p className="mt-3 text-sm text-fg-2">
+                Сумма траншей: {financeMoney(agreement.trancheSumMinor, costCurrency)}.
+              </p>
+            ) : null}
+            {saleConditionsHref ? (
+              <a className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" href={saleConditionsHref}>
+                Условия продажи
+              </a>
+            ) : null}
+          </div>
 
-          {agreement.canWrite ? (
-            <div className="flex flex-wrap gap-3">
-              <CaseAgreementUploadContract studentCaseId={studentCaseId} />
-            </div>
-          ) : null}
-
-          <section>
+          <section className="border-t border-border pt-4">
+            <h3 className="mb-2 text-base font-semibold text-fg">Договор</h3>
             {agreement.contractCurrent ? (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                <span className="min-w-0 flex-1 truncate text-fg">
+                <span className="min-w-0 flex-1 break-words text-fg">
                   {agreement.contractCurrent.originalFilename}
                 </span>
-                <span className="text-2xs text-fg-3">
+                <span className="text-xs text-fg-2">
                   {agreement.contractCurrent.uploadedByDisplayName ?? "—"} ·{" "}
                   {new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Bishkek" }).format(
                     new Date(agreement.contractCurrent.uploadedAt),
                   )}
                 </span>
                 <a
-                  className="text-sm font-semibold text-accent hover:underline"
+                  className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                   href={`/api/v2/case-contract-files/${studentCaseId}/${agreement.contractCurrent.id}/download`}
                 >
                   Скачать
                 </a>
               </div>
             ) : (
-              <p className="text-sm text-fg-3">Договор ещё не загружен.</p>
+              <p className="text-sm text-fg-2">Договор ещё не загружен.</p>
             )}
             {agreement.contractHistory.length > 0 ? (
               <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-fg-3">История</summary>
+                <summary className="min-h-11 cursor-pointer py-3 text-sm text-fg-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">История договоров</summary>
                 <ul className="mt-1.5 space-y-1">
                   {agreement.contractHistory.map((file) => (
                     <li key={file.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
-                      <span className="min-w-0 flex-1 truncate text-fg-2">{file.originalFilename}</span>
-                      <span className="text-2xs text-fg-3">
+                      <span className="min-w-0 flex-1 break-words text-fg-2">{file.originalFilename}</span>
+                      <span className="text-xs text-fg-2">
                         {file.uploadedByDisplayName ?? "—"} ·{" "}
                         {new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Bishkek" }).format(
                           new Date(file.uploadedAt),
                         )}
                       </span>
                       <a
-                        className="text-xs font-semibold text-accent hover:underline"
+                        className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                         href={`/api/v2/case-contract-files/${studentCaseId}/${file.id}/download`}
                       >
                         Скачать
@@ -153,25 +156,33 @@ export async function CaseAgreementBlock({
                 </ul>
               </details>
             ) : null}
+            {canWrite ? (
+              <div className="mt-3"><CaseAgreementUploadContract studentCaseId={studentCaseId} /></div>
+            ) : null}
+            {contractPreparationHref ? (
+              <a className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" href={contractPreparationHref}>
+                Подготовка договора и отчёты
+              </a>
+            ) : null}
           </section>
 
-          <section data-testid="v3-case-agreement-tranches">
+          <section className="border-t border-border pt-4" data-testid="v3-case-agreement-tranches">
+            <h3 className="mb-2 text-base font-semibold text-fg">Транши</h3>
             <ul className="divide-y divide-border">
               {agreement.tranches.map((tranche) => (
                 <li key={tranche.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-                  <span className="min-w-0 flex-1 text-sm text-fg">{tranche.label}</span>
+                  <span className="min-w-0 flex-1 break-words text-sm font-medium text-fg">{tranche.label}</span>
                   <span className="shrink-0 font-mono text-sm tabular-nums text-fg">
                     {financeMoney(tranche.amountMinor, tranche.currency)}
                   </span>
-                  {tranche.dueOn ? (
-                    <span className="text-2xs text-fg-3">
-                      до {new Date(tranche.dueOn).toLocaleDateString("ru-RU", { timeZone: "UTC" })}
-                    </span>
-                  ) : null}
-                  <span className="text-2xs text-fg-3">
-                    оплачено {financeMoney(tranche.totalPaidMinor, tranche.currency)}
-                  </span>
-                  {agreement.canWrite ? (
+                  <div className="flex w-full flex-wrap gap-x-4 gap-y-1 text-sm text-fg-2">
+                    <span>{tranche.dueOn ? `До ${new Date(tranche.dueOn).toLocaleDateString("ru-RU", { timeZone: "UTC" })}` : "Срок не задан"}</span>
+                    <span>Остаток {financeMoney(tranche.outstandingMinor, tranche.currency)}</span>
+                    <span>Оплаты до вычета возвратов: {financeMoney(tranche.totalPaidMinor, tranche.currency)}</span>
+                    {tranche.dueOn && tranche.dueOn < today && BigInt(tranche.outstandingMinor) > BigInt(0)
+                      ? <Pill tone="danger">Просрочен</Pill> : null}
+                  </div>
+                  {canWrite ? (
                     <CaseAgreementTrancheEditor
                       studentCaseId={studentCaseId}
                       tranche={tranche}
@@ -181,21 +192,22 @@ export async function CaseAgreementBlock({
                 </li>
               ))}
               {agreement.tranches.length === 0 ? (
-                <li className="py-2 text-sm text-fg-3">Транши не заведены.</li>
+                <li className="py-2 text-sm text-fg-2">Транши не заведены.</li>
               ) : null}
             </ul>
-            {agreement.canWrite ? (
+            {canWrite ? (
               <div className="mt-3">
                 <CaseAgreementTrancheEditor studentCaseId={studentCaseId} tranche={null} canArchive={false} />
               </div>
             ) : null}
           </section>
 
-          <section data-testid="v3-case-agreement-payment">
+          <section className="border-t border-border pt-4" data-testid="v3-case-agreement-payment">
+            <h3 className="mb-2 text-base font-semibold text-fg">Оплаты и чеки</h3>
             <ul className="divide-y divide-border">
               {agreement.payments.map((payment) => (
                 <li key={payment.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-                  <span className="text-2xs text-fg-3">
+                  <span className="text-xs text-fg-2">
                     {new Date(payment.occurredOn).toLocaleDateString("ru-RU", { timeZone: "UTC" })}
                   </span>
                   {payment.eventType === "refund" ? <Pill tone="warn">Возврат</Pill> : null}
@@ -203,11 +215,11 @@ export async function CaseAgreementBlock({
                     {payment.eventType === "refund" ? "−" : ""}
                     {financeMoney(payment.amountMinor, payment.currency)}
                   </span>
-                  <span className="text-2xs text-fg-3">{payment.actorDisplayName ?? "—"}</span>
+                  <span className="text-xs text-fg-2">{payment.actorDisplayName ?? "—"}</span>
                   {payment.receipts.map((receipt) => (
                     <a
                       key={receipt.id}
-                      className="text-xs font-semibold text-accent hover:underline"
+                      className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                       href={`/api/v2/payment-receipt-files/${studentCaseId}/${receipt.id}/download`}
                     >
                       Чек
@@ -216,10 +228,10 @@ export async function CaseAgreementBlock({
                 </li>
               ))}
               {agreement.payments.length === 0 ? (
-                <li className="py-2 text-sm text-fg-3">Оплат ещё нет.</li>
+                <li className="py-2 text-sm text-fg-2">Оплат ещё нет.</li>
               ) : null}
             </ul>
-            {agreement.canWrite && agreement.tranches.length > 0 ? (
+            {canWrite && agreement.tranches.length > 0 ? (
               <div className="mt-3">
                 <CaseAgreementPaymentForm studentCaseId={studentCaseId} tranches={agreement.tranches} />
               </div>

@@ -12209,3 +12209,12 @@ desktop/320/390 проверка, доступность и сохранност
 Сохранения финансовых операций/загрузки/production не нужны и сюда не входят.
 Недоступные реальные финансовые варианты фиксируются как непройденные.
 Scoped checks и independent exact-head review перед merge; managed delivery отдельно.
+
+
+### CRM-09b: UI-срез проверен локально
+
+Actual existing Admin Money/Contract,1280/390/320px; явные денежные подписи,
+разделы и secondary disclosures, сохранность draft fields и правильные ссылки.
+48scoped tests/lint/typecheck PASS;281business/schema/functions/ledger/Authcounts
+без изменений. См. [QA](qa/crm-finance-hierarchy-2026-09-21.md) для runtime/proof
+и отсутствующих финансовых datasets. Полный item12 и managed delivery открыты.

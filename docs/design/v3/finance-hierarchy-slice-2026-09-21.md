@@ -113,6 +113,20 @@ ContractDraftReportWorkspace, types.ts, profile-source.ts и Student/native фа
 
 ## Реальная проверка и доступные входы
 
+Incumbent baseline выполнен до UI-правок: ordinary existing Local Admin через
+Chrome, local33234, case из прежней root222 квитанции. Реальный Money показывает
+стоимость1000USD/оплачено0/остаток1000 без подписей, пустые договор/транши/оплаты,
+«Бюджет не указан» ниже известной цены. Existing contract tab открывается;
+утверждённых templates/versions нет. Собственные tab/server закрыты, весь
+сохранённый full snapshot до/после совпал (281business hashes, schema/ledger,
+Auth users/identities counts; не proof всех Auth attributes). Financial writes
+не выполнялись. Положительные файлы/возвраты/смешанные валюты пока отсутствуют.
+
+Существующая source-проверка currencyMismatch в `tests/v3-case-agreement.test.mjs`
+привязана к старому aside. При изменении композиции обновить только эту проверку
+так, чтобы она действительно находила новую ветку и сохраняла запрет общего
+paid/remaining при разных валютах; пустой substring не считать доказательством.
+
 Эта подготовка не читала БД и не подтверждает наличие подходящих финансовых
 строк. Старые217 receipts подтверждали существование ordinary Admin/Admissions/
 Sales sessions; их задачи и агрегатные hashes не доказывают наличие договоров,

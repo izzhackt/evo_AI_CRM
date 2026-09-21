@@ -35129,3 +35129,9 @@ Issue687 owner/managed exit and all remaining accepted1–36 work stay open.
 Полный перенос договорных команд и снятие contract tab — следующий срез, item12
 не закрывается этой компоновкой. Проверка текущих реальных данных только чтением;
 клиентские публикации/финансовые записи/Auth provisioning не подразумеваются.
+
+До UI-изменений actual incumbent Money/Contract проверены existing QA Admin:
+стоимость1000USD с неподписанными paid/remaining и противоречивым «Бюджет не указан»;
+финансовые записи не создавались, full snapshot совпал. Единственная существующая
+source-проверка currencyMismatch привязана к aside: разрешено обновить её locator
+на новую ветку с обязательным nonempty guard, сохранив проверяемую денежную защиту.

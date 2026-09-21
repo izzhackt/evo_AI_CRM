@@ -12454,3 +12454,14 @@ gate для самого выбора. Новый staff-save создаёт ре
 отсутствие пересечения с каталогом в текущем team-chat223; root27b signup sections
 и shared i18n/Swift keys согласуются перед runtime-правками. Независимое review
 и CI этого плана фиксируются в отдельном PR, без заявления функциональной приёмки.
+
+## 2026-09-21 — B3e-1 / 224: read-only v2 protocol (до реализации)
+
+После #979 root выделил224 для authenticated v2 requirements readers.
+[Точный контракт](platform/b3e1-requirements-v2-read-contract.md) сохраняет
+initializer/receipt/pending v1, добавляет строгую flat v2 проекцию текущего218
+и переводит CRM/web/iPhone reader consumers. Схема/полные редакции/editor/write
+ещё не включаются; reserved full DTO decoding не означает working full backend.
+Новые private/public functions без business writes; apply/QA только после
+проверки точного пакета и отдельного root writer window. Старые slots/files/review,
+214 publication/intake/deadline и последующие §11 submit/packages сохранены.

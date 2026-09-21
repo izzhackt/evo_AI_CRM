@@ -36559,3 +36559,16 @@ all290 business/catalog/effects and33 Auth/Storage preservation, with only owned
 sign-in metadata/four Auth audits. Both logouts204, browsers and owned Next closed.
 The launch-binding stop guard and exact-owned-process cleanup are retained.
 Final docs review/CI/merge and release to B32 remain; no production authority.
+
+## 2026-09-21 — KB31 bounded provenance checkpoint
+
+Record already completed offline candidate reconciliation; no new product code,
+runtime, content approval or publication. The admitted31-candidate queue now has
+11 with narrow provenance appendices,9 previously reviewed with unresolved claims,
+and11 derivatives still pending. These are work groups, not approved articles;
+appended candidates can also retain unresolved claims. Original text/frontmatter/
+status and source chains were preserved; last batches148/150/152 and151/326 had
+independent exact-byte closure48434643/38d705ab. Raw originals and forbidden material
+bodies were excluded. Update the knowledge execution/report and1–36 ledger, dating
+old operational snapshots and distinguishing local #985 materials from pending
+company-download proof. Prose-only validation: diff review and git diff --check.

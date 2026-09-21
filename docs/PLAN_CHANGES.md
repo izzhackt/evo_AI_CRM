@@ -36171,3 +36171,19 @@ search errors should explain retrieval failure rather than an uncertain write.
 Native/IME/screen-reader/moderation/revocation/storage-quota/post-refresh-failure
 journeys remain unclaimed. New main47d4a4746 integration preserves chat bytes;
 no migration is introduced by this chat PR.
+
+
+### CRM-02d actual compact summary and current1–36 front —2026-09-21
+
+Ordinary Sales/Admin baseline0fd6952a/candidatef59adb70 at1440/390/320 preserved
+count, currency values, unknown notes, target visibility and row links. Mobile
+summary no longer horizontally scrolls. Cash positive and universal height
+reduction are not claimed. Full local230/287 business state, catalog, finance,
+Storage and incoming224 sessions restored; own browser/server stopped. See
+`docs/qa/crm-sales-compact-summary-2026-09-21.md`. Mainca7c98ec integration
+preserves exact SalesRegisterView bytes; this is reused proof, not a new run.
+
+`docs/EVO_ITEMS_1_36_STATUS_2026-09-21.md` reconciles the accepted original labels
+and remaining work, preserving earlier historical checkpoints. Local231 then
+applied once with no Auth/submission/business writes; window passed B232.
+No production delivery or whole1–36 completion claimed.

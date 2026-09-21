@@ -12977,3 +12977,43 @@ Individual228, canonical bytes и история сохраняются; package
 доступно отдельно от текущей очереди/редакции, привязано к владельцу и повторяет
 точный исходный состав/решение. Scoped QA включает потерю ответа с последующей
 перезагрузкой и сменой revision; очистка только по receipt или `not_written`.
+
+
+## 2026-09-21 — B3g.1: серверный контракт комплекта, offline implementation
+
+После принятого precode #998 (`8b942d506ab575042a1684bdccbd685d566d84fc`)
+координатор разрешил первый кодовый блок: миграция 232, атомарная отправка/проверка
+комплекта, чтение/история/уведомления, общий TypeScript/Swift codec и восстановление
+запроса. UI входит в следующий блок; текущий сохраняет все правила
+[контракта B3g](platform/b3g-program-package-contract.md).
+
+В отдельном worktree SQL-агент владеет только новой миграцией и SQL-тестами,
+серверный агент — новыми adapters/routes и их тестами, native-агент — новыми
+Swift models/pending и codec-тестами. B владеет общим wire, TypeScript codec,
+fixtures, pending и документацией. Общие файлы меняются только своим владельцем.
+Перед реализацией фиксируется точный JSON/RPC контракт; 1–100 пунктов комплекта
+не ограничиваются прежним лимитом 50 отдельных document DTO.
+
+Сейчас разрешены только offline проверки исходников, парсинга и codec; локальное
+окно DB/Auth/Storage/browser остаётся у ROOT для 229/230, затем A15f. Миграции
+230 ROOT и 231 website не копируются и не меняются из чужих PR. Их интеграция
+выполняется явно после слияния; CI может ожидать эти зависимости. До independent
+review и узкой реальной проверки функция не объявляется принятой или готовой
+в production. Native typecheck также не является UI acceptance.
+
+
+B3g.1 wire уточнение до review: оба ответа восстановления (`committed` и
+`not_written`) содержат requestId и case/application, проверяемые по frozen intent.
+Одного operation недостаточно: запоздавшее подтверждение отсутствия записи для
+другого запроса не должно очищать pending. SQL, TypeScript и Swift используют
+одинаковую корреляцию; бизнес-операции и полномочия не расширяются.
+
+
+B3g.1 initial offline validation: 73 scope-local Node checks passed (package
+codec/pending/actions/SQL source and affected 228 document contracts), TypeScript
+noEmit passed, scoped ESLint and diff-check passed. Swift author ran the shared
+fixture and pending/recovery checks: 92 passed. SQL author parsed 96 statements
+and 19 PL/pgSQL bodies with pglast. These are source/codec checks only; SQL object
+resolution, real ordinary-Auth transactions, Storage effects, UI and native screen
+behavior remain unverified until a separately coordinated runtime packet. The
+source block now goes to independent exact-head review; it does not complete B3g.

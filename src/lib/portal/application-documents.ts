@@ -252,7 +252,7 @@ function parseUpload(value: unknown): ApplicationDocumentUpload | null {
   return file ? { uploadContextId: row.uploadContextId as string, requirementsRevisionId: row.requirementsRevisionId as string, requirementItemId: row.requirementItemId as string,
     documentSlotId: row.documentSlotId as string, admittedAt: row.admittedAt, file } : null;
 }
-function parseReview(value: unknown): ApplicationDocumentReview | null {
+export function parseApplicationDocumentReview(value: unknown): ApplicationDocumentReview | null {
   const row = applicationDocumentRecord(value);
   if (!row || !applicationDocumentExact(row, ["reviewId", "decision", "reason", "reviewedAt"]) || !uuid(row.reviewId) || !reviewFields(row) || !timestamp(row.reviewedAt)) return null;
   return { reviewId: row.reviewId, decision: row.decision as ApplicationDocumentReviewDecision, reason: row.reason as string | null, reviewedAt: row.reviewedAt };
@@ -261,11 +261,11 @@ export function parseApplicationDocumentSubmission(value: unknown): ApplicationD
   const row = applicationDocumentRecord(value);
   if (!row || !applicationDocumentExact(row, ["submissionId", "requirementsRevisionId", "requirementItemId", "documentSlotId", "submittedAt", "file", "review"])
     || ![row.submissionId, row.requirementsRevisionId, row.requirementItemId, row.documentSlotId].every(uuid) || !timestamp(row.submittedAt)) return null;
-  const file = parseApplicationDocumentFile(row.file), review = row.review === null ? null : parseReview(row.review);
+  const file = parseApplicationDocumentFile(row.file), review = row.review === null ? null : parseApplicationDocumentReview(row.review);
   return file && (row.review === null || review) ? { submissionId: row.submissionId as string, requirementsRevisionId: row.requirementsRevisionId as string,
     requirementItemId: row.requirementItemId as string, documentSlotId: row.documentSlotId as string, submittedAt: row.submittedAt, file, review } : null;
 }
-function parseDefinition(value: unknown): ApplicationDocumentDefinition | null {
+export function parseApplicationDocumentDefinition(value: unknown): ApplicationDocumentDefinition | null {
   const row = applicationDocumentRecord(value);
   if (!row || !applicationDocumentExact(row, ["requirementKey", "required", "label", "groupLabel", "instructions", "deadline", "documentSlotId"])
     || !requirementKey(row.requirementKey) || typeof row.required !== "boolean" || !scalarText(row.label, 500) || !scalarText(row.groupLabel, 200)
@@ -274,7 +274,7 @@ function parseDefinition(value: unknown): ApplicationDocumentDefinition | null {
   return row.deadline === null || due ? { requirementKey: row.requirementKey, required: row.required, label: row.label, groupLabel: row.groupLabel,
     instructions: row.instructions, deadline: due, documentSlotId: row.documentSlotId } : null;
 }
-function parseMaterial(value: unknown): ApplicationDocumentMaterialSnapshot | null {
+export function parseApplicationDocumentMaterial(value: unknown): ApplicationDocumentMaterialSnapshot | null {
   const row = applicationDocumentRecord(value);
   if (!row || !applicationDocumentExact(row, ["intentKind", "requirementId", "rawLabel", "rawGroupLabel", "label", "groupLabel", "sourceRequirementKey", "sourceChecklistVersion", "sourceInstructions"])
     || !["baseline", "custom"].includes(String(row.intentKind)) || !(row.requirementId === null || uuid(row.requirementId))
@@ -289,7 +289,7 @@ export function parseApplicationDocumentHistoryEntry(value: unknown): Applicatio
   if (!row || !applicationDocumentExact(row, ["id", "kind", "createdAt", "requirementsRevisionId", "requirementItemId", "definition", "materialSnapshot", "upload", "submission"])
     || !uuid(row.id) || !uuid(row.requirementsRevisionId) || !uuid(row.requirementItemId) || !timestamp(row.createdAt)
     || !["upload", "submission"].includes(String(row.kind))) return null;
-  const definition = parseDefinition(row.definition), materialSnapshot = row.materialSnapshot === null ? null : parseMaterial(row.materialSnapshot);
+  const definition = parseApplicationDocumentDefinition(row.definition), materialSnapshot = row.materialSnapshot === null ? null : parseApplicationDocumentMaterial(row.materialSnapshot);
   const upload = row.upload === null ? null : parseUpload(row.upload), submission = row.submission === null ? null : parseApplicationDocumentSubmission(row.submission);
   if (!definition || (row.materialSnapshot !== null && !materialSnapshot) || (row.kind === "upload" ? !upload || row.submission !== null : !submission || row.upload !== null)) return null;
   const actual = row.kind === "upload" ? upload! : submission!;
@@ -318,7 +318,7 @@ function validVersionPage(items: readonly ApplicationDocumentReusableVersion[], 
   const last = items.at(-1)?.file;
   return cursor === null || (!!last && last.documentVersionId === cursor.documentVersionId && last.versionNo === cursor.versionNo);
 }
-function documentItem(value: unknown): ApplicationDocumentItemState | null {
+export function parseApplicationDocumentItem(value: unknown): ApplicationDocumentItemState | null {
   const row = applicationDocumentRecord(value);
   if (!row || !applicationDocumentExact(row, ["requirementItemId", "documentSlotId", "savedDraft", "submission", "previousEvidence", "reusableVersions", "reusableVersionsNextCursor", "canUpload", "canSubmit"])
     || !uuid(row.requirementItemId) || !uuid(row.documentSlotId) || typeof row.canUpload !== "boolean" || typeof row.canSubmit !== "boolean") return null;
@@ -336,7 +336,7 @@ export function parseApplicationDocuments(value: unknown, target: ApplicationDoc
   const row = applicationDocumentRecord(value);
   if (!row || !applicationDocumentExact(row, ["protocolVersion", "studentCaseId", "applicationId", "requirements", "items"]) || row.protocolVersion !== 1
     || row.studentCaseId !== target.studentCaseId || row.applicationId !== target.applicationId) return null;
-  const requirements = parseApplicationRequirementsV2(row.requirements, target.studentCaseId, target.applicationId), items = list(row.items, 50, documentItem);
+  const requirements = parseApplicationRequirementsV2(row.requirements, target.studentCaseId, target.applicationId), items = list(row.items, 50, parseApplicationDocumentItem);
   if (!requirements || !items || items.length !== requirements.items.length || !unique(items, i => i.requirementItemId)
     || items.some((item, index) => item.requirementItemId !== requirements.items[index].requirementItemId || item.documentSlotId !== requirements.items[index].documentSlotId
       || [item.savedDraft, item.submission].some(v => v && v.requirementsRevisionId !== requirements.revisionId))) return null;

@@ -1,0 +1,768 @@
+{
+  "scope": {
+    "organizationId": "b3a10000-0000-4000-8000-000000000001",
+    "membershipId": "b3a10000-0000-4000-8000-000000000002",
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002"
+  },
+  "target": {
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002"
+  },
+  "submitIntent": {
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+    "expectedPreviousPackageId": null,
+    "items": [
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "selection": {
+          "kind": "existing_version",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000100"
+        },
+        "expectedPreviousSubmissionId": null
+      },
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+        "selection": {
+          "kind": "existing_version",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000101"
+        },
+        "expectedPreviousSubmissionId": null
+      }
+    ],
+    "requestId": "b3a10000-0000-4000-8000-000000000003"
+  },
+  "reviewIntent": {
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packageId": "b3a10000-0000-4000-8000-000000000004",
+    "expectedPreviousReviewId": null,
+    "decision": "approved",
+    "reason": null,
+    "affectedItemIds": [],
+    "documentReviews": [
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "submissionId": "b3a10000-0000-4000-8000-000000000110",
+        "expectedReviewId": "b3a10000-0000-4000-8000-000000000120"
+      },
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+        "submissionId": "b3a10000-0000-4000-8000-000000000111",
+        "expectedReviewId": "b3a10000-0000-4000-8000-000000000121"
+      }
+    ],
+    "reuseApprovals": [],
+    "requestId": "b3a10000-0000-4000-8000-000000000005"
+  },
+  "submitReceipt": {
+    "protocolVersion": 1,
+    "requestId": "b3a10000-0000-4000-8000-000000000003",
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packageId": "b3a10000-0000-4000-8000-000000000004",
+    "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+    "packageVersion": "1",
+    "compositionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "submittedAt": "2026-09-21T10:20:30.123456+00:00",
+    "reused": false,
+    "items": [
+      {
+        "packageItemId": "b3a10000-0000-4000-8000-000000000130",
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "documentSlotId": "b3e10000-0000-4000-8000-000000000021",
+        "documentVersionId": "b3a10000-0000-4000-8000-000000000100",
+        "submissionId": "b3a10000-0000-4000-8000-000000000110"
+      },
+      {
+        "packageItemId": "b3a10000-0000-4000-8000-000000000131",
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+        "documentSlotId": "b3e10000-0000-4000-8000-000000000022",
+        "documentVersionId": "b3a10000-0000-4000-8000-000000000101",
+        "submissionId": "b3a10000-0000-4000-8000-000000000111"
+      }
+    ]
+  },
+  "reviewReceipt": {
+    "protocolVersion": 1,
+    "requestId": "b3a10000-0000-4000-8000-000000000005",
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packageId": "b3a10000-0000-4000-8000-000000000004",
+    "packageReview": {
+      "packageReviewId": "b3a10000-0000-4000-8000-000000000006",
+      "packageId": "b3a10000-0000-4000-8000-000000000004",
+      "decision": "approved",
+      "reason": null,
+      "affectedItemIds": [],
+      "documentReviews": [
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+          "submissionId": "b3a10000-0000-4000-8000-000000000110",
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000120",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          },
+          "reusedFromSubmissionId": null,
+          "reusedFromReview": null
+        },
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+          "submissionId": "b3a10000-0000-4000-8000-000000000111",
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000121",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          },
+          "reusedFromSubmissionId": null,
+          "reusedFromReview": null
+        }
+      ],
+      "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+    }
+  },
+  "recoveryCommitted": {
+    "protocolVersion": 1,
+    "operation": "submit",
+    "status": "committed",
+    "receipt": {
+      "protocolVersion": 1,
+      "requestId": "b3a10000-0000-4000-8000-000000000003",
+      "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+      "applicationId": "b3e10000-0000-4000-8000-000000000002",
+      "packageId": "b3a10000-0000-4000-8000-000000000004",
+      "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+      "packageVersion": "1",
+      "compositionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "submittedAt": "2026-09-21T10:20:30.123456+00:00",
+      "reused": false,
+      "items": [
+        {
+          "packageItemId": "b3a10000-0000-4000-8000-000000000130",
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000021",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000100",
+          "submissionId": "b3a10000-0000-4000-8000-000000000110"
+        },
+        {
+          "packageItemId": "b3a10000-0000-4000-8000-000000000131",
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000022",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000101",
+          "submissionId": "b3a10000-0000-4000-8000-000000000111"
+        }
+      ]
+    },
+    "requestId": "b3a10000-0000-4000-8000-000000000003",
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002"
+  },
+  "recoveryAbsent": {
+    "protocolVersion": 1,
+    "operation": "submit",
+    "status": "not_written",
+    "receipt": null,
+    "requestId": "b3a10000-0000-4000-8000-000000000003",
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002"
+  },
+  "readiness": {
+    "protocolVersion": 1,
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "requirements": {
+      "protocolVersion": 2,
+      "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+      "applicationId": "b3e10000-0000-4000-8000-000000000002",
+      "state": "initialized",
+      "revisionId": "b3e10000-0000-4000-8000-000000000003",
+      "revisionVersion": "1",
+      "origin": "evo_starter",
+      "configurationState": "needs_confirmation",
+      "initializedAt": "2026-09-21T10:20:30.123456+00:00",
+      "configurationReasons": [],
+      "items": [
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+          "requirementKey": "evo.photo.v1",
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000021",
+          "position": 1,
+          "required": true,
+          "label": "Requirement 1",
+          "groupLabel": "Documents",
+          "instructions": "Read the requirement before uploading.",
+          "compatibilityKey": "evo.photo.v1",
+          "slotStatus": "required",
+          "currentVersionId": null,
+          "currentVersionNo": null,
+          "reviewDecision": null,
+          "reviewReason": null,
+          "reviewedAt": null,
+          "technicalAvailability": "unavailable",
+          "unavailableReasons": [
+            "file_missing"
+          ],
+          "deadline": null,
+          "reviewScope": "document_version",
+          "definitionImpact": null
+        },
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+          "requirementKey": "evo.passport.v1",
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000022",
+          "position": 2,
+          "required": true,
+          "label": "Requirement 2",
+          "groupLabel": "Documents",
+          "instructions": "Read the requirement before uploading.",
+          "compatibilityKey": "evo.passport.v1",
+          "slotStatus": "required",
+          "currentVersionId": null,
+          "currentVersionNo": null,
+          "reviewDecision": null,
+          "reviewReason": null,
+          "reviewedAt": null,
+          "technicalAvailability": "unavailable",
+          "unavailableReasons": [
+            "file_missing"
+          ],
+          "deadline": null,
+          "reviewScope": "document_version",
+          "definitionImpact": null
+        }
+      ]
+    },
+    "documentItems": [
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "documentSlotId": "b3e10000-0000-4000-8000-000000000021",
+        "savedDraft": null,
+        "submission": null,
+        "previousEvidence": null,
+        "reusableVersions": [
+          {
+            "selection": {
+              "kind": "existing_version",
+              "documentVersionId": "b3a10000-0000-4000-8000-000000000100"
+            },
+            "file": {
+              "originalFilename": "qa-package-0.pdf",
+              "declaredMimeType": "application/pdf",
+              "byteSize": "1200",
+              "sha256Hex": "1111111111111111111111111111111111111111111111111111111111111111",
+              "documentVersionId": "b3a10000-0000-4000-8000-000000000100",
+              "versionNo": "1",
+              "finalizedAt": "2026-09-21T10:20:30.123456+00:00",
+              "technicalAvailability": "available",
+              "unavailableReasons": []
+            }
+          }
+        ],
+        "reusableVersionsNextCursor": null,
+        "canUpload": true,
+        "canSubmit": true
+      },
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+        "documentSlotId": "b3e10000-0000-4000-8000-000000000022",
+        "savedDraft": null,
+        "submission": null,
+        "previousEvidence": null,
+        "reusableVersions": [
+          {
+            "selection": {
+              "kind": "existing_version",
+              "documentVersionId": "b3a10000-0000-4000-8000-000000000101"
+            },
+            "file": {
+              "originalFilename": "qa-package-1.pdf",
+              "declaredMimeType": "application/pdf",
+              "byteSize": "1200",
+              "sha256Hex": "2222222222222222222222222222222222222222222222222222222222222222",
+              "documentVersionId": "b3a10000-0000-4000-8000-000000000101",
+              "versionNo": "1",
+              "finalizedAt": "2026-09-21T10:20:30.123456+00:00",
+              "technicalAvailability": "available",
+              "unavailableReasons": []
+            }
+          }
+        ],
+        "reusableVersionsNextCursor": null,
+        "canUpload": true,
+        "canSubmit": true
+      }
+    ],
+    "latestPackage": null,
+    "selections": [
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "selection": {
+          "kind": "existing_version",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000100"
+        },
+        "expectedPreviousSubmissionId": null,
+        "file": {
+          "originalFilename": "qa-package-0.pdf",
+          "declaredMimeType": "application/pdf",
+          "byteSize": "1200",
+          "sha256Hex": "1111111111111111111111111111111111111111111111111111111111111111",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000100",
+          "versionNo": "1",
+          "finalizedAt": "2026-09-21T10:20:30.123456+00:00",
+          "technicalAvailability": "available",
+          "unavailableReasons": []
+        },
+        "submissionId": null,
+        "reasons": []
+      },
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+        "selection": {
+          "kind": "existing_version",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000101"
+        },
+        "expectedPreviousSubmissionId": null,
+        "file": {
+          "originalFilename": "qa-package-1.pdf",
+          "declaredMimeType": "application/pdf",
+          "byteSize": "1200",
+          "sha256Hex": "2222222222222222222222222222222222222222222222222222222222222222",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000101",
+          "versionNo": "1",
+          "finalizedAt": "2026-09-21T10:20:30.123456+00:00",
+          "technicalAvailability": "available",
+          "unavailableReasons": []
+        },
+        "submissionId": null,
+        "reasons": []
+      }
+    ],
+    "missingRequiredItemIds": [],
+    "reasons": [],
+    "canSubmit": true
+  },
+  "detail": {
+    "protocolVersion": 1,
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "package": {
+      "packageId": "b3a10000-0000-4000-8000-000000000004",
+      "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+      "requirementsRevisionVersion": "1",
+      "origin": "evo_starter",
+      "configurationState": "needs_confirmation",
+      "packageVersion": "1",
+      "previousPackageId": null,
+      "compositionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "submittedAt": "2026-09-21T10:20:30.123456+00:00",
+      "itemCount": 2,
+      "isCurrentRequirements": true,
+      "latestReview": {
+        "packageReviewId": "b3a10000-0000-4000-8000-000000000006",
+        "packageId": "b3a10000-0000-4000-8000-000000000004",
+        "decision": "approved",
+        "reason": null,
+        "affectedItemIds": [],
+        "documentReviews": [
+          {
+            "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+            "submissionId": "b3a10000-0000-4000-8000-000000000110",
+            "review": {
+              "reviewId": "b3a10000-0000-4000-8000-000000000120",
+              "decision": "approved",
+              "reason": null,
+              "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+            },
+            "reusedFromSubmissionId": null,
+            "reusedFromReview": null
+          },
+          {
+            "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+            "submissionId": "b3a10000-0000-4000-8000-000000000111",
+            "review": {
+              "reviewId": "b3a10000-0000-4000-8000-000000000121",
+              "decision": "approved",
+              "reason": null,
+              "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+            },
+            "reusedFromSubmissionId": null,
+            "reusedFromReview": null
+          }
+        ],
+        "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+      }
+    },
+    "program": {
+      "institutionId": "b3a10000-0000-4000-8000-000000000007",
+      "publicationId": "b3a10000-0000-4000-8000-000000000008",
+      "programId": "qa-program",
+      "intakeId": "b3a10000-0000-4000-8000-000000000009",
+      "universityTitle": "Codec QA university",
+      "programTitle": "Codec QA program",
+      "intakeLabel": "Autumn QA"
+    },
+    "items": [
+      {
+        "packageItemId": "b3a10000-0000-4000-8000-000000000130",
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "definition": {
+          "requirementKey": "evo.photo.v1",
+          "required": true,
+          "label": "Requirement 1",
+          "groupLabel": "Documents",
+          "instructions": "Read the requirement before uploading.",
+          "deadline": null,
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000021"
+        },
+        "materialSnapshot": {
+          "intentKind": "custom",
+          "requirementId": null,
+          "rawLabel": null,
+          "rawGroupLabel": null,
+          "label": "Requirement 1",
+          "groupLabel": "Documents",
+          "sourceRequirementKey": null,
+          "sourceChecklistVersion": null,
+          "sourceInstructions": null
+        },
+        "selection": {
+          "kind": "existing_version",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000100"
+        },
+        "submission": {
+          "submissionId": "b3a10000-0000-4000-8000-000000000110",
+          "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000021",
+          "submittedAt": "2026-09-21T10:20:30.123456+00:00",
+          "file": {
+            "originalFilename": "qa-package-0.pdf",
+            "declaredMimeType": "application/pdf",
+            "byteSize": "1200",
+            "sha256Hex": "1111111111111111111111111111111111111111111111111111111111111111",
+            "documentVersionId": "b3a10000-0000-4000-8000-000000000100",
+            "versionNo": "1",
+            "finalizedAt": "2026-09-21T10:20:30.123456+00:00",
+            "technicalAvailability": "available",
+            "unavailableReasons": []
+          },
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000120",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          }
+        }
+      },
+      {
+        "packageItemId": "b3a10000-0000-4000-8000-000000000131",
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+        "definition": {
+          "requirementKey": "evo.passport.v1",
+          "required": true,
+          "label": "Requirement 2",
+          "groupLabel": "Documents",
+          "instructions": "Read the requirement before uploading.",
+          "deadline": null,
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000022"
+        },
+        "materialSnapshot": {
+          "intentKind": "custom",
+          "requirementId": null,
+          "rawLabel": null,
+          "rawGroupLabel": null,
+          "label": "Requirement 2",
+          "groupLabel": "Documents",
+          "sourceRequirementKey": null,
+          "sourceChecklistVersion": null,
+          "sourceInstructions": null
+        },
+        "selection": {
+          "kind": "existing_version",
+          "documentVersionId": "b3a10000-0000-4000-8000-000000000101"
+        },
+        "submission": {
+          "submissionId": "b3a10000-0000-4000-8000-000000000111",
+          "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+          "documentSlotId": "b3e10000-0000-4000-8000-000000000022",
+          "submittedAt": "2026-09-21T10:20:30.123456+00:00",
+          "file": {
+            "originalFilename": "qa-package-1.pdf",
+            "declaredMimeType": "application/pdf",
+            "byteSize": "1200",
+            "sha256Hex": "2222222222222222222222222222222222222222222222222222222222222222",
+            "documentVersionId": "b3a10000-0000-4000-8000-000000000101",
+            "versionNo": "1",
+            "finalizedAt": "2026-09-21T10:20:30.123456+00:00",
+            "technicalAvailability": "available",
+            "unavailableReasons": []
+          },
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000121",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          }
+        }
+      }
+    ],
+    "currentWarnings": []
+  },
+  "history": {
+    "protocolVersion": 1,
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packages": [
+      {
+        "packageId": "b3a10000-0000-4000-8000-000000000004",
+        "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+        "requirementsRevisionVersion": "1",
+        "origin": "evo_starter",
+        "configurationState": "needs_confirmation",
+        "packageVersion": "1",
+        "previousPackageId": null,
+        "compositionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "submittedAt": "2026-09-21T10:20:30.123456+00:00",
+        "itemCount": 2,
+        "isCurrentRequirements": true,
+        "latestReview": {
+          "packageReviewId": "b3a10000-0000-4000-8000-000000000006",
+          "packageId": "b3a10000-0000-4000-8000-000000000004",
+          "decision": "approved",
+          "reason": null,
+          "affectedItemIds": [],
+          "documentReviews": [
+            {
+              "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+              "submissionId": "b3a10000-0000-4000-8000-000000000110",
+              "review": {
+                "reviewId": "b3a10000-0000-4000-8000-000000000120",
+                "decision": "approved",
+                "reason": null,
+                "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+              },
+              "reusedFromSubmissionId": null,
+              "reusedFromReview": null
+            },
+            {
+              "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+              "submissionId": "b3a10000-0000-4000-8000-000000000111",
+              "review": {
+                "reviewId": "b3a10000-0000-4000-8000-000000000121",
+                "decision": "approved",
+                "reason": null,
+                "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+              },
+              "reusedFromSubmissionId": null,
+              "reusedFromReview": null
+            }
+          ],
+          "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+        }
+      }
+    ],
+    "nextCursor": null
+  },
+  "reviewHistory": {
+    "protocolVersion": 1,
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packageId": "b3a10000-0000-4000-8000-000000000004",
+    "reviews": [
+      {
+        "packageReviewId": "b3a10000-0000-4000-8000-000000000006",
+        "packageId": "b3a10000-0000-4000-8000-000000000004",
+        "decision": "approved",
+        "reason": null,
+        "affectedItemIds": [],
+        "documentReviews": [
+          {
+            "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+            "submissionId": "b3a10000-0000-4000-8000-000000000110",
+            "review": {
+              "reviewId": "b3a10000-0000-4000-8000-000000000120",
+              "decision": "approved",
+              "reason": null,
+              "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+            },
+            "reusedFromSubmissionId": null,
+            "reusedFromReview": null
+          },
+          {
+            "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+            "submissionId": "b3a10000-0000-4000-8000-000000000111",
+            "review": {
+              "reviewId": "b3a10000-0000-4000-8000-000000000121",
+              "decision": "approved",
+              "reason": null,
+              "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+            },
+            "reusedFromSubmissionId": null,
+            "reusedFromReview": null
+          }
+        ],
+        "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+      }
+    ],
+    "nextCursor": null
+  },
+  "queue": {
+    "protocolVersion": 1,
+    "items": [
+      {
+        "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+        "applicationId": "b3e10000-0000-4000-8000-000000000002",
+        "studentDisplayName": "Codec QA student",
+        "program": {
+          "institutionId": "b3a10000-0000-4000-8000-000000000007",
+          "publicationId": "b3a10000-0000-4000-8000-000000000008",
+          "programId": "qa-program",
+          "intakeId": "b3a10000-0000-4000-8000-000000000009",
+          "universityTitle": "Codec QA university",
+          "programTitle": "Codec QA program",
+          "intakeLabel": "Autumn QA"
+        },
+        "package": {
+          "packageId": "b3a10000-0000-4000-8000-000000000004",
+          "requirementsRevisionId": "b3e10000-0000-4000-8000-000000000003",
+          "requirementsRevisionVersion": "1",
+          "origin": "evo_starter",
+          "configurationState": "needs_confirmation",
+          "packageVersion": "1",
+          "previousPackageId": null,
+          "compositionSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "submittedAt": "2026-09-21T10:20:30.123456+00:00",
+          "itemCount": 2,
+          "isCurrentRequirements": true,
+          "latestReview": null
+        }
+      }
+    ],
+    "nextCursor": null
+  },
+  "notification": {
+    "protocolVersion": 1,
+    "notificationId": "b3a10000-0000-4000-8000-000000000010",
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packageId": "b3a10000-0000-4000-8000-000000000004",
+    "packageReviewId": "b3a10000-0000-4000-8000-000000000006",
+    "review": {
+      "packageReviewId": "b3a10000-0000-4000-8000-000000000006",
+      "packageId": "b3a10000-0000-4000-8000-000000000004",
+      "decision": "approved",
+      "reason": null,
+      "affectedItemIds": [],
+      "documentReviews": [
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+          "submissionId": "b3a10000-0000-4000-8000-000000000110",
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000120",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          },
+          "reusedFromSubmissionId": null,
+          "reusedFromReview": null
+        },
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+          "submissionId": "b3a10000-0000-4000-8000-000000000111",
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000121",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          },
+          "reusedFromSubmissionId": null,
+          "reusedFromReview": null
+        }
+      ],
+      "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+    }
+  },
+  "reuseReviewIntent": {
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packageId": "b3a10000-0000-4000-8000-000000000004",
+    "expectedPreviousReviewId": null,
+    "decision": "approved",
+    "reason": null,
+    "affectedItemIds": [],
+    "documentReviews": [
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "submissionId": "b3a10000-0000-4000-8000-000000000110",
+        "expectedReviewId": null
+      },
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+        "submissionId": "b3a10000-0000-4000-8000-000000000111",
+        "expectedReviewId": "b3a10000-0000-4000-8000-000000000121"
+      }
+    ],
+    "reuseApprovals": [
+      {
+        "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+        "submissionId": "b3a10000-0000-4000-8000-000000000110",
+        "expectedReviewId": null,
+        "sourceSubmissionId": "b3a10000-0000-4000-8000-000000000201",
+        "sourceReviewId": "b3a10000-0000-4000-8000-000000000202"
+      }
+    ],
+    "requestId": "b3a10000-0000-4000-8000-000000000200"
+  },
+  "reuseReviewReceipt": {
+    "protocolVersion": 1,
+    "requestId": "b3a10000-0000-4000-8000-000000000200",
+    "studentCaseId": "b3e10000-0000-4000-8000-000000000001",
+    "applicationId": "b3e10000-0000-4000-8000-000000000002",
+    "packageId": "b3a10000-0000-4000-8000-000000000004",
+    "packageReview": {
+      "packageReviewId": "b3a10000-0000-4000-8000-000000000203",
+      "packageId": "b3a10000-0000-4000-8000-000000000004",
+      "decision": "approved",
+      "reason": null,
+      "affectedItemIds": [],
+      "documentReviews": [
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000011",
+          "submissionId": "b3a10000-0000-4000-8000-000000000110",
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000120",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          },
+          "reusedFromSubmissionId": "b3a10000-0000-4000-8000-000000000201",
+          "reusedFromReview": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000202",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          }
+        },
+        {
+          "requirementItemId": "b3e10000-0000-4000-8000-000000000012",
+          "submissionId": "b3a10000-0000-4000-8000-000000000111",
+          "review": {
+            "reviewId": "b3a10000-0000-4000-8000-000000000121",
+            "decision": "approved",
+            "reason": null,
+            "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+          },
+          "reusedFromSubmissionId": null,
+          "reusedFromReview": null
+        }
+      ],
+      "reviewedAt": "2026-09-21T10:20:30.123456+00:00"
+    }
+  }
+}

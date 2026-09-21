@@ -13876,3 +13876,20 @@ ROOT22F → A15. Actual1440/390/320, anchors/actions/draft и честный у�
 изменения конфигурации. [Source receipt](qa/team-chat-message-grouping-source-2026-09-21.md)
 сохраняет оба результата. Никаких Auth/DB/Storage/server/browser действий;
 actual UI/anchors/draft, независимое review и merge ещё впереди.
+
+
+## 2026-09-21 — B32: два Company download и закрытие local QA
+
+Документировать уже выполненные два скачивания существующих опубликованных TXT
+ordinary Admin через Company UI: app GET → 307 → Storage 200, сохранённые байты
+совпали с оригиналами. Source e0276ecd, scoped parity пяти файлов с main d6add883;
+[actual-квитанция](qa/company-material-download-actual-2026-09-21.md) содержит
+полные hashes. Strict final290/33 подтвердил только grants2/consumptions2/
+receipts4/audits4 и собственный Auth lifecycle, сохранив старые данные/сессии.
+Own local logout204 и закрытие ресурсов подтверждены; UI logout не заявляется.
+Release50fe4292 передал среду B1006; независимое review2abe1d27 принято.
+Исторические STOP и redirect-target net::ERR_ABORTED сохранены без утверждения
+о причине сетевого события. Меняются только эта квитанция, текущие intro/row32
+ведомости и addendum KB execution; весь пункт32/клиентский AI/production не закрыт.
+Никаких runtime/KB/publication изменений в этом срезе. Prose-only: diff review,
+git diff --check; отдельные exact-head review и protected CI перед merge.

@@ -35734,3 +35734,8 @@ target.manage gap остаётся отдельной задачей, не ск�
 cash section, формы, фильтры, import, list991 и Students layout вне scope.
 Полный контракт/границы/acceptance — CRM-02d appendix в launch-плане.
 Эта запись предшествует UI-коду; до независимого review/source GO только docs.
+
+CRM-02d source-only checkpoint: реализация следует approved precode7b630598.
+Lint/typegen/tsc/diff/Impeccable detector PASS; данные/права/внешние sections
+сохранены, SQL/API не менялись. Actual UI/AX/read-only QA остаётся pending;
+новые бизнес-данные и CSS-зеркальные тесты не создавались.

@@ -12934,3 +12934,10 @@ before/after summary с измерением section overflow и browser AX asso
 исправлений и один confirm; source/CI не заменяют actual UI. Precode approval
 и source GO предшествуют UI-edit; actual runtime требует отдельного окна.
 Ни весь пункт7, ни VoiceOver/native/production этим срезом не закрываются.
+
+CRM-02d source подготовлен после approved precode7b630598: только указанная
+область сводки; count, currencies, оба formatter expression, unknown counts
+и target gate/fallback сохранены. Scoped ESLint, Next typegen/tsc, diff-check
+и Impeccable detector PASS на Node22.23.1; вне этой области файл побайтно
+неизменен. Это source-проверка: actual desktop/mobile/AX и сравнение данных
+ещё не выполнялись; draft сохраняется до отдельной согласованной приёмки.

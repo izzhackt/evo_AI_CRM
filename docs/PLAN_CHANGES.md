@@ -35716,3 +35716,14 @@ release SHA256 `16ece6aa4a6e6ef84cfae0fae9e0e1caf5a119b0c261b41f96e9607e2cd105c4
 Это локальная приёмка списка без новых fixtures/financial writes. Отдельная
 сводка 400 px, остатки пункта 7, native VoiceOver и production не покрыты.
 Текущий follow-up только фиксирует evidence; UI/SQL/API не меняются.
+
+
+## 2026-09-21 — item36: checkpoint после #987/#988/#991
+
+Docs-only на main `82260fdc`: обновлены current fronts execution/A/B и refinement.
+#987 direct quotes227, #988 editor226, #991 mobile sale records приняты в source
+и пределах локальных receipts; история и ограничения не переписаны. #990/229,
+#992 unified feed и #993/228 остаются непринятыми actual блоками. Пункты27/28/31/32
+сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
+DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
+Проверка: diff review и git diff --check; независимое exact-head review до merge.

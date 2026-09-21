@@ -13375,3 +13375,10 @@ keeps exact-text input available without pretending empty success.
 See docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md for scope, grants and acceptance.
 Source-only while B232 owns QA; ROOT coordinates any later local apply.
 No production or fixture creation is authorized by this entry.
+
+
+CRM-02e source implementation: separate RPC233, strict options DTO and shared
+500-code-point validator; native select/error/empty/current-URL identity retained.
+17 targeted Node tests, scoped lint, normal typecheck and static SQL parse PASS.
+Actual local SQL/Auth/UI not run while B232 owns QA. See
+`docs/qa/crm-sales-directions-source-2026-09-21.md`; no deployment claim.

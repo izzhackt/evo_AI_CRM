@@ -4,7 +4,7 @@ import Link from "next/link";
 import { btnCls, btnGhostCls, inputCls, labelCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { SalesRegisterWorkspace, SalesRegisterIntakeOptions } from "@/lib/platform-sales-register-contract";
-import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess } from "@/lib/v3/sales-register-source";
+import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections } from "@/lib/v3/sales-register-source";
 import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
 import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
@@ -12,6 +12,7 @@ import { SalesReportNavigation } from "./SalesReportNavigation";
 import { SalesRegisterForm, SalesRegisterImport, SalesTargetForm } from "./SalesRegisterForms";
 import { SalesRecordPreview } from "./SalesRecordPreview";
 import { parseSalesRegisterSearchQuery } from "@/lib/sales-register-search";
+import { parseSalesRegisterDirection, salesDirectionControl } from "@/lib/sales-register-directions";
 
 export type SalesReportQuery = Readonly<{
   year?: string; month?: string; offset?: string; record?: string; new?: string; archived?: string;
@@ -33,10 +34,14 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     && (month === undefined || (Number.isInteger(month) && month >= 1 && month <= 12))
     && Number.isInteger(offset) && offset >= 0 && offset <= 1_000_000
     && (query.manager === undefined || (typeof query.manager === "string" && query.manager.length <= 300))
-    && (query.direction === undefined || (typeof query.direction === "string" && query.direction.length <= 500))
+    && parseSalesRegisterDirection(query.direction) !== null
     && (query.review === undefined || ["", "true", "false"].includes(query.review));
   const writeAccess = await readSalesRegisterWriteAccess(actor);
   const canManage = writeAccess === "allowed";
+  const viewingRecord = Boolean(query.record);
+  const editing = (query.new === "true" && !viewingRecord) || (viewingRecord && query.edit === "true");
+  const directionsPromise = !viewingRecord && !(editing && canManage)
+    ? readSalesRegisterDirections(actor).catch(() => null) : Promise.resolve(null);
   const canTarget = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage");
   const canImport = !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.import");
   const checkFinanceAccess = staffHasPermission(actor, "finance.read.full") && !isStaffPreview(actor);
@@ -53,6 +58,12 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
       query.new === "true" && !query.record && canManage ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
     ]);
   }
+  const directionControl = salesDirectionControl(await directionsPromise, query.direction);
+  const directionHelp = directionControl.kind === "input"
+    ? directionControl.reason === "invalid"
+      ? "Введите направление до 500 символов без переносов строк и служебных символов."
+      : "Не удалось загрузить список. Введите направление как в записи или обновите страницу."
+    : directionControl.empty ? "В доступных записях нет заполненных направлений." : null;
   const params = new URLSearchParams({ view: "sales", year: String(year), month: month ? String(month) : "all" });
   const clearFiltersHref = `/v3/main?${params.toString()}`;
   const hasFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true");
@@ -67,8 +78,6 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
     for (const [key, value] of Object.entries(extra)) next.set(key, value);
     return `/v3/main?${next.toString()}`;
   };
-  const viewingRecord = Boolean(query.record);
-  const editing = (query.new === "true" && !viewingRecord) || (viewingRecord && query.edit === "true");
   const reportMonth = `${year}-${String(month ?? Number(now.find(p => p.type === "month")!.value)).padStart(2, "0")}-01`;
   const saved = !editing && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
   const target = workspace?.targets.find(t => t.reportMonth === reportMonth && t.managerLabel === null) ?? null;
@@ -111,7 +120,14 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Менеджер</span><select name="manager" defaultValue={query.manager ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option>{query.manager && !workspace?.managerLabels.includes(query.manager) ? <option value={query.manager}>{query.manager}</option> : null}{workspace?.managerLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
-        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Направление</span><input name="direction" defaultValue={query.direction ?? ""} maxLength={500} placeholder="Как в записи" className={`${inputCls} min-h-11`} /></label>
+        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Направление</span>
+          {directionControl.kind === "select" ? <select name="direction" defaultValue={directionControl.value}
+            aria-describedby={directionHelp ? "sales-direction-help" : undefined} className={`${inputCls} min-h-11`}>
+            {directionControl.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select> : <input name="direction" defaultValue={directionControl.value} maxLength={1000} placeholder="Как в записи"
+            aria-invalid={directionControl.reason === "invalid" ? true : undefined} aria-describedby="sales-direction-help" className={`${inputCls} min-h-11`} />}
+          {directionHelp ? <span id="sales-direction-help" className="mt-1 block text-xs leading-relaxed text-fg-2">{directionHelp}</span> : null}
+        </label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Уточнения</span><select name="review" defaultValue={query.review ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option><option value="true">Нужно уточнить</option><option value="false">Сверенные</option></select></label>
         <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`} type="submit">Показать</button>
         {valid && hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`}>Сбросить фильтры</Link> : null}

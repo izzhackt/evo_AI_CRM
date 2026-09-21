@@ -36670,6 +36670,42 @@ Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранен�
 дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.
 
 
+### A15g-2 — последовательности одного автора, precode 2026-09-21
+
+PR #1008 смержен в main d6add88372778758b23686fb0bba6ae74181e15b после
+независимого exact-head review beadbefc и CI35623264182. Его actual b8497ad4
+и ограничения остаются в существующей квитанции. A начинает следующий
+принятый ограниченный блок по [плану группировки](EVO_TEAM_CHAT_MESSAGE_GROUPING_PLAN_2026-09-21.md).
+Исходный чат идентичен actual7d70a71d/main29e0fb46; прежние снимки используются
+только как визуальная база, не как приёмка нового поведения.
+
+Принятый precode51ded385 и независимое reviewb42dbc42 разрешают presentation-only
+helper, два компонента ленты и локальный CSS: соседние видимые строки одного
+автора/канала в пределах5минут и одного дня Bishkek, без deleted/sequence gap;
+первая строка, highlighted target и server firstUnreadId всегда полные.
+Имена сохраняются для screen reader, время/edited/quote/mentions/действия видимы;
+16px текст,44px controls, avatar-column, IDs/keys, handlers, ACL, composer,
+seen и scroll-anchor механизм сохраняются. BigInt исключает потерю точности.
+Никаких DTO/SQL/migration, новых сообщений или previews всех каналов.
+
+До отдельного окна A работает только с исходниками: pure behavior tests,
+scope lint/typecheck и прямые feed/read-errors/seen/drafts проверки.
+Auth/DB/Storage/browser/server runtime остаётся в очереди B32 → B1006 →
+ROOT22F → A15. Actual1440/390/320, anchors/actions/draft и честный учёт
+возможного seen требуют будущего согласованного окна; production не заявляется.
+
+
+### A15g-2 — source готов, actual UI ожидает окна
+
+После precode6a128cbc реализован source05705f7a: pure grouping только видимых
+соседних строк, известные highlighted/unread boundaries, сохранённые действия
+и screen-reader авторы. 39/39 целевых tests, scope lint и typecheck PASS.
+Первый typecheck выявил `1n` при текущем target; `BigInt(1)` исправляет это без
+изменения конфигурации. [Source receipt](qa/team-chat-message-grouping-source-2026-09-21.md)
+сохраняет оба результата. Никаких Auth/DB/Storage/server/browser действий;
+actual UI/anchors/draft, независимое review и merge ещё впереди.
+
+
 ## 2026-09-21 — B32: два Company download и закрытие local QA
 
 Документировать уже выполненные два скачивания существующих опубликованных TXT
@@ -36685,3 +36721,35 @@ Release50fe4292 передал среду B1006; независимое review2a
 ведомости и addendum KB execution; весь пункт32/клиентский AI/production не закрыт.
 Никаких runtime/KB/publication изменений в этом срезе. Prose-only: diff review,
 git diff --check; отдельные exact-head review и protected CI перед merge.
+
+
+### A15g-2 / PR1012 — один actual batch и закрытие QA
+
+На source6e401f9c ordinary scoped staff прошёл один existing-data UI batch:
+пара15/16, полный первый/header target,3deleted rows, keyboard reply/menu/link,
+quote/remove, search/context/Back anchor, prependanchor, unsent draft и
+permalink.1440/390/320: nooverflow/onecomposer/body16/timevisible;3снимка
+просмотрены вместе, без коррекционного раунда. [Actual receipt](qa/team-chat-message-grouping-actual-2026-09-21.md)
+сохраняет foreign/unread/variants gaps и отсутствие numeric old/new density
+claim. Это ограниченная technical QA, не весьitem15 или production.
+
+AFTER RAW без intermediateAuthPASS → ownlogout204/browser/33256 closure →
+FINAL5f59a5dc/strict verifier9a2e964c PASS: все290business/33AuthStorage,
+zero new seen, original sessions/refresh/AMR restored, only2ownAuthaudits.
+OwncapturedAuth удалён после finalproof. Release27b0b2d2 передан ROOT для
+следующего B1006 admission; автоматический запуск не разрешается.
+
+Mainc42f3963/#1013 интегрирован только в docs с сохранением B32/KB истории;
+обе append-only истории сохранены построчно в прежнем порядке. Продукт
+побайтно совпадает с actual6e401f9c, старые tests не запускались заново.
+Независимое actual/final-head review, CI финального head и merge ещё впереди.
+
+
+### A1012 — независимая actual/closure приёмка
+
+APPROVED_SCOPED_ACTUAL_AND_CLOSURE831b1f6d принято для actual6e401f9c:
+полные parsed before/final290/33, preserved425audits/224sessions/239refresh/
+224AMR и2ownAuthaudits, zero newseen, UI assertions/PNG/closure подтверждены.
+[Квитанция](qa/team-chat-message-grouping-actual-2026-09-21.md) сохраняет всеgaps.
+B1006 получил окно через ROOT; A больше не использует sharedruntime.
+Final-head review/CI/merge остаются отдельными; product bytes не менялись.

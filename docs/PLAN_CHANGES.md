@@ -35522,3 +35522,20 @@ fix: валидировать исходный datetime-local существую
 KB32/A225/B224; реализация offline, фактическая UI-проверка после их окон.
 Impeccable не требует визуальной правки для этого backend-дефекта; если
 связанный UI покажет проблему, его scope и совет фиксируются отдельно.
+
+### CRM-09d — точная локальная QA перед исполнением
+
+После root32 повторно связать existing Student1 case→membership→profile→Auth.
+Прежний09c экран1000USD относится к другому делу; он не доказывает баланс
+Student1. Сохранённые receipts целевого fictional QA дела показывают1KGS
+условий и отсутствие obligations/events; это требует fresh readiness.
+При совпадении через обычный Admin UI создать один явноLOCAL QA tranche1KGS
+и записать fictional payment0.50KGS без реальных денег/провайдера. Точный
+request UUID и at берутся из реальной формы без подмены hidden времени.
+Проверить actual local DATE и событие вCRM, затем тем же Student портал:
+1KGS начислено,0.50 оплачено,0.50 осталось. Portal DTO не содержит даты события.
+Бюджет: +1obligation,+1event,+1evidence,+2audit; обновляется только новый
+obligation. Все прежние строки, условия/cases/schema/Storage неизменны;
+Auth login/logout отдельно. Новые identities/права/активации/receipt files,
+refund для cleanup и production не разрешены этим сценарием. Actual result
+фиксируется отдельно; parser tests и предложение QA не означают выполнение.

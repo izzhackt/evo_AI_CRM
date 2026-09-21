@@ -109,7 +109,7 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
         ownMembershipId={actor.membershipId} ownLabel={actor.displayName} intakeOptions={intakeOptions} />
     </div> : viewingRecord ? <SalesRecordPreview record={workspace?.selected ?? null} backHref={backHref}
       editHref={canManage && workspace?.selected ? href({ record: workspace.selected.id, edit: "true" }) : null} /> : <>
-      <form key={params.toString()} method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-end gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
+      <form key={params.toString()} method="get" aria-label="Фильтры отчёта продаж" className="mt-6 grid grid-cols-2 items-start gap-3 rounded-card border border-border bg-surface p-4 @2xl:flex @2xl:flex-wrap">
         <input type="hidden" name="view" value="sales" />
         <label className="min-w-0 @2xl:w-28"><span className={labelCls}>Год</span><input name="year" type="number" min="1900" max="2100" required defaultValue={valid ? year : ""} className={`${inputCls} min-h-11`} /></label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Месяц</span><select name="month" defaultValue={month ?? "all"} className={`${inputCls} min-h-11`}>
@@ -120,17 +120,17 @@ export async function SalesRegisterView({ actor, query }: { actor: ActivePlatfor
           <option value="false">Рабочие</option><option value="true">Архив</option>
         </select></label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Менеджер</span><select name="manager" defaultValue={query.manager ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option>{query.manager && !workspace?.managerLabels.includes(query.manager) ? <option value={query.manager}>{query.manager}</option> : null}{workspace?.managerLabels.map(label => <option key={label} value={label}>{label}</option>)}</select></label>
-        <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Направление</span>
+        <label className="min-w-0 @2xl:w-44"><span id="sales-direction-label" className={labelCls}>Направление</span>
           {directionControl.kind === "select" ? <select name="direction" defaultValue={directionControl.value}
-            aria-describedby={directionHelp ? "sales-direction-help" : undefined} className={`${inputCls} min-h-11`}>
+            aria-labelledby="sales-direction-label" aria-describedby={directionHelp ? "sales-direction-help" : undefined} className={`${inputCls} min-h-11`}>
             {directionControl.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select> : <input name="direction" defaultValue={directionControl.value} maxLength={1000} placeholder="Как в записи"
-            aria-invalid={directionControl.reason === "invalid" ? true : undefined} aria-describedby="sales-direction-help" className={`${inputCls} min-h-11`} />}
+            aria-labelledby="sales-direction-label" aria-invalid={directionControl.reason === "invalid" ? true : undefined} aria-describedby="sales-direction-help" className={`${inputCls} min-h-11`} />}
           {directionHelp ? <span id="sales-direction-help" className="mt-1 block text-xs leading-relaxed text-fg-2">{directionHelp}</span> : null}
         </label>
         <label className="min-w-0 @2xl:w-44"><span className={labelCls}>Уточнения</span><select name="review" defaultValue={query.review ?? ""} className={`${inputCls} min-h-11`}><option value="">Все</option><option value="true">Нужно уточнить</option><option value="false">Сверенные</option></select></label>
-        <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`} type="submit">Показать</button>
-        {valid && hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:w-auto`}>Сбросить фильтры</Link> : null}
+        <button className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:mt-5 @2xl:w-auto`} type="submit">Показать</button>
+        {valid && hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11 w-full shrink-0 @2xl:mt-5 @2xl:w-auto`}>Сбросить фильтры</Link> : null}
       </form>
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
         <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>

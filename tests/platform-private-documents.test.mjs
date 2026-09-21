@@ -191,6 +191,42 @@ test("case document workspace keeps every immutable version grouped under one sl
   assert.equal("objectName" in normalized.slots[0].versions[0], false);
 });
 
+test("workspace preserves saved versions when the legacy current pointer is absent", () => {
+  const normalized = normalizePlatformCaseDocumentWorkspace(
+    workspace({ slots: [slot({
+      current_version_id: null,
+      current_version_no: null,
+      versions: [
+        version({ current: null }),
+        version({ id: OLD_VERSION_ID, versionNumber: "1", current: null }),
+      ],
+    })] }),
+    ORGANIZATION_ID,
+    CASE_ID,
+  );
+  assert.equal(normalized.slots[0].currentVersionId, null);
+  assert.deepEqual(normalized.slots[0].versions.map((item) =>
+    [item.versionNumber, item.isCurrent, item.downloadReady]),
+  [[2, false, true], [1, false, true]]);
+});
+
+test("nullable current flags do not relax malformed flags or current-pointer consistency", () => {
+  for (const flag of [undefined, "false", 0, {}]) {
+    const document = version();
+    if (flag === undefined) delete document.is_current;
+    else document.is_current = flag;
+    assert.throws(() => normalizePlatformCaseDocumentWorkspace(
+      workspace({ slots: [slot({ versions: [document] })] }), ORGANIZATION_ID, CASE_ID,
+    ), PlatformPrivateDocumentsRepositoryError);
+  }
+  for (const overrides of [{ is_current: null }, { download_ready: null }]) {
+    assert.throws(() => normalizePlatformCaseDocumentWorkspace(
+      workspace({ slots: [slot({ versions: [{ ...version(), ...overrides }] })] }),
+      ORGANIZATION_ID, CASE_ID,
+    ), PlatformPrivateDocumentsRepositoryError);
+  }
+});
+
 test("workspace returns case-safe application and visa links per slot", () => {
   const normalized = normalizePlatformCaseDocumentWorkspace(
     workspace({

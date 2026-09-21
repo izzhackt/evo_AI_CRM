@@ -659,3 +659,34 @@ test("canonical knowledge search crosses the staff proxy only at its exact endpo
     assert.equal(isConnectedPlatformApi(path), false, path);
   }
 });
+
+
+test("receipt routes use exact handler UUIDs and remain staff-cookie routes", () => {
+  const caseId = "10000000-0000-4000-8000-000000000001";
+  const paths = (id) => [
+    `/api/v2/payment-receipts/${id}`,
+    `/api/v2/payment-receipt-files/${caseId}/${id}/download`,
+    `/api/v2/payment-receipt-files/${id}/${caseId}/download`,
+  ];
+  for (const version of [1, 2, 3, 4, 5]) {
+    const id = `ABCDEF00-0000-${version}000-A000-000000000002`;
+    for (const path of paths(id)) {
+      assert.equal(isConnectedPlatformApi(path), true, path);
+      assert.equal(isConnectedPlatformPrivateApi(path), false, path);
+      for (const method of ["GET", "POST"]) {
+        assert.equal(isConnectedStudentPortalApi(path, method), false, path);
+        assert.equal(isPublicStudentRegistrationApi(path, method), false, path);
+      }
+      for (const suffix of ["/", "/extra"]) assert.equal(isConnectedPlatformApi(path + suffix), false);
+    }
+  }
+  for (const id of ["not-a-uuid", "00000000-0000-0000-0000-000000000000",
+    "10000000-0000-7000-8000-000000000001", "10000000-0000-4000-7000-000000000001",
+    caseId + "%2Fextra"]) {
+    for (const path of paths(id)) assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+  for (const path of ["/api/v2/payment-receipts", "/api/v2/payment-receipt-files",
+    `/api/v2/payment-receipt-files/${caseId}/download`, `/api/v2/case-contract-files/${caseId}`]) {
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+});

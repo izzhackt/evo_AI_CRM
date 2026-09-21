@@ -14022,3 +14022,16 @@ remain required before ordinary merge; no new QA window or deployment implied.
 
 Independent actual+closure review27e335dd is APPROVED_SCOPED_NEGATIVE_UI_AND_CLOSURE;
 this does not claim server-command execution or positive request acceptance.
+
+
+## 2026-09-21 — B24: precode обратной связи о прочтении уведомлений
+
+После обычного merge #1006 в main8b6259ec выбран один оставшийся web-сценарий:
+[локальная ошибка single/bulk mark-read](platform/portal-notification-read-feedback.md).
+Исходники и независимый source-разбор подтверждают отсутствие local failure
+feedback; runtime здесь не выполнялся. Предложены общая клиентская форма,
+RU/KY alert и ручной повтор с сохранением existing actions/RPC/IDs/guard,
+неатомарного bulk и остановки на первой ошибке. Public unstable_rethrow для
+сохранения framework redirects — явно открытая деталь precode review, с
+зафиксированным официальным предупреждением о стабильности. Код не менялся.
+ROOT передал QA A1014; B остаётся files-only до отдельного admission.

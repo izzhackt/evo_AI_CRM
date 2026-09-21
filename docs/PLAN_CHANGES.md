@@ -36850,3 +36850,16 @@ remain required before ordinary merge; no new QA window or deployment implied.
 
 Independent actual+closure review27e335dd is APPROVED_SCOPED_NEGATIVE_UI_AND_CLOSURE;
 this does not claim server-command execution or positive request acceptance.
+
+
+## 2026-09-21 — B24 notification feedback: предложение до реализации
+
+Прежний блок #1006 смержен в8b6259ec. Следующий ограниченный web-сценарий —
+[прочтение уведомлений](platform/portal-notification-read-feedback.md): существующие
+формы single/bulk не показывают локальную ошибку, а bulk может частично сохраниться.
+Включён второй single-consumer — ответ куратора; polling bell не затрагивается.
+Предлагается клиентская оболочка с нейтральным RU/KY сообщением и ручным повтором,
+без optimistic state и изменений серверного контракта/SQL. Catch не должен
+проглатывать Auth redirects; публичный unstable_rethrow остаётся явно указанной
+нестабильной зависимостью, которую координатор должен принять до coding.
+Это files-only precode, не новая authority для runtime/данных. QA сейчас A1014.

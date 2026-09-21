@@ -13078,3 +13078,51 @@ Auth/refresh-token parity и отзыв прав единственного Admi
 Собственные Next/browser/scanner остановлены. Full287 RAW release37e84090…5df5d
 передаёт окно A15f; независимое reviewcb628f6f…761ea принято. Это завершение
 локального CRM-09e, не всего item12/1–36 и не production.
+
+
+## 2026-09-21 — website enquiry country and university context
+
+Scope: extend the existing same-origin website enquiry receiver so a visitor may
+choose `country: "Undecided"` and optionally supply `university: {slug, name}`.
+Preserve the original eight required fields and accept omitted/null university
+from older forms. Store the bounded visitor-supplied choice in the existing
+append-only receipt JSON; display it in the staff profile's existing website
+submissions section. This does not associate the lead with an authoritative CRM
+university entity or attribute a human case note to a staff member.
+
+- [ ] Forward migration, numbered only after schema-owner coordination: replace
+  the intake RPC with one implementation and a final optional JSONB argument;
+  preserve service-role-only ingress, all existing guards, phone linking,
+  request locking/rate limits, and canonical receipt comparison. Omit the new
+  payload key when empty so pre-release request retries remain identical.
+- [ ] `Undecided` leaves a new lead's interest direction NULL. Existing lead
+  direction/identity/ownership remains unchanged. No invented country mapping.
+- [ ] Server validates bounded exact university shape, projects it through the
+  existing authorized reader, and renders ordinary escaped text with a clear
+  label. Slug is source context, not a URL or claimed catalogue match.
+- [ ] Narrow checks: focused lint/type generation/typecheck, contract validation,
+  SQL review and independent exact-head review. No fake lead/provider calls,
+  no blanket migration/browser suite. Owner will perform the actual submission;
+  successful persistence/business acceptance is not claimed before that check.
+- [ ] Root release owner handles merge, schema coordination and managed release;
+  executor opens a reviewed candidate and does not deploy/apply/arm.
+
+Impeccable context and clarify guidance: keep the current definition-list layout,
+show the chosen university alongside country, translate the undecided sentinel
+into a short Russian label, and allow long names to wrap. Actual populated CRM
+UI proof depends on the owner's submission; static checks cannot replace it.
+
+Schema coordination confirmed before migration implementation: Astra reserves
+`231_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230 → 231,
+owned by the shared coordinator. No separate migration apply, arm or release.
+
+Implementation/check receipt: [website enquiry context](design/v3/references/2026-09-21-website-enquiry-context.md).
+Parser tests, focused lint, Next typegen/typecheck and diff check passed.
+No database execution or real enquiry submission is claimed; owner will submit.
+
+
+Website enquiry coordination update: the coordinator reassigned the unapplied
+website migration from 230 to 231 so migration230 can repair the receipt audit
+namespace required by the real229 path. Only the filename and this slice's
+references change; SQL/runtime behavior and prior validation remain unchanged.
+The shared coordinator owns ordered apply 228 → 229 → 230 → 231 and release.

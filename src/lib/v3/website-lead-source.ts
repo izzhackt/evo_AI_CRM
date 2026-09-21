@@ -2,10 +2,12 @@ import "server-only";
 import { createSupabaseServerClient } from "../supabase/server";
 import type { PlatformActor } from "../platform-auth";
 import { parseSalesUuid } from "../platform-sales-register-contract";
+import { parseWebsiteEnquiryUniversity, type WebsiteEnquiryUniversity } from "../website-enquiry-contract";
 
 export type WebsiteLeadSubmission = Readonly<{
   requestId: string; createdAt: string; name: string; phone: string;
   age: number | null; city: string | null; country: string;
+  university: WebsiteEnquiryUniversity | null;
 }>;
 
 export async function readWebsiteLeadSubmissions(actor: PlatformActor, leadId: string): Promise<WebsiteLeadSubmission[]> {
@@ -24,6 +26,7 @@ export async function readWebsiteLeadSubmissions(actor: PlatformActor, leadId: s
       throw new Error("Website inquiry is unavailable.");
     }
     return { requestId: row.request_id, createdAt: row.created_at, name: row.name, phone: row.phone,
-      age: row.age, city: row.city, country: row.country };
+      age: row.age, city: row.city, country: row.country,
+      university: parseWebsiteEnquiryUniversity(row.university) };
   });
 }

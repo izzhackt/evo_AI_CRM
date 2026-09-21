@@ -216,18 +216,23 @@ B program/intake/requirements/portal/iPhone поверхности здесь н
 Перед UI-cutover обновить устаревшее описание отдельного обсуждения в DESIGN.md
 по уже принятому разделу9, сохранив внешнюю оболочку и мессенджерную стилистику.
 
-Этот PR меняет только документацию. Проверка — diff/ссылки/`git diff --check`,
+Первоначальный precode PR#981 менял только документацию. Проверка — diff/ссылки/`git diff --check`,
 затем независимый exact-head review и защищённые короткие CI. Ни backend A15d,
 ни общая лента, ни весь пункт15 этим документом не объявляются завершёнными.
 Production apply, provider actions, server release и новые QA identities не
 входят в этот плановый шаг.
 
 
-## A15d offline implementation update
+## A15d implementation and local verification update
 
 Precode PR#981 accepted and merged at67934327d. ROOT allocated225 before code.
 Runtimefb12146e implements only the A15d contract above; the exact RPC argument
 names are `p_organization_id`, `p_channel_key`, `p_message_ids`, acknowledgement
 `{channelKey,messageIds}`. No cursor or membership can be supplied by the client.
-[Offline checks and outstanding real QA](qa/crm-team-chat-sparse-seen-225-2026-09-21.md)
-are recorded separately. There is no apply/UI-cutover or whole-item15 completion.
+[Actual local apply/Auth/unread/concurrency QA](qa/crm-team-chat-sparse-seen-225-2026-09-21.md)
+passed at3fc9ef34 after accepted224 integration. Migration225 applied once;
+exact5seen and one legacy read/replay were verified, full282 release passed
+to ROOT32. The retained harness stop and reviewed bounded continuation are
+recorded separately. No production/UI-cutover or whole-item15 completion.
+A15e quote model follows only after A15d merge;226 belongs to B, any later A
+migration requires a new coordinator reservation (227 is not silently claimed).

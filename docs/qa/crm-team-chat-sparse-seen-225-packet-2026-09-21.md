@@ -1,11 +1,10 @@
 # A15d /225: предложение ограниченной локальной QA
 
-Статус: **предложение, не запуск**. Runtime `fb12146e5fdd3470c061ac7c321ddeadb7cc7e53`,
-source PR#983 `63dfdb008df928c72653ca391c4d013d2b0f2c3c` независимо одобрен;
-CI35552439001 прошёл, включая Migration boundary.225 ещё не установлена локально.
-B уже применил224 и передал release; ROOT выделил A исключительное окно225.
-Применение225 и обычный Auth ещё не выполнялись. Нужны интеграция принятого
-source224 и независимое review окончательного apply packet/manifest.
+Статус: **однократный local apply225 и scoped API QA выполнены** на
+`3fc9ef3435882cb431fbe291e9582474f59666cc`; окно передано ROOT32.
+[Фактические результаты, остановка harness и ограниченное продолжение](crm-team-chat-sparse-seen-225-2026-09-21.md).
+Ниже сохранена история подготовки пакета, включая прежние pending steps;
+они не являются текущим статусом. Production/UI-cutover не заявляются.
 
 ## Последовательность допуска
 
@@ -183,3 +182,26 @@ SHA256 `8b227644d8cca6e7318c1bfea9c6b1d850ae0efdb3b512ec1b03aa2956f863b9`.
 Окончательный apply manifest фиксирует точный integration head и эти hashes.
 Его короткое независимое review precedes once apply. QA manifest получает
 только фактические будущие225 apply/release bindings после успешного применения.
+
+## Выполненный пакет и продолжение после harness stop
+
+Final apply manifest `b539db76e312b757978741807fdd28613462b15cbd2f0d70f22bfbf5f94ce98f`
+привязан к source3fc9ef34; independent final binding review
+`7ae19ba0e99369fc92cf2b095b1e3e4496e31d2de4c3ebc58ea6d135a24055cd` принят до ROOT GO.
+Apply225 выполнен один раз. Initial QA manifest
+`242f1c2024eb62a4e810ef684c55e61204f91c99ff9f57314d7bfd3084ac56a4` использовал actual
+apply receipt и явно ограниченный переход apply→QA в том же A окне.
+
+Исходный cf828 helper сохранён: он остановился на SQL NULL preference после15
+negatives и2 no-op, до intent/legacy read. Fresh282 reconciliation
+`52d9a1827ff4561330471d698b9def8610a4b620a89d90d6e17429b036b27b51` подтвердил0 writes.
+Отдельный `continue.py`
+`bf22734e549c31792c16d94e0c888cb14a3309b6bc38a431807156a5107c3d0c` и его manifest
+`dad92fabfb5ef1848d99f60c6f1e94e889795ef562c0e64baec00f2bd23961ee` получили independent
+APPROVED (`645edcb16a47e01bad0d8e3ee4ae187cdc1c86b59097f3c62ef46b1c40a13512`) до GO.
+
+Continuation сохранил31 исходный файл по hashes, переиспользовал17 completed
+proofs и исполнил только8 remaining mark_seen и ранее не начатый legacy read/replay.
+Исправлен только nullable SELECT через COALESCE; runtime не менялся. Actual
+full282 release `2d7c943d…` с точным SQL передан ROOT32; результат и пределы
+доказательства перечислены в [QA отчёте](crm-team-chat-sparse-seen-225-2026-09-21.md).

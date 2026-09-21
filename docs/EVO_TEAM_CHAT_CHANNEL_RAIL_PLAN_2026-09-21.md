@@ -1,6 +1,10 @@
 # A15 — превью в списке каналов: второй блок, precode
 
-Статус: предложение для независимого precode review; продуктовый код не менялся.
+Статус: precode9eb9f51f независимо APPROVED, review SHA256
+`430b613f45dae2ce0b0b7d375e61ab57b6e9a596e50f7dff14df408a5ef0120e`.
+ROOT разрешил первый source-only этап: общие tickets/metadata acceptance и pure
+formatter с tests; разметка/CSS и нынешнее отображение пока остаются прежними.
+Мобильная композиция ждёт отсутствующий incumbent batch. Это не UI/actual GO.
 База `c675d4b4d735ccbcc51dc162265e31d64e193990`: #1017 смержен после final review
 `f36fec39` и CI35645855198. [Первый контракт](EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md)
 и [узкая actual-проверка reader/DTO](qa/team-chat-channel-previews-actual-2026-09-21.md)

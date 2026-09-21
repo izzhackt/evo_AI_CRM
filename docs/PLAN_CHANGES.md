@@ -37219,3 +37219,16 @@ actual с предварительным seen binding. Craft-floor непоср�
 QA у ROOT→manage incumbent→B1018; сейчас нет Auth/SQL/browser/server. Новая
 миграция не требуется,238 зарезервирована ROOT. Precode/source review перед
 реализацией; это не весь15/1–36 и не production.
+
+
+### A15 rail — принят precode, ограниченный logic-only этап до UI
+
+Независимый APPROVED_PRECODE430b613f на9eb9f51f принят ROOT. Разрешены общие
+request tickets и strict metadata acceptance в двух прежних refresh/search
+путях, pure preview formatter и целевые tests. На этом этапе существующие
+markup/CSS, latest presentation state, hydration/seen/feed/actions сохраняются;
+formatter к JSX пока не подключается. Это стадия одного coherent rail блока,
+не отдельное завершение UI/merge. Мобильная композиция выбирается после
+недостающего incumbent. План/журналы обновлены до source edit; craft-floor
+перечитан перед правкой component logic. QA остаётся ROOT→B1018; A готовит
+только inert incumbent packet, без Auth/SQL/browser/server/runtime.

@@ -86,9 +86,18 @@ unavailableReasons, deadline, reviewScope, definitionImpact`.
 `{date, time, timezone, sourceUrl, verifiedOn}`.
 
 Date/verifiedOn — реальные календарные YYYY-MM-DD. Time — null либо HH:mm;
-если time задан, timezone обязателен и валиден в существующих TS/Swift timezone
-правилах. Date-only не получает полночь/смещение. Timezone при date-only может
-быть null или валидным явным значением. SourceUrl — null либо безопасный публичный
+если time задан, timezone обязателен. Общий v2 predicate: строка1–100 ASCII
+символов без whitespace, ровно `UTC` / `GMT` либо named identifier по
+`^[A-Za-z_]+(?:/[A-Za-z0-9_+-]+)+$`; префиксы `posix/` и `right/` запрещены
+без учёта регистра. Named identifier дополнительно должен распознаваться runtime:
+TS — успешным `Intl.DateTimeFormat` с этим timeZone, Swift — ненулевым
+`TimeZone(identifier:)`. Numeric offsets, неизвестные names и отдельные
+аббревиатуры вроде `CST` не принимаются. Это новая общая v2 проверка, а не
+наследование неодинаковых catalog decoders; общий codec corpus включает
+`UTC`, `GMT`, `Asia/Shanghai`, `Asia/Dubai`, `Europe/Prague`, date-only и invalid
+prefix/name/offset случаи в обеих реализациях. Date-only не получает полночь/смещение.
+Timezone при date-only может быть null или проходить тот же predicate.
+SourceUrl — null либо безопасный публичный
 https URL без embedded credentials; null допускает непубличное основание,
 сохраняемое будущим staff-save в private provenance. Present deadline требует
 verifiedOn; это дата проверки, не дата наступления срока. V2 не содержит private

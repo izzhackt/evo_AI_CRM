@@ -35815,3 +35815,33 @@ RAW release `f375371369becc30f1f873badb6a45d182580813ad9829f6e017042fdff39b6a`
 и смержил неизменный PR #993 в `f712db2f2b0cdb623f82ea8f5fe048cda7e0d2ee`;
 этот результат оформляется отдельным docs-only PR. Native UI, production,
 провайдеры, broad E2E, контент и App Store остаются за пределами этой приёмки.
+
+
+## 2026-09-21 — B3g /231: precode состава и проверки полного комплекта
+
+На main `7aad173f83ec612854e3b5553225611ea4811127` закреплён следующий разрез
+§11: [B3g contract](platform/b3g-program-package-contract.md). ROOT резервирует231;
+230 принадлежит website. Нового server/Auth/DB/Storage действия нет.
+
+Source inventory214/226/228 показал: individual uploads/submissions/reviews уже
+есть, но immutable package composition и отдельного staff package decision нет.
+Readiness не выводится из legacy current или одного canSubmit. Ресурсы пакета
+ссылаются на canonical versions и фиксируют exact review IDs, поскольку current228
+summary динамически берёт последнее решение. Прежние global/legacy/ZIP semantics
+сохраняются; университетская отправка не добавляется этим комплектом EVO.
+
+ROOT подтвердил starter по существующей readiness с явной подписью и без нового
+confirmed-only gate. Optional можно исключить до отправки; включённые материалы
+фиксируются в составе. Перенос review на другую программу или изменённое definition
+запрещён. После новой226 revision reuse требует доказанный unchanged predecessor
+и явное staff current-context подтверждение: `reuseApprovals` с exact source review,
+обычный228 approved review от сотрудника и оба ID в package evidence/audit.
+Старое approved не перекрывает новую отрицательную проверку; все child request IDs
+блокируются заранее. Механизм проходит независимое review до реализации.
+Весь состав пишется атомарно,
+request locks предшествуют org lock, network retry повторяет frozen intent.
+
+Impeccable Operate/adapt сохраняет EVO и existing controls на web/iPhone/CRM;
+два ограниченных visual passes только в будущем выделенном runtime окне.
+Precode требует independent exact-head review. Broad E2E/content/App Store,
+production и весь1–36 остаются вне объявления о завершении этого этапа.

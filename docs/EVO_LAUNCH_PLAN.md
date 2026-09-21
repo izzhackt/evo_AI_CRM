@@ -12958,3 +12958,16 @@ RAW release `/private/tmp/evo-b228-core-ui/release-receipt.json`, SHA256
 сверки. ROOT принял передачу; PR #993 смержен в `f712db2f2b0cdb623f82ea8f5fe048cda7e0d2ee`.
 Отдельный docs-only PR фиксирует результат без изменения проверенных исходников;
 production, внешние провайдеры, полная финальная E2E и App Store не затронуты.
+
+
+## 2026-09-21 — B3g: неизменяемый состав комплекта и отдельное решение EVO
+
+После #993 и его QA-отчёта #997 (`7aad173f`) ROOT принял направление
+[precode B3g](platform/b3g-program-package-contract.md) и резервирует231 для
+server/wire части;230 остаётся за website. Студент отправляет весь exact состав
+без предварительного staff одобрения файлов, сотрудник отдельно проверяет
+документы и комплект. Starter сохраняет явный смысл стартового комплекта EVO.
+Individual228, canonical bytes и история сохраняются; package review фиксирует
+точные review IDs. UI CRM/web/iPhone и узкий actual packet идут по одному контракту.
+Сейчас только precode: независимое exact-head review до кода; runtime/DDL не начаты,
+локальная база остаётся у ROOT990/229. Полный1–36 и production не объявляются готовыми.

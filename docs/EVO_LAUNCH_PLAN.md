@@ -13571,3 +13571,22 @@ and close own browser/Auth/server. Desktop/320px observations are actual visual
 evidence; speech is unclaimed unless a screen reader is actually exercised.
 No native unlock, production action, installs or full builds. Release the window
 with raw state/schema001–234 and exact runtime/config/observer pins to ROOT235.
+
+## 2026-09-21 — B item25 first actual UI correction
+
+The first local234 pass at875ec495 confirmed RU→KY and settled KY→RU:
+each double Enter sent one server action, with focus preserved while pending
+and after success; nine changed titles matched KY and mobile320 did not overflow.
+A fast initial restore before hydration also exposed a real local regression:
+the enabled aria-disabled submit button could issue native GET without saving.
+A later overlapping test navigation invalidated that attempt's timeout evidence,
+but the preceding native GET was preserved and independently reviewed as P2.
+Replace only LanguageForm's submit form with a non-submitting container and
+type=button/onClick, retaining the same pending ref/transition/error/RPC logic
+and named native radio group. Keep normal Enter/Space activation of the button;
+do not claim implicit Enter from arbitrary controls. No general hydration layer.
+Preserve first-pass evidence, keep the same owned Student session, review the
+source delta, then one confirmation batch: before-JS activation cannot navigate,
+one ordinary additional RU→KY→RU cycle (profile revision3→7 across both batches),
+and at most one lesson start/answer overall. No lesson completion, new login,
+fixtures, SQL, providers or native actions. ROOT235 remains next after closure.

@@ -39,31 +39,29 @@ export function LanguageForm({
     { value: "ky", label: strings.languageKy },
   ];
 
+  function saveLanguage() {
+    if (pendingRef.current || pending || selected === saved) return;
+    pendingRef.current = true;
+    setStatus("idle");
+    startTransition(async () => {
+      try {
+        const result = await setPortalLanguageAction(selected);
+        if (result.ok) {
+          setSaved(result.portalLanguage);
+          setStatus("saved");
+        } else {
+          setStatus("failed");
+        }
+      } catch {
+        setStatus("failed");
+      } finally {
+        pendingRef.current = false;
+      }
+    });
+  }
+
   return (
-    <form
-      className="pt-profile-language"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (pendingRef.current || pending || selected === saved) return;
-        pendingRef.current = true;
-        setStatus("idle");
-        startTransition(async () => {
-          try {
-            const result = await setPortalLanguageAction(selected);
-            if (result.ok) {
-              setSaved(result.portalLanguage);
-              setStatus("saved");
-            } else {
-              setStatus("failed");
-            }
-          } catch {
-            setStatus("failed");
-          } finally {
-            pendingRef.current = false;
-          }
-        });
-      }}
-    >
+    <div className="pt-profile-language">
       <p className="pt-profile-hint">{strings.languageHint}</p>
       <div className="pt-profile-language-options" role="radiogroup" aria-label={strings.languageHeading}>
         {options.map((option) => (
@@ -83,7 +81,7 @@ export function LanguageForm({
         ))}
       </div>
       <div className="pt-profile-language-submit">
-        <button type="submit" className="pt-btn" aria-disabled={pending || selected === saved} aria-busy={pending}>
+        <button type="button" className="pt-btn" onClick={saveLanguage} aria-disabled={pending || selected === saved} aria-busy={pending}>
           {strings.languageSave}
         </button>
         <span role="status" className="pt-profile-status">
@@ -93,6 +91,6 @@ export function LanguageForm({
           <span role="alert" className="pt-favorite-error">{strings.languageError}</span>
         ) : null}
       </div>
-    </form>
+    </div>
   );
 }

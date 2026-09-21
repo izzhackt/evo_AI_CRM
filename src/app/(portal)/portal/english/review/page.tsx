@@ -9,7 +9,10 @@ import { readLearningModules, readLearningReview } from "@/lib/portal/learning-s
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Повторение ошибок — EVO Admissions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("english", await getLocale());
+  return { title: `${strings.reviewTitle} — EVO Admissions` };
+}
 
 /**
  * Повторение ошибок (PORT-4c): банк собирается сервером из завершённых

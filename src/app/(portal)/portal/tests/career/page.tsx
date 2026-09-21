@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 
 import { AssessmentPage } from "@/components/portal/tests/AssessmentPage";
+import { getLocale } from "@/lib/i18n";
+import { getPortalStrings } from "@/lib/portal/i18n";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Карта интересов — EVO Admissions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("tests", await getLocale());
+  return { title: `${strings.historyCareer} — EVO Admissions` };
+}
 
 export default function CareerTestPage({ searchParams }: { searchParams: Promise<{ attempt?: string; new?: string }> }) {
   return <AssessmentPage instrumentKey="orvis92" searchParams={searchParams} />;

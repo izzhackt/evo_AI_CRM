@@ -13437,3 +13437,40 @@ obtain independent delta review and current CI, then inspect the existing actual
 notification/recovery and staff detail at desktop/mobile sizes. Do not repeat
 submissions, add actors/fixtures, rerun unchanged DB flows, or claim native UI or
 production acceptance. Existing actual receipts remain the evidence for writes.
+
+
+## 2026-09-21 — B item25: portal pending focus, result status and RU/KY metadata
+
+Fresh main c47a8137 contains merged PR1000 and prior PR896 success-focus fixes.
+Revalidation confirms three remaining source patterns: LanguageForm and the two
+learning answer buttons become natively disabled while pending; ExplainPanel
+mounts a populated status region only after the server answer; nine English,
+assessment, profession and message routes still export static Russian metadata.
+This source-only block preserves the existing EVO layout/typography and uses
+Impeccable Operate/harden with craft-floor. Existing success focus stays intact.
+
+Scope: keep pending submit buttons focusable via aria-disabled with synchronous
+activation guards; retain native invalid-input disabling and existing attempt,
+revision, request-ID and retry semantics. Add a pending guard and error handling
+to LanguageForm without changing its guarded language RPC/cookie flow. Mount
+one empty polite/atomic result status before each exercise response, announce
+only the confirmed short verdict after the existing heading-focus transition,
+and leave detailed explanation semantic/non-live. Clear the verdict on the next
+exercise; do not announce complete explanation text. Use existing locale/portal
+strings for the nine route titles, adding only generic Lesson/Profession RU/KY
+labels; retain brand suffix and avoid private-data fetches for metadata.
+
+The current backend, SQL, grading, attempts, profile authorization and native
+iPhone code are outside this change. No shared QA/Auth/Storage/browser/Simulator
+or production action is authorized by this source block. ROOT owns the shared
+window (233 then A234). Scoped existing tests, type/lint and independent exact-
+head source review precede a coordinated actual Student keyboard/language/
+learning check. Actual screen-reader speech remains unclaimed until exercised;
+DOM or source checks do not prove VoiceOver output. Do not reopen PR896 as missing
+work or change assessment autosave without a reproduced defect.
+
+Primary behavior references checked 2026-09-21:
+- MDN aria-disabled: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-disabled — preserves focusability, requires explicit activation prevention.
+- MDN aria-live: https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-live — pre-existing polite regions expose later short updates.
+- W3C status messages: https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html — expose action outcomes without unnecessary focus changes.
+- Next generateMetadata: https://nextjs.org/docs/app/api-reference/functions/generate-metadata — use the existing server metadata API with request locale.

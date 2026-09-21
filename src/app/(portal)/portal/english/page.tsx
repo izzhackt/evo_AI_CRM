@@ -8,7 +8,10 @@ import { readLearningModules, readLearningReview } from "@/lib/portal/learning-s
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Английский — EVO Admissions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("english", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
 
 /**
  * Раздел «Английский» (PORT-4c): карта модуля со своим прогрессом, вход в

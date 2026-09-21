@@ -37039,3 +37039,8 @@ status without rewriting historical receipts. Source checks and unchanged
 runtime evidence are reused; integration/docs need diff/parity review and the
 protected final PR checks, not another visual cycle. Whole item14/manage,
 whole items1–36 and production remain incomplete.
+
+
+## 2026-09-21 — Item14 manage search / additive238 precode
+
+Accepted contract: [staff catalogue manage search](platform/staff-catalog-manage-search.md). Base9f7dde1d; ROOT reserves238 after A237. Implement scoped pending-draft literal search and mixed keyset50+1, strict DTO/query/listContext and additive reader first. Preserve legacy readers, commands, publications, permissions, all143 editorial templates and exact retry. UI index/editor remain unchanged until actual incumbent inspection; no SQL/Auth/runtime execution in this checkpoint. Integration of actual237 is required before protected migration checks; no fabricated predecessor. Plan approval is not actual acceptance.

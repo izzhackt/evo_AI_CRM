@@ -35727,3 +35727,41 @@ Docs-only на main `82260fdc`: обновлены current fronts execution/A/B 
 сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
 DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
 Проверка: diff review и git diff --check; независимое exact-head review до merge.
+
+
+## 2026-09-21 — website enquiry context contract extension
+
+Fresh main `0fd6952a2796178e1d540f454742ded2f42bcee2` accepts exactly eight
+website fields and eleven named countries; neither undecided nor university
+context can be represented truthfully. Owner authorizes the requested feature
+and will test the real submission personally; agents must not create/send leads.
+
+Extend the HTTP contract with optional `university: {slug, name} | null` and
+literal `Undecided`. Use one replacement intake RPC with final
+`p_university JSONB DEFAULT NULL`; older named-argument callers retain their
+behavior, with no overload or duplicate writer. Revoke default PUBLIC grants
+and preserve service_role-only EXECUTE. Keep old receipt JSON unchanged when
+university is absent/null; include the normalized choice in idempotency comparison
+when present. Existing receipt storage/authorized staff presentation suffices;
+no new business table/column or fake staff-note author is needed.
+
+Migration number awaits the existing schema coordinator; 228/229 already appear
+in active PR work. Runtime inspection was read-only: app OCI revision
+`b7598a1c5046fe3c2b16fc014bc0c22044e64b27` has the same receiver files as fresh
+main, while `/opt/evo-crm` checkout points to `564332b420a1fb1bd6232dda945d044bb922d3f0`.
+Neither fact is acceptance of new behavior. Scope-local validation and managed
+release rules remain; no database/provider mutations or lead submissions occur
+in this implementation slice.
+
+The optional argument uses PostgreSQL's documented default-argument semantics:
+https://www.postgresql.org/docs/current/sql-createfunction.html
+The function signature changes, so the migration drops/recreates that function
+within one transaction and explicitly restores only the required grants.
+
+Schema coordination confirmed before migration implementation: Astra reserves
+`230_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230,
+owned by the shared coordinator. No separate migration apply, arm or release.
+
+Implementation/check receipt: [website enquiry context](design/v3/references/2026-09-21-website-enquiry-context.md).
+Parser tests, focused lint, Next typegen/typecheck and diff check passed.
+No database execution or real enquiry submission is claimed; owner will submit.

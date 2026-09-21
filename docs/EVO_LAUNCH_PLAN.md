@@ -12889,3 +12889,44 @@ Docs-only на main `82260fdc`: обновлены current fronts execution/A/B 
 сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
 DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
 Проверка: diff review и git diff --check; независимое exact-head review до merge.
+
+
+## 2026-09-21 — website enquiry country and university context
+
+Scope: extend the existing same-origin website enquiry receiver so a visitor may
+choose `country: "Undecided"` and optionally supply `university: {slug, name}`.
+Preserve the original eight required fields and accept omitted/null university
+from older forms. Store the bounded visitor-supplied choice in the existing
+append-only receipt JSON; display it in the staff profile's existing website
+submissions section. This does not associate the lead with an authoritative CRM
+university entity or attribute a human case note to a staff member.
+
+- [ ] Forward migration, numbered only after schema-owner coordination: replace
+  the intake RPC with one implementation and a final optional JSONB argument;
+  preserve service-role-only ingress, all existing guards, phone linking,
+  request locking/rate limits, and canonical receipt comparison. Omit the new
+  payload key when empty so pre-release request retries remain identical.
+- [ ] `Undecided` leaves a new lead's interest direction NULL. Existing lead
+  direction/identity/ownership remains unchanged. No invented country mapping.
+- [ ] Server validates bounded exact university shape, projects it through the
+  existing authorized reader, and renders ordinary escaped text with a clear
+  label. Slug is source context, not a URL or claimed catalogue match.
+- [ ] Narrow checks: focused lint/type generation/typecheck, contract validation,
+  SQL review and independent exact-head review. No fake lead/provider calls,
+  no blanket migration/browser suite. Owner will perform the actual submission;
+  successful persistence/business acceptance is not claimed before that check.
+- [ ] Root release owner handles merge, schema coordination and managed release;
+  executor opens a reviewed candidate and does not deploy/apply/arm.
+
+Impeccable context and clarify guidance: keep the current definition-list layout,
+show the chosen university alongside country, translate the undecided sentinel
+into a short Russian label, and allow long names to wrap. Actual populated CRM
+UI proof depends on the owner's submission; static checks cannot replace it.
+
+Schema coordination confirmed before migration implementation: Astra reserves
+`230_platform_website_enquiry_context.sql`; ordered apply is 228 → 229 → 230,
+owned by the shared coordinator. No separate migration apply, arm or release.
+
+Implementation/check receipt: [website enquiry context](design/v3/references/2026-09-21-website-enquiry-context.md).
+Parser tests, focused lint, Next typegen/typecheck and diff check passed.
+No database execution or real enquiry submission is claimed; owner will submit.

@@ -7,6 +7,7 @@ import {
   type TeamChatParticipant, type TeamChatQuery, type TeamChatFailure, type TeamChatChannelKey,
 } from "../platform-team-chat.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
+import { decodeTeamChatChannels } from "../team-chat-channel-previews.ts";
 
 export class TeamChatReadError extends Error {
   constructor(readonly status: TeamChatFailure) { super(status); }
@@ -52,12 +53,9 @@ export async function readTeamChatChannels(actor: ActivePlatformActor): Promise<
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("team_chat_channels", { p_organization_id: actor.organizationId });
   if (error) throw new TeamChatReadError(teamChatErrorStatus(error));
-  if (!Array.isArray(data) || !data.every((row: unknown) => record(row) && isTeamChatChannel(row.key)
-    && typeof row.muted === "boolean" && teamChatCursor(row.preferenceVersion) && teamChatCursor(row.readSequence)
-    && Number.isSafeInteger(row.unreadCount) && Number(row.unreadCount) >= 0 && nullableUuid(row.firstUnreadId))) {
-    throw new TeamChatReadError("unavailable");
-  }
-  return data as TeamChatChannel[];
+  const channels = decodeTeamChatChannels(data);
+  if (!channels) throw new TeamChatReadError("unavailable");
+  return channels;
 }
 export async function readTeamChatParticipants(actor: ActivePlatformActor, channel: TeamChatChannelKey): Promise<readonly TeamChatParticipant[]> {
   const client = await createSupabaseServerClient();

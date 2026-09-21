@@ -143,7 +143,7 @@ function Sidebar({
         if (!event.currentTarget.contains(event.relatedTarget)) closeMobileNavigation();
       }}
     >
-      <div className="flex items-center justify-between gap-3 px-5 py-3 md:px-6 md:py-5">
+      <div className="flex items-center justify-between gap-3 px-5 py-2 md:px-6 md:py-5">
         <Link
           href={staffHomeRoute(actor)}
           aria-label="EVO Admissions — начало работы"
@@ -266,7 +266,7 @@ export function AppShell({
       />
       {/* Container queries use the width remaining after the 260px sidebar. */}
       <div className="@container min-w-0 flex-1">
-        <div className="flex min-h-16 flex-wrap items-center justify-end gap-3 border-b border-border bg-surface px-4 py-2 md:px-6">
+        <div className="flex min-h-14 flex-wrap items-center justify-end gap-3 border-b border-border bg-surface px-4 py-1 md:min-h-16 md:px-6 md:py-2">
           {!previewing && staffHasPermission(actor, "staff.task.create") ? <Link href="/v3/tasks?create=staff" onClick={(event) => {
             if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();

@@ -617,7 +617,7 @@ export function ContractDraftReportWorkspace({
       ) : null}
 
       {workspace.canManageTemplates ? (
-        <details className="rounded-nav border border-border bg-surface-2 p-4" data-testid="platform-contract-template-create-panel">
+        <details className="min-w-0 border-t border-border pt-2" data-testid="platform-contract-template-create-panel">
           <summary className="min-h-11 cursor-pointer py-2 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Создать версию шаблона</summary>
           <form
             action={actions.createTemplate}
@@ -655,7 +655,7 @@ export function ContractDraftReportWorkspace({
               </select>
             </label>
             <label className={cn(labelCls, "sm:col-span-2")}>
-              Plain-text шаблон
+              Текст шаблона
               <textarea name="template_text" required minLength={10} maxLength={20_000} rows={8} className={textAreaCls} aria-describedby="contract-template-text-hint" />
               <span id="contract-template-text-hint" className="mt-1 block text-xs font-normal leading-4 text-fg-3">
                 Текст договора с полями подстановки, указанными в списке ниже.
@@ -684,7 +684,7 @@ export function ContractDraftReportWorkspace({
       ) : null}
 
       <div className="space-y-4">
-        <details className="min-w-0 self-start rounded-nav border border-border p-4">
+        <details className="min-w-0 border-t border-border pt-2">
           <summary id="contract-template-list-title" className="min-h-11 cursor-pointer py-2 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Шаблоны договора</summary>
           <div className="mt-4 space-y-4" data-testid="platform-contract-template-list">
             {workspace.templates.length > 0 ? workspace.templates.map((template) => (
@@ -693,7 +693,7 @@ export function ContractDraftReportWorkspace({
           </div>
         </details>
 
-        <section className="min-w-0 rounded-nav border border-border p-4" aria-labelledby="contract-draft-list-title">
+        <section className="min-w-0 border-t border-border pt-4" aria-labelledby="contract-draft-list-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 id="contract-draft-list-title" className="text-base font-bold text-fg">Черновики договора</h3>
@@ -727,13 +727,9 @@ export function ContractDraftReportWorkspace({
         </section>
       </div>
 
-      <section className="rounded-nav border border-border p-4" aria-labelledby="post-contract-items-title">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 id="post-contract-items-title" className="text-base font-bold text-fg">Работа после договора</h3>
-            <p className="mt-1 text-xs leading-4 text-fg-3">«Выполнен» требует подтверждения; открытым пунктам нужны ответственный и следующее действие.</p>
-          </div>
-        </div>
+      <details className="min-w-0 border-t border-border pt-2" open={workspace.items.length > 0 || Boolean(result)}>
+        <summary id="post-contract-items-title" className="min-h-11 cursor-pointer py-3 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Работа после договора</summary>
+        <p className="mt-1 text-xs leading-4 text-fg-3">«Выполнен» требует подтверждения; открытым пунктам нужны ответственный и следующее действие.</p>
         {workspace.canManagePostContract ? (
           <form action={actions.seedItems} data-testid="platform-post-contract-seed-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <HiddenContext studentCaseId={workspace.studentCaseId} requestId={requestIdFor("seed_items", retrySubjectId)} />
@@ -784,15 +780,11 @@ export function ContractDraftReportWorkspace({
             </article>
           )) : <EmptyState text="Пункты ещё не созданы. Отчёт без валидного чек-листа недоступен." />}
         </div>
-      </section>
+      </details>
 
-      <section className="rounded-nav border border-border p-4" aria-labelledby="post-contract-report-title">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 id="post-contract-report-title" className="text-base font-bold text-fg">Отчёты по делу</h3>
-            <p className="mt-1 text-xs leading-4 text-fg-3">Каждая версия фиксирует статусы пунктов, ответственных, подтверждения и следующие действия на момент генерации.</p>
-          </div>
-        </div>
+      <details className="min-w-0 border-t border-border pt-2" open={workspace.reports.length > 0 || Boolean(result)}>
+        <summary id="post-contract-report-title" className="min-h-11 cursor-pointer py-3 text-base font-semibold text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Отчёты по делу</summary>
+        <p className="mt-1 text-xs leading-4 text-fg-3">Каждая версия фиксирует статусы пунктов, ответственных, подтверждения и следующие действия на момент генерации.</p>
         {workspace.canManagePostContract ? (
           <form action={actions.generateReport} data-testid="platform-post-contract-report-generate-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <HiddenContext studentCaseId={workspace.studentCaseId} requestId={requestIdFor("generate_report", retrySubjectId)} />
@@ -821,7 +813,7 @@ export function ContractDraftReportWorkspace({
             <ReportArtifact key={report.postContractReportId} workspace={workspace} report={report} actions={actions} requestIdFor={requestIdFor} />
           )) : <EmptyState text="Версий отчёта нет." />}
         </div>
-      </section>
+      </details>
     </section>
   );
 }

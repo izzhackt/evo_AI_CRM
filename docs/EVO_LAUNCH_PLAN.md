@@ -13258,3 +13258,20 @@ search errors should explain retrieval failure rather than an uncertain write.
 Native/IME/screen-reader/moderation/revocation/storage-quota/post-refresh-failure
 journeys remain unclaimed. New main47d4a4746 integration preserves chat bytes;
 no migration is introduced by this chat PR.
+
+
+### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
+
+A15f is merged in #992 / ca7c98ec2. Implement the bounded contract in
+[case-chat queue plan](EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md): three queues
+from existing await_state, additive staff reader v2 with q/filter before the
+200-row limit, shared search race guard, current-list invalidation and durable
+selected conversation context. Existing v1, commands, rights, drafts and EVO
+identity remain. Selected-case title outside the queue uses the existing
+authorized full-case snapshot only after chat access; no extra list scan.
+Native history replaceState preserves q/queue without remounting the composer.
+
+ROOT reserved 234 for A; ROOT233 must merge first. Source-only work and review
+can proceed while B owns local QA. Actual migration/API/browser work requires
+ROOT's scheduled window and separately pinned effects. No full item11, shared
+runtime or production success is claimed by this precode entry.

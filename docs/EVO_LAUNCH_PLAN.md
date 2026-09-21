@@ -13711,3 +13711,19 @@ country facet from30 rows, management redesign, provider writes or new fixtures.
 Source checks/review/CI first; actual1440/390/320 and decoded-data comparison await
 ROOT's shared-window handoff after B1006→ROOT7b→B32. No fresh staff baseline is
 available yet and no source-only result claims UI/production acceptance.
+
+
+### A14a source implementation — 2026-09-21
+
+Source030d7c2e implements only the five planned files. Staff rows retain real
+photo attribution, links/filters/permissions and expose a source-backed calendar
+deadline with exact programme/intake context. Explicit zone and local expiry
+parity, level selection, no start-date fallback, no synthetic identity; potential
+portal and default/large photo paths unchanged. [Source receipt](qa/staff-catalog-compact-source-2026-09-21.md):
+10 new temporal checks, typecheck and scoped lint pass. Combined37 checks:35 PASS,
+2 existing failures reproduced on clean main29e0fb46 (old draft lacks reviewKind;
+old SSR child hits server-only photo resolver). Retain both failures, do not
+change unrelated tests or claim full suite/SSR acceptance. No actual UI or shared
+QA/Auth/DB/server/browser use; independent exact-head source review/CI next,
+then ordinary staff UI/data comparison only after ROOT handoff. Whole item14,
+full country facet, management changes and production remain open.

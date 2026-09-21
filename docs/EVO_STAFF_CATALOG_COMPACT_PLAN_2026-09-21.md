@@ -1,6 +1,8 @@
 # Item14 / A14a — компактный каталог сотрудников и опубликованные даты
 
-Статус: независимый precode APPROVED, source-only реализация; actual UI впереди.
+Статус: независимый precode APPROVED, source030d7c2e реализован;
+[source-проверки и два прежних падения](qa/staff-catalog-compact-source-2026-09-21.md).
+Независимые source review/CI и actual UI впереди.
 База29e0fb46a8067a6a4f5a9bedce81971aba2f56ff после #1005. Целевые каталог,
 photo, staff route, DTO, reader и существующие tests byte-identical исходной
 оценке33966da19b401c88dff92f840a28b22d7a0429c9. Общая QA сейчас у B1006;

@@ -65,7 +65,7 @@ Native UI ограничен заблокированным Mac. Локальн�
 | §11: общие программы, требования, версии, пакеты и review | #944 stable intake IDs; #946 selection/preparation. LOCAL214 positive ordinary Auth + TS/Swift read/decode; нового web/iPhone UI proof нет. B218 requirements association принята через #964 | MERGED #944/#946; #964 MERGED, локальный Auth-пакет завершён; дальнейшие packages/review и managed delivery не приняты |
 | Web и iPhone полного нового admissions-пути | Общие214 readers проверены, полный новый UI-путь ожидает следующих операций | Не завершён; не расширять TS/Swift evidence до browser/device acceptance |
 | CRM shell / пункт 22 | #961 keyboard skip-navigation MERGED | Узкий срез, остальная оболочка и полная a11y-приёмка открыты |
-| Legacy optional application fields / пункт 29 | Root219 applied / function QA failed; forward repair220 на review; 222 pre-code отдельно | Нет suitable pinned QA positive; не завершено |
+| Legacy optional application fields / пункт 29 | #966 MERGED: исходный failed219 сохранён; forward220 function QA, actual Admin UI четырёх пустых полей и exact Auth replay PASS | Pinned219/nonemptyHTTPS UI positive отсутствует; managed отдельно |
 | Точечная приёмка §13, итоговый аудит scope | Ожидает реализации блоков | — |
 
 ## Решения владельца и границы

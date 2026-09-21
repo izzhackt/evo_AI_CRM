@@ -91,10 +91,10 @@ review одобрены. Это unit/source/harness-проверки; полно
 | 15 | #970 MERGED: task actions/enrichment убраны; A15b autosize в реализации | Flat chronology/quotes/search/read/scroll — следующие срезы; не отправлять сообщения |
 | 16 | #954/#963 MERGED: explicit case choice и личный case/staff reader; LOCAL217 Auth/target/denials и UI320/390/desktop | Положительные dated/staff и >100 UI overflow отсутствуют; commands/concurrent reassignment не исполнены; [receipt](qa/personal-calendar-2026-09-21.md) |
 | 22 | #961 MERGED: keyboard skip-navigation slice | Остальной shell/типографика открыты; не полная a11y-приёмка |
-| 29 | Root219 applied / function QA failed; forward repair220 на review: узкая optional-fields correction137/184 | Вне snapshot main; подходящий pinned QA positive пока отсутствует, не подменять function proof UI-приёмкой |
-| 33 | #687: причина изменения срока/приоритета Admin | Аудит/права обязательны, schema через root |
+| 29 | #966 MERGED: failed219 сохранён; forward220 function QA, actual Admin UI четырёх пустых полей и exact Auth replay PASS | Pinned219/nonemptyHTTPS UI positive отсутствует; managed отдельно |
+| 33 | #969 MERGED: LOCAL222 требует причину срока/приоритета у всех ролей; RPC denials/replay/conflict/stale, reasoned updates и restore пройдены | UI доказал отказ без причины; positive UI save не заявляется, #687 открыт до managed/owner exit criteria |
 | 35 | Завершён в исходниках: #947/#949 prerequisites, #950 MERGED `3ddb6f41`, #42 CLOSED; пять checks и 842/842 legacy tests, независимый semantic review | Только форматирование legacy Inbox; без revival/deploy/provider proof; [квитанция](qa/inbox-format-baseline-2026-09-21.md) |
-| 5, 36 | Текущая docs-сверка обновлена наc803d393; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
+| 5, 36 | Текущая docs-сверка обновлена на95cc9277; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
 
 Каждый срез: живой source → минимальный diff → точечная реальная проверка →
 отдельный PR → независимое exact-head review. Не запускать общий финальный E2E,

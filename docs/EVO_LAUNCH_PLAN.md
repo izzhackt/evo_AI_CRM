@@ -12077,3 +12077,112 @@ filters/cursors, SQL, authority, commands or visual layout. MDN pageshow covers
 returning to a document with browser Back/Forward, including bfcache:
 https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event.
 Actual Back/Forward plus resubmit must pass before acceptance.
+
+
+## CRM-33 / SQL221 — причина изменения срока и приоритета case task — 21.09.2026
+
+Pre-code контракт на main `5adce46e`; отдельная ветка
+`izzhackt/task-change-reason`. Root выделил221 и остаётся единственным
+координатором миграций и назначения applier. Сейчас разрешены только эти docs;
+реализация начинается после merge219 и отдельного root pre-code GO.
+
+Цель: закрыть остаток пункта33 / issue687 — прямой Admin RPC сейчас может
+менять срок/приоритет case task без причины, хотя действующие UI/action уже
+требуют её. Portal v1 уже удалён152; его повторное удаление и staff tasks
+не входят. Исторический rollback prerequisite issue687 учитывается root
+при принятии текущего поручения и delivery; этот контракт не означает
+managed применение или production acceptance.
+
+Изменение: новая forward221 изменяет только каноническое
+`platform_private.coverage_change_task_body` с существующими11 аргументами.
+В актуальном теле после133/156 удалить protected-Admin исключение из условия
+`p_reason IS NULL ... AND (priority/due_at/due_on IS DISTINCT FROM ...)`.
+Остальные bytes тела сохранить; перед заменой проверить точную текущую
+сигнатуру/definition и единственное совпадение. Не копировать старое129 поверх
+scoped authority, не редактировать исторические миграции, не вводить overload.
+
+Инварианты:
+- Причина обязательна только при фактическом изменении priority/due_at/due_on.
+  Сохранить прежнюю проверку явно переданной причины1..1000 после btrim,
+  статусные/no-op правила, API/default NULL и protected audit.
+- Сохранить wrapper assignment/coverage locks, request lock, row lock, tenant,
+  fresh task.manage/task.assign/task.visibility.manage и assignee authority.
+- Guard остаётся после authority, replay и version check на прежнем месте.
+  Исторический успешный request с прежней причиной возвращает прежнюю receipt
+  после fresh authority check; новый NULL-reason change отклоняется22023.
+  Stale остаётсяPT409; same-request changed payload/reason не создаёт запись.
+- Не менять отдельные lifecycle/closed-case правила Admin, transitions,
+  reason visibility, DTO, UI, staff-task API или данные. Deadline-only change
+  остаётся audit event, а не выдуманным status transition.
+
+Приёмка: existing LOCAL217 receipts показывают12 доступных Admin canonical
+case tasks и12 own Admissions; Admin personal calendar0 не препятствует
+проверке через общий Tasks. Сначала свежий read существующей задачи и версии.
+В выделенное root writer window допустим ограниченный обратимый owned-QA
+сценарий: новый request с реальным priority/deadline change и NULL/blank reason
+отклоняется без row/version/audit mutation; обычный Admin с осмысленной причиной
+сохраняет изменение, readback/audit подтверждают его; replay не дублирует,
+changed request/stale отклоняются. Проверить обе ветки priority и deadline.
+Вернуть исходные значения отдельной reasoned versioned командой только при
+совпадении ожидаемого post-write version/state; при чужом изменении остановить
+restore, не перезаписывать его. Audit/version историю не удалять.
+
+Проверить существующий UI required reason и обычные authority denials в рамках
+этого пути. Не создавать задачи/пользователей/роли/фикстуры; не менять provider,
+Auth или Storage. Existing reversible owned-QA continuation не превращать
+в повторный общий запрос; непосредственный applier/window назначает root.
+Исторические129 test assertions оставить как provenance; новые scoped checks
+проверяют forward exception removal и сохранение остального тела. Source tests
+не подменяют actual Auth/RPC. Независимое exact-head review, protected CI,
+точная local receipt с ограничениями; managed rollout и общийE2E вне среза.
+
+
+## 2026-09-21 — CRM-33 reservation and implementation clarification
+
+The earlier221 reservation is superseded: root219+220 repair optional fields;
+A221 owns the requests queue; this reason-only forward migration is222. Runtime
+starts after root219+220 merge and uses a fresh main. Local apply follows221
+under the root-coordinated single schema writer; no managed authority is added.
+
+Use a guarded `pg_get_functiondef` replacement of the exact eleven-argument
+`platform_private.coverage_change_task_body` as it exists after156. Require
+the source-derived body hash and exactly one known Admin exception anchor.
+Replace only its obsolete rollback comment and predicate with a current comment
+and `IF p_reason IS NULL AND (`; fail on source drift and assert exact resulting
+body and unchanged pg_proc metadata apart from prosrc.
+Keep the rest of the function, signature, attributes/owner/ACL and all wrappers
+unchanged. Do not reintroduce removed student_portal_overview_v1 or modify the
+separate Admin lifecycle exception. Current official PostgreSQL documentation
+states that pg_get_functiondef reconstructs a complete CREATE OR REPLACE command:
+https://www.postgresql.org/docs/current/functions-info.html.
+
+The reason is required for a NEW effective priority/due_at/due_on change by
+Admin as for other staff. Existing replay ordering, status-only/no-op behavior,
+nonblank1..1000 validation, stale-version and authority gates remain unchanged.
+The accepted item33 continuation authorizes this source/local slice; issue687's
+managed deployment and owner acceptance exit conditions remain separately
+unfulfilled, so a local PASS alone must not close that issue.
+
+Use the existing owned task and approved scope-local QA packet only after fresh
+readiness. No new entity/identity/role or synthetic response. Check isolated
+NULL-reason changes for all three fields, explicit blank/length validation,
+current Sales/Student denials, existing UI reason blocking, reasoned priority
+and deadline changes, exact replay/conflicts/stale behavior, and guarded reasoned
+restoration of original business values. Keep every audit/version increment;
+no history deletion or claimed exact raw-state restoration. Existing UI is
+unchanged; Impeccable harden advice is to keep clear required-reason feedback,
+and actual UI inspection covers that existing behavior.
+
+
+## 2026-09-21 — case-task reason guard: local QA complete
+
+Source9f63/SQL222f2e0c8bd applied once to owned-local only after reviewed local
+Docker/source/ledger guards. Existing ordinary Auth actors:8 denial commands,
+4 reasoned writes plus exact replay/conflict/stale; business fields restored,
+version+4 and4audits retained. Actual existing Tasks form rejected empty/blank
+reason with0network commands.279other tables/Auth/schema/functions/ledger stable.
+Local release receipt0c029bc4; original preAuth observer failure and offline
+handover aggregate correction preserved. UI successful writes and managed rollout
+not claimed. Details: docs/qa/case-task-change-reason-2026-09-21.md.
+PR968 is merged43bd20c8; source222 remains separate until exact-head review/CI/merge.
+Issue687 owner/managed exit and all remaining accepted1–36 work stay open.

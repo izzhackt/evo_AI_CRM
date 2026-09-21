@@ -48,3 +48,9 @@ changes, submissions or data writes are needed. Actual role changes are not clai
 from the pure test. Independent exact-head review, CI and actual UI acceptance
 remain separate gates. This source proof does not close all of item22 or prove
 production delivery.
+
+## Later local execution checkpoint
+
+The pending window above is historical. The [partial actual report](crm-sidebar-destination-state-actual-2026-09-21.md) records two preserved UI stops on32f50df4,
+strict resource closure and the remaining bounded functional check. PR #1010
+remains draft; full1440/390/320 acceptance is not claimed.

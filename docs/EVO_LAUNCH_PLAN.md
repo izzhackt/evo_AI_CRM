@@ -13872,3 +13872,26 @@ review and protected CI remain required before merge. No production claim.
 Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранением KB row31
 (16/15/0), пяти входящих docs и всех append-only записей. Runtime/source/test
 дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.
+
+## 2026-09-21 — ROOT22 partial UI, strict closure and functional remainder
+
+[Actual report](qa/crm-sidebar-destination-state-actual-2026-09-21.md) records
+source32f50df4: first1440 assertions and390 month transitions completed before
+the script's open-menu pointer obstruction. One corrected confirmation stopped
+on document navigation; its cause remains unknown. Preserve both STOPs and
+keep #1010 draft. No product change or third visual/polish round is justified.
+Strict final290/33 passed with only own Auth metadata/two audits; own204/browser/
+server/port/token closure completed, resource6f6ff7ed passed to B32.
+
+Independent prepared plan93841526/reviewaee13ab1 fills only missing390/320
+FUNCTIONAL branches after B32/B1006, without screenshots or1440 repetition.
+Observe real Link interception together with URL/period/epoch/document requests;
+aria-busy is not hydration proof. No forced/prevented event or native fallback.
+Record each stage, one attempt, stop on unexpected outcome. Existing real data
+and source guards remain; no fixtures/tasks/roles/providers/production. This
+changes the method after observed automation stops, not the acceptance standard:
+full relevant UI proof, independent review and CI remain required for merge.
+
+Integrate accepted main d6add883 (#1008) and KB #1011. Both journal conflict
+blocks are retained; the two ROOT product files remain byte-identical to32f50df4,
+and incoming catalogue product files match main. Reuse unchanged scope checks.

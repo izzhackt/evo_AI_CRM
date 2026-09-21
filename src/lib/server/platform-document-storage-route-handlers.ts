@@ -25,6 +25,11 @@ import {
   uploadSupabaseStorageObjectWithTus,
 } from "./platform-storage-resumable-upload.ts";
 
+import { universityIntakeId as applicationUuid } from "../platform-university-catalog.ts";
+import { applicationDocumentCanonical, applicationDocumentHash, applicationDocumentFailure, parseApplicationDocumentItemTarget, parseApplicationDocumentUploadIntent, parseApplicationDocumentUploadReceipt,
+  type ApplicationDocumentUploadIntent, type ApplicationDocumentUploadReceipt, type ApplicationDocumentFailure } from "../portal/application-documents.ts";
+import { decodeApplicationDocumentUploadHeader, APPLICATION_DOCUMENT_UPLOAD_HEADER } from "../portal/application-documents-upload.ts";
+
 const BUCKET_ID = "platform-documents";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_MULTIPART_BYTES = MAX_FILE_BYTES + 1024 * 1024;
@@ -1721,4 +1726,213 @@ export function createStudentPortalDocumentDownloadHandler(
       STUDENT_DOWNLOAD_POLICY,
     )(request, context);
   };
+}
+
+// Program uploads have an independent context and never publish the legacy slot.
+// The legacy handlers above intentionally retain their existing protocol.
+type ApplicationUploadAdmission = Readonly<{
+  contextId: string; intentSha256: string; admissionId: string; scanAllowed: boolean;
+  bodyDeadline: number; receipt: ApplicationDocumentUploadReceipt | null;
+}>;
+function applicationUploadAdmission(value: unknown, intent: ApplicationDocumentUploadIntent, now: number): ApplicationUploadAdmission | null {
+  if (!isRecord(value) || !hasExactKeys(value, ["protocolVersion", "contextId", "requestId", "intentSha256", "studentCaseId", "applicationId", "requirementsRevisionId", "requirementItemId", "documentSlotId", "file", "phase", "bodyDeadline", "scanLease", "receipt"])) return null;
+  const lease = value.scanLease;
+  const receipt = value.receipt === null ? null : parseApplicationDocumentUploadReceipt(value.receipt, intent);
+  const deadline = typeof value.bodyDeadline === "string" ? Date.parse(value.bodyDeadline) : NaN;
+  if (value.protocolVersion !== 1 || !applicationUuid(value.contextId) || !applicationDocumentHash(value.intentSha256)
+    || value.requestId !== intent.requestId || ["studentCaseId", "applicationId", "requirementsRevisionId", "requirementItemId", "documentSlotId"].some(k => value[k] !== intent[k as keyof ApplicationDocumentUploadIntent])
+    || applicationDocumentCanonical(value.file) !== applicationDocumentCanonical(intent.file)
+    || !isRecord(lease) || !hasExactKeys(lease, ["admissionId", "scanAllowed"]) || !applicationUuid(lease.admissionId) || typeof lease.scanAllowed !== "boolean"
+    || !Number.isFinite(deadline) || deadline <= now || deadline - now > MAX_STUDENT_SCAN_LEASE_MS
+    || (value.receipt !== null && (!receipt || receipt.uploadContextId !== value.contextId))
+    || (value.phase !== "body_required" && value.phase !== "finalized")
+    || (value.phase === "finalized") !== !!receipt || lease.scanAllowed !== !receipt) return null;
+  return { contextId: value.contextId, intentSha256: value.intentSha256, admissionId: lease.admissionId, scanAllowed: lease.scanAllowed, bodyDeadline: deadline, receipt };
+}
+function applicationError(status: number, code: ApplicationDocumentFailure, resolution: "retain" | "not_written" = "retain"): Response {
+  return Response.json({ error: { code, resolution } }, { status, headers: { "Cache-Control": "no-store" } });
+}
+function applicationRpcError(error: unknown): Response {
+  const failure = applicationDocumentFailure(error);
+  const row = isRecord(error) ? error : {};
+  if (row.code === "PT429") return applicationError(429, "rate_limited");
+  return applicationError(failure.reason === "forbidden" ? 403 : row.code === "PT409" ? 409 : row.code === "22023" ? 400 : 503, failure.reason);
+}
+function applicationAuthorization(authorization: DocumentAuthorization): Response | null {
+  return authorization.status === "authorized" ? null : applicationError(authorization.status === "anonymous" ? 401 : authorization.status === "forbidden" ? 403 : 503,
+    authorization.status === "unavailable" ? "unavailable" : "forbidden");
+}
+function createApplicationDocumentUploadHandler(dependencies: PlatformDocumentStorageRouteDependencies) {
+  return async (request: Request): Promise<Response> => {
+    const header = decodeApplicationDocumentUploadHeader(request.headers.get(APPLICATION_DOCUMENT_UPLOAD_HEADER));
+    const intent = header ? parseApplicationDocumentUploadIntent({ ...header, requestId: request.headers.get("Idempotency-Key") }) : null;
+    if (!intent) return applicationError(400, "invalid");
+    const contentType = request.headers.get("content-type") ?? "";
+    if (!/^multipart\/form-data(?:;|$)/iu.test(contentType)) return applicationError(400, "invalid");
+    const length = request.headers.get("content-length");
+    if (length !== null && (!/^\d+$/u.test(length) || Number(length) > MAX_MULTIPART_BYTES)) return applicationError(413, "file_too_large");
+    let authorization: DocumentAuthorization;
+    try { authorization = await dependencies.authorize("write"); } catch { return applicationError(503, "unavailable"); }
+    const denied = applicationAuthorization(authorization);
+    if (denied || authorization.status !== "authorized") return denied!;
+    const actor = authorization.actor;
+    let admission: ApplicationUploadAdmission | null = null;
+    let service: SupabaseClient | null = null;
+    let result = applicationError(503, "unavailable");
+    let outcome: "completed" | "rejected" | "failed" = "failed";
+    try {
+      const client = await dependencies.createUserClient();
+      const admitted = await client.schema("platform").rpc("admit_application_document_upload_v1", {
+        p_student_case_id: intent.studentCaseId, p_application_id: intent.applicationId, p_requirements_revision_id: intent.requirementsRevisionId,
+        p_requirement_item_id: intent.requirementItemId, p_document_slot_id: intent.documentSlotId, p_upload_metadata: intent.file, p_request_id: intent.requestId,
+      });
+      if (admitted.error) {
+        // This exact error at initial admission is raised only after proving
+        // no context/reservation/replay exists for the request, before INSERT.
+        // The same error at later stages cannot release a frozen upload.
+        if (isRecord(admitted.error) && admitted.error.code === "PT409"
+          && admitted.error.message === "application_document_stale_requirements") {
+          return applicationError(409, "stale_context", "not_written");
+        }
+        return applicationRpcError(admitted.error);
+      }
+      admission = applicationUploadAdmission(admitted.data, intent, dependencies.now());
+      if (!admission) return applicationError(503, "unavailable");
+      service = dependencies.createServiceClient();
+      const run = async (): Promise<Response> => {
+        // Even an immutable terminal receipt is withheld until this attempt's
+        // complete multipart bytes and current ordinary authority are verified.
+        const body = await readBoundedMultipartForm(request, contentType, { expiresAtMs: admission!.bodyDeadline, now: dependencies.now,
+          scheduleTimeout: dependencies.scheduleTimeout, clearScheduledTimeout: dependencies.clearScheduledTimeout });
+        if (body.status !== "ok") { outcome = "rejected"; return applicationError(body.status === "too_large" ? 413 : body.status === "lease_expired" ? 409 : 400,
+          body.status === "too_large" ? "file_too_large" : body.status === "lease_expired" ? "lease_expired" : "invalid"); }
+        const file = body.form.get("file");
+        if ([...body.form.keys()].length !== 1 || !(file instanceof File) || file.name !== "upload" || file.type !== intent.file.declaredMimeType
+          || String(file.size) !== intent.file.byteSize) { outcome = "rejected"; return applicationError(400, "invalid"); }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (String(bytes.byteLength) !== intent.file.byteSize || createHash("sha256").update(bytes).digest("hex") !== intent.file.sha256Hex
+          || !matchesDeclaredFileSignature(intent.file.declaredMimeType, bytes)) { outcome = "rejected"; return applicationError(422, "invalid"); }
+        const current = await dependencies.authorize("write");
+        const currentDenied = applicationAuthorization(current);
+        if (currentDenied) return currentDenied;
+        if (current.status !== "authorized" || current.actor.authUserId !== actor.authUserId || current.actor.organizationId !== actor.organizationId) return applicationError(403, "forbidden");
+        const verified = await (await dependencies.createUserClient()).schema("platform").rpc("verify_application_document_upload_body_v1", {
+          p_context_id: admission!.contextId, p_admission_id: admission!.admissionId, p_request_id: intent.requestId, p_upload_metadata: intent.file,
+        });
+        if (verified.error) return applicationRpcError(verified.error);
+        const checked = applicationUploadAdmission(verified.data, intent, dependencies.now());
+        if (!checked || checked.contextId !== admission!.contextId || checked.admissionId !== admission!.admissionId || checked.intentSha256 !== admission!.intentSha256
+          || checked.bodyDeadline !== admission!.bodyDeadline) return applicationError(503, "unavailable");
+        if (checked.receipt) { outcome = "completed"; return Response.json({ upload: checked.receipt }, { status: 201, headers: { "Cache-Control": "no-store" } }); }
+        if (!checked.scanAllowed) return applicationError(503, "unavailable");
+        const identity = { p_organization_id: actor.organizationId, p_actor_auth_user_id: actor.authUserId, p_context_id: admission!.contextId,
+          p_admission_id: admission!.admissionId, p_request_id: intent.requestId, p_intent_sha256: admission!.intentSha256 };
+        const started = dependencies.now();
+        const claimed = await service!.schema("platform").rpc("claim_application_document_upload_scan_v1", identity);
+        if (claimed.error) return applicationRpcError(claimed.error);
+        const claim = normalizeStudentScanClaim(claimed.data, { admissionId: admission!.admissionId, organizationId: actor.organizationId, requestId: intent.requestId, rpcStartedAtMs: started });
+        if (!claim || claim.scanDeadlineMs - dependencies.now() < STUDENT_SCAN_START_SAFETY_MS) return applicationError(409, "lease_expired");
+        const proof = await dependencies.scanFile(bytes);
+        if (!isClamdMalwareScanProof(proof, intent.file.sha256Hex)) return applicationError(503, "unavailable");
+        const reserved = await service!.schema("platform").rpc("reserve_application_document_upload_after_ingress_scan_v1", {
+          ...identity, p_original_filename: intent.file.originalFilename, p_declared_mime_type: intent.file.declaredMimeType, p_byte_size: bytes.byteLength,
+          p_sha256_hex: intent.file.sha256Hex, p_scan_result: "clean", p_scanner_engine: proof.engine, p_scanner_engine_version: proof.engineVersion,
+          p_scanner_signature_version: proof.signatureVersion, p_scanner_protocol: proof.protocol, p_scanned_at: proof.scannedAt,
+        });
+        if (reserved.error) return applicationRpcError(reserved.error);
+        const reservation = normalizeReservation(reserved.data, { organizationId: actor.organizationId, documentSlotId: intent.documentSlotId,
+          mimeType: intent.file.declaredMimeType, byteSize: bytes.byteLength, sha256Hex: intent.file.sha256Hex });
+        if (!reservation || reservation.studentCaseId !== intent.studentCaseId || reservation.documentSlotPublished) return applicationError(503, "unavailable");
+        if (!reservation.storageObjectPresent) {
+          if (selectPrivateDocumentUploadTransport(bytes.byteLength) === "standard") {
+            const uploaded = await service!.storage.from(BUCKET_ID).upload(reservation.objectName, bytes, { contentType: intent.file.declaredMimeType, cacheControl: "0", upsert: false });
+            if (uploaded.error) return applicationError(503, "unavailable");
+          } else await uploadSupabaseStorageObjectWithTus(bytes, reservation, intent.file.declaredMimeType, dependencies);
+        }
+        const stored = await readExactStoredDocument(service!, reservation);
+        if (stored.status !== "ok" || claim.scanDeadlineMs - dependencies.now() < STUDENT_SCAN_START_SAFETY_MS) return applicationError(503, "unavailable");
+        const finalProof = await dependencies.scanFile(stored.bytes);
+        if (!isClamdMalwareScanProof(finalProof, intent.file.sha256Hex)) return applicationError(503, "unavailable");
+        const finalized = await service!.schema("platform").rpc("finalize_application_document_upload_with_scan_v1", {
+          p_organization_id: actor.organizationId, p_actor_auth_user_id: actor.authUserId, p_context_id: admission!.contextId, p_intent_sha256: admission!.intentSha256,
+          p_upload_reservation_id: reservation.uploadReservationId, p_scanner_engine: finalProof.engine, p_scanner_engine_version: finalProof.engineVersion,
+          p_scanner_signature_version: finalProof.signatureVersion, p_scanner_protocol: finalProof.protocol, p_scanned_sha256_hex: finalProof.sha256Hex,
+          p_scanned_at: finalProof.scannedAt, p_request_id: derivedRequestId(intent.requestId, "application-finalize-v1"),
+        });
+        if (finalized.error) return applicationRpcError(finalized.error);
+        const receipt = parseApplicationDocumentUploadReceipt(finalized.data, intent);
+        if (!receipt || receipt.uploadContextId !== admission!.contextId || receipt.documentVersionId !== reservation.documentVersionId) return applicationError(503, "unavailable");
+        outcome = "completed";
+        return Response.json({ upload: receipt }, { status: 201, headers: { "Cache-Control": "no-store" } });
+      };
+      result = await run();
+    } catch (error) {
+      if (error instanceof ClamdScanError && error.code === "infected") { outcome = "rejected"; result = applicationError(422, "malware_detected"); }
+      else result = applicationError(503, "unavailable");
+    } finally {
+      if (admission && service) {
+        try {
+          const completed = await service.schema("platform").rpc("complete_application_document_upload_scan_v1", {
+            p_organization_id: actor.organizationId, p_actor_auth_user_id: actor.authUserId, p_context_id: admission.contextId,
+            p_admission_id: admission.admissionId, p_request_id: intent.requestId, p_intent_sha256: admission.intentSha256, p_outcome: outcome,
+          });
+          if (!completed.error && isRecord(completed.data) && hasExactKeys(completed.data, ["savedReceipt", "definitiveNotSaved"])
+            && completed.data.savedReceipt === null && completed.data.definitiveNotSaved === true && result.status >= 400) {
+            const payload = await result.clone().json();
+            if (isRecord(payload.error) && !["forbidden", "request_conflict"].includes(String(payload.error.code))) result = applicationError(result.status, payload.error.code as ApplicationDocumentFailure, "not_written");
+          }
+        } catch { /* Cleanup uncertainty never discards an immutable success or retained intent. */ }
+      }
+    }
+    return result;
+  };
+}
+export function createStaffApplicationDocumentUploadHandler(dependencies: PlatformDocumentStorageRouteDependencies = defaultStaffDependencies) {
+  return createApplicationDocumentUploadHandler(dependencies);
+}
+export function createStudentApplicationDocumentUploadHandler(dependencies?: PlatformDocumentStorageRouteDependencies) {
+  return (request: Request) => createApplicationDocumentUploadHandler(dependencies ?? selectStudentPortalDocumentRouteDependencies(request))(request);
+}
+
+function createApplicationDocumentDownloadHandler(dependencies: PlatformDocumentStorageRouteDependencies) {
+  return async (request: Request): Promise<Response> => {
+    const params = new URL(request.url).searchParams;
+    const query = Object.fromEntries(params);
+    if ([...params.keys()].length !== 6 || !hasExactKeys(query, ["studentCaseId", "applicationId", "requirementsRevisionId", "requirementItemId", "documentSlotId", "documentVersionId"])) return applicationError(400, "invalid");
+    const { documentVersionId, ...rawTarget } = query;
+    const target = parseApplicationDocumentItemTarget(rawTarget);
+    if (!target || !applicationUuid(documentVersionId)) return applicationError(400, "invalid");
+    try {
+      const authorization = await dependencies.authorize("read");
+      const denied = applicationAuthorization(authorization);
+      if (denied || authorization.status !== "authorized") return denied!;
+      const actor = authorization.actor;
+      const client = await dependencies.createUserClient();
+      const granted = await client.schema("platform").rpc("grant_application_document_download_v1", {
+        p_student_case_id: target.studentCaseId, p_application_id: target.applicationId, p_requirements_revision_id: target.requirementsRevisionId,
+        p_requirement_item_id: target.requirementItemId, p_document_slot_id: target.documentSlotId,
+        p_selection: { kind: "existing_version", documentVersionId }, p_request_id: dependencies.requestId(),
+      });
+      if (granted.error) return applicationRpcError(granted.error);
+      const grant = normalizeDownloadGrant(granted.data);
+      if (!grant) return applicationError(503, "unavailable");
+      const service = dependencies.createServiceClient();
+      const consumed = await service.schema("platform").rpc("consume_application_document_download_v1", {
+        p_organization_id: actor.organizationId, p_actor_auth_user_id: actor.authUserId, p_download_grant_id: grant.id, p_request_id: dependencies.requestId(),
+      });
+      if (consumed.error) return applicationRpcError(consumed.error);
+      const consumption = normalizeDownloadConsumption(consumed.data, { grantId: grant.id, organizationId: actor.organizationId, documentVersionId });
+      if (!consumption || !isRecord(consumed.data) || consumed.data.student_case_id !== target.studentCaseId || consumed.data.document_slot_id !== target.documentSlotId) return applicationError(503, "unavailable");
+      const signed = await service.storage.from(consumption.bucketId).createSignedUrl(consumption.objectName, consumption.maximumLifetimeSeconds, { download: true });
+      if (signed.error) return applicationError(503, "unavailable");
+      const url = safeSignedUrl(signed.data.signedUrl, dependencies.supabaseOrigin(), consumption.objectName);
+      return url ? new Response(null, { status: 302, headers: { "Cache-Control": "no-store", Location: url } }) : applicationError(503, "unavailable");
+    } catch { return applicationError(503, "unavailable"); }
+  };
+}
+export function createStaffApplicationDocumentDownloadHandler(dependencies: PlatformDocumentStorageRouteDependencies = defaultStaffDependencies) {
+  return createApplicationDocumentDownloadHandler(dependencies);
+}
+export function createStudentApplicationDocumentDownloadHandler(dependencies?: PlatformDocumentStorageRouteDependencies) {
+  return (request: Request) => createApplicationDocumentDownloadHandler(dependencies ?? selectStudentPortalDocumentRouteDependencies(request))(request);
 }

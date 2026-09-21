@@ -1,6 +1,646 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "program_document_notification_snapshot" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это решение из уведомления. Текущее состояние и более поздние отправки доступны в программе."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул — билдирүүдөгү чечим. Учурдагы абал жана кийинки жөнөтүүлөр программада жеткиликтүү."
+          }
+        }
+      }
+    },
+    "program_document_open_program" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть подготовку по программе"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Программа боюнча даярдыкты ачуу"
+          }
+        }
+      }
+    },
+    "program_document_review_detail" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Решение по документу"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Документ боюнча чечим"
+          }
+        }
+      }
+    },
+    "program_document_changed_refresh" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требования или отправка изменились. Данные обновлены: проверьте файл и отправьте нужную версию снова."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Талаптар же жөнөтүү өзгөрдү. Маалымат жаңыртылды: файлды текшерип, керектүү нусканы кайра жөнөтүңүз."
+          }
+        }
+      }
+    },
+    "program_document_upload_not_saved" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл не сохранён. Проверьте требования и файл, затем повторите загрузку."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл сакталган жок. Талаптарды жана файлды текшерип, кайра жүктөңүз."
+          }
+        }
+      }
+    },
+    "program_document_invalid_file" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите PDF, JPG или PNG до 25 МБ с обычным именем файла."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кадимки аталыштагы, 25 МБга чейинки PDF, JPG же PNG файлын тандаңыз."
+          }
+        }
+      }
+    },
+    "program_document_event_saved" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл сохранён"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл сакталды"
+          }
+        }
+      }
+    },
+    "program_document_saved" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранён, ещё не отправлен"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сакталды, жөнөтүлө элек"
+          }
+        }
+      }
+    },
+    "program_document_sent" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправлен на проверку"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текшерүүгө жөнөтүлдү"
+          }
+        }
+      }
+    },
+    "program_document_submit" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить на проверку"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текшерүүгө жөнөтүү"
+          }
+        }
+      }
+    },
+    "program_document_submit_selected" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить выбранную версию"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тандалган нусканы жөнөтүү"
+          }
+        }
+      }
+    },
+    "program_document_awaiting_review" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидает решения сотрудника"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Кызматкердин чечими күтүлүүдө"
+          }
+        }
+      }
+    },
+    "program_document_previous_review" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверен по предыдущим требованиям"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мурунку талаптар боюнча текшерилген"
+          }
+        }
+      }
+    },
+    "program_document_previous_evidence" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл из предыдущих требований"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мурунку талаптардагы файл"
+          }
+        }
+      }
+    },
+    "program_document_previous_not_current" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это история. По текущим требованиям файл нужно отправить отдельно."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул — тарых. Учурдагы талаптар боюнча файлды өзүнчө жөнөтүү керек."
+          }
+        }
+      }
+    },
+    "program_document_reselect_same" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат загрузки пока не подтверждён. Для повтора выберите тот же файл с прежним именем."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жүктөөнүн жыйынтыгы ырастала элек. Кайталоо үчүн ошол эле файлды мурунку аталышы менен тандаңыз."
+          }
+        }
+      }
+    },
+    "program_document_retry_upload" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать тот же файл и повторить"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошол эле файлды тандап, кайталоо"
+          }
+        }
+      }
+    },
+    "program_document_retry_submit" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить результат отправки"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жөнөтүүнүн жыйынтыгын текшерүү"
+          }
+        }
+      }
+    },
+    "program_document_correct" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить исправленный файл"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оңдолгон файлды сактоо"
+          }
+        }
+      }
+    },
+    "program_document_choose_save" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать и сохранить файл"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файлды тандап, сактоо"
+          }
+        }
+      }
+    },
+    "program_document_save_explanation" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF, JPG или PNG до 25 МБ. После сохранения отправьте файл на проверку отдельной кнопкой."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "25 МБга чейинки PDF, JPG же PNG. Сактагандан кийин файлды өзүнчө баскыч менен текшерүүгө жөнөтүңүз."
+          }
+        }
+      }
+    },
+    "program_document_reuse" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать загруженную версию"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жүктөлгөн нусканы тандоо"
+          }
+        }
+      }
+    },
+    "program_document_reuse_help" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите конкретный файл. Решение по другой программе сюда не переносится."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Белгилүү бир файлды тандаңыз. Башка программа боюнча чечим бул жакка көчүрүлбөйт."
+          }
+        }
+      }
+    },
+    "program_document_no_reusable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого требования нет подходящих загруженных версий. Можно сохранить новый файл."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул талап үчүн ылайыктуу жүктөлгөн нускалар жок. Жаңы файлды сактай аласыз."
+          }
+        }
+      }
+    },
+    "program_document_item_history" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История этого требования"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул талаптын тарыхы"
+          }
+        }
+      }
+    },
+    "program_document_history" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История документов программы"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Программанын документтеринин тарыхы"
+          }
+        }
+      }
+    },
+    "program_document_history_help" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здесь остаются версии и решения по прежним требованиям, включая удалённые из текущего списка."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул жерде мурунку талаптар боюнча нускалар жана чечимдер, анын ичинде учурдагы тизмеден алынып салынгандары да сакталат."
+          }
+        }
+      }
+    },
+    "program_document_history_empty" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой программе ещё нет сохранённых или отправленных файлов."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул программада сакталган же жөнөтүлгөн файлдар азырынча жок."
+          }
+        }
+      }
+    },
+    "program_document_more" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать ещё"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дагы көрсөтүү"
+          }
+        }
+      }
+    },
+    "program_document_version" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Версия"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нуска"
+          }
+        }
+      }
+    },
+    "program_document_open_version" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть эту версию"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул нусканы ачуу"
+          }
+        }
+      }
+    },
+    "program_document_open_legacy" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть в общих документах"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Жалпы документтерден ачуу"
+          }
+        }
+      }
+    },
+    "program_document_pending_title" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неподтверждённые действия"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ырасталбаган аракеттер"
+          }
+        }
+      }
+    },
+    "program_document_pending_old_help" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остались неподтверждённые действия. Можно проверить прежнюю отправку или повторить сохранение того же файла. Повтор не изменит выбранное требование."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ырасталбаган аракеттер калды. Мурунку жөнөтүүнү текшерип же ошол эле файлды кайра сактай аласыз. Кайталоо тандалган талапты өзгөртпөйт."
+          }
+        }
+      }
+    },
+    "program_document_pending_unavailable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось прочитать сохранённый запрос. Повторная отправка остановлена, чтобы не создать другую операцию. Попробуйте открыть экран снова."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сакталган сурам окулбай калды. Башка операция түзүлбөшү үчүн кайра жөнөтүү токтотулду. Экранды кайра ачып көрүңүз."
+          }
+        }
+      }
+    },
+    "program_document_same_file" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остался неподтверждённый запрос для другого файла. Выберите прежний файл с тем же именем."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Башка файл үчүн ырасталбаган сурам калды. Мурунку файлды ошол эле аталышы менен тандаңыз."
+          }
+        }
+      }
+    },
+    "program_document_request_unknown" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат запроса пока не подтверждён. Повтор сохранит тот же файл и ту же отправку."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сурамдын жыйынтыгы ырастала элек. Кайталоодо ошол эле файл жана жөнөтүү сакталат."
+          }
+        }
+      }
+    },
+    "program_document_download_failed" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эту версию не удалось открыть. Обновите экран и попробуйте снова."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул нуска ачылбай калды. Экранды жаңыртып, кайра аракет кылыңыз."
+          }
+        }
+      }
+    },
+    "prep_file_storage_object_unavailable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённый файл сейчас недоступен."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сакталган файл азыр жеткиликсиз."
+          }
+        }
+      }
+    },
+    "prep_file_scan_proof_unavailable" : {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка безопасности этой версии ещё не подтверждена."
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бул нусканын коопсуздук текшерүүсү ырастала элек."
+          }
+        }
+      }
+    },
     "prep_optional" : {
       "localizations" : {
         "ru" : {

@@ -12420,6 +12420,23 @@ expected versions, аудиторию и допустимые эффекты; sh
 пакет двух материалов с проверяемой цепочкой и точной областью использования.
 Следующая фактическая canonical проверка и её ограничения учитываются отдельно.
 
+
+## 2026-09-21 — item27: подтверждение почты, согласованный web/native контракт
+
+До кода принят [контракт](design/signup-email-confirmation-2026-09-21.md).
+27a добавляет только неактивные AEAD capability и строгие pure fragment/POST
+валидаторы с реальными проверками этих функций; ни один существующий consumer,
+Auth flag, маршрут, шаблон или UI не меняется. 27b согласует web и iPhone:
+pending сохраняет анкету, очищает пароль, не создаёт Student authority;
+старый native contract отклоняется до create. 27c — отдельная проверка
+Auth2.196/Mailpit с конкретным разрешённым identity/template packet до включения.
+
+Impeccable Operate/harden/clarify: существующие EVO/Golos/tokens, один pending
+panel, понятные accepted/confirmed/saved состояния, RU/KY, focus/status и
+320/390/desktop. Новый дизайн и provider-доставка из pure tests не выводятся.
+Для27a достаточно actual crypto/parser tests, types/lint, independent exact-head
+review и protected CI; UI/Auth ещё не включены. Полный item27 остаётся открыт.
+
 ## 2026-09-21 — B3e: полный список требований и явное сопоставление (pre-code)
 
 После merge #967 (`17c60966`) следующий срез §11 — требования конкретной

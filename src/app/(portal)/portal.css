@@ -3513,3 +3513,96 @@ main.pt-page > .pt-card {
 }
 .pt-notification-error p { margin: 0; }
 .pt-notification-error button { min-height: 44px; }
+
+/* B3d: saved program preparations reuse Atlas typography and document journeys. */
+.pt-prep-list-section,
+.pt-prep-requirements {
+  margin-top: 32px;
+  min-width: 0;
+}
+.pt-prep-section-heading,
+.pt-prep-row-heading,
+.pt-prep-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.pt-prep-section-heading { justify-content: space-between; }
+.pt-prep-section-heading .pt-section-title { margin: 0; }
+.pt-prep-note,
+.pt-prep-instructions {
+  max-width: 72ch;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.pt-prep-note { color: var(--pt-text-2); }
+.pt-prep-list,
+.pt-prep-requirement-list {
+  padding: 0;
+  margin: 20px 0;
+  list-style: none;
+}
+.pt-prep-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 0;
+  border-top: 1px solid var(--pt-line);
+}
+.pt-prep-summary { min-width: 0; }
+.pt-prep-summary h3,
+.pt-prep-row-heading h3,
+.pt-prep-notice h3 {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pt-prep-summary h3 a { color: inherit; text-underline-offset: 4px; }
+.pt-prep-university { margin: 0 0 8px; color: var(--pt-text-2); overflow-wrap: anywhere; }
+.pt-prep-application-status { margin: 12px 0 0; font-weight: 600; }
+.pt-prep-empty { margin: 20px 0; max-width: 72ch; }
+.pt-prep-selection { margin-top: 16px; }
+.pt-prep-selection .pt-btn,
+.pt-prep-notice .pt-btn { margin-top: 8px; }
+.pt-prep-selection .pt-btn,
+.pt-prep-list-row .pt-btn-ghost,
+.pt-prep-requirements .pt-btn,
+.pt-prep-requirements .pt-btn-ghost {
+  min-height: 44px;
+  height: auto;
+  padding-block: 10px;
+  white-space: normal;
+  text-align: center;
+}
+.pt-prep-list-row .pt-btn-ghost { flex-shrink: 0; }
+.pt-prep-selection button:disabled,
+.pt-prep-requirements button:disabled { cursor: wait; opacity: 0.65; }
+.pt-prep-notice { margin: 20px 0; padding: 20px 0; border-block: 1px solid var(--pt-line); }
+.pt-prep-notice p,
+.pt-prep-notice ul { max-width: 72ch; }
+.pt-prep-requirement { padding: 24px 0; border-top: 1px solid var(--pt-line); }
+.pt-prep-tag { color: var(--pt-text-2); font-size: var(--pt-size-caption); }
+.pt-prep-state-list { display: grid; gap: 12px; margin: 20px 0 12px; }
+.pt-prep-state-list > div { display: grid; grid-template-columns: minmax(130px, 180px) minmax(0, 1fr); gap: 8px 20px; }
+.pt-prep-state-list dt { color: var(--pt-text-2); }
+.pt-prep-state-list dd { margin: 0; overflow-wrap: anywhere; }
+.pt-prep-state-list ul { margin: 0; padding: 0; list-style: none; }
+.pt-prep-state-list li + li { margin-top: 4px; }
+.pt-prep-error { color: var(--pt-error); max-width: 72ch; margin: 16px 0; overflow-wrap: anywhere; }
+.pt-prep-review-reason { max-width: 72ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pt-prep-document-link { min-height: 44px; }
+.pt-prep-detail > .pt-page-header { margin-top: 24px; }
+.pt-prep-actions { margin-top: 16px; }
+.pt-prep-selection :is(a, button):focus-visible,
+.pt-prep-list :is(a, button):focus-visible,
+.pt-prep-requirements :is(a, button):focus-visible { outline: 2px solid var(--pt-accent); outline-offset: 4px; }
+@media (max-width: 600px) {
+  .pt-prep-list-row { align-items: stretch; flex-direction: column; gap: 12px; }
+  .pt-prep-list-row .pt-btn-ghost,
+  .pt-prep-selection .pt-btn { width: 100%; }
+  .pt-prep-state-list > div { grid-template-columns: 1fr; gap: 4px; }
+  .pt-prep-section-heading { align-items: flex-start; }
+}

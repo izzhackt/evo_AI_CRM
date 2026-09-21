@@ -37,6 +37,9 @@ import {
 } from "@/lib/v3/wording";
 
 import { ApplicationCreateDialog } from "./ApplicationCreateDialog";
+import { StaffPreparationPanel } from "./StaffPreparationPanel";
+import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
+import type { StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
 import type { ApplicationPartnerDetails, ProfileAdmissionsWorkspace } from "./types";
 
 export type ActionStatus =
@@ -521,24 +524,34 @@ export function ProfileAdmissionsWorkspacePanel({
   actor,
   workspace,
   partnerDetails = [],
+  preparations,
 }: Readonly<{
   actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
   /** «Партнёр и решение» facts, keyed by application — editable since unified workflow S7 (plan §8/§11). */
   partnerDetails?: readonly ApplicationPartnerDetails[];
+  preparations?: StaffPreparationRead<readonly CatalogPreparation[]>;
 }>) {
   if (!workspace) return null;
   const canWrite = workspace.caseState === "active" && !isStaffPreview(actor);
   const canWriteApplications = canWrite && staffHasPermission(actor, "application.manage");
+  const saved = preparations?.status === "ready" ? preparations.value : [];
+  const scope = { organizationId: actor.organizationId, membershipId: actor.membershipId, studentCaseId: workspace.studentCaseId };
+  const canReadRequirements = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
+  const canInitializeRequirements = canWrite && staffHasPermission(actor, "document.manage");
 
   return (
     <div className="flex flex-col gap-4" data-testid="v3-profile-admissions-workspace">
       <Card eyebrow id="applications" title="Заявки">
-        {workspace.applications.length === 0 ? (
+        {preparations && preparations.status !== "ready" ? <p role="status" className="px-4 py-3 text-sm text-fg-2">{preparations.status === "forbidden" ? "Нет доступа к сохранённым подготовкам в текущем режиме." : "Не удалось прочитать сохранённые подготовки. Обновите страницу; существующие заявки сохранены."}</p> : null}
+        {workspace.applications.length === 0 && saved.length === 0 ? (
           <p className="px-4 py-3 text-sm text-fg-3">Заявок пока нет.</p>
         ) : (
           <div className="divide-y divide-border">
-            {workspace.applications.map((application) => (
+            {workspace.applications.map((application) => {
+              const preparation = saved.find((item) => item.applicationId === application.universityApplicationId);
+              const selectedProgram = preparation?.content.programs.find((item) => item.id === preparation.programId);
+              return (
               <article
                 key={application.universityApplicationId}
                 className="px-4 py-3"
@@ -547,26 +560,26 @@ export function ProfileAdmissionsWorkspacePanel({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-fg">{application.institutionName}</p>
-                    {application.programName ? <p className="mt-0.5 text-sm text-fg-3">{application.programName}</p> : null}
+                    <p className="break-words font-medium text-fg">{preparation?.content.name ?? application.institutionName}</p>
+                    {selectedProgram?.title || application.programName ? <p className="mt-0.5 break-words text-sm text-fg-3">{selectedProgram?.title ?? application.programName}</p> : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Pill tone={application.isPrimary ? "info" : "neutral"}>
                       {application.isPrimary ? "Основной вариант" : "Обычный вариант"}
                     </Pill>
-                    <Pill tone={statusTone(application.status)}>
-                      {applicationStatus(application.status) ?? "—"}
+                    <Pill tone={statusTone(preparation?.applicationStatus ?? application.status)}>
+                      {applicationStatus(preparation?.applicationStatus ?? application.status) ?? "—"}
                     </Pill>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-fg-3">
+                {!preparation ? <p className="mt-2 text-xs text-fg-3">
                   Дедлайн от университета:{" "}
                   {application.universityDeadlineOn ? (
                     <time dateTime={application.universityDeadlineOn}>
                       {allDayDate(application.universityDeadlineOn) ?? "не указан"}
                     </time>
                   ) : "не указан"}
-                </p>
+                </p> : null}
                 <ApplicationGeographySummary
                   countryCode={application.country}
                   degreeKey={application.degree}
@@ -615,8 +628,20 @@ export function ProfileAdmissionsWorkspacePanel({
                     />
                   </details>
                 ) : null}
+                {preparation ? <StaffPreparationPanel
+                  preparation={preparation}
+                  scope={scope}
+                  canRead={canReadRequirements}
+                  canInitialize={canInitializeRequirements && preparation.applicationStatus === "preparation"}
+                /> : null}
               </article>
-            ))}
+            ); })}
+            {saved.filter((preparation) => !workspace.applications.some((application) => application.universityApplicationId === preparation.applicationId)).map((preparation) => <article key={preparation.applicationId} className="px-4 py-3" data-testid="v3-profile-application">
+              <p className="break-words font-medium text-fg">{preparation.content.name}</p>
+              <p className="mt-1 break-words text-sm text-fg-3">{preparation.content.programs.find((program) => program.id === preparation.programId)?.title}</p>
+              <p className="mt-1 text-sm text-fg-2">{applicationStatus(preparation.applicationStatus)}</p>
+              <StaffPreparationPanel preparation={preparation} scope={scope} canRead={canReadRequirements} canInitialize={canInitializeRequirements && preparation.applicationStatus === "preparation"} />
+            </article>)}
           </div>
         )}
         {canWriteApplications ? (

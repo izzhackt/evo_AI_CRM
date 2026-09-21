@@ -82,38 +82,32 @@ export function universityMonthLabel(value: string, locale: Locale): string {
   }).format(new Date(`${value}-01T12:00:00Z`));
 }
 
-/**
- * Статус набора тем же вычислением, что staff-подпись
- * `universityIntakeLabel` (platform-university-catalog.ts), но результат —
- * ключ портального словаря, а не готовая русская строка.
- */
+/** Confirmed deadlines use the intake's own timezone; uncertain facts never imply expiry. */
 export function universityIntakeStatusKey(
   intake: UniversityIntake,
   now = new Date(),
 ): PortalIntakeStatusKey {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: intake.timezone ?? "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const at = (key: string) => parts.find((part) => part.type === key)?.value ?? "";
-  const day = `${at("year")}-${at("month")}-${at("day")}`;
-  if (
-    intake.status === "closed"
-    || (intake.applicationDeadline
-      && (intake.applicationDeadline < day
-        || (intake.applicationDeadline === day
-          && intake.deadlineTime
-          && intake.deadlineTime < `${at("hour")}:${at("minute")}`)))
-  ) return "intakeStatus.closed";
+  if (intake.status === "closed") return "intakeStatus.closed";
   if (intake.status === "needs_reconfirmation") return "intakeStatus.needsConfirmation";
-  if (intake.status === "open") return "intakeStatus.open";
-  if (intake.status === "announced") return "intakeStatus.announced";
-  return "intakeStatus.unclear";
+  if (intake.status === "unknown") return "intakeStatus.unclear";
+  if (intake.applicationDeadline) {
+    if (!intake.timezone || (!(intake.timezone === "UTC" || intake.timezone === "GMT")
+      && !/^[A-Za-z_]+\/[A-Za-z0-9_+/-]+$/.test(intake.timezone))
+      || /^(posix|right)\//.test(intake.timezone)) return "intakeStatus.needsConfirmation";
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: intake.timezone, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(now);
+      const at = (key: string) => parts.find((part) => part.type === key)?.value ?? "";
+      const day = `${at("year")}-${at("month")}-${at("day")}`;
+      if (intake.applicationDeadline < day || (intake.applicationDeadline === day
+        && intake.deadlineTime && intake.deadlineTime <= `${at("hour")}:${at("minute")}`)) return "intakeStatus.closed";
+    } catch {
+      return "intakeStatus.needsConfirmation";
+    }
+  }
+  return intake.status === "open" ? "intakeStatus.open" : "intakeStatus.announced";
 }
 
 /**

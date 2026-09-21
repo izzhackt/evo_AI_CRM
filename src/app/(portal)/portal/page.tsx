@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
+import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 
 import { OverviewView } from "@/components/portal/admission/OverviewView";
 import { getLocale } from "@/lib/i18n";
@@ -22,8 +24,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * /portal/messages (PORT-5c).
  */
 export default async function StudentPortalOverviewPage() {
-  const [overview, actor, locale] = await Promise.all([readStudentPortalOverview(), requireStudentPortalActor(), getLocale()]);
+  const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
+  const [overview, preparations] = await Promise.all([
+    readStudentPortalOverview().catch(() => undefined),
+    readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
+  ]);
   const strings = getPortalStrings("admission", locale);
+  const preparationStrings = getPortalStrings("preparations", locale);
 
   return (
     <main className="pt-page">
@@ -32,7 +39,8 @@ export default async function StudentPortalOverviewPage() {
         <h1 className="pt-page-title">{strings.overviewTitle}</h1>
         <p className="pt-page-lead">{strings.overviewLead}</p>
       </header>
-      <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />
+      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
+      <PreparationList items={preparations} strings={preparationStrings} />
       <div id="case-help" className="pt-adm-case-help"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </main>
   );

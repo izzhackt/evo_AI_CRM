@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 
 import { UniversitiesUnavailable } from "@/components/portal/universities/Catalog";
 import { UniversityDetailView } from "@/components/portal/universities/Detail";
@@ -42,6 +43,7 @@ export default async function UniversityPage({
     );
   }
   const university = page.items[0] ?? notFound();
+  const preparations = await readStudentCatalogPreparations(actor.studentCaseId).catch(() => null);
   // Сбой чтения избранного не роняет карточку: toggle честно скрывается
   // вместо ложного «не сохранено» (PORT-3b).
   let favored: boolean | null = null;
@@ -70,6 +72,12 @@ export default async function UniversityPage({
         locale={locale}
         now={new Date()}
         favored={favored}
+        selection={{
+          scope: { organizationId: actor.organizationId, membershipId: actor.membershipId, studentCaseId: actor.studentCaseId },
+          canSelect: actor.caseState === "active" && Boolean(actor.portalActivatedAt),
+          bindings: preparations?.map(({ applicationId, institutionId, programId, intakeId }) => ({ applicationId, institutionId, programId, intakeId })) ?? null,
+          strings: getPortalStrings("preparations", locale),
+        }}
         consultation={consultationAvailable ? {
           initialOpenRequest: openRequest,
           strings: getPortalStrings("consultation", locale),

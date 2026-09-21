@@ -219,7 +219,9 @@ final class AdmissionDocumentsModel: ObservableObject {
 }
 
 struct AdmissionDocumentsView: View {
+    var focusedSlotId: UUID? = nil
     @StateObject private var model = AdmissionDocumentsModel()
+    @State private var didFocusSlot = false
     /// Слот, для которого открыт системный выбор файла. Хранится отдельно от
     /// isPresented-флага: SwiftUI может сбросить презентацию ДО вызова
     /// completion, а слот должен дожить до него.
@@ -272,16 +274,24 @@ struct AdmissionDocumentsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                if focusedSlotId != nil {
+                    Text("prep_document_unavailable").font(.footnote).multilineTextAlignment(.center)
+                }
             }
             .padding(32)
         } else {
+            ScrollViewReader { proxy in
             List {
                 Section {
                     progressSummary
+                    if let focusedSlotId, !model.documents.contains(where: { $0.documentSlotId == focusedSlotId }) {
+                        Text("prep_document_unavailable").font(.footnote).foregroundStyle(.secondary)
+                    }
                 } header: {
                     Text("adm_checklist_heading")
                 } footer: {
                     Text("adm_bishkek_note")
+                    Text("prep_upload_sends")
                 }
 
                 ForEach(model.documents) { document in
@@ -312,9 +322,18 @@ struct AdmissionDocumentsView: View {
                             }
                         )
                     }
+                    .id(document.documentSlotId)
                 }
             }
             .refreshable { await model.load() }
+            .task(id: model.documents.map(\.documentSlotId)) {
+                guard !didFocusSlot, let focusedSlotId,
+                      model.documents.contains(where: { $0.documentSlotId == focusedSlotId }) else { return }
+                await Task.yield()
+                proxy.scrollTo(focusedSlotId, anchor: .top)
+                didFocusSlot = true
+            }
+            }
         }
     }
 

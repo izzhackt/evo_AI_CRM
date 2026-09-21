@@ -150,34 +150,41 @@ struct ProgramDocumentReusablePicker: View {
     @State private var loading = false
     @State private var failed = false
     @State private var loaded = false
+    @State private var visibleScope: ProgramPreparationContext.Scope?
+    @State private var readToken = UUID()
     var body: some View {
         List {
+            if visibleScope == session.context?.scope, session.context != nil {
             Text("program_document_reuse_help").font(.footnote)
             ForEach(versions) { version in
-                Button { onSelect(version); dismiss() } label: { ProgramDocumentFileLabel(file: version.file) }
+                Button {
+                    guard visibleScope == session.context?.scope else { return }
+                    onSelect(version); dismiss()
+                } label: { ProgramDocumentFileLabel(file: version.file) }
                     .disabled(version.file.technicalAvailability != .available)
             }
             if loading { ProgressView("prep_loading") }
             else if failed { Text("prep_read_failed"); Button("retry_button") { Task { await load(reset: !loaded) } } }
             else if loaded && versions.isEmpty { Text("program_document_no_reusable") }
             else if cursor != nil { Button("program_document_more") { Task { await load(reset: false) } } }
+            }
         }
         .navigationTitle("program_document_reuse")
         .task(id: session.context?.scope) { await load(reset: true) }
     }
     private func load(reset: Bool) async {
+        if reset { readToken = UUID(); versions = []; cursor = nil; loaded = false; loading = false; visibleScope = session.context?.scope }
         guard !loading, let context = session.context else { return }
-        let generation = session.generation
-        if reset { versions = []; cursor = nil; loaded = false }
+        let generation = session.generation, token = readToken
         loading = true; failed = false
-        defer { loading = false }
+        defer { if token == readToken { loading = false } }
         do {
             let page = try await SupabaseService.shared.applicationDocumentReusableVersions(studentCaseId: context.scope.caseId,
                 applicationId: applicationId, requirementItemId: itemId, cursor: cursor)
-            guard session.matches(context, generation: generation) else { return }
+            guard token == readToken, session.matches(context, generation: generation) else { return }
             guard Set(versions.map(\.id)).isDisjoint(with: Set(page.versions.map(\.id))), page.nextCursor == nil || page.nextCursor != cursor else { throw ApplicationDocumentClientError.invalidResponse }
             versions += page.versions; cursor = page.nextCursor; loaded = true
-        } catch { if session.matches(context, generation: generation) { failed = true } }
+        } catch { if token == readToken, session.matches(context, generation: generation) { failed = true } }
     }
 }
 

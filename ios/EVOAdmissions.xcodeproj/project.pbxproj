@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D4E68F3A0A3A189D4093EBEA /* ProgramPackageHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C896849A9716CD800EAE5B91 /* ProgramPackageHistoryView.swift */; };
+		5C5B2827FBA8114D5320B0A7 /* ProgramPackageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB6F0A58E74C55D91BFF1E3 /* ProgramPackageView.swift */; };
+		DEAA08E6104C3DC8F33A51CA /* ProgramPackageSelectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A461C9F4F755BB2037B3F398 /* ProgramPackageSelectionState.swift */; };
+		5F4FA1084B5DB2FACE9A3B1B /* ProgramPackageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B62D9EAF1D76EF8ECF0D3B9A /* ProgramPackageModel.swift */; };
+		5F6165087C6447DD63D053C8 /* ApplicationPackageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B499F5DFA9630C88E982BF94 /* ApplicationPackageService.swift */; };
+		A72C2EBE640C375ED5327CAC /* ApplicationPackagePending.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4049ABA1E9CA068DAC3618DD /* ApplicationPackagePending.swift */; };
+		B18D136762F36E08B03B219F /* ApplicationPackageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43626E6D56FD477FB895C3D5 /* ApplicationPackageModels.swift */; };
 		18B846A55E4B3DCEAA5902DF /* ApplicationRequirementsV2Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33817BBEAC6878E4B53BA2FF /* ApplicationRequirementsV2Models.swift */; };
 		678B33F9BAE8D7DE624C839F /* ProgramDocumentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAC53F97F0A67CBF0EA3D6A /* ProgramDocumentModel.swift */; };
 		06030142C6F205ACF47858E2 /* ApplicationDocumentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B4B045022FB2366447C242 /* ApplicationDocumentModels.swift */; };
@@ -120,6 +127,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C896849A9716CD800EAE5B91 /* ProgramPackageHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageHistoryView.swift; sourceTree = "<group>"; };
+		CDB6F0A58E74C55D91BFF1E3 /* ProgramPackageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageView.swift; sourceTree = "<group>"; };
+		A461C9F4F755BB2037B3F398 /* ProgramPackageSelectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageSelectionState.swift; sourceTree = "<group>"; };
+		B62D9EAF1D76EF8ECF0D3B9A /* ProgramPackageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageModel.swift; sourceTree = "<group>"; };
+		B499F5DFA9630C88E982BF94 /* ApplicationPackageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackageService.swift; sourceTree = "<group>"; };
+		4049ABA1E9CA068DAC3618DD /* ApplicationPackagePending.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackagePending.swift; sourceTree = "<group>"; };
+		43626E6D56FD477FB895C3D5 /* ApplicationPackageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackageModels.swift; sourceTree = "<group>"; };
 		33817BBEAC6878E4B53BA2FF /* ApplicationRequirementsV2Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationRequirementsV2Models.swift; sourceTree = "<group>"; };
 		3DAC53F97F0A67CBF0EA3D6A /* ProgramDocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDocumentModel.swift; sourceTree = "<group>"; };
 		83B4B045022FB2366447C242 /* ApplicationDocumentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationDocumentModels.swift; sourceTree = "<group>"; };
@@ -229,6 +243,8 @@
 			children = (
 				E508E8B1903A4D09727E4EDB /* ProgramPreparationView.swift */,
 				B5EFCE58147C0428B12FC9C3 /* ProgramDocumentView.swift */,
+				C896849A9716CD800EAE5B91 /* ProgramPackageHistoryView.swift */,
+				CDB6F0A58E74C55D91BFF1E3 /* ProgramPackageView.swift */,
 				5036B63945D738592B84D329 /* AccessPendingView.swift */,
 				2E398B3E2F9B79A923367AEB /* AdmissionDocumentsView.swift */,
 				CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */,
@@ -374,6 +390,11 @@
 				33817BBEAC6878E4B53BA2FF /* ApplicationRequirementsV2Models.swift */,
 				3DAC53F97F0A67CBF0EA3D6A /* ProgramDocumentModel.swift */,
 				83B4B045022FB2366447C242 /* ApplicationDocumentModels.swift */,
+				A461C9F4F755BB2037B3F398 /* ProgramPackageSelectionState.swift */,
+				B62D9EAF1D76EF8ECF0D3B9A /* ProgramPackageModel.swift */,
+				B499F5DFA9630C88E982BF94 /* ApplicationPackageService.swift */,
+				4049ABA1E9CA068DAC3618DD /* ApplicationPackagePending.swift */,
+				43626E6D56FD477FB895C3D5 /* ApplicationPackageModels.swift */,
 				48740F32E5051E92CC6DADCC /* ApplicationDocumentPending.swift */,
 				C92CA7B2706BCA37C69E6992 /* ApplicationDocumentUpload.swift */,
 				28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */,
@@ -576,6 +597,13 @@
 				18B846A55E4B3DCEAA5902DF /* ApplicationRequirementsV2Models.swift in Sources */,
 				678B33F9BAE8D7DE624C839F /* ProgramDocumentModel.swift in Sources */,
 				06030142C6F205ACF47858E2 /* ApplicationDocumentModels.swift in Sources */,
+				D4E68F3A0A3A189D4093EBEA /* ProgramPackageHistoryView.swift in Sources */,
+				5C5B2827FBA8114D5320B0A7 /* ProgramPackageView.swift in Sources */,
+				DEAA08E6104C3DC8F33A51CA /* ProgramPackageSelectionState.swift in Sources */,
+				5F4FA1084B5DB2FACE9A3B1B /* ProgramPackageModel.swift in Sources */,
+				5F6165087C6447DD63D053C8 /* ApplicationPackageService.swift in Sources */,
+				A72C2EBE640C375ED5327CAC /* ApplicationPackagePending.swift in Sources */,
+				B18D136762F36E08B03B219F /* ApplicationPackageModels.swift in Sources */,
 				8D13EDC0F4A3BED08BFA66F4 /* ApplicationDocumentPending.swift in Sources */,
 				3501B60D54767B7B2C0D78E0 /* ApplicationDocumentUpload.swift in Sources */,
 				FE984196DDD7F198F7F8F537 /* ProgramPreparationView.swift in Sources */,

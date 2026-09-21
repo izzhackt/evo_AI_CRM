@@ -73,11 +73,13 @@ struct CatalogIntakePreparationAction: View {
 struct ProgramPreparationListSection: View {
     @EnvironmentObject private var session: ProgramPreparationSession
     @StateObject private var model = ProgramPreparationModel()
+    @State private var visibleScope: ProgramPreparationContext.Scope?
 
     var body: some View {
         Section {
             if let context = session.context {
-                if model.isLoading {
+                NavigationLink("package_recovery_title") { ProgramPackageRecoveryView() }.frame(minHeight: 44)
+                if visibleScope != context.scope || model.isLoading {
                     ProgressView("prep_loading")
                 } else if model.loadFailed {
                     Text("prep_read_failed").foregroundStyle(.secondary)
@@ -104,6 +106,7 @@ struct ProgramPreparationListSection: View {
             Text("prep_list_title")
         }
         .task(id: session.context?.scope) {
+            visibleScope = session.context?.scope
             if let context = session.context { await model.load(context: context) }
         }
         .onChange(of: session.refreshSignal) {
@@ -119,6 +122,8 @@ struct ProgramPreparationView: View {
     @Environment(\.locale) private var locale
     @StateObject private var model = ProgramPreparationDetailModel()
     @StateObject private var documentModel = ProgramDocumentModel()
+    @StateObject private var packageModel = ProgramPackageModel()
+    @State private var visibleScope: ProgramPreparationContext.Scope?
 
     private struct ReadTarget: Hashable {
         let scope: ProgramPreparationContext.Scope?
@@ -127,6 +132,7 @@ struct ProgramPreparationView: View {
 
     var body: some View {
         List {
+            if visibleScope == session.context?.scope, session.context != nil {
             if initialSavedNotice && model.requirements == nil {
                 Section { Text("prep_choice_saved") }
             }
@@ -153,6 +159,7 @@ struct ProgramPreparationView: View {
                 }
             } else if let requirements = model.requirements {
                 requirementsSection(requirements)
+                ProgramPackageSection(applicationId: applicationId, model: packageModel).disabled(documentModel.busy)
             }
             ProgramDocumentPendingSection(model: documentModel)
             if let error = documentModel.errorKey {
@@ -194,6 +201,9 @@ struct ProgramPreparationView: View {
             } footer: {
                 Text("prep_upload_sends")
             }
+            } else {
+                ProgressView("prep_loading")
+            }
         }
         .quickLookPreview($documentModel.previewURL)
         .navigationTitle("prep_detail_title")
@@ -204,10 +214,16 @@ struct ProgramPreparationView: View {
     }
 
     private func refresh() async {
-        guard let context = session.context else { documentModel.deactivate(); return }
+        guard let context = session.context else { documentModel.deactivate(); packageModel.deactivate(); visibleScope = nil; return }
+        if visibleScope != context.scope { packageModel.deactivate() }
+        visibleScope = context.scope
+        let generation = session.generation
         documentModel.beginRead(context: context, applicationId: applicationId)
         await model.load(applicationId: applicationId, context: context)
-        if session.context?.scope == context.scope, let documents = model.documents { documentModel.activate(documents, context: context) }
+        if session.matches(context, generation: generation), let documents = model.documents {
+            documentModel.activate(documents, context: context)
+            packageModel.activate(documents, context: context)
+        }
     }
 
     @ViewBuilder
@@ -243,10 +259,10 @@ struct ProgramPreparationView: View {
                     if item.definitionImpact == .changed {
                         Text("prep_definition_changed").font(.footnote)
                     }
-                    if let document = documentModel.documents?.items.first(where: { $0.id == item.id.uuidString.lowercased() }),
+                    if let document = documentModel.documents?.documentItems.first(where: { $0.id == item.id.uuidString.lowercased() }),
                        let revision = requirements.revision {
                         ProgramDocumentControls(item: document, revisionId: revision.revisionId.uuidString.lowercased(),
-                            applicationId: applicationId, model: documentModel)
+                            applicationId: applicationId, model: documentModel).disabled(packageModel.busy)
                     }
                     ForEach(item.unavailableReasons.filter { ["slot_missing", "slot_removed", "application_link_missing", "slot_metadata_changed"].contains($0.rawValue) }, id: \.rawValue) { reason in
                         Text(LocalizedStringKey("prep_file_\(reason.rawValue)")).font(.footnote).foregroundStyle(.secondary)

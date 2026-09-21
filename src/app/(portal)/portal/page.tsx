@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import type { Metadata } from "next";
 import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
@@ -41,6 +43,7 @@ export default async function StudentPortalOverviewPage() {
       </header>
       {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
       <PreparationList items={preparations} strings={preparationStrings} />
+      <Link className="pt-btn-ghost" href="/portal/package-recovery">{packageStrings(locale).pendingTitle}</Link>
       <div id="case-help" className="pt-adm-case-help"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </main>
   );

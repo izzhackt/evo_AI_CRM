@@ -15,5 +15,6 @@ export default async function UniversitiesPage({ searchParams }: { searchParams:
   const manageAction = canManage ? <Link className={btnCls} href="/v3/universities/manage">Управлять каталогом</Link> : undefined;
   let page;
   try { page = await readStaffUniversities(actor, filters); } catch { return <PartShell title="Университеты" action={manageAction}><UniversityUnavailable /></PartShell>; }
-  return <PartShell title="Университеты" action={manageAction}><UniversityList page={page} filters={filters} base="/v3/universities" canManage={canManage} /></PartShell>;
+  const now = new Date();
+  return <PartShell title="Университеты" action={manageAction}><UniversityList page={page} filters={filters} base="/v3/universities" canManage={canManage} now={now} /></PartShell>;
 }

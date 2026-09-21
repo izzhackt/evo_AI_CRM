@@ -91,3 +91,15 @@ then a separately recorded new ordinary UI attempt. The prior503 remains failure
 evidence; never relabel it or rewrite migration229.
 
 Implementation reference (checked2026-09-21): PostgreSQL17 [CREATE FUNCTION](https://www.postgresql.org/docs/17/sql-createfunction.html) preserves ownership/permissions with CREATE OR REPLACE; other attributes come from the definition. The forward patch therefore reuses the complete existing definition and verifies full metadata/ACL equality apart from its two action literals.
+
+
+## 2026-09-21 — bounded local acceptance
+
+[Actual QA report](payment-receipt-local-qa-2026-09-21.md) records the ordinary
+Admin upload/download on source3e83d495 and local001–230, retained negative
+evidence, six target probes, exact replay/size conflict and four row-lock barriers.
+Other branches listed above remain unverified by this packet, including inactive
+uploader because the last-live-admin invariant prevents that dataset mutation.
+No safeguard was weakened and no new identity was created. The current owned
+session was logged out; one identified earlier orphan remains. The full local
+runtime is released to A15f. This is not production or full financial acceptance.

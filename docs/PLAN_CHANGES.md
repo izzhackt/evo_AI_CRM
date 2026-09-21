@@ -35908,3 +35908,64 @@ precode moves231 to232. OnlyROOT applies, in order. Verify230 on the actual loca
 229 baseline with rollback first, canonicalCLI apply once, preserved full state,
 then a separately recorded new ordinary UI attempt. The prior503 remains failure
 evidence; never relabel it or rewrite migration229.
+
+
+## 2026-09-21 — B3g /232: precode состава и проверки полного комплекта
+
+На main `7aad173f83ec612854e3b5553225611ea4811127` закреплён следующий разрез
+§11: [B3g contract](platform/b3g-program-package-contract.md). ROOT резервирует 232;
+231 принадлежит website, 230 — исправлению аудита платёжного чека ROOT.
+Нового server/Auth/DB/Storage действия нет.
+
+Source inventory214/226/228 показал: individual uploads/submissions/reviews уже
+есть, но immutable package composition и отдельного staff package decision нет.
+Readiness не выводится из legacy current или одного canSubmit. Ресурсы пакета
+ссылаются на canonical versions и фиксируют exact review IDs, поскольку current228
+summary динамически берёт последнее решение. Прежние global/legacy/ZIP semantics
+сохраняются; университетская отправка не добавляется этим комплектом EVO.
+
+ROOT подтвердил starter по существующей readiness с явной подписью и без нового
+confirmed-only gate. Optional можно исключить до отправки; включённые материалы
+фиксируются в составе. Перенос review на другую программу или изменённое definition
+запрещён. После новой226 revision reuse требует доказанный unchanged predecessor
+и явное staff current-context подтверждение: `reuseApprovals` с exact source review,
+обычный228 approved review от сотрудника и оба ID в package evidence/audit.
+Старое approved не перекрывает новую отрицательную проверку; все child request IDs
+блокируются заранее. Механизм проходит независимое review до реализации.
+Весь состав пишется атомарно,
+request locks предшествуют org lock, network retry повторяет frozen intent.
+
+Impeccable Operate/adapt сохраняет EVO и existing controls на web/iPhone/CRM;
+два ограниченных visual passes только в будущем выделенном runtime окне.
+Precode требует independent exact-head review. Broad E2E/content/App Store,
+production и весь1–36 остаются вне объявления о завершении этого этапа.
+
+Независимое UI review уточнило обязательный сценарий: успешная запись с потерянным
+ответом может убрать строку из очереди, а новая редакция — заменить форму.
+Owner-scoped восстановление package intent поэтому доступно отдельно от этих
+элементов и повторяет точный исходный запрос. Receipt либо доказанный `not_written`
+разрешает очистку. Это включено в scoped QA; SQL/API/бизнес-границы не расширены.
+
+До слияния precode координатор переназначил резерв B3g с 231 на 232: отдельная
+новая миграция ROOT исправляет несовместимое имя audit action при сохранении
+платёжного чека, website занимает 231. Прежние миграции и их доказательства
+не переписываются; новая нумерация не даёт B права на локальное применение.
+
+
+## 2026-09-21 — CRM-09e: local acceptance и передача окна A15f
+
+[Фактический QA-отчёт](platform/payment-receipt-local-qa-2026-09-21.md) фиксирует
+source3e83d495 и local230: ровно один receipt/audit/object, неизменные финансовые
+данные, ordinary UI download307 с совпавшими766 байтами. Шесть target/ACL probes,
+exact replay/changed-size conflict и четыре независимые row-lock barriers PASS.
+HTTPbody201 утрачен наблюдателем; correlated201 и исходный log-prefix сохранены,
+повторной загрузки нет. Last-live-Admin guard сохранён, его revocation не запускался.
+
+Final release37e840905100a03d102749844c3a5a97d5bef60b5c3002bbd0d557bc7475df5d
+проверяет полный287 state, закрытие текущей собственной сессии и сохранение
+старых223 session hashes плюс одной собственной orphan. Next/browser/scanner
+остановлены; Auth users/identities только count8, refresh-token parity не проверена.
+Независимое release reviewcb628f6f3aef3dedb8f1ffdb08e58c42dd694dd7fd23b9767913950aa83761ea.
+Окно переходит A15f. Source после3e83 меняется только документационно; историческая
+runtime evidence не переименовывается в новый прогон. Полный item12/1–36, native,
+production и provider acceptance не закрыты.

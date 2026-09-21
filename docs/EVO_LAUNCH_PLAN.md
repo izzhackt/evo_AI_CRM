@@ -13042,3 +13042,39 @@ precode moves231 to232. OnlyROOT applies, in order. Verify230 on the actual loca
 229 baseline with rollback first, canonicalCLI apply once, preserved full state,
 then a separately recorded new ordinary UI attempt. The prior503 remains failure
 evidence; never relabel it or rewrite migration229.
+
+
+## 2026-09-21 — B3g: неизменяемый состав комплекта и отдельное решение EVO
+
+После #993 и его QA-отчёта #997 (`7aad173f`) ROOT принял направление
+[precode B3g](platform/b3g-program-package-contract.md) и резервирует 232 для
+server/wire части; 231 — website, 230 — исправление аудита платёжного чека ROOT.
+Студент отправляет весь exact состав
+без предварительного staff одобрения файлов, сотрудник отдельно проверяет
+документы и комплект. Starter сохраняет явный смысл стартового комплекта EVO.
+Individual228, canonical bytes и история сохраняются; package review фиксирует
+точные review IDs. UI CRM/web/iPhone и узкий actual packet идут по одному контракту.
+Сейчас только precode: независимое exact-head review до кода; runtime/DDL не начаты,
+локальная база остаётся у ROOT990/229. Полный1–36 и production не объявляются готовыми.
+
+Уточнение по UI review: восстановление неподтверждённых package submit/review
+доступно отдельно от текущей очереди/редакции, привязано к владельцу и повторяет
+точный исходный состав/решение. Scoped QA включает потерю ответа с последующей
+перезагрузкой и сменой revision; очистка только по receipt или `not_written`.
+
+
+## 2026-09-21 — CRM-09e: фактическая загрузка и скачивание чека
+
+На runtime `3e83d4958ac25c5c9a457ceb35657c52dcd5f0f3`, local001–230,
+проверен обычный Admin-путь: существующая оплата → один чек → скачивание
+исходных766 байт. Суммы, даты и прежние данные сохранены; duplicate metadata
+replay, шесть scoped target/ACL probes и четыре row-lock barriers прошли.
+[QA-отчёт](platform/payment-receipt-local-qa-2026-09-21.md) сохраняет ранние
+ошибки, потерянный observer body201 и восстановление результата без reupload.
+
+Текущая собственная Auth-сессия закрыта обычной кнопкой, old223 hashes сохранены;
+одна идентифицированная собственная orphan-сессия остаётся без токена. Полная
+Auth/refresh-token parity и отзыв прав единственного Admin не заявляются.
+Собственные Next/browser/scanner остановлены. Full287 RAW release37e84090…5df5d
+передаёт окно A15f; независимое reviewcb628f6f…761ea принято. Это завершение
+локального CRM-09e, не всего item12/1–36 и не production.

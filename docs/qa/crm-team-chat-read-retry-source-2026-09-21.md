@@ -58,7 +58,13 @@ Impeccable shape/Operate/craft-floor применены к ошибкам, ме�
 
 ## Открытые gates
 
-Независимый exact-head source review, CI и последующий coordinated actual UI
+Независимый exact-head source review одобрил
+`f882fedc39148873e2585bd006866bf2934fa5bc`: единственное P2 предыдущей ревизии
+закрыто, новых замечаний нет. Review SHA-256:
+`adfcb5e985e1d0175be4b37305ef2aeb4ba0a46f29fc5eaa6bdd04cd57062c56`.
+Сохранённые проверки приняты без повторного запуска; это одобрение исходников.
+
+Остаются CI/final exact-head admission и последующий coordinated actual UI
 после B1003 → ROOT235. До передачи runtime эта ветка не использует общие
 DB/Auth/browser/server; нет posts/edits/deletes, новых actors/fixtures или SQL.
 Обычные seen-effects будущего UI требуют отдельного конечного бюджета по

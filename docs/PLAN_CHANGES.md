@@ -37402,3 +37402,16 @@ logout должен завершить только собственную се�
 Текущий try?/offline limit не исправляется этим scope-изменением; экран входа
 не считается доказательством серверного отзыва. Нет новых аккаунтов, fixtures,
 широкого E2E, signup-приёмки или production-доставки.
+
+
+### 2026-09-22 — B native: source/build checkpoint локального выхода
+
+После precode e037555f реализован один production-аргумент `.local` и comment
+в46c56eba. Независимое source review8980c889 приняло diff без находок; caller/UI/
+SDK/Auth/RLS неизменны. App-target build Xcode26.5 exit0, все7 locked packages
+совпали. [Контракт и квитанции](platform/native-local-signout.md) фиксируют
+отдельный QA bundle, exact loopback origins и проверенную подпись/заявленные
+simulated access groups, непересекающиеся с установленным protected EVO.
+Это artifact metadata, не live Keychain enforcement/native acceptance.
+Установки, launch, Auth, DB и logout не было; actual ждёт своего QA-окна.
+Код не включает QA-only business path. Полный native/E2E/production не закрыты.

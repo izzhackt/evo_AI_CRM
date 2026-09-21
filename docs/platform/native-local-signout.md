@@ -2,7 +2,7 @@
 
 Дата: 2026-09-22. Precode до изменения Swift.
 База: main `2b25a431b327b3fa0e7c9eb670c94f21fd0b894f`, после merge #1018.
-Статус: **контракт принят ROOT; реализация и native actual ещё впереди**.
+Статус: **реализация и независимое source review приняты; app build прошёл; native actual ожидает своего окна**.
 
 ## Подтверждённое несоответствие
 
@@ -72,3 +72,47 @@ FavoritesStore и поведение всех callers. Не менять Auth/RL
 SHA `d7e5e834c342e1192e418daa6779b896212063d7bb89317e38a0eaab041b7103`;
 ROOT принял его до Swift-правки. Старые logout/caller/SDK файлы на новой базе
 побайтно совпадают с проверенным main eec9c548.
+
+## Source и build checkpoint — 2026-09-22
+
+Precode `e037555f` предшествует Swift-изменению
+`46c56eba7f6251ad490abd21cdc273be3a7290ea`. Product diff ровно +2/-1:
+явный `.local` и пояснение. Остальные callers, UI, Auth/RLS и lockfile неизменны.
+`git diff --check` прошёл. Независимый source review
+`/private/tmp/evo-native-local-signout-source-review-46c56eba-20260922.md`,
+SHA `8980c88960fe8cc2bd0ab014be02c5f6b76930a07d5594143871b9c15c6a5df7`,
+дал `APPROVED_SOURCE_ONLY` без находок.
+
+App-target build на Xcode 26.5 / 17F42 завершился exit0 на этом source.
+Использованы собственные DerivedData, package checkout/cache и ignored config;
+все семь package revisions совпали с отслеживаемым lockfile, версии не обновлены.
+Проверена сборка, а не UI; node-suite и simulator tests не запускались.
+
+QA bundle `com.evoadmissions.qa.native20260922` / «EVO QA» имеет точные
+loopback Supabase/web origins и совпавший fingerprint локального publishable
+key. ATS исключение ограничено `127.0.0.1`. Новый config/plist не изменяет
+production-настройки и не коммитится. Порт будущего web runtime закреплён
+в частной квитанции; сервер ещё не запускался.
+
+`codesign --verify --strict` прошёл. У Simulator обычный signed-entitlement
+output пуст, но Mach-O simulated XML совпадает с generated xcent, а embedded
+DER совпадает с generated DER. Единственный QA application group —
+`FAKETEAMID.com.evoadmissions.qa.native20260922`; у именно установленного
+защищённого приложения — `FAKETEAMID.com.evoadmissions.app`. Пересечения
+заявленных групп нет; дополнительных Keychain/App Groups нет. Защищённый
+executable `07e2b300…` не изменился. Это проверка подписи и заявленной границы,
+не live enforcement/Keychain attestation; Keychain items не читались.
+
+Частные артефакты: `/private/tmp/evo-native-local-signout-build-20260922/`.
+
+| Артефакт | SHA-256 |
+|---|---|
+| `build.receipt.json` | `0a5915ca78d24f50ce73f5e84d115478ea2b982149680812030477d10056c45c` |
+| `artifact.receipt.json` | `4a707c2d547b5a6e9e8f67a81c39ea2d413205346ad10c48361468d5fb6e6394` |
+| `app-files.json` | `33dfa21ef0542b1d3b6b3dce7b8186ba240c025dade6cd4344795d733a30ead9` |
+| QA executable | `4e9aba40b395fc7dc3bfaa1292eafeb62aaeadd930ac24bfbf3c7dae639ff1a5` |
+| QA debug dylib | `54288d3246863184267e3572e585a28e7d46d88e80d8ae2aa481740b36e7c38a` |
+
+Установка, launch, Auth и native logout не выполнялись. Source/build approval
+не закрывает настоящую проверку сохранности другого сеанса. PR остаётся draft
+до ограниченного actual, независимого финального review и protected CI.

@@ -86,3 +86,11 @@ export function acceptTeamChatChannels(
   // The incoming authorized list controls membership; never append cached channels.
   return { requestId, channels };
 }
+
+/** Plain presentation text for an already decoded server preview. */
+export function teamChatChannelPreviewText(preview: TeamChatChannelPreview | null, membershipId: string): string {
+  if (preview === null) return "Пока нет сообщений";
+  if (preview.deletedAt !== null) return "Сообщение удалено";
+  const author = preview.authorMembershipId.toLowerCase() === membershipId.toLowerCase() ? "Вы" : preview.authorName;
+  return `${author}: ${preview.bodyPreview}`;
+}

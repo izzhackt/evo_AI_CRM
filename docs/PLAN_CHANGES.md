@@ -35596,3 +35596,16 @@ Auth users/identities8/8, не blanket equality всех Auth rows. Тестов
 не удалялись. Window released→B226, receipt cce0f273; PR984 source/runtime
 не менялись после reviewed72d. Детальная квитанция —
 `docs/qa/payment-calendar-date-2026-09-21.md`. Production не затронут.
+
+
+## 2026-09-21 — CRM-02c: mobile sales presentation, precode
+
+Принятое требование пункта7 реализуется локальной адаптацией существующей
+таблицы `SalesRegisterView.tsx`, а не сменой модели продаж. Impeccable
+Operate/adapt рекомендует один DOM/anchor и вертикальный mobile layout с
+сохранением desktop и всех исходных полей/ссылок/прав. ROOT отдельно владеет
+этой presentation; A/B файлы не пересекаются. Пользователь разрешил параллельную
+работу: source-подготовка идёт независимо от #990, общий runtime остаётся у
+текущего владельца, actual проверка следует после передачи окна. Остальные
+остатки7 (полный direction facet, сводка, import) не включены. Критерии и пределы
+приёмки записаны в CRM-02c launch appendix до изменения UI.

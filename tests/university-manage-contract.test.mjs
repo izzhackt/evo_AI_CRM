@@ -61,3 +61,18 @@ test('next cursor requires fifty rows and exact last row, no guessed totals',()=
  assert.equal(parseManageDraftPage(value,id(999),{q:'',cursor:null}).nextCursor,cursor('',50));
  for(const invalid of [{...value,items:items.slice(1)},{...value,nextCursor:{createdAt:time,id:id(49)}},{...value,nextCursor:{createdAt:time,id:id(50),total:51}},page([...items,row(51)])]) assert.equal(parseManageDraftPage(invalid,id(999),{q:'',cursor:null}),null);
 });
+
+test('navigation lifecycle preserves a filtered page across each editor and resets only the index query',()=>{
+ const index={q:'50%_大学',cursor:cursor('50%_大学')};
+ const context=manageListContext(index);
+ for(const [mode,value] of [['draft',id(1)],['edit',id(2)],['identify',id(2)],['template','reviewed-template'],['new','1'],['batch','1']]) {
+  const url=new URL(manageEditorHref(mode,value,context),'https://example.test');
+  const parsed=parseManageRoute(url.searchParams);
+  assert.equal(parsed.kind,'editor');
+  assert.deepEqual(parseManageListContext(parsed.listContext),index);
+  assert.deepEqual(parseManageRoute(new URL(manageListHref(index),'https://example.test').searchParams),{kind:'index',index});
+ }
+ const searched=route(new URLSearchParams({q:'other'}).toString());
+ assert.deepEqual(searched,{kind:'index',index:{q:'other',cursor:null}});
+ assert.deepEqual(route(''),{kind:'index',index:{q:'',cursor:null}});
+});

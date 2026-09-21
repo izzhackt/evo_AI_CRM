@@ -37202,3 +37202,10 @@ rail UI ждёт merge. Production и whole15/1–36 не закрыты.
 ## 2026-09-21 — Item14 manage search / additive238 precode
 
 Accepted contract: [staff catalogue manage search](platform/staff-catalog-manage-search.md). Base9f7dde1d; ROOT reserves238 after A237. Implement scoped pending-draft literal search and mixed keyset50+1, strict DTO/query/listContext and additive reader first. Preserve legacy readers, commands, publications, permissions, all143 editorial templates and exact retry. UI index/editor remain unchanged until actual incumbent inspection; no SQL/Auth/runtime execution in this checkpoint. Integration of actual237 is required before protected migration checks; no fabricated predecessor. Plan approval is not actual acceptance.
+
+
+### ROOT238 manage — incumbent inspection and UI implementation, 2026-09-22
+
+Actual source f3871a0537605fd23ff847a2e312291de098a3e1 was inspected once by ordinary local Admin at 1440/390/320. The index has no search; Add is below 143 templates and the batch action dominates. Queue is empty, so draft detail/editor were not inspected. Incumbent receipt SHA256 89c0d3587dd84ade2ad7e09fc57b51cdec86dcb84ee869890e3e64f3a8a82528; strict final290/33 passed after own logout. Intermediate live AMR verifier STOP is retained; no allowlist was changed.
+
+Implement the approved manage contract: one header Add, labelled native GET name search, real238 pending page/count/cursor, independent name filtering of all templates, secondary batch and canonical listContext return links. Preserve forms/actions/template bytes and EVO/Golos. This authorizes source work only; migration238 and post-change UI acceptance remain pending after the current shared QA owner closes.

@@ -1,6 +1,6 @@
 # Staff catalogue manage search — implementation contract
 
-Current checkpoint: 2026-09-21, base `9f7dde1d8b040d555af647a2b89628d06d6b921f`. ROOT reserves additive migration **238** after A237. Precode approved; backend implementation only until actual incumbent inspection. No runtime acceptance or production claim.
+Current checkpoint: 2026-09-22. A1017 main `c675d4b4d735ccbcc51dc162265e31d64e193990` is integrated in `f3871a0537605fd23ff847a2e312291de098a3e1`; backend238 is source-reviewed. Ordinary local Admin incumbent inspection at 1440/390/320 and strict closure passed (empty pending queue; draft/editor not inspected). UI source now connects the approved reader and context contract. Actual migration238, post-change UI and independent final source review remain pending; no production acceptance.
 
 # Item 14 — минимальный следующий блок управления университетами
 
@@ -50,3 +50,10 @@ Files: migration238, pure `university-manage-contract.ts`, focused tests, additi
 Implemented additive238, strict pure query/page/listContext contract, and an unused additive server reader. Existing UI, legacy readers and commands remain byte-identical. Cursor UUID validation preserves the incumbent versions1–8 contract and canonical lowercase ordering. Six focused pure tests PASS (literal queries, calendar/microseconds, duplicate/mixed URL rejection, canonical return-context, tenant/closed DTO/order/progression, exact next cursor). These examples are contract inputs, not database fixtures or Auth proof. Scoped ESLint and TypeScript noEmit PASS; diff-check PASS. Existing pglast7.7 parsed5 SQL statements and1 PL/pgSQL function; no SQL executed. Initial test authoring syntax error was corrected before the successful run, not a product failure.
 
 UI inspection and wiring remain pending. Migration237 is not fabricated or copied; actual predecessor integration is required before protected migration checks. No actual238 pagination/permission/UI acceptance, >50 existing drafts, or production claim.
+
+
+## UI source checkpoint — 2026-09-22
+
+Index uses the scoped238 reader, literal name search and returned next cursor. Templates remain the complete143 source entries before name filtering; batch receives the full unfiltered set. Add is in the existing header action; batch is secondary. Search is native GET without cursor; keyed query input follows reset/Back. Unavailable queue is distinct from empty and keeps search/navigation/templates visible. Navigation-only optional listContext reaches saved draft, identify/edit and Back; no mutation payloads or outcome redirects change.
+
+Author validation: six existing pure tests plus one navigation lifecycle regression, scoped two-file lint, normal TypeScript check and diff check. These prove source/pure contracts, not database or rendered UI acceptance. Historical incumbent evidence: receipt SHA25689c0d3587dd84ade2ad7e09fc57b51cdec86dcb84ee869890e3e64f3a8a82528; initial live-AMR verification STOP was preserved, then strict final passed after own logout. No data fixtures or business writes.

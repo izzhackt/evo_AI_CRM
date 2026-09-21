@@ -13658,3 +13658,20 @@ retention remain unverified; no acceptance claim is made for those branches.
 The next7b UI block preserves forms and will retain these proof gaps explicitly.
 Final-head review/CI/merge are still required; local235 transfers next to A1005.
 Production authority and delivery are separate.
+
+## 2026-09-21 — ROOT item7b import management precode
+
+After accepted #1004 (main d68ce587), implement the already approved
+[import placement plan](EVO_SALES_IMPORT_MANAGEMENT_PLAN_2026-09-21.md).
+Move the existing import mount out of the daily report into its own internal
+mode=import view; preserve a scoped report entry for authorized custom staff
+and add an independently scoped Admin Settings entry. Preserve existing forms,
+actions, SQL, permission checks and request/File state on router refresh.
+Parse and allowlist report context for a safe Back link; record/editor/saved
+contexts retain precedence. No new writes, migration, content or import submit.
+Impeccable Operate refinement preserves EVO and reduces daily-report noise.
+Precode independent review APPROVED (private SHA
+274c606ed5adbebed2b260c3c7b5aab585dabe29d8653810b5859991b13a0281).
+ROOT source work is isolated; A1005 then B1006 own the shared local runtime.
+Actual7b verification waits its coordinated window; populated/custom-role and
+refresh-retention scenarios are only claimed when really exercised.

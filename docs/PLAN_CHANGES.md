@@ -35278,3 +35278,19 @@ OTP из письма и opaque AES-GCM capability во fragment, явный POS
 или автоматического recovery неизвестного create; используется честный
 существующий support contact. Invite и public-signup запрет сохраняются.
 Неактивный27a не означает функциональную готовность или разрешение provider writes.
+
+
+## 2026-09-21 — item27b/27c: интеграция и проверка в одном PR
+
+После #978 уточнён порядок:27b исходники web/native и27c actual QA образуют один
+coherent integration PR, который остаётся draft до проверки Auth/config/template
+и обоих клиентов. Не добавлять временный auto-confirm bypass или несогласованный
+shared flag. Это предотвращает регрессию существующих native consumers и
+преждевременный переход main на непроверенный почтовый путь.
+
+До кода зафиксированы обязательная несекретная configured OTP length без default,
+old-client426 до create, memory-only native resend, HttpOnly web resend, staged
+validated session cookie commit и existing exactActionStringFields для React19
+form envelopes. Принятый pure contract27a остаётся неизменным. Реальная доставка,
+новые QA identities и изменение SMTP/Auth templates имеют свой конкретный
+пакет; этот план не выдаёт им неявное разрешение.

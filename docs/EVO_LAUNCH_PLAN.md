@@ -12436,3 +12436,34 @@ panel, понятные accepted/confirmed/saved состояния, RU/KY, focu
 320/390/desktop. Новый дизайн и provider-доставка из pure tests не выводятся.
 Для27a достаточно actual crypto/parser tests, types/lint, independent exact-head
 review и protected CI; UI/Auth ещё не включены. Полный item27 остаётся открыт.
+
+
+## 2026-09-21 — item27b: согласованная интеграция, до кода
+
+27a смержен #978 (`c5d9a4cf`). Следующий единый integration PR реализует web
+и native pending/explicit confirmation/resend;27c — его фаза реальной проверки,
+а не отдельный повод преждевременно включать create(false). PR остаётся draft
+и вне main до готовности обоих consumers и согласованного actual Auth/Mailpit
+пакета. Нет legacy feature flag или native auto-confirm обхода.
+
+Обязательный несекретный `EVO_STUDENT_SIGNUP_OTP_LENGTH` задаёт проверенную длину
+Auth OTP1..32 без default; отсутствие/ошибка останавливают новый create ДО quota.
+Оно не доказывает готовность remote template: exact Auth/template/config
+соответствие отдельно проверяется до любой регистрации и до delivery.
+Native передаёт `X-EVO-Registration-Flow: email-confirmation-v1`; старый/неизвестный
+contract получает426 upgrade_required до create/quota. Web action сохраняет
+существующую подтверждённую signed-in ветку. Invite не меняется.
+
+Состояния pending accepted/failed/unknown не означают доставку или сохранение
+анкеты. Web cap только HttpOnly cookie, native cap только память; original draft
+сохраняется, пароль очищается. Callback fragment в памяти, немедленно удалён
+из адреса, подтверждение только явным POST, чужая текущая сессия не меняется.
+Проверенный isolated Auth principal/DB authority предшествует cookie commit;
+после commit существующий read-own/resume. Framework FormData metadata
+сначала разбирает existing exactActionStringFields, сохраняющий отказ duplicate,
+затем pure27a валидатор проверяет очищенные поля.
+
+Impeccable: существующие EVO tokens, RU/KY, один pending panel и понятные errors;
+без выдуманного countdown, дополнительных шагов анкеты и новой визуальной темы.
+Функциональные проверки,320/390/desktop и native journey входят в готовность
+этого PR; нет заявления о проверке будущего общего E2E или production delivery.

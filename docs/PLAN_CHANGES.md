@@ -35716,3 +35716,21 @@ release SHA256 `16ece6aa4a6e6ef84cfae0fae9e0e1caf5a119b0c261b41f96e9607e2cd105c4
 Это локальная приёмка списка без новых fixtures/financial writes. Отдельная
 сводка 400 px, остатки пункта 7, native VoiceOver и production не покрыты.
 Текущий follow-up только фиксирует evidence; UI/SQL/API не меняются.
+
+## 2026-09-21 — CRM-02d: компактные filtered totals, precode
+
+После main82260fdc / merged #991 ROOT отдельно берёт только
+`SalesRegisterView.tsx` → `sales-period-totals`. Проблема: крупный count,
+избыточные отступы и min-width400px сводки; подпись не различает filtered scope.
+Impeccable Operate/distill/adapt и действующий DESIGN обосновывают компактный
+count «Найдено по фильтрам» и один responsive semantic `dl` на валюту
+с обеими видимыми подписями/суммами. Сохраняются валюты, unknown counts,
+пояснения, архив/empty и отдельный «План отдела» без процента. Никакие данные
+или функции не удаляются. Fresh desktop incumbent просмотрен; mobile кадры
+обрезают верх сводки, поэтому её полный baseline/actual остаётся ROOT QA.
+
+Права плана сохраняются буквально; известный finance.read.full vs scoped
+target.manage gap остаётся отдельной задачей, не скрытым CSS-fix. SQL/API/DTO,
+cash section, формы, фильтры, import, list991 и Students layout вне scope.
+Полный контракт/границы/acceptance — CRM-02d appendix в launch-плане.
+Эта запись предшествует UI-коду; до независимого review/source GO только docs.

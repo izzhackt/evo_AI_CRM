@@ -1,8 +1,8 @@
 # A15g-2 / PR1012 — compact message sequences, actual local QA
 
 Статус: один ordinary staff UI-проход PASS; собственные ресурсы закрыты,
-полная final-сверка PASS. Независимое actual/closure review и окончательные
-head review/CI/merge ещё впереди. Production не обновлялся, весь item15 не закрыт.
+полная final-сверка PASS. Независимое actual/closure review831b1f6d принято;
+окончательные head review/CI/merge ещё впереди. Production не обновлялся, весь item15 не закрыт.
 
 Проверенный source: `6e401f9c31def66963ca63c4bc5e89900e23e627`, product
 `05705f7ab5aa3a907b9fbfb997ce4440aa636065`. Source-only review
@@ -83,7 +83,9 @@ login/logout audit. Остальные Auth поля/пользователи н
 
 Release27b0b2d2 сообщает released=true,nextOwner=B1006, но следующее выполнение
 требует отдельного admission ROOT. Product acceptance в immutable release
-остаётся pending-independent-review; восстановление среды не равно merge.
+записан как pending review/merge на момент выпуска receipt; позднейшее
+независимое review831b1f6d приняло scoped actual/closure. Восстановление
+среды и этот review не являются разрешением merge.
 
 ## Ограничения
 
@@ -118,3 +120,9 @@ Release27b0b2d2 сообщает released=true,nextOwner=B1006, но следу�
 acceptance, KB execution и обе append-only истории в исходном порядке.
 Продуктовые файлы совпадают с actual6e401f9c. Повтор продуктовых тестов для
 этой документационной интеграции не требуется; diff-check обязателен.
+
+Независимое actual/closure review: `/private/tmp/evo-team-chat1012-actual-review-20260921.md`,
+SHA-256 `831b1f6d21bbeddef93ad4d1e084171446f00a4f10da1dc40cc13dfbc4a79354`.
+Review отдельно сверило full parsed before/final,425старых Auth audit и
+2собственных добавления,224sessions/239refresh/224AMR с неизменными hashes,
+все stable поля8пользователей и gaps. Нового runtime/повтора QA не было.

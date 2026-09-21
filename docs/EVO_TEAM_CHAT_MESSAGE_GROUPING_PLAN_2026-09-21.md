@@ -1,10 +1,10 @@
 # A15g-2 — компактные последовательности сообщений одного автора
 
-Статус: precode принят ROOT после независимого APPROVED_PRECODE; реализация разрешена после merge #1008. Основа реализации: main `d6add88372778758b23686fb0bba6ae74181e15b`. Проверка актуальности повторена: целевой исходный код идентичен main29e0fb46 и actual A1005 7d70a71d. Source-only этап завершён; затем выполнен один ordinary staff actual batch на6e401f9c и strict final290/33. Среда освобождена через ROOT для B1006. Независимое actual/final-head review и merge ещё впереди.
+Статус: precode принят ROOT после независимого APPROVED_PRECODE; реализация разрешена после merge #1008. Основа реализации: main `d6add88372778758b23686fb0bba6ae74181e15b`. Проверка актуальности повторена: целевой исходный код идентичен main29e0fb46 и actual A1005 7d70a71d. Source-only этап завершён; затем выполнен один ordinary staff actual batch на6e401f9c и strict final290/33. Среда освобождена через ROOT для B1006. Независимое actual/closure review831b1f6d принято; final-head review/CI и merge ещё впереди.
 
 Принятый частный план SHA-256: `51ded3855666a6eeb793cae8cf99912a6e453667628d7734d711bf452e953e67`; независимое review: `b42dbc42a69b03f9c449754a8c2babf16f90cd575c95ed536451204b32d27631`. Ни approval плана, ни source tests не означают actual UI acceptance.
 
-Текущее выполнение: source `05705f7a` готов, 39/39 tests, scope lint/typecheck PASS; [квитанция](qa/team-chat-message-grouping-source-2026-09-21.md). Source-only review одобрено; один actual batch и закрытие PASS, [actual-квитанция](qa/team-chat-message-grouping-actual-2026-09-21.md). Независимое actual/final-head review и merge ещё впереди.
+Текущее выполнение: source `05705f7a` готов, 39/39 tests, scope lint/typecheck PASS; [квитанция](qa/team-chat-message-grouping-source-2026-09-21.md). Source-only review одобрено; один actual batch и закрытие PASS, [actual-квитанция](qa/team-chat-message-grouping-actual-2026-09-21.md). Независимое actual/closure review831b1f6d принято; final-head review/CI и merge ещё впереди.
 
 Источник: main `29e0fb46a8067a6a4f5a9bedce81971aba2f56ff`; просмотрен worktree evo-team-chat-read-retry/evo_AI_CRM. `git diff` от фактически проверенного A1005 `7d70a71d8156c70195567d9ee8c44e7cc6c2d5ae` до main пуст для всей папки team-chat, team-chat-feed.ts, team-chat-read-errors.ts и platform-team-chat.ts. Перед будущей реализацией после A1008 повторить только эту проверку актуальности.
 

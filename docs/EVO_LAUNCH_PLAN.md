@@ -13915,3 +13915,13 @@ Mainc42f3963/#1013 интегрирован только в docs с сохран
 обе append-only истории сохранены построчно в прежнем порядке. Продукт
 побайтно совпадает с actual6e401f9c, старые tests не запускались заново.
 Независимое actual/final-head review, CI финального head и merge ещё впереди.
+
+
+### A1012 — независимая actual/closure приёмка
+
+APPROVED_SCOPED_ACTUAL_AND_CLOSURE831b1f6d принято для actual6e401f9c:
+полные parsed before/final290/33, preserved425audits/224sessions/239refresh/
+224AMR и2ownAuthaudits, zero newseen, UI assertions/PNG/closure подтверждены.
+[Квитанция](qa/team-chat-message-grouping-actual-2026-09-21.md) сохраняет всеgaps.
+B1006 получил окно через ROOT; A больше не использует sharedruntime.
+Final-head review/CI/merge остаются отдельными; product bytes не менялись.

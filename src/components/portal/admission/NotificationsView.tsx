@@ -6,6 +6,7 @@ import type { StudentPortalNotification } from "@/lib/v3/portal-source";
 
 import { PortalMarkAllReadButton } from "./PortalMarkAllReadButton";
 import { PortalNotificationReadButton } from "./PortalNotificationReadButton";
+import { PortalNotificationReadForm } from "./PortalNotificationReadForm";
 import { PortalStatus } from "./PortalStatus";
 import { formatPortalTimestamp, portalNotificationTarget } from "./presentation";
 
@@ -50,9 +51,9 @@ export function NotificationsView({
           <p className="pt-card-note">{strings.notificationsTimeNote}</p>
         </div>
         {hasUnread ? (
-          <form action={markAllReadAction}>
+          <PortalNotificationReadForm action={markAllReadAction} errorMessage={strings.markAllReadError}>
             <PortalMarkAllReadButton locale={locale} />
-          </form>
+          </PortalNotificationReadForm>
         ) : null}
       </header>
       {/*
@@ -112,14 +113,14 @@ export function NotificationsView({
                 </div>
 
                 {unread ? (
-                  <form action={markReadAction}>
+                  <PortalNotificationReadForm action={markReadAction} errorMessage={strings.markReadError}>
                     <input
                       type="hidden"
                       name="notification_id"
                       value={notification.notificationId}
                     />
                     <PortalNotificationReadButton locale={locale} />
-                  </form>
+                  </PortalNotificationReadForm>
                 ) : null}
               </div>
             </li>

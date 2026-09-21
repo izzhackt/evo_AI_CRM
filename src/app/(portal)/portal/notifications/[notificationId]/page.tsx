@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PortalNotificationReadButton } from "@/components/portal/admission/PortalNotificationReadButton";
+import { PortalNotificationReadForm } from "@/components/portal/admission/PortalNotificationReadForm";
 import { formatPortalTimestamp } from "@/components/portal/admission/presentation";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
@@ -54,10 +55,10 @@ export default async function StudentHelpReplyPage({ params }: {
             <p className="pt-reply-meta">{formatPortalTimestamp(reply.answeredAt)}</p>
           </div>
           {readAt === null ? (
-            <form action={markStudentPortalNotificationReadAction}>
+            <PortalNotificationReadForm action={markStudentPortalNotificationReadAction} errorMessage={strings.markReadError}>
               <input type="hidden" name="notification_id" value={notificationId} />
               <PortalNotificationReadButton locale={locale} />
-            </form>
+            </PortalNotificationReadForm>
           ) : null}
         </div>
       </section>

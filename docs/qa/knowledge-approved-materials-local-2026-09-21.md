@@ -96,3 +96,14 @@ approve, для127 — два approve и отдельный unresolved банк�
 существующую owner-approved статью; дополнительное валютное правило требует
 точного источника. Новых approval, цен, обязательств и AI-публикаций нет.
 Текущие визовые сроки/условия не объявлены подтверждёнными старым review.
+
+KB31-126 затем получил ограниченную официальную перепроверку трёх ранее
+approved procedural claims. [Immigration](https://www.imi.gov.my/index.php/en/main-services/pass/student-pass/)
+и [EMGS](https://visa.educationmalaysia.gov.my/guidelines/medical-screening)
+используют разные единицы срока медосмотра; это различие сохранено, внутренний
+ориентир EVO не объявлен единым официальным максимумом. После независимого
+review к кандидату добавлено только происхождение проверки. Исходные2019 bytes
+и status/frontmatter сохранены: before `a9290da93339fb17c518ef88c95531e513d43cbf68af2faa2467d2aed0bae3f2`,
+after `b801d8bb1aefe4be4f1937a9b35c8fcbf9b7d393f9a56edcc0e5cdf8b29a6d65`.
+Receipt SHA `a0a438b5ebb88a518e34f82011c908af20ce2e792809eb7c76efc066f1938a5e`.
+Цены, конкретные intake, approval всей статьи и публикация не утверждались.

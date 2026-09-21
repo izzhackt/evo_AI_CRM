@@ -35578,3 +35578,65 @@ constraints. These storage-format rules add no business capability or permission
 saves and a separately reviewed rollback-only engine preflight. ROOT09d owns the
 shared runtime; its future final release/fresh baseline is required before226.
 No226 DB/Auth/UI execution, production action or full feature acceptance yet.
+
+## 2026-09-21 — CRM-09d: ошибка календарной даты в оплате из карточки
+
+Source67934327: `financeDateTime` возвращает UTC ISO; `recordCasePaymentAction`
+применяет `slice(0,10)` к UTC, хотя RPC189 принимает местный DATE и сам
+считает midnight Asia/Bishkek. Чистое исполнение текущего parser подтверждает
+ошибку для00:00–05:59, в том числе первого дня месяца и года. Выбран узкий
+fix: валидировать исходный datetime-local существующим parser, затем брать
+его местную календарную дату. Существующий timestamp-parser общего журнала
+не меняется, финансовые записи и SQL не переписываются. Это независимо от
+KB32/A225/B224; реализация offline, фактическая UI-проверка после их окон.
+Impeccable не требует визуальной правки для этого backend-дефекта; если
+связанный UI покажет проблему, его scope и совет фиксируются отдельно.
+
+### CRM-09d — точная локальная QA перед исполнением
+
+После root32 повторно связать existing Student1 case→membership→profile→Auth.
+Прежний09c экран1000USD относится к другому делу; он не доказывает баланс
+Student1. Сохранённые receipts целевого fictional QA дела показывают1KGS
+условий и отсутствие obligations/events; это требует fresh readiness.
+При совпадении через обычный Admin UI создать один явноLOCAL QA tranche1KGS
+и записать fictional payment0.50KGS без реальных денег/провайдера. Точный
+request UUID и at берутся из реальной формы без подмены hidden времени.
+Проверить actual local DATE и событие вCRM, затем тем же Student портал:
+1KGS начислено,0.50 оплачено,0.50 осталось. Portal DTO не содержит даты события.
+Бюджет: +1obligation,+1event,+1evidence,+2audit; обновляется только новый
+obligation. Все прежние строки, условия/cases/schema/Storage неизменны;
+Auth login/logout отдельно. Новые identities/права/активации/receipt files,
+refund для cleanup и production не разрешены этим сценарием. Actual result
+фиксируется отдельно; parser tests и предложение QA не означают выполнение.
+
+
+## 2026-09-21 — CRM-09d: фактическая форма и завершение local QA
+
+На frozen2c0755c1 настоящий payment form имел hidden empty note без видимого
+редактора. Перед submit сохранено это значение; QA-маркер оставлен в названии
+собственного транша, вместо предположенного текстового комментария. Hidden
+at/request UUID не менялись; scope остаётся транш 1,00 KGS и оплата 0,50 KGS,
+без receipt/refund/provider. Actual09:40 подтверждает ordinary action/RPC/date
+путь и общий баланс CRM/Student; ночные границы покрывает отдельный pure test.
+
+Фактический бюджет +1 obligation/+1 payment/+1 evidence/+2audit соблюдён;
+остальные278 таблиц/схема/Storage и все194 старых audit сохранены. После normal
+Admin logout/Student login/logout final sessions сравниваются отдельно:
+Auth users/identities8/8, не blanket equality всех Auth rows. Тестовые строки
+не удалялись. Window released→B226, receipt cce0f273; PR984 source/runtime
+не менялись после reviewed72d. Детальная квитанция —
+`docs/qa/payment-calendar-date-2026-09-21.md`. Production не затронут.
+
+
+## 2026-09-21 — B3e-2 / 226: локальный editor/save/readback подтверждён
+
+На frozen `6cdacc76` после ROOT09d локально применена226 один раз, затем ordinary
+Admin UI выполнил Q1 A2, Q2 B2 и Q3 A3. Ровно +3 revisions/+7 items/+1 empty
+optional QA slot/+1 link/+3 audit; прежние строки всех282 tables сохранены.
+14 ordinary HTTP reads и Student A/B desktop/mobile пройдены. Own sessions
+logout local204, Next33236 остановлен; Storage и Auth identities сохранены.
+[Фактический отчёт](platform/b3e2-requirements-editor-qa.md) разделяет executed
+proof, сохранённые helper failures и runtime gaps. Независимая сверка результата,
+актуальный main, PR review/CI остаются merge-gates; production не разрешён.
+Это завершение bounded core-сценария, не всех recovery/concurrency/legacy/native
+расширений и не всего плана1–36. Нового scope/API во время QA не добавлено.

@@ -24,6 +24,10 @@ export function financeDateTime(value: string): string | null {
   // EVO business wall-clock time; never use the browser's timezone implicitly.
   return new Date(`${value}:00+06:00`).toISOString();
 }
+/** A DATE keeps the entered business calendar day, independently of its UTC instant. */
+export function financeLocalDate(value: string): string | null {
+  return financeDateTime(value) === null ? null : value.slice(0, 10);
+}
 export function financeMoney(minor: string, currency: string): string {
   const value = BigInt(minor), negative = value < BigInt(0), absolute = negative ? -value : value;
   return `${negative ? "−" : ""}${new Intl.NumberFormat("ru-RU").format(absolute / BigInt(100))},${(absolute % BigInt(100)).toString().padStart(2, "0")} ${currency}`;

@@ -37339,3 +37339,21 @@ Product scope не изменён. [Actual receipt](qa/team-chat-channel-rail-ac
 точный bab source, а не новый combined-head статус. ROOT разрешил не повторять
 UI. Source final-head review и короткий CI обязательны перед ROOT merge.
 Новых миграций, permissions, runtime действий или полного item15 acceptance нет.
+
+
+## 2026-09-22 — A15 command feedback, accepted precode before implementation
+
+После protected merge #1020 в eec9c548 начинается [точное сообщение об исходе
+команды](EVO_TEAM_CHAT_COMMAND_FEEDBACK_PLAN_2026-09-22.md). Independent
+precode reviewa67c4d25 принят с единственной коррекцией: повтор может создать
+первое сообщение, если исходная попытка не дошла; обещаем отсутствие дубликата,
+а не отсутствие нового сообщения. Corrected approved plan1b5bcf4d.
+
+Source scope: operation-specific copy для post/edit/delete/moderate и маленький
+typed presenter; обработчики, requestId/expectedVersion/frozen input/reason,
+retry, saved/forbidden, read errors, CSS/SQL/rights неизменны. Общая таблица
+platform-team-chat остаётся: server page ещё использует её вне command scope.
+Impeccable clarify/Operate сохраняет нынешний интерфейс и объясняет неизвестный
+исход без обещания сохранённого черновика при удалении. Последующая bounded
+offline UI-проверка без online submit/delete требует отдельного QA handoff;
+общий стенд сейчас B1018 → ROOT16. Source review/short CI прежде actual.

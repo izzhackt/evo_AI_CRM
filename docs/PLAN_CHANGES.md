@@ -36572,3 +36572,20 @@ independent exact-byte closure48434643/38d705ab. Raw originals and forbidden mat
 bodies were excluded. Update the knowledge execution/report and1–36 ledger, dating
 old operational snapshots and distinguishing local #985 materials from pending
 company-download proof. Prose-only validation: diff review and git diff --check.
+
+## 2026-09-21 — KB31 first-read completion checkpoint
+
+Record the completed bounded first review of the admitted 31-candidate set:
+16 candidates have narrow provenance appendices, 15 retain unresolved claims
+without an appendix, and none await first review. These are work groups, not
+whole-material approvals; unresolved claims also remain in appended materials.
+Last batches 146/147 and 153/154/327 passed independent exact-byte closure
+4a37d170/36e759a2: original prefixes, frontmatter, status, source chains and
+publication manifests were preserved. Retain earlier 11/9/11 history and all
+raw/applicant/trash/secret exclusions, including 125/321–325/328. Update only
+the knowledge QA report, execution checkpoint and item31 row; no product,
+KB or publication writes in this documentation slice. Item31 still needs
+specific business decisions and applicable official-source verification;
+item32 ordinary company downloads remain unproved by this evidence.
+Prose-only validation: diff review and git diff --check; independent exact-head
+review and protected CI remain required before merge. No production claim.

@@ -58,10 +58,14 @@ export function DeleteAccountRequest({
         onClick={() => {
           setFailed(false);
           startTransition(async () => {
-            const result = await requestAccountDeletionAction(requestId);
-            if (result.ok) {
-              setRequestedAt(result.requestedAt);
-            } else {
+            try {
+              const result = await requestAccountDeletionAction(requestId);
+              if (result.ok) {
+                setRequestedAt(result.requestedAt);
+              } else {
+                setFailed(true);
+              }
+            } catch {
               setFailed(true);
             }
           });

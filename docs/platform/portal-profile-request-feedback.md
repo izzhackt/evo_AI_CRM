@@ -1,8 +1,8 @@
 # Профиль: ошибка неподтверждённого запроса
 
 Пункты 24/25, отдельный небольшой блок после #1003. База:
-`7f44445569507a16f923e9279edb6422e82e3cab`. Статус: принят precode;
-реализация и фактическая проверка пока не выполнены.
+`7f44445569507a16f923e9279edb6422e82e3cab`. Статус: precode независимо
+одобрен, код реализован и source checks пройдены. Actual пока не выполнен.
 
 ## Проблема и контракт
 
@@ -64,3 +64,14 @@ Source inventory на указанной базе нашёл скрытые refr
 Поздний [Home receipt](../design/portal/ios-home-refinement.md) уже подтверждает
 KY Home и свои light/dark/large-text состояния; его результат не переоткрывается.
 Не переносить этот PASS на остальные экраны или VoiceOver.
+
+## Source checkpoint — 2026-09-21
+
+Независимый precode review `11f425d6f8f838b923462f90be17dcff063ae142` — APPROVED.
+Реализация меняет только catch в компоненте и два согласованных error strings;
+requestId, RPC и success-focus сохранены. На Node22.23.1 прошли 14 существующих
+проверок `portal-i18n.test.mjs`/`portal-profile.test.mjs`, scoped ESLint двух
+изменённых файлов, TypeScript `--noEmit --incremental false` и diff-check.
+Прежний MODULE_TYPELESS_PACKAGE_JSON warning не блокирует проверки. Эти тесты
+проверяют словари, profile/receipt parsing и существующий wiring; transport catch
+в браузере ими не доказан. Source review/CI и будущее actual окно — отдельные gates.

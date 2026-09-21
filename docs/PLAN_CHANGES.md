@@ -35170,6 +35170,34 @@ from the unconfirmed empty-menu concern.
 source-проверка currencyMismatch привязана к aside: разрешено обновить её locator
 на новую ветку с обязательным nonempty guard, сохранив проверяемую денежную защиту.
 
+
+## 2026-09-21 — A15b sequencing from verified chat dependencies
+
+Fresh main686b7f41 shows root-only history pagination, root-only parent acceptance,
+separate thread drafts with immutable retryInput, no per-message seen store and
+no all-channel preview DTO. These are real dependencies of the accepted overall
+chat plan, not permission to flatten history with a cosmetic UI deletion.
+
+Select the separately accepted composer autosize as the next two-file block:
+TeamChatComposer.tsx and existing textarea sizing CSS, current44..160 bounds.
+Preserve all draft keys/state, command payload and IME/Enter/focus protections.
+No migration reservation or new server history is needed. Local unsent UI input
+can prove geometry without creating messages; empty history still limits actual
+reply/edit/saved-path evidence and must stay explicit. Impeccable guidance and
+current official layout references are recorded in the remainder analysis.
+Precode only; larger flat-feed/search/seen scopes await their own design/review.
+
+
+### A15b offline implementation and incumbent evidence reuse
+
+ROOT approved implementation on reviewed precode918c6edd while B211 owns the
+shared QA writer. Reuse A15a actual staff composer evidence at10aa2617: both
+TeamChatComposer.tsx and team-chat.module.css are byte-identical in this
+precode. This replaces the earlier reopen-before-edit sequence for this block;
+no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
+the next coordinator-released QA window, with calibrated CSS viewport widths.
+Existing empty-history limits on edit/reply/saved-path proof remain unchanged.
+
 ## 2026-09-21 — CRM-09c: единая оболочка не объединяет права
 
 Разбор item12 после #971 выявил разные contract/finance capabilities. Простое

@@ -35668,3 +35668,25 @@ Old-reader PT409 ограничен публичными entrypoints; общий
 внутреннюю projection для свежего editor/save226 и authorized pending recovery.
 Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
 не исполненное runtime-доказательство.
+
+B3f wire уточнён перед соответствующим кодом: exact upload metadata/hash входят
+в admission до multipart; terminal replay проверяет реальные bytes и актуальный
+доступ в новом bounded body lease, без повторного scan/Storage. Canonical header
+и тонкие contextual routes не меняют legacy wire. Повторное использование файлов
+показывает первую страницу20 и scoped keyset nextCursor (max50), вместо загрузки
+всего архива или лимита, выключающего программу при большом числе версий.
+
+Прямую зависимость уведомлений сверили по актуальному153v2: его старые источники
+не разрешают программный review.228 добавляет scoped projection через existing
+notifications/events и exact review, UNION в неизменный восьмипольный feed и тот
+же guard при mark-read. Owner-only notification detail RPC даёт точную программу/
+версию для web/iPhone ссылки; нет fake legacy review, новой общей очереди или
+пятой companion таблицы. Это реализация уже принятого notification/deep-link
+контракта, не завершённая пользовательская проверка.
+
+Source-проверка B3f выявила прямую совместимость service-only metadata043/156:
+его `current_version_no + 1` конфликтует с новой draft-версией, которая специально
+не публикуется в current. До реализации уточняем228: source-checked замена одной
+формулы на MAX(version_no)+1 под прежней блокировкой slot, без изменения прав,
+legacy receipt и публикации. Contextual request запрещён до replay также в этом
+entrypoint и прежнем staff preflight; общий manual workflow сохраняется.

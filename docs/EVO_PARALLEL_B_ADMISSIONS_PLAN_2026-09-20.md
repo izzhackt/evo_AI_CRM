@@ -12,8 +12,13 @@ release `bcb7ed6d` передан A227; это не production delivery или �
 
 Следующий B3f — один документ: сохранить → явно отправить → получить scoped
 решение → исправить. Root резервирует228, [precode](platform/b3f-program-document-submission-contract.md)
-готовится к независимому review до реализации. Отдельный полный packageB3g,
-native UI и оставшийсяB-план не завершены. Runtime сейчас A227→ROOT990→ROOT991.
+принят независимым review на `b81c338c`. Web/iPhone/SQL исходники реализованы;
+исправления независимого source review и exact-head интеграция продолжаются.
+[Проверки и remaining QA](platform/b3f-program-document-submission-qa.md) отделяют
+офлайн-доказательства от ещё не исполненных реальных сценариев. Отдельный полный
+packageB3g, native UI и оставшийсяB-план не завершены. Root обновил очередь:
+ROOT990 закрывает своё окно на227 → ROOT991 read-only UI → B228 → ROOT229.
+B228 не применена; production authority отсутствует.
 
 ## Исторический checkpoint до #988 — 21 сентября 2026
 

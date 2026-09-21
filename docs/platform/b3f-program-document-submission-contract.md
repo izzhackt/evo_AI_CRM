@@ -84,13 +84,14 @@ version, отправку и решение. При изменении опре�
 | RPC | Вход и результат |
 | --- | --- |
 | `student_application_documents_v1`, `staff_application_documents_v1` | `(case,application)` → protocol1, текущая requirements revision, item states, eligibility. Staff требует scoped document.read.full; Student — действующее сопровождение и собственное дело. |
-| `admit_application_document_upload_v1` | `(case,application,revision,item,request)` → immutable context. Роль определяется обычным Auth; staff требует document.upload. Существующие rate/scan leases сохраняются. |
+| `admit_application_document_upload_v1` | `(case,application,revision,item,slot,uploadMetadata,request)` → immutable context. Роль определяется обычным Auth; staff требует document.upload. Exact filename/MIME/decimal byteSize/SHA256 входят в intent до чтения body. Существующие rate/scan leases сохраняются. |
 | `reserve_application_document_upload_after_ingress_scan_v1` | service-only: context + exact scanned metadata/proof; создаёт canonical version/reservation, повторно проверяя текущего uploader/context. |
 | `finalize_application_document_upload_with_scan_v1` | service-only: context/reservation + exact stored scan proof; seal exact object без вызова055 publication. Не держать DB transaction во время HTTP/ClamAV. |
 | `submit_application_document_v1` | `(case,application,revision,item,selection,expectedPreviousSubmissionId,request)` → immutable receipt с exact version. Current revision/mapping и technical availability обязательны. |
 | `review_application_document_submission_v1` | `(submission,expectedPreviousReviewId,decision,reason,request)` → scoped review receipt; document.review и актуальный case scope. Допускает старую отправленную версию после нового upload. |
 | `grant_application_document_download_v1`, `consume_application_document_download_v1` | обычный Auth grant и service consume; exact upload/submission/version, повторная авторизация и проверка object/clean/integrity на обеих стадиях. Existing one-use grants/expiry сохраняются. |
 | `application_document_history_v1` | scoped `(case,application,item?,cursor,limit)`; item задан — его доказанная predecessor-цепочка, item отсутствует — вся программная история, включая удалённые требования. Keyset `(created_at,id)`, default20/max50; точные origin revision/item/definition/material и nextCursor. |
+| `application_document_reusable_versions_v1` | scoped `(case,application,item,cursor,limit)` — доступные canonical versions текущего mapped slot, default20/max50. Reader включает первую страницу и nextCursor; выбор старой версии не требует загрузки всего архива. Только безопасные данные файла/selection/availability, без чужих программных метаданных. |
 | `staff_application_document_submission_queue_v1` | scoped keyset очередь actual submissions с открытой проверкой, student/program/item/deadline; default20/max50. Разрешённые нераспределённые дела остаются видны, auto-assignment нет. |
 
 Selection — закрытый union `{kind:program_upload,uploadContextId,documentVersionId}`
@@ -123,6 +124,26 @@ reader DTO. Исторический218 initialization replay и226 exact-save r
 нельзя включить новый upload без доступных submit/read/download действий.
 
 ## Переходы и неизменность намерения
+
+Новые тонкие POST adapters `/api/portal/application-document-uploads` и
+`/api/v3/application-document-uploads` используют общий scanner/Storage transport.
+`Idempotency-Key` фиксирует requestUUID; `X-EVO-Upload-Intent` — canonical unpadded
+base64url UTF-8 closed JSON с protocolVersion1, studentCaseId/applicationId/
+requirementsRevisionId/requirementItemId/documentSlotId и `file` (originalFilename,
+declaredMimeType, byteSize decimal, sha256Hex). Header ограничен8192 ASCII chars,
+decoded6144 bytes. Multipart содержит только `file`, transport filename=`upload`;
+исходное безопасное имя хранится из header. Реальные MIME/size/hash/signature
+проверяются сервером, header сам по себе ничего не доказывает.
+
+Даже finalized replay сначала получает ограниченный допуск на чтение body и
+проверяет переданные байты, затем повторно проверяет актуальный доступ в рамках
+этого допуска. Он не делает новый scan/Storage write и не возвращает201 до
+проверки body. Старый expired lease не становится новым deadline; повторная
+проверка не создаёт второй lease. Existing actor/slot budgets сохраняются.
+HTTP201 `{upload:receipt}` содержит точные target/file/request/context/version,
+finalizedAt и `publishedToLegacySlot:false`. Client сохраняет metadata/intent,
+не binary/secret; после reload для повтора надо выбрать тот же файл. Исторические
+slot-only routes сохраняют прежний wire и поведение.
 
 | Действие | Фактический результат |
 | --- | --- |
@@ -172,11 +193,33 @@ reviewedAt. Storage paths, tokens, internal actor IDs и scanner secrets не в
 Docs inventory не фильтровать до submissions. Уведомления связывать с submission
 и exact item, используя существующее notification plumbing, без task на каждый файл.
 
+Актуальные клиенты используют feed/mark-read153v2 (не прежний068v1). Сохраняем
+его закрытые восемь полей: review создаёт обычные notification + created event
+с dedupe по exact review; scoped helper проверяет recipient/case/review command
+и возвращает `event_code=application_document_review`. Feed UNION и mark-read
+admission используют один helper, подобно `own_case_help_notifications`; прежние
+ветви/receipts не меняются. Малый owner-only
+`student_application_document_notification_v1(notificationId)` возвращает exact
+case/application/revision/item/submission для отдельного detail/deep link. IDs
+не кодируются в category/eventCode, legacy document_review не подделывается,
+пятой companion таблицы нет. Уведомление относится к каждому фактическому решению
+approved/correction_required/rejected; повтор команды не создаёт новый notification.
+
 EVO/Атлас/Golos, текущие controls и RU/KY сохраняются; desktop/mobile компоновка
 без нового дизайна. Не повторять Impeccable context/detector; craft-floor перед
 UI edits, максимум две batched visual rounds в выделенном runtime окне.
 
 ## Владение и доказательство
+
+Совместимость service-only `record_document_version_metadata`: поскольку новый
+draft не двигает `slot.current_version_no`, старый allocator `current + 1`
+может столкнуться с уже сохранённой версией.228 заменяет только эту формулу на
+`MAX(document_versions.version_no) + 1` в том же slot под существующим `FOR UPDATE`;
+точное исходное выражение и число замен проверяются. Guard против contextual
+request добавляется до replay также в этот service-only entrypoint и прежний
+staff `preflight_document_upload`. Прежние права, receipts и публикация manual
+версии сохраняются. Это найденная source-проверкой прямая зависимость B3f,
+не расширение прав или изменение manual workflow.
 
 SQL owner: только новая228 и её scoped tests. Shared TS/server owner: contextual
 upload/download adapters, codecs/actions/pending; существующий transport не

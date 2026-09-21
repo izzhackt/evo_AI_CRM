@@ -12809,3 +12809,14 @@ Old-reader PT409 ограничен публичными entrypoints; общий
 внутреннюю projection для свежего editor/save226 и authorized pending recovery.
 Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
 не исполненное runtime-доказательство.
+
+### B3f — исходники и независимое source review
+
+Precode `b81c338c` APPROVED. Реализованы SQL228, web/CRM и iPhone save/submit/
+review/history/notification flow. Source reviews проверили отдельно transport,
+SQL, native и web/UX; конкретные найденные ошибки исправляются до immutable
+integration review. [Отчёт](platform/b3f-program-document-submission-qa.md)
+содержит офлайн-проверки, прежние несвязанные source-test failures и предложенные
+actual changed-path сценарии. Это не применённая228 и не готовый production flow.
+Root сохраняет228 за B, резервирует229 для receipt-пути; актуальное runtime окно
+после ROOT990: ROOT991 → B228 → ROOT229. Разрешение на запуск B ещё не передано.

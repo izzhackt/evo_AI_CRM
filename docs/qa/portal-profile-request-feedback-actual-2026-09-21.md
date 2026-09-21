@@ -1,4 +1,11 @@
-# PR1006 — UI STOP, закрытие QA-среды PASS
+# PR1006 — профиль: локальная проверка сетевого сбоя
+
+Текущий результат: один первый transport-rejection UI прошёл на `c4d73455`;
+закрытие ресурсов и строгая сверка данных PASS. Последний раздел содержит
+доказательства нового browser-offline прохода. Два прежних STOP ниже сохранены
+как история и не переименованы в успешные проверки.
+
+## Первый прогон: переход на статус заявки (STOP)
 
 Обычный вход существующего настроенного QA Student перенаправил браузер на
 `/apply/status`. Ожидание `/portal` завершилось timeout; до профиля, остановки
@@ -129,3 +136,65 @@ browser-offline transport failure уже загруженного профиля
 потеря документа означает STOP. Он требует будущего отдельного QA-окна после
 ROOT22F → A15 и не выполнен. Сохранённый proposal SHA
 `42739d31a72ea96e210d4663e1467176e01a390af6e6c8bcf0f7095a54048d98`.
+
+
+## Третий прогон: один browser-offline transport rejection — PASS
+
+Координатор отдельно допустил один конечный сценарий после A1012. Source
+`c4d734555305075faaa446fa330cb4353fcbc3aa`, binding071d5ee6, прежний существующий
+Student из receipt209. Fresh before подтвердил actual incoming A1012 release
+`27b0b2d29886b7b46f3f41b1a8951607b350f88be18de426174b9878c9a183a0`
+и его полный235/290/33 state. Новый актор/config/grant/fixture не создавался.
+
+Обычный вход и профиль прошли. Собственный сервер оставался работающим; только
+свой browser context переведён в стандартный offline. Один keyboard Enter по
+существующей кнопке дал ровно один POST/profile и соответствующий requestfailed
+с `net::ERR_INTERNET_DISCONNECTED` и тем же command UUID. Сохранились document,
+URL, epoch и DOM-кнопка; document requests и main-frame navigations равны0.
+Появился точный RU alert «Не удалось подтвердить отправку запроса. Повторите
+попытку.», pending завершился, кнопка снова enabled, success state отсутствует.
+Никаких mocks, route interception, второго клика или снимков экрана не было.
+
+В finally исходный документ уничтожен переходом только в about:blank, пока
+контекст ещё offline; затем сеть возвращена. After-UI OBSERVED подтвердил ноль
+business/Storage изменений. Обычный собственный Auth API logout(scope=local)
+вернул204, cookies очищены, exact browser `b1006-offline-student` закрыт,
+свои Auth-файлы удалены. Только после этого остановлен Next36648, launcher
+завершился0, PID отсутствует и порт33248 закрыт. Сервер не перезапускался;
+UI logout не заявлен. Вкладка пользователя33216 не затронута.
+
+Неизменённые SQL/verify_business/verify_final/capture подтвердили полный290/33,
+каталог/эффекты и сохранность прежних sessions/refresh/AMR; изменились лишь
+разрешённые metadata собственного Auth-входа и две login/logout audit-записи.
+Ресурсы переданы ROOT22G. Release фиксирует product review pending отдельно от
+уже наблюдённого первого transport-rejection и успешного strict closure.
+
+Private packet: `/private/tmp/evo-b1006-offline-local-20260921`.
+
+| Артефакт | SHA-256 |
+| --- | --- |
+| `binding.json` | `071d5ee6aff6591ced2586881759639fcbc83d828b24a6f0b9bba5d55cb531e1` |
+| `observer/before.json` | `0fabbb5b3e91a13a1d3b8093180e7c93899c18428ea7a1bcbe4747163d991dc4` |
+| `runtime/ui-offline.receipt.json` | `af392e30b3d5bc5ee9c85c948bad93958b8327d01d6c78a1e43cb4d074c91719` |
+| `observer/after-ui.json` | `ea940e2efbff8ccced0b0a1650de9d413447560e32f66dc5339d99359cce452b` |
+| `runtime/api-closure.json` | `1f323059ea021687d968969331050ea80f33e6515850692ac44cfc7500d0d498` |
+| `observer/final.json` | `2891910bf265575f6a51c050e70f1ec9ca831d06a5b0cb62107dc04cf5c9bb77` |
+| `release-receipt.json` → ROOT22G | `b18b832e3bb1bb3dd92bd7c6131386fe2d6b26c3690b10163ebe320be92bff40` |
+| Independent inert review | `0627b1fe21a77695ceda44986c33c2941df09b4819ed273f4cbee1bb35008da2` |
+| Independent bound review | `50879023c0fd61d28b911c7b23b143ce3c939df090fd4b10053bcda4890ce2eb` |
+
+Это узкое техническое доказательство первого отказа транспорта. Повтор/Space,
+KY runtime, layout, положительное принятие deletion request, lost response после
+записи, native/VoiceOver/full E2E и production этим проходом не проверялись.
+Product bytes при последующей интеграции main7faa4748 сохраняются; повторять
+неизменённый UI-проход ради изменения только документов/не связанных staff-файлов
+не требуется. Финальное independent product/exact-head review и CI — отдельные
+условия merge, а не разрешение deployment.
+
+
+Независимое actual+closure review: **APPROVED_SCOPED_NEGATIVE_UI_AND_CLOSURE**,
+SHA `27e335dde0630d41823e8a21e9728a9c253297125127190adc1620eb6b1000a8`.
+Оно подтверждает первый реальный отказ транспорта, нейтральный UI и strict closure;
+исполнение серверной команды и положительное принятие запроса не заявляются.
+Историческое productReviewPending в immutable release отражает момент передачи
+ресурсов до этого review и не переписывается задним числом.

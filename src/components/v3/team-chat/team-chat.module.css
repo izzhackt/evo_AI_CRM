@@ -37,6 +37,9 @@
 .dateDivider { display: flex; justify-content: center; margin: 4px 0 18px; }
 .dateDivider span { padding: 5px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text) 4%, var(--bg)); color: var(--text-3); font-size: 12px; }
 .message { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0 12px; scroll-margin: 16px; }
+.continuation { padding-top: 2px; padding-bottom: 6px; }
+.continuationAvatar { visibility: hidden; }
+.continuation .bubble { margin-top: 2px; padding-block: 8px; }
 .messageContent { min-width: 0; max-width: min(680px, 85%); }
 .authorAvatar { flex-basis: 38px; width: 38px; height: 38px; background: color-mix(in srgb, var(--text) 8%, var(--surface)); font-size: 13px; }
 .ownMessage { justify-content: flex-end; }

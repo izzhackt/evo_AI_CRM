@@ -11,6 +11,7 @@ import { emptyTeamChatReadErrors, hydrateTeamChatRefreshTail, reduceTeamChatRead
 import type { TeamChatTimelineQuery } from "@/lib/platform-team-chat-timeline";
 import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v2";
 import { emptyTeamChatFeed, extendTeamChatFeedRange, mergeTeamChatFeedChanges, mergeTeamChatFeedPage, mergeTeamChatSearchChanges, teamChatFeedMessage, teamChatFeedQuote, teamChatFeedRange, teamChatFeedRows, type TeamChatFeedSnapshot, type TeamChatFeedStore, type TeamChatFeedRange, type TeamChatScrollAnchor } from "@/lib/team-chat-feed";
+import { teamChatMessageContinuations } from "@/lib/team-chat-message-grouping";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { Icon } from "@/components/icons";
@@ -362,6 +363,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const rows = teamChatFeedRows(feed.store, feed.range);
   const latestMessage = latestMessageId ? teamChatFeedMessage(feed.store, latestMessageId) : null;
   const currentChannel = channels.find((item) => item.key === channel);
+  const continuations = teamChatMessageContinuations(rows, { highlightedId: highlighted, firstUnreadId: currentChannel?.firstUnreadId });
   const transportLabel = forbidden ? "Доступ к каналу закрыт" : transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
   const afterSave = () => { void refresh(); };
 
@@ -428,6 +430,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
               return <div key={message.id}>{date !== priorDate ? <div className={styles.dateDivider}><span>{date}</span></div> : null}
                 <TeamChatMessageRow message={message} quote={message.quoteMessageId ? teamChatFeedQuote(feed.store, message.quoteMessageId) : null}
                   ownMembershipId={membershipId} canModerate={canModerate} participants={participants} highlighted={highlighted === message.id}
+                  continuation={continuations[index]}
                   onReply={(row) => composer.current?.reply(row)} onEdit={(row) => composer.current?.edit(row)}
                   onQuote={(id) => { void navigate({ channel, mode: "context", messageId: id }, true); }}
                   onDelete={(row) => { if (!deletion) { deletionFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>("[data-chat-row]") ?? document.activeElement : null; setDeletion({ message: row, requestId: crypto.randomUUID(), isOwn: row.authorMembershipId === membershipId }); } setDeletionVisible(true); }} />

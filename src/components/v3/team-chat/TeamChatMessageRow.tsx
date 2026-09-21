@@ -11,10 +11,10 @@ import styles from "./team-chat.module.css";
 
 export type TeamChatDeletionAttempt = { message: TeamChatMessage; requestId: string; isOwn: boolean };
 
-export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerate, participants, onReply, onEdit, onDelete, onQuote, highlighted = false }: {
+export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerate, participants, onReply, onEdit, onDelete, onQuote, highlighted = false, continuation = false }: {
   message: TeamChatMessage; quote: TeamChatQuote | null; ownMembershipId: string; canModerate: boolean;
   participants: readonly TeamChatParticipant[]; onReply: (message: TeamChatMessage) => void;
-  onEdit: (message: TeamChatMessage) => void; onDelete: (message: TeamChatMessage) => void; onQuote: (id: string) => void; highlighted?: boolean;
+  onEdit: (message: TeamChatMessage) => void; onDelete: (message: TeamChatMessage) => void; onQuote: (id: string) => void; highlighted?: boolean; continuation?: boolean;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   const isOwn = message.authorMembershipId === ownMembershipId;
@@ -22,11 +22,11 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
   const mentionedNames = message.mentionedMembershipIds.map((id) => participants.find((person) => person.membershipId === id)?.displayName ?? "Участник");
   function closeMenu() { if (menu.current) menu.current.open = false; }
   return <article id={`team-message-channel-${message.id}`} data-chat-row={message.id} tabIndex={-1}
-    className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""}`}>
-    {!isOwn ? <span className={styles.authorAvatar} aria-hidden="true">{initials}</span> : null}
+    className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""}`}>
+    {!isOwn ? <span className={`${styles.authorAvatar} ${continuation ? styles.continuationAvatar : ""}`} aria-hidden="true">{initials}</span> : null}
     <div className={styles.messageContent}>
       <div className={styles.messageHeader}>
-        <strong>{message.authorName}</strong>
+        <strong className={continuation ? styles.srOnly : undefined}>{message.authorName}</strong>
         <time dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}>{new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}</time>
         {message.editedAt && !message.deletedAt ? <span className={styles.muted}>изменено</span> : null}
       </div>

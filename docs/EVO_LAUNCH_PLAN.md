@@ -12831,6 +12831,45 @@ Final independent actual-evidence/exact-head review, protected CI/merge and
 fresh full RAW release to ROOT990 remain. Only then start A15f UI code, preserving
 ROOT's separate mobile-sales presentation ownership. This does not close item15.
 
+### CRM-09e — следующий локальный срез: чек к существующей оплате
+
+Контракт исходного CRM-09 сохраняется. На main `70da1ed9` найден отсутствующий
+UI-вход к уже существующему receipt endpoint: после сохранения без файла и
+повторного открытия дела чек добавить нельзя. Добавить inline upload к
+receiptless payment под прежними write/preview gates; не создавать повторную
+оплату, не менять ledger, SQL, Storage policy или финансовые права.
+
+Сначала минимальная реализация и scoped checks; после общей очереди B226/A227
+один ordinary Admin upload к сохранённой fictional QA оплате и проверка
+сохранности суммы/баланса, metadata, scanner и Storage. Снимки до/после,
+неопределённый ответ без автоматического retry, desktop/mobile с Impeccable,
+независимое exact-head review и короткий CI. Actual upload, Student download,
+production и весь пункт12 до соответствующей квитанции не заявляются.
+
+
+### CRM-09e — hydration hardening, 2026-09-21
+
+Actual first upload click on source d3fe39b55a12d581f34fc3318369f47e0b5e52dc navigated by native GET to /v3/profile?; no payment-receipts POST occurred. Root receipt first-click-no-effect.json records exact before/after full 283-table, financial and Storage parity. The cause of the missing hydration handler remains unknown; document readiness and native file selection do not prove React hydration.
+
+Before another actual upload, reuse the existing stable useSyncExternalStore client/server snapshot pattern in CasePaymentReceiptUpload: keep file input and submit disabled during SSR/pre-hydration, expose busy state, retain immediate preventDefault and all in-flight/unknown/no-auto-retry guards. No layout, API, payment, Storage or legacy form changes. Scoped lint/typecheck validate source; root owns independent review and one actual UI confirmation round. This hardening is not proof of a successful upload or identification of the hydration root cause.
+
+
+### CRM-09e — connect existing receipt routes, 2026-09-21
+
+Actual corrected UI hydration passed; its single upload POST returned403 platform_route_not_connected at proxy before the handler. Root verified exact before/after283-table financial/audit/Storage/Auth-session parity; no upload succeeded. Connect only existing payment-receipts/{paymentEventId} and payment-receipt-files/{studentCaseId}/{fileId}/download through isConnectedPlatformApi with exact UUID v1–5 segments matching handlers. Retain ordinary staff-cookie proxy flow, live handler authority/record scope and all Storage checks; no public Student or direct-private bypass. Add positive/negative route-contract coverage. Existing case-contract upload connectivity is a separate finding, excluded from this slice. No UI change or new business operation; actual confirmation remains root-owned.
+
+
+### CRM-09e — scoped receipt authority dependency229, 2026-09-21
+
+Contract: `docs/platform/payment-receipt-authority-contract-2026-09-21.md`. Actual35a11aa0 upload stopped at service-role table SELECT42501, masked as404; zero successful uploads and root final283-table/financial/Storage/Auth-session parity. ROOT reserves229 afterB228. Before implementation, independently review authenticated exact upload/download target RPCs, delegated principal revalidation before receipt metadata write/replay, strict bounded decoder and403-versus503 behavior. No table grants, financial changes, contract-file expansion or new UI. Existing routes/legacy receipt compatibility remain; no apply/runtime in this precode.
+
+
+### CRM-09e229 — source implementation, 2026-09-21
+
+Implemented authenticated receipt upload/download target RPCs and a closed scalar decoder; handlers no longer directly SELECT payment_events/payment_receipt_files for receipt operations. Delegated metadata admission locks organization then existing155 profile/membership order and case; explicit156/189 read+write policy precedes historical replay, with full stored principal/metadata comparison. Contract-file handler/functions remain unchanged. Missing/malformed target and infrastructure errors503; explicit42501 becomes403. No UI edits.
+
+Node22 targeted decoder plus existing case-agreement checks41/41 PASS, scoped ESLint/typecheck/diff-check PASS. These are pure/source checks, not SQL/RLS or actual upload acceptance. Existing configured migration boundary invokes Docker/Postgres and was not run under source-only scope; SQL compile/role/revocation/concurrency/replay execution remains pending independent review and coordinated post228 local QA. Zero successful upload claim remains unchanged.
+
 
 ## CRM-02c — вертикальные записи продаж на телефоне (2026-09-21)
 
@@ -12889,6 +12928,156 @@ Docs-only на main `82260fdc`: обновлены current fronts execution/A/B 
 сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
 DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
 Проверка: diff review и git diff --check; независимое exact-head review до merge.
+## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
+
+#988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
+release `bcb7ed6d` передан A227, B больше не использует общий runtime.
+Root резервирует228 только для следующего single-document B3f; очередь
+A227→ROOT990→ROOT991 сохраняется, apply не разрешён.
+
+Source inventory055/043/116/128/226 показал, что общий current/status и прежний
+review автоматически связали бы A/B. Принято направление отдельных immutable
+program upload/submission/review/download contexts при тех же canonical bytes
+и scan/Storage transport. Старые Docs/manual/visa и approved ZIP guards сохраняются.
+[Precode228](platform/b3f-program-document-submission-contract.md) фиксирует
+approved-current replacement, exact historical-version download, fail-closed
+old readers и узкий SQL context-exclusion на legacy replay-входах. Последнее —
+явное compatibility amendment для review, не глобальное изменение legacy-процесса.
+До кода — независимое exact precode review; следующий полный package B3g отдельно.
+Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
+состояния. Runtime/новые файлы/production/native acceptance не заявлены.
+
+Независимый precode review64d4324e потребовал два уточнения до реализации:
+история следует server-proven predecessor-цепочке226 и доступна также для
+удалённых требований; прежнее решение не переносится в новую definition.
+Old-reader PT409 ограничен публичными entrypoints; общий v2 helper сохраняет
+внутреннюю projection для свежего editor/save226 и authorized pending recovery.
+Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
+не исполненное runtime-доказательство.
+
+### B3f — исходники и независимое source review
+
+Precode `b81c338c` APPROVED. Реализованы SQL228, web/CRM и iPhone save/submit/
+review/history/notification flow. Source reviews проверили отдельно transport,
+SQL, native и web/UX; конкретные найденные ошибки исправляются до immutable
+integration review. [Отчёт](platform/b3f-program-document-submission-qa.md)
+содержит офлайн-проверки, прежние несвязанные source-test failures и предложенные
+actual changed-path сценарии. Это не применённая228 и не готовый production flow.
+Root сохраняет228 за B, резервирует229 для receipt-пути; актуальное runtime окно
+после ROOT990: ROOT991 → B228 → ROOT229. Разрешение на запуск B ещё не передано.
+
+
+### B3f — локальная проверка сохранения, отправки и решения завершена
+
+На неизменном runtime HEAD `571d65a8645b518c3513d8a9eebe36410f929e8e`
+миграция228 применена один раз в согласованной локальной QA-базе. CI
+[35567860470](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35567860470)
+прошёл: шесть выбранных проверок успешны, две maintenance-проверки пропущены.
+
+Обычный Student/Admin UI подтвердил отдельные Save → Submit → Review: V1 принята
+по программе A; новая V2 остаётся черновиком; повторно выбранная V1 получила
+отдельное замечание по B. Старое уведомление A ведёт к принятой V1. Три browser
+скачивания вернули точные bytes V1, V1 и V2. Общий legacy slot целиком неизменён.
+Два ограниченных прохода Impeccable покрыли desktop/mobile web; native iPhone UI
+не проверен. [QA-отчёт](platform/b3f-program-document-submission-qa.md) отделяет
+исполненный основной сценарий от ещё не выполненных recovery/concurrency,
+changed-requirements и legacy-вариантов; весь объём13/17–21 не объявляется готовым.
+
+Итоговая проверка `72d19741efbbc37028ce0e5cb76fa19356e6867349da410207065c6ce82654df`
+подтвердила52 новых строки в17 таблицах,16 audit events, два Storage-объекта;
+прежние строки всех287 таблиц и прежние Storage-объекты сохранены. После выхода
+Auth sessions/refresh tokens вернулись к исходным полным хешам223/238; все три
+созданные этим прогоном сессии отсутствуют. Собственные browser/Next/scanner
+остановлены; точный Next child exit code неизвестен после прерывания supervisor,
+поэтому подтверждены лишь фактическое отсутствие процессов и закрытый порт.
+
+RAW release `/private/tmp/evo-b228-core-ui/release-receipt.json`, SHA256
+`f375371369becc30f1f873badb6a45d182580813ad9829f6e017042fdff39b6a`, передаёт
+локальное окно `nextOwner: ROOT990` с ledger001–228, полным состоянием и рецептом
+сверки. ROOT принял передачу; PR #993 смержен в `f712db2f2b0cdb623f82ea8f5fe048cda7e0d2ee`.
+Отдельный docs-only PR фиксирует результат без изменения проверенных исходников;
+production, внешние провайдеры, полная финальная E2E и App Store не затронуты.
+
+
+## 2026-09-21 — CRM-09e actual-path blocker: saved versions without a current pointer
+
+Ordinary local Admin opening the existing B209 Student1 case on source
+fcfabafa/schema229 hit the real profile error boundary before any receipt upload.
+The authenticated staff document-workspace RPC returned200: both228 saved file
+versions are finalized/verified/clean and download-ready, but `is_current` is NULL
+because migration113 projects `slot.current_version_id = version.id` while228
+intentionally leaves the legacy pointer absent. The strict TypeScript boolean
+decoder rejected that legitimate SQL result and crashed the entire case.
+
+Before coding, extend this receipt-path fix narrowly: accept literal NULL only
+as `isCurrent:false`; preserve exact keys, rejection of missing/string/numeric
+flags, other boolean/security guards and slot current-ID/number consistency.
+No new migration, current pointer, approval, download authority or file rewrite.
+Add regression coverage for no-current versions and malformed/current-pointer
+mismatches, then reopen this same actual case and complete the ordinary receipt
+journey. Source229 apply proof remains atfcfabafa with unchanged SQL; subsequent
+UI evidence must record its newer runtime head separately, never relabel the apply.
+
+
+## 2026-09-21 — CRM-09e actual audit-action failure and forward migration230
+
+Actual ordinary Admin upload on e17e1e52/schema229 reached real ClamAV and
+Storage (POST200), then PostgreSQL rejected `case.payment_receipt.upload` against
+the existing041 `audit_events_action_check`: every dot-separated action segment
+permits lowercase letters/digits, not underscores. The handler returned503 and
+removed only its new object (DELETE200). Full287-table, financial, audit, Storage,
+prefix and Auth-session before/after comparisons are exactly equal; no successful
+receipt exists and no retry has been performed.
+
+Before coding, ROOT reserves230 for a forward-only fix of this receipt function's
+two internal action literals to canonical `case.payment.receipt.upload`. Preserve
+the041 constraint,229 SQL/ledger, all auth/lock/idempotency/body/ACL semantics,
+receipt result and financial data. Assert the expected two replacements and exact
+function identity; fail on an unexpected predecessor. No contract-file expansion.
+Use the canonical action in later actual metadata replay/evidence. The former
+action could not persist under the unchanged mandatory audit constraint.
+
+Website receiver PR996 moves its unapplied migration230 to231; B3g package
+precode moves231 to232. OnlyROOT applies, in order. Verify230 on the actual local
+229 baseline with rollback first, canonicalCLI apply once, preserved full state,
+then a separately recorded new ordinary UI attempt. The prior503 remains failure
+evidence; never relabel it or rewrite migration229.
+
+
+## 2026-09-21 — B3g: неизменяемый состав комплекта и отдельное решение EVO
+
+После #993 и его QA-отчёта #997 (`7aad173f`) ROOT принял направление
+[precode B3g](platform/b3g-program-package-contract.md) и резервирует 232 для
+server/wire части; 231 — website, 230 — исправление аудита платёжного чека ROOT.
+Студент отправляет весь exact состав
+без предварительного staff одобрения файлов, сотрудник отдельно проверяет
+документы и комплект. Starter сохраняет явный смысл стартового комплекта EVO.
+Individual228, canonical bytes и история сохраняются; package review фиксирует
+точные review IDs. UI CRM/web/iPhone и узкий actual packet идут по одному контракту.
+Сейчас только precode: независимое exact-head review до кода; runtime/DDL не начаты,
+локальная база остаётся у ROOT990/229. Полный1–36 и production не объявляются готовыми.
+
+Уточнение по UI review: восстановление неподтверждённых package submit/review
+доступно отдельно от текущей очереди/редакции, привязано к владельцу и повторяет
+точный исходный состав/решение. Scoped QA включает потерю ответа с последующей
+перезагрузкой и сменой revision; очистка только по receipt или `not_written`.
+
+
+## 2026-09-21 — CRM-09e: фактическая загрузка и скачивание чека
+
+На runtime `3e83d4958ac25c5c9a457ceb35657c52dcd5f0f3`, local001–230,
+проверен обычный Admin-путь: существующая оплата → один чек → скачивание
+исходных766 байт. Суммы, даты и прежние данные сохранены; duplicate metadata
+replay, шесть scoped target/ACL probes и четыре row-lock barriers прошли.
+[QA-отчёт](platform/payment-receipt-local-qa-2026-09-21.md) сохраняет ранние
+ошибки, потерянный observer body201 и восстановление результата без reupload.
+
+Текущая собственная Auth-сессия закрыта обычной кнопкой, old223 hashes сохранены;
+одна идентифицированная собственная orphan-сессия остаётся без токена. Полная
+Auth/refresh-token parity и отзыв прав единственного Admin не заявляются.
+Собственные Next/browser/scanner остановлены. Full287 RAW release37e84090…5df5d
+передаёт окно A15f; независимое reviewcb628f6f…761ea принято. Это завершение
+локального CRM-09e, не всего item12/1–36 и не production.
 
 ### A15f unified chat UI — decisions recorded before code
 

@@ -35690,6 +35690,54 @@ Final independent actual-evidence/exact-head review, protected CI/merge and
 fresh full RAW release to ROOT990 remain. Only then start A15f UI code, preserving
 ROOT's separate mobile-sales presentation ownership. This does not close item15.
 
+## 2026-09-21 — CRM-09e: чек для уже сохранённой оплаты
+
+После #984 на main `70da1ed9` source-аудит выявил конкретный разрыв исходного
+CRM-09: необязательный чек можно загрузить при новой оплате или transient retry,
+но после повторного открытия дела у существующей оплаты без чека нет действия.
+Действующий `/api/v2/payment-receipts/[paymentEventId]` уже поддерживает такой
+платёж с проверкой case/organization/write authority и сканированием файла.
+
+Добавить локальное раскрываемое действие «Загрузить чек» к такой записи под
+существующим `canWrite && !isStaffPreview` gate. Сохранить историю/скачивание,
+оплаты/возвраты, валюты, даты, суммы и создание новой оплаты без изменения.
+Новый control вызывает только существующий upload endpoint; SQL/API и права
+не меняются. Сетевой неопределённый результат не повторять автоматически:
+сначала обновить историю и проверить наличие чека. Не выдавать upload за
+новую оплату, подпись договора или подтверждение настоящих денег.
+
+Impeccable Operate/harden и craft-floor применяются как refinement: Golos,
+действующие tokens, inline disclosure вместо нового экрана/модального окна,
+читаемый file input, доступные focus/pending/error состояния. Проверка на
+реальном saved QA payment выполняется после освобождения общего локального
+окна B226/A227: один явно технический файл, scanner/Storage/receipt metadata,
+без нового payment/изменения баланса; desktop и mobile одним bounded проходом.
+До этого source checks не обозначают actual upload или готовность всего12.
+
+
+### CRM-09e — hydration hardening, 2026-09-21
+
+Actual first upload click on source d3fe39b55a12d581f34fc3318369f47e0b5e52dc navigated by native GET to /v3/profile?; no payment-receipts POST occurred. Root receipt first-click-no-effect.json records exact before/after full 283-table, financial and Storage parity. The cause of the missing hydration handler remains unknown; document readiness and native file selection do not prove React hydration.
+
+Before another actual upload, reuse the existing stable useSyncExternalStore client/server snapshot pattern in CasePaymentReceiptUpload: keep file input and submit disabled during SSR/pre-hydration, expose busy state, retain immediate preventDefault and all in-flight/unknown/no-auto-retry guards. No layout, API, payment, Storage or legacy form changes. Scoped lint/typecheck validate source; root owns independent review and one actual UI confirmation round. This hardening is not proof of a successful upload or identification of the hydration root cause.
+
+
+### CRM-09e — connect existing receipt routes, 2026-09-21
+
+Actual corrected UI hydration passed; its single upload POST returned403 platform_route_not_connected at proxy before the handler. Root verified exact before/after283-table financial/audit/Storage/Auth-session parity; no upload succeeded. Connect only existing payment-receipts/{paymentEventId} and payment-receipt-files/{studentCaseId}/{fileId}/download through isConnectedPlatformApi with exact UUID v1–5 segments matching handlers. Retain ordinary staff-cookie proxy flow, live handler authority/record scope and all Storage checks; no public Student or direct-private bypass. Add positive/negative route-contract coverage. Existing case-contract upload connectivity is a separate finding, excluded from this slice. No UI change or new business operation; actual confirmation remains root-owned.
+
+
+### CRM-09e — scoped receipt authority dependency229, 2026-09-21
+
+Contract: `docs/platform/payment-receipt-authority-contract-2026-09-21.md`. Actual35a11aa0 upload stopped at service-role table SELECT42501, masked as404; zero successful uploads and root final283-table/financial/Storage/Auth-session parity. ROOT reserves229 afterB228. Before implementation, independently review authenticated exact upload/download target RPCs, delegated principal revalidation before receipt metadata write/replay, strict bounded decoder and403-versus503 behavior. No table grants, financial changes, contract-file expansion or new UI. Existing routes/legacy receipt compatibility remain; no apply/runtime in this precode.
+
+
+### CRM-09e229 — source implementation, 2026-09-21
+
+Implemented authenticated receipt upload/download target RPCs and a closed scalar decoder; handlers no longer directly SELECT payment_events/payment_receipt_files for receipt operations. Delegated metadata admission locks organization then existing155 profile/membership order and case; explicit156/189 read+write policy precedes historical replay, with full stored principal/metadata comparison. Contract-file handler/functions remain unchanged. Missing/malformed target and infrastructure errors503; explicit42501 becomes403. No UI edits.
+
+Node22 targeted decoder plus existing case-agreement checks41/41 PASS, scoped ESLint/typecheck/diff-check PASS. These are pure/source checks, not SQL/RLS or actual upload acceptance. Existing configured migration boundary invokes Docker/Postgres and was not run under source-only scope; SQL compile/role/revocation/concurrency/replay execution remains pending independent review and coordinated post228 local QA. Zero successful upload claim remains unchanged.
+
 
 ## 2026-09-21 — CRM-02c: mobile sales presentation, precode
 
@@ -35727,6 +35775,200 @@ Docs-only на main `82260fdc`: обновлены current fronts execution/A/B 
 сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
 DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
 Проверка: diff review и git diff --check; независимое exact-head review до merge.
+## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
+
+#988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
+release `bcb7ed6d` передан A227, B больше не использует общий runtime.
+Root резервирует228 только для следующего single-document B3f; очередь
+A227→ROOT990→ROOT991 сохраняется, apply не разрешён.
+
+Source inventory055/043/116/128/226 показал, что общий current/status и прежний
+review автоматически связали бы A/B. Принято направление отдельных immutable
+program upload/submission/review/download contexts при тех же canonical bytes
+и scan/Storage transport. Старые Docs/manual/visa и approved ZIP guards сохраняются.
+[Precode228](platform/b3f-program-document-submission-contract.md) фиксирует
+approved-current replacement, exact historical-version download, fail-closed
+old readers и узкий SQL context-exclusion на legacy replay-входах. Последнее —
+явное compatibility amendment для review, не глобальное изменение legacy-процесса.
+До кода — независимое exact precode review; следующий полный package B3g отдельно.
+Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
+состояния. Runtime/новые файлы/production/native acceptance не заявлены.
+
+Независимый precode review64d4324e потребовал два уточнения до реализации:
+история следует server-proven predecessor-цепочке226 и доступна также для
+удалённых требований; прежнее решение не переносится в новую definition.
+Old-reader PT409 ограничен публичными entrypoints; общий v2 helper сохраняет
+внутреннюю projection для свежего editor/save226 и authorized pending recovery.
+Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
+не исполненное runtime-доказательство.
+
+B3f wire уточнён перед соответствующим кодом: exact upload metadata/hash входят
+в admission до multipart; terminal replay проверяет реальные bytes и актуальный
+доступ в новом bounded body lease, без повторного scan/Storage. Canonical header
+и тонкие contextual routes не меняют legacy wire. Повторное использование файлов
+показывает первую страницу20 и scoped keyset nextCursor (max50), вместо загрузки
+всего архива или лимита, выключающего программу при большом числе версий.
+
+Прямую зависимость уведомлений сверили по актуальному153v2: его старые источники
+не разрешают программный review.228 добавляет scoped projection через existing
+notifications/events и exact review, UNION в неизменный восьмипольный feed и тот
+же guard при mark-read. Owner-only notification detail RPC даёт точную программу/
+версию для web/iPhone ссылки; нет fake legacy review, новой общей очереди или
+пятой companion таблицы. Это реализация уже принятого notification/deep-link
+контракта, не завершённая пользовательская проверка.
+
+Source-проверка B3f выявила прямую совместимость service-only metadata043/156:
+его `current_version_no + 1` конфликтует с новой draft-версией, которая специально
+не публикуется в current. До реализации уточняем228: source-checked замена одной
+формулы на MAX(version_no)+1 под прежней блокировкой slot, без изменения прав,
+legacy receipt и публикации. Contextual request запрещён до replay также в этом
+entrypoint и прежнем staff preflight; общий manual workflow сохраняется.
+
+
+## 2026-09-21 — B3f / 228: фактическая локальная проверка и передача окна
+
+Детальный результат: [B3f QA](platform/b3f-program-document-submission-qa.md).
+Runtime source `571d65a8645b518c3513d8a9eebe36410f929e8e` и SQL228
+`2c2925b91ce74f984668d4a52fd9a6f3106ff6f92b371d5ed75c13b4254b2ba9`
+не менялись во время проверки. Предыдущий CI35566781600 выявил ссылку на helper,
+удалённый116; исправление и отдельный delta review дали зелёный35567860470.
+
+Разрешённый actual core исполнен через обычные Student/Admin controls и реальные
+локальные Auth/Storage/ClamAV: сохранение двух PDF, две отдельные отправки,
+два независимых решения, прежнее уведомление и три exact-version download.
+Неисполненные protocol/recovery/concurrency/revision/legacy ветви остаются явно
+открытыми; это не пересмотр их требований и не приёмка всей функциональности.
+
+Наблюдение RSC response.text для кириллицы дало mojibake только в observer:
+исходный request, сохранённый review/receipt/audit и обычный Student DOM содержат
+правильную строку. Raw capture сохранён; exact wire-decoder слой не объявляется
+доказанным. Сверка использует отдельно привязанный DB receipt, без переписывания
+сырого наблюдения и без продуктового исправления ради результата проверки.
+Первый вход выбрал прежнего QA Student, вышел до бизнес-действий; исходное
+состояние287 таблиц подтверждено повторно до основной проверки. Использован
+существующий Student1; роли, учётные записи и исходные документы не менялись.
+
+Final effects `72d19741efbbc37028ce0e5cb76fa19356e6867349da410207065c6ce82654df`
+подтвердили точные52 новые строки/17 таблиц/16 аудитов/два объекта и сохранность
+всех прежних строк. Auth sessions/refresh tokens восстановлены к исходным полным
+хешам; users/identities проверены по числу8, полной row parity для них не заявлено.
+Browser и собственные Next/scanner остановлены. Supervisor завершился с1 раньше
+finally; orphan Next остановлен только по доказанному собственному PGID83385,
+child exit code неизвестен, отсутствие процессов и портов проверено отдельно.
+
+RAW release `f375371369becc30f1f873badb6a45d182580813ad9829f6e017042fdff39b6a`
+передаёт ledger001–228 и полный after_state с исходным snapshot_sql следующему
+владельцу `ROOT990`. Новый docs-only commit сохраняет прежние свидетельства43 Node,
+59 Swift и CI35567860470, не выдаёт их за повторные запуски. ROOT принял RAW release
+и смержил неизменный PR #993 в `f712db2f2b0cdb623f82ea8f5fe048cda7e0d2ee`;
+этот результат оформляется отдельным docs-only PR. Native UI, production,
+провайдеры, broad E2E, контент и App Store остаются за пределами этой приёмки.
+
+
+## 2026-09-21 — CRM-09e actual-path blocker: saved versions without a current pointer
+
+Ordinary local Admin opening the existing B209 Student1 case on source
+fcfabafa/schema229 hit the real profile error boundary before any receipt upload.
+The authenticated staff document-workspace RPC returned200: both228 saved file
+versions are finalized/verified/clean and download-ready, but `is_current` is NULL
+because migration113 projects `slot.current_version_id = version.id` while228
+intentionally leaves the legacy pointer absent. The strict TypeScript boolean
+decoder rejected that legitimate SQL result and crashed the entire case.
+
+Before coding, extend this receipt-path fix narrowly: accept literal NULL only
+as `isCurrent:false`; preserve exact keys, rejection of missing/string/numeric
+flags, other boolean/security guards and slot current-ID/number consistency.
+No new migration, current pointer, approval, download authority or file rewrite.
+Add regression coverage for no-current versions and malformed/current-pointer
+mismatches, then reopen this same actual case and complete the ordinary receipt
+journey. Source229 apply proof remains atfcfabafa with unchanged SQL; subsequent
+UI evidence must record its newer runtime head separately, never relabel the apply.
+
+
+## 2026-09-21 — CRM-09e actual audit-action failure and forward migration230
+
+Actual ordinary Admin upload on e17e1e52/schema229 reached real ClamAV and
+Storage (POST200), then PostgreSQL rejected `case.payment_receipt.upload` against
+the existing041 `audit_events_action_check`: every dot-separated action segment
+permits lowercase letters/digits, not underscores. The handler returned503 and
+removed only its new object (DELETE200). Full287-table, financial, audit, Storage,
+prefix and Auth-session before/after comparisons are exactly equal; no successful
+receipt exists and no retry has been performed.
+
+Before coding, ROOT reserves230 for a forward-only fix of this receipt function's
+two internal action literals to canonical `case.payment.receipt.upload`. Preserve
+the041 constraint,229 SQL/ledger, all auth/lock/idempotency/body/ACL semantics,
+receipt result and financial data. Assert the expected two replacements and exact
+function identity; fail on an unexpected predecessor. No contract-file expansion.
+Use the canonical action in later actual metadata replay/evidence. The former
+action could not persist under the unchanged mandatory audit constraint.
+
+Website receiver PR996 moves its unapplied migration230 to231; B3g package
+precode moves231 to232. OnlyROOT applies, in order. Verify230 on the actual local
+229 baseline with rollback first, canonicalCLI apply once, preserved full state,
+then a separately recorded new ordinary UI attempt. The prior503 remains failure
+evidence; never relabel it or rewrite migration229.
+
+
+## 2026-09-21 — B3g /232: precode состава и проверки полного комплекта
+
+На main `7aad173f83ec612854e3b5553225611ea4811127` закреплён следующий разрез
+§11: [B3g contract](platform/b3g-program-package-contract.md). ROOT резервирует 232;
+231 принадлежит website, 230 — исправлению аудита платёжного чека ROOT.
+Нового server/Auth/DB/Storage действия нет.
+
+Source inventory214/226/228 показал: individual uploads/submissions/reviews уже
+есть, но immutable package composition и отдельного staff package decision нет.
+Readiness не выводится из legacy current или одного canSubmit. Ресурсы пакета
+ссылаются на canonical versions и фиксируют exact review IDs, поскольку current228
+summary динамически берёт последнее решение. Прежние global/legacy/ZIP semantics
+сохраняются; университетская отправка не добавляется этим комплектом EVO.
+
+ROOT подтвердил starter по существующей readiness с явной подписью и без нового
+confirmed-only gate. Optional можно исключить до отправки; включённые материалы
+фиксируются в составе. Перенос review на другую программу или изменённое definition
+запрещён. После новой226 revision reuse требует доказанный unchanged predecessor
+и явное staff current-context подтверждение: `reuseApprovals` с exact source review,
+обычный228 approved review от сотрудника и оба ID в package evidence/audit.
+Старое approved не перекрывает новую отрицательную проверку; все child request IDs
+блокируются заранее. Механизм проходит независимое review до реализации.
+Весь состав пишется атомарно,
+request locks предшествуют org lock, network retry повторяет frozen intent.
+
+Impeccable Operate/adapt сохраняет EVO и existing controls на web/iPhone/CRM;
+два ограниченных visual passes только в будущем выделенном runtime окне.
+Precode требует independent exact-head review. Broad E2E/content/App Store,
+production и весь1–36 остаются вне объявления о завершении этого этапа.
+
+Независимое UI review уточнило обязательный сценарий: успешная запись с потерянным
+ответом может убрать строку из очереди, а новая редакция — заменить форму.
+Owner-scoped восстановление package intent поэтому доступно отдельно от этих
+элементов и повторяет точный исходный запрос. Receipt либо доказанный `not_written`
+разрешает очистку. Это включено в scoped QA; SQL/API/бизнес-границы не расширены.
+
+До слияния precode координатор переназначил резерв B3g с 231 на 232: отдельная
+новая миграция ROOT исправляет несовместимое имя audit action при сохранении
+платёжного чека, website занимает 231. Прежние миграции и их доказательства
+не переписываются; новая нумерация не даёт B права на локальное применение.
+
+
+## 2026-09-21 — CRM-09e: local acceptance и передача окна A15f
+
+[Фактический QA-отчёт](platform/payment-receipt-local-qa-2026-09-21.md) фиксирует
+source3e83d495 и local230: ровно один receipt/audit/object, неизменные финансовые
+данные, ordinary UI download307 с совпавшими766 байтами. Шесть target/ACL probes,
+exact replay/changed-size conflict и четыре независимые row-lock barriers PASS.
+HTTPbody201 утрачен наблюдателем; correlated201 и исходный log-prefix сохранены,
+повторной загрузки нет. Last-live-Admin guard сохранён, его revocation не запускался.
+
+Final release37e840905100a03d102749844c3a5a97d5bef60b5c3002bbd0d557bc7475df5d
+проверяет полный287 state, закрытие текущей собственной сессии и сохранение
+старых223 session hashes плюс одной собственной orphan. Next/browser/scanner
+остановлены; Auth users/identities только count8, refresh-token parity не проверена.
+Независимое release reviewcb628f6f3aef3dedb8f1ffdb08e58c42dd694dd7fd23b9767913950aa83761ea.
+Окно переходит A15f. Source после3e83 меняется только документационно; историческая
+runtime evidence не переименовывается в новый прогон. Полный item12/1–36, native,
+production и provider acceptance не закрыты.
 
 ### A15f unified chat UI — decisions recorded before code
 

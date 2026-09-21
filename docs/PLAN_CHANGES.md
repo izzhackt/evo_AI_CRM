@@ -35863,3 +35863,23 @@ RAW release `f375371369becc30f1f873badb6a45d182580813ad9829f6e017042fdff39b6a`
 и смержил неизменный PR #993 в `f712db2f2b0cdb623f82ea8f5fe048cda7e0d2ee`;
 этот результат оформляется отдельным docs-only PR. Native UI, production,
 провайдеры, broad E2E, контент и App Store остаются за пределами этой приёмки.
+
+
+## 2026-09-21 — CRM-09e actual-path blocker: saved versions without a current pointer
+
+Ordinary local Admin opening the existing B209 Student1 case on source
+fcfabafa/schema229 hit the real profile error boundary before any receipt upload.
+The authenticated staff document-workspace RPC returned200: both228 saved file
+versions are finalized/verified/clean and download-ready, but `is_current` is NULL
+because migration113 projects `slot.current_version_id = version.id` while228
+intentionally leaves the legacy pointer absent. The strict TypeScript boolean
+decoder rejected that legitimate SQL result and crashed the entire case.
+
+Before coding, extend this receipt-path fix narrowly: accept literal NULL only
+as `isCurrent:false`; preserve exact keys, rejection of missing/string/numeric
+flags, other boolean/security guards and slot current-ID/number consistency.
+No new migration, current pointer, approval, download authority or file rewrite.
+Add regression coverage for no-current versions and malformed/current-pointer
+mismatches, then reopen this same actual case and complete the ordinary receipt
+journey. Source229 apply proof remains atfcfabafa with unchanged SQL; subsequent
+UI evidence must record its newer runtime head separately, never relabel the apply.

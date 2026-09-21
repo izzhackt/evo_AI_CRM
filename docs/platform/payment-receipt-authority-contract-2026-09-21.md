@@ -44,3 +44,23 @@ Preserve201 existing metadata receipt body and307 download. Malformed IDs400; un
 Pure decoder: exact keys/types/bounds/request binding, wrong case/org/versionless IDs, invalid path. SQL/source: authenticated staff success; Student/anon/service direct reader denial; foreign org/case; refund; read-only allowed download/denied upload; pending responsible Sales versus other Sales; inactive/revoked profile/membership/permission before write and before replay; payload/principal request conflicts; exact replay one row/audit; no monetary mutations. Check grants, search_path and legacy function/receipt compatibility.
 
 Handler checks distinguish authority denial from infrastructure503 without mocked success being called business acceptance. Later root-owned actual ordinary Admin upload of the retained technical QA artifact, metadata/readback and download, with exact existing-payment and full-state observers; negative roles only within authorized local QA packet. No new payment, fictional receipt facts or extra actors. Source lint/typecheck and relevant tests precede independent exact-head review; migration229 apply waits B228 and explicit coordinated window. Current precode is not runtime readiness.
+
+
+## 2026-09-21 — CRM-09e actual-path blocker: saved versions without a current pointer
+
+Ordinary local Admin opening the existing B209 Student1 case on source
+fcfabafa/schema229 hit the real profile error boundary before any receipt upload.
+The authenticated staff document-workspace RPC returned200: both228 saved file
+versions are finalized/verified/clean and download-ready, but `is_current` is NULL
+because migration113 projects `slot.current_version_id = version.id` while228
+intentionally leaves the legacy pointer absent. The strict TypeScript boolean
+decoder rejected that legitimate SQL result and crashed the entire case.
+
+Before coding, extend this receipt-path fix narrowly: accept literal NULL only
+as `isCurrent:false`; preserve exact keys, rejection of missing/string/numeric
+flags, other boolean/security guards and slot current-ID/number consistency.
+No new migration, current pointer, approval, download authority or file rewrite.
+Add regression coverage for no-current versions and malformed/current-pointer
+mismatches, then reopen this same actual case and complete the ordinary receipt
+journey. Source229 apply proof remains atfcfabafa with unchanged SQL; subsequent
+UI evidence must record its newer runtime head separately, never relabel the apply.

@@ -1,7 +1,7 @@
 # A15c / migration223 — proposed local QA packet
 
-**Not executed. Source and proposed scope independently approved; executable
-packet review and ROOT's exclusive writer GO remain required.**
+**223 applied once locally; first QA attempt stopped before commands. Revised
+two-actor QA packet review and a fresh ROOT exclusive writer GO remain required.**
 This document specifies the bounded operations for review; it is not an apply
 receipt or positive reader acceptance. No production/provider action is included.
 
@@ -126,9 +126,12 @@ rows after excluding exactly the recorded owned IDs/request IDs. Other business
 tables stay equal. Preferences and stored `read_sequence` remain unchanged;
 derived unread counts follow the actual reader, which excludes the current
 author's own posts. With the checked zero-read baseline, the Sales author stays
-at0, while the existing distinct authorized Sales observer sees54 general and1
-sales unread after the tombstone. Both identities use ordinary Auth; no new
-identity or role is introduced. Staff notification tables remain unchanged.
+at0. Another authorized employee would derive54 general and1 sales unread after
+the tombstone, but that observer check is explicitly unproved: the configured
+second Sales account cannot sign in. The revised packet uses only the existing
+Sales author and Student, positively binding each current actor/role to the real
+login user ID. No new identity or role is introduced. Staff notification tables
+remain unchanged.
 Auth user/identity counts unchanged; normal sign-in/session changes
 are disclosed separately. Schema delta is only the new index/function/ACL and
 ledger223; preserve all old function definitions, owners, grants, policies and
@@ -141,3 +144,26 @@ remaining unproved case. Redact user-facing output. Release the writer explicitl
 subsequent sessions baseline the retained authorized QA state rather than treating
 it as an accidental change. Failed or partial execution remains visibly failed
 or partial, and cannot be labelled PASS because unit tests passed.
+
+## Execution status before revised QA
+
+Reviewed executable v2 (`af6789ae4c5f3db45205ba48b9aba5fcd9ac491926bb29a1ce5a10e1a62a55a4`)
+applied223 exactly once under ROOT's exclusive local window. Apply receipt SHA256
+`5d7630913bcf9899378c730a738103ff77bd4a6d2d72217512ee6be73b6004ea` confirms
+001–223, unchanged281 business tables and Auth counts, preserved existing
+functions/indexes/columns/ledger, and only the additive reader/index/ACL.
+
+The first QA invocation stopped at ordinary `salesOther` sign-in; no command
+input/result file was created and no message was posted. It is not positive
+reader evidence. Existing216 QA records already report this account's invalid
+credentials; no credential guessing, repeated login, reset or provisioning is
+authorized. Current failure did not record an HTTP code, so the historical400
+must not be presented as a newly observed response.
+
+Postfailure release SHA256
+`fd4f632fbd4e30d70371e748230af29f05c5ebfd84e5f366462db197db33622e` confirms
+full281/schema/ledger/Auth-count equality to the successful apply state and zero
+QA commands/messages. Ordinary Sales/Student sign-in changed Auth session state;
+session equality is not claimed. Preserve the failed attempt and all original
+packet artifacts. Revised QA must use a fresh artifact directory, exact reviewed
+script/source hashes and a new coordinator GO. It must never reapply223.

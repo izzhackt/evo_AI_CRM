@@ -12399,3 +12399,21 @@ repository and scoped tests. Clarify UUID uniqueness with monotonic sequence onl
 channel authority must reject NULL (`IS NOT TRUE`). Preserve every v1 path and
 current UI. Migration apply/Auth/positive controlled QA still await a separately
 reviewed local packet and coordinator window; B currently owns that environment.
+
+
+### A15c local223 apply and bounded QA account limitation
+
+Migration223 applied once from reviewed source9c589938 with the independently
+approved v2 packet; existing281 business tables/Auth counts and old schema
+metadata/ledger are preserved. Positive QA stopped before any command because
+existing `salesOther` credentials fail ordinary sign-in. No fixture history was
+created, no account/role was changed, and postfailure parity is confirmed.
+
+Prepare a separately reviewed QA-only revision on already-installed223 using
+only positively resolved ordinary Sales and Student. Preserve the original
+failure and disclose unavailable second-employee unread coverage; do not create
+an identity or relabel historical credential failure as a new HTTP observation.
+Exact retained56-message/58-command scope is unchanged. New coordinator GO is
+required for the revised exclusive window; never reapply223. See the223 QA packet
+for immutable receipt hashes and validation boundaries. This does not change
+runtime behavior, authorize production, or complete the flat-feed UI block.

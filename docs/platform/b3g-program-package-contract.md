@@ -1,10 +1,11 @@
-# B3g / 231 — отправка и проверка комплекта программы
+# B3g / 232 — отправка и проверка комплекта программы
 
 Precode 21.09.2026, main `7aad173f83ec612854e3b5553225611ea4811127`.
 Основание — §11 принятого [плана](../EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md),
 [контракт B3f](b3f-program-document-submission-contract.md) и его
 [принятая локальная QA](b3f-program-document-submission-qa.md).
-ROOT принял функциональное направление и резервирует 231 для B3g.1; 230 — website.
+ROOT принял функциональное направление и резервирует 232 для B3g.1; 231 — website.
+Миграция 230 зарезервирована ROOT для исправления записи аудита платёжного чека.
 До реализации нужен независимый exact-head review. Runtime/DDL/Auth/Storage
 принадлежат отдельному будущему окну ROOT; этот precode разрешает только offline работу.
 
@@ -188,7 +189,7 @@ Simulator/устройства при доступе; compile/Swift checks не 
 ZIP169 читает global current+legacy approved; новый пакет не объявляется доступным
 для такого экспорта автоматически. Внешняя отправка университету не входит в B3g.
 
-B3g.1 /231: server/resource/readers + общий wire/codec/pending, scoped SQL/TS/Swift
+B3g.1 /232: server/resource/readers + общий wire/codec/pending, scoped SQL/TS/Swift
 проверки, independent review. B3g.2: CRM/web/iPhone UI и notification detail по
 зафиксированному wire. B3g.3: согласованный actual changed-path packet после
 передачи локального окна; это части одного результата, не три заявления «всё готово».

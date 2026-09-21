@@ -35817,11 +35817,12 @@ RAW release `f375371369becc30f1f873badb6a45d182580813ad9829f6e017042fdff39b6a`
 провайдеры, broad E2E, контент и App Store остаются за пределами этой приёмки.
 
 
-## 2026-09-21 — B3g /231: precode состава и проверки полного комплекта
+## 2026-09-21 — B3g /232: precode состава и проверки полного комплекта
 
 На main `7aad173f83ec612854e3b5553225611ea4811127` закреплён следующий разрез
-§11: [B3g contract](platform/b3g-program-package-contract.md). ROOT резервирует231;
-230 принадлежит website. Нового server/Auth/DB/Storage действия нет.
+§11: [B3g contract](platform/b3g-program-package-contract.md). ROOT резервирует 232;
+231 принадлежит website, 230 — исправлению аудита платёжного чека ROOT.
+Нового server/Auth/DB/Storage действия нет.
 
 Source inventory214/226/228 показал: individual uploads/submissions/reviews уже
 есть, но immutable package composition и отдельного staff package decision нет.
@@ -35851,3 +35852,8 @@ production и весь1–36 остаются вне объявления о з�
 Owner-scoped восстановление package intent поэтому доступно отдельно от этих
 элементов и повторяет точный исходный запрос. Receipt либо доказанный `not_written`
 разрешает очистку. Это включено в scoped QA; SQL/API/бизнес-границы не расширены.
+
+До слияния precode координатор переназначил резерв B3g с 231 на 232: отдельная
+новая миграция ROOT исправляет несовместимое имя audit action при сохранении
+платёжного чека, website занимает 231. Прежние миграции и их доказательства
+не переписываются; новая нумерация не даёт B права на локальное применение.

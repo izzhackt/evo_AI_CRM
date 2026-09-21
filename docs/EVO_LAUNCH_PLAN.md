@@ -13691,3 +13691,23 @@ pixel anchors, other channels and screen reader/device acceptance are unclaimed.
 Final docs-head review/CI/merge remain; immutable candidatea5e7567c is released=false.
 ROOT must accept the final release before B1006 binds the local235 environment.
 Item15 and all1–36 remain partial. Historical receipts retain their original limits.
+
+
+## 2026-09-21 — A14a compact staff catalogue, precode
+
+A1005 merged29e0fb46a; its local235 window released to ROOT/B1006.
+[Item14 contract](EVO_STAFF_CATALOG_COMPACT_PLAN_2026-09-21.md) independently
+approvedca49e8fb on plan8f081b63. Target source33966da1 is byte-identical on
+incoming29e0fb46a. A owns staff-only UniversityList, optional compact UniversityPhoto,
+a pure program/intake deadline selector+tests, and staff page's shared now.
+Keep query/country/level/pagination30/scoped reads and management rights unchanged.
+Retain actual photo attribution and existing EVO/Golos. Date selection needs
+open/announced source-backed deadline, nonfuture verifiedOn and explicit supported
+UTC/GMT/IANA zone (never posix/right or missing-zone fallback); same-day timed
+expiry follows existing label semantics. Rank published calendar dates, never
+claim earliest absolute instant; keep program/intake/source/time/TZ context.
+No start-date substitution, synthetic intake identity, SQL, Student/detail changes,
+country facet from30 rows, management redesign, provider writes or new fixtures.
+Source checks/review/CI first; actual1440/390/320 and decoded-data comparison await
+ROOT's shared-window handoff after B1006→ROOT7b→B32. No fresh staff baseline is
+available yet and no source-only result claims UI/production acceptance.

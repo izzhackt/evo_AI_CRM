@@ -6,7 +6,10 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentAssessments } from "@/lib/v3/student-assessment-source";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Тесты — EVO Admissions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("tests", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
 
 /**
  * Раздел «Тесты» в «Атласе» (PORT-8c): каталог english36/orvis92 и история

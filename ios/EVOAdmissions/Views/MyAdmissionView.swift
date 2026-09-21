@@ -49,6 +49,7 @@ final class AdmissionHubModel: ObservableObject {
 struct MyAdmissionView: View {
     let session: SessionRouter.PortalSession
     @StateObject private var model = AdmissionHubModel()
+    @EnvironmentObject private var preparations: ProgramPreparationSession
 
     private var statusKey: LocalizedStringKey {
         switch session.portalCase.caseState {
@@ -91,6 +92,8 @@ struct MyAdmissionView: View {
 
                 nextStepSection
 
+                ProgramPreparationListSection()
+
                 evoSection
 
                 Section {
@@ -119,7 +122,10 @@ struct MyAdmissionView: View {
                 }
             }
             .navigationTitle("tab_my_admission")
-            .refreshable { await model.load() }
+            .refreshable {
+                preparations.requestRefresh()
+                await model.load()
+            }
             .task {
                 if !model.isLoaded {
                     await model.load()

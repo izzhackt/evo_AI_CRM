@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FE984196DDD7F198F7F8F537 /* ProgramPreparationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E508E8B1903A4D09727E4EDB /* ProgramPreparationView.swift */; };
+		268B55CAB53934F91E7C3663 /* ProgramPreparationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1E1D75F17DDF69F8E00090 /* ProgramPreparationModel.swift */; };
 		00EBCE30DF311481020AEED7 /* UniversityMapPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33583B4A63163BC921202D4 /* UniversityMapPolicyTests.swift */; };
 		01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */; };
 		03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */; };
@@ -112,6 +114,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		E508E8B1903A4D09727E4EDB /* ProgramPreparationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPreparationView.swift; sourceTree = "<group>"; };
+		AE1E1D75F17DDF69F8E00090 /* ProgramPreparationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPreparationModel.swift; sourceTree = "<group>"; };
 		005949937B65067CD79CB062 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		0B849158C9D6896582F6522A /* PortalProfileDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalProfileDecodingTests.swift; sourceTree = "<group>"; };
 		10D552D1FAB72B356FDF47B8 /* UniversityCatalogFilterPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogFilterPolicy.swift; sourceTree = "<group>"; };
@@ -211,6 +215,7 @@
 		0229C86B914EC8852E3C9C41 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				E508E8B1903A4D09727E4EDB /* ProgramPreparationView.swift */,
 				5036B63945D738592B84D329 /* AccessPendingView.swift */,
 				2E398B3E2F9B79A923367AEB /* AdmissionDocumentsView.swift */,
 				CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */,
@@ -347,6 +352,7 @@
 		AEDC6BBDAD17A67A2F572E6C /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AE1E1D75F17DDF69F8E00090 /* ProgramPreparationModel.swift */,
 				B32E74D315F6147AFDA53377 /* AdmissionModels.swift */,
 				91DA8F62CFB34037771B79D1 /* ApplicationIntakeModels.swift */,
 				DD0867288823B7DC31CC77AD /* ApplicationIntakePolicy.swift */,
@@ -549,6 +555,8 @@
 				581F1E43B1C6A533A50176A2 /* ApplicationIntakePolicy.swift in Sources */,
 				C06B819DB3A34C38FFD852FD /* ApplicationIntakeTransfer.swift in Sources */,
 				337B5C2E9571C48347652970 /* ApplicationRequirementsModels.swift in Sources */,
+				FE984196DDD7F198F7F8F537 /* ProgramPreparationView.swift in Sources */,
+				268B55CAB53934F91E7C3663 /* ProgramPreparationModel.swift in Sources */,
 				CF2D2E0E22170543B0179AFB /* ApplicationStatusView.swift in Sources */,
 				A58A3762C665294A1745FEC6 /* ApplicationWizardView.swift in Sources */,
 				03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */,

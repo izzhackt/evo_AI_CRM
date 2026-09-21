@@ -1,7 +1,10 @@
 # A15c / migration223 — proposed local QA packet
 
-**223 applied once locally; three QA attempts stopped before commands. Revised
-two-actor QA packet review and a fresh ROOT exclusive writer GO remain required.**
+**223 applied once locally; independently reviewed v5 ordinary-Auth QA passed.
+See [actual receipt](crm-team-chat-flat-reader-223-2026-09-21.md).**
+The sections below preserve the reviewed pre-execution contract and three
+stopped pre-command attempts. They are not permission to rerun either phase:
+223 is installed and56 approved QA messages are now intentionally retained.
 This document specifies the bounded operations for review; it is not an apply
 receipt or positive reader acceptance. No production/provider action is included.
 
@@ -189,7 +192,7 @@ V4 positively verified both real Auth identities, the scoped staff snapshot and
 the separate Student authority. It then stopped on its overly narrow HTTP status
 assertion for an unknown context anchor. The source raises `P0002`; PostgREST
 maps `P0*` (except `P0001`) to500, per its
-[official error table](https://postgrest.org/en/latest/references/errors.html#http-status-codes).
+[official v16 error table](https://docs.postgrest.org/en/v16/references/errors.html#http-status-codes).
 The actual local PostgREST image isv16.1 and the bounded request log records500.
 V4 did not preserve the response body, so the exact returned SQLSTATE is not yet
 claimed as observed. V5 must capture all negative RPC status/code/private bodies

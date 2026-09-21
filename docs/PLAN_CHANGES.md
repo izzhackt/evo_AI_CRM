@@ -35322,3 +35322,24 @@ Exact retained56-message/58-command scope is unchanged. New coordinator GO is
 required for the revised exclusive window; never reapply223. See the223 QA packet
 for immutable receipt hashes and validation boundaries. This does not change
 runtime behavior, authorize production, or complete the flat-feed UI block.
+
+
+### A15c implemented and actual local Auth QA passed
+
+Additive223 flat history/context reader, bounded current parent quotes, strict
+TypeScript decoder/repository and9 pure contract checks are implemented in#976.
+Runtime9c589938 remains unchanged after integrating mainc5d9a4cf. Existing v1
+commands/URLs/drafts/read markers/composer/UI remain unchanged.
+
+223 applied exactly once; independently reviewed v5 normal-Auth QA passed on
+sourceHEADc37d8628 with19 decoded actual pages and17 pre-write negative cases.
+Approved retained56 local QA messages produced58 effective commands and one
+same-input replay with zero additional effects. Every prior row and277 other
+business table hashes are preserved; schema/ledger, stored read markers and
+notifications remain equal. Writer released; final receipt SHA256
+8f6966b71e8e94da55d80510cfb349a10936b9628b747ad6da8b8495304f3379.
+
+Three earlier pre-command harness stops are retained, not relabelled as passes.
+Other-Sales observer and real other-tenant coverage remain unproved. Final exact
+PR-head review/short CI and merge are separate; no production apply/release or
+flat UI cutover is claimed. See docs/qa/crm-team-chat-flat-reader-223-2026-09-21.md.

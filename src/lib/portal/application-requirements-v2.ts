@@ -68,7 +68,7 @@ function member<T extends string>(value: unknown, values: readonly T[]): value i
 function reasonList<T extends string>(value: unknown, values: readonly T[]): readonly T[] | null {
   return Array.isArray(value) && [...value].every((item) => member(item, values)) && new Set(value).size === value.length ? [...value] : null;
 }
-function scalarText(value: unknown, maximum = Number.POSITIVE_INFINITY): value is string {
+export function scalarText(value: unknown, maximum = Number.POSITIVE_INFINITY): value is string {
   if (typeof value !== "string" || value.replace(/^[\p{White_Space}\uFEFF]+|[\p{White_Space}\uFEFF]+$/gu, "").length === 0) return false;
   let length = 0;
   for (const character of value) {
@@ -77,21 +77,21 @@ function scalarText(value: unknown, maximum = Number.POSITIVE_INFINITY): value i
   }
   return true;
 }
-function requirementKey(value: unknown): value is string {
+export function requirementKey(value: unknown): value is string {
   return scalarText(value, 100) && /^[a-z][a-z0-9_.-]*$/u.exec(value)?.[0] === value;
 }
-function decimalVersion(value: unknown): value is string {
+export function decimalVersion(value: unknown): value is string {
   return typeof value === "string" && /^[1-9]\d{0,18}$/u.exec(value)?.[0] === value
     && (value.length < BIGINT_MAX.length || value <= BIGINT_MAX);
 }
-function calendarDate(value: unknown): value is string {
+export function calendarDate(value: unknown): value is string {
   if (typeof value !== "string" || /^\d{4}-\d{2}-\d{2}$/u.exec(value)?.[0] !== value) return false;
   const [year, month, day] = value.split("-").map(Number);
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
   const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   return year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1];
 }
-function timestamp(value: unknown): value is string {
+export function timestamp(value: unknown): value is string {
   return typeof value === "string" && /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/u.exec(value)?.[0] === value
     && calendarDate(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
 }
@@ -119,7 +119,7 @@ function publicSourceUrl(value: unknown): value is string {
     return url.protocol === "https:" && !url.username && !url.password;
   } catch { return false; }
 }
-function deadline(value: unknown): ApplicationRequirementDeadline | null {
+export function deadline(value: unknown): ApplicationRequirementDeadline | null {
   const row = record(value);
   if (!row || !exact(row, ["date", "time", "timezone", "sourceUrl", "verifiedOn"])
     || !calendarDate(row.date) || !calendarDate(row.verifiedOn)

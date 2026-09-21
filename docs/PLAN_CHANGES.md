@@ -35539,3 +35539,12 @@ Student RPC403 и staff API401 проверены с тем же cookie positive
 поиск/очистку, breadcrumb и table actions; максимум одно подтверждение после
 правки. Первоначальный content proof остаётся привязан к63e8ef9a, UI proof
 получит отдельный новый SHA. Это исправление наблюдённых дефектов, не redesign.
+
+### KB32 — локальная UX-коррекция проверена
+
+Source547f7897 исправляет только подтверждённые primary contrast и mobile
+breadcrumb/search. Actual desktop1440+390/320, search/clear, внутренний table
+scroll и раскрытие file actions пройдены без бизнес-записей. Scoped lint/tsc/
+diff-check PASS, independent source review APPROVED. Full282/Storage/Auth
+равны завершённому content snapshot. Download-byte proof остаётся BLOCKED;
+не весь32 и не1–36 complete. Production и clientAI не публиковались.

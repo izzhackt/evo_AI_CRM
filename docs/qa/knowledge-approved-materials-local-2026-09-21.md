@@ -163,3 +163,26 @@ breadcrumb и search на320 px. Поиск файлов работает; от�
 Evidence SHA256: final `de9ac6689ec1e7f23f58eb5c3166826b81a53d364bcef08ed18ef144e41491d0`; независимая сверка v2 `812c4980a64b545dd7678380802c579cfa139456eeb32c750bc0b23fa9431e1d`; Student positive/negative `6e4d9242f95c1813cd4b7ef3165c647926e27e121ee14c385209248698488638`.
 
 Production, публикация client AI, весь backlog31/32 и все пункты1–36 не завершены этим проходом.
+
+## Исправление подтверждённых UX-дефектов
+
+Actual UI source547f7897. Impeccable clarify/harden и craft floor применены;
+изменены только KnowledgeLibrary.module.css и responsive toolbar FileManager.
+Primary-кнопки «Создать шаблон»/«Сохранить» теперь имеют фон rgb(215,2,23) и
+белый текст вместо прежнего белого на белом. Существующие токены, hover rule
+и disabled opacity сохранены; pending/hover состояния отдельно не вызывались.
+
+Одна общая проверка после правки: desktop1440,390 и320 px. Breadcrumb и search
+на мобильных идут разными строками с12px промежутком; вложенный input border0
+оставляет одну оболочку поля и видимый focus ring. Поиск «Обзор» и очистка
+клавиатурой возвращают оба файла. Внутренний table scroll на320 работает,
+«Действия» раскрываются с заменой/переименованием/перемещением/удалением;
+ни одна изменяющая команда не отправлялась. Body overflow отсутствует.
+
+Scoped ESLint, TypeScript и diff-check PASS. Независимое source/evidence review
+547f7897 APPROVED. После UI-проверки все282 business tables, metadata, Storage,
+Auth counts и Admin sessions совпали с final content snapshot. Собственный
+сервер остановлен, вкладка закрыта, viewport восстановлен. Прежний download
+BLOCKED этим визуальным исправлением не закрывается.
+
+UI style evidence SHA `0888dfb652ed9e6cebc73e129fd069f5661abfa8fdb00d3d0c1be6747099ff48`; toolbar geometry SHA `9b8124b7c8fab581bf1d6e1dd592fb2f8608025afd01c11520c9ff5464e184ea`; shared-state handoff SHA `309617078edac06fd7fee3fd8920813b19c3a9d6d4589b8e3cf74d8e11d2b97e`.

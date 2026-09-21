@@ -14278,3 +14278,20 @@ ordered истории обоих journals сохранены. Строки14/15
 сохранены изmain; строка24 дополнена узким actual и gaps. Повторного QA или
 тестов не было; прежний CI35635859635 относится кfa4ad8e8. Интегрированному
 final head ещё нужны независимое review и protected CI перед merge.
+
+
+### B24 — принятый precode: повтор операции урока
+
+После merge #1015 (main436865af) source-разбор обнаружил конкретную ошибку:
+после conflict → reloadDraft → unavailable кнопка «Повторить» выбирает
+start/save/complete по состоянию экрана, никогда reload. Принят
+[узкий контракт](platform/portal-lesson-retry-operation.md) и независимое
+precode review6f458939: явная идентичность отказавшей операции, сохранение
+существующих request IDs/snapshots, busy guard, draft и всего оформления.
+Actions/RPC/SQL и другие runners не меняются. Восемь incumbent-файлов и
+lesson320/1440 база сверены с acceptedf77a457b; это не actual ошибки reload.
+
+Контракт записан до UI-кода. Реальный Student-путь ждёт отдельного admission
+и восстановления локальной среды (отсутствующий OrbStack socket); Docker не
+перезапускаем, конфликт fixtures не создаём. Следующий PR остаётся draft с
+QA pending. Этот блок не закрывает весь пункт24, native или production.

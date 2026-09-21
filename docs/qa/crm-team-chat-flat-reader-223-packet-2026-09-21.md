@@ -1,6 +1,6 @@
 # A15c / migration223 — proposed local QA packet
 
-**223 applied once locally; both QA attempts stopped before commands. Revised
+**223 applied once locally; three QA attempts stopped before commands. Revised
 two-actor QA packet review and a fresh ROOT exclusive writer GO remain required.**
 This document specifies the bounded operations for review; it is not an apply
 receipt or positive reader acceptance. No production/provider action is included.
@@ -184,3 +184,20 @@ and keep the distinct positive Student branch. It must not broaden roles or
 substitute privileged SQL for ordinary Auth proof. V3 postfailure release
 `6382b25ac08bd40e99f415aa34191af4109b72a3c5dbb758ae469e93ea91a961`
 confirmed full parity and zero commands/messages; preserve this failure too.
+
+V4 positively verified both real Auth identities, the scoped staff snapshot and
+the separate Student authority. It then stopped on its overly narrow HTTP status
+assertion for an unknown context anchor. The source raises `P0002`; PostgREST
+maps `P0*` (except `P0001`) to500, per its
+[official error table](https://postgrest.org/en/latest/references/errors.html#http-status-codes).
+The actual local PostgREST image isv16.1 and the bounded request log records500.
+V4 did not preserve the response body, so the exact returned SQLSTATE is not yet
+claimed as observed. V5 must capture all negative RPC status/code/private bodies
+before evaluating the complete pre-write matrix, permit500 only for the exact
+expected `P0002`, and preserve all other denial/input checks. No new Auth occurs
+before independent packet review and ROOT GO. Postfailure release
+`6a6a29abd1d9d7d471c5bb975454efe0fa5789786eb5d337bb1356647e94c9b2`
+confirms zero commands/messages and full parity; ordinary identity proof
+`088c340d81556af6124d976ae90b80cc04d81e4f6f15f55fa28c5d61bbe3cfcd`
+is retained with its exact scope. None of these harness stops is reported as
+successful populated-history acceptance or as a demonstrated product regression.

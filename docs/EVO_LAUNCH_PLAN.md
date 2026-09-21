@@ -12350,3 +12350,21 @@ precode. This replaces the earlier reopen-before-edit sequence for this block;
 no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
 the next coordinator-released QA window, with calibrated CSS viewport widths.
 Existing empty-history limits on edit/reply/saved-path proof remain unchanged.
+
+
+### A15c precode — additive flat timeline reader, 2026-09-21
+
+After A15b merged in6d01bc81/#974, select the next coherent read foundation from
+`docs/EVO_TEAM_CHAT_FLAT_READER_PLAN_2026-09-21.md`. Accepted product plan§12
+requires old replies AND new unread accounting before thread removal. Add a
+separate bounded timeline/context reader over original message rows, safe parent
+quote projections, strict DTO/decoder and authenticated repository access.
+Preserve all v1 readers/commands/URLs/drafts/read cursors and current UI.
+
+The plan fixes latest/before/after/context semantics, sequence vs change-watermark
+separation, current156 scoped authority, tombstone redaction, index/rollback and
+real Auth validation limits. It does not allocate migration223 or authorize SQL,
+Auth or QA writes. Independent precode review and ROOT migration reservation/GO
+precede implementation; populated QA requires a separately reviewed packet.
+The existing flat-feed/quote/shared-composer/sparse-seen dependency analysis is
+retained; this foundation does not claim full item15 delivery.

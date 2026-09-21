@@ -35197,3 +35197,19 @@ precode. This replaces the earlier reopen-before-edit sequence for this block;
 no DB/Auth/UI is accessed during B211. Verify the changed actual composer in
 the next coordinator-released QA window, with calibrated CSS viewport widths.
 Existing empty-history limits on edit/reply/saved-path proof remain unchanged.
+
+
+## 2026-09-21 — A15c read foundation before removing threaded UI
+
+A15b is merged at6d01bc81/#974. Fresh source confirms that141 readers,171 command
+receipt/parent semantics,156 scoped channel authority and separate thread drafts
+must remain compatible. Product plan§12 explicitly gates thread removal on both
+old-response visibility and new unread accounting. Therefore select an additive
+read-only timeline/context RPC and strict consumer contract before any UI cutover.
+
+See `docs/EVO_TEAM_CHAT_FLAT_READER_PLAN_2026-09-21.md` for exact cursor/quote/
+authority/rollback rules and limited file ownership. No old rows are copied,
+no existing function or composer is replaced, and no read cursor is automated.
+This is precode only; ROOT has not allocated a migration or granted a QA writer.
+Actual populated-reader evidence must come from existing real history or a
+separately authorized controlled QA packet, never from a fabricated success.

@@ -67,3 +67,20 @@ SQL/RPC/Auth, новых actors/fixtures/grants, browser/server/runtime дейс
 Нужны independent source review, actual RPC/ACL и closure evidence, protected
 exact-head CI и финальное review до merge. UI второго блока начинается после
 этого merge. Весь item15,1–36 и production этим source не закрыты.
+
+
+## Более поздняя интеграция236 — 2026-09-21
+
+Зависимость выше разрешена после source review: #1016 смержен в
+`9f7dde1d8b040d555af647a2b89628d06d6b921f`, включён merge commit
+`3e72c42736197929156288b4292e2d9e79767c2f`. Все пять проверенных A237
+source/test/SQL файлов равны9fc0785c; импортированные product/tests/документы
+ROOT236 равны main9f7. Две истории launch/PLAN_CHANGES сохранены как ordered
+subsequences. Repo inventory001–237 непрерывен; это не применение237 к базе.
+
+Изменились12 импортированных путей относительно9fc, включая отдельный staff
+country reader/страницу каталога: полная продуктовая tree не объявляется прежней.
+Чат/UI/feed/seen/Composer и A237 protocol assertions не менялись; локальные
+product tests не повторялись. Diff/whitespace/parity проверены. Требуются fresh
+protected CI и exact-head integration review; actual237 всё ещё ждёт B1015
+release и принятого observer/apply/RPC packet. SOURCE_ONLY не означает merge GO.

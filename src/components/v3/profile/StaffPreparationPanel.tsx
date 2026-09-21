@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { btnCls, btnGhostCls } from "@/components/ui";
 import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
-import type { ApplicationDocuments } from "@/lib/portal/application-documents";
-import { readStaffApplicationDocumentsAction } from "@/lib/portal/application-documents-actions";
+import type { ApplicationPackageReadiness } from "@/lib/portal/application-packages";
+import { readStaffApplicationPackageReadinessAction } from "@/lib/portal/application-packages-actions";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { ProgramDocumentItem } from "@/components/portal/admissionPreparations/ProgramDocumentItem";
 import { ProgramDocumentHistory } from "@/components/portal/admissionPreparations/ProgramDocumentHistory";
@@ -12,6 +12,9 @@ import { ProgramDocumentRecovery } from "@/components/portal/admissionPreparatio
 import type { StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
 import { continueStaffRequirements, useStaffPending, type StaffPreparationScope } from "./staff-preparation-client";
 import { StaffRequirementsEditor } from "./StaffRequirementsEditor";
+import { PackagePreparation } from "@/components/portal/applicationPackages/PackagePreparation";
+import { PackageRecovery } from "@/components/portal/applicationPackages/PackageRecovery";
+import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import { EDITOR_PENDING_EVENT, readEditorPending } from "@/lib/portal/application-requirements-editor-pending";
 
 function subscribeHash(callback: () => void) {
@@ -28,9 +31,9 @@ function subscribeEditorPending(callback: () => void) {
   };
 }
 
-async function readProgramDocuments(scope: StaffPreparationScope, applicationId: string): Promise<StaffPreparationRead<ApplicationDocuments>> {
-  const result = await readStaffApplicationDocumentsAction(scope, { studentCaseId: scope.studentCaseId, applicationId });
-  return result.ok ? { status: "ready", value: result.documents }
+async function readProgramDocuments(scope: StaffPreparationScope, applicationId: string): Promise<StaffPreparationRead<ApplicationPackageReadiness>> {
+  const result = await readStaffApplicationPackageReadinessAction(scope, { studentCaseId: scope.studentCaseId, applicationId });
+  return result.ok ? { status: "ready", value: result.readiness }
     : { status: result.reason === "forbidden" ? "forbidden" : "unavailable" };
 }
 
@@ -44,7 +47,7 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
   const [explicitOpen, setOpened] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const editorButton = useRef<HTMLButtonElement>(null);
-  const [view, setView] = useState<StaffPreparationRead<ApplicationDocuments> | null>(null);
+  const [view, setView] = useState<StaffPreparationRead<ApplicationPackageReadiness> | null>(null);
   const [historyEpoch, setHistoryEpoch] = useState(0);
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
@@ -118,8 +121,10 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
     }}>
       {opened ? "Скрыть подготовку" : "Открыть подготовку"}
     </button>
+    <PackageRecovery scope={documentScope} audience="staff" strings={packageStrings("ru")} onSaved={() => void load()} />
     {opened ? <div id={`${id}-documents`} className="mt-4 space-y-3" aria-busy={loading || pending}>
       {editorOpen ? <StaffRequirementsEditor key={`${scope.organizationId}:${scope.membershipId}:${scope.studentCaseId}:${preparation.applicationId}`} scope={{ ...scope, applicationId: preparation.applicationId }} onSaved={() => { void load(); }} onClose={() => { setEditorOpen(false); requestAnimationFrame(() => editorButton.current?.focus()); }} /> : <>
+      {canRead ? <PackagePreparation scope={documentScope} readiness={documents} loading={loading} audience="staff" strings={packageStrings("ru")} documentStrings={documentStrings} canReview={canReview} recovery={false} onSaved={() => void load()} epoch={historyEpoch} /> : null}
       <h4 className="font-semibold text-fg">Документы программы</h4>
       {requirements?.origin === "evo_starter" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Фото и паспорт — стартовые документы. Полный список для программы ещё нужно уточнить.</p> : null}
       {requirements?.configurationState === "confirmed" ? <p className="max-w-2xl text-sm leading-6 text-fg-2">Состав требований подтверждён сотрудником EVO. Файлы проверяются отдельно.</p> : null}
@@ -139,14 +144,14 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
             {item.deadline.sourceUrl ? <a className="inline-flex min-h-11 items-center underline underline-offset-4" href={item.deadline.sourceUrl} target="_blank" rel="noopener noreferrer">Источник срока (откроется в новой вкладке)</a> : null}
           </div> : null}
           {item.instructions ? <p className="mt-2 max-w-2xl text-sm text-fg-3">{item.instructions}</p> : null}
-          <ProgramDocumentItem item={documents.items[index]} scope={documentScope} target={{ studentCaseId: scope.studentCaseId,
+          <ProgramDocumentItem item={documents.documentItems[index]} scope={documentScope} target={{ studentCaseId: scope.studentCaseId,
             applicationId: preparation.applicationId, requirementsRevisionId: requirements.revisionId!,
             requirementItemId: item.requirementItemId, documentSlotId: item.documentSlotId }}
             audience="staff" strings={documentStrings} canReview={canReview} onSaved={() => void load()} historyEpoch={historyEpoch} />
         </li>)}</ul> : null}
         <ProgramDocumentRecovery scope={documentScope} audience="staff" strings={documentStrings}
-          currentItemIds={documents?.items.map(item => item.requirementItemId) ?? []}
-          currentSubmissionIds={documents?.items.flatMap(item => item.submission ? [item.submission.submissionId] : []) ?? []}
+          currentItemIds={documents?.documentItems.map(item => item.requirementItemId) ?? []}
+          currentSubmissionIds={documents?.documentItems.flatMap(item => item.submission ? [item.submission.submissionId] : []) ?? []}
           onSaved={() => void load()} />
         <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId: preparation.applicationId }}
           requirementItemId={null} audience="staff" strings={documentStrings} canReview={canReview} onSaved={() => void load()} />

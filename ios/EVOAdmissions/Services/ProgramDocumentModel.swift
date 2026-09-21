@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class ProgramDocumentModel: ObservableObject {
-    @Published private(set) var documents: ApplicationDocumentsView?
+    @Published private(set) var documents: ApplicationPackageReadiness?
     @Published private(set) var uploads: [ApplicationDocumentPending<ApplicationDocumentUploadIntent>] = []
     @Published private(set) var submits: [ApplicationDocumentPending<ApplicationDocumentSubmitIntent>] = []
     @Published private(set) var busy = false
@@ -21,7 +21,7 @@ final class ProgramDocumentModel: ObservableObject {
         context.map { ApplicationDocumentOwner(actorId: $0.scope.actorId, membershipId: $0.scope.membershipId,
             organizationId: $0.scope.organizationId, studentCaseId: $0.scope.caseId) }
     }
-    func activate(_ view: ApplicationDocumentsView, context: ProgramPreparationContext) {
+    func activate(_ view: ApplicationPackageReadiness, context: ProgramPreparationContext) {
         if self.context?.scope != context.scope || applicationId?.uuidString.lowercased() != view.applicationId {
             uploads = []; submits = []; clearPreview(); noticeKey = nil; errorKey = nil
         }
@@ -34,7 +34,7 @@ final class ProgramDocumentModel: ObservableObject {
         documents = nil
         restore()
     }
-    func deactivate() { context = nil; applicationId = nil; documents = nil; uploads = []; submits = []; clearPreview() }
+    func deactivate() { context = nil; applicationId = nil; documents = nil; uploads = []; submits = []; busy = false; errorKey = nil; noticeKey = nil; clearPreview() }
     private func clearPreview() {
         previewURL = nil
         if let previewDirectory { try? FileManager.default.removeItem(at: previewDirectory) }
@@ -52,8 +52,8 @@ final class ProgramDocumentModel: ObservableObject {
     }
     func pendingUpload(_ item: String) -> ApplicationDocumentPending<ApplicationDocumentUploadIntent>? { uploads.first { $0.requirementItemId == item } }
     func pendingSubmit(_ item: String) -> ApplicationDocumentPending<ApplicationDocumentSubmitIntent>? { submits.first { $0.requirementItemId == item } }
-    var oldUploads: [ApplicationDocumentPending<ApplicationDocumentUploadIntent>] { uploads.filter { value in !((documents?.items.contains { $0.id == value.requirementItemId }) ?? false) } }
-    var oldSubmits: [ApplicationDocumentPending<ApplicationDocumentSubmitIntent>] { submits.filter { value in !((documents?.items.contains { $0.id == value.requirementItemId }) ?? false) } }
+    var oldUploads: [ApplicationDocumentPending<ApplicationDocumentUploadIntent>] { uploads.filter { value in !((documents?.documentItems.contains { $0.id == value.requirementItemId }) ?? false) } }
+    var oldSubmits: [ApplicationDocumentPending<ApplicationDocumentSubmitIntent>] { submits.filter { value in !((documents?.documentItems.contains { $0.id == value.requirementItemId }) ?? false) } }
 
     func saveFile(_ url: URL, itemId: String, session: ProgramPreparationSession) async {
         guard !busy, let context, let applicationId, let owner, let store else { errorKey = "program_document_pending_unavailable"; return }
@@ -61,7 +61,7 @@ final class ProgramDocumentModel: ObservableObject {
         let lock = "document/\(applicationId)/\(itemId)"
         guard session.matches(context, generation: generation), session.begin(lock) else { return }
         busy = true; errorKey = nil; noticeKey = nil
-        defer { busy = false; session.finish(lock, generation: generation) }
+        defer { if session.matches(context, generation: generation) { busy = false }; session.finish(lock, generation: generation) }
         do {
             let secured = url.startAccessingSecurityScopedResource()
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
@@ -78,8 +78,8 @@ final class ProgramDocumentModel: ObservableObject {
                 guard pending.intent.file == file else { throw ApplicationDocumentClientError.changedFile }
                 intent = pending.intent
             } else {
-                let fresh = try await service.studentApplicationDocuments(studentCaseId: context.scope.caseId, applicationId: applicationId)
-                guard session.matches(context, generation: generation), let item = fresh.items.first(where: { $0.id == itemId }), item.canUpload,
+                let fresh = try await service.applicationPackageReadiness(studentCaseId: context.scope.caseId, applicationId: applicationId)
+                guard session.matches(context, generation: generation), let item = fresh.documentItems.first(where: { $0.id == itemId }), item.canUpload,
                       let revision = fresh.requirements.revision, let id = UUID(uuidString: itemId), let slotId = UUID(uuidString: item.documentSlotId) else { throw ProgramPreparationLocalError.unavailable }
                 intent = try ApplicationDocumentUploadIntent(studentCaseId: context.scope.caseId, applicationId: applicationId,
                     requirementsRevisionId: revision.revisionId, requirementItemId: id, documentSlotId: slotId, file: file)
@@ -124,7 +124,7 @@ final class ProgramDocumentModel: ObservableObject {
         let lock = "document/\(applicationId)/\(itemId)"
         guard session.matches(context, generation: generation), session.begin(lock) else { return }
         busy = true; errorKey = nil; noticeKey = nil
-        defer { busy = false; session.finish(lock, generation: generation) }
+        defer { if session.matches(context, generation: generation) { busy = false }; session.finish(lock, generation: generation) }
         do {
             let intent: ApplicationDocumentSubmitIntent
             if let pending = pendingSubmit(itemId) {
@@ -132,8 +132,8 @@ final class ProgramDocumentModel: ObservableObject {
                 intent = pending.intent
             } else {
                 guard let selection else { throw ApplicationDocumentClientError.invalidIntent }
-                let fresh = try await service.studentApplicationDocuments(studentCaseId: context.scope.caseId, applicationId: applicationId)
-                guard session.matches(context, generation: generation), let item = fresh.items.first(where: { $0.id == itemId }), item.canSubmit,
+                let fresh = try await service.applicationPackageReadiness(studentCaseId: context.scope.caseId, applicationId: applicationId)
+                guard session.matches(context, generation: generation), let item = fresh.documentItems.first(where: { $0.id == itemId }), item.canSubmit,
                       let revision = fresh.requirements.revision else { throw ProgramPreparationLocalError.unavailable }
                 intent = ApplicationDocumentSubmitIntent(studentCaseId: context.scope.caseId.uuidString.lowercased(), applicationId: fresh.applicationId,
                     requirementsRevisionId: revision.revisionId.uuidString.lowercased(), requirementItemId: itemId, documentSlotId: item.documentSlotId,
@@ -162,7 +162,7 @@ final class ProgramDocumentModel: ObservableObject {
     private func refresh(context: ProgramPreparationContext, applicationId: UUID, generation: Int, session: ProgramPreparationSession) async {
         restore()
         do {
-            let view = try await service.studentApplicationDocuments(studentCaseId: context.scope.caseId, applicationId: applicationId)
+            let view = try await service.applicationPackageReadiness(studentCaseId: context.scope.caseId, applicationId: applicationId)
             if session.matches(context, generation: generation) { documents = view; session.requestRefresh() }
         } catch { if session.matches(context, generation: generation) { errorKey = "prep_read_failed" } }
     }
@@ -173,7 +173,7 @@ final class ProgramDocumentModel: ObservableObject {
         let generation = session.generation
         guard session.matches(context, generation: generation) else { return }
         busy = true; errorKey = nil
-        defer { busy = false }
+        defer { if session.matches(context, generation: generation) { busy = false } }
         do {
             let token = try await service.currentAccessToken()
             guard session.matches(context, generation: generation) else { return }

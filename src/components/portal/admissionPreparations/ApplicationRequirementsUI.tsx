@@ -3,17 +3,21 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import type { ApplicationRequirementItemV2 } from "@/lib/portal/application-requirements-v2";
-import type { ApplicationDocuments } from "@/lib/portal/application-documents";
+import type { ApplicationDocumentItemState } from "@/lib/portal/application-documents";
 import type { PortalStrings } from "@/lib/portal/i18n";
 import { clearPreparationIntent, persistPreparationIntent, readPendingRequirements, type StudentPreparationScope } from "@/lib/portal/student-preparation-pending";
-import { initializeStudentPreparationUIAction, readStudentPreparationUIAction } from "@/lib/portal/student-preparation-ui-actions";
+import { initializeStudentPreparationUIAction } from "@/lib/portal/student-preparation-ui-actions";
 import { ProgramDocumentItem } from "./ProgramDocumentItem";
 import { ProgramDocumentHistory } from "./ProgramDocumentHistory";
 import { ProgramDocumentRecovery } from "./ProgramDocumentRecovery";
 import type { ProgramDocumentScope } from "./ProgramDocumentControls";
+import type { ApplicationPackageReadiness } from "@/lib/portal/application-packages";
+import { readStudentApplicationPackageReadinessAction } from "@/lib/portal/application-packages-actions";
+import { PackagePreparation } from "../applicationPackages/PackagePreparation";
+import { packageStrings } from "../applicationPackages/strings";
 
 function Requirement({ item, programState, scope, revisionId, strings, documentStrings, onSaved, historyEpoch }: {
-  item: ApplicationRequirementItemV2; programState: ApplicationDocuments["items"][number];
+  item: ApplicationRequirementItemV2; programState: ApplicationDocumentItemState;
   scope: ProgramDocumentScope; revisionId: string; strings: PortalStrings<"preparations">;
   documentStrings: PortalStrings<"programDocuments">; onSaved: () => void;
   historyEpoch: number;
@@ -42,10 +46,11 @@ function Requirement({ item, programState, scope, revisionId, strings, documentS
   </li>;
 }
 
-export function ApplicationRequirementsUI({ scope, applicationId, initial, canInitialize, strings, documentStrings }: {
+export function ApplicationRequirementsUI({ scope, applicationId, initial, canInitialize, strings, documentStrings, locale }: {
+  locale: string;
   scope: StudentPreparationScope;
   applicationId: string;
-  initial: ApplicationDocuments | null;
+  initial: ApplicationPackageReadiness | null;
   canInitialize: boolean;
   strings: PortalStrings<"preparations">;
   documentStrings: PortalStrings<"programDocuments">;
@@ -65,16 +70,16 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
     setBusy(initialize ? "initialize" : "read");
     setError(null);
     try {
-      const latest = await readStudentPreparationUIAction(scope, applicationId);
+      const latest = await readStudentApplicationPackageReadinessAction(documentScope, { studentCaseId: scope.studentCaseId, applicationId });
       if (!latest.ok) {
         setDocuments(null);
         setEligible(false);
         setError(strings.requirementsUnavailable);
         return;
       }
-      setDocuments(latest.documents);
-      setEligible(latest.canInitialize);
-      if (!initialize || latest.requirements.state !== "uninitialized" || !latest.canInitialize) return;
+      setDocuments(latest.readiness);
+      setEligible(canInitialize);
+      if (!initialize || latest.readiness.requirements.state !== "uninitialized" || !canInitialize) return;
       let intent;
       try {
         intent = readPendingRequirements(scope, applicationId) ?? {
@@ -93,8 +98,8 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
           : result.reason === "request_conflict" ? strings.requestConflict : strings.initializationIneligible);
       }
       // A receipt is never rendered as a current checklist.
-      const readback = await readStudentPreparationUIAction(scope, applicationId);
-      if (readback.ok) { setDocuments(readback.documents); setEligible(readback.canInitialize); }
+      const readback = await readStudentApplicationPackageReadinessAction(documentScope, { studentCaseId: scope.studentCaseId, applicationId });
+      if (readback.ok) { setDocuments(readback.readiness); setEligible(canInitialize); }
       else { setDocuments(null); setEligible(false); if (result.ok) setError(strings.requirementsUnavailable); }
     } catch {
       // A failed fresh read cannot leave an old file/review projection current.
@@ -118,12 +123,13 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
     {current?.state === "needs_configuration" ? <div className="pt-prep-notice"><h3>{strings.needsConfiguration}</h3><p>{strings.configurationHelp}</p>
       <ul>{current.configurationReasons.map((reason) => <li key={reason}>{strings[`config.${reason}`]}</li>)}</ul>
     </div> : null}
+    <PackagePreparation scope={documentScope} readiness={documents} loading={busy !== null} audience="student" strings={packageStrings(locale)} documentStrings={documentStrings} onSaved={() => void update(false)} epoch={historyEpoch} />
     {current && current.revisionId && documents && current.items.length > 0 ? <ol className="pt-prep-requirement-list">{current.items.map((item, index) =>
-      <Requirement key={item.requirementItemId} item={item} programState={documents.items[index]} scope={documentScope}
+      <Requirement key={item.requirementItemId} item={item} programState={documents.documentItems[index]} scope={documentScope}
         revisionId={current.revisionId!} strings={strings} documentStrings={documentStrings} onSaved={() => void update(false)} historyEpoch={historyEpoch} />)}</ol> : null}
     <ProgramDocumentRecovery scope={documentScope} audience="student" strings={documentStrings}
-      currentItemIds={documents?.items.map(item => item.requirementItemId) ?? []}
-      currentSubmissionIds={documents?.items.flatMap(item => item.submission ? [item.submission.submissionId] : []) ?? []}
+      currentItemIds={documents?.documentItems.map(item => item.requirementItemId) ?? []}
+      currentSubmissionIds={documents?.documentItems.flatMap(item => item.submission ? [item.submission.submissionId] : []) ?? []}
       onSaved={() => void update(false)} />
     <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId }} requirementItemId={null}
       audience="student" strings={documentStrings} onSaved={() => void update(false)} />

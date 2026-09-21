@@ -37284,3 +37284,39 @@ typecheck и targeted lint PASS;31 pure cases переиспользованы �
 byte parity (не новый прогон). Unknown не выдаётся за empty, tombstone не выдаёт
 старый текст. Нового runtime не было; independent source review/new PR и один
 future postchange batch впереди. Shared runtime ROOT238; production не менялась.
+
+## 2026-09-21 — Item14 manage search / additive238 precode
+
+Accepted contract: [staff catalogue manage search](platform/staff-catalog-manage-search.md). Base9f7dde1d; ROOT reserves238 after A237. Implement scoped pending-draft literal search and mixed keyset50+1, strict DTO/query/listContext and additive reader first. Preserve legacy readers, commands, publications, permissions, all143 editorial templates and exact retry. UI index/editor remain unchanged until actual incumbent inspection; no SQL/Auth/runtime execution in this checkpoint. Integration of actual237 is required before protected migration checks; no fabricated predecessor. Plan approval is not actual acceptance.
+
+
+### ROOT238 manage — incumbent inspection and UI implementation, 2026-09-22
+
+Actual source f3871a0537605fd23ff847a2e312291de098a3e1 was inspected once by ordinary local Admin at 1440/390/320. The index has no search; Add is below 143 templates and the batch action dominates. Queue is empty, so draft detail/editor were not inspected. Incumbent receipt SHA256 89c0d3587dd84ade2ad7e09fc57b51cdec86dcb84ee869890e3e64f3a8a82528; strict final290/33 passed after own logout. Intermediate live AMR verifier STOP is retained; no allowlist was changed.
+
+Implement the approved manage contract: one header Add, labelled native GET name search, real238 pending page/count/cursor, independent name filtering of all templates, secondary batch and canonical listContext return links. Preserve forms/actions/template bytes and EVO/Golos. This authorizes source work only; migration238 and post-change UI acceptance remain pending after the current shared QA owner closes.
+
+
+### ROOT238 manage — real local acceptance, 2026-09-22
+
+Source `4bf6b9dbec8f04fc36db74a1f8547939c84081c6`: one local apply238, ordinary Admin empty/literal RPC reads and Student/anonymous/service/mismatched-organization denials; one ordinary Admin UI batch1440/390/320. Native search of the existing143 templates, template view/context Back, reset, browser history and real Tab passed. All290 business tables and33 Auth/Storage invariants passed strict final after own logout204. Own browser/child process closed and reaped; an initial post-stop socket-bind OSError is retained, with later read-only confirmation of group/listener absence and a free port. No second signal or UI rerun.
+
+[Actual receipt](qa/staff-catalog-manage-search-actual-2026-09-22.md) preserves the exact evidence and remaining zero-pending limitations: no positive draft search, >50/Next, existing editor or writes. This completes the implemented narrow local check, not production, whole item14 or1–36. Product files are unchanged by this documentation checkpoint; final-head review/CI remain required.
+
+
+## 2026-09-22 — Item22 mobile header spacing, precode
+
+After #1019 merged in43410559, implement [two-class mobile header refinement](platform/crm-mobile-header-spacing.md): top py2 keeps6px focus-ring clearance, actions min-h14/py1 restores old values atmd. Existing EVO identity, both rows, labels,44px controls, permissions/state/handlers and desktop remain. Independent direction reviews c242de8b/ac1da62c accepted. Use the already accepted manage route instead of chat for one narrow actual shell batch, avoiding unrelated seen effects; no exact height saving or text-zoom proof is claimed before execution. No data/API/migration change.
+
+## 2026-09-22 — Item22 mobile header actual and item36 checkpoint
+
+One ordinary Admin header batch at1440/390/320/focus on e999 accepted with independent actual/closure review441f869a. [Receipt](qa/crm-mobile-header-spacing-actual-2026-09-22.md) records measured geometry, preserved data, text-onlyzoom gap and original cleanup port timeout followed by verified closure. No new product scope or production change. Status checkpoint records #1019/#1015 merges, A1020 partial actual, and narrow KB141/144/145 owner decisions; it does not approve whole KB articles or declare all1–36 complete.
+
+## 2026-09-22 — служебная продажа и точечная сверка KB
+
+По прямому поручению владельца найдена и штатно архивирована одна служебная продажа в production001–206. [Квитанция](qa/service-sale-archive-actual-2026-09-22.md) подтверждает scoped1→0, организационные7→6, сохранение остальных209 продаж/истории и независимое actual review91c4d18b. Ранний STOP до записи сохранён. Релиз/схема/права не менялись. В KB153/156 добавлены только [подтверждения существующих фактов](qa/knowledge-source-reconciliation-2026-09-21.md) с сохранением candidate-статуса; новой политики или публикации нет. #1021 уже вmainfd77f2e2; остальной план остаётся в работе.
+
+
+## 2026-09-22 — KB31: источники существующих утверждений и карта остатка
+
+После merge #1022 вb983a45e KB157/158 получили только источник и дату к существующим фразам об e-Visa и проверке признания образования. [Квитанции и карта остатка](qa/knowledge-source-reconciliation-2026-09-21.md): independent reviews687d6d62/f17b7f87, applied receiptscfc377cb/954a7aa7. Другие утверждения/status/publication сохранены; статьи целиком не одобрены. Содержательное уточнение159 подтверждено официальным источником и независимо проверено, но ожидает решения владельца и не применено. Остаток разделён на дополнительные коммерческие правила, применимые официальные источники и допуск публикации. Решения владельца141/144/145 не пересматриваются.

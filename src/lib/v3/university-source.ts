@@ -5,6 +5,7 @@ import type { ActiveStudentPortalActor } from "../student-portal-auth";
 import { parseUniversityContent, parseUniversityDrafts, parseUniversityPage, universityUuid, type UniversityFilters, type PublishedUniversity } from "../platform-university-catalog";
 import { createSupabaseServerClient } from "../supabase/server";
 import { parseStaffUniversityCountries } from "../university-staff-countries.ts";
+import { parseManageDraftPage, parseManageIndex, parseManageCursor, type ManageIndex } from "../university-manage-contract.ts";
 import chinaContent from "../server/university-catalog-reviewed-china.json";
 import malaysiaContent from "../server/university-catalog-reviewed-malaysia.json";
 import europeContent from "../server/university-catalog-reviewed-europe.json";
@@ -76,4 +77,18 @@ export function reviewedUniversityTemplates() {
     seen.add(entry.key);
     return { key: entry.key, content };
   });
+}
+
+/** Complete filtered pending queue via additive238; never fall back to the first50 reader. */
+export async function readUniversityManageDraftPage(actor: ActivePlatformActor, index: ManageIndex) {
+  if (isStaffPreview(actor) || !staffHasPermission(actor, "catalog.import.manage") || !parseManageIndex(index.q, index.cursor)) throw new Error("Drafts unavailable");
+  const cursor = index.cursor ? parseManageCursor(index.cursor, index.q) : null;
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.schema("platform").rpc("staff_university_catalog_draft_page", {
+    p_organization_id: actor.organizationId, p_query: index.q,
+    p_cursor_created_at: cursor?.createdAt ?? null, p_cursor_id: cursor?.id ?? null,
+  });
+  const page = !error && parseManageDraftPage(data, actor.organizationId, index);
+  if (!page) throw new Error("Drafts unavailable");
+  return page;
 }

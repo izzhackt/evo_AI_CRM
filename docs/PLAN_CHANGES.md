@@ -35297,6 +35297,71 @@ gate для самого выбора. Новый staff-save создаёт ре
 и shared i18n/Swift keys согласуются перед runtime-правками. Независимое review
 и CI этого плана фиксируются в отдельном PR, без заявления функциональной приёмки.
 
+
+## 2026-09-21 — A15c read foundation before removing threaded UI
+
+A15b is merged at6d01bc81/#974. Fresh source confirms that141 readers,171 command
+receipt/parent semantics,156 scoped channel authority and separate thread drafts
+must remain compatible. Product plan§12 explicitly gates thread removal on both
+old-response visibility and new unread accounting. Therefore select an additive
+read-only timeline/context RPC and strict consumer contract before any UI cutover.
+
+See `docs/EVO_TEAM_CHAT_FLAT_READER_PLAN_2026-09-21.md` for exact cursor/quote/
+authority/rollback rules and limited file ownership. No old rows are copied,
+no existing function or composer is replaced, and no read cursor is automated.
+This is precode only; ROOT has not allocated a migration or granted a QA writer.
+Actual populated-reader evidence must come from existing real history or a
+separately authorized controlled QA packet, never from a fabricated success.
+
+
+### A15c precode approval and migration reservation before code
+
+Independent inventory_plans approved exact55109f62. ROOT reserved223 exclusively
+and authorized offline implementation of the additive reader/types/decoder/server
+repository and scoped tests. Clarify UUID uniqueness with monotonic sequence only;
+channel authority must reject NULL (`IS NOT TRUE`). Preserve every v1 path and
+current UI. Migration apply/Auth/positive controlled QA still await a separately
+reviewed local packet and coordinator window; B currently owns that environment.
+
+
+### A15c local223 apply and bounded QA account limitation
+
+Migration223 applied once from reviewed source9c589938 with the independently
+approved v2 packet; existing281 business tables/Auth counts and old schema
+metadata/ledger are preserved. Positive QA stopped before any command because
+existing `salesOther` credentials fail ordinary sign-in. No fixture history was
+created, no account/role was changed, and postfailure parity is confirmed.
+
+Prepare a separately reviewed QA-only revision on already-installed223 using
+only positively resolved ordinary Sales and Student. Preserve the original
+failure and disclose unavailable second-employee unread coverage; do not create
+an identity or relabel historical credential failure as a new HTTP observation.
+Exact retained56-message/58-command scope is unchanged. New coordinator GO is
+required for the revised exclusive window; never reapply223. See the223 QA packet
+for immutable receipt hashes and validation boundaries. This does not change
+runtime behavior, authorize production, or complete the flat-feed UI block.
+
+
+### A15c implemented and actual local Auth QA passed
+
+Additive223 flat history/context reader, bounded current parent quotes, strict
+TypeScript decoder/repository and9 pure contract checks are implemented in#976.
+Runtime9c589938 remains unchanged after integrating mainc5d9a4cf. Existing v1
+commands/URLs/drafts/read markers/composer/UI remain unchanged.
+
+223 applied exactly once; independently reviewed v5 normal-Auth QA passed on
+sourceHEADc37d8628 with19 decoded actual pages and17 pre-write negative cases.
+Approved retained56 local QA messages produced58 effective commands and one
+same-input replay with zero additional effects. Every prior row and277 other
+business table hashes are preserved; schema/ledger, stored read markers and
+notifications remain equal. Writer released; final receipt SHA256
+8f6966b71e8e94da55d80510cfb349a10936b9628b747ad6da8b8495304f3379.
+
+Three earlier pre-command harness stops are retained, not relabelled as passes.
+Other-Sales observer and real other-tenant coverage remain unproved. Final exact
+PR-head review/short CI and merge are separate; no production apply/release or
+flat UI cutover is claimed. See docs/qa/crm-team-chat-flat-reader-223-2026-09-21.md.
+
 ## 2026-09-21 — B3e-1 / 224: read-only v2 protocol (до реализации)
 
 После #979 root выделил224 для authenticated v2 requirements readers.

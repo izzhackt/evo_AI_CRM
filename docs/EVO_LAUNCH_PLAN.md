@@ -12186,3 +12186,26 @@ handover aggregate correction preserved. UI successful writes and managed rollou
 not claimed. Details: docs/qa/case-task-change-reason-2026-09-21.md.
 PR968 is merged43bd20c8; source222 remains separate until exact-head review/CI/merge.
 Issue687 owner/managed exit and all remaining accepted1–36 work stay open.
+
+
+## 2026-09-21 — CRM-09b / item12: иерархия договора и оплаты (до кода)
+
+После объединения #969 (`d3ceed4078`) root выполняет узкий presentation-срез
+[контракта](design/v3/finance-hierarchy-slice-2026-09-21.md): стоимость услуг EVO →
+договор → транши → оплаты/чеки → остаток. Вторичные общие обязательства и
+дополнительные операции остаются доступными с прежними формами и правами.
+
+Пять owned-файлов: Profile.tsx (только Money props), profile/tabs.tsx (только Money),
+CaseAgreementBlock.tsx, CaseAgreementForms.tsx (только summary),
+FinanceEntryWorkspace.tsx. Reader/DTO/SQL/команды/финансовые значения не меняются.
+Не переносить весь contract workflow и не удалять вкладку: полный item12 остаётся
+открытым. Доступный переход «Подготовка договора и отчёты» ведёт в существующий
+workflow только при разрешённой вкладке. Preview не показывает write controls.
+
+Impeccable Operate: существующие Golos/токены/компоненты, короткие предметные
+подписи, раскрываемые вторичные разделы без unmount форм, минимум44px для действий.
+До UI-правок — actual ordinary QA baseline и craft-floor; затем bounded
+desktop/320/390 проверка, доступность и сохранность несохранённого ввода.
+Сохранения финансовых операций/загрузки/production не нужны и сюда не входят.
+Недоступные реальные финансовые варианты фиксируются как непройденные.
+Scoped checks и independent exact-head review перед merge; managed delivery отдельно.

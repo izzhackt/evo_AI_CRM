@@ -35112,3 +35112,20 @@ handover aggregate correction preserved. UI successful writes and managed rollou
 not claimed. Details: docs/qa/case-task-change-reason-2026-09-21.md.
 PR968 is merged43bd20c8; source222 remains separate until exact-head review/CI/merge.
 Issue687 owner/managed exit and all remaining accepted1–36 work stay open.
+
+
+## 2026-09-21 — item12 / CRM-09b: отделить цену договора от всех обязательств
+
+Исходный CRM-09 §7 принятого плана требует связный путь договора и оплаты.
+Проверка кода показала: старый «Бюджет» складывает все обязательства, agreement
+читает только evo_service_fee, а gross totalPaidMinor не вычитает возвраты.
+Поэтому presentation-срез сохраняет оба reader и весь legacy workspace:
+основной договор и net-paid/outstanding получают явные подписи, общие обязательства
+и дополнительные операции — отдельные раскрываемые разделы. Не удалять
+третьесторонние расходы, возвраты, историю, старые формы или отдельные права.
+
+Контракт до реализации: docs/design/v3/finance-hierarchy-slice-2026-09-21.md.
+База d3ceed4078 после #969, пять owned UI-файлов неизменны с44092c575. SQL/API нет.
+Полный перенос договорных команд и снятие contract tab — следующий срез, item12
+не закрывается этой компоновкой. Проверка текущих реальных данных только чтением;
+клиентские публикации/финансовые записи/Auth provisioning не подразумеваются.

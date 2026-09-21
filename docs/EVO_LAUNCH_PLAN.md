@@ -14176,3 +14176,24 @@ Main59a726b после #1006/#1010 интегрирован в4f33577f: chat byt
 истории сохранены. Sidebar destinationKey не меняет AppShell/chat layout; portal
 profile не входит в staff chat flow. Final exact-head review/CI/merge впереди;
 весь item15/production этим срезом не закрывается.
+
+
+### A15 — bounded channel preview reader/DTO до кода, 2026-09-21
+
+После merge #1014 / main24e78024 независимый precode review7a844584 принял
+предложение1ee57581. [Контракт](EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md)
+разделяет reader/DTO и последующий rail UI. ROOT резервирует237 и разрешает
+только первый source блок: additive latestPreview в существующем channels RPC,
+strict decoder и pure monotonic snapshot/preview acceptance с protocol tests.
+Сохранить authority156, sparse unread225, current signature/grants/STABLE/DEFINER,
+index223; latest включает replies/tombstones, body cap240 Unicode characters.
+Нет новых таблиц/index/subscriptions/N reads/timers; права/Composer/feed/seen
+и UI не меняются. Late search/background metadata не должны воскресить закрытый
+канал или старое тело после удаления; null и malformed/failure различаются.
+
+План/journals записаны до кода в isolated izzhackt/team-chat-channel-previews.
+Shared QA остаётся ROOT236, затемB1015; apply237/Auth/browser/server/runtime
+здесь не разрешены. Source checks и draft PR — ещё не actual acceptance/merge.
+Фиктивные actors/messages/grants не разрешены; protected CI, independent review
+и отдельный принятый actual packet остаются обязательными до merge. Rail UI
+начинается после первого merge; весь15/1–36/production не объявляется готовым.

@@ -35471,3 +35471,24 @@ SQL224 equals B's actual reviewed/applied source. Append-only journals preserve
 both branches. Independent apply driver review APPROVED f68bc2bb; observer
 ea5a52df and catalog2520542a unchanged. Final integration-head/manifest review
 and protected checks remain; no225 apply/Auth run has occurred yet.
+
+
+### A15d local225 applied and sparse seen QA accepted; window released to ROOT32
+
+Exact actual source3fc9ef34 integrates accepted224 and preserves all A runtime
+hashes. Reviewed local CLI applied225 once: old281 data/metadata/ACL and ledger
+preserved, new seen empty. Ordinary Admin/Sales/Student Auth passed;15 negative
+calls and2 own/deleted no-ops completed before a retained harness SQL NULL stop.
+Fresh full282 reconciliation proved0 business writes. Independently reviewed
+bounded continuation reused those17 actual proofs and executed only previously
+unstarted legacy read/replay and8 remaining mark_seen calls. No rerun/reapply.
+
+Actual outcome:5 scoped seen rows, one Admin/general preference, one legacy
+receipt; repeated/reordered/subset/concurrent calls add no extra rows. Unread
+54→53→51→50→48; gaps remain unread. All10 actual acks decoded,279 other tables,
+old prefs/receipts, full postapply catalog and ROOT27/B224 data unchanged;
+ledger001–225/Auth8/8 preserved, sessions not claimed equal. Release2d7c943d
+contains full282 after_state and exact SQL19076b91, handed to ROOT32. No own
+server/browser/background process. A now docs/PR only; CI35555819344 passed
+at3fc9ef34; final docs exact-head review/checks still required before merge.
+No production/UI/server-action journey or whole-item15 completion claimed.

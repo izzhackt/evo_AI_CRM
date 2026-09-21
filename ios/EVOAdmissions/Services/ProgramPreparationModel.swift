@@ -208,7 +208,7 @@ final class ProgramPreparationModel: ObservableObject {
 @MainActor
 final class ProgramPreparationDetailModel: ObservableObject {
     @Published private(set) var preparation: CatalogPreparation?
-    @Published private(set) var requirements: ApplicationRequirementsView?
+    @Published private(set) var requirements: ApplicationRequirementsV2View?
     @Published private(set) var isLoading = false
     @Published private(set) var isWorking = false
     @Published private(set) var readError = false

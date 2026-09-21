@@ -35383,6 +35383,115 @@ This append is precode only, awaiting independent exact-head review.224 remains
 B-reserved; A has no new migration number or apply/Auth-write window. Production
 release and new QA identities are not authorized by this planning slice.
 
+## 2026-09-21 — B3e-1 / 224: read-only v2 protocol (до реализации)
+
+После #979 root выделил224 для authenticated v2 requirements readers.
+[Точный контракт](platform/b3e1-requirements-v2-read-contract.md) сохраняет
+initializer/receipt/pending v1, добавляет строгую flat v2 проекцию текущего218
+и переводит CRM/web/iPhone reader consumers. Схема/полные редакции/editor/write
+ещё не включаются; reserved full DTO decoding не означает working full backend.
+Новые private/public functions без business writes; apply/QA только после
+проверки точного пакета и отдельного root writer window. Старые slots/files/review,
+214 publication/intake/deadline и последующие §11 submit/packages сохранены.
+
+
+### A15d precode accepted;225 reserved before implementation
+
+PR#981 exact54fb718c passed independent review and CI35551960705 and merged
+at67934327d. ROOT reserved225 exclusively for A15d (224 belongs to B) and
+authorized offline implementation of the accepted sparse-seen contract.
+
+Implement private per-actor seen IDs, an additive idempotent mark_seen RPC with
+bounded batch acknowledgement, compatible channel unread counts, strict
+types/decoder/repository/action and scoped checks. Keep current UI, read command,
+message history, root/quote semantics, drafts and legacy read_sequence unchanged.
+No local apply/Auth/browser window or new QA identity authority is included.
+Other-author unread coverage requires an independently reviewed real-actor packet.
+
+
+### A15d offline implementation; real225 QA still pending
+
+Runtimefb12146e implements225 private sparse seen, additive mark_seen with
+strict complete-set acknowledgement and existing channel unread exclusions.
+Current command/UI/parent links/drafts/timeline223 remain unchanged. Published
+custom-staff authority is retained; own/deleted/legacy-read IDs are no-ops,
+unknown/cross-scope IDs reject the whole batch. No seen cursor compaction.
+
+Seven pure contract tests, scoped ESLint, TypeScript and SQL parser checks pass;
+these do not prove actual SQL/Auth behavior.225 is not applied,224 must precede
+it, and ROOT currently owns shared Auth/DB/browser. Other-author unread proof
+requires positive ordinary existing-observer Auth and a separately reviewed QA
+packet/window; no staff provisioning or retry of unavailable salesOther.
+See docs/qa/crm-team-chat-sparse-seen-225-2026-09-21.md for hashes and limits.
+
+
+### A15d source review accepted; bounded225 QA proposal remains offline
+
+PR#983 exact63dfdb00 independently approved; CI35552439001 passes, including
+migration boundary. Runtimefb12146e is unchanged. The separate QA proposal
+uses existing Admin/Sales/Student only after positive ordinary Auth/authority,
+15negative mark_seen cases,10positive acknowledgements, exactly5retained seen
+rows and one legacy read plus its replay. No history/provider/identity writes.
+
+QA-only executable is syntax checked but not run; its manifest deliberately
+has no future225 apply/release bindings.224 source/release, fresh baseline,
+separate apply driver/packet review and ROOT window GO still precede execution.
+See docs/qa/crm-team-chat-sparse-seen-225-packet-2026-09-21.md.
+
+
+### A15d QA transport guard correction — offline only
+
+Independent packet review found one P2: bind credentialed HTTP to the pinned
+local Kong/project before login. The proposed helper now disables ambient
+proxies and freshly checks pinned DB/Kong, Kong image, project/workdir, common
+network ID and port57495 before every API request. Expected topology comes
+from saved ROOT27c evidence; no current environment claim or execution.
+Runtime/decoder/business QA sequence remain unchanged. Python syntax and docs
+diff checks only; final224 release/apply packet/review/ROOT GO remain required.
+
+
+### A15d local225 window — actual224 baseline accepted, apply pending
+
+B applied224 once and released the shared local environment. ROOT transferred
+the exclusive225 window to A. A ran a fresh READ ONLY full281/catalog snapshot;
+it exactly matches B final state, ledger001–224 and Auth8/8, including ROOT27c
+retained QA. Sessions are outside that equality claim. No225 apply/Auth yet.
+
+The prepared single-use driver preserves all old data/metadata/ACL and verifies
+new table/RLS,4 table+4 PK index catalog columns,3 constraints,8 internal FK
+triggers, one RPC and only the reviewed channels body. Full282 SQL/state will
+be retained for ROOT32. Independent driver review and exact source224/main
+integration/manifest binding still precede apply and the approved scoped QA.
+
+
+### A15d source224 integrated; reviewed225 driver awaiting final binding
+
+Merged main2b23285d (PR982) into225 with all five A runtime hashes unchanged.
+SQL224 equals B's actual reviewed/applied source. Append-only journals preserve
+both branches. Independent apply driver review APPROVED f68bc2bb; observer
+ea5a52df and catalog2520542a unchanged. Final integration-head/manifest review
+and protected checks remain; no225 apply/Auth run has occurred yet.
+
+
+### A15d local225 applied and sparse seen QA accepted; window released to ROOT32
+
+Exact actual source3fc9ef34 integrates accepted224 and preserves all A runtime
+hashes. Reviewed local CLI applied225 once: old281 data/metadata/ACL and ledger
+preserved, new seen empty. Ordinary Admin/Sales/Student Auth passed;15 negative
+calls and2 own/deleted no-ops completed before a retained harness SQL NULL stop.
+Fresh full282 reconciliation proved0 business writes. Independently reviewed
+bounded continuation reused those17 actual proofs and executed only previously
+unstarted legacy read/replay and8 remaining mark_seen calls. No rerun/reapply.
+
+Actual outcome:5 scoped seen rows, one Admin/general preference, one legacy
+receipt; repeated/reordered/subset/concurrent calls add no extra rows. Unread
+54→53→51→50→48; gaps remain unread. All10 actual acks decoded,279 other tables,
+old prefs/receipts, full postapply catalog and ROOT27/B224 data unchanged;
+ledger001–225/Auth8/8 preserved, sessions not claimed equal. Release2d7c943d
+contains full282 after_state and exact SQL19076b91, handed to ROOT32. No own
+server/browser/background process. A now docs/PR only; CI35555819344 passed
+at3fc9ef34; final docs exact-head review/checks still required before merge.
+No production/UI/server-action journey or whole-item15 completion claimed.
 
 ## 2026-09-21 — CRM-09d: ошибка календарной даты в оплате из карточки
 

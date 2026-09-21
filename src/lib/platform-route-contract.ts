@@ -43,6 +43,7 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   "/portal/universities",
   "/portal/payments",
   "/portal/notifications",
+  "/portal/package-recovery",
   "/portal/tests",
   "/portal/tests/english",
   "/portal/tests/career",
@@ -69,6 +70,7 @@ const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-
 const STUDENT_PREPARATION_DETAIL_PATH = /^\/portal\/preparations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/document-notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_PACKAGE_NOTIFICATION_DETAIL_PATH = /^\/portal\/package-notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_LESSON_DETAIL_PATH = /^\/portal\/english\/lesson\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_PROFESSION_DETAIL_PATH = /^\/portal\/professions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -162,6 +164,7 @@ export function isConnectedStudentPortalPage(path: string): boolean {
     || STUDENT_PREPARATION_DETAIL_PATH.test(path)
     || STUDENT_NOTIFICATION_DETAIL_PATH.test(path)
     || STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH.test(path)
+    || STUDENT_PACKAGE_NOTIFICATION_DETAIL_PATH.test(path)
     || STUDENT_LESSON_DETAIL_PATH.test(path)
     || STUDENT_PROFESSION_DETAIL_PATH.test(path);
 }

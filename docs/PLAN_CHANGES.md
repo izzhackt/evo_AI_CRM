@@ -36131,6 +36131,54 @@ heads; this integration receives independent exact-head delta review and fresh C
 Shared runtime remains exclusively A15f; B232 actual QA follows ROOT995 and ROOT231.
 No UI implementation, DB/Auth/Storage/browser action or production claim is added.
 
+
+## 2026-09-21 — B3g.2: package UI implementation admitted
+
+After #999 merged as `47d4a474613e76a1b0d1790922db9fd6bd945831`, ROOT admitted
+web/CRM/iPhone implementation under the accepted B3g contract and wire. No new
+business policy, RPC or migration is introduced. Worktree `evo-program-package-ui`,
+branch `izzhackt/program-package-ui`, starts at that fresh main.
+
+File ownership: web worker owns new applicationPackages components, Student and
+staff preparation integration, admissions package queue/detail, package notification
+route/policy and web RU/KY strings. Native worker owns iOS package service/model/views,
+preparation/notification integration, localization and native validation support.
+Parent owns `src/lib/portal/application-package-ui.ts`, its focused pure-contract
+tests, plan logs and integration. Workers preserve each other's edits.
+
+Use package readiness's100-item projection directly instead of the old50-item
+Documents aggregate; existing individual upload/review/download controls remain.
+Queue rows load exact package detail lazily for deadlines/composition/current file
+reviews. Historical notifications render their frozen decision separately from newer
+package/file reviews. Detached owner-scoped recovery remains available across
+revision and queue changes. Impeccable Operate/craft-floor preserves EVO/Golos and
+native patterns, RU/KY, explicit selection, readable states and focused actions.
+
+Only source and focused checks are currently admitted. No local DB/Auth/Storage,
+browser, simulator or UI runtime before ROOT995 then ROOT231 hands the window to
+B232; A15f currently owns it. Later narrow actual-path/visual proof remains required.
+This UI source block does not close all20/21, accessibility25 or the entire1–36.
+
+
+B3g.2 source checkpoint: web and native implementation complete for independent
+source review. Added dedicated Student owner recovery access from portal home,
+explicit optional-without-file feedback, preserved selection on revision change,
+and owner isolation for delayed responses/retries; these implement the accepted
+contract without a new RPC or policy. See [implementation and evidence](platform/b3g-package-ui.md).
+Checks: 10 pure UI-contract tests, 11 command/presentation tests, 17 Swift
+selection/navigation checks, Next typegen, TypeScript, scoped ESLint, full Swift
+source typecheck, RU/KY/membership/plutil and diff checks passed. Native input
+hashes were verified after the shared disk recovery. Synthetic action ports test
+local orchestration only. Authenticated web/native UI, 232 actual-path QA and
+production remain unclaimed and held for the coordinator's runtime handoff.
+
+
+B3g.2 exact-head review of52426ca requested two historical-display corrections.
+Both retain frozen notification evidence while separately exposing later package
+and current file decisions; no contract/policy/API changes. Added2 codec-backed
+Node regressions; native suite now24 checks. Scoped lint/TypeScript and final
+69-input Swift typecheck passed. Actual-path QA remains a separate unclaimed gate.
+
 ### A15f unified chat UI — decisions recorded before code
 
 A15d225/A15e227 are merged; current base main115b895a. A227 actual local apply/API
@@ -36187,6 +36235,77 @@ preserves exact SalesRegisterView bytes; this is reused proof, not a new run.
 and remaining work, preserving earlier historical checkpoints. Local231 then
 applied once with no Auth/submission/business writes; window passed B232.
 No production delivery or whole1–36 completion claimed.
+
+
+### CRM-02e: authorized direction options —2026-09-21 precode
+
+After #995 merge a23490f7, implement accepted item7 direction selector using
+separate read-only RPC233. Existing v1/v2 report and writes stay unchanged.
+Organization and per-row authority precede DISTINCT; include all authorized
+periods/archive states, preserve exact strings/C order, reject overflow above
+1000 or unfilterable legacy values instead of silently truncating/normalizing.
+Strict DTO and shared500-code-point validator; native GET select retains
+unknown current URL values, filters/period/Back/reset. Explicit option error
+keeps exact-text input available without pretending empty success.
+See docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md for scope, grants and acceptance.
+Source-only while B232 owns QA; ROOT coordinates any later local apply.
+No production or fixture creation is authorized by this entry.
+
+
+CRM-02e source implementation: separate RPC233, strict options DTO and shared
+500-code-point validator; native select/error/empty/current-URL identity retained.
+17 targeted Node tests, scoped lint, normal typecheck and static SQL parse PASS.
+Actual local SQL/Auth/UI not run while B232 owns QA. See
+`docs/qa/crm-sales-directions-source-2026-09-21.md`; no deployment claim.
+
+## 2026-09-21 — B3g.2 latest-main integration before actual QA
+
+Merge main `a23490f746c9d13398712eed5e26dffd2330760b` into reviewed UI head
+`ef61dcce0ce8a5c5c93f8c30a69c8ba7308ee351` before local232 apply and actual
+web/CRM verification. Resolve only additive plan-document conflicts, preserving
+both parents. Package web/iPhone implementation, tests and migration232 stay
+byte-identical to the independently reviewed source. Incoming chat/sales changes
+stay intact. Existing source checks retain their exact revisions and limits;
+narrow integration review and current CI are required for this new head.
+No Auth, Storage, DB migration or user-interface action occurred in this merge.
+
+
+## 2026-09-21 — B3g.2 scoped fixes from ordinary package UI verification
+
+The authorized local232 Student/staff journey on de4bf800 submitted an actual
+package, requested corrections, approved its two files and then approved the
+package. It exposed duplicate sibling keys for the review/history components
+(which duplicated the staff form after refresh), repeated missing-material copy,
+and missing exact Student page allowances for package notifications/recovery.
+Fix those three defects together: preserve owner/package/epoch reset identity,
+suppress only redundant aggregate missing-material copy, and add the exact
+recovery pathname plus the fully anchored package-notification UUID pattern.
+Keep ownership checks and all other route denials. Add focused route regressions,
+obtain independent delta review and current CI, then inspect the existing actual
+notification/recovery and staff detail at desktop/mobile sizes. Do not repeat
+submissions, add actors/fixtures, rerun unchanged DB flows, or claim native UI or
+production acceptance. Existing actual receipts remain the evidence for writes.
+
+
+### CRM-02e local233 acceptance and integration —2026-09-21
+
+Local apply233 at35499c33 passed exact functions/ledger/ACL preservation. Ordinary
+Sales/Admin directions are ready-empty, consistent with all five retained QA
+sales having no populated direction. The previous v2 report, totals, native GET
+and record/back period survive. An observed alignment/accessible-name defect was
+corrected in1b903e23 and confirmed at1440/390/320 for both roles in the second
+bounded visual pass. Populated selection, other-tenant positive data, overflow,
+VoiceOver and production are not claimed. See
+`docs/qa/crm-sales-directions-actual-2026-09-21.md`.
+
+Full290 business tables/catalog/effects/Storage and incoming224 sessions/239
+refresh rows equal baseline after own logout. Only ordinary Auth user metadata
+and six Auth audits changed. Own runtimes closed; released233 window to A234.
+Mainc47a8137 package UI is integrated without changing either product scope;
+only additive plan appendices conflict. Update the1–36 ledger with completed
+B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gaps.
+Remaining item7 work is department-target visibility and import placement, not
+an already-correct cash-summary permission rewrite.
 
 
 ### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21

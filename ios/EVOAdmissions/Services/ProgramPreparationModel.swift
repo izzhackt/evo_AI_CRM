@@ -95,7 +95,7 @@ private func initializeProgramRequirements(
         throw ProgramPreparationLocalError.working
     }
     defer { session.finish(key, generation: generation) }
-    let documentView = try await service.studentApplicationDocuments(
+    let documentView = try await service.applicationPackageReadiness(
         studentCaseId: context.scope.caseId, applicationId: preparation.id)
     guard session.matches(context, generation: generation) else { throw ProgramPreparationLocalError.unavailable }
     guard documentView.requirements.state == .uninitialized else { return }
@@ -209,7 +209,7 @@ final class ProgramPreparationModel: ObservableObject {
 final class ProgramPreparationDetailModel: ObservableObject {
     @Published private(set) var preparation: CatalogPreparation?
     @Published private(set) var requirements: ApplicationRequirementsV2View?
-    @Published private(set) var documents: ApplicationDocumentsView?
+    @Published private(set) var documents: ApplicationPackageReadiness?
     @Published private(set) var isLoading = false
     @Published private(set) var isWorking = false
     @Published private(set) var readError = false
@@ -239,7 +239,7 @@ final class ProgramPreparationDetailModel: ObservableObject {
                 preparation = nil; missing = true; return
             }
             preparation = row
-            let view = try await service.studentApplicationDocuments(studentCaseId: context.scope.caseId, applicationId: applicationId)
+            let view = try await service.applicationPackageReadiness(studentCaseId: context.scope.caseId, applicationId: applicationId)
             guard generation == readGeneration else { return }
             documents = view
             requirements = view.requirements

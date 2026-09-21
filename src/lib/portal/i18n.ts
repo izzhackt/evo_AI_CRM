@@ -990,6 +990,7 @@ const admissionRu = {
   targetReply: "Прочитать ответ куратора",
   targetDocuments: "Открыть документы",
   targetProgramDocument: "Открыть решение по документу",
+  targetProgramPackage: "Открыть решение по комплекту",
   targetPayments: "Открыть оплату",
   targetOverview: "Открыть поступление",
 
@@ -1163,6 +1164,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   targetReply: "Куратордун жообун окуу",
   targetDocuments: "Документтерди ачуу",
   targetProgramDocument: "Документ боюнча чечимди ачуу",
+  targetProgramPackage: "Топтом боюнча чечимди ачуу",
   targetPayments: "Төлөмдү ачуу",
   targetOverview: "Тапшырууну ачуу",
 

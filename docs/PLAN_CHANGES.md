@@ -36412,6 +36412,17 @@ restored none, no posts/read receipts. One final UI batch passed; full finite
 reconciliation and own runtime closure passed. Preserve dataset/physical-device
 limitations and all other item1–36 states. No further implementation scope added.
 
+### A15g-1 read failure ownership before code — 2026-09-21
+
+After A11/#1002 merge479dd6788, repeated source inspection confirms that team-chat
+search/history share write-oriented failure text and background success clears
+foreground search failure. Bind the accepted minimum to the
+[read retry plan](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md): frozen operation
+arguments, separate foreground/background ownership, stale-result guards and
+terminal forbidden. Composer recovery retains its own handshake; no new write
+semantics, permissions, migrations, channel previews or visual redesign. Actual
+UI/seen-effect budget awaits a separate coordinated local QA window.
+
 ## 2026-09-21 — B item25 integration and admitted local234 UI window
 
 After merged PR1002/main `479dd6788b87fc14d4d9e3e809c16e9efff1badd`,
@@ -36485,6 +36496,29 @@ retention remain unverified; no acceptance claim is made for those branches.
 The next7b UI block preserves forms and will retain these proof gaps explicitly.
 Final-head review/CI/merge are still required; local235 transfers next to A1005.
 Production authority and delivery are separate.
+
+
+## 2026-09-21 — A15g-1 / PR1005 actual local235 closure
+
+[Actual read-retry report](qa/crm-team-chat-read-retry-actual-2026-09-21.md):
+clean source7d70a71d integrates main d68ce587/#1004 without changing reviewed
+f882fedc product code. Existing custom scoped staff, ordinary Auth and real
+network offline/online confirm original search retry despite changed unsent
+input,50→61 unique search results, context/return,64 history and retained draft;
+1440/390/320 have one composer and no document overflow. Initial driver sequencing
+STOP and intermediate live-session AMR verifier STOP remain separate; the single
+same-session confirmation passed, and unchanged strict final verifier passed
+only after own logout/browser/server closure. No additional product correction.
+
+Independent actual/closure review3796fde3 approved full290-table/catalog/effects
+parity, zero new seen, restored224 sessions/239 refresh/224 AMR hashes, preserved
+8 users/stable fields and old Auth audits; only own sign-in metadata and two
+login/logout audit rows differ. No messages/new actors/fixtures/SQL/providers or
+production actions. Late forbidden/partial hydration remain source regressions;
+pixel anchors, other channels and screen reader/device acceptance are unclaimed.
+Final docs-head review/CI/merge remain; immutable candidatea5e7567c is released=false.
+ROOT must accept the final release before B1006 binds the local235 environment.
+Item15 and all1–36 remain partial. Historical receipts retain their original limits.
 
 ## 2026-09-21 — ROOT item7b import management precode
 

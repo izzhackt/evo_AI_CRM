@@ -4,7 +4,7 @@
 
 Это только чтение исходников и уже сохранённых метрик. Нового браузера, login, сервера, БД, screenshot или повторного visual pass нет. После закрытия B offlineflow общим QA владеет ROOT22G; A/B остаются только в files/source precode/docs. Impeccable: сохраняем EVO, режим Operate, типографику и знакомые действия; context уже был загружен в этой сессии и повторно не запускался. Новая визуальная концепция не нужна.
 
-Текущее выполнение: после precode commit `be254e6f` реализован product source `30f8fa3fbd400ac42bcdcfcb18080995b75ebbbd`; scope ESLint и typecheck PASS. [Source-квитанция](qa/team-chat-service-row-source-2026-09-21.md). Реального UI-прохода новой раскладки пока нет; source review и actual окно ожидаются.
+Текущее выполнение: product `30f8fa3f`, scope ESLint/typecheck и source review PASS; actual `2f467e5b` прошёл один UI batch1440/390/320 и strict closure. Каждая строка сохранённой пары ниже на17.390625px; visible6→7/4→5/4→4. Независимое actual/closure review `a76c16a6` принято, QA передана ROOT_COORDINATOR. [Actual-квитанция](qa/team-chat-service-row-actual-2026-09-21.md) сохраняет gaps; после интеграции main59a726b ожидаются final-head review/CI/merge. Runtime закрыт.
 
 ## Подтверждённая проблема и границы вывода
 

@@ -36981,3 +36981,26 @@ records this actual result. Four shell/navigation files retain 32f50df4 bytes;
 other incoming product files retain main bytes. Documentation diff/marker/parity
 review and git diff --check only; no product tests, runtime or production action.
 Final exact-head documentation review and protected CI still gate #1010 merge.
+
+
+### A1014 — actual принят, строгая передача QA и интеграция main
+
+Exact source2f467e5b прошёл один existing-data UI batch1440/390/320 без коррекций.
+Одна строка времени/действий сохраняет44px controls/16px body, AX автора, menu,
+quote/draft, search/context/Back, prepend anchor/details identity и permalink.
+Та же пара: высоты112.1875→94.796875 /136.984375→119.59375 /161.78125→144.390625px;
+каждая −17.390625px, visible6→7/4→5/4→4. [Actual](qa/team-chat-service-row-actual-2026-09-21.md)
+сохраняет все отсутствующие варианты, initial readiness STOP и log-parser note.
+
+Raw after → own logout204/browser/server close → finalc9d5e401/strict6cf2902f
+PASS:290 business/33AuthStorage, zero seen/Storage,431 старых audits/8 users и
+224/239/224 sessions/refresh/AMR сохранены; только2ownAuth audits/metadata.
+Own Auth удалён после success, Ctrl-C exit1 записан честно; user33216 не тронут.
+Release7ca6c43a передан ROOT_COORDINATOR. Независимое actual/closure reviewa76c16a6
+принято. Runtime A закрыт, дополнительного visual pass нет.
+
+Main59a726b после #1006/#1010 интегрирован в4f33577f: chat bytes равны actual,
+3 импортированных product files и navigation test равны main; обе append-only
+истории сохранены. Sidebar destinationKey не меняет AppShell/chat layout; portal
+profile не входит в staff chat flow. Final exact-head review/CI/merge впереди;
+весь item15/production этим срезом не закрывается.

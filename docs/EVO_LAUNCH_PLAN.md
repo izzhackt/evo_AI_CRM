@@ -13840,3 +13840,28 @@ review and protected CI remain required before merge. No production claim.
 Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранением KB row31
 (16/15/0), пяти входящих docs и всех append-only записей. Runtime/source/test
 дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.
+
+
+### A15g-2 — последовательности одного автора, precode 2026-09-21
+
+PR #1008 смержен в main d6add88372778758b23686fb0bba6ae74181e15b после
+независимого exact-head review beadbefc и CI35623264182. Его actual b8497ad4
+и ограничения остаются в существующей квитанции. A начинает следующий
+принятый ограниченный блок по [плану группировки](EVO_TEAM_CHAT_MESSAGE_GROUPING_PLAN_2026-09-21.md).
+Исходный чат идентичен actual7d70a71d/main29e0fb46; прежние снимки используются
+только как визуальная база, не как приёмка нового поведения.
+
+Принятый precode51ded385 и независимое reviewb42dbc42 разрешают presentation-only
+helper, два компонента ленты и локальный CSS: соседние видимые строки одного
+автора/канала в пределах5минут и одного дня Bishkek, без deleted/sequence gap;
+первая строка, highlighted target и server firstUnreadId всегда полные.
+Имена сохраняются для screen reader, время/edited/quote/mentions/действия видимы;
+16px текст,44px controls, avatar-column, IDs/keys, handlers, ACL, composer,
+seen и scroll-anchor механизм сохраняются. BigInt исключает потерю точности.
+Никаких DTO/SQL/migration, новых сообщений или previews всех каналов.
+
+До отдельного окна A работает только с исходниками: pure behavior tests,
+scope lint/typecheck и прямые feed/read-errors/seen/drafts проверки.
+Auth/DB/Storage/browser/server runtime остаётся в очереди B32 → B1006 →
+ROOT22F → A15. Actual1440/390/320, anchors/actions/draft и честный учёт
+возможного seen требуют будущего согласованного окна; production не заявляется.

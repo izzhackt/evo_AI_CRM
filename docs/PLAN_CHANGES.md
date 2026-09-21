@@ -35493,6 +35493,23 @@ server/browser/background process. A now docs/PR only; CI35555819344 passed
 at3fc9ef34; final docs exact-head review/checks still required before merge.
 No production/UI/server-action journey or whole-item15 completion claimed.
 
+
+### A15e precode: additive direct quotes while preserving v1 root replies
+
+A15d merged in main439a66de. New bounded contract at
+docs/EVO_TEAM_CHAT_DIRECT_QUOTES_PLAN_2026-09-21.md proposes one private quote
+map, post_v2 and timeline_v2. Existing command171 (with156 scoped rights),
+reader223, seen225, messages and frozen v1 requests remain unchanged. V2 keeps
+server-derived root-parent separately from direct target and stores an explicit
+versioned canonical receipt identity so same-root/different-target retries
+conflict safely. Current quote text is projected, never copied into the map.
+
+This step is prose-only. ROOT confirmed reservation227 before SQL implementation;
+226 belongs to B and ROOT32 owns local DB/Auth/UI. The plan bounds future QA to
+four new labelled messages plus edit/delete of its own new reply, with no old
+message/seen/preference changes. Future apply waits226 release and a fresh
+coordinated packet. No runtime, Auth, DB, browser or production action here.
+
 ## 2026-09-21 — KB32: ограниченная локальная запись approved материалов
 
 После merged #975 продолжается существующий независимый KB-поток: два

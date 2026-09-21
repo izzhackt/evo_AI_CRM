@@ -28,8 +28,8 @@ test("V3 Student 360 owns the complete canonical BW6 workspace", () => {
   assert.match(adapter, /handoff\.studentCaseId !== studentCaseId/u);
   assert.match(adapter, /contract\.organizationId !== actor\.organizationId/u);
   assert.match(adapter, /handoff\.organizationId !== actor\.organizationId/u);
-  assert.match(adapter, /fullCase\.handoff\?\.leadId !== lead\.leadId/u);
-  assert.match(adapter, /link && data\.handoff\?\.leadId !== link\.leadId/u);
+  assert.match(adapter, /if \(fullCase\?\.handoff && fullCase\.handoff\.leadId !== lead\.leadId\) \{\s*throw new Error\("V3 profile handoff lead does not match the requested lead\."\);/u);
+  assert.match(adapter, /if \(link && data\.handoff && data\.handoff\.leadId !== link\.leadId\) \{\s*throw new Error\("V3 profile handoff lead does not match the canonical case link\."\);/u);
   assert.match(adapter, /contract: null/u);
 
   for (const action of [

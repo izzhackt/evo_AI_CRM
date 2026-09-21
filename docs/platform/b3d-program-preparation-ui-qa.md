@@ -4,8 +4,10 @@
 21.09 на `284eeb31`; повторное открытие и ссылки на документы не создают дублей.
 Это стартовые фото/паспорт, не полный перечень требований университета.
 Локальные intake IDs211 дополнены: все6 известных наборов имеют ID.
-Последние результаты — в разделах «Первый Student UI-выбор» и «Интеграция main
-после973». Native и визуальное завершение Impeccable остаются открытыми.
+Последние результаты — в разделах «Первый Student UI-выбор», «Chrome: экран
+подготовки при 390 px» и «Интеграция main после977». Мобильный web-экран при
+390 px в текущей тёмной теме получил отдельное визуальное APPROVED на12a.
+Native UI и полный межплатформенный finish Impeccable остаются открытыми.
 Исходные наблюдения сохранены как история, не приёмка новых экранов.
 Контракт: [B3d](b3d-program-preparation-ui-contract.md).
 
@@ -411,3 +413,87 @@ Build/Lint PASS; Release contracts FAIL на
 exporter совпадали с main `ea3cb758`, вне B3d diff; причина таймаута не объявляется
 доказанной. Unchanged run не перезапускался ради green. Следующий CI относится
 к реальному обновлению QA-документа и интеграции main, а не стирает этот отказ.
+
+## Дополнительный мобильный read-only проход на12a
+
+После green CI run35549044501 выполнен отдельный разрешённый просмотр уже
+сохранённой XJTLU подготовки на source12a6951b. Нового выбора, инициализации,
+входа/выхода или изменения данных не было. Before/after full281, schema/functions,
+ledger и Auth user/identity counts равны последнему B и root KB release.
+Собственные вкладки15/16 закрыты, Next33232 остановлен; viewport и device metrics
+сброшены. Helper — одобренный root snapshot с заменой только output directory.
+
+При320px получен цельный снимок со всеми действиями; классическая полоса прокрутки
+оставляет clientWidth310/scrollWidth320, поэтому отсутствие переполнения для всех
+телефонов не заявляется. В новой вкладке глобальный override390 не сохранился,
+её DOM и снимок оказались desktop1270. После точного per-tab CDP390 actual CSS
+clientWidth/scrollWidth380 совпали, но PNG всё равно содержал320px content и
+60px несогласованную правую полосу. Изображение не обрезалось; CSS по нему
+не менялся. Этот проход не закрывает Impeccable recapture.
+
+Private receipt v2 SHA256
+`6dd57f465c9c22e43a16e2d58bc1edec7d47ef35f9656a1f06ab4866f9be5d62`:
+`/private/tmp/evo-b3d-mobile-read-2026-09-21/release-receipt-v2.json`.
+Первый receipt сохранён с ошибкой определения размеров: высокоуровневый capture
+вернул JPEG под расширением png; v2 читает реальный magic/SOF. Screenshot bytes
+и доказательство равенства базы не менялись. Последующий корректный Chrome capture описан ниже; исходные неудачные
+снимки и receipts сохранены.
+
+## Chrome: экран подготовки при 390 px
+
+Root завершил отдельный разрешённый просмотр сохранённой подготовки на source
+`12a6951bc62cd688c2d50f174b580732de0ebd07`. В Chrome выполнен обычный выход
+существующего Admin и вход существующего Student1; identities и роли не менялись.
+Business-команды не выполнялись. Full281/schema/functions/ledger и counts Auth
+users/identities до и после равны состоянию root KB4e93. Содержимое Auth sessions
+не сравнивалось; полная неизменность Auth storage не заявляется.
+
+Private evidence: `/private/tmp/evo-root-preparation-mobile-2026-09-21/`.
+B повторно сверил все 10 хешей images/artifacts из receipt и просмотрел реальные
+верхний и нижний viewport. Получены PNG 390×844 и full-page 390×1772;
+innerWidth/clientWidth/scrollWidth равны390. CSS не менялся, обрезки изображения
+нет. Full-page помещает fixed navigation у границы исходного viewport; actual
+viewport и bottom capture отдельно подтверждают расположение действий.
+
+- Release receipt SHA256 `81ba8b8ef0f48fa5d84b143cc0ba7684cda7f82d6152f7b8028161c8dc9a4d98`.
+- Верхний viewport SHA256 `a360fad56041b2996cdc46bf0538570844e4c5dc7bb4ea6ad81db5f284a3320f`.
+- Нижний viewport SHA256 `14a7190840187471ec74439a19d39dcc0a496f6369eaa52cec49e8fd69129607`.
+- Full-page SHA256 `dd0e297d3c97db95ab395dd56e27b5b6b6c3a4d35129fad5c69066898c109c23`.
+- Независимое `visual-review.md` SHA256 `ef3cf9bffc61720209fe3682c290165b32e51ded128fbff109e2f37fe27fd773`:
+  **APPROVED в пределах предоставленных 390 px и текущей тёмной темы**.
+
+Заголовок помещается в358 px контента, программа/набор/подготовка различимы,
+стартовый список явно отделён от будущих полных требований. Наличие файла и
+решение сотрудника показаны отдельно. Переходы объясняют существующую отправку
+на проверку при загрузке. Оба конечных действия видимы над нижней навигацией.
+Ширина общей навигации сохранена вне scope этого среза.
+
+Root остановил собственный Next33232, закрыл свою вкладку и сбросил эмуляцию;
+окно освобождено. Это закрывает отсутствие корректного390 capture, но не
+доказывает native, светлую тему,320 px, keyboard/touch measurements, upload,
+полные требования, provider или production. Весь finish Impeccable этим
+не объявляется завершённым. Предыдущий recapture и IAB failures сохранены.
+
+## Интеграция main после977
+
+После освобождения Chrome-окна объединён main
+`078b51c319bd363aec40118eca024fee6ceec094` поверх12a: docs-only #975 и test-only
+#977. Конфликтов нет. Все runtime-файлы, включая B3d, Profile и native,
+байт-в-байт совпадают с12a; новые снимки кода после этого merge не заявляются.
+TypeScript PASS на12a применим к неизменным исходникам; тяжёлая проверка
+повторно не запускалась. Доказательство первого выбора по-прежнему относится
+к284, а Chrome390 — к12a.
+
+#977 исправляет два устаревших source assertions, сохраняя runtime guards.
+После изменения теста повторно выполнены четыре scoped файла на Node22:
+`fixed-role-route-contract`, `v3-case-agreement`, `v3-profile-contract`,
+`platform-contract-workflow` — **92/92 PASS**, в том числе profile3/3.
+Предыдущий результат91/92 остаётся историей, а не скрытым отказом.
+`git diff --check` PASS. Ни DB/Auth, ни browser-команд на этом шаге нет;
+shared local writer передан root потоку A для отдельной миграции223.
+
+На12a GitHub [run35549044501](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35549044501)
+завершился успешно: Build, Lint, Release contracts, Fast checks и Changed range
+PASS; maintenance/migration jobs SKIP. Старый Storage timeout run35547698931
+выше сохранён. Финальный exact-head review и CI новой интеграции фиксируются
+в PR, отдельно от этих уже выполненных проверок.

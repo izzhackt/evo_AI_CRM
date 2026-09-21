@@ -221,3 +221,13 @@ B program/intake/requirements/portal/iPhone поверхности здесь н
 ни общая лента, ни весь пункт15 этим документом не объявляются завершёнными.
 Production apply, provider actions, server release и новые QA identities не
 входят в этот плановый шаг.
+
+
+## A15d offline implementation update
+
+Precode PR#981 accepted and merged at67934327d. ROOT allocated225 before code.
+Runtimefb12146e implements only the A15d contract above; the exact RPC argument
+names are `p_organization_id`, `p_channel_key`, `p_message_ids`, acknowledgement
+`{channelKey,messageIds}`. No cursor or membership can be supplied by the client.
+[Offline checks and outstanding real QA](qa/crm-team-chat-sparse-seen-225-2026-09-21.md)
+are recorded separately. There is no apply/UI-cutover or whole-item15 completion.

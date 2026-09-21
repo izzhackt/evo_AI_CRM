@@ -14395,3 +14395,7 @@ Source `4bf6b9dbec8f04fc36db74a1f8547939c84081c6`: one local apply238, ordinary 
 ## 2026-09-22 — Item22 mobile header spacing, precode
 
 After #1019 merged in43410559, implement [two-class mobile header refinement](platform/crm-mobile-header-spacing.md): top py2 keeps6px focus-ring clearance, actions min-h14/py1 restores old values atmd. Existing EVO identity, both rows, labels,44px controls, permissions/state/handlers and desktop remain. Independent direction reviews c242de8b/ac1da62c accepted. Use the already accepted manage route instead of chat for one narrow actual shell batch, avoiding unrelated seen effects; no exact height saving or text-zoom proof is claimed before execution. No data/API/migration change.
+
+## 2026-09-22 — Item22 mobile header actual and item36 checkpoint
+
+One ordinary Admin header batch at1440/390/320/focus on e999 accepted with independent actual/closure review441f869a. [Receipt](qa/crm-mobile-header-spacing-actual-2026-09-22.md) records measured geometry, preserved data, text-onlyzoom gap and original cleanup port timeout followed by verified closure. No new product scope or production change. Status checkpoint records #1019/#1015 merges, A1020 partial actual, and narrow KB141/144/145 owner decisions; it does not approve whole KB articles or declare all1–36 complete.

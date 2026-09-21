@@ -26,3 +26,7 @@ One ordinary existing Admin session after the current B→A shared QA owners rel
 Exactly four screenshots in one planned pass; at most one corrective pass if a demonstrated defect requires it. Existing images alone do not establish a precise pixel reduction. Standard CLI has no verified text-only browser zoom control: retain that explicit gap rather than simulate it with CSS injection/device scale. Existing preview/badge/role variants absent from current authorized inputs remain source evidence only. No VoiceOver/WCAG/native/full E2E/production claim.
 
 Scoped AppShell lint and normal TypeScript check; inspect exact diff and independent review. No CSS-mirror unit test or broad unrelated suite. Final exact-head protected checks and independent real-evidence review before merge.
+
+## Actual checkpoint — 22 September 2026
+
+Source e999 passed one ordinary Admin batch at1440/390/320 plus320 logo-focus screenshot. Mobile row heights are76.328125px and56px; bottom133.328125px. Controls≥44px, no horizontal overflow, keyboard sequence PASS. Computed focus outline is2px with3px offset (the earlier4px was an assumption). No paired16px saving or text-onlyzoom is claimed. Strict final and owned cleanup accepted independently441f869a; original port timeout preserved, later read-only closure PASS. See [actual receipt](../qa/crm-mobile-header-spacing-actual-2026-09-22.md). Final-head review/CI/merge remain separate.

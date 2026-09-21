@@ -13816,3 +13816,27 @@ B32 STOP не считается product acceptance. Source10/10+types/lint и �
 baseline результаты переиспользованы. Docs-only main06bec2b2 сохранён вместе с
 KB row31 и полными append-only журналами; product retests не требуются.
 Финальные independent exact-head review/CI/merge ещё нужны; production не запускался.
+
+## 2026-09-21 — KB31 first-read completion checkpoint
+
+Record the completed bounded first review of the admitted 31-candidate set:
+16 candidates have narrow provenance appendices, 15 retain unresolved claims
+without an appendix, and none await first review. These are work groups, not
+whole-material approvals; unresolved claims also remain in appended materials.
+Last batches 146/147 and 153/154/327 passed independent exact-byte closure
+4a37d170/36e759a2: original prefixes, frontmatter, status, source chains and
+publication manifests were preserved. Retain earlier 11/9/11 history and all
+raw/applicant/trash/secret exclusions, including 125/321–325/328. Update only
+the knowledge QA report, execution checkpoint and item31 row; no product,
+KB or publication writes in this documentation slice. Item31 still needs
+specific business decisions and applicable official-source verification;
+item32 ordinary company downloads remain unproved by this evidence.
+Prose-only validation: diff review and git diff --check; independent exact-head
+review and protected CI remain required before merge. No production claim.
+
+
+### A1008 — финальная интеграция docs-only #1011
+
+Main7be6461de23fe9c8e8a0cd378010d8be03637757 включён с сохранением KB row31
+(16/15/0), пяти входящих docs и всех append-only записей. Runtime/source/test
+дерево остаётся byte-identical actual b8497ad4; новых product checks не запускали.

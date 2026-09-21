@@ -1,5 +1,9 @@
 # Staff country facet — source checks, 21 September 2026
 
+Historical source checkpoint. Later local236 and ordinary Auth/UI acceptance are
+recorded in the [actual receipt](staff-catalog-country-facet-actual-2026-09-21.md);
+the pending statements below describe the source checkpoint, not that later run.
+
 Product revision `f8622d868afa7a083edd0e981f01c957a8c47b99` follows the
 [precode contract](../platform/staff-catalog-country-facet.md), committed before
 implementation at `2b2f076a`. This is source evidence, not a database apply or UI

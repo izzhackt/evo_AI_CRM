@@ -48,7 +48,9 @@
 .ownMessage .bubble { border-radius: 16px 0 16px 16px; background: color-mix(in srgb, var(--accent) 11%, var(--surface)); }
 .highlighted .bubble { outline: 2px solid var(--accent); outline-offset: 3px; }
 .messageHeader { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; font-size: 14px; }
-.messageHeader time { color: var(--text-3); font-size: 12px; }
+.messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); font-size: 12px; }
+.messageMetadata time { white-space: nowrap; }
+.messageFooter > button, .messageFooter > .messageMenu { flex-shrink: 0; }
 .body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: 16px; }
 .messageActions, .readActions { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .readActions { padding: 0 20px; background: var(--bg); }

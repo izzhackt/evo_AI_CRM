@@ -36884,6 +36884,36 @@ B1006 получил окно через ROOT; A больше не исполь�
 Final-head review/CI/merge остаются отдельными; product bytes не менялись.
 
 
+## 2026-09-21 — A15: общая строка времени и действий сообщения
+
+PR #1012 принят в main `7faa4748c899b58e25d630f6c3942a6dd21ff663`: final review
+`0036d57d`, CI35631741403 SUCCESS (5 PASS / 3 ожидаемых SKIP), ordinary squash
+exact head88f0479c. Предыдущие actual/gaps сохраняются, production не запускался.
+
+Следующий [двухфайловый контракт](EVO_TEAM_CHAT_SERVICE_ROW_PLAN_2026-09-21.md)
+принят до кода: precode83cf1217, независимое APPROVED_PRECODEeeceef77 и разрешение
+ROOT на source-only реализацию. В Row переносим единственные time/edited в footer
+с прежними Ответить/menu; полный автор остаётся над body, continuation header
+целиком srOnly. Новый scoped CSS не меняет shared messageActions/textButton,
+44px controls,16px body, права, callbacks, keys, details, grouping и seen.
+
+Причина: повторный time line box у коротких продолжений. Выигрыш остаётся
+проверяемой гипотезой; baseline112.1875/136.984375/161.78125px для1440/390/320
+сохраняется без выдуманного процента. Разрешены scope lint/typecheck и независимое
+source review; actual UI/anchors/draft/ширина нужны позже в отдельном окне ROOT.
+Сейчас QA у ROOT22G; Auth/DB/Storage/browser/server не трогаем. Превью всех каналов,
+DTO, миграции и весь item15 вне этого PR.
+
+
+### A15 service row — source готов к независимому review
+
+Контрактbe254e6f → product30f8fa3f: время/edited перенесены к действиям,
+повторный авторский header сохраняется через srOnly; Row и scoped CSS,
+shared classes/права/DTO/grouping/seen неизменны. Scope ESLint и typecheck PASS
+на Node22.23.1; [source-квитанция](qa/team-chat-service-row-source-2026-09-21.md).
+Прежние39/39 не повторялись. Actual1440/390/320, anchors/menu/draft и выигрыш
+плотности ещё не доказаны. QA остаётся у ROOT22G, runtime не открывался.
+
 ## 2026-09-21 — B1006 first browser-offline rejection PASS; resource release ROOT22G
 
 [Actual report](qa/portal-profile-request-feedback-actual-2026-09-21.md): after two
@@ -36966,3 +36996,46 @@ After #1010 merged at59a726b5, implement the bounded [staff country facet](platf
 ## 2026-09-21 — ROOT14 source review correction: country reset
 
 Independent source review3f5c74a4 found one P2: the uncontrolled country select can retain CN after a client Link resets the URL. Key only the staff select by committed country; preserve other controls and Student behavior. This implements the existing filter/reset contract, not a new feature. Actual reset remains unverified until the coordinated UI pass; the earlier failed source verdict is retained.
+
+### A1014 — actual принят, строгая передача QA и интеграция main
+
+Exact source2f467e5b прошёл один existing-data UI batch1440/390/320 без коррекций.
+Одна строка времени/действий сохраняет44px controls/16px body, AX автора, menu,
+quote/draft, search/context/Back, prepend anchor/details identity и permalink.
+Та же пара: высоты112.1875→94.796875 /136.984375→119.59375 /161.78125→144.390625px;
+каждая −17.390625px, visible6→7/4→5/4→4. [Actual](qa/team-chat-service-row-actual-2026-09-21.md)
+сохраняет все отсутствующие варианты, initial readiness STOP и log-parser note.
+
+Raw after → own logout204/browser/server close → finalc9d5e401/strict6cf2902f
+PASS:290 business/33AuthStorage, zero seen/Storage,431 старых audits/8 users и
+224/239/224 sessions/refresh/AMR сохранены; только2ownAuth audits/metadata.
+Own Auth удалён после success, Ctrl-C exit1 записан честно; user33216 не тронут.
+Release7ca6c43a передан ROOT_COORDINATOR. Независимое actual/closure reviewa76c16a6
+принято. Runtime A закрыт, дополнительного visual pass нет.
+
+Main59a726b после #1006/#1010 интегрирован в4f33577f: chat bytes равны actual,
+3 импортированных product files и navigation test равны main; обе append-only
+истории сохранены. Sidebar destinationKey не меняет AppShell/chat layout; portal
+profile не входит в staff chat flow. Final exact-head review/CI/merge впереди;
+весь item15/production этим срезом не закрывается.
+
+
+## 2026-09-21 — ROOT14 country facet actual and main integration
+
+Actual deeaed89 passed one local236 CLI apply and one ordinary Admin/Student
+RPC/UI batch1440/390/320. Published CN, absent MY, native GET search/level/combined,
+country Link reset and full reset passed. No suspected inherited reset failure
+occurred. Own logouts204/browser/server closure and strict final290/33 preserved
+all business data and incoming224/239/224 sessions/refresh/AMR; only two own users'
+sign-in metadata and four Auth audits differ. [Actual evidence](qa/staff-catalog-country-facet-actual-2026-09-21.md)
+records the finite scope, missing datasets and independent review28f1a365.
+No production or catalogue write occurred. QA was released to ROOT, then a
+separate coordinator handoff assigned B1015 with a fresh binding still required.
+
+Integrate main24e78024 after #1014's accepted final head5f46d6ac and CI35635247615;
+retain both journal histories, unchanged country product bytes from deeaed89
+and incoming chat files from main. Correct current item14/15/22 and local236
+status without rewriting historical receipts. Source checks and unchanged
+runtime evidence are reused; integration/docs need diff/parity review and the
+protected final PR checks, not another visual cycle. Whole item14/manage,
+whole items1–36 and production remain incomplete.

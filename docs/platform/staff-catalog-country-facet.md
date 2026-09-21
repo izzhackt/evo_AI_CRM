@@ -72,3 +72,11 @@ defaultValue on client Link reset when its options remain. Key only the staff
 country select by the committed country filter, so reset reflects the URL while
 unrelated controls and the Student branch retain their identity. Real reset
 acceptance remains part of the planned UI pass.
+
+## Local acceptance checkpoint
+
+The single local236 apply and ordinary Admin/Student RPC/UI run on `deeaed89`
+passed, including country-only and combined resets at the recorded widths.
+See the [actual receipt](../qa/staff-catalog-country-facet-actual-2026-09-21.md)
+for strict closure, independent review and the missing-data limits. This does
+not accept management work, the entire item14, or production delivery.

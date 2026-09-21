@@ -13590,3 +13590,19 @@ source delta, then one confirmation batch: before-JS activation cannot navigate,
 one ordinary additional RU→KY→RU cycle (profile revision3→7 across both batches),
 and at most one lesson start/answer overall. No lesson completion, new login,
 fixtures, SQL, providers or native actions. ROOT235 remains next after closure.
+
+## 2026-09-21 — B item25 actual local234 closure
+
+[Actual report](qa/portal-learning-feedback-2026-09-21.md): final source
+`f77a457b80d73b3516a0c6018d7899eb1d9635f8` confirms ordinary Enter/Space language
+saves, pending focus and one existing lesson start/answer. Four language saves
+restore RU; no completed lesson or populated review bank was created. The first
+prehydration GET was fixed; the overlapping-driver timeout and failed fully-no-JS
+probe remain recorded as limitations. Nine KY route titles were checked on the
+byte-identical pre-correction route sources; speech/native/production unclaimed.
+Independent offline reconciliation passed 70 checks: 287/290 business tables
+unchanged, exact own profile/draft/two receipts, full catalog/ledger unchanged,
+224 incoming sessions/239 refresh rows preserved, only own login metadata and
+two Auth audits added. Own browser/Auth/server closed. Transfer schema001–234
+and immutable private receipts to ROOT235; final-head review/CI and normal PR1003
+merge remain required before ROOT integrates main for235. Item25 stays partial.

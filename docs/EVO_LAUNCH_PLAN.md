@@ -14235,6 +14235,53 @@ ROOT236/#1016 ещё не в базе main24e78024:001–235,236 не дубли
 actual237 — интеграция ROOT236 после merge и отдельный handoff послеB1015.
 Draft PR/source review впереди; actual/review/protectedCI остаются merge gate.
 
+## 2026-09-21 — B24: precode обратной связи о прочтении уведомлений
+
+После обычного merge #1006 в main8b6259ec выбран один оставшийся web-сценарий:
+[локальная ошибка single/bulk mark-read](platform/portal-notification-read-feedback.md).
+Исходники и независимый source-разбор подтверждают отсутствие local failure
+feedback; runtime здесь не выполнялся. Предложены общая клиентская форма,
+RU/KY alert и ручной повтор с сохранением existing actions/RPC/IDs/guard,
+неатомарного bulk и остановки на первой ошибке. Public unstable_rethrow для
+сохранения framework redirects — явно открытая деталь precode review, с
+зафиксированным официальным предупреждением о стабильности. Код не менялся.
+ROOT передал QA A1014; B остаётся files-only до отдельного admission.
+
+### B24 — source implementation после принятого precode
+
+Precode0e4317c5 независимо APPROVED_PRECODE49b1f3e2; координатор разрешил
+ограниченный source-блок. Наfd7f0900 общая клиентская форма добавляет локальную
+RU/KY ошибку и ручной повтор single/bulk/detail, сохраняет server actions/RPC/
+IDs/guards и first-error bulk. Public Next16.3.4 unstable_rethrow принят с
+задокументированным риском; служебные redirects пробрасываются, новых внутренних
+imports нет. Установленный public API:4/4 unit PASS; i18n8/8/source7/7 PASS,
+UI wiring18/22 с четырьмя отдельно воспроизведёнными baseline8b6259ec failures.
+Scoped lint/TypeScript/diff-check PASS. [Source checkpoint](platform/portal-notification-read-feedback.md)
+сохраняет точные ограничения. Actual/QA/source review/CI/merge ещё не заявлены;
+shared QA у A1014, следующий слот B не назначен.
+
+
+### B1015 — source approval и интеграция main59a726b
+
+Независимое APPROVED_SOURCE_ONLYff585096 для1c296e85 принято координатором.
+Интегрирован свежий main59a726b (#1010): обе ordered journal histories сохранены,
+актуальные строки ведомости приняты без изменений. Все6 B product/test files
+побайтно сохраняют sourcefd7f0900; другие incoming main files сохранены.
+Никаких новых product edits, тестовых повторов или runtime-действий. Прежние
+source checks сохраняют свои ограничения, включая4 baseline UI-contract failures.
+Draft #1015 ждёт CI интеграционного head; прежний DIRTY/zero-CI не считается
+проверкой. Actual B только после handoff ROOT_COUNTRY236 и отдельного admission.
+
+
+### B1015 — свежий main24e78024 после параллельного merge #1014
+
+Пока отправлялась интеграция59a726b, A1014 вошёл вmain24e78024. Он также
+интегрирован files-only: сохранены актуальные статусы и полные ordered истории
+обоих потоков. Входящий код относится только к staff team-chat component/CSS
+module; общий Portal/Auth/Next contract не менялся. B product/test bytes всё
+ещё равныfd7f0900, без новых исправлений или повторного runtime. Предыдущий
+headf0c346cd не получил CI из-за опередившего merge; новый frozen head должен
+получить свои checks. Actual B остаётся после ROOT_COUNTRY236handoff.
 ## 2026-09-21 — ROOT14 country facet actual and main integration
 
 Actual deeaed89 passed one local236 CLI apply and one ordinary Admin/Student
@@ -14293,3 +14340,21 @@ private Auth captures удалены. Independent RPC/strict-closure review97acb
 результаты переиспользуются; diff/parity, fresh protected CI и независимый
 final-head review обязательны. CI35639431195 наbb24 принят ранее и не заменяет
 новый CI. Rail UI начинается после merge #1017; whole15/1–36/production не закрыты.
+### B1015 — один offline single-form actual, закрытие и main9f7dde1d
+
+На frozenfa4ad8e8 существующий Student выполнил один Enter в одиночной форме
+уведомления с offline только собственного browser context. Единственный matching
+POST отказал ERR_INTERNET_DISCONNECTED; RU local alert, pending, восстановление
+кнопки/фокуса и неизменное read-state/list/document наблюдались. Retry/positive/
+bulk/detail не выполнялись. Своя local Auth logout204, cookies/browser/captures
+и Next закрыты; strict final290/33 PASS, zero business/Storage writes.
+[Actual](qa/portal-notification-read-feedback-actual-2026-09-21.md) сохраняет
+полные SHA и ограничения. Среда передана ROOT_COORDINATOR; independent actual
+review `94914f03` принято координатором. Пункты23–24, native, полный E2E и production не закрыты.
+
+После закрытия согласована files-only интеграция main9f7dde1d (#1016/236).
+Все6 B product/test files побайтно равныfd7f0900, incoming main code и полные
+ordered истории обоих journals сохранены. Строки14/15/22/31/32 ведомости
+сохранены изmain; строка24 дополнена узким actual и gaps. Повторного QA или
+тестов не было; прежний CI35635859635 относится кfa4ad8e8. Интегрированному
+final head ещё нужны независимое review и protected CI перед merge.

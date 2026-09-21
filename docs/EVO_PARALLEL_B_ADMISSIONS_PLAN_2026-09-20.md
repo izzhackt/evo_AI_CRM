@@ -4,9 +4,9 @@
 
 ## Текущий checkpoint — 21 сентября 2026
 
-Срез исходников: main `95cc9277db178e39466349a4ae9985f90887ad38` после #971.
+Срез исходников: main `925cf1996e0b2c08e968d513da149793f9c774be` после #973/#974.
 #946, #948, #958, #959, #961, #960, #962, #963, #964, #966, #968, #969, #970
-и #971 — MERGED. MERGED означает исходники, LOCAL — ограниченные фактические
+и #971–#974 — MERGED. MERGED означает исходники, LOCAL — ограниченные фактические
 проверки. Новые managed DB/production apply и release этим checkpoint не
 подтверждаются. Весь объём 1–36 не завершён; 37–50 исключены. Датированные
 квитанции ниже сохраняют свои ревизии и пределы проверки.
@@ -23,24 +23,40 @@
   бизнес-поля восстановлены, version+4/audit+4 сохранены. UI доказал блокировку
   пустой причины; успешное UI-сохранение не заявляется. Issue687 остаётся открыт
   до отдельных managed/owner exit criteria.
-- **#970:** из staff chat убраны автоматические task actions/enrichment.
-  Local ordinary Sales UI проверен на существующих пустых каналах. A15b autosize
-  находится в реализации после pre-code review; плоская хронология, цитаты,
-  поиск/read/scroll — последующие согласованные срезы.
-- **#971:** явные суммы и разделы договора/оплаты, сохранённые дополнительные
-  операции и права. Local ordinary Admin UI1280/390/320 и parity пройдены без
-  финансовых записей. Полный перенос договорного workflow и положительные
-  транши/возвраты/чеки/mixed-currency/other-role UI ещё не завершены.
+- **#970/#974:** из staff chat убраны автоматические task actions/enrichment;
+  autosize MERGED через #974 (`6d01bc81`). Actual ordinary Sales UI доказал
+  рост/сжатие, перенос при1280/390/320 и восстановление собственного черновика.
+  После reload320 root-width330 остаётся явным ограничением; native IME Enter,
+  nonce и populated/save не заявлены. Flat feed и цитаты не завершены: A223
+  additive reader в реализации, pre-code `55109` reviewed; apply не выполнен.
+- **#971/#973:** договорный workflow перенесён в «Договор и оплата» с alias,
+  независимыми правами и сохранёнными девятью actions. #973 принят после
+  independent review `09e3332d` и CI `35548203929` PASS. Actual ordinary Admin
+  UI1280/390/320 и full281 parity пройдены без финансовых записей. Scoped92/93
+  (после коррекции40/41) сохраняют одно прежнее assertion-падение, доказанное
+  на exact main. Contract-only/populated templates, транши/возвраты/чеки,
+  mixed-currency и реальные команды не доказаны; весь item12 остаётся открыт.
 
 #964/B218: 13 фаз обычного Auth и 59 Swift decode PASS. Полные program requirements,
-upload/save→submit→package/review остаются открытыми. B967 — DRAFT, head `8e8c81e1`,
-runtime `2516de2d`: independent review, build и CI PASS, чтение существующей
-подготовки в web проверено; первый новый выбор/init и native UI ещё pending.
-Native UI ограничен заблокированным Mac. Локальное покрытие stable IDs через
-существующий211 для четырёх карточек/пяти наборов: пакет и точные UI-intents
-проверены, последовательная техническая публикация выполняется; результата
-ещё нет в этом checkpoint. Факты каталога/порядок/прежние IDs сохраняются.
-Это не managed publication или подтверждение всего admissions-пути.
+upload/save→submit→package/review остаются открытыми. B967 — DRAFT, frozen head
+`284eeb31`, runtime `2516de2d`; CI `35547698931` сохраняет известное падение
+Storage idle-window, не новый зелёный прогон. Чтение существующей подготовки в web
+проверено; actual first-selection214→218 на `284eeb31` завершился положительно:
+подготовка открылась сразу, два starter slots переиспользованы без insert,
+неизвестный deadline не придуман; reopen/refresh/saved list сохранили прежний
+GDUT, оба Docs anchors и возврат к карточке проверены. After-selection
+`55de9560…` — PASS_EXPECTED_GRAPH (ожидаемые изменения восьми таблиц), journey
+`eaae467b…`; финальные zero-effect readback/release и визуальная проверка ещё
+в работе. Это один web-путь, не полный requirements/submit/review. Native UI
+не проверен: Mac заблокирован. LOCAL211 завершён:
+четыре технические публикации, восемь requests, пять stable IDs; final receipt
+`44c0f7…`. Факты каталога/порядок/прежние IDs сохранены. Это не managed publication
+или подтверждение всего admissions-пути.
+
+KB31/32: metadata-сверка328 позиций и пакет двух ранее одобренных материалов
+подготовлены; [квитанция подготовки](qa/knowledge-source-reconciliation-2026-09-21.md).
+Canonical objects/dedup и записи ещё не подтверждены; массового approval,
+AI-bundle publication и завершения всего31/32 нет.
 
 #946 / LOCAL214: положительный обычный Auth-путь и реальные TS/Swift readers
 проверены; это не новый web/iPhone UI-проход. Подготовка/привязка не означает
@@ -55,7 +71,7 @@ Native UI ограничен заблокированным Mac. Локальн�
 4. **B-4 / пункты 23–25:** карта покрываемых portal/iOS экранов по настоящим задачам; отдельный дефектный блок focus/ExplainPanel/localized title после проверки актуального кода. Desktop + 320/390px, RU/KY, light/dark, клавиатура; native Dynamic Type и back. Аудит не означает наличие багов. Общие CSS и переводные файлы согласовывать секциями до правки.
 5. **B-5 / остаток 26: выполнен, #939 MERGED `87514d27`.** Audit metadata отделена от клиентских runtime-полей; single source of truth и генерация сохранены. Это не массовый перенос фотографий. Смежное исправление portal theme вошло через #941 `6ceccf83` и не означает завершения всех пунктов 23–25.
 6. **B-6 / пункты 27–28:** выполнить уже принятое владельцем решение о Student email confirmation от2026-09-19 ([действующий контракт](EVO_LAUNCH_PLAN.md#auth-email--smtp-and-templates-saved-delivery-pending-2026-09-19)), сверив текущий `/apply` и прежний `email_confirm: true`. Не переоткрывать вопрос о самой политике. SMTP/шаблоны не доказывают ни реализацию этого пути, ни доставку. Конкретные Auth/provider writes и отправка одобренному получателю требуют своей authority; реальная Resend delivery пока не подтверждена этим потоком.
-7. **B-7 / пункты 31–32:** ревизия кандидатов KB и происхождения approved company files/snippets. Перенос 6568 материалов уже выполнен; 2655 вопросов допуска не закрывать автоматически. Не извлекать чувствительные applicant originals, не читать trash, не публиковать конфликтные цены/гарантии/персональные данные.
+7. **B-7 / пункты 31–32:** root подготовил metadata-сверку328 позиций и provenance двух approved company files/snippets; canonical dedup/записи ещё не подтверждены ([квитанция](qa/knowledge-source-reconciliation-2026-09-21.md)). Перенос 6568 материалов уже выполнен; 2655 вопросов допуска не закрывать автоматически. Не извлекать чувствительные applicant originals, не читать trash, не публиковать конфликтные цены/гарантии/персональные данные.
 
 ## Admissions: принятый контракт и исторические checkpoints
 

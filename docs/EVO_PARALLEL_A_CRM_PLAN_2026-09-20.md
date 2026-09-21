@@ -6,9 +6,9 @@
 
 ## Текущий checkpoint — 21 сентября 2026
 
-Срез исходников: main `95cc9277db178e39466349a4ae9985f90887ad38` после #971.
+Срез исходников: main `925cf1996e0b2c08e968d513da149793f9c774be` после #973/#974.
 #946, #948, #958, #959, #961, #960, #962, #963, #964, #966, #968, #969, #970
-и #971 — MERGED. MERGED означает исходники, LOCAL — ограниченные фактические
+и #971–#974 — MERGED. MERGED означает исходники, LOCAL — ограниченные фактические
 проверки. Новые managed DB/production apply и release этим checkpoint не
 подтверждаются. Весь объём 1–36 не завершён; 37–50 исключены. Датированные
 квитанции ниже сохраняют свои ревизии и пределы проверки.
@@ -25,24 +25,40 @@
   бизнес-поля восстановлены, version+4/audit+4 сохранены. UI доказал блокировку
   пустой причины; успешное UI-сохранение не заявляется. Issue687 остаётся открыт
   до отдельных managed/owner exit criteria.
-- **#970:** из staff chat убраны автоматические task actions/enrichment.
-  Local ordinary Sales UI проверен на существующих пустых каналах. A15b autosize
-  находится в реализации после pre-code review; плоская хронология, цитаты,
-  поиск/read/scroll — последующие согласованные срезы.
-- **#971:** явные суммы и разделы договора/оплаты, сохранённые дополнительные
-  операции и права. Local ordinary Admin UI1280/390/320 и parity пройдены без
-  финансовых записей. Полный перенос договорного workflow и положительные
-  транши/возвраты/чеки/mixed-currency/other-role UI ещё не завершены.
+- **#970/#974:** из staff chat убраны автоматические task actions/enrichment;
+  autosize MERGED через #974 (`6d01bc81`). Actual ordinary Sales UI доказал
+  рост/сжатие, перенос при1280/390/320 и восстановление собственного черновика.
+  После reload320 root-width330 остаётся явным ограничением; native IME Enter,
+  nonce и populated/save не заявлены. Flat feed и цитаты не завершены: A223
+  additive reader в реализации, pre-code `55109` reviewed; apply не выполнен.
+- **#971/#973:** договорный workflow перенесён в «Договор и оплата» с alias,
+  независимыми правами и сохранёнными девятью actions. #973 принят после
+  independent review `09e3332d` и CI `35548203929` PASS. Actual ordinary Admin
+  UI1280/390/320 и full281 parity пройдены без финансовых записей. Scoped92/93
+  (после коррекции40/41) сохраняют одно прежнее assertion-падение, доказанное
+  на exact main. Contract-only/populated templates, транши/возвраты/чеки,
+  mixed-currency и реальные команды не доказаны; весь item12 остаётся открыт.
 
 #964/B218: 13 фаз обычного Auth и 59 Swift decode PASS. Полные program requirements,
-upload/save→submit→package/review остаются открытыми. B967 — DRAFT, head `8e8c81e1`,
-runtime `2516de2d`: independent review, build и CI PASS, чтение существующей
-подготовки в web проверено; первый новый выбор/init и native UI ещё pending.
-Native UI ограничен заблокированным Mac. Локальное покрытие stable IDs через
-существующий211 для четырёх карточек/пяти наборов: пакет и точные UI-intents
-проверены, последовательная техническая публикация выполняется; результата
-ещё нет в этом checkpoint. Факты каталога/порядок/прежние IDs сохраняются.
-Это не managed publication или подтверждение всего admissions-пути.
+upload/save→submit→package/review остаются открытыми. B967 — DRAFT, frozen head
+`284eeb31`, runtime `2516de2d`; CI `35547698931` сохраняет известное падение
+Storage idle-window, не новый зелёный прогон. Чтение существующей подготовки в web
+проверено; actual first-selection214→218 на `284eeb31` завершился положительно:
+подготовка открылась сразу, два starter slots переиспользованы без insert,
+неизвестный deadline не придуман; reopen/refresh/saved list сохранили прежний
+GDUT, оба Docs anchors и возврат к карточке проверены. After-selection
+`55de9560…` — PASS_EXPECTED_GRAPH (ожидаемые изменения восьми таблиц), journey
+`eaae467b…`; финальные zero-effect readback/release и визуальная проверка ещё
+в работе. Это один web-путь, не полный requirements/submit/review. Native UI
+не проверен: Mac заблокирован. LOCAL211 завершён:
+четыре технические публикации, восемь requests, пять stable IDs; final receipt
+`44c0f7…`. Факты каталога/порядок/прежние IDs сохранены. Это не managed publication
+или подтверждение всего admissions-пути.
+
+KB31/32: metadata-сверка328 позиций и пакет двух ранее одобренных материалов
+подготовлены; [квитанция подготовки](qa/knowledge-source-reconciliation-2026-09-21.md).
+Canonical objects/dedup и записи ещё не подтверждены; массового approval,
+AI-bundle publication и завершения всего31/32 нет.
 
 ## Первый срез A-1 — пункты 4 и 34
 
@@ -85,16 +101,16 @@ review одобрены. Это unit/source/harness-проверки; полно
 | 8 | #968 MERGED: LOCAL221, 35 Auth reads, actualUI1280/390/320, полный «Все», filter/cursor/context/BackForward | Основной queue-срез принят; positive другие типы/pending отсутствовали, managed отдельно |
 | 9 | #952 MERGED `f97122e8`: Inbox empty/filter/channel states; actual local read/UI desktop/390px | История выбранного диалога и provider/error-path приёмка этим срезом не доказаны; [квитанция](qa/crm-inbox-states-2026-09-21.md) |
 | 11 | #955 MERGED `fe26526c`: поиск Student messages с loading, отдельными empty/error/retry и защитой от устаревшего ответа; actual local read/UI desktop/390px | Очереди остаются у A; диалог не открывали, сообщений и mark-read не отправляли; [квитанция](qa/case-chat-search-2026-09-21.md) |
-| 12 | #933/#971 MERGED: доступ к стоимости, ясные суммы/разделы и сохранённые дополнительные операции | Полный перенос договорного workflow открыт; Profile/actions координируются с B |
+| 12 | #933/#971/#973 MERGED: единый договорный workflow, независимые права, alias и девять actions; actual Admin read-only UI1280/390/320 | Полный item12 открыт: contract-only/populated artifacts, реальные финансовые команды и managed delivery не доказаны |
 | 30 | #948 MERGED: LOCAL213 actual UPDATE двух UI-блоков, sibling draft, replay/conflict/stale и restore26 полей; B sale INSERT отдельно | Не browser-proof всех групп; handoff correction215 вошла #960; managed/release не выполнены |
 | 14 | Staff-каталог: поиск, фильтры, дедлайны, управление | Program IDs/schema принадлежат B |
-| 15 | #970 MERGED: task actions/enrichment убраны; A15b autosize в реализации | Flat chronology/quotes/search/read/scroll — следующие срезы; не отправлять сообщения |
+| 15 | #970/#974 MERGED: task actions/enrichment убраны, autosize подтверждён actual unsent Sales UI | Flat chronology/quotes/search/read/scroll открыты; A223 reader в реализации, без apply |
 | 16 | #954/#963 MERGED: explicit case choice и личный case/staff reader; LOCAL217 Auth/target/denials и UI320/390/desktop | Положительные dated/staff и >100 UI overflow отсутствуют; commands/concurrent reassignment не исполнены; [receipt](qa/personal-calendar-2026-09-21.md) |
 | 22 | #961 MERGED: keyboard skip-navigation slice | Остальной shell/типографика открыты; не полная a11y-приёмка |
 | 29 | #966 MERGED: failed219 сохранён; forward220 function QA, actual Admin UI четырёх пустых полей и exact Auth replay PASS | Pinned219/nonemptyHTTPS UI positive отсутствует; managed отдельно |
 | 33 | #969 MERGED: LOCAL222 требует причину срока/приоритета у всех ролей; RPC denials/replay/conflict/stale, reasoned updates и restore пройдены | UI доказал отказ без причины; positive UI save не заявляется, #687 открыт до managed/owner exit criteria |
 | 35 | Завершён в исходниках: #947/#949 prerequisites, #950 MERGED `3ddb6f41`, #42 CLOSED; пять checks и 842/842 legacy tests, независимый semantic review | Только форматирование legacy Inbox; без revival/deploy/provider proof; [квитанция](qa/inbox-format-baseline-2026-09-21.md) |
-| 5, 36 | Текущая docs-сверка обновлена на95cc9277; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
+| 5, 36 | Текущая docs-сверка обновлена на925cf199 после #973/#974; отдельный delivery packet ещё открыт | Source merge ≠ managed delivery; exact main/image/smoke/rollback и остатки1–36 сохраняются |
 
 Каждый срез: живой source → минимальный diff → точечная реальная проверка →
 отдельный PR → независимое exact-head review. Не запускать общий финальный E2E,

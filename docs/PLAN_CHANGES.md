@@ -36863,3 +36863,14 @@ this does not claim server-command execution or positive request acceptance.
 проглатывать Auth redirects; публичный unstable_rethrow остаётся явно указанной
 нестабильной зависимостью, которую координатор должен принять до coding.
 Это files-only precode, не новая authority для runtime/данных. QA сейчас A1014.
+
+### B24 — решение precode и source checkpoint
+
+Независимое APPROVED_PRECODE49b1f3e2 для0e4317c5 принято координатором;
+разрешён минимальный UI/source блок с публичным unstable_rethrow и сохранением
+его оговорки о стабильности. Наfd7f0900 реализован согласованный wrapper;
+восстановление потерянного при disabled фокуса ограничено исходной формой и
+body, без перехвата другого выбранного контрола. Серверный контракт, bulk loop,
+RPC, SQL и styling не менялись. Source проверки/четыре подтверждённых прежних
+UI-contract failures описаны в [checkpoint](platform/portal-notification-read-feedback.md).
+Реальный browser/Auth/DB actual не выполнялся и остаётся отдельным gate.

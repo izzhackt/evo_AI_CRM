@@ -2,7 +2,7 @@
 
 Дата: 2026-09-21. B24, мобильная проверка в пределах B23.
 База: main `8b6259ec3319eb36304e157ea48b6377305848f5`, после merged #1006.
-Статус: **предложение до реализации; только анализ исходников и документы**.
+Статус: **precode одобрен, исправление реализовано в исходниках; actual ещё нет**.
 Основание: [согласованный UX-план, §4–6](../EVO_UX_REFINEMENT_PLAN_2026-09-20.md)
 и [пункты 23–24 ведомости](../EVO_ITEMS_1_36_STATUS_2026-09-21.md).
 Общий статус этих пунктов не меняется. Старая строка ведомости о draft #1006
@@ -75,8 +75,8 @@ guard использует `redirect`. Предложение — публичн
 in-flight guard в finally. Не разбирать digest и не импортировать внутренние
 Next-модули. Это **явная зависимость для precode review**: официальный API
 помечен нестабильным и не рекомендован для production. До принятия этой детали
-координатором реализация не начинается; при отказе требуется уточнить подход,
-а не молча проглотить redirect или расширить серверный контракт.
+координатором реализация не начинается; решение об одобрении зафиксировано
+ниже. Нельзя молча проглотить redirect или расширить серверный контракт.
 
 Официальные источники, проверены 2026-09-21:
 [Next: обработка ошибок](https://nextjs.org/docs/app/getting-started/error-handling)
@@ -113,5 +113,55 @@ Next-модули. Это **явная зависимость для precode rev
 
 За границами: новые уведомления/контент, native/VoiceOver, весь B23/24/25,
 общий E2E, App Store, production/provider действия, изменение чужой browser
-сессии 33216. Никакая проверка или implementation в этом документе не заявлена
-как уже выполненная.
+сессии 33216. Runtime-проверки из этого плана пока не выполнены.
+
+## Source checkpoint — 2026-09-21
+
+Precode `0e4317c56f29bd03d441c3790cd604bb414d0fea` получил независимое
+`APPROVED_PRECODE`; review SHA256
+`49b1f3e2b0e95457b6fe6f15e8f14b05d2afb757a98a3338c438877037ac609f`.
+Координатор принял явную зависимость от public `unstable_rethrow` установленной
+Next16.3.4 и разрешил source implementation. Предупреждение о нестабильности
+остаётся; внутренние imports/digest parsing не добавлены.
+
+Код: `fd7f0900af02273828c2c6018f565f9d4597f05a`. Общая форма обрабатывает
+отказ во всех трёх местах, сбрасывает ошибку перед ручным повтором и освобождает
+in-flight guard в finally. `ReadFailure` использует настоящий form pending;
+после отказа возвращает потерянный при disabled фокус только если действие
+началось внутри этой формы и фокус остался на body. Если пользователь уже
+перешёл к другому контролу, фокус не перехватывается. Это пока source behavior,
+а не подтверждённый клавиатурный actual.
+
+Действующие actions/RPC/идентификаторы/валидация/guards/revalidation и обе кнопки
+побайтно сохранены. Добавлены четыре согласованных RU/KY значения. CSS, SQL,
+зависимости и native не менялись. Craft-floor перечитан перед UI edit.
+
+На Node22.23.1 выполнены:
+
+- `portal-i18n.test.mjs`: 8/8 PASS; `v3-student-portal-source.test.mjs`: 7/7 PASS.
+- `v3-student-portal-ui.test.mjs`: 18/22 PASS. Четыре сбоя воспроизведены теми же
+  четырьмя тестами на исходниках exact base8b6259ec: устаревший список route
+  pages, старый Shell accessTier pin, прежняя форма overview read и удалённая
+  директория `src/components/v3/portal`. Они не исправлялись в этом блоке.
+- Новый `portal-notification-navigation.test.mjs`: 4/4 PASS. Вызваны реальные
+  public Next `redirect`, `permanentRedirect`, `notFound` и `unstable_rethrow`,
+  включая nested cause; обычные Error/TypeError остаются для локальной обработки.
+  Это unit-проверка установленного Node export, не browser/Auth redirect actual
+  и не вызов notification server command.
+- Scoped ESLint изменённых TS/TSX/MJS, TypeScript `--noEmit --incremental false`
+  и diff-check PASS. Первое замечание ESLint к имени передаваемого ref исправлено;
+  повторный lint прошёл. Полного тестового набора не было.
+
+Зафиксированные логи/артефакты этого прохода:
+`/private/tmp/evo-b24-notification-unit.log`,
+`/private/tmp/evo-b24-notification-baseline.log`,
+`/private/tmp/evo-b24-notification-types-final.log` и
+`/private/tmp/evo-b24-notification-source-evidence.json`.
+Первоначальная неполная baseline-копия не загрузила импорт; после добавления
+зависимых исходников из того же base выполнена именно сверка четырёх ошибок.
+Её прежний setup failure сохранён отдельно и не считается продуктовым результатом.
+
+Draft PR/source review и CI — следующие gates. Shared QA остаётся у A1014;
+ROOT планирует свой следующий country-facet блок. Нового QA-окна для B нет.
+Single/bulk/detail UI, реальная запись, retry/partial failure, session-expiry
+redirect, focus и responsive/RU-KY остаются неподтверждёнными.

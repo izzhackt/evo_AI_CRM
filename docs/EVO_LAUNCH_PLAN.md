@@ -14035,3 +14035,16 @@ RU/KY alert и ручной повтор с сохранением existing acti
 сохранения framework redirects — явно открытая деталь precode review, с
 зафиксированным официальным предупреждением о стабильности. Код не менялся.
 ROOT передал QA A1014; B остаётся files-only до отдельного admission.
+
+### B24 — source implementation после принятого precode
+
+Precode0e4317c5 независимо APPROVED_PRECODE49b1f3e2; координатор разрешил
+ограниченный source-блок. Наfd7f0900 общая клиентская форма добавляет локальную
+RU/KY ошибку и ручной повтор single/bulk/detail, сохраняет server actions/RPC/
+IDs/guards и first-error bulk. Public Next16.3.4 unstable_rethrow принят с
+задокументированным риском; служебные redirects пробрасываются, новых внутренних
+imports нет. Установленный public API:4/4 unit PASS; i18n8/8/source7/7 PASS,
+UI wiring18/22 с четырьмя отдельно воспроизведёнными baseline8b6259ec failures.
+Scoped lint/TypeScript/diff-check PASS. [Source checkpoint](platform/portal-notification-read-feedback.md)
+сохраняет точные ограничения. Actual/QA/source review/CI/merge ещё не заявлены;
+shared QA у A1014, следующий слот B не назначен.

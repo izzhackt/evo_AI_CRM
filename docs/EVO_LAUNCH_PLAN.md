@@ -12879,6 +12879,17 @@ Auth-сессия восстановлена, сервер/вкладка зак
 ширину списка продаж. Весь пункт 7 и production не объявляются завершёнными.
 После этой приёмки добавлена только документация; runtime-файл сохранён побайтно.
 
+
+## 2026-09-21 — item36: checkpoint после #987/#988/#991
+
+Docs-only на main `82260fdc`: обновлены current fronts execution/A/B и refinement.
+#987 direct quotes227, #988 editor226, #991 mobile sale records приняты в source
+и пределах локальных receipts; история и ограничения не переписаны. #990/229,
+#992 unified feed и #993/228 остаются непринятыми actual блоками. Пункты27/28/31/32
+сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
+DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
+Проверка: diff review и git diff --check; независимое exact-head review до merge.
+
 ## CRM-02d — компактная сводка выбранных продаж, precode (2026-09-21)
 
 Baseline main `82260fdc2df3b6d370092633cf1ac1c350fe9af6`, после merged #991.

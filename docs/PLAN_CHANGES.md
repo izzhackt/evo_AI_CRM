@@ -35775,6 +35775,31 @@ Docs-only на main `82260fdc`: обновлены current fronts execution/A/B 
 сохраняют прежние границы; весь1–36 не завершён,37–50 отложены. Нового runtime,
 DB/Auth/Storage/provider действия или production delivery этот checkpoint не даёт.
 Проверка: diff review и git diff --check; независимое exact-head review до merge.
+
+## 2026-09-21 — CRM-02d: компактные filtered totals, precode
+
+После main82260fdc / merged #991 ROOT отдельно берёт только
+`SalesRegisterView.tsx` → `sales-period-totals`. Проблема: крупный count,
+избыточные отступы и min-width400px сводки; подпись не различает filtered scope.
+Impeccable Operate/distill/adapt и действующий DESIGN обосновывают компактный
+count «Найдено по фильтрам» и один responsive semantic `dl` на валюту
+с обеими видимыми подписями/суммами. Сохраняются валюты, unknown counts,
+пояснения, архив/empty и отдельный «План отдела» без процента. Никакие данные
+или функции не удаляются. Fresh desktop incumbent просмотрен; mobile кадры
+обрезают верх сводки, поэтому её полный baseline/actual остаётся ROOT QA.
+
+Права плана сохраняются буквально; известный finance.read.full vs scoped
+target.manage gap остаётся отдельной задачей, не скрытым CSS-fix. SQL/API/DTO,
+cash section, формы, фильтры, import, list991 и Students layout вне scope.
+Полный контракт/границы/acceptance — CRM-02d appendix в launch-плане.
+Эта запись предшествует UI-коду; до независимого review/source GO только docs.
+
+CRM-02d source-only checkpoint: реализация следует approved precode7b630598.
+Lint/typegen/tsc/diff/Impeccable detector PASS; данные/права/внешние sections
+сохранены, SQL/API не менялись. Actual UI/AX/read-only QA остаётся pending;
+новые бизнес-данные и CSS-зеркальные тесты не создавались.
+
+
 ## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
 
 #988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
@@ -36030,6 +36055,20 @@ runtime evidence не переименовывается в новый прог�
 production и provider acceptance не закрыты.
 
 
+## 2026-09-21 — CRM-02d validation scope after main integration
+
+#995 integrates accepted main `e5709f13` while preserving its reviewed summary
+source bytes from `9e3baec1`. Two additive journal conflicts retain both sides.
+The repo's fast scope-local validation rule applies: actual baseline/candidate
+Sales/Admin at desktop/390/320 with visible value and accessibility/overflow
+parity tests the changed summary. Unchanged filtering/query/authorization/cash
+and record logic do not justify a fresh broad month/year/archive or permission
+matrix. Existing proof keeps its original revision and limits. A direct new
+integration concern may justify one search/back check; no new fixtures.
+Actual UI and release are still pending A15f's exclusive-window handoff. No
+production authority, new schema change or completion of all item7 is inferred.
+
+
 ## 2026-09-21 — website enquiry context contract extension
 
 Fresh main `0fd6952a2796178e1d540f454742ded2f42bcee2` accepts exactly eight
@@ -36139,3 +36178,72 @@ Both retain frozen notification evidence while separately exposing later package
 and current file decisions; no contract/policy/API changes. Added2 codec-backed
 Node regressions; native suite now24 checks. Scoped lint/TypeScript and final
 69-input Swift typecheck passed. Actual-path QA remains a separate unclaimed gate.
+
+### A15f unified chat UI — decisions recorded before code
+
+A15d225/A15e227 are merged; current base main115b895a. A227 actual local apply/API
+passed and full raw window was released to ROOT990. Start A15f source work in an
+isolated chat-only worktree while ROOT owns runtime. No migration or database/
+Auth/browser/server work belongs to this offline step.
+
+Update docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md with the current dependency
+state and concrete SSR/V2 timeline, one composer, V1 draft recovery, context/
+search/anchor, invalidation and seen integration. Pin a500ms stable body dwell
+with visible height at least min(50%body,160px), active visible window, overlay/
+search/quote exclusions and bounded1–50 IDs; never advance legacy read_sequence.
+V1 changes cannot invent direct quote identity; preserve or hydrate from V2.
+Existing unknown operation identities, rights, authored content and dates remain.
+
+DESIGN.md now reflects the already accepted single-feed/direct-quote decision;
+EVO/Golos/themes/AppShell are preserved. Reused A15d desktop/mobile captures are
+historical incumbent evidence and UI/CSS source remains unchanged since then.
+A15g owns density/grouping/channel previews. ROOT retains CaseAgreement and
+SalesRegisterView mobile work; B retains portal/requirements/iPhone. No UI
+implementation or actual UI acceptance is claimed by this precode commit.
+
+
+### A15f actual local chat acceptance and released runtime — 2026-09-21
+
+Actual ordinary Sales/Admin UI at e1250b58 passed the bounded five-post,
+versioned edit/delete, frozen V1/V2 replay, sparse unread gap/reload, search,
+legacy links, >50 history paging and composer journeys. Desktop1440 and320/390
+inspection preserved EVO and reachable controls. Full local230/287-table
+reconciliation confirmed exact seven commands, four finite seen tuples and all
+original rows; own sessions/browser/server closed. ENOSPC recovery is separately
+pinned, with final read-only state equality and release01b3c17b…8cb51 to ROOT995.
+See docs/qa/crm-team-chat-unified-feed-actual-2026-09-21.md for proof and limits.
+
+This closes A15f's scoped local acceptance, not all item15/first36 or production.
+A15g keeps grouping/density/channel previews and the observed follow-up: read
+search errors should explain retrieval failure rather than an uncertain write.
+Native/IME/screen-reader/moderation/revocation/storage-quota/post-refresh-failure
+journeys remain unclaimed. New main47d4a4746 integration preserves chat bytes;
+no migration is introduced by this chat PR.
+
+
+### CRM-02d actual compact summary and current1–36 front —2026-09-21
+
+Ordinary Sales/Admin baseline0fd6952a/candidatef59adb70 at1440/390/320 preserved
+count, currency values, unknown notes, target visibility and row links. Mobile
+summary no longer horizontally scrolls. Cash positive and universal height
+reduction are not claimed. Full local230/287 business state, catalog, finance,
+Storage and incoming224 sessions restored; own browser/server stopped. See
+`docs/qa/crm-sales-compact-summary-2026-09-21.md`. Mainca7c98ec integration
+preserves exact SalesRegisterView bytes; this is reused proof, not a new run.
+
+`docs/EVO_ITEMS_1_36_STATUS_2026-09-21.md` reconciles the accepted original labels
+and remaining work, preserving earlier historical checkpoints. Local231 then
+applied once with no Auth/submission/business writes; window passed B232.
+No production delivery or whole1–36 completion claimed.
+
+
+## 2026-09-21 — B3g.2 latest-main integration before actual QA
+
+Merge main `a23490f746c9d13398712eed5e26dffd2330760b` into reviewed UI head
+`ef61dcce0ce8a5c5c93f8c30a69c8ba7308ee351` before local232 apply and actual
+web/CRM verification. Resolve only additive plan-document conflicts, preserving
+both parents. Package web/iPhone implementation, tests and migration232 stay
+byte-identical to the independently reviewed source. Incoming chat/sales changes
+stay intact. Existing source checks retain their exact revisions and limits;
+narrow integration review and current CI are required for this new head.
+No Auth, Storage, DB migration or user-interface action occurred in this merge.

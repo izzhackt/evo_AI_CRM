@@ -36323,3 +36323,14 @@ ROOT reserved 234 for A; ROOT233 must merge first. Source-only work and review
 can proceed while B owns local QA. Actual migration/API/browser work requires
 ROOT's scheduled window and separately pinned effects. No full item11, shared
 runtime or production success is claimed by this precode entry.
+
+### A11 / CRM-07 actual-UI correction before edits — 2026-09-21
+
+First ordinary local234 QA at999040d0 found browser-history cached q/queue and
+await-state restoration plus320px selected-chat overflow. The bounded queue
+plan now specifies URL-owned filters, explicit-only URL writes, fresh authorized
+history reads, and minimum-width/mobile-header fixes. Preserve composer/draft,
+source authorization, SQL234 and immutable apply evidence. Three permitted await
+commands already ended at none; confirmation must not add commands/messages.
+One UI batch and one confirmation batch, same staff session, independent source
+and private runtime-binding delta review before resuming. No extra product scope.

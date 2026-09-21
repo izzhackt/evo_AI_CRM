@@ -13496,3 +13496,12 @@ ROOT reserved 234 for A; ROOT233 must merge first. Source-only work and review
 can proceed while B owns local QA. Actual migration/API/browser work requires
 ROOT's scheduled window and separately pinned effects. No full item11, shared
 runtime or production success is claimed by this precode entry.
+
+#### A11 / CRM-07 first QA correction — 2026-09-21
+
+Local234 first real UI pass at999040d0 found history-restoration and320px
+selected-chat defects. Apply the bounded correction in the case-chat queue plan:
+URL-owned filter context, fresh authorized history reads and shrinking mobile
+layout, retaining draft/attachment and commands/rights. SQL/apply234 unchanged;
+three permitted await commands restored none. Independent correction review,
+then at most one read-only confirmation batch and full finite-effects closure.

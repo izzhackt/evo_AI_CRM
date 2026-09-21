@@ -89,3 +89,23 @@ SQL WHERE предшествует LIMIT; порядок нужен для во�
 [Supabase rpc](https://supabase.com/docs/reference/javascript/rpc).
 Next поддерживает native replaceState без reload с интеграцией router:
 [Next.js Native History API](https://nextjs.org/docs/app/getting-started/linking-and-navigating#native-history-api).
+
+## Коррекция по фактической первой QA-проверке — 2026-09-21
+
+На `999040d0`, local234, ordinary admissions обнаружены два дефекта: native
+Back/Forward возвращает cached q/queue и старое await-state; выбранный чат
+переполняет 320px (body360px при awaiting_student). Три разрешённых ordinary
+await-перехода завершены возвратом к none, сообщений/файлов не отправляли.
+
+В этой же партии: q/queue/attach читать из текущего URL, менять URL только
+действием пользователя/подтверждённым сохранением attachment в черновик.
+При восстановлении истории перечитать список и выбранную переписку обычными
+авторизованными actions; composer не пересоздавать из-за изменения фильтра.
+Сохранить immediate sequence invalidation и debounce поиска. Разрешить сжатие
+flex-контейнеров/textarea; мобильный header распределить на две строки, сохранив
+имя, статус и доступ к меню. Не скрывать overflow глобально.
+
+SQL234 и apply receipt остаются неизменными. Сохранить текущую staff-сессию;
+новый source/runtime binding требует независимого delta-review. Один общий
+confirmation pass desktop/390/320, только чтение и local draft actions: новых
+await-записей/сообщений не делать. Исходные фактические доказательства не менять.

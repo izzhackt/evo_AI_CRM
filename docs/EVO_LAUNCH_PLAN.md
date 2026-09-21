@@ -12542,3 +12542,15 @@ See docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md and its actual QA receipt.
 This append is precode only, awaiting independent exact-head review.224 remains
 B-reserved; A has no new migration number or apply/Auth-write window. Production
 release and new QA identities are not authorized by this planning slice.
+
+
+## 2026-09-21 — KB32: ограниченная локальная запись approved материалов
+
+После merged #975 продолжается существующий независимый KB-поток: два
+дословных snippets и две company file versions через обычный Admin UI,
+реальный ClamAV и private Storage. Owner content approvals сохраняются;
+новой фактической политики и AI-публикации нет. Новый runtime-код не нужен.
+Перед записью — fresh baseline/dedup после B224→A225, после — exact readback,
+два download hashes и scoped data reconciliation. Production не разрешён.
+Пакет: `docs/qa/knowledge-approved-materials-local-2026-09-21.md`.
+Подготовка scanner завершена; actual canonical write ещё не выполнен.

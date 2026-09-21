@@ -12857,3 +12857,8 @@ Before another actual upload, reuse the existing stable useSyncExternalStore cli
 ### CRM-09e — connect existing receipt routes, 2026-09-21
 
 Actual corrected UI hydration passed; its single upload POST returned403 platform_route_not_connected at proxy before the handler. Root verified exact before/after283-table financial/audit/Storage/Auth-session parity; no upload succeeded. Connect only existing payment-receipts/{paymentEventId} and payment-receipt-files/{studentCaseId}/{fileId}/download through isConnectedPlatformApi with exact UUID v1–5 segments matching handlers. Retain ordinary staff-cookie proxy flow, live handler authority/record scope and all Storage checks; no public Student or direct-private bypass. Add positive/negative route-contract coverage. Existing case-contract upload connectivity is a separate finding, excluded from this slice. No UI change or new business operation; actual confirmation remains root-owned.
+
+
+### CRM-09e — scoped receipt authority dependency229, 2026-09-21
+
+Contract: `docs/platform/payment-receipt-authority-contract-2026-09-21.md`. Actual35a11aa0 upload stopped at service-role table SELECT42501, masked as404; zero successful uploads and root final283-table/financial/Storage/Auth-session parity. ROOT reserves229 afterB228. Before implementation, independently review authenticated exact upload/download target RPCs, delegated principal revalidation before receipt metadata write/replay, strict bounded decoder and403-versus503 behavior. No table grants, financial changes, contract-file expansion or new UI. Existing routes/legacy receipt compatibility remain; no apply/runtime in this precode.

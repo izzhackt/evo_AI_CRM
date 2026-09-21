@@ -13727,3 +13727,59 @@ change unrelated tests or claim full suite/SSR acceptance. No actual UI or share
 QA/Auth/DB/server/browser use; independent exact-head source review/CI next,
 then ordinary staff UI/data comparison only after ROOT handoff. Whole item14,
 full country facet, management changes and production remain open.
+## 2026-09-21 — ROOT item7b import management precode
+
+After accepted #1004 (main d68ce587), implement the already approved
+[import placement plan](EVO_SALES_IMPORT_MANAGEMENT_PLAN_2026-09-21.md).
+Move the existing import mount out of the daily report into its own internal
+mode=import view; preserve a scoped report entry for authorized custom staff
+and add an independently scoped Admin Settings entry. Preserve existing forms,
+actions, SQL, permission checks and request/File state on router refresh.
+Parse and allowlist report context for a safe Back link; record/editor/saved
+contexts retain precedence. No new writes, migration, content or import submit.
+Impeccable Operate refinement preserves EVO and reduces daily-report noise.
+Precode independent review APPROVED (private SHA
+274c606ed5adbebed2b260c3c7b5aab585dabe29d8653810b5859991b13a0281).
+ROOT source work is isolated; A1005 then B1006 own the shared local runtime.
+Actual7b verification waits its coordinated window; populated/custom-role and
+refresh-retention scenarios are only claimed when really exercised.
+
+## 2026-09-21 — ROOT item7b source implementation
+
+[Source proof](qa/crm-sales-import-placement-source-2026-09-21.md): existing
+import form now mounts only in its own guarded mode; report and Settings keep
+scoped links. Safe internal Back retains the report context; explicit editor/row
+destinations retain precedence. Forms/actions/SQL/readers are unchanged. Seven
+navigation tests, scoped lint and typecheck passed; ordinary UI/Auth/refresh
+acceptance remains pending after A1005 and B1006. No import or production write.
+
+## 2026-09-21 — ROOT7b / PR1007 actual local235 closure
+
+[Import placement acceptance](qa/crm-sales-import-placement-actual-2026-09-21.md)
+on clean3035e912 confirms scoped Admin/custom-staff entry/denial, context-preserving
+Back, annual/archive/invalid contexts, existing record/editor precedence and Admin
+Settings entry.1440/390/320 inspected; original importer/actions/SQL unchanged.
+No file selection or submission. Two driver STOPs remain; an independently reviewed
+finite functional continuation completed remaining branches without another visual
+round or login. Sales passed its first batch. Final6fd1ecbd/verifierf2bdbb91 prove
+all290 business/catalog/effects and33 Auth/Storage preservation, with only owned
+sign-in metadata/four Auth audits. Both logouts204, browsers and owned Next closed.
+The launch-binding stop guard and exact-owned-process cleanup are retained.
+Final docs review/CI/merge and release to B32 remain; no production authority.
+
+
+### A14a / PR1008 integration with accepted main e0276ecd — 2026-09-21
+
+PR1007 merged e0276ecd5a7a0488370745d84d9b983334d85f52 after its independent
+reviews, CI and bounded local235 acceptance. Integrate that immutable main into
+A1008; keep reviewed catalogue product030d7c2e/head3d21b54d byte-identical.
+Resolve only additive launch/decision text and current ledger statuses, preserving
+both parents' evidence and B1006's unaccepted profile/login boundary. Source
+review8b620d9e and CI35611424947 are accepted for3d21; combined source checks
+remain35/37 with two reproduced baseline failures. Do not rerun unchanged product
+checks or treat them as full PASS. Exact integration review/CI remain required.
+ROOT has closed7b and handed the runtime to B32; A catalogue actual waits its
+subsequent immutable release. Inert templatev3 corrections02caf8a0 are approved
+only as offline preparation; all runtime pins remain null, no actual UI/resources
+are used, and no further iteration is planned before a concrete binding/failure.
+Country facet, management, full item14 and production remain outside this slice.

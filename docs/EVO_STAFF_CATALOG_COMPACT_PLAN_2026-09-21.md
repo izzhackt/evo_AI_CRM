@@ -2,11 +2,13 @@
 
 Статус: независимый precode APPROVED, source030d7c2e реализован;
 [source-проверки и два прежних падения](qa/staff-catalog-compact-source-2026-09-21.md).
-Независимые source review/CI и actual UI впереди.
+Независимые source review8b620d9e и CI35611424947 пройдены на3d21b54d.
+Main e0276ecd (#1007) интегрируется без изменения product patch; отдельные
+integration review/CI и actual UI после B32 ещё требуются.
 База29e0fb46a8067a6a4f5a9bedce81971aba2f56ff после #1005. Целевые каталог,
 photo, staff route, DTO, reader и существующие tests byte-identical исходной
-оценке33966da19b401c88dff92f840a28b22d7a0429c9. Общая QA сейчас у B1006;
-Auth/DB/browser/server не запускать до отдельной передачи координатором.
+оценке33966da19b401c88dff92f840a28b22d7a0429c9. Общая QA после принятого ROOT7b передана B32;
+Auth/DB/browser/server A1008 не запускать до её immutable release и передачи координатором.
 
 Ниже принят план SHA-256
 `8f081b632ca2930bafdcfd77abb93d8c4e1a777f794f31d3346472b2d089467e`.

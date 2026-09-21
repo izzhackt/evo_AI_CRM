@@ -35398,3 +35398,17 @@ validated session cookie commit и existing exactActionStringFields для React
 form envelopes. Принятый pure contract27a остаётся неизменным. Реальная доставка,
 новые QA identities и изменение SMTP/Auth templates имеют свой конкретный
 пакет; этот план не выдаёт им неявное разрешение.
+
+
+## 2026-09-21 — item27c: локальный web/API путь подтверждён
+
+На5bde выполнены реальные Auth/Mailpit создание и отрицательные сценарии;
+на428b после Impeccable исправлен SSR pending-state и проверены resend limit,
+confirmation→resume, replay и duplicate. Ровно2 owned Auth identities,1
+application/receipt и6 Mailpit писем сохранены. NativeC/UI и настоящая expiry
+не проверены; production/provider delivery не заявляется. PR980 остаётся draft.
+
+Независимая сверка24 снимков PASS, original Auth восстановлен exactspec/health,
+свои browser/server закрыты, окно передано B224. Подробности и пределы —
+`docs/qa/signup-confirmation-local-results-2026-09-21.md`. Полный1–36 остаётся
+открытым; это приёмка ограниченного web/API среза, не общий финальный E2E.

@@ -1,5 +1,9 @@
 # Item27b — согласованное подтверждение email в вебе и iPhone
 
+Актуальное дополнение: ограниченный локальный web/API прогон27c выполнен; см.
+[результаты и оставшиеся ограничения](signup-confirmation-local-results-2026-09-21.md).
+Ниже сохранён исходный checkpoint подготовки. Native/managed acceptance не заявляется.
+
 Pre-code `0994ecab`, base main `c5d9a4cf`; продолжает неактивные primitives #978.
 Этот кандидат меняет активный registration path и **не готов к merge/activation**
 до фактической приёмки27c. Выпуска, изменения Auth config/template, новых QA

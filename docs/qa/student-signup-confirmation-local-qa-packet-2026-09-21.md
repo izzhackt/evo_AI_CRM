@@ -1,5 +1,9 @@
 # Item 27c — проект локального QA-пакета, 2026-09-21
 
+Актуальное дополнение: ограниченный локальный web/API прогон27c выполнен; см.
+[результаты и оставшиеся ограничения](signup-confirmation-local-results-2026-09-21.md).
+Ниже сохранён исходный checkpoint подготовки. Native/managed acceptance не заявляется.
+
 Статус: PREPARED, до выполнения нужен root GO на точные hashes после независимого review. Код27b: `92b07a84801f494bcad909c79e20c45c653418ba`, draft #980; source review и CI35551632476 PASS, это не Auth acceptance. По конфигурации выполнены только read-only metadata checks. Реальный callback GET проверен отдельно, полный Auth lifecycle ещё не выполнялся. Sanitised metadata receipt подтверждает Auth v2.196.0 / Mailpit v1.30.2; ниже зафиксированы реальные настройки. Нативный UI остаётся непроверенным: Mac заблокирован (перепроверено21.09). Pure Swift tests/build не заменяют эту проверку. Основание: `docs/design/signup-email-confirmation-2026-09-21.md`; accepted policy не пересматривается.
 
 ## Полномочия и границы

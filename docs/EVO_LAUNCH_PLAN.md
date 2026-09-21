@@ -12573,3 +12573,17 @@ Impeccable: существующие EVO tokens, RU/KY, один pending panel �
 без выдуманного countdown, дополнительных шагов анкеты и новой визуальной темы.
 Функциональные проверки,320/390/desktop и native journey входят в готовность
 этого PR; нет заявления о проверке будущего общего E2E или production delivery.
+
+
+## 2026-09-21 — item27c: локальный web/API путь подтверждён
+
+На5bde выполнены реальные Auth/Mailpit создание и отрицательные сценарии;
+на428b после Impeccable исправлен SSR pending-state и проверены resend limit,
+confirmation→resume, replay и duplicate. Ровно2 owned Auth identities,1
+application/receipt и6 Mailpit писем сохранены. NativeC/UI и настоящая expiry
+не проверены; production/provider delivery не заявляется. PR980 остаётся draft.
+
+Независимая сверка24 снимков PASS, original Auth восстановлен exactspec/health,
+свои browser/server закрыты, окно передано B224. Подробности и пределы —
+`docs/qa/signup-confirmation-local-results-2026-09-21.md`. Полный1–36 остаётся
+открытым; это приёмка ограниченного web/API среза, не общий финальный E2E.

@@ -12781,3 +12781,23 @@ proof, сохранённые helper failures и runtime gaps. Независи�
 актуальный main, PR review/CI остаются merge-gates; production не разрешён.
 Это завершение bounded core-сценария, не всех recovery/concurrency/legacy/native
 расширений и не всего плана1–36. Нового scope/API во время QA не добавлено.
+
+
+## 2026-09-21 — B3f / 228: отдельные загрузка, отправка и проверка документа
+
+#988 MERGED `28613990d`: bounded editor226 QA/CI/review завершены; полныйRAW
+release `bcb7ed6d` передан A227, B больше не использует общий runtime.
+Root резервирует228 только для следующего single-document B3f; очередь
+A227→ROOT990→ROOT991 сохраняется, apply не разрешён.
+
+Source inventory055/043/116/128/226 показал, что общий current/status и прежний
+review автоматически связали бы A/B. Принято направление отдельных immutable
+program upload/submission/review/download contexts при тех же canonical bytes
+и scan/Storage transport. Старые Docs/manual/visa и approved ZIP guards сохраняются.
+[Precode228](platform/b3f-program-document-submission-contract.md) фиксирует
+approved-current replacement, exact historical-version download, fail-closed
+old readers и узкий SQL context-exclusion на legacy replay-входах. Последнее —
+явное compatibility amendment для review, не глобальное изменение legacy-процесса.
+До кода — независимое exact precode review; следующий полный package B3g отдельно.
+Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
+состояния. Runtime/новые файлы/production/native acceptance не заявлены.

@@ -1,7 +1,8 @@
 # A15f: source implementation of the unified chat feed
 
-Status: implementation in draft PR#992; independent implementation review and
-actual browser/application acceptance remain pending. This document is not a
+Status: implementation in draft PR#992; independent source review approved at
+f8a32eb9. Final integration/CI and actual browser acceptance remain pending.
+This document is not a
 runtime, migration, deployment or visual acceptance receipt.
 
 Base: main115b895a55b4c8e9994f41a1289c09f1ffe676ac (PR#987). Precode97a18b8f
@@ -85,3 +86,11 @@ transport: it fails before the fix, then proves the editor stays absent and the
 private realtime effect does not reconnect. This is unit evidence, not browser
 or database authorization proof. The focused set now passes19/19; delta ESLint,
 TypeScript and diff check pass. Independent delta review and actual UI remain.
+
+The independent delta review subsequently approved f8a32eb980bb9c02db8495b8094406c2bfb967b8
+for source only: `/private/tmp/evo-a15f-revocation-review-f8a32eb9.md`, SHA256
+`3c87413656aa082343957dd1c7fc2d7a0145f5712f8e5cb072556cfe72ffcff5`.
+Integration of docs-only main0fd6952a preserves the six current plan fronts and
+both appendices. All `src`, `tests`, package and lock bytes remain identical to
+the approved source; prior checks are reused under that exact bound. Actual
+browser/window acceptance is still required, and no merge/release is claimed.

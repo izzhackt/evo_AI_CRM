@@ -6,7 +6,8 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { readTeamChatAction } from "@/lib/platform-team-chat-actions";
 import { readTeamChatTimelineV2Action } from "@/lib/platform-team-chat-v2-actions";
-import { TEAM_CHAT_FAILURE_COPY, TEAM_CHAT_LABELS, teamChatMergeMessages, type TeamChatChannelKey, type TeamChatFailure, type TeamChatPage } from "@/lib/platform-team-chat";
+import { TEAM_CHAT_LABELS, teamChatMergeMessages, type TeamChatChannelKey, type TeamChatFailure, type TeamChatPage } from "@/lib/platform-team-chat";
+import { emptyTeamChatReadErrors, hydrateTeamChatRefreshTail, reduceTeamChatReadErrors, teamChatReadFailureCopy, visibleTeamChatReadFailure, type TeamChatReadAttempt, type TeamChatReadEvent, type TeamChatReadOwner } from "@/lib/team-chat-read-errors";
 import type { TeamChatTimelineQuery } from "@/lib/platform-team-chat-timeline";
 import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v2";
 import { emptyTeamChatFeed, extendTeamChatFeedRange, mergeTeamChatFeedChanges, mergeTeamChatFeedPage, mergeTeamChatSearchChanges, teamChatFeedMessage, teamChatFeedQuote, teamChatFeedRange, teamChatFeedRows, type TeamChatFeedSnapshot, type TeamChatFeedStore, type TeamChatFeedRange, type TeamChatScrollAnchor } from "@/lib/team-chat-feed";
@@ -55,7 +56,9 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const [returns, setReturns] = useState<ReturnPoint[]>([]);
   const returnsRef = useRef(returns);
   const searchOrigin = useRef<ReturnPoint | null>(null);
-  const [error, setError] = useState<TeamChatFailure | null>(null);
+  const [readErrors, setReadErrors] = useState(emptyTeamChatReadErrors);
+  const readErrorsRef = useRef(readErrors);
+  const backgroundRequest = useRef(0);
   const [busy, setBusy] = useState(false);
   const [transport, setTransport] = useState<"connecting" | "live" | "error">("connecting");
   const [connectionAttempt, setConnectionAttempt] = useState(0);
@@ -79,7 +82,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const scroll = useRef<ScrollRequest | null>(initialMessageId ? { kind: "message", id: initialMessageId } : { kind: "bottom" });
   const stableAnchor = useRef<TeamChatScrollAnchor | null>(null);
   const wasAtBottom = useRef(false);
-  const forbidden = error === "forbidden";
+  const forbidden = readErrors.forbidden;
   useLayoutEffect(() => { viewRef.current = view; returnsRef.current = returns; }, [view, returns]);
 
   const preserveScroll = useCallback(() => {
@@ -89,79 +92,105 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     if (!alive.current || revoked.current) return;
     preserveScroll(); current.current = next; setFeed(next);
   }, [preserveScroll]);
+  const updateReadErrors = useCallback((event: TeamChatReadEvent) => {
+    const next = reduceTeamChatReadErrors(readErrorsRef.current, event);
+    if (next === readErrorsRef.current) return;
+    readErrorsRef.current = next; setReadErrors(next);
+  }, []);
   const reportFailure = useCallback((status: TeamChatFailure) => {
     // Revocation is terminal for this actor/channel instance, including late failures.
-    if (!alive.current || revoked.current) return;
-    setError(status);
+    if (!alive.current || revoked.current || status !== "forbidden") return;
+    updateReadErrors({ type: "forbidden" });
     if (status === "forbidden") {
       revoked.current = true; contextRequest.current += 1;
       const cleared = { store: emptyTeamChatFeed(), range: { ids: [], beforeCursor: "0", afterCursor: "0", hasBefore: false, hasAfter: false } };
       current.current = cleared; setFeed(cleared);
       setChannels([]); setParticipants([]); setSearch(null); setQuery(""); setReturns([]); searchOrigin.current = null; setDeletion(null);
     }
-  }, []);
+  }, [updateReadErrors]);
+  const finishRead = useCallback((owner: TeamChatReadOwner, id: number, failure: TeamChatFailure | null) => {
+    if (!alive.current || revoked.current) return;
+    updateReadErrors({ type: "settle", owner, id, failure });
+    if (failure === "forbidden") reportFailure(failure);
+  }, [updateReadErrors, reportFailure]);
 
-  const readPage = useCallback(async (input: TeamChatTimelineQuery): Promise<TeamChatTimelineV2Page | null> => {
+  const readPage = useCallback(async (input: TeamChatTimelineQuery, owner: TeamChatReadOwner, id: number): Promise<TeamChatTimelineV2Page | null> => {
     if (!alive.current || revoked.current) return null;
     try {
       const result = await readTeamChatTimelineV2Action(input);
       if (!alive.current || revoked.current) return null;
-      if (result.status !== "loaded") { reportFailure(result.status); return null; }
+      if (result.status !== "loaded") { finishRead(owner, id, result.status); return null; }
       return result.page;
-    } catch { reportFailure("unavailable"); return null; }
-  }, [reportFailure]);
+    } catch { finishRead(owner, id, "unavailable"); return null; }
+  }, [finishRead]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (retry?: Extract<TeamChatReadAttempt, { kind: "refresh" }>) => {
     if (!alive.current || revoked.current) return;
     if (catchupRunning.current) { catchupAgain.current = true; return; }
     catchupRunning.current = true;
+    let request = 0;
+    let retryCursor = retry?.cursor;
     try {
       do {
         catchupAgain.current = false;
-        const result = await readTeamChatAction({ channel, mode: "changes", cursor: watermark.current });
+        const cursor = retryCursor ?? watermark.current; retryCursor = undefined;
+        request = ++backgroundRequest.current;
+        updateReadErrors({ type: "begin", owner: "background", id: request, attempt: { kind: "refresh", channel, cursor } });
+        const result = await readTeamChatAction({ channel, mode: "changes", cursor });
         if (!alive.current || revoked.current) return;
-        if (result.status !== "ready") { reportFailure(result.status); return; }
+        if (result.status !== "ready") { finishRead("background", request, result.status); return; }
         const snapshot = result.snapshot;
-        setChannels(snapshot.channels); setParticipants(snapshot.participants); setError(null);
+        setChannels(snapshot.channels); setParticipants(snapshot.participants);
         if (snapshot.page.messages.length) {
           const merged = mergeTeamChatFeedChanges(current.current.store, snapshot.page.messages);
           commit({ ...current.current, store: merged.store });
           setSearch((previous) => previous ? { ...previous, page: { ...previous.page, messages: mergeTeamChatSearchChanges(previous.page.messages, snapshot.page.messages) } } : null);
           // A V1 changes response has no direct quote identity. Hydrate unknown rows with V2.
-          const latest = await readPage({ channel, mode: "latest" });
+          const latest = await readPage({ channel, mode: "latest" }, "background", request);
           if (!latest) return;
           commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, latest) });
-          const tailChanged = latest.latestMessageId !== latestId.current;
-          latestId.current = latest.latestMessageId; setLatestMessageId(latest.latestMessageId);
-          for (const id of merged.unknownIds) {
-            if (teamChatFeedMessage(current.current.store, id)) continue;
-            const context = await readPage({ channel, mode: "context", messageId: id });
-            if (!context) return;
-            commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, context) });
-          }
-          if (tailChanged) {
-            setNewMessages(true);
-            const range = current.current.range;
-            const epoch = contextRequest.current;
-            if (!range.hasAfter && !returnsRef.current.length && viewRef.current === "feed") {
-              const follow = nearBottom(viewport.current);
-              const after = range.afterCursor === "0" ? latest : await readPage({ channel, mode: "after", cursor: range.afterCursor });
-              if (!after) return;
-              if (epoch === contextRequest.current) {
-                const nextRange = range.afterCursor === "0" ? teamChatFeedRange(after) : extendTeamChatFeedRange(current.current.range, after, "after", range.afterCursor);
-                if (follow) scroll.current = { kind: "bottom" };
-                commit({ store: mergeTeamChatFeedPage(current.current.store, after), range: nextRange });
-                if (follow && !nextRange.hasAfter) setNewMessages(false);
+          const hydrated = await hydrateTeamChatRefreshTail({
+            tailChanged: latest.latestMessageId !== latestId.current,
+            hydrateContexts: async () => {
+              for (const id of merged.unknownIds) {
+                if (teamChatFeedMessage(current.current.store, id)) continue;
+                const context = await readPage({ channel, mode: "context", messageId: id }, "background", request);
+                if (!context) return false;
+                commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, context) });
               }
-            }
-          }
+              return true;
+            },
+            hydrateAfter: async () => {
+              setNewMessages(true);
+              const range = current.current.range;
+              const epoch = contextRequest.current;
+              if (!range.hasAfter && !returnsRef.current.length && viewRef.current === "feed") {
+                const follow = nearBottom(viewport.current);
+                const after = range.afterCursor === "0" ? latest : await readPage({ channel, mode: "after", cursor: range.afterCursor }, "background", request);
+                if (!after) return false;
+                if (epoch === contextRequest.current) {
+                  const nextRange = range.afterCursor === "0" ? teamChatFeedRange(after) : extendTeamChatFeedRange(current.current.range, after, "after", range.afterCursor);
+                  if (follow) scroll.current = { kind: "bottom" };
+                  commit({ store: mergeTeamChatFeedPage(current.current.store, after), range: nextRange });
+                  if (follow && !nextRange.hasAfter) setNewMessages(false);
+                }
+              }
+              return true;
+            },
+            commitTail: () => {
+              if (!alive.current || revoked.current) return;
+              latestId.current = latest.latestMessageId; setLatestMessageId(latest.latestMessageId);
+            },
+          });
+          if (!hydrated || !alive.current || revoked.current) return;
         }
         watermark.current = snapshot.page.cursor;
+        finishRead("background", request, null);
         if (snapshot.page.hasMore) catchupAgain.current = true;
       } while (catchupAgain.current && alive.current && !revoked.current);
-    } catch { reportFailure("unavailable"); }
+    } catch { finishRead("background", request, "unavailable"); }
     finally { catchupRunning.current = false; }
-  }, [channel, commit, readPage, reportFailure]);
+  }, [channel, commit, readPage, finishRead, updateReadErrors]);
   const isRevoked = useCallback(() => revoked.current, []);
   const onSeenForbidden = useCallback(() => reportFailure("forbidden"), [reportFailure]);
   const onSeen = useCallback(() => { void refresh(); }, [refresh]);
@@ -244,13 +273,14 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     const saved: ReturnPoint = { range: current.current.range, view: viewRef.current, anchor: captureAnchor(viewport.current),
       focusId: document.activeElement instanceof HTMLElement ? document.activeElement.id || null : null };
     setBusy(true);
-    const page = await readPage(input);
+    updateReadErrors({ type: "begin", owner: "foreground", id: epoch, attempt: { kind: "navigate", input, returnPoint } });
+    const page = await readPage(input, "foreground", epoch);
     if (!alive.current || revoked.current || epoch !== contextRequest.current) return;
     setBusy(false);
     if (!page) return;
     if (returnPoint) setReturns((previous) => [...previous, saved].slice(-10));
     else setReturns([]);
-    setView("feed"); setPanel("messages"); setError(null);
+    setView("feed"); setPanel("messages"); finishRead("foreground", epoch, null);
     setHighlighted(input.mode === "context" ? input.messageId : null);
     scroll.current = input.mode === "context" ? { kind: "message", id: input.messageId } : { kind: "bottom" };
     commit({ store: mergeTeamChatFeedPage(current.current.store, page), range: teamChatFeedRange(page) });
@@ -259,49 +289,76 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       searchOrigin.current = null; setSearchOpen(false); setSearch(null);
     }
   }
-  async function loadMore(direction: "before" | "after") {
+  async function loadMore(direction: "before" | "after", retryCursor?: string) {
     const epoch = ++contextRequest.current;
-    const cursor = current.current.range[direction === "before" ? "beforeCursor" : "afterCursor"];
+    const cursor = retryCursor ?? current.current.range[direction === "before" ? "beforeCursor" : "afterCursor"];
+    const input = { channel, mode: direction, cursor };
     setBusy(true);
-    const page = await readPage({ channel, mode: direction, cursor });
+    updateReadErrors({ type: "begin", owner: "foreground", id: epoch, attempt: { kind: "extend", input } });
+    const page = await readPage(input, "foreground", epoch);
     if (!alive.current || revoked.current || epoch !== contextRequest.current) return;
     setBusy(false);
-    if (page) commit({ store: mergeTeamChatFeedPage(current.current.store, page), range: extendTeamChatFeedRange(current.current.range, page, direction, cursor) });
+    if (page) {
+      finishRead("foreground", epoch, null);
+      commit({ store: mergeTeamChatFeedPage(current.current.store, page), range: extendTeamChatFeedRange(current.current.range, page, direction, cursor) });
+    }
   }
   function back() {
     const saved = returns.at(-1);
     if (!saved) return;
     contextRequest.current += 1; setBusy(false); setReturns((previous) => previous.slice(0, -1));
+    updateReadErrors({ type: "cancel", owner: "foreground" });
     setView(saved.view); setHighlighted(null);
     scroll.current = { kind: "anchor", anchor: saved.anchor, focusId: saved.focusId };
     commit({ ...current.current, range: saved.range });
   }
-  async function runSearch(more = false) {
-    const term = more && search ? search.term : query.trim();
+  async function runSearch(more = false, retry?: Extract<TeamChatReadAttempt, { kind: "search" }>) {
+    const attempt: Extract<TeamChatReadAttempt, { kind: "search" }> = retry ?? {
+      kind: "search", channel, term: more && search ? search.term : query.trim(), append: more,
+      ...(more && search ? { cursor: search.page.cursor } : {}),
+    };
+    const { term, append } = attempt;
     if (term.length < 2) return;
     const origin: ReturnPoint = { range: current.current.range, view: "feed", anchor: captureAnchor(viewport.current), focusId: null };
     const epoch = ++contextRequest.current; setBusy(true);
+    updateReadErrors({ type: "begin", owner: "foreground", id: epoch, attempt });
     try {
-      const result = await readTeamChatAction({ channel, mode: "search", query: term, ...(more && search ? { cursor: search.page.cursor } : {}) });
+      const result = await readTeamChatAction({ channel: attempt.channel, mode: "search", query: term, ...(attempt.cursor !== undefined ? { cursor: attempt.cursor } : {}) });
       if (!alive.current || revoked.current) return;
       if (result.status === "forbidden") { reportFailure("forbidden"); return; }
       if (epoch !== contextRequest.current) return;
-      if (result.status !== "ready") { reportFailure(result.status); return; }
-      setChannels(result.snapshot.channels); setParticipants(result.snapshot.participants); setError(null);
+      if (result.status !== "ready") { finishRead("foreground", epoch, result.status); return; }
+      setChannels(result.snapshot.channels); setParticipants(result.snapshot.participants); finishRead("foreground", epoch, null);
       if (!searchOrigin.current && viewRef.current === "feed") searchOrigin.current = origin;
-      if (!more) scroll.current = { kind: "top" }; else preserveScroll();
-      setSearch((previous) => ({ term, page: { ...result.snapshot.page, messages: more && previous?.term === term ? teamChatMergeMessages(previous.page.messages, result.snapshot.page.messages) : result.snapshot.page.messages } }));
+      if (!append) scroll.current = { kind: "top" }; else preserveScroll();
+      setSearch((previous) => ({ term, page: { ...result.snapshot.page, messages: append && previous?.term === term ? teamChatMergeMessages(previous.page.messages, result.snapshot.page.messages) : result.snapshot.page.messages } }));
       setReturns([]); setView("search");
-    } catch { if (epoch === contextRequest.current) reportFailure("unavailable"); }
+    } catch { finishRead("foreground", epoch, "unavailable"); }
     finally { if (alive.current && epoch === contextRequest.current) setBusy(false); }
   }
   async function resumeEdit(id: string) {
-    const page = await readPage({ channel, mode: "context", messageId: id });
+    const epoch = ++contextRequest.current; setBusy(true);
+    updateReadErrors({ type: "begin", owner: "foreground", id: epoch, attempt: { kind: "resume-edit", channel, messageId: id } });
+    const page = await readPage({ channel, mode: "context", messageId: id }, "foreground", epoch);
+    if (!alive.current || revoked.current || epoch !== contextRequest.current) return null;
+    setBusy(false);
     if (!page) return null;
+    finishRead("foreground", epoch, null);
     commit({ ...current.current, store: mergeTeamChatFeedPage(current.current.store, page) });
     const row = teamChatFeedMessage(current.current.store, id);
     return row?.authorMembershipId === membershipId ? row : null;
   }
+  function retryRead(owner: TeamChatReadOwner, id: number) {
+    const ticket = readErrorsRef.current[owner];
+    if (!alive.current || revoked.current || !ticket?.failure || ticket.pending || ticket.id !== id || !teamChatReadFailureCopy(ticket).retryLabel) return;
+    const attempt = ticket.attempt;
+    if (attempt.kind === "search") void runSearch(attempt.append, attempt);
+    else if (attempt.kind === "navigate") void navigate(attempt.input, attempt.returnPoint);
+    else if (attempt.kind === "extend") void loadMore(attempt.input.mode, attempt.input.cursor);
+    else if (attempt.kind === "refresh") void refresh(attempt);
+  }
+  const readFailure = visibleTeamChatReadFailure(readErrors);
+  const readFailureCopy = readFailure ? teamChatReadFailureCopy(readFailure.ticket) : null;
   const rows = teamChatFeedRows(feed.store, feed.range);
   const latestMessage = latestMessageId ? teamChatFeedMessage(feed.store, latestMessageId) : null;
   const currentChannel = channels.find((item) => item.key === channel);
@@ -327,17 +384,22 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
           setSearchOpen((value) => !value);
           if (searchOpen) {
             contextRequest.current += 1; setBusy(false); setView("feed"); setSearch(null); setReturns([]);
+            updateReadErrors({ type: "cancel", owner: "foreground" });
             const origin = searchOrigin.current; searchOrigin.current = null;
             if (origin) { scroll.current = { kind: "anchor", anchor: origin.anchor }; commit({ ...current.current, range: origin.range }); }
           }
           else requestAnimationFrame(() => searchField.current?.focus());
         }}><Icon name={searchOpen ? "x" : "search"} size={22} /></button>
       </div>
-      {transportLabel || error ? <div className={styles.transport} role="status">{transportLabel}
-        {!forbidden && (transport === "error" || error) ? <button className={styles.textButton} type="button" disabled={busy} onClick={afterSave}>Обновить историю</button> : null}
+      {transportLabel ? <div className={styles.transport} role="status">{transportLabel}
+        {!forbidden && transport === "error" ? <button className={styles.textButton} type="button" disabled={busy} onClick={afterSave}>Обновить историю</button> : null}
         {transport === "error" && !forbidden ? <button className={styles.textButton} type="button" onClick={() => setConnectionAttempt((value) => value + 1)}>Подключить снова</button> : null}
       </div> : null}
-      {error ? <p role="alert" className={styles.error}>{TEAM_CHAT_FAILURE_COPY[error]}</p> : null}
+      {readFailure && readFailureCopy ? <div role="alert" className={styles.error}>
+        <p>{readFailureCopy.message}</p>
+        {readFailureCopy.retryLabel ? <button className={styles.textButton} type="button" disabled={busy || readFailure.ticket.pending}
+          onClick={() => retryRead(readFailure.owner, readFailure.ticket.id)}>{readFailure.ticket.pending ? "Повторяем…" : readFailureCopy.retryLabel}</button> : null}
+      </div> : null}
       {forbidden ? <a className={styles.secondary} href="/login">Войти снова</a> : <>
         {searchOpen ? <form id="team-chat-search-form" className={styles.search} onSubmit={(event) => { event.preventDefault(); void runSearch(); }}>
           <label className={styles.srOnly} htmlFor="team-chat-search">Поиск в этом канале</label>

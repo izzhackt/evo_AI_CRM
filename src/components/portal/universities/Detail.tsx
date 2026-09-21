@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { isPlatformApplicationCountryCode } from "@/lib/platform-application-contract";
+import { SelectionAction, type StudentSelectionContext } from "./SelectionAction";
 
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -32,6 +34,7 @@ import { PhotoFigure } from "./PhotoFigure";
  */
 
 type Strings = PortalStrings<"universities">;
+type ProgramSelection = Readonly<{ context: StudentSelectionContext; university: PublishedUniversity }> | null;
 
 function ExternalLink({
   href,
@@ -55,8 +58,12 @@ function Intake({
   strings,
   locale,
   now,
+  programId,
+  selection,
 }: {
   intake: UniversityIntake;
+  programId: string;
+  selection: ProgramSelection;
   strings: Strings;
   locale: Locale;
   now: Date;
@@ -91,9 +98,27 @@ function Intake({
           ) : null}
         </dl>
       ) : null}
+      {intake.note ? <p className="pt-prep-note">{intake.note}</p> : null}
       <ExternalLink href={intake.sourceUrl} newTab={strings.newTab}>
         {strings.intakeSource}
       </ExternalLink>
+      {selection ? <SelectionAction
+        key={`${selection.context.scope.organizationId}:${selection.context.scope.membershipId}:${selection.context.scope.studentCaseId}:${selection.university.id}:${programId}:${intake.id ?? "legacy"}`}
+        context={selection.context}
+        target={intake.id ? {
+          studentCaseId: selection.context.scope.studentCaseId,
+          institutionId: selection.university.id,
+          programId,
+          intakeId: intake.id,
+          publicationVersion: selection.university.version,
+        } : null}
+        existingApplicationId={selection.context.bindings?.find((item) =>
+          item.institutionId === selection.university.id && item.programId === programId && item.intakeId === intake.id)?.applicationId ?? null}
+        blocked={!intake.id ? "identityMissing" : !isPlatformApplicationCountryCode(selection.university.content.country)
+          ? "unsupportedCountry" : intake.status === "closed" ? "closedIntake" : null}
+        uncertainDeadline={!["open", "announced"].includes(intake.status) || !intake.applicationDeadline || !intake.timezone
+          || universityIntakeStatusKey(intake, now) === "intakeStatus.needsConfirmation"}
+      /> : null}
     </li>
   );
 }
@@ -103,16 +128,16 @@ function Program({
   strings,
   locale,
   now,
+  selection,
 }: {
   program: UniversityProgram;
+  selection: ProgramSelection;
   strings: Strings;
   locale: Locale;
   now: Date;
 }) {
-  // Как и в прежней карточке: непроверенные интейки не показываются как факт.
-  const intakes = program.intakes.filter(
-    (intake) => intake.status !== "unknown" && intake.status !== "needs_reconfirmation",
-  );
+  // Uncertain intakes remain visible with an explicit, truthful status.
+  const intakes = program.intakes;
   return (
     <article className="pt-program">
       <p className="pt-program-level">{strings[universityLevelKey(program.level)]}</p>
@@ -140,7 +165,7 @@ function Program({
       {intakes.length ? (
         <ul className="pt-intake-list">
           {intakes.map((intake, index) => (
-            <Intake key={index} intake={intake} strings={strings} locale={locale} now={now} />
+            <Intake key={intake.id ?? index} intake={intake} programId={program.id} selection={selection} strings={strings} locale={locale} now={now} />
           ))}
         </ul>
       ) : null}
@@ -156,8 +181,10 @@ export function UniversityDetailView({
   now,
   favored = null,
   consultation = null,
+  selection = null,
 }: {
   university: PublishedUniversity;
+  selection?: StudentSelectionContext | null;
   base: string;
   strings: Strings;
   locale: Locale;
@@ -225,6 +252,7 @@ export function UniversityDetailView({
             <Program
               key={program.id}
               program={program}
+              selection={selection ? { context: selection, university } : null}
               strings={strings}
               locale={locale}
               now={now}

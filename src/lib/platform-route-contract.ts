@@ -66,6 +66,7 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
 const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STAFF_UNIVERSITY_FORMS_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_PREPARATION_DETAIL_PATH = /^\/portal\/preparations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_LESSON_DETAIL_PATH = /^\/portal\/english\/lesson\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_PROFESSION_DETAIL_PATH = /^\/portal\/professions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -157,6 +158,7 @@ export function isConnectedPlatformPage(path: string): boolean {
 /** Only implemented Student pages and bounded uuid detail routes. */
 export function isConnectedStudentPortalPage(path: string): boolean {
   return STUDENT_PORTAL_PAGE_ALLOWLIST.has(path) || STUDENT_UNIVERSITY_DETAIL_PATH.test(path)
+    || STUDENT_PREPARATION_DETAIL_PATH.test(path)
     || STUDENT_NOTIFICATION_DETAIL_PATH.test(path)
     || STUDENT_LESSON_DETAIL_PATH.test(path)
     || STUDENT_PROFESSION_DETAIL_PATH.test(path);

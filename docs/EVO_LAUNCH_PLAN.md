@@ -11735,6 +11735,27 @@ payloads декодированы; новое UI не заявляется. Root
 обязательными следующими срезами; весь admissions-план не завершён.
 
 
+## 2026-09-21 — B3d: интерфейс выбора программы и подготовки (до реализации)
+
+После merged #964 (`c803d393`) следующий B-срез подключает214/218 к настоящим
+Student web, staff CRM и iPhone: [контракт](platform/b3d-program-preparation-ui-contract.md).
+Выбор сразу открывает подготовку, сохраняет same-case документы; существующая
+подготовка открывается повторно независимо от текущего набора. Staff получает
+каталоговый вход214 с сохранением прежнего ручного создания заявки. Selection и
+инициализация218 — только явное действие, отдельные frozen intents, честное
+восстановление частичного успеха; render/refresh не пишут. Права application и
+documents раздельны; список подготовок не зависит от Finance.
+
+Impeccable shape/operate уточняет иерархию, действие у конкретного набора, ошибки
+и truthful starter-docs copy; до правок нужен реальный UI baseline, после —
+ограниченная desktop/mobile/native проверка. Текущая загрузка сразу отправляет
+на проверку: UI не называет её черновиком. Полный редактор требований/mapping,
+upload≠submit, versioned packages/review остаются обязательными следующими блоками.
+Миграции/роли/данные не меняются. Это pre-code на freshmain; UI implementation,
+QA Auth/DB window и native isolation ещё не подтверждены. Root согласовал
+направление; независимое review и принятие точного контракта предшествуют runtime.
+
+
 ## 2026-09-21 — item29: необязательные поля legacy-заявок CN/MY (219)
 
 До кода: base main `5adce46e`; root закрепил миграцию219 за этим срезом.
@@ -12371,6 +12392,50 @@ schema/ledger/Authcounts без изменений; см. [receipt](qa/crm-contr
 Lint/types PASS; scoped92/93 и40/41 содержат одно подтверждённое прежнее
 source-assertion падение. Full item12/managed delivery и отсутствующие populated
 сценарии не объявляются завершёнными. Финальное review/CI остаются merge gates.
+
+
+### 2026-09-21 — KB-31/32: reconciliation и два одобренных материала
+
+После CRM-09c (#973, main925cf199) root выполняет ограниченный остаток31/32.
+Проверить328 внутренних позиций сентябрьского плана по метаданным: каждую
+учесть ровно один раз, различить служебные результаты и содержательные
+кандидаты, сопоставить SHA/provenance с реестром5183. Файлы/позиции/факты —
+разные единицы; generic reviewQuestion не означает вопрос директору. Тела
+сырого архива, закрытых производных, applicant originals, trash и secrets
+не читаются; статусы approval автоматически не меняются.
+
+Для наполнения подготовить ровно два уже approved client output: «Обзор EVO
+Admissions» и «Как EVO сопровождает клиента». Проверить source/output SHA,
+owner-decision и audience; сохранить исходники и происхождение. Company files
+берут точные approved bytes; предлагаемые snippets — дословные разрешённые
+абзацы без технического frontmatter. Не добавлять цены, сроки и обещания.
+До canonical writes сверить реальные доступные объекты через обычного staff
+actor и исключить дубликаты. Прикладной пакет отдельно фиксирует actual IDs,
+expected versions, аудиторию и допустимые эффекты; shared local окно только
+после освобождения B. Этот offline срез не разрешает managed/provider/Auth
+мутации, не публикует AI bundles и не закрывает весь31/32.
+
+Приёмка подготовки: детерминированная приватная карта328/328 с исходными
+статусами, публичная сводка без частных source paths/персональных данных,
+пакет двух материалов с проверяемой цепочкой и точной областью использования.
+Следующая фактическая canonical проверка и её ограничения учитываются отдельно.
+
+
+## 2026-09-21 — item27: подтверждение почты, согласованный web/native контракт
+
+До кода принят [контракт](design/signup-email-confirmation-2026-09-21.md).
+27a добавляет только неактивные AEAD capability и строгие pure fragment/POST
+валидаторы с реальными проверками этих функций; ни один существующий consumer,
+Auth flag, маршрут, шаблон или UI не меняется. 27b согласует web и iPhone:
+pending сохраняет анкету, очищает пароль, не создаёт Student authority;
+старый native contract отклоняется до create. 27c — отдельная проверка
+Auth2.196/Mailpit с конкретным разрешённым identity/template packet до включения.
+
+Impeccable Operate/harden/clarify: существующие EVO/Golos/tokens, один pending
+panel, понятные accepted/confirmed/saved состояния, RU/KY, focus/status и
+320/390/desktop. Новый дизайн и provider-доставка из pure tests не выводятся.
+Для27a достаточно actual crypto/parser tests, types/lint, independent exact-head
+review и protected CI; UI/Auth ещё не включены. Полный item27 остаётся открыт.
 
 
 ### A15c precode — additive flat timeline reader, 2026-09-21

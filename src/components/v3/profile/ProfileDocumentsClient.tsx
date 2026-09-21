@@ -737,6 +737,7 @@ export function ProfileDocumentsClient({
                   return (
                     <li
                       key={item.id}
+                      id={`document-${item.id}`}
                       className="border-t border-border px-4 py-3 first:border-t-0"
                       data-testid="v3-document-item"
                       data-document-presence={item.presence}

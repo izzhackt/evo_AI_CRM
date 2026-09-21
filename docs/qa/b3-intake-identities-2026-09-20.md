@@ -243,3 +243,29 @@ writers, parent-conflict/stale/deny execution, upload/selection/requirements и
 local Student credentials нашёл0 active+activated cases: original Student видит0,
 двое B209 — по1pending activated case. Для следующего positive selection proof
 нужен реальный подходящий разрешённый вход; никто не активирован/создан ради теста.
+
+
+## Дополнение local rollout — 2026-09-21
+
+В отдельном согласованном окне завершено покрытие ещё четырёх существующих
+карточек: SCUT, UNNC, XJTLU и Zhejiang. Через обычный QA Admin UI выполнены
+четыре technical stage/review/publish211 без изменения фактов, дат источников,
+порядка или прежних IDs. Добавлены5 intake IDs; теперь все6 известных наборов
+локальной организации имеют идентификаторы. Глобально publications7→11,
+request receipts14→22; история прежних строк сохранена по full complement hashes,
+остальные279 business tables/schema/functions/ledger не менялись, audit delta0.
+Сверка после каждой карточки и после обычного Student web-readback прошла.
+
+Student1 видит действия подготовки на четырёх карточках, закрытый набор Zhejiang
+остаётся закрытым; сохранённая подготовка GDUT остаётся доступна. Это readback,
+без selection214/init218. Начальный soft-переход SCUT остался на списке; прямые
+известные href открыли карточки, причина soft-перехода ещё не установлена.
+Native/managed rollout этим не подтверждаются. Новых identities/cases не создавали
+и не активировали. Исторические ограничения предыдущего прогона выше не заменены
+новой приёмкой selection.
+
+Подробный actual UI/evidence/remaining-scope:
+[локальное покрытие211 в B3d QA](../platform/b3d-program-preparation-ui-qa.md#локальное-дополнение-покрытия211--2026-09-21).
+Private release receipt SHA256:
+`44c0f7fa938a96dc489d8693cbc50ab6fa78e2f951030f330639f0fc1e8a4c41`.
+Own Next33232 и QA tabs закрыты, окно БД освобождено. Production не менялся.

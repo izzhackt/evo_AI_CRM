@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @StateObject private var router = SessionRouter()
+    @StateObject private var preparations = ProgramPreparationSession()
 
     var body: some View {
         Group {
@@ -44,6 +45,14 @@ struct RootView: View {
                 AccessPendingView(router: router)
             case .networkError(let message):
                 NetworkErrorView(message: message, router: router)
+            }
+        }
+        .environmentObject(preparations)
+        .onReceive(router.$state) { state in
+            switch state {
+            case .active(let session): preparations.activate(ProgramPreparationContext(session))
+            case .signedOut: preparations.reset()
+            default: break
             }
         }
     }

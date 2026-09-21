@@ -4,6 +4,9 @@ import { ProfileAdmissionsWorkspacePanel } from "./ProfileAdmissionsWorkspace";
 import { ProfileHandoffAcknowledgement } from "./ProfileSalesTransition";
 import type { ProfileDraft } from "./types";
 import { PartnerPacketsPanel } from "./PartnerPacketsPanel";
+import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { readStaffPreparationsAction } from "@/lib/v3/staff-catalog-preparation-actions";
+import { StaffCatalogPreparationPicker } from "./StaffCatalogPreparationPicker";
 
 /**
  * Вкладка «Вузы и программы» (unified workflow S4, plan §8, §11) — заменяет
@@ -35,7 +38,13 @@ export async function UniversityProgramsTab({
 }) {
   const caseId = draft.admissions?.studentCaseId;
   if (!caseId || actor.presentationRole === "sales") return null;
-  const partnerDetails = await readApplicationPartnerDetails(actor, caseId).catch(() => []);
+  const [partnerDetails, preparations] = await Promise.all([
+    readApplicationPartnerDetails(actor, caseId).catch(() => []),
+    readStaffPreparationsAction(caseId).catch(() => ({ status: "unavailable" as const })),
+  ]);
+  const preview = isStaffPreview(actor);
+  const canSelect = !preview && draft.admissions?.caseState === "active" && staffHasPermission(actor, "application.manage");
+  const scope = { organizationId: actor.organizationId, membershipId: actor.membershipId, studentCaseId: caseId };
 
   return (
     <div className="space-y-5" data-testid="v3-universities-programs">
@@ -46,7 +55,14 @@ export async function UniversityProgramsTab({
         <p className="text-sm leading-6 text-fg-2">
           Добавьте рассматриваемые варианты и отметьте основной. Выбор университета не означает подачу документов.
         </p>
-        <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} partnerDetails={partnerDetails} />
+        {!preview && staffHasPermission(actor, "catalog.read") ? <StaffCatalogPreparationPicker
+          key={`${actor.membershipId}:${caseId}`}
+          scope={scope}
+          canSelect={canSelect}
+          canInitialize={canSelect && staffHasPermission(actor, "document.read.full") && staffHasPermission(actor, "document.manage")}
+          initialPreparations={preparations}
+        /> : <p className="text-sm text-fg-3">{preview ? "Выбор из каталога недоступен в режиме предпросмотра." : "Нет доступа к каталогу. Сохранённые заявки доступны ниже по правам дела."}</p>}
+        <ProfileAdmissionsWorkspacePanel actor={actor} workspace={draft.admissions} partnerDetails={partnerDetails} preparations={preparations} />
       </section>
 
       <PartnerPacketsPanel

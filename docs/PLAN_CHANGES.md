@@ -34702,6 +34702,27 @@ payloads декодированы; новое UI не заявляется. Root
 обязательными следующими срезами; весь admissions-план не завершён.
 
 
+## 2026-09-21 — B3d: интерфейс выбора программы и подготовки (до реализации)
+
+После merged #964 (`c803d393`) следующий B-срез подключает214/218 к настоящим
+Student web, staff CRM и iPhone: [контракт](platform/b3d-program-preparation-ui-contract.md).
+Выбор сразу открывает подготовку, сохраняет same-case документы; существующая
+подготовка открывается повторно независимо от текущего набора. Staff получает
+каталоговый вход214 с сохранением прежнего ручного создания заявки. Selection и
+инициализация218 — только явное действие, отдельные frozen intents, честное
+восстановление частичного успеха; render/refresh не пишут. Права application и
+documents раздельны; список подготовок не зависит от Finance.
+
+Impeccable shape/operate уточняет иерархию, действие у конкретного набора, ошибки
+и truthful starter-docs copy; до правок нужен реальный UI baseline, после —
+ограниченная desktop/mobile/native проверка. Текущая загрузка сразу отправляет
+на проверку: UI не называет её черновиком. Полный редактор требований/mapping,
+upload≠submit, versioned packages/review остаются обязательными следующими блоками.
+Миграции/роли/данные не меняются. Это pre-code на freshmain; UI implementation,
+QA Auth/DB window и native isolation ещё не подтверждены. Root согласовал
+направление; независимое review и принятие точного контракта предшествуют runtime.
+
+
 ## 2026-09-21 — item29: необязательные поля legacy-заявок CN/MY (219)
 
 До кода: base main `5adce46e`; root закрепил миграцию219 за этим срезом.
@@ -35225,6 +35246,38 @@ CaseAgreementForms.tsx: ограничение ширины без измене�
 ответа. Убираем лишние внутренние рамки/отступы вокруг подготовки, сохраняя
 разделы, все формы и состояния. Одна общая коррекция, затем последняя batched
 visual проверка; дальнейшая декоративная полировка не входит в срез.
+
+
+### 2026-09-21 — KB-31/32: различить позиции источников и одобренное знание
+
+После #973 root берёт offline reconciliation328 internal позиций и provenance
+двух ранее одобренных company материалов. Это исполнение принятых31/32,
+не новый массовый перенос/approval. 2655 — позиции файлов с двумя типовыми
+вопросами допуска, не2655 независимых фактов или решений директора.
+Материалы для canonical наполнения ограничены owner-approved обзором компании
+и сопровождением; exact source/output bytes и authority сохраняются. Runtime,
+schema, source originals и статусы допуска этим срезом не меняются. Canonical
+список/дубликаты сначала проверяются обычным actor; дальнейшие реальные записи
+нуждаются в конкретном packet и свободном QA-окне, managed не затрагивается.
+
+
+## 2026-09-21 — item27: общий signup требует согласованного изменения iPhone
+
+Source main078b51c3: shared createPublicStudentAccount обслуживает web и native;
+native HTTP201 сейчас очищает draft и входит. Отдельный email_confirm:false
+сломал бы этот путь. Контракт записан до кода в
+`docs/design/signup-email-confirmation-2026-09-21.md`:27a неактивные pure
+security primitives;27b совместные consumers;27c реальные Auth/mail/config QA.
+
+Supabase Auth2.196 использует общий confirmation token lookup для signup/invite:
+независимый token_hash недостаточен для expected identity. Выбран email-bound
+OTP из письма и opaque AES-GCM capability во fragment, явный POST/CSRF,
+изолированная Auth session до identity/authority checks. Срок capability24ч
+не равен OTP TTL; resend не продлевает его. Initial create+одна отправка —
+одна quota177 попытка, каждый resend — следующая. Нет выдуманного countdown
+или автоматического recovery неизвестного create; используется честный
+существующий support contact. Invite и public-signup запрет сохраняются.
+Неактивный27a не означает функциональную готовность или разрешение provider writes.
 
 
 ## 2026-09-21 — A15c read foundation before removing threaded UI

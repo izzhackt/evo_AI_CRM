@@ -25,10 +25,8 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
     className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""}`}>
     {!isOwn ? <span className={`${styles.authorAvatar} ${continuation ? styles.continuationAvatar : ""}`} aria-hidden="true">{initials}</span> : null}
     <div className={styles.messageContent}>
-      <div className={styles.messageHeader}>
-        <strong className={continuation ? styles.srOnly : undefined}>{message.authorName}</strong>
-        <time dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}>{new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}</time>
-        {message.editedAt && !message.deletedAt ? <span className={styles.muted}>изменено</span> : null}
+      <div className={continuation ? styles.srOnly : styles.messageHeader}>
+        <strong>{message.authorName}</strong>
       </div>
       <div className={styles.bubble}>
         {quote ? <button id={`team-quote-${message.id}`} type="button" className={styles.quote} onClick={() => onQuote(quote.id)} aria-label={`Перейти к сообщению ${quote.authorName}`}>
@@ -39,7 +37,11 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
         </p>}
         {!message.deletedAt && mentionedNames.length ? <p className={styles.mentionNames}>Упоминания: {mentionedNames.join(", ")}</p> : null}
       </div>
-      <div className={styles.messageActions}>
+      <div className={`${styles.messageActions} ${styles.messageFooter}`}>
+        <span className={styles.messageMetadata}>
+          <time dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}>{new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}</time>
+          {message.editedAt && !message.deletedAt ? <span className={styles.muted}>изменено</span> : null}
+        </span>
         <button type="button" className={styles.textButton} onClick={() => onReply(message)}><Icon name="message-circle" size={16} />Ответить</button>
         <details ref={menu} className={styles.messageMenu}>
           <summary aria-label="Действия с сообщением"><span aria-hidden="true">···</span></summary>

@@ -14056,6 +14056,36 @@ B1006 получил окно через ROOT; A больше не исполь�
 Final-head review/CI/merge остаются отдельными; product bytes не менялись.
 
 
+## 2026-09-21 — A15: общая строка времени и действий сообщения
+
+PR #1012 принят в main `7faa4748c899b58e25d630f6c3942a6dd21ff663`: final review
+`0036d57d`, CI35631741403 SUCCESS (5 PASS / 3 ожидаемых SKIP), ordinary squash
+exact head88f0479c. Предыдущие actual/gaps сохраняются, production не запускался.
+
+Следующий [двухфайловый контракт](EVO_TEAM_CHAT_SERVICE_ROW_PLAN_2026-09-21.md)
+принят до кода: precode83cf1217, независимое APPROVED_PRECODEeeceef77 и разрешение
+ROOT на source-only реализацию. В Row переносим единственные time/edited в footer
+с прежними Ответить/menu; полный автор остаётся над body, continuation header
+целиком srOnly. Новый scoped CSS не меняет shared messageActions/textButton,
+44px controls,16px body, права, callbacks, keys, details, grouping и seen.
+
+Причина: повторный time line box у коротких продолжений. Выигрыш остаётся
+проверяемой гипотезой; baseline112.1875/136.984375/161.78125px для1440/390/320
+сохраняется без выдуманного процента. Разрешены scope lint/typecheck и независимое
+source review; actual UI/anchors/draft/ширина нужны позже в отдельном окне ROOT.
+Сейчас QA у ROOT22G; Auth/DB/Storage/browser/server не трогаем. Превью всех каналов,
+DTO, миграции и весь item15 вне этого PR.
+
+
+### A15 service row — source готов к независимому review
+
+Контрактbe254e6f → product30f8fa3f: время/edited перенесены к действиям,
+повторный авторский header сохраняется через srOnly; Row и scoped CSS,
+shared classes/права/DTO/grouping/seen неизменны. Scope ESLint и typecheck PASS
+на Node22.23.1; [source-квитанция](qa/team-chat-service-row-source-2026-09-21.md).
+Прежние39/39 не повторялись. Actual1440/390/320, anchors/menu/draft и выигрыш
+плотности ещё не доказаны. QA остаётся у ROOT22G, runtime не открывался.
+
 ## 2026-09-21 — B1006 first browser-offline rejection PASS; resource release ROOT22G
 
 [Actual report](qa/portal-profile-request-feedback-actual-2026-09-21.md): after two
@@ -14125,6 +14155,29 @@ review and git diff --check only; no product tests, runtime or production action
 Final exact-head documentation review and protected CI still gate #1010 merge.
 
 
+### A1014 — actual принят, строгая передача QA и интеграция main
+
+Exact source2f467e5b прошёл один existing-data UI batch1440/390/320 без коррекций.
+Одна строка времени/действий сохраняет44px controls/16px body, AX автора, menu,
+quote/draft, search/context/Back, prepend anchor/details identity и permalink.
+Та же пара: высоты112.1875→94.796875 /136.984375→119.59375 /161.78125→144.390625px;
+каждая −17.390625px, visible6→7/4→5/4→4. [Actual](qa/team-chat-service-row-actual-2026-09-21.md)
+сохраняет все отсутствующие варианты, initial readiness STOP и log-parser note.
+
+Raw after → own logout204/browser/server close → finalc9d5e401/strict6cf2902f
+PASS:290 business/33AuthStorage, zero seen/Storage,431 старых audits/8 users и
+224/239/224 sessions/refresh/AMR сохранены; только2ownAuth audits/metadata.
+Own Auth удалён после success, Ctrl-C exit1 записан честно; user33216 не тронут.
+Release7ca6c43a передан ROOT_COORDINATOR. Независимое actual/closure reviewa76c16a6
+принято. Runtime A закрыт, дополнительного visual pass нет.
+
+Main59a726b после #1006/#1010 интегрирован в4f33577f: chat bytes равны actual,
+3 импортированных product files и navigation test равны main; обе append-only
+истории сохранены. Sidebar destinationKey не меняет AppShell/chat layout; portal
+profile не входит в staff chat flow. Final exact-head review/CI/merge впереди;
+весь item15/production этим срезом не закрывается.
+
+
 ## 2026-09-21 — B24: precode обратной связи о прочтении уведомлений
 
 После обычного merge #1006 в main8b6259ec выбран один оставшийся web-сценарий:
@@ -14161,3 +14214,14 @@ shared QA у A1014, следующий слот B не назначен.
 source checks сохраняют свои ограничения, включая4 baseline UI-contract failures.
 Draft #1015 ждёт CI интеграционного head; прежний DIRTY/zero-CI не считается
 проверкой. Actual B только после handoff ROOT_COUNTRY236 и отдельного admission.
+
+
+### B1015 — свежий main24e78024 после параллельного merge #1014
+
+Пока отправлялась интеграция59a726b, A1014 вошёл вmain24e78024. Он также
+интегрирован files-only: сохранены актуальные статусы и полные ordered истории
+обоих потоков. Входящий код относится только к staff team-chat component/CSS
+module; общий Portal/Auth/Next contract не менялся. B product/test bytes всё
+ещё равныfd7f0900, без новых исправлений или повторного runtime. Предыдущий
+headf0c346cd не получил CI из-за опередившего merge; новый frozen head должен
+получить свои checks. Actual B остаётся после ROOT_COUNTRY236handoff.

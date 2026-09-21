@@ -183,3 +183,11 @@ redirect, focus и responsive/RU-KY остаются неподтверждён�
 приёмка. A1014 передал среду ROOT_COUNTRY236; actual B возможен только после
 его handoff и отдельного admission. Single/bulk/detail, положительная запись,
 ручной повтор, частичный bulk, redirect и focus по-прежнему не подтверждены UI.
+
+
+Следом интегрирован main `24e78024cec2d8c9689ed67e73e20376815ee30e` (#1014),
+который появился до запуска CI предыдущей интеграции. Его staff team-chat
+component/CSS module не меняют портал; обе ordered истории и текущая ведомость
+сохранены. Все шесть B product/test files по-прежнему равны fd7f0900. Первый
+интеграционный headf0c346cd не считается CI-проверенным; новый head требует
+собственных checks. Runtime/actual и UI-утверждения не расширены.

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { startTransition, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -12,9 +12,9 @@ import {
   readCaseChatPageAction, setCaseChatAwaitAction,
 } from "@/lib/platform-case-chat-actions";
 import {
-  CASE_CHAT_AWAIT_STATES, CASE_CHAT_BODY_LIMIT, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION,
+  CASE_CHAT_AWAIT_STATES, CASE_CHAT_BODY_LIMIT, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION, CASE_CHAT_QUEUES, caseChatHref, parseCaseChatAttachParam, parseCaseChatQueue,
   type CaseChatActionState, type CaseChatAwaitState, type CaseChatFailure, type CaseChatMessage,
-  type CaseChatPage, type CaseChatPendingAttachment, type CaseChatThreadRow, type CaseChatThreadsList,
+  type CaseChatPage, type CaseChatPendingAttachment, type CaseChatQueue, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "@/lib/platform-case-chat-contract";
 import { caseChatAwaitState } from "@/lib/v3/wording";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
@@ -116,12 +116,21 @@ function MountedCaseChatComposer({
   // into the local draft above — an external-system notification, not local
   // state, so it belongs in an effect (never a raw setDraft call here).
   useEffect(() => {
-    if (pendingAttachment && !consumedAttachment.current) { consumedAttachment.current = true; onAttachmentConsumed(); }
-  }, [pendingAttachment, onAttachmentConsumed]);
+    if (!pendingAttachment || consumedAttachment.current) return;
+    consumedAttachment.current = true;
+    try {
+      // Persist the link-card before removing its only reloadable URL reference.
+      localStorage.setItem(key, JSON.stringify(initial));
+      onAttachmentConsumed();
+    } catch { /* Keep ?attach until a later draft save or confirmed send succeeds. */ }
+  }, [pendingAttachment, onAttachmentConsumed, key, initial]);
 
   function persist(next: Draft) {
     setDraft(next);
-    try { localStorage.setItem(key, JSON.stringify(next)); } catch { setStorageError(true); }
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+      if (pendingAttachment) { consumedAttachment.current = true; onAttachmentConsumed(); }
+    } catch { setStorageError(true); }
   }
 
   const [state, setState] = useState<CaseChatActionState>(CASE_CHAT_INITIAL_ACTION);
@@ -145,6 +154,7 @@ function MountedCaseChatComposer({
         const empty: Draft = { body: "", attachment: null, requestId: crypto.randomUUID() };
         persist(empty);
         try { localStorage.removeItem(key); } catch { setStorageError(true); }
+        onAttachmentConsumed();
         onClearReply();
         onSaved();
         textarea.current?.focus();
@@ -187,7 +197,7 @@ function MountedCaseChatComposer({
           id={`${key}-body`} ref={textarea} value={draft.body} rows={1} maxLength={CASE_CHAT_BODY_LIMIT + 200}
           readOnly={pending || uncertain} disabled={pending}
           placeholder="Напишите студенту…" aria-invalid={tooLong || undefined}
-          className="min-h-11 flex-1 resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg"
+          className="min-h-11 min-w-0 flex-1 resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg"
           onChange={(event) => persist({ ...draft, body: event.target.value })}
         />
         <button type="submit" disabled={!canSend} className="inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-55">
@@ -210,18 +220,18 @@ function ThreadHeader({
 }>) {
   const state = row?.awaitState ?? "none";
   return (
-    <div className="flex items-center gap-3 border-b border-border p-3">
-      <Link href={listHref} className="inline-flex min-h-11 items-center text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit @2xl:hidden" scroll={false}>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-border p-3 @2xl:flex @2xl:gap-3">
+      <Link href={listHref} className="col-start-1 row-start-1 inline-flex min-h-11 items-center text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit @2xl:hidden" scroll={false}>
         ← К списку
       </Link>
-      <div className="min-w-0 flex-1">
+      <div className="col-start-1 row-start-2 min-w-0 flex-1">
         <p className="truncate font-semibold text-fg">{row?.studentDisplayName ?? "Переписка"}</p>
       </div>
-      {state !== "none" ? <Pill tone={awaitTone(state)}>{caseChatAwaitState(state)}</Pill> : null}
+      {state !== "none" ? <span className="col-start-2 row-start-2"><Pill tone={awaitTone(state)}>{caseChatAwaitState(state)}</Pill></span> : null}
       <Link href={`/v3/profile?case=${caseId}&tab=route`} className="hidden min-h-11 items-center text-sm text-fg-2 underline decoration-transparent hover:decoration-inherit @2xl:inline-flex">
         Открыть дело
       </Link>
-      <details className="relative">
+      <details className="relative col-start-2 row-start-1 justify-self-end">
         <summary aria-label="Ещё" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">⋯</summary>
         <div className="absolute end-0 z-20 mt-1 w-56 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
           {CASE_CHAT_AWAIT_STATES.filter((value) => value !== state).map((value) => (
@@ -267,7 +277,7 @@ function MessageRow({
         {message.body ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-fg">{message.body}</p> : null}
         <AttachmentCard message={message} caseId={caseId} />
       </div>
-      <details className="relative">
+      <details className="relative col-start-2 row-start-1 justify-self-end">
         <summary aria-label="Действия с сообщением" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded-nav text-xs text-fg-3 hover:bg-surface-2 [&::-webkit-details-marker]:hidden">⋯</summary>
         <div className="absolute end-0 z-20 mt-1 w-52 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg">
           <button type="button" className="block w-full rounded-nav px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2" onClick={() => onReply(message)}>
@@ -281,12 +291,12 @@ function MessageRow({
 
 function CaseChatThreadView({
   caseId, initialPage, initialFailure, storageScope, membershipId, pendingAttachment, onAttachmentConsumed,
-  organizationId, realtimeConfig, row, listHref,
+  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged,
 }: Readonly<{
   caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null;
   storageScope: string; membershipId: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void; organizationId: string; realtimeConfig: SupabasePublicConfig;
-  row: CaseChatThreadRow | undefined; listHref: string;
+  studentDisplayName: string | null; listHref: string; onListChanged: () => void;
 }>) {
   const [page, setPage] = useState<CaseChatPage | null>(initialPage);
   const [error, setError] = useState<CaseChatFailure | null>(initialFailure);
@@ -296,18 +306,34 @@ function CaseChatThreadView({
   const [awaitState, setAwaitState] = useState<CaseChatAwaitState | null>(initialPage?.thread.awaitState ?? null);
   const viewport = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
+  const pageSequence = useRef(0);
   const markedUpTo = useRef<string>(initialPage?.readSequenceId ?? "0");
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
-    const result = await readCaseChatPageAction(caseId, "latest");
-    if (!alive.current) return;
-    if (result.status !== "ready") { setError(result.status); return; }
-    setError(null);
-    setPage(result.page);
-    setAwaitState(result.page.thread.awaitState);
-  }, [caseId]);
+    const sequence = ++pageSequence.current;
+    onListChanged();
+    try {
+      const result = await readCaseChatPageAction(caseId, "latest");
+      if (!alive.current || sequence !== pageSequence.current) return;
+      if (result.status !== "ready") { setError(result.status); return; }
+      setError(null);
+      setPage(result.page);
+      setAwaitState(result.page.thread.awaitState);
+    } catch {
+      if (alive.current && sequence === pageSequence.current) setError("unavailable");
+    }
+  }, [caseId, onListChanged]);
+
+  // App Router can restore a cached RSC page on browser Back/Forward. Re-read
+  // server state without remounting the composer or discarding its local draft.
+  useEffect(() => {
+    const restore = () => { void refresh(); };
+    const timer = setTimeout(restore, 0);
+    window.addEventListener("popstate", restore);
+    return () => { clearTimeout(timer); window.removeEventListener("popstate", restore); };
+  }, [refresh]);
 
   useEffect(() => {
     let cancelled = false;
@@ -365,8 +391,10 @@ function CaseChatThreadView({
     markedUpTo.current = latest;
     const form = new FormData();
     form.set("request_id", crypto.randomUUID()); form.set("case_id", caseId); form.set("sequence_id", latest);
-    void markCaseChatReadAction(CASE_CHAT_INITIAL_ACTION, form);
-  }, [page, caseId]);
+    void markCaseChatReadAction(CASE_CHAT_INITIAL_ACTION, form).then((result) => {
+      if (alive.current && result.status === "saved") onListChanged();
+    }).catch(() => { /* A failed read acknowledgement must not clear work state. */ });
+  }, [page, caseId, onListChanged]);
 
   async function loadOlder() {
     if (!page || !page.hasMore || busy) return;
@@ -385,29 +413,37 @@ function CaseChatThreadView({
   }
 
   async function changeAwait(state: CaseChatAwaitState) {
+    ++pageSequence.current;
     setAwaitPending(true);
     try {
       const form = new FormData();
       form.set("request_id", crypto.randomUUID()); form.set("case_id", caseId); form.set("state", state);
       const result = await setCaseChatAwaitAction(CASE_CHAT_INITIAL_ACTION, form);
-      if (result.status === "saved") setAwaitState(state);
+      if (!alive.current) return;
+      if (result.status === "saved") {
+        ++pageSequence.current;
+        setAwaitState(state);
+        setError(null);
+        onListChanged();
+      }
       else if (result.status !== "idle") setError(result.status);
-    } finally { setAwaitPending(false); }
+    } catch { if (alive.current) setError("unavailable"); }
+    finally { if (alive.current) setAwaitPending(false); }
   }
 
   if (!page) {
-    return <div className="flex flex-1 flex-col">
-      <ThreadHeader row={row ?? null} caseId={caseId} listHref={listHref} onSetAwait={() => {}} awaitPending={false} />
+    return <div className="flex min-w-0 flex-1 flex-col">
+      <ThreadHeader row={studentDisplayName === null ? null : { studentDisplayName, awaitState: "none" }} caseId={caseId} listHref={listHref} onSetAwait={() => {}} awaitPending={false} />
       <p role="alert" className="p-4 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error ?? "unavailable"]}</p>
     </div>;
   }
 
   const messages = [...page.messages].reverse();
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ThreadHeader
         listHref={listHref}
-        row={row ? { studentDisplayName: row.studentDisplayName, awaitState: awaitState ?? row.awaitState } : null}
+        row={studentDisplayName === null ? null : { studentDisplayName, awaitState: awaitState ?? page.thread.awaitState }}
         caseId={caseId} onSetAwait={changeAwait} awaitPending={awaitPending} />
       {error ? <p role="alert" className="px-3 pt-2 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error]}</p> : null}
       <div ref={viewport} className="min-h-0 flex-1 overflow-y-auto px-3" aria-label="История переписки">
@@ -435,9 +471,10 @@ function threadRowBadges(row: CaseChatThreadRow) {
 }
 
 function CaseChatList({
-  threads, selectedCaseId, query, onQuery, membershipId, hidden, loading, failure, onRetry,
+  threads, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, failure, onRetry,
 }: Readonly<{
   threads: CaseChatThreadsList; selectedCaseId: string | null; query: string; onQuery: (value: string) => void;
+  queue: CaseChatQueue; onQueue: (value: CaseChatQueue) => void;
   membershipId: string; hidden: boolean; loading: boolean; failure: CaseChatFailure | null; onRetry: () => void;
 }>) {
   const router = useRouter();
@@ -445,6 +482,13 @@ function CaseChatList({
     <nav aria-label="Переписки" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-e border-border @2xl:w-[320px] @2xl:shrink-0`}>
       <div className="border-b border-border p-3">
         <h1 className="mb-2 text-lg font-semibold text-fg">Сообщения</h1>
+        <div role="group" aria-label="Очередь переписок" className="mb-2 flex flex-wrap gap-1">
+          {CASE_CHAT_QUEUES.map((value) => <button key={value} type="button" aria-pressed={queue === value}
+            onClick={() => onQueue(value)}
+            className={`min-h-11 rounded-ctl px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${queue === value ? "bg-accent-weak font-semibold text-accent-text" : "text-fg-2 hover:bg-surface-2"}`}>
+            {value === "all" ? "Все" : caseChatAwaitState(value)}
+          </button>)}
+        </div>
         <form onSubmit={(event) => { event.preventDefault(); }} role="search">
           <label className="sr-only" htmlFor="case-chat-search">Поиск по студенту</label>
           <input id="case-chat-search" type="search" value={query} placeholder="Поиск по студенту"
@@ -463,7 +507,9 @@ function CaseChatList({
       </div> : null}
       <div className="flex-1 overflow-y-auto" aria-busy={loading}>
         {!loading && !failure && (threads.rows.length === 0 ? <div className="p-4">
-          <p role="status" className="text-sm text-fg-3">{query.trim() ? "По вашему запросу переписок не найдено." : "Переписок пока нет."}</p>
+          <p role="status" className="text-sm text-fg-3">{query.trim()
+            ? queue === "all" ? "По вашему запросу переписок не найдено." : "В этой очереди нет переписок по вашему запросу."
+            : queue === "all" ? "Переписок пока нет." : "В этой очереди переписок нет."}</p>
           {query.trim() ? <button type="button" onClick={() => onQuery("")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
             Сбросить поиск
           </button> : null}
@@ -471,7 +517,7 @@ function CaseChatList({
           const badges = threadRowBadges(row);
           return (
             <button key={row.studentCaseId} type="button"
-              onClick={() => router.push(query ? `/v3/messages?case=${row.studentCaseId}&q=${encodeURIComponent(query)}` : `/v3/messages?case=${row.studentCaseId}`)}
+              onClick={() => router.push(caseChatHref(query, queue, row.studentCaseId))}
               aria-current={row.studentCaseId === selectedCaseId ? "page" : undefined}
               className={`flex w-full flex-col gap-0.5 border-b border-border px-3 py-3 text-start hover:bg-surface-2 ${row.studentCaseId === selectedCaseId ? "bg-surface-2" : ""}`}>
               <span className="flex items-center justify-between gap-2">
@@ -492,17 +538,21 @@ function CaseChatList({
 }
 
 export function CaseChatWorkspace({
-  organizationId, membershipId, realtimeConfig, initialThreads, initialQuery, selectedCaseId, initialPage,
-  initialPageFailure, pendingAttachment,
+  organizationId, membershipId, realtimeConfig, initialThreads, initialStudentDisplayName, selectedCaseId, initialPage,
+  initialPageFailure,
 }: Readonly<{
   organizationId: string; membershipId: string; realtimeConfig: SupabasePublicConfig;
-  initialThreads: CaseChatThreadsList; initialQuery: string; selectedCaseId: string | null;
+  initialThreads: CaseChatThreadsList; selectedCaseId: string | null;
+  initialStudentDisplayName: string | null;
   initialPage: CaseChatPage | null; initialPageFailure: CaseChatFailure | null;
-  pendingAttachment: CaseChatPendingAttachment | null;
 }>) {
   const [threads, setThreads] = useState(initialThreads);
-  const [query, setQuery] = useState(initialQuery);
-  const [attachment, setAttachment] = useState(pendingAttachment);
+  // The actual history entry owns filters; cached initial server props do not.
+  const params = useSearchParams();
+  const query = params.get("q") ?? "";
+  const queue = parseCaseChatQueue(params.get("queue") ?? undefined) ?? "all";
+  const attachment = params.get("case") === selectedCaseId ? parseCaseChatAttachParam(params.get("attach")) : null;
+  const scope = useRef({ query, queue });
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<CaseChatFailure | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -513,9 +563,9 @@ export function CaseChatWorkspace({
     searchSequence.current += 1;
   }, []);
 
-  async function search(value: string, sequence: number) {
+  const search = useCallback(async (value: string, selectedQueue: CaseChatQueue, sequence: number) => {
     try {
-      const result = await loadStaffCaseChatThreadsAction(value);
+      const result = await loadStaffCaseChatThreadsAction(value, selectedQueue);
       if (sequence !== searchSequence.current) return;
       if (result.status === "ready") setThreads(result.list);
       else setFailure(result.status);
@@ -525,37 +575,82 @@ export function CaseChatWorkspace({
     } finally {
       if (sequence === searchSequence.current) setLoading(false);
     }
-  }
+  }, []);
+
+  const refreshList = useCallback(() => {
+    clearTimeout(debounceRef.current);
+    const sequence = ++searchSequence.current;
+    setFailure(null);
+    setLoading(true);
+    void search(scope.current.query, scope.current.queue, sequence);
+  }, [search]);
+
+  const invalidateSearch = useCallback(() => {
+    clearTimeout(debounceRef.current);
+    searchSequence.current += 1;
+    setFailure(null);
+    setLoading(true);
+  }, []);
+
+  useEffect(() => {
+    const delay = scope.current.query === query ? 0 : 250;
+    scope.current = { query, queue };
+    clearTimeout(debounceRef.current);
+    const sequence = ++searchSequence.current;
+    debounceRef.current = setTimeout(() => {
+      setFailure(null);
+      setLoading(true);
+      void search(query, queue, sequence);
+    }, delay);
+    return () => clearTimeout(debounceRef.current);
+  }, [query, queue, search]);
+
+  useEffect(() => {
+    // Also handles history entries with unchanged q/queue. Invalidate before
+    // a response can settle while Next restores the selected route.
+    const restore = () => {
+      const current = new URL(window.location.href);
+      scope.current = {
+        query: current.searchParams.get("q") ?? "",
+        queue: parseCaseChatQueue(current.searchParams.get("queue") ?? undefined) ?? "all",
+      };
+      refreshList();
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [refreshList]);
 
   function onQuery(value: string) {
-    setQuery(value);
-    clearTimeout(debounceRef.current);
-    // Invalidate immediately: an old response may arrive during the debounce.
-    const sequence = ++searchSequence.current;
-    setFailure(null);
-    setLoading(true);
-    debounceRef.current = setTimeout(() => { void search(value, sequence); }, 250);
+    invalidateSearch();
+    window.history.replaceState(null, "", caseChatHref(value, queue, selectedCaseId, attachment));
   }
 
-  function retrySearch() {
-    clearTimeout(debounceRef.current);
-    const sequence = ++searchSequence.current;
-    setFailure(null);
-    setLoading(true);
-    void search(query, sequence);
+  function onQueue(value: CaseChatQueue) {
+    if (value === queue) return;
+    invalidateSearch();
+    window.history.replaceState(null, "", caseChatHref(query, value, selectedCaseId, attachment));
+  }
+
+  function consumeAttachment() {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("case") !== selectedCaseId || !url.searchParams.has("attach")) return;
+    url.searchParams.delete("attach");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
   }
 
   const row = threads.rows.find((item) => item.studentCaseId === selectedCaseId);
 
   return (
-    <div className="flex min-h-0 flex-1 rounded-card border border-border bg-surface">
+    <div className="flex min-h-0 min-w-0 flex-1 rounded-card border border-border bg-surface">
       <CaseChatList threads={threads} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
-        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={retrySearch} />
+        queue={queue} onQueue={onQueue}
+        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={refreshList} />
       {selectedCaseId ? (
         <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
-          onAttachmentConsumed={() => setAttachment(null)} organizationId={organizationId} realtimeConfig={realtimeConfig} row={row}
-          listHref={query ? `/v3/messages?q=${encodeURIComponent(query)}` : "/v3/messages"} />
+          onAttachmentConsumed={consumeAttachment} organizationId={organizationId} realtimeConfig={realtimeConfig}
+          studentDisplayName={row?.studentDisplayName ?? initialStudentDisplayName} onListChanged={refreshList}
+          listHref={caseChatHref(query, queue)} />
       ) : (
         <div className="hidden flex-1 items-center justify-center p-6 text-center text-sm text-fg-3 @2xl:flex">
           {!loading && !failure && threads.rows.length > 0 ? "Выберите переписку слева." : null}

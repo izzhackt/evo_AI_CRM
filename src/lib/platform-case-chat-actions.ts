@@ -3,7 +3,7 @@ import { isStaffPreview } from "./platform-access.ts";
 import { resolvePlatformActor } from "./platform-auth";
 import {
   caseChatCursor, caseChatUuid, isCaseChatAttachmentKind, isCaseChatAwaitState,
-  type CaseChatActionState, type CaseChatFailure, type CaseChatPage, type CaseChatThreadsList,
+  type CaseChatActionState, type CaseChatFailure, type CaseChatPage, type CaseChatQueue, type CaseChatThreadsList,
 } from "./platform-case-chat-contract";
 import { caseChatErrorStatus, CaseChatReadError, readCaseChatPage, readStaffCaseChatThreads } from "./v3/case-chat-source";
 import { exactActionStringFields } from "./server/action-form-fields";
@@ -23,12 +23,12 @@ export async function readCaseChatPageAction(
 }
 
 export async function loadStaffCaseChatThreadsAction(
-  query: string | null,
+  query: string | null, queue: CaseChatQueue = "all",
 ): Promise<{ status: "ready"; list: CaseChatThreadsList } | { status: CaseChatFailure }> {
   try {
     const authorization = await resolvePlatformActor();
     if (authorization.status !== "authenticated") return { status: "forbidden" };
-    const list = await readStaffCaseChatThreads(authorization.actor, query);
+    const list = await readStaffCaseChatThreads(authorization.actor, query, queue);
     return { status: "ready", list };
   } catch (error) {
     return { status: error instanceof CaseChatReadError ? error.status : "unavailable" };

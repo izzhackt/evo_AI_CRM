@@ -13479,3 +13479,41 @@ only additive plan appendices conflict. Update the1–36 ledger with completed
 B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gaps.
 Remaining item7 work is department-target visibility and import placement, not
 an already-correct cash-summary permission rewrite.
+
+
+### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
+
+A15f is merged in #992 / ca7c98ec2. Implement the bounded contract in
+[case-chat queue plan](EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md): three queues
+from existing await_state, additive staff reader v2 with q/filter before the
+200-row limit, shared search race guard, current-list invalidation and durable
+selected conversation context. Existing v1, commands, rights, drafts and EVO
+identity remain. Selected-case title outside the queue uses the existing
+authorized full-case snapshot only after chat access; no extra list scan.
+Native history replaceState preserves q/queue without remounting the composer.
+
+ROOT reserved 234 for A; ROOT233 must merge first. Source-only work and review
+can proceed while B owns local QA. Actual migration/API/browser work requires
+ROOT's scheduled window and separately pinned effects. No full item11, shared
+runtime or production success is claimed by this precode entry.
+
+#### A11 / CRM-07 first QA correction — 2026-09-21
+
+Local234 first real UI pass at999040d0 found history-restoration and320px
+selected-chat defects. Apply the bounded correction in the case-chat queue plan:
+URL-owned filter context, fresh authorized history reads and shrinking mobile
+layout, retaining draft/attachment and commands/rights. SQL/apply234 unchanged;
+three permitted await commands restored none. Independent correction review,
+then at most one read-only confirmation batch and full finite-effects closure.
+
+#### A11 / CRM-07 actual local234 result — 2026-09-21
+
+[Actual report](qa/case-chat-queues-actual-2026-09-21.md): SQL234 applied once on
+999040d0; ordinary staff/Student boundaries and three await transitions passed.
+Actual history/320px defects were corrected and one confirmation batch passed
+on37f3d9860. Draft/document card persisted; no messages/file bytes/new actors.
+Full290-table/33-Auth-Storage reconciliation passed with exactly one thread,
+three await receipts/audits, finalnone; incoming224sessions/239refresh preserved.
+Own Auth/browser/server closed. Independent actual/closure review approved;
+window released B1003, which waits for merge1002. Final-head review/merge remain
+gates; production, broad E2E and unsupported positive QA states unclaimed.

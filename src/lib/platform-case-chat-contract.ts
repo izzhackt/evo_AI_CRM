@@ -9,6 +9,30 @@
 export const CASE_CHAT_AWAIT_STATES = ["none", "needs_reply", "awaiting_student"] as const;
 export type CaseChatAwaitState = (typeof CASE_CHAT_AWAIT_STATES)[number];
 
+export const CASE_CHAT_QUEUES = ["all", "needs_reply", "awaiting_student"] as const;
+export type CaseChatQueue = (typeof CASE_CHAT_QUEUES)[number];
+
+export function parseCaseChatQueue(value: unknown): CaseChatQueue | null {
+  if (value === undefined) return "all";
+  return typeof value === "string" && (CASE_CHAT_QUEUES as readonly string[]).includes(value)
+    ? value as CaseChatQueue : null;
+}
+
+export function isCaseChatListQuery(value: unknown): value is string | null {
+  return value === null || (typeof value === "string" && Array.from(value.trim()).length <= 200);
+}
+
+export function caseChatHref(query: string, queue: CaseChatQueue, caseId: string | null = null, attachment: CaseChatPendingAttachment | null = null): string {
+  const params = new URLSearchParams();
+  if (caseId) params.set("case", caseId);
+  if (query) params.set("q", query);
+  if (queue !== "all") params.set("queue", queue);
+  // An attachment belongs to its selected case, never to the list itself.
+  if (caseId && attachment) params.set("attach", `${attachment.kind}:${attachment.id}`);
+  const search = params.toString();
+  return search ? `/v3/messages?${search}` : "/v3/messages";
+}
+
 export const CASE_CHAT_ATTACHMENT_KINDS = ["document", "case_task"] as const;
 export type CaseChatAttachmentKind = (typeof CASE_CHAT_ATTACHMENT_KINDS)[number];
 

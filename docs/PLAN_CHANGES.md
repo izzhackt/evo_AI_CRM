@@ -36306,3 +36306,41 @@ only additive plan appendices conflict. Update the1–36 ledger with completed
 B1000 web/CRM package acceptance and prepared A1002/B1003, preserving native gaps.
 Remaining item7 work is department-target visibility and import placement, not
 an already-correct cash-summary permission rewrite.
+
+
+### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
+
+A15f is merged in #992 / ca7c98ec2. Implement the bounded contract in
+[case-chat queue plan](EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md): three queues
+from existing await_state, additive staff reader v2 with q/filter before the
+200-row limit, shared search race guard, current-list invalidation and durable
+selected conversation context. Existing v1, commands, rights, drafts and EVO
+identity remain. Selected-case title outside the queue uses the existing
+authorized full-case snapshot only after chat access; no extra list scan.
+Native history replaceState preserves q/queue without remounting the composer.
+
+ROOT reserved 234 for A; ROOT233 must merge first. Source-only work and review
+can proceed while B owns local QA. Actual migration/API/browser work requires
+ROOT's scheduled window and separately pinned effects. No full item11, shared
+runtime or production success is claimed by this precode entry.
+
+### A11 / CRM-07 actual-UI correction before edits — 2026-09-21
+
+First ordinary local234 QA at999040d0 found browser-history cached q/queue and
+await-state restoration plus320px selected-chat overflow. The bounded queue
+plan now specifies URL-owned filters, explicit-only URL writes, fresh authorized
+history reads, and minimum-width/mobile-header fixes. Preserve composer/draft,
+source authorization, SQL234 and immutable apply evidence. Three permitted await
+commands already ended at none; confirmation must not add commands/messages.
+One UI batch and one confirmation batch, same staff session, independent source
+and private runtime-binding delta review before resuming. No extra product scope.
+
+### A11 / CRM-07 actual evidence recorded — 2026-09-21
+
+Local234 actual execution and bounded history/mobile correction are recorded in
+[QA evidence](qa/case-chat-queues-actual-2026-09-21.md). Apply999040d0 and confirmed
+UI37f3d9860 remain distinct, immutable evidence sources; docs-only completion
+must not relabel them as fresh runs. Exactly three permitted await commands
+restored none, no posts/read receipts. One final UI batch passed; full finite
+reconciliation and own runtime closure passed. Preserve dataset/physical-device
+limitations and all other item1–36 states. No further implementation scope added.

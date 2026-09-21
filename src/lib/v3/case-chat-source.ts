@@ -2,7 +2,8 @@ import "server-only";
 
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import {
-  caseChatCursor, caseChatUuid, isCaseChatAttachmentKind, isCaseChatAwaitState,
+  caseChatCursor, caseChatUuid, isCaseChatAttachmentKind, isCaseChatAwaitState, isCaseChatListQuery, parseCaseChatQueue,
+  type CaseChatQueue,
   type CaseChatFailure, type CaseChatMessage, type CaseChatPage, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "../platform-case-chat-contract.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
@@ -86,10 +87,12 @@ function threadRow(value: unknown): CaseChatThreadRow {
   };
 }
 
-export async function readStaffCaseChatThreads(actor: ActivePlatformActor, query: string | null): Promise<CaseChatThreadsList> {
+export async function readStaffCaseChatThreads(actor: ActivePlatformActor, query: string | null, queue: CaseChatQueue = "all"): Promise<CaseChatThreadsList> {
+  if (!isCaseChatListQuery(query) || parseCaseChatQueue(queue) === null) throw new CaseChatReadError("invalid");
   const client = await createSupabaseServerClient();
-  const { data, error } = await client.schema("platform").rpc("staff_case_chat_threads_v1", {
+  const { data, error } = await client.schema("platform").rpc("staff_case_chat_threads_v2", {
     p_query: query && query.trim() ? query.trim() : null,
+    p_await_state: queue === "all" ? null : queue,
   });
   if (error) throw new CaseChatReadError(caseChatErrorStatus(error));
   if (!record(data) || !Array.isArray(data.rows) || typeof data.truncated !== "boolean") throw new CaseChatReadError("unavailable");

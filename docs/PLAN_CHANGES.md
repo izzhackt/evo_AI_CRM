@@ -35660,3 +35660,11 @@ old readers и узкий SQL context-exclusion на legacy replay-входах.
 До кода — независимое exact precode review; следующий полный package B3g отдельно.
 Impeccable Operate сохраняет EVO и функции, уточняя реальные saved/submit/review
 состояния. Runtime/новые файлы/production/native acceptance не заявлены.
+
+Независимый precode review64d4324e потребовал два уточнения до реализации:
+история следует server-proven predecessor-цепочке226 и доступна также для
+удалённых требований; прежнее решение не переносится в новую definition.
+Old-reader PT409 ограничен публичными entrypoints; общий v2 helper сохраняет
+внутреннюю projection для свежего editor/save226 и authorized pending recovery.
+Добавлен узкий changed-requirements сценарий; это исправление полноты контракта,
+не исполненное runtime-доказательство.

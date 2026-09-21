@@ -56,6 +56,26 @@ finalization остаются в существующих таблицах, бе
 по `(finalized_at,id)`, а не по глобальному current. Failed admission не скрывает
 последний сохранённый файл. Состояние submission выводится из его решений.
 
+226 создаёт новые item IDs при каждом сохранении, в том числе для неизменённого
+требования. Поэтому текущий item содержит отдельно своё состояние и последнее
+историческое свидетельство по сервером проверенной цепочке `predecessor_item_id`.
+Каждое звено должно принадлежать тому же org/case/application и предыдущей
+revision; совпадения label/requirementKey или переданного клиентом UUID недостаточно.
+История возвращает исходные revision/item, definition/material snapshot, exact
+version, отправку и решение. При изменении определения либо material связь
+остаётся видимой как история; старое решение не становится приёмкой нового item.
+Даже неизменённая successor definition не создаёт отправку автоматически:
+показываем «Проверен по предыдущим требованиям» с точной прежней версией, а
+текущую отправку создаём только по явному действию. Для нового submit повторно
+проверяем текущий mapped slot и допустимость явно выбранной версии.
+
+Исторический файл доступен по его исходному контексту с актуальными правами,
+даже если новый item привязан к другому material. Последний draft текущего item
+и исторический draft не смешиваются. Удалённое из текущих требований не пропадает:
+программная история без item-фильтра перечисляет также прежние требования;
+история текущего item охватывает только его доказанную predecessor-цепочку.
+Обе формы используют одну scoped keyset pagination, без загрузки всего архива.
+
 ## RPC и границы совместимости
 
 Названия ниже — контракт228. Публичные функции в `platform`, внутренние helpers
@@ -70,7 +90,7 @@ finalization остаются в существующих таблицах, бе
 | `submit_application_document_v1` | `(case,application,revision,item,selection,expectedPreviousSubmissionId,request)` → immutable receipt с exact version. Current revision/mapping и technical availability обязательны. |
 | `review_application_document_submission_v1` | `(submission,expectedPreviousReviewId,decision,reason,request)` → scoped review receipt; document.review и актуальный case scope. Допускает старую отправленную версию после нового upload. |
 | `grant_application_document_download_v1`, `consume_application_document_download_v1` | обычный Auth grant и service consume; exact upload/submission/version, повторная авторизация и проверка object/clean/integrity на обеих стадиях. Existing one-use grants/expiry сохраняются. |
-| `application_document_history_v1` | scoped `(case,application,item,cursor,limit)`; keyset `(created_at,id)`, default20/max50, только доступная история с nextCursor. |
+| `application_document_history_v1` | scoped `(case,application,item?,cursor,limit)`; item задан — его доказанная predecessor-цепочка, item отсутствует — вся программная история, включая удалённые требования. Keyset `(created_at,id)`, default20/max50; точные origin revision/item/definition/material и nextCursor. |
 | `staff_application_document_submission_queue_v1` | scoped keyset очередь actual submissions с открытой проверкой, student/program/item/deadline; default20/max50. Разрешённые нераспределённые дела остаются видны, auto-assignment нет. |
 
 Selection — закрытый union `{kind:program_upload,uploadContextId,documentVersionId}`
@@ -88,9 +108,16 @@ reservation с B3f context. Это не изменение поведения п
 новый draft через старый entrypoint. Нельзя ограничиться HTTP guard: проверка
 должна работать на authoritative SQL-входе. Исторические миграции не редактировать.
 
-Old program requirements readers v1/v2 на application с любым B3f upload-context
-либо submission возвращают явный PT409 update-required. Не посылать новые keys/
-enum в закрытый DTO. Исторический218 initialization replay и226 exact-save replay
+Old **public** program requirements readers v1/v2 на application с любым B3f
+upload-context либо submission возвращают явный PT409 update-required. Guard
+находится только в публичных reader entrypoints, после проверки доступа; общий
+`application_requirements_v2_view` не получает этот запрет. Его внутренняя
+definition/legacy-material projection остаётся доступна authorized226 editor
+context, свежим save и pending recovery даже после failed admission или submit.
+Редактор226 показывает требования и прежние общие материалы, а не выдаёт их
+global status за программную отправку/решение. Его текущий закрытый DTO сохраняется;
+program review принадлежит новому reader. Не посылать новые keys/enum в старые
+reader DTO. Исторический218 initialization replay и226 exact-save replay
 сохраняют свои authorized immutable receipts. Legacy/manual/visa Docs продолжают
 свою current/status ветку. Новые web/Swift подготовки используют новый reader;
 нельзя включить новый upload без доступных submit/read/download действий.
@@ -163,6 +190,11 @@ A/B isolation; draft не в review; approved-current replacement; exact submit/
 duplicate/conflict; review/download V1 после V2; grant→revocation/dirty-object
 consume denial; requirements-change race; unchanged legacy/manual/visa/replay и
 ZIP guard; web/iPhone changed-path parity. Native build не native UI acceptance.
+Отдельная проверка revision: сохранить/проверить документ, через authorized226
+изменить другое требование и обновить программу. Старая exact версия/отправка/
+решение остаются видимы и доступны, новая отправка сама не появляется; editor
+read/save и recovery продолжают работать. Изменённое/удалённое требование остаётся
+в программной истории со своим прежним определением.
 Здесь ни один из этих новых сценариев ещё не исполнен. Production/providers,
 полный пакетB3g, широкий финальный E2E/content/App Store остаются вне блока.
 

@@ -6,8 +6,9 @@
 один actual incumbent batch c675:390/320/1440 и разрешил следующий source-only
 UI этап в том же плане. Прежний gap мобильного списка каналов заполнен.
 [Исходная UI-проверка](qa/team-chat-channel-rail-incumbent-2026-09-22.md)
-независимо принята (review5113321d), resource передан ROOT (5902ec18). Новая композиция
-ещё не реализована/проверена; её будущий runtime требует отдельного окна.
+независимо принята (review5113321d), resource передан ROOT (5902ec18). UI source реализован и прошёл
+[typecheck/lint и scoped parity](qa/team-chat-channel-rail-ui-source-2026-09-22.md).
+Независимый source review и будущий runtime требуют следующих отдельных шагов.
 [Logic source-проверки](qa/team-chat-channel-rail-logic-source-2026-09-21.md)
 31/31 на2c остаются proof своих неизменённых контрактов, не нового JSX.
 База `c675d4b4d735ccbcc51dc162265e31d64e193990`: #1017 смержен после final review

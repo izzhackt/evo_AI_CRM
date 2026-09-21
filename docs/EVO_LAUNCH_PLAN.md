@@ -14443,3 +14443,18 @@ review у ROOT. Новый runtime/postchange UI batch отдельно по о�
 Независимое incumbent actual/closure review5113321d принято ROOT; normalized
 release5902ec18 передал общий runtime ROOT238. Raw proof/verifier неизменны.
 Следующий этап A — только согласованные UI source edits и source проверки.
+
+
+### A15 rail — source UI подключён, actual после изменения впереди — 22.09
+
+После891653d4 brief/incumbent critique подключён approved formatter к каждой
+строке latestPreview. Mobile nav показывает прежний background ticket/error/
+retry/pending либо forbidden/login; conversation JSX остаётся побайтно прежним.
+Удалён только presentation latestMessageId state/lookup, обязательный latestId
+и hydration сохранены. CSS добавляет только desktop-hidden/mobile feedback.
+
+[UI source evidence](qa/team-chat-channel-rail-ui-source-2026-09-22.md): новый
+typecheck и targeted lint PASS;31 pure cases переиспользованы с2c442162 по12-file
+byte parity (не новый прогон). Unknown не выдаётся за empty, tombstone не выдаёт
+старый текст. Нового runtime не было; independent source review/new PR и один
+future postchange batch впереди. Shared runtime ROOT238; production не менялась.

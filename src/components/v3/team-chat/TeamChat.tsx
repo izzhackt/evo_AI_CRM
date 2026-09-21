@@ -12,7 +12,7 @@ import type { TeamChatTimelineQuery } from "@/lib/platform-team-chat-timeline";
 import type { TeamChatTimelineV2Page } from "@/lib/platform-team-chat-timeline-v2";
 import { emptyTeamChatFeed, extendTeamChatFeedRange, mergeTeamChatFeedChanges, mergeTeamChatFeedPage, mergeTeamChatSearchChanges, teamChatFeedMessage, teamChatFeedQuote, teamChatFeedRange, teamChatFeedRows, type TeamChatFeedSnapshot, type TeamChatFeedStore, type TeamChatFeedRange, type TeamChatScrollAnchor } from "@/lib/team-chat-feed";
 import { teamChatMessageContinuations } from "@/lib/team-chat-message-grouping";
-import { acceptTeamChatChannels, type TeamChatChannelsState } from "@/lib/team-chat-channel-previews";
+import { acceptTeamChatChannels, teamChatChannelPreviewText, type TeamChatChannelsState } from "@/lib/team-chat-channel-previews";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import { Icon } from "@/components/icons";
@@ -74,7 +74,6 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const composer = useRef<TeamChatComposerHandle>(null);
   const watermark = useRef(initial.page.watermark);
   const latestId = useRef(initial.page.latestMessageId);
-  const [latestMessageId, setLatestMessageId] = useState(initial.page.latestMessageId);
   const catchupRunning = useRef(false);
   const catchupAgain = useRef(false);
   const alive = useRef(true);
@@ -197,7 +196,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
             },
             commitTail: () => {
               if (!alive.current || revoked.current) return;
-              latestId.current = latest.latestMessageId; setLatestMessageId(latest.latestMessageId);
+              latestId.current = latest.latestMessageId;
             },
           });
           if (!hydrated || !alive.current || revoked.current) return;
@@ -303,7 +302,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     scroll.current = input.mode === "context" ? { kind: "message", id: input.messageId } : { kind: "bottom" };
     commit({ store: mergeTeamChatFeedPage(current.current.store, page), range: teamChatFeedRange(page) });
     if (input.mode === "latest") {
-      latestId.current = page.latestMessageId; setLatestMessageId(page.latestMessageId); setNewMessages(false);
+      latestId.current = page.latestMessageId; setNewMessages(false);
       searchOrigin.current = null; setSearchOpen(false); setSearch(null);
     }
   }
@@ -379,8 +378,9 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   }
   const readFailure = visibleTeamChatReadFailure(readErrors);
   const readFailureCopy = readFailure ? teamChatReadFailureCopy(readFailure.ticket) : null;
+  const channelReadFailure = readErrors.background?.failure ? readErrors.background : null;
+  const channelReadFailureCopy = channelReadFailure ? teamChatReadFailureCopy(channelReadFailure) : null;
   const rows = teamChatFeedRows(feed.store, feed.range);
-  const latestMessage = latestMessageId ? teamChatFeedMessage(feed.store, latestMessageId) : null;
   const currentChannel = channels.find((item) => item.key === channel);
   const continuations = teamChatMessageContinuations(rows, { highlightedId: highlighted, firstUnreadId: currentChannel?.firstUnreadId });
   const transportLabel = forbidden ? "Доступ к каналу закрыт" : transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
@@ -389,11 +389,19 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   return <div ref={workspace} className={styles.workspace} data-panel={panel} aria-busy={busy}>
     <nav className={styles.channels} aria-label="Каналы команды">
       <h1 className={styles.channelTitle}>Командный чат</h1>
+      {forbidden ? <div className={`${styles.channelFeedback} ${styles.error}`} role="alert">
+        <p>{transportLabel}</p>
+        <a className={styles.secondary} href="/login">Войти снова</a>
+      </div> : channelReadFailure && channelReadFailureCopy ? <div className={`${styles.channelFeedback} ${styles.error}`} role="alert">
+        <p>{channelReadFailureCopy.message}</p>
+        {channelReadFailureCopy.retryLabel ? <button className={styles.textButton} type="button" disabled={busy || channelReadFailure.pending}
+          onClick={() => retryRead("background", channelReadFailure.id)}>{channelReadFailure.pending ? "Повторяем…" : channelReadFailureCopy.retryLabel}</button> : null}
+      </div> : null}
       {channels.map((item) => <Link key={item.key} href={`/v3/team-chat?channel=${item.key}`} className={`${styles.channel} ${item.key === channel ? styles.selected : ""}`} aria-current={item.key === channel ? "page" : undefined}
         onClick={(event) => { if (item.key === channel) { event.preventDefault(); setPanel("messages"); } }}>
         <span className={styles.channelAvatar} data-channel={item.key} aria-hidden="true">{TEAM_CHAT_LABELS[item.key][0]}</span>
         <span className={styles.channelCopy}><span className={styles.channelName}>{TEAM_CHAT_LABELS[item.key]}</span>
-          {item.key === channel && latestMessage ? <span className={styles.channelPreview}>{latestMessage.deletedAt ? "Сообщение удалено" : `${latestMessage.authorMembershipId === membershipId ? "Вы" : latestMessage.authorName}: ${latestMessage.body}`}</span> : null}
+          <span className={styles.channelPreview}>{teamChatChannelPreviewText(item.latestPreview, membershipId)}</span>
         </span>{item.unreadCount ? <span className={styles.unread} aria-label={`${item.unreadCount} непрочитанных`}>{item.unreadCount}</span> : null}
       </Link>)}
     </nav>

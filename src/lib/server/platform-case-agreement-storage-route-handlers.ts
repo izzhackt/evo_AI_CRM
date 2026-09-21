@@ -1,3 +1,4 @@
+import { decodeReceiptUploadTarget, decodeReceiptDownloadTarget, receiptTargetErrorStatus } from "../payment-receipt-target.ts";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -228,6 +229,7 @@ export function createPaymentReceiptFileUploadHandler() {
     request: Request,
     context: { params: Promise<{ paymentEventId: string }> },
   ): Promise<Response> {
+    try {
     const { resolvePlatformActor } = await import("../platform-auth.ts");
     const actorResult = await resolvePlatformActor();
     if (actorResult.status !== "authenticated") {
@@ -239,17 +241,16 @@ export function createPaymentReceiptFileUploadHandler() {
     const serviceClient = createPlatformSupabaseServiceClient(
       getPlatformSupabaseBackendConfig(),
     );
-    const eventLookup = await serviceClient.schema("platform")
-      .from("payment_events")
-      .select("student_case_id")
-      .eq("organization_id", actorResult.actor.organizationId)
-      .eq("id", paymentEventId)
-      .maybeSingle();
-    const studentCaseId = uuid(eventLookup.data?.student_case_id);
-    if (eventLookup.error || !studentCaseId) return errorResponse(404, "payment_event_not_found");
-    if (!await resolveWritableCaseActor(actorResult.actor.organizationId, studentCaseId)) {
-      return errorResponse(403, "case_agreement_forbidden");
-    }
+    const { createSupabaseServerClient } = await import("../supabase/server.ts");
+    const userClient = await createSupabaseServerClient();
+    const targetResponse = await userClient.schema("platform").rpc(
+      "staff_payment_receipt_upload_target_v1", { p_payment_event_id: paymentEventId },
+    );
+    if (targetResponse.error) return errorResponse(receiptTargetErrorStatus(targetResponse.error),
+      targetResponse.error.code === "42501" ? "case_agreement_forbidden" : "receipt_target_unavailable");
+    const target = decodeReceiptUploadTarget(targetResponse.data, actorResult.actor.organizationId, paymentEventId);
+    if (!target) return errorResponse(503, "receipt_target_unavailable");
+    const studentCaseId = target.studentCaseId;
 
     const upload = await readValidatedUpload(request);
     if (upload.status === "error") return upload.response;
@@ -281,9 +282,13 @@ export function createPaymentReceiptFileUploadHandler() {
     );
     if (metadataResponse.error) {
       await serviceClient.storage.from(BUCKET_ID).remove([objectName]);
-      return errorResponse(503, "storage_unavailable");
+      return errorResponse(receiptTargetErrorStatus(metadataResponse.error),
+        metadataResponse.error.code === "42501" ? "case_agreement_forbidden" : "storage_unavailable");
     }
     return Response.json(metadataResponse.data, { status: 201 });
+    } catch {
+      return errorResponse(503, "receipt_unavailable");
+    }
   };
 }
 
@@ -361,6 +366,7 @@ export function createPaymentReceiptFileDownloadHandler() {
     _request: Request,
     context: { params: Promise<{ studentCaseId: string; fileId: string }> },
   ): Promise<Response> {
+    try {
     const { resolvePlatformActor } = await import("../platform-auth.ts");
     const actorResult = await resolvePlatformActor();
     if (actorResult.status !== "authenticated") {
@@ -370,11 +376,21 @@ export function createPaymentReceiptFileDownloadHandler() {
     const studentCaseId = uuid(params.studentCaseId);
     const fileId = uuid(params.fileId);
     if (!studentCaseId || !fileId) return errorResponse(400, "invalid_request");
-    return signAndRedirect(
-      actorResult.actor.organizationId,
-      studentCaseId,
-      "payment_receipt_files",
-      fileId,
+    const { createSupabaseServerClient } = await import("../supabase/server.ts");
+    const userClient = await createSupabaseServerClient();
+    const targetResponse = await userClient.schema("platform").rpc(
+      "staff_payment_receipt_download_target_v1", { p_student_case_id: studentCaseId, p_file_id: fileId },
     );
+    if (targetResponse.error) return errorResponse(receiptTargetErrorStatus(targetResponse.error),
+      targetResponse.error.code === "42501" ? "case_agreement_forbidden" : "receipt_target_unavailable");
+    const target = decodeReceiptDownloadTarget(targetResponse.data, actorResult.actor.organizationId, studentCaseId, fileId);
+    if (!target) return errorResponse(503, "receipt_target_unavailable");
+    const serviceClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+    const signedResponse = await serviceClient.storage.from(BUCKET_ID).createSignedUrl(target.storageObjectName, 60, { download: true });
+    if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");
+    return Response.redirect(signedResponse.data.signedUrl, 307);
+    } catch {
+      return errorResponse(503, "receipt_unavailable");
+    }
   };
 }

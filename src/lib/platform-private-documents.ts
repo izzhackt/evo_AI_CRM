@@ -367,7 +367,8 @@ export function normalizePlatformDocumentVersion(
   if (
     typeof value.storage_finalized !== "boolean"
     || typeof value.download_ready !== "boolean"
-    || typeof value.is_current !== "boolean"
+    // The SQL comparison is NULL when a saved draft has no legacy current pointer.
+    || (value.is_current !== null && typeof value.is_current !== "boolean")
     || (value.download_ready
       && (!value.storage_finalized
         || integrityStatus !== "verified"
@@ -393,7 +394,7 @@ export function normalizePlatformDocumentVersion(
     storageFinalized: value.storage_finalized,
     finalizedAt: optionalTimestamp(value.finalized_at),
     downloadReady: value.download_ready,
-    isCurrent: value.is_current,
+    isCurrent: value.is_current === true,
     latestReview: normalizeReview(value.latest_review),
     createdAt: requiredTimestamp(value.created_at),
     updatedAt: requiredTimestamp(value.updated_at),

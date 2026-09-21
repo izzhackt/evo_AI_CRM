@@ -13360,3 +13360,18 @@ preserves exact SalesRegisterView bytes; this is reused proof, not a new run.
 and remaining work, preserving earlier historical checkpoints. Local231 then
 applied once with no Auth/submission/business writes; window passed B232.
 No production delivery or whole1–36 completion claimed.
+
+
+### CRM-02e: authorized direction options —2026-09-21 precode
+
+After #995 merge a23490f7, implement accepted item7 direction selector using
+separate read-only RPC233. Existing v1/v2 report and writes stay unchanged.
+Organization and per-row authority precede DISTINCT; include all authorized
+periods/archive states, preserve exact strings/C order, reject overflow above
+1000 or unfilterable legacy values instead of silently truncating/normalizing.
+Strict DTO and shared500-code-point validator; native GET select retains
+unknown current URL values, filters/period/Back/reset. Explicit option error
+keeps exact-text input available without pretending empty success.
+See docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md for scope, grants and acceptance.
+Source-only while B232 owns QA; ROOT coordinates any later local apply.
+No production or fixture creation is authorized by this entry.

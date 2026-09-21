@@ -12,9 +12,9 @@ import {
   readCaseChatPageAction, setCaseChatAwaitAction,
 } from "@/lib/platform-case-chat-actions";
 import {
-  CASE_CHAT_AWAIT_STATES, CASE_CHAT_BODY_LIMIT, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION,
+  CASE_CHAT_AWAIT_STATES, CASE_CHAT_BODY_LIMIT, CASE_CHAT_FAILURE_COPY, CASE_CHAT_INITIAL_ACTION, CASE_CHAT_QUEUES, caseChatHref,
   type CaseChatActionState, type CaseChatAwaitState, type CaseChatFailure, type CaseChatMessage,
-  type CaseChatPage, type CaseChatPendingAttachment, type CaseChatThreadRow, type CaseChatThreadsList,
+  type CaseChatPage, type CaseChatPendingAttachment, type CaseChatQueue, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "@/lib/platform-case-chat-contract";
 import { caseChatAwaitState } from "@/lib/v3/wording";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
@@ -116,12 +116,21 @@ function MountedCaseChatComposer({
   // into the local draft above — an external-system notification, not local
   // state, so it belongs in an effect (never a raw setDraft call here).
   useEffect(() => {
-    if (pendingAttachment && !consumedAttachment.current) { consumedAttachment.current = true; onAttachmentConsumed(); }
-  }, [pendingAttachment, onAttachmentConsumed]);
+    if (!pendingAttachment || consumedAttachment.current) return;
+    consumedAttachment.current = true;
+    try {
+      // Persist the link-card before removing its only reloadable URL reference.
+      localStorage.setItem(key, JSON.stringify(initial));
+      onAttachmentConsumed();
+    } catch { /* Keep ?attach until a later draft save or confirmed send succeeds. */ }
+  }, [pendingAttachment, onAttachmentConsumed, key, initial]);
 
   function persist(next: Draft) {
     setDraft(next);
-    try { localStorage.setItem(key, JSON.stringify(next)); } catch { setStorageError(true); }
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+      if (pendingAttachment) { consumedAttachment.current = true; onAttachmentConsumed(); }
+    } catch { setStorageError(true); }
   }
 
   const [state, setState] = useState<CaseChatActionState>(CASE_CHAT_INITIAL_ACTION);
@@ -145,6 +154,7 @@ function MountedCaseChatComposer({
         const empty: Draft = { body: "", attachment: null, requestId: crypto.randomUUID() };
         persist(empty);
         try { localStorage.removeItem(key); } catch { setStorageError(true); }
+        onAttachmentConsumed();
         onClearReply();
         onSaved();
         textarea.current?.focus();
@@ -281,12 +291,12 @@ function MessageRow({
 
 function CaseChatThreadView({
   caseId, initialPage, initialFailure, storageScope, membershipId, pendingAttachment, onAttachmentConsumed,
-  organizationId, realtimeConfig, row, listHref,
+  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged,
 }: Readonly<{
   caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null;
   storageScope: string; membershipId: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void; organizationId: string; realtimeConfig: SupabasePublicConfig;
-  row: CaseChatThreadRow | undefined; listHref: string;
+  studentDisplayName: string | null; listHref: string; onListChanged: () => void;
 }>) {
   const [page, setPage] = useState<CaseChatPage | null>(initialPage);
   const [error, setError] = useState<CaseChatFailure | null>(initialFailure);
@@ -296,18 +306,25 @@ function CaseChatThreadView({
   const [awaitState, setAwaitState] = useState<CaseChatAwaitState | null>(initialPage?.thread.awaitState ?? null);
   const viewport = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
+  const pageSequence = useRef(0);
   const markedUpTo = useRef<string>(initialPage?.readSequenceId ?? "0");
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const refresh = useCallback(async () => {
-    const result = await readCaseChatPageAction(caseId, "latest");
-    if (!alive.current) return;
-    if (result.status !== "ready") { setError(result.status); return; }
-    setError(null);
-    setPage(result.page);
-    setAwaitState(result.page.thread.awaitState);
-  }, [caseId]);
+    const sequence = ++pageSequence.current;
+    onListChanged();
+    try {
+      const result = await readCaseChatPageAction(caseId, "latest");
+      if (!alive.current || sequence !== pageSequence.current) return;
+      if (result.status !== "ready") { setError(result.status); return; }
+      setError(null);
+      setPage(result.page);
+      setAwaitState(result.page.thread.awaitState);
+    } catch {
+      if (alive.current && sequence === pageSequence.current) setError("unavailable");
+    }
+  }, [caseId, onListChanged]);
 
   useEffect(() => {
     let cancelled = false;
@@ -365,8 +382,10 @@ function CaseChatThreadView({
     markedUpTo.current = latest;
     const form = new FormData();
     form.set("request_id", crypto.randomUUID()); form.set("case_id", caseId); form.set("sequence_id", latest);
-    void markCaseChatReadAction(CASE_CHAT_INITIAL_ACTION, form);
-  }, [page, caseId]);
+    void markCaseChatReadAction(CASE_CHAT_INITIAL_ACTION, form).then((result) => {
+      if (alive.current && result.status === "saved") onListChanged();
+    }).catch(() => { /* A failed read acknowledgement must not clear work state. */ });
+  }, [page, caseId, onListChanged]);
 
   async function loadOlder() {
     if (!page || !page.hasMore || busy) return;
@@ -385,19 +404,27 @@ function CaseChatThreadView({
   }
 
   async function changeAwait(state: CaseChatAwaitState) {
+    ++pageSequence.current;
     setAwaitPending(true);
     try {
       const form = new FormData();
       form.set("request_id", crypto.randomUUID()); form.set("case_id", caseId); form.set("state", state);
       const result = await setCaseChatAwaitAction(CASE_CHAT_INITIAL_ACTION, form);
-      if (result.status === "saved") setAwaitState(state);
+      if (!alive.current) return;
+      if (result.status === "saved") {
+        ++pageSequence.current;
+        setAwaitState(state);
+        setError(null);
+        onListChanged();
+      }
       else if (result.status !== "idle") setError(result.status);
-    } finally { setAwaitPending(false); }
+    } catch { if (alive.current) setError("unavailable"); }
+    finally { if (alive.current) setAwaitPending(false); }
   }
 
   if (!page) {
     return <div className="flex flex-1 flex-col">
-      <ThreadHeader row={row ?? null} caseId={caseId} listHref={listHref} onSetAwait={() => {}} awaitPending={false} />
+      <ThreadHeader row={studentDisplayName === null ? null : { studentDisplayName, awaitState: "none" }} caseId={caseId} listHref={listHref} onSetAwait={() => {}} awaitPending={false} />
       <p role="alert" className="p-4 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error ?? "unavailable"]}</p>
     </div>;
   }
@@ -407,7 +434,7 @@ function CaseChatThreadView({
     <div className="flex min-h-0 flex-1 flex-col">
       <ThreadHeader
         listHref={listHref}
-        row={row ? { studentDisplayName: row.studentDisplayName, awaitState: awaitState ?? row.awaitState } : null}
+        row={studentDisplayName === null ? null : { studentDisplayName, awaitState: awaitState ?? page.thread.awaitState }}
         caseId={caseId} onSetAwait={changeAwait} awaitPending={awaitPending} />
       {error ? <p role="alert" className="px-3 pt-2 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error]}</p> : null}
       <div ref={viewport} className="min-h-0 flex-1 overflow-y-auto px-3" aria-label="История переписки">
@@ -435,9 +462,10 @@ function threadRowBadges(row: CaseChatThreadRow) {
 }
 
 function CaseChatList({
-  threads, selectedCaseId, query, onQuery, membershipId, hidden, loading, failure, onRetry,
+  threads, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, failure, onRetry,
 }: Readonly<{
   threads: CaseChatThreadsList; selectedCaseId: string | null; query: string; onQuery: (value: string) => void;
+  queue: CaseChatQueue; onQueue: (value: CaseChatQueue) => void;
   membershipId: string; hidden: boolean; loading: boolean; failure: CaseChatFailure | null; onRetry: () => void;
 }>) {
   const router = useRouter();
@@ -445,6 +473,13 @@ function CaseChatList({
     <nav aria-label="Переписки" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-e border-border @2xl:w-[320px] @2xl:shrink-0`}>
       <div className="border-b border-border p-3">
         <h1 className="mb-2 text-lg font-semibold text-fg">Сообщения</h1>
+        <div role="group" aria-label="Очередь переписок" className="mb-2 flex flex-wrap gap-1">
+          {CASE_CHAT_QUEUES.map((value) => <button key={value} type="button" aria-pressed={queue === value}
+            onClick={() => onQueue(value)}
+            className={`min-h-11 rounded-ctl px-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${queue === value ? "bg-accent-weak font-semibold text-accent-text" : "text-fg-2 hover:bg-surface-2"}`}>
+            {value === "all" ? "Все" : caseChatAwaitState(value)}
+          </button>)}
+        </div>
         <form onSubmit={(event) => { event.preventDefault(); }} role="search">
           <label className="sr-only" htmlFor="case-chat-search">Поиск по студенту</label>
           <input id="case-chat-search" type="search" value={query} placeholder="Поиск по студенту"
@@ -463,7 +498,9 @@ function CaseChatList({
       </div> : null}
       <div className="flex-1 overflow-y-auto" aria-busy={loading}>
         {!loading && !failure && (threads.rows.length === 0 ? <div className="p-4">
-          <p role="status" className="text-sm text-fg-3">{query.trim() ? "По вашему запросу переписок не найдено." : "Переписок пока нет."}</p>
+          <p role="status" className="text-sm text-fg-3">{query.trim()
+            ? queue === "all" ? "По вашему запросу переписок не найдено." : "В этой очереди нет переписок по вашему запросу."
+            : queue === "all" ? "Переписок пока нет." : "В этой очереди переписок нет."}</p>
           {query.trim() ? <button type="button" onClick={() => onQuery("")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
             Сбросить поиск
           </button> : null}
@@ -471,7 +508,7 @@ function CaseChatList({
           const badges = threadRowBadges(row);
           return (
             <button key={row.studentCaseId} type="button"
-              onClick={() => router.push(query ? `/v3/messages?case=${row.studentCaseId}&q=${encodeURIComponent(query)}` : `/v3/messages?case=${row.studentCaseId}`)}
+              onClick={() => router.push(caseChatHref(query, queue, row.studentCaseId))}
               aria-current={row.studentCaseId === selectedCaseId ? "page" : undefined}
               className={`flex w-full flex-col gap-0.5 border-b border-border px-3 py-3 text-start hover:bg-surface-2 ${row.studentCaseId === selectedCaseId ? "bg-surface-2" : ""}`}>
               <span className="flex items-center justify-between gap-2">
@@ -492,16 +529,19 @@ function CaseChatList({
 }
 
 export function CaseChatWorkspace({
-  organizationId, membershipId, realtimeConfig, initialThreads, initialQuery, selectedCaseId, initialPage,
+  organizationId, membershipId, realtimeConfig, initialThreads, initialQuery, initialQueue, initialStudentDisplayName, selectedCaseId, initialPage,
   initialPageFailure, pendingAttachment,
 }: Readonly<{
   organizationId: string; membershipId: string; realtimeConfig: SupabasePublicConfig;
   initialThreads: CaseChatThreadsList; initialQuery: string; selectedCaseId: string | null;
+  initialQueue: CaseChatQueue; initialStudentDisplayName: string | null;
   initialPage: CaseChatPage | null; initialPageFailure: CaseChatFailure | null;
   pendingAttachment: CaseChatPendingAttachment | null;
 }>) {
   const [threads, setThreads] = useState(initialThreads);
   const [query, setQuery] = useState(initialQuery);
+  const [queue, setQueue] = useState(initialQueue);
+  const scope = useRef({ query: initialQuery, queue: initialQueue });
   const [attachment, setAttachment] = useState(pendingAttachment);
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<CaseChatFailure | null>(null);
@@ -513,9 +553,9 @@ export function CaseChatWorkspace({
     searchSequence.current += 1;
   }, []);
 
-  async function search(value: string, sequence: number) {
+  const search = useCallback(async (value: string, selectedQueue: CaseChatQueue, sequence: number) => {
     try {
-      const result = await loadStaffCaseChatThreadsAction(value);
+      const result = await loadStaffCaseChatThreadsAction(value, selectedQueue);
       if (sequence !== searchSequence.current) return;
       if (result.status === "ready") setThreads(result.list);
       else setFailure(result.status);
@@ -525,24 +565,36 @@ export function CaseChatWorkspace({
     } finally {
       if (sequence === searchSequence.current) setLoading(false);
     }
-  }
+  }, []);
+
+  const refreshList = useCallback(() => {
+    clearTimeout(debounceRef.current);
+    const sequence = ++searchSequence.current;
+    setFailure(null);
+    setLoading(true);
+    void search(scope.current.query, scope.current.queue, sequence);
+  }, [search]);
+
+  useEffect(() => {
+    window.history.replaceState(null, "", caseChatHref(query, queue, selectedCaseId, attachment));
+  }, [query, queue, selectedCaseId, attachment]);
 
   function onQuery(value: string) {
     setQuery(value);
+    scope.current.query = value;
     clearTimeout(debounceRef.current);
     // Invalidate immediately: an old response may arrive during the debounce.
     const sequence = ++searchSequence.current;
     setFailure(null);
     setLoading(true);
-    debounceRef.current = setTimeout(() => { void search(value, sequence); }, 250);
+    debounceRef.current = setTimeout(() => { void search(value, scope.current.queue, sequence); }, 250);
   }
 
-  function retrySearch() {
-    clearTimeout(debounceRef.current);
-    const sequence = ++searchSequence.current;
-    setFailure(null);
-    setLoading(true);
-    void search(query, sequence);
+  function onQueue(value: CaseChatQueue) {
+    if (value === scope.current.queue) return;
+    setQueue(value);
+    scope.current.queue = value;
+    refreshList();
   }
 
   const row = threads.rows.find((item) => item.studentCaseId === selectedCaseId);
@@ -550,12 +602,14 @@ export function CaseChatWorkspace({
   return (
     <div className="flex min-h-0 flex-1 rounded-card border border-border bg-surface">
       <CaseChatList threads={threads} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
-        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={retrySearch} />
+        queue={queue} onQueue={onQueue}
+        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={refreshList} />
       {selectedCaseId ? (
         <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
-          onAttachmentConsumed={() => setAttachment(null)} organizationId={organizationId} realtimeConfig={realtimeConfig} row={row}
-          listHref={query ? `/v3/messages?q=${encodeURIComponent(query)}` : "/v3/messages"} />
+          onAttachmentConsumed={() => setAttachment(null)} organizationId={organizationId} realtimeConfig={realtimeConfig}
+          studentDisplayName={row?.studentDisplayName ?? initialStudentDisplayName} onListChanged={refreshList}
+          listHref={caseChatHref(query, queue)} />
       ) : (
         <div className="hidden flex-1 items-center justify-center p-6 text-center text-sm text-fg-3 @2xl:flex">
           {!loading && !failure && threads.rows.length > 0 ? "Выберите переписку слева." : null}
